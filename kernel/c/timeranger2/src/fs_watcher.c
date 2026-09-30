@@ -52,6 +52,7 @@ PRIVATE void stop_rescan_pass(fs_event_t *fs_event);
 PRIVATE int rescan_slice_callback(yev_event_h yev_event);
 PRIVATE uint64_t monotonic_us(void);
 PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event);
+PRIVATE int queued_in_kernel(fs_event_t *fs_event, uint64_t *queued);
 
 /***************************************************************************
  *  Data
@@ -264,20 +265,19 @@ PUBLIC int fs_stop_watcher_event(
 }
 
 /***************************************************************************
- *  The kernel says how many bytes of events it holds for the fd (FIONREAD);
- *  before them comes the rest of the batch being walked, if one is
+ *  The kernel says how many bytes of events it holds for the fd (FIONREAD).
+ *  Before them come the rest of the batch being walked, if one is, or else
+ *  a read the kernel has completed and the loop not delivered: its bytes
+ *  left the kernel's queue and are in the buffer, the completion in the
+ *  ring. Between two batches a read completes at any return to user space
+ *  (an interrupt's too), so the ring is looked at before and after asking
+ *  the kernel: the same answer both times, and nothing moved in between --
+ *  there is one read at a time, and once completed it waits for the loop.
  ***************************************************************************/
-PUBLIC uint64_t fs_queued_events_end(
-    fs_event_t *fs_event
-)
+PRIVATE int queued_in_kernel(fs_event_t *fs_event, uint64_t *queued)
 {
-    if(!fs_event) {
-        return 0;
-    }
-    uint64_t end = fs_event->in_batch? fs_event->batch_end : fs_event->offset;
-
-    int queued = 0;
-    if(ioctl(fs_event->fd, FIONREAD, &queued) < 0) {
+    int n = 0;
+    if(ioctl(fs_event->fd, FIONREAD, &n) < 0) {
         gobj_log_error(fs_event->gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -286,9 +286,52 @@ PUBLIC uint64_t fs_queued_events_end(
             "serrno",       "%s", strerror(errno),
             NULL
         );
-        return end;
+        return -1;
     }
-    return end + (uint64_t)(queued > 0? queued : 0);
+    *queued = (uint64_t)(n > 0? n : 0);
+    return 0;
+}
+
+PUBLIC uint64_t fs_queued_events_end(
+    fs_event_t *fs_event
+)
+{
+    if(!fs_event) {
+        return 0;
+    }
+    uint64_t queued = 0;
+    if(fs_event->in_batch) {
+        queued_in_kernel(fs_event, &queued);    // Error already logged
+        return fs_event->batch_end + queued;
+    }
+
+    for(int tries = 0; tries < 3; tries++) {
+        int res1 = 0, res2 = 0;
+        int waiting1 = yev_get_waiting_completion(fs_event->yev_event, &res1);
+        if(queued_in_kernel(fs_event, &queued) < 0) {
+            return fs_event->offset + READ_SIZE;    // Error already logged: a read, at most
+        }
+        int waiting2 = yev_get_waiting_completion(fs_event->yev_event, &res2);
+        if(waiting1 < 0 || waiting2 < 0) {
+            /*
+             *  Completions overflowed the ring: whether one of this read
+             *  waits cannot be seen. A read holds READ_SIZE at most.
+             */
+            return fs_event->offset + READ_SIZE + queued;
+        }
+        if(waiting1 == waiting2 && res1 == res2) {
+            return fs_event->offset + ((waiting2 && res2 > 0)? (uint64_t)res2 : 0) + queued;
+        }
+    }
+
+    gobj_log_error(fs_event->gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL,
+        "msg",          "%s", "the completions of the watcher's read kept moving: counted a read whole",
+        "path",         "%s", fs_event->path,
+        NULL
+    );
+    return fs_event->offset + READ_SIZE + queued;
 }
 
 /***************************************************************************

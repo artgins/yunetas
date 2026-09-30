@@ -1525,7 +1525,7 @@ it by hand, run the script.
 
 ## yev_loop (Event Loop)
 
-### `yev_loop.h` — 27 functions
+### `yev_loop.h` — 28 functions
 
 **Source:** `kernel/c/yev_loop/src/yev_loop.h`
 
@@ -1545,45 +1545,47 @@ it by hand, run the script.
 
 8. [**`yev_get_state_name`**](yev_loop/yev_loop.md#yev_get_state_name) — `PUBLIC const char *yev_get_state_name(yev_event_h yev_event)`
 
-9. [**`yev_set_gbuffer`**](yev_loop/yev_loop.md#yev_set_gbuffer) — `PUBLIC int yev_set_gbuffer( yev_event_h yev_event, gbuffer_t *gbuf )`
+9. [**`yev_get_waiting_completion`**](yev_loop/yev_loop.md#yev_get_waiting_completion) — `PUBLIC int yev_get_waiting_completion(yev_event_h yev_event, int *result)`
 
-10. [**`yev_get_yuno`**](yev_loop/yev_loop.md#yev_get_yuno) — `PUBLIC hgobj yev_get_yuno(yev_loop_h yev_loop)`
+10. [**`yev_set_gbuffer`**](yev_loop/yev_loop.md#yev_set_gbuffer) — `PUBLIC int yev_set_gbuffer( yev_event_h yev_event, gbuffer_t *gbuf )`
 
-11. [**`yev_start_event`**](yev_loop/yev_loop.md#yev_start_event) — `PUBLIC int yev_start_event( yev_event_h yev_event )`
+11. [**`yev_get_yuno`**](yev_loop/yev_loop.md#yev_get_yuno) — `PUBLIC hgobj yev_get_yuno(yev_loop_h yev_loop)`
 
-12. [**`yev_start_timer_event`**](yev_loop/yev_loop.md#yev_start_timer_event) — `PUBLIC int yev_start_timer_event( yev_event_h yev_event, time_t timeout_ms, BOOL periodic )`
+12. [**`yev_start_event`**](yev_loop/yev_loop.md#yev_start_event) — `PUBLIC int yev_start_event( yev_event_h yev_event )`
 
-13. [**`yev_stop_event`**](yev_loop/yev_loop.md#yev_stop_event) — `PUBLIC int yev_stop_event(yev_event_h yev_event)`
+13. [**`yev_start_timer_event`**](yev_loop/yev_loop.md#yev_start_timer_event) — `PUBLIC int yev_start_timer_event( yev_event_h yev_event, time_t timeout_ms, BOOL periodic )`
 
-14. [**`yev_destroy_event`**](yev_loop/yev_loop.md#yev_destroy_event) — `PUBLIC void yev_destroy_event(yev_event_h yev_event)`
+14. [**`yev_stop_event`**](yev_loop/yev_loop.md#yev_stop_event) — `PUBLIC int yev_stop_event(yev_event_h yev_event)`
 
-15. [**`yev_create_timer_event`**](yev_loop/yev_loop.md#yev_create_timer_event) — `PUBLIC yev_event_h yev_create_timer_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj )`
+15. [**`yev_destroy_event`**](yev_loop/yev_loop.md#yev_destroy_event) — `PUBLIC void yev_destroy_event(yev_event_h yev_event)`
 
-16. [**`yev_create_connect_event`**](yev_loop/yev_loop.md#yev_create_connect_event) — `PUBLIC yev_event_h yev_create_connect_event( yev_loop_h yev_loop, yev_callback_t callback, const char *dst_url, const char *src_url, int ai_family, int ai_flags, hgobj gobj )`
+16. [**`yev_create_timer_event`**](yev_loop/yev_loop.md#yev_create_timer_event) — `PUBLIC yev_event_h yev_create_timer_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj )`
 
-17. [**`yev_rearm_connect_event`**](yev_loop/yev_loop.md#yev_rearm_connect_event) — `PUBLIC int yev_rearm_connect_event( yev_event_h yev_event, const char *dst_url, const char *src_url, int ai_family, int ai_flags )`
+17. [**`yev_create_connect_event`**](yev_loop/yev_loop.md#yev_create_connect_event) — `PUBLIC yev_event_h yev_create_connect_event( yev_loop_h yev_loop, yev_callback_t callback, const char *dst_url, const char *src_url, int ai_family, int ai_flags, hgobj gobj )`
 
-18. [**`yev_create_accept_event`**](yev_loop/yev_loop.md#yev_create_accept_event) — `PUBLIC yev_event_h yev_create_accept_event( yev_loop_h yev_loop, yev_callback_t callback, const char *listen_url, int backlog, BOOL shared, int ai_family, int ai_flags, hgobj gobj )`
+18. [**`yev_rearm_connect_event`**](yev_loop/yev_loop.md#yev_rearm_connect_event) — `PUBLIC int yev_rearm_connect_event( yev_event_h yev_event, const char *dst_url, const char *src_url, int ai_family, int ai_flags )`
 
-19. [**`yev_dup_accept_event`**](yev_loop/yev_loop.md#yev_dup_accept_event) — `PUBLIC yev_event_h yev_dup_accept_event( yev_event_h yev_server_accept, int dup_idx, hgobj gobj )`
+19. [**`yev_create_accept_event`**](yev_loop/yev_loop.md#yev_create_accept_event) — `PUBLIC yev_event_h yev_create_accept_event( yev_loop_h yev_loop, yev_callback_t callback, const char *listen_url, int backlog, BOOL shared, int ai_family, int ai_flags, hgobj gobj )`
 
-20. [**`yev_dup2_accept_event`**](yev_loop/yev_loop.md#yev_dup2_accept_event) — `PUBLIC yev_event_h yev_dup2_accept_event( yev_loop_h yev_loop, yev_callback_t callback, int fd_listen, hgobj gobj )`
+20. [**`yev_dup_accept_event`**](yev_loop/yev_loop.md#yev_dup_accept_event) — `PUBLIC yev_event_h yev_dup_accept_event( yev_event_h yev_server_accept, int dup_idx, hgobj gobj )`
 
-21. [**`yev_create_poll_event`**](yev_loop/yev_loop.md#yev_create_poll_event) — `PUBLIC yev_event_h yev_create_poll_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj, int fd, unsigned poll_mask )`
+21. [**`yev_dup2_accept_event`**](yev_loop/yev_loop.md#yev_dup2_accept_event) — `PUBLIC yev_event_h yev_dup2_accept_event( yev_loop_h yev_loop, yev_callback_t callback, int fd_listen, hgobj gobj )`
 
-22. [**`yev_create_read_event`**](yev_loop/yev_loop.md#yev_create_read_event) — `PUBLIC yev_event_h yev_create_read_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj, int fd, gbuffer_t *gbuf )`
+22. [**`yev_create_poll_event`**](yev_loop/yev_loop.md#yev_create_poll_event) — `PUBLIC yev_event_h yev_create_poll_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj, int fd, unsigned poll_mask )`
 
-23. [**`yev_create_write_event`**](yev_loop/yev_loop.md#yev_create_write_event) — `PUBLIC yev_event_h yev_create_write_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj, int fd, gbuffer_t *gbuf )`
+23. [**`yev_create_read_event`**](yev_loop/yev_loop.md#yev_create_read_event) — `PUBLIC yev_event_h yev_create_read_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj, int fd, gbuffer_t *gbuf )`
 
-24. [**`yev_create_recvmsg_event`**](yev_loop/yev_loop.md#yev_create_recvmsg_event) — `PUBLIC yev_event_h yev_create_recvmsg_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj, int fd, gbuffer_t *gbuf )`
+24. [**`yev_create_write_event`**](yev_loop/yev_loop.md#yev_create_write_event) — `PUBLIC yev_event_h yev_create_write_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj, int fd, gbuffer_t *gbuf )`
 
-25. [**`yev_create_sendmsg_event`**](yev_loop/yev_loop.md#yev_create_sendmsg_event) — `PUBLIC yev_event_h yev_create_sendmsg_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj, int fd, gbuffer_t *gbuf, const struct sockaddr *dst_addr, socklen_t dst_addrlen )`
+25. [**`yev_create_recvmsg_event`**](yev_loop/yev_loop.md#yev_create_recvmsg_event) — `PUBLIC yev_event_h yev_create_recvmsg_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj, int fd, gbuffer_t *gbuf )`
 
-26. [**`yev_event_type_name`**](yev_loop/yev_loop.md#yev_event_type_name) — `PUBLIC const char *yev_event_type_name(yev_event_h yev_event)`
+26. [**`yev_create_sendmsg_event`**](yev_loop/yev_loop.md#yev_create_sendmsg_event) — `PUBLIC yev_event_h yev_create_sendmsg_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj, int fd, gbuffer_t *gbuf, const struct sockaddr *dst_addr, socklen_t dst_addrlen )`
 
-27. [**`yev_flag_strings`**](yev_loop/yev_loop.md#yev_flag_strings) — `PUBLIC const char **yev_flag_strings(void)`
+27. [**`yev_event_type_name`**](yev_loop/yev_loop.md#yev_event_type_name) — `PUBLIC const char *yev_event_type_name(yev_event_h yev_event)`
 
-**Total: 27 functions**
+28. [**`yev_flag_strings`**](yev_loop/yev_loop.md#yev_flag_strings) — `PUBLIC const char **yev_flag_strings(void)`
+
+**Total: 28 functions**
 
 ## timeranger2 (Time-Series DB)
 
@@ -2352,7 +2354,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1020 functions** sorted alphabetically with their source header.
+All **1021 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -3322,6 +3324,7 @@ All **1020 functions** sorted alphabetically with their source header.
 | [**`yev_event_type_name`**](yev_loop/yev_loop.md#yev_event_type_name) | `yev_loop.h` | yev_loop (Event Loop) |
 | [**`yev_flag_strings`**](yev_loop/yev_loop.md#yev_flag_strings) | `yev_loop.h` | yev_loop (Event Loop) |
 | [**`yev_get_state_name`**](yev_loop/yev_loop.md#yev_get_state_name) | `yev_loop.h` | yev_loop (Event Loop) |
+| [**`yev_get_waiting_completion`**](yev_loop/yev_loop.md#yev_get_waiting_completion) | `yev_loop.h` | yev_loop (Event Loop) |
 | [**`yev_get_yuno`**](yev_loop/yev_loop.md#yev_get_yuno) | `yev_loop.h` | yev_loop (Event Loop) |
 | [**`yev_loop_create`**](yev_loop/yev_loop.md#yev_loop_create) | `yev_loop.h` | yev_loop (Event Loop) |
 | [**`yev_loop_destroy`**](yev_loop/yev_loop.md#yev_loop_destroy) | `yev_loop.h` | yev_loop (Event Loop) |

@@ -125,16 +125,23 @@ uint64_t fs_queued_events_end(
 **Returns**
 
 The offset in the stream where the events queued by now end: the rest of the
-batch being walked, if one is, plus what the kernel holds (`FIONREAD`). `0`
-for a NULL watcher. If `FIONREAD` fails the error is logged and the events
-still in the kernel are not counted.
+batch being walked, if one is -- or else what a read the kernel completed and
+the loop has not delivered took --, plus what the kernel still holds
+(`FIONREAD`). `0` for a NULL watcher. If `FIONREAD` fails the error is logged
+and a read is counted whole.
 
 **Notes**
 
-Asked from the owner's own callback (the batch is being walked) the answer is
-exact. Asked of ANOTHER watcher, a read the kernel has completed and the loop
-has not handed over yet cannot be seen: its events (one read, a few hundred
-bytes) fall after the answer.
+Exact, asked from the owner's own callback and of another watcher alike.
+Between two batches the kernel completes the watcher's read at any return to
+user space (an interrupt's too): its events are out of the kernel's queue and
+not yet handed over. The completion is looked for in the loop's ring
+([`yev_get_waiting_completion()`](#yev_get_waiting_completion)) before and
+after asking the kernel; the same answer both times means nothing moved in
+between (there is one read at a time, and once completed it waits for the
+loop). Only when completions overflowed the ring, and whether one of this
+read waits cannot be seen, is a read counted whole: the answer is then past
+the end, never short.
 
 A timeranger2 follower uses it to tell apart what it already said from what
 is new. At an overflow it reads `keys/` and tells the keys gone from there

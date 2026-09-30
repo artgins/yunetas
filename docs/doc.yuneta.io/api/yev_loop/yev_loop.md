@@ -753,6 +753,54 @@ The returned string corresponds to one of the predefined event states.
 
 ---
 
+(yev_get_waiting_completion)=
+## [`yev_get_waiting_completion()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/yev_loop/src/yev_loop.c#L2141)
+
+`yev_get_waiting_completion()` says whether the kernel has posted a
+completion of `yev_event` that the loop has not delivered yet: it is in the
+completion ring, behind the one being delivered. The ring is looked at, not
+consumed. Between two turns of the loop the kernel completes an operation at
+any return to user space, so what a read took from its file may already be
+out of the file and not yet in the owner's hands.
+
+```C
+int yev_get_waiting_completion(
+    yev_event_h yev_event,
+    int         *result
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `yev_event` | `yev_event_h` | The event whose completion is looked for. |
+| `result` | `int *` | Filled with the result of the completion found (a read: the bytes it took). May be `NULL`. |
+
+**Returns**
+
+`1` when a completion waits (`*result` set), `0` when none does, `-1` when it
+cannot be known: completions overflowed the ring and wait in the kernel.
+
+**Example**
+
+`fs_watcher` counts the events of an inotify fd that a read has taken and the
+loop has not handed over, besides those the kernel still holds. The ring is
+looked at before and after asking the kernel: the same answer both times says
+nothing completed in between.
+
+```C
+int res1 = 0, res2 = 0, queued = 0;
+int w1 = yev_get_waiting_completion(yev_event, &res1);
+ioctl(fd, FIONREAD, &queued);
+int w2 = yev_get_waiting_completion(yev_event, &res2);
+if(w1 >= 0 && w1 == w2 && res1 == res2) {
+    size_t not_delivered = (w2 && res2 > 0? res2 : 0) + queued;
+}
+```
+
+---
+
 (yev_get_yuno)=
 ## [`yev_get_yuno()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/yev_loop/src/yev_loop.c#L2200)
 

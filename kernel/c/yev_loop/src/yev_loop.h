@@ -207,6 +207,15 @@ PUBLIC int yev_protocol_set_protocol_fill_hints_fn( // Set your own table of pro
 
 PUBLIC const char *yev_get_state_name(yev_event_h yev_event);
 
+/*
+ *  A completion of `yev_event` the kernel has posted and the loop has not
+ *  delivered yet (it is in the completion ring, behind the one being
+ *  delivered): 1 and its result in `*result` (a read: the bytes it took),
+ *  0 if there is none, -1 if it cannot be known (completions overflowed
+ *  the ring and wait in the kernel).
+ */
+PUBLIC int yev_get_waiting_completion(yev_event_h yev_event, int *result);
+
 PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
                             // you can set the same gbuffer without warning.
                             // you get a warning if overwritten the current gbuf,

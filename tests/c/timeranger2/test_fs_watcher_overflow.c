@@ -39,6 +39,12 @@
  *  The timer is what shows: yev_loop says each timer it creates under the
  *  global trace `liburing`, and the test counts those lines.
  *
+ *  And fs_queued_events_end() of a watcher whose read has COMPLETED and
+ *  not been handed over (do_test_queued_events_end): the loop stopped, the
+ *  kernel reads the first events at the next system call and keeps them
+ *  in the completion ring, where FIONREAD no longer counts them. The
+ *  answer must still be where the events end, that read included.
+ *
  *  And the ROOT deleted and created again while the queue is full
  *  (do_test_root_reborn, recursive and not): after the pass the new root
  *  is watched, a file created in it is heard. Up to 7.25.20 the pass
@@ -55,6 +61,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <sys/inotify.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -93,6 +100,7 @@ PRIVATE int stop_overflows = 0;     // FS_OVERFLOW_TYPE told to the owner that s
 PRIVATE int stop_rescanned = 0;     // FS_RESCAN_DIR_TYPE told to it
 PRIVATE int timers_created = 0;     // "yev_create_timer_event" lines, under the trace
 
+PRIVATE int end_files = 0;          // FS_FILE_CREATED_TYPE told to the owner of the queued-end test
 PRIVATE int root_overflows = 0;     // FS_OVERFLOW_TYPE told to the owner of a reborn root
 PRIVATE int root_files = 0;         // FS_FILE_CREATED_TYPE told to it
 
@@ -183,6 +191,14 @@ PRIVATE int fs_callback_root(fs_event_t *fs_event)
             break;
         default:
             break;
+    }
+    return 0;
+}
+
+PRIVATE int fs_callback_end(fs_event_t *fs_event)
+{
+    if(fs_event->fs_type == FS_FILE_CREATED_TYPE) {
+        end_files++;
     }
     return 0;
 }
@@ -311,6 +327,77 @@ PRIVATE int do_test_stop_on_overflow(void)
     result += test_json(NULL);
 
     rmrdir(root2);
+    return result;
+}
+
+/***************************************************************************
+ *  Where the queued events end, with a read completed and not handed over
+ ***************************************************************************/
+#define END_FILES   20      // "f00".."f19": 16 bytes of header and 16 of name each
+PRIVATE int do_test_queued_events_end(void)
+{
+    int result = 0;
+    char root4[PATH_MAX];
+    build_path(root4, sizeof(root4), getenv("HOME"), "tests_yuneta", "fs_watcher_queued_end", NULL);
+    rmrdir(root4);
+    mkrdir(root4, 02770);
+    end_files = 0;
+
+    set_expected_results("fs_watcher queued end: a read completed and not handed over", NULL, NULL, NULL, 1);
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop,
+        root4,
+        0,
+        fs_callback_end,
+        0,
+        NULL,
+        NULL
+    );
+    if(!fs_event) {
+        return -1;
+    }
+    fs_start_watcher_event(fs_event);
+    for(int i = 0; i < 5; i++) {
+        yev_loop_run_once(yev_loop);    // the read is in the kernel, waiting
+    }
+
+    /*
+     *  With the loop stopped: each file created is an IN_CREATE of 32
+     *  bytes; the first one wakes the read, done at the next system call
+     */
+    size_t expected = 0;
+    for(int i = 0; i < END_FILES; i++) {
+        char name[16], path[PATH_MAX];
+        snprintf(name, sizeof(name), "f%02d", i);
+        build_path(path, sizeof(path), root4, name, NULL);
+        int fd = open(path, O_CREAT|O_WRONLY, 0600);
+        if(fd >= 0) {
+            close(fd);
+        }
+        expected += sizeof(struct inotify_event) + 16;
+    }
+    uint64_t end = fs_queued_events_end(fs_event);
+
+    for(int i = 0; i < 50 && end_files < END_FILES; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(end_files != END_FILES) {
+        printf("%sERROR%s --> %d files heard, expected %d\n", On_Red BWhite, Color_Off, end_files, END_FILES);
+        result += -1;
+    }
+    if(fs_event->offset != (uint64_t)expected || end != (uint64_t)expected) {
+        printf("%sERROR%s --> the queued events end at %lu (the stream at %lu once handed over), expected %lu\n",
+            On_Red BWhite, Color_Off, (unsigned long)end, (unsigned long)fs_event->offset,
+            (unsigned long)expected);
+        result += -1;
+    }
+    fs_stop_watcher_event(fs_event);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    rmrdir(root4);
     return result;
 }
 
@@ -633,6 +720,7 @@ int main(int argc, char *argv[])
     yev_loop_create(0, 2024, 10, NULL, &yev_loop);
 
     int result = do_test_stop_on_overflow();
+    result += do_test_queued_events_end();
     result += do_test_root_reborn(FALSE);
     result += do_test_root_reborn(TRUE);
     result += do_test();

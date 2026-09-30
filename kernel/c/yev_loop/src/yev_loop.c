@@ -2122,6 +2122,30 @@ PRIVATE yev_state_t yev_set_state(yev_event_t *yev_event, yev_state_t new_state)
 }
 
 /***************************************************************************
+ *  Looks at the completion ring without consuming it
+ ***************************************************************************/
+PUBLIC int yev_get_waiting_completion(yev_event_h yev_event_, int *result)
+{
+    yev_event_t *yev_event = (yev_event_t *)yev_event_;
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_event->yev_loop;
+
+    if(io_uring_cq_has_overflow(&yev_loop->ring)) {
+        return -1;
+    }
+    unsigned head;
+    struct io_uring_cqe *cqe;
+    io_uring_for_each_cqe(&yev_loop->ring, head, cqe) {
+        if(cqe->user_data == (uint64_t)(uintptr_t)yev_event) {
+            if(result) {
+                *result = cqe->res;
+            }
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC const char * yev_get_state_name(yev_event_h yev_event)

@@ -118,10 +118,11 @@ PUBLIC int fs_stop_watcher_event( // When the event is stopped the fs_event will
  *  Where the events the kernel holds for this watcher BY NOW end, in its
  *  stream of events: an event handed over later with an `offset` below it was
  *  already queued when this was asked -- what it says may be what the owner
- *  has just read from the disk. Asked while the batch is walked (from the
- *  owner's callback) it is exact. Asked of another watcher, a read the kernel
- *  has completed and the loop has not handed over yet cannot be seen: its
- *  events (one read, a few hundred bytes) fall after the answer.
+ *  has just read from the disk. Exact, from the owner's own callback and of
+ *  another watcher alike: a read the kernel completed and the loop has not
+ *  delivered is counted (its completion is looked for in the ring). Only
+ *  when completions overflowed the ring is a read counted whole, unseen: the
+ *  answer may then be past the end, never short.
  */
 PUBLIC uint64_t fs_queued_events_end(
     fs_event_t *fs_event
