@@ -1894,7 +1894,7 @@ PRIVATE json_t *mark_tm_order_of_topic(
         /*
          *  A topic on disk that cannot be opened (its keys/ cannot be
          *  listed, its topic_desc.json does not load) is not a topic that
-         *  is not there: up to this fix both answered "Topic not found"
+         *  is not there: up to 7.25.4 both answered "Topic not found"
          */
         char topic_dir[PATH_MAX];
         *p_result = -1;
@@ -4045,7 +4045,7 @@ PRIVATE int load_record_callback(
         /*
          *  The id of the list is the `rt_id` of its pushes, as the id of a
          *  feed is (see publish_rt_callback): a subscriber filters on it.
-         *  Up to this fix a live list pushed no rt_id, so a filtered
+         *  Up to 7.25.4 a live list pushed no rt_id, so a filtered
          *  subscriber never got them and an unfiltered one got every
          *  append once per live list of the topic.
          */

@@ -18,7 +18,7 @@
  *  And a backup that fails AFTER the rename: the new topic cannot be
  *  created (here: the mkdir of its directory fails with ENOSPC, in
  *  __wrap_mkdir() below). The backup is moved back, and the queue goes on
- *  in its topic, whole; the next call backs it up. Up to this fix the data stayed
+ *  in its topic, whole; the next call backs it up. Up to 7.25.4 the data stayed
  *  in the backup, nothing was opened (the queue had no topic until a
  *  restart) and, its size read as 0, the backup was never tried again.
  *
@@ -50,7 +50,7 @@
  *  opened the half topic.
  *
  *  And the CRITICAL "Cannot create TimeRanger subdir. mkrdir() FAILED"
- *  names the cause (ENOSPC): up to this fix the log of mkrdir() before it
+ *  names the cause (ENOSPC): up to 7.25.4 the log of mkrdir() before it
  *  changed errno, and it said "Success".
  *
  *  And while the queue's topic cannot be opened, only the FIRST call says
@@ -383,7 +383,7 @@ PRIVATE int test_create_keys_fails(void)
             "msg", "newdir() FAILED", "serrno", "No space left on device",
             /*
              *  The cause, not "Success": the log of mkrdir() in between
-             *  changed errno (up to this fix every log did)
+             *  changed errno (up to 7.25.4 every log did)
              */
             "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED", "serrno", "No space left on device",
             "msg", MSG_ABANDON
@@ -1095,7 +1095,7 @@ PRIVATE int test_tr2q_keys_unlistable(void)
  *  A create whose keys/ cannot be made, in a tranger that exits on a
  *  CRITICAL (LOG_OPT_EXIT_ZERO, the default of C_TRANGER, C_TREEDB and the
  *  broker's queues). The process exits, as it is told to -- but only once
- *  what was made is removed. Up to this fix the CRITICAL of the mkdir
+ *  what was made is removed. Up to 7.25.4 the CRITICAL of the mkdir
  *  exited first: the topic_desc.json, topic_cols.json and topic_var.json
  *  stayed with no keys/, and the next start opened that half topic.
  *

@@ -1291,7 +1291,7 @@ PRIVATE int replace_topic_var(
  *  on_critical_error dropped (critical_opt(..., TRUE)), and this is the
  *  CRITICAL at the tranger's own on_critical_error: with LOG_OPT_EXIT_ZERO
  *  (the default of C_TRANGER, C_TREEDB and the broker's queues) the process
- *  exits HERE, once what was made is gone. Up to this fix it exited in the
+ *  exits HERE, once what was made is gone. Up to 7.25.4 it exited in the
  *  log of the first failure, before the removal, and the next start opened
  *  the half topic (or could not open it at all, when the failure was the
  *  write of its topic_desc.json).
@@ -1605,7 +1605,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
 
         /*
          *  A topic that is not whole is not a topic: what was made is
-         *  removed, and nothing is opened. Up to this fix every failure
+         *  removed, and nothing is opened. Up to 7.25.4 every failure
          *  here was logged and the create went on, and a topic without
          *  its keys/ (or disks/) was opened and returned as created: a
          *  queue backup took it as the new topic, and a replica had no
@@ -4392,7 +4392,7 @@ PRIVATE void mirror_key_delete_to_disks(
 
     /*
      *  No disks/, no feed to tell. Any other failure to list it is a
-     *  replica that will not hear of the delete: logged (up to this fix it
+     *  replica that will not hear of the delete: logged (up to 7.25.4 it
      *  was silent, and so was a readdir() that failed half way).
      */
     DIR *dir = opendir(disks_root);
@@ -4566,7 +4566,7 @@ PUBLIC int tranger2_delete_key(
     /*
      *  Only ENOENT says the key is not on disk. Any other failure of the
      *  stat() (EACCES on keys/, EIO) says nothing of it: nothing is
-     *  deleted, nothing announced. Up to this fix it was taken as "not
+     *  deleted, nothing announced. Up to 7.25.4 it was taken as "not
      *  found": the key was dropped from the cache, the delete announced to
      *  every feed and follower, and 0 answered -- over files still on disk,
      *  which came back at the next open.
@@ -4606,7 +4606,7 @@ PUBLIC int tranger2_delete_key(
              *  again from what is left, and the iterators take their
              *  segments again from it -- an unfiltered one at its next
              *  page, a filtered one now, its index built again as an open
-             *  builds it. Nothing is announced. Up to this fix a filtered
+             *  builds it. Nothing is announced. Up to 7.25.4 a filtered
              *  iterator lost its index here, and read an EMPTY key that
              *  was still on disk until it was opened again.
              */
@@ -7788,7 +7788,7 @@ PRIVATE int find_keys_in_disk(
                  *  A key lost, not a key gone (ENOENT: removed between the
                  *  readdir() and the lstat()): the listing fails, as
                  *  find_files_with_suffix_array() fails for a file (EIO,
-                 *  ELOOP...; EACCES lists the entry in both). Up to this fix
+                 *  ELOOP...; EACCES lists the entry in both). Up to 7.25.4
                  *  the key was taken as "not a directory" and left out with
                  *  no log, and the topic opened without it.
                  */
@@ -8215,7 +8215,7 @@ PRIVATE void note_unlisted_state(
  *  directory changed since it was flagged (its mode, its entries: ctime),
  *  or it could not be opened then and can be opened now. Silent: a
  *  directory that looks as it did is not listed, and its failure not
- *  logged, again at every load. Up to this fix a directory that opened and
+ *  logged, again at every load. Up to 7.25.4 a directory that opened and
  *  could not be listed was listed again, and logged again, at every load.
  ***************************************************************************/
 PRIVATE BOOL key_dir_flag_cause_gone(json_t *topic, const char *key)

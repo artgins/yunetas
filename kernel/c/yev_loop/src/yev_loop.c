@@ -644,7 +644,7 @@ PRIVATE void free_dying_events(yev_loop_t *yev_loop)
      *  kernel may still read its gbuffer (the notification says it is
      *  done), and a gbuffer freed and reused would be sent with whatever
      *  was written into it. It is left to the end of the process, said.
-     *  Up to this fix it was freed after YEV_DYING_WAIT_MS, as a fault of
+     *  Up to 7.25.4 it was freed after YEV_DYING_WAIT_MS, as a fault of
      *  the accounting, which it is not.
      */
     unsigned zc_left = 0;
@@ -3562,7 +3562,7 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
                 /*
                  *  The src_url has no address in the family of this
                  *  destination address (localhost is ::1 first, the src
-                 *  127.0.0.1): the next address is tried. Up to this fix
+                 *  127.0.0.1): the next address is tried. Up to 7.25.4
                  *  the connect ended here, and never tried the address of
                  *  the other family.
                  */

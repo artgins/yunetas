@@ -1008,7 +1008,7 @@ PRIVATE void write_log_bf(int priority, log_opt_t opt, const char *bf, size_t le
  *
  *  A log leaves errno as it found it. A caller that logs a failure
  *  and then answers -1 leaves the cause in errno for ITS caller,
- *  which logs strerror(errno) in turn: up to this fix the handlers
+ *  which logs strerror(errno) in turn: up to 7.25.4 the handlers
  *  (a write(), a json dump) had changed it by then, and that log named
  *  another cause, or "Success" (a failed mkrdir() said errno 0).
  *****************************************************************/

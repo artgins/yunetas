@@ -23,11 +23,11 @@
  *      - do_test_key_dir_unstatable: a key whose directory cannot be
  *        stat'ed (EIO, EACCES on keys/) is not "not found": the delete
  *        answers -1, announces nothing, and the key keeps its records.
- *        Up to this fix it was taken as not found: 0, the key dropped from
+ *        Up to 7.25.4 it was taken as not found: 0, the key dropped from
  *        the cache, the delete announced, and the files left on disk.
  *      - do_test_mirror_fails:       the delete cannot list disks/ (its
  *        opendir() or its readdir() fails): the feeds of the replicas are
- *        not told, and that is logged. Up to this fix it was silent.
+ *        not told, and that is logged. Up to 7.25.4 it was silent.
  *
  *  The failures of stat(), opendir() and readdir() are made by the
  *  __wrap_*() below (the test links with --wrap=stat,opendir,readdir), for

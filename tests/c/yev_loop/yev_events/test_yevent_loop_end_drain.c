@@ -40,7 +40,7 @@
  *              notification cannot be canceled, and the kernel may read the
  *              gbuffer until it comes: yev_loop_destroy() waits for it up
  *              to 5 seconds, and then does NOT free the event, with a
- *              warning. Up to this fix it was freed after 1 second, as a
+ *              warning. Up to 7.25.4 it was freed after 1 second, as a
  *              fault of the accounting.
  *
  *          Copyright (c) 2026, ArtGins.

@@ -19,7 +19,7 @@
  *      2. reopen it with d_type hidden: both keys and all five records
  *      3. reopen it with d_type hidden and the lstat() of one key failing
  *         (EIO, by __wrap_lstat() below): the topic does not open, logged.
- *         Up to this fix the key was taken as "not a directory" and left
+ *         Up to 7.25.4 the key was taken as "not a directory" and left
  *         out of the cache with no log -- the topic opened without it, and
  *         a treedb accepted a create of its id. Only ENOENT (the key went
  *         away between the readdir() and the lstat()) leaves a key out.

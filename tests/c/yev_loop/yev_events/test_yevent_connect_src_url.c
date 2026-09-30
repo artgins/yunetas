@@ -22,7 +22,7 @@
  *          E.  A destination name of two families ("localhost": ::1 and
  *              127.0.0.1) and a src_url of the SECOND one: the first
  *              address, where the src has no address, is skipped, and the
- *              connect goes to the second, silently. Up to this fix the
+ *              connect goes to the second, silently. Up to 7.25.4 the
  *              connect ended at the first address ("getaddrinfo() src_url
  *              FAILED"), and the other family was never tried. Skipped when
  *              localhost has one family only.

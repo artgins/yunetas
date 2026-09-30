@@ -57,12 +57,12 @@
  *                 warning, like EACCES.
  *             16. rmrcontentdir() and rmrdir() of a directory whose
  *                 readdir() fails: -1, logged "readdir() FAILED", what was
- *                 not read stays. Up to this fix rmrcontentdir() took the
+ *                 not read stays. Up to 7.25.4 rmrcontentdir() took the
  *                 failure as the end and answered 0 with nothing removed
  *                 and nothing logged, and rmrdir() blamed the rmdir().
  *             17. mkrdir() that fails leaves the cause in errno, after its
  *                 own log: a path under a FILE is ENOTDIR, a path longer than
- *                 PATH_MAX is ENAMETOOLONG. Up to this fix the log changed
+ *                 PATH_MAX is ENAMETOOLONG. Up to 7.25.4 the log changed
  *                 errno, and a caller that logged strerror(errno) said
  *                 "Success".
  *             18. find_files_with_suffix_array() without d_type, and the

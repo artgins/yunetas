@@ -7,7 +7,7 @@
  *
  *  A load tries the flag again only when its cause may be gone: the
  *  directory changed since it was flagged (its ctime: its mode, its
- *  entries), or it could not be opened then and opens now. Up to this fix
+ *  entries), or it could not be opened then and opens now. Up to 7.25.4
  *  a directory that opened was listed again at EVERY load -- and its
  *  failure logged again at every load -- while the doc said the load logs
  *  nothing more.

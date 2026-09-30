@@ -27,7 +27,7 @@
  *         it is open: once the directory can be listed again, the next
  *         notification of the master's append lists the key again, hands
  *         the feed the new row (with its rowid in the whole key), and the
- *         replica reads the whole key. Up to this fix the key stayed
+ *         replica reads the whole key. Up to 7.25.4 the key stayed
  *         flagged until the topic was opened again (and before the flag,
  *         the notified file alone was counted as the whole key).
  *

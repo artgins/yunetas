@@ -2251,7 +2251,7 @@ PRIVATE int do_test(void)
      *      A handle is its session's. Session B knows the ids of the
      *      handles of session A (print-tranger shows them to any `read`
      *      user), and closes or reads none of them: -403, and a warning.
-     *      Session A, and a gobj of this yuno, can. (Up to this fix any
+     *      Session A, and a gobj of this yuno, can. (Up to 7.25.4 any
      *      session closed or read any handle by its id.)
      *-------------------------------------------------*/
     set_expected_results("a handle of another session is refused", NULL, NULL, NULL, 1);
@@ -2663,7 +2663,7 @@ PRIVATE int do_test(void)
     global_result += test_json(NULL);
 
     /*-------------------------------------------------*
-     *      add-record: a record appended to a topic. Up to this fix it
+     *      add-record: a record appended to a topic. Up to 7.25.4 it
      *      was a stub that answered -1 "Pending to review" and logged an
      *      ERROR with a stack.
      *-------------------------------------------------*/

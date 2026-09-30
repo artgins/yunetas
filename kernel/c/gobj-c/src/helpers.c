@@ -402,7 +402,7 @@ PRIVATE int ensure_one_directory(const char *path, int xpermission)
  *  log (-1).
  *  On -1 errno is the cause (ENAMETOOLONG, EINVAL for an empty path,
  *  ENOTDIR, or the errno of the stat()/mkdir() that failed), for a caller
- *  that logs it too: up to this fix the logs in between had changed it.
+ *  that logs it too: up to 7.25.4 the logs in between had changed it.
  ***************************************************************************/
 PUBLIC int mkrdir(const char *path, int xpermission)
 {
@@ -620,7 +620,7 @@ PRIVATE int remove_tree_walk(char *path, int depth)
     }
     if(errno != 0) {
         /*
-         *  Up to this fix a failed readdir() was the end, and the rmdir()
+         *  Up to 7.25.4 a failed readdir() was the end, and the rmdir()
          *  below failed with ENOTEMPTY: the log blamed the rmdir()
          */
         int last_errno = errno;
@@ -757,7 +757,7 @@ PUBLIC int rmrcontentdir(const char *root_dir)
     }
     if(errno != 0) {
         /*
-         *  Up to this fix a failed readdir() was the end: 0, with the
+         *  Up to 7.25.4 a failed readdir() was the end: 0, with the
          *  entries not read yet still there, and nothing logged
          */
         int last_errno = errno;
@@ -3794,7 +3794,7 @@ PUBLIC int find_files_with_suffix_array(
                  *  A directory that can be read and not searched: no entry
                  *  can be asked its type. It is listed, as the entry type
                  *  lists a file there, and whoever opens it meets the EACCES
-                 *  and says it. Up to this fix it was skipped with no log:
+                 *  and says it. Up to 7.25.4 it was skipped with no log:
                  *  timeranger2 read the key EMPTY and unflagged, where the
                  *  entry type flags it.
                  */
