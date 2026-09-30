@@ -2201,12 +2201,13 @@ PRIVATE json_t *load_report(hgobj gobj, const char *date)
     }
 
     /*
-     *  Take the LAST row by asking for its rowid, not by asking for the
-     *  first row backward: from_rowid is a position among the rows the
-     *  iterator returns and `backward` does not turn it into a position
-     *  from the end. (1, 1, TRUE) hands back row 1 -- the OLDEST -- so a
-     *  day reported twice answered for ever with its first version, and a
-     *  re-run to correct a day changed nothing that anybody could read.
+     *  Every row of the day is read, newest first, because the answer is
+     *  not always the last one: it is the newest row WITH data (see above).
+     *  A day has one row per run of it, so the page is small. Rows are
+     *  addressed by position from the start: `backward` does not turn
+     *  from_rowid into a position from the end, (1, 1, TRUE) is the OLDEST
+     *  row -- which is how a day reported twice answered for ever with its
+     *  first version before 7.25.17.
      */
     size_t rows = tranger2_iterator_size(iterator);
     json_t *record = NULL;
@@ -3713,8 +3714,10 @@ PRIVATE int complete_run(hgobj gobj)
      *  lines, passed this guard, and stored (and mailed) NO DATA over a day
      *  of 4632 requests.
      *
-     *  Asked to send it, the run sends the STORED report instead: whoever
-     *  rebuilds a day with send=1 wants that day's mail.
+     *  Kept, the stored report IS the report of this run: it is the one
+     *  mailed (whoever rebuilds a day with send=1 wants that day's mail)
+     *  and the one published. Up to 7.25.20 the run mailed the stored one
+     *  and published the empty one it had read.
      */
     json_int_t got = report_activity(gobj, priv->jn_report);
 
@@ -3735,24 +3738,19 @@ PRIVATE int complete_run(hgobj gobj)
         }
     }
 
-    if(!stored) {
+    if(stored) {
+        JSON_DECREF(priv->jn_report)
+        priv->jn_report = stored;
+    } else {
         store_report(gobj);     // Error already logged
         prune_store(gobj);      // Error already logged
     }
 
     if(priv->send_when_done) {
-        if(stored) {
-            json_t *read_now = priv->jn_report;
-            priv->jn_report = stored;
-            send_report(gobj);  // Error already logged
-            priv->jn_report = read_now;
-        } else {
-            send_report(gobj);  // Error already logged
-        }
+        send_report(gobj);      // Error already logged
     }
-    JSON_DECREF(stored)
 
-    gobj_publish_event(gobj, EV_REPORT_READY, json_incref(priv->jn_report));
+    gobj_publish_event(gobj, EV_REPORT_READY, kw_incref(priv->jn_report));
 
     gobj_change_state(gobj, ST_IDLE);
 

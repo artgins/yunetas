@@ -139,7 +139,9 @@ Events in: `EV_TIMEOUT` (schedule; in `ST_LOOKING_UP`, the lookup timer),
 its C_TCP), and `EV_NEXT_LOOKUP` / `EV_LOOKUP_DONE` (posted to itself).
 Events out: `EV_REPORT_READY` (`EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS`) so a
 future consumer — controlcenter, a SPA view — can take the report without
-touching this yuno.
+touching this yuno. It carries the report of the day, the one that is mailed:
+when a run reads nothing for a day already stored with data, that is the
+stored report, not the empty one the run read.
 
 Work starts in `mt_play`, not in `mt_create`. `mt_create` creates the timer.
 
