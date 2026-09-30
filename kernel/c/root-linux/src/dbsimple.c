@@ -7,6 +7,7 @@
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
 ***********************************************************************/
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
@@ -55,7 +56,8 @@ PRIVATE char *get_persist_filename(
 }
 
 /***************************************************************************
- *  Make the persistent attrs file 0600, the mode save_json() gives it.
+ *  Make the persistent attrs file 0600, the mode save_json() gives it
+ *  (a file left wider by a release before 7.25.19).
  *  Return 0 when it is 0600, -1 when it is not a file to use at all,
  *  -2 when it is a regular file that stays wider than 0600.
  ***************************************************************************/
@@ -200,70 +202,48 @@ PRIVATE json_t *load_json(
 }
 
 /***************************************************************************
- *
+ *  Write the persistent attrs to a NEW file in the same directory and
+ *  rename() it over the old one. The new file is created by us, O_EXCL
+ *  and 0600 (mkostemp()): its owner and mode are ours whatever the old
+ *  file was -- another user's, a hard link, or a symlink planted in its
+ *  place (the data dirs are 02775): rename() replaces the name, and
+ *  nothing is written through it. The old file is never truncated before
+ *  the new one is complete: a failed save leaves it as it was.
+ *  A persistent attr can be a secret (the SMTP password of the
+ *  emailsender, set with set-email-user). Up to 7.25.18 json_dump_file()
+ *  created the file with the process umask, 0666 on every node; up to
+ *  7.25.20 it was written in place.
+ *  A crash between the create and the rename() leaves a
+ *  "<file>.XXXXXX" of 0600 in the directory.
  ***************************************************************************/
 PRIVATE int save_json(
     hgobj gobj,
-    json_t *jn // owned
+    json_t *jn  // owned
 )
 {
     char filename[PATH_MAX];
     get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", TRUE);
 
-    /*
-     *  0600: a persistent attr can be a secret (the SMTP password of the
-     *  emailsender, set with set-email-user). Up to 7.25.18 json_dump_file()
-     *  created it with the process umask -- 0666 on every node. A file that
-     *  cannot be made 0600 (not ours) is not written: the secret would land
-     *  in a file others read. Truncated only after that, so a refused save
-     *  leaves the file as it was.
-     */
-    int fd = open_persist_file(gobj, filename, O_WRONLY|O_CREAT|O_NONBLOCK);
-    if(fd < 0) {
-        // Error already logged
-        JSON_DECREF(jn)
-        return -1;
-    }
-    if(narrow_file_mode(gobj, fd, filename) != 0) {
-        // Error already logged
-        close(fd);
-        JSON_DECREF(jn)
-        return -1;
-    }
-    if(ftruncate(fd, 0) < 0) {
+    char tmpname[PATH_MAX];
+    if(snprintf(tmpname, sizeof(tmpname), "%s.XXXXXX", filename) >= (int)sizeof(tmpname)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot truncate the persistent attrs file",
+            "msg",          "%s", "Path of the persistent attrs file too long",
             "path",         "%s", filename,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
             NULL
         );
-        close(fd);
         JSON_DECREF(jn)
         return -1;
     }
 
-    int ret = json_dumpfd(jn, fd, JSON_INDENT(4));
-    if(ret < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON,
-            "msg",          "%s", "Cannot save device json database",
-            "path",         "%s", filename,
-            NULL
-        );
-        close(fd);
-        JSON_DECREF(jn)
-        return -1;
-    }
-    if(close(fd) < 0) {
+    int fd = mkostemp(tmpname, O_CLOEXEC);
+    if(fd < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot close the persistent attrs file",
-            "path",         "%s", filename,
+            "msg",          "%s", "Cannot create the new persistent attrs file",
+            "path",         "%s", tmpname,
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
             NULL
@@ -271,6 +251,40 @@ PRIVATE int save_json(
         JSON_DECREF(jn)
         return -1;
     }
+
+    const char *failed = NULL;
+    int last_errno = 0;
+    if(json_dumpfd(jn, fd, JSON_INDENT(4)) < 0) {
+        failed = "Cannot save device json database";
+        last_errno = errno;
+    } else if(fsync(fd) < 0) {
+        failed = "Cannot sync the new persistent attrs file";
+        last_errno = errno;
+    }
+    if(close(fd) < 0 && !failed) {
+        failed = "Cannot close the new persistent attrs file";
+        last_errno = errno;
+    }
+    if(!failed && rename(tmpname, filename) < 0) {
+        failed = "Cannot rename the new persistent attrs file over the old one";
+        last_errno = errno;
+    }
+    if(failed) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", failed,
+            "path",         "%s", filename,
+            "tmp",          "%s", tmpname,
+            "errno",        "%d", last_errno,
+            "serrno",       "%s", strerror(last_errno),
+            NULL
+        );
+        unlink(tmpname);
+        JSON_DECREF(jn)
+        return -1;
+    }
+
     JSON_DECREF(jn)
     return 0;
 }

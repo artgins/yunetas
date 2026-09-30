@@ -40,7 +40,12 @@
  *               is LOADED, not only at its next save -- a password set once
  *               is never saved again.
  *            6. a symlink planted in place of the file (the data dirs are
- *               02775) is neither read nor written through.
+ *               02775) is not read, and a save replaces it with a file of
+ *               its own, 0600, without writing through it; the same for a
+ *               hard link (an inode that is not the yuno's). The save
+ *               writes a new file and renames it over the old one: no
+ *               temporary file is left, and a save that fails leaves the
+ *               old file as it was -- and write-attr answers the failure.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -50,6 +55,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <yunetas.h>
 
 #define APP             "test_secret_attrs"
@@ -278,6 +284,44 @@ PRIVATE int write_file(const char *path, const char *content, mode_t mode)
     fchmod(fd, mode);   // not subject to the umask
     close(fd);
     return 0;
+}
+
+PRIVATE BOOL is_regular_not_link(const char *path)
+{
+    struct stat st;
+    if(lstat(path, &st) < 0) {
+        return FALSE;
+    }
+    return S_ISREG(st.st_mode)? TRUE : FALSE;
+}
+
+/*
+ *  The "<file>.XXXXXX" a save writes before its rename()
+ */
+PRIVATE int count_temp_files(const char *path)
+{
+    char dir[PATH_MAX];
+    snprintf(dir, sizeof(dir), "%s", path);
+    char *slash = strrchr(dir, '/');
+    if(!slash) {
+        return -1;
+    }
+    *slash = 0;
+    const char *base = slash + 1;
+    size_t base_len = strlen(base);
+    int count = 0;
+    DIR *d = opendir(dir);
+    if(!d) {
+        return -1;
+    }
+    struct dirent *de;
+    while((de = readdir(d))) {
+        if(strncmp(de->d_name, base, base_len)==0 && de->d_name[base_len] == '.') {
+            count++;
+        }
+    }
+    closedir(d);
+    return count;
 }
 
 PRIVATE int file_mode(const char *path)
@@ -543,11 +587,60 @@ PRIVATE void check_persistent_file(void)
     );
     gobj_write_str_attr(holder, "password", "through-the-link");
     int ret = gobj_save_persistent_attrs(holder, json_string("password"));
-    check_true("a save through a symlink fails", ret < 0);
+    check_int("a save replaces a planted symlink", ret, 0);
+    check_true("the saved file is a regular file, not the link", is_regular_not_link(path));
+    check_int("the saved file is 0600", file_mode(path), 0600);
+    check_true("the saved file has the value", file_contains(path, "through-the-link"));
     check_true("the symlink target is not written",
         !file_contains(planted, "through-the-link")
     );
     check_int("the symlink target keeps its mode", file_mode(planted), 0644);
+
+    /*
+     *  A hard link in place of the file (as a file of another user, it is
+     *  an inode that is not the yuno's to write): the save makes a new one
+     */
+    unlink(path);
+    write_file(planted, "{\"password\": \"other-inode\"}", 0644);
+    if(link(planted, path) < 0) {
+        printf("FAIL cannot create the hard link %s\n", path);
+        s_result += -1;
+    }
+    gobj_write_str_attr(holder, "password", "new-inode");
+    ret = gobj_save_persistent_attrs(holder, json_string("password"));
+    check_int("a save over a hard link succeeds", ret, 0);
+    check_true("the other inode is not written", file_contains(planted, "other-inode"));
+    check_true("the other inode is not written (2)", !file_contains(planted, "new-inode"));
+    check_int("the saved file is a new 0600 inode", file_mode(path), 0600);
+    check_int("no temporary file is left", count_temp_files(path), 0);
+
+    /*
+     *  A save that fails: write-attr says so, the old file stays as it was
+     */
+    gobj_write_str_attr(holder, "password", "kept-on-disk");
+    gobj_save_persistent_attrs(holder, json_string("password"));
+    char dir[PATH_MAX];
+    snprintf(dir, sizeof(dir), "%s", path);
+    *strrchr(dir, '/') = 0;
+    struct stat st_dir;
+    stat(dir, &st_dir);
+    chmod(dir, 0555);
+    json_t *resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=note value=unsaved", json_object(), holder
+    );
+    chmod(dir, st_dir.st_mode & 07777);
+    check_int("write-attr answers a save that failed", (int)kw_get_int(0, resp, "result", 0, 0), -1);
+    JSON_DECREF(resp)
+    check_str("the attr is written anyway", gobj_read_str_attr(holder, "note"), "unsaved");
+    check_true("the old file is left as it was", file_contains(path, "kept-on-disk"));
+    check_int("a failed save leaves no temporary file", count_temp_files(path), 0);
+
+    resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=note value=saved", json_object(), holder
+    );
+    check_int("write-attr answers a save that worked", (int)kw_get_int(0, resp, "result", -1, 0), 0);
+    JSON_DECREF(resp)
+    check_true("and it is on disk", file_contains(path, "saved"));
 
     unlink(path);
     unlink(planted);

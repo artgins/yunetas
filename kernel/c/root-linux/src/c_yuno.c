@@ -1463,10 +1463,31 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         JSON_DECREF(kw)
         return kw_response;
     }
-    gobj_save_persistent_attrs(gobj2write, json_string(attribute));
-
+    /*
+     *  A persistent attr is saved, and a save that fails is the answer: up
+     *  to 7.25.20 the result was ignored and the command answered "done"
+     *  with nothing on disk. Only a service saves (gobj_save_persistent_attrs()
+     *  refuses any other gobj, with a warning, at every write).
+     */
     const sdata_desc_t *desc = gobj_attr_desc(gobj2write, attribute, FALSE);
     BOOL secret = desc && (desc->flag & SDF_SECRET);
+    if(desc && (desc->flag & SDF_PERSIST) && gobj_is_service(gobj2write)) {
+        if(gobj_save_persistent_attrs(gobj2write, json_string(attribute)) < 0) {
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,     // result
+                json_sprintf(
+                    "%s: %s written, but NOT saved (see the log)",
+                    gobj_short_name(gobj2write),
+                    attribute
+                ),
+                0,      // jn_schema
+                0       // jn_data
+            );
+            JSON_DECREF(kw)
+            return kw_response;
+        }
+    }
     json_t *jn_attrs = gobj_read_attrs(gobj2write, SDF_PERSIST|SDF_RD|SDF_WR|SDF_STATS|SDF_RSTATS|SDF_PSTATS, gobj);
     gobj_mask_secret_attrs(gobj2write, jn_attrs);
 

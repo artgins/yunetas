@@ -316,7 +316,10 @@ and a non-service gobj never gets any.
 The file is one per gobj, named
 `<GCLASS_NAME>-<gobj_name>-persistent-attrs.json`, under the realm's `data`
 subdirectory (`yuneta_realm_file(..., "data", ...)`). A missing file is not an
-error: the load returns 0 and the attrs keep their SData defaults.
+error: the load returns 0 and the attrs keep their SData defaults. It is
+0600 (it can hold a secret), and a save writes a new file and renames it over
+the old one: the old file is never half-written, and a save that fails leaves
+it as it was (`write-attr` answers that failure).
 
 APIs ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/gobj.c)):
 

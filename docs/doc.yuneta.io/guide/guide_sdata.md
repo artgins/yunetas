@@ -172,10 +172,19 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
     is written 0600 since 7.25.19: up to 7.25.18 it took the process umask,
     0666 on every node, and it holds these secrets in clear. A file left
     wider by an older release is made 0600 when it is LOADED (logged as
-    *"Persistent attrs file made 0600"*), not only at its next save. A file
-    that cannot be made 0600 (not owned by the yuno's user) is not written
-    to; a symlink in place of the file is neither read nor written through
-    (*"Refused the persistent attrs file: it is a symlink"*).
+    *"Persistent attrs file made 0600"*), not only at its next save. A
+    symlink in place of the file is not read (*"Refused the persistent
+    attrs file: it is a symlink"*).
+
+    A save writes a NEW file in the same directory (`<file>.XXXXXX`,
+    created 0600 with `O_EXCL`) and renames it over the old one, so the
+    file is always the yuno's own, 0600, whatever was there -- a file of
+    another user (up to 7.25.20 it could never be saved again), a hard
+    link, a symlink (replaced, nothing written through it) -- and the old
+    file is never truncated before the new one is complete: a save that
+    fails leaves it as it was. `write-attr` answers a save that fails
+    (*"<gobj>: <attr> written, but NOT saved (see the log)"*, `result`
+    -1); up to 7.25.20 it answered "done" with nothing on disk.
 
     A COMMAND PARAMETER takes the flag too: the `commands` trace prints
     the command line, and with `ev_kw` its kw, with the parameter masked
