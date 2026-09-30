@@ -58,6 +58,19 @@ found"* as a WARNING. D. PUBREC of the QoS 1 message the broker delivered: a
 *"QoS mismatch"* WARNING and DISCONNECT 0x82. Up to 7.25.20 both C and D were
 ERRORs (C with a stack); the test fails on any ERROR in the log.
 
+`test_mqtt_legacy_prot` (`main_legacy_prot.c` + `c_legacy_prot.c`) drives
+`C_PROT_MQTT`, the deprecated protocol gclass, as a server with no broker and
+no socket. The protocol gobj is a child of the driver, its bottom is a
+`C_FAKE_TRANSPORT` (`c_fake_transport.c`: what the protocol writes goes to the
+driver, and a drop comes back as `EV_DISCONNECTED`). The driver also keeps
+the protocol's clients in memory, as its resource gobj. It writes the client's
+MQTT 5 packets by hand. It subscribes to `a/b` and to a 300-byte topic, then
+UNSUBSCRIBEs both in ONE packet: the UNSUBACK must carry two 0x00, the
+"unsubscribing" `EV_ON_MESSAGE` must list the two topics as sent, and no
+subscription may be left. Up to 7.25.20 the topic was read in the packet as a
+C string: `a/b` ran on into the length of the next topic, so it answered 0x11
+and `a/b` stayed subscribed.
+
 ## Run
 
 ```bash

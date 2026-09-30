@@ -654,6 +654,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------------------default-description---------- */
 SDATA (DTP_STRING,      "url",              SDF_PERSIST,                "",         "Url to connect"),
 SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,                "",         "SSL server certificate, PEM format"),
+SDATA (DTP_BOOLEAN,     "connected",        SDF_VOLATIL|SDF_STATS,      0,      "Connection state (of the transport)"),
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
 SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
 SDATA (DTP_JSON,        "client",           SDF_VOLATIL,                0,      "client online"),
@@ -3696,6 +3697,9 @@ PRIVATE json_int_t property_get_int(json_t *properties, int identifier)
 {
     hgobj gobj = 0;
     json_t *property = property_get_property(properties, identifier);
+    if(!property) {
+        return -1;  // absent: a property is optional
+    }
     return kw_get_int(gobj, property, "value", -1, 0);
 }
 
@@ -7850,8 +7854,8 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     json_t *jn_list = json_array();
 
     while(gbuffer_leftbytes(gbuf)>0) {
-        char *sub = NULL;
-        if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
+        char *sub_ = NULL;
+        if(mqtt_read_string(gobj, gbuf, &sub_, &slen)<0) {
             GBMEM_FREE(reason_codes)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
@@ -7869,6 +7873,18 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
+        /*
+         *  sub_ points into the packet, not NUL-terminated: the next topic's
+         *  length follows it. Up to 7.25.20 it was used as it was, and a
+         *  topic followed by one of 256+ bytes was not the topic sent.
+         */
+        char *sub = gbmem_strndup(sub_, slen);
+        if(!sub) {
+            // Error already logged
+            GBMEM_FREE(reason_codes);
+            JSON_DECREF(jn_list)
+            return MOSQ_ERR_NOMEM;
+        }
         if(mosquitto_sub_topic_check(sub)) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -7877,6 +7893,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
+            GBMEM_FREE(sub)
             GBMEM_FREE(reason_codes);
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
@@ -7899,12 +7916,14 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         }
 
         if(rc<0) {
+            GBMEM_FREE(sub)
             GBMEM_FREE(reason_codes);
             JSON_DECREF(jn_list)
             return rc;
         }
 
         json_array_append_new(jn_list, json_string(sub));
+        GBMEM_FREE(sub)
 
         reason_codes[reason_code_count] = reason;
         reason_code_count++;
