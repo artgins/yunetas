@@ -59,6 +59,7 @@ SET(SRCS
     out_flight
     wrong_ack
     legacy_prot
+    client_pubrec
 )
 
 ##############################################

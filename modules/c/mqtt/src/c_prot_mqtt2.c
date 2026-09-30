@@ -827,6 +827,7 @@ PRIVATE int message__out_update(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "QoS mismatch",
+                "client_id",    "%s", priv->client_id,
                 "mid",          "%d", (int)mid,
                 "msg_qos",      "%d", msg_qos,
                 "expected_qos", "%d", qos,
@@ -838,18 +839,16 @@ PRIVATE int message__out_update(
         msg_flag_set_state(qmsg, state);
         tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
         return MOSQ_ERR_SUCCESS;
-    } else {
-        // Trace by now, see use cases
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT,
-            "msg",          "%s", "Message not found",
-            "mid",          "%d", (int)mid,
-            "qos",          "%d", qos,
-            NULL
-        );
-        return MOSQ_ERR_NOT_FOUND;
     }
+
+    /*
+     *  A PUBREC of a packet id we never used, or already released: the
+     *  peer's. The caller, handle__pubrec(), says it as a WARNING (client_id,
+     *  mid, peername) and answers PUBREL, as db__message_update_outgoing()
+     *  does on the server side. Up to 7.25.20 it was also an ERROR here,
+     *  with a stack trace.
+     */
+    return MOSQ_ERR_NOT_FOUND;
 }
 
 /***************************************************************************

@@ -77,6 +77,16 @@ and `a/b` stayed subscribed. Then, on a new connection, a CONNECT with a
 300-byte password and one byte too many: the dump of the refused frame must
 not carry the password (up to 7.25.20 it carried the whole CONNECT).
 
+`test_mqtt_client_pubrec` (`main_client_pubrec.c` + `c_client_pubrec.c`) drives
+`C_PROT_MQTT2` as a CLIENT on a `C_FAKE_TRANSPORT`, with its queues in a
+`C_TRANGER` of the driver; the driver plays the broker. After CONNACK: a PUBREC
+of a packet id the client never used must be said once, as the WARNING *"Mqtt:
+Received PUBREC for an unknown packet ID"*, and answered with PUBREL (up to
+7.25.20 the client also logged an ERROR *"Message not found"* with a stack).
+Then a QoS 1 PUBLISH of the client, and PUBREC of it: *"QoS mismatch"*, a
+WARNING that must name the client (`client_id`, checked in the log), and
+DISCONNECT 0x82.
+
 ## Run
 
 ```bash
