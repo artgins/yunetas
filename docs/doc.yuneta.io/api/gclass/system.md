@@ -76,8 +76,8 @@ File-system watcher — monitors directory changes using the
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_IDLE` |
-| **Output events** | `EV_ON_MESSAGE` (directory change notifications) |
+| **States** | `ST_IDLE` |
+| **Output events** | `EV_FS_CHANGED`, `EV_FS_RENAMED`, both with `{"path", "filename"}` |
 
 ### Key attributes
 
@@ -86,6 +86,34 @@ File-system watcher — monitors directory changes using the
 | `path` | `string` | Directory to watch. |
 | `recursive` | `bool` | Watch subdirectories recursively. |
 | `info` | `bool` | Report found subdirectories on startup. |
+
+### What it publishes
+
+One event per change the watcher reports, `path` being the directory and
+`filename` the entry that changed:
+
+| Change (fs_watcher type) | Event |
+|---|---|
+| directory created / deleted (`FS_SUBDIR_CREATED_TYPE`, `FS_SUBDIR_DELETED_TYPE`) | `EV_FS_CHANGED` |
+| file created / deleted / modified (`FS_FILE_CREATED_TYPE`, `FS_FILE_DELETED_TYPE`, `FS_FILE_MODIFIED_TYPE`) | `EV_FS_CHANGED` |
+| rename (`FS_FILE_RENAME_TYPE`, not reported by the watcher today) | `EV_FS_RENAMED` |
+| events lost (`FS_OVERFLOW_TYPE`) | `EV_FS_CHANGED` once, for the watched root (`filename` empty); the rescan pass that follows publishes nothing |
+
+A host subscribes to it and declares both events in its FSM:
+
+```C
+priv->gobj_fs = gobj_create("", C_FS, json_pack("{s:s, s:b}",
+    "path", "/yuneta/development/docs",
+    "recursive", 1
+), gobj);
+gobj_subscribe_event(priv->gobj_fs, NULL, 0, gobj);
+gobj_start(priv->gobj_fs);
+```
+
+Up to 7.25.20 the types were read as bits: a deleted directory published
+nothing (and leaked the kw built for it), and the other changes were
+published only because the value of "file modified" (5) shared bits with
+theirs.
 
 ---
 

@@ -249,52 +249,59 @@ PRIVATE BOOL locate_subdirs_cb(
 
 /***************************************************************************
  *      fs events callback
+ *
+ *  The types of fs_watcher are values, not bits: up to 7.25.20 they were
+ *  tested with `&`, FS_FILE_MODIFIED_TYPE (5) matched a created directory,
+ *  a created file and a deleted file by accident, and a deleted directory
+ *  (2) matched nothing -- no event, and its kw leaked. Every change is an
+ *  EV_FS_CHANGED; a rename (if the watcher ever reports one) EV_FS_RENAMED.
  ***************************************************************************/
 PRIVATE int fs_event_callback(fs_event_t *fs_event)
 {
+    gobj_event_t event = NULL;
+
+    switch(fs_event->fs_type) {
+        case FS_SUBDIR_CREATED_TYPE:
+        case FS_SUBDIR_DELETED_TYPE:
+        case FS_FILE_CREATED_TYPE:
+        case FS_FILE_DELETED_TYPE:
+        case FS_FILE_MODIFIED_TYPE:
+            event = EV_FS_CHANGED;
+            break;
+
+        case FS_FILE_RENAME_TYPE:
+            event = EV_FS_RENAMED;
+            break;
+
+        case FS_OVERFLOW_TYPE:
+            /*
+             *  Events were lost: something changed under the watched root,
+             *  and nobody knows what. Once: the pass that follows is not
+             *  published.
+             */
+            event = EV_FS_CHANGED;
+            break;
+
+        case FS_RESCAN_DIR_TYPE:
+            return 0;   // the pass after an overflow: published once, at FS_OVERFLOW_TYPE
+
+        default:
+            gobj_log_error(fs_event->gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "fs_type unknown",
+                "fs_type",      "%d", (int)fs_event->fs_type,
+                "path",         "%s", (const char *)fs_event->directory,
+                NULL
+            );
+            return -1;
+    }
+
     json_t *kw = json_pack("{s:s, s:s}",
         "path", fs_event->directory,
         "filename", fs_event->filename
     );
-
-    if(fs_event->fs_type == FS_OVERFLOW_TYPE) {
-        /*
-         *  Events were lost: something changed under the watched root, and
-         *  nobody knows what. Checked first: the tests below read the type
-         *  as bits, and its value would match several of them.
-         */
-        gobj_publish_event(fs_event->gobj, EV_FS_CHANGED, kw);
-        return 0;
-    }
-    if(fs_event->fs_type == FS_RESCAN_DIR_TYPE) {
-        /*
-         *  The pass after an overflow, one directory at a time: the change
-         *  was published once, at FS_OVERFLOW_TYPE
-         */
-        JSON_DECREF(kw)
-        return 0;
-    }
-
-    if (fs_event->fs_type & (FS_SUBDIR_CREATED_TYPE)) {
-    }
-    if (fs_event->fs_type & (FS_SUBDIR_DELETED_TYPE)) {
-    }
-    if (fs_event->fs_type & (FS_FILE_CREATED_TYPE)) {
-    }
-    if (fs_event->fs_type & (FS_FILE_DELETED_TYPE)) {
-    }
-    if (fs_event->fs_type & (FS_FILE_MODIFIED_TYPE)) {
-        gobj_publish_event(fs_event->gobj, EV_FS_CHANGED, kw);
-    }
-
-    // TODO see how implement UV_CHANGE or if it's useful
-    // Original
-    // if (events == UV_RENAME) {
-    //     gobj_publish_event(fs_event->gobj, EV_FS_RENAMED, kw);
-    // }
-    // if (events == UV_CHANGE) {
-    //     gobj_publish_event(fs_event->gobj, EV_FS_CHANGED, kw);
-    // }
+    gobj_publish_event(fs_event->gobj, event, kw);
 
     return 0;
 }
