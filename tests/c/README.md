@@ -76,6 +76,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `c_node_paged_nodes` | Paging of `C_NODE`'s `nodes` |
 | `c_node_authz` | The permission every `C_NODE` command asks for |
 | `c_agent_find_new_yunos` | The rows of the agent's `find-new-yunos` against a real `C_NODE` with the agent's schema: a yuno already registered at the new release is marked, not listed as new |
+| `c_controlcenter_scenarios` | The control center's scenarios on its own source, between a fake web side and a real `C_IEVENT_SRV` of an agent: `save-scenario` with the scenario as a string answers with its id (freed memory poisoned, so a read after the free shows); a step parameter starting with `__` is refused at the save, and a scenario saved without the step checks is refused at the run, naming the step; a step's answer counts only from the step's agent (not through another client's `command-agent`, nor injected); what an agent sends back (answers, the PTY mirror) reaches a channel only while it is the connection that asked, and only from `__input_side__` (a client injecting them reaches nobody); an agent's close drops the client of each console mirrored through it |
 | `c_treedb_system_schema` | `__system__`, the meta-treedb of `C_TREEDB`: projection, save, apply, delete |
 | `c_treedb_literal_wins` | `C_TREEDB`: a schema from C newer than the schema file in use wins whole, `__system__` is projected from it whole, the operator work it discards is reported once, and an unfinished or killed projection completes at the next open; `save-schema` of a node of two parents (and of one unshared again), of two topics of one name, and of a draft that shifts its siblings' places; a failed open keeps the saved schema |
 | `treedb_schema_fidelity` | Every real schema of the tree through `__system__` and back |
@@ -126,7 +127,7 @@ The single-binary directories that also register under `<directory>/`:
 
 | Directory | New binaries |
 |---|---|
-| `c_agent_find_new_yunos`, `c_ievent_srv_peer_subs`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_s_restart`, `c_udp_s_self_stop`, `c_udp_s_rx`, `c_udp_s_echo`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
+| `c_agent_find_new_yunos`, `c_controlcenter_scenarios`, `c_ievent_srv_peer_subs`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_s_restart`, `c_udp_s_self_stop`, `c_udp_s_rx`, `c_udp_s_echo`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
 | `gbuffer` | `test_gbmem_realloc_refused` |
 | `c_subscriptions` | `test_subs_test3` |
 | `kw` | `test_kw_set_dict_value` |

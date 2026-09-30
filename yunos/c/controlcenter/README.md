@@ -102,7 +102,12 @@ instead of `node` makes a DIRECT scenario, which the web console watches
 through its own link to that agent (and which `run-scenario` refuses). An
 action is `start`, `pause`, `resume`, `stop` or `report`, each a list of
 steps: a yuno of the scenario (its `key`, default its `id`), an optional
-service, and one command line with its `key=value` parameters.
+service, and one command line with its `key=value` parameters. A parameter
+may not be named like one of `command-yuno`'s (`id`, `service`, `command`) or
+a column of the agent's `yunos` topic (it would select the yuno), nor start
+with `__` (a framework key: `__md_iev__`, `__username__`, ...). `run-scenario`
+checks the steps again, so a scenario saved before a check existed is refused
+naming the step until it is saved again.
 
 `run-scenario scenario_id=<id> action=<action>` sends each step as
 `command-yuno id=<yuno> [service=<svc>] command=<command>` to the yuno's
@@ -111,11 +116,19 @@ one before it answered, and a step that fails, does not answer in
 `run_step_timeout` (30000 ms), or whose agent disconnects, ends the run. The
 run is then written to `scenario_runs` -- action, user, start and end, the
 result and answer of every step, and for a `report` what each step answered
-(`data`) -- and the requester is answered with it. One run at a time.
+(`data`) -- and the requester is answered with it. One run at a time. A
+step's answer is taken only from the agent the step went to: `command-agent`
+removes the marks of a step (`__md_iev__` `cc_run`, `cc_step`) from what a
+client forwards.
 
 A web client is told apart by its connection, not by its channel name (which
-the next client takes): streams and run answers reach the channel only while
-it holds the same connection (7.25.15). `write-scenarios` together with
+the next client takes): answers (`command-agent`, `stats-agent`), streams (the
+PTY of `open-console`, `EV_YUNO_STATS`) and run answers reach the channel only
+while it holds the same connection (7.25.15 for the stats and the runs, since
+7.25.20 all of them). Those events are taken only from `__input_side__`: a web
+client that sends one itself is dropped with a warning. Several consoles can
+be mirrored through one agent's connection; when it closes, the client of
+each console is dropped (once, and only if it is still the same connection). `write-scenarios` together with
 `run-scenarios` is as much as `command-agent`: the steps run on the control
 center's session.
 

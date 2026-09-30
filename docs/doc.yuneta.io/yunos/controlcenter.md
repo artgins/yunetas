@@ -122,12 +122,33 @@ yuno stats for a web client that is gone, dropped (the agent's watch expires)  d
 The channel a browser holds in `__top_side__` (`top-12`) is taken by the next
 client once it closes, so a stream still pushed for the tab that left would
 reach whoever connected after it -- up to `watch_ttl` of another user's node
-data. Each connection gets a number when it opens, `command-agent` stamps it
-on the request (`cc_connection`, in the first frame of the ievent stack, which
-the agent keeps with the watch), and a relayed `EV_YUNO_STATS` -- like the
-answer of a `run-scenario` -- is delivered only while the channel still holds
-that connection. The rest is dropped and counted with the gone ones
-(`reconnected=its channel holds another connection now` in the warning).
+data. Each connection gets a number when it opens, `command-agent` and
+`stats-agent` stamp it on the request (`cc_connection`, in the first frame of
+the ievent stack, which the agent gives back with its answer and keeps with a
+watch or a console), and what comes back -- the answer of a command or of a
+stats, the PTY of `open-console` (`EV_TTY_OPEN`, `EV_TTY_DATA`,
+`EV_TTY_CLOSE`), a relayed `EV_YUNO_STATS`, the answer of a `run-scenario` --
+is delivered only while the channel still holds that connection. A stream
+(`EV_YUNO_STATS`, `EV_TTY_DATA`) for another connection is dropped and counted
+with the gone ones (`reconnected=its channel holds another connection now` in
+the warning); an answer is dropped with a warning each (*"answer for a web
+client that is gone, dropped: its channel holds another connection now"*).
+When an agent's connection closes, the client of each console mirrored
+through it is dropped, once, and only if it is still the connection that
+opened that console. Several consoles go through one agent's connection; the
+control center keeps their clients per console name, and a console opened
+again by another client is that client's -- the agent routes it the same way
+(one route per console and control-center channel, refreshed by the re-open).
+Up to 7.25.20 the control center kept one client per agent connection: the
+last console opened, cleared by the close of any console. Up to 7.25.20 only
+`EV_YUNO_STATS` and the run's answer were checked: a slow answer, or a PTY
+stream, of the client that left reached the next one.
+
+These events are public because the agents send them, but only an agent may:
+one that arrives from `__top_side__` -- a web client sending it itself, with a
+route of its own writing -- is dropped with a warning (*"event of an agent
+not from the agents' side, dropped"*). Up to 7.25.20 a client could push an
+answer or console frames of its making to any other client's channel.
 
 ## Scenarios (TreeDB)
 
@@ -236,6 +257,14 @@ end, the result and the answer of every step, and for a `report` what each
 step answered (`data`) -- and the requester is answered with it (the command
 answers when the run is OVER). One run at a time.
 
+A step is marked in its `__md_iev__` (`cc_run`, `cc_step`) and its answer is
+taken only from the channel of the agent it went to: `command-agent` removes
+those two keys from what a client forwards, and an answer that carries them
+from anywhere else is dropped with a warning (*"answer of a scenario run step
+not from the agent of the step, dropped"*). Up to 7.25.20 a client with
+`command-agent` could end, or advance, another user's run with an answer of
+its own.
+
 ```bash
 ycommand ... -c 'run-scenario scenario_id=t1 action=report'
 ycommand ... -c 'scenario-runs scenario_id=t1'        # newest first
@@ -266,6 +295,26 @@ parameter would pick another yuno or none. `save-scenario` refuses it:
 ```bash
 ycommand ... -c 'save-scenario scenario={"id":"t2","node":"wattyzer","yunos":[{"id":"1620"}],"actions":{"stop":[{"yuno":"1620","command":"set-x date=1"}]}}'
 # -> ... actions.stop[0]: command: the parameter 'date' is command-yuno's or a yuno's field: it would select the yuno
+```
+
+Nor may a parameter start with `__` (`__md_iev__`, `__username__`,
+`__md_command__`, ...): those are the framework's keys, and the agent's command
+parser sets the parameters of the line over the kw -- a `__md_iev__` would
+replace the routing of the step's answer (the run waits for its deadline), a
+`__username__` the user the control center stamps.
+
+```bash
+ycommand ... -c 'save-scenario scenario={"id":"t3","node":"wattyzer","yunos":[{"id":"1620"}],"actions":{"stop":[{"yuno":"1620","command":"set-x __username__=root"}]}}'
+# -> ... actions.stop[0]: command: the parameter '__username__' is a framework key: it would replace what the control center sets
+```
+
+`run-scenario` checks the steps of the action again before it sends the first
+one, so a scenario saved before a check existed (by 7.25.14, which checked no
+step) is refused by name until it is saved again:
+
+```bash
+ycommand ... -c 'run-scenario scenario_id=t1 action=stop'
+# -> ... cannot run 'stop' of 't1': step 0: command: the parameter 'date' is command-yuno's or a yuno's field: it would select the yuno; save the scenario again
 ```
 
 ## Configuration
