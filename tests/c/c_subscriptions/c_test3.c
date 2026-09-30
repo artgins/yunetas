@@ -48,6 +48,19 @@
  *      7) A renamed `__own_event__` subscription repeated with the same kw
  *         is still one.
  *
+ *      8) gobj_unsubscribe_list() removes the subscription it is GIVEN. A
+ *         plain one and one with a `__filter__` coexist; removing the plain
+ *         one leaves the filtered one in the publisher's and in the
+ *         subscriber's list. A subscription already removed (a stale
+ *         reference) removes nothing and is logged. Up to 7.25.20 the
+ *         entry was looked up by its fields, and the first entry that
+ *         matched was removed: the stale plain one took a live one with it.
+ *
+ *      9) A top-level `renamed_event` in the kw of gobj_find_subscriptions()
+ *         is not a key of a subscription kw, and filters nothing: the
+ *         plain subscription is found. Only a `__rename_event_name__` in
+ *         the `__config__` of a (un)subscription selects by renamed event.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -68,6 +81,7 @@
  ***************************************************************************/
 PRIVATE json_t *kw_hard(void);
 PRIVATE int count_subscriptions(hgobj gobj);
+PRIVATE int count_subscribings(hgobj gobj);
 PRIVATE void check(hgobj gobj, BOOL ok, const char *what);
 
 /***************************************************************************
@@ -193,6 +207,17 @@ PRIVATE json_t *kw_hard(void)
 PRIVATE int count_subscriptions(hgobj gobj)
 {
     json_t *dl_subs = gobj_find_subscriptions(gobj, EV_ON_MESSAGE, NULL, gobj);
+    int n = (int)json_array_size(dl_subs);
+    JSON_DECREF(dl_subs)
+    return n;
+}
+
+/***************************************************************************
+ *  The subscribings of this gobj to its own EV_ON_MESSAGE
+ ***************************************************************************/
+PRIVATE int count_subscribings(hgobj gobj)
+{
+    json_t *dl_subs = gobj_find_subscribings(gobj, EV_ON_MESSAGE, NULL, gobj);
     int n = (int)json_array_size(dl_subs);
     JSON_DECREF(dl_subs)
     return n;
@@ -423,6 +448,67 @@ PRIVATE int ac_test_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INFO,
         "msg",          "%s", "renamed own event override ok",
+        NULL
+    );
+
+    /*
+     *  8) gobj_unsubscribe_list() removes exactly what it is given
+     */
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj);
+    json_t *dl_stale = gobj_find_subscriptions(gobj, EV_ON_MESSAGE, NULL, gobj);
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj);
+    check(gobj, count_subscriptions(gobj) == 0, "the plain one is removed");
+
+    json_t *subs_plain = json_incref(   // held: a wrong removal must not free it
+        gobj_subscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj)
+    );
+    json_t *kw_filter = json_pack("{s:{s:b}}", "__filter__", "wanted", 1);
+    json_t *subs_filter = gobj_subscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_filter), gobj);
+    check(gobj, count_subscriptions(gobj) == 2, "a plain and a filtered subscription coexist");
+
+    gobj_unsubscribe_list(gobj, dl_stale, FALSE);
+    check(gobj, count_subscriptions(gobj) == 2 && count_subscribings(gobj) == 2,
+        "a stale subscription removes no live one");
+
+    gobj_unsubscribe_list(gobj, json_pack("[o]", subs_plain), FALSE);
+    check(gobj, count_subscriptions(gobj) == 1 && count_subscribings(gobj) == 1,
+        "removing the plain one leaves one");
+    json_t *dl_left = gobj_find_subscriptions(gobj, EV_ON_MESSAGE, NULL, gobj);
+    check(gobj, json_array_get(dl_left, 0) == subs_filter,
+        "the filtered one is left in the publisher's list");
+    JSON_DECREF(dl_left)
+    dl_left = gobj_find_subscribings(gobj, EV_ON_MESSAGE, NULL, gobj);
+    check(gobj, json_array_get(dl_left, 0) == subs_filter,
+        "the filtered one is left in the subscriber's list");
+    JSON_DECREF(dl_left)
+
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, kw_filter, gobj);
+    check(gobj, count_subscriptions(gobj) == 0 && count_subscribings(gobj) == 0,
+        "the filter kw withdraws the filtered one");
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "unsubscribe list by identity ok",
+        NULL
+    );
+
+    /*
+     *  9) A top-level renamed_event in a find kw is no filter
+     */
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj);
+    json_t *dl_found = gobj_find_subscriptions(
+        gobj, EV_ON_MESSAGE, json_pack("{s:I}", "renamed_event", (json_int_t)1), gobj
+    );
+    check(gobj, json_array_size(dl_found) == 1, "a top-level renamed_event does not filter");
+    JSON_DECREF(dl_found)
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj);
+    check(gobj, count_subscriptions(gobj) == 0, "the plain one is removed (9)");
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "user renamed_event ignored ok",
         NULL
     );
 

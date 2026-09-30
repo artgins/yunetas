@@ -8435,8 +8435,8 @@ PRIVATE json_t * _create_subscription(
  *  to the stored `__global__`: with `kw` as it came, the same kw matched no
  *  subscription, a repeat of it was made twice (the subscriber got each
  *  event twice) and its withdrawal found nothing. Up to 7.25.4 the kw was
- *  compared as it came. A known renamed event goes into the kw as its
- *  `renamed_event`, which _match_subscription() compares: it is what the
+ *  compared as it came. A known renamed event is returned in
+ *  `*renamed_event`, which _match_subscription() compares: it is what the
  *  subscriber receives, so a plain and a renamed subscription, or two
  *  renames of one event, are two. 7.25.5 dropped it, and a renamed kw
  *  found the plain subscription, and any other rename, as a repeat of
@@ -8445,9 +8445,12 @@ PRIVATE json_t * _create_subscription(
 PRIVATE json_t *_subscription_match_kw(
     gobj_t *publisher,
     gobj_event_t event,
-    json_t *kw  // not owned
+    json_t *kw, // not owned
+    gobj_event_t *renamed_event_ // out, NULL when kw does not rename
 )
 {
+    *renamed_event_ = NULL;
+
     const char *framework_keys[] = {
         "__hard_subscription__", "__own_event__", "__rename_event_name__", 0
     };
@@ -8476,11 +8479,7 @@ PRIVATE json_t *_subscription_match_kw(
     event_type_t *renamed_type = empty_string(renamed_event)?
         NULL : gobj_find_event_type(renamed_event, 0, FALSE);
     if(renamed_type) {
-        json_object_set_new(
-            kw_match,
-            "renamed_event",
-            json_integer((json_int_t)(uintptr_t)(renamed_type->event_name))
-        );
+        *renamed_event_ = renamed_type->event_name;
         json_object_del(config_match, "__rename_event_name__");
         json_t *global_match = json_object_get(kw_match, "__global__");
         if(event && json_size(global_match) > 0) {
@@ -8500,6 +8499,7 @@ PRIVATE BOOL _match_subscription(
     json_t *subs,
     gobj_t *publisher,
     gobj_event_t event,
+    gobj_event_t renamed_event, // NULL: any
     json_t *kw, // NOT owned
     gobj_t *subscriber
 ) {
@@ -8529,13 +8529,11 @@ PRIVATE BOOL _match_subscription(
         }
     }
 
-    /*
-     *  Set by _subscription_match_kw() for a renamed kw, and present in a
-     *  stored subscription used as the kw (_delete_subscription())
-     */
-    if(kw_has_key(kw, "renamed_event")) {
-        if(kw_get_int(0, kw, "renamed_event", 0, 0) !=
-                kw_get_int(0, subs, "renamed_event", 0, 0)) {
+    if(renamed_event) {
+        gobj_event_t renamed_event_ = (gobj_event_t)(uintptr_t)kw_get_int(
+            0, subs, "renamed_event", 0, 0
+        );
+        if(renamed_event != renamed_event_) {
             return FALSE;
         }
     }
@@ -8596,6 +8594,7 @@ PRIVATE json_t * _find_subscriptions(
     json_t *dl_subs,
     gobj_t *publisher,
     gobj_event_t event,
+    gobj_event_t renamed_event, // NULL: any
     json_t *kw, // owned
     gobj_t *subscriber
 ) {
@@ -8607,6 +8606,7 @@ PRIVATE json_t * _find_subscriptions(
             subs,
             publisher,
             event,
+            renamed_event,
             kw, // NOT owned
             subscriber
         )) {
@@ -8619,24 +8619,18 @@ PRIVATE json_t * _find_subscriptions(
 }
 
 /***************************************************************************
- *  Find idx of subscription in dl_subs, -1 not found
+ *  Find idx of the subscription `subs` itself in dl_subs, -1 not found.
+ *  Up to 7.25.20 it was the first entry whose fields matched `subs`: a
+ *  subscription already removed took a live one that matched it (a plain
+ *  one matches every other of its event and subscriber).
  ***************************************************************************/
 PRIVATE int _get_subs_idx(
     json_t *dl_subs,
-    gobj_t *publisher,
-    gobj_event_t event,
-    json_t *kw, // NOT owned
-    gobj_t *subscriber
+    json_t *subs // NOT owned
 ) {
-    size_t idx; json_t *subs;
-    json_array_foreach(dl_subs, idx, subs) {
-        if(_match_subscription(
-            subs,
-            publisher,
-            event,
-            kw, // NOT owned
-            subscriber
-        )) {
+    size_t idx; json_t *subs_;
+    json_array_foreach(dl_subs, idx, subs_) {
+        if(subs_ == subs) {
             return (int)idx;
         }
     }
@@ -8666,6 +8660,22 @@ PRIVATE int _delete_subscription(
         if(!force) {
             return -1;
         }
+    }
+
+    /*-------------------------------------------------*
+     *  A subscription already removed is not informed
+     *-------------------------------------------------*/
+    if(_get_subs_idx(publisher->dl_subscriptions, subs) < 0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "subscription in publisher not found",
+            "event",        "%s", event,
+            "publisher",    "%s", gobj_full_name(publisher),
+            "subscriber",   "%s", gobj_full_name(subscriber),
+            NULL
+        );
+        return -1;
     }
 
     /*-----------------------------*
@@ -8709,13 +8719,7 @@ PRIVATE int _delete_subscription(
     /*--------------------------------*
      *      Delete subscription
      *--------------------------------*/
-    int idx = _get_subs_idx(
-        publisher->dl_subscriptions,
-        publisher,
-        event,
-        subs,
-        subscriber
-    );
+    int idx = _get_subs_idx(publisher->dl_subscriptions, subs);
 
     if(idx >= 0) {
         if(json_array_remove(publisher->dl_subscriptions, (size_t)idx)<0) {
@@ -8736,13 +8740,7 @@ PRIVATE int _delete_subscription(
         gobj_trace_json(gobj, subs, "subscription in publisher not found");
     }
 
-    idx = _get_subs_idx(
-        subscriber->dl_subscribings,
-        publisher,
-        event,
-        subs,
-        subscriber
-    );
+    idx = _get_subs_idx(subscriber->dl_subscribings, subs);
     if(idx >= 0) {
         if(json_array_remove(subscriber->dl_subscribings, (size_t)idx)<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -8864,11 +8862,14 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     /*------------------------------*
      *  Find repeated subscription
      *------------------------------*/
+    gobj_event_t renamed_event = NULL;
+    json_t *kw_match = _subscription_match_kw(publisher, event, kw, &renamed_event);
     json_t *dl_subs = _find_subscriptions(
         publisher->dl_subscriptions,
         publisher,
         event,
-        _subscription_match_kw(publisher, event, kw), // owned
+        renamed_event,
+        kw_match, // owned
         subscriber
     );
 
@@ -9108,11 +9109,14 @@ PUBLIC int gobj_unsubscribe_event(
     /*-----------------------------*
      *      Find subscription
      *-----------------------------*/
+    gobj_event_t renamed_event = NULL;
+    json_t *kw_match = _subscription_match_kw(publisher, event, kw, &renamed_event);
     json_t *dl_subs = _find_subscriptions(
         publisher->dl_subscriptions,
         publisher,
         event,
-        _subscription_match_kw(publisher, event, kw), // owned
+        renamed_event,
+        kw_match, // owned
         subscriber
     );
     int deleted = 0;
@@ -9200,6 +9204,7 @@ PUBLIC json_t *gobj_find_subscriptions(
         publisher->dl_subscriptions,
         gobj_,
         event,
+        NULL,
         kw,
         subscriber
     );
@@ -9227,6 +9232,7 @@ PUBLIC json_t *gobj_find_subscribings(
         gobj->dl_subscribings,
         publisher,
         event,
+        NULL,
         kw,
         gobj
     );

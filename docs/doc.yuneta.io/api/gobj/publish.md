@@ -287,6 +287,8 @@ Returns `0` upon successful removal of the subscriptions.
 
 Each subscription in `dl_subs` is checked and removed from both the publisher's and subscriber's subscription lists.
 
+The subscription removed is the one GIVEN: the json objects that [`gobj_find_subscriptions()`](#gobj_find_subscriptions) returns, not a copy. A subscription that is no longer in the publisher's list (a stale reference, already removed) removes nothing, is not passed to `mt_subscription_deleted`, and is logged (*"subscription in publisher not found"*). Up to 7.25.20 the entry removed was the first one whose fields matched the one given, and a plain subscription matches every other of its event and subscriber: a stale plain one removed a live subscription with a `__filter__`, `__local__` or `__global__`.
+
 ---
 
 (gobj_list_subscribings)=
