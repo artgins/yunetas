@@ -863,23 +863,24 @@ PRIVATE void count_connections(hgobj gobj, json_int_t *connxs, json_int_t *tconn
     }
     BOOL new_method = json_object_size(priv->child_tree_filter) == 0;
 
+    /*
+     *  The bottom of every child of the parent, as mt_destroy clears them:
+     *  with child_tree_filter the accept takes whatever gobj the filter
+     *  matches, a C_CHANNEL or not. `tcp_s` says whose it is.
+     */
     hgobj child = gobj_first_child(gobj_parent(gobj));
     while(child) {
-        if(gobj_gclass_name(child) == C_CHANNEL ||
-            gobj_typeof_inherited_gclass(child, C_CHANNEL)
+        hgobj clisrv = gobj_last_bottom_gobj(child);
+        if(clisrv &&
+            gobj_gclass_name(clisrv) == C_TCP &&
+            gobj_read_bool_attr(clisrv, "__clisrv__") &&
+            gobj_read_pointer_attr(clisrv, "tcp_s") == gobj
         ) {
-            hgobj clisrv = gobj_last_bottom_gobj(child);
-            if(clisrv &&
-                gobj_gclass_name(clisrv) == C_TCP &&
-                gobj_read_bool_attr(clisrv, "__clisrv__") &&
-                gobj_read_pointer_attr(clisrv, "tcp_s") == gobj
-            ) {
-                if(gobj_read_bool_attr(clisrv, "connected")) {
-                    (*connxs)++;
-                }
-                if(new_method) {
-                    *tconnxs += gobj_read_integer_attr(clisrv, "connxs");
-                }
+            if(gobj_read_bool_attr(clisrv, "connected")) {
+                (*connxs)++;
+            }
+            if(new_method) {
+                *tconnxs += gobj_read_integer_attr(clisrv, "connxs");
             }
         }
         child = gobj_next_child(child);

@@ -40,12 +40,14 @@ the peer:
    again"*), and the peer's `five` is heard. Up to 7.25.20 that start found
    the `C_UDP_S` still holding its socket (*"yev_server_udp ALREADY
    exists"*).
-8. The same again, and when the `C_UDP_S` says `EV_STOPPED` -- to the
-   `C_GSS_UDP_S` first, which posts itself the start it waited for, then to
-   the test -- the `C_GSS_UDP_S` is stopped and started once more: that start
-   starts the `C_UDP_S` at once, and the posted start, delivered after it,
-   must do nothing (it restarted the live `C_UDP_S`). The peer's `six` is
-   heard.
+8. The same again, and when the `C_UDP_S` says `EV_STOPPED` -- to the test
+   first (the `C_GSS_UDP_S` subscribed again after it), which posts itself a
+   restart, then to the `C_GSS_UDP_S`, which posts itself the start it
+   waited for -- the posted restart stops and starts the `C_GSS_UDP_S`: that
+   start starts the `C_UDP_S` at once, and the posted start, delivered after
+   it, must do nothing (it restarted the live `C_UDP_S`). The peer's `six` is
+   heard. Nothing is stopped or started inside the publish of the
+   `C_UDP_S`.
 
 Up to 7.25.20 `C_GSS_UDP_S` took that `EV_STOPPED` with no action: `lost` and
 `back` each logged *"Event NOT DEFINED in state"* (from `C_UDP_S` in

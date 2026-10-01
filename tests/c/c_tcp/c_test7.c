@@ -28,6 +28,12 @@
  *                 loop, still in ST_WAIT_STOPPED, it is DESTROYED. Its
  *                 drop is said too, at the destroy: the close never ended
  *                 through the path that says it.
+ *              5. A third C_TCP (timeout_inactivity 300 ms) connects and
+ *                 stays idle: closed by its inactivity. The disconnect_cause
+ *                 of the first ("Local dropping") and of the third
+ *                 ("Inactivity timeout") are read at their EV_DISCONNECTED
+ *                 and after the close: the cancel of their read
+ *                 (-ECANCELED, "Operation canceled") must not hide them.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -79,6 +85,9 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj gobj_tcp;
     hgobj gobj_tcp2;
+    hgobj gobj_tcp3;
+    char cause1[256];   // disconnect_cause of tcp_client at its EV_DISCONNECTED
+    char cause3[256];   // of tcp_client3
     int fd_listen;
     int phase;
     int connected;
@@ -135,6 +144,12 @@ PRIVATE void mt_create(hgobj gobj)
         json_pack("{s:s}", "url", url),
         gobj
     );
+    priv->gobj_tcp3 = gobj_create(
+        "tcp_client3",
+        C_TCP,
+        json_pack("{s:s, s:i}", "url", url, "timeout_inactivity", 300),
+        gobj
+    );
     priv->gobj_tcp2 = gobj_create(
         "tcp_client2",
         C_TCP,
@@ -182,6 +197,9 @@ PRIVATE int mt_stop(hgobj gobj)
     }
     if(priv->gobj_tcp2 && gobj_is_running(priv->gobj_tcp2)) {
         gobj_stop(priv->gobj_tcp2);
+    }
+    if(gobj_is_running(priv->gobj_tcp3)) {
+        gobj_stop(priv->gobj_tcp3);
     }
 
     return 0;
@@ -252,6 +270,11 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(src == priv->gobj_tcp3) {
+        KW_DECREF(kw)
+        return 0;   // it stays idle: closed by its timeout_inactivity
+    }
+
     if(src == priv->gobj_tcp2) {
         gobj_send_event(priv->gobj_tcp2, EV_DROP, 0, gobj);
         gbuffer_t *gbuf = gbuffer_create(16, 16);
@@ -315,7 +338,13 @@ PRIVATE int ac_destroy_tcp(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
         "msg",          "%s", "TEST: a C_TCP destroyed while closing",
         NULL
     );
-    set_yuno_must_die();
+
+    /*
+     *  A third C_TCP, closed by its timeout_inactivity
+     */
+    gobj_start(priv->gobj_tcp3);
+    priv->phase = 4;
+    set_timeout(priv->timer, 1500);
 
     KW_DECREF(kw)
     return 0;
@@ -328,7 +357,16 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->disconnected++;
+    /*
+     *  Why it ended, as the owner reads it at EV_DISCONNECTED
+     */
+    const char *cause = gobj_read_str_attr(src, "disconnect_cause");
+    if(src == priv->gobj_tcp) {
+        snprintf(priv->cause1, sizeof(priv->cause1), "%s", cause);
+        priv->disconnected++;
+    } else if(src == priv->gobj_tcp3) {
+        snprintf(priv->cause3, sizeof(priv->cause3), "%s", cause);
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -398,6 +436,36 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 3:
             test_fail(gobj, "TEST: the second C_TCP did not connect");
+            set_yuno_must_die();
+            break;
+
+        case 4:
+            /*
+             *  The cause of each end, at EV_DISCONNECTED and after the close:
+             *  the drop and the inactivity, not the cancel of their read
+             */
+            if(strcmp(priv->cause1, "Local dropping")!=0 ||
+                    strcmp(gobj_read_str_attr(priv->gobj_tcp, "disconnect_cause"), "Local dropping")!=0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST: wrong disconnect_cause of a drop",
+                    "at_disconnected", "%s", priv->cause1,
+                    "after_close",  "%s", gobj_read_str_attr(priv->gobj_tcp, "disconnect_cause"),
+                    NULL
+                );
+            }
+            if(strcmp(priv->cause3, "Inactivity timeout")!=0 ||
+                    strcmp(gobj_read_str_attr(priv->gobj_tcp3, "disconnect_cause"), "Inactivity timeout")!=0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST: wrong disconnect_cause of an inactivity close",
+                    "at_disconnected", "%s", priv->cause3,
+                    "after_close",  "%s", gobj_read_str_attr(priv->gobj_tcp3, "disconnect_cause"),
+                    NULL
+                );
+            }
             set_yuno_must_die();
             break;
 

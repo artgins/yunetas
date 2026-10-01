@@ -53,9 +53,10 @@ Supports one-at-a-time (rotated) or broadcast delivery.
 
 With `send_type` 1 every open channel gets the message. A message in a
 gbuffer is read out by the channel that sends it (`C_PROT_TCP4H` appends it
-to its frame), so each channel gets a COPY of what is left to read -- with
-its secret flag, label and address -- and the last open channel takes the
-original. A
+to its frame), so every open channel but the last gets a COPY of what is
+left to read -- with its secret flag, label and address -- and the last one
+takes the original gbuffer. So a sender that kept a reference to that
+gbuffer finds it read out after a send to all, as after a send to one. A
 kw without a gbuffer is shared (`kw_incref()`). Up to 7.25.20 the gbuffer was
 shared: the first channel sent the message, and the others an empty frame,
 which a `C_PROT_TCP4H` peer drops the connection on (*"frame_length cannot be

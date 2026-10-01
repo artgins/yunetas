@@ -628,6 +628,36 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             break;
 
         case 16:
+            {
+                /*
+                 *  The clisrv of the peer must be odd_port's: else the
+                 *  check after the destroy tests nothing
+                 */
+                hgobj odd = gobj_find_child(gobj, json_pack("{s:s}", "__gobj_name__", "odd_port"));
+                hgobj prot = gobj_find_child(gobj, json_pack("{s:s}", "__gobj_name__", "odd-1"));
+                hgobj tcp = prot? gobj_last_bottom_gobj(prot) : 0;
+                if(!tcp || gobj_read_pointer_attr(tcp, "tcp_s") != odd ||
+                        !gobj_read_bool_attr(tcp, "connected")) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "odd_port did not accept its peer into odd-1: nothing tested",
+                        NULL
+                    );
+                }
+                /*
+                 *  Counted by the same rule: whatever gobj the filter took
+                 */
+                if(gobj_read_integer_attr(odd, "connxs") != 1) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "odd_port does not count the connection of a gobj that is not a C_CHANNEL",
+                        "connxs",       "%ld", (long)gobj_read_integer_attr(odd, "connxs"),
+                        NULL
+                    );
+                }
+            }
             gobj_stop(gobj_find_child(gobj, json_pack("{s:s}", "__gobj_name__", "odd_port")));
             set_timeout(priv->timer, 300);
             break;

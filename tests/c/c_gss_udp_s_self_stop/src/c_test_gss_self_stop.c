@@ -40,11 +40,13 @@
  *                 turn, its C_UDP_S with a read in flight (still stopping
  *                 when the start comes): it starts it when its stop ends,
  *                 and the peer's "five" is heard.
- *             10. The same, and when the C_UDP_S says EV_STOPPED (to the
- *                 C_GSS_UDP_S first, which posts itself the start, then to
- *                 this gobj) the C_GSS_UDP_S is stopped and started once
+ *             10. The same, and when the C_UDP_S says EV_STOPPED (to this
+ *                 gobj first, which posts itself a restart of the
+ *                 C_GSS_UDP_S, then to the C_GSS_UDP_S, which posts itself
+ *                 the start) the C_GSS_UDP_S is stopped and started once
  *                 more: that start starts the C_UDP_S at once, and the
- *                 posted one must do nothing. The peer's "six" is heard.
+ *                 posted start, delivered after it, must do nothing. The
+ *                 peer's "six" is heard.
  *
  *          Up to 7.25.20 C_GSS_UDP_S took the EV_STOPPED of its C_UDP_S
  *          with no action: it went on sending to it ("Event NOT DEFINED in
@@ -511,7 +513,15 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              *  the C_UDP_S is started at once by that start, and the posted
              *  start, delivered after it, must not start it again
              */
+            /*
+             *  This gobj hears the EV_STOPPED of the C_UDP_S BEFORE the
+             *  C_GSS_UDP_S (its subscription is made again after this
+             *  one): the restart this gobj posts goes before the start the
+             *  C_GSS_UDP_S posts, and so that start comes stale
+             */
+            gobj_unsubscribe_event(priv->gobj_udp_s, NULL, NULL, priv->gobj_gss);
             gobj_subscribe_event(priv->gobj_udp_s, EV_STOPPED, 0, gobj);
+            gobj_subscribe_event(priv->gobj_udp_s, NULL, NULL, priv->gobj_gss);
             priv->restart_on_udp_stopped = TRUE;
             gobj_stop(priv->gobj_gss);
             gobj_start(priv->gobj_gss);
@@ -581,7 +591,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  The C_UDP_S stopped: once, the C_GSS_UDP_S is stopped and started again
+ *  The C_UDP_S stopped: once, a stop and a start of the C_GSS_UDP_S, on the
+ *  next cycle (not inside the publish of the C_UDP_S)
  ***************************************************************************/
 PRIVATE int ac_udp_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -589,9 +600,23 @@ PRIVATE int ac_udp_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 
     if(priv->restart_on_udp_stopped) {
         priv->restart_on_udp_stopped = FALSE;
-        gobj_stop(priv->gobj_gss);
-        gobj_start(priv->gobj_gss);
+        gobj_post_event(gobj, EV_TEST_RESTART_GSS, json_object(), gobj);
     }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The C_GSS_UDP_S stopped and started again: its C_UDP_S, stopped by now,
+ *  is started at once, before the start the C_GSS_UDP_S posted itself
+ ***************************************************************************/
+PRIVATE int ac_restart_gss(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_stop(priv->gobj_gss);
+    gobj_start(priv->gobj_gss);
 
     KW_DECREF(kw)
     return 0;
@@ -650,6 +675,7 @@ GOBJ_DEFINE_GCLASS(C_TEST_GSS_SELF_STOP);
  *      Events
  *------------------------*/
 GOBJ_DEFINE_EVENT(EV_TEST_SEND_IN_WAIT);
+GOBJ_DEFINE_EVENT(EV_TEST_RESTART_GSS);
 
 /***************************************************************************
  *
@@ -678,6 +704,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_CLOSE,           ac_channel,         0},
         {EV_TEST_SEND_IN_WAIT,  ac_send_in_wait,    0},
         {EV_STOPPED,            ac_udp_stopped,     0},
+        {EV_TEST_RESTART_GSS,   ac_restart_gss,     0},
         {0, 0, 0}
     };
 
@@ -693,6 +720,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_CLOSE,           0},
         {EV_TEST_SEND_IN_WAIT,  0},
         {EV_STOPPED,            0},
+        {EV_TEST_RESTART_GSS,   0},
         {0, 0}
     };
 

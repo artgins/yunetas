@@ -8,6 +8,7 @@
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
 #include <poll.h>
@@ -116,7 +117,8 @@ PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error);
 PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf);
-PRIVATE void set_disconnect_cause(hgobj gobj, const char *cause);
+PRIVATE void set_disconnect_cause(hgobj gobj, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+PRIVATE const char *tls_last_error(hgobj gobj);
 
 /***************************************************************
  *              Data
@@ -153,7 +155,7 @@ SDATA (DTP_INTEGER, "timeout_between_connections", SDF_RD, "2000", "Idle timeout
 SDATA (DTP_INTEGER, "timeout_between_connections_max", SDF_RD, "0", "If > timeout_between_connections, reconnect uses exponential backoff from the base up to this cap (ms), resetting to base once a connection is established. 0 = disabled (legacy fixed interval)."),
 SDATA (DTP_INTEGER, "timeout_inactivity", SDF_RD,       "-1", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
 SDATA (DTP_BOOLEAN, "connect_on_start", SDF_RD,         "TRUE",     "Client: connect when started. FALSE: stay in ST_DISCONNECTED until the owner sends EV_CONNECT (connections on demand)"),
-SDATA (DTP_STRING,  "disconnect_cause", SDF_RD|SDF_STATS, "",       "Why the last connection, or the last attempt to connect, ended: the error of the socket, a TLS handshake that failed, 'Local dropping', 'Inactivity timeout'. Emptied at each EV_CONNECT"),
+SDATA (DTP_STRING,  "disconnect_cause", SDF_RD|SDF_STATS, "",       "Why the last connection, or the last attempt to connect, ended: the error of the socket, a TLS failure with its reason, 'Local dropping', 'Inactivity timeout', 'Local stop'. The first cause of an end is kept. Emptied at each EV_CONNECT and when a connection begins"),
 
 SDATA (DTP_INTEGER, "txBytes",          SDF_RSTATS,     "0", "Messages transmitted"),
 SDATA (DTP_INTEGER, "rxBytes",          SDF_RSTATS,     "0", "Messages received"),
@@ -418,6 +420,8 @@ PRIVATE int mt_start(hgobj gobj)
                 "msg",          "%s", "Cannot connect tcp gobj",
                 NULL
             );
+            gobj_write_str_attr(gobj, "disconnect_cause", "");    // a new start
+            set_disconnect_cause(gobj, "Cannot create the connect");
             try_to_stop_yevents(gobj);
             return -1;
         }
@@ -465,6 +469,9 @@ PRIVATE int mt_stop(hgobj gobj)
         gobj_stop(priv->gobj_timer);
     }
 
+    if(!gobj_in_this_state(gobj, ST_STOPPED) && !gobj_in_this_state(gobj, ST_DISCONNECTED)) {
+        set_disconnect_cause(gobj, "Local stop");
+    }
     try_to_stop_yevents(gobj);
 
     if(priv->sskt) {
@@ -592,6 +599,8 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    gobj_write_str_attr(gobj, "disconnect_cause", "");    // a clisrv gets no EV_CONNECT
+
     log_closing_drops(gobj);    // a new connection starts its own count
 
     gobj_write_bool_attr(gobj, "connected", TRUE);
@@ -688,6 +697,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
                 "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
                 NULL
             );
+            set_disconnect_cause(gobj, "TLS: cannot create the secure filter: %s", tls_last_error(gobj));
             try_to_stop_yevents(gobj);
             return;
         }
@@ -716,6 +726,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
                 "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
                 NULL
             );
+            set_disconnect_cause(gobj, "TLS: the handshake cannot start: %s", tls_last_error(gobj));
             try_to_stop_yevents(gobj);
             return;
         }
@@ -791,6 +802,7 @@ PRIVATE void set_secure_connected(hgobj gobj)
          *  caller (which calls try_to_stop_yevents() on a TLS error).
          *  Error already logged in flush_clear_data.
          */
+        set_disconnect_cause(gobj, "TLS: the flush of clear data failed");
         try_to_stop_yevents(gobj);
         return;
     }
@@ -819,7 +831,7 @@ PRIVATE void set_disconnected(hgobj gobj)
                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                 "msg",          "%s", "Disconnected",
                 "msg2",         "%s", "Disconnected To 🔴",
-                "cause",        "%s", gobj_log_last_message(),
+                "cause",        "%s", gobj_read_str_attr(gobj, "disconnect_cause"),
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
                 "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
@@ -831,7 +843,7 @@ PRIVATE void set_disconnected(hgobj gobj)
                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                 "msg",          "%s", "Disconnected",
                 "msg2",         "%s", "Disconnected From 🔴",
-                "cause",        "%s", gobj_log_last_message(),
+                "cause",        "%s", gobj_read_str_attr(gobj, "disconnect_cause"),
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
                 "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
@@ -1037,6 +1049,7 @@ PRIVATE int start_write_event(hgobj gobj, yev_event_h yev_write_event)
             NULL
         );
         yev_destroy_event(yev_write_event);
+        set_disconnect_cause(gobj, "Cannot start a write");
         try_to_stop_yevents(gobj);
         return -1;
     }
@@ -1088,6 +1101,7 @@ PRIVATE int write_data(hgobj gobj)
                 "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
                 NULL
             );
+            set_disconnect_cause(gobj, "TLS: encrypt failed: %s", tls_last_error(gobj));
             try_to_stop_yevents(gobj);
         }
         if(gbuffer_leftbytes(gbuf) > 0) {
@@ -1120,6 +1134,7 @@ PRIVATE int write_data(hgobj gobj)
                 "msg",          "%s", "Cannot create a write: the connection is dropped",
                 NULL
             );
+            set_disconnect_cause(gobj, "Cannot create a write");
             try_to_stop_yevents(gobj);
             return -1;
         }
@@ -1154,6 +1169,7 @@ PRIVATE int write_encrypted_data(hgobj gobj, gbuffer_t *gbuf /* owned */)
             "msg",          "%s", "Cannot create a write: the connection is dropped",
             NULL
         );
+        set_disconnect_cause(gobj, "Cannot create a write");
         try_to_stop_yevents(gobj);
         return -1;
     }
@@ -1429,13 +1445,39 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 // }
 
 /***************************************************************************
- *  Why the connection, or the attempt to connect, ends: in the last message
- *  of the log and in the attr `disconnect_cause`, which the owner reads when
- *  it sees the state change (the last message is any ERROR of the process).
+ *  The reason of the last TLS failure of this connection, "" when its TLS
+ *  is already gone (a decrypt error can come after the session was freed)
  ***************************************************************************/
-PRIVATE void set_disconnect_cause(hgobj gobj, const char *cause)
+PRIVATE const char *tls_last_error(hgobj gobj)
 {
-    gobj_log_set_last_message("%s", cause);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->ytls || !priv->sskt) {
+        return "";
+    }
+    return ytls_get_last_error(priv->ytls, priv->sskt);
+}
+
+/***************************************************************************
+ *  Why the connection, or the attempt to connect, ends: in the attr
+ *  `disconnect_cause`, which the owner reads when it sees the state change,
+ *  and the Disconnected trace says. The FIRST cause of an end wins: what
+ *  ends it ("Local dropping", "Inactivity timeout", an error) comes before
+ *  the cancel of its read, whose -ECANCELED must not hide it. Emptied when
+ *  a connection begins (EV_CONNECT, set_connected()). Not the process-wide
+ *  last message: that is any ERROR of the process, and a TLS backend had
+ *  put the specific reason of its failure there.
+ ***************************************************************************/
+PRIVATE void set_disconnect_cause(hgobj gobj, const char *fmt, ...)
+{
+    if(!empty_string(gobj_read_str_attr(gobj, "disconnect_cause"))) {
+        return; // the first cause of this end is kept
+    }
+    char cause[256];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(cause, sizeof(cause), fmt, ap);
+    va_end(ap);
     gobj_write_str_attr(gobj, "disconnect_cause", cause);
 }
 
@@ -1462,7 +1504,11 @@ PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
         /*
          *  Don't stop here, will be stopped in return of ytls_decrypt_data()
          */
-        set_disconnect_cause(gobj, "TLS handshake failed");
+        const char *reason = tls_last_error(gobj);
+        set_disconnect_cause(gobj, "TLS handshake failed%s%s",
+            empty_string(reason)? "" : ": ",
+            empty_string(reason)? "" : reason
+        );
     } else {
         set_secure_connected(gobj);
     }
@@ -1580,6 +1626,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                              *      Solution: don't return -1 on ytls_on_clear_data_callback
                              */
                             if(ret < -1000) { // Mark as TLS error
+                                set_disconnect_cause(gobj, "TLS: %s", tls_last_error(gobj));
                                 try_to_stop_yevents(gobj);
                             }
                             break;
@@ -1611,7 +1658,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /*
                      *  Disconnected
                      */
-                    set_disconnect_cause(gobj, strerror(-yev_get_result(yev_event)));
+                    set_disconnect_cause(gobj, "%s", strerror(-yev_get_result(yev_event)));
 
                     if(trace) {
                         gobj_log_debug(gobj, 0,
@@ -1688,7 +1735,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /*
                      *  Disconnected
                      */
-                    set_disconnect_cause(gobj, strerror(-yev_get_result(yev_event)));
+                    set_disconnect_cause(gobj, "%s", strerror(-yev_get_result(yev_event)));
 
                     if(trace) {
                         gobj_log_debug(gobj, 0,
@@ -1722,7 +1769,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /*
                      *  Error on connection
                      */
-                    set_disconnect_cause(gobj, strerror(-yev_get_result(yev_event)));
+                    set_disconnect_cause(gobj, "%s", strerror(-yev_get_result(yev_event)));
 
                     if(trace) {
                         gobj_log_debug(gobj, 0,
@@ -1772,7 +1819,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /*
                      *  Error on connection
                      */
-                    set_disconnect_cause(gobj, strerror(-yev_get_result(yev_event)));
+                    set_disconnect_cause(gobj, "%s", strerror(-yev_get_result(yev_event)));
 
                     if(trace) {
                         gobj_log_debug(gobj, 0,
@@ -1888,6 +1935,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "msg",          "%s", "Cannot connect tcp gobj",
             NULL
         );
+        set_disconnect_cause(gobj, "Cannot set up the connect");
         try_to_stop_yevents(gobj);
         return -1;
     }
@@ -1931,6 +1979,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             priv->ytls = ytls_init(gobj, jn_crypto, FALSE);
             if(!priv->ytls) {
                 // Error already logged (ytls refuses insecure clients by default)
+                set_disconnect_cause(gobj, "TLS: the client configuration is refused");
                 try_to_stop_yevents(gobj);
                 return -1;
             }
@@ -1952,6 +2001,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "msg",          "%s", "Cannot connect tcp gobj",
             NULL
         );
+        set_disconnect_cause(gobj, "Cannot start the connect");
         try_to_stop_yevents(gobj);
         return -1;
     }
