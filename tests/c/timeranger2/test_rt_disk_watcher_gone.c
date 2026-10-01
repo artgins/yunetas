@@ -17,6 +17,17 @@
  *  Now the owner is told (FS_WATCHER_GONE_TYPE) before the watcher goes:
  *  the feed drops its watcher, says it is deaf, and the readers skip it.
  *
+ *  And the read of a watcher canceled by another than its owner
+ *  (do_test_read_canceled_by_another): here yev_stop_event() on the
+ *  watcher's read event, from outside fs_watcher. In a yuno no such cancel
+ *  comes: yev_loop_stop() cancels every operation, but it is called after
+ *  every owner stopped its watcher (gobj_end()), and a loop run after it
+ *  delivers nothing behind its own completion (the loop breaks there and
+ *  leaves it at the head of the ring). Coming anyway it is an order
+ *  broken: logged as an error, and the owner is told -- closing the feed
+ *  and the shutdown afterwards touch no freed watcher. Up to 7.25.20 the
+ *  watcher went silently there too.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -324,6 +335,89 @@ PRIVATE int do_test(void)
 }
 
 /***************************************************************************
+ *  The read of a feed's watcher canceled by another than its owner
+ ***************************************************************************/
+PRIVATE int do_test_read_canceled_by_another(void)
+{
+    int result = 0;
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database), getenv("HOME"), "tests_yuneta", DATABASE, NULL);
+    rmrdir(path_database);
+
+    set_expected_results(
+        "read canceled by another: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_tranger(TRUE);
+    if(!tm || !tranger2_create_topic(
+        tm, TOPIC_NAME, "id", "tm",
+        json_pack("{s:i, s:s, s:i, s:i}",
+            "on_critical_error", 4,
+            "filename_mask", "%Y-%m-%d",
+            "xpermission" , 02700,
+            "rpermission", 0600
+        ),
+        sf_int_key,
+        json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
+        0)) {
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    json_t *tf = startup_tranger(FALSE);
+    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
+        tranger2_shutdown(tf);
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    json_t *rt_live = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, record_callback, "rtLIVE", "", NULL);
+    if(!rt_live) {
+        tranger2_shutdown(tf);
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    drain(10);
+    result += test_json(NULL);
+
+    set_expected_results(
+        "read canceled by another: the owner is told, nobody touches a freed watcher",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "inotify read canceled, and not by its owner: the watcher is gone",
+            "msg", "rt_disk feed deaf: its watcher is gone"
+        ),
+        NULL, NULL, 1
+    );
+    fs_event_t *fs_live = (fs_event_t *)(uintptr_t)json_integer_value(
+        json_object_get(rt_live, "fs_event_client")
+    );
+    if(!fs_live || yev_stop_event(fs_live->yev_event) < 0) {
+        printf("%sERROR%s --> cannot cancel the read of the watcher\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    uint64_t t0 = time_in_milliseconds_monotonic();
+    while(time_in_milliseconds_monotonic() - t0 < 5000 &&
+            json_integer_value(json_object_get(rt_live, "fs_event_client")) != 0) {
+        yev_loop_run_once(yev_loop);
+    }
+    drain(10);
+    if(json_integer_value(json_object_get(rt_live, "fs_event_client")) != 0) {
+        printf("%sERROR%s --> the feed still holds the watcher whose read was canceled\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    tranger2_close_rt_disk(tf, rt_live);
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    drain(10);
+    result += test_json(NULL);
+
+    rmrdir(path_database);
+    return result;
+}
+
+/***************************************************************************
  *              Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -353,6 +447,7 @@ int main(int argc, char *argv[])
     yev_loop_create(0, 2024, 10, NULL, &yev_loop);
 
     int result = do_test();
+    result += do_test_read_canceled_by_another();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

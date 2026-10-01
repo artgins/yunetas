@@ -336,15 +336,31 @@ What the owners of the tree do:
 
 ## When the watcher goes (`FS_WATCHER_GONE_TYPE`)
 
-A watcher whose read FAILS (anything but the cancel of a stop) is over: an
-ERROR, *"inotify read FAILED: the watcher is gone"*, with `path`, `errno`,
-then the owner's callback is called once with **`FS_WATCHER_GONE_TYPE`**
+A watcher whose read FAILS, or is canceled by another than its owner, is
+over: an ERROR, *"inotify read FAILED: the watcher is gone"* (or *"inotify
+read canceled, and not by its owner: the watcher is gone"*), with `path`,
+`errno`, then the owner's callback is called once with
+**`FS_WATCHER_GONE_TYPE`**
 (`directory` = the watched path), and the watcher is destroyed when the call
 returns. Nothing else comes. The owner drops every pointer it keeps to it --
 and must not stop it: it is freed. An owner that stopped the watcher itself
 (`fs_stop_watcher_event()`) is not told. Up to 7.25.20 the watcher went
 silently (the failure logged only under a trace), and its owner kept a
 pointer to freed memory: a timeranger2 feed stopped it again when closed.
+
+No shutdown cancels a watcher behind its owner. `yev_loop_stop()` cancels
+every operation of the loop, but a yuno calls it after its loop ended
+(`yuno_shutdown()` only resets it), its services stopped and its gobjs
+ended -- every watcher stopped by its owner, C_FS in `mt_stop`, the
+trangers of the services in theirs -- and destroys the loop without running
+it (`entry_point.c`). The tools either start their tranger without a loop
+(no watcher), or shut it down before `yev_loop_stop()` (`tr2list` and
+`treedb_list --follow`), or run no loop after it (`tr2migrate`). And a loop
+run after `yev_loop_stop()` delivers nothing behind the stop's own
+completion: it breaks there and leaves it at the head of the ring. So the
+message means a cancel from outside fs_watcher -- an order broken -- and the
+owner is still told (`tests/c/timeranger2/test_rt_disk_watcher_gone` makes
+one on purpose, with `yev_stop_event()` on the watcher's read).
 
 ```C
 case FS_WATCHER_GONE_TYPE:

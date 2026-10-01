@@ -436,18 +436,25 @@ PRIVATE int yev_callback(
                     /*
                      *  The read is over. After a stop of its owner that is
                      *  the stop itself, whatever the result says (a cancel,
-                     *  or a cancel that found the read done). Otherwise the
-                     *  read FAILED, and that is the end of the watcher too:
-                     *  its owner is told before it goes. Up to 7.25.20 it
-                     *  went silently, and the owner kept a pointer to freed
-                     *  memory (a timeranger2 feed stopped it again when
-                     *  closed).
+                     *  or a cancel that found the read done). Otherwise it
+                     *  FAILED, or somebody else canceled it -- no shutdown
+                     *  does (yev_loop_stop() comes after every owner stopped
+                     *  its watcher, and a loop run after it delivers nothing
+                     *  behind its completion), so that is an order broken.
+                     *  Either way the watcher is over, and its owner is told
+                     *  before it goes. Up to
+                     *  7.25.20 it went silently, and the owner kept a pointer
+                     *  to freed memory (a timeranger2 feed stopped it again
+                     *  when closed).
                      */
-                    if(!fs_event->stopping && yev_get_result(yev_event) != -ECANCELED) {
+                    if(!fs_event->stopping) {
+                        BOOL canceled = (yev_get_result(yev_event) == -ECANCELED)? TRUE: FALSE;
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_SYSTEM,
-                            "msg",          "%s", "inotify read FAILED: the watcher is gone",
+                            "msgset",       "%s", canceled? MSGSET_INTERNAL : MSGSET_SYSTEM,
+                            "msg",          "%s", canceled?
+                                "inotify read canceled, and not by its owner: the watcher is gone" :
+                                "inotify read FAILED: the watcher is gone",
                             "path",         "%s", fs_event->path,
                             "errno",        "%d", -yev_get_result(yev_event),
                             "serrno",       "%s", strerror(-yev_get_result(yev_event)),
