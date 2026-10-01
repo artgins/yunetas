@@ -154,14 +154,17 @@ code before it, except the few this list marks "(no red test)".
   save leaves the old file as it was, and a link in its place is replaced, with
   nothing written through it. A readable file of another user is taken over by
   the yuno's user (logged at INFO); when the yuno runs as root, the new file is
-  given back to the old owner. A file that cannot be read refuses the save and
+  given back to the old owner (no red test for these two: a non-root test
+  cannot make a file of another user). A file that cannot be read refuses the save and
   the removal (its attrs would be lost); an empty file is no data. A file of
   the yuno's own found at load that is wider than 0600 or a hard link is
   replaced the same way (not narrowed in place, which through a hard link
   changed another name). In a data directory the yuno cannot write, the save
   goes in place, into a file of its own only: room is reserved without growing
-  the file, so a full disk leaves the old file as it was, but a crash during
-  the write can leave an unparsable file, which then refuses the saves until it
+  the file, so a full disk leaves the old file as it was where the filesystem
+  can reserve it (not on NFSv3/FUSE without fallocate, nor on copy-on-write
+  filesystems), but a crash or a short write there can leave an unparsable
+  file, which then refuses the saves until it
   is removed or repaired (the message says how). A `<file>.tmp-XXXXXX` an
   interrupted save left is removed at the next load. `write-attr` answers a
   failed save with -1 (*"written, but NOT saved"*) instead of "done", and says
@@ -343,14 +346,17 @@ code before it, except the few this list marks "(no red test)".
   `fs_queued_events_end()` says where the events queued so far end, a read
   that the kernel completed and the loop has not delivered included (new
   `yev_get_waiting_completion()`). A feed that starts watching after a delete
-  was signalled does not owe it. A debt is forgotten only by a link of the key
-  heard in the feed's directory, with its own place in the stream (the key's
-  directory read at a delete signal's place is not enough: it may already hold
-  the key written again since). In a master, hearing a delete makes no debts;
+  was signalled does not owe it. A debt is forgotten by a record of the key
+  that reaches the feed in its place in the stream: a link heard in the feed's
+  directory, or a record found by the deferred read of a key directory (see
+  the reborn-key bullet below). In a master, hearing a delete makes no debts;
   `tranger2_delete_key()` makes them.
 - **A key deleted and written again before a follower reads the delete is
-  handed in order.** The follower's feed hears `deleted`, then every record of
-  the key reborn from rowid 1, and keeps the key in its cache. The scan of the
+  handed in order, when the key is in the follower's cache.** The follower's
+  feed hears `deleted`, then every record of the key reborn from rowid 1, and
+  keeps the key in its cache. A key the follower has not seen yet, or one
+  deleted and reborn more than once in one unread window, is still read too
+  early (an open defect, see `TODO.md`). The scan of the
   key's directory, done at the delete signal's place, read the new key's file
   against the old key's cache entry: one new record was never handed, or later
   ones arrived with wrong rowids and were handed twice at the next append, and
@@ -545,7 +551,7 @@ code before it, except the few this list marks "(no red test)".
   rejected credentials, the yuno exited 0 and was not relaunched. Only a 5xx is
   a refusal now, and a second `334` (see the upgrade steps); `EV_ON_CLOSE`
   carries the server's reply text (`reply`), and the AUTH buffers are wiped
-  before they are freed.
+  before they are freed (no red test for the wipe).
 - **emailsender: a message the server refuses with a 5xx no longer costs the
   next one a reconnection.** A 5xx to RCPT TO, DATA or the end of DATA dropped
   the session, so the next message logged in again. The message now goes to
