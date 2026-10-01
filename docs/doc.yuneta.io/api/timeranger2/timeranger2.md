@@ -790,6 +790,15 @@ The deletion is **propagated to subscribers**:
   The delete itself is done and answers `0`. Up to 7.25.4 both were silent.
 - Each follower watches its own `disks/<rt_id>/`. It clears the key from its
   topic cache and fires the callback of **that feed only**, once.
+- A key deleted and written again (once or more) before a follower reads the
+  delete is handed in order: the feed hears `deleted`, then the records of
+  the key born again from rowid 1, and keeps the key. The follower reads a
+  key directory only once its stream is past every event that could still
+  remove it, for any key -- also one it never saw, which may have been
+  born, deleted and written again in the part of the stream it has not
+  read. Up to 7.25.20 the directory was read early: `[R1 DEL]`,
+  `[DEL R1 DEL]`, the live key out of the cache. Details in
+  [fs_watcher](fs_watcher.md).
 - In-process `rt_mem`, `open_iterator`, and `rt_disk` subscribers without a
   watcher (no loop) whose `key` filter matches receive their
   [`tranger2_key_deleted_callback_t`](#tranger2_set_rt_key_deleted_callback)

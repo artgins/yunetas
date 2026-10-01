@@ -31,6 +31,14 @@
  *        key's file against the OLD key's cell: one new record was never
  *        handed, five were handed as R4 R5 (the next append handed R1..R6),
  *        and the delete heard after took the live key out of the cache.
+ *      - do_test_reborn_window: the same with any key and any number of
+ *        rebirths in the part of the stream not read yet: a key the
+ *        follower never saw (written, deleted, written again: it is told
+ *        `deleted`, then R1), and a key deleted and written again two and
+ *        three times (`deleted`, then the last key's records). No record is
+ *        handed before a delete still ahead of it. Up to the fix a key new
+ *        to the follower was read at once: [R1 DEL] and the live key out of
+ *        the cache; [DEL R1 DEL] for two rebirths.
  *      - do_test_stale_debt_reborn: a debt a feed will never pay (a delete
  *        signalled across its opening) is forgotten by the first record of
  *        the key born again, found by the scan of its new directory (its
@@ -1323,6 +1331,153 @@ PRIVATE int do_test_reborn_before_read(int new_rows, BOOL two_feeds)
 }
 
 /***************************************************************************
+ *  do_test_reborn_window
+ *  `key_id` 2: a key the follower never saw (written twice, deleted, then
+ *  `rows_last` records). `key_id` 1: a key with three records, deleted and
+ *  written again `reborns` times, the last time with `rows_last` records.
+ *  What rtX is told must be one or more DEL, then R1..R<rows_last>.
+ ***************************************************************************/
+PRIVATE int do_test_reborn_window(json_int_t key_id, int reborns, int rows_last, BOOL two_feeds)
+{
+    int result = 0;
+    const char *key = key_id == 1? KEY_A : KEY_B;
+    char label[96];
+    snprintf(label, sizeof(label), "reborn window, %s key, %d rebirth(s), %d last, %s",
+        key_id == 1? "a known" : "a new", reborns, rows_last, two_feeds? "two feeds" : "one feed");
+    char title[160];
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+    seq_x[0] = 0;
+    count_x = count_y = 0;
+
+    snprintf(title, sizeof(title), "%s: setup", label);
+    set_expected_results(
+        title,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_master(path_root, TRUE);
+    if(!tm || create_topic(tm) < 0) {
+        if(tm) {
+            tranger2_shutdown(tm);
+        }
+        return -1;
+    }
+    if(append_to(tm, 1, 3) < 0) {
+        result += -1;
+    }
+    drain(5);
+    json_t *tf = startup_tranger(path_root, FALSE, TRUE);
+    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
+        if(tf) {
+            tranger2_shutdown(tf);
+        }
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    json_t *fx = tranger2_open_rt_disk(tf, TOPIC_NAME, key, NULL, seq_record_callback, "rtX", "", NULL);
+    json_t *fy = NULL;
+    if(two_feeds) {
+        fy = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, my_record_callback, "rtY", "", NULL);
+        tranger2_set_rt_key_deleted_callback(fy, follower_key_deleted_callback, NULL);
+    }
+    if(!fx || (two_feeds && !fy)) {
+        result += -1;
+    }
+    tranger2_set_rt_key_deleted_callback(fx, seq_key_deleted_callback, NULL);
+    drain(10);
+    result += test_json(NULL);
+
+    /*
+     *  With the loop stopped
+     */
+    snprintf(title, sizeof(title), "%s: no record before a delete ahead of it", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    if(key_id == 2) {
+        if(append_one_at(tm, 2, BASE_T + 1) < 0 || append_one_at(tm, 2, BASE_T + 2) < 0) {
+            result += -1;
+        }
+    }
+    for(int r = 0; r < reborns; r++) {
+        if(tranger2_delete_key(tm, TOPIC_NAME, key) < 0) {
+            result += -1;
+        }
+        int n = (r == reborns - 1)? rows_last : 1;
+        for(int i = 0; i < n; i++) {
+            if(append_one_at(tm, key_id, BASE_T + 10 + i) < 0) {
+                result += -1;
+            }
+        }
+    }
+    drain(30);
+    char records[256] = "";
+    for(int i = 1; i <= rows_last; i++) {
+        char b[16];
+        snprintf(b, sizeof(b), "R%d ", i);
+        strncat(records, b, sizeof(records) - strlen(records) - 1);
+    }
+    const char *tail = strstr(seq_x, records);
+    BOOL dels_only_before = TRUE;
+    for(const char *p = seq_x; tail && p < tail; p += 4) {
+        if(strncmp(p, "DEL ", 4) != 0) {
+            dels_only_before = FALSE;
+            break;
+        }
+    }
+    if(!tail || tail == seq_x || !dels_only_before || strcmp(tail, records) != 0) {
+        printf("%sERROR%s --> %s: rtX was told [%s], expected one or more DEL, then [%s]\n",
+            On_Red BWhite, Color_Off, label, seq_x, records);
+        result += -1;
+    }
+    json_t *cache = json_object_get(tranger2_topic(tf, TOPIC_NAME), "cache");
+    if(!json_object_get(cache, key)) {
+        printf("%sERROR%s --> %s: the key written again is not in the follower's cache\n",
+            On_Red BWhite, Color_Off, label);
+        result += -1;
+    }
+    if(json_object_size(json_object_get(fx, "deletes_unheard")) != 0 ||
+       (fy && json_object_size(json_object_get(fy, "deletes_unheard")) != 0)) {
+        printf("%sERROR%s --> %s: a feed owes deletes it will never hear\n",
+            On_Red BWhite, Color_Off, label);
+        result += -1;
+    }
+
+    seq_x[0] = 0;
+    if(append_one_at(tm, key_id, BASE_T + 100) < 0) {
+        result += -1;
+    }
+    drain(30);
+    char expected[32];
+    snprintf(expected, sizeof(expected), "R%d ", rows_last + 1);
+    if(strcmp(seq_x, expected) != 0) {
+        printf("%sERROR%s --> %s: the next record: rtX was told [%s], expected [%s]\n",
+            On_Red BWhite, Color_Off, label, seq_x, expected);
+        result += -1;
+    }
+    tranger2_close_rt_disk(tf, fx);
+    if(fy) {
+        tranger2_close_rt_disk(tf, fy);
+    }
+    drain(10);
+    result += test_json(NULL);
+
+    snprintf(title, sizeof(title), "%s: shutdown", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    drain(10);
+    result += test_json(NULL);
+    count_x = count_y = 0;
+    return result;
+}
+
+/***************************************************************************
  *  do_test_stale_debt_reborn
  ***************************************************************************/
 PRIVATE int do_test_stale_debt_reborn(void)
@@ -1922,6 +2077,12 @@ int main(int argc, char *argv[])
     result += do_test_reborn_before_read(1, FALSE);
     result += do_test_reborn_before_read(5, FALSE);
     result += do_test_reborn_before_read(1, TRUE);
+    result += do_test_reborn_window(2, 1, 1, FALSE);   // a new key: C0 D0 C1
+    result += do_test_reborn_window(2, 1, 1, TRUE);
+    result += do_test_reborn_window(1, 2, 1, FALSE);   // twice in the window
+    result += do_test_reborn_window(1, 2, 3, FALSE);
+    result += do_test_reborn_window(1, 3, 1, FALSE);   // three times
+    result += do_test_reborn_window(1, 2, 1, TRUE);
     result += do_test_stale_debt_reborn();
     result += do_test_rmrdir_fails();
     result += do_test_rmrdir_fails_filtered();

@@ -45,7 +45,8 @@ typedef enum  {
                                     // call returns, and nothing else comes. Drop every
                                     // pointer to it. Not told when its owner stopped it.
     FS_BATCH_END_TYPE,              // Only with FS_FLAG_BATCH_END. A batch read from inotify
-                                    // was handed over whole: `offset` is where it ends.
+                                    // (or a slice of the pass after an overflow) was handed
+                                    // over whole: `offset` is where the stream is.
                                     // What an owner left for "when the stream is past
                                     // here" can be done now; no event of the batch comes
                                     // after this.

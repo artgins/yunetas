@@ -40,7 +40,7 @@ fs_event_t *fs_create_watcher_event(
 
 Returns a pointer to a newly allocated [`fs_event_t`](#fs_event_t) structure representing the watcher event, or `NULL` on failure -- a path that is not a directory, no inotify instance, or a root that cannot be watched (`ENOSPC` at `fs.inotify.max_user_watches`, logged). Up to 7.25.20 a root that could not be watched gave a watcher all the same, running and watching nothing.
 
-With `FS_FLAG_BATCH_END` the owner is also called with `FS_BATCH_END_TYPE` after each batch read from inotify (`offset` = where the batch ends), and every event carries `offset` and `offset_end`, its place in the watcher's stream: what the owner left for "when the stream is past here" can be done there. A timeranger2 follower defers the scan of a key directory that way:
+With `FS_FLAG_BATCH_END` the owner is also called with `FS_BATCH_END_TYPE` after each batch read from inotify (`offset` = where the batch ends), and after each slice of the pass that follows an overflow (`offset` = where the stream is), and every event carries `offset` and `offset_end`, its place in the watcher's stream: what the owner left for "when the stream is past here" can be done there. A timeranger2 follower defers the scan of a key directory that way. It notes the directory at its event, and asks where the queue ends once, at the end of the batch: [`fs_queued_events_end()`](#fs_queued_events_end) walks the whole inotify queue, and asked at each new directory it made a flood of 69632 new keys quadratic (18 s of a drain of 21):
 
 ```C
 fs_event_t *fs = fs_create_watcher_event(
@@ -48,11 +48,16 @@ fs_event_t *fs = fs_create_watcher_event(
 );
 ...
 case FS_SUBDIR_CREATED_TYPE:
-    my->until = fs_queued_events_end(fs_event);     // read it when the stream is past this
+case FS_RESCAN_DIR_TYPE:
+    note_the_directory(my, fs_event);               // cheap: nothing asked here
     break;
 case FS_BATCH_END_TYPE:
     if(fs_event->offset >= my->until) {
-        read_the_directory(my);
+        read_the_directories_placed(my);            // the stream is past what could remove them
+    }
+    if(has_notes(my)) {
+        my->until = fs_queued_events_end(fs_event); // ONCE per batch
+        place_the_notes(my);                        // read them when the stream is past `until`
     }
     break;
 ```
@@ -159,6 +164,12 @@ between (there is one read at a time, and once completed it waits for the
 loop). Only when completions overflowed the ring, and whether one of this
 read waits cannot be seen, is a read counted whole: the answer is then past
 the end, never short.
+
+It costs what the queue holds: `FIONREAD` walks the whole inotify queue. Ask
+it once per batch (`FS_BATCH_END_TYPE`), not once per event: asked at each of
+69632 new directories it was 18 s of a drain of 21. A read takes up to 32
+events of the longest name (up to 7.25.20 one: a backlog of 65536 events was
+~8000 batches, and as many questions at their ends).
 
 A timeranger2 follower uses it to tell apart what it already said from what
 is new. At an overflow it reads `keys/` and tells the keys gone from there
@@ -287,8 +298,9 @@ What the owners of the tree do:
   gone from there is heard as deleted (its `key_deleted` callback fires; INFO
   *"keys deleted while the inotify events were lost"*). The cache is shared by
   every feed of the topic and forgets a key with the first feed that hears its
-  delete, so the first feed to hear one (the key still in the cache) counts it
-  as owed by every other watched feed (`deletes_unheard`, per feed), each
+  delete, so the first feed to hear one (the feed that owes it nothing:
+  the key's being in the cache does not say it, the key may never have been
+  read by this follower) counts it as owed by every other watched feed (`deletes_unheard`, per feed), each
   paying when it hears it: the deletes a feed owes and that are gone from
   `keys/` are told at its overflow too. Up to 7.25.20 a feed that overflowed
   while another feed of its topic heard a delete never heard of it.
@@ -347,11 +359,24 @@ What the owners of the tree do:
   by then; a delete of the key heard before drops it (the directory's own
   `IN_CREATE` reads it later); and it reads only the directory seen then
   (inode and birth). The feed is told `deleted`, then the new key's
-  records from rowid 1. A key new to the follower (not in the cache, not
-  owed) is read at once: no delete of it can be ahead. The pass after an
-  overflow defers its key directories the same way. The watcher tells the
-  feed where each batch ends (`FS_FLAG_BATCH_END`), where the scans come
-  due when no other event follows.
+  records from rowid 1. So for ANY key: a key the follower never saw may
+  have been born, deleted and written again in the part of the stream not
+  read yet ([R1 DEL] was handed, the key out of the cache, and the next
+  append handed R1 R2), and a key may be deleted and written again more
+  than once there ([DEL R1 DEL], [DEL R1 R2 R3 DEL]). Up to 7.25.20 a key
+  not in the cache and not owed was read at once. The pass after an
+  overflow defers its key directories the same way. The directories are
+  noted at their event (`scans_new`) and placed at the end of the batch, or
+  of the slice of the pass: where the queued events end is asked once for
+  all of them, and each one is looked at only then; only with nothing
+  queued after the batch is it read at once. The watcher tells the feed
+  where each batch and each slice ends (`FS_FLAG_BATCH_END`), where the
+  scans come due when no other event follows. When the backlog is deeper
+  than 256 KB the notes wait, unplaced, until the stream is past the end
+  the backlog had then (an overflow in it drops them: the pass reads the
+  directories), and the queue is not asked again meanwhile. The 69632-key
+  flood of `test_rt_disk_overflow` drains within 4% of 7.25.20's time
+  (3519 ms against 3385, ten alternated runs).
 
   In a MASTER the watcher's echo of a delete forgets nothing:
   `tranger2_delete_key()` forgot the key when it deleted it, and the master

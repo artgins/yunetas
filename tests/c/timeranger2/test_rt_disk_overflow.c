@@ -76,7 +76,9 @@
  *  queued behind the overflow. The feed must hear the delete, then the new
  *  record, and keep the key in its cache. Up to 7.25.20 the pass read the
  *  new key's file against the OLD key's cell (the record never handed),
- *  and the delete heard after took the live key out of the cache.
+ *  and the delete heard after took the live key out of the cache. The
+ *  same with a key the follower never saw, written, deleted and written
+ *  again there.
  *
  *  And in a master, the echo of a delete queued behind an overflow that
  *  found the key written again (do_test_master_echo_behind_overflow): the
@@ -1134,23 +1136,28 @@ PRIVATE int do_test_master_feed_overflow(void)
 /***************************************************************************
  *  A key deleted and written again behind an overflow
  ***************************************************************************/
-PRIVATE int do_test_reborn_behind_overflow(void)
+PRIVATE int do_test_reborn_behind_overflow(BOOL new_key)
 {
     int result = 0;
+    const char *label = new_key? "reborn behind overflow, a new key" : "reborn behind overflow";
+    char title[128];
+    json_int_t kid = new_key? 2 : SEED_KEY_ID;
+    const char *kname = new_key? "0000000000000000002" : SEED_KEY;
     char path_database[PATH_MAX];
     build_path(path_database, sizeof(path_database),
         getenv("HOME"), "tests_yuneta", DATABASE8, NULL);
     rmrdir(path_database);
 
     queue_limit = max_queued_events();
-    n_keys = 1;
+    n_keys = 2;
     received = GBMEM_MALLOC(sizeof(int) * (size_t)(n_keys + 1));
     received_total = 0;
     deleted_seed = 0;
     deleted_other = 0;
 
+    snprintf(title, sizeof(title), "%s: setup", label);
     set_expected_results(
-        "reborn behind overflow: setup",
+        title,
         json_pack("[{s:s},{s:s}]",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating topic"
@@ -1197,8 +1204,9 @@ PRIVATE int do_test_reborn_behind_overflow(void)
      *  With the loop stopped: rtALL overflowed, some of its queue read
      *  (room behind the overflow), the seed key deleted and written again
      */
+    snprintf(title, sizeof(title), "%s: the delete, then the new record", label);
     set_expected_results_unordered(
-        "reborn behind overflow: the delete, then the new record",
+        title,
         json_pack("[{s:s},{s:s}]",
             "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
             "msg", "watched tree rescanned after lost inotify events"
@@ -1241,34 +1249,45 @@ PRIVATE int do_test_reborn_behind_overflow(void)
     }
     memset(received, 0, sizeof(int) * (size_t)(n_keys + 1));
     received_total = 0;
-    if(tranger2_delete_key(tm, TOPIC_NAME, SEED_KEY)<0 || append_one(tm, SEED_KEY_ID, BASE_T + 5)<0) {
+    if(new_key) {
+        /*
+         *  A key the follower never saw: written, deleted, written again
+         */
+        if(append_one(tm, kid, BASE_T + 3)<0 || append_one(tm, kid, BASE_T + 4)<0) {
+            result += -1;
+        }
+    }
+    if(tranger2_delete_key(tm, TOPIC_NAME, kname)<0 || append_one(tm, kid, BASE_T + 5)<0) {
         result += -1;
     }
     result += drain(1);
     json_t *cache = json_object_get(tranger2_topic(tf, TOPIC_NAME), "cache");
-    if(deleted_seed != 1 || received[SEED_KEY_ID] != 1 || !json_object_get(cache, SEED_KEY)) {
-        printf("%sERROR%s --> reborn behind overflow: %d deletes, %d records of the key born again, in the cache: %s; expected 1/1/yes\n",
-            On_Red BWhite, Color_Off, deleted_seed, received[SEED_KEY_ID],
-            json_object_get(cache, SEED_KEY)? "yes" : "NO");
+    int deletes = new_key? deleted_other : deleted_seed;
+    if(deletes != 1 || received[kid] != 1 || !json_object_get(cache, kname)) {
+        printf("%sERROR%s --> %s: %d deletes, %d records of the key born again, in the cache: %s; expected 1/1/yes\n",
+            On_Red BWhite, Color_Off, label, deletes, received[kid],
+            json_object_get(cache, kname)? "yes" : "NO");
         result += -1;
     }
     result += test_json(NULL);
 
-    set_expected_results("reborn behind overflow: the next record", NULL, NULL, NULL, 1);
+    snprintf(title, sizeof(title), "%s: the next record", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
     memset(received, 0, sizeof(int) * (size_t)(n_keys + 1));
     received_total = 0;
-    if(append_one(tm, SEED_KEY_ID, BASE_T + 6)<0) {
+    if(append_one(tm, kid, BASE_T + 6)<0) {
         result += -1;
     }
     result += drain(1);
-    if(received[SEED_KEY_ID] != 1) {
-        printf("%sERROR%s --> reborn behind overflow: the next record handed %d times, expected 1\n",
-            On_Red BWhite, Color_Off, received[SEED_KEY_ID]);
+    if(received[kid] != 1) {
+        printf("%sERROR%s --> %s: the next record handed %d times, expected 1\n",
+            On_Red BWhite, Color_Off, label, received[kid]);
         result += -1;
     }
     result += test_json(NULL);
 
-    set_expected_results("reborn behind overflow: shutdown", NULL, NULL, NULL, 1);
+    snprintf(title, sizeof(title), "%s: shutdown", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
     tranger2_close_rt_disk(tf, rt);
     rt = NULL;
     for(int i = 0; i < 10; i++) {
@@ -1665,7 +1684,8 @@ int main(int argc, char *argv[])
     result += do_test_signal_behind_overflow(TRUE);
     result += do_test_feed_opened_in_flight();
     result += do_test_old_delete_after_reborn();
-    result += do_test_reborn_behind_overflow();
+    result += do_test_reborn_behind_overflow(FALSE);
+    result += do_test_reborn_behind_overflow(TRUE);
     result += do_test_master_feed_overflow();
     result += do_test_master_echo_behind_overflow();
     result += do_test();

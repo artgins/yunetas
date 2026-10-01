@@ -31,7 +31,15 @@
 
 #define DEFAULT_MASK (IN_DELETE_SELF|IN_MOVE_SELF|IN_CREATE|IN_DELETE | IN_DONT_FOLLOW|IN_EXCL_UNLINK)
 #define RESCAN_SLICE_MS 20      // the pass after an overflow gives the loop back after this
-#define READ_SIZE       (sizeof(struct inotify_event) + NAME_MAX + 1)   // one read: at least one event
+/*
+ *  One read takes up to this much of the queue (at least one event of the
+ *  longest name). It was one such event: a backlog of 65536 events was
+ *  read in ~8000 reads, a batch each, and an owner that asks where the
+ *  queue ends at the end of a batch (FIONREAD walks the whole queue) paid
+ *  it 8000 times -- a flood of new keys of a timeranger2 follower took
+ *  twice as long.
+ */
+#define READ_SIZE       (32 * (sizeof(struct inotify_event) + NAME_MAX + 1))
 
 /***************************************************************************
  *  Prototypes
@@ -1213,6 +1221,17 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event)
         if(time_in_milliseconds_monotonic() - t0 >= RESCAN_SLICE_MS) {
             break;
         }
+    }
+    if(!fs_event->stop_requested && (fs_event->fs_flag & FS_FLAG_BATCH_END)) {
+        /*
+         *  A slice of the pass is a batch too: what the owner noted in it
+         *  is placed now (offset: where the stream is)
+         */
+        fs_event->fs_type = FS_BATCH_END_TYPE;
+        fs_event->directory = (volatile char *)fs_event->path;
+        fs_event->filename = "";
+        fs_event->offset_end = fs_event->offset;
+        fs_event->callback(fs_event);
     }
     fs_event->in_callback = FALSE;
     fs_event->rescan_us_slice_end = monotonic_us();
