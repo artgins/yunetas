@@ -74,10 +74,13 @@ request through the local agent went nowhere.
 
 An event that only an agent sends (an answer, the PTY, `EV_YUNO_STATS`) sent by
 a web client is dropped with the warning *"event of an agent not from the
-agents' side, dropped"*, at most once a minute (`dropped=` counts them).
-What such a capped warning counted after it last spoke is said when its
-minute ends, or when the control center stops (`when=`, `dropped=`); never per
-connection close, which a client could loop.
+agents' side, dropped"*, at most once per `drops_warning_window` (ms, default
+60000; `dropped=` counts them). What such a capped warning counted after it
+last spoke is said when its window ends, or when the control center stops
+(`when=`, `dropped=`); never per connection close, which a client could loop.
+A new `drops_warning_window` applies at once to the open windows; under 1 it
+is refused and 60000 put back. `drops_timer_armed` (read-only) says whether a
+count waits for its window.
 
 Talk to it via `ycommand`:
 

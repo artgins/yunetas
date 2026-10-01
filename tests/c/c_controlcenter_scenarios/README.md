@@ -58,10 +58,10 @@ still reported and fails the test.
    said once a minute, with `dropped=` counting the others: the one injected
    in case 4 is said, these six are counted (one warning per injected frame
    let an authenticated client flood the log). The six counted are said
-   when their minute ends or, as here, when the control center stops, with
-   the five of case 10 (`dropped=11`); likewise the second late `EV_TTY_DATA`
-   of case 5 and the second PTY frame routed to nobody of case 9. Before, a
-   count with no later event was never said.
+   when their window ends (case 11), with the five of case 10
+   (`dropped=11`); likewise the second late `EV_TTY_DATA` of case 5 and the
+   second PTY frame routed to nobody of case 9. Before, a count with no later
+   event was never said.
 7. Several consoles mirrored through one agent's channel. Two clients, two
    consoles: the agent's close drops both. One console opened again by another
    client: only that client is dropped (the agent routes it to the last
@@ -91,6 +91,16 @@ still reported and fails the test.
     times: no warning per loop (the cap held), the five are counted with the
     six of case 6 and said once at the stop. A flush on every connection's
     close bounded the warnings only by the client's reconnect rate.
+11. The drops timer, with a short window. Once every window the cases above
+    opened is over 400 ms old, `drops_warning_window` is set to 300 ms: the
+    timer says the counts left (`when="its window ended"`: case 5's frame,
+    case 9's PTY frame, the 11 injected), before the PASSED and not at the
+    stop, and then `drops_timer_armed` is false. Four readings for a client
+    that is gone: the first is said at once (`dropped=1`), 3 are counted,
+    the timer is armed, and after the window it says `dropped=3` and is not
+    armed. If the timer never fires, the counts come at the stop and the
+    expected logs fail. (C_TIMER ticks every 100 ms here: `timeout_periodic`
+    of the test's yuno.)
 
 ## Run
 

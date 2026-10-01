@@ -52,6 +52,7 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'yuno': {                                                       \n\
+        'timeout_periodic': 100,                                    \n\
         'autoplay': true,                                           \n\
         'required_services': [],                                    \n\
         'public_services': [],                                      \n\
@@ -243,13 +244,17 @@ PRIVATE const char *expected_msgs[] = {
     "answer of an agent for no requester of this control center, dropped",
     "answer of an agent for no requester of this control center, dropped",  // a link that did not ask
     "answer of an agent for no requester of this control center, dropped",  // the link, after the agent's close
+    /*  11: a 300 ms window (C_TIMER ticks every 100 ms here, the
+     *  timeout_periodic above). "msg|when|dropped": fields checked too  */
+    "stream for a web client that is gone, dropped|its window ended|1",
+    "PTY output of an agent for no requester of this control center, dropped|its window ended|1",
+    "event of an agent not from the agents' side, dropped|its window ended|11",
+    "yuno stats for a web client that is gone, dropped (the agent's watch expires)||1",
+    "yuno stats for a web client that is gone, dropped (the agent's watch expires)|its window ended|3",
     "All controlcenter scenarios tests PASSED",
     "Exit to die",
     "Exit to die",
     "Pausing yuno",
-    "stream for a web client that is gone, dropped",          // case 5's second frame, said at the stop
-    "PTY output of an agent for no requester of this control center, dropped",  // case 9's second frame, at the stop
-    "event of an agent not from the agents' side, dropped",   // the 6 of case 6 and the 5 of case 10, at the stop
     "Yuno stopped, gobj end",
     0
 };
@@ -285,7 +290,20 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     json_t *jn_expected = json_array();
     for(int i=0; expected_msgs[i]; i++) {
-        json_array_append_new(jn_expected, json_pack("{s:s}", "msg", expected_msgs[i]));
+        /*
+         *  "msg" alone, or "msg|when|dropped": an empty `when` is not checked
+         */
+        int n = 0;
+        const char **parts = split3(expected_msgs[i], "|", &n);
+        json_t *jn_msg = json_pack("{s:s}", "msg", n > 0? parts[0] : "");
+        if(n > 1 && !empty_string(parts[1])) {
+            json_object_set_new(jn_msg, "when", json_string(parts[1]));
+        }
+        if(n > 2) {
+            json_object_set_new(jn_msg, "dropped", json_integer(atoll(parts[2])));
+        }
+        split_free3(parts);
+        json_array_append_new(jn_expected, jn_msg);
     }
     set_expected_results(
         APP_NAME,

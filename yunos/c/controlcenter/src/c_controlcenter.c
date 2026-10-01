@@ -130,6 +130,8 @@ PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
 PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 PRIVATE void say_pending_drops(hgobj gobj, const char *when, BOOL only_ended);
 PRIVATE void arm_drops_timer(hgobj gobj);
+PRIVATE int check_drops_warning_window(hgobj gobj);
+PRIVATE BOOL drops_window_ended(hgobj gobj, uint64_t window_start);
 PRIVATE void count_dropped_stream(
     hgobj gobj,
     gobj_event_t event,
@@ -252,6 +254,8 @@ SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max
 SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Rx Messages by second"),
 
 SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
+SDATA (DTP_INTEGER,     "drops_warning_window",SDF_WR,          "60000",    "Milliseconds of a capped warning's window (dropped streams, unrouted PTY, injected agent events): one warning per window, the rest counted and said when it ends"),
+SDATA (DTP_BOOLEAN,     "drops_timer_armed",SDF_RD,             "0",        "A capped warning has a count to say when its window ends"),
 
 SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
@@ -295,6 +299,7 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     hgobj timer;
     int32_t timeout;
+    json_int_t drops_warning_window;
 
     hgobj gobj_top_side;
     hgobj gobj_input_side;
@@ -309,15 +314,16 @@ typedef struct _PRIVATE_DATA {
     uint64_t rxMsgsec;
 
     uint64_t stats_dropped;         // EV_YUNO_STATS for a web client that is gone
-    uint64_t t_stats_dropped_log;   // msectimer: next time they may be said
+    uint64_t t_stats_dropped_log;   // msectimer: start of its window (0: none)
     uint64_t tty_dropped;           // EV_TTY_DATA for a web client that is gone
-    uint64_t t_tty_dropped_log;     // msectimer: next time they may be said
+    uint64_t t_tty_dropped_log;     // msectimer: start of its window (0: none)
     uint64_t tty_unrouted;          // EV_TTY_DATA routed to no requester
-    uint64_t t_tty_unrouted_log;    // msectimer: next time they may be said
+    uint64_t t_tty_unrouted_log;    // msectimer: start of its window (0: none)
     uint64_t injected;              // events of an agent sent from __top_side__
-    uint64_t t_injected_log;        // msectimer: next time they may be said
-    hgobj drops_timer;              // says the counts above when their minute ends
+    uint64_t t_injected_log;        // msectimer: start of its window (0: none)
+    hgobj drops_timer;              // says the counts above when their window ends
     BOOL drops_timer_armed;
+    uint64_t drops_timer_end;       // msectimer the drops timer is armed for
 
     hgobj run_timer;                // deadline of the step of the run in flight
     json_t *run;                    // the run in flight, or NULL (one at a time)
@@ -363,6 +369,8 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(timeout,               gobj_read_integer_attr)
+    SET_PRIV(drops_warning_window,  gobj_read_integer_attr)
+    check_drops_warning_window(gobj);
 }
 
 /***************************************************************************
@@ -373,6 +381,10 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(drops_warning_window, gobj_read_integer_attr)
+        if(check_drops_warning_window(gobj) == 0) {
+            arm_drops_timer(gobj);  // the windows that are open now end with the new value
+        }
     END_EQ_SET_PRIV()
 }
 
@@ -417,6 +429,7 @@ PRIVATE int mt_stop(hgobj gobj)
     say_pending_drops(gobj, "the control center stops", FALSE);
     clear_timeout(priv->drops_timer);
     priv->drops_timer_armed = FALSE;
+    gobj_write_bool_attr(gobj, "drops_timer_armed", FALSE);
     gobj_stop(priv->timer);
     gobj_stop(priv->run_timer);
     gobj_stop(priv->drops_timer);
@@ -2482,7 +2495,7 @@ PRIVATE hgobj requester_of_answer(
  *  agents' sake, so a web client can send it too: it would be relayed by
  *  the routing IT wrote, to another client. Taken only from __input_side__.
  *  An authenticated client can send them as fast as it likes: the one that
- *  opens a minute is said, with the ones counted since, the others counted.
+ *  opens a window (drops_warning_window) is said, with the ones counted since, the others counted.
  ***************************************************************************/
 PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -2492,7 +2505,7 @@ PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         return TRUE;
     }
     priv->injected++;
-    if(!priv->t_injected_log || test_msectimer(priv->t_injected_log)) {
+    if(drops_window_ended(gobj, priv->t_injected_log)) {
         hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2505,7 +2518,7 @@ PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgob
             NULL
         );
         priv->injected = 0;
-        priv->t_injected_log = start_msectimer(60*1000);
+        priv->t_injected_log = start_msectimer(0);
     }
     arm_drops_timer(gobj);
     return FALSE;
@@ -2541,7 +2554,7 @@ PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
 /***************************************************************************
  *  A frame of a stream (a PTY, a watch) for a web client that is gone.
  *  Expected -- the agent learns it only when the stream ends -- and many:
- *  counted, and said once a minute, not once per frame.
+ *  counted, and said once a window (drops_warning_window), not once per frame.
  ***************************************************************************/
 PRIVATE void count_dropped_stream(
     hgobj gobj,
@@ -2553,7 +2566,7 @@ PRIVATE void count_dropped_stream(
 )
 {
     (*dropped)++;
-    if(!*t_next_log || test_msectimer(*t_next_log)) {
+    if(drops_window_ended(gobj, *t_next_log)) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
@@ -2567,14 +2580,14 @@ PRIVATE void count_dropped_stream(
             NULL
         );
         *dropped = 0;
-        *t_next_log = start_msectimer(60*1000);
+        *t_next_log = start_msectimer(0);
     }
     arm_drops_timer(gobj);
 }
 
 /***************************************************************************
  *  The capped warnings: what each counted since it last spoke, and when its
- *  minute ends.
+ *  window started.
  ***************************************************************************/
 typedef struct {
     uint64_t *count;
@@ -2599,10 +2612,10 @@ PRIVATE void drop_caps(PRIVATE_DATA *priv, drop_cap_t caps[DROP_CAPS])
 
 /***************************************************************************
  *  A capped warning says what it counted when it speaks NEXT, and there may
- *  be no next one: what is still counted is said when its minute ends
- *  (`only_ended`, the drops timer) or when the control center stops. Never
- *  on a connection's close: a client that connects, sends one, and leaves,
- *  in a loop, would be said once per loop.
+ *  be no next one: what is still counted is said when its window
+ *  (drops_warning_window) ends (`only_ended`, the drops timer) or when the
+ *  control center stops. Never on a connection's close: a client that
+ *  connects, sends one, and leaves, in a loop, would be said once per loop.
  ***************************************************************************/
 PRIVATE void say_pending_drops(hgobj gobj, const char *when, BOOL only_ended)
 {
@@ -2614,7 +2627,7 @@ PRIVATE void say_pending_drops(hgobj gobj, const char *when, BOOL only_ended)
         if(*caps[i].count == 0) {
             continue;
         }
-        if(only_ended && *caps[i].t_window && !test_msectimer(*caps[i].t_window)) {
+        if(only_ended && !drops_window_ended(gobj, *caps[i].t_window)) {
             continue;
         }
         gobj_log_warning(gobj, 0,
@@ -2626,21 +2639,54 @@ PRIVATE void say_pending_drops(hgobj gobj, const char *when, BOOL only_ended)
             NULL
         );
         *caps[i].count = 0;
-        *caps[i].t_window = start_msectimer(60*1000);
+        *caps[i].t_window = start_msectimer(0);
     }
 }
 
 /***************************************************************************
- *  Something was counted and not said: the drops timer fires when the
- *  first minute with a count ends (a real time, not a deferral).
+ *  Has the window that started at `window_start` (0: none) ended?
+ ***************************************************************************/
+PRIVATE BOOL drops_window_ended(hgobj gobj, uint64_t window_start)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!window_start) {
+        return TRUE;
+    }
+    return test_msectimer(window_start + (uint64_t)priv->drops_warning_window);
+}
+
+/***************************************************************************
+ *  A drops_warning_window under 1 ms would say every drop: refused, the
+ *  default put back. Returns 0 if it was good, -1 (logged) if not.
+ ***************************************************************************/
+PRIVATE int check_drops_warning_window(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->drops_warning_window >= 1) {
+        return 0;
+    }
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "drops_warning_window must be 1 ms or more, 60000 put back",
+        "drops_warning_window", "%lld", (long long)priv->drops_warning_window,
+        NULL
+    );
+    gobj_write_integer_attr(gobj, "drops_warning_window", 60000);  // mt_writing() takes it
+    return -1;
+}
+
+/***************************************************************************
+ *  The drops timer fires when the first window with a count ends (a real
+ *  time, not a deferral): armed while something is counted and not said,
+ *  moved when that end moves, cleared when nothing is counted.
  ***************************************************************************/
 PRIVATE void arm_drops_timer(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->drops_timer_armed) {
-        return;
-    }
     drop_cap_t caps[DROP_CAPS];
     drop_caps(priv, caps);
     uint64_t now = start_msectimer(0);
@@ -2649,15 +2695,30 @@ PRIVATE void arm_drops_timer(hgobj gobj)
         if(*caps[i].count == 0) {
             continue;
         }
-        uint64_t end = *caps[i].t_window > now? *caps[i].t_window : now + 1;
+        uint64_t end = *caps[i].t_window?
+            *caps[i].t_window + (uint64_t)priv->drops_warning_window : now;
+        if(end <= now) {
+            end = now + 1;
+        }
         if(!first_end || end < first_end) {
             first_end = end;
         }
     }
-    if(first_end) {
-        set_timeout(priv->drops_timer, (json_int_t)(first_end - now));
-        priv->drops_timer_armed = TRUE;
+    if(!first_end) {
+        if(priv->drops_timer_armed) {
+            clear_timeout(priv->drops_timer);
+            priv->drops_timer_armed = FALSE;
+            gobj_write_bool_attr(gobj, "drops_timer_armed", FALSE);
+        }
+        return;
     }
+    if(priv->drops_timer_armed && priv->drops_timer_end == first_end) {
+        return;
+    }
+    set_timeout(priv->drops_timer, (json_int_t)(first_end - now));
+    priv->drops_timer_armed = TRUE;
+    priv->drops_timer_end = first_end;
+    gobj_write_bool_attr(gobj, "drops_timer_armed", TRUE);
 }
 
 /***************************************************************************
@@ -3054,10 +3115,10 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
     if(!gobj_requester) {
         /*
          *  A route of the agent that names nobody here: said once a
-         *  minute, as the frames of a client that is gone
+         *  window, as the frames of a client that is gone
          */
         priv->tty_unrouted++;
-        if(!priv->t_tty_unrouted_log || test_msectimer(priv->t_tty_unrouted_log)) {
+        if(drops_window_ended(gobj, priv->t_tty_unrouted_log)) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL,
@@ -3067,7 +3128,7 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
                 NULL
             );
             priv->tty_unrouted = 0;
-            priv->t_tty_unrouted_log = start_msectimer(60*1000);
+            priv->t_tty_unrouted_log = start_msectimer(0);
         }
         arm_drops_timer(gobj);
         KW_DECREF(kw);
@@ -3081,7 +3142,7 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
  *  web client that asked for it: relay it to that client, the way
  *  ac_tty_mirror_data() relays the PTY. The client may be gone -- a tab
  *  closed: the agent only learns when its watch expires, not renewed -- so
- *  a reading for nobody is expected. It is counted, and said once a minute,
+ *  a reading for nobody is expected. It is counted, and said once a window,
  *  not once per reading.
  ***************************************************************************/
 PRIVATE int ac_yuno_stats_relay(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -3213,8 +3274,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return run_step_timed_out(gobj);
     }
     if(src == priv->drops_timer) {
-        priv->drops_timer_armed = FALSE;
-        say_pending_drops(gobj, "its minute ended", TRUE);
+        priv->drops_timer_armed = FALSE;    // it fired: a one-shot is not armed
+        gobj_write_bool_attr(gobj, "drops_timer_armed", FALSE);
+        say_pending_drops(gobj, "its window ended", TRUE);
         arm_drops_timer(gobj);
         KW_DECREF(kw);
         return 0;

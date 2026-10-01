@@ -33,6 +33,9 @@
  *                routed to another client, reaches nobody;
  *              - several consoles mirrored through one agent's channel:
  *                the agent's close drops the client of each, once;
+ *              - the drops timer says a capped count when its window
+ *                (drops_warning_window) ends, not at the stop, and is not
+ *                left armed with nothing counted;
  *              - the agent is told the client takes EV_YUNO_STATS only when
  *                the client said so in its own __relays__;
  *              - what an agent sends back for no web client goes only to
@@ -124,6 +127,10 @@ typedef struct _PRIVATE_DATA {
 
     hgobj agent_channel;    // the agent's channel in __input_side__
     hgobj agent_wire;       // below its C_IEVENT_SRV: what is sent to the agent
+
+    int phase;              // the tests run in the loop: each phase a timeout
+    int result;
+    hgobj client3;
 } PRIVATE_DATA;
 
 
@@ -1148,14 +1155,79 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_answer_to_local_requesters(gobj, client1);
     result += test_inject_in_a_loop(gobj, client2);
 
-    if(result == 0) {
-        gobj_log_info(gobj, 0,
-            "msgset", "%s", MSGSET_INFO,
-            "msg", "%s", "All controlcenter scenarios tests PASSED",
-            NULL
-        );
-    }
+    priv->client3 = client3;
     return result;
+}
+
+/***************************************************************************
+ *  11. The drops timer says a count when its window ends, not at the stop,
+ *      and is not left armed with nothing counted. One phase per timeout,
+ *      the event loop running in between.
+ *
+ *  Phase 1, every window opened by the cases above over 400 ms old:
+ *  drops_warning_window = 300 ms. Their counts (case 5's frame, case 9's
+ *  PTY frame, the 11 injected of cases 6 and 10) are due now.
+ ***************************************************************************/
+PRIVATE int test_drops_window_shortened(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_write_integer_attr(priv->cc, "drops_warning_window", 300);
+    if(!gobj_read_bool_attr(priv->cc, "drops_timer_armed")) {
+        return fail(gobj, "the drops timer is armed while something is counted", "");
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Phase 2: the timer said them (the expected logs), and with nothing
+ *  counted it is not armed. Then 4 readings for a client that is gone:
+ *  the first is said now, 3 are counted, and it is armed again.
+ ***************************************************************************/
+PRIVATE int test_drops_counted_again(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+    hgobj client = priv->client3;
+
+    if(gobj_read_bool_attr(priv->cc, "drops_timer_armed")) {
+        ret += fail(gobj, "the drops timer is left armed with nothing counted", "phase 2");
+    }
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("watch-yuno-stats ids=1234"));
+    json_object_set_new(kw, "__relays__", json_pack("[s]", EV_YUNO_STATS));
+    check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, 0, "command-agent watch-yuno-stats");
+    json_t *watch = agent_request(gobj, "watch-yuno-stats reaches the agent");
+    if(!watch) {
+        return -1;
+    }
+    client_closes(gobj, client);
+    for(int i=0; i<4; i++) {
+        agent_sends(gobj, EV_YUNO_STATS, watch, 0, "a reading for nobody");
+    }
+    JSON_DECREF(watch)
+
+    if(!gobj_read_bool_attr(priv->cc, "drops_timer_armed")) {
+        ret += fail(gobj, "the drops timer is armed while something is counted", "phase 2");
+    }
+    return ret;
+}
+
+/***************************************************************************
+ *  Phase 3: the 3 were said by the timer (dropped=3, the expected logs,
+ *  before the PASSED), and it is not left armed.
+ ***************************************************************************/
+PRIVATE int test_drops_timer_said(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_read_bool_attr(priv->cc, "drops_timer_armed")) {
+        return fail(gobj, "the drops timer is left armed with nothing counted", "phase 3");
+    }
+    return 0;
 }
 
 
@@ -1173,7 +1245,36 @@ PRIVATE int run_tests(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    run_tests(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    switch(priv->phase++) {
+        case 0:
+            priv->result += run_tests(gobj);
+            set_timeout(priv->timer, 400);  // past every window opened above
+            KW_DECREF(kw)
+            return 0;
+        case 1:
+            priv->result += test_drops_window_shortened(gobj);
+            set_timeout(priv->timer, 1000); // the timer fires meanwhile
+            KW_DECREF(kw)
+            return 0;
+        case 2:
+            priv->result += test_drops_counted_again(gobj);
+            set_timeout(priv->timer, 1000); // past the 300 ms window
+            KW_DECREF(kw)
+            return 0;
+        default:
+            priv->result += test_drops_timer_said(gobj);
+            break;
+    }
+
+    if(priv->result == 0) {
+        gobj_log_info(gobj, 0,
+            "msgset", "%s", MSGSET_INFO,
+            "msg", "%s", "All controlcenter scenarios tests PASSED",
+            NULL
+        );
+    }
 
     gobj_log_info(gobj, 0,
         "msgset", "%s", MSGSET_INFO,

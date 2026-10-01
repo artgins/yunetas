@@ -167,11 +167,22 @@ yuno stats for a web client that is gone, dropped (the agent's watch expires)  d
 
 Each capped warning (this one, the PTY of a client that is gone, PTY output
 routed to nobody, agent events sent by a web client) says what it counted when
-it speaks next. So the count left since the last one is said when its minute
+it speaks next. So the count left since the last one is said when its window
 ends, or when the control center stops, with `when`:
 
 ```text
-stream for a web client that is gone, dropped  when="its minute ended"  dropped=17
+stream for a web client that is gone, dropped  when="its window ended"  dropped=17
+```
+
+The window is the attribute `drops_warning_window`, in milliseconds (default
+`60000`: one warning a minute per kind). A new value applies at once to the
+windows that are open, and a value under 1 is refused (logged, `60000` put
+back). `drops_timer_armed` (read-only) says whether a count is waiting for its
+window to end:
+
+```bash
+ycommand -c 'command-yuno id=<cc> service=__yuno__ command=write-attr gobj_name=controlcenter attribute=drops_warning_window value=10000'
+ycommand -c 'command-yuno id=<cc> service=__yuno__ command=view-attrs gobj_name=controlcenter attribute=drops_timer_armed'
 ```
 
 Not when a connection closes: a client that connects, sends one, and leaves,
