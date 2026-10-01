@@ -7131,6 +7131,14 @@ PRIVATE delete_heard_t count_key_delete_heard(
     if(!json_object_get(json_object_get(watched_topic, "cache"), deleted_key)) {
         return DELETE_KNOWN; // heard first by another feed, when this one owed nothing
     }
+    if(json_is_true(json_object_get((json_t *)fs_event->user_data, "master"))) {
+        /*
+         *  In a master the debts were made by tranger2_delete_key(); a key
+         *  in the cache here is the key written again, not a delete nobody
+         *  heard (owe_key_delete_to_own_feeds())
+         */
+        return DELETE_KNOWN;
+    }
 
     const char *id = json_string_value(json_object_get(disk, "id"));
     int idx; json_t *disk_;

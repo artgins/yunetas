@@ -70,6 +70,13 @@
  *  say a delete was lost. The feeds watched when it deleted owe it, and the
  *  overflowed one is told it. Up to 7.25.20 it never heard it.
  *
+ *  And in a master, the echo of a delete queued behind an overflow that
+ *  found the key written again (do_test_master_echo_behind_overflow): the
+ *  overflow cleared the feed's debt (the key is on disk), and the echo,
+ *  finding the key in the cache, must not be taken as a delete nobody
+ *  heard -- in a master the debts are made by tranger2_delete_key() -- or
+ *  the other feeds are left owing it.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -97,6 +104,7 @@
 #define DATABASE4   "tr_rt_disk_overflow_late"
 #define DATABASE5   "tr_rt_disk_overflow_reborn"
 #define DATABASE6   "tr_rt_disk_overflow_master"
+#define DATABASE7   "tr_rt_disk_overflow_master_echo"
 #define SEED_KEY    "0000000000000000000"
 #define TOPIC_NAME  "topic_rt_disk_overflow"
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
@@ -1115,6 +1123,120 @@ PRIVATE int do_test_master_feed_overflow(void)
 }
 
 /***************************************************************************
+ *  In a master, an echo behind an overflow that found the key written again
+ ***************************************************************************/
+PRIVATE int do_test_master_echo_behind_overflow(void)
+{
+    int result = 0;
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database),
+        getenv("HOME"), "tests_yuneta", DATABASE7, NULL);
+    rmrdir(path_database);
+
+    queue_limit = max_queued_events();
+    n_keys = 1;
+    received = GBMEM_MALLOC(sizeof(int) * (size_t)(n_keys + 1));
+    received_total = 0;
+    deleted_seed = 0;
+    deleted_other = 0;
+    seed_deleted = 0;
+
+    set_expected_results(
+        "master echo behind overflow: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_tranger(DATABASE7, TRUE);
+    if(!tm || !create_topic(tm)) {
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    rt = tranger2_open_rt_disk(     // overflowed
+        tm, TOPIC_NAME, "", NULL, my_record_callback, "rtALL", "", NULL
+    );
+    json_t *rt_other = tranger2_open_rt_disk(
+        tm, TOPIC_NAME, "", NULL, seed_record_callback, "rtOTHER", "", NULL
+    );
+    if(!rt || !rt_other) {
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    tranger2_set_rt_key_deleted_callback(rt, my_key_deleted_callback, NULL);
+    tranger2_set_rt_key_deleted_callback(rt_other, seed_key_deleted_callback, NULL);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(append_one(tm, SEED_KEY_ID, BASE_T)<0 || append_one(tm, 1, BASE_T)<0) {
+        result += -1;
+    }
+    result += drain(0);     // a master's own feed is handed no record
+    result += test_json(NULL);
+
+    /*
+     *  With the loop stopped: rtALL overflowed, some of its queue read
+     *  (room behind the overflow), the seed key deleted (its echo to rtALL
+     *  queued behind the overflow) and written again
+     */
+    set_expected_results_unordered(
+        "master echo behind overflow: nobody is left owing",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
+            "msg", "watched tree rescanned after lost inotify events"
+        ),
+        NULL, NULL, 1
+    );
+    result += overflow_whole_topic_feed(path_database);
+    fs_event_t *fs_all = (fs_event_t *)(uintptr_t)json_integer_value(
+        json_object_get(rt, "fs_event_client")
+    );
+    char room[4096];
+    if(!fs_all || read(fs_all->fd, room, sizeof(room)) <= 0) {
+        printf("%sERROR%s --> the test did not test: no room made behind the overflow: %s\n",
+            On_Red BWhite, Color_Off, strerror(errno));
+        result += -1;
+    }
+    if(tranger2_delete_key(tm, TOPIC_NAME, SEED_KEY)<0 || append_one(tm, SEED_KEY_ID, BASE_T + 1)<0) {
+        result += -1;
+    }
+    result += drain(0);
+    if(deleted_seed != 1 || seed_deleted != 1) {
+        printf("%sERROR%s --> the delete heard %d times by rtALL, %d by rtOTHER, expected 1/1\n",
+            On_Red BWhite, Color_Off, deleted_seed, seed_deleted);
+        result += -1;
+    }
+    result += expect_no_debts("rtALL", rt);
+    result += expect_no_debts("rtOTHER", rt_other);
+    result += test_json(NULL);
+
+    set_expected_results("master echo behind overflow: shutdown", NULL, NULL, NULL, 1);
+    tranger2_close_rt_disk(tm, rt);
+    rt = NULL;
+    tranger2_close_rt_disk(tm, rt_other);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    tranger2_shutdown(tm);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    GBMEM_FREE(received);
+    received_total = 0;
+    received_bad_key = 0;
+    deleted_seed = 0;
+    deleted_other = 0;
+    seed_deleted = 0;
+    rmrdir(path_database);
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -1376,6 +1498,7 @@ int main(int argc, char *argv[])
     result += do_test_feed_opened_in_flight();
     result += do_test_old_delete_after_reborn();
     result += do_test_master_feed_overflow();
+    result += do_test_master_echo_behind_overflow();
     result += do_test();
 
     yev_loop_stop(yev_loop);

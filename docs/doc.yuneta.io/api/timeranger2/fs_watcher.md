@@ -323,7 +323,9 @@ What the owners of the tree do:
   may have written it again before its own rt_disk feed (a configuration of
   tests) hears the echo. Up to 7.25.20 the echo took the live key out of the
   master's cache. And since the master's cache cannot say later that a
-  delete was lost, `tranger2_delete_key()` makes the debts itself: every
+  delete was lost, `tranger2_delete_key()` makes the debts itself (a feed
+  hearing it makes none: a key in the cache then is the key written
+  again): every
   feed of the master watched then owes it, and one that overflowed is told
   it (up to 7.25.20 it never heard it). The master is the only writer: it
   knows which feeds were watched when it signalled. Such a feed is handed
