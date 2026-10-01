@@ -7,14 +7,14 @@
  *
  *          Tasks
  *          - Play teston to connect to us
- *          - Wait 2 seconds until play __input_side__ (pepon)
+ *          - Wait 1 second until play __input_side__ (pepon)
  *              - This will cause messages of "Disconnected To" in teston
  *          - Play __input_side__
  *          - When client connected, wait 1 second, to dropping the connection.
  *          - Teston will retry the connect (each 2 seconds)
  *          - On 3 disconnections, shutdown
  *
- *          Copyright (c) 2024 by ArtGins.
+ *          Copyright (c) 2024-2026 by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <c_teston.h>
@@ -145,7 +145,12 @@ PRIVATE int mt_play(hgobj gobj)
     priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
     gobj_subscribe_event(priv->gobj_input_side, NULL, 0, gobj);
 
-    set_timeout(priv->timer, 2000); // timeout to start gobj_input_side (set pepon in listen, let some error)
+    /*
+     *  1 s, half the 2 s the client waits between attempts: at 2 s the play
+     *  raced the client's second attempt, and a busy machine logged a second
+     *  "Disconnected" before "Listening...".
+     */
+    set_timeout(priv->timer, 1000); // timeout to start gobj_input_side (set pepon in listen, let some error)
 
     return 0;
 }
