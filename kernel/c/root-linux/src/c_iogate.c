@@ -903,8 +903,22 @@ PRIVATE int send_all(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     json_t *jn_filter = json_pack("{s:s}",
         "__gclass_name__", C_CHANNEL
     );
+
+    /*
+     *  The last open channel takes the gate's own kw: one copy fewer
+     */
+    hgobj last = 0;
     hgobj child = gobj_first_child(gobj);
     while(child) {
+        if(gobj_match_gobj(child, json_incref(jn_filter)) && gobj_read_bool_attr(child, "opened")) {
+            last = child;
+        }
+        child = gobj_next_child(child);
+    }
+
+    BOOL kw_handed = FALSE;
+    child = gobj_first_child(gobj);
+    while(child && !kw_handed) {
         if(gobj_match_gobj(child, json_incref(jn_filter))) {
             if(gobj_read_bool_attr(child, "opened")) {
                 if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
@@ -938,7 +952,13 @@ PRIVATE int send_all(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                  *  it out, and up to 7.25.20 the others sent an empty frame
                  *  (a C_PROT_TCP4H peer dropped the connection on it).
                  */
-                json_t *kw_channel = kw_for_one_channel(gobj, kw);
+                json_t *kw_channel;
+                if(child == last) {
+                    kw_channel = kw;    // owned: handed, not released below
+                    kw_handed = TRUE;
+                } else {
+                    kw_channel = kw_for_one_channel(gobj, kw);
+                }
                 if(!kw_channel) {
                     // Error already logged
                     child = gobj_next_child(child);
@@ -965,7 +985,9 @@ PRIVATE int send_all(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    KW_DECREF(kw)
+    if(!kw_handed) {
+        KW_DECREF(kw)
+    }
     return 0;
 }
 

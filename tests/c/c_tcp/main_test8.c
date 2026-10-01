@@ -140,14 +140,10 @@ static int register_yuno_and_more(void)
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
     /*------------------------------------------------*
-     *  Safety: kill the yuno if the stop never ends
+     *  Safety: kill the yuno if it never ends
      *------------------------------------------------*/
     set_auto_kill_time(10);
 
-    /*------------------------------*
-     *  No error: the data sent while closing goes away with ONE warning
-     *  for the connection, which says what went
-     *------------------------------*/
     /*------------------------------*
      *  No warning, no error: every channel sends the whole message
      *------------------------------*/

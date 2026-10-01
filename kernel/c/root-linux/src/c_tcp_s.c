@@ -278,22 +278,20 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     /*
      *  The clisrvs forget this server: a `tcp_s` left behind would name
-     *  whatever gobj is made at this address next (the framework already
-     *  removed the subscriptions)
+     *  whatever gobj is made at this address next, and a clisrv posts to it
+     *  at its destroy (the framework already removed the subscriptions).
+     *  The bottom of EVERY child of the parent: with child_tree_filter the
+     *  accept takes whatever gobj the filter matches, a C_CHANNEL or not.
      */
     hgobj parent = gobj_parent(gobj);
     hgobj child = parent? gobj_first_child(parent) : 0;
     while(child) {
-        if(gobj_gclass_name(child) == C_CHANNEL ||
-            gobj_typeof_inherited_gclass(child, C_CHANNEL)
+        hgobj clisrv = gobj_last_bottom_gobj(child);
+        if(clisrv &&
+            gobj_gclass_name(clisrv) == C_TCP &&
+            gobj_read_pointer_attr(clisrv, "tcp_s") == gobj
         ) {
-            hgobj clisrv = gobj_last_bottom_gobj(child);
-            if(clisrv &&
-                gobj_gclass_name(clisrv) == C_TCP &&
-                gobj_read_pointer_attr(clisrv, "tcp_s") == gobj
-            ) {
-                gobj_write_pointer_attr(clisrv, "tcp_s", NULL);
-            }
+            gobj_write_pointer_attr(clisrv, "tcp_s", NULL);
         }
         child = gobj_next_child(child);
     }
@@ -514,10 +512,13 @@ PRIVATE int start_listening(hgobj gobj)
                 priv->certs_loaded = fingerprint;
             }
         } else {
+            json_t *fingerprint = certs_fingerprint(jn_crypto);
             priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
             if(priv->ytls) {
                 JSON_DECREF(priv->certs_loaded)
-                priv->certs_loaded = certs_fingerprint(jn_crypto);
+                priv->certs_loaded = fingerprint;
+            } else {
+                JSON_DECREF(fingerprint)    // Error already logged
             }
         }
     } else {
@@ -1179,18 +1180,19 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 }
 
 /***************************************************************************
- *  What the certificates of `crypto` are: the config (without trace_tls)
- *  and, for each file it names, its inode, size and mtime. A start again
- *  reloads them only when this changed: a pause and a play of a yuno must
- *  not say "TLS certificates reloaded" each time. Return is yours.
+ *  What the certificates of `crypto` are: the config (trace_tls included:
+ *  a change of it is applied by the reload) and, for each file it names,
+ *  its inode, size, mtime and ctime. A start again reloads them only when
+ *  this changed: a pause and a play of a yuno must not say "TLS
+ *  certificates reloaded" each time. Taken BEFORE a load, so a file
+ *  swapped between the load and the stat is not recorded as loaded. The
+ *  system CA bundle (ssl_use_system_ca) is not in it: its update is not
+ *  seen, reload-certs applies it. Return is yours.
  ***************************************************************************/
 PRIVATE json_t *certs_fingerprint(json_t *jn_crypto)
 {
     json_t *fingerprint = json_object();
     json_t *jn_config = json_deep_copy(jn_crypto);
-    if(json_is_object(jn_config)) {
-        json_object_del(jn_config, "trace_tls");
-    }
     json_object_set_new(fingerprint, "crypto", jn_config? jn_config : json_null());
 
     const char *files[] = {"ssl_certificate", "ssl_certificate_key", "ssl_trusted_certificate", 0};
@@ -1202,11 +1204,13 @@ PRIVATE json_t *certs_fingerprint(json_t *jn_crypto)
         struct stat st;
         char id[128] = "missing";
         if(stat(path, &st) == 0) {
-            snprintf(id, sizeof(id), "%lu:%lld:%lld.%09ld",
+            snprintf(id, sizeof(id), "%lu:%lld:%lld.%09ld:%lld.%09ld",
                 (unsigned long)st.st_ino,
                 (long long)st.st_size,
                 (long long)st.st_mtim.tv_sec,
-                (long)st.st_mtim.tv_nsec
+                (long)st.st_mtim.tv_nsec,
+                (long long)st.st_ctim.tv_sec,   // cp -p, touch -r, rsync set the mtime; nothing sets the ctime
+                (long)st.st_ctim.tv_nsec
             );
         }
         json_object_set_new(fingerprint, files[i], json_string(id));
@@ -1250,16 +1254,19 @@ PRIVATE int reload_ytls_from_attrs(hgobj gobj)
         json_boolean(priv->trace_tls || (trace_level & TRACE_TLS))
     );
 
+    json_t *fingerprint = certs_fingerprint(jn_crypto);
     int ret = ytls_reload_certificates(priv->ytls, jn_crypto);
     if(ret == 0) {
         JSON_DECREF(priv->certs_loaded)
-        priv->certs_loaded = certs_fingerprint(jn_crypto);
+        priv->certs_loaded = fingerprint;
         gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "TLS certificates reloaded successfully",
             "url",          "%s", priv->url ? priv->url : "",
             NULL
         );
+    } else {
+        JSON_DECREF(fingerprint)    // Error already logged: the previous certificates are kept
     }
     return ret;
 }

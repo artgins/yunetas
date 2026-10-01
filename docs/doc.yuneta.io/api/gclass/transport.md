@@ -258,18 +258,25 @@ subscribes when it first takes one (it asks the subscription, not `tcp_s`).
 A clisrv destroyed before its stop ended -- its channel destroyed while the
 server waits -- tells the server at its destroy, so the wait ends and a start
 that came meanwhile listens. A server destroyed clears the `tcp_s` of its
-clisrvs: a new server made at the same address must not take them for its
-own.
+clisrvs -- the bottom of every child of its parent, a `C_CHANNEL` or whatever
+gobj its `child_tree_filter` matches: a new server made at the same address
+must not take them for its own, and a clisrv tells its `tcp_s` at its own
+destroy.
 
 A TLS server keeps ONE ytls for its life (freed in its destroy): the clisrvs
 of the connections that outlive a stop (`child_tree_filter`) still use it.
 A start again reloads, in that same ytls, the certificates of its `crypto`,
 as the `reload-certs` command does: new connections take the new
 certificates, and a live connection keeps the context it was made with. It
-reloads them only when they CHANGED: the `crypto` config, or a file it names
+reloads them only when they CHANGED: the `crypto` config (`trace_tls`
+included: a change of it is applied by the reload), or a file it names
 (`ssl_certificate`, `ssl_certificate_key`, `ssl_trusted_certificate`: inode,
-size, mtime) -- so a pause and a play do not log *"TLS certificates
-reloaded"* each time, and a failed reload is still an ERROR. So a restart is
+size, mtime and ctime -- `cp -p`, `touch -r` or `rsync` can set an mtime, not
+a ctime) -- so a pause and a play do not log *"TLS certificates reloaded"*
+each time, and a failed reload is still an ERROR. What is recorded as loaded
+is taken before the load, so a file swapped meanwhile is reloaded at the next
+start. An update of the system CA bundle (`ssl_use_system_ca`) is NOT seen:
+run `reload-certs` for it. So a restart is
 also a way to apply renewed certificates:
 
 ```bash

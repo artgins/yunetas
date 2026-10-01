@@ -32,13 +32,17 @@
  *          while a stop of lone_port waits for it, and lone_port is
  *          started: it must listen. And names_port is destroyed: no clisrv
  *          may still name it, and names_port2, made in its place, must stop
- *          and start again in one turn.
+ *          and start again in one turn (its clisrvs already naming it, with
+ *          no subscription of it). Last, a legacy server whose filter takes
+ *          a C_PROT_TCP4H (not a C_CHANNEL) accepts a peer, and is stopped
+ *          and destroyed: its clisrv must not name it any more.
  *
  *          Up to 7.25.20 both stats read 0 always: they were SDF_STATS
  *          attrs backed by priv counters that no mt_reading served, and
- *          the `new` server does not see the accepts at all. The first
- *          count of this branch matched a connection by its local PORT:
- *          `shared_a` and `shared_b` each counted the connections of both.
+ *          the `new` server does not see the accepts at all. A connection
+ *          counts for the server whose clisrv holds it (`tcp_s`), not for
+ *          every server on its local port: counted by port, `shared_a` and
+ *          `shared_b` each counted the connections of both.
  *
  *          A wrong count is logged as an error, which the expected-logs
  *          check of main.c does not expect.
@@ -99,6 +103,8 @@ PRIVATE server_t names_server =
     {"__names_side__",  "names_port",  "127.0.0.1", 7817,        {-1, -1, -1}};
 PRIVATE server_t names_server2 =
     {"__names_side__",  "names_port2", "127.0.0.1", 7817,        {-1, -1, -1}};
+PRIVATE server_t odd_server =
+    {"",                "odd_port",    "127.0.0.1", 7819,        {-1, -1, -1}};
 PRIVATE server_t lone_server =
     {"__lone_side__",   "lone_port",   "127.0.0.1", 7818,        {-1, -1, -1}};
 PRIVATE const char *gates[] = {
@@ -178,6 +184,15 @@ PRIVATE int mt_stop(hgobj gobj)
         close_peer(&names_server, i);
         close_peer(&names_server2, i);
         close_peer(&lone_server, i);
+        close_peer(&odd_server, i);
+    }
+
+    /*
+     *  The odd-1 tree is a child of this gobj, not of a gate: stopped here
+     */
+    hgobj odd = gobj_find_child(gobj, json_pack("{s:s}", "__gobj_name__", "odd-1"));
+    if(odd) {
+        gobj_stop_tree(odd);
     }
     return 0;
 }
@@ -498,6 +513,15 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             {
                 hgobj gate = gobj_find_service("__lone_side__", TRUE);
                 gobj_stop(find_server(&lone_server));
+                if(!gobj_in_this_state(find_server(&lone_server), ST_WAIT_STOPPED)) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "lone_port is not waiting for its clisrv: nothing tested",
+                        "state",        "%s", gobj_current_state(find_server(&lone_server)),
+                        NULL
+                    );
+                }
                 hgobj channel = gobj_find_child(gate, json_pack("{s:s}", "__gobj_name__", "lone-1"));
                 gobj_stop_tree(channel);
                 gobj_destroy(channel);
@@ -536,6 +560,18 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     json_pack("{s:s}", "url", "tcp://127.0.0.1:7817"),
                     gate
                 );
+
+                /*
+                 *  The clisrvs already name names_port2, as a stale pointer
+                 *  of a server destroyed at the same address would, with no
+                 *  subscription of it: its start must subscribe all the same
+                 */
+                for(hgobj ch = gobj_first_child(gate); ch; ch = gobj_next_child(ch)) {
+                    hgobj clisrv = gobj_last_bottom_gobj(ch);
+                    if(clisrv && gobj_gclass_name(clisrv) == C_TCP) {
+                        gobj_write_pointer_attr(clisrv, "tcp_s", np2);
+                    }
+                }
                 gobj_start(np2);
             }
             set_timeout(priv->timer, 300);
@@ -560,6 +596,60 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 14:
             check_connxs(gobj, &names_server2, "names_port2 stopped and started again", 1);
+
+            /*
+             *  A legacy server whose filter takes a gobj that is NOT a
+             *  C_CHANNEL: a C_PROT_TCP4H, child of this gobj, over a C_TCP
+             */
+            {
+                hgobj prot = gobj_create("odd-1", C_PROT_TCP4H, 0, gobj);
+                hgobj tcp = gobj_create("odd-1", C_TCP, 0, prot);
+                gobj_set_bottom_gobj(prot, tcp);
+                gobj_start(prot);
+                hgobj odd = gobj_create(
+                    "odd_port",
+                    C_TCP_S,
+                    json_pack("{s:s, s:{s:{s:s, s:s}}}",
+                        "url", "tcp://127.0.0.1:7819",
+                        "child_tree_filter", "kw",
+                            "__gclass_name__", "C_PROT_TCP4H",
+                            "__gobj_name__", "odd-1"
+                    ),
+                    gobj
+                );
+                gobj_start(odd);
+            }
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 15:
+            connect_peer(gobj, &odd_server, 0);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 16:
+            gobj_stop(gobj_find_child(gobj, json_pack("{s:s}", "__gobj_name__", "odd_port")));
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 17:
+            {
+                /*
+                 *  Destroyed, it must leave no clisrv naming it, a C_CHANNEL
+                 *  or not: the clisrv posts to its `tcp_s` at its own destroy
+                 */
+                gobj_destroy(gobj_find_child(gobj, json_pack("{s:s}", "__gobj_name__", "odd_port")));
+                hgobj prot = gobj_find_child(gobj, json_pack("{s:s}", "__gobj_name__", "odd-1"));
+                hgobj tcp = prot? gobj_last_bottom_gobj(prot) : 0;
+                if(!tcp || gobj_read_pointer_attr(tcp, "tcp_s")) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "a clisrv under a filter-matched gobj still names its destroyed C_TCP_S",
+                        NULL
+                    );
+                }
+            }
             set_yuno_must_die();
             break;
 
