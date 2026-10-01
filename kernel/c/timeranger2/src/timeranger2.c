@@ -6772,16 +6772,11 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                     );
                 }
                 /*
-                 *  A record found in it says the key lives: a directory of
-                 *  a delete signal (made and removed at once) holds none,
-                 *  whether it is still there when this is read or not
+                 *  What the directory holds NOW, not at this event: its
+                 *  records do not forget a debt (forget_debts_passed())
                  */
                 if(is_directory(full_path)) {
-                    int records = scan_disks_key_for_new_file(gobj, tranger, full_path);
-                    if(records > 0 && watched_topic &&
-                            strcmp((const char *)fs_event->directory, fs_event->path)==0) {
-                        forget_debts_passed(watched_topic, fs_event, (const char *)fs_event->filename);
-                    }
+                    scan_disks_key_for_new_file(gobj, tranger, full_path);
                 }
                 // else: created and removed at once, the key-delete signal
             }
@@ -7235,16 +7230,19 @@ PRIVATE void note_where_the_other_feeds_are(
 }
 
 /***************************************************************************
- *  CLIENT: a record of the key reached this feed from its own directory
- *  (a link of an md2 in disks/<rt_id>/<key>/, heard or found in the key's
- *  directory just made): the key lives. A debt of the key made before this
- *  event was queued is one the feed will never pay: the signal owed, queued
- *  before the debt was made, would have come first.
+ *  CLIENT: the link of a record of the key was HEARD in this feed's
+ *  disks/<rt_id>/<key>/ (its IN_CREATE): the key lives. A debt of the key
+ *  made before this event was queued is one the feed will never pay: the
+ *  signal owed, queued before the debt was made, would have come first.
  *
- *  A record, not the directory: the master signals a delete to a feed
- *  without the key's directory by making it and removing it, and a
- *  follower that reads the IN_CREATE between the two (the master preempted)
- *  finds the directory there. Such a directory never holds a record.
+ *  Only a link heard, which carries its own place in the stream. Not the
+ *  key's directory seen made, nor what it holds when it is read: the master
+ *  signals a delete to a feed without that directory by making it and
+ *  removing it, and when the follower reads that IN_CREATE the directory
+ *  may be there still (the master preempted between the two) or there
+ *  AGAIN (the key written again since), with the new key's link in it --
+ *  queued after the signal, read at the signal's place. Either one forgot
+ *  the debt of the very delete being signalled.
  ***************************************************************************/
 PRIVATE void forget_debts_passed(
     json_t *watched_topic,

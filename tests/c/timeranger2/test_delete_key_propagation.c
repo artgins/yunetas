@@ -19,6 +19,10 @@
  *        follower that reads the IN_CREATE in between finds the directory
  *        there. That is not the key alive again: the feed's debt of the
  *        delete stays (the test holds the rmdir() of the master's signal).
+ *        Nor when the master writes the key AGAIN before the follower reads
+ *        that IN_CREATE: the directory then holds the new key's link, read
+ *        at the signal's place; the debt stays, the live key stays in the
+ *        follower's cache, and nobody is left owing.
  *      - do_test_master_rt_disk_reborn: a master's own rt_disk feed hears
  *        the delete after the master wrote the key again: the live key
  *        stays in the master's cache.
@@ -98,6 +102,8 @@ PRIVATE int held_rmdirs = 0;
 PRIVATE int count_x = 0, count_y = 0;           // key_deleted of the feeds rtX and rtY
 PRIVATE json_t *feed_x = NULL, *feed_y = NULL;
 PRIVATE int debt_kept_in_signal = -1;           // the second feed, its IN_CREATE read: still owes?
+PRIVATE json_t *held_master = NULL;             // set: the key is written again in the hold
+PRIVATE int append_to(json_t *tranger, json_int_t id, int n);
 
 int __wrap_rmdir(const char *path)
 {
@@ -121,8 +127,17 @@ int __wrap_rmdir(const char *path)
         if(held_rmdirs == 2) {
             /*
              *  The second: its directory made and not removed yet, as when
-             *  the master is preempted between the two
+             *  the master is preempted between the two. Or removed, and the
+             *  key written again (its new directory and link) before the
+             *  follower reads the signal.
              */
+            int ret = 0;
+            if(held_master) {
+                ret = __real_rmdir(path);
+                if(append_to(held_master, 1, 1) < 0) {
+                    printf("%sERROR%s --> cannot write the key again\n", On_Red BWhite, Color_Off);
+                }
+            }
             for(int i = 0; i < 20; i++) {
                 yev_loop_run_once(yev_loop);
             }
@@ -130,6 +145,9 @@ int __wrap_rmdir(const char *path)
             debt_kept_in_signal = json_object_get(
                 json_object_get(feed, "deletes_unheard"), KEY_A
             )? 1 : 0;
+            if(held_master) {
+                return ret;
+            }
         }
     }
     return __real_rmdir(path);
@@ -1019,9 +1037,11 @@ PRIVATE int do_test_follower(void)
 /***************************************************************************
  *  do_test_signal_dir_seen
  ***************************************************************************/
-PRIVATE int do_test_signal_dir_seen(void)
+PRIVATE int do_test_signal_dir_seen(BOOL key_back)
 {
     int result = 0;
+    const char *label = key_back? "signal dir seen, key back" : "signal dir seen";
+    char title[128];
     char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
     build_paths(path_root, sizeof(path_root),
                 path_database, sizeof(path_database),
@@ -1031,8 +1051,9 @@ PRIVATE int do_test_signal_dir_seen(void)
     held_rmdirs = 0;
     debt_kept_in_signal = -1;
 
+    snprintf(title, sizeof(title), "%s: setup", label);
     set_expected_results(
-        "signal dir seen: setup",
+        title,
         json_pack("[{s:s},{s:s}]",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating topic"
@@ -1068,33 +1089,41 @@ PRIVATE int do_test_signal_dir_seen(void)
     drain(10);
     result += test_json(NULL);
 
-    set_expected_results("signal dir seen: the debt stays", NULL, NULL, NULL, 1);
+    snprintf(title, sizeof(title), "%s: the debt stays", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
     build_path(held_signals, sizeof(held_signals), path_topic, "disks", NULL);
+    held_master = key_back? tm : NULL;
     if(tranger2_delete_key(tm, TOPIC_NAME, KEY_A) < 0) {
         result += -1;
     }
     held_signals[0] = 0;
+    held_master = NULL;
     drain(30);
-
-    if(held_rmdirs != 2) {
-        printf("%sERROR%s --> signal dir seen: %d signals held, expected 2: the test did not test\n",
-            On_Red BWhite, Color_Off, held_rmdirs);
+    if(key_back && !json_object_get(json_object_get(tranger2_topic(tf, TOPIC_NAME), "cache"), KEY_A)) {
+        printf("%sERROR%s --> %s: the key written again is not in the follower's cache\n",
+            On_Red BWhite, Color_Off, label);
         result += -1;
     }
-    if(debt_kept_in_signal != 1) {
-        printf("%sERROR%s --> signal dir seen: the directory of the signal, seen made, dropped the debt of the delete\n",
-            On_Red BWhite, Color_Off);
+
+    if(held_rmdirs != 2) {
+        printf("%sERROR%s --> %s: %d signals held, expected 2: the test did not test\n",
+            On_Red BWhite, Color_Off, label, held_rmdirs);
+        result += -1;
+    }
+    if(!key_back && debt_kept_in_signal != 1) {     // with the key back the signal is read whole
+        printf("%sERROR%s --> %s: the directory of the signal, seen made, dropped the debt of the delete\n",
+            On_Red BWhite, Color_Off, label);
         result += -1;
     }
     if(count_x != 1 || count_y != 1) {
-        printf("%sERROR%s --> signal dir seen: rtX heard %d, rtY %d, expected 1/1\n",
-            On_Red BWhite, Color_Off, count_x, count_y);
+        printf("%sERROR%s --> %s: rtX heard %d, rtY %d, expected 1/1\n",
+            On_Red BWhite, Color_Off, label, count_x, count_y);
         result += -1;
     }
     if(json_object_size(json_object_get(feed_x, "deletes_unheard")) != 0 ||
        json_object_size(json_object_get(feed_y, "deletes_unheard")) != 0) {
-        printf("%sERROR%s --> signal dir seen: a feed owes deletes it will never hear\n",
-            On_Red BWhite, Color_Off);
+        printf("%sERROR%s --> %s: a feed owes deletes it will never hear\n",
+            On_Red BWhite, Color_Off, label);
         result += -1;
     }
     tranger2_close_rt_disk(tf, feed_x);
@@ -1103,7 +1132,8 @@ PRIVATE int do_test_signal_dir_seen(void)
     drain(20);
     result += test_json(NULL);
 
-    set_expected_results("signal dir seen: shutdown", NULL, NULL, NULL, 1);
+    snprintf(title, sizeof(title), "%s: shutdown", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
     tranger2_shutdown(tf);
     tranger2_shutdown(tm);
     drain(10);
@@ -1614,7 +1644,8 @@ int main(int argc, char *argv[])
     result += do_test_follower();
     result += do_test_cache_cleared();
     result += do_test_rkey_filter();
-    result += do_test_signal_dir_seen();
+    result += do_test_signal_dir_seen(FALSE);
+    result += do_test_signal_dir_seen(TRUE);
     result += do_test_master_rt_disk_reborn();
     result += do_test_rmrdir_fails();
     result += do_test_rmrdir_fails_filtered();

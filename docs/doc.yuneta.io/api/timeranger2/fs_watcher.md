@@ -307,12 +307,16 @@ What the owners of the tree do:
   after another, in microseconds: only a delete signalled across the very
   moment a feed opens is left in doubt, and owed. Such a debt holds where the
   stream of the debtor ended when it was made; when the debtor's stream, past
-  that point, hands it a RECORD of the key (the key lives), the debt is
-  forgotten -- kept, the next delete of the key would pay it, and a feed that
-  overflowed then would miss that one. A record, not the key's directory: the
-  master signals a delete to a feed without that directory by making it and
-  removing it, and a follower that reads the `IN_CREATE` between the two
-  finds the directory there; it never holds a record.
+  that point, carries the link of a record of the key HEARD (its own
+  `IN_CREATE`, with its own place in the stream: the key lives), the debt
+  is forgotten -- kept, the next delete of the key would pay it, and a feed
+  that overflowed then would miss that one. Not the key's directory seen
+  made, nor what it holds when it is read: the master signals a delete to a
+  feed without that directory by making it and removing it, and when the
+  follower reads that `IN_CREATE` the directory may be there still (the
+  master preempted between the two) or there AGAIN, the key written since,
+  with the new key's link in it -- queued after the signal, read at the
+  signal's place.
 
   In a MASTER the watcher's echo of a delete forgets nothing:
   `tranger2_delete_key()` forgot the key when it deleted it, and the master
