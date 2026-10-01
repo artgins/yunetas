@@ -57,6 +57,7 @@
  *              Constants
  ***************************************************************************/
 #define AGENT_HOST  "node1"
+#define DROPS_WAIT_MS   5000    // the most a phase waits for the drops timer
 
 /***************************************************************************
  *              Structures
@@ -129,6 +130,7 @@ typedef struct _PRIVATE_DATA {
     hgobj agent_wire;       // below its C_IEVENT_SRV: what is sent to the agent
 
     int phase;              // the tests run in the loop: each phase a timeout
+    uint64_t t_wait;        // msectimer: the deadline of what a phase waits for
     int result;
     hgobj client3;
 } PRIVATE_DATA;
@@ -1120,6 +1122,22 @@ PRIVATE int test_inject_in_a_loop(hgobj gobj, hgobj client)
 }
 
 /***************************************************************************
+ *  12. The control center paused and stopped while the yuno runs (not at
+ *      the shutdown, where a stop of a gobj that is not running is
+ *      quiet): its timers, already stopped by clear_timeout(), are not
+ *      stopped again ("GObj NOT RUNNING", an ERROR with a stack, before).
+ *      The expected logs say it.
+ ***************************************************************************/
+PRIVATE int test_stop_outside_shutdown(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_pause(priv->cc);
+    gobj_stop(priv->cc);
+    return 0;
+}
+
+/***************************************************************************
  *  All the tests
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -1180,7 +1198,7 @@ PRIVATE int test_drops_window_shortened(hgobj gobj)
 }
 
 /***************************************************************************
- *  Phase 2: the timer said them (the expected logs), and with nothing
+ *  Phase 2, once the drops timer fired: it said them (the expected logs), and with nothing
  *  counted it is not armed. Then 4 readings for a client that is gone:
  *  the first is said now, 3 are counted, and it is armed again.
  ***************************************************************************/
@@ -1217,7 +1235,7 @@ PRIVATE int test_drops_counted_again(hgobj gobj)
 }
 
 /***************************************************************************
- *  Phase 3: the 3 were said by the timer (dropped=3, the expected logs,
+ *  Phase 3, once the drops timer fired again: the 3 were said by it (dropped=3, the expected logs,
  *  before the PASSED), and it is not left armed.
  ***************************************************************************/
 PRIVATE int test_drops_timer_said(hgobj gobj)
@@ -1247,6 +1265,25 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  Phases 2 and 3 wait for the control center's drops timer to have
+     *  fired (drops_timer_armed back to false), checked at each 100 ms
+     *  tick, at most DROPS_WAIT_MS: a stall of the loop delays them, it
+     *  does not reorder them; a timer that never fires fails, loudly.
+     */
+    if(priv->phase == 2 || priv->phase == 3) {
+        if(gobj_read_bool_attr(priv->cc, "drops_timer_armed")) {
+            if(!test_msectimer(priv->t_wait)) {
+                set_timeout(priv->timer, 100);
+                KW_DECREF(kw)
+                return 0;
+            }
+            priv->result += fail(gobj, "the drops timer did not fire in time",
+                priv->phase == 2? "phase 2" : "phase 3");
+            priv->phase = 4;
+        }
+    }
+
     switch(priv->phase++) {
         case 0:
             priv->result += run_tests(gobj);
@@ -1255,16 +1292,21 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             return 0;
         case 1:
             priv->result += test_drops_window_shortened(gobj);
-            set_timeout(priv->timer, 1000); // the timer fires meanwhile
+            priv->t_wait = start_msectimer(DROPS_WAIT_MS);
+            set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
         case 2:
             priv->result += test_drops_counted_again(gobj);
-            set_timeout(priv->timer, 1000); // past the 300 ms window
+            priv->t_wait = start_msectimer(DROPS_WAIT_MS);
+            set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
-        default:
+        case 3:
             priv->result += test_drops_timer_said(gobj);
+            priv->result += test_stop_outside_shutdown(gobj);
+            break;
+        default:
             break;
     }
 

@@ -297,7 +297,6 @@ SDATA_END()
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    hgobj timer;
     int32_t timeout;
     json_int_t drops_warning_window;
 
@@ -308,10 +307,6 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_treedb_controlcenter;
     hgobj gobj_authz;
 
-    uint64_t txMsgs;
-    uint64_t rxMsgs;
-    uint64_t txMsgsec;
-    uint64_t rxMsgsec;
 
     uint64_t stats_dropped;         // EV_YUNO_STATS for a web client that is gone
     uint64_t t_stats_dropped_log;   // msectimer: start of its window (0: none)
@@ -360,7 +355,6 @@ PRIVATE void mt_create(hgobj gobj)
         gobj_read_str_attr(gobj_yuno(), "__username__")
     );
 
-    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->run_timer = gobj_create_pure_child("run_timer", C_TIMER, 0, gobj);
     priv->drops_timer = gobj_create_pure_child("drops_timer", C_TIMER, 0, gobj);
 
@@ -413,10 +407,7 @@ PRIVATE int mt_start(hgobj gobj)
      *-----------------------------*/
     priv->gobj_authz =  gobj_find_service("authz", TRUE);
 
-    gobj_start(priv->timer);
-    gobj_start(priv->run_timer);
-    gobj_start(priv->drops_timer);
-    return 0;
+    return 0;   // the timers start when they are set (C_TIMER's msec)
 }
 
 /***************************************************************************
@@ -427,12 +418,14 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     say_pending_drops(gobj, "the control center stops", FALSE);
+    /*
+     *  clear_timeout() stops a C_TIMER that runs and leaves alone one that
+     *  does not: a gobj_stop() after it logged "GObj NOT RUNNING"
+     */
     clear_timeout(priv->drops_timer);
     priv->drops_timer_armed = FALSE;
     gobj_write_bool_attr(gobj, "drops_timer_armed", FALSE);
-    gobj_stop(priv->timer);
-    gobj_stop(priv->run_timer);
-    gobj_stop(priv->drops_timer);
+    clear_timeout(priv->run_timer);
     return 0;
 }
 
@@ -618,7 +611,6 @@ PRIVATE int mt_pause(hgobj gobj)
         EXEC_AND_RESET(gobj_destroy, priv->gobj_treedbs)
     }
 
-    clear_timeout(priv->timer);
     return 0;
 }
 
@@ -3282,21 +3274,13 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return 0;
     }
 
-    uint64_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
-    uint64_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
-    if(priv->txMsgsec > maxtxMsgsec) {
-        gobj_write_integer_attr(gobj, "maxtxMsgsec", priv->txMsgsec);
-    }
-    if(priv->rxMsgsec > maxrxMsgsec) {
-        gobj_write_integer_attr(gobj, "maxrxMsgsec", priv->rxMsgsec);
-    }
-
-    gobj_write_integer_attr(gobj, "txMsgsec", priv->txMsgsec);
-    gobj_write_integer_attr(gobj, "rxMsgsec", priv->rxMsgsec);
-
-    priv->rxMsgsec = 0;
-    priv->txMsgsec = 0;
-
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL,
+        "msg",          "%s", "EV_TIMEOUT of a timer this gobj does not have",
+        "src",          "%s", gobj_short_name(src),
+        NULL
+    );
     KW_DECREF(kw);
     return 0;
 }

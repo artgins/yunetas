@@ -89,7 +89,7 @@ still reported and fails the test.
 
 10. A client connects, sends one event only an agent sends, and leaves, five
     times: no warning per loop (the cap held), the five are counted with the
-    six of case 6 and said once at the stop. A flush on every connection's
+    six of case 6 and said once by the drops timer in case 11 (`dropped=11`). A flush on every connection's
     close bounded the warnings only by the client's reconnect rate.
 11. The drops timer, with a short window. Once every window the cases above
     opened is over 400 ms old, `drops_warning_window` is set to 300 ms: the
@@ -98,9 +98,17 @@ still reported and fails the test.
     stop, and then `drops_timer_armed` is false. Four readings for a client
     that is gone: the first is said at once (`dropped=1`), 3 are counted,
     the timer is armed, and after the window it says `dropped=3` and is not
-    armed. If the timer never fires, the counts come at the stop and the
-    expected logs fail. (C_TIMER ticks every 100 ms here: `timeout_periodic`
-    of the test's yuno.)
+    armed. Each step waits for the drops timer to have fired
+    (`drops_timer_armed` false), checked every 100 ms for at most 5 s, so a
+    stall of the loop delays the steps but cannot reorder them; a timer that
+    never fires fails (*"the drops timer did not fire in time"*), and its
+    counts come at the stop. (C_TIMER ticks every 100 ms here:
+    `timeout_periodic` of the test's yuno.)
+12. The control center paused and stopped while the yuno runs, not at the
+    shutdown: no log. Before, `mt_stop()` stopped again the timers that
+    `clear_timeout()` had already stopped (and the rate timer, never armed,
+    that `mt_pause()` had cleared): three *"GObj NOT RUNNING"* errors with a
+    stack.
 
 ## Run
 

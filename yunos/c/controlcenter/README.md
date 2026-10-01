@@ -64,7 +64,7 @@ control center, so its watch is refused and its Monitor falls back to polling
 
 What an agent sends back reaches a web client's channel of `__top_side__`, or,
 for a request that came in by the control center's link to its own agent
-(`ycommand -c 'command-yuno id=<cc> service=controlcenter command=command-agent ...'`),
+(`ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent ...'`),
 that `C_IEVENT_CLI` link, and only for an agent it sent a request to (the
 agent's channel remembers the link until it closes). Nothing else: a route
 that names any other local service, or a link that did not ask that agent, is

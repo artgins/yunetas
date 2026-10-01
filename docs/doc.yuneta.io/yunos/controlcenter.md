@@ -80,7 +80,7 @@ its **hostname**.
 **3 — forward a command to one node** with `command-agent` (a `SDF_WILD_CMD`):
 
 ```bash
-ycommand -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=<host-or-uuid> cmd2agent="list-yunos"'
+ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=<host-or-uuid> cmd2agent="list-yunos"'
 ```
 
 Parameters: `agent_id` (UUID or hostname), `agent_service`, and `cmd2agent`
