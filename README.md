@@ -84,6 +84,12 @@ A release that moves a lot of code ships a performance report: charts of what
 the release does on one machine, the release before measured the same way, and every loss with its
 reason.
 
+- **7.25.21** (against 7.25.20): secrets masked in every trace, dump and kw,
+  secret gbuffers, a reworked TCP server lifecycle, and nothing slower beyond
+  the spread of its rounds.
+  [Report](performance/reports/7.25.21.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.21/performance/reports/7.25.21.html) ·
+  [raw figures](performance/reports/7.25.21.json)
 - **7.25.20** (against 7.25.5): treedb writes 16-25% faster and the start of
   40 treedbs twice as fast, from the `SWITCHS` fix of 7.25.7; nothing slower.
   [Report](performance/reports/7.25.20.html) (the file) ·

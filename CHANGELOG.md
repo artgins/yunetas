@@ -59,6 +59,22 @@ code before it, except the few this list marks "(no red test)".
 - **C_TCP_S `connxs` and `tconnxs` read real values** (they always read 0); a
   dashboard that showed them changes.
 
+### Performance, against 7.25.20
+
+- The report of this release measures it against 7.25.20, the release of the
+  last report: [`performance/reports/7.25.21.html`](https://github.com/artgins/yunetas/blob/7.25.21/performance/reports/7.25.21.html),
+  and the trend on [doc.yuneta.io/performance](https://doc.yuneta.io/performance/).
+  Both releases built whole, run alternately, 8 rounds (24 for the timeranger2
+  tests).
+- Nothing slower beyond its noise: the masking of secrets runs only when a
+  trace prints, a secret gbuffer costs one flag test, and a TCP send one key
+  lookup. Appends 223,031 -> 225,883 per second (+1.3%, noise).
+- Three figures moved outside their spread, all faster, and none is claimed:
+  the gobj TCP echo +4.8%, the BFF logins +3.1%, 600 000 appends to one key
+  -3.7% of time. No change takes work off those paths (the append code is the
+  same as in 7.25.20): placement of whole-release builds.
+- The static binaries are 0.6-0.9% larger (stripped).
+
 ### SECURITY: secrets that still reached a reader or a log
 
 - **`SDF_SECRET` on the credentials that were not flagged.**

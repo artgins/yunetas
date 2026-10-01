@@ -773,6 +773,51 @@ releases (`timeranger2.c` changed only in its rt-disk rescan): code
 placement, as far as this method can tell; `test_topic_pkey_integer`, 24 rounds,
 moved +0.3%.
 
+### Oct-2026: 7.25.21 against 7.25.20 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
+
+Each release built from its own tree (a git worktree of the 7.25.20 tag, the
+same `.config` and compiler; only the kernel libraries, `modules/c/test`,
+`performance/c/` and the three ctest binaries built there). `outputs_ext` was
+shared: linux-ext-libs moved 1.22 -> 1.23 in this release, only in how
+openresty is downloaded, no library changed version. The two binaries of each
+benchmark run alternately, the order flipped every round, with a `sync` and a
+3 s pause before each run: 8 rounds, 24 for the three timeranger2 ctest
+binaries. Mean +- standard deviation. The report:
+[`performance/reports/7.25.21.html`](../reports/7.25.21.html).
+
+| Case | 7.25.20 | 7.25.21 | Change |
+|------|---------|---------|--------|
+| `test_topic_pkey_integer`, appends/s | 223,031 +- 8,202 | 225,883 +- 6,043 | +1.3% (noise) |
+| the same, with an rt list | 188,797 +- 5,244 | 191,672 +- 5,799 | +1.5% (noise) |
+| `perf_timeranger2` `build_appends` (ms) | 1783.8 +- 29.3 | 1757.9 +- 50.9 | -1.5% (noise) |
+| `perf_timeranger2` `tm_build_appends` (ms) | 1719.9 +- 45.5 | 1656.3 +- 33.4 | -3.7% (placement, see below) |
+| `perf_timeranger2` `open_master`, `open_replica` (ms) | 82.4, 108.3 | 81.9, 107.1 | noise |
+| `perf_timeranger2` `tm_query_migrated`, `unmigrated` (ms) | 7.47, 397.8 | 7.66, 399.4 | noise |
+| `perf_timeranger2` `create_topic`, `topic_version_change` (ms) | 135.1, 242.4 | 133.7, 241.0 | noise |
+| reads, iterator / pages (records/s) | 185,565 / 167,048 | 186,284 / 168,516 | noise |
+| `perf_tr_treedb` `update_memory` (us, CPU) | 2.449 +- 0.142 | 2.322 +- 0.092 | -5.2% (noise, t = -2.1) |
+| `perf_tr_treedb` `update_saved`, `link_unlink` | 7.82, 8.72 | 7.77, 8.71 | noise |
+| `perf_tr_treedb` `create_link_half`, `reopen`, `delete_force`, `delete_parent` | 66.2, 387.4, 71.4, 2648 | 67.1, 391.1, 71.3, 2665 | noise |
+| `perf_c_treedb` `same_literal`, `seed`, `newer_literal` (s) | 0.341, 10.03, 13.03 | 0.340, 10.16, 12.46 | noise |
+| `perf_rotatory` audit / flushed / log (ns) | 593 / 1265 / 383 | 593 / 1267 / 381 | noise |
+| `perf_yev_ping_pong` / `2` (K msg/s) | 147.9 / 84.9 | 147.1 / 84.1 | noise |
+| `perf_tcp_test4` (round trips/s) | 37,909 +- 746 | 39,715 +- 349 | +4.8% (placement, see below) |
+| `perf_tcp_test5` (round trips/s) | 29,505 | 30,173 | +2.3% (noise) |
+| `perf_tcps_test4` / `5` (round trips/s) | 29,125 / 23,160 | 28,908 / 23,336 | noise |
+| `perf_auth_bff` (logins/s) | 8,350 +- 157 | 8,606 +- 166 | +3.1% (placement, see below) |
+
+Nothing is slower beyond its noise. Three figures moved outside their spread,
+all faster, and none is claimed as a gain: `perf_tcp_test4` +4.8% (t = 6.2),
+`perf_auth_bff` +3.1% (t = 3.2) and `tm_build_appends` -3.7% (t = -3.2). No
+change of 7.25.21 takes work off those paths: a TCP send gained one key lookup
+(`__secret__` in `EV_TX_DATA`), the send-to-all change of `C_IOGATE` is not used
+by the echo, `c_auth_bff.c` changed by one line, and `tranger2_append_record()`
+is the same in both releases (`tm_build_appends` moved +3.6% the other way in
+the 7.25.20 report). The TLS echo, which runs the same `C_TCP` code, moved
+-0.7%. Whole-release builds move where the code lands: placement. The masking
+of secrets runs only when a trace prints; a secret gbuffer costs one flag test
+on its free and its growth.
+
 ### Key takeaways
 
 - **RelWithDebInfo vs Debug:** ~50% higher throughput with optimizations enabled.
