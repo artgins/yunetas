@@ -53,6 +53,7 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event);
 PRIVATE uint64_t monotonic_us(void);
 PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event);
 PRIVATE int queued_in_kernel(fs_event_t *fs_event, uint64_t *queued);
+PRIVATE void tell_owner_watcher_gone(fs_event_t *fs_event);
 
 /***************************************************************************
  *  Data
@@ -460,12 +461,7 @@ PRIVATE int yev_callback(
                             "serrno",       "%s", strerror(-yev_get_result(yev_event)),
                             NULL
                         );
-                        fs_event->fs_type = FS_WATCHER_GONE_TYPE;
-                        fs_event->directory = (volatile char *)fs_event->path;
-                        fs_event->filename = "";
-                        fs_event->in_callback = TRUE;
-                        fs_event->callback(fs_event);
-                        fs_event->in_callback = FALSE;
+                        tell_owner_watcher_gone(fs_event);
                     }
                     fs_destroy_watcher_event(fs_event);
 
@@ -514,12 +510,27 @@ PRIVATE int yev_callback(
 
                     /*
                      *  Clear buffer
-                     *  Re-arm read
+                     *  Re-arm read. A read that cannot be armed again is the
+                     *  end of the watcher, as one that fails: up to 7.25.20
+                     *  it was left dead, its owner never told.
                      */
                     gbuf = yev_get_gbuf(yev_event);
                     if(gbuf) {
                         gbuffer_clear(gbuf);
-                        yev_start_event(yev_event);
+                    }
+                    if(!gbuf || yev_start_event(yev_event) < 0) {
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_INTERNAL,
+                            "msg",          "%s", "inotify read cannot be armed again: the watcher is gone",
+                            "path",         "%s", fs_event->path,
+                            "gbuffer",      "%p", gbuf,
+                            NULL
+                        );
+                        if(!fs_event->stopping) {
+                            tell_owner_watcher_gone(fs_event);
+                        }
+                        fs_destroy_watcher_event(fs_event);
                     }
                 }
             }
@@ -536,6 +547,20 @@ PRIVATE int yev_callback(
     }
 
     return 0;
+}
+
+/***************************************************************************
+ *  The watcher is over: its owner is told once, and must drop it (it is
+ *  destroyed when this returns)
+ ***************************************************************************/
+PRIVATE void tell_owner_watcher_gone(fs_event_t *fs_event)
+{
+    fs_event->fs_type = FS_WATCHER_GONE_TYPE;
+    fs_event->directory = (volatile char *)fs_event->path;
+    fs_event->filename = "";
+    fs_event->in_callback = TRUE;
+    fs_event->callback(fs_event);
+    fs_event->in_callback = FALSE;
 }
 
 /***************************************************************************

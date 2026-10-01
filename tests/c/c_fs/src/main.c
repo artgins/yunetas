@@ -103,10 +103,15 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]", // errors_list
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]", // errors_list
             "msg", "Starting yuno",
             "msg", "Playing yuno",
             "msg", "TEST: C_FS published one EV_FS_CHANGED per change",
+            "msg", "inotify read FAILED: the watcher is gone",
+            "msg", "the watch is gone: the path is not watched any more",
+            "msg", "inotify read FAILED: the watcher is gone",
+            "msg", "the watch is gone: the path is not watched any more",
+            "msg", "TEST: a C_FS whose watch went says so, and watches nothing",
             "msg", "Exit to die",
             "msg", "Pausing yuno",
             "msg", "Yuno stopped, gobj end"

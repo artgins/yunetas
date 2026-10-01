@@ -345,17 +345,18 @@ What the owners of the tree do:
 
 ## When the watcher goes (`FS_WATCHER_GONE_TYPE`)
 
-A watcher whose read FAILS, or is canceled by another than its owner, is
-over: an ERROR, *"inotify read FAILED: the watcher is gone"* (or *"inotify
-read canceled, and not by its owner: the watcher is gone"*), with `path`,
-`errno`, then the owner's callback is called once with
-**`FS_WATCHER_GONE_TYPE`**
-(`directory` = the watched path), and the watcher is destroyed when the call
-returns. Nothing else comes. The owner drops every pointer it keeps to it --
-and must not stop it: it is freed. An owner that stopped the watcher itself
-(`fs_stop_watcher_event()`) is not told. Up to 7.25.20 the watcher went
-silently (the failure logged only under a trace), and its owner kept a
-pointer to freed memory: a timeranger2 feed stopped it again when closed.
+A watcher whose read FAILS, cannot be armed again, or is canceled by another
+than its owner, is over: an ERROR, *"inotify read FAILED: the watcher is
+gone"*, *"inotify read cannot be armed again: the watcher is gone"*, or
+*"inotify read canceled, and not by its owner: the watcher is gone"*), with
+`path` (and `errno` of a read), then the owner's callback is called once with
+**`FS_WATCHER_GONE_TYPE`** (`directory` = the watched path), and the watcher
+is destroyed when the call returns. Nothing else comes. The owner drops every
+pointer it keeps to it -- and must not stop it: it is freed. An owner that
+stopped the watcher itself (`fs_stop_watcher_event()`) is not told. Up to
+7.25.20 the watcher went silently (the failure logged only under a trace), and
+its owner kept a pointer to freed memory: a timeranger2 feed stopped it again
+when closed.
 
 No shutdown cancels a watcher behind its owner. `yev_loop_stop()` cancels
 every operation of the loop, but a yuno calls it after its loop ended

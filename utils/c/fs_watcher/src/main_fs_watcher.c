@@ -26,6 +26,7 @@ PRIVATE int fs_event_callback(fs_event_t *fs_event);
 yev_loop_h yev_loop;
 yev_event_h yev_event_periodic;
 fs_event_t *fs_event_h;
+BOOL watcher_gone = FALSE;
 
 /***************************************************************************
  *              Test
@@ -56,7 +57,14 @@ PRIVATE int do_test(char *path)
         NULL
     );
 
-    fs_start_watcher_event(fs_event_h);
+    if(!fs_event_h || fs_start_watcher_event(fs_event_h) < 0) {
+        printf("%sERROR%s cannot watch '%s'\n", On_Red BWhite, Color_Off, path);
+        if(fs_event_h) {
+            fs_stop_watcher_event(fs_event_h);  // not running: destroyed now
+        }
+        yev_loop_destroy(yev_loop);
+        return -1;
+    }
 
     yev_loop_run(yev_loop, -1);
     gobj_trace_msg(0, "Quiting of main yev_loop_run()");
@@ -69,7 +77,7 @@ PRIVATE int do_test(char *path)
 
     yev_loop_destroy(yev_loop);
 
-    return 0;
+    return watcher_gone? -1 : 0;
 }
 
 /***************************************************************************
@@ -112,9 +120,11 @@ PRIVATE int fs_event_callback(fs_event_t *fs_event)
             printf("  %sRescan dir   :%s %s\n", On_Green BWhite, Color_Off, (char *)fs_event->directory);
             break;
         case FS_WATCHER_GONE_TYPE:
-            printf("  %sWatcher gone :%s %s (its read failed)\n",
+            printf("  %sWatcher gone :%s %s (its read failed): nothing is watched, exiting\n",
                 On_Red BWhite, Color_Off, (char *)fs_event->directory);
             fs_event_h = NULL;  // freed when this returns
+            watcher_gone = TRUE;
+            yev_loop_reset_running(yev_loop);
             break;
     }
 
@@ -186,10 +196,13 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *      Test
      *--------------------------------*/
-    do_test(path);
+    int ret = do_test(path);
 
     gobj_end();
 
+    if(ret < 0) {
+        return EXIT_FAILURE;
+    }
     return gobj_get_exit_code();
 }
 

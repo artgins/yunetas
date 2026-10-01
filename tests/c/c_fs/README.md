@@ -36,6 +36,14 @@ non-recursive `C_FS`), and a recursive `C_FS` added a recursive watcher of its
 own for each subdirectory found at start, each with its own inotify fd: `g`
 was heard by the watchers of the root, `a` and `b`, and published 9 times.
 
+Then every inotify fd of the process is made a directory (`dup2`, the
+technique of `tests/c/timeranger2/test_rt_disk_watcher_gone`): the read of
+each watcher fails, and each `C_FS` must say its watch is gone (*"the watch is
+gone: the path is not watched any more"*, after fs_watcher's *"inotify read
+FAILED"*) and read `size_dl_watch` 0. Up to 7.25.20 the watcher went silently
+and `C_FS` kept it. A start that fails (the other half of that change) cannot
+be made by a test: arming a read event does not fail on demand.
+
 ## Run
 
 ```bash

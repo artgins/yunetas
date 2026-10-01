@@ -27,6 +27,11 @@
  *          watched each subdirectory again with its own recursive watcher:
  *          `n` was published, and `g` 9 times (root, a and b).
  *
+ *          Then every inotify fd of the process becomes a directory
+ *          (dup2): the reads fail, and each C_FS must say its watch is
+ *          gone and read size_dl_watch 0 (up to 7.25.20 the watcher went
+ *          silently, and C_FS kept it).
+ *
  *          The driver does not subscribe to its C_FS children: a C_FS
  *          follows the CHILD subscription model and subscribes its parent
  *          (or its `subscriber`). Up to 7.25.20 it subscribed nobody, and
@@ -36,10 +41,12 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include "c_test_fs.h"
 
 /***************************************************************************
@@ -54,6 +61,7 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE void touch_and_remove(hgobj gobj, const char *path);
+PRIVATE int break_inotify_fds(hgobj gobj, const char *dir);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -88,6 +96,7 @@ typedef struct _PRIVATE_DATA {
     json_t *changed;    // filename -> times EV_FS_CHANGED, of the non-recursive C_FS
     json_t *changed_rec;// filename -> times EV_FS_CHANGED, of the recursive C_FS
     int renamed;
+    int phase;          // 0: the changes published, 1: the watches made to fail
 } PRIVATE_DATA;
 
 
@@ -254,6 +263,49 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 /***************************************************************************
+ *  Every inotify fd of the process becomes `dir` (dup2): the read of each
+ *  watcher in flight holds its inotify file and completes, the next one
+ *  reads a directory and fails (EISDIR). The technique of
+ *  tests/c/timeranger2/test_rt_disk_watcher_gone. Return how many.
+ ***************************************************************************/
+PRIVATE int break_inotify_fds(hgobj gobj, const char *dir)
+{
+    int broken = 0;
+    DIR *d = opendir("/proc/self/fd");
+    if(!d) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "TEST: cannot list /proc/self/fd",
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    int dfd = open(dir, O_RDONLY|O_DIRECTORY);
+    struct dirent *de;
+    while(dfd >= 0 && (de = readdir(d)) != NULL) {
+        char link[PATH_MAX], target[PATH_MAX];
+        build_path(link, sizeof(link), "/proc/self/fd", de->d_name, NULL);
+        ssize_t n = readlink(link, target, sizeof(target)-1);
+        if(n <= 0) {
+            continue;   // "." and ".."
+        }
+        target[n] = 0;
+        if(strcmp(target, "anon_inode:inotify")==0) {
+            if(dup2(dfd, atoi(de->d_name)) >= 0) {
+                broken++;
+            }
+        }
+    }
+    if(dfd >= 0) {
+        close(dfd);
+    }
+    closedir(d);
+    return broken;
+}
+
+/***************************************************************************
  *  Create a file, write one byte, remove it: three changes
  ***************************************************************************/
 PRIVATE void touch_and_remove(hgobj gobj, const char *path)
@@ -289,6 +341,30 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(priv->phase == 1) {
+        json_int_t watching = gobj_read_integer_attr(priv->gobj_fs, "size_dl_watch") +
+            gobj_read_integer_attr(priv->gobj_fs_rec, "size_dl_watch");
+        if(watching != 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: a C_FS whose watch went still says it watches",
+                "size_dl_watch","%d", (int)watching,
+                NULL
+            );
+        } else {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "TEST: a C_FS whose watch went says so, and watches nothing",
+                NULL
+            );
+        }
+        set_yuno_must_die();
+        KW_DECREF(kw)
+        return 0;
+    }
+
     json_t *expected = json_pack("{s:i, s:i, s:i}",
         "f", 3,
         "d2", 1,
@@ -322,8 +398,28 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     JSON_DECREF(expected)
     JSON_DECREF(expected_rec)
 
-    set_yuno_must_die();
-
+    /*
+     *  The watches made to fail: each C_FS must say its watch is gone,
+     *  and watch nothing after (size_dl_watch 0). Up to 7.25.20 the
+     *  watcher went silently, and C_FS kept it
+     */
+    priv->phase = 1;
+    int broken = break_inotify_fds(gobj, priv->root);
+    if(broken != 2) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST: the inotify fds of the two C_FS not found",
+            "broken",       "%d", broken,
+            NULL
+        );
+    }
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), priv->root, "f", NULL);
+    touch_and_remove(gobj, path);
+    build_path(path, sizeof(path), priv->root_rec, "a", "b", "g", NULL);
+    touch_and_remove(gobj, path);
+    set_timeout(priv->timer, 300);
     KW_DECREF(kw)
     return 0;
 }

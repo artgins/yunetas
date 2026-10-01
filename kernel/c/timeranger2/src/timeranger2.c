@@ -6304,7 +6304,17 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
         );
         return NULL;
     }
-    fs_start_watcher_event(fs_event);
+    if(fs_start_watcher_event(fs_event) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot start the watch of disks/: new feeds are not heard",
+            "path",         "%s", full_path,
+            NULL
+        );
+        fs_stop_watcher_event(fs_event);   // not running: destroyed now
+        return NULL;
+    }
     return fs_event;
 }
 
@@ -6715,7 +6725,17 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
         );
         return NULL;
     }
-    fs_start_watcher_event(fs_event);
+    if(fs_start_watcher_event(fs_event) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot start the watch of the rt_disk feed: the feed is deaf",
+            "path",         "%s", full_path,
+            NULL
+        );
+        fs_stop_watcher_event(fs_event);   // not running: destroyed now
+        return NULL;
+    }
     return fs_event;
 }
 

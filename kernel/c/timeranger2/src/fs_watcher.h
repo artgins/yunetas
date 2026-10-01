@@ -39,11 +39,11 @@ typedef enum  {
                                     // have been told. Delivered a slice per loop turn;
                                     // a directory born in the overflow is watched first.
     FS_WATCHER_GONE_TYPE,           // directory: the watched path. The read of the watcher
-                                    // FAILED, or was canceled by another than its owner
-                                    // (a loop stopped under it), logged: it is destroyed
-                                    // when this call returns, and nothing else comes.
-                                    // Drop every pointer to it. Not told when its owner
-                                    // stopped it.
+                                    // FAILED, could not be armed again, or was canceled
+                                    // from outside fs_watcher (an order broken, see
+                                    // fs_watcher.md), logged: it is destroyed when this
+                                    // call returns, and nothing else comes. Drop every
+                                    // pointer to it. Not told when its owner stopped it.
 
     // There are more fs events available with io_uring, but this code only manages these events.
 } fs_type_t;
