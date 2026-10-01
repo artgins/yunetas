@@ -1445,9 +1445,11 @@ PRIVATE void make_secret_first_letters(void)
  *  TRUE if `name` (of `len` bytes) is the name of a secret.
  *  One pass over the name, no copy: at each byte, only the parts that
  *  begin with that letter are compared. Any case; for the joined parts the
- *  bytes '_', '-', '.' and blanks of the name are skipped.
+ *  bytes '_', '-', '.' and blanks of the name are skipped. With
+ *  `about_wins` a segment that names something about a credential makes
+ *  the name not a secret's.
  ***************************************************************************/
-PUBLIC BOOL is_secret_name(const char *name, size_t len)
+PRIVATE BOOL secret_name_check(const char *name, size_t len, BOOL about_wins)
 {
     if(!name || len < 3) {
         return FALSE;   // the shortest part is three letters ("pwd", "jwt")
@@ -1460,7 +1462,7 @@ PUBLIC BOOL is_secret_name(const char *name, size_t len)
      *  A segment that names something about a credential
      */
     size_t seg = 0;
-    for(size_t i=0; i<=len; i++) {
+    for(size_t i=0; about_wins && i<=len; i++) {
         if(i < len && !is_name_joiner(name[i])) {
             continue;
         }
@@ -1498,6 +1500,22 @@ PUBLIC BOOL is_secret_name(const char *name, size_t len)
         }
     }
     return (has_priv && has_key)? TRUE: FALSE;
+}
+
+/***************************************************************************
+ *  See helpers.h
+ ***************************************************************************/
+PUBLIC BOOL is_secret_name(const char *name, size_t len)
+{
+    return secret_name_check(name, len, TRUE);
+}
+
+/***************************************************************************
+ *  See helpers.h
+ ***************************************************************************/
+PUBLIC BOOL is_secret_name_any(const char *name, size_t len)
+{
+    return secret_name_check(name, len, FALSE);
 }
 
 /*

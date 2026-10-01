@@ -229,6 +229,76 @@ PRIVATE char variable_config[]= "\
             }                                                       \n\
         },                                                          \n\
         {                                                           \n\
+            'name': '__pool_side__',                                \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'children': [                                           \n\
+                {                                                   \n\
+                    'name': 'pool_a',                               \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'kw': {                                         \n\
+                        'url': 'tcp://127.0.0.1:7820'               \n\
+                    }                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'pool_b',                               \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'kw': {                                         \n\
+                        'url': 'tcp://127.0.0.2:7820'               \n\
+                    }                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'pool-1',                               \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'pool-1',                       \n\
+                            'gclass': 'C_PROT_TCP4H'                \n\
+                        }                                           \n\
+                    ]                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'pool-2',                               \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'pool-2',                       \n\
+                            'gclass': 'C_PROT_TCP4H'                \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__drain_side__',                               \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'children': [                                           \n\
+                {                                                   \n\
+                    'name': 'drain_port',                           \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'kw': {                                         \n\
+                        'url': 'tcp://127.0.0.1:7828',              \n\
+                        'clisrv_kw': {                              \n\
+                            'timeout_stop_tx': 1000                 \n\
+                        }                                           \n\
+                    }                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'drain-1',                              \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'drain-1',                      \n\
+                            'gclass': 'C_PROT_TCP4H'                \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
             'name': '__lone_side__',                                \n\
             'gclass': 'C_IOGATE',                                   \n\
             'autostart': false,                                     \n\
@@ -329,7 +399,7 @@ int main(int argc, char *argv[])
     unsigned long memory_check_list[] = {0, 0};
     set_memory_check_list(memory_check_list);
 
-    set_auto_kill_time(20);    // a crash-free hang must not hang the suite
+    set_auto_kill_time(40);    // a crash-free hang must not hang the suite; ~25 steps of 1 s
 
     /*------------------------------------------------*
      *          Start yuneta

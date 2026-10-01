@@ -469,7 +469,7 @@ variable, a field of an audit record. It is the one list of the SDK: the
 command traces ([`command_mask_secret_kw()`](#command_mask_secret_kw),
 [`command_mask_secret_line()`](#command_mask_secret_line)),
 [`gobj_mask_secret_config()`](#gobj_mask_secret_config) and the agent's
-audit record all ask it.
+audit record all ask it (the audit record, its stricter twin).
 
 A name is a secret's, in any case, when it holds one of `passw`, `pwd`,
 `passphrase`, `secret`, `token`, `jwt`, `bearer`, `authorization`, `cookie`,
@@ -482,7 +482,9 @@ secrets: the PATH of a key or a certificate (`ssl_certificate_key`), a public
 `endpoint`, `url`, `uri`, `domain`, `path`, `file`, `public`, `pub`, `count`,
 `counts`, `type`, `name`, `len`, `length`, `size`, `max`, `min`, `ttl`,
 `timeout`, `expiry`, `expires`, `mode` (`token_endpoint`,
-`cookie_domain`, `jwt_public_keys`, `refresh_token_count`).
+`cookie_domain`, `jwt_public_keys`, `refresh_token_count`). The agent's
+audit record does not take that last exception: it asks
+[`is_secret_name_any()`](#is_secret_name_any).
 
 ```C
 BOOL is_secret_name(
@@ -511,6 +513,47 @@ is_secret_name("private_key", 11);      // TRUE (priv + key)
 is_secret_name("ssl_certificate_key", 19); // FALSE (a path)
 is_secret_name("token_endpoint", 14);   // FALSE (about a token)
 is_secret_name("username", 8);          // FALSE
+```
+
+---
+
+(is_secret_name_any)=
+## `is_secret_name_any()`
+
+Like [`is_secret_name()`](#is_secret_name), without its exception: a name
+that holds a part of a secret's name is TRUE whatever other segment it has
+(`max`, `mode`, `type`, `url`, ...). For a record that is kept and must never
+hold a secret -- the agent's audit log asks it -- where a name ABOUT a
+credential redacted costs nothing and one that holds a secret in clear does.
+Up to 7.25.21 the audit record asked `is_secret_name()`, and wrote
+`api_key_max=...` or `token_mode=...` in clear.
+
+```C
+BOOL is_secret_name_any(
+    const char *name,
+    size_t      len
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `name` | `const char *` | The name. It need not be NUL-terminated. |
+| `len` | `size_t` | The bytes of `name` to look at. |
+
+**Returns**
+
+`TRUE` if it holds a part of a secret's name; `FALSE` if not, or when `name`
+is NULL.
+
+**Example**
+
+```C
+is_secret_name_any("token_endpoint", 14);   // TRUE  (is_secret_name(): FALSE)
+is_secret_name_any("api_key_max", 11);      // TRUE  (is_secret_name(): FALSE)
+is_secret_name_any("smtp_password", 13);    // TRUE
+is_secret_name_any("public_url", 10);       // FALSE
 ```
 
 ---
@@ -729,6 +772,27 @@ char text[] = "Cookie: sid=abc\r\n\r\nuser=bob&password=hunter2";
 mask_secrets_in_text(text, strlen(text));
 // "Cookie: *******\r\n\r\nuser=bob&password=*******"
 ```
+
+**Limits**
+
+It sees ONE buffer: what tells a value from the rest (the name before it, the
+header it is in) must be in the same bytes. A dump is made per read or per
+write, and TCP cuts a stream where it likes, so a credential whose name ends
+one read and whose value begins the next is shown in the second dump:
+
+```C
+char read1[] = "user=bob&password=";
+char read2[] = "hunter2&next=1";
+mask_secrets_in_text(read1, strlen(read1));    // 0: no value in it
+mask_secrets_in_text(read2, strlen(read2));    // 0: "hunter2" has no name here
+```
+
+The same for a value with no name next to it (a binary protocol, an AUTH line
+in base64). Masking received bytes is a best effort, for the traffic of others
+that no sender marks. What we SEND that holds a secret is marked at its
+source with [`gbuffer_set_secret()`](#gbuffer_set_secret) (or
+`"__secret__": true` in the kw of `EV_TX_DATA` to `C_TCP`), and is never
+dumped (`"<N bytes hidden>"`), however it is cut.
 
 ---
 

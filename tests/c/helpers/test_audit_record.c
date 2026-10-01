@@ -586,7 +586,14 @@ PRIVATE void test_secrets(void)
     const char *secret_keys[] = {
         "password", "passw", "user_passw", "pwd", "secret", "client_secret",
         "kc_admin_client_secret", "token", "access_token", "jwt", "private_key",
-        "privkey", "Password", 0
+        "privkey", "Password",
+        /*
+         *  A secret's part beside a segment that says something ABOUT a
+         *  credential (max, mode, type, url, ...): the traces show these,
+         *  the audit, a record that is kept, does not. Up to 7.25.21 it
+         *  wrote them in clear.
+         */
+        "api_key_max", "token_mode", "secret_type", "password_url", 0
     };
     for(int i=0; secret_keys[i]; i++) {
         char name[128];

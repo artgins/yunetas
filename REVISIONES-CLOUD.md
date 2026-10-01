@@ -204,4 +204,14 @@ The other six nits are fixed too, each with a test that fails before it
 of memory, and `check_test_ports.py`, checked by hand with a file it cannot
 read. The note on `refused_in_row` is kept as it was, with a comment: the
 server did refuse the message, so it counts even if the answer cannot be
-built. The risks are open.
+built.
+
+The eight risks are dealt with: the delete cost of timeranger2 measured (a
+follower with 50000 keys open: 4.3 ms per delete and feed, 17 us after
+looking the key up; the per-feed cost of `fs_queued_events_end()` kept, linear
+in the feeds, measured and documented), the stop of a `C_TCP` bounded by
+`timeout_stop_tx`, a pool of the new method no longer taken by a second
+`C_TCP_S`, the audit record redacting by `is_secret_name_any()`, the
+subscription traces masked, a filesystem without birth time said, the scan
+note sized, and the per-buffer limit of the traffic dumps documented. See
+`CHANGELOG.md` "Unreleased".

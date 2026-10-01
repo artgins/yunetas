@@ -102,6 +102,7 @@ PRIVATE const char *s_watch_msg = NULL;
 
 GOBJ_DEFINE_GCLASS(C_TEST_SECRET_DRIVER);
 GOBJ_DEFINE_EVENT(EV_TEST_SECRET_KW);
+GOBJ_DEFINE_EVENT(EV_TEST_SECRET_PUB);
 GOBJ_DEFINE_GCLASS(C_TEST_SECRET_HOLDER);
 
 typedef struct {
@@ -694,6 +695,31 @@ PRIVATE void check_log_dumps(hgobj gobj)
     gobj_set_global_trace("machine", FALSE);
     unwatch("the machine trace with ev_kw");
 
+    /*
+     *  A subscription whose __filter__ / __global__ carry a credential: the
+     *  traces of its subscribe, of the filter at a publish, and of its
+     *  unsubscribe mask it. Up to 7.25.21 the three printed it as it was.
+     */
+    gobj_set_global_trace("machine", TRUE);
+    gobj_set_global_trace("ev_kw", TRUE);
+    gobj_set_global_trace("subscriptions", TRUE);
+    json_t *kw_subs = json_pack("{s:{s:s}, s:{s:s}}",
+        "__filter__", "api_token", "subfilt-hunter2",
+        "__global__", "password", "subglob-hunter2"
+    );
+    watch("-hunter2\"", "subscribing event");
+    gobj_subscribe_event(holder, EV_TEST_SECRET_PUB, json_incref(kw_subs), gobj);
+    unwatch("the trace of a subscription with credentials");
+    watch("subfilt-hunter2", "publishing with filter");
+    gobj_publish_event(holder, EV_TEST_SECRET_PUB, json_pack("{s:s}", "api_token", "other"));
+    unwatch("the filter trace of a publish");
+    watch("-hunter2\"", "unsubscribing event");
+    gobj_unsubscribe_event(holder, EV_TEST_SECRET_PUB, kw_subs, gobj);
+    unwatch("the trace of an unsubscription with credentials");
+    gobj_set_global_trace("subscriptions", FALSE);
+    gobj_set_global_trace("ev_kw", FALSE);
+    gobj_set_global_trace("machine", FALSE);
+
     kw = json_pack("{s:s, s:s, s:{s:[{s:s}]}}",
         "__command__", "set-password-pos iev-hunter2",
         "note", "visible",
@@ -748,6 +774,10 @@ PRIVATE void check_log_dumps(hgobj gobj)
      */
     check_true("access_token is a secret's name", is_secret_name("access_token", 12));
     check_true("token_endpoint is not", !is_secret_name("token_endpoint", 14));
+    check_true("token_endpoint is, for is_secret_name_any()", is_secret_name_any("token_endpoint", 14));
+    check_true("api_key_max is, for is_secret_name_any()", is_secret_name_any("api_key_max", 11));
+    check_true("hostname is not, for is_secret_name_any()", !is_secret_name_any("hostname", 8));
+    check_true("public_url is not, for is_secret_name_any()", !is_secret_name_any("public_url", 10));
     check_true("cookie_domain is not", !is_secret_name("cookie_domain", 13));
     check_true("jwt_public_keys is not", !is_secret_name("jwt_public_keys", 15));
     check_true("refresh_token_count is not", !is_secret_name("refresh_token_count", 19));
@@ -1426,12 +1456,14 @@ PRIVATE int register_c_test_secret(void)
     event_type_t event_types[] = {
         {EV_TIMEOUT,    0},
         {EV_TEST_SECRET_KW, 0},
+        {EV_TEST_SECRET_PUB, 0},
         {0, 0}
     };
 
     ev_action_t st_idle[] = {
         {EV_TIMEOUT,    ac_timeout,     0},
         {EV_TEST_SECRET_KW, ac_secret_kw, 0},
+        {EV_TEST_SECRET_PUB, ac_secret_kw, 0},
         {0, 0, 0}
     };
 
@@ -1458,6 +1490,7 @@ PRIVATE int register_c_test_secret(void)
     }
 
     event_type_t holder_event_types[] = {
+        {EV_TEST_SECRET_PUB, EVF_OUTPUT_EVENT},
         {0, 0}
     };
 

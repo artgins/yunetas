@@ -33,6 +33,7 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 | `timeout_between_connections_max` | `integer` | If `> timeout_between_connections`, the reconnect delay backs off exponentially from the base up to this cap (ms), resetting to base once a connection is established (for a TLS client, only on a successful handshake). `0` (default) = disabled, legacy fixed interval. A peer that keeps failing no longer hammers at the base cadence. |
 | `connect_on_start` | `bool` | A client connects when it starts (default `true`). `false`: it stays in `ST_DISCONNECTED` until its owner sends `EV_CONNECT`. Only that FIRST connection waits for the owner: once a connection ends (an error, a drop by the peer) the client connects again after `timeout_between_connections`, as any client does, unless that is `-1` (no timer: every connection waits for an `EV_CONNECT` of the owner) -- `json_pack("{s:s, s:b, s:i}", "url", url, "connect_on_start", 0, "timeout_between_connections", -1)`. `C_SMTP_SESSION` starts its transport this way, so a yuno with nothing to send logs in to nobody (added after 7.25.20). Example in a gclass that builds its client: `json_pack("{s:s, s:b}", "url", url, "connect_on_start", 0)` |
 | `disconnect_cause` | `string` | Why the last connection, or the last attempt to connect, ended: the error of the socket (`Connection refused`), a TLS failure with its reason (`TLS handshake failed: <the backend's reason>`), `Local dropping`, `Inactivity timeout`, `Local stop`, a write or a connect that could not start. The FIRST cause of an end is kept: the cancel of the read that a drop or an inactivity close makes (`Operation canceled`) does not replace it. Emptied at each `EV_CONNECT` and when a connection begins (a clisrv gets no `EV_CONNECT`). The `Disconnected` trace says it as its `cause`. A failed attempt publishes no event, only state changes: an owner that wants the cause reads this attr when it sees the change out of `ST_WAIT_CONNECTED` / `ST_WAIT_HANDSHAKE` -- `gobj_read_str_attr(tcp, "disconnect_cause")` -- rather than `gobj_log_last_message()`, which is the last ERROR of the whole process (added after 7.25.20). |
+| `timeout_stop_tx` | `integer` | A stop (or a drop) waits for the write in flight, which ends when the peer takes its data. A peer that never does (it does not read, its window stays at zero) held the stop for ever -- a clisrv in `ST_WAIT_STOPPED`, and its `C_TCP_S`, waiting for it, never listening again (up to 7.25.21). Now the socket gets a `TCP_USER_TIMEOUT` of this many ms when the stop has to wait for a write: data not acknowledged for that long aborts the connection, the write ends with an error (`disconnect_cause`), and the stop ends. Default `10000`; `0`: no bound. A peer that reads, however slowly, is not affected. A server sets it on its clisrvs with `clisrv_kw`: `json_pack("{s:s, s:{s:i}}", "url", url, "clisrv_kw", "timeout_stop_tx", 1000)`. |
 | `txBytes` | `integer` | Total bytes transmitted (stat). |
 | `rxBytes` | `integer` | Total bytes received (stat). |
 | `max_tx_in_progress` | `integer` | Most writes ever in flight at once on the connection (stat, since 7.25.8). `1` is the rule, see *One write in flight*; `0` before the first write. |
@@ -224,6 +225,15 @@ gobj_create("shared_b", C_TCP_S, kw_b, gate);
 // 2 peers on each: gobj_read_integer_attr(shared_a, "connxs") == 2, not 4
 ```
 
+A pool is shared with `child_tree_filter` (the legacy method), as above,
+where a channel is taken at each accept. With the new method each server
+accepts in the channels it STARTS, on its own socket, so it cannot share
+them: a server that starts beside another running one leaves the other's
+running clisrvs to it and says so, ONE error per start (*"C_TCP_S new method:
+channels served by another running C_TCP_S, left to it"*, with `channels`
+and `other`). Up to 7.25.21 it took them all, silently: they accepted on its
+socket, and the first server, listening, accepted nobody.
+
 `tests/c/c_tcp_s_stats`.
 
 ### Stop and start again
@@ -234,7 +244,8 @@ clisrvs of its channels, which accept on its socket (their connections go
 with them). With `child_tree_filter` a clisrv is a connection, and a stop of
 the listener keeps it. The stop ends in `ST_STOPPED` when nothing of it
 waits, or in `ST_WAIT_STOPPED` until the last accept is canceled and the last
-clisrv has stopped.
+clisrv has stopped. A clisrv stopped with a write in flight to a peer that
+does not read waits `timeout_stop_tx` at most (see `C_TCP`).
 
 A start that comes while the stop still waits -- a stop and a start in the
 same turn, as a restart does -- does not listen at once: the old socket is

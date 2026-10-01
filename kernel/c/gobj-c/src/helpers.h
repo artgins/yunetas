@@ -274,6 +274,16 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr);
 PUBLIC BOOL is_secret_name(const char *name, size_t len);
 
 /**rst**
+ *  TRUE if `name` holds a part of a secret's name (the parts of
+ *  is_secret_name()), WHATEVER other segment it has: token_endpoint,
+ *  api_key_max and token_mode are TRUE here and FALSE for
+ *  is_secret_name(). For a record that is kept and must never hold a
+ *  secret (the agent's audit log): there a name about a credential
+ *  redacted costs nothing, and one that holds a secret in clear does.
+**rst**/
+PUBLIC BOOL is_secret_name_any(const char *name, size_t len);
+
+/**rst**
  *  A text (a command line) with the value of every "name=value" whose
  *  name is a secret's written as "********" (quoted or not; the "value" of
  *  a write-attr whose attribute names a secret too); the rest as it is.

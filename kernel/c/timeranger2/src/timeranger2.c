@@ -3535,7 +3535,40 @@ PRIVATE int get_topic_rd_fd(
 }
 
 /***************************************************************************
- *
+ *  Close the descriptors of one key (`jn_value`: its files, by name) and
+ *  forget it
+ ***************************************************************************/
+PRIVATE void close_key_fd_files(
+    hgobj gobj,
+    json_t *fd_files,
+    const char *key,
+    json_t *jn_value
+)
+{
+    if(json_is_object(jn_value)) {
+        json_t *jn_value2;
+        const char *key2;
+        void *tmp2;
+        json_object_foreach_safe(jn_value, tmp2, key2, jn_value2) {
+            int fd = (int)kw_get_int(gobj, jn_value, key2, -1, KW_REQUIRED);
+            if(fd >= 0) {
+                close(fd);
+            }
+            json_object_del(jn_value, key2);
+        }
+    } else {
+        int fd = (int)json_integer_value(jn_value);
+        if(json_is_integer(jn_value) && fd >= 0) {
+            close(fd);
+        }
+    }
+    json_object_del(fd_files, key);
+}
+
+/***************************************************************************
+ *  Close the descriptors of `key_`, or of every key if it is empty. One key
+ *  is looked up: up to 7.25.21 every open key was walked to find it, at
+ *  every delete of a key (a follower: once per feed that heard it).
  ***************************************************************************/
 PRIVATE int close_fd_files(
     hgobj gobj,
@@ -3543,32 +3576,19 @@ PRIVATE int close_fd_files(
     const char *key_
 )
 {
+    if(!empty_string(key_)) {
+        json_t *jn_value = json_object_get(fd_files, key_);
+        if(jn_value) {
+            close_key_fd_files(gobj, fd_files, key_, jn_value);
+        }
+        return 0;
+    }
+
     json_t *jn_value;
     const char *key;
     void *tmp;
-
     json_object_foreach_safe(fd_files, tmp, key, jn_value) {
-        if(json_is_object(jn_value)) {
-            if(empty_string(key_) || strcmp(key, key_)==0) {
-                json_t *jn_value2;
-                const char *key2;
-                void *tmp2;
-                json_object_foreach_safe(jn_value, tmp2, key2, jn_value2) {
-                    int fd = (int)kw_get_int(gobj, jn_value, key2, -1, KW_REQUIRED);
-                    if(fd >= 0) {
-                        close(fd);
-                    }
-                    json_object_del(jn_value, key2);
-                }
-                json_object_del(fd_files, key);
-            }
-        } else {
-            int fd = (int)kw_get_int(gobj, fd_files, key, -1, KW_REQUIRED);
-            if(fd >= 0) {
-                close(fd);
-            }
-            json_object_del(fd_files, key);
-        }
+        close_key_fd_files(gobj, fd_files, key, jn_value);
     }
 
     return 0;
@@ -7487,6 +7507,8 @@ PRIVATE void forget_debts_passed(
  *  made under the same path. The birth is left -1 where the filesystem
  *  does not keep it.
  ***************************************************************************/
+PRIVATE BOOL no_btime_said = FALSE;   // the warning of a filesystem with no birth, once per process
+
 PRIVATE BOOL dir_identity(const char *path, json_int_t *ino, json_int_t *bsec, json_int_t *bnsec)
 {
     struct statx stx;
@@ -7500,6 +7522,21 @@ PRIVATE BOOL dir_identity(const char *path, json_int_t *ino, json_int_t *bsec, j
     } else {
         *bsec = -1;
         *bnsec = -1;
+        if(!no_btime_said) {
+            /*
+             *  Some NFS, ext4 with 128-byte inodes: the identity is the
+             *  inode alone, and an inode freed by a delete can be given to
+             *  the key written again. Said, once: up to 7.25.21 nothing did.
+             */
+            no_btime_said = TRUE;
+            gobj_log_warning(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "The filesystem keeps no birth time: a key deleted and written again may not be told from the old one by a follower",
+                "path",         "%s", path,
+                NULL
+            );
+        }
     }
     return TRUE;
 }
@@ -7742,9 +7779,19 @@ PRIVATE void place_key_dir_scan(
      *  Two strings per directory, not two json containers: a flood notes
      *  them by the tens of thousands
      */
-    char entry[96];
-    snprintf(entry, sizeof(entry), "%" PRIu64 " %" PRIu64 " %" PRId64 " %" PRId64 " %" PRId64,
+    char entry[5*21];   // five 64-bit numbers of up to 20 characters, a blank or the NUL after each
+    int written = snprintf(entry, sizeof(entry), "%" PRIu64 " %" PRIu64 " %" PRId64 " %" PRId64 " %" PRId64,
         until, at, (int64_t)seen->ino, (int64_t)seen->bsec, (int64_t)seen->bnsec);
+    if(written < 0 || (size_t)written >= sizeof(entry)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The scan of a key directory cannot be noted (its note does not fit): its records are not read",
+            "key",          "%s", key,
+            NULL
+        );
+        return;
+    }
     json_object_set_new(pending, key, json_string(entry));
     char head[NAME_MAX + 32];
     snprintf(head, sizeof(head), "%" PRIu64 " %s", until, key);

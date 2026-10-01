@@ -42,7 +42,10 @@ The agent writes every command that it runs to a daily audit file in
   sha256 of the decoded content.
 - A secret (a parameter named like `password`, `pwd`, `secret`, `token`, `jwt`,
   `api_key`, `cookie`, `authorization`, `private_key`, …) is never written:
-  its value is `<redacted>`. So are the token after `Bearer ` and anything
+  its value is `<redacted>`, whatever else the name holds: `api_key_max`,
+  `token_mode` and `token_endpoint` are redacted here, while the traces show
+  them (a name ABOUT a credential; `is_secret_name_any()`; up to 7.25.21 the
+  record wrote them in clear). So are the token after `Bearer ` and anything
   with the shape of a JWT, wherever they are: also in the `user`, the hops of
   `source`, the console purpose and the console name, which come from a peer
   (a field of those longer than 1024 bytes is written as its size and

@@ -38,7 +38,10 @@
  *            `<redacted>`. A secret is a parameter whose name holds (any
  *            case) one of the parts of is_secret_name() (helpers.h, the one
  *            list of the SDK), or one of its joined parts once '_', '-',
- *            '.' and blanks are taken out, or "priv" and "key":
+ *            '.' and blanks are taken out, or "priv" and "key", whatever
+ *            else the name holds (is_secret_name_any(): api_key_max and
+ *            token_endpoint too, which the traces show; up to 7.25.21 the
+ *            record wrote them in clear):
  *            password, user_passw, client_secret, access_token, api_key,
  *            x-api-key, http_cookie, private_key, ... (see its lists in
  *            helpers.c for why each one is there). And the
@@ -228,8 +231,8 @@ PRIVATE const char *read_only_commands[] = {
 #define COMMAND_YUNO    "command-yuno"
 
 /*
- *  A parameter with a secret's name is a secret: is_secret_name() of
- *  helpers.h holds the one list of the SDK
+ *  A parameter with a secret's name is a secret: is_secret_name_any() of
+ *  helpers.h, on the one list of the SDK
  */
 
 /***************************************************************************
@@ -645,7 +648,7 @@ PRIVATE key_kind_t key_kind(const char *key, size_t len, const redact_ctx_t *ctx
     if(len == strlen(CONTENT64_KEY) && strncasecmp(key, CONTENT64_KEY, len) == 0) {
         return KEY_CONTENT64;
     }
-    if(is_secret_name(key, len)) {
+    if(is_secret_name_any(key, len)) {
         return KEY_SECRET;
     }
     if(ctx->value_is_secret && len == 5 && strncasecmp(key, "value", 5) == 0) {
@@ -844,7 +847,7 @@ PRIVATE BOOL kw_names_secret_attribute(json_t *kw)
     json_object_foreach(kw, key, value) {
         if((key[0] == 'a' || key[0] == 'A') && strcasecmp(key, ATTRIBUTE_KEY) == 0 &&
                 json_is_string(value) &&
-                is_secret_name(json_string_value(value), json_string_length(value))) {
+                is_secret_name_any(json_string_value(value), json_string_length(value))) {
             return TRUE;
         }
     }
@@ -873,7 +876,7 @@ PRIVATE BOOL text_names_secret_attribute(const char *text, size_t len)
         while(e < end && !strchr(" \t'\",}\\", *e)) {
             e++;
         }
-        if(is_secret_name(v, (size_t)(e - v))) {
+        if(is_secret_name_any(v, (size_t)(e - v))) {
             return TRUE;
         }
         p = (e > p)? e: p + 1;

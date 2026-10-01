@@ -37,6 +37,24 @@
  *          a C_PROT_TCP4H (not a C_CHANNEL) accepts a peer, and is stopped
  *          and destroyed: its clisrv must not name it any more.
  *
+ *          And two servers of the new method that share one pool of
+ *          channels (pool_a on 127.0.0.1:7820, pool_b on 127.0.0.2:7820):
+ *          pool_a starts first and takes the clisrvs, pool_b must leave them
+ *          to it and say so (an ERROR: a pool shared by two servers needs
+ *          child_tree_filter), and a peer of pool_a is accepted and counted
+ *          by it. Up to 7.25.21 pool_b took them all, silently: they
+ *          accepted on pool_b's socket, and pool_a, listening, accepted
+ *          nobody.
+ *
+ *          And a stop that waits for a write a peer never takes:
+ *          drain_port's clisrv sends 8 MB to a peer that does not read
+ *          (a receive buffer of 4 KB), and drain_port is stopped and
+ *          started again in the same turn. The stop of the clisrv waits
+ *          for that write, bounded by its `timeout_stop_tx` (1 s here):
+ *          the connection is aborted, the stop ends, drain_port listens,
+ *          and a second peer is accepted. Up to 7.25.21 the clisrv
+ *          waited for ever in ST_WAIT_STOPPED, and drain_port with it.
+ *
  *          Up to 7.25.20 both stats read 0 always: they were SDF_STATS
  *          attrs backed by priv counters that no mt_reading served, and
  *          the `new` server does not see the accepts at all. A connection
@@ -88,6 +106,8 @@ PRIVATE void add_names_channel(hgobj gobj);
 PRIVATE void check_names_channel(hgobj gobj);
 PRIVATE void check_connxs(hgobj gobj, server_t *server, const char *phase, int connxs);
 PRIVATE void check_no_tcp_s(hgobj gobj, const char *gate_name);
+PRIVATE int connect_peer_not_reading(hgobj gobj, server_t *server, int idx);
+PRIVATE void send_to_the_peer_not_reading(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -107,6 +127,12 @@ PRIVATE server_t odd_server =
     {"",                "odd_port",    "127.0.0.1", 7819,        {-1, -1, -1}};
 PRIVATE server_t lone_server =
     {"__lone_side__",   "lone_port",   "127.0.0.1", 7818,        {-1, -1, -1}};
+PRIVATE server_t pool_server_a =
+    {"__pool_side__",   "pool_a",      "127.0.0.1", 7820,        {-1, -1, -1}};
+PRIVATE server_t drain_server =
+    {"__drain_side__",  "drain_port",  "127.0.0.1", 7828,        {-1, -1, -1}};
+
+extern int result;  // main.c: the first phase of the logs is checked before the pool's
 PRIVATE const char *gates[] = {
     "__legacy_side__", "__new_side__", "__shared_side__", "__names_side__", "__lone_side__", 0
 };
@@ -288,6 +314,80 @@ PRIVATE void close_peer(server_t *server, int idx)
         close(server->fds[idx]);
         server->fds[idx] = -1;
     }
+}
+
+/***************************************************************************
+ *  A peer with a receive buffer of 4 KB, that never reads
+ ***************************************************************************/
+PRIVATE int connect_peer_not_reading(hgobj gobj, server_t *server, int idx)
+{
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "socket() FAILED",
+            "errno",        "%d", errno,
+            NULL
+        );
+        return -1;
+    }
+    int rcvbuf = 4096;
+    setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+    struct sockaddr_in sa = {0};
+    sa.sin_family = AF_INET;
+    sa.sin_port = htons((uint16_t)server->port);
+    inet_pton(AF_INET, server->host, &sa.sin_addr);
+    if(connect(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "connect() FAILED",
+            "port",         "%d", server->port,
+            "errno",        "%d", errno,
+            NULL
+        );
+        close(fd);
+        return -1;
+    }
+    server->fds[idx] = fd;
+    return 0;
+}
+
+/***************************************************************************
+ *  8 MB to the peer of drain-1, which does not read: the write stays in
+ *  flight
+ ***************************************************************************/
+PRIVATE void send_to_the_peer_not_reading(hgobj gobj)
+{
+    hgobj gate = gobj_find_service("__drain_side__", TRUE);
+    hgobj channel = gobj_find_child(gate, json_pack("{s:s}", "__gobj_name__", "drain-1"));
+    hgobj clisrv = channel? gobj_last_bottom_gobj(channel) : 0;
+    if(!clisrv || !gobj_read_bool_attr(clisrv, "connected")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "the clisrv of drain-1 is not connected: nothing tested",
+            NULL
+        );
+        return;
+    }
+    size_t size = 8*1024*1024;
+    gbuffer_t *gbuf = gbuffer_create(size, size);
+    if(!gbuf) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "gbuffer_create() FAILED: nothing tested",
+            NULL
+        );
+        return;
+    }
+    memset(gbuffer_cur_wr_pointer(gbuf), 'x', size);
+    gbuffer_set_wr(gbuf, size);
+    gobj_send_event(clisrv, EV_TX_DATA,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf), gobj
+    );
 }
 
 /***************************************************************************
@@ -680,6 +780,78 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     );
                 }
             }
+            /*
+             *  The pool shared by two servers of the new method: pool_b's
+             *  start must say it leaves pool_a's clisrvs to it
+             */
+            result += test_json(NULL);
+            set_expected_results(
+                "c_tcp_s_stats: a pool of the new method shared by two servers",
+                json_pack("[{s:s}]",
+                    "msg", "C_TCP_S new method: channels served by another running C_TCP_S, left to it"
+                ),
+                NULL, NULL, 1
+            );
+            gobj_subscribe_event(gobj_find_service("__pool_side__", TRUE), NULL, 0, gobj);
+            gobj_start_tree(gobj_find_service("__pool_side__", TRUE));
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 18:
+            connect_peer(gobj, &pool_server_a, 0);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 19:
+            check_connxs(gobj, &pool_server_a, "pool_a, its pool shared with pool_b", 1);
+            close_peer(&pool_server_a, 0);
+            gobj_subscribe_event(gobj_find_service("__drain_side__", TRUE), NULL, 0, gobj);
+            gobj_start_tree(gobj_find_service("__drain_side__", TRUE));
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 20:
+            connect_peer_not_reading(gobj, &drain_server, 0);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 21:
+            /*
+             *  The first write ends short when the buffers fill; the next
+             *  one, with the rest, waits for a peer that never takes it
+             */
+            send_to_the_peer_not_reading(gobj);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 22:
+            {
+                hgobj gate = gobj_find_service("__drain_side__", TRUE);
+                hgobj channel = gobj_find_child(gate, json_pack("{s:s}", "__gobj_name__", "drain-1"));
+                hgobj clisrv = channel? gobj_last_bottom_gobj(channel) : 0;
+                gobj_stop(find_server(&drain_server));
+                if(!clisrv || !gobj_in_this_state(clisrv, ST_WAIT_STOPPED)) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "the clisrv of drain-1 is not waiting for its write: nothing tested",
+                        NULL
+                    );
+                }
+                gobj_start(find_server(&drain_server));
+            }
+            set_timeout(priv->timer, 3000);
+            break;
+
+        case 23:
+            connect_peer(gobj, &drain_server, 1);   // drain_port listens again
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 24:
+            check_connxs(gobj, &drain_server, "drain_port, its clisrv stopped with a write in flight", 1);
+            close_peer(&drain_server, 0);
+            close_peer(&drain_server, 1);
             set_yuno_must_die();
             break;
 

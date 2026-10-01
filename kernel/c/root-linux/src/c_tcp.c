@@ -9,9 +9,12 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdarg.h>
+#include <errno.h>
 #include <string.h>
 #include <unistd.h>
 #include <poll.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -108,6 +111,7 @@
  *              Prototypes
  ***************************************************************/
 PRIVATE void try_to_stop_yevents(hgobj gobj); // IDEMPOTENT
+PRIVATE void bound_the_write_in_flight(hgobj gobj);
 PRIVATE void log_closing_drops(hgobj gobj);
 PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE void set_inactivity_timeout(hgobj gobj);
@@ -154,6 +158,7 @@ SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_PERSIST,    "4096", "Rx buffer size"
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_RD, "2000", "Idle timeout to wait between attempts of connection, in milliseconds"),
 SDATA (DTP_INTEGER, "timeout_between_connections_max", SDF_RD, "0", "If > timeout_between_connections, reconnect uses exponential backoff from the base up to this cap (ms), resetting to base once a connection is established. 0 = disabled (legacy fixed interval)."),
 SDATA (DTP_INTEGER, "timeout_inactivity", SDF_RD,       "-1", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
+SDATA (DTP_INTEGER, "timeout_stop_tx",  SDF_RD,         "10000", "A stop (or a drop) waits for the write in flight: a peer that does not take its data for this many ms aborts the connection (TCP_USER_TIMEOUT), so the stop ends. 0: no bound"),
 SDATA (DTP_BOOLEAN, "connect_on_start", SDF_RD,         "TRUE",     "Client: connect when started. FALSE: stay in ST_DISCONNECTED until the owner sends EV_CONNECT (connections on demand)"),
 SDATA (DTP_STRING,  "disconnect_cause", SDF_RD|SDF_STATS, "",       "Why the last connection, or the last attempt to connect, ended: the error of the socket, a TLS failure with its reason, 'Local dropping', 'Inactivity timeout', 'Local stop'. The first cause of an end is kept. Emptied at each EV_CONNECT and when a connection begins"),
 
@@ -1287,6 +1292,37 @@ PRIVATE void log_closing_drops(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A stop waits for the write in flight, which ends when the peer takes its
+ *  data. A peer that never does (it does not read, its window stays at
+ *  zero) held the stop for ever: a clisrv in ST_WAIT_STOPPED, and its
+ *  C_TCP_S, waiting for it, never listening again (up to 7.25.21). The
+ *  socket gets a TCP_USER_TIMEOUT: data not acknowledged for that long
+ *  aborts the connection, the write ends with an error, and the stop ends.
+ *  A peer that reads, however slowly, is not affected.
+ ***************************************************************************/
+PRIVATE void bound_the_write_in_flight(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    unsigned int timeout = (unsigned int)gobj_read_integer_attr(gobj, "timeout_stop_tx");
+    int fd = priv->__clisrv__? priv->fd_clisrv : (priv->yev_connect? yev_get_fd(priv->yev_connect) : -1);
+    if(timeout == 0 || fd <= 0) {
+        return;
+    }
+    if(setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, &timeout, sizeof(timeout)) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "setsockopt(TCP_USER_TIMEOUT) FAILED: the stop waits for the peer to take the data in flight",
+            "fd",           "%d", fd,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
  *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
  *  IMPORTANT this is the only place to set ST_WAIT_STOPPED state
  ***************************************************************************/
@@ -1341,6 +1377,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 
     if(priv->tx_in_progress > 0) {
         to_wait_stopped = TRUE;
+        bound_the_write_in_flight(gobj);
     }
 
     // TODO someday review stopping

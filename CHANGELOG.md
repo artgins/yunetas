@@ -2,9 +2,26 @@
 
 ## Unreleased
 
-What changed after 7.25.21: the defects and the nits of a review of that
-release. Each fix has a test that fails on the code before it, except the
-hook and the emailsender checks this list marks "(no red test)".
+What changed after 7.25.21: the defects, the nits and the risks of a review
+of that release. Each fix has a test that fails on the code before it,
+except the hook and the entries this list marks "(no red test)".
+
+### Upgrade steps (operators, read first)
+
+- **Rebuild every project against the new headers.** `fs_event_t`
+  (`fs_watcher.h`) gains three fields, at its end.
+- **A stop of a TCP connection no longer waits for ever for a peer that does
+  not take its data**: after `timeout_stop_tx` (10 s by default, a new
+  `C_TCP` attr) the connection is aborted. A host that stops a connection
+  expecting a slow peer to drain more than 10 s of data sets it higher, or 0.
+- **Two `C_TCP_S` of the new method on one pool of channels are refused**:
+  the second leaves the first's channels to it with an ERROR. That pool was
+  never shared (the second took every channel, silently); a shared pool is
+  for `child_tree_filter`.
+- **The agent's audit log redacts more names**: one that holds a part of a
+  secret's name is redacted whatever else it holds (`token_endpoint` too).
+
+### Fixes
 
 - **emailsender: `set-email-user` sends what was queued while the credentials
   were missing.** The session connects only for a message it holds, and the
@@ -67,6 +84,46 @@ hook and the emailsender checks this list marks "(no red test)".
 - **`scripts/check_test_ports.py` fails on a file it cannot read**, naming
   it: it skipped it silently, and its ports were not checked. Its files are
   closed after reading.
+
+### Risks the review named
+
+- **timeranger2: a delete no longer walks every open key.** To close the
+  descriptors of the deleted key, the master (at `tranger2_delete_key()`) and
+  each follower feed that heard it walked every key with an open file. With
+  50000 keys open, 2000 deletes and 4 feeds: the master 9.2 s -> 0.17 s, the
+  follower 4.3 ms -> 17 us per delete and feed. What stays is linear in the
+  feeds (`fs_queued_events_end()` per other feed, to note what each one
+  owes): 17 us per delete and feed with one feed, 30 with sixteen; it was
+  measured and kept, a mark taken once per batch could make a debt be
+  forgotten unpaid. (no red test: a benchmark, figures above)
+- **C_TCP: a stop waits `timeout_stop_tx` at most for a write in flight.** A
+  peer that does not read (a window of zero) held the write, the stop of the
+  connection, and so a `C_TCP_S` stopped and started again: its clisrv waited
+  in `ST_WAIT_STOPPED` for ever and the server never listened again. The
+  socket gets a `TCP_USER_TIMEOUT` when the stop has to wait for a write.
+  Test `test_c_tcp_s_stats`.
+- **C_TCP_S: a server of the new method leaves to another running one the
+  channels it serves**, with an ERROR naming it; it took them all, silently
+  (they accepted on its socket, the other server accepted nobody, and its
+  stop and its counts missed them). Test `test_c_tcp_s_stats`.
+- **SECURITY: the agent's audit record redacts a name with a secret's part
+  whatever else it holds** (new `is_secret_name_any()`): `api_key_max`,
+  `token_mode`, `secret_type` were written in clear, being names ABOUT a
+  credential for `is_secret_name()`. Test `test_audit_record`.
+- **SECURITY: the subscription traces mask their `__filter__` / `__config__`
+  / `__global__`.** The traces of a subscribe, of an unsubscribe and of the
+  filter at a publish (`subscriptions` / `ev_kw` / `machine`) printed a
+  credential in them as it was. Test `secret_attrs`.
+- **timeranger2: a filesystem with no birth time is said** (a WARNING, once
+  per process): the identity of a key directory is then its inode alone, and
+  a key deleted and written again can take the freed inode. (no red test:
+  needs such a filesystem)
+- **timeranger2: the note of a deferred key directory scan fits its
+  numbers** (it held 96 bytes for up to 105), and a truncation would be an
+  ERROR. (no red test: unreachable now)
+- **Traffic dumps: the masking of received bytes is per buffer**, documented
+  with an example: a credential cut between two reads shows in the second
+  dump. What we send is marked secret at its source and never dumped.
 
 ## v7.25.21 (2026-10-01)
 

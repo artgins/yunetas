@@ -782,7 +782,9 @@ A gbuffer marked with [`gbuffer_set_secret()`](#gbuffer_set_secret) is not
 dumped: `"data"` is `"<N bytes hidden>"`.
 
 What is not secret is dumped with the credentials that can be told in its
-bytes written as `*`, the length kept ([`mask_secrets_in_text()`](#mask_secrets_in_text)):
+bytes written as `*`, the length kept ([`mask_secrets_in_text()`](#mask_secrets_in_text),
+which sees one buffer at a time: a credential cut between two reads shows in
+the second dump, see its *Limits*):
 the value of an HTTP `Cookie:`, `Set-Cookie:`, `Authorization:` or
 `Proxy-Authorization:` header (after the scheme), of a `name=value` and of a
 json `"name": value` whose name is a secret's. `"masked": N` says how many

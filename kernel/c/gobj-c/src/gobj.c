@@ -9079,7 +9079,7 @@ PRIVATE int _delete_subscription(
         );
 
         if(__trace_gobj_ev_kw__(subscriber) || __trace_gobj_ev_kw__(publisher)) {
-            gobj_trace_json(
+            gobj_trace_json_masked(  // a __filter__ / __config__ may carry a credential
                 gobj,
                 subs,
                 "💜💜👎 unsubscribing event '%s': publisher %s, subscriber %s",
@@ -9126,7 +9126,7 @@ PRIVATE int _delete_subscription(
             "msg",          "%s", "subscription in publisher not found",
             NULL
         );
-        gobj_trace_json(gobj, subs, "subscription in publisher not found");
+        gobj_trace_json_masked(gobj, subs, "subscription in publisher not found");
     }
 
     idx = _get_subs_idx(subscriber->dl_subscribings, subs);
@@ -9146,7 +9146,7 @@ PRIVATE int _delete_subscription(
             "msg",          "%s", "subscription in subscriber not found",
             NULL
         );
-        gobj_trace_json(gobj, subs, "subscription in subscriber not found");
+        gobj_trace_json_masked(gobj, subs, "subscription in subscriber not found");
     }
 
     /*
@@ -9387,7 +9387,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
 
         if(kw && json_object_size(kw)) {
             if(__trace_gobj_ev_kw__(subscriber) || __trace_gobj_ev_kw__(publisher)) {
-                gobj_trace_json(
+                gobj_trace_json_masked(  // a __filter__ / __config__ may carry a credential
                     publisher,
                     subs,
                     "💜💜👍 subscribing event '%s': publisher %s, subscriber %s",
@@ -9976,7 +9976,7 @@ PUBLIC int gobj_publish_event(
                         gobj_short_name(publisher),
                         gobj_short_name(subscriber)
                     );
-                    gobj_trace_json(
+                    gobj_trace_json_masked(
                         publisher,
                         __filter__,
                         "💜💜🔄%s publishing with filter, event '%s' (%s): publisher %s, subscriber %s",

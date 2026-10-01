@@ -804,7 +804,16 @@ The deletion is **propagated to subscribers**:
   once its stream is past that end: for any key, also one it never saw. A
   file linked in a directory that waits to be read is read with it, in
   order. When it hears a delete, the follower closes the descriptors it
-  holds on the files of the key. Up to 7.25.20 the directory was read
+  holds on the files of the key: looked up by the key, as the master does at
+  its delete (up to 7.25.21 every open key was walked, once per feed that
+  heard it: 4.3 ms per delete and feed with 50000 keys open, 17 us now). The
+  first feed to hear a delete asks where the stream of each other feed ends
+  (`fs_queued_events_end()`), to note what each one owes: a cost linear in
+  the feeds, 17 us per delete and feed with one feed, 30 with sixteen. Where
+  the filesystem keeps no birth time (some NFS, ext4 with 128-byte inodes)
+  a key directory is told from another by its inode alone, and an inode
+  freed by a delete can be given to the key written again: said once, with a
+  warning (*"The filesystem keeps no birth time: ..."*). Up to 7.25.20 the directory was read
   early (`[R1 DEL]`, `[DEL R1 DEL]`, the live key out of the cache), and a
   key read before, deleted and written again in the same day file, was
   read through the old file's descriptor (short reads, records lost).

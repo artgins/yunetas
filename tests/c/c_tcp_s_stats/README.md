@@ -37,6 +37,17 @@ no clisrv may still name it (`tcp_s`); a `names_port2` made in its place
 (often at the same address) takes the clisrvs, and its own stop and start in
 the same turn must end, and listen.
 
+Then two servers of the new method share one pool (`pool_a` on
+`127.0.0.1:7820`, `pool_b` on `127.0.0.2:7820`, 2 channels): `pool_b` must leave
+`pool_a`'s clisrvs to it and say so (one ERROR), and a peer of `pool_a` is
+counted by it (up to 7.25.21 `pool_b` took them all, silently). Last,
+`drain_port` (`127.0.0.1:7828`, `timeout_stop_tx` 1 s in its `clisrv_kw`) sends
+8 MB to a peer that never reads, and is stopped and started again in the same
+turn: the stop of its clisrv ends when the write is aborted, `drain_port`
+listens again and a second peer is counted (up to 7.25.21 the clisrv waited
+in `ST_WAIT_STOPPED` for ever). Each step waits a second (the timer's grain):
+the auto-kill is 40 s.
+
 Up to 7.25.20 both read 0 always: they were `SDF_STATS` attributes backed by
 priv counters that no `mt_reading` served; `connxs` was never decremented
 (the `EV_STOPPED` subscription that would have done it was commented out);

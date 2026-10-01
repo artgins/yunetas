@@ -570,6 +570,8 @@ PRIVATE int start_listening(hgobj gobj)
         hgobj child = gobj_first_child(parent);
         int fd_listen = yev_get_fd(priv->yev_server_accept);
         int channels = 0;
+        int taken = 0;              // clisrvs running for another server
+        hgobj taken_by = NULL;
         while(child) {
             if(gobj_gclass_name(child) == C_CHANNEL ||
                 gobj_typeof_inherited_gclass(child, C_CHANNEL) // TODO review TODO in c_ievent_srv.c
@@ -625,6 +627,21 @@ PRIVATE int start_listening(hgobj gobj)
 
                 } else {
                     clisrv = gobj_bottom;
+                    /*
+                     *  A clisrv running for another server of the pool: its
+                     *  accept is on that server's socket. Up to 7.25.21 it
+                     *  was taken, silently (its `tcp_s` and `fd_listen`
+                     *  written over, "GObj ALREADY RUNNING" at its start):
+                     *  the other server, listening, accepted nobody, and
+                     *  its stop and its counts missed them.
+                     */
+                    hgobj owner = (hgobj)gobj_read_pointer_attr(clisrv, "tcp_s");
+                    if(owner && owner != gobj && gobj_is_running(clisrv)) {
+                        taken++;
+                        taken_by = owner;
+                        child = gobj_next_child(child);
+                        continue;
+                    }
                 }
 
                 gobj_write_bool_attr(clisrv, "__clisrv__", TRUE);
@@ -654,7 +671,24 @@ PRIVATE int start_listening(hgobj gobj)
             child = gobj_next_child(child);
         }
 
-        if(!channels) {
+        if(taken) {
+            /*
+             *  Each server of the new method accepts in the channels it
+             *  starts: a pool shared by two servers is for child_tree_filter
+             *  (the legacy method), where a channel is taken at each accept
+             */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "C_TCP_S new method: channels served by another running C_TCP_S, left to it",
+                "msg2",         "%s", "a pool of channels shared by two C_TCP_S needs child_tree_filter",
+                "url",          "%s", url,
+                "channels",     "%d", taken,
+                "other",        "%s", gobj_short_name(taken_by),
+                NULL
+            );
+        }
+        if(!channels && !taken) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
