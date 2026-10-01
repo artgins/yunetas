@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.25.21 (2026-10-01)
 
 What changed after 7.25.20. Each behaviour change has a test that fails on the
 code before it, except the few this list marks "(no red test)".
@@ -717,6 +717,24 @@ code before it, except the few this list marks "(no red test)".
   code as before. (no red test)
 - About 45 comments and test READMEs said what the code did "up to this fix"
   or "before this fix" without saying which release; each now names it.
+
+### Known limitations
+
+- **An rt_disk follower lagging behind a master in another process can still
+  hand a key deleted and written again out of order** (present since 7.25.20,
+  narrowed by this release, not ended): it reads a key directory's links by
+  path, and on Debian's 6.x kernels with ext4 a directory removed and made
+  again can keep the same inode and birth time, so the identity check cannot
+  tell them apart. `timeranger2/test_delete_key_propagation` ("race in the
+  batch") fails there for that reason and passes on newer kernels. The fix
+  (reading through a descriptor of the watched directory) is planned; see
+  `TODO.md`. Production masters feed their own lists from memory (rt_mem) and
+  are not affected.
+- **A frame before the session is parsed whole, up to the maximum block**
+  (also in 7.25.20): an identity card is small, but nothing caps a frame sent
+  before it. The masking of that frame is bounded since this release.
+- The rest of the open items are in `TODO.md`, "Found by the last review before
+  the merge" and "Defects open after 7.25.20".
 
 ## v7.25.20 (2026-09-30)
 
