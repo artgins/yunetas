@@ -14,6 +14,11 @@
  *        delete exactly once, with and without records since it opened, its
  *        cache loses the key, and a feed may close itself from the callback.
  *      - do_test_cache_cleared:       topic.cache rollup loses the entry.
+ *      - do_test_signal_dir_seen:     the master signals a delete to a feed
+ *        without the key's directory by creating it and removing it; a
+ *        follower that reads the IN_CREATE in between finds the directory
+ *        there. That is not the key alive again: the feed's debt of the
+ *        delete stays (the test holds the rmdir() of the master's signal).
  *      - do_test_rkey_filter:         a feed opened with an `rkey` (a
  *        regular expression over the keys) is told the deletes of the keys
  *        it matches and of no other: an rt_mem feed of the master and an
@@ -36,7 +41,8 @@
  *
  *  The failures of stat(), opendir() and readdir() are made by the
  *  __wrap_*() below (the test links with --wrap=stat,opendir,readdir), for
- *  the one path each is told to fail.
+ *  the one path each is told to fail; __wrap_rmdir() holds the master's
+ *  delete signals for do_test_signal_dir_seen.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -80,6 +86,52 @@ PRIVATE char failing_readdir[PATH_MAX] = "";   // the directory whose readdir() 
 PRIVATE DIR *failing_dirp = NULL;
 PRIVATE int wrapped_failures = 0;
 
+int __real_rmdir(const char *path);
+int __wrap_rmdir(const char *path);
+
+PRIVATE yev_loop_h yev_loop;
+PRIVATE char held_signals[PATH_MAX] = "";      // the disks/ whose delete signals of KEY_A are held
+PRIVATE int held_rmdirs = 0;
+PRIVATE int count_x = 0, count_y = 0;           // key_deleted of the feeds rtX and rtY
+PRIVATE json_t *feed_x = NULL, *feed_y = NULL;
+PRIVATE int debt_kept_in_signal = -1;           // the second feed, its IN_CREATE read: still owes?
+
+int __wrap_rmdir(const char *path)
+{
+    size_t lp = strlen(held_signals);
+    size_t lk = strlen(KEY_A);
+    size_t l = strlen(path);
+    if(lp && strncmp(path, held_signals, lp)==0 && path[lp]=='/' &&
+            l > lk && strcmp(path + l - lk, KEY_A)==0) {
+        held_rmdirs++;
+        if(held_rmdirs == 1) {
+            /*
+             *  The first feed signalled: it hears the delete, the other
+             *  one now owes it
+             */
+            int ret = __real_rmdir(path);
+            for(int i = 0; i < 200 && count_x + count_y == 0; i++) {
+                yev_loop_run_once(yev_loop);
+            }
+            return ret;
+        }
+        if(held_rmdirs == 2) {
+            /*
+             *  The second: its directory made and not removed yet, as when
+             *  the master is preempted between the two
+             */
+            for(int i = 0; i < 20; i++) {
+                yev_loop_run_once(yev_loop);
+            }
+            json_t *feed = strstr(path, "/rtX/")? feed_x : feed_y;
+            debt_kept_in_signal = json_object_get(
+                json_object_get(feed, "deletes_unheard"), KEY_A
+            )? 1 : 0;
+        }
+    }
+    return __real_rmdir(path);
+}
+
 int __wrap_stat(const char *path, struct stat *st)
 {
     if(failing_stat[0] && strcmp(path, failing_stat) == 0) {
@@ -118,8 +170,6 @@ struct dirent *__wrap_readdir(DIR *dirp)
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE yev_loop_h yev_loop;
-
 PRIVATE size_t deleted_callback_count = 0;
 PRIVATE char deleted_callback_last_key[64];
 PRIVATE void *deleted_callback_last_user_data = NULL;
@@ -806,6 +856,10 @@ PRIVATE int follower_key_deleted_callback(
         count_all++;
     } else if(id && strcmp(id, "rtRKEY")==0) {
         count_rkey++;
+    } else if(id && strcmp(id, "rtX")==0) {
+        count_x++;
+    } else if(id && strcmp(id, "rtY")==0) {
+        count_y++;
     } else if(id && strcmp(id, "rtCLOSE")==0) {
         count_close++;
         tranger2_close_rt_disk(closing_tranger, list);  // the feed closes itself
@@ -952,6 +1006,101 @@ PRIVATE int do_test_follower(void)
     result += test_json(NULL);
 
     set_expected_results("follower: shutdown", NULL, NULL, NULL, 1);
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    drain(10);
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  do_test_signal_dir_seen
+ ***************************************************************************/
+PRIVATE int do_test_signal_dir_seen(void)
+{
+    int result = 0;
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+    count_x = count_y = 0;
+    held_rmdirs = 0;
+    debt_kept_in_signal = -1;
+
+    set_expected_results(
+        "signal dir seen: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_master(path_root, TRUE);
+    if(!tm || create_topic(tm) < 0) {
+        if(tm) {
+            tranger2_shutdown(tm);
+        }
+        return -1;
+    }
+    if(append_to(tm, 1, 1) < 0) {  // KEY_A, before the feeds: neither has its directory
+        result += -1;
+    }
+    drain(5);
+    json_t *tf = startup_tranger(path_root, FALSE, TRUE);
+    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
+        if(tf) {
+            tranger2_shutdown(tf);
+        }
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    feed_x = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, my_record_callback, "rtX", "", NULL);
+    feed_y = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, my_record_callback, "rtY", "", NULL);
+    if(!feed_x || !feed_y) {
+        result += -1;
+    }
+    tranger2_set_rt_key_deleted_callback(feed_x, follower_key_deleted_callback, NULL);
+    tranger2_set_rt_key_deleted_callback(feed_y, follower_key_deleted_callback, NULL);
+    drain(10);
+    result += test_json(NULL);
+
+    set_expected_results("signal dir seen: the debt stays", NULL, NULL, NULL, 1);
+    build_path(held_signals, sizeof(held_signals), path_topic, "disks", NULL);
+    if(tranger2_delete_key(tm, TOPIC_NAME, KEY_A) < 0) {
+        result += -1;
+    }
+    held_signals[0] = 0;
+    drain(30);
+
+    if(held_rmdirs != 2) {
+        printf("%sERROR%s --> signal dir seen: %d signals held, expected 2: the test did not test\n",
+            On_Red BWhite, Color_Off, held_rmdirs);
+        result += -1;
+    }
+    if(debt_kept_in_signal != 1) {
+        printf("%sERROR%s --> signal dir seen: the directory of the signal, seen made, dropped the debt of the delete\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(count_x != 1 || count_y != 1) {
+        printf("%sERROR%s --> signal dir seen: rtX heard %d, rtY %d, expected 1/1\n",
+            On_Red BWhite, Color_Off, count_x, count_y);
+        result += -1;
+    }
+    if(json_object_size(json_object_get(feed_x, "deletes_unheard")) != 0 ||
+       json_object_size(json_object_get(feed_y, "deletes_unheard")) != 0) {
+        printf("%sERROR%s --> signal dir seen: a feed owes deletes it will never hear\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    tranger2_close_rt_disk(tf, feed_x);
+    tranger2_close_rt_disk(tf, feed_y);
+    feed_x = feed_y = NULL;
+    drain(20);
+    result += test_json(NULL);
+
+    set_expected_results("signal dir seen: shutdown", NULL, NULL, NULL, 1);
     tranger2_shutdown(tf);
     tranger2_shutdown(tm);
     drain(10);
@@ -1387,6 +1536,7 @@ int main(int argc, char *argv[])
     result += do_test_follower();
     result += do_test_cache_cleared();
     result += do_test_rkey_filter();
+    result += do_test_signal_dir_seen();
     result += do_test_rmrdir_fails();
     result += do_test_rmrdir_fails_filtered();
     result += do_test_key_dir_unstatable();

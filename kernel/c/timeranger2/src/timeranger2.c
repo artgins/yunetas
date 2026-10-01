@@ -543,8 +543,7 @@ PRIVATE void note_where_the_other_feeds_are(
 PRIVATE void forget_debts_passed(
     json_t *watched_topic,
     fs_event_t *fs_event,
-    const char *key,
-    const char *key_dir
+    const char *key
 );
 PRIVATE BOOL delete_told_at_overflow(
     json_t *watched_topic,
@@ -6767,14 +6766,17 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                         NULL
                     );
                 }
-                if(watched_topic &&
-                   strcmp((const char *)fs_event->directory, fs_event->path)==0) {
-                    forget_debts_passed(watched_topic, fs_event,
-                        (const char *)fs_event->filename, full_path
-                    );
-                }
+                /*
+                 *  A record found in it says the key lives: a directory of
+                 *  a delete signal (made and removed at once) holds none,
+                 *  whether it is still there when this is read or not
+                 */
                 if(is_directory(full_path)) {
-                    scan_disks_key_for_new_file(gobj, tranger, full_path);
+                    int records = scan_disks_key_for_new_file(gobj, tranger, full_path);
+                    if(records > 0 && watched_topic &&
+                            strcmp((const char *)fs_event->directory, fs_event->path)==0) {
+                        forget_debts_passed(watched_topic, fs_event, (const char *)fs_event->filename);
+                    }
                 }
                 // else: created and removed at once, the key-delete signal
             }
@@ -6893,6 +6895,14 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                         NULL
                     );
                 }
+                if(watched_topic) {
+                    char key_dir[PATH_MAX];
+                    snprintf(key_dir, sizeof(key_dir), "%s", (const char *)fs_event->directory);
+                    const char *key = pop_last_segment(key_dir);
+                    if(strcmp(key_dir, fs_event->path)==0) {
+                        forget_debts_passed(watched_topic, fs_event, key);
+                    }
+                }
                 update_key_by_hard_link(gobj, tranger, full_path); // full_path modified */
             }
             break;
@@ -6958,6 +6968,7 @@ PRIVATE int scan_disks_key_for_new_file(
 
     dir_array_sort(&da);
 
+    int found = da.count;
     for(int i=0; i<da.count; i++) {
         char *filename = da.items[i];
         char full_path[PATH_MAX];
@@ -6967,7 +6978,7 @@ PRIVATE int scan_disks_key_for_new_file(
 
     dir_array_free(&da);
 
-    return 0;
+    return found;   // the records found (links of md2 files)
 }
 
 /***************************************************************************
@@ -7172,24 +7183,30 @@ PRIVATE void note_where_the_other_feeds_are(
 }
 
 /***************************************************************************
- *  CLIENT: the directory of a key was made in this feed's disks/<rt_id>/
- *  (`key_dir`): the master links a record of the key there, the key lives.
- *  A debt of the key made before this event was queued is one the feed will
- *  never pay: the signal owed, queued before the debt was made, would have
- *  come first. A directory already gone is not the key living but a delete
- *  signalled (created and removed at once): nothing to forget there.
+ *  CLIENT: a record of the key reached this feed from its own directory
+ *  (a link of an md2 in disks/<rt_id>/<key>/, heard or found in the key's
+ *  directory just made): the key lives. A debt of the key made before this
+ *  event was queued is one the feed will never pay: the signal owed, queued
+ *  before the debt was made, would have come first.
+ *
+ *  A record, not the directory: the master signals a delete to a feed
+ *  without the key's directory by making it and removing it, and a
+ *  follower that reads the IN_CREATE between the two (the master preempted)
+ *  finds the directory there. Such a directory never holds a record.
  ***************************************************************************/
 PRIVATE void forget_debts_passed(
     json_t *watched_topic,
     fs_event_t *fs_event,
-    const char *key,
-    const char *key_dir
+    const char *key
 )
 {
     json_t *disk = feed_of_watcher(watched_topic, fs_event);
     json_t *unheard = json_object_get(disk, "deletes_unheard");
+    if(!unheard) {
+        return;     // the common case, a record of a feed that owes nothing
+    }
     json_t *marks = json_object_get(unheard, key);
-    if(!marks || !is_directory(key_dir)) {
+    if(!marks) {
         return;
     }
     size_t i = 0;
@@ -7226,7 +7243,12 @@ PRIVATE BOOL delete_told_at_overflow(
         return FALSE;
     }
     if(fs_event->offset >= (uint64_t)json_integer_value(json_object_get(told, "until"))) {
-        json_object_del(disk, "deletes_told");  // queued after: a delete of now
+        /*
+         *  Queued after: a delete of now, and the first one past the point.
+         *  The set goes here; the events between that were not deletes
+         *  never asked.
+         */
+        json_object_del(disk, "deletes_told");
         return FALSE;
     }
     return json_object_get(json_object_get(told, "keys"), deleted_key)? TRUE: FALSE;
@@ -7309,6 +7331,8 @@ PRIVATE void forget_keys_deleted_unheard(
          *  What is told here is not told again when its signal, queued
          *  behind the overflow, comes (delete_told_at_overflow()). Measured
          *  after keys/ was read: what was queued by then happened before.
+         *  The set goes with the first key-delete heard from past that
+         *  point, or with the next overflow (here).
          */
         json_object_del(disk, "deletes_told");
         if(json_array_size(gone) > 0) {

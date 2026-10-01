@@ -140,8 +140,9 @@ foreach(test ${SRCS})
     endif()
     if(test STREQUAL "test_delete_key_propagation")
         # The test fails a stat(), an opendir() and a readdir() of one path in
-        # its own __wrap_stat(), __wrap_opendir() and __wrap_readdir()
-        target_link_options(${binary} PRIVATE "-Wl,--wrap=stat,--wrap=opendir,--wrap=readdir")
+        # its own __wrap_stat(), __wrap_opendir() and __wrap_readdir(), and
+        # holds the master's delete signals in __wrap_rmdir()
+        target_link_options(${binary} PRIVATE "-Wl,--wrap=stat,--wrap=opendir,--wrap=readdir,--wrap=rmdir")
     endif()
     if(test STREQUAL "test_torn_tail_check_fails")
         # The test fails the open of a content file in its own __wrap_open()

@@ -296,7 +296,8 @@ What the owners of the tree do:
   told and where its stream ended once `keys/` was read
   ([`fs_queued_events_end()`](#fs_queued_events_end)); a delete of one of
   them queued before that is said already, and nothing is done (up to 7.25.20
-  it was told twice).
+  it was told twice). The set is let go at the first key-delete the feed
+  hears from past that point, or at its next overflow.
 
   A feed opened while a delete was in flight (its directory made after the
   master listed `disks/`, or watched after the master signalled it) never
@@ -306,9 +307,12 @@ What the owners of the tree do:
   after another, in microseconds: only a delete signalled across the very
   moment a feed opens is left in doubt, and owed. Such a debt holds where the
   stream of the debtor ended when it was made; when the debtor's stream, past
-  that point, shows the key's directory made again (the key lives), the debt
-  is forgotten -- kept, the next delete of the key would pay it, and a feed
-  that overflowed then would miss that one.
+  that point, hands it a RECORD of the key (the key lives), the debt is
+  forgotten -- kept, the next delete of the key would pay it, and a feed that
+  overflowed then would miss that one. A record, not the key's directory: the
+  master signals a delete to a feed without that directory by making it and
+  removing it, and a follower that reads the `IN_CREATE` between the two
+  finds the directory there; it never holds a record.
 
   At each `FS_RESCAN_DIR_TYPE`: the master hard-links each new md2 into
   `disks/<rt_id>/<key>/` and the follower consumes the link when it reads it,
