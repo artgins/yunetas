@@ -63,12 +63,23 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   the client side closes it. When it was the last of the message's
   `max_retries`, the message goes to the failed queue though it may have
   been delivered.
-- **Permanent failures** (any `5xx` to MAIL FROM / RCPT TO / DATA / the body) →
-  the message goes **straight to `emails_failed`**, no retries. The SMTP reply
-  code is carried up from `C_SMTP_SESSION` on `EV_ON_CLOSE`: every refusal,
-  the one of the end of DATA included, drops the session; `code in [500,600)`
-  ⇒ permanent. `EV_ON_MESSAGE` answers a delivery (and a message that cannot
-  be sent at all).
+- **Permanent failures** (any `5xx` to MAIL FROM / RCPT TO / DATA / the end
+  of DATA: `550 5.1.1` no such user, `554` content refused) → the message goes
+  **straight to `emails_failed`**, tried once. It is the message's fault, not
+  the server's: `C_SMTP_SESSION` answers it at once on `EV_ON_MESSAGE`
+  `{ok: false, code, permanent: true}` and the session goes on -- it sends
+  `RSET`, and the next message goes on the same connection, at once. A server
+  that refuses `RSET` with a `5xx` is told `QUIT`, and the next message opens
+  a connection of its own as soon as that close has ended. None of this is a
+  failure of the server: no paced delay, no *"SMTP server failing"*, the
+  streak (see below) as it was. So a batch of messages the server refuses one
+  by one does not make the yuno hammer it: each is tried once and goes to the
+  failed queue, and the number of attempts is the number of messages queued.
+  (Up to 7.25.20 a `5xx` to MAIL FROM, RCPT TO or DATA dropped the session,
+  and the next message logged in again; the branch had also paced it as a
+  failure of the server.) A `4xx` there -- a rate limit, a greylist, a `421` --
+  IS server trouble: the session is dropped, the reconnection paced, and the
+  code goes up on `EV_ON_CLOSE` for a retry.
 - **Bad content** (MIME build / recipient parse failures) → permanent, dead-letter.
   A message the session cannot send at all (no valid recipient, no sender) is
   answered once, with `EV_ON_MESSAGE` `{ok: false, permanent: true}`; a send the
@@ -108,7 +119,7 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   server never saw it. (Up to 7.25.20 it was taken as a refusal, and a brief
   outage of the provider stopped the yuno for good while the queue piled up.)
 - **Retries are paced -- every one of them.** After a failed session or
-  connection the next connection waits: a refusal of the login or of the
+  connection the next connection waits: a `4xx` refusal of the login or of the
   message, a `4xx` or a `421` to the end of DATA (a rate limit, a greylist), a
   reply that never comes, a malformed or over-long reply, a server that closes
   the connection by itself (a RST, a TLS error, a close with no reply), a
@@ -119,16 +130,18 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   of a failing streak counts as one more failure. The doubling starts again
   from `timeout_retry` after a session that ends with no failure -- a message
   delivered, an idle session closed by either side --, so a server that works
-  is not held to the delay of an old outage. A connection that cannot be made
+  is not held to the delay of an old outage; after such a close a message
+  waiting is sent on a new connection as soon as the close has ended. (In the
+  branch, a message the emailsender sent again from inside that close waited
+  `timeout_retry` all the same.) A connection that cannot be made
   (refused, timed out, a TLS handshake that fails) is a failure like the
   others: the `C_TCP` publishes nothing for it, and the session sees it as the
   `C_TCP`'s `EV_STATE_CHANGED` out of `ST_WAIT_CONNECTED`.
 - **Nothing connects with nothing to send.** The `C_TCP` never reconnects by
   itself (`timeout_between_connections` -1): every connection is the
   session's, made when it holds a message. After any close -- an idle session
-  the server ends (OVH closes them early, with a `421`), a message refused to
-  the failed queue with nothing behind it -- nothing logs in again until an
-  email comes. Up to 7.25.20 the `C_TCP` reconnected 2 s after any close it did
+  the server ends (OVH closes them early, with a `421`), a failure with
+  nothing queued behind it -- nothing logs in again until an email comes. Up to 7.25.20 the `C_TCP` reconnected 2 s after any close it did
   not decide, and logged in with nothing to send, for ever.
 - **A failing server is said, once, then loud.** The first failure of a streak
   is a WARNING, *"SMTP server failing: emails wait, the retries are paced"*,
@@ -156,9 +169,10 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   `timeout_retry` × 2^(k-1), capped at `timeout_retry_max`: with the
   defaults 2, 4, 8, 16, 32, 64, 128, 256 and 512 s, then 600 s after every
   further failure. "In a row" counts every failure of the session, of any
-  message and of any kind: a failure that spends no retry (a refused
-  connection, a `421` greeting) and a refusal that sends its message straight
-  to the failed queue (a `5xx` in its transaction) both take the next step.
+  message and of any kind -- a failure that spends no retry (a refused
+  connection, a `421` greeting) takes the next step too. A message refused
+  with a `5xx` is no failure of the server: it takes no step and resets
+  nothing.
   The count goes back to the start only after a delivery, or after a session
   that ends with no failure (an idle session closed by either side). Moving a
   message to the failed queue does NOT reset it: the next message goes on

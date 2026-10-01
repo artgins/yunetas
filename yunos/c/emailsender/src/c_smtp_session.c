@@ -52,7 +52,9 @@
  *          `timeout_retry`, doubled at each failure in a row up to
  *          `timeout_retry_max`. A close that is no failure (the session was
  *          idle and nothing went wrong in it) starts the doubling again, and
- *          nothing connects until there is a message. The waiting is our own
+ *          nothing connects until there is a message -- then at once, or, if
+ *          it comes inside that close, as soon as the close has ended
+ *          (EV_CONNECT_AFTER_CLOSE, posted to ourselves). The waiting is our own
  *          timer, and it survives a pause and a play of the owner: a stop in
  *          the middle of a failing streak counts as one more failure.
  *
@@ -135,6 +137,7 @@ GOBJ_DEFINE_STATE(ST_WAIT_DATA_RESP);
 GOBJ_DEFINE_STATE(ST_WAIT_RSET_RESP);
 GOBJ_DEFINE_STATE(ST_WAIT_QUIT_RESP);
 GOBJ_DEFINE_EVENT(EV_RX_LINE);
+GOBJ_DEFINE_EVENT(EV_CONNECT_AFTER_CLOSE);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -195,6 +198,7 @@ typedef struct _PRIVATE_DATA {
     uint64_t failing_since;     /* monotonic ms of the first failure of the streak; 0 = none */
     uint64_t alarm_not_before;  /* msectimer: the next failing ERROR; 0 = not said yet */
     BOOL detached;              /* stopped: the connection closing is ours, nothing of it is told */
+    BOOL connect_posted;        /* EV_CONNECT_AFTER_CLOSE is on its way */
 } PRIVATE_DATA;
 
 
@@ -942,10 +946,16 @@ PRIVATE int request_connection(hgobj gobj)
     if(st == ST_STOPPED && wait <= 0) {
         /*
          *  Inside the close of the transport (the owner sends the message
-         *  again from our EV_ON_CLOSE): not now, and no sooner than the
-         *  pace of a first failure.
+         *  again from our EV_ON_CLOSE), and nothing to wait for: the close
+         *  was no failure. Connect as soon as it has ended, in the next
+         *  cycle of the loop. In the branch it waited timeout_retry, as
+         *  after a failure.
          */
-        wait = gobj_read_integer_attr(gobj, "timeout_retry");
+        if(!priv->connect_posted) {
+            priv->connect_posted = TRUE;
+            gobj_post_event(gobj, EV_CONNECT_AFTER_CLOSE, json_object(), gobj);
+        }
+        return 0;
     }
     if(wait > 0) {
         set_timeout(priv->timer, wait);
@@ -1733,6 +1743,24 @@ PRIVATE int ac_timeout_quit(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
+ *  The close of the transport that a connection was asked for in has
+ *  ended (posted by request_connection): connect, if a message still
+ *  waits for it.
+ ***************************************************************************/
+PRIVATE int ac_connect_after_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->connect_posted = FALSE;
+    if(priv->jn_current_msg && gobj_is_running(gobj)) {
+        request_connection(gobj);
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  Disconnected with a message waiting: the paced delay has passed.
  ***************************************************************************/
 PRIVATE int ac_timeout_reconnect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -1956,6 +1984,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_STATE_CHANGED,      ac_child_state_changed, 0},
         {EV_STOPPED,            ac_stopped,             0},
         {EV_TIMEOUT,            ac_timeout_reconnect,   0},
+        {EV_CONNECT_AFTER_CLOSE,ac_connect_after_close, 0},
         {0,0,0}
     };
     /*
@@ -2108,6 +2137,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_RX_DATA,            0},
         {EV_RX_LINE,            0},
+        {EV_CONNECT_AFTER_CLOSE,0},
         {EV_TX_READY,           0},
         {EV_SEND_MESSAGE,       0},
         {EV_CONNECTED,          0},

@@ -68,6 +68,7 @@ SET(SRCS
     auth_334_continue
     bad_burst
     rcpt_refused_same_session
+    rset_refused
 )
 
 ##############################################
