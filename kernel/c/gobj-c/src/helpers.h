@@ -292,6 +292,15 @@ PUBLIC char *mask_secrets_inline(const char *str);
 PUBLIC json_t *json_mask_secrets(json_t *jn);
 
 /**rst**
+ *  json_mask_secrets() that walks no more than `max_bytes` of keys and
+ *  strings (json_mask_secrets() walks 4 MB): what is left is shown as
+ *  "<not shown: too large to mask>", never in clear. A string is walked
+ *  whole or not shown at all. For a dump of a few bytes of a kw from a
+ *  peer: the cost is bounded by what is shown, not by what was sent.
+**rst**/
+PUBLIC json_t *json_mask_secrets_capped(json_t *jn, size_t max_bytes);
+
+/**rst**
  *  The bytes of a traffic dump with the credentials that can be told
  *  soundly written as '*', IN PLACE, the length kept: the value of an HTTP
  *  Cookie, Set-Cookie, Authorization or Proxy-Authorization header (after

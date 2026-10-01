@@ -268,6 +268,21 @@ PRIVATE int send_card(hgobj gobj, int card)
             json_object_set_new(kw, "__command__",
                 json_string("help token=tester-secret-inline")
             );
+            {
+                /*
+                 *  And a big "a=a=a=..." text: the masking of the dump is
+                 *  linear and capped (it was quadratic: minutes, before a
+                 *  session, for one frame)
+                 */
+                size_t noise_len = 256*1024;
+                char *noise = gbmem_malloc(noise_len + 1);
+                for(size_t i=0; i<noise_len; i++) {
+                    noise[i] = (i & 1)? '=' : 'a';
+                }
+                noise[noise_len] = 0;
+                json_object_set_new(kw, "noise", json_string(noise));
+                GBMEM_FREE(noise)
+            }
             msg_iev_push_stack(gobj, kw, IEVENT_STACK_ID,
                 card_routing("", role, "tester", role, "cli")
             );

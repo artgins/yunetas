@@ -1434,7 +1434,12 @@ PRIVATE size_t peer_json_dump(json_t *jn, char *bf, size_t bfsize)
  ***************************************************************************/
 PRIVATE size_t peer_card_dump(json_t *kw, char *bf, size_t bfsize)
 {
-    json_t *kw_shown = json_mask_secrets(kw);   // the kernel's rule, as the ievents traces
+    /*
+     *  Capped BEFORE it is masked: a peer with no session sends up to the
+     *  maximum block, and the dump shows bfsize bytes. A string is masked
+     *  whole or not shown at all, so no secret is cut in half.
+     */
+    json_t *kw_shown = json_mask_secrets_capped(kw, 4*bfsize);  // the kernel's rule
     if(!kw_shown) {
         // Error already logged
         return peer_json_dump(json_null(), bf, bfsize);

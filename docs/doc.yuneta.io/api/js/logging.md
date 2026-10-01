@@ -61,7 +61,7 @@ identity in the `kw`, and find the object inside the action.
 Turn the levels on and off with the functions in [Traces](traces.md).
 
 (js_trace_json_masked)=
-### [`trace_json_masked(json, msg)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L603)
+### [`trace_json_masked(json, msg)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L647)
 
 [`trace_json()`](#js_trace_json) of a value that can hold a credential: it
 writes [`json_mask_secrets(json)`](#js_json_mask_secrets). The framework
@@ -76,7 +76,7 @@ trace_json_masked({username: "bob", password: "hunter2"}, "login");
 ```
 
 (js_json_mask_secrets)=
-### [`json_mask_secrets(json)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L590)
+### [`json_mask_secrets(json)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L634)
 
 A JSON value as a log or a trace may show it, with the rule and the lists of
 the C kernel's `json_mask_secrets()`. At any depth, the value of a key whose
@@ -93,7 +93,8 @@ instance, a typed array or a function is passed as it is. An object met twice
 is masked once, the same everywhere; a cycle back to one is `"<cycle>"`; an
 object or array reached at 64 levels (as in C) is `"<deeper not shown>"` --
 counted from the FIRST time it is met: one masked higher up shows whole
-wherever else it appears;
+wherever else it appears; once 4 MB of keys and strings are walked, the rest
+is `"<not shown: too large to mask>"` (it is linear and bounded, as in C);
 and a failure answers
 `"<not shown: the masking failed>"`: it never throws.
 
@@ -103,7 +104,7 @@ json_mask_secrets({password: 1234, auth: {access_token: "eyJ..."}, window: gobj}
 ```
 
 (js_mask_secrets_inline)=
-### [`mask_secrets_inline(text)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L432)
+### [`mask_secrets_inline(text)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L454)
 
 A text (a command line) with the value of every `name=value` whose name is a
 secret's written as `********`, quoted or not, and the `value=` of a

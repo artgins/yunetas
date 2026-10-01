@@ -76,3 +76,5 @@ target_link_libraries(${PROJECT_NAME}
 #   Test
 ##############################################
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+# the dump of a big kw before the card is masked linearly: fail fast if not
+set_tests_properties(${PROJECT_NAME} PROPERTIES TIMEOUT 60)

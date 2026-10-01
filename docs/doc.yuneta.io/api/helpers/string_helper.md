@@ -576,6 +576,12 @@ is met: one met first near the limit is `"<deeper not shown>"` everywhere it
 appears, and one masked first higher up shows whole wherever else it appears,
 deeper ones included.
 
+It is linear and bounded, because a peer reaches it before its session
+(`C_IEVENT_SRV` dumps the kw of an event that comes before the identity
+card): no more than 128 bytes of a name are asked about, and once 4 MB of
+keys and strings are walked, the rest is `"<not shown: too large to mask>"`
+-- never in clear.
+
 **Example**
 
 ```C
@@ -598,8 +604,10 @@ JSON_DECREF(kw_shown)
 A text (a command line) with the value of every `name=value` whose name is a
 secret's ([`is_secret_name()`](#is_secret_name)) written as `********`,
 quoted or not; and the `value=` of a write-attr whose `attribute=` names a
-secret. The rest of the text is kept as it is. An unquoted value runs to the
-next `word=` (or the end): a password written with blanks
+secret. The rest of the text is kept as it is. The name is the run of name
+characters just before the `=`, no longer than 128 bytes, and a text over
+4 MB is `"<not shown: too large to mask>"`: it is linear. An unquoted value
+runs to the next `word=` (or the end): a password written with blanks
 (`password=correct horse battery`, `password= hunter2`) is masked whole, as
 the parser leaves those words unread. A quote inside it is part of it
 (`value=ab'cd` is masked whole), unless it is the quote that closes an outer
@@ -630,6 +638,46 @@ char *s = mask_secrets_inline("write-attr attribute=password value=hunter2");
 GBMEM_FREE(s)
 s = mask_secrets_inline("login user=bob token='a b c'");  // "login user=bob token=********"
 GBMEM_FREE(s)
+```
+
+---
+
+(json_mask_secrets_capped)=
+## [`json_mask_secrets_capped()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/helpers.c#L1975)
+
+[`json_mask_secrets()`](#json_mask_secrets) that walks no more than
+`max_bytes` of keys and strings: what is left is
+`"<not shown: too large to mask>"`. A string is walked whole or not shown at
+all, so a secret is never cut in half. For a dump of a few bytes of a kw from
+a peer: the cost is bounded by what is shown, not by what was sent.
+`C_IEVENT_SRV` dumps the kw of an event before the identity card through it,
+capped at four times the 256 bytes it shows.
+
+```C
+json_t *json_mask_secrets_capped(
+    json_t *jn,         // not owned
+    size_t  max_bytes
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn` | `json_t *` | Any json. Not owned, not modified. |
+| `max_bytes` | `size_t` | The bytes of keys and strings walked at most. |
+
+**Returns**
+
+A NEW reference, to decref, as [`json_mask_secrets()`](#json_mask_secrets).
+
+**Example**
+
+```C
+json_t *kw_shown = json_mask_secrets_capped(kw_from_peer, 1024);
+char dump[256];
+json_dumpb(kw_shown, dump, sizeof(dump)-1, JSON_COMPACT);
+JSON_DECREF(kw_shown)
 ```
 
 ---

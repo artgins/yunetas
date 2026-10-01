@@ -807,6 +807,62 @@ PRIVATE void check_log_dumps(hgobj gobj)
     check_true("authorization_header is a secret's name", is_secret_name("authorization_header", 20));
 
     /*
+     *  Masking is linear and capped: a 1 MB "a=a=a=..." word, a 1 MB
+     *  secret value and a 1 MB received text take milliseconds (it was
+     *  quadratic: seconds for 60 KB); 5 MB is not shown at all
+     */
+    {
+        size_t big_len = 1024*1024;
+        char *big = gbmem_malloc(big_len + 16);
+        for(size_t i=0; i<big_len; i++) {
+            big[i] = (i & 1)? '=' : 'a';
+        }
+        big[big_len] = 0;
+
+        uint64_t t0 = time_in_milliseconds_monotonic();
+        char *m = mask_secrets_inline(big);
+        check_true("a 1 MB a=a=... word has nothing to mask", m == NULL);
+        GBMEM_FREE(m)
+        json_t *jn_big = json_pack("{s:s}", "anything", big);
+        json_t *jn_shown = json_mask_secrets(jn_big);
+        JSON_DECREF(jn_shown)
+        JSON_DECREF(jn_big)
+        mask_secrets_in_text(big, big_len);
+        uint64_t t1 = time_in_milliseconds_monotonic();
+        check_true("a 1 MB a=a=... word is masked in under 500 ms (quadratic: minutes)", t1 - t0 < 500);
+
+        memcpy(big, "password=", 9);
+        memset(big + 9, 'x', big_len - 9);
+        t0 = time_in_milliseconds_monotonic();
+        m = mask_secrets_inline(big);
+        check_str("a 1 MB secret value is masked whole", m, "password=********");
+        GBMEM_FREE(m)
+        t1 = time_in_milliseconds_monotonic();
+        check_true("a 1 MB secret value is masked in under 500 ms", t1 - t0 < 500);
+        GBMEM_FREE(big)
+
+        size_t huge_len = 5*1024*1024;
+        char *huge = gbmem_malloc(huge_len + 1);
+        memset(huge, 'x', huge_len);
+        memcpy(huge, "a=b ", 4);
+        huge[huge_len] = 0;
+        m = mask_secrets_inline(huge);
+        check_str("a text over 4 MB is not shown", m, "<not shown: too large to mask>");
+        GBMEM_FREE(m)
+        GBMEM_FREE(huge)
+
+        json_t *jn_kw = json_pack("{s:s, s:s}", "a", "small", "b", "small");
+        jn_shown = json_mask_secrets_capped(jn_kw, 6);
+        char *ss2 = json2uglystr(jn_shown);
+        check_true("past the cap a string is not shown",
+            ss2 && strstr(ss2, "too large to mask")? TRUE : FALSE
+        );
+        GBMEM_FREE(ss2)
+        JSON_DECREF(jn_shown)
+        JSON_DECREF(jn_kw)
+    }
+
+    /*
      *  A dict shared (the C twin of a bug gobj-js had: a dict met twice was
      *  masked once), a cycle, and a fan-out that would be exponential
      *  without the memo (the test's ctest TIMEOUT makes that fail fast)
