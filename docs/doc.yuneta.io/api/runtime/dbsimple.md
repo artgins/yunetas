@@ -53,14 +53,44 @@ int db_save_persistent_attrs(
 
 **Returns**
 
-`0` on success.
+`0` on success, `-1` (logged) when nothing was saved.
+
+**Notes**
+
+The file is `<realm>/<yuno>/data/<GCLASS>-<name>-persistent-attrs.json`, 0600:
+a persistent attribute can be a secret (see
+[`SDF_SECRET`](#SDF_SECRET) in [the SData guide](../../guide/guide_sdata.md)).
+The attributes not in `keys` are kept from the file. A save writes a NEW file
+in the same directory (`<file>.tmp-XXXXXX`, created 0600 with `O_EXCL`),
+syncs it, `rename()`s it over the old one and syncs the directory: the old
+file is never half-written, a symlink or a hard link in its place is
+replaced, nothing is written through it, and a save that fails leaves the
+old file as it was. A `<file>.tmp-XXXXXX` left by a save that did not end is
+removed at the next load.
+
+It is refused (`-1`, nothing written) when a file is there and cannot be read
+(*"Persistent attrs NOT saved: the file there cannot be read, and its other
+attrs would be lost"*). In a directory the yuno cannot write, the save goes in
+place, and only into a file of the yuno's own, regular and of one name (made
+0600 first; logged *"Persistent attrs saved in place"*).
+
+**Example**
+
+```C
+gobj_write_str_attr(gobj, "password", "hunter2");
+if(gobj_save_persistent_attrs(gobj, json_string("password")) < 0) {
+    // Error already logged; the attr is set in memory, NOT on disk
+}
+```
 
 ---
 
 (db_remove_persistent_attrs)=
 ## `db_remove_persistent_attrs()`
 
-Removes persistent attributes from the file-based store.
+Removes persistent attributes from the file-based store: the file is written
+again without them, as [`db_save_persistent_attrs()`](#db_save_persistent_attrs)
+writes it, and refused the same way when the file there cannot be read.
 
 ```C
 int db_remove_persistent_attrs(

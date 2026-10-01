@@ -282,9 +282,11 @@ line = command_mask_secret_line(agent,  // command-yuno is SDF_WILD_CMD
 );                                      // "command-yuno id=x command='set-user-pwd password=********'"
 ```
 
-The errors the parser answers for a malformed line mask what they echo the
-same way: `set-password password= hunter2` is refused with *"command
-'set-password' with extra parameters: '<...>'"*, not with the secret.
+The errors the parser answers for a malformed line mask what they echo: a
+secret `name=value` in the extra text, and all of it when it is the value of a
+secret parameter written with a blank after its `=`. `set-password password=
+hunter2` is refused with *"command 'set-password' with extra parameters:
+'<...>'"*; `list-yunos foo` with *"... extra parameters: 'foo'"*.
 
 A value opened with a quote and never closed (`password='abc`) refuses the
 command: *"command 'set-password', parameter 'password': value with no

@@ -60,6 +60,78 @@ identity in the `kw`, and find the object inside the action.
 
 Turn the levels on and off with the functions in [Traces](traces.md).
 
+(js_trace_json_masked)=
+### [`trace_json_masked(json, msg)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L528)
+
+[`trace_json()`](#js_trace_json) of a value that can hold a credential: it
+writes [`json_mask_secrets(json)`](#js_json_mask_secrets). The framework
+uses it since 7.25.9 for the `commands` trace, the `machine` trace with
+`ev_kw`, the kw a `kw_get_*()` error dumps and the ievents trace of
+`C_IEVENT_CLI`. It never throws: a gobj, a widget or a DOM node in the value
+is written as it is, not walked.
+
+```js
+trace_json_masked({username: "bob", password: "hunter2"}, "login");
+// {username: "bob", password: "********"}
+```
+
+(js_json_mask_secrets)=
+### [`json_mask_secrets(json)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L515)
+
+A JSON value as a log or a trace may show it, with the rule and the lists of
+the C kernel's `json_mask_secrets()`. At any depth, the value of a key whose
+name is a secret's ([`is_secret_name()`](#js_is_secret_name)) is
+`"********"`, whatever its type (not `undefined`, `null` or `""`); so is the
+`value` of an object whose `attribute` names a secret; and a string is masked
+as [`mask_secrets_inline()`](#js_mask_secrets_inline). It answers a masked
+copy (the objects and arrays on the way to a masked value are copied, the
+rest is shared), or the value itself when there was nothing to mask; the
+value is never changed.
+
+Only JSON is walked: plain objects and arrays. A gobj, a DOM node, a class
+instance, a typed array or a function is passed as it is. A cycle is not
+walked twice, a nesting deeper than 64 levels is shown as
+`"<deeper not shown>"`, and a failure answers
+`"<not shown: the masking failed>"`: it never throws.
+
+```js
+json_mask_secrets({password: 1234, auth: {access_token: "eyJ..."}, window: gobj});
+// {password: "********", auth: {access_token: "********"}, window: gobj}
+```
+
+(js_mask_secrets_inline)=
+### [`mask_secrets_inline(text)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L378)
+
+A text (a command line) with the value of every `name=value` whose name is a
+secret's written as `********`, quoted or not, and the `value=` of a
+write-attr whose `attribute=` names a secret. The rest is kept. It answers
+`null` when there was nothing to mask.
+
+```js
+mask_secrets_inline("set-user-pwd username=bob password=hunter2");
+// "set-user-pwd username=bob password=********"
+mask_secrets_inline("list-yunos");      // null
+```
+
+(js_is_secret_name)=
+### [`is_secret_name(name)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L351)
+
+`true` if `name` is the name of a secret, by the C kernel's lists: it holds
+`passw`, `pwd`, `passphrase`, `secret`, `token`, `jwt`, `bearer`,
+`authorization`, `cookie`, `credential` or `salt`; or `apikey`, `sessionid`,
+`sessionkey` or `authdata` once `_`, `-`, `.` and blanks are taken out; or
+both `priv` and `key`. Any case. A name with a segment that names something
+ABOUT a credential (`endpoint`, `url`, `domain`, `path`, `file`, `public`,
+`count`, `type`, `name`, ... the C list) is not one: `token_endpoint`,
+`cookie_domain`, `jwt_public_keys`.
+
+```js
+is_secret_name("smtp_password");    // true
+is_secret_name("X-Api-Key");        // true
+is_secret_name("username");         // false
+is_secret_name("token_endpoint");   // false
+```
+
 ---
 
 ## Where the logs go

@@ -348,6 +348,16 @@ PRIVATE void check_received_dump(void)
     }
     check_int("the bytes masked", (int)masked, 9+25+9+9+2);
 
+    char text2[] = "{\"token\": [1,{\"a\":\"x\"}], \"jwt_public_keys\": [{\"k\": 1}], \"b\": 2}";
+    char expected2[] = "{\"token\": [***********], \"jwt_public_keys\": [{\"k\": 1}], \"b\": 2}";
+    mask_secrets_in_text(text2, strlen(text2));
+    check_true("a secret list is masked to its closing bracket; public keys are not",
+        strcmp(text2, expected2)==0
+    );
+    if(strcmp(text2, expected2)!=0) {
+        printf("     got      %s\n     expected %s\n", text2, expected2);
+    }
+
     /*
      *  The dump of a received frame: the secret on a line of its own
      */
@@ -358,12 +368,16 @@ PRIVATE void check_received_dump(void)
     s_rx_plain_seen = 0;
     s_capturing = TRUE;
     gobj_trace_dump_gbuf(0, gbuf, "a received frame");
+    s_capturing = FALSE;
+    check_true("the dump of a gbuffer says how many bytes it masked", s_rx_masked_seen > 0);
+    s_rx_masked_seen = 0;
+    s_capturing = TRUE;
     gobj_trace_dump(0, gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf), "raw bytes");
     s_capturing = FALSE;
     GBUFFER_DECREF(gbuf)
     check_true("the received frame is dumped", s_rx_plain_seen >= 2);
     check_int("its credential is not", s_rx_secret_seen, 0);
-    check_true("the dump says how many bytes it masked", s_rx_masked_seen > 0);
+    check_true("the dump of bytes says how many it masked", s_rx_masked_seen > 0);
 }
 
 /*

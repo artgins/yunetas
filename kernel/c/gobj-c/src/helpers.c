@@ -1373,7 +1373,18 @@ PRIVATE const char *secret_name_joined[] = {
  *  ssl_trusted_certificate), cert_pem (a public certificate), the ids of
  *  treedb (pkey, rkey, tkey), in_session, mqtt_clean_session,
  *  max_sessions, authz, auth_method, ignore_private.
+ *
+ *  And a name with one of these SEGMENTS (split by '_', '-', '.' and
+ *  blanks) is not a secret, whatever part it holds: it names something
+ *  ABOUT a credential, not the credential (token_endpoint, cookie_domain,
+ *  jwt_public_keys, refresh_token_count, password_file, secret_name).
  */
+PRIVATE const char *not_secret_segments[] = {
+    "endpoint", "url", "uri", "domain", "path", "file", "public", "pub",
+    "count", "counts", "type", "name", "len", "length", "size", "max", "min",
+    "ttl", "timeout", "expiry", "expires", "header", "mode",
+    0
+};
 
 PRIVATE BOOL is_name_joiner(char c)
 {
@@ -1444,6 +1455,25 @@ PUBLIC BOOL is_secret_name(const char *name, size_t len)
     if(!secret_first_letters_done) {
         make_secret_first_letters();
     }
+
+    /*
+     *  A segment that names something about a credential
+     */
+    size_t seg = 0;
+    for(size_t i=0; i<=len; i++) {
+        if(i < len && !is_name_joiner(name[i])) {
+            continue;
+        }
+        size_t seg_len = i - seg;
+        for(int n=0; seg_len && not_secret_segments[n]; n++) {
+            if(strlen(not_secret_segments[n]) == seg_len &&
+                    strncasecmp(name + seg, not_secret_segments[n], seg_len)==0) {
+                return FALSE;
+            }
+        }
+        seg = i + 1;
+    }
+
     BOOL has_priv = FALSE;
     BOOL has_key = FALSE;
     for(size_t i=0; i<len; i++) {
@@ -1543,8 +1573,9 @@ PUBLIC char *mask_secrets_inline(const char *str)
         *out++ = *p++;  // the '='
         char quote = (*p == '"' || *p == '\'')? *p : 0;
         const char *end = quote? p + 1 : p;
-        while(*end && (quote? *end != quote : (*end != ' ' && *end != '\t'))) {
-            end++;
+        while(*end && (quote? *end != quote :
+                (*end != ' ' && *end != '\t' && *end != '"' && *end != '\''))) {
+            end++;   // an unquoted value ends at a quote: the one that closes an outer value
         }
         if(quote && *end == quote) {
             end++;
@@ -1682,6 +1713,40 @@ PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
                             *s++ = '*';
                             masked++;
                         }
+                    } else if(v < end && (*v == '{' || *v == '[')) {
+                        /*
+                         *  A whole object or list: its inside, to the bracket
+                         *  that closes it (strings skipped), the brackets kept
+                         */
+                        int depth = 0;
+                        BOOL in_string = FALSE;
+                        char *s = v;
+                        for(; s < end; s++) {
+                            if(in_string) {
+                                if(*s == '\\' && s + 1 < end) {
+                                    *s++ = '*';
+                                    masked++;
+                                } else if(*s == '"') {
+                                    in_string = FALSE;
+                                }
+                            } else if(*s == '"') {
+                                in_string = TRUE;
+                            } else if(*s == '{' || *s == '[') {
+                                depth++;
+                                if(depth == 1) {
+                                    continue;
+                                }
+                            } else if(*s == '}' || *s == ']') {
+                                depth--;
+                                if(depth == 0) {
+                                    break;
+                                }
+                            }
+                            if(*s != '\r' && *s != '\n') {
+                                *s = '*';
+                                masked++;
+                            }
+                        }
                     } else {
                         masked += mask_run(v, end, ",}] \t");
                     }
@@ -1712,13 +1777,20 @@ PRIVATE BOOL secret_value_is_set(json_t *value)
  *  key with a secret's name (is_secret_name()) is "********", whatever its
  *  json type; so is the "value" of a dict whose "attribute" names a
  *  secret (write-attr); and in a string, a secret "name=value" is masked
- *  (mask_secrets_inline()). Return a new reference: a masked copy, or jn
- *  itself when there was nothing to mask.
+ *  (mask_secrets_inline()). Below MASK_MAX_DEPTH levels a dict or a list
+ *  is "<deeper not shown>": a kw of a peer nests as it likes, and a cycle
+ *  built with json_object_set() would never end. Return a new reference:
+ *  a masked copy, or jn itself when there was nothing to mask.
  ***************************************************************************/
-PUBLIC json_t *json_mask_secrets(json_t *jn)
+#define MASK_MAX_DEPTH  128
+
+PRIVATE json_t *json_mask_secrets_depth(json_t *jn, int depth)
 {
     if(!jn) {
         return NULL;
+    }
+    if(depth >= MASK_MAX_DEPTH && (json_is_object(jn) || json_is_array(jn))) {
+        return json_string("<deeper not shown>");  // a kw of a peer can nest at will
     }
 
     if(json_is_object(jn)) {
@@ -1734,7 +1806,7 @@ PUBLIC json_t *json_mask_secrets(json_t *jn)
             if(secret && secret_value_is_set(value)) {
                 shown = json_string("********");
             } else {
-                shown = json_mask_secrets(value);
+                shown = json_mask_secrets_depth(value, depth+1);
             }
             if(shown != value && !jn_masked) {
                 jn_masked = json_copy(jn);
@@ -1753,7 +1825,7 @@ PUBLIC json_t *json_mask_secrets(json_t *jn)
         size_t idx;
         json_t *value;
         json_array_foreach(jn, idx, value) {
-            json_t *shown = json_mask_secrets(value);
+            json_t *shown = json_mask_secrets_depth(value, depth+1);
             if(shown != value && !jn_masked) {
                 jn_masked = json_copy(jn);
             }
@@ -1776,6 +1848,11 @@ PUBLIC json_t *json_mask_secrets(json_t *jn)
     }
 
     return json_incref(jn);
+}
+
+PUBLIC json_t *json_mask_secrets(json_t *jn)
+{
+    return json_mask_secrets_depth(jn, 0);
 }
 
 /***************************************************************************

@@ -266,7 +266,10 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr);
  *  "secret", "token", "jwt", "bearer", "authorization", "cookie",
  *  "credential", "salt"; or one of "apikey", "sessionid", "sessionkey",
  *  "authdata" once '_', '-', '.' and blanks are taken out; or "priv" and
- *  "key" both (private_key). The one list of the SDK.
+ *  "key" both (private_key). But not a name with a segment that names
+ *  something ABOUT a credential (endpoint, url, domain, path, file,
+ *  public, count, type, name, ...: token_endpoint, cookie_domain,
+ *  jwt_public_keys). The one list of the SDK; gobj-js has the same.
 **rst**/
 PUBLIC BOOL is_secret_name(const char *name, size_t len);
 

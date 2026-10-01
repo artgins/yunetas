@@ -1471,6 +1471,22 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      */
     const sdata_desc_t *desc = gobj_attr_desc(gobj2write, attribute, FALSE);
     BOOL secret = desc && (desc->flag & SDF_SECRET);
+    BOOL not_persisted = FALSE;
+    if(desc && (desc->flag & SDF_PERSIST) && !gobj_is_service(gobj2write)) {
+        /*
+         *  Written, and it says so: only a service persists its attrs.
+         *  Before the save was asked anyway, and refused with a warning.
+         */
+        not_persisted = TRUE;
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "write-attr of a persistent attr of a gobj that is no service: not persisted",
+            "gobj2write",   "%s", gobj_full_name(gobj2write),
+            "attribute",    "%s", attribute,
+            NULL
+        );
+    }
     if(desc && (desc->flag & SDF_PERSIST) && gobj_is_service(gobj2write)) {
         if(gobj_save_persistent_attrs(gobj2write, json_string(attribute)) < 0) {
             json_t *kw_response = build_command_response(
@@ -1495,10 +1511,11 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         gobj,
         0,     // result
         json_sprintf(
-            "%s: %s=%s done",
+            "%s: %s=%s done%s",
             gobj_short_name(gobj2write),
             attribute,
-            secret? "********" : svalue
+            secret? "********" : svalue,
+            not_persisted? ", NOT persisted (only a service persists its attrs)" : ""
         ),
         0,      // jn_schema
         jn_attrs

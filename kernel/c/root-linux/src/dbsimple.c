@@ -24,6 +24,11 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+/*
+ *  The name of the file a save writes before its rename(): "<file>.tmp-"
+ *  and six letters of mkostemp(), a name nobody gives a backup
+ */
+#define TMP_INFIX   ".tmp-"
 
 /***************************************************************
  *              Structures
@@ -64,11 +69,12 @@ PRIVATE char *get_persist_filename(
 /***************************************************************************
  *  Is the persistent attrs file one to read, and one the yuno can keep?
  *  Return -1 when it is not a regular file (logged). Else 0, and
- *  `*must_replace` TRUE when it is not as save_json() writes it: 0600, of
- *  the yuno's user, one name only. Such a file (one left 0664 by a release
- *  before 7.25.19, another user's, a hard link) is not changed in place --
- *  a fchmod() through a hard link changes another name -- it is replaced
- *  by load_json().
+ *  `*must_replace` TRUE when it is the yuno's own and not as save_json()
+ *  writes it: 0600 and one name only. Such a file (one left 0664 by a
+ *  release before 7.25.19, a hard link) is not changed in place -- a
+ *  fchmod() through a hard link changes another name -- it is replaced by
+ *  load_json(). A file of another user is never replaced at a load (a
+ *  warning).
  ***************************************************************************/
 PRIVATE int check_persist_file(hgobj gobj, int fd, const char *filename, BOOL *must_replace)
 {
@@ -103,6 +109,25 @@ PRIVATE int check_persist_file(hgobj gobj, int fd, const char *filename, BOOL *m
 
     char mode[16];
     snprintf(mode, sizeof(mode), "0%o", (unsigned)(st.st_mode & 07777));
+    if(st.st_uid != geteuid()) {
+        /*
+         *  Another user's (the yuno run once as root, a member of the
+         *  group): a load only reads, and never takes it. Replacing it here
+         *  made the next start, as its own user, read nothing, and its next
+         *  save write only the attrs given -- every other one lost.
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Persistent attrs file of another user, left as it is",
+            "path",         "%s", filename,
+            "mode",         "%s", mode,
+            "uid",          "%d", (int)st.st_uid,
+            "euid",         "%d", (int)geteuid(),
+            NULL
+        );
+        return 0;
+    }
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_SYSTEM,
@@ -119,7 +144,7 @@ PRIVATE int check_persist_file(hgobj gobj, int fd, const char *filename, BOOL *m
 
 /***************************************************************************
  *  Remove what a save that died between its create and its rename() left:
- *  "<file>.XXXXXX", a regular file (a symlink is never followed, and one
+ *  "<file>.tmp-XXXXXX", a regular file (a symlink is never followed, and one
  *  of that name is left, logged)
  ***************************************************************************/
 PRIVATE void remove_stale_temp_files(hgobj gobj, const char *filename)
@@ -142,12 +167,14 @@ PRIVATE void remove_stale_temp_files(hgobj gobj, const char *filename)
     struct dirent *de;
     while((de = readdir(d))) {
         const char *name = de->d_name;
-        if(strncmp(name, base, base_len)!=0 || name[base_len] != '.' ||
-                strlen(name + base_len + 1) != 6) {
+        size_t infix_len = strlen(TMP_INFIX);
+        if(strncmp(name, base, base_len)!=0 ||
+                strncmp(name + base_len, TMP_INFIX, infix_len)!=0 ||
+                strlen(name + base_len + infix_len) != 6) {
             continue;
         }
         BOOL pattern = TRUE;
-        for(const char *c = name + base_len + 1; *c; c++) {
+        for(const char *c = name + base_len + infix_len; *c; c++) {
             if(!isalnum((unsigned char)*c)) {
                 pattern = FALSE;
                 break;
@@ -224,9 +251,13 @@ PRIVATE int open_persist_file(hgobj gobj, const char *filename, int flags)
  *
  ***************************************************************************/
 PRIVATE json_t *load_json(
-    hgobj gobj
+    hgobj gobj,
+    BOOL *failed    // out, may be NULL: TRUE when a file is there and cannot be read
 )
 {
+    if(failed) {
+        *failed = FALSE;
+    }
     char filename[PATH_MAX];
     get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", FALSE);
 
@@ -252,6 +283,9 @@ PRIVATE json_t *load_json(
     int fd = open_persist_file(gobj, filename, O_RDONLY|O_NONBLOCK);
     if(fd < 0) {
         // Error already logged
+        if(failed && !S_ISLNK(st.st_mode)) {
+            *failed = TRUE;     // a planted symlink is not data of the yuno: a save replaces it
+        }
         return 0;
     }
 
@@ -265,6 +299,9 @@ PRIVATE json_t *load_json(
     if(check_persist_file(gobj, fd, filename, &must_replace) < 0) {
         // Error already logged
         close(fd);
+        if(failed) {
+            *failed = TRUE;
+        }
         return 0;
     }
 
@@ -282,10 +319,116 @@ PRIVATE json_t *load_json(
             "line",         "%d", error.line,
             NULL
         );
+        if(failed) {
+            *failed = TRUE;
+        }
     } else if(must_replace) {
         save_json(gobj, json_incref(jn_device));    // Error logged if it fails
     }
     return jn_device;
+}
+
+/***************************************************************************
+ *  The save of a file in a directory the yuno cannot write: in place, and
+ *  only into a file of its own, regular and of one name (O_NOFOLLOW; made
+ *  0600 before a byte is written). Anything else is refused, logged.
+ ***************************************************************************/
+PRIVATE int save_json_in_place(hgobj gobj, const char *filename, json_t *jn)
+{
+    int fd = open(filename, O_WRONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Persistent attrs NOT saved: the directory cannot be written, and there is no file of the yuno's own to write in place",
+            "path",         "%s", filename,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    struct stat st;
+    if(fstat(fd, &st) < 0 || !S_ISREG(st.st_mode) || st.st_nlink != 1 || st.st_uid != geteuid()) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Persistent attrs NOT saved: the directory cannot be written, and the file is not the yuno's own, regular and of one name",
+            "path",         "%s", filename,
+            NULL
+        );
+        close(fd);
+        return -1;
+    }
+
+    const char *failed = NULL;
+    int last_errno = 0;
+    if((st.st_mode & 07777) != 0600 && fchmod(fd, 0600) < 0) {
+        failed = "Cannot make the persistent attrs file 0600";
+        last_errno = errno;
+    } else if(ftruncate(fd, 0) < 0) {
+        failed = "Cannot truncate the persistent attrs file";
+        last_errno = errno;
+    } else if(json_dumpfd(jn, fd, JSON_INDENT(4)) < 0) {
+        failed = "Cannot save device json database";
+        last_errno = errno;
+    } else if(fsync(fd) < 0) {
+        failed = "Cannot sync the persistent attrs file";
+        last_errno = errno;
+    }
+    if(close(fd) < 0 && !failed) {
+        failed = "Cannot close the persistent attrs file";
+        last_errno = errno;
+    }
+    if(failed) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", failed,
+            "path",         "%s", filename,
+            "errno",        "%d", last_errno,
+            "serrno",       "%s", strerror(last_errno),
+            NULL
+        );
+        return -1;
+    }
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_SYSTEM,
+        "msg",          "%s", "Persistent attrs saved in place: the directory cannot be written",
+        "path",         "%s", filename,
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
+ *  The directory of `filename` synced, so the rename() survives a crash
+ ***************************************************************************/
+PRIVATE void sync_parent_dir(hgobj gobj, const char *filename)
+{
+    char dir[PATH_MAX];
+    snprintf(dir, sizeof(dir), "%s", filename);
+    char *slash = strrchr(dir, '/');
+    if(!slash) {
+        return;     // get_persist_filename() gives a full path
+    }
+    *slash = 0;
+    int dfd = open(dir, O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+    if(dfd < 0 || fsync(dfd) < 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot sync the directory of the persistent attrs file: the save may not survive a crash",
+            "path",         "%s", dir,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+    if(dfd >= 0) {
+        close(dfd);
+    }
 }
 
 /***************************************************************************
@@ -301,7 +444,9 @@ PRIVATE json_t *load_json(
  *  created the file with the process umask, 0666 on every node; up to
  *  7.25.20 it was written in place.
  *  A crash between the create and the rename() leaves a
- *  "<file>.XXXXXX" of 0600 in the directory.
+ *  "<file>.tmp-XXXXXX" of 0600 in the directory (the next load removes it).
+ *  A directory the yuno cannot write: the save goes in place, into a file
+ *  of its own only (save_json_in_place()).
  ***************************************************************************/
 PRIVATE int save_json(
     hgobj gobj,
@@ -312,7 +457,7 @@ PRIVATE int save_json(
     get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", TRUE);
 
     char tmpname[PATH_MAX];
-    if(snprintf(tmpname, sizeof(tmpname), "%s.XXXXXX", filename) >= (int)sizeof(tmpname)) {
+    if(snprintf(tmpname, sizeof(tmpname), "%s" TMP_INFIX "XXXXXX", filename) >= (int)sizeof(tmpname)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -325,6 +470,11 @@ PRIVATE int save_json(
     }
 
     int fd = mkostemp(tmpname, O_CLOEXEC);
+    if(fd < 0 && (errno == EACCES || errno == EPERM)) {
+        int ret = save_json_in_place(gobj, filename, jn);  // Error logged if it fails
+        JSON_DECREF(jn)
+        return ret;
+    }
     if(fd < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -372,6 +522,7 @@ PRIVATE int save_json(
         return -1;
     }
 
+    sync_parent_dir(gobj, filename);
     JSON_DECREF(jn)
     return 0;
 }
@@ -383,7 +534,7 @@ PUBLIC int db_load_persistent_attrs(
     hgobj gobj,
     json_t *keys  // owned
 ) {
-    json_t *jn_file = load_json(gobj);
+    json_t *jn_file = load_json(gobj, NULL);
     if(jn_file) {
         json_t *attrs = kw_clone_by_keys(
             gobj,
@@ -415,7 +566,23 @@ PUBLIC int db_save_persistent_attrs(
         FALSE
     );
 
-    json_t *jn_file = load_json(gobj);
+    /*
+     *  What is not saved now is kept from the file: a file there that
+     *  cannot be read refuses the save, or every attr not given would be
+     *  lost (a file of root, left by a run of the yuno as root).
+     */
+    BOOL load_failed = FALSE;
+    json_t *jn_file = load_json(gobj, &load_failed);
+    if(load_failed) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Persistent attrs NOT saved: the file there cannot be read, and its other attrs would be lost",
+            NULL
+        );
+        JSON_DECREF(attrs)
+        return -1;
+    }
     if(jn_file) {
         json_object_update_missing(attrs, jn_file);
         JSON_DECREF(jn_file)
@@ -434,7 +601,18 @@ PUBLIC int db_remove_persistent_attrs(
     hgobj gobj,
     json_t *keys  // owned
 ) {
-    json_t *jn_file = load_json(gobj);
+    BOOL load_failed = FALSE;
+    json_t *jn_file = load_json(gobj, &load_failed);
+    if(load_failed) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Persistent attrs NOT removed: the file there cannot be read, and its other attrs would be lost",
+            NULL
+        );
+        JSON_DECREF(keys)
+        return -1;
+    }
 
     json_t *attrs = kw_clone_by_not_keys(
         gobj,
@@ -456,7 +634,7 @@ PUBLIC json_t *db_list_persistent_attrs(
     hgobj gobj,
     json_t *keys  // owned
 ) {
-    json_t *jn_file = load_json(gobj);
+    json_t *jn_file = load_json(gobj, NULL);
 
     json_t *attrs = kw_clone_by_keys(
         gobj,

@@ -477,7 +477,12 @@ A name is a secret's, in any case, when it holds one of `passw`, `pwd`,
 `authdata` once `_`, `-`, `.` and blanks are taken out (`api_key`,
 `X-Api-Key`, `__session_id__`); or both `priv` and `key` (`private_key`). Not
 secrets: the PATH of a key or a certificate (`ssl_certificate_key`), a public
-`cert_pem`, `max_sessions`, `authz`, `auth_method`.
+`cert_pem`, `max_sessions`, `authz`, `auth_method`; and a name with a SEGMENT
+(split by `_`, `-`, `.` and blanks) that names something ABOUT a credential:
+`endpoint`, `url`, `uri`, `domain`, `path`, `file`, `public`, `pub`, `count`,
+`counts`, `type`, `name`, `len`, `length`, `size`, `max`, `min`, `ttl`,
+`timeout`, `expiry`, `expires`, `header`, `mode` (`token_endpoint`,
+`cookie_domain`, `jwt_public_keys`, `refresh_token_count`).
 
 ```C
 BOOL is_secret_name(
@@ -504,6 +509,7 @@ is_secret_name("smtp_password", 13);    // TRUE
 is_secret_name("X-Api-Key", 9);         // TRUE (apikey, joined)
 is_secret_name("private_key", 11);      // TRUE (priv + key)
 is_secret_name("ssl_certificate_key", 19); // FALSE (a path)
+is_secret_name("token_endpoint", 14);   // FALSE (about a token)
 is_secret_name("username", 8);          // FALSE
 ```
 

@@ -805,6 +805,40 @@ PUBLIC void gobj_info_msg(hgobj gobj, const char *fmt, ... )
 }
 
 /***************************************************************************
+ *  With TRACE_GBUFFERS, the gbuffer of a kw: as json if it is json, else
+ *  as bytes -- the credentials masked either way (json_mask_secrets(),
+ *  the dumps' mask_secrets_in_text()), and a secret one hidden
+ ***************************************************************************/
+PRIVATE void trace_kw_gbuffer(hgobj gobj, json_t *jn)
+{
+    if(!(gobj_trace_level(gobj) & TRACE_GBUFFERS)) {
+        return;
+    }
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(json_object_get(jn, "gbuffer"));
+    if(!gbuf) {
+        return;
+    }
+    char *p = gbuffer_cur_rd_pointer(gbuf);
+    if(gbuffer_is_secret(gbuf) || !(p && (*p == '{' || *p == '['))) {
+        gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");    // hidden, or masked bytes
+        return;
+    }
+    json_t *j = string2json(p, FALSE); // not verbose: hex dump fallback covers it
+    if(!j) {
+        gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");
+        return;
+    }
+    json_t *j_shown = json_mask_secrets(j);
+    char *s = json_dumps(j_shown, JSON_INDENT(4)|JSON_ENCODE_ANY);
+    if(s) {
+        _log_bf(LOG_DEBUG, 0, s, strlen(s));
+        jsonp_free(s);
+    }
+    JSON_DECREF(j_shown)
+    JSON_DECREF(j)
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC void gobj_trace_json(
@@ -813,7 +847,6 @@ PUBLIC void gobj_trace_json(
     const char *fmt, ...
 ) {
     va_list ap;
-    log_opt_t opt = 0;
     int priority = LOG_DEBUG;
 
     if(!jn) {
@@ -828,30 +861,7 @@ PUBLIC void gobj_trace_json(
     trace_vjson(gobj, priority, jn, "trace_json", fmt, ap);
     va_end(ap);
 
-    if((gobj_trace_level(gobj) & TRACE_GBUFFERS)) {
-        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(json_object_get(jn, "gbuffer"));
-        if(gbuf) {
-            char *p = gbuffer_cur_rd_pointer(gbuf);
-            if(gbuffer_is_secret(gbuf)) {
-                gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");    // "<N bytes hidden>"
-            } else if(p && (*p == '{' || *p == '[')) {
-                json_t *j = string2json(p, FALSE); // not verbose: hex dump fallback covers it
-                if(j) {
-                    char *s = json_dumps(j, JSON_INDENT(4)|JSON_ENCODE_ANY);
-                    if(s) {
-                        _log_bf(priority, opt, s, strlen(s));
-                        jsonp_free(s);
-                    }
-                    JSON_DECREF(j)
-                } else {
-                    gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");
-                }
-
-            } else {
-                gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");
-            }
-        }
-    }
+    trace_kw_gbuffer(gobj, jn);
 }
 
 /***************************************************************************
@@ -877,6 +887,8 @@ PUBLIC void gobj_trace_json_masked(
     trace_vjson(gobj, LOG_DEBUG, jn_shown, "trace_json", fmt, ap);
     va_end(ap);
     JSON_DECREF(jn_shown)
+
+    trace_kw_gbuffer(gobj, jn);     // EV_RX_DATA/EV_TX_DATA payloads, as up to 7.25.20
 }
 
 /***************************************************************************
@@ -904,9 +916,12 @@ PUBLIC void gobj_trace_dump(
     char *copy = len? gbmem_malloc(len) : NULL;
     if(copy) {
         memcpy(copy, bf, len);
-        mask_secrets_in_text(copy, len);
+        size_t masked = mask_secrets_in_text(copy, len);
         jn_data = tdump2json((uint8_t *)copy, len);
         GBMEM_FREE(copy)
+        if(masked) {
+            json_object_set_new(jn_data, "masked", json_integer((json_int_t)masked));
+        }
     } else if(len) {
         // Error already logged
         jn_data = json_sprintf("<%lu bytes not shown: no memory to mask them>", (unsigned long)len);

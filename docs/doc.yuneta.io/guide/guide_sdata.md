@@ -170,12 +170,13 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
 
     The persistent-attrs file itself (`<realm>/<yuno>/data/*-persistent-attrs.json`)
     is written 0600 since 7.25.19: up to 7.25.18 it took the process umask,
-    0666 on every node, and it holds these secrets in clear. A file that
-    is not as a save writes it -- left wider by an older release, of
-    another user, or a hard link -- is REPLACED when it is loaded, by a
-    0600 one of the yuno's own with the same content (logged as
-    *"Persistent attrs file replaced by a 0600 one of the yuno's own"*),
-    not only at its next save; nothing is changed through its other names.
+    0666 on every node, and it holds these secrets in clear. A file of
+    the yuno's own that is not as a save writes it -- left wider by an
+    older release, or a hard link -- is REPLACED when it is loaded, by a
+    0600 one with the same content (logged as *"Persistent attrs file
+    replaced by a 0600 one of the yuno's own"*), not only at its next
+    save; nothing is changed through its other names. A file of another
+    user is left as it is, with a warning: a load only reads.
     A symlink in place of the file is not read (*"Refused the persistent
     attrs file: it is a symlink"*).
 
@@ -185,11 +186,17 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
     another user (up to 7.25.20 it could never be saved again), a hard
     link, a symlink (replaced, nothing written through it) -- and the old
     file is never truncated before the new one is complete: a save that
-    fails leaves it as it was. A `<file>.XXXXXX` left by a save that did
-    not end (a crash) is removed at the next load, logged; one that is not
-    a regular file is left, logged. `write-attr` answers a save that fails
+    fails leaves it as it was. A `<file>.tmp-XXXXXX` left by a save that
+    did not end (a crash) is removed at the next load, logged; one that is
+    not a regular file is left, logged. A save is refused when a file is
+    there and cannot be read (its other attrs would be lost); in a
+    directory the yuno cannot write it goes in place, into a file of the
+    yuno's own only. `write-attr` answers a save that fails
     (*"<gobj>: <attr> written, but NOT saved (see the log)"*, `result`
-    -1); up to 7.25.20 it answered "done" with nothing on disk.
+    -1); up to 7.25.20 it answered "done" with nothing on disk. A
+    persistent attr of a gobj that is no service is written and NOT
+    persisted, and the answer says so (*"..., NOT persisted (only a
+    service persists its attrs)"*, with a warning in the log).
 
     A COMMAND PARAMETER takes the flag too: the `commands` trace prints
     the command line, and with `ev_kw` its kw, with the parameter masked

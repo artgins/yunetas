@@ -338,7 +338,7 @@ PRIVATE BOOL is_regular_not_link(const char *path)
 }
 
 /*
- *  The "<file>.XXXXXX" a save writes before its rename()
+ *  The "<file>.tmp-XXXXXX" a save writes before its rename()
  */
 PRIVATE int count_temp_files(const char *path)
 {
@@ -358,7 +358,7 @@ PRIVATE int count_temp_files(const char *path)
     }
     struct dirent *de;
     while((de = readdir(d))) {
-        if(strncmp(de->d_name, base, base_len)==0 && de->d_name[base_len] == '.') {
+        if(strncmp(de->d_name, base, base_len)==0 && strncmp(de->d_name + base_len, ".tmp-", 5)==0) {
             count++;
         }
     }
@@ -629,6 +629,7 @@ PRIVATE void unwatch(const char *what)
 PRIVATE void check_log_dumps(hgobj gobj)
 {
     hgobj holder = gobj_find_service("secret-holder", TRUE);
+    json_t *resp;
 
     json_t *kw = json_pack("{s:I, s:s}", "password", (json_int_t)5555555555555, "note", "x");
     watch("5555555555555", "path MUST BE a json str");
@@ -669,7 +670,7 @@ PRIVATE void check_log_dumps(hgobj gobj)
 
     gobj_set_global_trace("commands", TRUE);
     watch("wa-hunter2", "write-attr");
-    json_t *resp = gobj_command(gobj_yuno(),
+    resp = gobj_command(gobj_yuno(),
         "write-attr gobj_name=secret-holder attribute=password value=wa-hunter2",
         json_object(), gobj
     );
@@ -679,6 +680,53 @@ PRIVATE void check_log_dumps(hgobj gobj)
     check_str("the write-attr of a secret still writes it",
         gobj_read_str_attr(holder, "password"), "wa-hunter2"
     );
+
+    /*
+     *  The names: what names something ABOUT a credential is not one
+     */
+    check_true("access_token is a secret's name", is_secret_name("access_token", 12));
+    check_true("token_endpoint is not", !is_secret_name("token_endpoint", 14));
+    check_true("cookie_domain is not", !is_secret_name("cookie_domain", 13));
+    check_true("jwt_public_keys is not", !is_secret_name("jwt_public_keys", 15));
+    check_true("refresh_token_count is not", !is_secret_name("refresh_token_count", 19));
+
+    /*
+     *  The quote that closes a command carried in a value survives
+     */
+    char *line = command_mask_secret_line(holder,
+        "command-yuno id=x command=\"set-user-pwd password=hunter2\""
+    );
+    check_str("a masked command in a value keeps its closing quote", line,
+        "command-yuno id=x command='set-user-pwd password=********'"
+    );
+    GBMEM_FREE(line)
+
+    /*
+     *  An extra word that is not a secret is shown
+     */
+    resp = gobj_command(holder, "set-password password=x stray-word", 0, holder);
+    check_true("an extra plain word is shown in the refusal",
+        strstr(kw_get_str(0, resp, "comment", "", 0), "stray-word")? TRUE : FALSE
+    );
+    JSON_DECREF(resp)
+
+    /*
+     *  A gbuffer in a kw, with the gbuffers trace: dumped, masked
+     */
+    gbuffer_t *gbuf = gbuffer_create(256, 256);
+    gbuffer_append_string(gbuf, "{\"password\": \"gb-hunter2\", \"note\": \"gbvisible\"}");
+    gobj_set_global_trace("machine", TRUE);
+    gobj_set_global_trace("ev_kw", TRUE);
+    gobj_set_global_trace("gbuffers", TRUE);
+    watch("gb-hunter2", "gbvisible");
+    gobj_send_event(gobj, EV_TEST_SECRET_KW,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),     // the kw takes it
+        gobj
+    );
+    gobj_set_global_trace("gbuffers", FALSE);
+    gobj_set_global_trace("ev_kw", FALSE);
+    gobj_set_global_trace("machine", FALSE);
+    unwatch("the gbuffer of an event with the gbuffers trace");
 
     gobj_write_str_attr(holder, "password", "before-unterminated");
     resp = gobj_command(holder, "set-password note=a password='unterm-hunter2", 0, holder);
@@ -738,9 +786,12 @@ PRIVATE void check_persistent_file(void)
      */
     char stale[PATH_MAX+16];
     char stale_link[PATH_MAX+16];
-    snprintf(stale, sizeof(stale), "%s.Ab3xYz", path);
-    snprintf(stale_link, sizeof(stale_link), "%s.Lk3xYz", path);
+    char backup[PATH_MAX+16];
+    snprintf(stale, sizeof(stale), "%s.tmp-Ab3xYz", path);
+    snprintf(stale_link, sizeof(stale_link), "%s.tmp-Lk3xYz", path);
+    snprintf(backup, sizeof(backup), "%s.backup", path);
     write_file(stale, "{\"password\": \"stale\"}", 0600);
+    write_file(backup, "{\"password\": \"a backup\"}", 0600);
     unlink(stale_link);
     if(symlink(planted, stale_link) < 0) {
         printf("FAIL cannot create the symlink %s\n", stale_link);
@@ -750,6 +801,8 @@ PRIVATE void check_persistent_file(void)
     check_true("a stale temporary file is removed", access(stale, F_OK) != 0);
     check_true("a symlink of that name is left", is_link(stale_link));
     check_true("its target is untouched", file_contains(planted, "linked-secret"));
+    check_true("a backup of the file (.backup) is left", access(backup, F_OK) == 0);
+    unlink(backup);
     unlink(stale_link);
     unlink(planted);
 
@@ -797,25 +850,72 @@ PRIVATE void check_persistent_file(void)
     check_int("no temporary file is left", count_temp_files(path), 0);
 
     /*
-     *  A save that fails: write-attr says so, the old file stays as it was
+     *  A directory the yuno cannot write (not checked as root, who writes
+     *  anything): the file of its own is written in place; with no file of
+     *  its own the save fails, write-attr says so, and nothing is left
      */
-    gobj_write_str_attr(holder, "password", "kept-on-disk");
-    gobj_save_persistent_attrs(holder, json_string("password"));
-    char dir[PATH_MAX];
-    snprintf(dir, sizeof(dir), "%s", path);
-    *strrchr(dir, '/') = 0;
-    struct stat st_dir;
-    stat(dir, &st_dir);
-    chmod(dir, 0555);
-    json_t *resp = gobj_command(gobj_yuno(),
-        "write-attr gobj_name=secret-holder attribute=note value=unsaved", json_object(), holder
+    json_t *resp;
+    if(geteuid() != 0) {
+        gobj_write_str_attr(holder, "password", "kept-on-disk");
+        gobj_save_persistent_attrs(holder, json_string("password"));
+        char dir[PATH_MAX];
+        snprintf(dir, sizeof(dir), "%s", path);
+        *strrchr(dir, '/') = 0;
+        struct stat st_dir;
+        stat(dir, &st_dir);
+        chmod(path, 0640);
+        chmod(dir, 0555);
+        resp = gobj_command(gobj_yuno(),
+            "write-attr gobj_name=secret-holder attribute=note value=in-place", json_object(), holder
+        );
+        chmod(dir, st_dir.st_mode & 07777);
+        check_int("a save in a directory that cannot be written goes in place",
+            (int)kw_get_int(0, resp, "result", -1, 0), 0
+        );
+        JSON_DECREF(resp)
+        check_true("in place: on disk", file_contains(path, "in-place"));
+        check_true("in place: the rest kept", file_contains(path, "kept-on-disk"));
+        check_int("in place: made 0600", file_mode(path), 0600);
+
+        unlink(path);
+        chmod(dir, 0555);
+        resp = gobj_command(gobj_yuno(),
+            "write-attr gobj_name=secret-holder attribute=note value=unsaved", json_object(), holder
+        );
+        chmod(dir, st_dir.st_mode & 07777);
+        check_int("write-attr answers a save that failed", (int)kw_get_int(0, resp, "result", 0, 0), -1);
+        JSON_DECREF(resp)
+        check_str("the attr is written anyway", gobj_read_str_attr(holder, "note"), "unsaved");
+        check_int("a failed save leaves no temporary file", count_temp_files(path), 0);
+
+        /*
+         *  A file there that cannot be read: the save is refused, the file
+         *  kept (its other attrs would be lost)
+         */
+        gobj_write_str_attr(holder, "password", "kept-unreadable");
+        gobj_save_persistent_attrs(holder, json_string("password"));
+        chmod(path, 0000);
+        gobj_write_str_attr(holder, "note", "must-not-replace");
+        int ret2 = gobj_save_persistent_attrs(holder, json_string("note"));
+        chmod(path, 0600);
+        check_true("a save over a file that cannot be read is refused", ret2 < 0);
+        check_true("the file is kept as it was", file_contains(path, "kept-unreadable"));
+        check_true("the file is not replaced", !file_contains(path, "must-not-replace"));
+    }
+
+    /*
+     *  write-attr of a persistent attr of a gobj that is no service: it
+     *  says that it is not persisted
+     */
+    resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-other`secret-child attribute=note value=child-note",
+        json_object(), holder
     );
-    chmod(dir, st_dir.st_mode & 07777);
-    check_int("write-attr answers a save that failed", (int)kw_get_int(0, resp, "result", 0, 0), -1);
+    check_int("write-attr of a child answers", (int)kw_get_int(0, resp, "result", -1, 0), 0);
+    check_true("and says it is not persisted",
+        strstr(kw_get_str(0, resp, "comment", "", 0), "NOT persisted")? TRUE : FALSE
+    );
     JSON_DECREF(resp)
-    check_str("the attr is written anyway", gobj_read_str_attr(holder, "note"), "unsaved");
-    check_true("the old file is left as it was", file_contains(path, "kept-on-disk"));
-    check_int("a failed save leaves no temporary file", count_temp_files(path), 0);
 
     resp = gobj_command(gobj_yuno(),
         "write-attr gobj_name=secret-holder attribute=note value=saved", json_object(), holder

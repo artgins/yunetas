@@ -637,7 +637,7 @@ The `gobj_trace_dump()` function is useful for debugging by providing a hex dump
 The bytes are dumped with the credentials that can be told in them written as
 `*`, the length kept ([`mask_secrets_in_text()`](#mask_secrets_in_text)): an
 HTTP `Cookie:` or `Authorization:` header value, a secret `name=value`, a json
-`"token": ...`. Up to 7.25.20 they were dumped as they came.
+`"token": ...`; `"masked": N` says how many bytes. Up to 7.25.20 they were dumped as they came.
 
 ---
 
@@ -670,7 +670,7 @@ This function does not return a value.
 
 **Notes**
 
-If the gobj has the `TRACE_GBUFFERS` trace level enabled, the function will also log the contents of the associated [`gbuffer_t`](#gbuffer_t) -- as `"<N bytes hidden>"` when it is secret ([`gbuffer_set_secret()`](#gbuffer_set_secret)).
+If the gobj has the `TRACE_GBUFFERS` trace level enabled, the function will also log the contents of the associated [`gbuffer_t`](#gbuffer_t) -- as `"<N bytes hidden>"` when it is secret ([`gbuffer_set_secret()`](#gbuffer_set_secret)), and else with its credentials masked: a json one by [`json_mask_secrets()`](#json_mask_secrets), bytes by [`mask_secrets_in_text()`](#mask_secrets_in_text). Up to 7.25.20 a gbuffer that parsed as json was printed as it was.
 
 ---
 
@@ -687,7 +687,8 @@ FOUND"*...), the `machine` trace with `ev_kw` (the kw of an event sent,
 executed and published), the authz trace, *"No subscription found"*,
 *"Publish event WITHOUT subscribers"* and the `ievents` traces. Up to 7.25.20
 they printed the kw as it was, credentials with it. The kw is not changed.
-The `gbuffer` of the kw is not dumped.
+With the `gbuffers` trace the `gbuffer` of the kw is dumped too, as
+[`gobj_trace_json()`](#gobj_trace_json) does it.
 
 ```C
 void gobj_trace_json_masked(

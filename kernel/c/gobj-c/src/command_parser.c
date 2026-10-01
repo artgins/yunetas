@@ -864,6 +864,8 @@ PRIVATE json_t *build_cmd_kw(
      */
     char *key;
     char *value;
+    const char *last_key = NULL;    // the parameter before an extra word
+    BOOL last_value_empty = FALSE;
     while(1) {
         key = NULL;
         value = get_key_value_parameter(pxxx, &key, &pxxx);
@@ -924,27 +926,28 @@ PRIVATE json_t *build_cmd_kw(
             return jn_param;
         }
         json_object_set_new(kw_cmd, key, jn_param);
+        last_key = key;
+        last_value_empty = empty_string(value);
     }
 
     if(!empty_string(pxxx)) {
         /*
-         *  The extra text is echoed as a trace shows it: it can hold a
-         *  secret (a key=value after a word the parser could not take)
+         *  The extra text is echoed with its secrets masked: a secret
+         *  name=value in it, and all of it when it is the value of a secret
+         *  parameter given with a blank after its '=' (password= hunter2)
          */
         *result = -1;
         JSON_DECREF(kw_cmd);
-        gbuffer_t *gbuf_extra = gbuffer_create(256, 64*1024);
-        if(gbuf_extra) {
-            append_masked_parameters(gbuf_extra, pxxx, cnf_cmd);
-        }
-        char *extra = gbuf_extra? gbuffer_cur_rd_pointer(gbuf_extra) : "<...>";
+        BOOL extra_is_secret = last_key && last_value_empty &&
+            is_secret_parameter(cnf_cmd, last_key);
+        char *masked = extra_is_secret? NULL : mask_secrets_inline(pxxx);
         json_t *jn_error = json_sprintf(
             "%s: command '%s' with extra parameters: '%s'",
             gobj_short_name(gobj),
             command,
-            (*extra == ' ')? extra+1 : extra
+            extra_is_secret? "<...>" : (masked? masked : pxxx)
         );
-        GBUFFER_DECREF(gbuf_extra)
+        GBMEM_FREE(masked)
         return jn_error;
     }
 
