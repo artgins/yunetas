@@ -33,7 +33,12 @@ findings were fixed before the merge, the rest are open.
   `scan_key_dir()`, which checks the directory identity once and then lists,
   unlinks and reads each file by path with user callbacks in between. ext4
   reuses the inode number of every rebirth, so only the birth time tells the
-  directories apart. Under a random two-process load 5-10 of 12
+  directories apart -- and on the nodes' kernels it does NOT: on wattyzer
+  (Debian, 6.12, ext4) a directory removed and made again keeps the same inode
+  AND the same birth time 3 times in 50 (0 in 50 on the 7.0 dev kernel), so
+  `test_delete_key_propagation` "race in the batch" fails there 3/3 (`[R1 DEL]`,
+  the key out of the cache) while it passes on the dev machine. The identity
+  check cannot carry the fix; a descriptor of the watched directory can. Under a random two-process load 5-10 of 12
   (feed, key) pairs per run still got a later life before an earlier delete
   (12/12 before this cycle); once a deleted key stayed in the cache. Fix: read
   and unlink through a descriptor of the watched directory (`openat` /
