@@ -121,6 +121,11 @@ This header file defines the **fs_watcher** module, which provides filesystem ev
             FS_FILE_CREATED_TYPE,           // use directory / filename
             FS_FILE_DELETED_TYPE,           // use directory / filename
             FS_FILE_MODIFIED_TYPE,          // use directory / filename, see WARNING
+            FS_FILE_RENAME_TYPE,            // not reported today
+            FS_OVERFLOW_TYPE,               // events were lost: a pass over the tree follows
+            FS_RESCAN_DIR_TYPE,             // one directory of that pass
+            FS_WATCHER_GONE_TYPE,           // the watcher is over (its read failed): drop it
+            FS_BATCH_END_TYPE,              // with FS_FLAG_BATCH_END: a batch handed over whole
 
             // There are more fs events available with io_uring, but this code only manages these events.
         } fs_type_t;
@@ -128,6 +133,7 @@ This header file defines the **fs_watcher** module, which provides filesystem ev
         typedef enum  {
             FS_FLAG_RECURSIVE_PATHS     = 0x0001,     // add path and all his subdirectories
             FS_FLAG_MODIFIED_FILES      = 0x0002,     // Add FS_FILE_MODIFIED_TYPE, WARNING about using it.
+            FS_FLAG_BATCH_END           = 0x0004,     // Add FS_BATCH_END_TYPE after each batch
         } fs_flag_t;
       ```
 
@@ -158,6 +164,7 @@ This header file defines the **fs_watcher** module, which provides filesystem ev
             // ... the internal state of the pass after an overflow ...
             uint64_t offset;            // Output: where the event handed over starts in
                                         // the watcher's stream of events
+            uint64_t offset_end;        // Output: where it ends
             // ...
         } ;
 

@@ -119,6 +119,8 @@ PRIVATE int fs_event_callback(fs_event_t *fs_event)
         case FS_RESCAN_DIR_TYPE:
             printf("  %sRescan dir   :%s %s\n", On_Green BWhite, Color_Off, (char *)fs_event->directory);
             break;
+        case FS_BATCH_END_TYPE:
+            break;  // not asked (no FS_FLAG_BATCH_END)
         case FS_WATCHER_GONE_TYPE:
             printf("  %sWatcher gone :%s %s (its read failed): nothing is watched, exiting\n",
                 On_Red BWhite, Color_Off, (char *)fs_event->directory);

@@ -502,9 +502,19 @@ PRIVATE int yev_callback(
 
                         // Handle the file modification event
                         fs_event->offset = batch_start + (uint64_t)(ptr - buffer);
+                        fs_event->offset_end = fs_event->offset +
+                            sizeof(struct inotify_event) + event->len;
                         handle_inotify_event(fs_event, event);
 
                         ptr += sizeof(struct inotify_event) + event->len;
+                    }
+                    if(!fs_event->stop_requested && (fs_event->fs_flag & FS_FLAG_BATCH_END)) {
+                        fs_event->fs_type = FS_BATCH_END_TYPE;
+                        fs_event->directory = (volatile char *)fs_event->path;
+                        fs_event->filename = "";
+                        fs_event->offset = fs_event->batch_end;
+                        fs_event->offset_end = fs_event->batch_end;
+                        fs_event->callback(fs_event);
                     }
                     fs_event->in_callback = FALSE;
                     fs_event->in_batch = FALSE;
@@ -986,12 +996,13 @@ PRIVATE int add_watch_recursive(fs_event_t *fs_event, const char *path)
  *  deleted and created again in that time is ANOTHER inode under the same
  *  path: finding its path in the table says nothing. So every directory of
  *  the pass, the ROOT included, is watched again -- inotify_add_watch() on
- *  an inode already watched returns its wd and changes nothing -- and a wd
- *  that differs from the table's replaces the stale entry. Up to 7.25.20
+ *  an inode already watched returns its wd and changes nothing -- and when
+ *  the wd differs from the table's, the old one is stopped (its entry goes
+ *  with its IN_IGNORED: events of it may still be queued). Up to 7.25.20
  *  the root was left out: deleted and created again during an overflow, it
- *  was never heard again. Entries of directories gone
- *  for good are left: their IN_IGNORED, if it still comes, takes them out,
- *  and one that never comes costs a string.
+ *  was never heard again. Entries of directories gone for good are left:
+ *  their IN_IGNORED, if it still comes, takes them out, and one that never
+ *  comes costs a string.
  ***************************************************************************/
 PRIVATE void start_rescan_pass(fs_event_t *fs_event)
 {
@@ -1066,9 +1077,10 @@ PRIVATE uint64_t monotonic_us(void)
 }
 
 /*
- *  Watch `path` again, and take out of the table a stale wd under its path.
- *  `watched` (path -> wd) is the index of the pass; without it (a watch that
- *  does not recurse holds its root alone) the table is searched.
+ *  Watch `path` again, and stop a stale wd under its path (its entry goes
+ *  with its IN_IGNORED). `watched` (path -> wd) is the index of the pass;
+ *  without it (a watch that does not recurse holds its root alone) the
+ *  table is searched.
  */
 PRIVATE void watch_again(fs_event_t *fs_event, const char *path, json_t *watched)
 {
@@ -1092,11 +1104,22 @@ PRIVATE void watch_again(fs_event_t *fs_event, const char *path, json_t *watched
         return; // Error already logged (or gone meanwhile, a warning)
     }
     if(old_wd >= 0 && old_wd != wd) {
-        char s_wd[64];
-        snprintf(s_wd, sizeof(s_wd), "%d", old_wd);
-        const char *stale = json_string_value(json_object_get(fs_event->jn_tracked_paths, s_wd));
-        if(stale && strcmp(stale, path)==0) {
-            remove_watch(fs_event, path, old_wd);
+        /*
+         *  The old wd is stopped (its directory went, or was moved away),
+         *  but its entry stays until its IN_IGNORED: the pass runs ahead of
+         *  the stream, and events of that wd may still be queued (the
+         *  removal of the directory replaced) -- taken out here they were
+         *  "wd not found" errors
+         */
+        if(inotify_rm_watch(fs_event->fd, old_wd) < 0 && errno != EINVAL) {
+            gobj_log_error(fs_event->gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "inotify_rm_watch() FAILED",
+                "path" ,        "%s", path,
+                "serrno" ,      "%s", strerror(errno),
+                NULL
+            );
         }
     }
     if(watched) {

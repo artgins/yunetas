@@ -23,6 +23,18 @@
  *        that IN_CREATE: the directory then holds the new key's link, read
  *        at the signal's place; the debt stays, the live key stays in the
  *        follower's cache, and nobody is left owing.
+ *      - do_test_reborn_before_read: the master deletes a key and writes it
+ *        again before the follower reads the signal (one feed, two feeds,
+ *        one new record or five): the feed hears the delete, then every
+ *        record of the key born again, R1..Rn, and its cache keeps the
+ *        key. Up to 7.25.20 the scan at the signal's IN_CREATE read the new
+ *        key's file against the OLD key's cell: one new record was never
+ *        handed, five were handed as R4 R5 (the next append handed R1..R6),
+ *        and the delete heard after took the live key out of the cache.
+ *      - do_test_stale_debt_reborn: a debt a feed will never pay (a delete
+ *        signalled across its opening) is forgotten by the first record of
+ *        the key born again, found by the scan of its new directory (its
+ *        link made before the directory was watched).
  *      - do_test_master_rt_disk_reborn: a master's own rt_disk feed hears
  *        the delete after the master wrote the key again: the live key
  *        stays in the master's cache.
@@ -1142,6 +1154,266 @@ PRIVATE int do_test_signal_dir_seen(BOOL key_back)
 }
 
 /***************************************************************************
+ *  do_test_reborn_before_read
+ ***************************************************************************/
+PRIVATE char seq_x[1024];   // what rtX was told, in order
+PRIVATE int seq_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    char b[32];
+    snprintf(b, sizeof(b), "R%lld ", (long long)rowid);
+    strncat(seq_x, b, sizeof(seq_x) - strlen(seq_x) - 1);
+    JSON_DECREF(record)
+    return 0;
+}
+
+PRIVATE int seq_key_deleted_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    void *user_data
+)
+{
+    strncat(seq_x, "DEL ", sizeof(seq_x) - strlen(seq_x) - 1);
+    return 0;
+}
+
+PRIVATE int append_one_at(json_t *tranger, json_int_t id, uint64_t t)
+{
+    json_t *jn_record = json_pack("{s:I, s:I, s:s}",
+        "id", id,
+        "tm", (json_int_t)t,
+        "content", "payload"
+    );
+    md2_record_ex_t md = {0};
+    return tranger2_append_record(tranger, TOPIC_NAME, t, 0, &md, jn_record);
+}
+
+PRIVATE int do_test_reborn_before_read(int new_rows, BOOL two_feeds)
+{
+    int result = 0;
+    char label[64];
+    snprintf(label, sizeof(label), "reborn before read, %d new, %s",
+        new_rows, two_feeds? "two feeds" : "one feed");
+    char title[128];
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+    seq_x[0] = 0;
+    count_x = count_y = 0;
+
+    snprintf(title, sizeof(title), "%s: setup", label);
+    set_expected_results(
+        title,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_master(path_root, TRUE);
+    if(!tm || create_topic(tm) < 0) {
+        if(tm) {
+            tranger2_shutdown(tm);
+        }
+        return -1;
+    }
+    if(append_to(tm, 1, 3) < 0) {
+        result += -1;
+    }
+    drain(5);
+    json_t *tf = startup_tranger(path_root, FALSE, TRUE);
+    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
+        if(tf) {
+            tranger2_shutdown(tf);
+        }
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    json_t *fx = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, seq_record_callback, "rtX", "", NULL);
+    json_t *fy = NULL;
+    if(two_feeds) {
+        fy = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, my_record_callback, "rtY", "", NULL);
+        tranger2_set_rt_key_deleted_callback(fy, follower_key_deleted_callback, NULL);
+    }
+    if(!fx || (two_feeds && !fy)) {
+        result += -1;
+    }
+    tranger2_set_rt_key_deleted_callback(fx, seq_key_deleted_callback, NULL);
+    drain(10);
+    result += test_json(NULL);
+
+    /*
+     *  With the loop stopped: the key deleted, then written again
+     */
+    snprintf(title, sizeof(title), "%s: the delete, then the new key", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    if(tranger2_delete_key(tm, TOPIC_NAME, KEY_A) < 0) {
+        result += -1;
+    }
+    for(int i = 0; i < new_rows; i++) {
+        if(append_one_at(tm, 1, BASE_T + 10 + i) < 0) {
+            result += -1;
+        }
+    }
+    drain(30);
+    char expected[256] = "DEL ";
+    for(int i = 1; i <= new_rows; i++) {
+        char b[16];
+        snprintf(b, sizeof(b), "R%d ", i);
+        strncat(expected, b, sizeof(expected) - strlen(expected) - 1);
+    }
+    if(strcmp(seq_x, expected) != 0) {
+        printf("%sERROR%s --> %s: rtX was told [%s], expected [%s]\n",
+            On_Red BWhite, Color_Off, label, seq_x, expected);
+        result += -1;
+    }
+    json_t *cache = json_object_get(tranger2_topic(tf, TOPIC_NAME), "cache");
+    if(!json_object_get(cache, KEY_A)) {
+        printf("%sERROR%s --> %s: the key written again is not in the follower's cache\n",
+            On_Red BWhite, Color_Off, label);
+        result += -1;
+    }
+    if(json_object_size(json_object_get(fx, "deletes_unheard")) != 0 ||
+       (fy && json_object_size(json_object_get(fy, "deletes_unheard")) != 0)) {
+        printf("%sERROR%s --> %s: a feed owes deletes it will never hear\n",
+            On_Red BWhite, Color_Off, label);
+        result += -1;
+    }
+
+    /*
+     *  The next record of the key: once, with the next rowid
+     */
+    seq_x[0] = 0;
+    if(append_one_at(tm, 1, BASE_T + 100) < 0) {
+        result += -1;
+    }
+    drain(30);
+    snprintf(expected, sizeof(expected), "R%d ", new_rows + 1);
+    if(strcmp(seq_x, expected) != 0) {
+        printf("%sERROR%s --> %s: the next record: rtX was told [%s], expected [%s]\n",
+            On_Red BWhite, Color_Off, label, seq_x, expected);
+        result += -1;
+    }
+    tranger2_close_rt_disk(tf, fx);
+    if(fy) {
+        tranger2_close_rt_disk(tf, fy);
+    }
+    drain(10);
+    result += test_json(NULL);
+
+    snprintf(title, sizeof(title), "%s: shutdown", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    drain(10);
+    result += test_json(NULL);
+    count_x = count_y = 0;
+    return result;
+}
+
+/***************************************************************************
+ *  do_test_stale_debt_reborn
+ ***************************************************************************/
+PRIVATE int do_test_stale_debt_reborn(void)
+{
+    int result = 0;
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+    seq_x[0] = 0;
+    count_x = count_y = 0;
+
+    set_expected_results(
+        "stale debt reborn: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_master(path_root, TRUE);
+    if(!tm || create_topic(tm) < 0) {
+        if(tm) {
+            tranger2_shutdown(tm);
+        }
+        return -1;
+    }
+    if(append_to(tm, 1, 1) < 0) {
+        result += -1;
+    }
+    drain(5);
+    json_t *tf = startup_tranger(path_root, FALSE, TRUE);
+    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
+        if(tf) {
+            tranger2_shutdown(tf);
+        }
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    json_t *fx = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, seq_record_callback, "rtX", "", NULL);
+    json_t *fy = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, my_record_callback, "rtY", "", NULL);
+    if(!fx || !fy) {
+        result += -1;
+    }
+    tranger2_set_rt_key_deleted_callback(fx, seq_key_deleted_callback, NULL);
+    tranger2_set_rt_key_deleted_callback(fy, follower_key_deleted_callback, NULL);
+    drain(10);
+    result += test_json(NULL);
+
+    set_expected_results("stale debt reborn: the first record forgets it", NULL, NULL, NULL, 1);
+    /*
+     *  A debt of the window of doubt (a delete signalled across rtX's
+     *  opening), put there by hand; then a record of the key: rtX's
+     *  directory of it is new, its first link found by the scan
+     */
+    json_object_set_new(fx, "deletes_unheard", json_pack("{s:[i]}", KEY_A, 0));
+    if(append_one_at(tm, 1, BASE_T + 10) < 0) {
+        result += -1;
+    }
+    drain(30);
+    if(json_object_size(json_object_get(fx, "deletes_unheard")) != 0) {
+        printf("%sERROR%s --> stale debt reborn: rtX still owes after the record of the key born again\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(tranger2_delete_key(tm, TOPIC_NAME, KEY_A) < 0) {
+        result += -1;
+    }
+    drain(30);
+    if(json_object_size(json_object_get(fx, "deletes_unheard")) != 0 ||
+       json_object_size(json_object_get(fy, "deletes_unheard")) != 0) {
+        printf("%sERROR%s --> stale debt reborn: a feed owes deletes it will never hear\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    tranger2_close_rt_disk(tf, fx);
+    tranger2_close_rt_disk(tf, fy);
+    drain(10);
+    result += test_json(NULL);
+
+    set_expected_results("stale debt reborn: shutdown", NULL, NULL, NULL, 1);
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    drain(10);
+    result += test_json(NULL);
+    count_x = count_y = 0;
+    return result;
+}
+
+/***************************************************************************
  *  do_test_master_rt_disk_reborn
  *  A master's own rt_disk feed hears a delete after the master wrote the
  *  key again: the live key stays in the master's cache.
@@ -1647,6 +1919,10 @@ int main(int argc, char *argv[])
     result += do_test_signal_dir_seen(FALSE);
     result += do_test_signal_dir_seen(TRUE);
     result += do_test_master_rt_disk_reborn();
+    result += do_test_reborn_before_read(1, FALSE);
+    result += do_test_reborn_before_read(5, FALSE);
+    result += do_test_reborn_before_read(1, TRUE);
+    result += do_test_stale_debt_reborn();
     result += do_test_rmrdir_fails();
     result += do_test_rmrdir_fails_filtered();
     result += do_test_key_dir_unstatable();

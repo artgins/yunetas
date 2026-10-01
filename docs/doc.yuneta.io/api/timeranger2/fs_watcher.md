@@ -40,6 +40,23 @@ fs_event_t *fs_create_watcher_event(
 
 Returns a pointer to a newly allocated [`fs_event_t`](#fs_event_t) structure representing the watcher event, or `NULL` on failure -- a path that is not a directory, no inotify instance, or a root that cannot be watched (`ENOSPC` at `fs.inotify.max_user_watches`, logged). Up to 7.25.20 a root that could not be watched gave a watcher all the same, running and watching nothing.
 
+With `FS_FLAG_BATCH_END` the owner is also called with `FS_BATCH_END_TYPE` after each batch read from inotify (`offset` = where the batch ends), and every event carries `offset` and `offset_end`, its place in the watcher's stream: what the owner left for "when the stream is past here" can be done there. A timeranger2 follower defers the scan of a key directory that way:
+
+```C
+fs_event_t *fs = fs_create_watcher_event(
+    yev_loop, path, FS_FLAG_RECURSIVE_PATHS|FS_FLAG_BATCH_END, my_fs_callback, gobj, NULL, NULL
+);
+...
+case FS_SUBDIR_CREATED_TYPE:
+    my->until = fs_queued_events_end(fs_event);     // read it when the stream is past this
+    break;
+case FS_BATCH_END_TYPE:
+    if(fs_event->offset >= my->until) {
+        read_the_directory(my);
+    }
+    break;
+```
+
 **Notes**
 
 The created watcher event must be started using [`fs_start_watcher_event()`](<#fs_start_watcher_event>) to begin monitoring. When no longer needed, it must be stopped using [`fs_stop_watcher_event()`](<#fs_stop_watcher_event>), which will also free the associated resources.
@@ -307,16 +324,34 @@ What the owners of the tree do:
   after another, in microseconds: only a delete signalled across the very
   moment a feed opens is left in doubt, and owed. Such a debt holds where the
   stream of the debtor ended when it was made; when the debtor's stream, past
-  that point, carries the link of a record of the key HEARD (its own
-  `IN_CREATE`, with its own place in the stream: the key lives), the debt
-  is forgotten -- kept, the next delete of the key would pay it, and a feed
-  that overflowed then would miss that one. Not the key's directory seen
-  made, nor what it holds when it is read: the master signals a delete to a
-  feed without that directory by making it and removing it, and when the
-  follower reads that `IN_CREATE` the directory may be there still (the
-  master preempted between the two) or there AGAIN, the key written since,
-  with the new key's link in it -- queued after the signal, read at the
-  signal's place.
+  that point, hands it a record of the key in its place in the stream (a
+  link heard, at its own `IN_CREATE`, or a key directory read once the
+  stream is past what could still remove it, below: the key lives), the
+  debt is forgotten -- kept, the next delete of the key would pay it, and a
+  feed that overflowed then would miss that one.
+
+  A key directory is read when the stream is past every event queued when
+  its `IN_CREATE` was read, not at that `IN_CREATE`. The master signals a
+  delete to a feed without the key's directory by making it and removing
+  it; if it writes the key again before the follower reads that signal,
+  the directory is there again with the NEW key's links while the delete
+  is still queued. Read at the signal's place, the new key's file was taken
+  against the OLD key's cell of the cache: one new record was never
+  handed, five came as rowids 4 and 5 (and the next append handed R1..R6),
+  and the delete heard after took the live key out of the cache. Up to
+  7.25.20 it was so, and so after an overflow: the pass read the key born
+  again while its delete waited behind the overflow. Now the scan waits
+  (`scans_pending`) until the stream is past `fs_queued_events_end()` --
+  the master is one process and writes the key again only after it
+  signalled this feed, so whatever can still remove the directory is queued
+  by then; a delete of the key heard before drops it (the directory's own
+  `IN_CREATE` reads it later); and it reads only the directory seen then
+  (inode and birth). The feed is told `deleted`, then the new key's
+  records from rowid 1. A key new to the follower (not in the cache, not
+  owed) is read at once: no delete of it can be ahead. The pass after an
+  overflow defers its key directories the same way. The watcher tells the
+  feed where each batch ends (`FS_FLAG_BATCH_END`), where the scans come
+  due when no other event follows.
 
   In a MASTER the watcher's echo of a delete forgets nothing:
   `tranger2_delete_key()` forgot the key when it deleted it, and the master
@@ -336,7 +371,8 @@ What the owners of the tree do:
   At each `FS_RESCAN_DIR_TYPE`: the master hard-links each new md2 into
   `disks/<rt_id>/<key>/` and the follower consumes the link when it reads it,
   so a link still there IS a record not handed over yet, and the key directory
-  is read. Both are idempotent: nothing is handed over twice.
+  is read (when the stream is past what could still remove it, above). Both
+  are idempotent: nothing is handed over twice.
 - **timeranger2, the master's watch of `disks/`**: at `FS_OVERFLOW_TYPE`, the
   feeds whose directory went are closed, and a feed is opened for every
   directory without one (a handful of directories: no pass needed).

@@ -44,6 +44,11 @@ typedef enum  {
                                     // fs_watcher.md), logged: it is destroyed when this
                                     // call returns, and nothing else comes. Drop every
                                     // pointer to it. Not told when its owner stopped it.
+    FS_BATCH_END_TYPE,              // Only with FS_FLAG_BATCH_END. A batch read from inotify
+                                    // was handed over whole: `offset` is where it ends.
+                                    // What an owner left for "when the stream is past
+                                    // here" can be done now; no event of the batch comes
+                                    // after this.
 
     // There are more fs events available with io_uring, but this code only manages these events.
 } fs_type_t;
@@ -51,6 +56,7 @@ typedef enum  {
 typedef enum  {
     FS_FLAG_RECURSIVE_PATHS     = 0x0001,     // add path and all his subdirectories
     FS_FLAG_MODIFIED_FILES      = 0x0002,     // Add FS_FILE_MODIFIED_TYPE, WARNING about using it.
+    FS_FLAG_BATCH_END           = 0x0004,     // Add FS_BATCH_END_TYPE after each batch
 } fs_flag_t;
 
 
@@ -92,6 +98,7 @@ struct fs_event_s {
     uint64_t rescan_us_max_gap; // Internal: the longest wait of the loop between two slices
     uint64_t offset;            // Output: where the event handed over starts in the watcher's
                                 // stream of events (the bytes read from inotify before it)
+    uint64_t offset_end;        // Output: where it ends (the offset of the next one)
     uint64_t batch_end;         // Internal: offset of the end of the batch being walked
     BOOL in_batch;              // Internal: yev_callback is walking a batch read from inotify
     BOOL stopping;              // Internal: its owner stopped it (fs_stop_watcher_event)
