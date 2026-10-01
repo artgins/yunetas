@@ -50,6 +50,19 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   disconnect) → the message stays at the head of the queue and is retried, up to
   `max_retries` (default 4); then it is moved to the `emails_failed` dead-letter
   queue.
+- **Delivery is at least once, not exactly once.** A message is done only
+  when the server answers `250` to the final `.` of its DATA. If that answer
+  does not reach us -- the connection is lost after the `.` was sent (a RST, a
+  TLS error, a close), the `250` does not come within `timeout_response`, the
+  reply line is malformed, or the yuno is paused, stopped or killed in that
+  instant -- the server may have taken the message all the same, and we
+  cannot know. It is a failure of the transaction: the message stays at the
+  head of the queue and is sent again (a pause, a stop or a kill spends no
+  retry, the others spend one), so **the recipient can get it twice**. This
+  is the window of RFC 1047 (*Duplicate messages and SMTP*), and nothing on
+  the client side closes it. When it was the last of the message's
+  `max_retries`, the message goes to the failed queue though it may have
+  been delivered.
 - **Permanent failures** (any `5xx` to MAIL FROM / RCPT TO / DATA / the body) →
   the message goes **straight to `emails_failed`**, no retries. The SMTP reply
   code is carried up from `C_SMTP_SESSION` on `EV_ON_CLOSE`: every refusal,
@@ -134,12 +147,36 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   -- the connection, the greeting, EHLO, a transient AUTH -- spends none: the
   server never saw the message, which waits at the head of the queue for as
   long as the outage lasts, paced. Up to 7.25.20 each of those spent a retry
-  too, and an outage of 14 s sent every queued message to the failed queue in
-  turn. So `max_retries` and the pacing together say how long a server that
-  keeps refusing a message is given: with the defaults, four attempts are
-  spread over 2 + 4 + 8 = 14 s; a batch config for a provider known to
-  refuse for long raises `max_retries` (`'max_retries': 10` covers about 17
-  minutes):
+  too (all but a connection that could not be made at all), 2 s apart: a
+  server that failed its handshake sent the message at the head of the queue
+  to the failed queue in about 8 s, then the next one, for as long as it
+  failed.
+
+  **The exact schedule.** The wait after the k-th failure in a row is
+  `timeout_retry` × 2^(k-1), capped at `timeout_retry_max`: with the
+  defaults 2, 4, 8, 16, 32, 64, 128, 256 and 512 s, then 600 s after every
+  further failure. "In a row" counts every failure of the session, of any
+  message and of any kind: a failure that spends no retry (a refused
+  connection, a `421` greeting) and a refusal that sends its message straight
+  to the failed queue (a `5xx` in its transaction) both take the next step.
+  The count goes back to the start only after a delivery, or after a session
+  that ends with no failure (an idle session closed by either side). Moving a
+  message to the failed queue does NOT reset it: the next message goes on
+  from where the count stands. So with the defaults (`max_retries` 4), against
+  a server that refuses every message with a `4xx`:
+
+  | Message | Wait before its first attempt | Waits between its four attempts |
+  |---------|-------------------------------|---------------------------------|
+  | the first after a delivery or a start | none | 2 + 4 + 8 = 14 s |
+  | the second | 16 s | 32 + 64 + 128 = 224 s |
+  | the third | 256 s | 512 + 600 + 600 = 1712 s (28.5 min) |
+  | the fourth and later | 600 s | 3 × 600 = 1800 s (30 min) |
+
+  (The connection and the session of each attempt add their own time to
+  these waits.) A batch config for a provider known to refuse for long raises
+  `max_retries`: with `'max_retries': 10` the first message's waits add up to
+  2 + 4 + ... + 512 = 1022 s, about 17 minutes, and a message later in the
+  same streak gets 9 × 600 s = 90 minutes:
 
   ```json
   "kw": {

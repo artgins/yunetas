@@ -1629,9 +1629,9 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              *  never saw the message. It stays at the head of the queue, no
              *  retry spent, and is sent again at once -- the session holds it
              *  until its paced reconnection. Up to 7.25.20 each such failure
-             *  spent a retry, and with the defaults an outage longer than
-             *  14 s sent every queued message to the failed queue in turn,
-             *  unlike a refused login, which spends none.
+             *  spent a retry, 2 s apart: a server failing its handshake sent
+             *  the head of the queue to the failed queue in about 8 s, then
+             *  the next one, unlike a refused login, which spends none.
              */
             priv->qmsg_cur_email = NULL;
             gobj_change_state(gobj, ST_IDLE);

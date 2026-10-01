@@ -20,8 +20,8 @@ C_EMAILSENDER          <- queueing, retry, dead-letter, MIME encoding
   **AUTH PLAIN**. **STARTTLS is not implemented** (the transport is TLS from the
   first byte via the `smtps://` C_TCP bottom). EHLO advertises the local
   hostname. An idle session closed by the server (SMTP 421 — OVH does this
-  aggressively) is treated as a graceful close. C_TCP reconnects on the next
-  send.
+  aggressively) is treated as a graceful close. The session connects again
+  when it has the next message to send; its C_TCP never reconnects by itself.
 
 ## Configuration
 
@@ -35,6 +35,17 @@ external JSON. Inspect it at runtime with
 | `from` | *(required)* | Default envelope/From address |
 | `from_beautiful` | `""` | Optional display name for the From header |
 | `username` / `password` | `""` | AUTH PLAIN credentials. Blank → the SMTP side does not start; set them with `set-email-user` |
+| `max_retries` | `4` | Max total send attempts before dead-lettering |
+| `timeout_retry` | `2000` | ms before the connection that follows a failed session or connection; doubles per failure in a row |
+| `timeout_retry_max` | `600000` | Cap of that doubling (ms) |
+| `timeout_failing_alarm` | `3600000` | ms a failing server may keep emails waiting before it is an ERROR (said again at most once per this period); `0`: never |
+| `timeout_response` | `30000` | ms the server has to answer each command |
+| `timeout_inactivity` | `30000` | ms of silence after which the idle SMTP connection is closed; the next email opens it again |
+| `disable_alarm_emails` | `false` | Drop "ALERT Queuing" alarm emails |
+| `tranger_path` / `tranger_database` | | TimeRanger2 store location |
+| `topic_emails_queue` | `emails_queue` | Pending-queue topic |
+| `topic_emails_failed` | `emails_failed` | Dead-letter topic |
+| `backup_queue_size` | `1000000` | Backup the queue topic at this size |
 
 `url`, `from`, `username` and `password` are persistent attributes: set them at
 runtime with the `set-email-user` / `set-url-from` commands (below) and they are
@@ -52,20 +63,10 @@ sent.
 ```bash
 ycommand -c 'command-yuno id=<id> service=emailsender command=set-email-user username=no-reply@example.com password=<password>'
 ```
-| `max_retries` | `4` | Max total send attempts before dead-lettering |
-| `timeout_retry` | `2000` | ms before the connection that follows a failed session or connection; doubles per failure in a row |
-| `timeout_retry_max` | `600000` | Cap of that doubling (ms) |
-| `timeout_failing_alarm` | `3600000` | ms a failing server may keep emails waiting before it is an ERROR (said again at most once per this period); `0`: never |
-| `timeout_response` | `30000` | ms the server has to answer each command |
-| `timeout_inactivity` | `30000` | ms of silence after which the idle SMTP connection is closed; the next email opens it again |
-| `disable_alarm_emails` | `false` | Drop "ALERT Queuing" alarm emails |
-| `tranger_path` / `tranger_database` | | TimeRanger2 store location |
-| `topic_emails_queue` | `emails_queue` | Pending-queue topic |
-| `topic_emails_failed` | `emails_failed` | Dead-letter topic |
-| `backup_queue_size` | `1000000` | Backup the queue topic at this size |
 
-`C_SMTP_SESSION` adds `timeout_response` (default `30000` ms) — the per-command
-watchdog while waiting for a server reply.
+The emailsender hands `timeout_retry`, `timeout_retry_max`,
+`timeout_failing_alarm` and `timeout_response` to its `C_SMTP_SESSION`, which
+does the pacing and the per-command watchdog.
 
 ```{note}
 `only_test`, `add_test` and `test_email` attributes exist but are **not wired**
@@ -107,9 +108,10 @@ dropped while waiting:
 
 - A message is only dispatched while the SMTP session is connected and
   authenticated. If the server is down or the URL is wrong, the message stays
-  in the queue. [`C_TCP`](#gclass-c-tcp) keeps reconnecting on its own and delivery resumes
-  once the link is back — nothing is dead-lettered just because the link is
-  momentarily unavailable.
+  at the head of the queue, and the session tries again, paced (see
+  [Pacing](#emailsender-pacing)); delivery resumes once the server is back.
+  Nothing is dead-lettered, and no retry is spent, because the server cannot
+  be reached or fails before the mail transaction.
 - **Rejected credentials stop the yuno instead.** When the server refuses the
   `AUTH PLAIN`, the emailsender logs one ERROR (*"SMTP credentials rejected:
   exiting, NOT relaunched"*, with the reply `code`, `url` and `username`) and
@@ -139,6 +141,17 @@ dropped while waiting:
 - A pause (or the stop of the yuno) with a message in flight leaves it at the
   head of `emails_queue` without spending a retry; the next play sends the
   queue again, also when it comes right after the pause.
+- **Delivery is at least once, not exactly once.** A message is done only
+  when the server answers `250` to the final `.` of its DATA. If that answer
+  does not reach the session -- the connection is lost after the `.` was
+  sent, the `250` does not come within `timeout_response`, the reply line is
+  malformed, or the yuno is paused, stopped or killed in that instant -- the
+  server may have taken the message, and the emailsender cannot know. The
+  message stays at the head of the queue and is sent again, so **the
+  recipient can get it twice** (RFC 1047, *Duplicate messages and SMTP*). A
+  pause, a stop or a kill spends no retry; the others spend one, and when it
+  was the last one the message goes to `emails_failed` though it may have
+  been delivered.
 - A message stays at the head of the queue until it is either sent or its
   attempts are exhausted. A transient send failure (server NACK, connection
   dropped mid-send) is retried up to `max_retries` total attempts.
@@ -150,6 +163,7 @@ dropped while waiting:
 Every outcome is logged: a warning per retry, an error when a message is moved
 to the dead-letter queue, and an info line on success.
 
+(emailsender-pacing)=
 ### Pacing
 
 No failure is retried at once. After a failed session or connection -- a
@@ -161,6 +175,8 @@ in a row, up to `timeout_retry_max`. An email queued during the wait waits for
 it too, and so does a pause and a play. A session that ends with no failure (a
 message delivered, an idle session closed) starts the doubling again. Nothing
 connects with nothing to send: the transport never reconnects by itself.
+Providers ban the addresses that hammer them (OVH did, for its whole mail
+cluster), so this is a hard rule, not a tuning knob.
 
 A failing server is said: a WARNING at the first failure (*"SMTP server
 failing: emails wait, the retries are paced"*, with its `cause`, a refused
@@ -172,17 +188,35 @@ first delivery after it. To be told after 15 minutes instead:
 "kw": {
     "timeout_failing_alarm": 900000
 }
-``` Providers ban the addresses that
-hammer them (OVH did, for its whole mail cluster), so this is a hard rule, not
-a tuning knob.
+```
 
 A message spends one of its `max_retries` only when it fails in its own
 transaction (MAIL FROM onwards). A failure before -- the connection, the
 greeting, EHLO, a transient AUTH (`454`) -- spends none: the server never saw
-the message, and it waits, paced, for as long as the outage lasts. A batch
-config for a provider known to refuse messages for long raises `max_retries`
-(with the defaults the four attempts are spread over 2 + 4 + 8 = 14 s;
-`max_retries: 10` covers about 17 minutes):
+the message, and it waits, paced, for as long as the outage lasts.
+
+The wait after the k-th failure in a row is `timeout_retry` × 2^(k-1), capped
+at `timeout_retry_max`: with the defaults 2, 4, 8, 16, 32, 64, 128, 256 and
+512 s, then 600 s after every further failure. Every failure of the session
+counts, of any message and of any kind -- one that spends no retry, and a
+`5xx` that sends its message straight to `emails_failed`, too. The count
+starts again only after a delivery, or after a session that ends with no
+failure (an idle session closed). Moving a message to `emails_failed` does
+not reset it. So with the defaults (`max_retries` 4), against a server that
+answers every message with a `4xx`:
+
+| Message | Wait before its first attempt | Waits between its four attempts |
+|---------|-------------------------------|---------------------------------|
+| the first after a delivery or a start | none | 2 + 4 + 8 = 14 s |
+| the second | 16 s | 32 + 64 + 128 = 224 s |
+| the third | 256 s | 512 + 600 + 600 = 1712 s (28.5 min) |
+| the fourth and later | 600 s | 3 × 600 = 1800 s (30 min) |
+
+The connection and the session of each attempt add their own time. A batch
+config for a provider known to refuse messages for long raises `max_retries`:
+with `max_retries: 10` the waits of the first message add up to 1022 s (about
+17 minutes), and those of a message later in the same streak to 9 × 600 s
+(90 minutes):
 
 ```json
 "kw": {

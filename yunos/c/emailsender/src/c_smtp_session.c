@@ -1514,7 +1514,8 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  channel") because submission servers (OVH ssl0.ovh.net in
          *  particular) close inactive sessions aggressively. Treat as
          *  a graceful close: drop the TCP cleanly, log INFO not ERROR.
-         *  C_TCP will auto-reconnect when the next email is enqueued.
+         *  It is no failure: nothing connects again until the next message
+         *  (request_connection), and the pacing starts afresh.
          */
         gobj_log_info(gobj, 0,
             "function", "%s", __FUNCTION__,
