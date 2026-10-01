@@ -69,9 +69,14 @@ if ! id yuneta >/dev/null 2>&1; then
     useradd -m -g yuneta yuneta
 fi
 mkdir -p /yuneta
-# The checkout stays the session's: git refuses a repo owned by another user.
-find /yuneta -xdev -path "${YUNETAS_DIR}" -prune -o \
+# The checkouts stay the session's (git refuses a repo owned by another
+# user); only their build/, where the tests run as yuneta, is yuneta's.
+find /yuneta -xdev \( -path "${YUNETAS_DIR}" -o -path "${YUNETAS_DIR}/../gobj-js" \
+        -o -path "${YUNETAS_DIR}/../gobj-ui.js" \) -prune -o \
     \( ! -user yuneta -o ! -group yuneta \) -exec chown -h yuneta:yuneta {} +
+if [ -d "${YUNETAS_DIR}/build" ]; then
+    chown -R yuneta:yuneta "${YUNETAS_DIR}/build"
+fi
 
 #
 #   inotify limits, the same values as 99-yuneta-core.conf
@@ -97,7 +102,11 @@ done
 if [ "${YUNETAS_HOOK_BUILD_C:-0}" = "1" ]; then
     # shellcheck disable=SC1091
     source ./yunetas-env.sh >/dev/null
-    if [ ! -f kernel/c/linux-ext-libs/VERSION_INSTALLED.txt ]; then
+    # Rebuilt when missing or when configure-libs.sh says another VERSION:
+    # a container cached on an older one would make `yunetas build` refuse.
+    WANTED="$(sed -n 's/^VERSION="\(.*\)"$/\1/p' kernel/c/linux-ext-libs/configure-libs.sh | tail -1)"
+    INSTALLED="$(head -1 kernel/c/linux-ext-libs/VERSION_INSTALLED.txt 2>/dev/null || true)"
+    if [ "${INSTALLED}" != "${WANTED}" ]; then
         (cd kernel/c/linux-ext-libs && ./extrae.sh && ./configure-libs.sh)
     fi
     yunetas init

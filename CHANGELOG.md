@@ -39,11 +39,17 @@ code before it, except the few this list marks "(no red test)".
   is now written to a temporary file there and renamed over the old one. The
   files are 0640: a reader outside the group of the agent's user loses access.
 - **emailsender's failed queue fills much later.** A server that fails its
-  handshake, or cannot be reached, no longer sends the head of the queue there
-  every 8 s or so, one message after another: the messages wait at the head of
+  handshake no longer sends the head of the queue there every 8 s or so, one
+  message after another: the messages wait at the head of
   the queue, paced up to 10 minutes between attempts, for as long as the
   outage lasts. An alarm on the size of the failed queue sees that
   change.
+- **A lone stop of a `C_TCP_S` without `child_tree_filter` closes its live
+  connections** (it kept them accepting on a closed socket): to drain a
+  listener, do not stop it alone.
+- **emailsender says when its SMTP server fails**: a WARNING at the first
+  failure, an ERROR once it has failed for `timeout_failing_alarm` (1 h), an
+  INFO when it works again. An alarm on its ERRORs sees the new one.
 - **C_TCP_S `connxs` and `tconnxs` read real values** (they always read 0); a
   dashboard that showed them changes.
 
@@ -53,8 +59,8 @@ code before it, except the few this list marks "(no red test)".
   `C_IEVENT_SRV.http_cookie` holds the browser's whole Cookie header, the BFF's
   httpOnly access_token included, and view-gobj, view-gobj-tree and view-attrs
   showed it for every connected browser. It is now masked, as are the MQTT 5
-  `auth_data` of C_PROT_MQTT2/C_PROT_MQTT, webstats `visitor_salt`, and the
-  esp32 transport `jwt` and `wifi_list`.
+  `auth_data` of C_PROT_MQTT2/C_PROT_MQTT, webstats `visitor_salt`, the esp32
+  transport's `jwt` and C_ESP_WIFI's `wifi_list`.
 - **A secret is masked whatever its json type.** `gobj_mask_secret_attrs()`
   and `view-attrs` of one attribute masked only non-empty strings, so
   `"pin": 1234` was shown. Only an absent value or an empty string stays.
@@ -262,7 +268,10 @@ code before it, except the few this list marks "(no red test)".
   `timeout_base` first, doubling up to 5 minutes while a try does not hold a
   minute, and a failed start takes the same path. A C_UDP_S stopped from
   outside is not restarted. A `timeout_base` <= 0 is refused with a warning and
-  5000 is used.
+  5000 is used. **A stop and a start in the same turn** (logcenter's pause and
+  play, with a read in flight) found the C_UDP_S still holding its socket: an
+  ERROR, and the service never received again. The start now waits for the
+  C_UDP_S to end its stop.
 - **A build with mbedTLS compiles again.** `C_ASSETS` included
   `<mbedtls/md5.h>`, which mbedTLS 4 moved under `mbedtls/private/`, even when
   OpenSSL was compiled in too: any `.config` with `CONFIG_HAVE_MBEDTLS` failed
@@ -284,7 +293,8 @@ code before it, except the few this list marks "(no red test)".
   subscribed nobody (its host had to do it by hand); it follows the CHILD
   model now, with a `subscriber` attr. `size_dl_watch` reads 1 while watching,
   0 otherwise. A watcher that cannot be created, or whose read cannot be
-  armed, fails the start (it answered 0 with nothing watched).
+  armed, fails the start (it answered 0 with nothing watched; the second case
+  has no red test).
 
 ### timeranger2 and its tools
 
@@ -355,7 +365,7 @@ code before it, except the few this list marks "(no red test)".
   into the next one. The same gclass stopped logging a WARNING on every
   connection (an undeclared `connected` attr) and an ERROR for every absent
   MQTT 5 property, and its logs print the command as a string (twelve used
-  `"%d"` on a `const char *`).
+  `"%d"` on a `const char *`; no red test for those twelve).
 
 ### Agent
 
@@ -403,6 +413,9 @@ code before it, except the few this list marks "(no red test)".
   which a client could loop; a count with no later event after it was never
   logged. The window is the new `drops_warning_window` (ms, default 60000) of
   every capped warning of the control center.
+- **Stopping the control center outside the shutdown no longer logs "GObj NOT
+  RUNNING"**: `mt_stop()` stopped timers that `clear_timeout()` or `mt_pause()`
+  had already stopped (an ERROR with a stack each).
 - **Several console mirrors through one agent's connection**: the clients
   are kept per console; when the agent goes, each is dropped once.
 - **A run's step is answered only by the agent it went to.** A client with
@@ -415,7 +428,8 @@ code before it, except the few this list marks "(no red test)".
   same steps, naming the same parameter.
 - **`save-scenario` named a scenario it had freed** in its answer, when the
   scenario came as a string.
-- A step an agent does not answer in time is a warning, not an error.
+- A step an agent does not answer in time is a warning, not an error. (no red
+  test)
 
 ### emailsender and webstats
 
@@ -449,11 +463,10 @@ code before it, except the few this list marks "(no red test)".
   streak longer than the new `timeout_failing_alarm` (1 h) is an ERROR, said
   again at most once per that period; the first delivery ends it with an
   INFO.
-- **emailsender: a failure before the mail transaction spends no retry.** An
-  outage longer than 14 s sent every queued message to the failed queue; the
-  message now waits at the head of the queue, paced, for as long as the outage
-  lasts (a server failing its handshake spent a retry every 2 s, sending the
-  head of the queue to the failed queue in about 8 s, then the next). A
+- **emailsender: a failure before the mail transaction spends no retry.** A
+  server failing its handshake spent a retry every 2 s, sending the head of the
+  queue to the failed queue in about 8 s, then the next; the message now waits
+  at the head of the queue, paced, for as long as the outage lasts. A
   transient refusal of the login (a `454 4.7.0`) is retried: any
   reply but 235 to AUTH PLAIN was taken as rejected credentials, the yuno
   exited 0 and was not relaunched. Only a 5xx is a refusal now, and a second
