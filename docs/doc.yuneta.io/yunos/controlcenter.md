@@ -395,10 +395,32 @@ default service). `Authz.max_sessions_per_user` defaults to 4. Key attributes:
 | Attribute | Purpose |
 |-----------|---------|
 | `run_step_timeout` | Milliseconds a step of a scenario run may take to answer (30000) |
-| `timeout` | Periodic tick |
+| `drops_warning_window` | Milliseconds of the window of a capped warning (60000) |
+| `timeout` | Unused: no periodic tick (kept for the configs that set it) |
 
 The listen URLs/ports live in the realm config (`__top_side__` /
 `__input_side__`), not in the binary.
+
+### Stats
+
+The messages it relays, counted: `rxMsgs` the ones to relay (a client's
+`command-agent`/`stats-agent`, every answer and stream an agent sends),
+`txMsgs` the ones relayed (each request sent to an agent, each answer and
+stream sent to a client, each step of a run). `rxMsgsec`/`txMsgsec` are their
+rates in messages by second, computed when they are read, between two
+readings at least a second apart (a reading sooner gives the last rates):
+there is no timer. `maxrxMsgsec`/`maxtxMsgsec` keep the highest rates seen;
+write 0 to start them again. `stats=__reset__` zeroes the counters, the rates
+and the maxima. `drops_timer_armed` says whether a capped
+warning has a count waiting for its window.
+
+```bash
+ycommand -c 'stats-yuno id=<cc> service=controlcenter'
+# ... "rxMsgs": 1520, "txMsgs": 1519, "rxMsgsec": 12, "txMsgsec": 12, "maxrxMsgsec": 140, ...
+```
+
+Up to 7.25.20 nothing counted them and the timer that computed the rates was
+never armed: all six read 0.
 
 ## Commands
 

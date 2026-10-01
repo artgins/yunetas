@@ -102,6 +102,16 @@ of its `__input_side__` gate in state `ST_SESSION`) and forwards the command;
 the node's agent then runs it (and can itself target a specific yuno via its own
 `command-yuno`).
 
+## Stats
+
+`rxMsgs`/`txMsgs` count the messages it relays (in: a client's request, an
+agent's answer or stream; out: a request to an agent, an answer or stream to a
+client, a step of a run). `rxMsgsec`/`txMsgsec` are their rates, computed when
+read (at least a second between two computations), with no timer;
+`maxrxMsgsec`/`maxtxMsgsec` the highest seen (write 0 to start again);
+`stats=__reset__` zeroes them all. Up to 7.25.20 nothing counted them and all
+six read 0.
+
 ## Data model: scenarios and their runs
 
 `src/treedb_schema_controlcenter.c` declares the control center's own treedb

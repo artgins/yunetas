@@ -109,6 +109,12 @@ still reported and fails the test.
     `clear_timeout()` had already stopped (and the rate timer, never armed,
     that `mt_pause()` had cleared): three *"GObj NOT RUNNING"* errors with a
     stack.
+13. The message counters and rates. 100 `command-agent` round trips add
+    exactly 200 to `rxMsgs` and 200 to `txMsgs` (the request in and out, the
+    answer in and out); read again more than a second after the baseline,
+    `rxMsgsec`/`txMsgsec` are above 0 and the maxima hold them; a
+    `stats=__reset__` zeroes the counters and maxima. Up to 7.25.20 all of
+    them read 0.
 
 ## Run
 

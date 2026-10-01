@@ -130,6 +130,7 @@ PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
 PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 PRIVATE void say_pending_drops(hgobj gobj, const char *when, BOOL only_ended);
 PRIVATE void arm_drops_timer(hgobj gobj);
+PRIVATE void update_rates(hgobj gobj);
 PRIVATE int check_drops_warning_window(hgobj gobj);
 PRIVATE BOOL drops_window_ended(hgobj gobj, uint64_t window_start);
 PRIVATE void count_dropped_stream(
@@ -245,13 +246,13 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",         "Username 'yuneta', permission for all"),
-SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_PSTATS,  0,          "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages received"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages relayed: requests sent to the agents, answers and streams sent to the clients"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages to relay: requests of the clients, answers and streams of the agents"),
 
-SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Tx Messages by second"),
-SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Rx Messages by second"),
+SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "txMsgs by second, between two readings at least a second apart"),
+SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "rxMsgs by second, between two readings at least a second apart"),
+SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Tx Messages by second (write 0 to start again)"),
+SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Rx Messages by second (write 0 to start again)"),
 
 SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
 SDATA (DTP_INTEGER,     "drops_warning_window",SDF_WR,          "60000",    "Milliseconds of a capped warning's window (dropped streams, unrouted PTY, injected agent events): one warning per window, the rest counted and said when it ends"),
@@ -307,6 +308,14 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_treedb_controlcenter;
     hgobj gobj_authz;
 
+
+    json_int_t txMsgs;              // relayed: requests to agents, answers and streams to clients
+    json_int_t rxMsgs;              // to relay: requests of clients, answers and streams of agents
+    json_int_t last_txMsgs;         // at the last rate computation
+    json_int_t last_rxMsgs;
+    json_int_t txMsgsec;
+    json_int_t rxMsgsec;
+    uint64_t t_rates;               // msectimer of the last rate computation (0: none)
 
     uint64_t stats_dropped;         // EV_YUNO_STATS for a web client that is gone
     uint64_t t_stats_dropped_log;   // msectimer: start of its window (0: none)
@@ -380,6 +389,54 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
             arm_drops_timer(gobj);  // the windows that are open now end with the new value
         }
     END_EQ_SET_PRIV()
+
+    /*
+     *  `stats=__reset__` writes the defaults of the SDF_RSTATS attrs: the
+     *  counters live in priv (mt_reading), so they are zeroed here, with
+     *  their rates
+     */
+    if(strcmp(path, "txMsgs")==0) {
+        priv->txMsgs = 0;
+        priv->last_txMsgs = 0;
+        priv->txMsgsec = 0;
+        priv->t_rates = 0;
+    } else if(strcmp(path, "rxMsgs")==0) {
+        priv->rxMsgs = 0;
+        priv->last_rxMsgs = 0;
+        priv->rxMsgsec = 0;
+        priv->t_rates = 0;
+    }
+}
+
+/***************************************************************************
+ *      Framework Method reading
+ *  The message counters and their rates (SDF_RSTATS, backed by priv). The
+ *  rates are computed when they are read, from the counters and a
+ *  monotonic clock, as C_CHANNEL computes its own: no timer.
+ ***************************************************************************/
+PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    SData_Value_t v = {0,{0}};
+    if(strcmp(name, "txMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->txMsgs;
+    } else if(strcmp(name, "rxMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->rxMsgs;
+    } else if(strcmp(name, "txMsgsec")==0) {
+        update_rates(gobj);
+        v.found = 1;
+        v.v.i = priv->txMsgsec;
+    } else if(strcmp(name, "rxMsgsec")==0) {
+        update_rates(gobj);
+        v.found = 1;
+        v.v.i = priv->rxMsgsec;
+    } else if(strcmp(name, "maxtxMsgsec")==0 || strcmp(name, "maxrxMsgsec")==0) {
+        update_rates(gobj);     // the maxima are the attrs themselves (writable)
+    }
+    return v;
 }
 
 /***************************************************************************
@@ -792,6 +849,7 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
     /*----------------------------------------*
      *  Job
      *----------------------------------------*/
+    priv->rxMsgs++;
     BOOL client_takes_yuno_stats = client_relays(kw, EV_YUNO_STATS);
 
     const char *keys2delete[] = { // WARNING parameters of command-yuno command of agent
@@ -876,6 +934,7 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
         }
 
         record_link_request(gobj, src, child);
+        priv->txMsgs++;
         json_t *webix = gobj_command( // debe retornar siempre 0.
             child,
             cmd2agent,
@@ -925,6 +984,7 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
     /*----------------------------------------*
      *  Job
      *----------------------------------------*/
+    priv->rxMsgs++;
     const char *keys2delete[] = { // WARNING parameters of command-yuno command of agent
         "id",
         "command",
@@ -971,6 +1031,7 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
         }
 
         record_link_request(gobj, src, child);
+        priv->txMsgs++;
         json_t *webix = gobj_stats( // debe retornar siempre 0.
             child,
             stats2agent,
@@ -2159,6 +2220,7 @@ PRIVATE int run_send_step(hgobj gobj)
         json_string(kw_get_str(gobj, priv->run, "id", "", 0)));
     kw_set_subdict_value(gobj, kw_step, "__md_iev__", "cc_step", json_integer(idx));
 
+    priv->txMsgs++;
     json_t *webix = gobj_command(channel, line, kw_step, gobj);
     JSON_DECREF(webix)
 
@@ -2494,6 +2556,7 @@ PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(src == priv->gobj_input_side) {
+        priv->rxMsgs++;
         return TRUE;
     }
     priv->injected++;
@@ -2521,6 +2584,8 @@ PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj requester)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     if(!requester_is_listening(gobj, requester, event)) {
         KW_DECREF(kw);
         return 0;
@@ -2535,6 +2600,7 @@ PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
         kw_redirect    // owned
     );
 
+    priv->txMsgs++;
     return gobj_send_event(
         requester,
         EV_SEND_IEV,
@@ -2575,6 +2641,40 @@ PRIVATE void count_dropped_stream(
         *t_next_log = start_msectimer(0);
     }
     arm_drops_timer(gobj);
+}
+
+/***************************************************************************
+ *  The rates of the message counters: messages by second since the last
+ *  computation, made at most once a second (a reading sooner keeps the
+ *  last rates), and the maxima written into their attrs when passed.
+ ***************************************************************************/
+PRIVATE void update_rates(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint64_t now = start_msectimer(0);
+    if(!priv->t_rates) {
+        priv->t_rates = now;
+        priv->last_txMsgs = priv->txMsgs;
+        priv->last_rxMsgs = priv->rxMsgs;
+        return;
+    }
+    json_int_t seconds = (json_int_t)((now - priv->t_rates)/1000);
+    if(seconds <= 0) {
+        return;
+    }
+    priv->txMsgsec = (priv->txMsgs - priv->last_txMsgs)/seconds;
+    priv->rxMsgsec = (priv->rxMsgs - priv->last_rxMsgs)/seconds;
+    priv->t_rates = now;
+    priv->last_txMsgs = priv->txMsgs;
+    priv->last_rxMsgs = priv->rxMsgs;
+
+    if(priv->txMsgsec > gobj_read_integer_attr(gobj, "maxtxMsgsec")) {
+        gobj_write_integer_attr(gobj, "maxtxMsgsec", priv->txMsgsec);
+    }
+    if(priv->rxMsgsec > gobj_read_integer_attr(gobj, "maxrxMsgsec")) {
+        gobj_write_integer_attr(gobj, "maxrxMsgsec", priv->rxMsgsec);
+    }
 }
 
 /***************************************************************************
@@ -3299,6 +3399,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_play                    = mt_play,
     .mt_pause                   = mt_pause,
     .mt_writing                 = mt_writing,
+    .mt_reading                 = mt_reading,
 };
 
 /*------------------------*

@@ -132,7 +132,10 @@ typedef struct _PRIVATE_DATA {
     int phase;              // the tests run in the loop: each phase a timeout
     uint64_t t_wait;        // msectimer: the deadline of what a phase waits for
     int result;
+    hgobj client1;
     hgobj client3;
+    json_int_t rates_tx0;
+    json_int_t rates_rx0;
 } PRIVATE_DATA;
 
 
@@ -1122,6 +1125,89 @@ PRIVATE int test_inject_in_a_loop(hgobj gobj, hgobj client)
 }
 
 /***************************************************************************
+ *  13. The message counters and their rates move with relayed traffic. The
+ *      first reading of a rate sets its baseline; then 100 command-agent
+ *      round trips (a request in from a client, out to the agent; the
+ *      answer in from the agent, out to the client).
+ ***************************************************************************/
+#define RATES_ROUND_TRIPS 100
+
+PRIVATE int test_rates_traffic(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    if(gobj_read_integer_attr(priv->cc, "txMsgs") <= 0 ||
+            gobj_read_integer_attr(priv->cc, "rxMsgs") <= 0) {
+        ret += fail(gobj, "the message counters do not count the relayed traffic", "");
+    }
+    gobj_read_integer_attr(priv->cc, "txMsgsec");   // the baseline of the rates
+    priv->rates_tx0 = gobj_read_integer_attr(priv->cc, "txMsgs");
+    priv->rates_rx0 = gobj_read_integer_attr(priv->cc, "rxMsgs");
+
+    hgobj client = priv->client1;
+    for(int i=0; i<RATES_ROUND_TRIPS; i++) {
+        json_t *kw = client_kw(gobj_name(client));
+        json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+        json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+        json_t *response = gobj_command(priv->cc, "command-agent", kw, client);
+        JSON_DECREF(response)
+        json_t *request = agent_request(gobj, "command-agent reaches the agent");
+        if(request) {
+            agent_sends(gobj, EV_MT_COMMAND_ANSWER, request, 0, "rates");
+            JSON_DECREF(request)
+        }
+    }
+    if(count_received(client, EV_MT_COMMAND_ANSWER, "rates") != RATES_ROUND_TRIPS) {
+        ret += fail(gobj, "the round trips of the rates test", "");
+    }
+    json_int_t tx = gobj_read_integer_attr(priv->cc, "txMsgs") - priv->rates_tx0;
+    json_int_t rx = gobj_read_integer_attr(priv->cc, "rxMsgs") - priv->rates_rx0;
+    if(tx != 2*RATES_ROUND_TRIPS || rx != 2*RATES_ROUND_TRIPS) {
+        char detail[80];
+        snprintf(detail, sizeof(detail), "tx +%lld rx +%lld, expected +%d each",
+            (long long)tx, (long long)rx, 2*RATES_ROUND_TRIPS);
+        ret += fail(gobj, "the counters count two messages per round trip each way", detail);
+    }
+    return ret;
+}
+
+/***************************************************************************
+ *  13. A second later: the rates are not 0, and the maxima hold them; a
+ *      stats=__reset__ zeroes them
+ ***************************************************************************/
+PRIVATE int test_rates_read(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_int_t txsec = gobj_read_integer_attr(priv->cc, "txMsgsec");
+    json_int_t rxsec = gobj_read_integer_attr(priv->cc, "rxMsgsec");
+    if(txsec <= 0 || rxsec <= 0) {
+        char detail[80];
+        snprintf(detail, sizeof(detail), "txMsgsec %lld rxMsgsec %lld",
+            (long long)txsec, (long long)rxsec);
+        ret += fail(gobj, "the rates move with relayed traffic", detail);
+    }
+    if(gobj_read_integer_attr(priv->cc, "maxtxMsgsec") < txsec ||
+            gobj_read_integer_attr(priv->cc, "maxrxMsgsec") < rxsec) {
+        ret += fail(gobj, "the maxima hold the rates", "");
+    }
+
+    /*
+     *  stats=__reset__ zeroes the counters too (they live in priv)
+     */
+    json_t *jn_stats = gobj_stats(priv->cc, "__reset__", json_object(), gobj);
+    JSON_DECREF(jn_stats)
+    if(gobj_read_integer_attr(priv->cc, "txMsgs") != 0 ||
+            gobj_read_integer_attr(priv->cc, "rxMsgs") != 0 ||
+            gobj_read_integer_attr(priv->cc, "maxtxMsgsec") != 0) {
+        ret += fail(gobj, "stats=__reset__ zeroes the message counters and maxima", "");
+    }
+    return ret;
+}
+
+/***************************************************************************
  *  12. The control center paused and stopped while the yuno runs (not at
  *      the shutdown, where a stop of a gobj that is not running is
  *      quiet): its timers, already stopped by clear_timeout(), are not
@@ -1173,6 +1259,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_answer_to_local_requesters(gobj, client1);
     result += test_inject_in_a_loop(gobj, client2);
 
+    priv->client1 = client1;
     priv->client3 = client3;
     return result;
 }
@@ -1280,7 +1367,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             priv->result += fail(gobj, "the drops timer did not fire in time",
                 priv->phase == 2? "phase 2" : "phase 3");
-            priv->phase = 4;
+            priv->phase = 5;
         }
     }
 
@@ -1304,6 +1391,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             return 0;
         case 3:
             priv->result += test_drops_timer_said(gobj);
+            priv->result += test_rates_traffic(gobj);
+            set_timeout(priv->timer, 1100);     // a rate is over whole seconds
+            KW_DECREF(kw)
+            return 0;
+        case 4:
+            priv->result += test_rates_read(gobj);
             priv->result += test_stop_outside_shutdown(gobj);
             break;
         default:
