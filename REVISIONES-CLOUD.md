@@ -188,3 +188,13 @@ the hook is not affected.
 3. Defect 5 (hook).
 4. The timeranger2 delete cost, measured on a follower with many open keys
    before deciding.
+
+## Status (2026-10-01)
+
+Defects 1 to 5 are fixed, each with a test that fails on the code before it
+(the hook excepted: verified by sourcing `yunetas-env.sh` under
+`set -euo pipefail`): `emailsender/set_user_queued`,
+`emailsender/skip_in_flight`, and two checks in `secret_attrs`. The NULL of
+`ievent_kw_masked()` in `trace_inter_event2()` (a nit) is fixed with
+defect 4. See `CHANGELOG.md` "Unreleased". The risks and the other nits are
+open.

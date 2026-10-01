@@ -495,12 +495,16 @@ PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgob
     /*
      *  The SMTP child reads its credentials at each AUTH, so a session that
      *  is already running takes them at its next login; one that could not
-     *  start without them starts now, and its EV_ON_OPEN sends the queue.
+     *  start without them starts now, and is given the queue: it connects
+     *  only for a message it holds, so no EV_ON_OPEN comes to send it. Up
+     *  to 7.25.21 the queue waited for the next email queued.
      */
     gobj_write_str_attr(priv->smtp, "username", username);
     gobj_write_str_attr(priv->smtp, "password", password);
     if(gobj_is_playing(gobj)) {
-        start_smtp(gobj);
+        if(start_smtp(gobj) == 0 && gobj_in_this_state(gobj, ST_IDLE)) {
+            tira_dela_cola(gobj);
+        }
     }
 
     return msg_iev_build_response(

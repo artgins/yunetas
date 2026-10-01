@@ -1,5 +1,38 @@
 # **Changelog**
 
+## Unreleased
+
+What changed after 7.25.21: the defects of a review of that release. Each fix
+has a test that fails on the code before it, except the hook.
+
+- **emailsender: `set-email-user` sends what was queued while the credentials
+  were missing.** The session connects only for a message it holds, and the
+  command only started it: an email queued before the credentials waited for
+  the next one queued, or for a pause and a play. Test
+  `emailsender/set_user_queued`.
+- **emailsender: `skip-email` of an email in its mail transaction no longer
+  stalls the queue.** The stopped session stays in its transaction state until
+  its C_TCP reports the close, and refused the next email there (*"Event NOT
+  DEFINED in state"*); the close of a stop tells nothing, so the queue waited
+  for the next email queued. `C_SMTP_SESSION` now takes `EV_SEND_MESSAGE` in
+  those states too, and the email goes on the next connection. Test
+  `emailsender/skip_in_flight`.
+- **SECURITY: a positional secret written with blanks is not echoed.** A
+  required `SDF_SECRET` parameter given without its key and with blanks in it
+  (`set-password-pos correct horse battery`) took the first word, and the
+  answer *"command ... with extra parameters"* showed the rest in clear. It
+  now shows `'<...>'`, as for the same secret written as `key=value`. Test
+  `secret_attrs`.
+- **SECURITY: the `ievents` trace masks a command by its table.** It masked
+  by key names only, so a positional secret of a v7 command (in `__md_iev__`)
+  went in clear; it now masks like `ievents2` (`ievent_kw_masked()`). Both
+  traces log an ERROR and trace nothing if the masking fails, instead of a
+  silent failure of `json_pack()`. Test `secret_attrs`.
+- **`yunetas-env.sh` can be sourced with `set -u`.** It read two variables
+  that nothing sets (`$dir`, `$pwd_opt`), so the cloud SessionStart hook,
+  which runs under `set -euo pipefail`, stopped there with
+  `YUNETAS_HOOK_BUILD_C=1`, before the external libraries and the C build.
+
 ## v7.25.21 (2026-10-01)
 
 What changed after 7.25.20. Each behaviour change has a test that fails on the

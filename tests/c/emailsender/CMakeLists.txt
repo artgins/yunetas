@@ -85,6 +85,8 @@ SET(SRCS
     rset_refused_logins
     quoted_quota
     quoted_access
+    set_user_queued
+    skip_in_flight
 )
 
 ##############################################

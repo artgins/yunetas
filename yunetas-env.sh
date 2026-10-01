@@ -30,11 +30,11 @@ if [[ -z "${ORIGINAL_PATH-}" ]]; then
     export ORIGINAL_PATH
 fi
 
-# Identify OS source tree root directory
-builtin cd "$( dirname "$dir" )" > /dev/null
-YUNETAS_BASE=$(pwd ${pwd_opt})
+# The source tree root: the directory this file is sourced from (checked
+# above). Up to 7.25.21 it read $dir and $pwd_opt, which nothing sets: a
+# shell with `set -u` (the SessionStart hook) stopped here.
+YUNETAS_BASE=$(pwd)
 export YUNETAS_BASE
-unset pwd_opt
 
 # Build artefacts live INSIDE YUNETAS_BASE. /yuneta/development/yunetas is
 # the same base on every node: full source checkout on dev nodes, sparse SDK

@@ -740,6 +740,7 @@ PRIVATE json_t *build_cmd_kw(
     BOOL wild_command = (cnf_cmd->flag & SDF_WILD_CMD)?1:0;
     json_t *kw_cmd = json_object();
     char *pxxx = parameters;
+    const char *last_key = NULL;    // the parameter before an extra word
     char bftemp[1] = {0};
     if(!pxxx) {
         pxxx = bftemp;
@@ -814,6 +815,7 @@ PRIVATE json_t *build_cmd_kw(
             );
         }
         json_object_set_new(kw_cmd, ip->name, jn_param);
+        last_key = ip->name;    // a positional secret with blanks leaves the rest of it
 
         ip++;
     }
@@ -870,7 +872,6 @@ PRIVATE json_t *build_cmd_kw(
      */
     char *key;
     char *value;
-    const char *last_key = NULL;    // the parameter before an extra word
     while(1) {
         key = NULL;
         value = get_key_value_parameter(pxxx, &key, &pxxx);
@@ -954,7 +955,9 @@ PRIVATE json_t *build_cmd_kw(
          *  The extra text is echoed with its secrets masked: a secret
          *  name=value in it, and all of it when it follows a secret
          *  parameter -- the rest of its value, written with blanks
-         *  (password=correct horse battery, password= hunter2)
+         *  (password=correct horse battery, password= hunter2), as a
+         *  key=value or as a positional parameter (up to 7.25.21 the
+         *  positional one showed the rest of it)
          */
         *result = -1;
         JSON_DECREF(kw_cmd);

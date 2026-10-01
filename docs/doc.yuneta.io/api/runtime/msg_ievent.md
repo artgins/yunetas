@@ -379,7 +379,10 @@ Message type string, or an empty string if not set.
 ## `trace_inter_event()`
 
 Traces an inter-event with compact metadata (only `result` and
-`__md_iev__`).
+`__md_iev__`). Used by the `ievents` trace level. The secrets are masked as in
+[`trace_inter_event2()`](#trace_inter_event2) — the command of a v7
+inter-event lives in `__md_iev__`, and a positional `SDF_SECRET` parameter in
+it is masked by the command table of its destination service.
 
 ```C
 void trace_inter_event(
@@ -402,6 +405,31 @@ void trace_inter_event(
 **Returns**
 
 This function does not return a value.
+
+**Example**
+
+```C
+/*
+ *  A service "vault" of this yuno, whose command takes its secret
+ *  positionally (a leading SDF_REQUIRED parameter):
+ *
+ *      PRIVATE sdata_desc_t pm_set_password[] = {
+ *      SDATAPM (DTP_STRING, "password", SDF_REQUIRED|SDF_SECRET, 0, "The new password"),
+ *      SDATA_END()
+ *      };
+ */
+json_t *kw = json_pack("{s:{s:[{s:s}], s:[{s:s}]}}",
+    "__md_iev__",
+        "ievent_gate_stack", "dst_service", "vault",
+        "__command__", "command", "set-password hunter2"
+);
+trace_inter_event(gobj, "ievents", "EV_MT_COMMAND", kw);
+// the trace shows "command": "set-password ********"
+json_decref(kw);
+```
+
+Up to 7.25.21 this trace masked by key names only, and such a positional
+secret went in clear.
 
 ---
 

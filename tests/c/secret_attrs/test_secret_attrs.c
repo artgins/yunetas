@@ -715,6 +715,21 @@ PRIVATE void check_log_dumps(hgobj gobj)
     unwatch("the ievents2 trace of a command to a remote service");
     JSON_DECREF(kw)
 
+    /*
+     *  The ievents trace shows only result and __md_iev__, where a v7
+     *  command lives: a positional secret in it is masked by the command
+     *  table. Up to 7.25.21 it was masked by names only, and went in clear.
+     */
+    kw = json_pack("{s:{s:[{s:s}], s:[{s:s}]}}",
+        "__md_iev__",
+            "ievent_gate_stack", "dst_service", "secret-holder",
+            "__command__", "command", "set-password-pos ievpos-hunter2"
+    );
+    watch("ievpos-hunter2", "ievents-v7");
+    trace_inter_event(gobj, "ievents-v7", "EV_MT_COMMAND", kw);
+    unwatch("the ievents trace of a positional secret");
+    JSON_DECREF(kw)
+
     gobj_set_global_trace("commands", TRUE);
     watch("wa-hunter2", "write-attr");
     resp = gobj_command(gobj_yuno(),
@@ -770,6 +785,18 @@ PRIVATE void check_log_dumps(hgobj gobj)
     );
     JSON_DECREF(resp)
     unwatch("the commands trace of a secret with blanks");
+    /*
+     *  The same, positional: the required secret takes "correct" and the
+     *  rest has no '='. Up to 7.25.21 the refusal showed 'horse battery'.
+     */
+    watch("horse", "set-password-pos");
+    resp = gobj_command(holder, "set-password-pos correct horse battery", 0, holder);
+    check_int("a positional secret with blanks refuses the command", (int)kw_get_int(0, resp, "result", 0, 0), -1);
+    check_true("its refusal shows no word of it",
+        !strstr(kw_get_str(0, resp, "comment", "", 0), "horse")
+    );
+    JSON_DECREF(resp)
+    unwatch("the commands trace of a positional secret with blanks");
     watch("blank-hunter2", "set-password");
     resp = gobj_command(holder, "set-password password= blank-hunter2 note=1", 0, holder);
     check_int("a key with a blank refuses the command", (int)kw_get_int(0, resp, "result", 0, 0), -1);

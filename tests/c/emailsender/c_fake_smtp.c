@@ -38,6 +38,8 @@
  *          end of DATA is a delivery; any other answer is logged as
  *          "Fake smtp: message refused". After a 421, whatever it answers,
  *          the server closes the connection, as RFC 5321 says it does.
+ *          A `data_replies` entry "hold" answers nothing ("Fake smtp: DATA
+ *          held"): the client stays in its transaction.
  *
  *          `connection_plan` says what the server does with each connection
  *          (one entry per connection, "greet" once they run out): "greet",
@@ -361,6 +363,14 @@ PRIVATE int process_line(hgobj gobj, const char *line)
             if(!reply) {
                 // Error already logged
                 return -1;
+            }
+            if(strcmp(reply, "hold") == 0) {
+                gobj_log_info(gobj, 0,
+                    "msgset",       "%s", MSGSET_INFO,
+                    "msg",          "%s", "Fake smtp: DATA held",
+                    NULL
+                );
+                return 0;
             }
             if(strncmp(reply, "250", 3) != 0) {
                 gobj_log_info(gobj, 0,

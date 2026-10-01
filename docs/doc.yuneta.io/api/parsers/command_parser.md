@@ -284,9 +284,13 @@ line = command_mask_secret_line(agent,  // command-yuno is SDF_WILD_CMD
 
 The errors the parser answers for a malformed line mask what they echo: a
 secret `name=value` in the extra text, and all of it when it is the value of a
-secret parameter written with a blank after its `=`. `set-password password=
+secret parameter written with a blank after its `=`, or the rest of a
+positional secret written with blanks. `set-password password=
 hunter2` is refused with *"command 'set-password' with extra parameters:
-'<...>'"*; `list-yunos foo` with *"... extra parameters: 'foo'"*.
+'<...>'"*, and so is `set-password-pos correct horse battery` (a required
+`SDF_SECRET` parameter given without its key: it takes `correct`, and up to
+7.25.21 the answer showed `'horse battery'`); `list-yunos foo` with *"...
+extra parameters: 'foo'"*.
 
 A value opened with a quote and never closed (`password='abc`) refuses the
 command: *"command 'set-password', parameter 'password': value with no

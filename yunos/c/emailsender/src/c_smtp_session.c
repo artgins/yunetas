@@ -2485,6 +2485,15 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *  breaks the one-message contract sends one: it gets the ERROR of
      *  ac_send_message ("another message in flight"), which names the
      *  fault, rather than "Event NOT DEFINED".
+     *
+     *  The states of a mail transaction (MAIL FROM to the end of DATA) take
+     *  it too, for the same reason and one more: a session STOPPED in one of
+     *  them (the owner's skip-email of the message in hand) stays there until
+     *  its C_TCP reports the close, with no message in hand, and the owner
+     *  sends the next head of its queue at once. The message is stashed and
+     *  goes on the next connection (ac_stopped). Up to 7.25.21 it was refused
+     *  ("Event NOT DEFINED"), and as the close of a stop tells nothing, the
+     *  queue waited for the next email queued.
      */
     ev_action_t st_wait_connected[] = {
         {EV_SEND_MESSAGE,       ac_send_message,        0},
@@ -2542,6 +2551,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
     ev_action_t st_wait_mail_from_resp[] = {
+        {EV_SEND_MESSAGE,       ac_send_message,        0},
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
         {EV_TX_READY,           0,                      0},
@@ -2552,6 +2562,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
     ev_action_t st_wait_rcpt_to_resp[] = {
+        {EV_SEND_MESSAGE,       ac_send_message,        0},
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
         {EV_TX_READY,           0,                      0},
@@ -2562,6 +2573,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
     ev_action_t st_wait_data_go[] = {
+        {EV_SEND_MESSAGE,       ac_send_message,        0},
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
         {EV_TX_READY,           0,                      0},
@@ -2572,6 +2584,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
     ev_action_t st_wait_data_resp[] = {
+        {EV_SEND_MESSAGE,       ac_send_message,        0},
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
         {EV_TX_READY,           0,                      0},

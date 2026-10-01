@@ -664,24 +664,50 @@ PRIVATE json_t *ievent_kw_masked(json_t *kw)
 }
 
 /***************************************************************************
- *  What the ievents trace shows: the secrets masked (ievent_kw_masked())
+ *  What the ievents trace shows: result and __md_iev__ of the kw, the
+ *  secrets masked (ievent_kw_masked()). Up to 7.25.21 they were masked by
+ *  names only, and a positional secret of a v7 command (in __md_iev__)
+ *  went in clear.
  ***************************************************************************/
 PUBLIC void trace_inter_event(hgobj gobj, const char *prefix, const char *event, json_t *kw)
 {
-    json_t * kw_compact = json_object();
-    if(kw_has_key(kw, "result")) {
-        json_object_set(kw_compact, "result", kw_get_dict_value(gobj, kw, "result", 0, 0));
+    json_t *kw_shown = ievent_kw_masked(kw);
+    if(!kw_shown) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "ievent_kw_masked() FAILED: the inter-event is not traced",
+            "event",        "%s", event?event:"???",
+            NULL
+        );
+        return;
     }
-    if(kw_has_key(kw, "__md_iev__")) {
-        json_object_set(kw_compact, "__md_iev__", kw_get_dict_value(gobj, kw, "__md_iev__", 0, 0));
+
+    json_t *kw_compact = json_object();
+    if(kw_has_key(kw_shown, "result")) {
+        json_object_set(kw_compact, "result", kw_get_dict_value(gobj, kw_shown, "result", 0, 0));
     }
+    if(kw_has_key(kw_shown, "__md_iev__")) {
+        json_object_set(kw_compact, "__md_iev__", kw_get_dict_value(gobj, kw_shown, "__md_iev__", 0, 0));
+    }
+    json_decref(kw_shown);
 
     json_t *jn_iev = json_pack("{s:s, s:o}",
         "event", event?event:"???",
         "kw", kw_compact
     );
+    if(!jn_iev) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "json_pack() FAILED: the inter-event is not traced",
+            "event",        "%s", event?event:"???",
+            NULL
+        );
+        return;
+    }
 
-    gobj_trace_json_masked(gobj, jn_iev, "%s", prefix);
+    gobj_trace_json(gobj, jn_iev, "%s", prefix);
     json_decref(jn_iev);
 }
 
@@ -691,10 +717,31 @@ PUBLIC void trace_inter_event(hgobj gobj, const char *prefix, const char *event,
  ***************************************************************************/
 PUBLIC void trace_inter_event2(hgobj gobj, const char *prefix, const char *event, json_t *kw)
 {
+    json_t *kw_shown = ievent_kw_masked(kw);
+    if(!kw_shown) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "ievent_kw_masked() FAILED: the inter-event is not traced",
+            "event",        "%s", event?event:"???",
+            NULL
+        );
+        return;
+    }
     json_t *jn_iev = json_pack("{s:s, s:o}",
         "event", event?event:"???",
-        "kw", ievent_kw_masked(kw)
+        "kw", kw_shown
     );
+    if(!jn_iev) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "json_pack() FAILED: the inter-event is not traced",
+            "event",        "%s", event?event:"???",
+            NULL
+        );
+        return;
+    }
 
     gobj_trace_json(gobj, jn_iev, "%s", prefix);
     json_decref(jn_iev);

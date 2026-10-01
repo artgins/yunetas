@@ -19,8 +19,9 @@ against a fake SMTP server.
   too early").
   RCPT TO and the end of DATA are answered from `rcpt_replies` and
   `data_replies` the same way; only a 250 to the end of DATA is a delivery
-  (anything else logs "Fake smtp: message refused"), and after a `421` the
-  server closes the connection. `connection_plan` says what it does with each
+  (anything else logs "Fake smtp: message refused"; `hold` answers nothing,
+  "Fake smtp: DATA held", and leaves the client in its transaction), and after
+  a `421` the server closes the connection. `connection_plan` says what it does with each
   connection: `greet`, `drop` (closed at once), `garbage` (two malformed lines
   in one write) or `long_line` (a line longer than the client's reply buffer).
   `MAIL FROM` is answered from `mail_replies`, `RSET` from `rset_replies`, and with `max_connections` one
@@ -103,3 +104,5 @@ that exit into a failure.
 | `rset_refused_logins` | 7868 | twelve emails to a dead address (`550 5.1.1`) and a server that refuses `RSET`: each refusal ends the session with `QUIT`, and the run is paced: at most five connections in 8 s (`max_connections` 5). Before, a bad address did not count: a login a second, one per email |
 | `quoted_quota` | 7869 | twelve emails with a `from` of their own and a quota reply that QUOTES the address (`550 5.7.1 <alarm@example.com>: sending quota exceeded`): a 5.7.x is the account's, quoted or not -- paced, a retry per attempt, one email in the failed queue after `max_retries` 3, eleven waiting after 9 s, and the ERROR of the alarm. Before, the quoted own from made it the message's: one email failed per paced reconnection |
 | `quoted_access` | 7870 | the same with Postfix's sender reject (`554 5.7.1 <alarm@example.com>: Sender address rejected: Access denied`): the account's, the same counts |
+| `set_user_queued` | 7871 | the service starts with no credentials and a url where nobody listens (7872); an email is queued, THEN `set-email-user` gives the credentials and the url of the fake server, and no other email follows: the queued one is delivered. Up to 7.25.21 `set-email-user` only started the session, which connects only for a message it holds, and the email waited for the next one queued |
+| `skip_in_flight` | 7873 | two emails; the server holds the end of DATA of the first (`data_replies` `hold`), and `skip-email` moves it to the failed queue while the session is in its mail transaction: the second is delivered. Up to 7.25.21 the stopped session, still in its transaction state until its C_TCP closed, refused the second ("Event NOT DEFINED"), and the queue waited for the next email queued. The fake server has two channels: the session reconnects before the server sees the first close |

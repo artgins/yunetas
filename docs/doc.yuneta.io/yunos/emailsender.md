@@ -59,7 +59,8 @@ While either one is blank the SMTP side does not start. The yuno runs, accepts
 and queues emails, and logs one ERROR (*"SMTP username or password is empty:
 emails are queued, NOT sent. Set them with the set-email-user command"*). The
 command applies at once, with no restart: the session starts and the queue is
-sent.
+sent, the emails queued while the credentials were missing included (up to
+7.25.21 they waited for the next email queued).
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=emailsender command=set-email-user username=no-reply@example.com password=<password>'
@@ -81,7 +82,7 @@ to any logic in the current code; setting them has no effect.
 | `send-email` | `to`, `subject`, `body`, `reply-to`, `attachment`, `inline_file_id`, `is_html` | Enqueue an email. `to`/`cc`/`bcc` accept comma- **or** semicolon-separated lists. Recipients are deduplicated. |
 | `list-queues` | — | Dump the messages in `emails_queue` and `emails_failed` with totals. Works while paused (queues are opened temporarily). |
 | `remove-emails-failed` | — | Purge the `emails_failed` dead-letter queue. Works while paused. |
-| `skip-email` | — | Move the email at the head of `emails_queue` (the one being tried, which every other waits behind) to `emails_failed` at once, with a WARNING; answers with its `to` and `subject`. Works while paused. Example: `ycommand -c 'command-yuno id=<id> service=emailsender command=skip-email'` |
+| `skip-email` | — | Move the email at the head of `emails_queue` (the one being tried, which every other waits behind) to `emails_failed` at once, with a WARNING; answers with its `to` and `subject`. Works while paused, and while the email is in its mail transaction: the SMTP session is stopped and the next email goes on a new connection. Example: `ycommand -c 'command-yuno id=<id> service=emailsender command=skip-email'` |
 | `set-email-user` | `username`, `password`, `url`, `from` | Set the AUTH PLAIN credentials (required) and optionally the SMTP url / default From. All saved as persistent attrs. |
 | `set-url-from` | `url`, `from` | Set the SMTP url or both the default From and save them as persistent attrs (at least one required). |
 | `enable-alarm-emails` | — | Re-enable alarm emails |

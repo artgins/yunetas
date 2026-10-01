@@ -64,6 +64,15 @@
  *                      it to the failed queue (the answer must say so), the
  *                      queues are checked (none pending, one failed) and the
  *                      yuno ends.
+ *          "skip_in_flight"  two emails at once; `action_delay` ms later,
+ *                      the first in its mail transaction (the fake server
+ *                      holds its end of DATA), skip-email moves it to the
+ *                      failed queue (the answer must say so). The second
+ *                      must be delivered: the fake server ends the yuno.
+ *          "set_user_queued"  like "set_user", but the email is sent
+ *                      BEFORE set-email-user, while the service has no
+ *                      credentials, and none after: the queued one must be
+ *                      delivered.
  *          "send_check"  `email_count` emails at once; `action_delay` ms
  *                      later the queues must hold `expect_queued` pending
  *                      and `expect_failed` failed (list-queues), and the
@@ -106,6 +115,7 @@ PRIVATE int send_one_email(hgobj gobj);
 PRIVATE int send_email_to(hgobj gobj, const char *to, const char *cc);
 PRIVATE int send_email_from(hgobj gobj, const char *from);
 PRIVATE int start_scenario(hgobj gobj);
+PRIVATE int set_email_user(hgobj gobj);
 PRIVATE int set_url_from(hgobj gobj, const char *url, BOOL expect_wait);
 PRIVATE int check_queues(hgobj gobj, int expect_queued, int expect_failed);
 
@@ -276,6 +286,17 @@ PRIVATE int start_scenario(hgobj gobj)
         return send_one_email(gobj);
     }
 
+    if(strcmp(scenario, "skip_in_flight") == 0) {
+        set_timeout(priv->timer, gobj_read_integer_attr(gobj, "action_delay"));
+        send_one_email(gobj);
+        return send_one_email(gobj);
+    }
+
+    if(strcmp(scenario, "set_user_queued") == 0) {
+        send_one_email(gobj);
+        return set_email_user(gobj);
+    }
+
     if(strcmp(scenario, "send_check") == 0) {
         set_timeout(priv->timer, gobj_read_integer_attr(gobj, "action_delay"));
         int count = (int)gobj_read_integer_attr(gobj, "email_count");
@@ -337,24 +358,8 @@ PRIVATE int start_scenario(hgobj gobj)
     }
 
     if(strcmp(scenario, "set_user") == 0) {
-        char command[PATH_MAX];
-        snprintf(command, sizeof(command),
-            "set-email-user username=user password=secret url=%s",
-            gobj_read_str_attr(gobj, "smtp_url")
-        );
-        json_t *jn_resp = gobj_command(
-            gobj_find_service("emailsender", TRUE), command, json_object(), gobj
-        );
-        int result = (int)kw_get_int(gobj, jn_resp, "result", -1, 0);
-        JSON_DECREF(jn_resp)
-        if(result < 0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "set-email-user refused",
-                NULL
-            );
-            set_yuno_must_die();
+        if(set_email_user(gobj) < 0) {
+            // Error already logged
             return -1;
         }
     }
@@ -363,6 +368,35 @@ PRIVATE int start_scenario(hgobj gobj)
         return 0;
     }
     return send_one_email(gobj);
+}
+
+/***************************************************************************
+ *  set-email-user with the credentials and the url of the fake server to
+ *  the emailsender service. A refusal is an ERROR, and the yuno ends.
+ ***************************************************************************/
+PRIVATE int set_email_user(hgobj gobj)
+{
+    char command[PATH_MAX];
+    snprintf(command, sizeof(command),
+        "set-email-user username=user password=secret url=%s",
+        gobj_read_str_attr(gobj, "smtp_url")
+    );
+    json_t *jn_resp = gobj_command(
+        gobj_find_service("emailsender", TRUE), command, json_object(), gobj
+    );
+    int result = (int)kw_get_int(gobj, jn_resp, "result", -1, 0);
+    JSON_DECREF(jn_resp)
+    if(result < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "set-email-user refused",
+            NULL
+        );
+        set_yuno_must_die();
+        return -1;
+    }
+    return 0;
 }
 
 /***************************************************************************
@@ -601,7 +635,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(strcmp(scenario, "refill") == 0) {
         send_one_email(gobj);
 
-    } else if(strcmp(scenario, "skip") == 0) {
+    } else if(strcmp(scenario, "skip") == 0 || strcmp(scenario, "skip_in_flight") == 0) {
         hgobj emailsender = gobj_find_service("emailsender", TRUE);
         json_t *jn_resp = gobj_command(emailsender, "skip-email", json_object(), gobj);
         int result = (int)kw_get_int(gobj, jn_resp, "result", -1, 0);
@@ -623,8 +657,10 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
         }
         JSON_DECREF(jn_resp)
-        check_queues(gobj, 0, 1);
-        set_yuno_must_die();
+        if(strcmp(scenario, "skip") == 0) {
+            check_queues(gobj, 0, 1);
+            set_yuno_must_die();
+        }
 
     } else if(strcmp(scenario, "send_check") == 0) {
         check_queues(gobj,
