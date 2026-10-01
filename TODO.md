@@ -6,11 +6,10 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 `docs/doc.yuneta.io/yunos/mqtt_broker.md`,
 `docs/doc.yuneta.io/guide/guide_tls.md`) and git history.
 
-## Defects open after review round 21 (the next review round starts here)
+## Defects open after 7.25.20 (the next review round starts here)
 
-Round 21 (Unreleased, 2026-09-30) fixed the nine items 7.25.5 left open and
-what a review of 7.25.6-7.25.20 found (see CHANGELOG). Left open, each a
-defect or a gap, not a design choice; fix it with a test that fails first:
+What the review of 7.25.6-7.25.20 found is fixed (see CHANGELOG, Unreleased).
+Left open:
 
 - **C_TRANGER handles opened through the agent are not reaped** when the
   operator's session ends (documented in `api/gclass/data.md`). A
@@ -21,28 +20,18 @@ defect or a gap, not a design choice; fix it with a test that fails first:
   control center, not even there). Needs a DESIGN decision: an agent-to-yuno
   "session ended" notification, and a rule for when several sessions of one
   user are one owner.
-- **`_delete_subscription()` reads the publisher out of the subscription it is
-  given**: a stale subscription list that outlives its publisher points at
-  freed memory. Round 21 made a stale subscription remove nothing; the list
-  itself is the caller's bug.
-- **Traces that still show secrets**: the C_TCP `traffic` dump of RECEIVED
-  data on server gates (a Cookie header, a password in an HTTP body: the
-  sender cannot mark them), the `ev_kw` dump of an event a command is
-  redirected to or of an inter-event carrying a command (no command table
-  says what is secret there), and `__json_config_variables__` plus the
-  `[^^children^^]` templates in `view-config` and the traces.
-- **`C_FS` has no subscription block in `mt_create`** (neither the CHILD nor
-  the SERVICE model): its hosts subscribe by hand (watchfs does). Adding one
-  would double-subscribe them; decide the model and migrate watchfs with it.
-- **webstats counts days as N*86400** in `prune_store`, the whois cache expiry
-  and `new_visitor_days`: an hour off around a DST change.
-- **The static resolver does not take the IPv4 shorthand** glibc takes
-  (`"127.1"`): such a literal goes to DNS.
-- **The c_mqtt tests use fixed ports (18110-18117) and fixed `/tmp/test_mqtt_*`
-  dirs**: two runs on one machine at the same time collide ("bind() FAILED").
-- **The Python TUI (`utils/python/tui_yunetas`) was not checked** against
-  C_IEVENT_SRV closing a session frame that carries no well-formed routing, nor
-  against the identity card now refused when its jwt is not a string.
+- **Secrets a trace still cannot tell**: a credential in RECEIVED bytes that is
+  neither an HTTP credential header, nor a `name=value`, nor a json
+  `"name": value` with a secret's name; and a parameter of a command for a
+  REMOTE service whose name is not a secret's name (no command table is at
+  hand to say it is `SDF_SECRET`).
+- **Each test binary still has a fixed port**: two whole suites run at once on
+  one machine still collide (`ctest -j` within one run is safe since
+  `scripts/check_test_ports.py`). Ports chosen at run time would end it.
+- **`register_yuneta_environment()` lowercases `root_dir` and `domain_dir`**
+  and says nothing: a `work_dir` with capitals is written under another path.
+  Dates from 2023 and looks deliberate; decide whether it stays, and if so
+  make it say so.
 
 ## Schema editing: the admin console
 

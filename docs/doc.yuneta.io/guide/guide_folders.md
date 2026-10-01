@@ -5,13 +5,13 @@
 The Yuneta SDK is structured into the following top folders:
 
 - [docs](#docs):         Documentation of Yuneta.
-- [kernel](#kernel):     Kernel in several languages.
+- [kernel](#folders-kernel):     Kernel in several languages.
 - [modules](#modules):   Modules in several languages.
 - [packages](#packages): Debian packaging for the Yuneta Agent.
 - [performance](#performance): Performance tests.
 - [scripts](#scripts):   Auxiliary scripts added to the shell `PATH`.
 - [stress](#stress):     Stress tests.
-- [tests](#tests):       Tests.
+- [tests](#folders-tests):       Tests.
 - [tools](#folders-tools): Compilation or building tools.
 - [utils](#utils):       Utilities for Yuneta.
 - [yunos](#folders-yunos): Yunos supplied by the SDK.
@@ -25,7 +25,7 @@ The Yuneta SDK is structured into the following top folders:
 
 ---
 
-(kernel)=
+(folders-kernel)=
 ## `kernel`
 
 The core framework of Yuneta, implemented in multiple languages.
@@ -152,7 +152,7 @@ Stress-test programs that push Yuneta components under sustained load.
 
 ---
 
-(tests)=
+(folders-tests)=
 ## `tests`
 
 Tests for Yuneta components.
