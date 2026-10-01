@@ -375,8 +375,8 @@ What the owners of the tree do:
   than 256 KB the notes wait, unplaced, until the stream is past the end
   the backlog had then (an overflow in it drops them: the pass reads the
   directories), and the queue is not asked again meanwhile. The 69632-key
-  flood of `test_rt_disk_overflow` drains within 4% of 7.25.20's time
-  (3519 ms against 3385, ten alternated runs).
+  flood of `test_rt_disk_overflow` drains in 3753 ms, against 3588 when a
+  key not in the cache was read at once (twenty alternated runs).
 
   In a MASTER the watcher's echo of a delete forgets nothing:
   `tranger2_delete_key()` forgot the key when it deleted it, and the master
