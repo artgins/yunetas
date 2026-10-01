@@ -695,6 +695,16 @@ PUBLIC json_t *gbuffer_serialize(
     gbuffer_t *gbuf  // not owned
 )
 {
+    if(!gbuf) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "gbuffer_serialize() with NULL gbuf",
+            NULL
+        );
+        return NULL;
+    }
+
     if(gbuf->secret) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,

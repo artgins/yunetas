@@ -35,7 +35,7 @@ directory. Every test binary under `tests/c` and `performance/c` listens on
 ports of its own, and a new test takes new ones:
 
 ```bash
-python3 scripts/check_test_ports.py          # exit 1 when two binaries share a port
+python3 scripts/check_test_ports.py          # exit 1 when two binaries share a port, or a file cannot be read
 python3 scripts/check_test_ports.py --list   # every port and the binary of it
 ```
 

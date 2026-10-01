@@ -571,6 +571,7 @@ PRIVATE json_t *parameter2json(
     int type,
     const char *name,
     const char *s,
+    BOOL secret,    // a json that does not parse is not logged
     int *result
 )
 {
@@ -603,10 +604,30 @@ PRIVATE json_t *parameter2json(
     } else if(DTP_IS_REAL(type)) {
         return json_real(atof(s));
 
-    } else if(DTP_IS_JSON(type)) {
-        return anystring2json(s, strlen(s), TRUE);
-    } else if(DTP_IS_LIST(type) || DTP_IS_DICT(type)) {
-        return string2json(s, TRUE);
+    } else if(DTP_IS_JSON(type) || DTP_IS_LIST(type) || DTP_IS_DICT(type)) {
+        /*
+         *  The verbose parsers log the text that does not parse: not for a
+         *  secret, whose failure is said by its name only. Up to 7.25.21
+         *  it was logged in clear.
+         */
+        json_t *jn = DTP_IS_JSON(type)?
+            anystring2json(s, strlen(s), !secret) : string2json(s, !secret);
+        if(!jn && secret) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "secret parameter is not a valid json",
+                "parameter",    "%s", name,
+                NULL
+            );
+            *result = -1;
+            return json_sprintf(
+                "%s: parameter '%s' is not a valid json",
+                gobj_short_name(gobj),
+                name
+            );
+        }
+        return jn;
     } else {
         *result = -1;
         json_t *jn_data = json_sprintf(
@@ -799,7 +820,9 @@ PRIVATE json_t *build_cmd_kw(
                 ip->name
             );
         }
-        json_t *jn_param = parameter2json(gobj, ip->type, ip->name, param, result);
+        json_t *jn_param = parameter2json(gobj, ip->type, ip->name, param,
+            is_secret_parameter(cnf_cmd, ip->name), result
+        );
         if(*result < 0) {
             JSON_DECREF(kw_cmd);
             return jn_param;
@@ -852,6 +875,7 @@ PRIVATE json_t *build_cmd_kw(
                 ip->type,
                 ip->name,
                 (char *)ip->default_value,
+                is_secret_parameter(cnf_cmd, ip->name),
                 result
             );
             if(*result < 0) {
@@ -915,10 +939,12 @@ PRIVATE json_t *build_cmd_kw(
         const sdata_desc_t *ip2 = find_ip_parameter(input_parameters, key);
         json_t *jn_param = 0;
         if(ip2) {
-            jn_param = parameter2json(gobj, ip2->type, ip2->name, value, result);
+            jn_param = parameter2json(gobj, ip2->type, ip2->name, value,
+                is_secret_parameter(cnf_cmd, ip2->name), result
+            );
         } else {
             if(wild_command) {
-                jn_param = parameter2json(gobj, DTP_STRING, "wild-option", value, result);
+                jn_param = parameter2json(gobj, DTP_STRING, "wild-option", value, FALSE, result);
             } else {
                 *result = -1;
                 JSON_DECREF(kw_cmd);

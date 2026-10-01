@@ -368,7 +368,8 @@ A JSON object containing the serialized [`gbuffer_t *`](#gbuffer_t), including i
 `NULL` (logged, *"Cannot serialize a secret gbuffer"*) when the gbuffer is
 secret ([`gbuffer_set_secret()`](#gbuffer_set_secret)): its bytes would go as
 base64 into a json that the traffic traces print, and neither copy would be
-wiped.
+wiped. `NULL` (logged, *"gbuffer_serialize() with NULL gbuf"*) when `gbuf` is
+`NULL`: up to 7.25.21 that was a segfault.
 
 **Notes**
 

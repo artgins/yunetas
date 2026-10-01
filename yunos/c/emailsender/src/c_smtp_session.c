@@ -520,8 +520,18 @@ PRIVATE int send_line(hgobj gobj, const char *line, BOOL secret)
      *  the traffic dumps of the bottom C_TCP show it as "<N bytes hidden>".
      */
     gbuffer_set_secret(gbuf, secret);
-    gbuffer_append(gbuf, (void *)line, line_len);
-    gbuffer_append(gbuf, "\r\n", 2);
+    if((line_len > 0 && gbuffer_append(gbuf, (void *)line, line_len) != line_len) ||
+            gbuffer_append(gbuf, "\r\n", 2) != 2) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "gbuffer_append() FAILED: line not sent",
+            "line_len",     "%d", (int)line_len,
+            NULL
+        );
+        GBUFFER_DECREF(gbuf)
+        return -1;
+    }
 
     if(gobj_trace_level(gobj) & TRACE_SMTP) {
         /*
@@ -545,6 +555,16 @@ PRIVATE int send_line(hgobj gobj, const char *line, BOOL secret)
     json_t *kw_tx = json_pack("{s:I}",
         "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
+    if(!kw_tx) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "json_pack() FAILED: line not sent",
+            NULL
+        );
+        GBUFFER_DECREF(gbuf)
+        return -1;
+    }
     return gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_tx, gobj);
 }
 
@@ -1348,7 +1368,7 @@ PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, cons
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->refused_in_row++;
+    priv->refused_in_row++;     // counted even if its answer below cannot be built: the server did refuse it
     if(priv->refused_in_row > FREE_REFUSALS_IN_ROW) {
         /*
          *  Refused again, with no delivery since: the server is refusing
@@ -2045,13 +2065,25 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
         if(body_len < 2 ||
            body[body_len - 2] != '\r' || body[body_len - 1] != '\n') {
-            gbuffer_append(gbuf_body, "\r\n", 2);
+            if(gbuffer_append(gbuf_body, "\r\n", 2) != 2) {
+                // Error already logged
+                GBUFFER_DECREF(gbuf_body)
+                return abort_session_on_error(gobj, "gbuffer_append() FAILED (CRLF of the DATA body)");
+            }
         }
-        gbuffer_append(gbuf_body, ".\r\n", 3);
+        if(gbuffer_append(gbuf_body, ".\r\n", 3) != 3) {
+            // Error already logged
+            GBUFFER_DECREF(gbuf_body)
+            return abort_session_on_error(gobj, "gbuffer_append() FAILED (end of the DATA body)");
+        }
 
         json_t *kw_tx = json_pack("{s:I}",
             "gbuffer", (json_int_t)(uintptr_t)gbuf_body
         );
+        if(!kw_tx) {
+            GBUFFER_DECREF(gbuf_body)
+            return abort_session_on_error(gobj, "json_pack() FAILED for the DATA body");
+        }
         gobj_change_state(gobj, ST_WAIT_DATA_RESP);
         set_timeout(priv->timer, priv->timeout_response);
         return gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_tx, gobj);

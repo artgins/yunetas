@@ -107,8 +107,10 @@ agent's primary group. `bin/` is setgid only when the directory above it is:
 agent asks for), and a new directory takes it only from a setgid parent. On
 nodes whose `bin/` directories are `drwxrwxr-x yuneta:yuneta`, without the
 setgid bit, the group is `yuneta` either way. At every launch the agent writes
-each file again: to a temporary file in `bin/` (`.<n>-<role>^<name>.json.XXXXXX`),
-created with that mode, then renamed over the old one. So the new file is the
+each file again: to a temporary file in `bin/` (`.config.XXXXXX`; up to
+7.25.21 `.<n>-<role>^<name>.json.XXXXXX`, eight bytes longer than the file,
+so a name a few bytes under `NAME_MAX` could not be written), created with
+that mode, then renamed over the old one. So the new file is the
 agent's own whoever owned the old one (for example a file of another user
 that the agent could write only through the group), a symbolic link at that
 name is replaced and never followed, and a failed write leaves the old file
@@ -124,9 +126,12 @@ never reads it, but its secrets are still in it. At every launch the agent
 narrows each such file (a number over the ones it wrote now) to `0640`. It
 never widens a mode, never removes a file, and leaves a symbolic link as it
 is (with a warning). The one exception is a temporary file that a write left
-because the agent died before its rename (`.<n>-<role>^<name>.json.XXXXXX`):
-it is removed, with the warning *"A temporary configuration file of a yuno,
-left by an interrupted write, removed"*, if it is a regular file. A file it cannot narrow is logged, and the yuno still
+because the agent died before its rename (`.config.XXXXXX`, or the
+`.<n>-<role>^<name>.json.XXXXXX` of 7.25.21): it is removed, with the warning
+*"A temporary configuration file of a yuno, left by an interrupted write,
+removed"*, if it is a regular file. The agent also removes them for every
+yuno when it starts (only its own death leaves one), so a yuno that is not
+launched again keeps none: up to 7.25.21 only its next launch did. A file it cannot narrow is logged, and the yuno still
 runs: that file is not part of its configuration.
 
 ### 2.3 The `yunos` topic

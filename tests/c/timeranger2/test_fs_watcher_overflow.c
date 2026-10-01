@@ -53,6 +53,9 @@
  *  (do_test_root_reborn, recursive and not): after the pass the new root
  *  is watched, a file created in it is heard. Up to 7.25.20 the pass
  *  watched again the directories it met, never the root it started from.
+ *  And the entry of the old root, whose IN_IGNORED went with the rest, is
+ *  taken out of the table of watches once the stream is past where it
+ *  would have come: up to 7.25.21 it stayed for good.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -555,6 +558,16 @@ PRIVATE int do_test_root_reborn(BOOL recursive)
     if(root_files != 1) {
         printf("%sERROR%s --> a file in the root deleted and created again in the overflow: heard %d times, expected 1\n",
             On_Red BWhite, Color_Off, root_files);
+        result += -1;
+    }
+    /*
+     *  The wd of the old root is gone, and its IN_IGNORED with it: once
+     *  the stream is past the point where it would have come, its entry
+     *  goes. Up to 7.25.21 it stayed for good.
+     */
+    if(json_object_size(fs_event->jn_tracked_paths) != 1) {
+        printf("%sERROR%s --> the table of watches holds %d entries, expected 1 (the new root)\n",
+            On_Red BWhite, Color_Off, (int)json_object_size(fs_event->jn_tracked_paths));
         result += -1;
     }
     result += test_json(NULL);

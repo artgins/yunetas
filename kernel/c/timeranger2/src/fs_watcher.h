@@ -103,6 +103,9 @@ struct fs_event_s {
     uint64_t batch_end;         // Internal: offset of the end of the batch being walked
     BOOL in_batch;              // Internal: yev_callback is walking a batch read from inotify
     BOOL stopping;              // Internal: its owner stopped it (fs_stop_watcher_event)
+    json_t *rescan_seen;        // Internal: directories the pass visited, by path
+    json_t *stale_wds;          // Internal: wds stopped by a pass, whose IN_IGNORED may never come
+    uint64_t stale_mark;        // Internal: where the stream holds their IN_IGNORED, if it comes
 } ;
 
 

@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-What changed after 7.25.21: the defects of a review of that release. Each fix
-has a test that fails on the code before it, except the hook.
+What changed after 7.25.21: the defects and the nits of a review of that
+release. Each fix has a test that fails on the code before it, except the
+hook and the emailsender checks this list marks "(no red test)".
 
 - **emailsender: `set-email-user` sends what was queued while the credentials
   were missing.** The session connects only for a message it holds, and the
@@ -32,6 +33,40 @@ has a test that fails on the code before it, except the hook.
   that nothing sets (`$dir`, `$pwd_opt`), so the cloud SessionStart hook,
   which runs under `set -euo pipefail`, stopped there with
   `YUNETAS_HOOK_BUILD_C=1`, before the external libraries and the C build.
+- **`gbuffer_serialize()` of a `NULL` gbuffer answers `NULL`, logged.** It
+  read the gbuffer's secret flag first: a segfault. Test `gbuffer`
+  (`test_gbuffer_guards`).
+- **SECURITY: a secret json parameter that does not parse is not logged.** A
+  `DTP_JSON`/`DTP_LIST`/`DTP_DICT` parameter marked `SDF_SECRET` was parsed
+  with the verbose parser, which logs the text it could not parse (an ERROR
+  and a dump). It is now refused naming the parameter only (*"parameter
+  '\<name>' is not a valid json"*). Test `secret_attrs`.
+- **emailsender: a line or a DATA body that cannot be built is not sent
+  half-built.** The CRLF and the `.\r\n` appended to it, and the `json_pack()`
+  of the frame, were not checked: the line is now refused with an ERROR, and
+  the body ends the session as an error of ours. Only out of memory reaches
+  them (no red test).
+- **Agent: a configuration file of a yuno with a long name is written.** Its
+  temporary file was the name of the file with 8 bytes more, so a name a few
+  bytes under `NAME_MAX` failed with `ENAMETOOLONG` and the yuno was not run.
+  The temporary file is now `.config.XXXXXX` in the yuno's `bin/`. Test
+  `helpers` (`test_yuno_config_file`).
+- **Agent: the temporary configuration files that an interrupted write left
+  are removed at the agent's start, for every yuno.** Only the next launch of
+  that yuno removed them, so a yuno not launched again kept them; both names
+  (`.config.XXXXXX` and the 7.25.21 one) are recognised. Test `helpers`
+  (`test_yuno_config_file`).
+- **fs_watcher: an entry whose `IN_IGNORED` was lost in an overflow is
+  forgotten.** A wd stopped by the pass after an overflow (a directory
+  deleted and created again, or no longer there) kept its entry for good when
+  its `IN_IGNORED` went with the overflow. It now goes once the stream is
+  past where that event would have come. The directories the pass did not
+  visit are asked to the filesystem, only those: no `lstat()` per watched
+  directory. `fs_event_t` gains three fields, at its end. Test `timeranger2`
+  (`test_fs_watcher_overflow`).
+- **`scripts/check_test_ports.py` fails on a file it cannot read**, naming
+  it: it skipped it silently, and its ports were not checked. Its files are
+  closed after reading.
 
 ## v7.25.21 (2026-10-01)
 

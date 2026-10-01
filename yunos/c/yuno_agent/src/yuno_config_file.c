@@ -19,6 +19,11 @@
 #include "yuno_config_file.h"
 
 /***************************************************************************
+ *              Constants
+ ***************************************************************************/
+#define TEMP_CONFIG_PREFIX  ".config."  // + the six characters of mkostemp()
+
+/***************************************************************************
  *  See yuno_config_file.h
  *
  *  The content goes to a new file in the same directory, and that file is
@@ -29,6 +34,11 @@
  *  symbolic link at `path` is replaced too, never followed. And a failure
  *  leaves the old file whole. No fsync(): the file is written again from
  *  the agent's treedb at every launch.
+ *
+ *  The new file is TEMP_CONFIG_PREFIX "XXXXXX", a name of its own size: the
+ *  bin directory is the yuno's, and the agent writes one file at a time.
+ *  Up to 7.25.21 it was the name of `path` with 8 bytes more, and a name a
+ *  few bytes under NAME_MAX could not be written.
  ***************************************************************************/
 PUBLIC int write_yuno_config_file(
     hgobj gobj,
@@ -40,11 +50,11 @@ PUBLIC int write_yuno_config_file(
     const char *slash = strrchr(path, '/');
     int written;
     if(slash) {
-        written = snprintf(tmp_path, sizeof(tmp_path), "%.*s/.%s.XXXXXX",
-            (int)(slash - path), path, slash + 1
+        written = snprintf(tmp_path, sizeof(tmp_path), "%.*s/%sXXXXXX",
+            (int)(slash - path), path, TEMP_CONFIG_PREFIX
         );
     } else {
-        written = snprintf(tmp_path, sizeof(tmp_path), ".%s.XXXXXX", path);
+        written = snprintf(tmp_path, sizeof(tmp_path), "%sXXXXXX", TEMP_CONFIG_PREFIX);
     }
     if(written < 0 || (size_t)written >= sizeof(tmp_path)) {
         gobj_log_error(gobj, 0,
@@ -162,29 +172,10 @@ PUBLIC int write_yuno_config_file(
 }
 
 /***************************************************************************
- *  Is `name` a temporary file of write_yuno_config_file() for the yuno of
- *  `suffix` ("-<role>^<name>.json"): ".<n>-<role>^<name>.json.XXXXXX",
- *  the six characters that mkostemp() chose?
+ *  Are `p` the six characters that mkostemp() chose, and nothing more?
  ***************************************************************************/
-PRIVATE BOOL is_temp_config_file(const char *name, const char *suffix, size_t suffix_len)
+PRIVATE BOOL is_mkostemp_tail(const char *p)
 {
-    if(name[0] != '.') {
-        return FALSE;
-    }
-    const char *p = name + 1;
-    size_t digits = strspn(p, "0123456789");
-    if(digits == 0 || digits > 9) {
-        return FALSE;
-    }
-    p += digits;
-    if(strncmp(p, suffix, suffix_len) != 0) {
-        return FALSE;
-    }
-    p += suffix_len;
-    if(p[0] != '.') {
-        return FALSE;
-    }
-    p++;
     if(strlen(p) != 6) {
         return FALSE;
     }
@@ -194,6 +185,46 @@ PRIVATE BOOL is_temp_config_file(const char *name, const char *suffix, size_t su
         }
     }
     return TRUE;
+}
+
+/***************************************************************************
+ *  Is `name` a temporary file of write_yuno_config_file()?
+ *      TEMP_CONFIG_PREFIX "XXXXXX"
+ *      ".<n>-<role>^<name>.json.XXXXXX", the name of 7.25.21: of the yuno of
+ *      `suffix` ("-<role>^<name>.json"), or of any yuno if `suffix` is NULL
+ ***************************************************************************/
+PRIVATE BOOL is_temp_config_file(const char *name, const char *suffix, size_t suffix_len)
+{
+    size_t prefix_len = strlen(TEMP_CONFIG_PREFIX);
+    if(strncmp(name, TEMP_CONFIG_PREFIX, prefix_len) == 0) {
+        return is_mkostemp_tail(name + prefix_len);
+    }
+
+    if(name[0] != '.') {
+        return FALSE;
+    }
+    const char *p = name + 1;
+    size_t digits = strspn(p, "0123456789");
+    if(digits == 0 || digits > 9) {
+        return FALSE;
+    }
+    p += digits;
+    if(suffix) {
+        if(strncmp(p, suffix, suffix_len) != 0) {
+            return FALSE;
+        }
+        p += suffix_len;
+    } else {
+        const char *json = strstr(p, ".json.");
+        if(p[0] != '-' || !json) {
+            return FALSE;
+        }
+        p = json + strlen(".json");
+    }
+    if(p[0] != '.') {
+        return FALSE;
+    }
+    return is_mkostemp_tail(p + 1);
 }
 
 /***************************************************************************
@@ -403,6 +434,61 @@ PUBLIC int narrow_stale_yuno_config_files(
             }
         }
         close(fd);
+    }
+    closedir(dir);
+    return ret;
+}
+
+/***************************************************************************
+ *  See yuno_config_file.h
+ ***************************************************************************/
+PUBLIC int remove_temp_yuno_config_files(
+    hgobj gobj,
+    const char *bin_path
+)
+{
+    DIR *dir = opendir(bin_path);
+    if(!dir) {
+        if(errno == ENOENT) {
+            return 0;   // a yuno never launched has no bin directory
+        }
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot open the bin directory of a yuno to remove its temporary configuration files",
+            "path",         "%s", bin_path,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    int ret = 0;
+    struct dirent *de;
+    while(1) {
+        errno = 0;
+        de = readdir(dir);
+        if(!de) {
+            if(errno != 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot read the bin directory of a yuno, temporary configuration files may stay",
+                    "path",         "%s", bin_path,
+                    "errno",        "%d", errno,
+                    "strerror",     "%s", strerror(errno),
+                    NULL
+                );
+                ret = -1;
+            }
+            break;
+        }
+        if(is_temp_config_file(de->d_name, NULL, 0)) {
+            if(remove_temp_config_file(gobj, dir, bin_path, de->d_name) < 0) {
+                ret = -1;   // Error already logged
+            }
+        }
     }
     closedir(dir);
     return ret;

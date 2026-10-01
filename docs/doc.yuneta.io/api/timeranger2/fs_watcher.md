@@ -231,7 +231,14 @@ in place (since 7.25.9; in slices since 7.25.10):
    taking out its wd, which it does now. The ROOT is watched again too, in a
    watch that recurses and in one that does not: up to 7.25.20 the pass
    watched again the directories it met, never the root it started from, and
-   a root deleted and created again during an overflow went deaf;
+   a root deleted and created again during an overflow went deaf. At the end
+   of the pass a directory of the table that the pass did not meet and that
+   is no longer there is stopped too. The entry of a wd stopped goes with its
+   `IN_IGNORED`; when that was dropped with the overflow, it goes once the
+   stream is past where the `IN_IGNORED` would have come
+   (`fs_queued_events_end()` at the stop): up to 7.25.21 it stayed for good.
+   The watcher does not follow moves: a directory that is not there is gone
+   for it;
 4. the pass runs **a slice of 20 ms per loop turn**, and an INFO closes it:
    *"watched tree rescanned after lost inotify events"*, with `directories`,
    `ms`, and where that time went: `slices`, `ms_owner` (in the owner's

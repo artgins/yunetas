@@ -17,6 +17,7 @@
 #include <limits.h>
 #include <sys/inotify.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <errno.h>
 #include <dirent.h>
 #include <time.h>
@@ -53,6 +54,9 @@ PRIVATE int yev_callback(
 PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *event);
 PRIVATE int add_watch(fs_event_t *fs_event, const char *path, BOOL may_vanish);
 PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd);
+PRIVATE void note_stale_wd(fs_event_t *fs_event, int wd);
+PRIVATE void note_gone_directories(fs_event_t *fs_event);
+PRIVATE void forget_stale_wds(fs_event_t *fs_event);
 PRIVATE const char *get_path(fs_event_t *fs_event, int wd);
 PRIVATE int add_watch_recursive(fs_event_t *fs_event, const char *path);
 PRIVATE void start_rescan_pass(fs_event_t *fs_event);
@@ -174,6 +178,9 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     fs_event->jn_tracked_paths = json_object();
     fs_event->in_callback = FALSE;
     fs_event->stop_requested = FALSE;
+    fs_event->rescan_seen = NULL;
+    fs_event->stale_wds = NULL;
+    fs_event->stale_mark = 0;
 
     uint32_t trace_level = gobj_global_trace_level();
 
@@ -401,6 +408,7 @@ PRIVATE void fs_destroy_watcher_event(
     EXEC_AND_RESET(yev_destroy_event, fs_event->yev_rescan) // no callback after this, see yev_loop
     GBMEM_FREE(fs_event->path)
     JSON_DECREF(fs_event->jn_tracked_paths)
+    JSON_DECREF(fs_event->stale_wds)
     GBMEM_FREE(fs_event)
 }
 
@@ -527,6 +535,9 @@ PRIVATE int yev_callback(
                     fs_event->in_callback = FALSE;
                     fs_event->in_batch = FALSE;
                     fs_event->offset = fs_event->batch_end;
+                    if(!fs_event->stop_requested) {
+                        forget_stale_wds(fs_event);
+                    }
 
                     if(fs_event->stop_requested) {
                         /*
@@ -1008,9 +1019,11 @@ PRIVATE int add_watch_recursive(fs_event_t *fs_event, const char *path)
  *  the wd differs from the table's, the old one is stopped (its entry goes
  *  with its IN_IGNORED: events of it may still be queued). Up to 7.25.20
  *  the root was left out: deleted and created again during an overflow, it
- *  was never heard again. Entries of directories gone for good are left:
- *  their IN_IGNORED, if it still comes, takes them out, and one that never
- *  comes costs a string.
+ *  was never heard again. The directories gone for good are stopped at the
+ *  end of the pass. The entry of a wd stopped goes with its IN_IGNORED, and
+ *  when that was lost with the overflow, once the stream is past where it
+ *  would have come (forget_stale_wds()). Up to 7.25.21 such an entry
+ *  stayed for good.
  ***************************************************************************/
 PRIVATE void start_rescan_pass(fs_event_t *fs_event)
 {
@@ -1051,6 +1064,8 @@ PRIVATE void start_rescan_pass(fs_event_t *fs_event)
             );
         }
     }
+    JSON_DECREF(fs_event->rescan_seen)
+    fs_event->rescan_seen = json_object();
     fs_event->rescan_again = FALSE;
     fs_event->rescan_visited = 0;
     fs_event->rescan_t0 = time_in_milliseconds_monotonic();
@@ -1070,6 +1085,7 @@ PRIVATE void stop_rescan_pass(fs_event_t *fs_event)
     }
     JSON_DECREF(fs_event->rescan_dirs)
     JSON_DECREF(fs_event->rescan_watched)
+    JSON_DECREF(fs_event->rescan_seen)
     fs_event->rescan_again = FALSE;
 }
 
@@ -1129,6 +1145,7 @@ PRIVATE void watch_again(fs_event_t *fs_event, const char *path, json_t *watched
                 NULL
             );
         }
+        note_stale_wd(fs_event, old_wd);    // its IN_IGNORED may have gone with the overflow
     }
     if(watched) {
         json_object_set_new(watched, path, json_integer(wd));
@@ -1211,6 +1228,7 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event)
         }
 
         fs_event->rescan_visited++;
+        json_object_set_new(fs_event->rescan_seen, dir, json_true());
         fs_event->fs_type = FS_RESCAN_DIR_TYPE;
         fs_event->directory = dir;
         fs_event->filename = "";
@@ -1269,11 +1287,103 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event)
         "max_loop_ms",  "%ld", (long)(fs_event->rescan_us_max_gap/1000),
         NULL
     );
+    note_gone_directories(fs_event);
+    forget_stale_wds(fs_event);     // at once, if nothing of them can still come
     if(fs_event->rescan_again) {
         start_rescan_pass(fs_event);
     } else {
         JSON_DECREF(fs_event->rescan_dirs)
         JSON_DECREF(fs_event->rescan_watched)
+        JSON_DECREF(fs_event->rescan_seen)
     }
     return 0;
+}
+
+/***************************************************************************
+ *  A wd stopped by a pass: its entry stays until its IN_IGNORED, events of
+ *  it may still be queued. That IN_IGNORED may have been dropped with the
+ *  overflow too: the stream as it ends now holds it if it comes at all.
+ ***************************************************************************/
+PRIVATE void note_stale_wd(fs_event_t *fs_event, int wd)
+{
+    if(!fs_event->stale_wds) {
+        fs_event->stale_wds = json_array();
+    }
+    json_array_append_new(fs_event->stale_wds, json_integer(wd));
+    uint64_t mark = fs_queued_events_end(fs_event);
+    if(mark > fs_event->stale_mark) {
+        fs_event->stale_mark = mark;
+    }
+}
+
+/***************************************************************************
+ *  At the end of a pass: the entries whose directory is no longer there
+ *  (gone while the events were dropped, their IN_DELETE_SELF lost) are
+ *  stopped. The watcher does not follow moves: a directory that is not
+ *  there is gone for it. Only what the pass did not visit is asked to the
+ *  filesystem: a lstat() per entry, in one piece, made the loop deaf for
+ *  as long on a tree of 50000 keys.
+ ***************************************************************************/
+PRIVATE void note_gone_directories(fs_event_t *fs_event)
+{
+    const char *s_wd; json_t *jn_path;
+    json_object_foreach(fs_event->jn_tracked_paths, s_wd, jn_path) {
+        const char *path = json_string_value(jn_path);
+        if(!path || json_object_get(fs_event->rescan_seen, path)) {
+            continue;
+        }
+        struct stat st;
+        if(lstat(path, &st) == 0 || errno != ENOENT) {
+            continue;
+        }
+        int wd = atoi(s_wd);
+        if(inotify_rm_watch(fs_event->fd, wd) < 0 && errno != EINVAL) {
+            gobj_log_error(fs_event->gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "inotify_rm_watch() FAILED",
+                "path" ,        "%s", path,
+                "serrno" ,      "%s", strerror(errno),
+                NULL
+            );
+        }
+        note_stale_wd(fs_event, wd);
+    }
+}
+
+/***************************************************************************
+ *  Once the stream is past the mark, every IN_IGNORED of the stopped wds
+ *  that was to come has come and taken its entry out: an entry still there
+ *  lost it. It goes now.
+ ***************************************************************************/
+PRIVATE void forget_stale_wds(fs_event_t *fs_event)
+{
+    if(!fs_event->stale_wds || fs_event->offset < fs_event->stale_mark) {
+        return;
+    }
+
+    uint32_t trace_level = gobj_global_trace_level();
+    size_t idx; json_t *jn_wd;
+    json_array_foreach(fs_event->stale_wds, idx, jn_wd) {
+        char s_wd[64];
+        snprintf(s_wd, sizeof(s_wd), "%d", (int)json_integer_value(jn_wd));
+        json_t *jn_path = json_object_get(fs_event->jn_tracked_paths, s_wd);
+        if(!jn_path) {
+            continue;   // its IN_IGNORED came
+        }
+        if(trace_level & TRACE_FS) {
+            gobj_log_debug(fs_event->gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "forget a watch whose IN_IGNORED was lost",
+                "msg2",         "%s", "💾🔶 forget a watch whose IN_IGNORED was lost",
+                "path",         "%s", json_string_value(jn_path),
+                "wd",           "%s", s_wd,
+                NULL
+            );
+        }
+        json_object_del(fs_event->jn_tracked_paths, s_wd);
+    }
+    JSON_DECREF(fs_event->stale_wds)
+    fs_event->stale_mark = 0;
 }

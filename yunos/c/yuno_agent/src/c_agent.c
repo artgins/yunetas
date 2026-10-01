@@ -84,6 +84,7 @@ PRIVATE char * build_yuno_private_domain(hgobj gobj, json_t *yuno, char *bf, int
 PRIVATE int build_role_plus_name(hgobj gobj, char *bf, int bf_len, json_t *yuno);
 PRIVATE int build_role_plus_id(hgobj gobj, char *bf, int bf_len, json_t *yuno);
 PRIVATE char * build_yuno_bin_path(hgobj gobj, json_t *yuno, char *bf, int bfsize, BOOL create_dir);
+PRIVATE int remove_temp_config_files_of_yunos(hgobj gobj);
 PRIVATE char * build_yuno_log_path(hgobj gobj, json_t *yuno, char *bf, int bfsize, BOOL create_dir);
 PRIVATE void sort_yunos_by_start_priority(hgobj gobj, json_t *iter, BOOL ascending);
 PRIVATE int run_yuno(
@@ -1461,6 +1462,8 @@ PRIVATE int mt_play(hgobj gobj)
      *      Get services
      *-------------------------*/
     priv->resource = gobj_find_service(priv->treedb_agentdb_name, TRUE);
+
+    remove_temp_config_files_of_yunos(gobj);
 
     // Get timeranger of treedb_agentdb, will be used for alarms too
     // priv->tranger_treedb_agentdb = gobj_read_pointer_attr(priv->gobj_treedb_agentdb, "tranger");
@@ -8000,6 +8003,45 @@ PRIVATE char * build_yuno_bin_path(hgobj gobj, json_t *yuno, char *bf, int bfsiz
         }
     }
     return bf;
+}
+
+/***************************************************************************
+ *  A configuration file the agent did not finish (it died between the
+ *  write and the rename) leaves a temporary file in the yuno's bin
+ *  directory. Removed at the agent's start, when no write is under way,
+ *  for every yuno: up to 7.25.21 only the next launch of that yuno removed
+ *  it, and a yuno not launched again kept it.
+ ***************************************************************************/
+PRIVATE int remove_temp_config_files_of_yunos(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *iter = gobj_list_nodes(
+        priv->resource,
+        "yunos",
+        json_object(), // filter
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+
+    int ret = 0;
+    int idx; json_t *yuno;
+    json_array_foreach(iter, idx, yuno) {
+        char private_domain[PATH_MAX];
+        if(!build_yuno_private_domain(gobj, yuno, private_domain, sizeof(private_domain))) {
+            // Error already logged (no realm): no bin directory to look at
+            ret = -1;
+            continue;
+        }
+        char yuno_bin_path[PATH_MAX];
+        build_yuno_bin_path(gobj, yuno, yuno_bin_path, sizeof(yuno_bin_path), FALSE);
+        if(remove_temp_yuno_config_files(gobj, yuno_bin_path) < 0) {
+            ret = -1;   // Error already logged
+        }
+    }
+    JSON_DECREF(iter)
+
+    return ret;
 }
 
 /***************************************************************************

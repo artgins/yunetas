@@ -38,7 +38,17 @@
  *             long to build the file names from is refused with a log;
  *             the temporary files (.<n>-<role>^<name>.json.XXXXXX) a
  *             write left when the agent died before its rename are
- *             removed, regular files only, and nothing else is.
+ *             removed, regular files only, and nothing else is;
+ *          7. a file whose name is a few bytes under NAME_MAX is written:
+ *             the temporary file is .config.XXXXXX, whatever the name.
+ *             Up to 7.25.21 it was the name with 8 bytes more, and such a
+ *             file could not be written (ENAMETOOLONG);
+ *          8. remove_temp_yuno_config_files(), which the agent runs over
+ *             every yuno at its start, removes the temporary files of
+ *             both forms (.config.XXXXXX, and .<n>-<role>^<name>.json.XXXXXX
+ *             of 7.25.21) whatever yuno wrote them, and nothing else; a
+ *             bin directory that does not exist is no error. Up to 7.25.21
+ *             a yuno never launched again kept them.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -130,8 +140,7 @@ PRIVATE void test_write(void)
  ***************************************************************************/
 PRIVATE int temp_files_of(const char *name)
 {
-    char prefix[NAME_MAX+1];
-    snprintf(prefix, sizeof(prefix), ".%s.", name);
+    const char *prefix = ".config.";   // whatever `name`: the temporary name is fixed
     int n = 0;
     DIR *dir = opendir(BASE);
     if(!dir) {
@@ -282,8 +291,9 @@ PRIVATE void test_stale(void)
         "x-role^name.json", "-role^name.json", "4-role^name.json.bak",
         "role^name.sh",
         "outside.json",                             // target of the link
-        ".2-role^name.json.AbC123",                 // temps of an interrupted write
+        ".2-role^name.json.AbC123",                 // temps of an interrupted write (7.25.21)
         ".12-role^name.json.x9Y8z7",
+        ".config.Qw3rTy",                           // temp of an interrupted write
         ".2-role^name.json.short",                  // not a temp: kept
         ".2-other^name.json.AbC123",                // another yuno's: kept
         "2-role^name.json.AbC123",                  // no dot: kept
@@ -329,7 +339,8 @@ PRIVATE void test_stale(void)
     check(lmode_of("4-role^name.json") != -1 && lmode_of("12-role^name.json") != -1,
         "(stale) nothing is removed");
     check(lmode_of(".2-role^name.json.AbC123") == -1 &&
-          lmode_of(".12-role^name.json.x9Y8z7") == -1,
+          lmode_of(".12-role^name.json.x9Y8z7") == -1 &&
+          lmode_of(".config.Qw3rTy") == -1,
         "(stale) the temporary files of an interrupted write are removed");
     check(lmode_of(".2-role^name.json.short") != -1 &&
           lmode_of(".2-other^name.json.AbC123") != -1 &&
@@ -350,6 +361,77 @@ PRIVATE void test_stale(void)
     check(ret == -1, "(stale) a name too long for the suffix is refused, logged");
 
     unlink(link_path);
+    for(int i=0; files[i]; i++) {
+        char path[PATH_MAX];
+        build_path(path, sizeof(path), BASE, files[i], NULL);
+        unlink(path);
+    }
+}
+
+/***************************************************************************
+ *  A name a few bytes under NAME_MAX: its temporary file must fit too
+ ***************************************************************************/
+PRIVATE void test_long_name(void)
+{
+    char name[NAME_MAX+1];
+    memset(name, 'n', NAME_MAX - 2);
+    memcpy(name, "3-r^", 4);
+    strcpy(name + NAME_MAX - 7, ".json");  // NAME_MAX - 2 bytes in all
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), BASE, name, NULL);
+
+    gbuffer_t *gbuf = gbuffer_create(64, 64);
+    gbuffer_append_string(gbuf, "{\"long\": true}");
+    int ret = write_yuno_config_file(0, gbuf, path);
+    check(ret == 0 && file_is(path, "{\"long\": true}"),
+        "(long name) a name of NAME_MAX - 2 bytes is written");
+    check(temp_files_of(name) == 0, "(long name) no temporary file left behind");
+    unlink(path);
+}
+
+/***************************************************************************
+ *  The sweep of the agent's start
+ ***************************************************************************/
+PRIVATE void test_sweep(void)
+{
+    const char *files[] = {
+        ".config.Qw3rTy",                           // removed
+        ".2-role^name.json.AbC123",                 // removed: 7.25.21 form
+        ".4-other^yuno.json.zZ9yY8",                // removed: whatever yuno
+        "2-role^name.json",                         // kept
+        ".config.short",                            // kept: not six characters
+        ".config.Qw3rTy.bak",                       // kept
+        ".2-role^name.json.short",                  // kept
+        0
+    };
+    for(int i=0; files[i]; i++) {
+        make_file(files[i], 0640, "{}");
+    }
+    char temp_link_path[PATH_MAX];
+    build_path(temp_link_path, sizeof(temp_link_path), BASE, ".config.LnK000", NULL);
+    unlink(temp_link_path);
+    if(symlink(BASE "/2-role^name.json", temp_link_path)<0) {
+        check(FALSE, "(sweep) cannot create the temp link of the test");
+    }
+
+    int ret = remove_temp_yuno_config_files(0, BASE);
+    check(ret == 0, "(sweep) answers 0");
+    check(lmode_of(".config.Qw3rTy") == -1 &&
+          lmode_of(".2-role^name.json.AbC123") == -1 &&
+          lmode_of(".4-other^yuno.json.zZ9yY8") == -1,
+        "(sweep) the temporary files of both forms are removed");
+    check(lmode_of("2-role^name.json") != -1 &&
+          lmode_of(".config.short") != -1 &&
+          lmode_of(".config.Qw3rTy.bak") != -1 &&
+          lmode_of(".2-role^name.json.short") != -1,
+        "(sweep) nothing else is removed");
+    check(lmode_of(".config.LnK000") != -1 && lmode_of("2-role^name.json") != -1,
+        "(sweep) a temporary name that is a link is left, not followed");
+
+    ret = remove_temp_yuno_config_files(0, BASE "/no-such-bin");
+    check(ret == 0, "(sweep) a bin directory that does not exist is no error");
+
+    unlink(temp_link_path);
     for(int i=0; files[i]; i++) {
         char path[PATH_MAX];
         build_path(path, sizeof(path), BASE, files[i], NULL);
@@ -407,6 +489,8 @@ int main(int argc, char *argv[])
     test_write();
     test_replace();
     test_stale();
+    test_long_name();
+    test_sweep();
 
     rmdir(BASE);
 

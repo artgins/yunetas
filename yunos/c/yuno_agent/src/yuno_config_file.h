@@ -48,8 +48,9 @@ PUBLIC int write_yuno_config_file(
  *  does not name them, and an operator may still want to read them.
  *  A symbolic link or anything but a regular file is left as it is.
  *  The temporary files of write_yuno_config_file() that an interrupted
- *  write left for this yuno (.<n>-<role_plus_name>.json.XXXXXX, regular
- *  files only) are removed, logged: call it after this launch's writes.
+ *  write left (.config.XXXXXX, and .<n>-<role_plus_name>.json.XXXXXX of
+ *  7.25.21; regular files only) are removed, logged: call it after this
+ *  launch's writes.
  *  Returns 0, or -1 if one could not be narrowed or removed (logged, the
  *  others are still done).
  */
@@ -58,6 +59,21 @@ PUBLIC int narrow_stale_yuno_config_files(
     const char *bin_path,
     const char *role_plus_name,
     int n_written
+);
+
+/*
+ *  Remove the temporary files of write_yuno_config_file() in `bin_path`,
+ *  the bin directory of one yuno: .config.XXXXXX, and the
+ *  .<n>-<role>^<name>.json.XXXXXX of 7.25.21 whatever their yuno. Regular
+ *  files only, each logged. Only a write the agent did not finish leaves
+ *  one, so the agent runs it over every yuno at its start, when no write is
+ *  under way: a yuno that is not launched again keeps none.
+ *  A bin directory that does not exist is no error.
+ *  Returns 0, or -1 if one could not be removed (logged).
+ */
+PUBLIC int remove_temp_yuno_config_files(
+    hgobj gobj,
+    const char *bin_path
 );
 
 #ifdef __cplusplus

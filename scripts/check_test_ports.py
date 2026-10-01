@@ -11,7 +11,7 @@ The files of ONE binary may share a port: `main_<name>.c` with its
 `c_<name>.c` / `c_<name>.h`, and the files under `<test>/src/`. Anything else
 sharing a port is a collision.
 
-    python3 scripts/check_test_ports.py            # exit 1 on a collision
+    python3 scripts/check_test_ports.py            # exit 1 on a collision, or a file not read
     python3 scripts/check_test_ports.py --list     # every port and its tests
 
 A port built at compile time (a -DPORT from CMake, as c_task_authenticate
@@ -50,6 +50,7 @@ def binary_of(path):
 def main():
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     ports = collections.defaultdict(lambda: collections.defaultdict(set))
+    unreadable = 0
     for root in ROOTS:
         top = os.path.join(base, root)
         for d, dirs, files in os.walk(top):
@@ -60,8 +61,12 @@ def main():
                 p = os.path.join(d, f)
                 rel = os.path.relpath(p, base)
                 try:
-                    s = open(p, errors='replace').read()
-                except OSError:
+                    with open(p, errors='replace') as fh:
+                        s = fh.read()
+                except OSError as e:
+                    # A file not read is a port not checked: said, and a failure
+                    print(f'cannot read {rel}: {e.strerror}', file=sys.stderr)
+                    unreadable += 1
                     continue
                 for pat in PATTERNS:
                     for m in pat.finditer(s):
@@ -82,6 +87,9 @@ def main():
 
     if collisions:
         print(f'{collisions} port(s) used by more than one test binary')
+    if unreadable:
+        print(f'{unreadable} file(s) could not be read: their ports are not checked')
+    if collisions or unreadable:
         return 1
     return 0
 

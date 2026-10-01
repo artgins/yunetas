@@ -7,7 +7,8 @@
  *          (hardens the content64/base64 NULL-deref family at the source).
  *          Also asserts the valid path is unchanged, and that bytes from
  *          a peer that are not json are a WARNING, not an error
- *          (gbuf2json_from_peer).
+ *          (gbuf2json_from_peer). gbuffer_serialize() of a NULL gbuffer
+ *          answers NULL with an ERROR.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -137,6 +138,25 @@ PRIVATE void test_json_from_peer(void)
 }
 
 /***************************************************************************
+ *  gbuffer_serialize() of a NULL gbuffer: NULL and an ERROR, not a crash.
+ *  Up to 7.25.21 it read the gbuffer's secret flag first (a SIGSEGV).
+ *  Runs after test_json_from_peer(), which registers the handler.
+ ***************************************************************************/
+PRIVATE void test_serialize_null(void)
+{
+    captured_warnings = 0;
+    captured_errors = 0;
+    gobj_log_add_handler("capture", "capture", LOG_OPT_ALL, 0);
+
+    json_t *jn = gbuffer_serialize(0, NULL);
+    ok_or_fail(jn == NULL, "gbuffer_serialize(NULL) == NULL");
+    ok_or_fail(captured_errors == 1, "gbuffer_serialize(NULL): one error");
+    JSON_DECREF(jn);
+
+    gobj_log_del_handler("capture");
+}
+
+/***************************************************************************
  *      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -176,6 +196,7 @@ int main(int argc, char *argv[])
     test_wrap_guard();
     test_valid_path();
     test_json_from_peer();
+    test_serialize_null();
 
     gobj_end();
 

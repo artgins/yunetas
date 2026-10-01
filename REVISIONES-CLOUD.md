@@ -196,5 +196,12 @@ Defects 1 to 5 are fixed, each with a test that fails on the code before it
 `set -euo pipefail`): `emailsender/set_user_queued`,
 `emailsender/skip_in_flight`, and two checks in `secret_attrs`. The NULL of
 `ievent_kw_masked()` in `trace_inter_event2()` (a nit) is fixed with
-defect 4. See `CHANGELOG.md` "Unreleased". The risks and the other nits are
-open.
+defect 4. See `CHANGELOG.md` "Unreleased".
+
+The other six nits are fixed too, each with a test that fails before it
+(`gbuffer`, `secret_attrs`, `test_yuno_config_file`,
+`test_fs_watcher_overflow`), except the emailsender appends, reached only out
+of memory, and `check_test_ports.py`, checked by hand with a file it cannot
+read. The note on `refused_in_row` is kept as it was, with a comment: the
+server did refuse the message, so it counts even if the answer cannot be
+built. The risks are open.

@@ -797,6 +797,18 @@ PRIVATE void check_log_dumps(hgobj gobj)
     );
     JSON_DECREF(resp)
     unwatch("the commands trace of a positional secret with blanks");
+    /*
+     *  A secret json parameter that does not parse: refused, and its text
+     *  is in no log. Up to 7.25.21 the verbose parser logged it in clear.
+     */
+    watch("jsonbad-hunter2", "set-password");
+    resp = gobj_command(holder, "set-password credentials=[jsonbad-hunter2", 0, holder);
+    check_int("a secret json that does not parse refuses the command", (int)kw_get_int(0, resp, "result", 0, 0), -1);
+    check_true("its refusal does not show it",
+        !strstr(kw_get_str(0, resp, "comment", "", 0), "jsonbad-hunter2")
+    );
+    JSON_DECREF(resp)
+    unwatch("the log of a secret json that does not parse");
     watch("blank-hunter2", "set-password");
     resp = gobj_command(holder, "set-password password= blank-hunter2 note=1", 0, holder);
     check_int("a key with a blank refuses the command", (int)kw_get_int(0, resp, "result", 0, 0), -1);
@@ -1369,6 +1381,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_set_password[] = {
 SDATAPM (DTP_STRING,    "password",     SDF_SECRET,             0,      "The new password"),
 SDATAPM (DTP_STRING,    "note",         0,                      0,      "Not a secret"),
+SDATAPM (DTP_JSON,      "credentials",  SDF_SECRET,             0,      "A secret json"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_set_password_pos[] = {
