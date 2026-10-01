@@ -1,14 +1,14 @@
 /****************************************************************************
  *          main_pause_backoff.c
  *
- *          The fake server is down at the first connection (refused), closes
- *          the second at once, and at the third the driver pauses and plays
- *          the emailsender while its session is in the handshake. The
- *          connections must come at least 2 s and then 4 s apart
- *          (timeout_retry 1 s): the play does not buy an attempt at once.
- *          Up to 7.25.20 each play connected at once (a stop in the middle of
- *          a failing streak set no pace, and a C_TCP that never connected
- *          connects as it starts).
+ *          The fake server closes the first connection at once, and at the
+ *          second the driver pauses and plays the emailsender while its
+ *          session is in the handshake (a stop in the middle of a failing
+ *          streak: one more failure). The connections must come at least
+ *          2 s and then 4 s apart (timeout_retry 2 s): the play does not buy
+ *          an attempt at once. Up to 7.25.20 each play connected at once (a
+ *          stop in the middle of a failing streak set no pace, and a C_TCP
+ *          connected as it started).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -88,7 +88,7 @@ PRIVATE char variable_config[]= "\
                 'tranger_database': 'emailsender',                  \n\
                 'topic_emails_queue': 'emails_queue',               \n\
                 'topic_emails_failed': 'emails_failed',             \n\
-                'timeout_retry': 1000,                              \n\
+                'timeout_retry': 2000,                              \n\
                 'tkey': 'tm'                                        \n\
             }                                                       \n\
         },                                                          \n\
@@ -238,18 +238,18 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Creating __timeranger2__.json",
         "msg", "Creating topic",
         "msg", "Creating topic",
-        "msg", "SMTP server failing: emails wait, the retries are paced",
         "msg", "Fake smtp: connection not greeted", "plan", "drop",
         "msg", "SMTP server closed the session",
+        "msg", "SMTP server failing: emails wait, the retries are paced",
         "msg", "Fake smtp: AUTH answered",
+        "msg", "SMTP server answers again",
         "msg", "Fake smtp: message delivered",
-        "msg", "SMTP server works again: emails delivered",
         "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
         "msg", "Exit to die",
         "msg", "Pausing yuno",

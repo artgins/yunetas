@@ -1,18 +1,12 @@
 /****************************************************************************
- *          main_server_close_paced.c
+ *          main_exit_on_refused.c
  *
- *          The fake server closes the first connection at once, answers the
- *          second with two malformed lines in one write, closes the third at
- *          once and greets the fourth. The connections must come at least 1,
- *          2 and 4 s apart (timeout_retry 1 s), the third within 3.5 s of the
- *          second, and the email is delivered. Up to 7.25.20 a close by the
- *          server reconnected after a fixed 2 s; and two aborts of one read
- *          must not double the delay twice.
- *
- *          The server never saw the email: none of those failures is a retry
- *          of it, and with max_retries 2 it is delivered at the fourth
- *          connection. Up to 7.25.20 each one spent a retry, and it went to
- *          the failed queue at the second.
+ *          The server greets with 554 (it does not take this client): the
+ *          emailsender logs one ERROR and exits with code 0, so neither the
+ *          watcher nor the agent relaunches it, and the email stays in its
+ *          queue for when the cause is fixed. The exit is checked from an
+ *          atexit() handler: the ERROR was logged, and list-queues shows the
+ *          email still pending, none failed.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -29,8 +23,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_server_close_paced"
-#define APP_DOC         "A session the server ends by itself is retried paced"
+#define APP_NAME        "test_emailsender_exit_on_refused"
+#define APP_DOC         "A server that refuses this client stops the yuno with exit 0"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -42,7 +36,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_server_close_paced"
+#define BASE    "/tmp/test_emailsender_exit_on_refused"
 
 /***************************************************************************
  *                      Default config
@@ -72,8 +66,7 @@ PRIVATE char variable_config[]= "\
         'service_descriptor': {                                     \n\
         },                                                          \n\
         'trace_levels': {                                           \n\
-        },                                                          \n\
-        'timeout_periodic': 100                                     \n\
+        }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
     },                                                              \n\
@@ -90,7 +83,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7834',              \n\
+                        'url': 'tcp://127.0.0.1:7857',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -108,10 +101,7 @@ PRIVATE char variable_config[]= "\
                             'name': 'fake_smtp',                    \n\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
-                                'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'connection_plan': ['drop', 'garbage', 'drop'],\n\
-                                'connect_min_gaps': [0, 1000, 2000, 4000],\n\
-                                'connect_max_gaps': [0, 0, 3500, 0],\n\
+                                'connection_plan': ['refuse'],      \n\
                                 'die_on_delivery': true             \n\
                             },                                      \n\
                             'children': [                           \n\
@@ -132,15 +122,13 @@ PRIVATE char variable_config[]= "\
             'kw': {                                                 \n\
                 'username': 'user',                                 \n\
                 'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7834',                      \n\
+                'url': 'tcp://127.0.0.1:7857',                      \n\
                 'from': 'sender@example.com',                       \n\
                 'timeout_inactivity': 30000,                        \n\
                 'tranger_path': '"BASE"/store',                     \n\
                 'tranger_database': 'emailsender',                  \n\
                 'topic_emails_queue': 'emails_queue',               \n\
                 'topic_emails_failed': 'emails_failed',             \n\
-                'timeout_retry': 1000,                              \n\
-                'max_retries': 2,                                   \n\
                 'tkey': 'tm'                                        \n\
             }                                                       \n\
         },                                                          \n\
@@ -158,7 +146,7 @@ PRIVATE char variable_config[]= "\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
                 'scenario': 'send',                                 \n\
-                'smtp_url': 'tcp://127.0.0.1:7834'                  \n\
+                'smtp_url': 'tcp://127.0.0.1:7857'                  \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
@@ -173,15 +161,14 @@ int result = 0;
  *  cleaning(), and its exit code would read as a pass.
  */
 PRIVATE BOOL test_finished = FALSE;
+PRIVATE json_t *error_msgs = NULL;
+PRIVATE int errors_outside_the_test = 0;
 
 /*
  *  Every ERROR logged, by its msg: the list of expected logs says what was
  *  logged, not at which level, and a failure caused by the peer is a
  *  WARNING, not an ERROR (the house decoder-severity rule).
  */
-PRIVATE json_t *error_msgs = NULL;
-PRIVATE int errors_outside_the_test = 0;
-
 PRIVATE int capture_error_write(void *v, int priority, const char *bf, size_t len)
 {
     if(priority > LOG_ERR) {
@@ -199,13 +186,51 @@ PRIVATE int capture_error_write(void *v, int priority, const char *bf, size_t le
     return 0;
 }
 
+/*
+ *  This yuno MUST exit by itself, with 0, from the ERROR of the refusal:
+ *  checked here, with the yuno still in memory -- the ERROR was logged
+ *  and the email is still pending in its queue, none failed.
+ */
 PRIVATE void exit_guard(void)
 {
-    if(!test_finished) {
-        printf("<-- TEST FAILED: %s exited before the end of the test\n", APP_NAME);
+    if(test_finished) {
+        printf("<-- TEST FAILED: %s did not exit on the refusal\n", APP_NAME);
         fflush(stdout);
         _exit(1);
     }
+
+    int ret = 0;
+    json_t *expected_errors = json_pack("[s]",
+        "SMTP server refuses this client: exiting, NOT relaunched. Check the server's answer, and run the yuno again"
+    );
+    if(!json_equal(error_msgs, expected_errors) || errors_outside_the_test) {
+        char *s_got = json2uglystr(error_msgs);
+        printf("<-- TEST FAILED: %s: logged as ERROR: %s\n", APP_NAME, s_got);
+        GBMEM_FREE(s_got)
+        ret = -1;
+    }
+    JSON_DECREF(expected_errors)
+
+    hgobj emailsender = gobj_find_service("emailsender", TRUE);
+    json_t *jn_resp = gobj_command(emailsender, "list-queues", json_object(), emailsender);
+    json_t *jn_data = kw_get_dict(0, jn_resp, "data", 0, 0);
+    size_t queued = json_array_size(kw_get_list(0, jn_data, "emails_queue", 0, 0));
+    size_t failed = json_array_size(kw_get_list(0, jn_data, "emails_failed", 0, 0));
+    JSON_DECREF(jn_resp)
+    if(queued != 1 || failed != 0) {
+        printf("<-- TEST FAILED: %s: queued %zu (expected 1), failed %zu (expected 0)\n",
+            APP_NAME, queued, failed
+        );
+        ret = -1;
+    }
+
+    if(ret < 0) {
+        fflush(stdout);
+        _exit(1);
+    }
+    printf("<-- OK: %s exited 0 on the refusal, the email kept in its queue\n", APP_NAME);
+    fflush(stdout);
+    _exit(0);
 }
 
 /***************************************************************************
@@ -241,27 +266,14 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
-        "msg", "Starting yuno",
-        "msg", "Playing yuno",
-        "msg", "Creating __timeranger2__.json",
-        "msg", "Creating topic",
-        "msg", "Creating topic",
-        "msg", "Fake smtp: connection not greeted", "plan", "drop",
-        "msg", "SMTP server closed the session",
-        "msg", "SMTP server failing: emails wait, the retries are paced",
-        "msg", "Fake smtp: connection not greeted", "plan", "garbage",
-        "msg", "malformed SMTP reply line",
-        "msg", "Fake smtp: connection not greeted", "plan", "drop",
-        "msg", "SMTP server closed the session",
-        "msg", "Fake smtp: AUTH answered",
-        "msg", "SMTP server answers again",
-        "msg", "Fake smtp: message delivered",
-        "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
-        "msg", "Exit to die",
-        "msg", "Pausing yuno",
-        "msg", "Yuno stopped, gobj end"
-    );
+    json_t *errors_list = json_array();
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Starting yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Playing yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating __timeranger2__.json"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: connection not greeted"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server refuses this client at its greeting"));
 
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
@@ -289,7 +301,8 @@ static void cleaning(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
-    json_t *expected_errors = json_pack("[]");
+    json_t *expected_errors = json_array();
+    json_array_append_new(expected_errors, json_string("SMTP server refuses this client: exiting, NOT relaunched. Check the server's answer, and run the yuno again"));
     if(!json_equal(error_msgs, expected_errors) || errors_outside_the_test) {
         char *s_got = json2uglystr(error_msgs);
         char *s_expected = json2uglystr(expected_errors);

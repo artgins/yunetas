@@ -1625,8 +1625,9 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(priv->qmsg_cur_email && !kw_get_bool(gobj, kw, "transaction", 0, 0)) {
             /*
              *  The session failed in its handshake (banner, EHLO, a 4xx to
-             *  AUTH, a close, a timeout) or could not connect: the server
-             *  never saw the message. It stays at the head of the queue, no
+             *  AUTH, a close, a timeout), at MAIL FROM (the sender, the same
+             *  for every message), or could not connect: the server never
+             *  saw the message. It stays at the head of the queue, no
              *  retry spent, and is sent again at once -- the session holds it
              *  until its paced reconnection. Up to 7.25.20 each such failure
              *  spent a retry, 2 s apart: a server failing its handshake sent

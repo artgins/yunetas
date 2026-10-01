@@ -1,16 +1,14 @@
 /****************************************************************************
  *          main_send_in_handshake.c
  *
- *          An email queued while the SMTP session is still in its
- *          handshake waits for it: the fake server tells the driver 0.5 s
- *          after a connection (the session waits for the greeting then),
- *          the driver sends the email, and the greeting comes 1 s later.
- *          The fake server listens before the emailsender plays (an
- *          autostarted service of its own): the session connects once at
- *          its start, and with nothing to send it would not connect again.
- *          Up to 7.25.20 C_SMTP_SESSION took EV_SEND_MESSAGE only
- *          disconnected or idle: the email got "Event NOT DEFINED" and
- *          spent a retry.
+ *          The email waits in the SMTP session through its handshake: the
+ *          session connects for it, the fake server tells the driver 0.5 s
+ *          after the connection and greets 1 s later, and the session begins
+ *          the email when it reaches ST_IDLE. (The session connects only for
+ *          a message, so an email can no longer reach it in the middle of a
+ *          handshake started for nothing. Up to 7.25.20 it could, and
+ *          C_SMTP_SESSION took EV_SEND_MESSAGE only disconnected or idle: the
+ *          email got "Event NOT DEFINED" and spent a retry.)
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -101,7 +99,6 @@ PRIVATE char variable_config[]= "\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
                 'scenario': 'send',                                 \n\
-                'send_on_connect': true,                            \n\
                 'server_service': 'fake_smtp_server',               \n\
                 'smtp_url': 'tcp://127.0.0.1:7825'                  \n\
             }                                                       \n\

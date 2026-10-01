@@ -5,9 +5,9 @@
  *          the idle session with a 421, as OVH does. Nothing is left to send:
  *          nothing must connect again (the fake server checks it until the yuno
  *          ends, 6 s after the delivery: twice timeout_retry_max).
- *          Up to 7.25.20 the C_TCP reconnected by itself and logged in with
- *          nothing to send, for ever; the branch had put it off to
- *          timeout_retry_max (3 s here).
+ *          Up to 7.25.20 the C_TCP reconnected by itself 2 s later and logged
+ *          in with nothing to send, for ever; the 6 s window also catches a
+ *          reconnection put off to timeout_retry_max (3 s here).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

@@ -46,6 +46,8 @@
  *          lines in one write) or "long_line" (a line longer than a client's
  *          reply buffer). Each one but "greet" is logged (INFO).
  *
+ *          MAIL FROM is answered from `mail_replies` (a refusal is logged:
+ *          "Fake smtp: MAIL FROM refused").
  *          RSET is answered from `rset_replies` the same way, and logged
  *          ("Fake smtp: RSET answered"). With `max_connections` a connection
  *          beyond that many is an ERROR ("Fake smtp: one connection too
@@ -101,6 +103,7 @@ SDATA (DTP_LIST,        "auth_min_gaps",    SDF_RD,             "[]",       "ms 
 SDATA (DTP_LIST,        "ehlo_replies",     SDF_RD,             "[\"250 fake.smtp\"]", "Answers to EHLO/HELO, one per EHLO, the last one repeated"),
 SDATA (DTP_LIST,        "rcpt_replies",     SDF_RD,             "[\"250 2.1.5 Ok\"]", "Answers to RCPT TO, one per RCPT, the last one repeated"),
 SDATA (DTP_LIST,        "data_replies",     SDF_RD,             "[\"250 2.0.0 Ok: queued\"]", "Answers to the end of DATA, one per message, the last one repeated"),
+SDATA (DTP_LIST,        "mail_replies",     SDF_RD,             "[\"250 2.1.0 Ok\"]", "Answers to MAIL FROM, one per MAIL FROM, the last one repeated"),
 SDATA (DTP_LIST,        "rset_replies",     SDF_RD,             "[\"250 2.0.0 Ok\"]", "Answers to RSET, one per RSET, the last one repeated"),
 SDATA (DTP_INTEGER,     "max_connections",  SDF_RD,             "0",        "Connections allowed; one more is an ERROR. 0: no check"),
 SDATA (DTP_LIST,        "data_min_gaps",    SDF_RD,             "[]",       "ms that the end of DATA n must come after the end of DATA n-1 (entry 0 unused)"),
@@ -137,6 +140,7 @@ typedef struct _PRIVATE_DATA {
     size_t rcpt_count;
     size_t ehlo_count;
     size_t rset_count;
+    size_t mail_count;
     BOOL auth_continuation;     /* the last AUTH was answered 334: the next line is its response */
     size_t data_count;
     size_t conn_count;
@@ -432,7 +436,21 @@ PRIVATE int process_line(hgobj gobj, const char *line)
         return send_reply(gobj, reply);
     }
     if(strncasecmp(line, "MAIL FROM:", 10) == 0) {
-        return send_reply(gobj, "250 2.1.0 Ok");
+        const char *reply = nth_reply(gobj, "mail_replies", priv->mail_count);
+        priv->mail_count++;
+        if(!reply) {
+            // Error already logged
+            return -1;
+        }
+        if(strncmp(reply, "250", 3) != 0) {
+            gobj_log_info(gobj, 0,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Fake smtp: MAIL FROM refused",
+                "reply",        "%s", reply,
+                NULL
+            );
+        }
+        return send_reply(gobj, reply);
     }
     if(strncasecmp(line, "RCPT TO:", 8) == 0) {
         const char *reply = nth_reply(gobj, "rcpt_replies", priv->rcpt_count);

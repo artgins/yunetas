@@ -1,13 +1,13 @@
 /****************************************************************************
  *          main_rset_refused.c
  *
- *          Two emails at once. The server refuses the recipient of the first
- *          (550) and then RSET too (502): the session says QUIT, and the
- *          second email opens a connection of its own as soon as the close
- *          has ended -- within 1.5 s, with timeout_retry 5 s: the close was
- *          no failure. Before, a message sent again from inside the close
- *          of the transport (the emailsender does it from EV_ON_CLOSE)
- *          always waited timeout_retry.
+ *          Two emails at once. The server refuses every recipient of the
+ *          first (550) and then RSET (502): the session says QUIT, and the
+ *          second email opens a connection of its own -- not at once: a
+ *          server that closes after a refusal must not be logged in to once
+ *          per queued message, so the next connection waits timeout_retry
+ *          (1 s here), and comes within 3 s. In the code before it came in
+ *          the next cycle of the loop.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -25,7 +25,7 @@
  *                      Names
  ***************************************************************************/
 #define APP_NAME        "test_emailsender_rset_refused"
-#define APP_DOC         "After a close with no failure the next message connects at once"
+#define APP_DOC         "After a refusal and a refused RSET the next connection waits timeout_retry"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -103,9 +103,10 @@ PRIVATE char variable_config[]= "\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
                                 'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'rcpt_replies': ['550 5.1.1 No such user', '250 2.1.5 Ok'],\n\
+                                'rcpt_replies': ['550 5.1.1 No such user', '550 5.1.1 No such user', '250 2.1.5 Ok'],\n\
                                 'rset_replies': ['502 5.5.1 Command not implemented'],\n\
-                                'connect_max_gaps': [0, 1500],      \n\
+                                'connect_min_gaps': [0, 1000],      \n\
+                                'connect_max_gaps': [0, 3000],      \n\
                                 'die_on_delivery': true             \n\
                             },                                      \n\
                             'children': [                           \n\
@@ -133,7 +134,7 @@ PRIVATE char variable_config[]= "\
                 'tranger_database': 'emailsender',                  \n\
                 'topic_emails_queue': 'emails_queue',               \n\
                 'topic_emails_failed': 'emails_failed',             \n\
-                'timeout_retry': 5000,                              \n\
+                'timeout_retry': 1000,                              \n\
                 'tkey': 'tm'                                        \n\
             }                                                       \n\
         },                                                          \n\
@@ -234,25 +235,27 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
-        "msg", "Starting yuno",
-        "msg", "Playing yuno",
-        "msg", "Creating __timeranger2__.json",
-        "msg", "Creating topic",
-        "msg", "Creating topic",
-        "msg", "Fake smtp: AUTH answered",
-        "msg", "Fake smtp: RCPT refused",
-        "msg", "RCPT TO rejected",
-        "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com",
-        "msg", "Fake smtp: RSET answered", "reply", "502 5.5.1 Command not implemented",
-        "msg", "SMTP server does not take RSET: the session ends, the next message opens another",
-        "msg", "Fake smtp: AUTH answered",
-        "msg", "Fake smtp: message delivered",
-        "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
-        "msg", "Exit to die",
-        "msg", "Pausing yuno",
-        "msg", "Yuno stopped, gobj end"
-    );
+    json_t *errors_list = json_array();
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Starting yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Playing yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating __timeranger2__.json"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "Fake smtp: RSET answered", "reply", "502 5.5.1 Command not implemented"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server does not take RSET: the session ends, the next message opens another"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: message delivered"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s, s:s}", "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Exit to die"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Pausing yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Yuno stopped, gobj end"));
 
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
@@ -280,7 +283,8 @@ static void cleaning(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
-    json_t *expected_errors = json_pack("[s]", "email NOT sent, moved to failed queue");
+    json_t *expected_errors = json_array();
+    json_array_append_new(expected_errors, json_string("email NOT sent, moved to failed queue"));
     if(!json_equal(error_msgs, expected_errors) || errors_outside_the_test) {
         char *s_got = json2uglystr(error_msgs);
         char *s_expected = json2uglystr(expected_errors);

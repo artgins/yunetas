@@ -58,6 +58,13 @@
  *                      url it runs on, and the log must say THAT one.
  *          "two"       two emails at once, the second queued behind the
  *                      first.
+ *          "send_check"  `email_count` emails at once; `action_delay` ms
+ *                      later the queues must hold `expect_queued` pending
+ *                      and `expect_failed` failed (list-queues), and the
+ *                      yuno ends.
+ *          "set_url_stash" with `max_wait`: the fake server (notifying us)
+ *                      must see the session within `max_wait` ms of the
+ *                      play.
  *          "bad_burst" one good email, and behind it, while it is in
  *                      flight, `bad_count` emails with no recipient: when
  *                      the good one is delivered the emailsender takes them
@@ -117,6 +124,10 @@ SDATA (DTP_STRING,      "expect_reply",     SDF_RD,             "535 5.7.8","sce
 SDATA (DTP_INTEGER,     "action_delay",     SDF_RD,             "0",        "ms to the second step of set_url_stash, refill and late_server"),
 SDATA (DTP_INTEGER,     "min_wait",         SDF_RD,             "0",        "scenario late_server: ms the session must wait at least"),
 SDATA (DTP_INTEGER,     "act_on_connect_n", SDF_RD,             "1",        "scenarios pause and shutdown: act at this connection of the fake server (1 = the first)"),
+SDATA (DTP_INTEGER,     "email_count",      SDF_RD,             "1",        "scenario send_check: emails sent at once"),
+SDATA (DTP_INTEGER,     "expect_queued",    SDF_RD,             "0",        "scenario send_check: pending emails expected"),
+SDATA (DTP_INTEGER,     "expect_failed",    SDF_RD,             "0",        "scenario send_check: failed emails expected"),
+SDATA (DTP_INTEGER,     "max_wait",         SDF_RD,             "0",        "scenario set_url_stash: ms the session may take to connect after the play. 0: no check"),
 SDATA (DTP_INTEGER,     "bad_count",        SDF_RD,             "0",        "scenario bad_burst: emails with no recipient queued behind the good one"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
@@ -140,6 +151,7 @@ typedef struct _PRIVATE_DATA {
     hgobj input_side;       // the fake server, when the driver starts it
     hgobj timer;            // the second step of a scenario
     uint64_t server_started;// scenario "late_server": when (msectimer)
+    uint64_t played_at;     // scenario "set_url_stash": when the service was played again
 } PRIVATE_DATA;
 
 
@@ -244,6 +256,15 @@ PRIVATE int start_scenario(hgobj gobj)
             strcmp(scenario, "shutdown") == 0) {
         priv->input_side = gobj_find_service(gobj_read_str_attr(gobj, "server_service"), TRUE);
         gobj_start_tree(priv->input_side);
+    }
+
+    if(strcmp(scenario, "send_check") == 0) {
+        set_timeout(priv->timer, gobj_read_integer_attr(gobj, "action_delay"));
+        int count = (int)gobj_read_integer_attr(gobj, "email_count");
+        for(int i = 0; i < count; i++) {
+            send_one_email(gobj);
+        }
+        return 0;
     }
 
     if(strcmp(scenario, "two") == 0) {
@@ -471,6 +492,27 @@ PRIVATE int ac_fake_client_connected(hgobj gobj, gobj_event_t event, json_t *kw,
         set_yuno_must_die();
     }
 
+    json_int_t max_wait = gobj_read_integer_attr(gobj, "max_wait");
+    if(strcmp(scenario, "set_url_stash") == 0 && max_wait > 0 && priv->played_at) {
+        uint64_t waited = time_in_milliseconds_monotonic() - priv->played_at;
+        if((json_int_t)waited <= max_wait) {
+            gobj_log_info(gobj, 0,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "The session connected in time after the play",
+                NULL
+            );
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "The session connected too late after the play",
+                "waited",       "%ld", (long)waited,
+                "max_wait",     "%ld", (long)max_wait,
+                NULL
+            );
+        }
+    }
+
     if(strcmp(scenario, "late_server") == 0 && !priv->acted_on_connect) {
         priv->acted_on_connect = TRUE;
         uint64_t waited = time_in_milliseconds_monotonic() - priv->server_started;
@@ -509,6 +551,13 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(strcmp(scenario, "refill") == 0) {
         send_one_email(gobj);
 
+    } else if(strcmp(scenario, "send_check") == 0) {
+        check_queues(gobj,
+            (int)gobj_read_integer_attr(gobj, "expect_queued"),
+            (int)gobj_read_integer_attr(gobj, "expect_failed")
+        );
+        set_yuno_must_die();
+
     } else if(strcmp(scenario, "bad_burst") == 0) {
         check_queues(gobj, 0, (int)gobj_read_integer_attr(gobj, "bad_count"));
         set_yuno_must_die();
@@ -541,6 +590,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_play_emailsender(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->played_at = time_in_milliseconds_monotonic();
     gobj_play(gobj_find_service("emailsender", TRUE));
     if(strcmp(gobj_read_str_attr(gobj, "scenario"), "set_url") == 0) {
         send_one_email(gobj);

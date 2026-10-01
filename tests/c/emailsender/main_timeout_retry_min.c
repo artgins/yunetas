@@ -1,18 +1,11 @@
 /****************************************************************************
- *          main_server_close_paced.c
+ *          main_timeout_retry_min.c
  *
- *          The fake server closes the first connection at once, answers the
- *          second with two malformed lines in one write, closes the third at
- *          once and greets the fourth. The connections must come at least 1,
- *          2 and 4 s apart (timeout_retry 1 s), the third within 3.5 s of the
- *          second, and the email is delivered. Up to 7.25.20 a close by the
- *          server reconnected after a fixed 2 s; and two aborts of one read
- *          must not double the delay twice.
- *
- *          The server never saw the email: none of those failures is a retry
- *          of it, and with max_retries 2 it is delivered at the fourth
- *          connection. Up to 7.25.20 each one spent a retry, and it went to
- *          the failed queue at the second.
+ *          The emailsender is configured with timeout_retry 0: refused and
+ *          logged (an ERROR), and the default (2 s) taken. The server drops
+ *          the first two connections: the next ones come at least 2 s and 4 s
+ *          apart. Before, 0 was taken: a failure of the handshake (which
+ *          spends no retry) reconnected in a tight loop.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -29,8 +22,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_server_close_paced"
-#define APP_DOC         "A session the server ends by itself is retried paced"
+#define APP_NAME        "test_emailsender_timeout_retry_min"
+#define APP_DOC         "A timeout_retry below the minimum is refused"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -42,7 +35,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_server_close_paced"
+#define BASE    "/tmp/test_emailsender_timeout_retry_min"
 
 /***************************************************************************
  *                      Default config
@@ -72,8 +65,7 @@ PRIVATE char variable_config[]= "\
         'service_descriptor': {                                     \n\
         },                                                          \n\
         'trace_levels': {                                           \n\
-        },                                                          \n\
-        'timeout_periodic': 100                                     \n\
+        }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
     },                                                              \n\
@@ -90,7 +82,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7834',              \n\
+                        'url': 'tcp://127.0.0.1:7856',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -109,9 +101,8 @@ PRIVATE char variable_config[]= "\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
                                 'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'connection_plan': ['drop', 'garbage', 'drop'],\n\
-                                'connect_min_gaps': [0, 1000, 2000, 4000],\n\
-                                'connect_max_gaps': [0, 0, 3500, 0],\n\
+                                'connection_plan': ['drop', 'drop'],\n\
+                                'connect_min_gaps': [0, 1900, 3900],\n\
                                 'die_on_delivery': true             \n\
                             },                                      \n\
                             'children': [                           \n\
@@ -132,15 +123,14 @@ PRIVATE char variable_config[]= "\
             'kw': {                                                 \n\
                 'username': 'user',                                 \n\
                 'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7834',                      \n\
+                'url': 'tcp://127.0.0.1:7856',                      \n\
                 'from': 'sender@example.com',                       \n\
                 'timeout_inactivity': 30000,                        \n\
                 'tranger_path': '"BASE"/store',                     \n\
                 'tranger_database': 'emailsender',                  \n\
                 'topic_emails_queue': 'emails_queue',               \n\
                 'topic_emails_failed': 'emails_failed',             \n\
-                'timeout_retry': 1000,                              \n\
-                'max_retries': 2,                                   \n\
+                'timeout_retry': 0,                                 \n\
                 'tkey': 'tm'                                        \n\
             }                                                       \n\
         },                                                          \n\
@@ -158,7 +148,7 @@ PRIVATE char variable_config[]= "\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
                 'scenario': 'send',                                 \n\
-                'smtp_url': 'tcp://127.0.0.1:7834'                  \n\
+                'smtp_url': 'tcp://127.0.0.1:7856'                  \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
@@ -241,27 +231,25 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
-        "msg", "Starting yuno",
-        "msg", "Playing yuno",
-        "msg", "Creating __timeranger2__.json",
-        "msg", "Creating topic",
-        "msg", "Creating topic",
-        "msg", "Fake smtp: connection not greeted", "plan", "drop",
-        "msg", "SMTP server closed the session",
-        "msg", "SMTP server failing: emails wait, the retries are paced",
-        "msg", "Fake smtp: connection not greeted", "plan", "garbage",
-        "msg", "malformed SMTP reply line",
-        "msg", "Fake smtp: connection not greeted", "plan", "drop",
-        "msg", "SMTP server closed the session",
-        "msg", "Fake smtp: AUTH answered",
-        "msg", "SMTP server answers again",
-        "msg", "Fake smtp: message delivered",
-        "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
-        "msg", "Exit to die",
-        "msg", "Pausing yuno",
-        "msg", "Yuno stopped, gobj end"
-    );
+    json_t *errors_list = json_array();
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Starting yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "timeout_retry below its minimum: the default is taken"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Playing yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating __timeranger2__.json"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: connection not greeted"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server closed the session"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server failing: emails wait, the retries are paced"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: connection not greeted"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server closed the session"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server answers again"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: message delivered"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s, s:s}", "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Exit to die"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Pausing yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Yuno stopped, gobj end"));
 
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
@@ -289,7 +277,8 @@ static void cleaning(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
-    json_t *expected_errors = json_pack("[]");
+    json_t *expected_errors = json_array();
+    json_array_append_new(expected_errors, json_string("timeout_retry below its minimum: the default is taken"));
     if(!json_equal(error_msgs, expected_errors) || errors_outside_the_test) {
         char *s_got = json2uglystr(error_msgs);
         char *s_expected = json2uglystr(expected_errors);

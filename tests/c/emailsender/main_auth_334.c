@@ -4,9 +4,9 @@
  *          A 334 to AUTH PLAIN asks for the response on a line of its own
  *          (RFC 4954): C_SMTP_SESSION gives it once, the same credentials.
  *          A second 334 is a refusal: EV_ON_CLOSE carries auth_rejected
- *          (334) and the reply, and the emailsender stops on it. In the
- *          branch before this fix the first 334 was already the refusal
- *          (and earlier still, a transient failure retried for ever).
+ *          (334) and the reply, and the emailsender stops on it. Up to
+ *          7.25.20 the first 334 already stopped the yuno: any reply but 235
+ *          was taken as rejected credentials.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

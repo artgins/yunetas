@@ -69,6 +69,13 @@ SET(SRCS
     bad_burst
     rcpt_refused_same_session
     rset_refused
+    refusing_every_message
+    mail_from_refused
+    partial_rcpt
+    timeout_retry_min
+    exit_on_refused
+    connect_watchdog
+    url_change_resets_pacing
 )
 
 ##############################################

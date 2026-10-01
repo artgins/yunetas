@@ -233,7 +233,7 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Creating __timeranger2__.json",
@@ -243,7 +243,6 @@ static int register_yuno_and_more(void)
         "msg", "set-url-from says the url waits for a play",
         "msg", "Fake smtp: AUTH answered",
         "msg", "Fake smtp: message delivered",
-        "msg", "SMTP server works again: emails delivered",
         "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
         "msg", "Exit to die",
         "msg", "Pausing yuno",

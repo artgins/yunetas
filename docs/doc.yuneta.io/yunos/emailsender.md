@@ -20,8 +20,9 @@ C_EMAILSENDER          <- queueing, retry, dead-letter, MIME encoding
   **AUTH PLAIN**. **STARTTLS is not implemented** (the transport is TLS from the
   first byte via the `smtps://` C_TCP bottom). EHLO advertises the local
   hostname. An idle session closed by the server (SMTP 421 — OVH does this
-  aggressively) is treated as a graceful close. The session connects again
-  when it has the next message to send; its C_TCP never reconnects by itself.
+  aggressively) is treated as a graceful close. The session connects only
+  when it has a message to send: its C_TCP never connects by itself, neither
+  when it starts (`connect_on_start` false) nor after a close.
 
 ## Configuration
 
@@ -156,7 +157,8 @@ dropped while waiting:
   attempts are exhausted. A transient send failure (server NACK, connection
   dropped mid-send) is retried up to `max_retries` total attempts.
 - When `max_retries` is exhausted — or the message is permanently undeliverable
-  (missing recipient, un-encodable body, a `5xx` to it) — it is moved to `emails_failed` and
+  (missing recipient, un-encodable body, a `5xx` to every recipient, to DATA
+  or to its end) — it is moved to `emails_failed` and
   removed from the main queue. **The dead-letter queue is not retried
   automatically.**
 
@@ -167,32 +169,56 @@ to the dead-letter queue, and an info line on success.
 ### Pacing
 
 No failure is retried at once. After a failed session or connection -- a
-`4xx` to the login or to the message, a `4xx` or `421` to the end of DATA (a
-rate limit, a greylist), a reply that never comes, a malformed reply, a server that closes
-the connection by itself, a connection that is refused or times out -- the next
-connection waits `timeout_retry` ms, twice as long after each further failure
-in a row, up to `timeout_retry_max`. An email queued during the wait waits for
-it too, and so does a pause and a play. A session that ends with no failure (a
-message delivered, an idle session closed) starts the doubling again, and a
-message waiting then connects as soon as that close has ended. Nothing
-connects with nothing to send: the transport never reconnects by itself.
+`4xx` to the login or to the message, a refused sender (any reply but `250`
+to MAIL FROM), a `4xx` or `421` to the end of DATA (a rate limit, a
+greylist), a reply that never comes, a malformed reply, a server that closes
+the connection by itself, a connection that is refused, times out, or whose
+TCP connect or TLS handshake does not end within `timeout_response` -- the
+next connection waits `timeout_retry` ms, twice as long after each further
+failure in a row, up to `timeout_retry_max`. An email queued during the wait
+waits for it too, and so does a pause and a play. A session that ends with no
+failure (a message delivered, an idle session closed) starts the doubling
+again, and a message waiting then connects as soon as the transport is down.
+Nothing connects with nothing to send, not even at the start: the transport
+never connects by itself. A url changed (`set-url-from` and a pause and a
+play) starts the pacing afresh. `timeout_retry` and `timeout_response` below
+1000 ms, and `timeout_retry_max` below `timeout_retry`, are refused with an
+ERROR and the default taken.
 
-A message the server refuses with a `5xx` (MAIL FROM, RCPT TO, DATA or the
-end of DATA: `550 5.1.1` no such user, `554` content refused) is the
-message's fault, not the server's. It goes to `emails_failed`, tried once,
-and the session goes on: it sends `RSET` and the next message goes on the
-same connection at once (a server that refuses `RSET` is told `QUIT`, and the
-next message connects as soon as that close has ended). No paced delay, no
-*"SMTP server failing"*. A batch of messages refused one by one is therefore
-bounded by the queue: one attempt each, never a loop.
+A message the server refuses with a `5xx` (every RCPT TO, DATA or the end of
+DATA: `550 5.1.1` no such user, `554` content refused) is the message's
+fault, not the server's. It goes to `emails_failed`, tried once, and the
+session goes on: it sends `RSET` and the next message goes on the same
+connection at once (a server that refuses `RSET` is told `QUIT`, and the next
+connection waits `timeout_retry`). No paced delay, no *"SMTP server
+failing"* -- for the first two refusals in a row. From the third refusal with
+no delivery between them, the server is refusing every message (a blocked
+account, a quota): each refusal still sends its message to the failed queue,
+but drops the session as a failure, the next message waits the paced delay,
+and the streak is said (*"SMTP server refusing every message: the next ones
+are paced"*). A batch of refused messages costs one attempt each, at the
+paced rate.
+
+A `5xx` to one recipient of several refuses that recipient only: the message
+goes to the others, each refused one a WARNING. A refused sender (MAIL FROM)
+is the account's or the server's trouble, the same for every message: paced
+like a failure, the message kept at the head of the queue with no retry
+spent, and the ERROR of `timeout_failing_alarm` after an hour.
+
 Providers ban the addresses that hammer them (OVH did, for its whole mail
-cluster), so this is a hard rule, not a tuning knob.
+cluster), so this is a hard rule, not a tuning knob: whatever the server
+answers, connection after connection, the yuno never logs in faster than
+the paced delay -- refused logins and refused clients stop it, and refused
+messages cost one attempt each.
 
-A failing server is said: a WARNING at the first failure (*"SMTP server
-failing: emails wait, the retries are paced"*, with its `cause`, a refused
-connection included), an ERROR once it has failed for `timeout_failing_alarm`
-(1 h by default) and again at most once per that period, and an INFO at the
-first delivery after it. To be told after 15 minutes instead:
+A failing server is said, while an email waits: a WARNING at the first
+failure (*"SMTP server failing: emails wait, the retries are paced"*, with
+its `cause`, a refused connection included), an ERROR once it has failed for
+`timeout_failing_alarm` (1 h by default) and again at most once per that
+period, and an INFO when it ends -- at the first delivery (*"SMTP server works
+again"*), or, for a streak of connections and handshakes only, at the next
+handshake that works (*"SMTP server answers again"*). A session closed with
+no failure ends a streak too. To be told after 15 minutes instead:
 
 ```json
 "kw": {
@@ -201,15 +227,17 @@ first delivery after it. To be told after 15 minutes instead:
 ```
 
 A message spends one of its `max_retries` only when it fails in its own
-transaction (MAIL FROM onwards). A failure before -- the connection, the
-greeting, EHLO, a transient AUTH (`454`) -- spends none: the server never saw
-the message, and it waits, paced, for as long as the outage lasts.
+transaction (its first RCPT TO onwards). A failure before -- the connection,
+the greeting, EHLO, a transient AUTH (`454`), a refused sender -- spends
+none: the server never saw the message, and it waits, paced, for as long as
+the outage lasts.
 
 The wait after the k-th failure in a row is `timeout_retry` × 2^(k-1), capped
 at `timeout_retry_max`: with the defaults 2, 4, 8, 16, 32, 64, 128, 256 and
 512 s, then 600 s after every further failure. Every failure of the session
 counts, of any message and of any kind, one that spends no retry too; a
-message refused with a `5xx` is no failure of the server and counts nothing.
+message refused with a `5xx` counts nothing for the first two in a row, and
+a step each from the third on.
 The count
 starts again only after a delivery, or after a session that ends with no
 failure (an idle session closed). Moving a message to `emails_failed` does

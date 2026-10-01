@@ -1,10 +1,10 @@
 /****************************************************************************
  *          main_rcpt_refused_same_session.c
  *
- *          Two emails at once. The server refuses the recipient of the first
- *          (550 5.1.1: the message's fault, not the server's): it goes to
- *          the failed queue, the session sends RSET, and the second email is
- *          delivered on the SAME connection, at once -- no "SMTP server
+ *          Two emails at once. The server refuses every recipient of the
+ *          first (550 5.1.1: the message's fault, not the server's): it goes
+ *          to the failed queue, the session sends RSET, and the second email
+ *          is delivered on the SAME connection, at once -- no "SMTP server
  *          failing", nothing paced (timeout_retry is 5 s here, and the fake
  *          server takes one connection only). Before, the session was
  *          dropped, the server was said to be failing, and the second email
@@ -104,7 +104,7 @@ PRIVATE char variable_config[]= "\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
                                 'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'rcpt_replies': ['550 5.1.1 No such user', '250 2.1.5 Ok'],\n\
+                                'rcpt_replies': ['550 5.1.1 No such user', '550 5.1.1 No such user', '250 2.1.5 Ok'],\n\
                                 'max_connections': 1,               \n\
                                 'die_on_delivery': true             \n\
                             },                                      \n\
@@ -234,23 +234,25 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
-        "msg", "Starting yuno",
-        "msg", "Playing yuno",
-        "msg", "Creating __timeranger2__.json",
-        "msg", "Creating topic",
-        "msg", "Creating topic",
-        "msg", "Fake smtp: AUTH answered",
-        "msg", "Fake smtp: RCPT refused",
-        "msg", "RCPT TO rejected",
-        "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com",
-        "msg", "Fake smtp: RSET answered", "reply", "250 2.0.0 Ok",
-        "msg", "Fake smtp: message delivered",
-        "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
-        "msg", "Exit to die",
-        "msg", "Pausing yuno",
-        "msg", "Yuno stopped, gobj end"
-    );
+    json_t *errors_list = json_array();
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Starting yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Playing yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating __timeranger2__.json"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "Fake smtp: RSET answered", "reply", "250 2.0.0 Ok"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: message delivered"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s, s:s}", "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Exit to die"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Pausing yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Yuno stopped, gobj end"));
 
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
@@ -278,7 +280,8 @@ static void cleaning(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
-    json_t *expected_errors = json_pack("[s]", "email NOT sent, moved to failed queue");
+    json_t *expected_errors = json_array();
+    json_array_append_new(expected_errors, json_string("email NOT sent, moved to failed queue"));
     if(!json_equal(error_msgs, expected_errors) || errors_outside_the_test) {
         char *s_got = json2uglystr(error_msgs);
         char *s_expected = json2uglystr(expected_errors);

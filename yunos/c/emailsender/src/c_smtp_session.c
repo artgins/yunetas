@@ -25,44 +25,66 @@
  *          Every close caused by a reply carries the reply's text on
  *          EV_ON_CLOSE (`reply`).
  *
- *          A 5xx to MAIL FROM, RCPT TO, DATA or the end of DATA refuses THAT
+ *          A refused sender (any reply but 250 to MAIL FROM) is not the
+ *          message's fault: the sender is the same for every message (the
+ *          account, its quota, its right to send). It is a failure of the
+ *          server, paced, with no retry charged to the message.
+ *
+ *          A 5xx to RCPT TO refuses that recipient: the message goes to the
+ *          others (RFC 5321 §3.3), each refused one a WARNING. A 5xx to
+ *          every recipient, to DATA or to the end of DATA refuses THAT
  *          message (a recipient that does not exist, a content refused): it
  *          is answered at once on EV_ON_MESSAGE {ok: false, code, permanent},
  *          and the session goes on. It sends RSET, and the next message goes
  *          on the same connection; a server that refuses RSET with a 5xx is
- *          told QUIT, and the next message opens a connection of its own.
- *          None of that is a failure of the server: no pacing, no "SMTP
- *          server failing", the streak as it was. A 4xx there (a rate limit,
- *          a greylist, a 421) is one, like a reply that never comes.
+ *          told QUIT, and the next connection waits timeout_retry. That is
+ *          no failure of the server -- for the first FREE_REFUSALS_IN_ROW
+ *          refusals in a row. From then on until a delivery the server is
+ *          refusing every message (a blocked account): each refusal drops
+ *          the session as a failure, paced, and the streak is said ("SMTP
+ *          server refusing every message"). A 4xx there (a rate limit, a
+ *          greylist, a 421) is a failure, like a reply that never comes.
  *
  *          A session the SERVER ends (a refusal, an unexpected or malformed
  *          reply, a reply that never comes) is logged as a WARNING of
  *          MSGSET_PROTOCOL with the reply, capped: a remote peer can cause
- *          it. An ERROR is for our own failures only (no memory, an encoder).
+ *          it. An ERROR is for our own failures only (no memory, an encoder),
+ *          and for a configuration it cannot work with (a timeout_retry or a
+ *          timeout_response below its minimum, taken as the default).
  *
- *          Every connection is the session's: its C_TCP never reconnects by
- *          itself (timeout_between_connections -1), and the session connects
- *          ON DEMAND only -- when it holds a message to send -- and never
- *          before the paced delay. After a failure of any kind -- a refusal,
- *          a 4xx to the end of DATA, a reply that never comes, a server that
- *          closes the connection by itself (RST, TLS, a close with no reply),
- *          a connection that cannot even be made (refused, timed out: seen as
- *          the C_TCP's EV_STATE_CHANGED out of ST_WAIT_CONNECTED, since it
- *          publishes nothing else then) -- the next connection waits
- *          `timeout_retry`, doubled at each failure in a row up to
- *          `timeout_retry_max`. A close that is no failure (the session was
- *          idle and nothing went wrong in it) starts the doubling again, and
- *          nothing connects until there is a message -- then at once, or, if
- *          it comes inside that close, as soon as the close has ended
- *          (EV_CONNECT_AFTER_CLOSE, posted to ourselves). The waiting is our own
- *          timer, and it survives a pause and a play of the owner: a stop in
- *          the middle of a failing streak counts as one more failure.
+ *          Every connection is the session's: its C_TCP never connects by
+ *          itself (connect_on_start FALSE, timeout_between_connections -1),
+ *          and the session connects ON DEMAND only -- when it holds a message
+ *          to send -- and never before the paced delay. The connect (TCP and
+ *          TLS) is watched by timeout_response. After a failure of any kind
+ *          -- a 4xx, a refused sender, a reply that never comes, a server
+ *          that closes the connection by itself (RST, TLS, a close with no
+ *          reply), a connection that cannot even be made (refused, timed
+ *          out: seen as the C_TCP's EV_STATE_CHANGED out of
+ *          ST_WAIT_CONNECTED, with its `disconnect_cause`) -- the next
+ *          connection waits `timeout_retry`, doubled at each failure in a row
+ *          up to `timeout_retry_max`. A close that is no failure (the session
+ *          was idle and nothing went wrong in it) starts the doubling again,
+ *          and nothing connects until there is a message -- then as soon as
+ *          the transport is down: a message that comes while it closes is
+ *          driven again when it reaches ST_DISCONNECTED
+ *          (EV_CONNECT_AFTER_CLOSE, posted to ourselves). The waiting is our
+ *          own timer, and it survives a pause and a play of the owner: a
+ *          stop in the middle of a failing streak counts as one more
+ *          failure. A url changed (the owner writes it, and starts us again)
+ *          starts the pacing and the streak afresh: they were another
+ *          server's.
  *
- *          The first failure of a streak is a WARNING ("SMTP server
- *          failing"), with its cause; when it has lasted
+ *          The first failure of a streak, while a message waits, is a
+ *          WARNING ("SMTP server failing", or "SMTP server refusing every
+ *          message"), with its cause; when it has lasted
  *          `timeout_failing_alarm` it is an ERROR, said again at most once
  *          per that period while it lasts (at the retries, there is no timer
- *          for it), and a delivery ends it with an INFO.
+ *          for it). A delivery ends it with an INFO ("SMTP server works
+ *          again"); a streak of connections and handshakes only ends at the
+ *          next handshake that works ("SMTP server answers again"); any
+ *          streak ends at a close with no failure. With no message waiting
+ *          there is no streak.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -82,6 +104,15 @@
 #define LINE_BUFFER_INITIAL            512
 #define LINE_BUFFER_MAX                8192    /* RFC 5321 §4.5.3.1.6 reply line limit */
 #define REPLY_TEXT_MAX                 512     /* RFC 5321 §4.5.3.1.5, the text kept of a reply */
+
+#define FREE_REFUSALS_IN_ROW           2       /* 5xx refusals of messages in a row that go on at once */
+#define MIN_TIMEOUT_RETRY              1000    /* ms, smallest timeout_retry taken */
+#define DEFAULT_TIMEOUT_RETRY          2000
+#define DEFAULT_TIMEOUT_RETRY_MAX      600000
+#define MIN_TIMEOUT_RESPONSE           1000    /* ms, smallest timeout_response taken */
+
+#define MSG_SERVER_FAILING      "SMTP server failing: emails wait, the retries are paced"
+#define MSG_SERVER_REFUSING     "SMTP server refusing every message: the next ones are paced"
 
 #define SMTP_CODE_SERVICE_READY        220
 #define SMTP_CODE_GOODBYE              221
@@ -117,8 +148,12 @@ PRIVATE int abort_session_by_peer(hgobj gobj, const char *reason, int code, cons
 PRIVATE int abort_session_on_error(hgobj gobj, const char *reason);
 PRIVATE int drop_session(hgobj gobj, const char *reply);
 PRIVATE void pace_next_connection(hgobj gobj, BOOL failure);
-PRIVATE void note_failure(hgobj gobj, const char *cause);
+PRIVATE void note_failure(hgobj gobj, const char *what, const char *cause, BOOL ends_at_handshake, BOOL waiting);
 PRIVATE void note_delivery(hgobj gobj);
+PRIVATE void end_failing_streak(hgobj gobj, const char *info);
+PRIVATE void reset_pacing(hgobj gobj);
+PRIVATE void check_timeouts(hgobj gobj);
+PRIVATE BOOL bottom_is_connected(hgobj gobj);
 PRIVATE int request_connection(hgobj gobj);
 
 /*
@@ -199,6 +234,14 @@ typedef struct _PRIVATE_DATA {
     uint64_t alarm_not_before;  /* msectimer: the next failing ERROR; 0 = not said yet */
     BOOL detached;              /* stopped: the connection closing is ours, nothing of it is told */
     BOOL connect_posted;        /* EV_CONNECT_AFTER_CLOSE is on its way */
+    BOOL connecting;            /* EV_CONNECT sent: the timer is the watchdog of the connect and TLS */
+    BOOL connect_timed_out;     /* the watchdog dropped the attempt */
+    int refused_in_row;         /* messages refused with a 5xx since the last delivery */
+    BOOL refusing;              /* this drop is for a run of refusals */
+    BOOL streak_ends_at_handshake; /* the failing streak is of connections/handshakes only */
+    int rcpt_accepted;          /* RCPT TO answered 250, of the message in hand */
+    int rcpt_last_code;         /* reply to the last RCPT TO refused */
+    char rcpt_last_reply[REPLY_TEXT_MAX];
 } PRIVATE_DATA;
 
 
@@ -228,6 +271,8 @@ PRIVATE void mt_create(hgobj gobj)
         subscriber = gobj_parent(gobj);
     }
     gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+
+    check_timeouts(gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -283,16 +328,19 @@ PRIVATE int mt_start(hgobj gobj)
 
     if(!empty_string(url) && !bottom) {
         /*
-         *  The C_TCP never reconnects by itself (a timeout_between_connections
-         *  of -1 arms no timer): every connection is ours, on demand, paced
-         *  (see the header). Up to 7.25.20 it reconnected every 2 s for ever,
-         *  whether there was anything to send or not.
+         *  The C_TCP never connects by itself: not at its start
+         *  (connect_on_start), not after a close (a timeout_between_connections
+         *  of -1 arms no timer). Every connection is ours, on demand, paced
+         *  (see the header). Up to 7.25.20 it connected at each start and
+         *  reconnected every 2 s for ever, whether there was anything to send
+         *  or not.
          */
-        json_t *kw_tcp = json_pack("{s:s, s:I, s:I, s:I, s:o}",
+        json_t *kw_tcp = json_pack("{s:s, s:I, s:I, s:I, s:b, s:o}",
             "url", url,
             "timeout_inactivity", gobj_read_integer_attr(gobj, "timeout_inactivity"),
             "timeout_between_connections", (json_int_t)-1,
             "timeout_between_connections_max", (json_int_t)0,
+            "connect_on_start", 0,
             "crypto", json_deep_copy(gobj_read_json_attr(gobj, "crypto"))
         );
         if(!kw_tcp) {
@@ -317,6 +365,13 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_write_new_json_attr(bottom, "crypto",
             json_deep_copy(gobj_read_json_attr(gobj, "crypto"))
         );
+        /*
+         *  Another server: the backoff and the streak were the old one's.
+         *  Kept, the corrected server waited the old one's delay (up to
+         *  timeout_retry_max) and its first failure could raise the ERROR
+         *  of a long failure at once.
+         */
+        reset_pacing(gobj);
     }
 
     start_bottom(gobj);
@@ -361,18 +416,21 @@ PRIVATE int mt_stop(hgobj gobj)
 
     /*
      *  Stopped in the middle of a failing streak (a connection or a session
-     *  under way, with failures before it): it counts as one more failure,
-     *  so a pause and a play do not buy an attempt at once. Up to 7.25.20
-     *  they did, at each play.
+     *  under way, the server failing before it): it counts as one more
+     *  failure, so a pause and a play do not buy an attempt at once. Up to
+     *  7.25.20 they did, at each play. A stop in a session that works (no
+     *  streak) counts nothing.
      */
     hgobj bottom = gobj_bottom_gobj(gobj);
     gobj_state_t bst = bottom? gobj_current_state(bottom) : ST_STOPPED;
     BOOL under_way = (st != ST_DISCONNECTED && st != ST_IDLE &&
             st != ST_WAIT_RSET_RESP && st != ST_WAIT_QUIT_RESP) ||
         bst == ST_WAIT_CONNECTED || bst == ST_WAIT_HANDSHAKE;
-    if(under_way && priv->retry_delay > 0) {
+    if(under_way && priv->failing_since) {
         pace_next_connection(gobj, TRUE);
     }
+    priv->connecting = FALSE;
+    priv->connect_timed_out = FALSE;
 
     if(bottom && gobj_is_running(bottom)) {
         gobj_stop(bottom);
@@ -397,11 +455,12 @@ PRIVATE int mt_stop(hgobj gobj)
  *  refuses to start then ("Initial wrong tcp state"). It is started when
  *  its EV_STOPPED comes (ac_stopped). Up to 7.25.20 a quick pause and
  *  play left the session with no transport.
+ *
+ *  Started, it does not connect (connect_on_start FALSE): request_connection
+ *  does, when there is a message.
  ***************************************************************************/
 PRIVATE int start_bottom(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     hgobj bottom = gobj_bottom_gobj(gobj);
     if(!bottom || gobj_is_running(bottom)) {
         return 0;
@@ -410,21 +469,6 @@ PRIVATE int start_bottom(hgobj gobj)
     gobj_state_t st = gobj_current_state(bottom);
     if(st != ST_STOPPED && st != ST_DISCONNECTED) {
         return 0;   // still closing: ac_stopped starts it
-    }
-
-    /*
-     *  A C_TCP that never connected since it started connects as it
-     *  starts: inside a paced wait it is started when the wait ends (our
-     *  timer, ac_timeout_reconnect). Up to 7.25.20 each play of the owner
-     *  was an attempt at once to a server that kept failing.
-     */
-    if(priv->connect_not_before && !test_msectimer(priv->connect_not_before)) {
-        if(gobj_current_state(gobj) == ST_DISCONNECTED) {
-            set_timeout(priv->timer,
-                (json_int_t)(priv->connect_not_before - time_in_milliseconds_monotonic())
-            );
-        }
-        return 0;
     }
     return gobj_start(bottom);
 }
@@ -545,6 +589,9 @@ PRIVATE int begin_send_current_message(hgobj gobj)
     char line[LINE_BUFFER_MAX];
     snprintf(line, sizeof(line), "MAIL FROM:<%s>", from);
     priv->recipient_index = 0;
+    priv->rcpt_accepted = 0;
+    priv->rcpt_last_code = 0;
+    priv->rcpt_last_reply[0] = 0;
     gobj_change_state(gobj, ST_WAIT_MAIL_FROM_RESP);
     set_timeout(priv->timer, priv->timeout_response);
     return send_smtp_line(gobj, line);
@@ -570,6 +617,13 @@ PRIVATE int send_next_rcpt_or_data(hgobj gobj)
         gobj_change_state(gobj, ST_WAIT_RCPT_TO_RESP);
         set_timeout(priv->timer, priv->timeout_response);
         return send_smtp_line(gobj, line);
+    }
+
+    if(priv->rcpt_accepted == 0) {
+        // every recipient refused, each one logged above
+        return refuse_current_message(gobj, priv->rcpt_last_code, priv->rcpt_last_reply,
+            "every recipient refused"
+        );
     }
 
     gobj_change_state(gobj, ST_WAIT_DATA_GO);
@@ -855,26 +909,40 @@ PRIVATE void pace_next_connection(hgobj gobj, BOOL failure)
 
 /***************************************************************************
  *  A failure of the server, from a connection that could not be made to a
- *  refused message: the first of a streak is a WARNING with its cause; a
- *  streak longer than timeout_failing_alarm is an ERROR, said again at
- *  most once per that period. Said here, at the failures, which keep
- *  coming at the paced retries while a message waits: no timer of its own.
+ *  run of refused messages, while a message waits (`waiting`): the first of
+ *  a streak is a WARNING (`what`) with its cause; a streak longer than
+ *  timeout_failing_alarm is an ERROR, said again at most once per that
+ *  period. Said here, at the failures, which keep coming at the paced
+ *  retries while a message waits: no timer of its own. With no message
+ *  waiting there is no streak: nobody waits for the server.
+ *
+ *  A streak of connections and handshakes only (`ends_at_handshake`) ends
+ *  at the next handshake that works; one with a failure of a transaction or
+ *  a run of refusals in it ends at a delivery. Any streak ends at a close
+ *  with no failure.
  ***************************************************************************/
-PRIVATE void note_failure(hgobj gobj, const char *cause)
+PRIVATE void note_failure(hgobj gobj, const char *what, const char *cause, BOOL ends_at_handshake, BOOL waiting)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!waiting) {
+        return;
+    }
 
     uint64_t now = time_in_milliseconds_monotonic();
     if(!priv->failing_since) {
         priv->failing_since = now;
+        priv->streak_ends_at_handshake = ends_at_handshake;
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL,
-            "msg",          "%s", "SMTP server failing: emails wait, the retries are paced",
+            "msg",          "%s", what,
             "cause",        "%s", cause? cause : "",
             "url",          "%s", gobj_read_str_attr(gobj, "url"),
             NULL
         );
+    } else if(!ends_at_handshake) {
+        priv->streak_ends_at_handshake = FALSE;
     }
 
     json_int_t alarm = gobj_read_integer_attr(gobj, "timeout_failing_alarm");
@@ -897,17 +965,17 @@ PRIVATE void note_failure(hgobj gobj, const char *cause)
 }
 
 /***************************************************************************
- *  A message delivered: the streak of failures, if any, is over.
+ *  The failing streak is over: said with `info` (an INFO), or silently.
  ***************************************************************************/
-PRIVATE void note_delivery(hgobj gobj)
+PRIVATE void end_failing_streak(hgobj gobj, const char *info)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->failing_since) {
+    if(priv->failing_since && info) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL,
-            "msg",          "%s", "SMTP server works again: emails delivered",
+            "msg",          "%s", info,
             "failed_s",     "%ld", (long)((time_in_milliseconds_monotonic() - priv->failing_since) / 1000),
             "url",          "%s", gobj_read_str_attr(gobj, "url"),
             NULL
@@ -915,6 +983,94 @@ PRIVATE void note_delivery(hgobj gobj)
     }
     priv->failing_since = 0;
     priv->alarm_not_before = 0;
+    priv->streak_ends_at_handshake = FALSE;
+}
+
+/***************************************************************************
+ *  A message delivered: the streak of failures, if any, is over, and so is
+ *  a run of refusals.
+ ***************************************************************************/
+PRIVATE void note_delivery(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    end_failing_streak(gobj, "SMTP server works again: emails delivered");
+    priv->refused_in_row = 0;
+}
+
+/***************************************************************************
+ *  Forget the pacing and the streak: another server (a url changed).
+ ***************************************************************************/
+PRIVATE void reset_pacing(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->retry_delay = 0;
+    priv->connect_not_before = 0;
+    priv->refused_in_row = 0;
+    end_failing_streak(gobj, NULL);
+}
+
+/***************************************************************************
+ *  The timeouts a session cannot work with are refused, logged, and the
+ *  default taken: a timeout_retry of 0 reconnected in a tight loop after
+ *  each failure of a handshake (which spends no retry), and a timer of 0
+ *  arms nothing, so a message waited for ever.
+ ***************************************************************************/
+PRIVATE void check_timeouts(hgobj gobj)
+{
+    json_int_t retry = gobj_read_integer_attr(gobj, "timeout_retry");
+    if(retry < MIN_TIMEOUT_RETRY) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONFIGURATION,
+            "msg",          "%s", "timeout_retry below its minimum: the default is taken",
+            "timeout_retry","%ld", (long)retry,
+            "minimum",      "%d", MIN_TIMEOUT_RETRY,
+            "default",      "%d", DEFAULT_TIMEOUT_RETRY,
+            NULL
+        );
+        retry = DEFAULT_TIMEOUT_RETRY;
+        gobj_write_integer_attr(gobj, "timeout_retry", retry);
+    }
+
+    json_int_t retry_max = gobj_read_integer_attr(gobj, "timeout_retry_max");
+    if(retry_max < retry) {
+        json_int_t fixed = DEFAULT_TIMEOUT_RETRY_MAX < retry? retry : DEFAULT_TIMEOUT_RETRY_MAX;
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONFIGURATION,
+            "msg",          "%s", "timeout_retry_max below timeout_retry: the default is taken",
+            "timeout_retry_max", "%ld", (long)retry_max,
+            "timeout_retry","%ld", (long)retry,
+            "default",      "%ld", (long)fixed,
+            NULL
+        );
+        gobj_write_integer_attr(gobj, "timeout_retry_max", fixed);
+    }
+
+    json_int_t response = gobj_read_integer_attr(gobj, "timeout_response");
+    if(response < MIN_TIMEOUT_RESPONSE) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONFIGURATION,
+            "msg",          "%s", "timeout_response below its minimum: the default is taken",
+            "timeout_response", "%ld", (long)response,
+            "minimum",      "%d", MIN_TIMEOUT_RESPONSE,
+            "default",      "%d", DEFAULT_TIMEOUT_RESPONSE_MS,
+            NULL
+        );
+        gobj_write_integer_attr(gobj, "timeout_response", DEFAULT_TIMEOUT_RESPONSE_MS);
+    }
+}
+
+/***************************************************************************
+ *  TRUE when the bottom C_TCP is up, not closing: a message can be begun.
+ ***************************************************************************/
+PRIVATE BOOL bottom_is_connected(hgobj gobj)
+{
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    return (bottom && gobj_current_state(bottom) == ST_CONNECTED)? TRUE : FALSE;
 }
 
 /***************************************************************************
@@ -922,6 +1078,17 @@ PRIVATE void note_delivery(hgobj gobj)
  *  delay allows it. Before, wait for it on our timer (EV_TIMEOUT in
  *  ST_DISCONNECTED comes back here). Up to 7.25.20 a message queued while
  *  a paced reconnection was pending connected at once.
+ *
+ *  A transport that is still closing (inside the close, or waiting for its
+ *  last operation) is left alone: its arrival in ST_DISCONNECTED comes back
+ *  here (ac_child_state_changed). Before, a message that came while the
+ *  transport closed with no failure waited timeout_retry (inside the close)
+ *  or for ever (a failed connect that closed with no message in hand).
+ *
+ *  The connect is watched: the timer is armed with timeout_response from
+ *  the EV_CONNECT to the EV_CONNECTED (TCP and TLS). Up to 7.25.20 nothing
+ *  watched them, and a server that took the TCP connection and stalled the
+ *  TLS handshake left the message waiting for ever, with nothing logged.
  ***************************************************************************/
 PRIVATE int request_connection(hgobj gobj)
 {
@@ -929,39 +1096,24 @@ PRIVATE int request_connection(hgobj gobj)
 
     hgobj bottom = gobj_bottom_gobj(gobj);
     if(bottom && !gobj_is_running(bottom)) {
-        start_bottom(gobj);     // or later: its close, or the pace, comes back here
+        start_bottom(gobj);     // or later: its close comes back here (ac_stopped)
     }
     if(!bottom || !gobj_is_running(bottom)) {
         return 0;   // not started yet, or closing: ac_stopped comes back here
     }
-    gobj_state_t st = gobj_current_state(bottom);
-    if(st != ST_DISCONNECTED && st != ST_STOPPED) {
-        return 0;   // connecting, or connected: the handshake takes the message
+    if(gobj_current_state(bottom) != ST_DISCONNECTED) {
+        return 0;   // connecting or connected (the handshake takes the message), or closing
     }
 
-    json_int_t wait = 0;
     if(priv->connect_not_before && !test_msectimer(priv->connect_not_before)) {
-        wait = (json_int_t)(priv->connect_not_before - time_in_milliseconds_monotonic());
-    }
-    if(st == ST_STOPPED && wait <= 0) {
-        /*
-         *  Inside the close of the transport (the owner sends the message
-         *  again from our EV_ON_CLOSE), and nothing to wait for: the close
-         *  was no failure. Connect as soon as it has ended, in the next
-         *  cycle of the loop. In the branch it waited timeout_retry, as
-         *  after a failure.
-         */
-        if(!priv->connect_posted) {
-            priv->connect_posted = TRUE;
-            gobj_post_event(gobj, EV_CONNECT_AFTER_CLOSE, json_object(), gobj);
-        }
-        return 0;
-    }
-    if(wait > 0) {
-        set_timeout(priv->timer, wait);
+        set_timeout(priv->timer,
+            (json_int_t)(priv->connect_not_before - time_in_milliseconds_monotonic())
+        );
         return 0;
     }
 
+    priv->connecting = TRUE;
+    set_timeout(priv->timer, priv->timeout_response);
     return gobj_send_event(bottom, EV_CONNECT, 0, gobj);
 }
 
@@ -1041,6 +1193,9 @@ PRIVATE int enter_idle_after_handshake(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_change_state(gobj, ST_IDLE);
+    if(priv->streak_ends_at_handshake) {
+        end_failing_streak(gobj, "SMTP server answers again");
+    }
     BOOL had_pending = (priv->jn_current_msg != NULL);
     gobj_publish_event(gobj, EV_ON_OPEN, 0);
     if(had_pending) {
@@ -1080,16 +1235,33 @@ PRIVATE int reject_current_message(hgobj gobj, int code, const char *reply, cons
  *  its failed queue), and the session goes on: RSET ends the transaction,
  *  and the next message goes on the same connection (a message the owner
  *  sends from inside the answer waits for the RSET's 250). No pacing, no
- *  note_failure(): the server works, and a batch of such messages is tried
- *  once each. Up to 7.25.20 a 5xx to MAIL FROM, RCPT TO or DATA dropped the
- *  session (the next message logged in again), and the branch also paced
- *  the next connection as after a failure of the server.
+ *  note_failure(): the server works -- for the first FREE_REFUSALS_IN_ROW
+ *  refusals in a row; from then on until a delivery, see above. Up to 7.25.20 a 5xx to MAIL FROM, RCPT TO or DATA dropped the
+ *  session, and the next message logged in again.
  *
  *  A WARNING with the reply, as anything a peer causes.
  ***************************************************************************/
 PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, const char *reason)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->refused_in_row++;
+    if(priv->refused_in_row > FREE_REFUSALS_IN_ROW) {
+        /*
+         *  Refused again, with no delivery since: the server is refusing
+         *  every message (an account blocked, a quota, a policy). It still
+         *  goes to the failed queue (the code travels on EV_ON_CLOSE), but
+         *  the session is dropped as for a failure: the next message waits
+         *  the paced delay, and the streak is said ("SMTP server refusing
+         *  every message", then the ERROR of timeout_failing_alarm).
+         *  Otherwise a queue of such messages would be sent in a few
+         *  seconds, one login per message when the server closes after each
+         *  refusal.
+         */
+        priv->refusing = TRUE;
+        priv->reject_code = code;
+        return abort_session_by_peer(gobj, reason, code, reply);
+    }
 
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
@@ -1186,6 +1358,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->inform_on_close = TRUE;
     priv->failed = FALSE;
     priv->auth_continued = FALSE;
+    priv->connecting = FALSE;
     gobj_change_state(gobj, ST_WAIT_BANNER);
     set_timeout(priv->timer, priv->timeout_response);
 
@@ -1224,6 +1397,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
          */
         priv->detached = FALSE;
         priv->failed = FALSE;
+        priv->refusing = FALSE;
         priv->reject_code = 0;
         priv->auth_reject_code = 0;
         priv->refuse_code = 0;
@@ -1232,6 +1406,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         return 0;
     }
 
+    BOOL had_msg = (priv->jn_current_msg != NULL);
     cleanup_current_message(gobj);
 
     /*
@@ -1257,13 +1432,35 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             NULL
         );
     }
-    if(failure || !after_refusal) {
-        pace_next_connection(gobj, failure);
+    if(failure) {
+        pace_next_connection(gobj, TRUE);
+        if(!priv->auth_reject_code && !priv->refuse_code) {
+            // a refused login or client is said by the owner, which stops on it
+            BOOL in_handshake = prev_state == ST_WAIT_BANNER || prev_state == ST_WAIT_EHLO_RESP ||
+                prev_state == ST_WAIT_AUTH_RESP;
+            note_failure(gobj,
+                priv->refusing? MSG_SERVER_REFUSING : MSG_SERVER_FAILING,
+                priv->close_reply[0]? priv->close_reply : "the server closed the session",
+                in_handshake && !priv->refusing,
+                had_msg
+            );
+        }
+    } else if(after_refusal) {
+        /*
+         *  The streak and the doubling stay as they were, but the next
+         *  connection waits timeout_retry at least: a server that refuses
+         *  every message and closes after each refusal would otherwise be
+         *  logged in to once per queued message, in a few seconds.
+         */
+        uint64_t not_before = start_msectimer((uint64_t)gobj_read_integer_attr(gobj, "timeout_retry"));
+        if(not_before > priv->connect_not_before) {
+            priv->connect_not_before = not_before;
+        }
+    } else {
+        pace_next_connection(gobj, FALSE);
+        end_failing_streak(gobj, NULL);     // a session that worked, and nothing more to send
     }
-    if(failure && !priv->auth_reject_code && !priv->refuse_code) {
-        // a refused login or client is said by the owner, which stops on it
-        note_failure(gobj, priv->close_reply[0]? priv->close_reply : "the server closed the session");
-    }
+    priv->refusing = FALSE;
 
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
@@ -1282,13 +1479,15 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
          */
         json_t *kw_close = json_object();
         /*
-         *  `transaction`: the close came during the mail transaction
-         *  (MAIL FROM onwards), so the server may have seen the message and
-         *  its failure is the message's. Without it the session failed in
-         *  its handshake (banner, EHLO, AUTH) or before: the server never
-         *  saw the message, and the owner must not charge it a retry.
+         *  `transaction`: the close came during the mail transaction of
+         *  the message (its first RCPT TO onwards), so the server may have
+         *  seen the message and its failure is the message's. Without it
+         *  the session failed in its handshake (banner, EHLO, AUTH), at
+         *  MAIL FROM (the sender, the same for every message: the account's
+         *  or the server's trouble) or before: the owner must not charge
+         *  the message a retry.
          */
-        if(prev_state == ST_WAIT_MAIL_FROM_RESP || prev_state == ST_WAIT_RCPT_TO_RESP ||
+        if(prev_state == ST_WAIT_RCPT_TO_RESP ||
                 prev_state == ST_WAIT_DATA_GO || prev_state == ST_WAIT_DATA_RESP) {
             json_object_set_new(kw_close, "transaction", json_true());
         }
@@ -1573,16 +1772,47 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(st == ST_WAIT_MAIL_FROM_RESP) {
         if(code != SMTP_CODE_OK) {
-            return reject_current_message(gobj, code, reply, "MAIL FROM rejected");
+            /*
+             *  The sender is refused, and the sender is the same for every
+             *  message (the account: `from`, its quota, its right to send):
+             *  not this message's fault, and every message would meet it.
+             *  A failure of the server, 4xx or 5xx: the session is dropped,
+             *  the reconnection paced, the message waits with no retry
+             *  spent, and a long one is the ERROR of timeout_failing_alarm.
+             *  Before, it was charged to the message: a 5xx sent the whole
+             *  queue to the failed queue, one message after another.
+             */
+            return abort_session_by_peer(gobj, "MAIL FROM rejected", code, reply);
         }
         return send_next_rcpt_or_data(gobj);
     }
 
     if(st == ST_WAIT_RCPT_TO_RESP) {
-        if(code != SMTP_CODE_OK) {
-            return reject_current_message(gobj, code, reply, "RCPT TO rejected");
+        if(code == SMTP_CODE_OK) {
+            priv->rcpt_accepted++;
+            return send_next_rcpt_or_data(gobj);
         }
-        return send_next_rcpt_or_data(gobj);
+        if(code >= 500 && code < 600) {
+            /*
+             *  This recipient is refused: the message goes to the others,
+             *  as SMTP has it (RFC 5321 §3.3). Only when every one of them
+             *  is refused is the message refused (send_next_rcpt_or_data).
+             *  Up to 7.25.20 one bad address among several sent the message
+             *  to nobody.
+             */
+            priv->rcpt_last_code = code;
+            snprintf(priv->rcpt_last_reply, sizeof(priv->rcpt_last_reply), "%s", reply);
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "RCPT TO rejected",
+                "code",         "%d", code,
+                "reply",        "%s", reply,
+                NULL
+            );
+            return send_next_rcpt_or_data(gobj);
+        }
+        return reject_current_message(gobj, code, reply, "RCPT TO rejected");
     }
 
     if(st == ST_WAIT_DATA_GO) {
@@ -1743,9 +1973,8 @@ PRIVATE int ac_timeout_quit(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
- *  The close of the transport that a connection was asked for in has
- *  ended (posted by request_connection): connect, if a message still
- *  waits for it.
+ *  The close of the transport has ended (posted by ac_child_state_changed):
+ *  connect, if a message still waits for it, when the pace allows it.
  ***************************************************************************/
 PRIVATE int ac_connect_after_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -1761,13 +1990,23 @@ PRIVATE int ac_connect_after_close(hgobj gobj, gobj_event_t event, json_t *kw, h
 }
 
 /***************************************************************************
- *  Disconnected with a message waiting: the paced delay has passed.
+ *  Our timer in ST_DISCONNECTED: the watchdog of a connect (TCP and TLS
+ *  took timeout_response: dropped, a failure, ac_child_state_changed), or
+ *  the end of the paced delay with a message waiting.
  ***************************************************************************/
 PRIVATE int ac_timeout_reconnect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    start_bottom(gobj);     // if a play found the pace pending
+    if(priv->connecting) {
+        priv->connecting = FALSE;
+        priv->connect_timed_out = TRUE;
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    start_bottom(gobj);     // if a play found it closing
     if(priv->jn_current_msg) {
         request_connection(gobj);
     }
@@ -1777,12 +2016,20 @@ PRIVATE int ac_timeout_reconnect(hgobj gobj, gobj_event_t event, json_t *kw, hgo
 }
 
 /***************************************************************************
- *  A state change of a child. Of the C_TCP, one says what it publishes no
- *  event for: a connection attempt that ended with no connection (refused,
- *  timed out, a TLS handshake that failed) -- a change out of
- *  ST_WAIT_CONNECTED or ST_WAIT_HANDSHAKE to a closing or closed state. As
- *  the C_TCP does not reconnect by itself, the failure is paced here, and
- *  said (note_failure), with the cause C_TCP left as the last message.
+ *  A state change of a child. Of the C_TCP, two say what it publishes no
+ *  event for:
+ *
+ *  - A connection attempt that ended with no connection (refused, timed
+ *    out, a TLS handshake that failed, our watchdog): a change out of
+ *    ST_WAIT_CONNECTED or ST_WAIT_HANDSHAKE to a closing or closed state.
+ *    As the C_TCP does not reconnect by itself, the failure is paced here,
+ *    and said (note_failure), with the cause the C_TCP wrote in its
+ *    `disconnect_cause` (not the last message of the log, which is any
+ *    ERROR of the process).
+ *  - Its close has ended (ST_DISCONNECTED): a message waiting is driven
+ *    again, in the next cycle of the loop (EV_CONNECT_AFTER_CLOSE): paced
+ *    if the close was a failure, at once if not.
+ *
  *  Changes of our own stop of it (not running) are not failures.
  ***************************************************************************/
 PRIVATE int ac_child_state_changed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -1803,13 +2050,31 @@ PRIVATE int ac_child_state_changed(hgobj gobj, gobj_event_t event, json_t *kw, h
 
     if(was_connecting && is_down) {
         char cause[REPLY_TEXT_MAX];
-        snprintf(cause, sizeof(cause), "cannot connect: %s", gobj_log_last_message());
+        snprintf(cause, sizeof(cause), "cannot connect: %s",
+            priv->connect_timed_out?
+                "no connection, or no TLS handshake, within timeout_response" :
+                gobj_read_str_attr(src, "disconnect_cause")
+        );
+        if(priv->connecting) {
+            clear_timeout(priv->timer);
+        }
+        priv->connecting = FALSE;
+        priv->connect_timed_out = FALSE;
         pace_next_connection(gobj, TRUE);
-        note_failure(gobj, cause);
-        if(priv->jn_current_msg && gobj_current_state(gobj) == ST_DISCONNECTED) {
-            set_timeout(priv->timer,
-                (json_int_t)(priv->connect_not_before - time_in_milliseconds_monotonic())
+        note_failure(gobj, MSG_SERVER_FAILING, cause, TRUE, priv->jn_current_msg != NULL);
+    }
+
+    if(strcmp(cur, ST_DISCONNECTED) == 0 && priv->jn_current_msg &&
+            gobj_current_state(gobj) == ST_DISCONNECTED && !priv->connect_posted) {
+        if(gobj_post_event(gobj, EV_CONNECT_AFTER_CLOSE, json_object(), gobj) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "gobj_post_event() FAILED: the message waits for the next one",
+                NULL
             );
+        } else {
+            priv->connect_posted = TRUE;
         }
     }
 
@@ -1869,11 +2134,19 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         return 0;   // answered, see fail_current_message()
     }
 
-    if(gobj_current_state(gobj) == ST_IDLE && !priv->detached) {
+    if(gobj_current_state(gobj) == ST_IDLE && !priv->detached && bottom_is_connected(gobj)) {
         begin_send_current_message(gobj);   // a failure is answered by EV_ON_MESSAGE or EV_ON_CLOSE
         KW_DECREF(kw)
         return 0;
     }
+    /*
+     *  Idle, but the transport is closing already (its inactivity close,
+     *  or our drop after a 421 to the idle session): the message is stashed,
+     *  and the close, which is no failure, gives it back to the owner, who
+     *  sends it again for the next connection. Up to 7.25.20 its MAIL FROM
+     *  went into the closing connection, and the close was counted as a
+     *  failure of the server and a retry of the message.
+     */
 
     /*
      *  Not ready to send yet. The message is stashed; enter_idle_after_handshake

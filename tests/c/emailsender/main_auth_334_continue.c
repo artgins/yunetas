@@ -3,8 +3,8 @@
  *
  *          The fake server answers AUTH PLAIN with 334, then takes the
  *          response on a line of its own (235). The email is delivered with
- *          a single login. In the branch before this fix the 334 stopped
- *          the yuno.
+ *          a single login. Up to 7.25.20 the 334 stopped the yuno, taken as
+ *          rejected credentials.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

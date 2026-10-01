@@ -1,18 +1,14 @@
 /****************************************************************************
- *          main_server_close_paced.c
+ *          main_refusing_every_message.c
  *
- *          The fake server closes the first connection at once, answers the
- *          second with two malformed lines in one write, closes the third at
- *          once and greets the fourth. The connections must come at least 1,
- *          2 and 4 s apart (timeout_retry 1 s), the third within 3.5 s of the
- *          second, and the email is delivered. Up to 7.25.20 a close by the
- *          server reconnected after a fixed 2 s; and two aborts of one read
- *          must not double the delay twice.
- *
- *          The server never saw the email: none of those failures is a retry
- *          of it, and with max_retries 2 it is delivered at the fourth
- *          connection. Up to 7.25.20 each one spent a retry, and it went to
- *          the failed queue at the second.
+ *          A server that refuses every message (550 5.7.1 to every RCPT TO,
+ *          an account blocked) and 20 emails queued. The first two refusals
+ *          go on at once on the same session (RSET); from the third on the
+ *          session is dropped after each, as for a failure: one WARNING
+ *          "SMTP server refusing every message", and the connections come
+ *          1, 2, 4 s apart (timeout_retry 1 s). After 13 s six emails are in
+ *          the failed queue and fourteen wait. Before, all twenty went to
+ *          the failed queue in a second, with nothing said of the server.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -29,8 +25,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_server_close_paced"
-#define APP_DOC         "A session the server ends by itself is retried paced"
+#define APP_NAME        "test_emailsender_refusing_every_message"
+#define APP_DOC         "A server that refuses every message is paced"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -42,7 +38,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_server_close_paced"
+#define BASE    "/tmp/test_emailsender_refusing_every_message"
 
 /***************************************************************************
  *                      Default config
@@ -72,8 +68,7 @@ PRIVATE char variable_config[]= "\
         'service_descriptor': {                                     \n\
         },                                                          \n\
         'trace_levels': {                                           \n\
-        },                                                          \n\
-        'timeout_periodic': 100                                     \n\
+        }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
     },                                                              \n\
@@ -90,7 +85,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7834',              \n\
+                        'url': 'tcp://127.0.0.1:7852',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -109,10 +104,10 @@ PRIVATE char variable_config[]= "\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
                                 'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'connection_plan': ['drop', 'garbage', 'drop'],\n\
+                                'rcpt_replies': ['550 5.7.1 Sending blocked'],\n\
+                                'max_connections': 4,               \n\
                                 'connect_min_gaps': [0, 1000, 2000, 4000],\n\
-                                'connect_max_gaps': [0, 0, 3500, 0],\n\
-                                'die_on_delivery': true             \n\
+                                'die_on_delivery': false            \n\
                             },                                      \n\
                             'children': [                           \n\
                                 {                                   \n\
@@ -132,7 +127,7 @@ PRIVATE char variable_config[]= "\
             'kw': {                                                 \n\
                 'username': 'user',                                 \n\
                 'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7834',                      \n\
+                'url': 'tcp://127.0.0.1:7852',                      \n\
                 'from': 'sender@example.com',                       \n\
                 'timeout_inactivity': 30000,                        \n\
                 'tranger_path': '"BASE"/store',                     \n\
@@ -140,7 +135,6 @@ PRIVATE char variable_config[]= "\
                 'topic_emails_queue': 'emails_queue',               \n\
                 'topic_emails_failed': 'emails_failed',             \n\
                 'timeout_retry': 1000,                              \n\
-                'max_retries': 2,                                   \n\
                 'tkey': 'tm'                                        \n\
             }                                                       \n\
         },                                                          \n\
@@ -157,8 +151,12 @@ PRIVATE char variable_config[]= "\
             'autostart': true,                                      \n\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
-                'scenario': 'send',                                 \n\
-                'smtp_url': 'tcp://127.0.0.1:7834'                  \n\
+                'scenario': 'send_check',                           \n\
+                'smtp_url': 'tcp://127.0.0.1:7852',                 \n\
+                'email_count': 20,                                  \n\
+                'action_delay': 13000,                              \n\
+                'expect_queued': 14,                                \n\
+                'expect_failed': 6                                  \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
@@ -241,27 +239,59 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
-        "msg", "Starting yuno",
-        "msg", "Playing yuno",
-        "msg", "Creating __timeranger2__.json",
-        "msg", "Creating topic",
-        "msg", "Creating topic",
-        "msg", "Fake smtp: connection not greeted", "plan", "drop",
-        "msg", "SMTP server closed the session",
-        "msg", "SMTP server failing: emails wait, the retries are paced",
-        "msg", "Fake smtp: connection not greeted", "plan", "garbage",
-        "msg", "malformed SMTP reply line",
-        "msg", "Fake smtp: connection not greeted", "plan", "drop",
-        "msg", "SMTP server closed the session",
-        "msg", "Fake smtp: AUTH answered",
-        "msg", "SMTP server answers again",
-        "msg", "Fake smtp: message delivered",
-        "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
-        "msg", "Exit to die",
-        "msg", "Pausing yuno",
-        "msg", "Yuno stopped, gobj end"
-    );
+    json_t *errors_list = json_array();
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Starting yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Playing yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating __timeranger2__.json"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RSET answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RSET answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server refusing every message: the next ones are paced"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "The queues hold what is expected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Exit to die"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Pausing yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Yuno stopped, gobj end"));
 
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
@@ -289,7 +319,10 @@ static void cleaning(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
-    json_t *expected_errors = json_pack("[]");
+    json_t *expected_errors = json_array();
+    for(int i = 0; i < 6; i++) {
+        json_array_append_new(expected_errors, json_string("email NOT sent, moved to failed queue"));
+    }
     if(!json_equal(error_msgs, expected_errors) || errors_outside_the_test) {
         char *s_got = json2uglystr(error_msgs);
         char *s_expected = json2uglystr(expected_errors);
