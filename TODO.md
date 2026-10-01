@@ -28,6 +28,12 @@ Left open:
 - **Each test binary still has a fixed port**: two whole suites run at once on
   one machine still collide (`ctest -j` within one run is safe since
   `scripts/check_test_ports.py`). Ports chosen at run time would end it.
+- **A gbuffer in a published kw is shared by every subscriber**:
+  `gobj_publish_event()` hands one kw to all of them, so the first subscriber
+  that reads the gbuffer empties it for the next (C_IOGATE's "send to all" had
+  the same shape and now copies per channel). Nearly every gbuffer event has a
+  single subscriber today; decide whether publishing copies the gbuffer per
+  subscriber, or the contract says a gbuffer event takes one.
 - **`register_yuneta_environment()` lowercases `root_dir` and `domain_dir`**
   and says nothing: a `work_dir` with capitals is written under another path.
   Dates from 2023 and looks deliberate; decide whether it stays, and if so
