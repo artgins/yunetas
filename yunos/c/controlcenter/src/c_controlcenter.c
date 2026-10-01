@@ -131,6 +131,7 @@ PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 PRIVATE void say_pending_drops(hgobj gobj, const char *when, BOOL only_ended);
 PRIVATE void arm_drops_timer(hgobj gobj);
 PRIVATE void update_rates(hgobj gobj);
+PRIVATE void start_rates_tick(hgobj gobj);
 PRIVATE int check_drops_warning_window(hgobj gobj);
 PRIVATE BOOL drops_window_ended(hgobj gobj, uint64_t window_start);
 PRIVATE void count_dropped_stream(
@@ -246,11 +247,11 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",         "Username 'yuneta', permission for all"),
-SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages relayed: requests sent to the agents, answers and streams sent to the clients"),
-SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages to relay: requests of the clients, answers and streams of the agents"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages sent: command-agent/stats-agent/write-tty requests and run steps to the agents, answers and streams of the agents and run answers to the clients"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages received: command-agent/stats-agent/write-tty/run-scenario requests of the clients, answers and streams of the agents"),
 
-SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "txMsgs by second, between two readings at least a second apart"),
-SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "rxMsgs by second, between two readings at least a second apart"),
+SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "txMsgs by second over the last tick (`timeout`), exact interval"),
+SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "rxMsgs by second over the last tick (`timeout`), exact interval"),
 SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Tx Messages by second (write 0 to start again)"),
 SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Rx Messages by second (write 0 to start again)"),
 
@@ -258,7 +259,7 @@ SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Mil
 SDATA (DTP_INTEGER,     "drops_warning_window",SDF_WR,          "60000",    "Milliseconds of a capped warning's window (dropped streams, unrouted PTY, injected agent events): one warning per window, the rest counted and said when it ends"),
 SDATA (DTP_BOOLEAN,     "drops_timer_armed",SDF_RD,             "0",        "A capped warning has a count to say when its window ends"),
 
-SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
+SDATA (DTP_INTEGER,     "timeout",          SDF_WR,             "1000",     "Period of the rate tick, ms: txMsgsec/rxMsgsec and their maxima are computed on it"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA_END()
@@ -315,7 +316,8 @@ typedef struct _PRIVATE_DATA {
     json_int_t last_rxMsgs;
     json_int_t txMsgsec;
     json_int_t rxMsgsec;
-    uint64_t t_rates;               // msectimer of the last rate computation (0: none)
+    uint64_t t_rates;               // msectimer of the last rate tick (0: none)
+    hgobj rates_timer;              // the rate tick, every `timeout` ms while playing
 
     uint64_t stats_dropped;         // EV_YUNO_STATS for a web client that is gone
     uint64_t t_stats_dropped_log;   // msectimer: start of its window (0: none)
@@ -365,6 +367,7 @@ PRIVATE void mt_create(hgobj gobj)
     );
 
     priv->run_timer = gobj_create_pure_child("run_timer", C_TIMER, 0, gobj);
+    priv->rates_timer = gobj_create_pure_child("rates_timer", C_TIMER, 0, gobj);
     priv->drops_timer = gobj_create_pure_child("drops_timer", C_TIMER, 0, gobj);
 
     /*
@@ -384,6 +387,18 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
+        if(priv->timeout < 1) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "timeout (the rate tick) must be 1 ms or more, 1000 put back",
+                "timeout",      "%d", (int)priv->timeout,
+                NULL
+            );
+            gobj_write_integer_attr(gobj, "timeout", 1000);    // mt_writing() takes it
+        } else if(gobj_is_playing(gobj)) {
+            start_rates_tick(gobj);
+        }
     ELIF_EQ_SET_PRIV(drops_warning_window, gobj_read_integer_attr)
         if(check_drops_warning_window(gobj) == 0) {
             arm_drops_timer(gobj);  // the windows that are open now end with the new value
@@ -399,20 +414,18 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
         priv->txMsgs = 0;
         priv->last_txMsgs = 0;
         priv->txMsgsec = 0;
-        priv->t_rates = 0;
     } else if(strcmp(path, "rxMsgs")==0) {
         priv->rxMsgs = 0;
         priv->last_rxMsgs = 0;
         priv->rxMsgsec = 0;
-        priv->t_rates = 0;
     }
 }
 
 /***************************************************************************
  *      Framework Method reading
- *  The message counters and their rates (SDF_RSTATS, backed by priv). The
- *  rates are computed when they are read, from the counters and a
- *  monotonic clock, as C_CHANNEL computes its own: no timer.
+ *  The message counters and their rates (SDF_RSTATS, backed by priv), as
+ *  the rate tick left them: a reading computes nothing, so whoever reads,
+ *  and however often, reads the same.
  ***************************************************************************/
 PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
 {
@@ -426,15 +439,11 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
         v.found = 1;
         v.v.i = priv->rxMsgs;
     } else if(strcmp(name, "txMsgsec")==0) {
-        update_rates(gobj);
         v.found = 1;
         v.v.i = priv->txMsgsec;
     } else if(strcmp(name, "rxMsgsec")==0) {
-        update_rates(gobj);
         v.found = 1;
         v.v.i = priv->rxMsgsec;
-    } else if(strcmp(name, "maxtxMsgsec")==0 || strcmp(name, "maxrxMsgsec")==0) {
-        update_rates(gobj);     // the maxima are the attrs themselves (writable)
     }
     return v;
 }
@@ -483,6 +492,7 @@ PRIVATE int mt_stop(hgobj gobj)
     priv->drops_timer_armed = FALSE;
     gobj_write_bool_attr(gobj, "drops_timer_armed", FALSE);
     clear_timeout(priv->run_timer);
+    clear_timeout(priv->rates_timer);
     return 0;
 }
 
@@ -612,6 +622,7 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
     gobj_start_tree(priv->gobj_input_side);
 
+    start_rates_tick(gobj);
     return 0;
 }
 
@@ -630,6 +641,8 @@ PRIVATE int mt_pause(hgobj gobj)
     if(priv->run) {
         run_end(gobj, -1, "the control center was paused in the middle of the run");
     }
+
+    clear_timeout(priv->rates_timer);
 
     /*---------------------------------------*
      *      Stop services
@@ -1533,6 +1546,7 @@ PRIVATE json_t *cmd_run_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
+    priv->rxMsgs++;
     priv->run = json_pack("{s:s, s:s, s:s, s:s, s:s, s:I, s:I, s:o, s:i}",
         "id", run_id,
         "scenario_id", scenario_id,
@@ -2644,27 +2658,38 @@ PRIVATE void count_dropped_stream(
 }
 
 /***************************************************************************
- *  The rates of the message counters: messages by second since the last
- *  computation, made at most once a second (a reading sooner keeps the
- *  last rates), and the maxima written into their attrs when passed.
+ *  The rate tick (re)starts: a periodic C_TIMER of `timeout` ms, the
+ *  rates measured from now. A deliberate timer: the rates are SAMPLED
+ *  each period over the exact interval, not computed by whoever reads
+ *  them (a reading 1.9 s after another divided by 1 s; two readers stole
+ *  each other's window -- TODO.md, C_CHANNEL/C_IOGATE), and the maxima
+ *  catch a burst nobody read. It re-issues no query: it is not polling.
+ ***************************************************************************/
+PRIVATE void start_rates_tick(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->t_rates = start_msectimer(0);
+    priv->last_txMsgs = priv->txMsgs;
+    priv->last_rxMsgs = priv->rxMsgs;
+    set_timeout_periodic(priv->rates_timer, priv->timeout);
+}
+
+/***************************************************************************
+ *  A rate tick: messages by second since the previous one, over the exact
+ *  milliseconds between them, and the maxima written into their attrs
+ *  when passed.
  ***************************************************************************/
 PRIVATE void update_rates(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     uint64_t now = start_msectimer(0);
-    if(!priv->t_rates) {
-        priv->t_rates = now;
-        priv->last_txMsgs = priv->txMsgs;
-        priv->last_rxMsgs = priv->rxMsgs;
-        return;
+    uint64_t elapsed = priv->t_rates? now - priv->t_rates : 0;
+    if(elapsed > 0) {
+        priv->txMsgsec = (json_int_t)((uint64_t)(priv->txMsgs - priv->last_txMsgs)*1000/elapsed);
+        priv->rxMsgsec = (json_int_t)((uint64_t)(priv->rxMsgs - priv->last_rxMsgs)*1000/elapsed);
     }
-    json_int_t seconds = (json_int_t)((now - priv->t_rates)/1000);
-    if(seconds <= 0) {
-        return;
-    }
-    priv->txMsgsec = (priv->txMsgs - priv->last_txMsgs)/seconds;
-    priv->rxMsgsec = (priv->rxMsgs - priv->last_rxMsgs)/seconds;
     priv->t_rates = now;
     priv->last_txMsgs = priv->txMsgs;
     priv->last_rxMsgs = priv->rxMsgs;
@@ -2937,6 +2962,7 @@ PRIVATE int run_end(hgobj gobj, int result, const char *comment)
             kw_answer   // owned
         );
         JSON_DECREF(jn_text)
+        priv->txMsgs++;
         gobj_send_event(
             gobj_requester,
             EV_SEND_IEV,
@@ -3293,6 +3319,7 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*----------------------------------------*
      *  Job
      *----------------------------------------*/
+    priv->rxMsgs++;
     const char *agent_id = kw_get_str(gobj, kw, "agent_id", "", 0);
 
     json_t *jn_filter = json_pack("{s:s, s:s}",
@@ -3321,10 +3348,11 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
         }
 
+        priv->txMsgs++;
         json_t *webix = gobj_command( // debe retornar siempre 0.
             child,
             "write-tty",
-            json_incref(kw),
+            kw_incref(kw),
             src
         );
         some++;
@@ -3374,10 +3402,17 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return 0;
     }
 
+    if(src == priv->rates_timer) {
+        update_rates(gobj);
+        KW_DECREF(kw);
+        return 0;
+    }
+
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INTERNAL,
-        "msg",          "%s", "EV_TIMEOUT of a timer this gobj does not have",
+        "msg",          "%s", "a timeout of a timer this gobj does not have",
+        "event",        "%s", event,
         "src",          "%s", gobj_short_name(src),
         NULL
     );
@@ -3444,6 +3479,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TTY_CLOSE,              ac_tty_mirror_close,     0},
 
         {EV_TIMEOUT,                ac_timeout,              0},
+        {EV_TIMEOUT_PERIODIC,       ac_timeout,              0},
         {EV_STOPPED,                0,                       0},
         {0,0,0}
     };
@@ -3469,6 +3505,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,                0},
         {EV_ON_CLOSE,               0},
         {EV_TIMEOUT,                0},
+        {EV_TIMEOUT_PERIODIC,       0},
         {EV_STOPPED,                0},
 
         {NULL, 0}

@@ -109,12 +109,15 @@ still reported and fails the test.
     `clear_timeout()` had already stopped (and the rate timer, never armed,
     that `mt_pause()` had cleared): three *"GObj NOT RUNNING"* errors with a
     stack.
-13. The message counters and rates. 100 `command-agent` round trips add
-    exactly 200 to `rxMsgs` and 200 to `txMsgs` (the request in and out, the
-    answer in and out); read again more than a second after the baseline,
-    `rxMsgsec`/`txMsgsec` are above 0 and the maxima hold them; a
-    `stats=__reset__` zeroes the counters and maxima. Up to 7.25.20 all of
-    them read 0.
+13. The message counters and rates. The rate tick (`timeout`) is set to
+    1500 ms and the stats reset; 100 `command-agent` round trips add exactly
+    200 to `rxMsgs` and to `txMsgs`. Over two ticks later, the maxima hold
+    the rate of the tick that saw the burst, over its exact interval:
+    between 200*1000/2250 and 200*1000/1500 (a rate divided by whole seconds
+    gives 200 or, read 3.5 s later, 66: both out). `stats=__reset__` zeroes
+    counters, rates and maxima; then a `write-tty` and a run (its request,
+    its step, the step's answer, its answer) count 3 in and 3 out. Up to
+    7.25.20 all of them read 0.
 
 ## Run
 

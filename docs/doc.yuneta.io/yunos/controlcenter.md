@@ -396,22 +396,28 @@ default service). `Authz.max_sessions_per_user` defaults to 4. Key attributes:
 |-----------|---------|
 | `run_step_timeout` | Milliseconds a step of a scenario run may take to answer (30000) |
 | `drops_warning_window` | Milliseconds of the window of a capped warning (60000) |
-| `timeout` | Unused: no periodic tick (kept for the configs that set it) |
+| `timeout` | Period of the rate tick, ms (1000): `rxMsgsec`/`txMsgsec` and their maxima |
 
 The listen URLs/ports live in the realm config (`__top_side__` /
 `__input_side__`), not in the binary.
 
 ### Stats
 
-The messages it relays, counted: `rxMsgs` the ones to relay (a client's
-`command-agent`/`stats-agent`, every answer and stream an agent sends),
-`txMsgs` the ones relayed (each request sent to an agent, each answer and
-stream sent to a client, each step of a run). `rxMsgsec`/`txMsgsec` are their
-rates in messages by second, computed when they are read, between two
-readings at least a second apart (a reading sooner gives the last rates):
-there is no timer. `maxrxMsgsec`/`maxtxMsgsec` keep the highest rates seen;
-write 0 to start them again. `stats=__reset__` zeroes the counters, the rates
-and the maxima. `drops_timer_armed` says whether a capped
+The messages it relays, counted once each way:
+
+- `rxMsgs`, in: a client's `command-agent`, `stats-agent`, `write-tty` and
+  `run-scenario`, and every answer or stream an agent sends (command and stats
+  answers, the console PTY, `EV_YUNO_STATS`, a run step's answer);
+- `txMsgs`, out: each `command-agent`/`stats-agent`/`write-tty` request sent to
+  an agent and each step of a run, and each answer or stream relayed to a
+  client, the answer of a run included.
+
+`rxMsgsec`/`txMsgsec` are their rates in messages by second, computed on a
+tick every `timeout` ms (1000) over the EXACT interval since the previous
+tick: a reading only returns the last tick's value, so it is the same
+whoever reads and however often. `maxrxMsgsec`/`maxtxMsgsec` keep the highest
+rate of any tick, a burst nobody read included; write 0 to start them again.
+`stats=__reset__` zeroes the counters, the rates and the maxima. `drops_timer_armed` says whether a capped
 warning has a count waiting for its window.
 
 ```bash
@@ -419,7 +425,7 @@ ycommand -c 'stats-yuno id=<cc> service=controlcenter'
 # ... "rxMsgs": 1520, "txMsgs": 1519, "rxMsgsec": 12, "txMsgsec": 12, "maxrxMsgsec": 140, ...
 ```
 
-Up to 7.25.20 nothing counted them and the timer that computed the rates was
+Up to 7.25.20 nothing counted them and the tick that computed the rates was
 never armed: all six read 0.
 
 ## Commands

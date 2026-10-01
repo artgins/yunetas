@@ -104,11 +104,13 @@ the node's agent then runs it (and can itself target a specific yuno via its own
 
 ## Stats
 
-`rxMsgs`/`txMsgs` count the messages it relays (in: a client's request, an
-agent's answer or stream; out: a request to an agent, an answer or stream to a
-client, a step of a run). `rxMsgsec`/`txMsgsec` are their rates, computed when
-read (at least a second between two computations), with no timer;
-`maxrxMsgsec`/`maxtxMsgsec` the highest seen (write 0 to start again);
+`rxMsgs`/`txMsgs` count the messages it relays, once each way (in: a client's
+`command-agent`/`stats-agent`/`write-tty`/`run-scenario`, an agent's answer or
+stream; out: a request to an agent, a step of a run, an answer or stream to a
+client, the answer of a run). `rxMsgsec`/`txMsgsec` are their rates, computed
+on a tick every `timeout` ms (1000) over the exact interval since the last
+one, so a reading returns the same whoever reads; `maxrxMsgsec`/`maxtxMsgsec`
+the highest of any tick (write 0 to start again);
 `stats=__reset__` zeroes them all. Up to 7.25.20 nothing counted them and all
 six read 0.
 

@@ -1125,12 +1125,14 @@ PRIVATE int test_inject_in_a_loop(hgobj gobj, hgobj client)
 }
 
 /***************************************************************************
- *  13. The message counters and their rates move with relayed traffic. The
- *      first reading of a rate sets its baseline; then 100 command-agent
- *      round trips (a request in from a client, out to the agent; the
- *      answer in from the agent, out to the client).
+ *  13. The message counters and their rates. The rate tick is set to
+ *      RATES_TICK_MS (it restarts now), the stats reset, and 100
+ *      command-agent round trips sent at once (a request in from a client
+ *      and out to the agent; the answer in from the agent and out to the
+ *      client): +200 each way, all inside the first tick.
  ***************************************************************************/
-#define RATES_ROUND_TRIPS 100
+#define RATES_ROUND_TRIPS   100
+#define RATES_TICK_MS       1500    // not whole seconds: a rate divided by them fails
 
 PRIVATE int test_rates_traffic(hgobj gobj)
 {
@@ -1141,9 +1143,10 @@ PRIVATE int test_rates_traffic(hgobj gobj)
             gobj_read_integer_attr(priv->cc, "rxMsgs") <= 0) {
         ret += fail(gobj, "the message counters do not count the relayed traffic", "");
     }
-    gobj_read_integer_attr(priv->cc, "txMsgsec");   // the baseline of the rates
-    priv->rates_tx0 = gobj_read_integer_attr(priv->cc, "txMsgs");
-    priv->rates_rx0 = gobj_read_integer_attr(priv->cc, "rxMsgs");
+
+    gobj_write_integer_attr(priv->cc, "timeout", RATES_TICK_MS);
+    json_t *jn_stats = gobj_stats(priv->cc, "__reset__", json_object(), gobj);
+    JSON_DECREF(jn_stats)
 
     hgobj client = priv->client1;
     for(int i=0; i<RATES_ROUND_TRIPS; i++) {
@@ -1161,11 +1164,11 @@ PRIVATE int test_rates_traffic(hgobj gobj)
     if(count_received(client, EV_MT_COMMAND_ANSWER, "rates") != RATES_ROUND_TRIPS) {
         ret += fail(gobj, "the round trips of the rates test", "");
     }
-    json_int_t tx = gobj_read_integer_attr(priv->cc, "txMsgs") - priv->rates_tx0;
-    json_int_t rx = gobj_read_integer_attr(priv->cc, "rxMsgs") - priv->rates_rx0;
+    json_int_t tx = gobj_read_integer_attr(priv->cc, "txMsgs");
+    json_int_t rx = gobj_read_integer_attr(priv->cc, "rxMsgs");
     if(tx != 2*RATES_ROUND_TRIPS || rx != 2*RATES_ROUND_TRIPS) {
         char detail[80];
-        snprintf(detail, sizeof(detail), "tx +%lld rx +%lld, expected +%d each",
+        snprintf(detail, sizeof(detail), "tx %lld rx %lld, expected %d each",
             (long long)tx, (long long)rx, 2*RATES_ROUND_TRIPS);
         ret += fail(gobj, "the counters count two messages per round trip each way", detail);
     }
@@ -1173,36 +1176,74 @@ PRIVATE int test_rates_traffic(hgobj gobj)
 }
 
 /***************************************************************************
- *  13. A second later: the rates are not 0, and the maxima hold them; a
- *      stats=__reset__ zeroes them
+ *  13. More than two ticks later. The tick after the burst measured its
+ *      exact interval, at least RATES_TICK_MS (a C_TIMER never fires
+ *      early), so its rate is at most 200*1000/RATES_TICK_MS, and at least
+ *      200*1000/(1.5*RATES_TICK_MS) unless the loop stalled more than half a
+ *      tick. The maxima hold it, whoever read or not. A rate computed by
+ *      the reading over whole seconds gives 200/3 = 66 here (read 3.5 s
+ *      later), under the bound. Then stats=__reset__ zeroes counters, rates
+ *      and maxima.
  ***************************************************************************/
 PRIVATE int test_rates_read(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
 
-    json_int_t txsec = gobj_read_integer_attr(priv->cc, "txMsgsec");
-    json_int_t rxsec = gobj_read_integer_attr(priv->cc, "rxMsgsec");
-    if(txsec <= 0 || rxsec <= 0) {
-        char detail[80];
-        snprintf(detail, sizeof(detail), "txMsgsec %lld rxMsgsec %lld",
-            (long long)txsec, (long long)rxsec);
-        ret += fail(gobj, "the rates move with relayed traffic", detail);
+    json_int_t high = (2*RATES_ROUND_TRIPS)*1000/RATES_TICK_MS;
+    json_int_t low = (2*RATES_ROUND_TRIPS)*1000/(RATES_TICK_MS*3/2);
+    json_int_t maxtx = gobj_read_integer_attr(priv->cc, "maxtxMsgsec");
+    json_int_t maxrx = gobj_read_integer_attr(priv->cc, "maxrxMsgsec");
+    if(maxtx > high || maxtx < low || maxrx > high || maxrx < low) {
+        char detail[120];
+        snprintf(detail, sizeof(detail), "maxtxMsgsec %lld maxrxMsgsec %lld, expected %lld..%lld",
+            (long long)maxtx, (long long)maxrx, (long long)low, (long long)high);
+        ret += fail(gobj, "the rate of the burst, over the exact interval of its tick", detail);
     }
-    if(gobj_read_integer_attr(priv->cc, "maxtxMsgsec") < txsec ||
-            gobj_read_integer_attr(priv->cc, "maxrxMsgsec") < rxsec) {
-        ret += fail(gobj, "the maxima hold the rates", "");
+
+    json_t *jn_stats = gobj_stats(priv->cc, "__reset__", json_object(), gobj);
+    JSON_DECREF(jn_stats)
+    const char *names[] = {"txMsgs", "rxMsgs", "txMsgsec", "rxMsgsec", "maxtxMsgsec", "maxrxMsgsec", 0};
+    for(int i=0; names[i]; i++) {
+        if(gobj_read_integer_attr(priv->cc, names[i]) != 0) {
+            ret += fail(gobj, "stats=__reset__ zeroes the counters, the rates and the maxima", names[i]);
+        }
     }
 
     /*
-     *  stats=__reset__ zeroes the counters too (they live in priv)
+     *  Every relay is counted, once each way: a write-tty (in from the
+     *  client, out to the agent) and a run (the run-scenario in, its step
+     *  out, the step's answer in, the run's answer out)
      */
-    json_t *jn_stats = gobj_stats(priv->cc, "__reset__", json_object(), gobj);
-    JSON_DECREF(jn_stats)
-    if(gobj_read_integer_attr(priv->cc, "txMsgs") != 0 ||
-            gobj_read_integer_attr(priv->cc, "rxMsgs") != 0 ||
-            gobj_read_integer_attr(priv->cc, "maxtxMsgsec") != 0) {
-        ret += fail(gobj, "stats=__reset__ zeroes the message counters and maxima", "");
+    hgobj client = priv->client1;
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "name", json_string("console-a"));
+    json_object_set_new(kw, "content64", json_string("bHM="));
+    gobj_send_event(priv->cc, EV_WRITE_TTY, kw, client);
+    json_t *written = agent_request(gobj, "write-tty reaches the agent");
+    JSON_DECREF(written)
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("scn"));
+    json_object_set_new(kw, "action", json_string("start"));
+    json_t *response = gobj_command(priv->cc, "run-scenario", kw, client);
+    JSON_DECREF(response)
+    json_t *step = agent_request(gobj, "the step of the run goes to the agent");
+    if(step) {
+        agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, 0, "resumed");
+        JSON_DECREF(step)
+    }
+    if(count_received(client, EV_MT_COMMAND_ANSWER, "done, 1 steps") != 1) {
+        ret += fail(gobj, "the run of the rates test ends", "");
+    }
+    json_int_t rx = gobj_read_integer_attr(priv->cc, "rxMsgs");
+    json_int_t tx = gobj_read_integer_attr(priv->cc, "txMsgs");
+    if(rx != 3 || tx != 3) {
+        char detail[80];
+        snprintf(detail, sizeof(detail), "rx %lld tx %lld, expected 3 each",
+            (long long)rx, (long long)tx);
+        ret += fail(gobj, "write-tty and a run are counted, once each way", detail);
     }
     return ret;
 }
@@ -1392,7 +1433,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         case 3:
             priv->result += test_drops_timer_said(gobj);
             priv->result += test_rates_traffic(gobj);
-            set_timeout(priv->timer, 1100);     // a rate is over whole seconds
+            set_timeout(priv->timer, 2*RATES_TICK_MS + 500);    // past two ticks
             KW_DECREF(kw)
             return 0;
         case 4:
