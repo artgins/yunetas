@@ -796,6 +796,11 @@ int yev_get_waiting_completion(
 `1` when a completion waits (`*result` set), `0` when none does, `-1` when it
 cannot be known: completions overflowed the ring and wait in the kernel.
 
+Do not call it from the callback of `yev_event` itself: the completion being
+delivered is still in the ring then (the loop marks it seen after the
+callback), and it is found as a waiting one. It looks at the ring only, not
+at the completions the loop keeps aside to deliver later (`kept_cqes`).
+
 **Example**
 
 `fs_watcher` counts the events of an inotify fd that a read has taken and the

@@ -213,6 +213,10 @@ PUBLIC const char *yev_get_state_name(yev_event_h yev_event);
  *  delivered): 1 and its result in `*result` (a read: the bytes it took),
  *  0 if there is none, -1 if it cannot be known (completions overflowed
  *  the ring and wait in the kernel).
+ *  Not from the event's own callback: the completion being delivered is
+ *  still in the ring then (the loop marks it seen after the callback), and
+ *  it would be found as a waiting one. Only the ring is looked at, not the
+ *  completions the loop keeps aside to deliver later (kept_cqes).
  */
 PUBLIC int yev_get_waiting_completion(yev_event_h yev_event, int *result);
 
