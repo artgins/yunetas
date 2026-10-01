@@ -199,24 +199,32 @@ but drops the session as a failure, the next message waits the paced delay,
 and the run is said once (*"SMTP server refused the last messages in a row:
 each goes to the failed queue, the next ones are paced"*, with
 `refused_in_row`), with no ERROR of `timeout_failing_alarm`: the emails are
-not stuck. A refusal of an address (a `5.1.x` status, a sender of the
-message's own) does not count. A batch of refused messages costs one attempt
-each, at the paced rate.
+not stuck. Every refusal counts, a bad address and a sender of the message's
+own included, so a queue refused one by one never gets a login per message;
+a good email behind such a run waits the paced delay until the next
+delivery. A batch of refused messages costs one attempt each, at the paced
+rate.
 
 A `5xx` to one recipient of several refuses that recipient only: the message
 goes to the others, each refused one a WARNING, and the *"email sent"* line
 says who got it -- `to` and `cc` hold the accepted addresses, `refused` the
 refused ones, the bcc only as counts (`bcc_count`, `refused_bcc_count`).
 
-A refused sender (MAIL FROM) is the MESSAGE's when the sender is its own --
-a `from` other than the configured default (each producer sets its own), or
-a reply that says the address is wrong (`501`, `553`, a `5.1.x` status, a
-`5.7.1` naming the sender): to the failed queue once, a WARNING naming the
-`from`, and the session goes on. When the default sender is refused (a
-quota, sending blocked, any `4xx`) it is the account's trouble: paced like a
-failure and charged to the message as a retry, so after `max_retries` paced
-attempts it goes to the failed queue and the queue moves on. To move the
-email at the head of the queue to the failed queue at once:
+A refused sender (MAIL FROM): the reply decides, not the `from` -- most
+producers set a `from` of their own, and an account block answers them all
+alike. It is the MESSAGE's only when its sender is its own (not the
+configured default, compared ignoring case) and the reply says that address
+is wrong: a `501`, a `5.1.7` status, or a `553` / `5.1.x` / `5.7.1` reply
+that quotes the address (`553 5.1.8 <a@b>: Sender address rejected: Domain
+not found`). Then it goes to the failed queue once, with a WARNING naming the
+`from`, and the session goes on. Everything else -- a quota (`550 5.7.1 Daily
+sending quota exceeded`), a block (`550 5.1.8 Access denied, bad outbound
+sender`), a policy, a `4xx`, the default sender -- is the account's: paced like
+a failure and charged to the message as a retry, so after `max_retries`
+paced attempts it goes to the failed queue and the queue moves on, and a head
+stuck past `timeout_failing_alarm` raises the ERROR. Every attempt refused
+resolves the message or spends a retry. To move the email at the head of the
+queue to the failed queue at once:
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=emailsender command=skip-email'

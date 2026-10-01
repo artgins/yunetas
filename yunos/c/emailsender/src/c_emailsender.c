@@ -9,6 +9,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <strings.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <limits.h>
@@ -1315,8 +1316,9 @@ PRIVATE int send_head_of_queue(hgobj gobj)
     const char *body_str = (const char *)gbuffer_cur_rd_pointer(mime_body);
 
     /*
-     *  `from_is_default`: a refusal of MAIL FROM is the account's when the
-     *  sender is ours, the message's when it is its own (C_SMTP_SESSION).
+     *  `from_is_default`: a refusal of MAIL FROM can be the message's only
+     *  when its sender is its own, and only when the reply names that
+     *  address as bad (C_SMTP_SESSION). Addresses compare ignoring case.
      */
     json_t *kw_send = json_pack(
         "{s:s, s:s, s:s, s:s, s:s, s:b}",
@@ -1325,7 +1327,7 @@ PRIVATE int send_head_of_queue(hgobj gobj)
         "cc", cc,
         "bcc", bcc,
         "body", body_str,
-        "from_is_default", strcmp(from, priv->from? priv->from : "") == 0
+        "from_is_default", strcasecmp(from, priv->from? priv->from : "") == 0
     );
     if(!kw_send) {
         gobj_log_error(gobj, 0,

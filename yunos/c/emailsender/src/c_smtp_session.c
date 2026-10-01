@@ -25,15 +25,15 @@
  *          Every close caused by a reply carries the reply's text on
  *          EV_ON_CLOSE (`reply`).
  *
- *          A refused sender (MAIL FROM) is the MESSAGE's when the sender is
- *          its own -- a `from` other than the owner's default
- *          (`from_is_default` FALSE in the message), or a reply that says the
- *          address is wrong (501, 553, 5.1.x, a 5.7.1 naming the sender): it
- *          is refused like below, once. Otherwise (the default sender, a
- *          quota, sending blocked, any 4xx) it is the account's: a failure of
- *          the server, paced, and charged to the message as a retry
- *          (`sender_refused` on EV_ON_CLOSE), so after max_retries paced
- *          attempts it goes to the failed queue and the queue moves on.
+ *          A refused sender (MAIL FROM) is the MESSAGE's only when the reply
+ *          says that this message's own sender (not the owner's default:
+ *          `from_is_default` FALSE) is a bad address: a 501, a 5.1.7, or a
+ *          553 / 5.1.x / 5.7.1 that quotes the address. It is refused like
+ *          below, once. Anything else -- a quota, a block, a policy, any 4xx,
+ *          any refusal of the default sender -- is the account's, whatever the
+ *          from: a failure of the server, paced, and charged to the message
+ *          as a retry (`sender_refused` on EV_ON_CLOSE), so after max_retries
+ *          paced attempts it goes to the failed queue and the queue moves on.
  *
  *          A 5xx to RCPT TO refuses that recipient: the message goes to the
  *          others (RFC 5321 §3.3), each refused one a WARNING. A 5xx to
@@ -44,9 +44,9 @@
  *          on the same connection; a server that refuses RSET with a 5xx is
  *          told QUIT, and the next connection waits timeout_retry. That is
  *          no failure of the server -- for the first FREE_REFUSALS_IN_ROW
- *          refusals in a row. A refusal of an address (a 5.1.x status, a
- *          sender of its own) does not count: it says nothing of the server.
- *          From then on until a delivery, each refusal drops the session as
+ *          refusals in a row (every refusal counts, a bad address too: a
+ *          queue refused one by one must not get a login per message). From
+ *          then on until a delivery, each refusal drops the session as
  *          a failure, paced, and the run is said ("SMTP server refused the
  *          last messages in a row", with how many), with no ERROR of
  *          timeout_failing_alarm: the emails are not stuck, each goes to the
@@ -144,7 +144,7 @@ PRIVATE int parse_response_code(const char *bf, size_t len, int *code, BOOL *is_
 PRIVATE int begin_send_current_message(hgobj gobj);
 PRIVATE int enter_idle_after_handshake(hgobj gobj);
 PRIVATE int reject_current_message(hgobj gobj, int code, const char *reply, const char *reason);
-PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, const char *reason, BOOL counts);
+PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, const char *reason);
 PRIVATE BOOL reply_status_is(const char *reply, const char *prefix);
 PRIVATE BOOL sender_refusal_is_the_messages(hgobj gobj, int code, const char *reply);
 PRIVATE int enter_idle_after_reset(hgobj gobj);
@@ -636,7 +636,7 @@ PRIVATE int send_next_rcpt_or_data(hgobj gobj)
     if(priv->rcpt_accepted == 0) {
         // every recipient refused, each one logged above
         return refuse_current_message(gobj, priv->rcpt_last_code, priv->rcpt_last_reply,
-            "every recipient refused", TRUE
+            "every recipient refused"
         );
     }
 
@@ -1315,7 +1315,7 @@ PRIVATE int reject_current_message(hgobj gobj, int code, const char *reply, cons
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(code >= 500 && code < 600) {
-        return refuse_current_message(gobj, code, reply, reason, TRUE);
+        return refuse_current_message(gobj, code, reply, reason);
     }
     priv->reject_code = code;
     return abort_session_by_peer(gobj, reason, code, reply);
@@ -1329,21 +1329,25 @@ PRIVATE int reject_current_message(hgobj gobj, int code, const char *reply, cons
  *  and the next message goes on the same connection (a message the owner
  *  sends from inside the answer waits for the RSET's 250). No pacing, no
  *  note_failure(): the server works -- for the first FREE_REFUSALS_IN_ROW
- *  refusals in a row that `count`; from then on until a delivery, see
- *  above. A refusal of an address (a 5.1.x status: no such user, a bad
- *  domain, a malformed or foreign sender) says nothing of the server and
- *  does not count. Up to 7.25.20 a 5xx to MAIL FROM, RCPT TO or DATA
- *  dropped the session, and the next message logged in again.
+ *  refusals in a row; from then on until a delivery, see above. Every
+ *  refusal counts, a bad address included: a queue of messages refused one
+ *  by one (a server that takes no foreign sender, a batch to dead
+ *  recipients, a server that refuses RSET and is told QUIT each time) must
+ *  not get one login per message. Up to 7.25.20 a 5xx to MAIL FROM, RCPT TO
+ *  or DATA dropped the session, and the next message logged in again.
+ *
+ *  Either way the message is resolved once, with its code: here, or (the
+ *  run) by EV_ON_CLOSE, where reject_code makes the close the message's
+ *  (`transaction` with the 5xx: the failed queue). Every attempt that ends
+ *  in a refusal of THIS message resolves it or spends a retry.
  *
  *  A WARNING with the reply, as anything a peer causes.
  ***************************************************************************/
-PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, const char *reason, BOOL counts)
+PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, const char *reason)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(counts && !reply_status_is(reply, "5.1.")) {
-        priv->refused_in_row++;
-    }
+    priv->refused_in_row++;
     if(priv->refused_in_row > FREE_REFUSALS_IN_ROW) {
         /*
          *  Refused again, with no delivery since: the server is refusing
@@ -1408,27 +1412,41 @@ PRIVATE BOOL reply_status_is(const char *reply, const char *prefix)
 }
 
 /***************************************************************************
- *  A refusal of MAIL FROM is the MESSAGE's when its sender is its own: a
- *  `from` that is not the default of the owner (each producer sets its own,
- *  and EV_SEND_EMAIL is public), or a reply that says the address itself is
- *  wrong (501, 553, a 5.1.x status, a 5.7.1 that names the sender: malformed,
- *  not owned by the account). Otherwise it is the account's (a quota,
- *  sending blocked), the same for every message.
+ *  A refusal of MAIL FROM is the MESSAGE's only when the REPLY says this
+ *  message's own sender is a bad address, and that sender is not the
+ *  owner's default:
+ *
+ *      - a 5xx (a 4xx is temporary: never the message's);
+ *      - `from_is_default` FALSE (a sender the producer set; the owner
+ *        compares it with its default ignoring case). A refusal of the
+ *        default sender would meet every message: the account's;
+ *      - and the reply says the address is wrong: 501 (a syntax error in
+ *        it), a 5.1.7 status (bad sender mailbox syntax, RFC 3463), or a
+ *        553, a 5.1.x or a 5.7.1 that quotes this very address ("553 5.1.8
+ *        <a@b>: Sender address rejected: Domain not found", "553 5.7.1
+ *        <a@b>: ... not owned by user").
+ *
+ *  Anything else is the account's: a quota ("550 5.7.1 Daily sending quota
+ *  exceeded"), a block ("550 5.1.8 Access denied, bad outbound sender", a
+ *  5.1.8 status used for an account), a policy that does not name the
+ *  address -- whatever the from of the message.
  ***************************************************************************/
 PRIVATE BOOL sender_refusal_is_the_messages(hgobj gobj, int code, const char *reply)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(code < 500 || code >= 600) {
-        return FALSE;   // a 4xx is temporary: the account's or the server's
+        return FALSE;
     }
-    if(!kw_get_bool(gobj, priv->jn_current_msg, "from_is_default", 1, 0)) {
+    if(kw_get_bool(gobj, priv->jn_current_msg, "from_is_default", 1, 0)) {
+        return FALSE;
+    }
+    if(code == 501 || reply_status_is(reply, "5.1.7")) {
         return TRUE;
     }
-    if(code == 501 || code == 553 || reply_status_is(reply, "5.1.")) {
-        return TRUE;
-    }
-    if(reply_status_is(reply, "5.7.1") && strcasestr(reply, "sender")) {
+    const char *from = kw_get_str(gobj, priv->jn_current_msg, "from", "", 0);
+    BOOL names_it = (!empty_string(from) && reply && strcasestr(reply, from))? TRUE : FALSE;
+    if(names_it && (code == 553 || reply_status_is(reply, "5.1.") || reply_status_is(reply, "5.7.1"))) {
         return TRUE;
     }
     return FALSE;
@@ -1634,14 +1652,18 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
          *  `transaction`: the close came during the mail transaction of
          *  the message (its first RCPT TO onwards), so the server may have
          *  seen the message and its failure is the message's. Without it
-         *  the session failed in its handshake (banner, EHLO, AUTH), at
-         *  MAIL FROM (the sender, the same for every message: the account's
-         *  or the server's trouble) or before: the owner must not charge
-         *  the message a retry.
+         *  the session failed in its handshake (banner, EHLO, AUTH) or
+         *  before: the owner must not charge the message a retry. A refusal
+         *  of THIS message is always one (reject_code: its code goes too),
+         *  and so is a refused default sender (sender_refused: a retry), so
+         *  that every attempt refused resolves the message or spends a
+         *  retry, whatever state the session was in. Up to the fix a message
+         *  refused at MAIL FROM in a run of refusals was dropped with no
+         *  transaction: never charged, sent again for ever.
          */
         if(prev_state == ST_WAIT_RCPT_TO_RESP ||
                 prev_state == ST_WAIT_DATA_GO || prev_state == ST_WAIT_DATA_RESP ||
-                priv->sender_refused) {
+                priv->sender_refused || priv->reject_code) {
             json_object_set_new(kw_close, "transaction", json_true());
         }
         if(priv->sender_refused) {
@@ -1936,7 +1958,7 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                  *  fault, once, to the failed queue, and the session goes on.
                  */
                 return refuse_current_message(gobj, code, reply,
-                    "MAIL FROM rejected: the sender of this message is refused", FALSE
+                    "MAIL FROM rejected: the sender of this message is refused"
                 );
             }
             /*

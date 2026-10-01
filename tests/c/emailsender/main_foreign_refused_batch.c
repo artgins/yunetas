@@ -1,20 +1,20 @@
 /****************************************************************************
- *          main_foreign_from_refused.c
+ *          main_foreign_refused_batch.c
  *
- *          Two emails: the first with a `from` of its own whose domain the
- *          server does not know (553 5.1.8 <intruder@example.com>: Sender
- *          address rejected: Domain not found -- the reply names that very
- *          address), the second with the default. The refusal is the first
- *          message's: it goes to the failed queue once, and the second is
- *          delivered on the same session at once. Before the sender rules,
- *          any refused MAIL FROM was taken as the account's trouble: the
- *          first email blocked the queue for ever, one paced login after
- *          another.
+ *          Twelve emails with a `from` of their own that the server refuses as
+ *          not owned (553 5.7.1 <intruder@example.com>: ...): each is the
+ *          message's and goes to the failed queue once, but a run of them is
+ *          paced like any run of refusals: two at once on the first session,
+ *          then one session per email, 1, 2, 4 s apart (timeout_retry 1 s).
+ *          After 6.5 s five are in the failed queue, seven wait, and the
+ *          server has seen three connections. Before, a sender refusal of the
+ *          message's own did not count: twelve in milliseconds, one session.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <yunetas.h>
@@ -26,8 +26,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_foreign_from_refused"
-#define APP_DOC         "A sender of its own refused is the message's"
+#define APP_NAME        "test_emailsender_foreign_refused_batch"
+#define APP_DOC         "A run of refused senders is paced"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -39,7 +39,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_foreign_from_refused"
+#define BASE    "/tmp/test_emailsender_foreign_refused_batch"
 
 /***************************************************************************
  *                      Default config
@@ -86,7 +86,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7862',              \n\
+                        'url': 'tcp://127.0.0.1:7866',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -105,9 +105,9 @@ PRIVATE char variable_config[]= "\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
                                 'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'mail_replies': ['553 5.1.8 <intruder@example.com>: Sender address rejected: Domain not found', '250 2.1.0 Ok'],\n\
-                                'max_connections': 1,               \n\
-                                'die_on_delivery': true             \n\
+                                'mail_replies': ['553 5.7.1 <intruder@example.com>: Sender address rejected: not owned by user'],\n\
+                                'max_connections': 3,               \n\
+                                'die_on_delivery': false            \n\
                             },                                      \n\
                             'children': [                           \n\
                                 {                                   \n\
@@ -127,14 +127,14 @@ PRIVATE char variable_config[]= "\
             'kw': {                                                 \n\
                 'username': 'user',                                 \n\
                 'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7862',                      \n\
+                'url': 'tcp://127.0.0.1:7866',                      \n\
                 'from': 'sender@example.com',                       \n\
                 'timeout_inactivity': 30000,                        \n\
                 'tranger_path': '"BASE"/store',                     \n\
                 'tranger_database': 'emailsender',                  \n\
                 'topic_emails_queue': 'emails_queue',               \n\
                 'topic_emails_failed': 'emails_failed',             \n\
-                'timeout_retry': 5000,                              \n\
+                'timeout_retry': 1000,                              \n\
                 'tkey': 'tm'                                        \n\
             }                                                       \n\
         },                                                          \n\
@@ -151,8 +151,13 @@ PRIVATE char variable_config[]= "\
             'autostart': true,                                      \n\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
-                'scenario': 'foreign_from',                         \n\
-                'smtp_url': 'tcp://127.0.0.1:7862'                  \n\
+                'scenario': 'send_check',                           \n\
+                'smtp_url': 'tcp://127.0.0.1:7866',                 \n\
+                'email_from': 'intruder@example.com',               \n\
+                'email_count': 12,                                  \n\
+                'action_delay': 6500,                               \n\
+                'expect_queued': 7,                                 \n\
+                'expect_failed': 5                                  \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
@@ -240,19 +245,18 @@ static int register_yuno_and_more(void)
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Playing yuno"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating __timeranger2__.json"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: MAIL FROM refused"));
-    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "MAIL FROM rejected: the sender of this message is refused", "from", "intruder@example.com"));
-    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "MAIL FROM rejected: the sender of this message is refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "email NOT sent, moved to failed queue"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RSET answered"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: message delivered"));
-    json_array_append_new(errors_list, json_pack("{s:s, s:s, s:s}", "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server refused the last messages in a row: each goes to the failed queue, the next ones are paced"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "The queues hold what is expected"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Exit to die"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Pausing yuno"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Yuno stopped, gobj end"));
 
-    set_expected_results( // Check that no logs happen
+    set_expected_results_unordered( // a whitelist: timings vary, each entry must be seen
         APP_NAME, // test name
         errors_list, // errors_list,
         NULL,   // expected, NULL: we want to check only the logs
@@ -278,19 +282,42 @@ static void cleaning(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
-    json_t *expected_errors = json_array();
-    json_array_append_new(expected_errors, json_string("email NOT sent, moved to failed queue"));
-    if(!json_equal(error_msgs, expected_errors) || errors_outside_the_test) {
+    /*
+     *  The ERRORs, by count: the timings vary, so each one may come a
+     *  number of times within its range, and no other may come.
+     */
+    const char *allowed[1] = {"email NOT sent, moved to failed queue"};
+    int minimum[1] = {5};
+    int maximum[1] = {5};
+    int counts[1] = {0};
+    BOOL errors_ok = errors_outside_the_test? FALSE : TRUE;
+    size_t eidx; json_t *jn_err;
+    json_array_foreach(error_msgs, eidx, jn_err) {
+        BOOL known = FALSE;
+        for(int k = 0; k < 1; k++) {
+            if(strcmp(json_string_value(jn_err), allowed[k]) == 0) {
+                counts[k]++;
+                known = TRUE;
+                break;
+            }
+        }
+        if(!known) {
+            errors_ok = FALSE;
+        }
+    }
+    for(int k = 0; k < 1; k++) {
+        if(counts[k] < minimum[k] || counts[k] > maximum[k]) {
+            errors_ok = FALSE;
+        }
+    }
+    if(!errors_ok) {
         char *s_got = json2uglystr(error_msgs);
-        char *s_expected = json2uglystr(expected_errors);
-        printf("<-- %sERRORS NOT AS EXPECTED%s: %s\n      logged as ERROR: %s\n      expected:        %s\n",
-            On_Red BWhite, Color_Off, APP_NAME, s_got, s_expected
+        printf("<-- %sERRORS NOT AS EXPECTED%s: %s\n      logged as ERROR: %s\n",
+            On_Red BWhite, Color_Off, APP_NAME, s_got
         );
         GBMEM_FREE(s_got)
-        GBMEM_FREE(s_expected)
         result += -1;
     }
-    JSON_DECREF(expected_errors)
     JSON_DECREF(error_msgs)
 }
 

@@ -131,8 +131,9 @@ SDATA (DTP_STRING,      "expect_reply",     SDF_RD,             "535 5.7.8","sce
 SDATA (DTP_INTEGER,     "action_delay",     SDF_RD,             "0",        "ms to the second step of set_url_stash, refill and late_server"),
 SDATA (DTP_INTEGER,     "min_wait",         SDF_RD,             "0",        "scenario late_server: ms the session must wait at least"),
 SDATA (DTP_INTEGER,     "act_on_connect_n", SDF_RD,             "1",        "scenarios pause and shutdown: act at this connection of the fake server (1 = the first)"),
+SDATA (DTP_STRING,      "email_from",       SDF_RD,             "",         "from of the emails sent (not foreign_from's first); empty: the default of the emailsender"),
 SDATA (DTP_INTEGER,     "email_count",      SDF_RD,             "1",        "scenario send_check: emails sent at once"),
-SDATA (DTP_INTEGER,     "expect_queued",    SDF_RD,             "0",        "scenario send_check: pending emails expected"),
+SDATA (DTP_INTEGER,     "expect_queued",    SDF_RD,             "0",        "scenario send_check: pending emails expected. -1: the queues are not checked"),
 SDATA (DTP_INTEGER,     "expect_failed",    SDF_RD,             "0",        "scenario send_check: failed emails expected"),
 SDATA (DTP_INTEGER,     "max_wait",         SDF_RD,             "0",        "scenario set_url_stash: ms the session may take to connect after the play. 0: no check"),
 SDATA (DTP_INTEGER,     "bad_count",        SDF_RD,             "0",        "scenario bad_burst: emails with no recipient queued behind the good one"),
@@ -401,6 +402,15 @@ PRIVATE int set_url_from(hgobj gobj, const char *url, BOOL expect_wait)
  ***************************************************************************/
 PRIVATE int check_queues(hgobj gobj, int expect_queued, int expect_failed)
 {
+    if(expect_queued < 0) {
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "The queues are not checked",
+            NULL
+        );
+        return 0;
+    }
+
     json_t *jn_resp = gobj_command(
         gobj_find_service("emailsender", TRUE), "list-queues", json_object(), gobj
     );
@@ -470,6 +480,10 @@ PRIVATE int send_email_to(hgobj gobj, const char *to, const char *cc)
         "body", "body of the test",
         "is_html", 0
     );
+    const char *from = gobj_read_str_attr(gobj, "email_from");
+    if(!empty_string(from)) {
+        json_object_set_new(kw_email, "from", json_string(from));
+    }
     return gobj_send_event(
         gobj_find_service("emailsender", TRUE), EV_SEND_EMAIL, kw_email, gobj
     );

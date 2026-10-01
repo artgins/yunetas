@@ -81,10 +81,12 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   a row: each goes to the failed queue, the next ones are paced"*, with
   `refused_in_row`. There is no ERROR of `timeout_failing_alarm` for it (the
   emails are not stuck: each one's ERROR *"moved to failed queue"* says it).
-  A refusal of an ADDRESS -- a `5.1.x` status (`550 5.1.1` no such user, a bad
-  domain) or a sender of the message's own -- does not count: it says
-  nothing of the server, so a run of alarms to a mistyped recipient never
-  paces the good email behind them. So a
+  Every refusal counts, a bad address included (`550 5.1.1` no such user, a
+  sender of the message's own): a queue refused one by one -- a server that
+  takes no foreign sender, a batch to a dead address, a server that refuses
+  `RSET` and is told `QUIT` each time -- must not get one login per message.
+  The price: a good email behind a run of refused ones waits the paced delay,
+  until the next delivery ends the run. So a
   queue of messages the server refuses one by one costs one attempt per
   message, at the paced rate: with `timeout_retry` 1 s, 20 such messages see
   four connections in the first 10 s or so, not 20 in a second. Up to 7.25.20 a
@@ -106,22 +108,32 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   Up to 7.25.20 one bad address sent the message to nobody, into the failed
   queue.
 
-  A refused **sender** (MAIL FROM) depends on whose sender it is. Every
+  A refused **sender** (MAIL FROM): the REPLY decides, not the `from`. Every
   producer sets the `from` of its emails (the yuno's `from` is only the
-  default), and `EV_SEND_EMAIL` is public:
+  default), so most emails carry a sender of their own, and an account block
+  answers them all the same way:
 
-  - **The message's own** -- a `from` other than the default, or a reply that
-    says the address is wrong (`501`, `553`, a `5.1.x` status, a `5.7.1` that
-    names the sender: *"Sender address rejected: not owned by user"*): the
-    message's fault, refused like above, once, to the failed queue, with a
-    WARNING that names the `from`; the session goes on.
-  - **The default sender** -- a quota (`550 5.7.1 Daily sending quota
-    exceeded`), sending blocked, any `4xx`: the account's trouble, the same for
-    every message. A failure of the server: paced, said, and charged to the
-    message as a retry, so after `max_retries` paced attempts it goes to the
-    failed queue and the queue moves on; a stuck head never blocks the queue
-    for ever. The yuno does not stop on it: a quota passes.
+  - **The message's** only when its sender is its own (not the default; the
+    comparison ignores case) AND the reply says that address is wrong: a
+    `501` (its syntax), a `5.1.7` status (bad sender mailbox syntax, RFC 3463),
+    or a `553`, `5.1.x` or `5.7.1` reply that quotes the address itself
+    (`553 5.1.8 <a@b>: Sender address rejected: Domain not found`,
+    `553 5.7.1 <a@b>: Sender address rejected: not owned by user`).
+    Refused like above, once, to the failed queue, with a WARNING that names
+    the `from`; the session goes on, and a run of them is paced like any run
+    of refusals.
+  - **The account's** in every other case, whatever the `from`: a quota
+    (`550 5.7.1 Daily sending quota exceeded`), a block (`550 5.1.8 Access
+    denied, bad outbound sender`), a policy that does not name the address,
+    any `4xx`, any refusal of the default sender. A failure of the server:
+    paced, said, and charged to the message as a retry, so after
+    `max_retries` paced attempts it goes to the failed queue and the queue
+    moves on; a stuck head never blocks the queue for ever, and one stuck
+    past `timeout_failing_alarm` raises the ERROR. The yuno does not stop on
+    it: a quota passes.
 
+  Every attempt that ends in a refusal of the message either sends it to the
+  failed queue or spends one of its retries, whatever the session was doing.
   Up to 7.25.20 any `5xx` there sent the message to the failed queue at once,
   and every message behind it in turn.
 
