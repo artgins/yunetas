@@ -55,6 +55,8 @@ ycommand -c 'command-yuno id=<id> service=emailsender command=set-email-user use
 | `max_retries` | `4` | Max total send attempts before dead-lettering |
 | `timeout_retry` | `2000` | ms before the connection that follows a failed session or connection; doubles per failure in a row |
 | `timeout_retry_max` | `600000` | Cap of that doubling (ms) |
+| `timeout_failing_alarm` | `3600000` | ms a failing server may keep emails waiting before it is an ERROR (said again at most once per this period); `0`: never |
+| `timeout_response` | `30000` | ms the server has to answer each command |
 | `timeout_inactivity` | `30000` | ms of silence after which the idle SMTP connection is closed; the next email opens it again |
 | `disable_alarm_emails` | `false` | Drop "ALERT Queuing" alarm emails |
 | `tranger_path` / `tranger_database` | | TimeRanger2 store location |
@@ -154,8 +156,21 @@ greylist), a reply that never comes, a malformed reply, a server that closes
 the connection by itself, a connection that is refused or times out -- the next
 connection waits `timeout_retry` ms, twice as long after each further failure
 in a row, up to `timeout_retry_max`. An email queued during the wait waits for
-it too. A session that ends with no failure (a message delivered, an idle
-session closed) starts the doubling again. Providers ban the addresses that
+it too, and so does a pause and a play. A session that ends with no failure (a
+message delivered, an idle session closed) starts the doubling again. Nothing
+connects with nothing to send: the transport never reconnects by itself.
+
+A failing server is said: a WARNING at the first failure (*"SMTP server
+failing: emails wait, the retries are paced"*, with its `cause`, a refused
+connection included), an ERROR once it has failed for `timeout_failing_alarm`
+(1 h by default) and again at most once per that period, and an INFO at the
+first delivery after it. To be told after 15 minutes instead:
+
+```json
+"kw": {
+    "timeout_failing_alarm": 900000
+}
+``` Providers ban the addresses that
 hammer them (OVH did, for its whole mail cluster), so this is a hard rule, not
 a tuning knob.
 

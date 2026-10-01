@@ -29,8 +29,9 @@
  *                      with the code (`expect_auth_code`), and the reply
  *                      text (starting with `expect_reply`).
  *          "pause"     one email is sent; when the fake server says the
- *                      session connected (it is in its handshake, the email
- *                      in flight), the `emailsender` service is paused and,
+ *                      session connected (at its `act_on_connect_n`th
+ *                      connection; it is in its handshake, the email in
+ *                      flight), the `emailsender` service is paused and,
  *                      in the next cycle of the loop, played again. The
  *                      email must be delivered once, with no retry spent.
  *          "shutdown"  one email is sent; when the fake server says the
@@ -104,6 +105,7 @@ SDATA (DTP_INTEGER,     "expect_auth_code", SDF_RD,             "535",      "sce
 SDATA (DTP_STRING,      "expect_reply",     SDF_RD,             "535 5.7.8","scenario session: how the reply expected starts"),
 SDATA (DTP_INTEGER,     "action_delay",     SDF_RD,             "0",        "ms to the second step of set_url_stash, refill and late_server"),
 SDATA (DTP_INTEGER,     "min_wait",         SDF_RD,             "0",        "scenario late_server: ms the session must wait at least"),
+SDATA (DTP_INTEGER,     "act_on_connect_n", SDF_RD,             "1",        "scenarios pause and shutdown: act at this connection of the fake server (1 = the first)"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
@@ -121,6 +123,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     BOOL sent_on_connect;
     BOOL acted_on_connect;  // scenarios "pause" and "shutdown": done once
+    int connects_seen;      // EV_FAKE_CLIENT_CONNECTED received
     hgobj smtp;             // scenario "session": the session under test
     hgobj input_side;       // the fake server, when the driver starts it
     hgobj timer;            // the second step of a scenario
@@ -383,13 +386,15 @@ PRIVATE int ac_fake_client_connected(hgobj gobj, gobj_event_t event, json_t *kw,
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *scenario = gobj_read_str_attr(gobj, "scenario");
+    priv->connects_seen++;
+    BOOL its_turn = priv->connects_seen >= (int)gobj_read_integer_attr(gobj, "act_on_connect_n");
 
     if(gobj_read_bool_attr(gobj, "send_on_connect") && !priv->sent_on_connect) {
         priv->sent_on_connect = TRUE;
         send_one_email(gobj);
     }
 
-    if(strcmp(scenario, "pause") == 0 && !priv->acted_on_connect) {
+    if(strcmp(scenario, "pause") == 0 && !priv->acted_on_connect && its_turn) {
         /*
          *  The session is in its handshake, the email in flight: pause, and
          *  play in the next cycle, while its C_TCP is still closing.
@@ -399,7 +404,7 @@ PRIVATE int ac_fake_client_connected(hgobj gobj, gobj_event_t event, json_t *kw,
         gobj_post_event(gobj, EV_PLAY_EMAILSENDER, 0, gobj);
     }
 
-    if(strcmp(scenario, "shutdown") == 0 && !priv->acted_on_connect) {
+    if(strcmp(scenario, "shutdown") == 0 && !priv->acted_on_connect && its_turn) {
         priv->acted_on_connect = TRUE;
         set_yuno_must_die();
     }

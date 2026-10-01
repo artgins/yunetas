@@ -92,11 +92,31 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   connection that is refused or times out. The wait is `timeout_retry` ms
   (default `2000`), twice as long after each further failure in a row, up to
   `timeout_retry_max` (default `600000`). An email queued during the wait waits
-  for it too. The doubling starts again from `timeout_retry` after a session
-  that ends with no failure -- a message delivered, an idle session closed by
-  either side --, so a server that works is not held to the delay of an old
-  outage. A connection that cannot be made never reaches `C_SMTP_SESSION`: its
-  `C_TCP` doubles the delay itself, up to the same `timeout_retry_max`.
+  for it too, and so does a pause and a play of the yuno: a stop in the middle
+  of a failing streak counts as one more failure. The doubling starts again
+  from `timeout_retry` after a session that ends with no failure -- a message
+  delivered, an idle session closed by either side --, so a server that works
+  is not held to the delay of an old outage. A connection that cannot be made
+  (refused, timed out, a TLS handshake that fails) is a failure like the
+  others: the `C_TCP` publishes nothing for it, and the session sees it as the
+  `C_TCP`'s `EV_STATE_CHANGED` out of `ST_WAIT_CONNECTED`.
+- **Nothing connects with nothing to send.** The `C_TCP` never reconnects by
+  itself (`timeout_between_connections` -1): every connection is the
+  session's, made when it holds a message. After any close -- an idle session
+  the server ends (OVH closes them early, with a `421`), a message refused to
+  the failed queue with nothing behind it -- nothing logs in again until an
+  email comes. Up to 7.25.20 the `C_TCP` reconnected 2 s after any close it did
+  not decide, and logged in with nothing to send, for ever.
+- **A failing server is said, once, then loud.** The first failure of a streak
+  is a WARNING, *"SMTP server failing: emails wait, the retries are paced"*,
+  with its `cause` (the reply of the server, or *"cannot connect: Connection
+  refused"*, which the `C_TCP` itself logs only when traced). When the streak
+  has lasted `timeout_failing_alarm` (default `3600000`, 1 h; `0`: never) it is
+  an ERROR, *"SMTP server failing for too long: emails are NOT being sent"*,
+  said again at most once per that period while it lasts -- at the retries,
+  with no timer of its own --, and the first delivery ends it with an INFO,
+  *"SMTP server works again: emails delivered"* (`failed_s`). Up to 7.25.20 a
+  server that could not be reached left no trace at the default levels.
 
   A message spends one of its `max_retries` per failure of ITS transaction
   (MAIL FROM onwards: a refusal, a `4xx`, a close or a timeout there; the
@@ -123,11 +143,6 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   again and again (the four attempts of a message were gone in about 8 s), and
   a `4xx` to the end of DATA sent the message again at once, on the same
   session: four uploads in the same second.
-- **An idle session the server ends** (OVH closes idle sessions early, with a
-  `421`) is no failure, and there is nothing to send: the transport's own
-  reconnection is put off to `timeout_retry_max`, and the next email connects
-  at once. Up to 7.25.20 it logged in again 2 s later, and again at each idle
-  close of the server, for nothing.
 - **Why a session closed**: every close caused by a reply of the server
   (a refused login, a refused message, a failed EHLO, ...) carries that reply's
   text on `EV_ON_CLOSE` as `reply`, next to its code.
@@ -156,8 +171,8 @@ link is down it is **`c_smtp_session`** — the gclass that owns the transport a
 must redo the SMTP handshake — that reconnects on demand: on `EV_SEND_MESSAGE`
 in `ST_DISCONNECTED` it kicks its bottom `C_TCP` (`EV_CONNECT`) once the paced
 delay has passed (before, on its own timer), re-runs banner→EHLO→AUTH, and
-begins the stashed message on entry to `ST_IDLE`. The pacing is the session's
-and its transport's concern, not the sender's.
+begins the stashed message on entry to `ST_IDLE`. The `C_TCP` never reconnects
+by itself. The pacing is the session's concern, not the sender's.
 
 On that entry to `ST_IDLE` the child also publishes `EV_ON_OPEN` *before* it
 begins the stashed message. Because `c_emailsender` moves to `ST_WAIT_RESPONSE`

@@ -231,12 +231,13 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Creating __timeranger2__.json",
         "msg", "Creating topic",
         "msg", "Creating topic",
+        "msg", "SMTP server failing: emails wait, the retries are paced",
         "msg", "Fake smtp: AUTH answered",
         "msg", "AUTH PLAIN failed, transient: will retry",
         "msg", "Fake smtp: AUTH answered",
@@ -245,6 +246,7 @@ static int register_yuno_and_more(void)
         "msg", "AUTH PLAIN failed, transient: will retry",
         "msg", "Fake smtp: AUTH answered",
         "msg", "Fake smtp: message delivered",
+        "msg", "SMTP server works again: emails delivered",
         "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
         "msg", "Exit to die",
         "msg", "Pausing yuno",

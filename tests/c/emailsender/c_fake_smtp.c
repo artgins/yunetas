@@ -14,9 +14,11 @@
  *          each message delivered is logged (INFO), so a test says in its
  *          list of expected logs what the server saw, and in which order.
  *
- *          With `die_on_delivery` the yuno ends a second after the first
- *          message delivered: time for the client to read the 250 and say
- *          so.
+ *          With `die_on_delivery` the yuno ends `die_delay` ms (a second)
+ *          after the first message delivered: time for the client to read
+ *          the 250 and say so. With `idle_close_after` the server ends the
+ *          session that delivered, that many ms later, with a 421 (as OVH
+ *          ends idle sessions); `die_delay` must then be longer.
  *
  *          With `auth_min_gaps` (ms, one per AUTH) an AUTH that comes sooner
  *          than its gap after the previous AUTH is logged as an ERROR
@@ -94,7 +96,9 @@ SDATA (DTP_LIST,        "data_min_gaps",    SDF_RD,             "[]",       "ms 
 SDATA (DTP_LIST,        "connection_plan",  SDF_RD,             "[]",       "What to do with each connection: greet, drop, garbage, long_line. greet when they run out"),
 SDATA (DTP_LIST,        "connect_min_gaps", SDF_RD,             "[]",       "ms that connection n must come after connection n-1 (entry 0 unused)"),
 SDATA (DTP_LIST,        "connect_max_gaps", SDF_RD,             "[]",       "ms that connection n must come within after connection n-1 (entry 0 unused, 0 = no check)"),
-SDATA (DTP_BOOLEAN,     "die_on_delivery",  SDF_RD,             "1",        "End the yuno a second after a message is delivered"),
+SDATA (DTP_BOOLEAN,     "die_on_delivery",  SDF_RD,             "1",        "End the yuno die_delay ms after a message is delivered"),
+SDATA (DTP_INTEGER,     "die_delay",        SDF_RD,             "1000",     "ms from the delivery to the end of the yuno"),
+SDATA (DTP_INTEGER,     "idle_close_after", SDF_RD,             "0",        "ms after a delivery to end the idle session with a 421. 0: never"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
@@ -115,6 +119,8 @@ typedef struct _PRIVATE_DATA {
     BOOL notify_pending;
     BOOL banner_pending;
     BOOL die_pending;
+    BOOL idle_close_pending;
+    uint64_t die_at;            /* msectimer of the end of the yuno, with an idle close before it */
     BOOL in_data;
     size_t auth_count;
     size_t rcpt_count;
@@ -351,9 +357,16 @@ PRIVATE int process_line(hgobj gobj, const char *line)
                 NULL
             );
             send_reply(gobj, reply);
+            json_int_t idle_close = gobj_read_integer_attr(gobj, "idle_close_after");
             if(gobj_read_bool_attr(gobj, "die_on_delivery")) {
                 priv->die_pending = TRUE;
-                set_timeout(priv->timer, 1000);
+                priv->die_at = start_msectimer((uint64_t)gobj_read_integer_attr(gobj, "die_delay"));
+            }
+            if(idle_close > 0) {
+                priv->idle_close_pending = TRUE;
+                set_timeout(priv->timer, idle_close);
+            } else if(priv->die_pending) {
+                set_timeout(priv->timer, gobj_read_integer_attr(gobj, "die_delay"));
             }
         }
         return 0;
@@ -492,7 +505,13 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 
     priv->notify_pending = FALSE;
     priv->banner_pending = FALSE;
-    if(!priv->die_pending) {
+    priv->idle_close_pending = FALSE;
+    if(!gobj_is_running(gobj) || gobj_is_shutdowning()) {
+        // the end of the yuno: its own stop clears the timer
+    } else if(priv->die_pending) {
+        json_int_t left = (json_int_t)(priv->die_at - time_in_milliseconds_monotonic());
+        set_timeout(priv->timer, left > 0? left : 1);
+    } else {
         clear_timeout(priv->timer);
     }
 
@@ -571,6 +590,22 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             NULL
         );
         greet_client(gobj);
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    if(priv->idle_close_pending) {
+        priv->idle_close_pending = FALSE;
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Fake smtp: idle session ended",
+            NULL
+        );
+        send_reply(gobj, "421 4.4.2 Idle timeout, closing");
+        if(priv->die_pending) {
+            json_int_t left = (json_int_t)(priv->die_at - time_in_milliseconds_monotonic());
+            set_timeout(priv->timer, left > 0? left : 1);
+        }
         KW_DECREF(kw)
         return 0;
     }

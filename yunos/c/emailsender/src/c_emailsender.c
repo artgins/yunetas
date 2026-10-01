@@ -122,8 +122,10 @@ SDATA (DTP_STRING,      "from",                 SDF_PERSIST|SDF_REQUIRED,"",    
 SDATA (DTP_STRING,      "from_beautiful",       SDF_PERSIST,            "",     "from with name"),
 SDATA (DTP_INTEGER,     "max_retries",          SDF_PERSIST|SDF_WR,     "4",    "Maximum retries to send email"),
 SDATA (DTP_INTEGER,     "timeout_inactivity",   SDF_PERSIST,            "30000", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
-SDATA (DTP_INTEGER,     "timeout_retry",        SDF_RD,                 "2000", "ms before connecting again after the SMTP server ended a session; doubles at each failure in a row up to timeout_retry_max, back to this after a message is delivered"),
+SDATA (DTP_INTEGER,     "timeout_retry",        SDF_RD,                 "2000", "ms before connecting again after a failed SMTP session or connection; doubles at each failure in a row up to timeout_retry_max, back to this after a session with no failure"),
 SDATA (DTP_INTEGER,     "timeout_retry_max",    SDF_RD,                 "600000", "Cap of the doubling of timeout_retry (ms)"),
+SDATA (DTP_INTEGER,     "timeout_failing_alarm",SDF_RD,                 "3600000", "ms the SMTP server may fail, with emails waiting, before it is an ERROR; said again at most once per this period. 0: never"),
+SDATA (DTP_INTEGER,     "timeout_response",     SDF_RD,                 "30000", "ms the SMTP server has to answer each command"),
 SDATA (DTP_BOOLEAN,     "only_test",            SDF_PERSIST|SDF_WR,     0,      "True when testing, send only to test_email"),
 SDATA (DTP_BOOLEAN,     "add_test",             SDF_PERSIST|SDF_WR,     0,      "True when testing, add test_email to send"),
 SDATA (DTP_STRING,      "test_email",           SDF_PERSIST|SDF_WR,     "",     "test email"),
@@ -218,11 +220,13 @@ PRIVATE void mt_create(hgobj gobj)
     }
     hostname[sizeof(hostname) - 1] = '\0';
 
-    json_t *kw_smtp = json_pack("{s:s, s:I, s:I, s:I, s:s, s:s, s:s}",
+    json_t *kw_smtp = json_pack("{s:s, s:I, s:I, s:I, s:I, s:I, s:s, s:s, s:s}",
         "url", gobj_read_str_attr(gobj, "url"),
         "timeout_inactivity", gobj_read_integer_attr(gobj, "timeout_inactivity"),
         "timeout_retry", gobj_read_integer_attr(gobj, "timeout_retry"),
         "timeout_retry_max", gobj_read_integer_attr(gobj, "timeout_retry_max"),
+        "timeout_failing_alarm", gobj_read_integer_attr(gobj, "timeout_failing_alarm"),
+        "timeout_response", gobj_read_integer_attr(gobj, "timeout_response"),
         "username", gobj_read_str_attr(gobj, "username"),
         "password", gobj_read_str_attr(gobj, "password"),
         "helo_name", hostname

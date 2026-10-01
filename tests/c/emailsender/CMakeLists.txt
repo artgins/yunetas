@@ -61,6 +61,8 @@ SET(SRCS
     refill_paced
     long_line
     url_log
+    idle_close_no_reconnect
+    pause_backoff
 )
 
 ##############################################

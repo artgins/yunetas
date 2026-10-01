@@ -7,6 +7,12 @@
  *          checked). Up to 7.25.20 a refused connection was retried every 2 s
  *          for ever: timeout_retry_max never reached the C_TCP.
  *
+ *          And it is said: a WARNING at the first refused connection, with its
+ *          cause (the C_TCP logs a refused connection only when traced), and
+ *          an ERROR once the server has failed for timeout_failing_alarm (5 s
+ *          here: at the attempt of 7 s; the one of 15 s connects), and an
+ *          INFO when the email is delivered.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -88,6 +94,7 @@ PRIVATE char variable_config[]= "\
                 'topic_emails_failed': 'emails_failed',             \n\
                 'timeout_retry': 1000,                              \n\
                 'timeout_retry_max': 16000,                         \n\
+                'timeout_failing_alarm': 5000,                      \n\
                 'tkey': 'tm'                                        \n\
             }                                                       \n\
         },                                                          \n\
@@ -236,15 +243,18 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Creating __timeranger2__.json",
         "msg", "Creating topic",
         "msg", "Creating topic",
+        "msg", "SMTP server failing: emails wait, the retries are paced", "cause", "cannot connect: Connection refused",
+        "msg", "SMTP server failing for too long: emails are NOT being sent",
         "msg", "The session waited its paced time to connect",
         "msg", "Fake smtp: AUTH answered",
         "msg", "Fake smtp: message delivered",
+        "msg", "SMTP server works again: emails delivered",
         "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
@@ -277,7 +287,7 @@ static void cleaning(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
-    json_t *expected_errors = json_pack("[]");
+    json_t *expected_errors = json_pack("[s]", "SMTP server failing for too long: emails are NOT being sent");
     if(!json_equal(error_msgs, expected_errors) || errors_outside_the_test) {
         char *s_got = json2uglystr(error_msgs);
         char *s_expected = json2uglystr(expected_errors);

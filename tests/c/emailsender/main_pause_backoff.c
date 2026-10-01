@@ -1,16 +1,14 @@
 /****************************************************************************
- *          main_data_4xx_paced.c
+ *          main_pause_backoff.c
  *
- *          The fake server answers the end of DATA with 451, then 421 (and
- *          closes, as a 421 does), then 250; the uploads must come at least
- *          1 s and 2 s apart (timeout_retry 1 s). Up to 7.25.20 a 4xx at the
- *          end of DATA left the session up and the emailsender sent the
- *          message again at once, and a 421 reconnected after a fixed 2 s.
- *
- *          With no inactivity timeout the reconnection timer of the C_TCP is
- *          armed after the one of the session: the session connects first, and
- *          its EV_CONNECT must cancel that timer, or it fires in
- *          ST_WAIT_CONNECTED ("Event NOT DEFINED").
+ *          The fake server is down at the first connection (refused), closes
+ *          the second at once, and at the third the driver pauses and plays
+ *          the emailsender while its session is in the handshake. The
+ *          connections must come at least 2 s and then 4 s apart
+ *          (timeout_retry 1 s): the play does not buy an attempt at once.
+ *          Up to 7.25.20 each play connected at once (a stop in the middle of
+ *          a failing streak set no pace, and a C_TCP that never connected
+ *          connects as it starts).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -27,8 +25,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_data_4xx_paced"
-#define APP_DOC         "A 4xx at the end of DATA is retried paced, not at once"
+#define APP_NAME        "test_emailsender_pause_backoff"
+#define APP_DOC         "A pause and a play keep the pace of a failing server"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -40,7 +38,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_data_4xx_paced"
+#define BASE    "/tmp/test_emailsender_pause_backoff"
 
 /***************************************************************************
  *                      Default config
@@ -76,10 +74,48 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'fake_smtp_server',                             \n\
-            'gclass': 'C_IOGATE',                                   \n\
+            'name': 'emailsender',                                  \n\
+            'gclass': 'C_EMAILSENDER',                              \n\
             'autostart': true,                                      \n\
             'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+                'username': 'user',                                 \n\
+                'password': 'secret',                               \n\
+                'url': 'tcp://127.0.0.1:7843',                      \n\
+                'from': 'sender@example.com',                       \n\
+                'timeout_inactivity': 30000,                        \n\
+                'tranger_path': '"BASE"/store',                     \n\
+                'tranger_database': 'emailsender',                  \n\
+                'topic_emails_queue': 'emails_queue',               \n\
+                'topic_emails_failed': 'emails_failed',             \n\
+                'timeout_retry': 1000,                              \n\
+                'tkey': 'tm'                                        \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__input_side__',                               \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'c_test',                                       \n\
+            'gclass': 'C_TEST_EMAILSENDER',                         \n\
+            'default_service': true,                                \n\
+            'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+                'scenario': 'pause',                                \n\
+                'server_service': 'fake_smtp_server',               \n\
+                'smtp_url': 'tcp://127.0.0.1:7843',                 \n\
+                'act_on_connect_n': 2                               \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'fake_smtp_server',                             \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
             'kw': {                                                 \n\
             },                                                      \n\
             'children': [                                           \n\
@@ -87,7 +123,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7833',              \n\
+                        'url': 'tcp://127.0.0.1:7843',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -106,8 +142,10 @@ PRIVATE char variable_config[]= "\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
                                 'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'data_replies': ['451 4.7.1 Try again later', '421 4.7.0 Closing', '250 2.0.0 Ok: queued'],\n\
-                                'data_min_gaps': [0, 1000, 2000],   \n\
+                                'notify_service': 'c_test',         \n\
+                                'notify_delay': 300,                \n\
+                                'connection_plan': ['drop'],        \n\
+                                'connect_min_gaps': [0, 2000, 4000],\n\
                                 'die_on_delivery': true             \n\
                             },                                      \n\
                             'children': [                           \n\
@@ -119,43 +157,6 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             ]                                                       \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': 'emailsender',                                  \n\
-            'gclass': 'C_EMAILSENDER',                              \n\
-            'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
-            'kw': {                                                 \n\
-                'username': 'user',                                 \n\
-                'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7833',                      \n\
-                'from': 'sender@example.com',                       \n\
-                'timeout_inactivity': -1,                           \n\
-                'tranger_path': '"BASE"/store',                     \n\
-                'tranger_database': 'emailsender',                  \n\
-                'topic_emails_queue': 'emails_queue',               \n\
-                'topic_emails_failed': 'emails_failed',             \n\
-                'timeout_retry': 1000,                              \n\
-                'max_retries': 5,                                   \n\
-                'tkey': 'tm'                                        \n\
-            }                                                       \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': '__input_side__',                               \n\
-            'gclass': 'C_IOGATE',                                   \n\
-            'autostart': false,                                     \n\
-            'autoplay': false                                       \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': 'c_test',                                       \n\
-            'gclass': 'C_TEST_EMAILSENDER',                         \n\
-            'default_service': true,                                \n\
-            'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
-            'kw': {                                                 \n\
-                'scenario': 'send',                                 \n\
-                'smtp_url': 'tcp://127.0.0.1:7833'                  \n\
-            }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -237,21 +238,15 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Creating __timeranger2__.json",
         "msg", "Creating topic",
         "msg", "Creating topic",
-        "msg", "Fake smtp: AUTH answered",
-        "msg", "Fake smtp: message refused", "reply", "451 4.7.1 Try again later",
-        "msg", "DATA body rejected by server",
         "msg", "SMTP server failing: emails wait, the retries are paced",
-        "msg", "email NOT sent, will retry", "to", "reader@example.com", "cc", "copy@example.com",
-        "msg", "Fake smtp: AUTH answered",
-        "msg", "Fake smtp: message refused", "reply", "421 4.7.0 Closing",
-        "msg", "DATA body rejected by server",
-        "msg", "email NOT sent, will retry", "to", "reader@example.com", "cc", "copy@example.com",
+        "msg", "Fake smtp: connection not greeted", "plan", "drop",
+        "msg", "SMTP server closed the session",
         "msg", "Fake smtp: AUTH answered",
         "msg", "Fake smtp: message delivered",
         "msg", "SMTP server works again: emails delivered",

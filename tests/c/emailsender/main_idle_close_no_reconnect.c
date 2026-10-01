@@ -1,16 +1,12 @@
 /****************************************************************************
- *          main_data_4xx_paced.c
+ *          main_idle_close_no_reconnect.c
  *
- *          The fake server answers the end of DATA with 451, then 421 (and
- *          closes, as a 421 does), then 250; the uploads must come at least
- *          1 s and 2 s apart (timeout_retry 1 s). Up to 7.25.20 a 4xx at the
- *          end of DATA left the session up and the emailsender sent the
- *          message again at once, and a 421 reconnected after a fixed 2 s.
- *
- *          With no inactivity timeout the reconnection timer of the C_TCP is
- *          armed after the one of the session: the session connects first, and
- *          its EV_CONNECT must cancel that timer, or it fires in
- *          ST_WAIT_CONNECTED ("Event NOT DEFINED").
+ *          The email is delivered, and half a second later the server ends
+ *          the idle session with a 421, as OVH does. Nothing is left to send:
+ *          nothing must connect again (the fake server checks it for 60 s).
+ *          Up to 7.25.20 the C_TCP reconnected by itself and logged in with
+ *          nothing to send, for ever; the branch had put it off to
+ *          timeout_retry_max (3 s here).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -27,8 +23,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_data_4xx_paced"
-#define APP_DOC         "A 4xx at the end of DATA is retried paced, not at once"
+#define APP_NAME        "test_emailsender_idle_close_no_reconnect"
+#define APP_DOC         "An idle session the server ends is not opened again with nothing to send"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -40,7 +36,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_data_4xx_paced"
+#define BASE    "/tmp/test_emailsender_idle_close_no_reconnect"
 
 /***************************************************************************
  *                      Default config
@@ -87,7 +83,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7833',              \n\
+                        'url': 'tcp://127.0.0.1:7842',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -106,8 +102,9 @@ PRIVATE char variable_config[]= "\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
                                 'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'data_replies': ['451 4.7.1 Try again later', '421 4.7.0 Closing', '250 2.0.0 Ok: queued'],\n\
-                                'data_min_gaps': [0, 1000, 2000],   \n\
+                                'idle_close_after': 500,            \n\
+                                'die_delay': 6000,                  \n\
+                                'connect_min_gaps': [0, 60000],     \n\
                                 'die_on_delivery': true             \n\
                             },                                      \n\
                             'children': [                           \n\
@@ -128,15 +125,15 @@ PRIVATE char variable_config[]= "\
             'kw': {                                                 \n\
                 'username': 'user',                                 \n\
                 'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7833',                      \n\
+                'url': 'tcp://127.0.0.1:7842',                      \n\
                 'from': 'sender@example.com',                       \n\
-                'timeout_inactivity': -1,                           \n\
+                'timeout_inactivity': 30000,                        \n\
                 'tranger_path': '"BASE"/store',                     \n\
                 'tranger_database': 'emailsender',                  \n\
                 'topic_emails_queue': 'emails_queue',               \n\
                 'topic_emails_failed': 'emails_failed',             \n\
                 'timeout_retry': 1000,                              \n\
-                'max_retries': 5,                                   \n\
+                'timeout_retry_max': 3000,                          \n\
                 'tkey': 'tm'                                        \n\
             }                                                       \n\
         },                                                          \n\
@@ -154,7 +151,7 @@ PRIVATE char variable_config[]= "\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
                 'scenario': 'send',                                 \n\
-                'smtp_url': 'tcp://127.0.0.1:7833'                  \n\
+                'smtp_url': 'tcp://127.0.0.1:7842'                  \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
@@ -237,25 +234,17 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Creating __timeranger2__.json",
         "msg", "Creating topic",
         "msg", "Creating topic",
         "msg", "Fake smtp: AUTH answered",
-        "msg", "Fake smtp: message refused", "reply", "451 4.7.1 Try again later",
-        "msg", "DATA body rejected by server",
-        "msg", "SMTP server failing: emails wait, the retries are paced",
-        "msg", "email NOT sent, will retry", "to", "reader@example.com", "cc", "copy@example.com",
-        "msg", "Fake smtp: AUTH answered",
-        "msg", "Fake smtp: message refused", "reply", "421 4.7.0 Closing",
-        "msg", "DATA body rejected by server",
-        "msg", "email NOT sent, will retry", "to", "reader@example.com", "cc", "copy@example.com",
-        "msg", "Fake smtp: AUTH answered",
         "msg", "Fake smtp: message delivered",
-        "msg", "SMTP server works again: emails delivered",
         "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
+        "msg", "Fake smtp: idle session ended",
+        "msg", "server closed idle SMTP session",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"
