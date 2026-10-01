@@ -1840,16 +1840,24 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   hours for two standalone binaries. The full procedure comes back when the
   cycle is CLOSED, or when it is strictly necessary -- a kernel change that
   every yuno links is the typical case.
-- **The release suite runs on this dev machine before the tag** (rule of
-  2026-10-01, replacing the two-machine rule of 2026-09-25): `yunetas test`
-  under `ulimit -Sn 1024`; a run on wattyzer is no longer required. Keep in
-  mind the four axes on which this machine differs from the nodes, which is
-  why a test can pass here and fail there (7.25.5 did):
+- **The release suite runs on TWO machines before the tag** (rule of
+  2026-09-25, kept on 2026-10-01): `yunetas test` on the dev machine under
+  `ulimit -Sn 1024`, and the full suite on **wattyzer** (build from source in a
+  worktree of its own with `--sdk-only`; `. /etc/profile.d/yuneta.sh` first
+  over ssh, or `yunetas` is not found and ctest runs stale binaries; never
+  `configure-libs.sh` on its live tree, it reinstalls the openresty that serves
+  its sites; put back the agent binaries the build installs in `/yuneta/agent`).
+  **Why:** 7.25.5 passed 207/207 on one machine and failed on every node. That
+  machine differs from the nodes on four axes a test can silently depend on:
   `CONFIG_DEBUG_TRACK_MEMORY` (on locally, off on the nodes), the kernel (7.0
   has fine-grained ctime; Debian's 6.x moves it in 4 ms ticks), the soft limit
   of open files (the agent CLI raises its own to 1048576; a desktop terminal has
   1024), and the DNS (a local stub that answers at once; wattyzer's takes 3 s).
-  A test that depends on one of them is a test bug: write it so it does not.
+  The rule was dropped for a few hours on 2026-10-01 and brought back the same
+  day: that day's wattyzer run failed a timeranger2 test that passes locally,
+  because on Debian's 6.12 + ext4 a directory removed and made again keeps the
+  same inode AND birth time (3 in 50; never on the dev kernel) -- a real
+  defect, visible only on the nodes' kernel.
 - **Bumping `YUNETA_VERSION` means resetting `RELEASE` to `1`.** The two files
   are independent and nothing links them: `RELEASE` is the packaging revision
   (`yuneta-agent-<VERSION>-<RELEASE>`), it is bumped alone for a repackage, and
