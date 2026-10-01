@@ -6992,6 +6992,13 @@ PRIVATE int scan_disks_key_for_new_file(
  *  record seeds the watermark of every feed that wants the key. Up to
  *  7.25.20 every feed that heard a delete forgot the key: a slow one took
  *  the live key out of the cache and dropped its own fresh watermark.
+ *
+ *  In a MASTER nothing is forgotten here: tranger2_delete_key() forgot the
+ *  key (cache, segments, every watermark) when it deleted it, and the
+ *  master's own rt_disk feeds (a configuration of tests: a master feeds
+ *  its lists from memory) hear only that delete, maybe after the master
+ *  wrote the key again. Up to 7.25.20 that echo took the live key out of
+ *  the master's cache.
  ***************************************************************************/
 PRIVATE void client_key_deleted(
     hgobj gobj,
@@ -7004,6 +7011,9 @@ PRIVATE void client_key_deleted(
 {
     json_t *disk = feed_of_watcher(watched_topic, fs_event);
 
+    if(json_is_true(json_object_get(tranger, "master"))) {
+        heard = DELETE_PAID;    // forgotten by tranger2_delete_key() already
+    }
     if(heard == DELETE_FIRST_HEARD) {
         json_t *cache = json_object_get(watched_topic, "cache");
         if(cache) {

@@ -19,6 +19,9 @@
  *        follower that reads the IN_CREATE in between finds the directory
  *        there. That is not the key alive again: the feed's debt of the
  *        delete stays (the test holds the rmdir() of the master's signal).
+ *      - do_test_master_rt_disk_reborn: a master's own rt_disk feed hears
+ *        the delete after the master wrote the key again: the live key
+ *        stays in the master's cache.
  *      - do_test_rkey_filter:         a feed opened with an `rkey` (a
  *        regular expression over the keys) is told the deletes of the keys
  *        it matches and of no other: an rt_mem feed of the master and an
@@ -1109,6 +1112,81 @@ PRIVATE int do_test_signal_dir_seen(void)
 }
 
 /***************************************************************************
+ *  do_test_master_rt_disk_reborn
+ *  A master's own rt_disk feed hears a delete after the master wrote the
+ *  key again: the live key stays in the master's cache.
+ ***************************************************************************/
+PRIVATE int do_test_master_rt_disk_reborn(void)
+{
+    int result = 0;
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+    reset_callback_state();
+
+    set_expected_results(
+        "master rt_disk reborn: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tranger = startup_master(path_root, TRUE);
+    if(!tranger || create_topic(tranger) < 0) {
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        return -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("master rt_disk reborn: the live key stays", NULL, NULL, NULL, 1);
+    json_t *rt = tranger2_open_rt_disk(
+        tranger, TOPIC_NAME, "", NULL, my_record_callback, "disk-own", "", NULL
+    );
+    if(!rt) {
+        result += -1;
+    }
+    tranger2_set_rt_key_deleted_callback(rt, my_key_deleted_callback, NULL);
+    if(append_to(tranger, 1, 3) < 0) {
+        result += -1;
+    }
+    drain(10);
+
+    /*
+     *  With the loop stopped: the key deleted and written again, then the
+     *  feed's watcher hears the delete
+     */
+    if(tranger2_delete_key(tranger, TOPIC_NAME, KEY_A) < 0 || append_to(tranger, 1, 1) < 0) {
+        result += -1;
+    }
+    drain(20);
+    json_t *cache = json_object_get(tranger2_topic(tranger, TOPIC_NAME), "cache");
+    if(!json_object_get(cache, KEY_A)) {
+        printf("%sERROR%s --> master rt_disk reborn: the key written again is not in the master's cache\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(deleted_callback_count != 1) {
+        printf("%sERROR%s --> master rt_disk reborn: %zu fires, expected 1\n",
+            On_Red BWhite, Color_Off, deleted_callback_count);
+        result += -1;
+    }
+    tranger2_close_rt_disk(tranger, rt);
+    drain(10);
+    result += test_json(NULL);
+
+    set_expected_results("master rt_disk reborn: shutdown", NULL, NULL, NULL, 1);
+    tranger2_shutdown(tranger);
+    drain(10);
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  do_test_rkey_filter
  *  Feeds whose rkey matches KEY_A only: KEY_B deleted, they hear nothing;
  *  KEY_A deleted, each hears it once.
@@ -1537,6 +1615,7 @@ int main(int argc, char *argv[])
     result += do_test_cache_cleared();
     result += do_test_rkey_filter();
     result += do_test_signal_dir_seen();
+    result += do_test_master_rt_disk_reborn();
     result += do_test_rmrdir_fails();
     result += do_test_rmrdir_fails_filtered();
     result += do_test_key_dir_unstatable();

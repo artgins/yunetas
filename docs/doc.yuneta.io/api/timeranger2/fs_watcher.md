@@ -314,6 +314,12 @@ What the owners of the tree do:
   removing it, and a follower that reads the `IN_CREATE` between the two
   finds the directory there; it never holds a record.
 
+  In a MASTER the watcher's echo of a delete forgets nothing:
+  `tranger2_delete_key()` forgot the key when it deleted it, and the master
+  may have written it again before its own rt_disk feed (a configuration of
+  tests) hears the echo. Up to 7.25.20 the echo took the live key out of the
+  master's cache.
+
   At each `FS_RESCAN_DIR_TYPE`: the master hard-links each new md2 into
   `disks/<rt_id>/<key>/` and the follower consumes the link when it reads it,
   so a link still there IS a record not handed over yet, and the key directory
