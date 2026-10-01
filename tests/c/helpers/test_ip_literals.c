@@ -15,7 +15,8 @@
  *             alone (versions, tags, five numbers, a glued word);
  *          2. an address at the end of a sentence: [a.b.c.d].
  *          3. an address with its port: [a.b.c.d]:443
- *          4. an IPv4-mapped IPv6 address: [::ffff:a.b.c.d]
+ *          4. an IPv6 address that ends in an IPv4, bracketed whole:
+ *             [::ffff:a.b.c.d], [64:ff9b::a.b.c.d]
  *          5. a colon or a dash that separates (client:[a.b.c.d],
  *             [a.b.c.d]:x, a range [a.b.c.d]-[e.f.g.h]), and the versions
  *             and times that must stay as they are (nginx-1.25.3.1,
@@ -102,7 +103,11 @@ PRIVATE void test_brackets(void)
     check_bracket("client ::ffff:34.140.132.132 banned", "client [::ffff:34.140.132.132] banned");
     check_bracket("<td>::FFFF:34.140.132.132</td>", "<td>[::FFFF:34.140.132.132]</td>");
     check_bracket("::ffff:34.140.132.132.", "[::ffff:34.140.132.132].");
-    check_bracket("a::ffff:34.140.132.132", "a::ffff:[34.140.132.132]");
+    check_bracket("a::ffff:34.140.132.132", "[a::ffff:34.140.132.132]");
+    check_bracket("nat64 64:ff9b::34.1.2.3 x", "nat64 [64:ff9b::34.1.2.3] x");
+    check_bracket("0:0:0:0:0:ffff:34.1.2.3", "[0:0:0:0:0:ffff:34.1.2.3]");
+    check_bracket("::34.1.2.3", "[::34.1.2.3]");
+    check_bracket("x64:ff9b::34.1.2.3", "x64:[ff9b::34.1.2.3]");   // a colon separates, as in client:[a.b.c.d]
 
     /*
      *  5. A colon or a dash that separates; versions and times stay

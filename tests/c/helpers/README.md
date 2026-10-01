@@ -181,8 +181,9 @@ or another number is a version and stays as it is (`Chrome/142.0.0.0`,
 7.25.20 left bare because `.`, `:` and `-` counted as glue: the dot of a
 sentence end (`[a.b.c.d].`), a colon on either side (`[a.b.c.d]:443`,
 `[a.b.c.d]:x`, `client:[a.b.c.d]`), a dash that is not part of a word
-(`-[a.b.c.d]`, a range `[a.b.c.d]-[e.f.g.h]`), and the IPv4-mapped IPv6 form
-(`[::ffff:a.b.c.d]`); while versions and times stay as they are
+(`-[a.b.c.d]`, a range `[a.b.c.d]-[e.f.g.h]`), and an IPv6 address that ends
+in an IPv4, bracketed whole (`[::ffff:a.b.c.d]`, `[64:ff9b::a.b.c.d]`,
+`[0:0:0:0:0:ffff:a.b.c.d]`); while versions and times stay as they are
 (`nginx-1.25.3.1`, `1.2.3.4-beta`, `7.25.20.1-1`, `12:30:45.123`). A NULL
 source answers NULL, logged, as its header promises.
 

@@ -7,7 +7,6 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
-#include <strings.h>    /* strncasecmp() */
 
 #include "ip_literals.h"
 
@@ -37,15 +36,15 @@
  *        range, [a.b.c.d]-[e.f.g.h]. A dash between a word or a number
  *        and the digits (nginx-1.25.3.1, 7.25.20.1-1) keeps them a
  *        version.
- *  The IPv4-mapped IPv6 form is bracketed whole ([::ffff:a.b.c.d]). Up to
+ *  An IPv6 literal that ends in an IPv4 -- the mapped ::ffff:a.b.c.d, and
+ *  any other (64:ff9b::a.b.c.d, 0:0:0:0:0:ffff:a.b.c.d) -- is bracketed
+ *  whole, as one address: [::ffff:a.b.c.d], [64:ff9b::a.b.c.d]. Up to
  *  7.25.20 all of these stayed bare, because '.', ':' and '-' counted as
  *  glue -- and each one brings the phone number back.
  *
  *  The stored record keeps the plain address; this is the mail's way of
  *  writing it.
  ***************************************************************************/
-#define MAPPED_PREFIX       "::ffff:"
-#define MAPPED_PREFIX_LEN   (sizeof(MAPPED_PREFIX) - 1)
 
 PRIVATE BOOL ip_octet(const char *p, size_t len, size_t *used)
 {
@@ -66,6 +65,38 @@ PRIVATE BOOL ip_neighbour(char c)
 {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
            c == '.' || c == '/' || c == '_' || c == '-' || c == '[' || c == ']' || c == ':';
+}
+
+/*
+ *  The length of the IPv6 head of an IPv6 literal that ends in an IPv4 at
+ *  the start of p: hex digits and colons, at least two colons, up to the
+ *  colon the dotted quad follows. 0 when there is none.
+ */
+PRIVATE size_t ipv4_length(const char *p, size_t len);
+
+PRIVATE size_t ipv6_head_length(const char *p, size_t len)
+{
+    size_t run = 0;
+    while(run < len && (p[run] == ':' ||
+            (p[run] >= '0' && p[run] <= '9') ||
+            (p[run] >= 'a' && p[run] <= 'f') ||
+            (p[run] >= 'A' && p[run] <= 'F'))) {
+        run++;
+    }
+    size_t head = run;
+    while(head > 0 && p[head-1] != ':') {
+        head--;     // back over the first octet of the quad
+    }
+    size_t colons = 0;
+    for(size_t k = 0; k < head; k++) {
+        if(p[k] == ':') {
+            colons++;
+        }
+    }
+    if(colons < 2 || ipv4_length(p+head, len-head) == 0) {
+        return 0;
+    }
+    return head;
 }
 
 /*
@@ -177,11 +208,7 @@ PUBLIC gbuffer_t *bracket_ip_literals(gbuffer_t *src)
 
         size_t total = 0;
         if(!in_tag && !ip_glued_before(p, i, last_end)) {
-            size_t prefix = 0;
-            if(len - i > MAPPED_PREFIX_LEN &&
-                    strncasecmp(p+i, MAPPED_PREFIX, MAPPED_PREFIX_LEN) == 0) {
-                prefix = MAPPED_PREFIX_LEN;
-            }
+            size_t prefix = ipv6_head_length(p+i, len-i);
             size_t quad = ipv4_length(p+i+prefix, len-i-prefix);
             if(quad > 0 && ip_stands_alone(p, len, i+prefix+quad)) {
                 total = prefix + quad;

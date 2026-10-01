@@ -237,9 +237,14 @@ visitors, moved by one day twice a year.
 
 The stat `next_run` says when the schedule is armed for (epoch seconds). A run
 reports the day before its **slot**, and when it ends the next slot armed is
-always a later one: a timer that fires a little before its slot, with a run
-that ends before the slot too, found that same slot still ahead, and up to
-7.25.20 armed it again -- the day ran, and was mailed, twice.
+always one whose DAY has not run (`next_slot_after()` in `local_day.c`): a
+timer that fires a little before its slot, with a run that ends before the
+slot too, found that same slot still ahead, and on the day of the autumn
+change a `report_hour` of 2 resolves to the SECOND 02:00, which reports the
+same day as the first; up to 7.25.20 both armed it again -- the day ran, and
+was mailed, twice. Each slot is built from its date and
+`report_hour:report_minute`: on the day after the spring change a 02:30 that
+fell in the gap is 02:30 again, not the 03:30 it was normalised to.
 
 `internal_networks` matters for the numbers: on `artgins` the clients that
 hammered Keycloak were **our own nodes**. Without this list the "top clients"
@@ -626,7 +631,7 @@ a version -- and what only separates stays outside the brackets:
 | `client 34.140.132.132.` | `client [34.140.132.132].` |
 | `upstream 34.1.2.3:443`, `34.1.2.3: refused`, `client:34.1.2.3` | `upstream [34.1.2.3]:443`, `[34.1.2.3]: refused`, `client:[34.1.2.3]` |
 | `range 10.0.0.1-10.0.0.9` | `range [10.0.0.1]-[10.0.0.9]` |
-| `::ffff:34.1.2.3` | `[::ffff:34.1.2.3]` |
+| `::ffff:34.1.2.3`, `64:ff9b::34.1.2.3` | `[::ffff:34.1.2.3]`, `[64:ff9b::34.1.2.3]` (the whole IPv6 address) |
 | `Chrome/142.0.0.0`, `nginx-1.25.3.1`, `1.2.3.4-beta`, `12:30:45.123` | unchanged |
 
 Up to 7.25.20 a colon or a dash on either side left the address bare.

@@ -304,7 +304,7 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     hgobj timer;                    // the daily schedule, seconds are accurate enough
     time_t schedule_slot;           // the report_hour:report_minute the timer is armed for
-    time_t served_slot;             // the last slot that ran: never armed again
+    char served_day[DATE_SIZE];     // the day the last scheduled run reported: never armed again
     hgobj reader;                   // the file being read, or 0
 
     json_t *jn_files;               // files left in this run
@@ -1003,30 +1003,17 @@ PRIVATE int arm_schedule(hgobj gobj)
         return 0;
     }
 
+    /*
+     *  The next slot whose DAY has not run yet, each one built from its
+     *  date and report_hour:report_minute (local_day.c). Up to 7.25.20 the
+     *  next day was the normalised tm of today plus one, which after the
+     *  spring change kept the 03:xx that mktime() had made of a 02:xx in
+     *  the gap; and the slot that had just run could be armed again (a
+     *  timer fired before its slot, or the second 02:xx of the autumn
+     *  change): the same day ran, and was mailed, twice.
+     */
     time_t now = time(NULL);
-    struct tm tm;
-    localtime_r(&now, &tm);
-    tm.tm_hour = priv->report_hour;
-    tm.tm_min = priv->report_minute;
-    tm.tm_sec = 0;
-    tm.tm_isdst = -1;
-
-    time_t next = mktime(&tm);
-    while(next != (time_t)-1 && (next <= now || next <= priv->served_slot)) {
-        /*
-         *  Tomorrow. mktime() normalises the overflow, and it is the only
-         *  way that stays right across a DST change: adding 86400 seconds
-         *  lands one hour off twice a year.
-         *
-         *  Not the slot that has just run either: a timer that fires a
-         *  little before its slot, with a run that ends before the slot
-         *  too, finds that slot still ahead. Arming it again ran (and
-         *  mailed) the same day twice.
-         */
-        tm.tm_mday++;
-        tm.tm_isdst = -1;
-        next = mktime(&tm);
-    }
+    time_t next = next_slot_after(gobj, now, priv->report_hour, priv->report_minute, priv->served_day);
 
     if(next == (time_t)-1) {
         gobj_log_error(gobj, 0,
@@ -4771,8 +4758,6 @@ PRIVATE int ac_schedule(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->served_slot = priv->schedule_slot;
-
     char date[DATE_SIZE];
     if(yesterday_of(gobj, priv->schedule_slot, date, sizeof(date)) < 0) {
         // Error already logged
@@ -4780,6 +4765,7 @@ PRIVATE int ac_schedule(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         KW_DECREF(kw)
         return 0;
     }
+    snprintf(priv->served_day, sizeof(priv->served_day), "%s", date);
 
     start_run(gobj, date, priv->send_email);    // Error already logged
 

@@ -22,6 +22,10 @@
  *          change of hour, one day off near midnight.
  *          4. day_before_of(): N days back across a change of hour;
  *          5. moment_days_before(): the same time of day N days back.
+ *          6. next_slot_after(): the next daily slot whose day has not run,
+ *             on an ordinary day, the day of the spring change (an hour in
+ *             the gap must not stay 03:xx the day after) and the day of the
+ *             autumn change (the second 02:00 reports the day already run).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -122,6 +126,28 @@ PRIVATE void check_moment_before(int year, int month, int day, int hour, int min
 }
 
 /***************************************************************************
+ *  The next slot after `now`, with the day served, expected as local
+ *  "YYYY-MM-DD HH:MM"
+ ***************************************************************************/
+PRIVATE void check_next_slot(time_t now, const char *label, int hour, int minute,
+    const char *served_day, const char *expected)
+{
+    time_t t = next_slot_after(0, now, hour, minute, served_day);
+    struct tm tm;
+    char got[32] = "?";
+    if(t != (time_t)-1 && localtime_r(&t, &tm)) {
+        strftime(got, sizeof(got), "%Y-%m-%d %H:%M", &tm);
+    }
+    if(strcmp(got, expected) == 0) {
+        printf("ok   next slot %02d:%02d after %s (served %s) -> %s\n", hour, minute, label, served_day, got);
+    } else {
+        printf("FAIL next slot %02d:%02d after %s (served %s) -> %s (expected %s)\n",
+            hour, minute, label, served_day, got, expected);
+        global_result += -1;
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void test_days(void)
@@ -165,6 +191,19 @@ PRIVATE void test_days(void)
     check_moment_before(2026, 10, 25, 12, 0, 1, "2026-10-24 12:00");
     check_moment_before(2026, 4, 20, 9, 15, 30, "2026-03-21 09:15");
     check_moment_before(2026, 11, 20, 9, 15, 30, "2026-10-21 09:15");
+
+    /*
+     *  6. The next daily slot
+     */
+    check_next_slot(local_time(2026, 9, 30, 5, 0), "2026-09-30 05:00", 6, 0, "2026-09-28", "2026-09-30 06:00");
+    check_next_slot(local_time(2026, 9, 30, 5, 59), "2026-09-30 05:59 (fired early)", 6, 0, "2026-09-29", "2026-10-01 06:00");
+    check_next_slot(local_time(2026, 3, 29, 4, 0), "2026-03-29 04:00 (02:30 in the gap)", 2, 30, "2026-03-28", "2026-03-30 02:30");
+    struct tm utc = {0};
+    utc.tm_year = 2026 - 1900;
+    utc.tm_mon = 9;
+    utc.tm_mday = 25;
+    utc.tm_sec = 30;    // 00:00:30 UTC: 02:00:30 CEST, the first of the two
+    check_next_slot(timegm(&utc), "the first 02:00:30 of 2026-10-25", 2, 0, "2026-10-24", "2026-10-26 02:00");
 }
 
 /***************************************************************************

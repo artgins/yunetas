@@ -35,6 +35,13 @@ PUBLIC int day_before_of(hgobj gobj, time_t t, int days, char *bf, size_t bfsize
  */
 PUBLIC time_t moment_days_before(hgobj gobj, time_t t, int days);
 
+/*
+ *  The next daily slot (hour:minute local) after `now` whose day (the one
+ *  before it, the day it reports) comes after `served_day` ("YYYY-MM-DD",
+ *  or empty), or -1 (logged).
+ */
+PUBLIC time_t next_slot_after(hgobj gobj, time_t now, int hour, int minute, const char *served_day);
+
 #ifdef __cplusplus
 }
 #endif
