@@ -39,8 +39,10 @@ PRIVATE int process_smtp_response(
     q_msg_t *msg,
     int result,
     BOOL permanent,
-    const char *url
+    const char *url,
+    json_t *jn_delivery
 );
+PRIVATE char *join_addresses(json_t *jn_list);
 PRIVATE int count_addresses(const char *addresses);
 
 /***************************************************************************
@@ -1172,7 +1174,7 @@ PRIVATE int send_head_of_queue(hgobj gobj)
                 NULL
             );
             priv->qmsg_cur_email = NULL;
-            process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, NULL);
+            process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, NULL, NULL);
             KW_DECREF(msg);
             return -1;
         }
@@ -1218,7 +1220,7 @@ PRIVATE int send_head_of_queue(hgobj gobj)
     if(!mime_body) {
         /* Error already logged */
         priv->qmsg_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, NULL); // permanent: bad content
+        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, NULL, NULL); // permanent: bad content
         KW_DECREF(msg);
         return -1;
     }
@@ -1243,7 +1245,7 @@ PRIVATE int send_head_of_queue(hgobj gobj)
         gobj_trace_json(gobj, msg, "json_pack() FAILED for kw_send");
         GBUFFER_DECREF(mime_body)
         priv->qmsg_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, NULL); // permanent: cannot build request
+        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, NULL, NULL); // permanent: cannot build request
         KW_DECREF(msg);
         return -1;
     }
@@ -1306,6 +1308,42 @@ PRIVATE int count_addresses(const char *addresses)
 }
 
 /***************************************************************************
+ *  The addresses of a json list joined by ", ", in a string of gbmem
+ *  (GBMEM_FREE it). NULL when the list is empty or there is no memory.
+ ***************************************************************************/
+PRIVATE char *join_addresses(json_t *jn_list)
+{
+    size_t len = 0;
+    size_t idx; json_t *jn_address;
+    json_array_foreach(jn_list, idx, jn_address) {
+        const char *address = json_string_value(jn_address);
+        len += (address? strlen(address) : 0) + 2;
+    }
+    if(len == 0) {
+        return NULL;
+    }
+    char *s = gbmem_malloc(len + 1);
+    if(!s) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "gbmem_malloc() FAILED",
+            NULL
+        );
+        return NULL;
+    }
+    s[0] = 0;
+    json_array_foreach(jn_list, idx, jn_address) {
+        const char *address = json_string_value(jn_address);
+        if(idx > 0) {
+            strcat(s, ", ");
+        }
+        strcat(s, address? address : "");
+    }
+    return s;
+}
+
+/***************************************************************************
  *  Resolve the in-flight message after an SMTP send attempt.
  *      result >= 0 -> sent OK: unload from the queue.
  *      result <  0 -> failed:
@@ -1322,7 +1360,8 @@ PRIVATE int process_smtp_response(
     q_msg_t *msg,
     int result,
     BOOL permanent,
-    const char *url     // the server the message was tried at, "" when none
+    const char *url,    // the server the message was tried at, "" when none
+    json_t *jn_delivery // not owned: who got it, when some recipients were refused; NULL: all did
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1370,7 +1409,34 @@ PRIVATE int process_smtp_response(
         url = "";
     }
 
-    if(result >= 0) {
+    if(result >= 0 && jn_delivery) {
+        /*
+         *  Some recipients were refused (a 5xx to their RCPT TO): the line
+         *  says who got it and who did not, the bcc as counts. Before, it
+         *  listed every recipient as if all had got it.
+         */
+        char *delivered_to = join_addresses(kw_get_list(gobj, jn_delivery, "delivered_to", 0, 0));
+        char *delivered_cc = join_addresses(kw_get_list(gobj, jn_delivery, "delivered_cc", 0, 0));
+        json_t *jn_refused = json_array();
+        json_array_extend(jn_refused, kw_get_list(gobj, jn_delivery, "refused_to", 0, 0));
+        json_array_extend(jn_refused, kw_get_list(gobj, jn_delivery, "refused_cc", 0, 0));
+        char *refused = join_addresses(jn_refused);
+        JSON_DECREF(jn_refused)
+        gobj_log_info(gobj, 0,
+            "msgset",   "%s", MSGSET_INFO,
+            "msg",      "%s", "email sent",
+            "to",       "%s", delivered_to? delivered_to : "",
+            "cc",       "%s", delivered_cc? delivered_cc : "",
+            "bcc_count","%d", (int)kw_get_int(gobj, jn_delivery, "delivered_bcc_count", 0, 0),
+            "refused",  "%s", refused? refused : "",
+            "refused_bcc_count", "%d", (int)kw_get_int(gobj, jn_delivery, "refused_bcc_count", 0, 0),
+            "url",      "%s", url,
+            NULL
+        );
+        GBMEM_FREE(delivered_to)
+        GBMEM_FREE(delivered_cc)
+        GBMEM_FREE(refused)
+    } else if(result >= 0) {
         gobj_log_info(gobj, 0,
             "msgset",   "%s", MSGSET_INFO,
             "msg",      "%s", "email sent",
@@ -1380,6 +1446,8 @@ PRIVATE int process_smtp_response(
             "url",      "%s", url,
             NULL
         );
+    }
+    if(result >= 0) {
         priv->sent++;
         priv->cur_retries = 0;
         trq_unload_msg(msg, result);
@@ -1651,7 +1719,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             BOOL permanent = (code >= 500 && code < 600);
             q_msg_t *qmsg = priv->qmsg_cur_email;
             priv->qmsg_cur_email = NULL;
-            process_smtp_response(gobj, qmsg, -1, permanent, kw_get_str(gobj, kw, "url", "", 0));
+            process_smtp_response(gobj, qmsg, -1, permanent, kw_get_str(gobj, kw, "url", "", 0), NULL);
 
         } else if(gobj_in_this_state(gobj, ST_IDLE)) {
             /*
@@ -1697,7 +1765,10 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     q_msg_t *qmsg = priv->qmsg_cur_email;
     priv->qmsg_cur_email = NULL;
-    process_smtp_response(gobj, qmsg, ok ? 0 : -1, permanent, kw_get_str(gobj, kw, "url", "", 0));
+    process_smtp_response(gobj, qmsg, ok ? 0 : -1, permanent,
+        kw_get_str(gobj, kw, "url", "", 0),
+        kw_get_dict(gobj, kw, "delivery", 0, 0)
+    );
 
     KW_DECREF(kw);
     return 0;

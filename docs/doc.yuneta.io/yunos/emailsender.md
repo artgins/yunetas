@@ -200,7 +200,9 @@ are paced"*). A batch of refused messages costs one attempt each, at the
 paced rate.
 
 A `5xx` to one recipient of several refuses that recipient only: the message
-goes to the others, each refused one a WARNING. A refused sender (MAIL FROM)
+goes to the others, each refused one a WARNING, and the *"email sent"* line
+says who got it -- `to` and `cc` hold the accepted addresses, `refused` the
+refused ones, the bcc only as counts (`bcc_count`, `refused_bcc_count`). A refused sender (MAIL FROM)
 is the account's or the server's trouble, the same for every message: paced
 like a failure, the message kept at the head of the queue with no retry
 spent, and the ERROR of `timeout_failing_alarm` after an hour.

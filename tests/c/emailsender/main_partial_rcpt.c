@@ -3,8 +3,10 @@
  *
  *          The server refuses one of the two recipients (550 to `to`, 250 to
  *          `cc`): the message goes to the other one, and the refused one is
- *          a WARNING. Before, one bad address sent the message to nobody,
- *          into the failed queue.
+ *          a WARNING. The "email sent" line says who got it: `to` and `cc`
+ *          hold the recipients the server took (`to` empty here), and
+ *          `refused` the ones it refused. Before, one bad address sent the
+ *          message to nobody, into the failed queue.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -238,7 +240,7 @@ static int register_yuno_and_more(void)
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: message delivered"));
-    json_array_append_new(errors_list, json_pack("{s:s, s:s, s:s}", "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s, s:s, s:s}", "msg", "email sent", "to", "", "cc", "copy@example.com", "refused", "reader@example.com"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Exit to die"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Pausing yuno"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Yuno stopped, gobj end"));

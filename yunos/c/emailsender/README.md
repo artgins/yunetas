@@ -87,7 +87,16 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
 
   A `5xx` to ONE recipient of several refuses that recipient only: the
   message goes to the others (RFC 5321 §3.3), and each refused one is a
-  WARNING (*"RCPT TO rejected"*, with the reply). Up to 7.25.20 one bad
+  WARNING (*"RCPT TO rejected"*, with the reply). The *"email sent"* line
+  then says who got it and who did not: `to` and `cc` hold only the accepted
+  addresses, `refused` the refused `to`/`cc` ones, and the bcc go as counts
+  (`bcc_count`, `refused_bcc_count`):
+
+  ```json
+  {"msg": "email sent", "to": "", "cc": "copy@example.com", "bcc_count": 0,
+   "refused": "reader@example.com", "refused_bcc_count": 0, "url": "..."}
+  ```
+ Up to 7.25.20 one bad
   address sent the message to nobody, into the failed queue.
 
   A refused **sender** -- any reply but `250` to MAIL FROM (`550 5.7.1`

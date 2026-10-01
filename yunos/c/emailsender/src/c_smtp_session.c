@@ -140,7 +140,8 @@ PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, cons
 PRIVATE int enter_idle_after_reset(hgobj gobj);
 PRIVATE int quit_session(hgobj gobj);
 PRIVATE int send_next_rcpt_or_data(hgobj gobj);
-PRIVATE json_t *gather_recipients(hgobj gobj, json_t *jn_msg);
+PRIVATE json_t *gather_recipients(hgobj gobj, json_t *jn_msg, json_t *jn_fields);
+PRIVATE json_t *build_delivery_report(hgobj gobj);
 PRIVATE int dot_stuff_into(gbuffer_t *out, const char *body, size_t len);
 PRIVATE void cleanup_current_message(hgobj gobj);
 PRIVATE int fail_current_message(hgobj gobj, const char *reason);
@@ -221,6 +222,8 @@ typedef struct _PRIVATE_DATA {
     BOOL inform_on_close;
     json_t *jn_current_msg;     /* envelope of the message being sent; NULL when idle */
     json_t *jn_recipients;      /* flat json_array of unique RCPT TO addresses */
+    json_t *jn_recipient_fields;/* the field of each one: "to", "cc" or "bcc" */
+    json_t *jn_rcpt_refused;    /* indexes in jn_recipients of the recipients refused (5xx) */
     int recipient_index;        /* next RCPT TO index to send */
     int reject_code;            /* SMTP reply code of a per-message rejection, forwarded on EV_ON_CLOSE; 0 = transient/link error */
     int auth_reject_code;       /* SMTP reply code of a refused AUTH (5xx), forwarded on EV_ON_CLOSE as auth_rejected; 0 = none */
@@ -639,7 +642,7 @@ PRIVATE int send_next_rcpt_or_data(hgobj gobj)
  *      - deduplicates via jn_set
  *  jn_set is a json_object used purely as a hash set (values = json_true()).
  ***************************************************************************/
-PRIVATE void add_recipient_token(json_t *jn_set, json_t *jn_list, char *token)
+PRIVATE void add_recipient_token(json_t *jn_set, json_t *jn_list, json_t *jn_fields, const char *field, char *token)
 {
     while(*token && (*token == ' ' || *token == '\t')) {
         token++;
@@ -671,6 +674,7 @@ PRIVATE void add_recipient_token(json_t *jn_set, json_t *jn_list, char *token)
     }
     json_object_set_new(jn_set, token, json_true());
     json_array_append_new(jn_list, json_string(token));
+    json_array_append_new(jn_fields, json_string(field));
 }
 
 /***************************************************************************
@@ -678,8 +682,10 @@ PRIVATE void add_recipient_token(json_t *jn_set, json_t *jn_list, char *token)
  *  envelope. Reads "to", "cc", "bcc" as comma- or semicolon-separated strings
  *  (semicolon is the Outlook-style separator and also covers a stray trailing
  *  ';'). Returns a new owned array, or NULL if no valid recipient was found.
+ *  `jn_fields` (not owned) gets the field each one came from, in the same
+ *  order.
  ***************************************************************************/
-PRIVATE json_t *gather_recipients(hgobj gobj, json_t *jn_msg)
+PRIVATE json_t *gather_recipients(hgobj gobj, json_t *jn_msg, json_t *jn_fields)
 {
     json_t *jn_set = json_object();
     json_t *jn_list = json_array();
@@ -718,7 +724,7 @@ PRIVATE json_t *gather_recipients(hgobj gobj, json_t *jn_msg)
             tok;
             tok = strtok_r(NULL, ",;", &save)
         ) {
-            add_recipient_token(jn_set, jn_list, tok);
+            add_recipient_token(jn_set, jn_list, jn_fields, fields[f], tok);
         }
         gbmem_free(buf);
     }
@@ -779,7 +785,71 @@ PRIVATE void cleanup_current_message(hgobj gobj)
 
     JSON_DECREF(priv->jn_current_msg)
     JSON_DECREF(priv->jn_recipients)
+    JSON_DECREF(priv->jn_recipient_fields)
+    JSON_DECREF(priv->jn_rcpt_refused)
     priv->recipient_index = 0;
+}
+
+/***************************************************************************
+ *  Who got the message in hand, when some of its recipients were refused:
+ *  the accepted and the refused `to` and `cc` addresses, and the bcc only
+ *  as counts. NULL when none was refused.
+ ***************************************************************************/
+PRIVATE json_t *build_delivery_report(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(json_array_size(priv->jn_rcpt_refused) == 0) {
+        return NULL;
+    }
+
+    json_t *jn_report = json_pack("{s:[], s:[], s:i, s:[], s:[], s:i}",
+        "delivered_to", "delivered_cc", "delivered_bcc_count", 0,
+        "refused_to", "refused_cc", "refused_bcc_count", 0
+    );
+    if(!jn_report) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "json_pack() FAILED for the delivery report",
+            NULL
+        );
+        return NULL;
+    }
+
+    size_t n = json_array_size(priv->jn_recipients);
+    for(size_t i = 0; i < n; i++) {
+        BOOL refused = FALSE;
+        size_t idx; json_t *jn_idx;
+        json_array_foreach(priv->jn_rcpt_refused, idx, jn_idx) {
+            if((size_t)json_integer_value(jn_idx) == i) {
+                refused = TRUE;
+                break;
+            }
+        }
+        const char *field = json_string_value(json_array_get(priv->jn_recipient_fields, i));
+        const char *address = json_string_value(json_array_get(priv->jn_recipients, i));
+        if(!field || !address) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "recipient without its field",
+                NULL
+            );
+            continue;
+        }
+        if(strcmp(field, "bcc") == 0) {
+            const char *key = refused? "refused_bcc_count" : "delivered_bcc_count";
+            json_object_set_new(jn_report, key,
+                json_integer(kw_get_int(gobj, jn_report, key, 0, 0) + 1)
+            );
+        } else {
+            char key[NAME_MAX];
+            snprintf(key, sizeof(key), "%s_%s", refused? "refused" : "delivered", field);
+            json_array_append_new(json_object_get(jn_report, key), json_string(address));
+        }
+    }
+    return jn_report;
 }
 
 /***************************************************************************
@@ -1802,6 +1872,9 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              */
             priv->rcpt_last_code = code;
             snprintf(priv->rcpt_last_reply, sizeof(priv->rcpt_last_reply), "%s", reply);
+            if(priv->jn_rcpt_refused) {
+                json_array_append_new(priv->jn_rcpt_refused, json_integer(priv->recipient_index - 1));
+            }
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL,
@@ -1898,6 +1971,13 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "code", code,
             "url", gobj_read_str_attr(gobj_bottom_gobj(gobj), "url")
         );
+        /*
+         *  Some recipients refused: say who got it and who did not.
+         */
+        json_t *jn_report = build_delivery_report(gobj);
+        if(jn_report) {
+            json_object_set_new(kw_ack, "delivery", jn_report);    // a NULL kw_ack takes and frees it
+        }
         /*
          *  Resolve BEFORE publishing: a subscriber reacting to EV_ON_MESSAGE
          *  may dispatch the next queued message straight away (the connection
@@ -2127,7 +2207,9 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     priv->jn_current_msg = kw;
     priv->recipient_index = 0;
 
-    priv->jn_recipients = gather_recipients(gobj, kw);
+    priv->jn_recipient_fields = json_array();
+    priv->jn_rcpt_refused = json_array();
+    priv->jn_recipients = gather_recipients(gobj, kw, priv->jn_recipient_fields);
     if(!priv->jn_recipients) {
         fail_current_message(gobj, "EV_SEND_MESSAGE has no valid recipients");
         KW_DECREF(kw)
