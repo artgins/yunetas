@@ -34,6 +34,7 @@ typedef enum { // Can be used too in kw with "__send_type__" in EV_SEND_MESSAGE/
  *              Prototypes
  ***************************************************************************/
 PRIVATE json_t *channels_opened(hgobj gobj, const char *lmethod, json_t *kw, hgobj src);
+PRIVATE json_t *kw_for_one_channel(hgobj gobj, json_t *kw);
 
 /***************************************************************************
  *              Resources
@@ -848,6 +849,49 @@ PRIVATE int send_one_rotate(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
+ *  The kw a channel of send_all() takes. A gbuffer is read out by the one
+ *  that sends it (C_PROT_TCP4H appends it to its frame, consuming it), so
+ *  each channel gets its own: a copy of what is left to read, with the
+ *  secret flag (set before the bytes come in), the label and the address.
+ *  A kw without gbuffer is shared, kw_incref()'d (see the note in
+ *  send_all()). Return is yours, NULL on error (logged).
+ ***************************************************************************/
+PRIVATE json_t *kw_for_one_channel(hgobj gobj, json_t *kw)
+{
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    if(!gbuf) {
+        return kw_incref(kw);
+    }
+
+    size_t len = gbuffer_leftbytes(gbuf);
+    gbuffer_t *copy = gbuffer_create(len? len : 1, len? len : 1);
+    if(!copy) {
+        // Error already logged
+        return NULL;
+    }
+    gbuffer_set_secret(copy, gbuffer_is_secret(gbuf));
+    if(len > 0 && gbuffer_append(copy, gbuffer_cur_rd_pointer(gbuf), len) != len) {
+        // Error already logged
+        GBUFFER_DECREF(copy)
+        return NULL;
+    }
+    if(gbuffer_getlabel(gbuf)) {
+        gbuffer_setlabel(copy, gbuffer_getlabel(gbuf));
+    }
+    if(gbuffer_getaddrlen(gbuf) > 0) {
+        gbuffer_setaddr(copy, gbuffer_getaddr(gbuf), gbuffer_getaddrlen(gbuf));
+    }
+
+    /*
+     *  A new kw: the copy of the gbuffer is its own, released with it, and
+     *  the other keys are the same json (json_copy() is shallow)
+     */
+    json_t *kw_channel = json_copy(kw);
+    json_object_set_new(kw_channel, "gbuffer", json_integer((json_int_t)(uintptr_t)copy));
+    return kw_channel;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int send_all(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -890,8 +934,17 @@ PRIVATE int send_all(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                  *  (gbuffer) on EVERY call. With a json_incref() the gbuffer
                  *  would take one decref per child against no incref at all:
                  *  from the second open channel on, a double free.
+                 *  And a gbuffer is not shared at all: the first channel read
+                 *  it out, and up to 7.25.20 the others sent an empty frame
+                 *  (a C_PROT_TCP4H peer dropped the connection on it).
                  */
-                int ret = gobj_send_event(child, event, kw_incref(kw), gobj); // reuse kw
+                json_t *kw_channel = kw_for_one_channel(gobj, kw);
+                if(!kw_channel) {
+                    // Error already logged
+                    child = gobj_next_child(child);
+                    continue;
+                }
+                int ret = gobj_send_event(child, event, kw_channel, gobj);
                 if(ret == 0) {
                     some++;
                     priv->txMsgs++;

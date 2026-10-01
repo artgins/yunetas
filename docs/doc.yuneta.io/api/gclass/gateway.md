@@ -47,7 +47,32 @@ Supports one-at-a-time (rotated) or broadcast delivery.
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `persistent_channels` | `bool` | Keep channels alive across reconnections. |
-| `send_type` | `integer` | `0` = rotated one-at-a-time, `1` = broadcast to all. |
+| `send_type` | `integer` | `0` = rotated one-at-a-time, `1` = broadcast to all. A kw can choose for itself with `__send_type__`. |
+
+### Send to all
+
+With `send_type` 1 every open channel gets the message. A message in a
+gbuffer is read out by the channel that sends it (`C_PROT_TCP4H` appends it
+to its frame), so each channel gets a COPY of what is left to read -- with
+its secret flag, label and address -- and the gate releases the original. A
+kw without a gbuffer is shared (`kw_incref()`). Up to 7.25.20 the gbuffer was
+shared: the first channel sent the message, and the others an empty frame,
+which a `C_PROT_TCP4H` peer drops the connection on (*"frame_length cannot be
+0"*).
+
+```C
+gbuffer_t *gbuf = gbuffer_create(len, len);
+gbuffer_append(gbuf, data, len);
+gobj_send_event(gate, EV_SEND_MESSAGE,
+    json_pack("{s:I, s:i}",
+        "gbuffer", (json_int_t)(uintptr_t)gbuf,     // the kw owns it
+        "__send_type__", 1                          // to every open channel
+    ),
+    gobj
+);
+```
+
+`tests/c/c_tcp` (`test8`).
 
 ### Commands
 
