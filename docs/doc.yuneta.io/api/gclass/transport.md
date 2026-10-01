@@ -198,7 +198,7 @@ Creates a child C_TCP (inside a C_CHANNEL) for each accepted client.
 | `crypto` | `json` | TLS configuration for accepted connections. |
 | `only_allowed_ips` | `bool` | Accept only the peers in the yuno's `allowed_ips` list (whitelist mode). The `denied_ips` list applies with or without it. |
 | `connxs` | `integer` | Connections held now (stat): the connected clisrv `C_TCP`s of the channels this server serves whose `tcp_s` is this server, read when asked (up to 7.25.20 it read 0). |
-| `tconnxs` | `integer` | Connections accepted since the start (stat): counted at the accept with `child_tree_filter`, or, with the new method, where each clisrv accepts by itself, the sum of the own `connxs` of the clisrvs whose `tcp_s` is this server (up to 7.25.20 it read 0). |
+| `tconnxs` | `integer` | Connections accepted since the gobj was created (stat; a stop and a start do not reset it, as `connxs` of `C_TCP` is not): counted at the accept with `child_tree_filter`, or, with the new method, where each clisrv accepts by itself, the sum of the own `connxs` of the clisrvs whose `tcp_s` is this server (up to 7.25.20 it read 0). |
 | `refusedConnxs` | `integer` | Connections refused at accept by the ip lists (stat, since 7.25.5). |
 | `clisrv_kw` | `json` | Extra kw passed to each child client/server. |
 
@@ -253,12 +253,24 @@ ALREADY RUNNING"* for each one; and a clisrv started again stayed in
 `ST_STOPPED`, so its next stop never canceled its accept, which kept the port
 bound. `tests/c/c_tcp_s_stats`.
 
+The server waits for each of its clisrvs by its `EV_STOPPED`, to which it
+subscribes when it first takes one (it asks the subscription, not `tcp_s`).
+A clisrv destroyed before its stop ended -- its channel destroyed while the
+server waits -- tells the server at its destroy, so the wait ends and a start
+that came meanwhile listens. A server destroyed clears the `tcp_s` of its
+clisrvs: a new server made at the same address must not take them for its
+own.
+
 A TLS server keeps ONE ytls for its life (freed in its destroy): the clisrvs
 of the connections that outlive a stop (`child_tree_filter`) still use it.
 A start again reloads, in that same ytls, the certificates of its `crypto`,
 as the `reload-certs` command does: new connections take the new
-certificates, and a live connection keeps the context it was made with. So
-a restart is also a way to apply new certificates:
+certificates, and a live connection keeps the context it was made with. It
+reloads them only when they CHANGED: the `crypto` config, or a file it names
+(`ssl_certificate`, `ssl_certificate_key`, `ssl_trusted_certificate`: inode,
+size, mtime) -- so a pause and a play do not log *"TLS certificates
+reloaded"* each time, and a failed reload is still an ERROR. So a restart is
+also a way to apply renewed certificates:
 
 ```bash
 ycommand -c 'command-agent service=agent_secure_port command=reload-certs'   # the same, without a restart

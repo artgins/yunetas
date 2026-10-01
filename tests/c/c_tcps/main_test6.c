@@ -10,6 +10,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <string.h>
 #include <yunetas.h>
 #include <c_pepon.h>
 #include "c_test6.h"
@@ -226,6 +227,20 @@ PRIVATE char variable_config[]= "\
 time_measure_t time_measure;
 
 /***************************************************************************
+ *  The reloads of the certificates of the server, as ytls says them
+ ***************************************************************************/
+int test6_reloads = 0;
+
+static int count_reloads(void *v, int priority, const char *bf, size_t len)
+{
+    const char *mark = "\"TLS certificates reloaded\"";
+    if(memmem(bf, len, mark, strlen(mark))) {
+        test6_reloads++;
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  HACK This function is executed on yunetas environment (mem, log, paths)
  *  BEFORE creating the yuno
  ***************************************************************************/
@@ -342,6 +357,14 @@ int main(int argc, char *argv[])
         0                   // fwrite_fn
     );
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
+
+    gobj_log_register_handler(
+        "count_reloads",    // handler_name
+        0,                  // close_fn
+        count_reloads,      // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("count_reloads", "count_reloads", LOG_OPT_ALL, 0);
 
 
     /*------------------------------------------------*

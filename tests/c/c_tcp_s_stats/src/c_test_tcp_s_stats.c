@@ -3,7 +3,7 @@
  *
  *          GClass to test the connection stats of C_TCP_S: `connxs` (the
  *          connections it holds now) and `tconnxs` (the connections it
- *          accepted since it started).
+ *          accepted since it was created).
  *
  *          Two C_TCP_S, each in a C_IOGATE of its own with 3 channels
  *          (C_PROT_TCP4H over C_TCP): `legacy` on 127.0.0.1:7814 accepts
@@ -28,6 +28,11 @@
  *          clisrv-3, not a second clisrv-1. Then its C_TCP_S is stopped
  *          ALONE and started again in the same turn: its clisrvs go and
  *          come with it, and a peer connects (connxs 1, tconnxs 1).
+ *          Then lone_port's only clisrv is destroyed (with its channel)
+ *          while a stop of lone_port waits for it, and lone_port is
+ *          started: it must listen. And names_port is destroyed: no clisrv
+ *          may still name it, and names_port2, made in its place, must stop
+ *          and start again in one turn.
  *
  *          Up to 7.25.20 both stats read 0 always: they were SDF_STATS
  *          attrs backed by priv counters that no mt_reading served, and
@@ -77,6 +82,8 @@ PRIVATE void check_stats(hgobj gobj, server_t *server, const char *phase, int co
 PRIVATE hgobj find_server(server_t *server);
 PRIVATE void add_names_channel(hgobj gobj);
 PRIVATE void check_names_channel(hgobj gobj);
+PRIVATE void check_connxs(hgobj gobj, server_t *server, const char *phase, int connxs);
+PRIVATE void check_no_tcp_s(hgobj gobj, const char *gate_name);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -90,8 +97,12 @@ PRIVATE server_t servers[] = {
 };
 PRIVATE server_t names_server =
     {"__names_side__",  "names_port",  "127.0.0.1", 7817,        {-1, -1, -1}};
+PRIVATE server_t names_server2 =
+    {"__names_side__",  "names_port2", "127.0.0.1", 7817,        {-1, -1, -1}};
+PRIVATE server_t lone_server =
+    {"__lone_side__",   "lone_port",   "127.0.0.1", 7818,        {-1, -1, -1}};
 PRIVATE const char *gates[] = {
-    "__legacy_side__", "__new_side__", "__shared_side__", "__names_side__", 0
+    "__legacy_side__", "__new_side__", "__shared_side__", "__names_side__", "__lone_side__", 0
 };
 
 /*---------------------------------------------*
@@ -165,6 +176,8 @@ PRIVATE int mt_stop(hgobj gobj)
     }
     for(int i=0; i<MAX_PEERS; i++) {
         close_peer(&names_server, i);
+        close_peer(&names_server2, i);
+        close_peer(&lone_server, i);
     }
     return 0;
 }
@@ -307,6 +320,51 @@ PRIVATE void check_names_channel(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Only the connections held now, and the state of the server: listening
+ ***************************************************************************/
+PRIVATE void check_connxs(hgobj gobj, server_t *server, const char *phase, int connxs)
+{
+    hgobj server_port = find_server(server);
+    json_int_t got = server_port? gobj_read_integer_attr(server_port, "connxs") : -1;
+    if(!server_port || got != connxs || !gobj_in_this_state(server_port, ST_IDLE)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "wrong connection stats, or not listening",
+            "server",       "%s", server->name,
+            "phase",        "%s", phase,
+            "connxs",       "%ld", (long)got,
+            "expected_connxs", "%d", connxs,
+            "state",        "%s", server_port? gobj_current_state(server_port) : "",
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
+ *  After the destroy of its C_TCP_S, no clisrv of the gate names it
+ ***************************************************************************/
+PRIVATE void check_no_tcp_s(hgobj gobj, const char *gate_name)
+{
+    hgobj gate = gobj_find_service(gate_name, TRUE);
+    for(hgobj ch = gobj_first_child(gate); ch; ch = gobj_next_child(ch)) {
+        if(gobj_gclass_name(ch) != C_CHANNEL) {
+            continue;
+        }
+        hgobj clisrv = gobj_last_bottom_gobj(ch);
+        if(clisrv && gobj_gclass_name(clisrv) == C_TCP && gobj_read_pointer_attr(clisrv, "tcp_s")) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "a clisrv still names its destroyed C_TCP_S (tcp_s)",
+                "clisrv",       "%s", gobj_full_name(clisrv),
+                NULL
+            );
+        }
+    }
+}
+
+/***************************************************************************
  *  The stats of the C_TCP_S of `server`, as the attrs and as `stats` read
  ***************************************************************************/
 PRIVATE void check_stats(hgobj gobj, server_t *server, const char *phase, int connxs, int tconnxs)
@@ -431,6 +489,77 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 7:
             check_stats(gobj, &names_server, "names_port started again alone", 1, 1);
+
+            /*
+             *  lone_port waits, in its stop, for its only clisrv, whose
+             *  channel is destroyed meanwhile (a new channel is added), and
+             *  is started again: it must listen
+             */
+            {
+                hgobj gate = gobj_find_service("__lone_side__", TRUE);
+                gobj_stop(find_server(&lone_server));
+                hgobj channel = gobj_find_child(gate, json_pack("{s:s}", "__gobj_name__", "lone-1"));
+                gobj_stop_tree(channel);
+                gobj_destroy(channel);
+                hgobj ch2 = gobj_create("lone-2", C_CHANNEL, 0, gate);
+                hgobj prot = gobj_create("lone-2", C_PROT_TCP4H, 0, ch2);
+                gobj_set_bottom_gobj(ch2, prot);
+                gobj_start(find_server(&lone_server));
+                gobj_start_tree(ch2);
+            }
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 8:
+            connect_peer(gobj, &lone_server, 0);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 9:
+            check_connxs(gobj, &lone_server, "lone_port started again, its waited clisrv destroyed", 1);
+
+            /*
+             *  names_port stopped and destroyed: its clisrvs must forget it
+             */
+            gobj_stop(find_server(&names_server));
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 10:
+            gobj_destroy(find_server(&names_server));
+            check_no_tcp_s(gobj, "__names_side__");
+            {
+                hgobj gate = gobj_find_service("__names_side__", TRUE);
+                hgobj np2 = gobj_create(
+                    "names_port2",
+                    C_TCP_S,
+                    json_pack("{s:s}", "url", "tcp://127.0.0.1:7817"),
+                    gate
+                );
+                gobj_start(np2);
+            }
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 11:
+            connect_peer(gobj, &names_server2, 0);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 12:
+            check_connxs(gobj, &names_server2, "names_port2 in place of names_port", 1);
+            gobj_stop(find_server(&names_server2));     // its clisrvs must tell it their end
+            gobj_start(find_server(&names_server2));
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 13:
+            connect_peer(gobj, &names_server2, 1);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 14:
+            check_connxs(gobj, &names_server2, "names_port2 stopped and started again", 1);
             set_yuno_must_die();
             break;
 

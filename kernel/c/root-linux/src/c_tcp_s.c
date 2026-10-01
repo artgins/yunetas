@@ -12,6 +12,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -63,6 +64,7 @@ PRIVATE void note_refused_connection(
     const char *peername
 );
 PRIVATE int reload_ytls_from_attrs(hgobj gobj);
+PRIVATE json_t *certs_fingerprint(json_t *jn_crypto);
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_cert(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -119,7 +121,7 @@ SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,             0,          
 
 SDATA (DTP_DICT,        "clisrv_kw",            SDF_RD,             0,              "kw of clisrv gobj"),
 SDATA (DTP_INTEGER,     "connxs",               SDF_RD|SDF_STATS,   "0",            "Current connections: the connected clisrvs of the channels this server serves"),
-SDATA (DTP_INTEGER,     "tconnxs",              SDF_RD|SDF_STATS,   "0",            "Total connections accepted since the start"),
+SDATA (DTP_INTEGER,     "tconnxs",              SDF_RD|SDF_STATS,   "0",            "Total connections accepted since the gobj was created (a stop and a start do not reset it)"),
 SDATA (DTP_INTEGER,     "refusedConnxs",        SDF_RD|SDF_RSTATS,  "0",            "Connections refused at accept: the peer is in denied_ips, or not in allowed_ips with only_allowed_ips"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                  0,              "more user data"),
@@ -157,6 +159,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t tconnxs;             // accepted here (legacy method)
     int clisrvs_created;            // names of the clisrvs created (new method), unique across restarts
     BOOL start_pending;             // started while its last stop still waited: listens when it ends
+    json_t *certs_loaded;           // certs_fingerprint() of what ytls has loaded
     json_int_t refusedConnxs;
 
     uint64_t t_refusal_log[REFUSAL_CAUSES];         // next log of a cause (msectimer)
@@ -273,8 +276,31 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  The clisrvs forget this server: a `tcp_s` left behind would name
+     *  whatever gobj is made at this address next (the framework already
+     *  removed the subscriptions)
+     */
+    hgobj parent = gobj_parent(gobj);
+    hgobj child = parent? gobj_first_child(parent) : 0;
+    while(child) {
+        if(gobj_gclass_name(child) == C_CHANNEL ||
+            gobj_typeof_inherited_gclass(child, C_CHANNEL)
+        ) {
+            hgobj clisrv = gobj_last_bottom_gobj(child);
+            if(clisrv &&
+                gobj_gclass_name(clisrv) == C_TCP &&
+                gobj_read_pointer_attr(clisrv, "tcp_s") == gobj
+            ) {
+                gobj_write_pointer_attr(clisrv, "tcp_s", NULL);
+            }
+        }
+        child = gobj_next_child(child);
+    }
+
     // WARNING It must be in mt_destroy, the childs tcp are using in mt_stop
     EXEC_AND_RESET(ytls_cleanup, priv->ytls)
+    JSON_DECREF(priv->certs_loaded)
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_server_accept)
 
@@ -478,11 +504,21 @@ PRIVATE int start_listening(hgobj gobj)
              *  the next record of such a connection was decrypted with
              *  freed memory.
              */
-            if(ytls_reload_certificates(priv->ytls, jn_crypto) < 0) {
-                // Error already logged: the previous certificates are kept
+            json_t *fingerprint = certs_fingerprint(jn_crypto);
+            if(priv->certs_loaded && json_equal(fingerprint, priv->certs_loaded)) {
+                JSON_DECREF(fingerprint)    // the same certificates: nothing to reload, nothing to say
+            } else if(ytls_reload_certificates(priv->ytls, jn_crypto) < 0) {
+                JSON_DECREF(fingerprint)    // Error already logged: the previous certificates are kept
+            } else {
+                JSON_DECREF(priv->certs_loaded)
+                priv->certs_loaded = fingerprint;
             }
         } else {
             priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
+            if(priv->ytls) {
+                JSON_DECREF(priv->certs_loaded)
+                priv->certs_loaded = certs_fingerprint(jn_crypto);
+            }
         }
     } else {
         priv->use_ssl = FALSE;  // a url no longer secure; a ytls of before stays for its connections
@@ -595,12 +631,17 @@ PRIVATE int start_listening(hgobj gobj)
                 gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
                 gobj_write_integer_attr(clisrv, "fd_clisrv", -1);
                 gobj_write_integer_attr(clisrv, "fd_listen", fd_listen);
-                if(gobj_read_pointer_attr(clisrv, "tcp_s") != gobj) {
-                    /*
-                     *  Its end is the end of a stop of this server (end_of_stop())
-                     */
+                /*
+                 *  Its end is the end of a stop of this server (end_of_stop()).
+                 *  Asked by the subscription itself, not by `tcp_s`: a server
+                 *  made at the address of a destroyed one would find its
+                 *  own pointer there, and never be told.
+                 */
+                json_t *dl_subs = gobj_find_subscriptions(clisrv, EV_STOPPED, NULL, gobj);
+                if(json_array_size(dl_subs) == 0) {
                     gobj_subscribe_event(clisrv, EV_STOPPED, 0, gobj);
                 }
+                JSON_DECREF(dl_subs)
                 gobj_write_pointer_attr(clisrv, "tcp_s", gobj);
                 gobj_start(clisrv); // this will create a yev_dup2_accept_event
                 channels++;
@@ -1138,6 +1179,42 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 }
 
 /***************************************************************************
+ *  What the certificates of `crypto` are: the config (without trace_tls)
+ *  and, for each file it names, its inode, size and mtime. A start again
+ *  reloads them only when this changed: a pause and a play of a yuno must
+ *  not say "TLS certificates reloaded" each time. Return is yours.
+ ***************************************************************************/
+PRIVATE json_t *certs_fingerprint(json_t *jn_crypto)
+{
+    json_t *fingerprint = json_object();
+    json_t *jn_config = json_deep_copy(jn_crypto);
+    if(json_is_object(jn_config)) {
+        json_object_del(jn_config, "trace_tls");
+    }
+    json_object_set_new(fingerprint, "crypto", jn_config? jn_config : json_null());
+
+    const char *files[] = {"ssl_certificate", "ssl_certificate_key", "ssl_trusted_certificate", 0};
+    for(int i=0; files[i]; i++) {
+        const char *path = kw_get_str(0, jn_crypto, files[i], "", 0);
+        if(empty_string(path)) {
+            continue;
+        }
+        struct stat st;
+        char id[128] = "missing";
+        if(stat(path, &st) == 0) {
+            snprintf(id, sizeof(id), "%lu:%lld:%lld.%09ld",
+                (unsigned long)st.st_ino,
+                (long long)st.st_size,
+                (long long)st.st_mtim.tv_sec,
+                (long)st.st_mtim.tv_nsec
+            );
+        }
+        json_object_set_new(fingerprint, files[i], json_string(id));
+    }
+    return fingerprint;
+}
+
+/***************************************************************************
  *  Read the current 'crypto' attribute, build a jn_crypto payload (as
  *  mt_start does) and invoke ytls_reload_certificates(). Returns 0 on
  *  success, -1 on failure (old ytls kept intact).
@@ -1175,6 +1252,8 @@ PRIVATE int reload_ytls_from_attrs(hgobj gobj)
 
     int ret = ytls_reload_certificates(priv->ytls, jn_crypto);
     if(ret == 0) {
+        JSON_DECREF(priv->certs_loaded)
+        priv->certs_loaded = certs_fingerprint(jn_crypto);
         gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "TLS certificates reloaded successfully",

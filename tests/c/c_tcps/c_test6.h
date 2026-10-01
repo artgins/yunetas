@@ -36,6 +36,8 @@ GOBJ_DECLARE_GCLASS(C_TEST6);
  ***************************************************************/
 PUBLIC int register_c_test6(void);
 
+extern int test6_reloads;   // main_test6.c: the "TLS certificates reloaded" said
+
 
 #ifdef __cplusplus
 }

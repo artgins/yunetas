@@ -21,6 +21,12 @@ reads poison every run. Up to 7.25.20 the start after the stop freed the ytls
 (`ytls_cleanup`) the live connection still used, and made a new one: the
 next record of that connection was decrypted with freed memory (red: a
 SegFault in `ytls_decrypt_data()`).
+The echo of `two` must come back on the OLD connection; then that connection
+is closed (its tree stopped), and the echo of `three` must come back on the
+NEW one. The server's certificates are copies in a dir of the run: the
+restart reloads nothing (they did not change: no *"TLS certificates
+reloaded"*), `reload-certs` once, and, after the copy is touched, another
+stop and start of the server reloads it.
 
 ## Run
 

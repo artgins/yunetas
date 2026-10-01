@@ -19,16 +19,30 @@
  *          - On its echo: stop the C_TCP_S and start it again in the same
  *            turn, and reload its certificates (reload-certs)
  *          - 300 ms later, send "two" on the connection that lived across
- *            it, and open __output_side2__, a new connection
- *          - On open of the second, send "three"
- *          - Both echoes must come back: "two" (the old connection, to
- *            the server and back) and "three" (the new one to the server;
- *            pepon's gate echoes it to one of its channels, rotating)
+ *            it
+ *          - On its echo, close it, and open __output_side2__, a new
+ *            connection; on its open, send "three"
+ *          - "two" must come back on the old connection. Then that
+ *            connection is closed (its tree stopped: no reconnection), so
+ *            the echo of "three" can only go to the new one (pepon's gate
+ *            echoes to one open channel), and it must come back on it
+ *          - The restart reloaded no certificate (they did not change: no
+ *            "TLS certificates reloaded"), reload-certs one. Then the
+ *            certificate file is touched, and a stop and a start of the
+ *            server reload it: two in all
+ *
+ *          The server's certificates are copies, in a dir of this run, so
+ *          the test can touch them.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include <c_pepon.h>
 #include "c_test6.h"
@@ -47,6 +61,9 @@
 PRIVATE void send_text(hgobj gobj, hgobj gate, const char *text);
 PRIVATE void restart_server(hgobj gobj);
 PRIVATE void test_fail(hgobj gobj, const char *what);
+PRIVATE int copy_file(const char *from, const char *to);
+PRIVATE void use_cert_copies(hgobj gobj);
+PRIVATE void touch_cert(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -79,9 +96,11 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_output_side;
     hgobj gobj_output_side2;
     int phase;
-    BOOL done;
     char got1[128];     // the echoes of the connection that lives across the restart
     char got2[128];     // the echoes of the connection made after it
+    char cert_dir[PATH_MAX];
+    char cert[PATH_MAX];
+    char key[PATH_MAX];
 } PRIVATE_DATA;
 
 
@@ -103,12 +122,43 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+
+    /*
+     *  Copies of the test certificates, that the test can touch
+     */
+    snprintf(priv->cert_dir, sizeof(priv->cert_dir), "/tmp/test_tcps_test6.XXXXXX");
+    if(!mkdtemp(priv->cert_dir)) {
+        priv->cert_dir[0] = 0;
+        test_fail(gobj, "TEST: cannot create the dir of the certificate copies");
+    } else {
+        build_path(priv->cert, sizeof(priv->cert), priv->cert_dir, "localhost.crt", NULL);
+        build_path(priv->key, sizeof(priv->key), priv->cert_dir, "localhost.key", NULL);
+        if(copy_file("/yuneta/agent/certs/localhost.crt", priv->cert) < 0 ||
+                copy_file("/yuneta/agent/certs/localhost.key", priv->key) < 0) {
+            test_fail(gobj, "TEST: cannot copy the test certificates");
+        }
+    }
+
     priv->pepon = gobj_create_pure_child(
         "server",
         C_PEPON,
         json_pack("{s:b}", "do_echo", 1),
         gobj
     );
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->cert_dir[0]) {
+        unlink(priv->cert);
+        unlink(priv->key);
+        rmdir(priv->cert_dir);
+    }
 }
 
 /***************************************************************************
@@ -145,6 +195,7 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    use_cert_copies(gobj);
     gobj_play(priv->pepon);
 
     priv->gobj_output_side = gobj_find_service("__output_side__", TRUE);
@@ -245,6 +296,65 @@ PRIVATE void test_fail(hgobj gobj, const char *what)
 
 
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int copy_file(const char *from, const char *to)
+{
+    FILE *in = fopen(from, "rb");
+    if(!in) {
+        return -1;
+    }
+    FILE *out = fopen(to, "wb");
+    if(!out) {
+        fclose(in);
+        return -1;
+    }
+    char bf[4096];
+    size_t n;
+    while((n = fread(bf, 1, sizeof(bf), in)) > 0) {
+        fwrite(bf, 1, n, out);
+    }
+    fclose(in);
+    fclose(out);
+    return 0;
+}
+
+/***************************************************************************
+ *  The server listens with the certificate copies
+ ***************************************************************************/
+PRIVATE void use_cert_copies(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj input_side = gobj_find_service("__input_side__", TRUE);
+    hgobj server = gobj_find_child(input_side, json_pack("{s:s}", "__gclass_name__", C_TCP_S));
+    json_t *jn_crypto = json_deep_copy(gobj_read_json_attr(server, "crypto"));
+    json_object_set_new(jn_crypto, "ssl_certificate", json_string(priv->cert));
+    json_object_set_new(jn_crypto, "ssl_certificate_key", json_string(priv->key));
+    gobj_write_json_attr(server, "crypto", jn_crypto);
+    JSON_DECREF(jn_crypto)
+}
+
+/***************************************************************************
+ *  The certificate "renewed": its mtime moves
+ ***************************************************************************/
+PRIVATE void touch_cert(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    struct timespec times[2];
+    clock_gettime(CLOCK_REALTIME, &times[0]);
+    times[0].tv_sec += 10;
+    times[1] = times[0];
+    if(utimensat(AT_FDCWD, priv->cert, times, 0) < 0) {
+        test_fail(gobj, "TEST: cannot touch the certificate copy");
+    }
+}
+
+
+
+
                     /***************************
                      *      Actions
                      ***************************/
@@ -290,17 +400,32 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->phase = 2;
         set_timeout(priv->timer, 300);
 
-    } else if(!priv->done && strstr(priv->got1, "two") &&
-            (strstr(priv->got1, "three") || strstr(priv->got2, "three"))) {
-        priv->done = TRUE;
-        clear_timeout(priv->timer);
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "TEST: the old connection and a new one both work after the restart",
-            NULL
-        );
-        set_yuno_must_die();
+    } else if(priv->phase == 3 && src == priv->gobj_output_side && strstr(priv->got1, "two")) {
+        /*
+         *  "two" back on the old connection: it is closed, and a new one
+         *  opened
+         */
+        gobj_stop_tree(priv->gobj_output_side);
+        gobj_start_tree(priv->gobj_output_side2);
+        priv->phase = 4;
+        set_timeout(priv->timer, 3000);
+
+    } else if(priv->phase == 4 && src == priv->gobj_output_side2 && strstr(priv->got2, "three")) {
+        /*
+         *  "three" back on the new connection. The restart reloaded nothing
+         *  (the certificates did not change), reload-certs once. Now the
+         *  certificate changes: a restart reloads it.
+         */
+        if(test6_reloads != 1) {
+            test_fail(gobj, "TEST: a restart with the same certificates reloaded them (or reload-certs did not)");
+        }
+        touch_cert(gobj);
+        hgobj input_side = gobj_find_service("__input_side__", TRUE);
+        hgobj server = gobj_find_child(input_side, json_pack("{s:s}", "__gclass_name__", C_TCP_S));
+        gobj_stop(server);
+        gobj_start(server);
+        priv->phase = 5;
+        set_timeout(priv->timer, 300);
     }
 
     KW_DECREF(kw)
@@ -332,9 +457,22 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 2:
             send_text(gobj, priv->gobj_output_side, "two");
-            gobj_start_tree(priv->gobj_output_side2);
             priv->phase = 3;
             set_timeout(priv->timer, 3000);
+            break;
+
+        case 5:
+            if(test6_reloads != 2) {
+                test_fail(gobj, "TEST: a restart after the certificate changed did not reload it");
+            } else {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INFO,
+                    "msg",          "%s", "TEST: the old connection and a new one work after the restart, and only changed certificates are reloaded",
+                    NULL
+                );
+            }
+            set_yuno_must_die();
             break;
 
         default:
@@ -367,6 +505,7 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
+    .mt_destroy = mt_destroy,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
     .mt_play = mt_play,

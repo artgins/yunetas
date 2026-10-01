@@ -488,6 +488,16 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     log_closing_drops(gobj);    // destroyed in ST_WAIT_STOPPED: its close never ended
 
+    /*
+     *  A clisrv destroyed before its stop ended never publishes its
+     *  EV_STOPPED: its C_TCP_S, which may be waiting for it to end a stop of
+     *  its own, is told, on the next cycle (posted: this gobj is going)
+     */
+    hgobj tcp_s = priv->__clisrv__? (hgobj)gobj_read_pointer_attr(gobj, "tcp_s") : 0;
+    if(tcp_s && !gobj_in_this_state(gobj, ST_STOPPED)) {
+        gobj_post_event(tcp_s, EV_STOPPED, json_object(), tcp_s);
+    }
+
     EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_accept)

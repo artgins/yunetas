@@ -2,7 +2,7 @@
 
 Tests the connection stats of `C_TCP_S` (`kernel/c/root-linux/src/c_tcp_s.c`):
 `connxs`, the connections it holds now, and `tconnxs`, the connections it
-accepted since it started.
+accepted since it was created.
 
 Two `C_TCP_S`, each in a `C_IOGATE` of its own with 3 channels
 (`C_PROT_TCP4H` over `C_TCP`): `legacy_port` on `127.0.0.1:7814` accepts
@@ -29,6 +29,13 @@ channel is added, and it is started again: the new clisrv must be
 first start. Last, that `C_TCP_S` is stopped ALONE and started again in the
 same turn: its clisrvs stop with it and start again when its stop ends, and a
 peer connects (`connxs` 1, `tconnxs` 1).
+
+Then `lone_port` (new method, one channel) is stopped alone, its channel
+destroyed while the stop waits for that clisrv, a new channel added, and it
+is started again: it must listen. And `names_port` is stopped and DESTROYED:
+no clisrv may still name it (`tcp_s`); a `names_port2` made in its place
+(often at the same address) takes the clisrvs, and its own stop and start in
+the same turn must end, and listen.
 
 Up to 7.25.20 both read 0 always: they were `SDF_STATS` attributes backed by
 priv counters that no `mt_reading` served; `connxs` was never decremented

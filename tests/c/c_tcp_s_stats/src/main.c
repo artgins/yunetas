@@ -227,6 +227,31 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__lone_side__',                                \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'children': [                                           \n\
+                {                                                   \n\
+                    'name': 'lone_port',                            \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'kw': {                                         \n\
+                        'url': 'tcp://127.0.0.1:7818'               \n\
+                    }                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'lone-1',                               \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'lone-1',                       \n\
+                            'gclass': 'C_PROT_TCP4H'                \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
