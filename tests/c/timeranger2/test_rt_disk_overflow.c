@@ -289,15 +289,27 @@ PRIVATE int probe_callback(yev_event_h yev_event)
 /*
  *  Bounded by TIME, not by turns: the pass after an overflow runs a slice
  *  per turn, and a slow disk needs more turns (a cap of 200000 turns cut
- *  it short on one node, with the records still coming).
+ *  it short on one node, with the records still coming). The flood drains
+ *  in ~3.5 s here; two minutes is far beyond any node's. A drain that ends
+ *  by time FAILS: a wait for records that never come once ran 10 minutes
+ *  and passed.
  */
-#define DRAIN_MAX_MS    (10*60*1000)
-PRIVATE void drain(int expected)
+#define DRAIN_MAX_MS    (2*60*1000)
+PRIVATE int drain(int expected)
 {
     int quiet = 0;
     int last = -1;
     uint64_t t0 = time_in_milliseconds_monotonic();
-    while(quiet < 50 && time_in_milliseconds_monotonic() - t0 < DRAIN_MAX_MS) {
+    while(quiet < 50) {
+        if(time_in_milliseconds_monotonic() - t0 >= DRAIN_MAX_MS) {
+            fs_event_t *fs = rt? (fs_event_t *)(uintptr_t)json_integer_value(
+                json_object_get(rt, "fs_event_client")
+            ) : NULL;
+            printf("%sERROR%s --> drain: %d ms and not done: %d records of %d expected, the pass %s\n",
+                On_Red BWhite, Color_Off, DRAIN_MAX_MS, received_total, expected,
+                (fs && fs->rescan_dirs)? "still running" : "ended");
+            return -1;
+        }
         yev_loop_run_once(yev_loop);
         fs_event_t *fs = rt? (fs_event_t *)(uintptr_t)json_integer_value(
             json_object_get(rt, "fs_event_client")
@@ -310,6 +322,7 @@ PRIVATE void drain(int expected)
         }
         last = received_total;
     }
+    return 0;
 }
 
 /***************************************************************************
@@ -406,7 +419,7 @@ PRIVATE int do_test_two_feeds(void)
     if(append_one(tm, SEED_KEY_ID, BASE_T + 1)<0 || append_one(tm, 1, BASE_T + 1)<0) {
         result += -1;
     }
-    drain(2);
+    result += drain(2);
     if(received[SEED_KEY_ID] != 1 || received[1] != 1 || seed_received != 1) {
         printf("%sERROR%s --> before the overflow: whole-topic feed %d/%d, seed feed %d, expected 1/1/1\n",
             On_Red BWhite, Color_Off, received[SEED_KEY_ID], received[1], seed_received);
@@ -444,7 +457,7 @@ PRIVATE int do_test_two_feeds(void)
         printf("%sERROR%s --> the seed key could not be deleted\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    drain(0);
+    result += drain(0);
 
     if(deleted_seed != 1 || deleted_other != 0) {
         printf("%sERROR%s --> the overflowed feed heard the delete %d times (others %d), expected 1\n",
@@ -590,7 +603,7 @@ PRIVATE int do_test_signal_behind_overflow(BOOL with_keyed_feed)
     if(append_one(tm, SEED_KEY_ID, BASE_T + 1)<0 || append_one(tm, 1, BASE_T + 1)<0) {
         result += -1;
     }
-    drain(2);
+    result += drain(2);
     if(received[SEED_KEY_ID] != 1 || received[1] != 1 || (with_keyed_feed && seed_received != 1)) {
         printf("%sERROR%s --> before the overflow: whole-topic feed %d/%d, seed feed %d, expected 1/1/1\n",
             On_Red BWhite, Color_Off, received[SEED_KEY_ID], received[1], seed_received);
@@ -629,7 +642,7 @@ PRIVATE int do_test_signal_behind_overflow(BOOL with_keyed_feed)
         printf("%sERROR%s --> the seed key could not be deleted\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    drain(0);
+    result += drain(0);
 
     if(deleted_seed != 1 || deleted_other != 0) {
         printf("%sERROR%s --> the overflowed feed heard the delete %d times (others %d), expected 1\n",
@@ -735,7 +748,7 @@ PRIVATE int do_test_feed_opened_in_flight(void)
     if(append_one(tm, SEED_KEY_ID, BASE_T + 1)<0 || append_one(tm, 1, BASE_T + 1)<0) {
         result += -1;
     }
-    drain(2);
+    result += drain(2);
     result += test_json(NULL);
 
     /*
@@ -757,7 +770,7 @@ PRIVATE int do_test_feed_opened_in_flight(void)
         return -1;
     }
     tranger2_set_rt_key_deleted_callback(rt_late, late_key_deleted_callback, NULL);
-    drain(0);
+    result += drain(0);
     if(deleted_seed != 1 || late_deleted != 0) {
         printf("%sERROR%s --> the first delete: heard %d times by rtALL, %d by rtLATE, expected 1/0\n",
             On_Red BWhite, Color_Off, deleted_seed, late_deleted);
@@ -776,7 +789,7 @@ PRIVATE int do_test_feed_opened_in_flight(void)
     if(append_one(tm, SEED_KEY_ID, BASE_T + 2)<0) {
         result += -1;
     }
-    drain(1);
+    result += drain(1);
     if(received[SEED_KEY_ID] != 1 || late_received != 1) {
         printf("%sERROR%s --> the key born again: rtALL %d records, rtLATE %d, expected 1/1\n",
             On_Red BWhite, Color_Off, received[SEED_KEY_ID], late_received);
@@ -803,7 +816,7 @@ PRIVATE int do_test_feed_opened_in_flight(void)
         printf("%sERROR%s --> the seed key could not be deleted again\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    drain(0);
+    result += drain(0);
     if(deleted_seed != 2 || deleted_other != 0 || late_deleted != 1) {
         printf("%sERROR%s --> the second delete: heard %d times by rtALL in all (others %d), %d by rtLATE, expected 2/0/1\n",
             On_Red BWhite, Color_Off, deleted_seed, deleted_other, late_deleted);
@@ -901,7 +914,7 @@ PRIVATE int do_test_old_delete_after_reborn(void)
     if(append_one(tm, SEED_KEY_ID, BASE_T + 1)<0 || append_one(tm, 1, BASE_T + 1)<0) {
         result += -1;
     }
-    drain(2);
+    result += drain(2);
     result += test_json(NULL);
 
     /*
@@ -931,7 +944,7 @@ PRIVATE int do_test_old_delete_after_reborn(void)
     if(append_one(tm, SEED_KEY_ID, BASE_T + 2)<0) {
         result += -1;
     }
-    drain(1);
+    result += drain(1);
 
     json_t *cache = json_object_get(tranger2_topic(tf, TOPIC_NAME), "cache");
     if(deleted_seed != 1 || received[SEED_KEY_ID] != 1 || seed_deleted != 0) {
@@ -955,7 +968,7 @@ PRIVATE int do_test_old_delete_after_reborn(void)
     if(append_one(tm, SEED_KEY_ID, BASE_T + 3)<0) {
         result += -1;
     }
-    drain(1);
+    result += drain(1);
     if(received[SEED_KEY_ID] != 1) {
         printf("%sERROR%s --> the next record of the key born again: %d, expected 1\n",
             On_Red BWhite, Color_Off, received[SEED_KEY_ID]);
@@ -1035,7 +1048,23 @@ PRIVATE int do_test_master_feed_overflow(void)
     if(append_one(tm, SEED_KEY_ID, BASE_T)<0 || append_one(tm, 1, BASE_T)<0) {
         result += -1;
     }
-    drain(2);
+    /*
+     *  A master's own rt_disk feed is handed no record: the master's cache
+     *  counts each one at its append, so the link it makes in the feed's
+     *  directory is "nothing new" when heard (a master feeds its lists from
+     *  memory). What this needs is the link's directory, where the overflow
+     *  is made.
+     */
+    char key1_dir[PATH_MAX];
+    build_path(key1_dir, sizeof(key1_dir), path_database, TOPIC_NAME, "disks", "rtALL",
+        "0000000000000000001", NULL);
+    result += drain(0);
+    if(received_total != 0 || !is_directory(key1_dir)) {
+        printf("%sERROR%s --> the master's own feed: %d records handed (expected 0), %s %s\n",
+            On_Red BWhite, Color_Off, received_total, key1_dir,
+            is_directory(key1_dir)? "made" : "NOT made");
+        result += -1;
+    }
     result += test_json(NULL);
 
     /*
@@ -1055,7 +1084,7 @@ PRIVATE int do_test_master_feed_overflow(void)
     if(tranger2_delete_key(tm, TOPIC_NAME, SEED_KEY)<0) {
         result += -1;
     }
-    drain(0);
+    result += drain(0);
     if(deleted_seed != 1 || deleted_other != 0) {
         printf("%sERROR%s --> the master's overflowed feed heard the delete %d times (others %d), expected 1\n",
             On_Red BWhite, Color_Off, deleted_seed, deleted_other);
@@ -1177,7 +1206,7 @@ PRIVATE int do_test(void)
     if(append_one(tm, SEED_KEY_ID, BASE_T + 1)<0) {
         result += -1;
     }
-    drain(1);
+    result += drain(1);
     if(received[SEED_KEY_ID] != 1) {
         printf("%sERROR%s --> the seed key got %d records before the flood, expected 1\n",
             On_Red BWhite, Color_Off, received[SEED_KEY_ID]);
@@ -1224,7 +1253,7 @@ PRIVATE int do_test(void)
     probe_last = time_in_milliseconds_monotonic();  // a loop deaf from the start counts
     probe_max_gap = 0;
     yev_start_timer_event(yev_probe, PROBE_MS, TRUE);
-    drain(n_keys);
+    result += drain(n_keys);
     yev_stop_event(yev_probe);
     for(int i = 0; i < 5; i++) {
         yev_loop_run_once(yev_loop);
@@ -1272,7 +1301,7 @@ PRIVATE int do_test(void)
     if(append_one(tm, n_keys, BASE_T + 3)<0) {
         result += -1;
     }
-    drain(2);
+    result += drain(2);
     if(received[1] != 1 || received[n_keys] != 1 || received_total != 2) {
         printf("%sERROR%s --> after the overflow: first key %d, last key %d, total %d, expected 1/1/2\n",
             On_Red BWhite, Color_Off, received[1], received[n_keys], received_total);

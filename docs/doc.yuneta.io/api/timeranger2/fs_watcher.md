@@ -322,7 +322,10 @@ What the owners of the tree do:
   delete was lost, `tranger2_delete_key()` makes the debts itself: every
   feed of the master watched then owes it, and one that overflowed is told
   it (up to 7.25.20 it never heard it). The master is the only writer: it
-  knows which feeds were watched when it signalled.
+  knows which feeds were watched when it signalled. Such a feed is handed
+  no RECORD, by design: the master's cache counts each one at its append,
+  so the link the feed hears is nothing new (a master feeds its lists from
+  memory, with `tranger2_open_rt_mem()`); only the deletes reach it.
 
   At each `FS_RESCAN_DIR_TYPE`: the master hard-links each new md2 into
   `disks/<rt_id>/<key>/` and the follower consumes the link when it reads it,

@@ -467,6 +467,10 @@ PRIVATE int do_test_root_reborn(BOOL recursive)
     for(int i = 0; i < 200000 && (root_overflows == 0 || fs_event->rescan_dirs); i++) {
         yev_loop_run_once(yev_loop);
     }
+    if(fs_event->rescan_dirs) {
+        printf("%sERROR%s --> the pass after the overflow did not end\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
     for(int i = 0; i < 10; i++) {
         yev_loop_run_once(yev_loop);
     }
@@ -584,7 +588,12 @@ PRIVATE int do_test(void)
     uint64_t t0 = time_in_milliseconds_monotonic();
     int quiet = 0;
     int last = -1;
-    while(quiet < 50 && time_in_milliseconds_monotonic() - t0 < 10*60*1000) {  // by time: a slice per turn
+    while(quiet < 50) {  // by time: a slice per turn
+        if(time_in_milliseconds_monotonic() - t0 >= 5*60*1000) {
+            printf("%sERROR%s --> the pass did not end in 5 minutes (~30 s here)\n", On_Red BWhite, Color_Off);
+            result += -1;
+            break;
+        }
         yev_loop_run_once(yev_loop);
         int n = count_told() + rescan_dirs;
         if(n == last && !fs_event->rescan_dirs) {
