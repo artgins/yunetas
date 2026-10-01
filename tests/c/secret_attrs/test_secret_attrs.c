@@ -795,6 +795,14 @@ PRIVATE void check_log_dumps(hgobj gobj)
         {"command=\"set-user-pwd password= hunter2\"", "command=\"set-user-pwd password=********\""},
         {"set-password password= note=x", "set-password password= note=x"},
         {"x password=a b c user=bob", "x password=******** user=bob"},
+        {"'password'=x", "'password'=********"},
+        {"password'=x", "password'=********"},
+        {"\"password\"=x", "\"password\"=********"},
+        {"user[password]=x", "user[password]=********"},
+        {"kw[\"password\"]=x", "kw[\"password\"]=********"},
+        {"password[0]=x", "password[0]=********"},
+        {"attribute=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_password value=v",
+         "attribute=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_password value=********"},
         {0, 0}
     };
     for(int i=0; inline_cases[i].in; i++) {
@@ -850,6 +858,53 @@ PRIVATE void check_log_dumps(hgobj gobj)
         check_str("a text over 4 MB is not shown", m, "<not shown: too large to mask>");
         GBMEM_FREE(m)
         GBMEM_FREE(huge)
+
+        /*
+         *  The cap counts NODES too, and the walk stops at it: a frame of
+         *  "[{},{},...]" or "[[],...]" (no bytes of keys or strings) is not
+         *  walked whole, and is one placeholder past the cap
+         */
+        for(int kind=0; kind<2; kind++) {
+            json_t *jn_many = json_array();
+            for(int i=0; i<200000; i++) {
+                json_array_append_new(jn_many, kind? json_array() : json_object());
+            }
+            json_t *jn_kw2 = json_pack("{s:o}", "list", jn_many);
+            t0 = time_in_milliseconds_monotonic();
+            jn_shown = json_mask_secrets_capped(jn_kw2, 1024);
+            t1 = time_in_milliseconds_monotonic();
+            json_t *jn_list = json_object_get(jn_shown, "list");
+            check_true(kind? "[[],...] past the cap: the walk stops" : "[{},...] past the cap: the walk stops",
+                json_is_array(jn_list) && json_array_size(jn_list) <= 1025
+            );
+            check_true("past the cap, one placeholder for the rest",
+                json_is_array(jn_list) &&
+                strcmp(json_string_value(json_array_get(jn_list, json_array_size(jn_list)-1))?
+                    json_string_value(json_array_get(jn_list, json_array_size(jn_list)-1)) : "",
+                    "<not shown: too large to mask>")==0
+            );
+            check_true("a capped walk takes milliseconds", t1 - t0 < 50);
+            JSON_DECREF(jn_shown)
+            JSON_DECREF(jn_kw2)
+        }
+
+        /*
+         *  A name longer than the bound is judged by its LAST bytes
+         */
+        char long_key[160];
+        memset(long_key, 'x', 130);
+        strcpy(long_key + 130, "_password");
+        json_t *jn_long = json_pack("{s:s}", long_key, "long-hunter2");
+        jn_shown = json_mask_secrets(jn_long);
+        check_str("a key of 139 bytes ending in _password is masked",
+            json_string_value(json_object_get(jn_shown, long_key)), "********"
+        );
+        JSON_DECREF(jn_shown)
+        JSON_DECREF(jn_long)
+        char long_text[256];
+        snprintf(long_text, sizeof(long_text), "{\"%s\": \"text-hunter2\"}", long_key);
+        mask_secrets_in_text(long_text, strlen(long_text));
+        check_true("a json key of 139 bytes in a dump is masked", !strstr(long_text, "text-hunter2"));
 
         json_t *jn_kw = json_pack("{s:s, s:s}", "a", "small", "b", "small");
         jn_shown = json_mask_secrets_capped(jn_kw, 6);
@@ -1408,6 +1463,15 @@ int main(int argc, char *argv[])
 
     unsigned long memory_check_list[] = {0, 0};
     set_memory_check_list(memory_check_list);
+
+    /*
+     *  A run killed half way (a chmod'ed directory, a file 0000) must not
+     *  fail the next one: start from nothing
+     */
+    if(access("/tmp/test_secret_attrs", F_OK) == 0) {
+        chmod("/tmp/test_secret_attrs/data", 0775);
+        rmrdir("/tmp/test_secret_attrs");
+    }
 
     helper_quote2doublequote(fixed_config);
     helper_quote2doublequote(variable_config);

@@ -1514,8 +1514,21 @@ PUBLIC BOOL is_secret_name(const char *name, size_t len)
 PRIVATE BOOL is_name_char(char c);
 
 /*
+ *  Is the name a secret's, by its LAST MASK_MAX_NAME bytes (the part that
+ *  says what it is comes last: <130 x>_password)
+ */
+PRIVATE BOOL is_secret_name_tail(const char *name, size_t len)
+{
+    if(len > MASK_MAX_NAME) {
+        name += len - MASK_MAX_NAME;
+        len = MASK_MAX_NAME;
+    }
+    return is_secret_name(name, len);
+}
+
+/*
  *  The name before the '=' at `eq`: the run of name characters just
- *  before it, no longer than MASK_MAX_NAME
+ *  before it, no longer than MASK_MAX_NAME (for the bytes of a dump)
  */
 PRIVATE const char *name_before(const char *start, const char *eq)
 {
@@ -1540,11 +1553,10 @@ PRIVATE BOOL inline_value_is_secret(const char *str)
                 v++;
             }
             const char *e = v;
-            while(*e && *e != ' ' && *e != '\t' && *e != '"' && *e != '\'' &&
-                    (size_t)(e - v) < MASK_MAX_NAME) {
+            while(*e && *e != ' ' && *e != '\t' && *e != '"' && *e != '\'') {
                 e++;
             }
-            if(is_secret_name(v, (size_t)(e - v))) {
+            if(is_secret_name_tail(v, (size_t)(e - v))) {
                 return TRUE;
             }
         }
@@ -1620,19 +1632,28 @@ PUBLIC char *mask_secrets_inline(const char *str)
     BOOL value_is_secret = inline_value_is_secret(str);
     const char *mask = "********";
     size_t mask_len = strlen(mask);
-    char *masked = gbmem_malloc(strlen(str) + n_eq*mask_len + 1);
+    /*
+     *  Each value masked becomes "********": it can grow, by at most
+     *  mask_len for each one, and each needs a name of three bytes and
+     *  its '=' at least
+     */
+    size_t len = strlen(str);
+    size_t n_masked_max = MIN(n_eq, len/4 + 1);
+    char *masked = gbmem_malloc(len + n_masked_max*mask_len + 1);
     if(!masked) {
         // Error already logged
-        return NULL;
+        return gbmem_strdup(MASK_TOO_LARGE);   // fails safe: never "nothing to mask"
     }
 
     BOOL changed = FALSE;
     char outer = 0;             // the quote of an outer value open (command='...')
+    const char *word = str;     // where the current word begins
     char *out = masked;
     const char *p = str;
     while(*p) {
         if(*p == ' ' || *p == '\t') {
             *out++ = *p++;
+            word = p;
             continue;
         }
         if(*p == '"' || *p == '\'') {
@@ -1647,11 +1668,15 @@ PUBLIC char *mask_secrets_inline(const char *str)
             continue;
         }
         /*
-         *  The name is the run of name characters just before the '=' (not
-         *  the whole word: "a=a=a=..." asked about all of it at each '=')
+         *  The name is the word before the '=' (since the last blank, or the
+         *  last '=' of the word -- a '=' is never part of a name), so
+         *  'password'=x and user[password]=x are names too; no more than its
+         *  LAST MASK_MAX_NAME bytes: each '=' looks back a bounded way
+         *  ("a=a=a=..." asked about the whole word at each '=')
          */
-        const char *name = name_before(str, p);
+        const char *name = ((size_t)(p - word) > MASK_MAX_NAME)? p - MASK_MAX_NAME : word;
         size_t name_len = (size_t)(p - name);
+        word = p + 1;
         if(!(is_secret_name(name, name_len) ||
                 (value_is_secret && name_len == 5 && strncasecmp(name, "value", 5)==0))) {
             *out++ = *p++;
@@ -1678,6 +1703,7 @@ PUBLIC char *mask_secrets_inline(const char *str)
             changed = TRUE;
         }
         p = end;
+        word = p;
     }
     *out = 0;
 
@@ -1781,8 +1807,7 @@ PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
             while(q < end && *q != '"' && *q != '\r' && *q != '\n') {
                 q++;
             }
-            if(q < end && *q == '"' && q > n && (size_t)(q - n) <= MASK_MAX_NAME &&
-                    is_secret_name(n, (size_t)(q - n))) {
+            if(q < end && *q == '"' && q > n && is_secret_name_tail(n, (size_t)(q - n))) {
                 char *v = q + 1;
                 while(v < end && (*v == ' ' || *v == '\t')) {
                     v++;
@@ -1869,9 +1894,10 @@ PRIVATE BOOL secret_value_is_set(json_t *value)
  *  (mask_secrets_inline()). A dict or a list shared is masked once, the
  *  same everywhere; a cycle (json_object_set() can build one) is "<cycle>",
  *  and below MASK_MAX_DEPTH levels "<deeper not shown>": a kw of a peer
- *  nests as it likes. The walk is linear and bounded: once MASK_MAX_BYTES
- *  of keys and strings are walked (json_mask_secrets_capped(): max_bytes),
- *  what is left is "<not shown: too large to mask>". Return a new reference:
+ *  nests as it likes. The walk is linear and bounded: each node costs one
+ *  unit, a key or a string its bytes too, and once MASK_MAX_BYTES units are
+ *  spent (json_mask_secrets_capped(): max_bytes) the walk stops, one
+ *  "<not shown: too large to mask>" for the rest. Return a new reference:
  *  a masked copy, or jn itself when there was nothing to mask.
  ***************************************************************************/
 #define MASK_MAX_DEPTH  64     // the same in gobj-js
@@ -1879,12 +1905,26 @@ PRIVATE BOOL secret_value_is_set(json_t *value)
 PRIVATE json_t *json_mask_secrets_depth(json_t *jn, json_t *memo, int depth, size_t *budget);
 
 /*
+ *  Every node walked costs at least one unit of the budget, a key or a
+ *  string its bytes too: what is walked is bounded by the cap, nodes
+ *  included (a frame of "[{},{},...]" costs nothing in bytes)
+ */
+PRIVATE void charge(size_t *budget, size_t n)
+{
+    *budget = (n < *budget)? *budget - n : 0;
+}
+
+/*
  *  A dict or a list masked once: a shared one is masked the same
  *  everywhere, and a cycle is "<cycle>" (with a fan-out of two, a cycle
  *  walked again would be exponential before any depth limit)
  */
+
 PRIVATE json_t *json_mask_container(json_t *jn, json_t *memo, int depth, size_t *budget)
 {
+    if(*budget == 0) {
+        return json_string(MASK_TOO_LARGE);
+    }
     char key_[32];
     snprintf(key_, sizeof(key_), "%p", (void *)jn);
     json_t *seen = json_object_get(memo, key_);
@@ -1894,55 +1934,70 @@ PRIVATE json_t *json_mask_container(json_t *jn, json_t *memo, int depth, size_t 
     if(depth >= MASK_MAX_DEPTH) {
         return json_string("<deeper not shown>");  // a kw of a peer can nest at will
     }
-    if(*budget == 0) {
-        return json_string(MASK_TOO_LARGE);
-    }
+    charge(budget, 1);
     json_object_set_new(memo, key_, json_true());  // in progress
 
-    json_t *jn_masked = NULL;
+    /*
+     *  The result is built as the children are walked: once the budget is
+     *  spent the walk STOPS, and one placeholder stands for the rest
+     */
+    BOOL changed = FALSE;
+    BOOL truncated = FALSE;
+    json_t *result;
     if(json_is_object(jn)) {
+        result = json_object();
         const char *attribute = json_string_value(json_object_get(jn, "attribute"));
-        BOOL value_is_secret = attribute &&
-            is_secret_name(attribute, MIN(strlen(attribute), MASK_MAX_NAME));
+        BOOL value_is_secret = attribute && is_secret_name_tail(attribute, strlen(attribute));
         const char *key;
         json_t *value;
         json_object_foreach(jn, key, value) {
-            json_t *shown;
+            if(*budget == 0) {
+                truncated = TRUE;
+                break;
+            }
             size_t key_len = strlen(key);
-            *budget = (key_len < *budget)? *budget - key_len : 0;
-            BOOL secret = is_secret_name(key, MIN(key_len, MASK_MAX_NAME)) ||
+            charge(budget, 1 + key_len);
+            json_t *shown;
+            BOOL secret = is_secret_name_tail(key, key_len) ||
                 (value_is_secret && strcmp(key, "value")==0);
             if(secret && secret_value_is_set(value)) {
                 shown = json_string("********");
             } else {
                 shown = json_mask_secrets_depth(value, memo, depth+1, budget);
             }
-            if(shown != value && !jn_masked) {
-                jn_masked = json_copy(jn);
+            if(shown != value) {
+                changed = TRUE;
             }
-            if(jn_masked) {
-                json_object_set_new(jn_masked, key, shown);
-            } else {
-                JSON_DECREF(shown)
-            }
+            json_object_set_new(result, key, shown);
+        }
+        if(truncated) {
+            json_object_set_new(result, "<more>", json_string(MASK_TOO_LARGE));
         }
     } else {
+        result = json_array();
         size_t idx;
         json_t *value;
         json_array_foreach(jn, idx, value) {
+            if(*budget == 0) {
+                truncated = TRUE;
+                break;
+            }
+            charge(budget, 1);
             json_t *shown = json_mask_secrets_depth(value, memo, depth+1, budget);
-            if(shown != value && !jn_masked) {
-                jn_masked = json_copy(jn);
+            if(shown != value) {
+                changed = TRUE;
             }
-            if(jn_masked) {
-                json_array_set_new(jn_masked, idx, shown);
-            } else {
-                JSON_DECREF(shown)
-            }
+            json_array_append_new(result, shown);
+        }
+        if(truncated) {
+            json_array_append_new(result, json_string(MASK_TOO_LARGE));
         }
     }
 
-    json_t *result = jn_masked? jn_masked : json_incref(jn);
+    if(!changed && !truncated) {
+        JSON_DECREF(result)
+        result = json_incref(jn);
+    }
     json_object_set(memo, key_, result);
     return result;
 }

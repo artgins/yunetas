@@ -578,9 +578,11 @@ deeper ones included.
 
 It is linear and bounded, because a peer reaches it before its session
 (`C_IEVENT_SRV` dumps the kw of an event that comes before the identity
-card): no more than 128 bytes of a name are asked about, and once 4 MB of
-keys and strings are walked, the rest is `"<not shown: too large to mask>"`
--- never in clear.
+card): a name is judged by its last 128 bytes, and the walk has a budget of
+4 MB units -- every node costs one, a key or a string its bytes too. Once it
+is spent the walk STOPS, and one `"<not shown: too large to mask>"` stands
+for the rest of each container being walked (a `"<more>"` key in a dict, a
+last item in a list) -- never in clear.
 
 **Example**
 
@@ -604,9 +606,11 @@ JSON_DECREF(kw_shown)
 A text (a command line) with the value of every `name=value` whose name is a
 secret's ([`is_secret_name()`](#is_secret_name)) written as `********`,
 quoted or not; and the `value=` of a write-attr whose `attribute=` names a
-secret. The rest of the text is kept as it is. The name is the run of name
-characters just before the `=`, no longer than 128 bytes, and a text over
-4 MB is `"<not shown: too large to mask>"`: it is linear. An unquoted value
+secret. The rest of the text is kept as it is. The name is the word before
+the `=` (since the last blank or the last `=`: `'password'=x` and
+`user[password]=x` are names too), judged by its last 128 bytes; a text over
+4 MB, or one whose masked copy cannot be allocated, is
+`"<not shown: too large to mask>"`: it is linear, and fails safe. An unquoted value
 runs to the next `word=` (or the end): a password written with blanks
 (`password=correct horse battery`, `password= hunter2`) is masked whole, as
 the parser leaves those words unread. A quote inside it is part of it
@@ -645,11 +649,13 @@ GBMEM_FREE(s)
 (json_mask_secrets_capped)=
 ## [`json_mask_secrets_capped()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/helpers.c#L1975)
 
-[`json_mask_secrets()`](#json_mask_secrets) that walks no more than
-`max_bytes` of keys and strings: what is left is
-`"<not shown: too large to mask>"`. A string is walked whole or not shown at
-all, so a secret is never cut in half. For a dump of a few bytes of a kw from
-a peer: the cost is bounded by what is shown, not by what was sent.
+[`json_mask_secrets()`](#json_mask_secrets) on a budget of `max_bytes`
+units: every node walked costs one, a key or a string its bytes too. Once it
+is spent the walk stops, and one `"<not shown: too large to mask>"` stands
+for the rest of each container being walked. A string is walked whole or not
+shown at all, so a secret is never cut in half. For a dump of a few bytes of
+a kw from a peer: the work is bounded by the cap, not by what was sent -- a
+16 MB frame of `[{},{},...]` costs what 1024 units cost.
 `C_IEVENT_SRV` dumps the kw of an event before the identity card through it,
 capped at four times the 256 bytes it shows.
 

@@ -243,8 +243,13 @@ PRIVATE void look_into_freed_block(void *p, size_t size)
     }
 }
 
+PRIVATE BOOL s_fail_big_allocs = FALSE;  // a block over 1 MB is refused
+
 PRIVATE void *wrap_malloc(size_t size)
 {
+    if(s_fail_big_allocs && size > 1024*1024) {
+        return NULL;
+    }
     char *p = s_orig_malloc(size + WRAP_HEADER);
     if(!p) {
         return NULL;
@@ -378,6 +383,28 @@ PRIVATE void check_received_dump(void)
     check_true("the received frame is dumped", s_rx_plain_seen >= 2);
     check_int("its credential is not", s_rx_secret_seen, 0);
     check_true("the dump of bytes says how many it masked", s_rx_masked_seen > 0);
+}
+
+/*
+ *  The masking cannot allocate its output: it shows nothing, never the
+ *  text in clear ("nothing to mask" was the answer, and the json showed
+ *  the value as it came)
+ */
+PRIVATE void check_mask_alloc_failure(void)
+{
+    size_t len = 2*1024*1024;
+    char *text = s_orig_malloc(len + 1);
+    memset(text, '=', len);
+    memcpy(text, "password=hunter2 ", 17);
+    text[len] = 0;
+    s_fail_big_allocs = TRUE;
+    char *m = mask_secrets_inline(text);
+    s_fail_big_allocs = FALSE;
+    check_true("a masking that cannot allocate shows nothing in clear",
+        m && strcmp(m, "<not shown: too large to mask>")==0
+    );
+    GBMEM_FREE(m)
+    s_orig_free(text);
 }
 
 /*
@@ -519,6 +546,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check_gbuffer_wipe();
             check_gbuffer_append_and_serialize();
             check_received_dump();
+            check_mask_alloc_failure();
             priv->phase = PHASE_CONNECTING;
             s_capturing = TRUE;
             gobj_start(priv->clitcp);

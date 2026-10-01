@@ -292,11 +292,14 @@ PUBLIC char *mask_secrets_inline(const char *str);
 PUBLIC json_t *json_mask_secrets(json_t *jn);
 
 /**rst**
- *  json_mask_secrets() that walks no more than `max_bytes` of keys and
- *  strings (json_mask_secrets() walks 4 MB): what is left is shown as
- *  "<not shown: too large to mask>", never in clear. A string is walked
- *  whole or not shown at all. For a dump of a few bytes of a kw from a
- *  peer: the cost is bounded by what is shown, not by what was sent.
+ *  json_mask_secrets() on a budget of `max_bytes` units (json_mask_secrets()
+ *  has 4 MB): every node walked costs one unit, a key or a string its bytes
+ *  too. Once the budget is spent the walk STOPS: one placeholder,
+ *  "<not shown: too large to mask>", stands for the rest of each container
+ *  being walked (a "<more>" key in a dict, a last item in a list), never in
+ *  clear. A string is walked whole or not shown at all. For a dump of a
+ *  few bytes of a kw from a peer: the work is bounded by the cap, not by
+ *  what was sent.
 **rst**/
 PUBLIC json_t *json_mask_secrets_capped(json_t *jn, size_t max_bytes);
 

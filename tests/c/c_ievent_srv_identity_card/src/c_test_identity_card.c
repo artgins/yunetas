@@ -282,6 +282,16 @@ PRIVATE int send_card(hgobj gobj, int card)
                 noise[noise_len] = 0;
                 json_object_set_new(kw, "noise", json_string(noise));
                 GBMEM_FREE(noise)
+
+                /*
+                 *  And many nodes with no bytes in them: the cap counts
+                 *  nodes too, and the walk stops at it
+                 */
+                json_t *jn_many = json_array();
+                for(int i=0; i<100000; i++) {
+                    json_array_append_new(jn_many, json_object());
+                }
+                json_object_set_new(kw, "many", jn_many);
             }
             msg_iev_push_stack(gobj, kw, IEVENT_STACK_ID,
                 card_routing("", role, "tester", role, "cli")
