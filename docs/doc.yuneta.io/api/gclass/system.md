@@ -316,7 +316,11 @@ somebody's decision. It is said once, INFO, *"UDP server stopped from
 outside, it is not started again"*, and the sends are refused as above.
 
 Its own stop (`gobj_stop()` of the `C_GSS_UDP_S`) stops the `C_UDP_S` too, and
-that `EV_STOPPED` is its end, not a restart.
+that `EV_STOPPED` is its end, not a restart. A start that comes while that stop still
+waits (a stop and a start in the same turn, the read of the `C_UDP_S` still
+being canceled) starts the `C_UDP_S` when its `EV_STOPPED` comes, on the next
+cycle of the loop (`EV_START_UDP_SERVER`): starting it at once would find it
+still holding its socket.
 
 A `timeout_base` of 0 or less would arm no timer at all: no peer forgotten
 after `seconds_inactivity`, and no base for the backoff. It is refused at the
