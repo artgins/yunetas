@@ -122,7 +122,14 @@ code before it, except the few this list marks "(no red test)".
   also use the command table of the destination service when it is local.
   gobj-js 7.25.9 masks its traces the same way. With `gbuffers` the kw's
   gbuffer is dumped, masked (a secret gbuffer as hidden, one that parses as
-  json through the same masking).
+  json through the same masking). Masking is linear and bounded, because a
+  peer reaches it before its session (the dump of the kw of an event before the
+  identity card): at most 128 bytes of a name are examined, and a text over
+  4 MB, or anything past 4 MB of keys and strings in one `json_mask_secrets()`
+  call, is shown as *"<not shown: too large to mask>"*, never in clear (new
+  `json_mask_secrets_capped(jn, max_bytes)`; `C_IEVENT_SRV` caps that dump at
+  four times the 256 bytes it shows before masking it). gobj-js masks with the
+  same bounds.
 - **The traffic dumps mask the credentials they can recognise, received data
   included.** No sender can mark what it receives, so the `traffic` trace of a
   server gate printed a browser's Cookie header or a form password in clear.
@@ -352,19 +359,21 @@ code before it, except the few this list marks "(no red test)".
   the reborn-key bullet below). In a master, hearing a delete makes no debts;
   `tranger2_delete_key()` makes them.
 - **A key deleted and written again before a follower reads the delete is
-  handed in order, when the key is in the follower's cache.** The follower's
-  feed hears `deleted`, then every record of the key reborn from rowid 1, and
-  keeps the key in its cache. A key the follower has not seen yet, or one
-  deleted and reborn more than once in one unread window, is still read too
-  early (an open defect, see `TODO.md`). The scan of the
-  key's directory, done at the delete signal's place, read the new key's file
-  against the old key's cache entry: one new record was never handed, or later
-  ones arrived with wrong rowids and were handed twice at the next append, and
-  the delete heard afterwards removed the live key from the cache (the same in
-  the pass after an overflow). A key directory is now read once the stream is
-  past every event that could still remove it (each event carries its
-  `offset_end`; new `FS_FLAG_BATCH_END` / `FS_BATCH_END_TYPE`), and a record
-  found then forgets the debts made before the directory appeared.
+  handed in order** (once or more, for any key, one the follower never saw
+  included). The feed hears `deleted`, then the records of the key born again
+  from rowid 1, and keeps the key. The scan of the key's directory, done at the
+  delete signal's place, read the new key's file against the old key's cache
+  entry: one new record was never handed, or later ones arrived with wrong
+  rowids and were handed twice at the next append, and the delete heard
+  afterwards removed the live key from the cache (`[R1 DEL]`, `[DEL R1 DEL]`;
+  the same in the pass after an overflow). A follower now reads a key
+  directory only once its stream is past every event that could still remove
+  it: the directories are noted at their event and placed once per batch or
+  per slice of the pass (each event carries its `offset_end`; new
+  `FS_FLAG_BATCH_END` / `FS_BATCH_END_TYPE`), a record found then forgets the
+  debts made before the directory appeared, and whether a delete is new is
+  decided by the debts alone. An fs_watcher read takes up to 32 events. The
+  69632-key overflow flood drains within about 5% of its previous time.
 - **fs_watcher: a root that cannot be watched gives no watcher** (logged):
   with `max_user_watches` used up, or no permission, the watcher ran watching
   nothing.
@@ -561,20 +570,24 @@ code before it, except the few this list marks "(no red test)".
   is refusing the messages: each refusal still goes to the failed queue, but
   the next message is paced and *"SMTP server refused the last messages in a
   row: each goes to the failed queue, the next ones are paced"* is logged
-  (`refused_in_row`), never the *"emails are NOT being sent"* ERROR; a refusal
-  of an address (a 5.1.x status, a sender of the message's own) does not count
-  toward the run. A 5xx to one recipient of several no longer refuses the message: it
+  (`refused_in_row`), never the *"emails are NOT being sent"* ERROR. Every
+  refusal counts, a bad address included, so a queue refused one by one never
+  gets a login per message; a good email behind such a run waits the paced
+  delay until the next delivery. A 5xx to one recipient of several no longer refuses the message: it
   goes to the others, each refused one a WARNING, and the "email sent" line
   says who got it (`to`/`cc` the accepted addresses, `refused` the refused
   ones, bcc only as `bcc_count`/`refused_bcc_count`). A 4xx (rate limit,
   greylist, 421) is still paced and retried.
-- **emailsender: a refused sender is told apart.** A `from` of the message's
-  own, or a reply that says the address is wrong (501, 553, 5.1.x, a 5.7.1
-  naming the sender), is the message's: it goes to the failed queue once and
-  the session goes on. The default sender refused (a quota, sending blocked, a
-  4xx) is paced as a server failure and charged to the message as a retry, so
-  after `max_retries` attempts it goes to the failed queue. Any 5xx to MAIL
-  FROM sent every queued email to the failed queue in turn.
+- **emailsender: a refused sender is judged by the reply.** A MAIL FROM
+  refusal is the message's (to the failed queue once, a WARNING naming the
+  `from`) only when its sender is its own (not the default, compared ignoring
+  case) and the reply says that address is wrong: 501, 5.1.7, or a 553 / 5.1.x
+  / 5.7.1 reply quoting the address. Everything else (a quota, a block, a
+  policy, a 4xx, the default sender) is the account's, whatever the `from`:
+  paced, a retry spent per attempt, the failed queue after `max_retries`, and
+  the alarm ERROR when it lasts. Every attempt that ends in a refusal of a
+  message sends it to the failed queue or spends a retry. Any 5xx to MAIL FROM
+  sent every queued email to the failed queue in turn.
 - **emailsender: new command `skip-email`** moves the email at the head of the
   queue, the one every other waits behind, to the failed queue at once (with a
   WARNING), and answers with its `to` and subject; it works while paused:

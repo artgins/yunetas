@@ -6,28 +6,11 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 `docs/doc.yuneta.io/yunos/mqtt_broker.md`,
 `docs/doc.yuneta.io/guide/guide_tls.md`) and git history.
 
-## Found by the last review before the merge (open: fix before deploying)
+## Found by the last review before the merge (open)
 
-The fifth independent review of this cycle's fixes found these; they were
-left unfixed on purpose. The HIGH ones block a deploy of the yunos they touch
-(every yuno that serves ievents for the masking one; emailsender for its two;
-any rt_disk follower for the timeranger2 one).
+The fifth independent review of this cycle's fixes found these; its four HIGH
+findings were fixed before the merge, the rest are open.
 
-- **Masking is quadratic and reachable BEFORE authentication: one frame can
-  stall a yuno for hours** (HIGH, measured; a regression of this cycle, from
-  6abc0a541, not in 7.25.20). `mask_secrets_inline()` (helpers.c ~1600-1618,
-  and its JS twin helpers.js ~467) resets `name` only at a blank or after a
-  masked value, so every non-secret `=` inside one word re-runs
-  `is_secret_name()` over the whole word: `json_mask_secrets({"anything":
-  "a=a=a=…"})` takes 11 s at 60 KB and 43 s at 120 KB in C (~70 min at
-  1.2 MB). `C_IEVENT_SRV` runs it, uncapped and not trace-gated, over the
-  whole peer kw in `peer_card_dump()` — for any event before the identity
-  card (c_ievent_srv.c ~2116) and in `log_identity_card_refused()` (~1463) —
-  before authentication, with frames up to `gbmem_get_maximum_block()` (16 MB).
-  Fix: cap the name length `is_secret_name()` is asked about (secret names are
-  short) or restart the name after each non-secret `=`, cap the input
-  `mask_secrets_inline()` walks, and cap the kw before masking in
-  `peer_card_dump()`. Fix it before this code is deployed anywhere reachable.
 - **dbsimple: a yuno running as root hands its secrets to whoever planted the
   file** (medium, plausible): a member of the yuneta group replaces the file
   in the 02775 data dir with a readable one of their own; a root save writes
@@ -55,34 +38,6 @@ any rt_disk follower for the timeranger2 one).
   marker after a secret); under-masks across a newline (`password=a b\nuser=bob`
   shows `b`) and a later word containing `=` (`token=abc def==` shows `def==`,
   base64 padding).
-- **emailsender: a sender refusal after a run of refusals blocks the queue for
-  ever, with no ERROR** (HIGH, confirmed by a probe: scratchpad
-  `review/emailsender_r5/main_probe_stuck.c` of round 21). A message-owned
-  MAIL FROM refusal calls `refuse_current_message(..., counts=FALSE)`, but the
-  `refused_in_row > FREE_REFUSALS_IN_ROW` test sits outside the `counts` guard
-  (`c_smtp_session.c` ~1344-1363): with 3+ refusals already counted it takes the
-  `refusing` branch, drops the session with `reject_code` and no
-  `sender_refused`; `ac_disconnected` sets no `transaction` (prev state
-  MAIL_FROM_RESP, ~1642), so the emailsender spends no retry and sends it again
-  — refused again, for ever, paced, and `note_failure(..., alarm_on =
-  !refusing)` keeps the hourly ERROR quiet. Probe: RCPT always 550, MAIL 250 x3
-  then 553: after 14 s `queued 1, failed 3`. Set `transaction` whenever
-  `reject_code` is set, or test the counter only when `counts`.
-- **emailsender: with the producers' own `from`, an account-level block sends
-  the whole queue to the failed queue in milliseconds** (HIGH, confirmed by
-  `main_probe_quota.c`). `from_is_default == FALSE` makes the refusal the
-  message's before the reply is read (`c_smtp_session.c` ~1425,
-  `c_emailsender.c` ~1328), and in production almost every email has a foreign
-  `from` (estadodelaire/wattyzer db_history, notifier_wz, webstats; the a.com
-  default is `no-reply@artgins.com`; a case difference alone makes it
-  foreign). "550 5.7.1 Daily sending quota exceeded" with `from` =
-  `alarm@example.com`: 12 emails in the failed queue within 2 ms, one session;
-  the refusal-run protection never engages. The `5.7.1` + "sender" text test
-  also classifies Postfix's "554 5.7.1 <a>: Sender address rejected: Access
-  denied" as the message's even for the default sender, and some account
-  blocks use 5.1.x (O365 "550 5.1.8 Access denied, bad outbound sender",
-  plausible). The reply must decide before the `from` does, and an
-  account-level reply must be paced whatever the `from`.
 - **emailsender: refusals that do not count log in once per message at a fixed
   rate** (medium, confirmed by `main_probe_logins.c`): a 5.1.x or own-sender
   refusal does not count toward the run, so with a server that refuses RSET or
@@ -109,23 +64,6 @@ any rt_disk follower for the timeranger2 one).
   while playing without credentials repeats the "username or password is
   empty" ERROR; `url_change_resets_pacing` was widened to 1.8 s without finding
   why a reset pacing connects ~1 s late.
-- **An rt_disk follower still hands a reborn key's records before an older
-  delete when the key is not in its cache** (HIGH, confirmed by a probe:
-  scratchpad `review/r5-fsw/probe_reborn.c` of round 21). The deferred scan of
-  a key directory (`defer_key_dir_scan()`, timeranger2.c ~7487) scans AT ONCE
-  when the key is not in the cache and the feed owes nothing, on the premise
-  "a key new to the follower: no delete of it can be ahead" — false when the
-  key was deleted inside the unread part of the stream. A brand-new key born,
-  deleted and written again before the follower reads: `[R1 DEL]`, the key out
-  of the cache, the next append `[R1 R2]`. A key deleted and reborn twice in
-  one unread window: `[DEL R1 DEL]` (3 rows: `[DEL R1 R2 R3 DEL]`), three
-  times `[DEL R1 DEL DEL]`; the overflow pass has the same heuristic. One
-  reborn of an already-cached key is right (`[DEL R1]`). The consumer gets DEL
-  after live records (drops live data), then duplicates. The immediate scan
-  is there for speed (a 69632-key flood drains in 3.6 s with it, 6 s without):
-  any fix must keep the flood fast. fs_watcher.md and the
-  `defer_key_dir_scan()` comment repeat the false premise. Present in another
-  shape before 7.25.20.
 - **Silent error paths of the deferred scans** (medium): `dir_holds_a_link()`
   answers FALSE with no log when `opendir` fails (EMFILE is realistic on a big
   follower, EACCES), and `dir_identity()` the same on a `statx` failure other
