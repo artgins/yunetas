@@ -65,6 +65,11 @@
  *  out of the cache and dropped its watermark; counting the deletes owed,
  *  the slow feed took the delete as new and left the first feed owing it.
  *
+ *  And a MASTER's own feed that overflows (do_test_master_feed_overflow):
+ *  the master forgets a key at once when it deletes it, so its cache cannot
+ *  say a delete was lost. The feeds watched when it deleted owe it, and the
+ *  overflowed one is told it. Up to 7.25.20 it never heard it.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -91,6 +96,7 @@
 #define DATABASE3   "tr_rt_disk_overflow_behind"
 #define DATABASE4   "tr_rt_disk_overflow_late"
 #define DATABASE5   "tr_rt_disk_overflow_reborn"
+#define DATABASE6   "tr_rt_disk_overflow_master"
 #define SEED_KEY    "0000000000000000000"
 #define TOPIC_NAME  "topic_rt_disk_overflow"
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
@@ -983,6 +989,103 @@ PRIVATE int do_test_old_delete_after_reborn(void)
 }
 
 /***************************************************************************
+ *  A master's own feed that overflows
+ ***************************************************************************/
+PRIVATE int do_test_master_feed_overflow(void)
+{
+    int result = 0;
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database),
+        getenv("HOME"), "tests_yuneta", DATABASE6, NULL);
+    rmrdir(path_database);
+
+    queue_limit = max_queued_events();
+    n_keys = 1;
+    received = GBMEM_MALLOC(sizeof(int) * (size_t)(n_keys + 1));
+    received_total = 0;
+    deleted_seed = 0;
+    deleted_other = 0;
+
+    set_expected_results(
+        "master feed overflow: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_tranger(DATABASE6, TRUE);
+    if(!tm || !create_topic(tm)) {
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    rt = tranger2_open_rt_disk(
+        tm, TOPIC_NAME, "", NULL, my_record_callback, "rtALL", "", NULL
+    );
+    if(!rt) {
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    tranger2_set_rt_key_deleted_callback(rt, my_key_deleted_callback, NULL);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(append_one(tm, SEED_KEY_ID, BASE_T)<0 || append_one(tm, 1, BASE_T)<0) {
+        result += -1;
+    }
+    drain(2);
+    result += test_json(NULL);
+
+    /*
+     *  With the loop stopped: the feed's queue overflowed, then the seed
+     *  key deleted: the echo of the delete is dropped
+     */
+    set_expected_results_unordered(
+        "master feed overflow: the delete is told",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
+            "msg", "keys deleted while the inotify events were lost",
+            "msg", "watched tree rescanned after lost inotify events"
+        ),
+        NULL, NULL, 1
+    );
+    result += overflow_whole_topic_feed(path_database);
+    if(tranger2_delete_key(tm, TOPIC_NAME, SEED_KEY)<0) {
+        result += -1;
+    }
+    drain(0);
+    if(deleted_seed != 1 || deleted_other != 0) {
+        printf("%sERROR%s --> the master's overflowed feed heard the delete %d times (others %d), expected 1\n",
+            On_Red BWhite, Color_Off, deleted_seed, deleted_other);
+        result += -1;
+    }
+    result += expect_no_debts("rtALL", rt);
+    result += test_json(NULL);
+
+    set_expected_results("master feed overflow: shutdown", NULL, NULL, NULL, 1);
+    tranger2_close_rt_disk(tm, rt);
+    rt = NULL;
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    tranger2_shutdown(tm);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    GBMEM_FREE(received);
+    received_total = 0;
+    received_bad_key = 0;
+    deleted_seed = 0;
+    deleted_other = 0;
+    rmrdir(path_database);
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -1243,6 +1346,7 @@ int main(int argc, char *argv[])
     result += do_test_signal_behind_overflow(TRUE);
     result += do_test_feed_opened_in_flight();
     result += do_test_old_delete_after_reborn();
+    result += do_test_master_feed_overflow();
     result += do_test();
 
     yev_loop_stop(yev_loop);

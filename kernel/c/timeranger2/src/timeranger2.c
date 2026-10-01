@@ -540,6 +540,10 @@ PRIVATE void note_where_the_other_feeds_are(
     json_t *topic,
     json_t *disk
 );
+PRIVATE void owe_key_delete_to_own_feeds(
+    json_t *topic,
+    const char *key
+);
 PRIVATE void forget_debts_passed(
     json_t *watched_topic,
     fs_event_t *fs_event,
@@ -4668,6 +4672,7 @@ PUBLIC int tranger2_delete_key(
      *  then to local in-process subscribers.
      */
     mirror_key_delete_to_disks(gobj, tranger, topic, key);
+    owe_key_delete_to_own_feeds(topic, key);
     fire_key_deleted_locally(gobj, tranger, topic, key);  // in-process non-watcher subs
 
     return 0;
@@ -7160,6 +7165,43 @@ PRIVATE delete_heard_t count_key_delete_heard(
         json_array_append_new(marks_, json_integer((json_int_t)fs_queued_events_end(fs)));
     }
     return DELETE_FIRST_HEARD;
+}
+
+/***************************************************************************
+ *  MASTER: the key was deleted here, and the master's own watched rt_disk
+ *  feeds (a configuration of tests) hear it from their directories, like a
+ *  follower's. The master forgot the key at once, so the cache cannot say
+ *  later that a delete is new, nor tell a feed that lost its signal in an
+ *  overflow: every one of them owes the delete from now, and pays when it
+ *  hears it; what an overflow leaves owed is told. The master is the only
+ *  writer, so it knows here which feeds were watched when it signalled.
+ *  Up to 7.25.20 a master's feed that overflowed never heard the delete.
+ ***************************************************************************/
+PRIVATE void owe_key_delete_to_own_feeds(
+    json_t *topic,
+    const char *key
+)
+{
+    int idx; json_t *disk;
+    json_array_foreach(json_object_get(topic, "disks"), idx, disk) {
+        fs_event_t *fs = (fs_event_t *)(uintptr_t)json_integer_value(
+            json_object_get(disk, "fs_event_client")
+        );
+        if(!fs) {
+            continue;   // told by fire_key_deleted_locally()
+        }
+        json_t *unheard = json_object_get(disk, "deletes_unheard");
+        if(!unheard) {
+            unheard = json_object();
+            json_object_set_new(disk, "deletes_unheard", unheard);
+        }
+        json_t *marks = json_object_get(unheard, key);
+        if(!marks) {
+            marks = json_array();
+            json_object_set_new(unheard, key, marks);
+        }
+        json_array_append_new(marks, json_integer((json_int_t)fs_queued_events_end(fs)));
+    }
 }
 
 /***************************************************************************
