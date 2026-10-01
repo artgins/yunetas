@@ -145,7 +145,18 @@ PRIVATE int mt_start(hgobj gobj)
     if(!priv->fs_watcher) {
         return -1;  // Error already logged
     }
-    fs_start_watcher_event(priv->fs_watcher);
+    if(fs_start_watcher_event(priv->fs_watcher) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot start the watch: the path is not watched",
+            "path",         "%s", path,
+            NULL
+        );
+        fs_stop_watcher_event(priv->fs_watcher);   // not running: destroyed now
+        priv->fs_watcher = NULL;
+        return -1;
+    }
     return 0;
 }
 
@@ -226,6 +237,24 @@ PRIVATE int fs_event_callback(fs_event_t *fs_event)
 
         case FS_RESCAN_DIR_TYPE:
             return 0;   // the pass after an overflow: published once, at FS_OVERFLOW_TYPE
+
+        case FS_WATCHER_GONE_TYPE:
+            /*
+             *  Its read failed (logged by fs_watcher): the watcher is freed
+             *  when this returns. Nothing is watched from now on.
+             */
+            {
+                PRIVATE_DATA *priv = gobj_priv_data(fs_event->gobj);
+                priv->fs_watcher = NULL;
+                gobj_log_error(fs_event->gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "the watch is gone: the path is not watched any more",
+                    "path",         "%s", fs_event->path,
+                    NULL
+                );
+            }
+            return 0;
 
         default:
             gobj_log_error(fs_event->gobj, 0,

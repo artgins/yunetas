@@ -61,9 +61,10 @@ PRIVATE int do_test(char *path)
     yev_loop_run(yev_loop, -1);
     gobj_trace_msg(0, "Quiting of main yev_loop_run()");
 
-    print_json("tracked_paths", fs_event_h->jn_tracked_paths);
-
-    fs_stop_watcher_event(fs_event_h);
+    if(fs_event_h) {
+        print_json("tracked_paths", fs_event_h->jn_tracked_paths);
+        fs_stop_watcher_event(fs_event_h);
+    }
     yev_loop_run_once(yev_loop);
 
     yev_loop_destroy(yev_loop);
@@ -109,6 +110,11 @@ PRIVATE int fs_event_callback(fs_event_t *fs_event)
             break;
         case FS_RESCAN_DIR_TYPE:
             printf("  %sRescan dir   :%s %s\n", On_Green BWhite, Color_Off, (char *)fs_event->directory);
+            break;
+        case FS_WATCHER_GONE_TYPE:
+            printf("  %sWatcher gone :%s %s (its read failed)\n",
+                On_Red BWhite, Color_Off, (char *)fs_event->directory);
+            fs_event_h = NULL;  // freed when this returns
             break;
     }
 

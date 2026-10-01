@@ -38,6 +38,10 @@ typedef enum  {
                                     // overflow: read it again, what it holds may never
                                     // have been told. Delivered a slice per loop turn;
                                     // a directory born in the overflow is watched first.
+    FS_WATCHER_GONE_TYPE,           // directory: the watched path. The read of the watcher
+                                    // FAILED (logged): it is destroyed when this call
+                                    // returns, and nothing else comes. Drop every pointer
+                                    // to it. Not told when its owner stopped it.
 
     // There are more fs events available with io_uring, but this code only manages these events.
 } fs_type_t;
@@ -88,6 +92,7 @@ struct fs_event_s {
                                 // stream of events (the bytes read from inotify before it)
     uint64_t batch_end;         // Internal: offset of the end of the batch being walked
     BOOL in_batch;              // Internal: yev_callback is walking a batch read from inotify
+    BOOL stopping;              // Internal: its owner stopped it (fs_stop_watcher_event)
 } ;
 
 

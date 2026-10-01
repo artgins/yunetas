@@ -245,6 +245,7 @@ PUBLIC int fs_stop_watcher_event(
     if(!fs_event) {
         return -1;
     }
+    fs_event->stopping = TRUE;
     stop_rescan_pass(fs_event);
     if(fs_event->in_callback) {
         /*
@@ -433,23 +434,31 @@ PRIVATE int yev_callback(
             {
                 if(yev_get_result(yev_event) < 0) {
                     /*
-                     *  Disconnected
+                     *  The read is over. After a stop of its owner that is
+                     *  the stop itself, whatever the result says (a cancel,
+                     *  or a cancel that found the read done). Otherwise the
+                     *  read FAILED, and that is the end of the watcher too:
+                     *  its owner is told before it goes. Up to 7.25.20 it
+                     *  went silently, and the owner kept a pointer to freed
+                     *  memory (a timeranger2 feed stopped it again when
+                     *  closed).
                      */
-                    if(trace_level & (TRACE_URING|TRACE_FS)) {
-                        if(yev_get_result(yev_event) != -ECANCELED) {
-                            gobj_log_info(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                                "msg",          "%s", "read FAILED",
-                                "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-                                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-                                "errno",        "%d", -yev_get_result(yev_event),
-                                "strerror",     "%s", strerror(-yev_get_result(yev_event)),
-                                "p",            "%p", yev_event,
-                                NULL
-                            );
-                        }
+                    if(!fs_event->stopping && yev_get_result(yev_event) != -ECANCELED) {
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_SYSTEM,
+                            "msg",          "%s", "inotify read FAILED: the watcher is gone",
+                            "path",         "%s", fs_event->path,
+                            "errno",        "%d", -yev_get_result(yev_event),
+                            "serrno",       "%s", strerror(-yev_get_result(yev_event)),
+                            NULL
+                        );
+                        fs_event->fs_type = FS_WATCHER_GONE_TYPE;
+                        fs_event->directory = (volatile char *)fs_event->path;
+                        fs_event->filename = "";
+                        fs_event->in_callback = TRUE;
+                        fs_event->callback(fs_event);
+                        fs_event->in_callback = FALSE;
                     }
                     fs_destroy_watcher_event(fs_event);
 

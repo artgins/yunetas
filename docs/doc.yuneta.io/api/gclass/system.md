@@ -89,6 +89,10 @@ File-system watcher — monitors directory changes using the
 | `subscriber` | `pointer` | Who gets its events. Default: its parent (the CHILD subscription model). |
 | `size_dl_watch` | `int` (stats) | `1` while the path is watched, `0` if not. One watcher, whether recursive or not (the name is older than that). |
 
+A watch that cannot be armed fails the start of `C_FS` (logged), and a watch
+whose read fails later (`FS_WATCHER_GONE_TYPE`) is logged and gone:
+`size_dl_watch` reads `0`, and nothing more is published.
+
 ### What it publishes
 
 One event per change the watcher reports, `path` being the directory and

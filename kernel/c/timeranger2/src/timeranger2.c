@@ -6440,6 +6440,29 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
             break;
         case FS_RESCAN_DIR_TYPE:
             break;  // disks/ is rescanned whole at FS_OVERFLOW_TYPE
+        case FS_WATCHER_GONE_TYPE:
+            /*
+             *  The watch of disks/ failed: the topic forgets its watcher (it
+             *  is freed when this returns), and no new feed is heard of
+             */
+            {
+                const char *topic_name; json_t *topic;
+                json_object_foreach(json_object_get(tranger, "topics"), topic_name, topic) {
+                    if((fs_event_t *)(uintptr_t)json_integer_value(
+                            json_object_get(topic, "fs_event_master")) == fs_event) {
+                        json_object_set_new(topic, "fs_event_master", json_integer(0));
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_TRANGER,
+                            "msg",          "%s", "the master's watch of disks/ is gone: new feeds are not heard",
+                            "topic_name",   "%s", topic_name,
+                            "path",         "%s", fs_event->path,
+                            NULL
+                        );
+                    }
+                }
+            }
+            break;
         case FS_FILE_CREATED_TYPE:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -6810,6 +6833,32 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
              */
             if(watched_topic) {
                 forget_keys_deleted_unheard(gobj, tranger, watched_topic, fs_event);
+            }
+            break;
+
+        case FS_WATCHER_GONE_TYPE:
+            /*
+             *  The read of the feed's watcher failed: it is freed when this
+             *  returns. The feed forgets it -- every reader of
+             *  `fs_event_client` skips a feed without one -- and is deaf
+             *  from now on, which is said. What it owed it will not hear.
+             */
+            if(watched_topic) {
+                json_t *disk = feed_of_watcher(watched_topic, fs_event);
+                if(disk) {
+                    json_object_set_new(disk, "fs_event_client", json_integer(0));
+                    json_object_del(disk, "deletes_unheard");
+                    json_object_del(disk, "deletes_told");
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_TRANGER,
+                        "msg",          "%s", "rt_disk feed deaf: its watcher is gone",
+                        "topic_name",   "%s", tranger2_topic_name(watched_topic),
+                        "rt_id",        "%s", json_string_value(json_object_get(disk, "id")),
+                        "path",         "%s", fs_event->path,
+                        NULL
+                    );
+                }
             }
             break;
 

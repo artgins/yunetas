@@ -320,6 +320,38 @@ What the owners of the tree do:
 - **`C_FS`** publishes `EV_FS_CHANGED` for the watched root, once.
 - **`utils/c/fs_watcher`** prints *"Events LOST"* and each *"Rescan dir"*.
 
+## When the watcher goes (`FS_WATCHER_GONE_TYPE`)
+
+A watcher whose read FAILS (anything but the cancel of a stop) is over: an
+ERROR, *"inotify read FAILED: the watcher is gone"*, with `path`, `errno`,
+then the owner's callback is called once with **`FS_WATCHER_GONE_TYPE`**
+(`directory` = the watched path), and the watcher is destroyed when the call
+returns. Nothing else comes. The owner drops every pointer it keeps to it --
+and must not stop it: it is freed. An owner that stopped the watcher itself
+(`fs_stop_watcher_event()`) is not told. Up to 7.25.20 the watcher went
+silently (the failure logged only under a trace), and its owner kept a
+pointer to freed memory: a timeranger2 feed stopped it again when closed.
+
+```C
+case FS_WATCHER_GONE_TYPE:
+    priv->fs_watcher = NULL;    // freed when this returns
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_SYSTEM,
+        "msg",          "%s", "the watch is gone",
+        "path",         "%s", fs_event->path,
+        NULL
+    );
+    break;
+```
+
+What the owners do: a timeranger2 rt_disk feed drops its watcher and its
+accounts of deletes, and says it is deaf (*"rt_disk feed deaf: its watcher
+is gone"*); every reader of the feed's watcher skips a feed without one. The
+master's watch of `disks/` says new feeds are not heard any more. `C_FS`
+says the path is not watched any more (its `size_dl_watch` reads 0).
+`utils/c/fs_watcher` prints *"Watcher gone"*.
+
 Up to 7.25.8 an overflow aborted the yuno, to be relaunched and reload clean.
 Under a sustained burst the reload met the next overflow: in yunovatios' stress
 test of its central, a `db_history_ce` following a `db_tracks_ce` at ~3000
