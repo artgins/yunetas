@@ -5,7 +5,8 @@
  *          emailsender logs one ERROR and exits with code 0, so neither the
  *          watcher nor the agent relaunches it, and the email stays in its
  *          queue for when the cause is fixed. The exit is checked from an
- *          atexit() handler: the ERROR was logged, and list-queues shows the
+ *          atexit() handler: the logs were the expected ones up to the exit
+ *          (the ERROR with the reply included), and list-queues shows the
  *          email still pending, none failed.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -200,6 +201,9 @@ PRIVATE void exit_guard(void)
     }
 
     int ret = 0;
+    if(test_json(NULL) < 0) {   // the list of expected logs, as far as the exit
+        ret = -1;
+    }
     json_t *expected_errors = json_pack("[s]",
         "SMTP server refuses this client: exiting, NOT relaunched. Check the server's answer, and run the yuno again"
     );
@@ -274,6 +278,7 @@ static int register_yuno_and_more(void)
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: connection not greeted"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server refuses this client at its greeting"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "SMTP server refuses this client: exiting, NOT relaunched. Check the server's answer, and run the yuno again", "reply", "554 5.7.1 Service unavailable; client host blocked"));
 
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name

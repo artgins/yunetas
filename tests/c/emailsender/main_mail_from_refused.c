@@ -1,13 +1,12 @@
 /****************************************************************************
  *          main_mail_from_refused.c
  *
- *          The server refuses the sender (550 to MAIL FROM) once: the account's
- *          or the server's trouble, the same for every message. The email is
- *          NOT sent to the failed queue: the session is dropped as for a
- *          failure ("SMTP server failing", with the reply), the reconnection
- *          is paced (1 s here), no retry is spent, and the email is delivered
- *          on the second connection. Before, it went to the failed queue at
- *          once, and so would every other queued email.
+ *          The server refuses the default sender once, for the account (451
+ *          4.7.1 sending rate exceeded): a failure of the server ("SMTP server
+ *          failing", with the reply), paced (1 s), charged to the message as
+ *          a retry (max_retries 2: one left), and the email is delivered on
+ *          the second connection. Before the sender rules, a 5xx there sent
+ *          the email to the failed queue at once, and so every queued email.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -103,7 +102,7 @@ PRIVATE char variable_config[]= "\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
                                 'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'mail_replies': ['550 5.7.1 Sender address rejected', '250 2.1.0 Ok'],\n\
+                                'mail_replies': ['451 4.7.1 Sending rate exceeded, try again later', '250 2.1.0 Ok'],\n\
                                 'connect_min_gaps': [0, 1000],      \n\
                                 'die_on_delivery': true             \n\
                             },                                      \n\
@@ -133,7 +132,7 @@ PRIVATE char variable_config[]= "\
                 'topic_emails_queue': 'emails_queue',               \n\
                 'topic_emails_failed': 'emails_failed',             \n\
                 'timeout_retry': 1000,                              \n\
-                'max_retries': 1,                                   \n\
+                'max_retries': 2,                                   \n\
                 'tkey': 'tm'                                        \n\
             }                                                       \n\
         },                                                          \n\
@@ -243,7 +242,8 @@ static int register_yuno_and_more(void)
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: MAIL FROM refused"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "MAIL FROM rejected"));
-    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "SMTP server failing: emails wait, the retries are paced", "cause", "550 5.7.1 Sender address rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "SMTP server failing: emails wait, the retries are paced", "cause", "451 4.7.1 Sending rate exceeded, try again later"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "email NOT sent, will retry"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: message delivered"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server works again: emails delivered"));

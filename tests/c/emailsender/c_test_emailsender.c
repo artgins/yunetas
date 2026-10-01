@@ -58,6 +58,12 @@
  *                      url it runs on, and the log must say THAT one.
  *          "two"       two emails at once, the second queued behind the
  *                      first.
+ *          "foreign_from"  an email with a `from` of its own
+ *                      (intruder@example.com), then one with the default.
+ *          "skip"      one email; `action_delay` ms later skip-email moves
+ *                      it to the failed queue (the answer must say so), the
+ *                      queues are checked (none pending, one failed) and the
+ *                      yuno ends.
  *          "send_check"  `email_count` emails at once; `action_delay` ms
  *                      later the queues must hold `expect_queued` pending
  *                      and `expect_failed` failed (list-queues), and the
@@ -98,6 +104,7 @@
  ***************************************************************************/
 PRIVATE int send_one_email(hgobj gobj);
 PRIVATE int send_email_to(hgobj gobj, const char *to, const char *cc);
+PRIVATE int send_email_from(hgobj gobj, const char *from);
 PRIVATE int start_scenario(hgobj gobj);
 PRIVATE int set_url_from(hgobj gobj, const char *url, BOOL expect_wait);
 PRIVATE int check_queues(hgobj gobj, int expect_queued, int expect_failed);
@@ -256,6 +263,16 @@ PRIVATE int start_scenario(hgobj gobj)
             strcmp(scenario, "shutdown") == 0) {
         priv->input_side = gobj_find_service(gobj_read_str_attr(gobj, "server_service"), TRUE);
         gobj_start_tree(priv->input_side);
+    }
+
+    if(strcmp(scenario, "foreign_from") == 0) {
+        send_email_from(gobj, "intruder@example.com");
+        return send_one_email(gobj);
+    }
+
+    if(strcmp(scenario, "skip") == 0) {
+        set_timeout(priv->timer, gobj_read_integer_attr(gobj, "action_delay"));
+        return send_one_email(gobj);
     }
 
     if(strcmp(scenario, "send_check") == 0) {
@@ -422,6 +439,25 @@ PRIVATE int send_one_email(hgobj gobj)
 }
 
 /***************************************************************************
+ *  One email with a sender of its own, through the public EV_SEND_EMAIL
+ ***************************************************************************/
+PRIVATE int send_email_from(hgobj gobj, const char *from)
+{
+    json_t *kw_email = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:b}",
+        "from", from,
+        "to", TEST_TO,
+        "cc", TEST_CC,
+        "reply_to", "",
+        "subject", "test",
+        "body", "body of the test",
+        "is_html", 0
+    );
+    return gobj_send_event(
+        gobj_find_service("emailsender", TRUE), EV_SEND_EMAIL, kw_email, gobj
+    );
+}
+
+/***************************************************************************
  *  One email to `to` and `cc`, through the public EV_SEND_EMAIL
  ***************************************************************************/
 PRIVATE int send_email_to(hgobj gobj, const char *to, const char *cc)
@@ -550,6 +586,31 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(strcmp(scenario, "refill") == 0) {
         send_one_email(gobj);
+
+    } else if(strcmp(scenario, "skip") == 0) {
+        hgobj emailsender = gobj_find_service("emailsender", TRUE);
+        json_t *jn_resp = gobj_command(emailsender, "skip-email", json_object(), gobj);
+        int result = (int)kw_get_int(gobj, jn_resp, "result", -1, 0);
+        const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
+        if(result == 0 && strstr(comment, "email skipped to the failed queue: to 'reader@example.com'")) {
+            gobj_log_info(gobj, 0,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "skip-email answered",
+                NULL
+            );
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "skip-email did not answer as expected",
+                "result",       "%d", result,
+                "comment",      "%s", comment,
+                NULL
+            );
+        }
+        JSON_DECREF(jn_resp)
+        check_queues(gobj, 0, 1);
+        set_yuno_must_die();
 
     } else if(strcmp(scenario, "send_check") == 0) {
         check_queues(gobj,

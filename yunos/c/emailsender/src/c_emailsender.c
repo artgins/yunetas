@@ -44,6 +44,7 @@ PRIVATE int process_smtp_response(
 );
 PRIVATE char *join_addresses(json_t *jn_list);
 PRIVATE int count_addresses(const char *addresses);
+PRIVATE q_msg_t *enqueue_failing_message(hgobj gobj, q_msg_t *msg);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -56,6 +57,7 @@ PRIVATE json_t *cmd_enable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw,
 PRIVATE json_t *cmd_disable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_remove_emails_failed(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_skip_email(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -105,6 +107,7 @@ SDATACM (DTP_SCHEMA,    "disable-alarm-emails",0,   0,              cmd_disable_
 SDATACM (DTP_SCHEMA,    "enable-alarm-emails",0,    0,              cmd_enable_alarm_emails, "Enable send alarm emails."),
 SDATACM (DTP_SCHEMA,    "list-queues",      0,      pm_list_queues, cmd_list_queues, "List email queues"),
 SDATACM (DTP_SCHEMA,    "remove-emails-failed",0,   0,              cmd_remove_emails_failed, "Remove emails failed"),
+SDATACM (DTP_SCHEMA,    "skip-email",       0,      0,              cmd_skip_email, "Move the email at the head of the queue (the one being tried) to the failed queue"),
 
 /*-CMD2---type------name------------flag------------ali-items---------------json_fn-------------description--*/
 SDATACM2(DTP_SCHEMA,"set-email-user",SDF_AUTHZ_X,   0,  pm_set_email_user,  cmd_set_email_user, "Set email user"),
@@ -744,6 +747,90 @@ PRIVATE json_t *cmd_remove_emails_failed(hgobj gobj, const char *cmd, json_t *kw
 }
 
 /***************************************************************************
+ *  Move the email at the head of the queue -- the one being tried, which
+ *  every other waits behind -- to the failed queue, at once. For the
+ *  operator who sees the queue stuck behind one email (its sender refused,
+ *  its server refusing it) and will not wait for its max_retries paced
+ *  attempts. If the SMTP session holds it, the session is stopped (it drops
+ *  what it holds and says nothing of its close) and started again.
+ ***************************************************************************/
+PRIVATE json_t *cmd_skip_email(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    BOOL playing = gobj_is_playing(gobj);
+    if(!playing) {
+        open_queues(gobj);  // In pause the queues are closed
+    }
+
+    q_msg_t *head = priv->trq_emails_queue? trq_first_msg(priv->trq_emails_queue) : NULL;
+    if(!head) {
+        if(!playing) {
+            close_queues(gobj);
+        }
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: No email pending", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(head == priv->qmsg_cur_email) {
+        if(priv->smtp_started) {
+            gobj_stop(priv->smtp);
+            priv->smtp_started = FALSE;
+        }
+        priv->smtp_ready = FALSE;
+        priv->qmsg_cur_email = NULL;
+        gobj_change_state(gobj, ST_IDLE);
+    }
+
+    json_t *jn_email = trq_msg_json(head);
+    json_t *jn_data = json_pack("{s:s, s:s, s:s}",
+        "to", kw_get_str(gobj, jn_email, "to", "", 0),
+        "cc", kw_get_str(gobj, jn_email, "cc", "", 0),
+        "subject", kw_get_str(gobj, jn_email, "subject", "", 0)
+    );
+    gobj_log_warning(gobj, 0,
+        "msgset",       "%s", MSGSET_APP,
+        "msg",          "%s", "email skipped by command: moved to failed queue",
+        "to",           "%s", kw_get_str(gobj, jn_email, "to", "", 0),
+        "cc",           "%s", kw_get_str(gobj, jn_email, "cc", "", 0),
+        "bcc_count",    "%d", count_addresses(kw_get_str(gobj, jn_email, "bcc", "", 0)),
+        "subject",      "%s", kw_get_str(gobj, jn_email, "subject", "", 0),
+        NULL
+    );
+    JSON_DECREF(jn_email)
+
+    enqueue_failing_message(gobj, head);
+    trq_unload_msg(head, -1);
+    priv->cur_retries = 0;
+
+    if(!playing) {
+        close_queues(gobj);
+    } else {
+        start_smtp(gobj);
+        tira_dela_cola(gobj);
+    }
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("%s: email skipped to the failed queue: to '%s', subject '%s'",
+            gobj_yuno_role_plus_name(),
+            kw_get_str(gobj, jn_data, "to", "", 0),
+            kw_get_str(gobj, jn_data, "subject", "", 0)
+        ),
+        0,
+        jn_data,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_enable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -1227,13 +1314,18 @@ PRIVATE int send_head_of_queue(hgobj gobj)
 
     const char *body_str = (const char *)gbuffer_cur_rd_pointer(mime_body);
 
+    /*
+     *  `from_is_default`: a refusal of MAIL FROM is the account's when the
+     *  sender is ours, the message's when it is its own (C_SMTP_SESSION).
+     */
     json_t *kw_send = json_pack(
-        "{s:s, s:s, s:s, s:s, s:s}",
+        "{s:s, s:s, s:s, s:s, s:s, s:b}",
         "from", from,
         "to", to,
         "cc", cc,
         "bcc", bcc,
-        "body", body_str
+        "body", body_str,
+        "from_is_default", strcmp(from, priv->from? priv->from : "") == 0
     );
     if(!kw_send) {
         gobj_log_error(gobj, 0,

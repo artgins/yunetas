@@ -81,6 +81,7 @@ to any logic in the current code; setting them has no effect.
 | `send-email` | `to`, `subject`, `body`, `reply-to`, `attachment`, `inline_file_id`, `is_html` | Enqueue an email. `to`/`cc`/`bcc` accept comma- **or** semicolon-separated lists. Recipients are deduplicated. |
 | `list-queues` | — | Dump the messages in `emails_queue` and `emails_failed` with totals. Works while paused (queues are opened temporarily). |
 | `remove-emails-failed` | — | Purge the `emails_failed` dead-letter queue. Works while paused. |
+| `skip-email` | — | Move the email at the head of `emails_queue` (the one being tried, which every other waits behind) to `emails_failed` at once, with a WARNING; answers with its `to` and `subject`. Works while paused. Example: `ycommand -c 'command-yuno id=<id> service=emailsender command=skip-email'` |
 | `set-email-user` | `username`, `password`, `url`, `from` | Set the AUTH PLAIN credentials (required) and optionally the SMTP url / default From. All saved as persistent attrs. |
 | `set-url-from` | `url`, `from` | Set the SMTP url or both the default From and save them as persistent attrs (at least one required). |
 | `enable-alarm-emails` | — | Re-enable alarm emails |
@@ -169,8 +170,8 @@ to the dead-letter queue, and an info line on success.
 ### Pacing
 
 No failure is retried at once. After a failed session or connection -- a
-`4xx` to the login or to the message, a refused sender (any reply but `250`
-to MAIL FROM), a `4xx` or `421` to the end of DATA (a rate limit, a
+`4xx` to the login or to the message, the default sender refused at MAIL
+FROM, a `4xx` or `421` to the end of DATA (a rate limit, a
 greylist), a reply that never comes, a malformed reply, a server that closes
 the connection by itself, a connection that is refused, times out, or whose
 TCP connect or TLS handshake does not end within `timeout_response` -- the
@@ -195,17 +196,31 @@ failing"* -- for the first two refusals in a row. From the third refusal with
 no delivery between them, the server is refusing every message (a blocked
 account, a quota): each refusal still sends its message to the failed queue,
 but drops the session as a failure, the next message waits the paced delay,
-and the streak is said (*"SMTP server refusing every message: the next ones
-are paced"*). A batch of refused messages costs one attempt each, at the
-paced rate.
+and the run is said once (*"SMTP server refused the last messages in a row:
+each goes to the failed queue, the next ones are paced"*, with
+`refused_in_row`), with no ERROR of `timeout_failing_alarm`: the emails are
+not stuck. A refusal of an address (a `5.1.x` status, a sender of the
+message's own) does not count. A batch of refused messages costs one attempt
+each, at the paced rate.
 
 A `5xx` to one recipient of several refuses that recipient only: the message
 goes to the others, each refused one a WARNING, and the *"email sent"* line
 says who got it -- `to` and `cc` hold the accepted addresses, `refused` the
-refused ones, the bcc only as counts (`bcc_count`, `refused_bcc_count`). A refused sender (MAIL FROM)
-is the account's or the server's trouble, the same for every message: paced
-like a failure, the message kept at the head of the queue with no retry
-spent, and the ERROR of `timeout_failing_alarm` after an hour.
+refused ones, the bcc only as counts (`bcc_count`, `refused_bcc_count`).
+
+A refused sender (MAIL FROM) is the MESSAGE's when the sender is its own --
+a `from` other than the configured default (each producer sets its own), or
+a reply that says the address is wrong (`501`, `553`, a `5.1.x` status, a
+`5.7.1` naming the sender): to the failed queue once, a WARNING naming the
+`from`, and the session goes on. When the default sender is refused (a
+quota, sending blocked, any `4xx`) it is the account's trouble: paced like a
+failure and charged to the message as a retry, so after `max_retries` paced
+attempts it goes to the failed queue and the queue moves on. To move the
+email at the head of the queue to the failed queue at once:
+
+```bash
+ycommand -c 'command-yuno id=<id> service=emailsender command=skip-email'
+```
 
 Providers ban the addresses that hammer them (OVH did, for its whole mail
 cluster), so this is a hard rule, not a tuning knob: whatever the server
@@ -229,9 +244,9 @@ no failure ends a streak too. To be told after 15 minutes instead:
 ```
 
 A message spends one of its `max_retries` only when it fails in its own
-transaction (its first RCPT TO onwards). A failure before -- the connection,
-the greeting, EHLO, a transient AUTH (`454`), a refused sender -- spends
-none: the server never saw the message, and it waits, paced, for as long as
+transaction (its first RCPT TO onwards), or when the default sender is
+refused at MAIL FROM. A failure before -- the connection, the greeting,
+EHLO, a transient AUTH (`454`) -- spends none: the server never saw the message, and it waits, paced, for as long as
 the outage lasts.
 
 The wait after the k-th failure in a row is `timeout_retry` × 2^(k-1), capped

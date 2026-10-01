@@ -48,7 +48,7 @@ SET(SRCS
     auth_rejected
     set_email_user
     set_url_running
-    send_in_handshake
+    holds_through_handshake
     auth_backoff
     auth_334
     pause_in_flight
@@ -76,6 +76,9 @@ SET(SRCS
     exit_on_refused
     connect_watchdog
     url_change_resets_pacing
+    foreign_from_refused
+    default_from_refused
+    skip_email
 )
 
 ##############################################

@@ -1,14 +1,11 @@
 /****************************************************************************
- *          main_send_in_handshake.c
+ *          main_skip_email.c
  *
- *          The email waits in the SMTP session through its handshake: the
- *          session connects for it, the fake server tells the driver 0.5 s
- *          after the connection and greets 1 s later, and the session begins
- *          the email when it reaches ST_IDLE. (The session connects only for
- *          a message, so an email can no longer reach it in the middle of a
- *          handshake started for nothing. Up to 7.25.20 it could, and
- *          C_SMTP_SESSION took EV_SEND_MESSAGE only disconnected or idle: the
- *          email got "Event NOT DEFINED" and spent a retry.)
+ *          The default sender is refused (a quota) and the email waits its
+ *          next paced attempt (timeout_retry 5 s, max_retries 10). The
+ *          operator runs skip-email: the email goes to the failed queue at
+ *          once (a WARNING), the answer names its to and subject, and
+ *          list-queues shows none pending and one failed.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -25,8 +22,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_send_in_handshake"
-#define APP_DOC         "an email queued during the SMTP handshake waits for it"
+#define APP_NAME        "test_emailsender_skip_email"
+#define APP_DOC         "skip-email moves the head of the queue to the failed queue"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -38,7 +35,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_send_in_handshake"
+#define BASE    "/tmp/test_emailsender_skip_email"
 
 /***************************************************************************
  *                      Default config
@@ -74,42 +71,6 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'emailsender',                                  \n\
-            'gclass': 'C_EMAILSENDER',                              \n\
-            'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
-            'kw': {                                                 \n\
-                'username': 'user',                                 \n\
-                'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7825',                      \n\
-                'from': 'sender@example.com',                       \n\
-                'timeout_inactivity': 30000,                        \n\
-                'tranger_path': '"BASE"/store',                     \n\
-                'tranger_database': 'emailsender',                  \n\
-                'topic_emails_queue': 'emails_queue',               \n\
-                'topic_emails_failed': 'emails_failed',             \n\
-                'tkey': 'tm'                                        \n\
-            }                                                       \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': 'c_test',                                       \n\
-            'gclass': 'C_TEST_EMAILSENDER',                         \n\
-            'default_service': true,                                \n\
-            'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
-            'kw': {                                                 \n\
-                'scenario': 'send',                                 \n\
-                'server_service': 'fake_smtp_server',               \n\
-                'smtp_url': 'tcp://127.0.0.1:7825'                  \n\
-            }                                                       \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': '__input_side__',                               \n\
-            'gclass': 'C_IOGATE',                                   \n\
-            'autostart': false,                                     \n\
-            'autoplay': false                                       \n\
-        },                                                          \n\
-        {                                                           \n\
             'name': 'fake_smtp_server',                             \n\
             'gclass': 'C_IOGATE',                                   \n\
             'autostart': true,                                      \n\
@@ -121,7 +82,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7825',              \n\
+                        'url': 'tcp://127.0.0.1:7864',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -139,11 +100,9 @@ PRIVATE char variable_config[]= "\
                             'name': 'fake_smtp',                    \n\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
-                                'auth_replies': ['235 2.7.0 Authentication successful'], \n\
-                                'notify_delay': 500,                \n\
-                                'banner_delay': 1000,               \n\
-                                'notify_service': 'c_test',         \n\
-                                'die_on_delivery': true             \n\
+                                'auth_replies': ['235 2.7.0 Authentication successful'],\n\
+                                'mail_replies': ['550 5.7.1 Daily sending quota exceeded'],\n\
+                                'die_on_delivery': false            \n\
                             },                                      \n\
                             'children': [                           \n\
                                 {                                   \n\
@@ -154,6 +113,44 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'emailsender',                                  \n\
+            'gclass': 'C_EMAILSENDER',                              \n\
+            'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+                'username': 'user',                                 \n\
+                'password': 'secret',                               \n\
+                'url': 'tcp://127.0.0.1:7864',                      \n\
+                'from': 'sender@example.com',                       \n\
+                'timeout_inactivity': 30000,                        \n\
+                'tranger_path': '"BASE"/store',                     \n\
+                'tranger_database': 'emailsender',                  \n\
+                'topic_emails_queue': 'emails_queue',               \n\
+                'topic_emails_failed': 'emails_failed',             \n\
+                'timeout_retry': 5000,                              \n\
+                'max_retries': 10,                                  \n\
+                'tkey': 'tm'                                        \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__input_side__',                               \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'c_test',                                       \n\
+            'gclass': 'C_TEST_EMAILSENDER',                         \n\
+            'default_service': true,                                \n\
+            'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+                'scenario': 'skip',                                 \n\
+                'smtp_url': 'tcp://127.0.0.1:7864',                 \n\
+                'action_delay': 2500                                \n\
+            }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -235,20 +232,23 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
-        "msg", "Starting yuno",
-        "msg", "Playing yuno",
-        "msg", "Creating __timeranger2__.json",
-        "msg", "Creating topic",
-        "msg", "Creating topic",
-        "msg", "Fake smtp: greeting after the delay",
-        "msg", "Fake smtp: AUTH answered",
-        "msg", "Fake smtp: message delivered",
-        "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
-        "msg", "Exit to die",
-        "msg", "Pausing yuno",
-        "msg", "Yuno stopped, gobj end"
-    );
+    json_t *errors_list = json_array();
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Starting yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Playing yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating __timeranger2__.json"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: MAIL FROM refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "MAIL FROM rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server failing: emails wait, the retries are paced"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "email NOT sent, will retry"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email skipped by command: moved to failed queue", "to", "reader@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "skip-email answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "The queues hold what is expected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Exit to die"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Pausing yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Yuno stopped, gobj end"));
 
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
@@ -276,7 +276,7 @@ static void cleaning(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
-    json_t *expected_errors = json_pack("[]");
+    json_t *expected_errors = json_array();
     if(!json_equal(error_msgs, expected_errors) || errors_outside_the_test) {
         char *s_got = json2uglystr(error_msgs);
         char *s_expected = json2uglystr(expected_errors);
@@ -333,7 +333,7 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *      To check
      *------------------------------------------------*/
-    set_auto_kill_time(15);
+    set_auto_kill_time(25);
 
     /*------------------------------------------------*
      *          Start yuneta

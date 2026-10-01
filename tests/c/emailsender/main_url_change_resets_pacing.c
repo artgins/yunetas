@@ -4,9 +4,10 @@
  *          The email of the play waits on a dead url, the failures pacing it
  *          (timeout_retry 1 s: attempts at 0, 1, 3, 7 s). At 7.5 s
  *          set-url-from gives the fake server, and a pause and a play: the
- *          session must connect at once (within 1 s of the play): the pacing
- *          and the streak were the dead server's. Before, the new server
- *          waited the old one's backoff (8 s here, up to timeout_retry_max).
+ *          session must connect at once -- within 1.8 s of the play, the
+ *          timers ticking by the second -- since the pacing and the streak
+ *          were the dead server's. Before, the new server waited the old
+ *          one's backoff (about 7.5 s more here, up to timeout_retry_max).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -108,7 +109,7 @@ PRIVATE char variable_config[]= "\
                 'server_service': 'fake_smtp_server',               \n\
                 'smtp_url': 'tcp://127.0.0.1:7855',                 \n\
                 'action_delay': 7500,                               \n\
-                'max_wait': 1000                                    \n\
+                'max_wait': 1800                                    \n\
             }                                                       \n\
         },                                                          \n\
         {                                                           \n\

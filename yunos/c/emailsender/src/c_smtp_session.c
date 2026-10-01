@@ -25,10 +25,15 @@
  *          Every close caused by a reply carries the reply's text on
  *          EV_ON_CLOSE (`reply`).
  *
- *          A refused sender (any reply but 250 to MAIL FROM) is not the
- *          message's fault: the sender is the same for every message (the
- *          account, its quota, its right to send). It is a failure of the
- *          server, paced, with no retry charged to the message.
+ *          A refused sender (MAIL FROM) is the MESSAGE's when the sender is
+ *          its own -- a `from` other than the owner's default
+ *          (`from_is_default` FALSE in the message), or a reply that says the
+ *          address is wrong (501, 553, 5.1.x, a 5.7.1 naming the sender): it
+ *          is refused like below, once. Otherwise (the default sender, a
+ *          quota, sending blocked, any 4xx) it is the account's: a failure of
+ *          the server, paced, and charged to the message as a retry
+ *          (`sender_refused` on EV_ON_CLOSE), so after max_retries paced
+ *          attempts it goes to the failed queue and the queue moves on.
  *
  *          A 5xx to RCPT TO refuses that recipient: the message goes to the
  *          others (RFC 5321 §3.3), each refused one a WARNING. A 5xx to
@@ -39,12 +44,15 @@
  *          on the same connection; a server that refuses RSET with a 5xx is
  *          told QUIT, and the next connection waits timeout_retry. That is
  *          no failure of the server -- for the first FREE_REFUSALS_IN_ROW
- *          refusals in a row. From then on until a delivery the server is
- *          refusing every message (a blocked account): each refusal drops
- *          the session as a failure, paced, and the streak is said ("SMTP
- *          server refusing every message"). A 4xx there (a rate limit, a
- *          greylist, a 421) is a failure, like a reply that never comes.
- *
+ *          refusals in a row. A refusal of an address (a 5.1.x status, a
+ *          sender of its own) does not count: it says nothing of the server.
+ *          From then on until a delivery, each refusal drops the session as
+ *          a failure, paced, and the run is said ("SMTP server refused the
+ *          last messages in a row", with how many), with no ERROR of
+ *          timeout_failing_alarm: the emails are not stuck, each goes to the
+ *          failed queue. A 4xx there (a rate limit, a greylist, a 421) is a
+ *          failure, like a reply that never comes.
+
  *          A session the SERVER ends (a refusal, an unexpected or malformed
  *          reply, a reply that never comes) is logged as a WARNING of
  *          MSGSET_PROTOCOL with the reply, capped: a remote peer can cause
@@ -112,7 +120,7 @@
 #define MIN_TIMEOUT_RESPONSE           1000    /* ms, smallest timeout_response taken */
 
 #define MSG_SERVER_FAILING      "SMTP server failing: emails wait, the retries are paced"
-#define MSG_SERVER_REFUSING     "SMTP server refusing every message: the next ones are paced"
+#define MSG_SERVER_REFUSING     "SMTP server refused the last messages in a row: each goes to the failed queue, the next ones are paced"
 
 #define SMTP_CODE_SERVICE_READY        220
 #define SMTP_CODE_GOODBYE              221
@@ -136,7 +144,9 @@ PRIVATE int parse_response_code(const char *bf, size_t len, int *code, BOOL *is_
 PRIVATE int begin_send_current_message(hgobj gobj);
 PRIVATE int enter_idle_after_handshake(hgobj gobj);
 PRIVATE int reject_current_message(hgobj gobj, int code, const char *reply, const char *reason);
-PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, const char *reason);
+PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, const char *reason, BOOL counts);
+PRIVATE BOOL reply_status_is(const char *reply, const char *prefix);
+PRIVATE BOOL sender_refusal_is_the_messages(hgobj gobj, int code, const char *reply);
 PRIVATE int enter_idle_after_reset(hgobj gobj);
 PRIVATE int quit_session(hgobj gobj);
 PRIVATE int send_next_rcpt_or_data(hgobj gobj);
@@ -149,7 +159,7 @@ PRIVATE int abort_session_by_peer(hgobj gobj, const char *reason, int code, cons
 PRIVATE int abort_session_on_error(hgobj gobj, const char *reason);
 PRIVATE int drop_session(hgobj gobj, const char *reply);
 PRIVATE void pace_next_connection(hgobj gobj, BOOL failure);
-PRIVATE void note_failure(hgobj gobj, const char *what, const char *cause, BOOL ends_at_handshake, BOOL waiting);
+PRIVATE void note_failure(hgobj gobj, const char *what, const char *cause, BOOL ends_at_handshake, BOOL waiting, BOOL alarm);
 PRIVATE void note_delivery(hgobj gobj);
 PRIVATE void end_failing_streak(hgobj gobj, const char *info);
 PRIVATE void reset_pacing(hgobj gobj);
@@ -239,7 +249,8 @@ typedef struct _PRIVATE_DATA {
     BOOL connect_posted;        /* EV_CONNECT_AFTER_CLOSE is on its way */
     BOOL connecting;            /* EV_CONNECT sent: the timer is the watchdog of the connect and TLS */
     BOOL connect_timed_out;     /* the watchdog dropped the attempt */
-    int refused_in_row;         /* messages refused with a 5xx since the last delivery */
+    int refused_in_row;         /* messages refused with a 5xx since the last delivery (not counting a bad address) */
+    int sender_refused;         /* reply code of a refused default sender: EV_ON_CLOSE sender_refused; 0 = none */
     BOOL refusing;              /* this drop is for a run of refusals */
     BOOL streak_ends_at_handshake; /* the failing streak is of connections/handshakes only */
     int rcpt_accepted;          /* RCPT TO answered 250, of the message in hand */
@@ -429,8 +440,8 @@ PRIVATE int mt_stop(hgobj gobj)
     BOOL under_way = (st != ST_DISCONNECTED && st != ST_IDLE &&
             st != ST_WAIT_RSET_RESP && st != ST_WAIT_QUIT_RESP) ||
         bst == ST_WAIT_CONNECTED || bst == ST_WAIT_HANDSHAKE;
-    if(under_way && priv->failing_since) {
-        pace_next_connection(gobj, TRUE);
+    if(under_way && priv->failing_since && !priv->failed) {
+        pace_next_connection(gobj, TRUE);   // a failure being dropped is paced at its close
     }
     priv->connecting = FALSE;
     priv->connect_timed_out = FALSE;
@@ -625,7 +636,7 @@ PRIVATE int send_next_rcpt_or_data(hgobj gobj)
     if(priv->rcpt_accepted == 0) {
         // every recipient refused, each one logged above
         return refuse_current_message(gobj, priv->rcpt_last_code, priv->rcpt_last_reply,
-            "every recipient refused"
+            "every recipient refused", TRUE
         );
     }
 
@@ -991,7 +1002,7 @@ PRIVATE void pace_next_connection(hgobj gobj, BOOL failure)
  *  a run of refusals in it ends at a delivery. Any streak ends at a close
  *  with no failure.
  ***************************************************************************/
-PRIVATE void note_failure(hgobj gobj, const char *what, const char *cause, BOOL ends_at_handshake, BOOL waiting)
+PRIVATE void note_failure(hgobj gobj, const char *what, const char *cause, BOOL ends_at_handshake, BOOL waiting, BOOL alarm_on)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1003,20 +1014,32 @@ PRIVATE void note_failure(hgobj gobj, const char *what, const char *cause, BOOL 
     if(!priv->failing_since) {
         priv->failing_since = now;
         priv->streak_ends_at_handshake = ends_at_handshake;
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL,
-            "msg",          "%s", what,
-            "cause",        "%s", cause? cause : "",
-            "url",          "%s", gobj_read_str_attr(gobj, "url"),
-            NULL
-        );
+        if(priv->refusing) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
+                "msg",          "%s", what,
+                "refused_in_row", "%d", priv->refused_in_row,
+                "cause",        "%s", cause? cause : "",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                NULL
+            );
+        } else {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
+                "msg",          "%s", what,
+                "cause",        "%s", cause? cause : "",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                NULL
+            );
+        }
     } else if(!ends_at_handshake) {
         priv->streak_ends_at_handshake = FALSE;
     }
 
     json_int_t alarm = gobj_read_integer_attr(gobj, "timeout_failing_alarm");
-    if(alarm <= 0 || now - priv->failing_since < (uint64_t)alarm) {
+    if(!alarm_on || alarm <= 0 || now - priv->failing_since < (uint64_t)alarm) {
         return;
     }
     if(priv->alarm_not_before && !test_msectimer(priv->alarm_not_before)) {
@@ -1292,7 +1315,7 @@ PRIVATE int reject_current_message(hgobj gobj, int code, const char *reply, cons
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(code >= 500 && code < 600) {
-        return refuse_current_message(gobj, code, reply, reason);
+        return refuse_current_message(gobj, code, reply, reason, TRUE);
     }
     priv->reject_code = code;
     return abort_session_by_peer(gobj, reason, code, reply);
@@ -1306,24 +1329,31 @@ PRIVATE int reject_current_message(hgobj gobj, int code, const char *reply, cons
  *  and the next message goes on the same connection (a message the owner
  *  sends from inside the answer waits for the RSET's 250). No pacing, no
  *  note_failure(): the server works -- for the first FREE_REFUSALS_IN_ROW
- *  refusals in a row; from then on until a delivery, see above. Up to 7.25.20 a 5xx to MAIL FROM, RCPT TO or DATA dropped the
- *  session, and the next message logged in again.
+ *  refusals in a row that `count`; from then on until a delivery, see
+ *  above. A refusal of an address (a 5.1.x status: no such user, a bad
+ *  domain, a malformed or foreign sender) says nothing of the server and
+ *  does not count. Up to 7.25.20 a 5xx to MAIL FROM, RCPT TO or DATA
+ *  dropped the session, and the next message logged in again.
  *
  *  A WARNING with the reply, as anything a peer causes.
  ***************************************************************************/
-PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, const char *reason)
+PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, const char *reason, BOOL counts)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->refused_in_row++;
+    if(counts && !reply_status_is(reply, "5.1.")) {
+        priv->refused_in_row++;
+    }
     if(priv->refused_in_row > FREE_REFUSALS_IN_ROW) {
         /*
          *  Refused again, with no delivery since: the server is refusing
          *  every message (an account blocked, a quota, a policy). It still
          *  goes to the failed queue (the code travels on EV_ON_CLOSE), but
          *  the session is dropped as for a failure: the next message waits
-         *  the paced delay, and the streak is said ("SMTP server refusing
-         *  every message", then the ERROR of timeout_failing_alarm).
+         *  the paced delay, and the streak is said ("SMTP server refused the
+         *  last messages in a row", with how many). No ERROR of
+         *  timeout_failing_alarm for it: the emails are not waiting, they
+         *  go to the failed queue, which has its own ERROR per email.
          *  Otherwise a queue of such messages would be sent in a few
          *  seconds, one login per message when the server closes after each
          *  refusal.
@@ -1339,6 +1369,7 @@ PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, cons
         "msg",          "%s", reason,
         "code",         "%d", code,
         "reply",        "%s", reply? reply : "",
+        "from",         "%s", kw_get_str(gobj, priv->jn_current_msg, "from", "", 0),
         NULL
     );
 
@@ -1362,6 +1393,45 @@ PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, cons
 
     gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ack);
     return 0;
+}
+
+/***************************************************************************
+ *  TRUE when the enhanced status code of an SMTP reply (RFC 3463: "550 5.1.1
+ *  ...") starts with `prefix`.
+ ***************************************************************************/
+PRIVATE BOOL reply_status_is(const char *reply, const char *prefix)
+{
+    if(!reply || strlen(reply) < 5 || reply[3] != ' ') {
+        return FALSE;
+    }
+    return strncmp(reply + 4, prefix, strlen(prefix)) == 0? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  A refusal of MAIL FROM is the MESSAGE's when its sender is its own: a
+ *  `from` that is not the default of the owner (each producer sets its own,
+ *  and EV_SEND_EMAIL is public), or a reply that says the address itself is
+ *  wrong (501, 553, a 5.1.x status, a 5.7.1 that names the sender: malformed,
+ *  not owned by the account). Otherwise it is the account's (a quota,
+ *  sending blocked), the same for every message.
+ ***************************************************************************/
+PRIVATE BOOL sender_refusal_is_the_messages(hgobj gobj, int code, const char *reply)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(code < 500 || code >= 600) {
+        return FALSE;   // a 4xx is temporary: the account's or the server's
+    }
+    if(!kw_get_bool(gobj, priv->jn_current_msg, "from_is_default", 1, 0)) {
+        return TRUE;
+    }
+    if(code == 501 || code == 553 || reply_status_is(reply, "5.1.")) {
+        return TRUE;
+    }
+    if(reply_status_is(reply, "5.7.1") && strcasestr(reply, "sender")) {
+        return TRUE;
+    }
+    return FALSE;
 }
 
 /***************************************************************************
@@ -1466,9 +1536,19 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
          *  The close of our own stop (mt_stop). A message the owner sent
          *  after it played again waits here for the new connection.
          */
+        if(priv->failed) {
+            /*
+             *  A close for a failure, overtaken by our stop: still paced. Up
+             *  to the fix the first failure of a streak, paused while its
+             *  close was under way, left no pace (the stop paces only a
+             *  streak already said, and this one was not said yet).
+             */
+            pace_next_connection(gobj, TRUE);
+        }
         priv->detached = FALSE;
         priv->failed = FALSE;
         priv->refusing = FALSE;
+        priv->sender_refused = 0;
         priv->reject_code = 0;
         priv->auth_reject_code = 0;
         priv->refuse_code = 0;
@@ -1513,7 +1593,8 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
                 priv->refusing? MSG_SERVER_REFUSING : MSG_SERVER_FAILING,
                 priv->close_reply[0]? priv->close_reply : "the server closed the session",
                 in_handshake && !priv->refusing,
-                had_msg
+                had_msg,
+                !priv->refusing
             );
         }
     } else if(after_refusal) {
@@ -1559,8 +1640,12 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
          *  the message a retry.
          */
         if(prev_state == ST_WAIT_RCPT_TO_RESP ||
-                prev_state == ST_WAIT_DATA_GO || prev_state == ST_WAIT_DATA_RESP) {
+                prev_state == ST_WAIT_DATA_GO || prev_state == ST_WAIT_DATA_RESP ||
+                priv->sender_refused) {
             json_object_set_new(kw_close, "transaction", json_true());
+        }
+        if(priv->sender_refused) {
+            json_object_set_new(kw_close, "sender_refused", json_integer(priv->sender_refused));
         }
         if(priv->reject_code) {
             json_object_set_new(kw_close, "code", json_integer(priv->reject_code));
@@ -1582,6 +1667,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     priv->reject_code = 0;
     priv->auth_reject_code = 0;
     priv->refuse_code = 0;
+    priv->sender_refused = 0;
     priv->close_reply[0] = 0;
     priv->failed = FALSE;
 
@@ -1843,16 +1929,27 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(st == ST_WAIT_MAIL_FROM_RESP) {
         if(code != SMTP_CODE_OK) {
+            if(sender_refusal_is_the_messages(gobj, code, reply)) {
+                /*
+                 *  This message's sender is refused (a `from` of its own the
+                 *  account may not use, a malformed address): the message's
+                 *  fault, once, to the failed queue, and the session goes on.
+                 */
+                return refuse_current_message(gobj, code, reply,
+                    "MAIL FROM rejected: the sender of this message is refused", FALSE
+                );
+            }
             /*
-             *  The sender is refused, and the sender is the same for every
-             *  message (the account: `from`, its quota, its right to send):
-             *  not this message's fault, and every message would meet it.
-             *  A failure of the server, 4xx or 5xx: the session is dropped,
-             *  the reconnection paced, the message waits with no retry
-             *  spent, and a long one is the ERROR of timeout_failing_alarm.
-             *  Before, it was charged to the message: a 5xx sent the whole
-             *  queue to the failed queue, one message after another.
+             *  The default sender is refused: the account's trouble (a
+             *  quota, sending blocked), the same for every message. A
+             *  failure of the server: the session is dropped, the
+             *  reconnection paced. It is charged to the message as a retry
+             *  (sender_refused on EV_ON_CLOSE): paced attempts, then the
+             *  failed queue after max_retries, so a stuck head never blocks
+             *  the queue for ever. Up to 7.25.20 a 5xx sent the message to
+             *  the failed queue at once, and every message behind it in turn.
              */
+            priv->sender_refused = code;
             return abort_session_by_peer(gobj, "MAIL FROM rejected", code, reply);
         }
         return send_next_rcpt_or_data(gobj);
@@ -2142,7 +2239,7 @@ PRIVATE int ac_child_state_changed(hgobj gobj, gobj_event_t event, json_t *kw, h
         priv->connecting = FALSE;
         priv->connect_timed_out = FALSE;
         pace_next_connection(gobj, TRUE);
-        note_failure(gobj, MSG_SERVER_FAILING, cause, TRUE, priv->jn_current_msg != NULL);
+        note_failure(gobj, MSG_SERVER_FAILING, cause, TRUE, priv->jn_current_msg != NULL, TRUE);
     }
 
     if(strcmp(cur, ST_DISCONNECTED) == 0 && priv->jn_current_msg &&
@@ -2151,9 +2248,10 @@ PRIVATE int ac_child_state_changed(hgobj gobj, gobj_event_t event, json_t *kw, h
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "gobj_post_event() FAILED: the message waits for the next one",
+                "msg",          "%s", "gobj_post_event() FAILED: the message is driven again in timeout_retry",
                 NULL
             );
+            set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_retry"));
         } else {
             priv->connect_posted = TRUE;
         }
@@ -2350,7 +2448,11 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *  it. Up to 7.25.20 only ST_DISCONNECTED and ST_IDLE took it, and a
      *  message sent during the handshake was refused ("Event NOT DEFINED")
      *  and spent a retry -- all of them at once, since the owner retries a
-     *  refused send in the same cycle.
+     *  refused send in the same cycle. Now the session connects only for a
+     *  message it holds, so in the handshake states only an owner that
+     *  breaks the one-message contract sends one: it gets the ERROR of
+     *  ac_send_message ("another message in flight"), which names the
+     *  fault, rather than "Event NOT DEFINED".
      */
     ev_action_t st_wait_connected[] = {
         {EV_SEND_MESSAGE,       ac_send_message,        0},

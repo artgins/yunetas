@@ -1,14 +1,12 @@
 /****************************************************************************
- *          main_refusing_every_message.c
+ *          main_default_from_refused.c
  *
- *          A server that refuses every message (550 5.7.1 to every RCPT TO,
- *          an account blocked) and 20 emails queued. The first two refusals
- *          go on at once on the same session (RSET); from the third on the
- *          session is dropped after each, as for a failure: one WARNING
- *          "SMTP server refused the last messages in a row", the connections
- *          come 1, 2, 4 s apart (timeout_retry 1 s). After 13 s six emails are in
- *          the failed queue and fourteen wait. Before, all twenty went to
- *          the failed queue in a second, with nothing said of the server.
+ *          The default sender is refused (550 5.7.1 Daily sending quota
+ *          exceeded: the account's trouble): each attempt is a failure of
+ *          the server, paced (timeout_retry 1 s), and charged to the message
+ *          as a retry; with max_retries 3 the email goes to the failed queue
+ *          after its third attempt, so it cannot block the queue for ever.
+ *          Before, it was retried, paced, for ever, with no retry spent.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -25,8 +23,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_refusing_every_message"
-#define APP_DOC         "A server that refuses every message is paced"
+#define APP_NAME        "test_emailsender_default_from_refused"
+#define APP_DOC         "A default sender refused is paced, then charged to the message"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -38,7 +36,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_refusing_every_message"
+#define BASE    "/tmp/test_emailsender_default_from_refused"
 
 /***************************************************************************
  *                      Default config
@@ -85,7 +83,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7852',              \n\
+                        'url': 'tcp://127.0.0.1:7863',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -104,9 +102,8 @@ PRIVATE char variable_config[]= "\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
                                 'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'rcpt_replies': ['550 5.7.1 Sending blocked'],\n\
-                                'max_connections': 4,               \n\
-                                'connect_min_gaps': [0, 1000, 2000, 4000],\n\
+                                'mail_replies': ['550 5.7.1 Daily sending quota exceeded'],\n\
+                                'connect_min_gaps': [0, 1000, 2000],\n\
                                 'die_on_delivery': false            \n\
                             },                                      \n\
                             'children': [                           \n\
@@ -127,7 +124,7 @@ PRIVATE char variable_config[]= "\
             'kw': {                                                 \n\
                 'username': 'user',                                 \n\
                 'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7852',                      \n\
+                'url': 'tcp://127.0.0.1:7863',                      \n\
                 'from': 'sender@example.com',                       \n\
                 'timeout_inactivity': 30000,                        \n\
                 'tranger_path': '"BASE"/store',                     \n\
@@ -135,6 +132,7 @@ PRIVATE char variable_config[]= "\
                 'topic_emails_queue': 'emails_queue',               \n\
                 'topic_emails_failed': 'emails_failed',             \n\
                 'timeout_retry': 1000,                              \n\
+                'max_retries': 3,                                   \n\
                 'tkey': 'tm'                                        \n\
             }                                                       \n\
         },                                                          \n\
@@ -152,11 +150,11 @@ PRIVATE char variable_config[]= "\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
                 'scenario': 'send_check',                           \n\
-                'smtp_url': 'tcp://127.0.0.1:7852',                 \n\
-                'email_count': 20,                                  \n\
-                'action_delay': 13000,                              \n\
-                'expect_queued': 14,                                \n\
-                'expect_failed': 6                                  \n\
+                'smtp_url': 'tcp://127.0.0.1:7863',                 \n\
+                'email_count': 1,                                   \n\
+                'action_delay': 9000,                               \n\
+                'expect_queued': 0,                                 \n\
+                'expect_failed': 1                                  \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
@@ -246,47 +244,17 @@ static int register_yuno_and_more(void)
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
-    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RSET answered"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
-    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RSET answered"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server refused the last messages in a row: each goes to the failed queue, the next ones are paced"));
-    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: MAIL FROM refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "MAIL FROM rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "SMTP server failing: emails wait, the retries are paced", "cause", "550 5.7.1 Daily sending quota exceeded"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "email NOT sent, will retry"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
-    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: MAIL FROM refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "MAIL FROM rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "email NOT sent, will retry"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
-    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RCPT refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "RCPT TO rejected"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "every recipient refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: MAIL FROM refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "MAIL FROM rejected"));
     json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "The queues hold what is expected"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Exit to die"));
@@ -320,9 +288,7 @@ static void cleaning(void)
     result += test_json(NULL);  // NULL: we want to check only the logs
 
     json_t *expected_errors = json_array();
-    for(int i = 0; i < 6; i++) {
-        json_array_append_new(expected_errors, json_string("email NOT sent, moved to failed queue"));
-    }
+    json_array_append_new(expected_errors, json_string("email NOT sent, moved to failed queue"));
     if(!json_equal(error_msgs, expected_errors) || errors_outside_the_test) {
         char *s_got = json2uglystr(error_msgs);
         char *s_expected = json2uglystr(expected_errors);

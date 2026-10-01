@@ -77,8 +77,14 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   them the server is refusing every message (a blocked account, a quota, a
   policy): each refusal still sends its message to the failed queue, but the
   session is dropped as for a failure and the next message waits the paced
-  delay, and the streak is said, *"SMTP server refusing every message: the
-  next ones are paced"* (then the ERROR of `timeout_failing_alarm`). So a
+  delay, and the run is said once, *"SMTP server refused the last messages in
+  a row: each goes to the failed queue, the next ones are paced"*, with
+  `refused_in_row`. There is no ERROR of `timeout_failing_alarm` for it (the
+  emails are not stuck: each one's ERROR *"moved to failed queue"* says it).
+  A refusal of an ADDRESS -- a `5.1.x` status (`550 5.1.1` no such user, a bad
+  domain) or a sender of the message's own -- does not count: it says
+  nothing of the server, so a run of alarms to a mistyped recipient never
+  paces the good email behind them. So a
   queue of messages the server refuses one by one costs one attempt per
   message, at the paced rate: with `timeout_retry` 1 s, 20 such messages see
   four connections in the first 10 s or so, not 20 in a second. Up to 7.25.20 a
@@ -96,17 +102,40 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   {"msg": "email sent", "to": "", "cc": "copy@example.com", "bcc_count": 0,
    "refused": "reader@example.com", "refused_bcc_count": 0, "url": "..."}
   ```
- Up to 7.25.20 one bad
-  address sent the message to nobody, into the failed queue.
 
-  A refused **sender** -- any reply but `250` to MAIL FROM (`550 5.7.1`
-  sender not allowed, `5.4.5` daily quota, sending blocked) -- is not the
-  message's fault either: the sender is the same for every message. It is a
-  failure of the server: paced, said, and **the message stays at the head of
-  the queue, no retry spent**; an hour of it is the ERROR of
-  `timeout_failing_alarm`. The yuno does not stop on it: a quota passes. Up
-  to 7.25.20 a `5xx` there sent every queued message to the failed queue,
-  one after another.
+  Up to 7.25.20 one bad address sent the message to nobody, into the failed
+  queue.
+
+  A refused **sender** (MAIL FROM) depends on whose sender it is. Every
+  producer sets the `from` of its emails (the yuno's `from` is only the
+  default), and `EV_SEND_EMAIL` is public:
+
+  - **The message's own** -- a `from` other than the default, or a reply that
+    says the address is wrong (`501`, `553`, a `5.1.x` status, a `5.7.1` that
+    names the sender: *"Sender address rejected: not owned by user"*): the
+    message's fault, refused like above, once, to the failed queue, with a
+    WARNING that names the `from`; the session goes on.
+  - **The default sender** -- a quota (`550 5.7.1 Daily sending quota
+    exceeded`), sending blocked, any `4xx`: the account's trouble, the same for
+    every message. A failure of the server: paced, said, and charged to the
+    message as a retry, so after `max_retries` paced attempts it goes to the
+    failed queue and the queue moves on; a stuck head never blocks the queue
+    for ever. The yuno does not stop on it: a quota passes.
+
+  Up to 7.25.20 any `5xx` there sent the message to the failed queue at once,
+  and every message behind it in turn.
+
+  To get rid of the email at the head of the queue at once -- the one every
+  other waits behind -- without waiting for its paced attempts:
+
+  ```bash
+  ycommand -c 'command-yuno id=<id> service=emailsender command=skip-email'
+  ```
+
+  It moves that email to the failed queue (a WARNING, *"email skipped by
+  command: moved to failed queue"*) and answers with its `to` and `subject`;
+  the next email is tried at once if the pace allows it. It works while
+  paused too (the queues are opened for it).
 
   A `4xx` to the message -- a rate limit, a greylist, a `421` -- IS server
   trouble: the session is dropped, the reconnection paced, and the code goes
@@ -151,7 +180,7 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   outage of the provider stopped the yuno for good while the queue piled up.)
 - **Retries are paced -- every one of them.** After a failed session or
   connection the next connection waits: a `4xx` refusal of the login or of the
-  message, a refused sender, a run of refused messages (above), a `4xx` or a
+  message, the default sender refused, a run of refused messages (above), a `4xx` or a
   `421` to the end of DATA (a rate limit, a greylist), a reply that never
   comes, a malformed or over-long reply, a server that closes the connection
   by itself (a RST, a TLS error, a close with no reply), a connection that is
@@ -194,7 +223,8 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   it did not decide, and logged in with nothing to send, for ever.
 - **A failing server is said, once, then loud.** The first failure of a streak,
   while an email waits, is a WARNING, *"SMTP server failing: emails wait, the
-  retries are paced"* (or *"SMTP server refusing every message"*), with its
+  retries are paced"* (or, for a run of refused messages, *"SMTP server
+  refused the last messages in a row"*, which never becomes the ERROR), with its
   `cause` (the reply of the server, or *"cannot connect: Connection
   refused"*, which the `C_TCP` itself logs only when traced). When the streak
   has lasted `timeout_failing_alarm` (default `3600000`, 1 h; `0`: never) it is
@@ -209,10 +239,10 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   levels.
 
   A message spends one of its `max_retries` per failure of ITS transaction
-  (its first RCPT TO onwards: a `4xx`, a close or a timeout there; the
-  session tells it with `transaction` on `EV_ON_CLOSE`). A failure before it
-  -- the connection, the greeting, EHLO, a transient AUTH, the sender refused
-  at MAIL FROM -- spends none: the
+  (its first RCPT TO onwards: a `4xx`, a close or a timeout there; and the
+  default sender refused at MAIL FROM; the session tells it with
+  `transaction` on `EV_ON_CLOSE`). A failure before it -- the connection,
+  the greeting, EHLO, a transient AUTH -- spends none: the
   server never saw the message, which waits at the head of the queue for as
   long as the outage lasts, paced. Up to 7.25.20 each of those spent a retry
   too (all but a connection that could not be made at all), 2 s apart: a
@@ -309,7 +339,8 @@ the emailsender kept pointing at it, and a queued message waited for the next
 email to be sent after a play.
 
 Inspect the queues at runtime: `ycommand command-yuno id=<id> command=list-queues`
-(also `remove-emails-failed` to drain the dead-letter queue).
+(also `remove-emails-failed` to drain the dead-letter queue, and `skip-email`
+to move the email at the head of the queue there).
 
 ## Build & deploy
 
