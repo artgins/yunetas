@@ -28,6 +28,16 @@ Left open:
 - **Each test binary still has a fixed port**: two whole suites run at once on
   one machine still collide (`ctest -j` within one run is safe since
   `scripts/check_test_ports.py`). Ports chosen at run time would end it.
+- **An rt_disk follower can hand over a reborn key's record before the older
+  delete**: when the master deletes a key and writes it again before the
+  follower reads the delete signal's IN_CREATE, the follower's scan of
+  `disks/<rt_id>/<key>/` at that event finds the NEW key's record and hands it
+  over, then hears the older delete: the consumer sees the record, then
+  "deleted". The follower cannot tell the signal's directory from the reborn
+  key's at that point; the master would have to mark the signal (a distinct
+  name or a marker in the signalled directory), a change of the on-disk
+  protocol between master and followers of possibly different versions.
+  Present before 7.25.20.
 - **A gbuffer in a published kw is shared by every subscriber**:
   `gobj_publish_event()` hands one kw to all of them, so the first subscriber
   that reads the gbuffer empties it for the next (C_IOGATE's "send to all" had

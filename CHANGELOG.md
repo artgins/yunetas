@@ -40,10 +40,11 @@ code before it, except the few this list marks "(no red test)".
   files are 0640: a reader outside the group of the agent's user loses access.
 - **emailsender's failed queue fills much later.** A server that fails its
   handshake no longer sends the head of the queue there every 8 s or so, one
-  message after another: the messages wait at the head of
-  the queue, paced up to 10 minutes between attempts, for as long as the
-  outage lasts. An alarm on the size of the failed queue sees that
-  change.
+  message after another: the messages wait at the head of the queue, paced up
+  to 10 minutes between attempts, for as long as the outage lasts. A server
+  that refuses the sender (MAIL FROM) keeps the queue too, and one that
+  refuses every message is paced from its third refusal in a row. An alarm on
+  the size of the failed queue sees that change.
 - **A lone stop of a `C_TCP_S` without `child_tree_filter` closes its live
   connections** (it kept them accepting on a closed socket): to drain a
   listener, do not stop it alone.
@@ -89,7 +90,10 @@ code before it, except the few this list marks "(no red test)".
   `=` is masked, and a part of the line that cannot be parsed is shown as
   `<...>` instead of being dropped, and a quoted value keeps its closing
   quote. The parser's error answers no longer echo a secret (a plain extra word
-  is still named). Flagged: C_AUTHZ `password`, C_IDP_KEYCLOAK
+  is still named; any text after a secret parameter is masked whole). A parsed
+  key containing a blank (`password= hunter2 x=1` reads the key `hunter2 x`)
+  refuses the command and is not echoed; an `SDF_WILD_CMD` command took it as a
+  free key. Flagged: C_AUTHZ `password`, C_IDP_KEYCLOAK
   `kc_admin_client_secret`, ycli `user_passw`, C_PROT_MQTT `create-user`
   `password`, emailsender `set-email-user` `password`.
 - **Every kw the kernel dumps on an error or in a trace masks the
@@ -100,8 +104,10 @@ code before it, except the few this list marks "(no red test)".
   `ievents2` traces of C_IEVENT_CLI/C_IEVENT_SRV, which printed a command's
   password in clear both ways. They go through the new
   `gobj_trace_json_masked()` (`json_mask_secrets()`, `mask_secrets_inline()`):
-  a key with a secret's name is masked at any depth (down to 128 levels) and
-  of any type, and so is a `name=value` credential inside a string; a name
+  a key with a secret's name is masked at any depth (down to 64 levels, a dict
+  met twice the same everywhere, a cycle as `"<cycle>"`) and of any type, and
+  so is a `name=value` credential inside a string (an unquoted value runs to a
+  blank, quotes inside it included); a name
   that only describes something about a credential (`token_endpoint`,
   `cookie_domain`, `jwt_public_keys`, `*_count`) is not. The ievents traces
   also use the command table of the destination service when it is local.
@@ -115,8 +121,9 @@ code before it, except the few this list marks "(no red test)".
   which writes `*` over the value of an HTTP `Cookie`, `Set-Cookie`,
   `Authorization` or `Proxy-Authorization` header, of a secret `name=value`
   and of a json `"name": value` with a secret's name (a list or a dict up to
-  its closing bracket), keeps the length, and says `"masked": N`. A secret in received bytes that fits none of these is
-  still dumped as it came.
+  its closing bracket), keeps the length, and says `"masked": N`
+  (`gobj_trace_dump()` gives `{"len", "masked", "data"}`). A secret in
+  received bytes that fits none of these is still dumped as it came.
 - **The `create_delete2` trace no longer prints secrets**: its kw and sdata
   dumps showed the passwords a gobj is built with (the smtp child's,
   ycommand's `user_passw`).
@@ -136,7 +143,11 @@ code before it, except the few this list marks "(no red test)".
   never saved again stayed in a 0664 file. A save now writes a temporary file
   (`<file>.tmp-XXXXXX`, 0600, the yuno's own), renames it and syncs the
   directory; a failed save leaves the old file as it was. In a directory the
-  yuno cannot write, the save goes in place, into a file of its own only. A
+  yuno cannot write, the save goes in place, into a file of its own only: it
+  takes the room first, so a full disk leaves the old file whole (a crash in
+  the middle of that write is not covered). An empty file is no data; an
+  unparsable one refuses the saves, and its message says how to recover. A
+  save never takes over a regular file of another user. A
   file of the yuno's own found at load that is wider than 0600 or a hard link
   is replaced the same way (it is not narrowed in place, which through a hard
   link changed another name); a file of another user is left as it is, with a
@@ -230,9 +241,10 @@ code before it, except the few this list marks "(no red test)".
   next record of such a connection was decrypted with freed memory. A restart
   now applies the new certificates to new connections, as `reload-certs`
   does, and live connections keep theirs until they close. It reloads only
-  when the `crypto` config or one of its files changed (inode, size, mtime),
-  so a pause and a play no longer log *"TLS certificates reloaded"* each time;
-  a failed reload is still an ERROR.
+  when the `crypto` config (`trace_tls` included) or one of its files changed
+  (inode, size, mtime, ctime), so a pause and a play no longer log *"TLS
+  certificates reloaded"* each time; a failed reload is still an ERROR, and an
+  update of the system CA bundle (`ssl_use_system_ca`) needs `reload-certs`.
 - **C_TCP_S: a lone stop of a server without `child_tree_filter` stops its
   clisrvs.** They kept accepting on the closed socket, and the next start
   logged "GObj ALREADY RUNNING" for each one. In that method the clisrvs are
@@ -252,12 +264,17 @@ code before it, except the few this list marks "(no red test)".
 - **C_IOGATE: "send to all" delivers the whole message on every channel.**
   With `send_type` 1 (or `__send_type__` 1) a message in a gbuffer was shared
   by all the channels: the first read it out and the others sent an empty
-  frame, on which a `C_PROT_TCP4H` peer drops the connection. Each channel now
-  gets its own copy, with the secret flag, label and address.
+  frame, on which a `C_PROT_TCP4H` peer drops the connection. Each channel but
+  the last now gets its own copy (with the secret flag, label and address),
+  and the last takes the original.
 - **C_TCP: data sent while a connection closes is said once, with its count**,
   on every end of the close, destroy included. It was dropped with no trace at
   the default levels; now one warning per connection gives the messages and
   bytes dropped.
+- **C_TCP: `connect_on_start` and `disconnect_cause`** (new attributes).
+  `connect_on_start` FALSE keeps a client disconnected until `EV_CONNECT`;
+  `disconnect_cause` names why the last connection or attempt ended, so an
+  owner need not read `gobj_log_last_message()`.
 - **C_TCP: an `EV_CONNECT` cancels the pending reconnect timer**, so a connect
   on demand no longer gets a stray `EV_TIMEOUT` in `ST_WAIT_CONNECTED`.
 - **C_GSS_UDP_S starts its C_UDP_S again when it stops by itself.** The
@@ -310,9 +327,11 @@ code before it, except the few this list marks "(no red test)".
   `fs_queued_events_end()` says where the events queued so far end, a read
   that the kernel completed and the loop has not delivered included (new
   `yev_get_waiting_completion()`). A feed that starts watching after a delete
-  was signalled does not owe it, and a debt is dropped when a record of the
-  key reaches the feed again (not when a directory of the key is seen: the
-  directory of a delete signal is one).
+  was signalled does not owe it. A debt is forgotten only by a link of the key
+  heard in the feed's directory, with its own place in the stream (the key's
+  directory read at a delete signal's place is not enough: it may already hold
+  the key written again since). In a master, hearing a delete makes no debts;
+  `tranger2_delete_key()` makes them.
 - **Only the first feed to hear a key-delete forgets the key** (the shared
   cache, its segments, the watermark of every feed). Every feed did it, so a
   slow feed hearing an old delete after the key came back removed the live key
@@ -329,8 +348,11 @@ code before it, except the few this list marks "(no red test)".
   used, and stopped, the freed watcher. Its owners now drop it and say they are
   deaf: the rt_disk feeds, the master's watch of `disks/`, `C_FS` and
   `utils/c/fs_watcher`. So does a read canceled by someone other than its
-  owner (an ordering bug: no shutdown does it, the owners stop first); a
-  watcher its owner stopped still goes silently.
+  owner (an ordering bug: no shutdown does it, the owners stop first), and a
+  read that cannot be armed again; a watcher its owner stopped still goes
+  silently. timeranger2 checks the start of its watchers (a failed start is
+  logged and no watcher is kept), and `utils/c/fs_watcher` exits with an error
+  when its watcher is gone.
 - **A key-delete reaches only the feeds whose `rkey` matches the key.** Lists,
   iterators and the rt_mem and rt_disk feeds use the same filter as their
   records; only `key` was checked, so a feed with an `rkey` was told that every
@@ -416,6 +438,12 @@ code before it, except the few this list marks "(no red test)".
 - **Stopping the control center outside the shutdown no longer logs "GObj NOT
   RUNNING"**: `mt_stop()` stopped timers that `clear_timeout()` or `mt_pause()`
   had already stopped (an ERROR with a stack each).
+- **The message counters and rates count what it relays again.**
+  `rxMsgs`/`txMsgs`, `rxMsgsec`/`txMsgsec` and their maxima always read 0:
+  nothing incremented the counters, and the timer that computed the rates was
+  never armed. They count the requests, answers and streams the control
+  center relays, the rates are computed when read (at most once a second, no
+  timer), and `stats=__reset__` zeroes them. gui_agent's Monitor shows them.
 - **Several console mirrors through one agent's connection**: the clients
   are kept per console; when the agent goes, each is dropped once.
 - **A run's step is answered only by the agent it went to.** A client with
@@ -446,40 +474,59 @@ code before it, except the few this list marks "(no red test)".
 - **emailsender: no failure is retried faster than the paced schedule.** After
   any failed session or connection the next connection waits `timeout_retry`
   (2 s), doubled per failure in a row up to `timeout_retry_max` (10 min): a
-  4xx refusal, a 4xx or 421 to the end of DATA, a reply that never comes, a server
-  that closes by itself, a refused or timed-out connect. An email queued
-  during the wait waits too, and so does a pause and a play. A session that
-  ends with no failure resets the doubling. The C_TCP never reconnects by
-  itself any more: every connection is the session's, made when it holds a
-  message. The doubling counts every failure in a row and is not reset when a
-  message goes to the failed queue (a message refused with a 5xx is not a
-  failure of the server and counts nothing): with the defaults the first failing
-  message gets 2+4+8 s, the next 16 s and then 32+64+128 s, and from the
-  fourth on 600 s between attempts. Every retry came after a fixed 2 s, and a
-  4xx at the end of DATA uploaded the message again at once, four times.
+  4xx refusal, a 4xx or 421 to the end of DATA, a refused sender (any reply to
+  MAIL FROM but 250), a reply that never comes, a connect or TLS handshake that
+  does not end within `timeout_response`, a server that closes by itself, a
+  refused or timed-out connect. An email queued during the wait waits too, and
+  so does a pause and a play. A session that ends with no failure resets the
+  doubling. The C_TCP never connects by itself any more, not even at the start
+  (new `connect_on_start`): every connection is the session's, made when it
+  holds a message, and a yuno with an empty queue logs in to nobody. The
+  doubling counts every failure in a row and is not reset when a message goes
+  to the failed queue (a message refused with a 5xx is not a failure of the
+  server and counts nothing): with the defaults the first failing message gets
+  2+4+8 s, the next 16 s and then 32+64+128 s, and from the fourth on 600 s
+  between attempts. Every retry came after a fixed 2 s, and a 4xx at the end of
+  DATA uploaded the message again at once, four times.
 - **emailsender: a failing SMTP server is said.** The first failure of a
   streak is a WARNING with its cause (a refused connection included, which
   C_TCP logs only when traced, so a message could wait with nothing said); a
   streak longer than the new `timeout_failing_alarm` (1 h) is an ERROR, said
   again at most once per that period; the first delivery ends it with an
-  INFO.
-- **emailsender: a failure before the mail transaction spends no retry.** A
-  server failing its handshake spent a retry every 2 s, sending the head of the
-  queue to the failed queue in about 8 s, then the next; the message now waits
-  at the head of the queue, paced, for as long as the outage lasts. A
-  transient refusal of the login (a `454 4.7.0`) is retried: any
-  reply but 235 to AUTH PLAIN was taken as rejected credentials, the yuno
-  exited 0 and was not relaunched. Only a 5xx is a refusal now, and a second
-  `334` (see the upgrade steps); `EV_ON_CLOSE` carries the server's reply text (`reply`),
-  and the AUTH buffers are wiped before they are freed.
+  INFO. A streak exists only while an email waits; one of failed connections
+  and handshakes ends at the next handshake that works (*"SMTP server answers
+  again"*), any streak at a session closed with no failure, and a url changed
+  (`set-url-from` and a pause and play) resets the pacing.
+- **emailsender: a stalled connect or TLS handshake is dropped after
+  `timeout_response`**, said and paced: the email waited for ever and nothing
+  was logged.
+- **emailsender: a failure before the mail transaction spends no retry.** The
+  transaction starts at the first RCPT TO. A server failing its handshake spent
+  a retry every 2 s, sending the head of the queue to the failed queue in about
+  8 s, then the next, and a refused sender (a 5xx to MAIL FROM) sent every
+  queued email there; the message now waits at the head of the queue, paced,
+  for as long as the trouble lasts. A transient refusal of the login (a
+  `454 4.7.0`) is retried: any reply but 235 to AUTH PLAIN was taken as
+  rejected credentials, the yuno exited 0 and was not relaunched. Only a 5xx is
+  a refusal now, and a second `334` (see the upgrade steps); `EV_ON_CLOSE`
+  carries the server's reply text (`reply`), and the AUTH buffers are wiped
+  before they are freed.
 - **emailsender: a message the server refuses with a 5xx no longer costs the
-  next one a reconnection.** A 5xx to MAIL FROM, RCPT TO or DATA dropped the
-  session, so the next message logged in again. The message now goes to the
-  failed queue after one attempt, the session sends RSET and the next message
-  goes on the same connection; if RSET is refused, the session sends QUIT and
-  the next message connects again at once. A 4xx (rate limit, greylist, 421)
-  is still paced and retried, and a batch of refused messages is bounded by
-  the queue: one attempt each.
+  next one a reconnection.** A 5xx to RCPT TO, DATA or the end of DATA dropped
+  the session, so the next message logged in again. The message now goes to
+  the failed queue after one attempt and the session goes on (RSET; if RSET is
+  refused, QUIT, and the next connection waits `timeout_retry`), for the first
+  two refusals in a row. From the third, with no delivery between, the server
+  is refusing every message: each refusal still goes to the failed queue, but
+  the next message is paced and *"SMTP server refusing every message"* is
+  logged. A 5xx to one recipient of several no longer refuses the message: it
+  goes to the others, each refused one a WARNING, and the "email sent" line
+  says who got it (`to`/`cc` the accepted addresses, `refused` the refused
+  ones, bcc only as `bcc_count`/`refused_bcc_count`). A 4xx (rate limit,
+  greylist, 421) is still paced and retried.
+- **emailsender: `timeout_retry` and `timeout_response` under 1000 ms, or
+  `timeout_retry_max` under `timeout_retry`, are refused with an ERROR** and
+  the default taken (0 gave a tight loop, or a timer never armed).
 - **emailsender: a run of messages resolved at once is drained by a loop.** A
   message refused inside its own send (no valid recipient, bad content) sent
   the next one from inside its own resolution, about 1 KB of stack per
@@ -540,8 +587,9 @@ code before it, except the few this list marks "(no red test)".
   event is published), traces and logs mask credentials as C does
   (`is_secret_name`, `json_mask_secrets`, `mask_secrets_inline`,
   `trace_json_masked` in `helpers.js`; only json is walked: a gobj, a widget,
-  a DOM node or a class instance is passed through, cycles are not followed,
-  and the masking never throws), and `subs_flag` carries the C bits.
+  a DOM node or a class instance is passed through, an object met twice is
+  masked everywhere, a cycle is `"<cycle>"`, and the masking never throws), and
+  `subs_flag` carries the C bits.
   `gobj_unsubscribe_list()` of a subscription already removed gives one
   warning per call (*"Subscription(s) already removed, nothing to remove"*).
   Publishing costs the same as before (measured: 701 against 703 ns per
