@@ -36,6 +36,10 @@
  *                 at its stop it says the sends refused since, and its start
  *                 finds its timers stopped (no "GObj ALREADY RUNNING").
  *              8. The peer sends "four": the host must get it.
+ *              9. The C_GSS_UDP_S is stopped and started again in the SAME
+ *                 turn, its C_UDP_S with a read in flight (still stopping
+ *                 when the start comes): it starts it when its stop ends,
+ *                 and the peer's "five" is heard.
  *
  *          Up to 7.25.20 C_GSS_UDP_S took the EV_STOPPED of its C_UDP_S
  *          with no action: it went on sending to it ("Event NOT DEFINED in
@@ -469,6 +473,29 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         case 9:
             check(gobj, strcmp(priv->received, "one two three four ")==0,
                 "the C_GSS_UDP_S started again does not hear"
+            );
+
+            /*
+             *  Stopped and started again in the SAME turn, its C_UDP_S with
+             *  its read in flight: the C_UDP_S is still stopping (its read
+             *  being canceled) when the start comes
+             */
+            gobj_stop(priv->gobj_gss);
+            check(gobj, gobj_in_this_state(priv->gobj_udp_s, ST_WAIT_STOPPED),
+                "the C_UDP_S is not stopping with its read in flight: nothing tested"
+            );
+            gobj_start(priv->gobj_gss);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 10:
+            peer_send(gobj, "five");
+            set_timeout(priv->timer, 200);
+            break;
+
+        case 11:
+            check(gobj, strcmp(priv->received, "one two three four five ")==0,
+                "the C_GSS_UDP_S stopped and started in the same turn does not hear"
             );
             if(!priv->failures) {
                 gobj_log_info(gobj, 0,

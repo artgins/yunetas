@@ -107,6 +107,7 @@ PRIVATE void publish_frame(hgobj gobj, UDP_CHANNEL *ch);
 PRIVATE void free_channels(hgobj gobj);
 PRIVATE void restart_udp_server(hgobj gobj);
 PRIVATE json_int_t schedule_restart(hgobj gobj);
+GOBJ_DECLARE_EVENT(EV_START_UDP_SERVER);
 
 
 /***************************************************************************
@@ -170,6 +171,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t tx_dropped;          // sends refused while it is not in ST_IDLE
     json_int_t restart_backoff_ms;  // delay of the last restart scheduled, 0 none yet
     uint64_t t_restart_holds;       // msectimer: a stop before it doubles the backoff
+    BOOL start_when_stopped;        // started while its C_UDP_S still stopped: started at its EV_STOPPED
 } PRIVATE_DATA;
 
 
@@ -256,6 +258,18 @@ PRIVATE int mt_start(hgobj gobj)
 
     priv->restart_backoff_ms = 0;
     priv->t_restart_holds = 0;
+
+    /*
+     *  Its C_UDP_S still stopping (its read being canceled: a stop and a
+     *  start of this gobj in the same turn, as a pause and a play of its
+     *  host can be): it cannot start yet ("yev_server_udp ALREADY
+     *  exists"). It is started when its stop ends (EV_STOPPED).
+     */
+    if(gobj_in_this_state(priv->gobj_udp_s, ST_WAIT_STOPPED)) {
+        priv->start_when_stopped = TRUE;
+        return 0;
+    }
+
     if(gobj_start(priv->gobj_udp_s) < 0) {
         // Error already logged
         json_int_t backoff_ms = schedule_restart(gobj);
@@ -283,6 +297,7 @@ PRIVATE int mt_stop(hgobj gobj)
     if(gobj_is_running(priv->gobj_udp_s)) {
         gobj_stop(priv->gobj_udp_s);    // not running: stopped from outside
     }
+    priv->start_when_stopped = FALSE;
     free_channels(gobj);
 
     if(priv->tx_dropped > 0) {
@@ -753,6 +768,18 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  The C_UDP_S whose stop a start waited for has stopped: start it
+ ***************************************************************************/
+PRIVATE int ac_start_udp_server(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(gobj_is_running(gobj)) {
+        restart_udp_server(gobj);   // a start that fails: tried again after a backoff
+    }
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
  *  The backoff of a restart is over
  ***************************************************************************/
 PRIVATE int ac_restart_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -786,6 +813,17 @@ PRIVATE int ac_udp_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(!gobj_is_running(gobj)) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
+    if(priv->start_when_stopped) {
+        /*
+         *  The end of the stop a start of this gobj waited for. Started on
+         *  the next cycle: this runs inside the stop of the C_UDP_S.
+         */
+        priv->start_when_stopped = FALSE;
+        gobj_post_event(gobj, EV_START_UDP_SERVER, json_object(), gobj);
         KW_DECREF(kw);
         return 0;
     }
@@ -844,6 +882,7 @@ GOBJ_DEFINE_GCLASS(C_GSS_UDP_S);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DEFINE_EVENT(EV_START_UDP_SERVER);  // a start that waited for the end of a stop of the C_UDP_S
 
 /***************************************************************************
  *
@@ -872,6 +911,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT_PERIODIC,   ac_timeout,         0},
         {EV_TIMEOUT,            ac_restart_timeout, 0},
         {EV_STOPPED,            ac_udp_stopped,     0},
+        {EV_START_UDP_SERVER,   ac_start_udp_server, 0},
         {0, 0, 0}
     };
 
@@ -890,6 +930,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT_PERIODIC,   0},
         {EV_TIMEOUT,            0},
         {EV_STOPPED,            0},
+        {EV_START_UDP_SERVER,   0},
         {0, 0}
     };
 

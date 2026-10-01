@@ -34,6 +34,12 @@ the peer:
    play do: at its stop it says the sends refused since (*"UDP server stops
    with sends refused while it was stopped"*), its start finds its timers
    stopped (no *"GObj ALREADY RUNNING"*), and the peer's `four` is heard.
+7. The `C_GSS_UDP_S` is stopped and started again in the SAME turn, its
+   `C_UDP_S` with its read in flight (still stopping when the start comes):
+   it starts the `C_UDP_S` when that stop ends (*"UDP server started
+   again"*), and the peer's `five` is heard. Up to 7.25.20 that start found
+   the `C_UDP_S` still holding its socket (*"yev_server_udp ALREADY
+   exists"*).
 
 Up to 7.25.20 `C_GSS_UDP_S` took that `EV_STOPPED` with no action: `lost` and
 `back` each logged *"Event NOT DEFINED in state"* (from `C_UDP_S` in
