@@ -25,6 +25,16 @@
  *          Every close caused by a reply carries the reply's text on
  *          EV_ON_CLOSE (`reply`).
  *
+ *          A 5xx to MAIL FROM, RCPT TO, DATA or the end of DATA refuses THAT
+ *          message (a recipient that does not exist, a content refused): it
+ *          is answered at once on EV_ON_MESSAGE {ok: false, code, permanent},
+ *          and the session goes on. It sends RSET, and the next message goes
+ *          on the same connection; a server that refuses RSET with a 5xx is
+ *          told QUIT, and the next message opens a connection of its own.
+ *          None of that is a failure of the server: no pacing, no "SMTP
+ *          server failing", the streak as it was. A 4xx there (a rate limit,
+ *          a greylist, a 421) is one, like a reply that never comes.
+ *
  *          A session the SERVER ends (a refusal, an unexpected or malformed
  *          reply, a reply that never comes) is logged as a WARNING of
  *          MSGSET_PROTOCOL with the reply, capped: a remote peer can cause
@@ -93,6 +103,9 @@ PRIVATE int parse_response_code(const char *bf, size_t len, int *code, BOOL *is_
 PRIVATE int begin_send_current_message(hgobj gobj);
 PRIVATE int enter_idle_after_handshake(hgobj gobj);
 PRIVATE int reject_current_message(hgobj gobj, int code, const char *reply, const char *reason);
+PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, const char *reason);
+PRIVATE int enter_idle_after_reset(hgobj gobj);
+PRIVATE int quit_session(hgobj gobj);
 PRIVATE int send_next_rcpt_or_data(hgobj gobj);
 PRIVATE json_t *gather_recipients(hgobj gobj, json_t *jn_msg);
 PRIVATE int dot_stuff_into(gbuffer_t *out, const char *body, size_t len);
@@ -119,6 +132,8 @@ GOBJ_DEFINE_STATE(ST_WAIT_MAIL_FROM_RESP);
 GOBJ_DEFINE_STATE(ST_WAIT_RCPT_TO_RESP);
 GOBJ_DEFINE_STATE(ST_WAIT_DATA_GO);
 GOBJ_DEFINE_STATE(ST_WAIT_DATA_RESP);
+GOBJ_DEFINE_STATE(ST_WAIT_RSET_RESP);
+GOBJ_DEFINE_STATE(ST_WAIT_QUIT_RESP);
 GOBJ_DEFINE_EVENT(EV_RX_LINE);
 
 /***************************************************************************
@@ -348,7 +363,8 @@ PRIVATE int mt_stop(hgobj gobj)
      */
     hgobj bottom = gobj_bottom_gobj(gobj);
     gobj_state_t bst = bottom? gobj_current_state(bottom) : ST_STOPPED;
-    BOOL under_way = (st != ST_DISCONNECTED && st != ST_IDLE) ||
+    BOOL under_way = (st != ST_DISCONNECTED && st != ST_IDLE &&
+            st != ST_WAIT_RSET_RESP && st != ST_WAIT_QUIT_RESP) ||
         bst == ST_WAIT_CONNECTED || bst == ST_WAIT_HANDSHAKE;
     if(under_way && priv->retry_delay > 0) {
         pace_next_connection(gobj, TRUE);
@@ -1024,22 +1040,105 @@ PRIVATE int enter_idle_after_handshake(hgobj gobj)
 }
 
 /***************************************************************************
- *  A per-message SMTP rejection mid-transaction (a non-2xx/3xx reply to
- *  MAIL FROM / RCPT TO / DATA). Remember the reply code so ac_disconnected
- *  can forward it to the owner in EV_ON_CLOSE — a 5xx is permanent (the owner
- *  dead-letters the message instead of retrying) — then drop the session.
+ *  A rejection mid-transaction (an unexpected reply to MAIL FROM / RCPT TO
+ *  / DATA / the end of DATA).
  *
- *  We resolve the in-flight message through EV_ON_CLOSE rather than
- *  EV_ON_MESSAGE here on purpose: the owner sees smtp_ready=FALSE before it
- *  tries to dispatch the next queued message, so it cannot push it into the
- *  dying connection.
+ *  A 5xx refuses the message, not the server: refuse_current_message().
+ *
+ *  Anything else (a 4xx: a rate limit, a greylist, a 421) says the server
+ *  cannot take it NOW: the session is dropped, and the reconnection paced.
+ *  The code goes to the owner on EV_ON_CLOSE, and the owner retries. It is
+ *  resolved through EV_ON_CLOSE rather than EV_ON_MESSAGE on purpose: the
+ *  owner sees smtp_ready=FALSE before it tries to dispatch the next queued
+ *  message, so it cannot push it into the dying connection.
  ***************************************************************************/
 PRIVATE int reject_current_message(hgobj gobj, int code, const char *reply, const char *reason)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(code >= 500 && code < 600) {
+        return refuse_current_message(gobj, code, reply, reason);
+    }
     priv->reject_code = code;
     return abort_session_by_peer(gobj, reason, code, reply);
+}
+
+/***************************************************************************
+ *  A 5xx refused THIS message (550 no such user, 554 content refused): the
+ *  message's fault, not the server's. It is answered at once, once, on
+ *  EV_ON_MESSAGE {ok: false, code, permanent: true} (the owner sends it to
+ *  its failed queue), and the session goes on: RSET ends the transaction,
+ *  and the next message goes on the same connection (a message the owner
+ *  sends from inside the answer waits for the RSET's 250). No pacing, no
+ *  note_failure(): the server works, and a batch of such messages is tried
+ *  once each. Up to 7.25.20 a 5xx to MAIL FROM, RCPT TO or DATA dropped the
+ *  session (the next message logged in again), and the branch also paced
+ *  the next connection as after a failure of the server.
+ *
+ *  A WARNING with the reply, as anything a peer causes.
+ ***************************************************************************/
+PRIVATE int refuse_current_message(hgobj gobj, int code, const char *reply, const char *reason)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", reason,
+        "code",         "%d", code,
+        "reply",        "%s", reply? reply : "",
+        NULL
+    );
+
+    json_t *kw_ack = json_pack("{s:b, s:i, s:b, s:s, s:s}",
+        "ok", 0,
+        "code", code,
+        "permanent", 1,
+        "reply", reply? reply : "",
+        "url", gobj_read_str_attr(gobj_bottom_gobj(gobj), "url")
+    );
+    if(!kw_ack) {
+        // The message stays in hand: the close answers for it, with its code
+        priv->reject_code = code;
+        return abort_session_on_error(gobj, "json_pack() FAILED for the answer of a refused message");
+    }
+
+    cleanup_current_message(gobj);
+    gobj_change_state(gobj, ST_WAIT_RSET_RESP);
+    set_timeout(priv->timer, priv->timeout_response);
+    send_smtp_line(gobj, "RSET");
+
+    gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ack);
+    return 0;
+}
+
+/***************************************************************************
+ *  RSET answered: the session is idle again, and a message the owner sent
+ *  meanwhile is begun.
+ ***************************************************************************/
+PRIVATE int enter_idle_after_reset(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_change_state(gobj, ST_IDLE);
+    if(priv->jn_current_msg) {
+        return begin_send_current_message(gobj);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  The server does not take RSET (a 5xx): say goodbye, and close when the
+ *  221 comes (or when it does not). Not a failure: the next message opens
+ *  a connection of its own, with no paced delay.
+ ***************************************************************************/
+PRIVATE int quit_session(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_change_state(gobj, ST_WAIT_QUIT_RESP);
+    set_timeout(priv->timer, priv->timeout_response);
+    return send_smtp_line(gobj, "QUIT");
 }
 
 
@@ -1132,7 +1231,13 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
      *  error, a close with no reply). Up to 7.25.20 the second kind was not
      *  one, and the reconnection came after the last delay written.
      */
-    BOOL failure = priv->failed || prev_state != ST_IDLE;
+    /*
+     *  A close after a message refused with a 5xx (waiting for the RSET or
+     *  the QUIT that follows it: some servers close right after the
+     *  refusal) is no failure either, and leaves the pacing as it was.
+     */
+    BOOL after_refusal = prev_state == ST_WAIT_RSET_RESP || prev_state == ST_WAIT_QUIT_RESP;
+    BOOL failure = priv->failed || (prev_state != ST_IDLE && !after_refusal);
     if(failure && !priv->failed) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1142,7 +1247,9 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             NULL
         );
     }
-    pace_next_connection(gobj, failure);
+    if(failure || !after_refusal) {
+        pace_next_connection(gobj, failure);
+    }
     if(failure && !priv->auth_reject_code && !priv->refuse_code) {
         // a refused login or client is said by the owner, which stops on it
         note_failure(gobj, priv->close_reply[0]? priv->close_reply : "the server closed the session");
@@ -1532,9 +1639,9 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(code != SMTP_CODE_OK) {
             /*
              *  Refused like a refusal of MAIL FROM or RCPT TO, and resolved
-             *  the same way: the session is dropped and the reconnection
-             *  paced, the code goes up on EV_ON_CLOSE (a 5xx is permanent).
-             *  Up to 7.25.20 a 4xx here (451 4.7.1, a rate limit or a
+             *  the same way: a 5xx answers the message and the session goes
+             *  on; a 4xx drops the session, the reconnection is paced, and
+             *  the code goes up on EV_ON_CLOSE. Up to 7.25.20 a 4xx here (451 4.7.1, a rate limit or a
              *  greylist) was answered on EV_ON_MESSAGE with the session up,
              *  and the emailsender uploaded the message again at once, every
              *  retry in the same second.
@@ -1564,6 +1671,29 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return 0;
     }
 
+    if(st == ST_WAIT_RSET_RESP) {
+        if(code == SMTP_CODE_OK) {
+            return enter_idle_after_reset(gobj);
+        }
+        if(code >= 500 && code < 600) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "SMTP server does not take RSET: the session ends, the next message opens another",
+                "code",         "%d", code,
+                "reply",        "%s", reply,
+                NULL
+            );
+            return quit_session(gobj);
+        }
+        return abort_session_by_peer(gobj, "RSET not answered 250", code, reply);
+    }
+
+    if(st == ST_WAIT_QUIT_RESP) {
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+        return 0;
+    }
+
     /* Any other state: unexpected reply, drop the session. */
     return abort_session_by_peer(gobj, "unexpected SMTP reply for current state", code, reply);
 }
@@ -1585,6 +1715,18 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     priv->reject_code = 0;
     abort_session_by_peer(gobj, "timeout waiting for SMTP response", 0, NULL);
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  No 221 to our QUIT: close anyway. Not a failure, the server had refused
+ *  a message and RSET, nothing more.
+ ***************************************************************************/
+PRIVATE int ac_timeout_quit(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
     KW_DECREF(kw)
     return 0;
@@ -1921,6 +2063,29 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
 
+    ev_action_t st_wait_rset_resp[] = {
+        {EV_SEND_MESSAGE,       ac_send_message,        0},
+        {EV_RX_DATA,            ac_rx_data,             0},
+        {EV_RX_LINE,            ac_rx_line,             0},
+        {EV_TX_READY,           0,                      0},
+        {EV_TIMEOUT,            ac_timeout,             0},
+        {EV_DROP,               ac_drop,                0},
+        {EV_DISCONNECTED,       ac_disconnected,        0},
+        {EV_STATE_CHANGED,      ac_child_state_changed, 0},
+        {0,0,0}
+    };
+    ev_action_t st_wait_quit_resp[] = {
+        {EV_SEND_MESSAGE,       ac_send_message,        0},
+        {EV_RX_DATA,            ac_rx_data,             0},
+        {EV_RX_LINE,            ac_rx_line,             0},
+        {EV_TX_READY,           0,                      0},
+        {EV_TIMEOUT,            ac_timeout_quit,        0},
+        {EV_DROP,               ac_drop,                0},
+        {EV_DISCONNECTED,       ac_disconnected,        0},
+        {EV_STATE_CHANGED,      ac_child_state_changed, 0},
+        {0,0,0}
+    };
+
     states_t states[] = {
         {ST_DISCONNECTED,           st_disconnected},
         {ST_WAIT_CONNECTED,         st_wait_connected},
@@ -1932,6 +2097,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {ST_WAIT_RCPT_TO_RESP,      st_wait_rcpt_to_resp},
         {ST_WAIT_DATA_GO,           st_wait_data_go},
         {ST_WAIT_DATA_RESP,         st_wait_data_resp},
+        {ST_WAIT_RSET_RESP,         st_wait_rset_resp},
+        {ST_WAIT_QUIT_RESP,         st_wait_quit_resp},
         {0, 0}
     };
 

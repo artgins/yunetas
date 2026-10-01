@@ -67,6 +67,7 @@ SET(SRCS
     ehlo_refused
     auth_334_continue
     bad_burst
+    rcpt_refused_same_session
 )
 
 ##############################################

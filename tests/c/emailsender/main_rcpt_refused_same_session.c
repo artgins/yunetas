@@ -1,11 +1,14 @@
 /****************************************************************************
- *          main_refill_paced.c
+ *          main_rcpt_refused_same_session.c
  *
- *          The fake server answers the recipient of the first email with a
- *          450 (try again later): with max_retries 1 it goes to the failed
- *          queue, and the session waits 3 s (timeout_retry) to reconnect. A second email comes 1.5 s later: it
- *          must wait for those 3 s. Up to 7.25.20 it connected at once, and
- *          the reconnection timer of the C_TCP stayed armed behind it.
+ *          Two emails at once. The server refuses the recipient of the first
+ *          (550 5.1.1: the message's fault, not the server's): it goes to
+ *          the failed queue, the session sends RSET, and the second email is
+ *          delivered on the SAME connection, at once -- no "SMTP server
+ *          failing", nothing paced (timeout_retry is 5 s here, and the fake
+ *          server takes one connection only). Before, the session was
+ *          dropped, the server was said to be failing, and the second email
+ *          waited timeout_retry for a connection of its own.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -22,8 +25,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_refill_paced"
-#define APP_DOC         "An email queued while the session waits to reconnect waits too"
+#define APP_NAME        "test_emailsender_rcpt_refused_same_session"
+#define APP_DOC         "A message refused with a 5xx leaves the session usable"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -35,7 +38,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_refill_paced"
+#define BASE    "/tmp/test_emailsender_rcpt_refused_same_session"
 
 /***************************************************************************
  *                      Default config
@@ -82,7 +85,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7836',              \n\
+                        'url': 'tcp://127.0.0.1:7850',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -101,8 +104,8 @@ PRIVATE char variable_config[]= "\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
                                 'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'rcpt_replies': ['450 4.2.1 Mailbox busy', '250 2.1.5 Ok'],\n\
-                                'connect_min_gaps': [0, 3000],      \n\
+                                'rcpt_replies': ['550 5.1.1 No such user', '250 2.1.5 Ok'],\n\
+                                'max_connections': 1,               \n\
                                 'die_on_delivery': true             \n\
                             },                                      \n\
                             'children': [                           \n\
@@ -123,15 +126,14 @@ PRIVATE char variable_config[]= "\
             'kw': {                                                 \n\
                 'username': 'user',                                 \n\
                 'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7836',                      \n\
+                'url': 'tcp://127.0.0.1:7850',                      \n\
                 'from': 'sender@example.com',                       \n\
                 'timeout_inactivity': 30000,                        \n\
                 'tranger_path': '"BASE"/store',                     \n\
                 'tranger_database': 'emailsender',                  \n\
                 'topic_emails_queue': 'emails_queue',               \n\
                 'topic_emails_failed': 'emails_failed',             \n\
-                'timeout_retry': 3000,                              \n\
-                'max_retries': 1,                                   \n\
+                'timeout_retry': 5000,                              \n\
                 'tkey': 'tm'                                        \n\
             }                                                       \n\
         },                                                          \n\
@@ -148,9 +150,8 @@ PRIVATE char variable_config[]= "\
             'autostart': true,                                      \n\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
-                'scenario': 'refill',                               \n\
-                'smtp_url': 'tcp://127.0.0.1:7836',                 \n\
-                'action_delay': 1500                                \n\
+                'scenario': 'two',                                  \n\
+                'smtp_url': 'tcp://127.0.0.1:7850'                  \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
@@ -233,7 +234,7 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Creating __timeranger2__.json",
@@ -242,11 +243,9 @@ static int register_yuno_and_more(void)
         "msg", "Fake smtp: AUTH answered",
         "msg", "Fake smtp: RCPT refused",
         "msg", "RCPT TO rejected",
-        "msg", "SMTP server failing: emails wait, the retries are paced",
         "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com",
-        "msg", "Fake smtp: AUTH answered",
+        "msg", "Fake smtp: RSET answered", "reply", "250 2.0.0 Ok",
         "msg", "Fake smtp: message delivered",
-        "msg", "SMTP server works again: emails delivered",
         "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
         "msg", "Exit to die",
         "msg", "Pausing yuno",

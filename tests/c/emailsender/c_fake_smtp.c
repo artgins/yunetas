@@ -46,6 +46,11 @@
  *          lines in one write) or "long_line" (a line longer than a client's
  *          reply buffer). Each one but "greet" is logged (INFO).
  *
+ *          RSET is answered from `rset_replies` the same way, and logged
+ *          ("Fake smtp: RSET answered"). With `max_connections` a connection
+ *          beyond that many is an ERROR ("Fake smtp: one connection too
+ *          many"): a test that the client goes on on the same session.
+ *
  *          `connect_min_gaps` / `connect_max_gaps` (ms, one per connection)
  *          and `data_min_gaps` (ms, one per end of DATA) check the pacing of
  *          the client like `auth_min_gaps`: "Fake smtp: connection too
@@ -96,6 +101,8 @@ SDATA (DTP_LIST,        "auth_min_gaps",    SDF_RD,             "[]",       "ms 
 SDATA (DTP_LIST,        "ehlo_replies",     SDF_RD,             "[\"250 fake.smtp\"]", "Answers to EHLO/HELO, one per EHLO, the last one repeated"),
 SDATA (DTP_LIST,        "rcpt_replies",     SDF_RD,             "[\"250 2.1.5 Ok\"]", "Answers to RCPT TO, one per RCPT, the last one repeated"),
 SDATA (DTP_LIST,        "data_replies",     SDF_RD,             "[\"250 2.0.0 Ok: queued\"]", "Answers to the end of DATA, one per message, the last one repeated"),
+SDATA (DTP_LIST,        "rset_replies",     SDF_RD,             "[\"250 2.0.0 Ok\"]", "Answers to RSET, one per RSET, the last one repeated"),
+SDATA (DTP_INTEGER,     "max_connections",  SDF_RD,             "0",        "Connections allowed; one more is an ERROR. 0: no check"),
 SDATA (DTP_LIST,        "data_min_gaps",    SDF_RD,             "[]",       "ms that the end of DATA n must come after the end of DATA n-1 (entry 0 unused)"),
 SDATA (DTP_LIST,        "connection_plan",  SDF_RD,             "[]",       "What to do with each connection: greet, drop, refuse, garbage, long_line. greet when they run out"),
 SDATA (DTP_LIST,        "connect_min_gaps", SDF_RD,             "[]",       "ms that connection n must come after connection n-1 (entry 0 unused)"),
@@ -129,6 +136,7 @@ typedef struct _PRIVATE_DATA {
     size_t auth_count;
     size_t rcpt_count;
     size_t ehlo_count;
+    size_t rset_count;
     BOOL auth_continuation;     /* the last AUTH was answered 334: the next line is its response */
     size_t data_count;
     size_t conn_count;
@@ -447,6 +455,21 @@ PRIVATE int process_line(hgobj gobj, const char *line)
         priv->in_data = TRUE;
         return send_reply(gobj, "354 End data with <CR><LF>.<CR><LF>");
     }
+    if(strcasecmp(line, "RSET") == 0) {
+        const char *reply = nth_reply(gobj, "rset_replies", priv->rset_count);
+        priv->rset_count++;
+        if(!reply) {
+            // Error already logged
+            return -1;
+        }
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Fake smtp: RSET answered",
+            "reply",        "%s", reply,
+            NULL
+        );
+        return send_reply(gobj, reply);
+    }
     if(strcasecmp(line, "QUIT") == 0) {
         return send_reply(gobj, "221 2.0.0 Bye");
     }
@@ -488,6 +511,16 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Fake smtp: connection too late",
+            "connection",   "%d", (int)priv->conn_count,
+            NULL
+        );
+    }
+    json_int_t max_connections = gobj_read_integer_attr(gobj, "max_connections");
+    if(max_connections > 0 && (json_int_t)priv->conn_count >= max_connections) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Fake smtp: one connection too many",
             "connection",   "%d", (int)priv->conn_count,
             NULL
         );

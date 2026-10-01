@@ -56,6 +56,8 @@
  *          "url_log"   set-url-from gives the running service a dead url,
  *                      then one email is sent: the session goes on with the
  *                      url it runs on, and the log must say THAT one.
+ *          "two"       two emails at once, the second queued behind the
+ *                      first.
  *          "bad_burst" one good email, and behind it, while it is in
  *                      flight, `bad_count` emails with no recipient: when
  *                      the good one is delivered the emailsender takes them
@@ -242,6 +244,11 @@ PRIVATE int start_scenario(hgobj gobj)
             strcmp(scenario, "shutdown") == 0) {
         priv->input_side = gobj_find_service(gobj_read_str_attr(gobj, "server_service"), TRUE);
         gobj_start_tree(priv->input_side);
+    }
+
+    if(strcmp(scenario, "two") == 0) {
+        send_one_email(gobj);
+        return send_one_email(gobj);
     }
 
     if(strcmp(scenario, "bad_burst") == 0) {
