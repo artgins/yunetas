@@ -45,10 +45,11 @@ code before it, except the few this list marks "(no red test)".
 - **emailsender's failed queue fills much later.** A server that fails its
   handshake no longer sends the head of the queue there every 8 s or so, one
   message after another: the messages wait at the head of the queue, paced up
-  to 10 minutes between attempts, for as long as the outage lasts. A server
-  that refuses the sender (MAIL FROM) keeps the queue too, and one that
-  refuses every message is paced from its third refusal in a row. An alarm on
-  the size of the failed queue sees that change.
+  to 10 minutes between attempts, for as long as the outage lasts (a refused
+  default sender for up to `max_retries` paced attempts), and one that refuses
+  every message is paced from its third refusal in a row. An alarm on the size
+  of the failed queue sees that change. A stuck head of the queue can be moved
+  there by hand with the new `skip-email`.
 - **A lone stop of a `C_TCP_S` without `child_tree_filter` closes its live
   connections** (it kept them accepting on a closed socket): to drain a
   listener, do not stop it alone.
@@ -112,8 +113,10 @@ code before it, except the few this list marks "(no red test)".
   `gobj_trace_json_masked()` (`json_mask_secrets()`, `mask_secrets_inline()`):
   a key with a secret's name is masked at any depth (down to 64 levels, a dict
   met twice the same everywhere, a cycle as `"<cycle>"`) and of any type, and
-  so is a `name=value` credential inside a string (an unquoted value runs to a
-  blank, quotes inside it included); a name
+  so is a `name=value` credential inside a string (an unquoted secret value
+  runs to the next `word=`, so a password written with blanks is masked whole;
+  a quote inside a value is part of it); the 64 levels count from the first
+  time a shared object is met; a name
   that only describes something about a credential (`token_endpoint`,
   `cookie_domain`, `jwt_public_keys`, `*_count`) is not. The ievents traces
   also use the command table of the destination service when it is local.
@@ -146,24 +149,23 @@ code before it, except the few this list marks "(no red test)".
 - **The persistent-attrs file is written to a new 0600 file and renamed over
   the old one.** It was truncated and written in place, into whatever inode the
   name had (another user's file, a hard link), and a password set once and
-  never saved again stayed in a 0664 file. A save now writes a temporary file
-  (`<file>.tmp-XXXXXX`, 0600, the yuno's own), renames it and syncs the
-  directory; a failed save leaves the old file as it was. In a directory the
-  yuno cannot write, the save goes in place, into a file of its own only: it
-  takes the room first, so a full disk leaves the old file whole (a crash in
-  the middle of that write is not covered). An empty file is no data; an
-  unparsable one refuses the saves, and its message says how to recover. A
-  save never takes over a regular file of another user. A
-  file of the yuno's own found at load that is wider than 0600 or a hard link
-  is replaced the same way (it is not narrowed in place, which through a hard
-  link changed another name); a file of another user is left as it is, with a
-  warning. A save or a removal is refused when the existing file cannot be
-  read, so a run as another user can no longer cost every attribute at the
-  next save. A temporary file an interrupted save left is removed; a symlink
-  planted in the data dir is neither read nor written through. `write-attr`
-  answers a failed save with -1 (*"written, but NOT saved"*) instead of
-  "done", and says *"NOT persisted"* for an attr of a gobj that is not a
-  service.
+  never saved again stayed in a 0664 file. A save now writes
+  `<file>.tmp-XXXXXX` (0600), renames it and syncs the directory; a failed
+  save leaves the old file as it was, and a link in its place is replaced, with
+  nothing written through it. A readable file of another user is taken over by
+  the yuno's user (logged at INFO); when the yuno runs as root, the new file is
+  given back to the old owner. A file that cannot be read refuses the save and
+  the removal (its attrs would be lost); an empty file is no data. A file of
+  the yuno's own found at load that is wider than 0600 or a hard link is
+  replaced the same way (not narrowed in place, which through a hard link
+  changed another name). In a data directory the yuno cannot write, the save
+  goes in place, into a file of its own only: room is reserved without growing
+  the file, so a full disk leaves the old file as it was, but a crash during
+  the write can leave an unparsable file, which then refuses the saves until it
+  is removed or repaired (the message says how). A `<file>.tmp-XXXXXX` an
+  interrupted save left is removed at the next load. `write-attr` answers a
+  failed save with -1 (*"written, but NOT saved"*) instead of "done", and says
+  *"NOT persisted"* for an attr of a gobj that is not a service.
 - **A yuno's materialised config files are 0640, never world-readable.** The
   agent wrote `bin/<n>-<role>^<name>.json`, which carries the yuno's secrets,
   as 0664, and an existing file kept its old mode. Each is now written to a
@@ -277,10 +279,18 @@ code before it, except the few this list marks "(no red test)".
   on every end of the close, destroy included. It was dropped with no trace at
   the default levels; now one warning per connection gives the messages and
   bytes dropped.
-- **C_TCP: `connect_on_start` and `disconnect_cause`** (new attributes).
-  `connect_on_start` FALSE keeps a client disconnected until `EV_CONNECT`;
-  `disconnect_cause` names why the last connection or attempt ended, so an
-  owner need not read `gobj_log_last_message()`.
+- **C_TCP: `connect_on_start` lets the owner make the first connection on
+  demand; `disconnect_cause` says why a connection ended** (new attributes).
+  `connect_on_start` false keeps a client in `ST_DISCONNECTED` at its start
+  until its owner sends `EV_CONNECT`. Only that first connection waits: after
+  an end the client reconnects after `timeout_between_connections` unless that
+  is `-1`, which makes every connection on demand. `disconnect_cause` keeps the
+  FIRST cause of an end (the read cancel a drop or an inactivity close makes
+  does not replace it): the socket error, a TLS failure with its reason, "Local
+  dropping", "Inactivity timeout", "Local stop", or a write or connect that
+  could not start. It is emptied when a connection begins, a clisrv's
+  included, and the Disconnected trace shows it as its cause. (no red test for
+  the TLS and fault-injection causes)
 - **C_TCP: an `EV_CONNECT` cancels the pending reconnect timer**, so a connect
   on demand no longer gets a stray `EV_TIMEOUT` in `ST_WAIT_CONNECTED`.
 - **C_GSS_UDP_S starts its C_UDP_S again when it stops by itself.** The
@@ -338,6 +348,20 @@ code before it, except the few this list marks "(no red test)".
   directory read at a delete signal's place is not enough: it may already hold
   the key written again since). In a master, hearing a delete makes no debts;
   `tranger2_delete_key()` makes them.
+- **A key deleted and written again before a follower reads the delete is
+  handed in order.** The follower's feed hears `deleted`, then every record of
+  the key reborn from rowid 1, and keeps the key in its cache. The scan of the
+  key's directory, done at the delete signal's place, read the new key's file
+  against the old key's cache entry: one new record was never handed, or later
+  ones arrived with wrong rowids and were handed twice at the next append, and
+  the delete heard afterwards removed the live key from the cache (the same in
+  the pass after an overflow). A key directory is now read once the stream is
+  past every event that could still remove it (each event carries its
+  `offset_end`; new `FS_FLAG_BATCH_END` / `FS_BATCH_END_TYPE`), and a record
+  found then forgets the debts made before the directory appeared.
+- **fs_watcher: a root that cannot be watched gives no watcher** (logged):
+  with `max_user_watches` used up, or no permission, the watcher ran watching
+  nothing.
 - **Only the first feed to hear a key-delete forgets the key** (the shared
   cache, its segments, the watermark of every feed). Every feed did it, so a
   slow feed hearing an old delete after the key came back removed the live key
@@ -485,8 +509,8 @@ code before it, except the few this list marks "(no red test)".
 - **emailsender: no failure is retried faster than the paced schedule.** After
   any failed session or connection the next connection waits `timeout_retry`
   (2 s), doubled per failure in a row up to `timeout_retry_max` (10 min): a
-  4xx refusal, a 4xx or 421 to the end of DATA, a refused sender (any reply to
-  MAIL FROM but 250), a reply that never comes, a connect or TLS handshake that
+  4xx refusal, a 4xx or 421 to the end of DATA, a refused default sender, a
+  reply that never comes, a connect or TLS handshake that
   does not end within `timeout_response`, a server that closes by itself, a
   refused or timed-out connect. An email queued during the wait waits too, and
   so does a pause and a play. A session that ends with no failure resets the
@@ -494,8 +518,8 @@ code before it, except the few this list marks "(no red test)".
   (new `connect_on_start`): every connection is the session's, made when it
   holds a message, and a yuno with an empty queue logs in to nobody. The
   doubling counts every failure in a row and is not reset when a message goes
-  to the failed queue (a message refused with a 5xx is not a failure of the
-  server and counts nothing): with the defaults the first failing message gets
+  to the failed queue (a message refused with a 5xx counts only from the third
+  refusal in a row, see below): with the defaults the first failing message gets
   2+4+8 s, the next 16 s and then 32+64+128 s, and from the fourth on 600 s
   between attempts. Every retry came after a fixed 2 s, and a 4xx at the end of
   DATA uploaded the message again at once, four times.
@@ -514,9 +538,9 @@ code before it, except the few this list marks "(no red test)".
 - **emailsender: a failure before the mail transaction spends no retry.** The
   transaction starts at the first RCPT TO. A server failing its handshake spent
   a retry every 2 s, sending the head of the queue to the failed queue in about
-  8 s, then the next, and a refused sender (a 5xx to MAIL FROM) sent every
-  queued email there; the message now waits at the head of the queue, paced,
-  for as long as the trouble lasts. A transient refusal of the login (a
+  8 s, then the next; the message now waits at the head of the queue, paced,
+  for as long as the trouble lasts (a refused default sender spends one retry
+  per attempt). A transient refusal of the login (a
   `454 4.7.0`) is retried: any reply but 235 to AUTH PLAIN was taken as
   rejected credentials, the yuno exited 0 and was not relaunched. Only a 5xx is
   a refusal now, and a second `334` (see the upgrade steps); `EV_ON_CLOSE`
@@ -528,13 +552,27 @@ code before it, except the few this list marks "(no red test)".
   the failed queue after one attempt and the session goes on (RSET; if RSET is
   refused, QUIT, and the next connection waits `timeout_retry`), for the first
   two refusals in a row. From the third, with no delivery between, the server
-  is refusing every message: each refusal still goes to the failed queue, but
-  the next message is paced and *"SMTP server refusing every message"* is
-  logged. A 5xx to one recipient of several no longer refuses the message: it
+  is refusing the messages: each refusal still goes to the failed queue, but
+  the next message is paced and *"SMTP server refused the last messages in a
+  row: each goes to the failed queue, the next ones are paced"* is logged
+  (`refused_in_row`), never the *"emails are NOT being sent"* ERROR; a refusal
+  of an address (a 5.1.x status, a sender of the message's own) does not count
+  toward the run. A 5xx to one recipient of several no longer refuses the message: it
   goes to the others, each refused one a WARNING, and the "email sent" line
   says who got it (`to`/`cc` the accepted addresses, `refused` the refused
   ones, bcc only as `bcc_count`/`refused_bcc_count`). A 4xx (rate limit,
   greylist, 421) is still paced and retried.
+- **emailsender: a refused sender is told apart.** A `from` of the message's
+  own, or a reply that says the address is wrong (501, 553, 5.1.x, a 5.7.1
+  naming the sender), is the message's: it goes to the failed queue once and
+  the session goes on. The default sender refused (a quota, sending blocked, a
+  4xx) is paced as a server failure and charged to the message as a retry, so
+  after `max_retries` attempts it goes to the failed queue. Any 5xx to MAIL
+  FROM sent every queued email to the failed queue in turn.
+- **emailsender: new command `skip-email`** moves the email at the head of the
+  queue, the one every other waits behind, to the failed queue at once (with a
+  WARNING), and answers with its `to` and subject; it works while paused:
+  `ycommand -c 'command-yuno id=<id> service=emailsender command=skip-email'`.
 - **emailsender: `timeout_retry` and `timeout_response` under 1000 ms, or
   `timeout_retry_max` under `timeout_retry`, are refused with an ERROR** and
   the default taken (0 gave a tight loop, or a timer never armed).
