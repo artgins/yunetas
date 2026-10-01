@@ -58,6 +58,8 @@ typedef enum  {
     FS_FLAG_RECURSIVE_PATHS     = 0x0001,     // add path and all his subdirectories
     FS_FLAG_MODIFIED_FILES      = 0x0002,     // Add FS_FILE_MODIFIED_TYPE, WARNING about using it.
     FS_FLAG_BATCH_END           = 0x0004,     // Add FS_BATCH_END_TYPE after each batch
+    FS_FLAG_DIR_FDS             = 0x0008,     // Hold a descriptor of each SUBDIRECTORY watched,
+                                              // the very inode its watch is on: fs_watcher_dir_fd()
 } fs_flag_t;
 
 
@@ -106,6 +108,12 @@ struct fs_event_s {
     json_t *rescan_seen;        // Internal: directories the pass visited, by path
     json_t *stale_wds;          // Internal: wds stopped by a pass, whose IN_IGNORED may never come
     uint64_t stale_mark;        // Internal: where the stream holds their IN_IGNORED, if it comes
+    json_t *jn_tracked_fds;     // Internal: FS_FLAG_DIR_FDS, wd -> fd (-1: its directory is gone)
+    json_t *jn_paths_wd;        // Internal: FS_FLAG_DIR_FDS, path -> the last wd watched there
+    int event_wd;               // Output: the watch of `directory` (the directory where the event
+                                // happened; the one visited, in FS_RESCAN_DIR_TYPE); -1 if none
+    int subdir_wd;              // Output: FS_SUBDIR_CREATED_TYPE, the watch just set on the
+                                // directory created; -1 if it is gone or is not watched
 } ;
 
 
@@ -144,6 +152,22 @@ PUBLIC int fs_stop_watcher_event( // When the event is stopped the fs_event will
  */
 PUBLIC uint64_t fs_queued_events_end(
     fs_event_t *fs_event
+);
+
+/*
+ *  With FS_FLAG_DIR_FDS: the descriptor of the directory watched under `wd`
+ *  (`event_wd`, `subdir_wd`): the very inode of that watch, opened before it
+ *  was set, so a directory removed and made again under the same path is
+ *  never taken for it -- openat()/unlinkat() through it cannot reach another
+ *  directory. Owned by the watcher: do not close it; it may be closed at the
+ *  next event, take it again then. -1 and errno:
+ *      ENOENT   the directory is gone (or `wd` is not watched)
+ *      ENOTSUP  watched without a descriptor (no FS_FLAG_DIR_FDS, the root,
+ *               or the descriptor could not be opened, logged): use the path
+ */
+PUBLIC int fs_watcher_dir_fd(
+    fs_event_t *fs_event,
+    int wd
 );
 
 

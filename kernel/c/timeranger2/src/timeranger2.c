@@ -45,6 +45,7 @@ PRIVATE const char *topic_fields[] = {
     "directory",
     "wr_fd_files",
     "rd_fd_files",
+    "rd_fd_life",
     "lists",
     "filename_mask",
     "xpermission",
@@ -324,7 +325,8 @@ PRIVATE json_t *load_cache_cell_from_disk(
     char *filename, // md2 filename with extension, WARNING modified, .md2 removed
     json_t *known_cell, // the cell this file already has in memory, or NULL
     const dir_array_t *key_files,   // the key directory, listed and sorted, or NULL (see the function)
-    BOOL master         // a master cuts a torn last row back, a replica reads the whole rows
+    BOOL master,        // a master cuts a torn last row back, a replica reads the whole rows
+    int md2_fd          // the md2 already open, or -1: opened by its path
 );
 PRIVATE BOOL key_file_listed(const dir_array_t *key_files, const char *name);
 PRIVATE json_int_t load_first_and_last_record_md(
@@ -333,6 +335,7 @@ PRIVATE json_int_t load_first_and_last_record_md(
     const char *key,
     const char *filename,
     BOOL master,
+    int md2_fd,     // the md2 already open (not closed here), or -1: opened by its path
     md2_record_t *md_first_record,
     md2_record_t *md_last_record
 );
@@ -495,7 +498,26 @@ PRIVATE json_int_t update_new_records_from_disk(
     json_t *topic,
     const char *key,
     char *filename,
-    const char *rt_id
+    const char *rt_id,
+    const struct stat *pin, // the md2 of the life read (its link, open); NULL: by path
+    int life_md2_fd         // the md2 descriptor already checked to be `pin`, or -1
+);
+PRIVATE int consume_link_by_fd(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *watched_topic,
+    fs_event_t *fs_event,
+    int dir_fd,
+    const char *key,
+    const char *link_name
+);
+PRIVATE int scan_key_dir_by_fd(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *watched_topic,
+    fs_event_t *fs_event,
+    int dir_fd,
+    const char *key
 );
 PRIVATE json_int_t publish_new_rt_disk_records(
     hgobj gobj,
@@ -519,7 +541,8 @@ typedef enum {
     DELETE_KNOWN,           // in a master: the delete was made, and forgotten, here
 } delete_heard_t;
 typedef struct {    // who a key directory is: another one made under its path is not it
-    json_int_t ino;
+    json_int_t wd;      // its watch, whose descriptor is that very directory; -1: none
+    json_int_t ino;     // without a descriptor (wd -1): inode and birth, by path
     json_int_t bsec;
     json_int_t bnsec;
 } dir_id_t;
@@ -563,7 +586,8 @@ PRIVATE void defer_key_dir_scan(
     json_t *watched_topic,
     fs_event_t *fs_event,
     const char *key,
-    uint64_t at
+    uint64_t at,
+    int wd
 );
 PRIVATE void place_new_key_dir_scans(
     hgobj gobj,
@@ -3617,6 +3641,12 @@ PRIVATE int close_fd_rd_files(
 )
 {
     json_t *fd_files = kw_get_dict(gobj, topic, "rd_fd_files", 0, KW_REQUIRED);
+    json_t *fd_life = json_object_get(topic, "rd_fd_life");   // what they were checked to be
+    if(empty_string(key)) {
+        json_object_clear(fd_life);
+    } else {
+        json_object_del(fd_life, key);
+    }
     return close_fd_files(gobj, fd_files, key);
 }
 
@@ -6779,7 +6809,8 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
     fs_event_t *fs_event = fs_create_watcher_event(
         yev_loop,
         full_path,
-        FS_FLAG_RECURSIVE_PATHS|FS_FLAG_BATCH_END,  // fs_flag: the end of a batch runs the deferred scans
+        FS_FLAG_RECURSIVE_PATHS|FS_FLAG_BATCH_END|  // fs_flag: the end of a batch runs the deferred scans
+            FS_FLAG_DIR_FDS,    // each key directory read and consumed through its own descriptor
         client_fs_callback,
         gobj,
         tranger,  // user_data
@@ -6888,7 +6919,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 if(watched_topic &&
                         strcmp((const char *)fs_event->directory, fs_event->path)==0) {
                     defer_key_dir_scan(watched_topic, fs_event,
-                        (const char *)fs_event->filename, fs_event->offset
+                        (const char *)fs_event->filename, fs_event->offset, fs_event->subdir_wd
                     );
                 } else if(is_directory(full_path)) {
                     scan_disks_key_for_new_file(gobj, tranger, full_path);
@@ -7021,7 +7052,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                      *  behind the overflow: read like a directory just made
                      *  (defer_key_dir_scan()), at the place the stream is
                      */
-                    defer_key_dir_scan(watched_topic, fs_event, key, fs_event->offset);
+                    defer_key_dir_scan(watched_topic, fs_event, key, fs_event->offset, fs_event->event_wd);
                 } else {
                     snprintf(key_dir, sizeof(key_dir), "%s", (const char *)fs_event->directory);
                     scan_disks_key_for_new_file(gobj, tranger, key_dir);
@@ -7062,6 +7093,37 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                             break;
                         }
                         forget_debts_passed(watched_topic, fs_event, key, fs_event->offset);
+
+                        /*
+                         *  Consumed and read through the descriptor of the
+                         *  directory the event came from: by path, an event
+                         *  of a directory deleted and made again (the key
+                         *  written again) consumed the NEW life's link and
+                         *  read it against the old life's cache (up to
+                         *  7.25.21; ext4 even gives the new directory the
+                         *  inode, and on 6.x kernels the birth time, of the
+                         *  old one)
+                         */
+                        int dir_fd = fs_watcher_dir_fd(fs_event, fs_event->event_wd);
+                        if(dir_fd >= 0) {
+                            consume_link_by_fd(gobj, tranger, watched_topic, fs_event,
+                                dir_fd, key, (const char *)fs_event->filename
+                            );
+                            break;
+                        }
+                        if(errno == ENOENT) {
+                            if(gobj_global_trace_level() & TRACE_FS) {
+                                gobj_log_debug(gobj, 0,
+                                    "function",         "%s", __FUNCTION__,
+                                    "msgset",           "%s", MSGSET_YEV_LOOP,
+                                    "msg",              "%s", "CLIENT: link of a key directory gone, not read",
+                                    "full_path",        "%s", full_path,
+                                    NULL
+                                );
+                            }
+                            break;  // its life is gone, its delete is heard
+                        }
+                        // ENOTSUP: watched without a descriptor, by its path
                     }
                 }
                 update_key_by_hard_link(gobj, tranger, full_path); // full_path modified */
@@ -7140,6 +7202,367 @@ PRIVATE int scan_disks_key_for_new_file(
     dir_array_free(&da);
 
     return found;   // the records found (links of md2 files)
+}
+
+PRIVATE int cmp_link_names(const void *a, const void *b)
+{
+    return strcmp(*(const char * const *)a, *(const char * const *)b);
+}
+
+/***************************************************************************
+ *  CLIENT: the links (*.md2) of a key directory, read through its
+ *  descriptor, in name order: each one consumed (consume_link_by_fd()).
+ *  Returns the links found, or -1 (logged).
+ ***************************************************************************/
+PRIVATE int scan_key_dir_by_fd(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *watched_topic,
+    fs_event_t *fs_event,
+    int dir_fd,
+    const char *key
+)
+{
+    /*
+     *  A descriptor of its own for the listing: one dup()ed shares the
+     *  offset of the watcher's, and a listing would leave it at the end
+     */
+    int list_fd = openat(dir_fd, ".", O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+    if(list_fd < 0) {
+        if(errno == ENOENT) {
+            return 0;   // gone meanwhile
+        }
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot open a key directory to list its links",
+            "key",          "%s", key,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    DIR *dir = fdopendir(list_fd);
+    if(!dir) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "fdopendir() FAILED: the links of a key directory are not read",
+            "key",          "%s", key,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        close(list_fd);
+        return -1;
+    }
+
+    json_t *names = json_array();
+    struct dirent *entry;
+    while((errno = 0, entry = readdir(dir)) != NULL) {
+        size_t len = strlen(entry->d_name);
+        if(len > 4 && strcmp(entry->d_name + len - 4, ".md2") == 0) {
+            json_array_append_new(names, json_string(entry->d_name));
+        }
+    }
+    if(errno != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "readdir() FAILED: the links of a key directory are not read",
+            "key",          "%s", key,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        closedir(dir);
+        JSON_DECREF(names)
+        return -1;
+    }
+    closedir(dir);
+
+    size_t n = json_array_size(names);
+    const char **sorted = n? GBMEM_MALLOC(n * sizeof(char *)) : NULL;
+    if(n && !sorted) {
+        // Error already logged
+        JSON_DECREF(names)
+        return -1;
+    }
+    for(size_t i = 0; i < n; i++) {
+        sorted[i] = json_string_value(json_array_get(names, i));
+    }
+    if(n) {
+        qsort(sorted, n, sizeof(char *), cmp_link_names);
+    }
+    for(size_t i = 0; i < n && !fs_event->stop_requested; i++) {
+        consume_link_by_fd(gobj, tranger, watched_topic, fs_event, dir_fd, key, sorted[i]);
+    }
+    GBMEM_FREE(sorted)
+    JSON_DECREF(names)
+
+    return (int)n;
+}
+
+/***************************************************************************
+ *  CLIENT: the md2 descriptor kept to read `file_id` of the key, if it is
+ *  `pin` and was checked to be its life (keys_are_the_life_of()); -1 if not.
+ *  Nothing is opened here.
+ ***************************************************************************/
+PRIVATE int known_life_md2_fd(
+    json_t *topic,
+    const char *key,
+    const char *file_id,
+    const struct stat *pin
+)
+{
+    json_t *life = json_object_get(json_object_get(topic, "rd_fd_life"), key);
+    if(json_integer_value(json_object_get(life, file_id)) != (json_int_t)pin->st_ino) {
+        return -1;
+    }
+    char filename[NAME_MAX+8];
+    int written = snprintf(filename, sizeof(filename), "%s.md2", file_id);
+    if(written < 0 || (size_t)written >= sizeof(filename)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "md2 filename too long: the record is read the slow way",
+            "key",          "%s", key,
+            "file_id",      "%s", file_id,
+            NULL
+        );
+        return -1;
+    }
+    int fd = (int)json_integer_value(
+        json_object_get(json_object_get(json_object_get(topic, "rd_fd_files"), key), filename)
+    );
+    struct stat st;
+    if(fd <= 0 || fstat(fd, &st) < 0 || st.st_ino != pin->st_ino || st.st_dev != pin->st_dev) {
+        return -1;
+    }
+    return fd;
+}
+
+/***************************************************************************
+ *  CLIENT: a link of a key directory of disks/<rt_id>/, consumed through
+ *  the descriptor of that directory, and its records read.
+ *
+ *  The link IS the md2 of its life (a hard link the master made): open, it
+ *  holds that inode, which no other file can then take, and the read
+ *  checks against it that keys/<key>/ is still that life
+ *  (update_new_records_from_disk()). A link of a directory gone (the key
+ *  deleted, maybe written again: a directory made again has links of its
+ *  own) is not read: its life is gone, and its delete is heard.
+ ***************************************************************************/
+PRIVATE int consume_link_by_fd(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *watched_topic,
+    fs_event_t *fs_event,
+    int dir_fd,
+    const char *key,
+    const char *link_name
+)
+{
+    json_t *disk = feed_of_watcher(watched_topic, fs_event);
+    const char *rt_id = json_string_value(json_object_get(disk, "id"));
+    if(!rt_id) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "no rt_disk feed owns this watcher",
+            "key",          "%s", key,
+            "path",         "%s", fs_event->path,
+            NULL
+        );
+        return -1;
+    }
+
+    /*
+     *  The usual case: the md2 of the key is kept open to read, and checked
+     *  already to be the life of a link of this file. The link is looked at
+     *  while it exists: it and that descriptor hold their inodes, and two
+     *  inodes alive at once never share a number. Equal, it is that life:
+     *  no need to open the link.
+     */
+    struct stat pin;
+    int life_md2_fd = -1;
+    int link_fd = -1;
+    char file_id[NAME_MAX+1];
+    snprintf(file_id, sizeof(file_id), "%s", link_name);
+    char *dot = strrchr(file_id, '.');
+    if(dot) {
+        *dot = 0;
+    }
+    if(fstatat(dir_fd, link_name, &pin, AT_SYMLINK_NOFOLLOW) == 0) {
+        life_md2_fd = known_life_md2_fd(watched_topic, key, file_id, &pin);
+    }
+    if(life_md2_fd < 0) {
+        link_fd = openat(dir_fd, link_name, O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
+    }
+    if(life_md2_fd < 0 && link_fd < 0) {
+        if(errno != ENOENT) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot open the link of a new record",
+                "key",          "%s", key,
+                "link",         "%s", link_name,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            return -1;
+        }
+        struct stat st;
+        if(fstat(dir_fd, &st) == 0 && st.st_nlink == 0) {
+            if(gobj_global_trace_level() & TRACE_FS) {
+                gobj_log_debug(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_YEV_LOOP,
+                    "msg",              "%s", "CLIENT: link of a key directory gone, not read",
+                    "key",              "%s", key,
+                    "link",             "%s", link_name,
+                    NULL
+                );
+            }
+            return 0;
+        }
+        /*
+         *  Consumed already, by the other path (the directory's scan and
+         *  the link's IN_CREATE both meet a link made in between): read
+         *  again, it hands only what the cache has not
+         */
+    } else if(link_fd >= 0 && fstat(link_fd, &pin) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "fstat() of the link of a new record FAILED",
+            "key",          "%s", key,
+            "link",         "%s", link_name,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        close(link_fd);
+        return -1;
+    }
+
+    if(unlinkat(dir_fd, link_name, 0) < 0 && errno != ENOENT) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "unlinkat() FAILED",
+            "key",          "%s", key,
+            "link",         "%s", link_name,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    char md2[NAME_MAX+1];
+    snprintf(md2, sizeof(md2), "%s", link_name);
+    update_new_records_from_disk(
+        gobj,
+        tranger,
+        watched_topic,
+        key,
+        md2,
+        rt_id,
+        (link_fd >= 0 || life_md2_fd >= 0)? &pin : NULL,
+        life_md2_fd
+    );
+    if(link_fd >= 0) {
+        close(link_fd);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  CLIENT: are `path` and `fd` the same file? (an open file holds its
+ *  inode: no other file takes its number meanwhile)
+ ***************************************************************************/
+PRIVATE BOOL path_is_file(const char *path, const struct stat *st_file)
+{
+    struct stat st;
+    if(stat(path, &st) < 0) {
+        return FALSE;
+    }
+    return (st.st_ino == st_file->st_ino && st.st_dev == st_file->st_dev)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  CLIENT: the descriptors kept to read the records of `file_id` (its md2
+ *  and its content) are the life of the link (`pin`, its md2). The md2 is
+ *  compared with the pin, whose inode no other file can take while the
+ *  link is open; the content is checked once per life, by path, while the
+ *  md2 there is still that life (`rd_fd_life` remembers it until the
+ *  descriptors are closed). Read through them, the records are that
+ *  life's even if keys/<key>/ is another one by now: they come before its
+ *  delete, as they happened. A descriptor of another life (its delete not
+ *  heard yet) is closed and opened again, once, while keys/<key>/ is the
+ *  pin's.
+ ***************************************************************************/
+PRIVATE BOOL keys_are_the_life_of(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *file_id,
+    const struct stat *pin,
+    int *md2_fd_     // the descriptor kept to read its md2: the life itself
+)
+{
+    const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
+
+    for(int tries = 0; tries < 2; tries++) {
+        int md2_fd = get_topic_rd_fd(gobj, tranger, topic, key, file_id, FALSE);
+        if(md2_fd < 0) {
+            return FALSE;   // Error already logged
+        }
+        struct stat st_md2;
+        if(fstat(md2_fd, &st_md2) == 0 &&
+                st_md2.st_ino == pin->st_ino && st_md2.st_dev == pin->st_dev) {
+            json_t *life = json_object_get(json_object_get(topic, "rd_fd_life"), key);
+            if(json_integer_value(json_object_get(life, file_id)) == (json_int_t)pin->st_ino) {
+                *md2_fd_ = md2_fd;
+                return TRUE;    // its content checked already
+            }
+            int data_fd = get_topic_rd_fd(gobj, tranger, topic, key, file_id, TRUE);
+            struct stat st_data;
+            char md2_path[PATH_MAX];
+            char data_path[PATH_MAX];
+            snprintf(md2_path, sizeof(md2_path), "%s/keys/%s/%s.md2", topic_dir, key, file_id);
+            snprintf(data_path, sizeof(data_path), "%s/keys/%s/%s.json", topic_dir, key, file_id);
+            if(data_fd >= 0 && fstat(data_fd, &st_data) == 0 &&
+                    path_is_file(data_path, &st_data) &&
+                    path_is_file(md2_path, pin)) {
+                json_t *fd_life = json_object_get(topic, "rd_fd_life");
+                if(!fd_life) {
+                    fd_life = json_object();    // made by the first follower read: only a follower has it
+                    json_object_set_new(topic, "rd_fd_life", fd_life);
+                }
+                if(!life) {
+                    life = json_object();
+                    json_object_set_new(fd_life, key, life);
+                }
+                json_object_set_new(life, file_id, json_integer((json_int_t)pin->st_ino));
+                *md2_fd_ = md2_fd;
+                return TRUE;
+            }
+            if(data_fd < 0) {
+                return FALSE;   // Error already logged
+            }
+        }
+        char md2_path[PATH_MAX];
+        snprintf(md2_path, sizeof(md2_path), "%s/keys/%s/%s.md2", topic_dir, key, file_id);
+        if(!path_is_file(md2_path, pin)) {
+            return FALSE;   // keys/<key>/ is another life: its files cannot be opened
+        }
+        close_fd_rd_files(gobj, topic, key);    // of another life: opened again
+    }
+    return FALSE;
 }
 
 /***************************************************************************
@@ -7558,20 +7981,34 @@ PRIVATE void scan_key_dir(
     const dir_id_t *seen
 )
 {
-    char key_dir[PATH_MAX];
-    if(!build_path(key_dir, sizeof(key_dir), fs_event->path, key, NULL)) {
-        return; // Error already logged
-    }
-    dir_id_t now;
-    if(!dir_identity(key_dir, &now.ino, &now.bsec, &now.bnsec)) {
-        return; // gone: the signal of a delete, or deleted since
-    }
-    if(now.ino != seen->ino || now.bsec != seen->bsec || now.bnsec != seen->bnsec) {
-        return; // another directory: its own IN_CREATE reads it
-    }
     char key_[NAME_MAX+1];
     snprintf(key_, sizeof(key_), "%s", key);
-    int records = scan_disks_key_for_new_file(gobj, tranger, key_dir);
+    int records;
+    if(seen->wd >= 0) {
+        /*
+         *  The very directory looked at, through its descriptor: one made
+         *  since under its path is not reached
+         */
+        int dir_fd = fs_watcher_dir_fd(fs_event, (int)seen->wd);
+        struct stat st;
+        if(dir_fd < 0 || fstat(dir_fd, &st) < 0 || st.st_nlink == 0) {
+            return; // gone: the signal of a delete, or deleted since
+        }
+        records = scan_key_dir_by_fd(gobj, tranger, watched_topic, fs_event, dir_fd, key_);
+    } else {
+        char key_dir[PATH_MAX];
+        if(!build_path(key_dir, sizeof(key_dir), fs_event->path, key, NULL)) {
+            return; // Error already logged
+        }
+        dir_id_t now;
+        if(!dir_identity(key_dir, &now.ino, &now.bsec, &now.bnsec)) {
+            return; // gone: the signal of a delete, or deleted since
+        }
+        if(now.ino != seen->ino || now.bsec != seen->bsec || now.bnsec != seen->bnsec) {
+            return; // another directory: its own IN_CREATE reads it
+        }
+        records = scan_disks_key_for_new_file(gobj, tranger, key_dir);
+    }
     if(records > 0 && !fs_event->stop_requested) {
         forget_debts_passed(watched_topic, fs_event, key_, at);
     }
@@ -7623,7 +8060,8 @@ PRIVATE void defer_key_dir_scan(
     json_t *watched_topic,
     fs_event_t *fs_event,
     const char *key,
-    uint64_t at
+    uint64_t at,
+    int wd      // the watch of the directory: -1 if it was gone at its IN_CREATE
 )
 {
     json_t *disk = feed_of_watcher(watched_topic, fs_event);
@@ -7635,7 +8073,9 @@ PRIVATE void defer_key_dir_scan(
         fresh = json_object();
         json_object_set_new(disk, "scans_new", fresh);
     }
-    json_object_set_new(fresh, key, json_integer((json_int_t)at));
+    char note[2*21];   // "<at> <wd>"
+    snprintf(note, sizeof(note), "%" PRIu64 " %d", at, wd);
+    json_object_set_new(fresh, key, json_string(note));
 }
 
 #define SCANS_POSTPONE_BYTES    (256*1024)  // a backlog deeper than this: notes wait
@@ -7707,11 +8147,32 @@ PRIVATE void place_new_key_dir_scans(
         void *it_chunk = it;
         size_t n_seen = 0;
         for(; it && n_seen < SCANS_PLACE_CHUNK; it = json_object_iter_next(fresh, it)) {
-            char key_dir[PATH_MAX];
-            seen[n_seen].alive = build_path(key_dir, sizeof(key_dir), fs_event->path,
-                    json_object_iter_key(it), NULL) &&
-                dir_identity(key_dir, &seen[n_seen].id.ino, &seen[n_seen].id.bsec,
-                    &seen[n_seen].id.bnsec);
+            /*
+             *  The directory looked at is the one of its watch (the inode
+             *  of its descriptor): there, or gone. Without a descriptor, by
+             *  its path: inode and birth (ext4 on 6.x kernels can give a
+             *  directory made again both of the old one).
+             */
+            unsigned long long at_ = 0;
+            int wd = -1;
+            sscanf(json_string_value(json_object_iter_value(it))? json_string_value(json_object_iter_value(it)) : "",
+                "%llu %d", &at_, &wd);
+            memset(&seen[n_seen], 0, sizeof(seen[n_seen]));
+            seen[n_seen].id.wd = wd;
+            int dir_fd = wd >= 0? fs_watcher_dir_fd(fs_event, wd) : -1;
+            if(dir_fd >= 0) {
+                struct stat st;
+                seen[n_seen].alive = fstat(dir_fd, &st) == 0 && st.st_nlink > 0;
+            } else if(wd >= 0 && errno == ENOTSUP) {
+                char key_dir[PATH_MAX];
+                seen[n_seen].id.wd = -1;
+                seen[n_seen].alive = build_path(key_dir, sizeof(key_dir), fs_event->path,
+                        json_object_iter_key(it), NULL) &&
+                    dir_identity(key_dir, &seen[n_seen].id.ino, &seen[n_seen].id.bsec,
+                        &seen[n_seen].id.bnsec);
+            } else {
+                seen[n_seen].alive = FALSE;     // gone at its IN_CREATE, or since
+            }
             n_seen++;
         }
         uint64_t until = fs_queued_events_end(fs_event);
@@ -7737,7 +8198,10 @@ PRIVATE void place_new_key_dir_scans(
                 continue;   // gone at the look: the signal of a delete, nothing in it
             }
             const char *key = json_object_iter_key(it_);
-            uint64_t at = (uint64_t)json_integer_value(json_object_iter_value(it_));
+            unsigned long long at_ = 0;
+            sscanf(json_string_value(json_object_iter_value(it_))? json_string_value(json_object_iter_value(it_)) : "",
+                "%llu", &at_);
+            uint64_t at = (uint64_t)at_;
             if(until <= reached) {
                 scan_key_dir(gobj, tranger, watched_topic, fs_event, key, at, &seen[i].id);
                 disk = feed_of_watcher(watched_topic, fs_event);    // a callback may have closed the feed
@@ -7779,9 +8243,9 @@ PRIVATE void place_key_dir_scan(
      *  Two strings per directory, not two json containers: a flood notes
      *  them by the tens of thousands
      */
-    char entry[5*21];   // five 64-bit numbers of up to 20 characters, a blank or the NUL after each
-    int written = snprintf(entry, sizeof(entry), "%" PRIu64 " %" PRIu64 " %" PRId64 " %" PRId64 " %" PRId64,
-        until, at, (int64_t)seen->ino, (int64_t)seen->bsec, (int64_t)seen->bnsec);
+    char entry[6*21];   // six 64-bit numbers of up to 20 characters, a blank or the NUL after each
+    int written = snprintf(entry, sizeof(entry), "%" PRIu64 " %" PRIu64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64,
+        until, at, (int64_t)seen->wd, (int64_t)seen->ino, (int64_t)seen->bsec, (int64_t)seen->bnsec);
     if(written < 0 || (size_t)written >= sizeof(entry)) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
@@ -7822,7 +8286,7 @@ PRIVATE void run_due_key_dir_scans(
      *  is quadratic in a flood of new keys (69632 of them after an
      *  overflow); the part done is cut off now and then. An entry of
      *  the order is "<until> <key>"; `scans_pending` holds for the key
-     *  "<until> <at> <inode> <birth sec> <birth nsec>" of its live entry (a
+     *  "<until> <at> <wd> <inode> <birth sec> <birth nsec>" of its live entry (a
      *  delete drops it, a later note replaces it).
      */
     size_t next = (size_t)json_integer_value(json_object_get(disk, "scans_order_next"));
@@ -7850,12 +8314,12 @@ PRIVATE void run_due_key_dir_scans(
         json_t *pending = json_object_get(disk, "scans_pending");
         const char *entry = json_string_value(json_object_get(pending, key_));
         uint64_t until_ = 0, at = 0;
-        int64_t ino = 0, bsec = 0, bnsec = 0;
+        int64_t wd = -1, ino = 0, bsec = 0, bnsec = 0;
         if(!entry) {
             continue;   // dropped by a delete
         }
-        if(sscanf(entry, "%" SCNu64 " %" SCNu64 " %" SCNd64 " %" SCNd64 " %" SCNd64,
-                &until_, &at, &ino, &bsec, &bnsec) != 5) {
+        if(sscanf(entry, "%" SCNu64 " %" SCNu64 " %" SCNd64 " %" SCNd64 " %" SCNd64 " %" SCNd64,
+                &until_, &at, &wd, &ino, &bsec, &bnsec) != 6) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL,
@@ -7872,7 +8336,7 @@ PRIVATE void run_due_key_dir_scans(
         }
         json_object_del(pending, key_);
 
-        dir_id_t seen = {(json_int_t)ino, (json_int_t)bsec, (json_int_t)bnsec};
+        dir_id_t seen = {(json_int_t)wd, (json_int_t)ino, (json_int_t)bsec, (json_int_t)bnsec};
         json_object_set_new(disk, "scans_order_next", json_integer((json_int_t)next));
         scan_key_dir(gobj, tranger, watched_topic, fs_event, key_, at, &seen);
         disk = feed_of_watcher(watched_topic, fs_event);    // a callback may have closed the feed
@@ -8206,7 +8670,9 @@ PRIVATE int update_key_by_hard_link(
         topic,
         key,
         md2,
-        rt_id
+        rt_id,
+        NULL,
+        -1
     );
 
     return 0;
@@ -8250,7 +8716,9 @@ PRIVATE json_int_t update_new_records_from_disk(
     json_t *topic,
     const char *key,
     char *filename,
-    const char *rt_id   // the feed whose /disks/<rt_id>/ directory fired
+    const char *rt_id,  // the feed whose /disks/<rt_id>/ directory fired
+    const struct stat *pin, // the md2 of the life read (its link, open); NULL: by path
+    int life_md2_fd         // the md2 descriptor already checked to be `pin`, or -1
 )
 {
     const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
@@ -8313,6 +8781,28 @@ PRIVATE json_int_t update_new_records_from_disk(
         }
     }
 
+    /*
+     *  The life of the link: keys/<key>/ is that life, and so are the files
+     *  the records are read from. Another one (the key deleted and written
+     *  again since the link was made): not read, its delete is heard, and
+     *  the new life's rows come with its own notifications.
+     */
+    if(pin && life_md2_fd < 0 &&
+            !keys_are_the_life_of(gobj, tranger, topic, key, file_id_, pin, &life_md2_fd)) {
+        if(gobj_global_trace_level() & TRACE_FS) {
+            gobj_log_debug(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_YEV_LOOP,
+                "msg",              "%s", "CLIENT: link of another life of the key, not read",
+                "topic_name",       "%s", tranger2_topic_name(topic),
+                "key",              "%s", key,
+                "filename",         "%s", filename,
+                NULL
+            );
+        }
+        return 0;
+    }
+
     json_int_t file_base = 0;
     int insert_idx = 0;
     json_t *cur_cache_cell = find_cache_cell(
@@ -8330,7 +8820,8 @@ PRIVATE json_int_t update_new_records_from_disk(
         filename,   // warning .md2 removed
         cur_cache_cell,
         NULL,       // no listing: the markers are looked for on disk
-        json_is_true(json_object_get(tranger, "master"))
+        json_is_true(json_object_get(tranger, "master")),
+        life_md2_fd // the md2 of the life of the link, or -1: by its path
     );
     if(!new_cache_cell) {
         // Error already logged
@@ -9498,7 +9989,8 @@ PRIVATE int recount_flagged_file(
         filename,   // warning .md2 removed
         NULL,       // the file has no cell: it was flagged
         NULL,       // no listing: the markers are looked for on disk
-        json_is_true(json_object_get(tranger, "master"))
+        json_is_true(json_object_get(tranger, "master")),
+        -1
     );
     if(!cache_cell) {
         return -1;  // Error already logged, the file is still flagged
@@ -9804,7 +10296,8 @@ PRIVATE json_t *load_key_cache_from_disk(
             md2_name,   // warning .md2 removed
             NULL,       // no cell yet: the cache is being built
             master? &da: NULL,
-            master
+            master,
+            -1
         );
         if(!cache_cell) {
             // Error already logged, the cause
@@ -9952,7 +10445,8 @@ PRIVATE json_t *load_cache_cell_from_disk(
     char *filename, // md2 filename with extension, WARNING modified, .md2 removed
     json_t *known_cell, // the cell this file already has in memory, or NULL
     const dir_array_t *key_files,   // the key directory, listed and sorted, or NULL (see the function)
-    BOOL master         // a master cuts a torn last row back, a replica reads the whole rows
+    BOOL master,        // a master cuts a torn last row back, a replica reads the whole rows
+    int md2_fd          // the md2 already open, or -1: opened by its path
 )
 {
     /*----------------------------------*
@@ -9967,6 +10461,7 @@ PRIVATE json_t *load_cache_cell_from_disk(
         key,
         filename,
         master,
+        md2_fd,
         &md_first_record,
         &md_last_record
     );
@@ -10957,6 +11452,7 @@ PRIVATE json_int_t load_first_and_last_record_md(
     const char *key,
     const char *filename,
     BOOL master,
+    int md2_fd,     // the md2 already open (not closed here), or -1: opened by its path
     md2_record_t *md_first_record,
     md2_record_t *md_last_record
 )
@@ -10967,7 +11463,8 @@ PRIVATE json_int_t load_first_and_last_record_md(
      *----------------------------------*/
     char full_path[PATH_MAX];
     build_path(full_path, sizeof(full_path), topic_directory, "keys", key, filename, NULL);
-    int fd = open(full_path, O_RDONLY|O_CLOEXEC, 0);
+    BOOL own_fd = (md2_fd < 0)? TRUE : FALSE;
+    int fd = own_fd? open(full_path, O_RDONLY|O_CLOEXEC, 0) : md2_fd;
     if(fd<0) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -10984,7 +11481,9 @@ PRIVATE json_int_t load_first_and_last_record_md(
     /*---------------------------*
      *      The size
      *---------------------------*/
-    off_t size = lseek(fd, 0, SEEK_END);
+    struct stat st_md2;
+    off_t size = own_fd? lseek(fd, 0, SEEK_END) :     // a shared descriptor keeps its offset
+        (fstat(fd, &st_md2) == 0? st_md2.st_size : -1);
     if(size < 0) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -10995,7 +11494,9 @@ PRIVATE json_int_t load_first_and_last_record_md(
             "serrno",       "%s", strerror(errno),
             NULL
         );
-        close(fd);
+        if(own_fd) {
+            close(fd);
+        }
         return -1;
     }
 
@@ -11016,7 +11517,9 @@ PRIVATE json_int_t load_first_and_last_record_md(
          */
         if(check_torn_md2_tail(gobj, topic_directory, key, file_id, fd, size, -1) < 0) {
             // Error already logged
+            if(own_fd) {
             close(fd);
+        }
             return -1;
         }
         if(master) {
@@ -11034,7 +11537,9 @@ PRIVATE json_int_t load_first_and_last_record_md(
                     "serrno",           "%s", strerror(errno),
                     NULL
                 );
-                close(fd);
+                if(own_fd) {
+            close(fd);
+        }
                 return -1;
             }
 
@@ -11058,7 +11563,9 @@ PRIVATE json_int_t load_first_and_last_record_md(
 
     json_int_t file_rows = (json_int_t)(size / (off_t)sizeof(md2_record_t));
     if(file_rows == 0) {
-        close(fd);
+        if(own_fd) {
+            close(fd);
+        }
         return 0;
     }
 
@@ -11067,17 +11574,23 @@ PRIVATE json_int_t load_first_and_last_record_md(
      *---------------------------*/
     if(read_md2_row(gobj, fd, full_path, 0, md_first_record, NULL, "first") < 0) {
         // Error already logged
-        close(fd);
+        if(own_fd) {
+            close(fd);
+        }
         return -1;
     }
     if(read_md2_row(gobj, fd, full_path, size - (off_t)sizeof(md2_record_t),
             md_last_record, NULL, "last") < 0) {
         // Error already logged
-        close(fd);
+        if(own_fd) {
+            close(fd);
+        }
         return -1;
     }
 
-    close(fd);
+    if(own_fd) {
+        close(fd);
+    }
 
     return file_rows;
 }

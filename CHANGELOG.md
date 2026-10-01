@@ -9,7 +9,10 @@ except the hook and the entries this list marks "(no red test)".
 ### Upgrade steps (operators, read first)
 
 - **Rebuild every project against the new headers.** `fs_event_t`
-  (`fs_watcher.h`) gains three fields, at its end.
+  (`fs_watcher.h`) gains seven fields, at its end.
+- **An rt_disk follower holds one more descriptor per key directory of each
+  feed** (`FS_FLAG_DIR_FDS`). The packages give the yuneta user `nofile
+  unlimited`; a follower run elsewhere needs room for them.
 - **A stop of a TCP connection no longer waits for ever for a peer that does
   not take its data**: after `timeout_stop_tx` (10 s by default, a new
   `C_TCP` attr) the connection is aborted. A host that stops a connection
@@ -84,6 +87,35 @@ except the hook and the entries this list marks "(no red test)".
 - **`scripts/check_test_ports.py` fails on a file it cannot read**, naming
   it: it skipped it silently, and its ports were not checked. Its files are
   closed after reading.
+
+### The reborn key of an rt_disk follower (the HIGH open since 7.25.20)
+
+- **An rt_disk follower behind a master in another process no longer hands
+  a key's later life before its delete.** It took the link of a new record
+  and read the key's files BY PATH, so after the master deleted the key and
+  wrote it again, a late event of the old key directory consumed the NEW
+  life's link and read it against the old life's cache: `[R2 DEL]`, the live
+  key out of the cache, the next append handing R1..R4. The identity check
+  of 7.25.21 (inode and birth) could not tell the directories apart on the
+  nodes: ext4 on Debian's 6.x kernels gives a directory made again the inode
+  and the birth time of the old one, and `test_delete_key_propagation` ("race
+  in the batch") failed there 9 runs in 10. Now each key directory is
+  watched with a descriptor of its own, the very inode of its watch (new
+  `FS_FLAG_DIR_FDS` and `fs_watcher_dir_fd()` in fs_watcher, new
+  `event_wd`/`subdir_wd` on every event); a link is taken through the
+  descriptor of the directory its event came from (`openat`/`unlinkat`),
+  and its records are read through descriptors checked to be the link's
+  life. Under a random load of a master in another process (appends,
+  deletes, rewrites 0-20 us apart, a follower slowed 0-100 us a record, 3
+  feeds and 4 keys), 7 to 11 of the 12 feed and key pairs got a life out of
+  order; none now, on the dev kernel and on wattyzer's 6.12, and the last
+  life of every key is heard whole. Cost: none on the append path (22.4 us
+  a record and feed, both), +5% on the 69632-key flood of
+  `test_rt_disk_overflow` (18.1 -> 19.0 s, an open and a watch through
+  /proc per new key directory). Tests `test_delete_key_propagation` (new
+  "a stale link", fails on the code before it locally too: `[R2 DEL]`;
+  "race in the batch" passes 30 in 30 on wattyzer, 1 in 10 before) and
+  `test_fs_watcher_overflow` (new "dir fds").
 
 ### Risks the review named
 

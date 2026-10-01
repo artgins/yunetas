@@ -36,11 +36,13 @@ fs_event_t *fs_create_watcher_event(
 | `user_data` | `void *` | User-defined data passed to the callback function. |
 | `user_data2` | `void *` | Additional user-defined data passed to the callback function. |
 
+With `FS_FLAG_DIR_FDS` each SUBDIRECTORY watched is opened first and watched through that descriptor, so the watch and the descriptor are one inode: see [`fs_watcher_dir_fd()`](#fs_watcher_dir_fd). Every event carries `event_wd` (the watch of `directory`) and, for `FS_SUBDIR_CREATED_TYPE`, `subdir_wd` (the watch just set on the directory created, `-1` if it was gone).
+
 **Returns**
 
 Returns a pointer to a newly allocated [`fs_event_t`](#fs_event_t) structure representing the watcher event, or `NULL` on failure -- a path that is not a directory, no inotify instance, or a root that cannot be watched (`ENOSPC` at `fs.inotify.max_user_watches`, logged). Up to 7.25.20 a root that could not be watched gave a watcher all the same, running and watching nothing.
 
-With `FS_FLAG_BATCH_END` the owner is also called with `FS_BATCH_END_TYPE` after each batch read from inotify (`offset` = where the batch ends), and after each slice of the pass that follows an overflow (`offset` = where the stream is), and every event carries `offset` and `offset_end`, its place in the watcher's stream: what the owner left for "when the stream is past here" can be done there. A timeranger2 follower defers the scan of a key directory that way. It notes the directory at its event, and asks where the queue ends once, at the end of the batch: [`fs_queued_events_end()`](#fs_queued_events_end) walks the whole inotify queue, and asked at each new directory it made a flood of 69632 new keys quadratic (18 s of a drain of 21). The order is the contract: first LOOK at each directory (who it is: inode and birth), THEN ask where the queue ends, and read a directory only if it is still the one looked at. A change made by another process after the look is either queued before the answer (and read before the directory is) or it changed the directory (and the read is skipped). With the question first and the look after, a directory removed and made again between the two is read as the new one, while the event of its removal is queued past the answer. The window is not small: the owner's own callbacks for the directories before it in the batch run there.
+With `FS_FLAG_BATCH_END` the owner is also called with `FS_BATCH_END_TYPE` after each batch read from inotify (`offset` = where the batch ends), and after each slice of the pass that follows an overflow (`offset` = where the stream is), and every event carries `offset` and `offset_end`, its place in the watcher's stream: what the owner left for "when the stream is past here" can be done there. A timeranger2 follower defers the scan of a key directory that way. It notes the directory at its event, and asks where the queue ends once, at the end of the batch: [`fs_queued_events_end()`](#fs_queued_events_end) walks the whole inotify queue, and asked at each new directory it made a flood of 69632 new keys quadratic (18 s of a drain of 21). The order is the contract: first LOOK at each directory (who it is: the watch it was seen with, and its descriptor -- see [`FS_FLAG_DIR_FDS`](#fs_watcher_dir_fd); without one, inode and birth), THEN ask where the queue ends, and read a directory only if it is still the one looked at. A change made by another process after the look is either queued before the answer (and read before the directory is) or it changed the directory (and the read is skipped). With the question first and the look after, a directory removed and made again between the two is read as the new one, while the event of its removal is queued past the answer. The window is not small: the owner's own callbacks for the directories before it in the batch run there.
 
 A file created in a directory that is noted or placed is left to the read of that directory, which takes all its files in order. Read at its own event, a second file of a new key came before the first.
 
@@ -62,7 +64,7 @@ case FS_FILE_CREATED_TYPE:
 case FS_BATCH_END_TYPE:
     read_the_placed_directories_due(my, fs_event->offset);  // each one if still the one looked at
     if(has_notes(my)) {
-        look_at_the_noted_directories(my);          // FIRST: inode and birth of each one
+        look_at_the_noted_directories(my);          // FIRST: each one by its watch and descriptor
         uint64_t until = fs_queued_events_end(fs_event);    // THEN the question, once
         place_the_notes(my, until);                 // read each when the stream is past `until`
     }
@@ -195,6 +197,78 @@ case FS_SUBDIR_DELETED_TYPE:
     }
     tell_deleted(owner, fs_event->filename);
     break;
+```
+
+---
+
+(fs_watcher_dir_fd)=
+## `fs_watcher_dir_fd()`
+
+With `FS_FLAG_DIR_FDS`, the descriptor of the directory watched under `wd`
+(an event's `event_wd` or `subdir_wd`). It is the very inode of that watch:
+the directory is opened BEFORE it is watched, and watched through the
+descriptor (`/proc/self/fd/N`), so a directory removed and made again under
+the same path -- which ext4 gives the same inode number, and on 6.x kernels
+the same birth time -- is never taken for it. `openat()` / `unlinkat()`
+through it cannot reach another directory: in a directory gone they fail with
+`ENOENT`.
+
+```C
+int fs_watcher_dir_fd(
+    fs_event_t *fs_event,
+    int wd
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `fs_event` | `fs_event_t *` | The watcher. |
+| `wd` | `int` | A watch: `fs_event->event_wd`, `fs_event->subdir_wd`. |
+
+**Returns**
+
+The descriptor, owned by the watcher: do not close it, and take it again at
+each event (it may be closed at the next one). `-1` and `errno`:
+
+- `ENOENT`: the directory is gone, or `wd` is not watched;
+- `ENOTSUP`: watched without a descriptor -- no `FS_FLAG_DIR_FDS`, the root
+  (nothing above it would close it when it goes), or the descriptor could not
+  be opened (logged). Use the path, as without the flag.
+
+**Notes**
+
+A descriptor open on a directory holds its inode: the kernel then holds back
+its `IN_DELETE_SELF` and `IN_IGNORED` until the descriptor is closed. The
+watcher closes it when the directory's parent reports it deleted
+(`IN_DELETE|IN_ISDIR`) and it has no link left (`st_nlink` 0), and when a
+new directory is watched at its path; then its events come, and the watch
+goes as without the flag. The cost is one descriptor per subdirectory
+watched (a timeranger2 follower: one per key directory of each feed), and an
+`open()` per directory watched.
+
+A timeranger2 follower takes the link of a new record through the
+descriptor of the directory the event came from, so an event of a key
+directory deleted and made again before it was read reaches nothing:
+
+```C
+case FS_FILE_CREATED_TYPE: {
+    int dir_fd = fs_watcher_dir_fd(fs_event, fs_event->event_wd);
+    if(dir_fd >= 0) {
+        int fd = openat(dir_fd, fs_event->filename, O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
+        if(fd < 0 && errno == ENOENT) {
+            break;      // consumed, or its directory is gone: not this one's
+        }
+        unlinkat(dir_fd, fs_event->filename, 0);
+        read_the_life_of(fd);
+        close(fd);
+    } else if(errno == ENOTSUP) {
+        read_by_path(fs_event->directory, fs_event->filename);
+    }
+    // ENOENT: the directory is gone, its delete comes
+    break;
+}
 ```
 
 ---
@@ -392,8 +466,9 @@ What the owners of the tree do:
   the master is one process and writes the key again only after it
   signalled this feed, so whatever can still remove the directory is queued
   by then; a delete of the key heard before drops it (the directory's own
-  `IN_CREATE` reads it later); and it reads only the directory seen then
-  (inode and birth). The feed is told `deleted`, then the new key's
+  `IN_CREATE` reads it later); and it reads only the directory seen then:
+  the one of the watch set at its `IN_CREATE`, through that watch's
+  descriptor (`FS_FLAG_DIR_FDS`; inode and birth only without one). The feed is told `deleted`, then the new key's
   records from rowid 1. So for ANY key: a key the follower never saw may
   have been born, deleted and written again in the part of the stream not
   read yet ([R1 DEL] was handed, the key out of the cache, and the next
@@ -402,7 +477,8 @@ What the owners of the tree do:
   not in the cache and not owed was read at once. The pass after an
   overflow defers its key directories the same way. The directories are
   noted at their event (`scans_new`) and placed at the end of the batch, or
-  of the slice of the pass: each one is LOOKED AT (inode and birth) and
+  of the slice of the pass: each one is LOOKED AT (still there, through
+  its descriptor) and
   then where the queued events end is asked, once for up to 256 of them;
   only with nothing queued after the batch is it read at once, and a read,
   at once or later, is done only if the directory is still the one looked

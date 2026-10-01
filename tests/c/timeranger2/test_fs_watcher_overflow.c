@@ -49,6 +49,16 @@
  *  SKIPPED as root): no watcher is created. Up to 7.25.20 a watcher was
  *  handed over all the same, watching nothing.
  *
+ *  And FS_FLAG_DIR_FDS (do_test_dir_fds): a subdirectory created is told
+ *  with `subdir_wd`, whose descriptor (fs_watcher_dir_fd()) is that very
+ *  directory; the root has none (ENOTSUP). The subdirectory removed and
+ *  made again before the watcher reads anything: its old watch answers
+ *  ENOENT, the new one has a descriptor of its own on another inode, an
+ *  openat() through the old descriptor does not reach the new directory,
+ *  and once the events held by the old descriptor come the table holds the
+ *  root and the new directory only (the descriptor held IN_DELETE_SELF and
+ *  IN_IGNORED until it was closed).
+ *
  *  And the ROOT deleted and created again while the queue is full
  *  (do_test_root_reborn, recursive and not): after the pass the new root
  *  is watched, a file created in it is heard. Up to 7.25.20 the pass
@@ -585,6 +595,122 @@ PRIVATE int do_test_root_reborn(BOOL recursive)
 }
 
 /***************************************************************************
+ *  FS_FLAG_DIR_FDS
+ ***************************************************************************/
+PRIVATE int dirfd_subdir_wd = -1;
+PRIVATE int dirfd_created = 0;
+PRIVATE int dirfd_deleted = 0;
+
+PRIVATE int fs_callback_dirfd(fs_event_t *fs_event)
+{
+    if(fs_event->fs_type == FS_SUBDIR_CREATED_TYPE) {
+        dirfd_created++;
+        dirfd_subdir_wd = fs_event->subdir_wd;
+    } else if(fs_event->fs_type == FS_SUBDIR_DELETED_TYPE) {
+        dirfd_deleted++;
+    }
+    return 0;
+}
+
+PRIVATE int do_test_dir_fds(void)
+{
+    int result = 0;
+    char root4[PATH_MAX], sub[PATH_MAX];
+    build_path(root4, sizeof(root4), getenv("HOME"), "tests_yuneta", "fs_watcher_dir_fds", NULL);
+    build_path(sub, sizeof(sub), root4, "k", NULL);
+    rmrdir(root4);
+    mkrdir(root4, 02770);
+
+    set_expected_results("fs_watcher dir fds", NULL, NULL, NULL, 1);
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop, root4, FS_FLAG_RECURSIVE_PATHS|FS_FLAG_DIR_FDS, fs_callback_dirfd, 0, NULL, NULL
+    );
+    if(!fs_event || fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> dir fds: the watcher could not be started\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    for(int i = 0; i < 5; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+
+    errno = 0;
+    int root_wd = -1;
+    const char *s_wd; json_t *jn_path;
+    json_object_foreach(fs_event->jn_tracked_paths, s_wd, jn_path) {
+        root_wd = atoi(s_wd);
+    }
+    if(fs_watcher_dir_fd(fs_event, root_wd) != -1 || errno != ENOTSUP) {
+        printf("%sERROR%s --> dir fds: the root must have no descriptor (ENOTSUP)\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    mkdir(sub, 0700);
+    for(int i = 0; i < 20 && dirfd_created == 0; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    int old_wd = dirfd_subdir_wd;
+    int old_fd = fs_watcher_dir_fd(fs_event, old_wd);
+    struct stat st_old, st_sub;
+    if(old_wd < 0 || old_fd < 0 || fstat(old_fd, &st_old) < 0 || stat(sub, &st_sub) < 0 ||
+            st_old.st_ino != st_sub.st_ino) {
+        printf("%sERROR%s --> dir fds: the subdirectory has no descriptor of its own inode (wd %d, fd %d)\n",
+            On_Red BWhite, Color_Off, old_wd, old_fd);
+        result += -1;
+    }
+
+    /*
+     *  Removed and made again before anything is read
+     */
+    rmdir(sub);
+    mkdir(sub, 0700);
+    int held = old_fd >= 0? openat(old_fd, "x", O_CREAT|O_WRONLY|O_CLOEXEC, 0600) : -1;
+    if(held >= 0) {
+        close(held);
+        printf("%sERROR%s --> dir fds: a file was made through the descriptor of a directory gone\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    dirfd_created = 0;
+    for(int i = 0; i < 30 && dirfd_created == 0; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    errno = 0;
+    if(fs_watcher_dir_fd(fs_event, old_wd) != -1 || errno != ENOENT) {
+        printf("%sERROR%s --> dir fds: the watch of the directory gone must answer ENOENT\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    int new_fd = fs_watcher_dir_fd(fs_event, dirfd_subdir_wd);
+    struct stat st_new;
+    if(dirfd_deleted != 1 || dirfd_subdir_wd == old_wd || new_fd < 0 ||
+            fstat(new_fd, &st_new) < 0 || stat(sub, &st_sub) < 0 || st_new.st_ino != st_sub.st_ino) {
+        printf("%sERROR%s --> dir fds: the directory made again is not watched with a descriptor of its own (deleted %d, wd %d -> %d)\n",
+            On_Red BWhite, Color_Off, dirfd_deleted, old_wd, dirfd_subdir_wd);
+        result += -1;
+    }
+    if(json_object_size(fs_event->jn_tracked_paths) != 2 ||
+            json_object_size(fs_event->jn_tracked_fds) != 1) {
+        printf("%sERROR%s --> dir fds: the table holds %d watches and %d descriptors, expected 2 and 1\n",
+            On_Red BWhite, Color_Off, (int)json_object_size(fs_event->jn_tracked_paths),
+            (int)json_object_size(fs_event->jn_tracked_fds));
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("fs_watcher dir fds: stop", NULL, NULL, NULL, 1);
+    fs_stop_watcher_event(fs_event);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+    rmrdir(root4);
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -811,6 +937,7 @@ int main(int argc, char *argv[])
     int result = do_test_stop_on_overflow();
     result += do_test_queued_events_end();
     result += do_test_root_unwatchable();
+    result += do_test_dir_fds();
     result += do_test_root_reborn(FALSE);
     result += do_test_root_reborn(TRUE);
     result += do_test();

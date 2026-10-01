@@ -17,6 +17,13 @@ main (`6fab00d69`, `5867b1e20`, `6b53c8b17`; see `CHANGELOG.md`
   with blanks, the rest of it goes into the next required parameter, and
   an extra word after that one is echoed in the "extra parameters" answer.
   No command in the tree has a required `SDF_SECRET` parameter today.
+
+## Closed after the review
+
 - **The Debian 6.x + ext4 limitation** of the CHANGELOG ("Known
-  limitations", `timeranger2/test_delete_key_propagation`) was not
-  exercised: this container runs kernel 6.18.
+  limitations"): `timeranger2/test_delete_key_propagation` ("race in the
+  batch") failed 9 runs in 10 on wattyzer and on hidraulia. It was the HIGH
+  open since 7.25.20, an rt_disk follower handing a reborn key out of order;
+  fixed by reading each key directory through a descriptor of its own
+  (`FS_FLAG_DIR_FDS`, `openat`/`unlinkat`). The test passes 30 in 30 on
+  wattyzer. See `CHANGELOG.md` "Unreleased".

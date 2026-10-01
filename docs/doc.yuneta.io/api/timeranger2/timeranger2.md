@@ -792,14 +792,20 @@ The deletion is **propagated to subscribers**:
   topic cache and fires the callback of **that feed only**, once.
 - A key deleted and written again (once or more) before a follower reads the
   delete: the feed hears `deleted` (once or more), then the records of the
-  key's LAST life from rowid 1, and keeps the key -- with one known exception:
-  a follower that lags behind a master in ANOTHER process can still read a
-  link of a key directory the master has meanwhile deleted and rewritten (it
-  reads and unlinks by path), and then hands a later life before an earlier
-  delete; reading through a descriptor of the watched directory (`openat` /
-  `unlinkat`) would end it (an open defect, see `TODO.md`). The records of a life
-  deleted before the follower read it are not handed -- they are gone from
-  disk with it. The follower reads a key directory only if it is still the
+  key's LAST life from rowid 1, and keeps the key, also behind a master in
+  ANOTHER process. Each key directory is watched with a descriptor of its
+  own (`FS_FLAG_DIR_FDS`, [fs_watcher_dir_fd](fs_watcher.md#fs_watcher_dir_fd)),
+  and a link is taken through the descriptor of the directory its event came
+  from (`openat` / `unlinkat`): a link of a directory gone reaches nothing.
+  The link is the md2 of its life: the records are read through descriptors
+  checked to be that life's (the md2 against the link, the content once per
+  life by path), so they are that life's even if `keys/<key>/` is another
+  one by then. Up to 7.25.21 a follower that lagged behind such a master read
+  and unlinked by path, and could hand a later life before an earlier delete
+  (`[R2 DEL]`, the live key out of the cache, the next append handing R1..R4;
+  under a random two-process load 7-11 of 12 feed and key pairs got a life
+  out of order, none now). The records of a life deleted before the follower
+  read it are not handed -- they are gone from disk with it. The follower reads a key directory only if it is still the
   directory it looked at before it asked where its queue ended, and only
   once its stream is past that end: for any key, also one it never saw. A
   file linked in a directory that waits to be read is read with it, in

@@ -2518,6 +2518,68 @@ PRIVATE int do_test_known_reborn_fd(BOOL other_day)
 }
 
 /***************************************************************************
+ *  do_test_stale_link: a key the follower read, then, before the follower
+ *  reads the next IN_CREATE of a link in the key's (known) directory, the
+ *  master appends one row, deletes the key and writes it again with three
+ *  rows -- in the same day file or in another one. The link heard belongs
+ *  to a directory that is gone: nothing of it is read, the delete is heard,
+ *  then the three rows of the new life. Up to 7.25.21 the link was consumed
+ *  and read BY PATH: the new life's link was taken from the new directory,
+ *  and its file read against the old life's cache ([R2 DEL], the key out of
+ *  the cache, and the next append handed R1..R4).
+ ***************************************************************************/
+PRIVATE int do_test_stale_link(BOOL other_day)
+{
+    int result = 0;
+    char label[96];
+    snprintf(label, sizeof(label), "a stale link, the key born again in %s day file",
+        other_day? "another" : "the same");
+    char path_topic[PATH_MAX];
+    if(p_setup(label, path_topic, sizeof(path_topic)) < 0) {
+        p_shutdown(label);
+        return -1;
+    }
+    char title[160];
+    snprintf(title, sizeof(title), "%s: the delete, then the new life", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    p_open_feed(0, "rtX");
+    drain(10);
+    if(append_one_at(p_master, 1, BASE_T) < 0) {   // read: its directory is known
+        result += -1;
+    }
+    drain(20);
+    memset(pseq, 0, sizeof(pseq));
+    if(append_one_at(p_master, 1, BASE_T + 1) < 0) {  // a link in the known directory
+        result += -1;
+    }
+    if(tranger2_delete_key(p_master, TOPIC_NAME, KEY_A) < 0) {
+        result += -1;
+    }
+    uint64_t t = other_day? BASE_T + 3*86400 : BASE_T + 10;
+    for(int i = 0; i < 3; i++) {
+        if(append_one_at(p_master, 1, t + (uint64_t)i) < 0) {
+            result += -1;
+        }
+    }
+    drain(40);
+    result += p_expect(label, 0, 1, "DEL R1 R2 R3 ", NULL);
+    if(!json_object_get(json_object_get(tranger2_topic(p_follower, TOPIC_NAME), "cache"), KEY_A)) {
+        printf("%sERROR%s --> %s: the key is not in the follower's cache\n",
+            On_Red BWhite, Color_Off, label);
+        result += -1;
+    }
+    memset(pseq, 0, sizeof(pseq));
+    if(append_one_at(p_master, 1, t + 100) < 0) {
+        result += -1;
+    }
+    drain(40);
+    result += p_expect(label, 0, 1, "R4 ", NULL);
+    result += test_json(NULL);
+    result += p_shutdown(label);
+    return result;
+}
+
+/***************************************************************************
  *  do_test_second_file_first: a new key whose directory waits to be read,
  *  and a second file of the key (another day) linked meanwhile: its own
  *  IN_CREATE comes before the read of the directory. Up to the fix the
@@ -2646,6 +2708,8 @@ int main(int argc, char *argv[])
     result += do_test_inflight_open(TRUE);
     result += do_test_known_reborn_fd(FALSE);
     result += do_test_known_reborn_fd(TRUE);
+    result += do_test_stale_link(FALSE);
+    result += do_test_stale_link(TRUE);
     result += do_test_second_file_first();
     result += do_test_rmrdir_fails();
     result += do_test_rmrdir_fails_filtered();

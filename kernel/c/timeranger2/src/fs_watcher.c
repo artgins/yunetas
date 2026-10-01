@@ -18,6 +18,7 @@
 #include <sys/inotify.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <dirent.h>
 #include <time.h>
@@ -55,6 +56,10 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 PRIVATE int add_watch(fs_event_t *fs_event, const char *path, BOOL may_vanish);
 PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd);
 PRIVATE void note_stale_wd(fs_event_t *fs_event, int wd);
+PRIVATE void drop_tracked(fs_event_t *fs_event, int wd);
+PRIVATE void close_dir_fd_of_gone(fs_event_t *fs_event, const char *path);
+
+PRIVATE BOOL proc_fd_watch_failed_said = FALSE;   // once per process
 PRIVATE void note_gone_directories(fs_event_t *fs_event);
 PRIVATE void forget_stale_wds(fs_event_t *fs_event);
 PRIVATE const char *get_path(fs_event_t *fs_event, int wd);
@@ -181,6 +186,10 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     fs_event->rescan_seen = NULL;
     fs_event->stale_wds = NULL;
     fs_event->stale_mark = 0;
+    fs_event->jn_tracked_fds = json_object();
+    fs_event->jn_paths_wd = json_object();
+    fs_event->event_wd = -1;
+    fs_event->subdir_wd = -1;
 
     uint32_t trace_level = gobj_global_trace_level();
 
@@ -409,6 +418,17 @@ PRIVATE void fs_destroy_watcher_event(
     GBMEM_FREE(fs_event->path)
     JSON_DECREF(fs_event->jn_tracked_paths)
     JSON_DECREF(fs_event->stale_wds)
+    {
+        const char *s_wd; json_t *jn_fd;
+        json_object_foreach(fs_event->jn_tracked_fds, s_wd, jn_fd) {
+            int dfd = (int)json_integer_value(jn_fd);
+            if(dfd >= 0) {
+                close(dfd);
+            }
+        }
+    }
+    JSON_DECREF(fs_event->jn_tracked_fds)
+    JSON_DECREF(fs_event->jn_paths_wd)
     GBMEM_FREE(fs_event)
 }
 
@@ -526,6 +546,8 @@ PRIVATE int yev_callback(
                     }
                     if(!fs_event->stop_requested && (fs_event->fs_flag & FS_FLAG_BATCH_END)) {
                         fs_event->fs_type = FS_BATCH_END_TYPE;
+                        fs_event->event_wd = -1;
+                        fs_event->subdir_wd = -1;
                         fs_event->directory = (volatile char *)fs_event->path;
                         fs_event->filename = "";
                         fs_event->offset = fs_event->batch_end;
@@ -596,6 +618,8 @@ PRIVATE int yev_callback(
 PRIVATE void tell_owner_watcher_gone(fs_event_t *fs_event)
 {
     fs_event->fs_type = FS_WATCHER_GONE_TYPE;
+    fs_event->event_wd = -1;
+    fs_event->subdir_wd = -1;
     fs_event->directory = (volatile char *)fs_event->path;
     fs_event->filename = "";
     fs_event->in_callback = TRUE;
@@ -611,6 +635,9 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
     hgobj gobj = fs_event->gobj;
     const char *path;
     char full_path[PATH_MAX];
+
+    fs_event->event_wd = event->wd;
+    fs_event->subdir_wd = -1;
 
     uint32_t trace_level = gobj_global_trace_level();
 
@@ -672,6 +699,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         );
 
         fs_event->fs_type = FS_OVERFLOW_TYPE;
+        fs_event->event_wd = -1;
         fs_event->directory = (volatile char *)fs_event->path;
         fs_event->filename = "";
         fs_event->callback(fs_event);
@@ -730,9 +758,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
          *  watches, and the pass after an overflow would take it as
          *  watched.
          */
-        char s_wd[64];
-        snprintf(s_wd, sizeof(s_wd), "%d", event->wd);
-        json_object_del(fs_event->jn_tracked_paths, s_wd);
+        drop_tracked(fs_event, event->wd);
         return;
     }
 
@@ -758,7 +784,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
                  *  removal.
                  */
                 if(is_directory(full_path)) {
-                    add_watch(fs_event, full_path, TRUE);
+                    fs_event->subdir_wd = add_watch(fs_event, full_path, TRUE);
                 }
             }
             fs_event->fs_type = FS_SUBDIR_CREATED_TYPE;
@@ -770,6 +796,14 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 
         if (event->mask & (IN_DELETE)) {
             if(path != NULL) {
+                /*
+                 *  The descriptor held on it delays its IN_DELETE_SELF and
+                 *  IN_IGNORED to its close: closed now, they come, and the
+                 *  watch goes as without one
+                 */
+                snprintf(full_path, sizeof(full_path), "%s/%s", path, filename);
+                close_dir_fd_of_gone(fs_event, full_path);
+
                 fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
                 fs_event->directory = (volatile char *)path;
                 fs_event->filename = filename;
@@ -820,7 +854,59 @@ PRIVATE int add_watch(
 {
     hgobj gobj = fs_event->gobj;
 
-    int wd = inotify_add_watch(fs_event->fd, path, fs_type_2_inotify_mask(fs_event));
+    /*
+     *  FS_FLAG_DIR_FDS: the subdirectory is opened FIRST, and watched through
+     *  its descriptor (/proc/self/fd/N, followed: it is the inode itself), so
+     *  the watch and the descriptor are one inode whatever happens to the
+     *  path in between. The root is watched by its path, as always: nothing
+     *  above it would close its descriptor when it goes.
+     */
+    int dir_fd = -1;
+    char watched_path[PATH_MAX];
+    snprintf(watched_path, sizeof(watched_path), "%s", path);
+    uint32_t mask = fs_type_2_inotify_mask(fs_event);
+    if((fs_event->fs_flag & FS_FLAG_DIR_FDS) && strcmp(path, fs_event->path) != 0) {
+        dir_fd = open(path, O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+        if(dir_fd < 0) {
+            if(errno != ENOENT || !may_vanish) {
+                gobj_log_error(fs_event->gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot open a directory to watch it through its descriptor: watched by its path",
+                    "path" ,        "%s", path,
+                    "errno",        "%d", errno,
+                    "serrno" ,      "%s", strerror(errno),
+                    NULL
+                );
+            }
+            // ENOENT: inotify_add_watch() below says it the usual way
+        } else {
+            snprintf(watched_path, sizeof(watched_path), "/proc/self/fd/%d", dir_fd);
+            mask &= ~(uint32_t)IN_DONT_FOLLOW;
+        }
+    }
+
+    int wd = inotify_add_watch(fs_event->fd, watched_path, mask);
+    if (wd == -1 && dir_fd >= 0) {
+        /*
+         *  Not through the descriptor (no /proc?): by its path, as without
+         *  FS_FLAG_DIR_FDS, said once
+         */
+        close(dir_fd);
+        dir_fd = -1;
+        if(!proc_fd_watch_failed_said) {
+            proc_fd_watch_failed_said = TRUE;
+            gobj_log_error(fs_event->gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot watch a directory through its descriptor (/proc/self/fd): watched by its path",
+                "path" ,        "%s", path,
+                "serrno" ,      "%s", strerror(errno),
+                NULL
+            );
+        }
+        wd = inotify_add_watch(fs_event->fd, path, fs_type_2_inotify_mask(fs_event));
+    }
     if (wd == -1) {
         if(errno == ENOENT && may_vanish) {
             /*
@@ -855,6 +941,25 @@ PRIVATE int add_watch(
     char s_wd[64];
     snprintf(s_wd, sizeof(s_wd), "%d", wd);
     json_object_set_new(fs_event->jn_tracked_paths, s_wd, json_string(path));
+
+    if(fs_event->fs_flag & FS_FLAG_DIR_FDS) {
+        json_t *jn_old_fd = json_object_get(fs_event->jn_tracked_fds, s_wd);
+        if(dir_fd >= 0 && jn_old_fd && json_integer_value(jn_old_fd) >= 0) {
+            close(dir_fd);  // the same inode, already held
+        } else if(dir_fd >= 0) {
+            json_object_set_new(fs_event->jn_tracked_fds, s_wd, json_integer(dir_fd));
+        }
+        /*
+         *  Another directory watched at this path before, and gone (its
+         *  parent's IN_DELETE not read yet, or lost): its descriptor goes,
+         *  so its IN_DELETE_SELF and IN_IGNORED come
+         */
+        json_t *jn_prev = json_object_get(fs_event->jn_paths_wd, path);
+        if(jn_prev && json_integer_value(jn_prev) != wd) {
+            close_dir_fd_of_gone(fs_event, path);
+        }
+        json_object_set_new(fs_event->jn_paths_wd, path, json_integer(wd));
+    }
 
     uint32_t trace_level = gobj_global_trace_level();
     if(trace_level & TRACE_FS) {
@@ -896,7 +1001,7 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
 
     char s_wd[64];
     snprintf(s_wd, sizeof(s_wd), "%d", wd);
-    if(json_object_del(fs_event->jn_tracked_paths, s_wd)<0) {
+    if(!json_object_get(fs_event->jn_tracked_paths, s_wd)) {
         gobj_log_error(fs_event->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
@@ -905,6 +1010,7 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
             NULL
         );
     }
+    drop_tracked(fs_event, wd);
 
     uint32_t trace_level = gobj_global_trace_level();
     if(trace_level & TRACE_FS) {
@@ -936,6 +1042,87 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
         return -1;
     }
     return 0;
+}
+
+/***************************************************************************
+ *  A watch forgotten: its entry, its descriptor (FS_FLAG_DIR_FDS) and its
+ *  place in the index by path
+ ***************************************************************************/
+PRIVATE void drop_tracked(fs_event_t *fs_event, int wd)
+{
+    char s_wd[64];
+    snprintf(s_wd, sizeof(s_wd), "%d", wd);
+
+    json_t *jn_fd = json_object_get(fs_event->jn_tracked_fds, s_wd);
+    if(jn_fd) {
+        int dfd = (int)json_integer_value(jn_fd);
+        if(dfd >= 0) {
+            close(dfd);
+        }
+        json_object_del(fs_event->jn_tracked_fds, s_wd);
+    }
+    const char *path = json_string_value(json_object_get(fs_event->jn_tracked_paths, s_wd));
+    if(path) {
+        json_t *jn_wd = json_object_get(fs_event->jn_paths_wd, path);
+        if(jn_wd && json_integer_value(jn_wd) == wd) {
+            json_object_del(fs_event->jn_paths_wd, path);
+        }
+    }
+    json_object_del(fs_event->jn_tracked_paths, s_wd);
+}
+
+/***************************************************************************
+ *  FS_FLAG_DIR_FDS: the directory last watched at `path` is gone (no link
+ *  left, st_nlink 0): its descriptor is closed. Kept, the kernel kept its
+ *  inode, and with it its IN_DELETE_SELF and IN_IGNORED, until the close.
+ *  Its entry stays until they come; its descriptor reads -1, "gone".
+ ***************************************************************************/
+PRIVATE void close_dir_fd_of_gone(fs_event_t *fs_event, const char *path)
+{
+    json_t *jn_wd = json_object_get(fs_event->jn_paths_wd, path);
+    if(!jn_wd) {
+        return;
+    }
+    char s_wd[64];
+    snprintf(s_wd, sizeof(s_wd), "%d", (int)json_integer_value(jn_wd));
+    json_t *jn_fd = json_object_get(fs_event->jn_tracked_fds, s_wd);
+    int dfd = jn_fd? (int)json_integer_value(jn_fd) : -1;
+    if(dfd < 0) {
+        return;
+    }
+    struct stat st;
+    if(fstat(dfd, &st) == 0 && st.st_nlink > 0) {
+        return;     // there: another one of the same name is the one gone
+    }
+    close(dfd);
+    json_object_set_new(fs_event->jn_tracked_fds, s_wd, json_integer(-1));
+}
+
+/***************************************************************************
+ *  See fs_watcher.h
+ ***************************************************************************/
+PUBLIC int fs_watcher_dir_fd(
+    fs_event_t *fs_event,
+    int wd
+)
+{
+    char s_wd[64];
+    snprintf(s_wd, sizeof(s_wd), "%d", wd);
+    if(!fs_event || wd < 0 || !json_object_get(fs_event->jn_tracked_paths, s_wd)) {
+        errno = ENOENT;
+        return -1;
+    }
+    json_t *jn_fd = json_object_get(fs_event->jn_tracked_fds, s_wd);
+    if(!jn_fd) {
+        errno = ENOTSUP;
+        return -1;
+    }
+    int dfd = (int)json_integer_value(jn_fd);
+    if(dfd < 0) {
+        errno = ENOENT;
+        return -1;
+    }
+    return dfd;
 }
 
 /***************************************************************************
@@ -1230,6 +1417,11 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event)
         fs_event->rescan_visited++;
         json_object_set_new(fs_event->rescan_seen, dir, json_true());
         fs_event->fs_type = FS_RESCAN_DIR_TYPE;
+        fs_event->event_wd = watched? (int)json_integer_value(json_object_get(watched, dir)) : -1;
+        if(!watched || !json_object_get(watched, dir)) {
+            fs_event->event_wd = -1;
+        }
+        fs_event->subdir_wd = -1;
         fs_event->directory = dir;
         fs_event->filename = "";
         uint64_t us_owner = monotonic_us();
@@ -1246,6 +1438,8 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event)
          *  is placed now (offset: where the stream is)
          */
         fs_event->fs_type = FS_BATCH_END_TYPE;
+        fs_event->event_wd = -1;
+        fs_event->subdir_wd = -1;
         fs_event->directory = (volatile char *)fs_event->path;
         fs_event->filename = "";
         fs_event->offset_end = fs_event->offset;
@@ -1382,7 +1576,7 @@ PRIVATE void forget_stale_wds(fs_event_t *fs_event)
                 NULL
             );
         }
-        json_object_del(fs_event->jn_tracked_paths, s_wd);
+        drop_tracked(fs_event, (int)json_integer_value(jn_wd));
     }
     JSON_DECREF(fs_event->stale_wds)
     fs_event->stale_mark = 0;
