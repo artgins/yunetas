@@ -43,6 +43,7 @@ cd "${YUNETAS_DIR}"
 #
 #   OS packages and the yunetas CLI
 #
+export PATH="${HOME}/.local/bin:${PATH}"   # where pipx puts the CLI and kconfiglib
 if ! command -v ninja >/dev/null 2>&1 || ! command -v pipx >/dev/null 2>&1; then
     ./install-dependencies.sh
 fi
@@ -52,7 +53,6 @@ fi
 if ! command -v alldefconfig >/dev/null 2>&1; then
     pipx install kconfiglib
 fi
-export PATH="${HOME}/.local/bin:${PATH}"
 
 #
 #   Default .config (the node configuration: static, OpenSSL, no memory tracking)
@@ -69,7 +69,9 @@ if ! id yuneta >/dev/null 2>&1; then
     useradd -m -g yuneta yuneta
 fi
 mkdir -p /yuneta
-find /yuneta -xdev \( ! -user yuneta -o ! -group yuneta \) -exec chown -h yuneta:yuneta {} +
+# The checkout stays the session's: git refuses a repo owned by another user.
+find /yuneta -xdev -path "${YUNETAS_DIR}" -prune -o \
+    \( ! -user yuneta -o ! -group yuneta \) -exec chown -h yuneta:yuneta {} +
 
 #
 #   inotify limits, the same values as 99-yuneta-core.conf

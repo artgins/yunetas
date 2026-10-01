@@ -34,7 +34,15 @@ code before it, except the few this list marks "(no red test)".
   exchange, and every attempt would be one more failed login in the
   provider's logs.
 - **The agent needs write permission on each yuno's `bin/`**: a config file
-  is now written to a temporary file there and renamed over the old one.
+  is now written to a temporary file there and renamed over the old one. The
+  files are 0640: a reader outside the group of the agent's user loses access.
+- **emailsender's failed queue fills much later.** An outage of the SMTP
+  server no longer sends every queued message there after 14 s: they wait at
+  the head of the queue, paced up to 10 minutes between attempts, for as long
+  as the outage lasts. An alarm on the size of the failed queue sees that
+  change.
+- **C_TCP_S `connxs` and `tconnxs` read real values** (they always read 0); a
+  dashboard that showed them changes.
 
 ### SECURITY: secrets that still reached a reader or a log
 
@@ -433,7 +441,10 @@ code before it, except the few this list marks "(no red test)".
   event is published), traces and logs mask credentials as C does
   (`is_secret_name`, `json_mask_secrets`, `mask_secrets_inline`,
   `trace_json_masked` in `helpers.js`), and `subs_flag` carries the C bits.
-  Publishing costs the same as before.
+  `gobj_unsubscribe_list()` of a subscription already removed gives one
+  warning per call (*"Subscription(s) already removed, nothing to remove"*).
+  Publishing costs the same as before (measured: 718 ns per delivery, before
+  and after).
 - gui_agent: a watch of the yuno stats says it takes `EV_YUNO_STATS`, directly
   and through a control center, and a scenario step may not carry a framework
   key.

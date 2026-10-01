@@ -150,6 +150,12 @@ watch-yuno-stats ids=5120:db_tracks_ce,2 period=5000
 watch-yuno-stats stop=1
 ```
 
+These lines show the parameters. A watch is accepted only from a client that
+also says, in the kw of the command, that it takes the pushed event
+(`"__relays__": ["EV_YUNO_STATS"]`, see below); `stop=1` needs no marker. So
+typed in `ycommand`, which cannot take `EV_YUNO_STATS`, a watch is refused, and
+that is the point: ask `stats-yuno` there.
+
 The answer says what is watched:
 
 ```text
