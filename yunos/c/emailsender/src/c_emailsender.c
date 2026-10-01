@@ -33,6 +33,7 @@ PRIVATE int start_smtp(hgobj gobj);
 PRIVATE BOOL set_smtp_url(hgobj gobj, const char *url);
 PRIVATE int close_queues(hgobj gobj);
 PRIVATE int tira_dela_cola(hgobj gobj);
+PRIVATE int send_head_of_queue(hgobj gobj);
 PRIVATE int process_smtp_response(
     hgobj gobj,
     q_msg_t *msg,
@@ -188,6 +189,9 @@ typedef struct _PRIVATE_DATA {
     tr_queue_t *trq_emails_failed;
     int32_t alert_queue_size;
     q_msg_t *last_msg_sent;
+
+    BOOL draining;              /* tira_dela_cola() is running its loop */
+    BOOL drain_again;           /* asked again from inside that loop: one more turn */
 
 } PRIVATE_DATA;
 
@@ -1013,12 +1017,6 @@ PRIVATE q_msg_t *enqueue_failing_message(
 }
 
 /***************************************************************************
- *  Dequeue a message
- *  Build the MIME message and dispatch it to the SMTP child.
- *  Async: the response (success / failure) comes back via EV_ON_MESSAGE
- *  handled by ac_on_message.
- ***************************************************************************/
-/***************************************************************************
  *  TRUE if a single-line email header / envelope field contains a control
  *  char (CR, LF, NUL, ...). Such a char lets the caller inject extra SMTP
  *  commands (RCPT/DATA smuggling) or extra MIME headers/body — header /
@@ -1038,7 +1036,47 @@ PRIVATE BOOL email_field_has_ctrl(const char *s)
     return FALSE;
 }
 
+/***************************************************************************
+ *  Send the queue: the message at its head, and the next one as long as
+ *  each is resolved at once.
+ *
+ *  A message can be resolved inside its own send: bad content (here), or
+ *  refused by the session as it takes it (no valid recipient: its
+ *  EV_ON_MESSAGE comes inside the send). Its resolution asks for the next
+ *  message by calling here again. That call, made from inside this loop,
+ *  only asks for one more turn of it, so the stack stays where it is
+ *  whatever the number of such messages in a row. Up to 7.25.20 each one was
+ *  sent from inside the resolution of the one before -- a call deeper per
+ *  message, about 1 KB of stack each: a queue of some 9000 of them (a batch
+ *  persisted by a broken sender) overflowed an 8 MB stack.
+ ***************************************************************************/
 PRIVATE int tira_dela_cola(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->draining) {
+        priv->drain_again = TRUE;
+        return 0;
+    }
+
+    int ret;
+    priv->draining = TRUE;
+    do {
+        priv->drain_again = FALSE;
+        ret = send_head_of_queue(gobj);
+    } while(priv->drain_again);
+    priv->draining = FALSE;
+
+    return ret;
+}
+
+/***************************************************************************
+ *  Dequeue a message
+ *  Build the MIME message and dispatch it to the SMTP child.
+ *  Async: the response (success / failure) comes back via EV_ON_MESSAGE
+ *  handled by ac_on_message.
+ ***************************************************************************/
+PRIVATE int send_head_of_queue(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

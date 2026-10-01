@@ -66,6 +66,7 @@ SET(SRCS
     banner_refused
     ehlo_refused
     auth_334_continue
+    bad_burst
 )
 
 ##############################################

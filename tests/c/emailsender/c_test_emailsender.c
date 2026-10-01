@@ -56,6 +56,13 @@
  *          "url_log"   set-url-from gives the running service a dead url,
  *                      then one email is sent: the session goes on with the
  *                      url it runs on, and the log must say THAT one.
+ *          "bad_burst" one good email, and behind it, while it is in
+ *                      flight, `bad_count` emails with no recipient: when
+ *                      the good one is delivered the emailsender takes them
+ *                      one after another, each refused by the session at
+ *                      once. `action_delay` ms after the start the queues
+ *                      must hold nothing pending and `bad_count` failed
+ *                      (list-queues), and the yuno ends.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -84,6 +91,7 @@ PRIVATE int send_one_email(hgobj gobj);
 PRIVATE int send_email_to(hgobj gobj, const char *to, const char *cc);
 PRIVATE int start_scenario(hgobj gobj);
 PRIVATE int set_url_from(hgobj gobj, const char *url, BOOL expect_wait);
+PRIVATE int check_queues(hgobj gobj, int expect_queued, int expect_failed);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -107,6 +115,7 @@ SDATA (DTP_STRING,      "expect_reply",     SDF_RD,             "535 5.7.8","sce
 SDATA (DTP_INTEGER,     "action_delay",     SDF_RD,             "0",        "ms to the second step of set_url_stash, refill and late_server"),
 SDATA (DTP_INTEGER,     "min_wait",         SDF_RD,             "0",        "scenario late_server: ms the session must wait at least"),
 SDATA (DTP_INTEGER,     "act_on_connect_n", SDF_RD,             "1",        "scenarios pause and shutdown: act at this connection of the fake server (1 = the first)"),
+SDATA (DTP_INTEGER,     "bad_count",        SDF_RD,             "0",        "scenario bad_burst: emails with no recipient queued behind the good one"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
@@ -235,6 +244,16 @@ PRIVATE int start_scenario(hgobj gobj)
         gobj_start_tree(priv->input_side);
     }
 
+    if(strcmp(scenario, "bad_burst") == 0) {
+        set_timeout(priv->timer, gobj_read_integer_attr(gobj, "action_delay"));
+        send_one_email(gobj);
+        int bad_count = (int)gobj_read_integer_attr(gobj, "bad_count");
+        for(int i = 0; i < bad_count; i++) {
+            send_email_to(gobj, ",", "");
+        }
+        return 0;
+    }
+
     if(strcmp(scenario, "late_server") == 0 || strcmp(scenario, "refill") == 0 ||
             strcmp(scenario, "set_url_stash") == 0) {
         if(strcmp(scenario, "late_server") == 0) {
@@ -329,6 +348,41 @@ PRIVATE int set_url_from(hgobj gobj, const char *url, BOOL expect_wait)
     }
     JSON_DECREF(jn_resp)
     return waits? 0 : -1;
+}
+
+/***************************************************************************
+ *  list-queues to the emailsender service: an INFO if the queues hold what
+ *  is expected, an ERROR if not.
+ ***************************************************************************/
+PRIVATE int check_queues(hgobj gobj, int expect_queued, int expect_failed)
+{
+    json_t *jn_resp = gobj_command(
+        gobj_find_service("emailsender", TRUE), "list-queues", json_object(), gobj
+    );
+    json_t *jn_data = kw_get_dict(gobj, jn_resp, "data", 0, 0);
+    int queued = (int)json_array_size(kw_get_list(gobj, jn_data, "emails_queue", 0, 0));
+    int failed = (int)json_array_size(kw_get_list(gobj, jn_data, "emails_failed", 0, 0));
+    JSON_DECREF(jn_resp)
+
+    if(queued == expect_queued && failed == expect_failed) {
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "The queues hold what is expected",
+            NULL
+        );
+        return 0;
+    }
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL,
+        "msg",          "%s", "The queues do NOT hold what is expected",
+        "queued",       "%d", queued,
+        "failed",       "%d", failed,
+        "expect_queued","%d", expect_queued,
+        "expect_failed","%d", expect_failed,
+        NULL
+    );
+    return -1;
 }
 
 /***************************************************************************
@@ -447,6 +501,10 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(strcmp(scenario, "refill") == 0) {
         send_one_email(gobj);
+
+    } else if(strcmp(scenario, "bad_burst") == 0) {
+        check_queues(gobj, 0, (int)gobj_read_integer_attr(gobj, "bad_count"));
+        set_yuno_must_die();
 
     } else if(strcmp(scenario, "late_server") == 0) {
         priv->server_started = time_in_milliseconds_monotonic();

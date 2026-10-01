@@ -61,7 +61,11 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   answered once, with `EV_ON_MESSAGE` `{ok: false, permanent: true}`; a send the
   session does not take (`-1`) is not answered, and the message waits at the
   head of the queue, no retry spent. Up to 7.25.20 the refusal was answered AND
-  returned -1, and the message was resolved twice.
+  returned -1, and the message was resolved twice. Any number of such
+  messages in a row (a batch persisted by a broken sender) is drained by a
+  loop, with the stack where it is: up to 7.25.20 each one was sent from
+  inside the resolution of the one before, about 1 KB of stack each, and some
+  9000 of them overflowed an 8 MB stack.
 - **Rejected credentials** (a `5xx` to `AUTH PLAIN`: `535`, `534`, `530`,
   `538`, ...) → the yuno logs one ERROR, with the server's reply text, and
   **exits with code 0** (`LOG_OPT_EXIT_ZERO`), so neither the watcher nor the
