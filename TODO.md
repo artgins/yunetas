@@ -11,6 +11,17 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 The fifth independent review of this cycle's fixes found these; its four HIGH
 findings were fixed before the merge, the rest are open.
 
+- **A feed opened after another feed heard a delete, and signalled after it
+  was watched, still takes that delete as new** (low): it needs the master to
+  stall between two signals while the follower reads, hears and opens; written
+  in fs_watcher.md.
+- **A frame before the session is parsed whole, up to the max block** (medium,
+  plausible, present in 7.25.20): C_IEVENT_SRV decodes the peer's frame before
+  its identity card is checked; a 16 MB `[{},…]` frame takes ~1.7 GB to parse,
+  so a 200 MB frame (the max block of the agent and most yunos) needs ~20 GB;
+  on a `CONFIG_DEBUG_TRACK_MEMORY` build the agent's 2 GB
+  `MEM_MAX_SYSTEM_MEMORY` aborts the process. Cap the size of a frame accepted
+  before the session (an identity card is small).
 - **dbsimple: a yuno running as root hands its secrets to whoever planted the
   file** (medium, plausible): a member of the yuneta group replaces the file
   in the 02775 data dir with a readable one of their own; a root save writes
@@ -58,8 +69,8 @@ findings were fixed before the merge, the rest are open.
   the next ones while it lasts (design); `foreign_from_refused` does not test
   `from_is_default` (its 553 is the message's anyway) and no test has a foreign
   `from` with an account-style reply; the docs' "a batch of refused messages
-  costs one attempt each, at the paced rate" is not what happens (the HIGH and
-  MEDIUM above); `skip-email` has no `SDF_AUTHZ_X` though it moves an email out
+  costs one attempt each, at the paced rate" is not what happens (the MEDIUM
+  above); `skip-email` has no `SDF_AUTHZ_X` though it moves an email out
   of the send path (`set-email-user`/`set-url-from` have it); `skip-email`
   while playing without credentials repeats the "username or password is
   empty" ERROR; `url_change_resets_pacing` was widened to 1.8 s without finding

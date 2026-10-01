@@ -124,12 +124,15 @@ code before it, except the few this list marks "(no red test)".
   gbuffer is dumped, masked (a secret gbuffer as hidden, one that parses as
   json through the same masking). Masking is linear and bounded, because a
   peer reaches it before its session (the dump of the kw of an event before the
-  identity card): at most 128 bytes of a name are examined, and a text over
-  4 MB, or anything past 4 MB of keys and strings in one `json_mask_secrets()`
-  call, is shown as *"<not shown: too large to mask>"*, never in clear (new
-  `json_mask_secrets_capped(jn, max_bytes)`; `C_IEVENT_SRV` caps that dump at
-  four times the 256 bytes it shows before masking it). gobj-js masks with the
-  same bounds.
+  identity card). A name is the word before the `=`, judged by its last 128
+  bytes. Every json node walked costs one unit of the budget, a key or a string
+  its bytes too: 4 MB per `json_mask_secrets()` call, or `max_bytes` for the new
+  `json_mask_secrets_capped()`. Once the budget is spent the walk stops and one
+  *"<not shown: too large to mask>"* stands for the rest of each container; a
+  text over 4 MB, or one whose masked copy cannot be allocated, is that
+  placeholder too, never shown in clear. The work is bounded by the cap, not by
+  what was sent. `C_IEVENT_SRV` caps that dump at four times the 256 bytes it
+  shows. gobj-js masks with the same bounds.
 - **The traffic dumps mask the credentials they can recognise, received data
   included.** No sender can mark what it receives, so the `traffic` trace of a
   server gate printed a browser's Cookie header or a form password in clear.
@@ -358,22 +361,27 @@ code before it, except the few this list marks "(no red test)".
   directory, or a record found by the deferred read of a key directory (see
   the reborn-key bullet below). In a master, hearing a delete makes no debts;
   `tranger2_delete_key()` makes them.
-- **A key deleted and written again before a follower reads the delete is
-  handed in order** (once or more, for any key, one the follower never saw
-  included). The feed hears `deleted`, then the records of the key born again
-  from rowid 1, and keeps the key. The scan of the key's directory, done at the
-  delete signal's place, read the new key's file against the old key's cache
-  entry: one new record was never handed, or later ones arrived with wrong
-  rowids and were handed twice at the next append, and the delete heard
-  afterwards removed the live key from the cache (`[R1 DEL]`, `[DEL R1 DEL]`;
-  the same in the pass after an overflow). A follower now reads a key
-  directory only once its stream is past every event that could still remove
-  it: the directories are noted at their event and placed once per batch or
-  per slice of the pass (each event carries its `offset_end`; new
-  `FS_FLAG_BATCH_END` / `FS_BATCH_END_TYPE`), a record found then forgets the
-  debts made before the directory appeared, and whether a delete is new is
-  decided by the debts alone. An fs_watcher read takes up to 32 events. The
-  69632-key overflow flood drains within about 5% of its previous time.
+- **A key deleted and written again (once or more) before a follower reads the
+  delete is handed right**, for any key, one the follower never saw included:
+  the feed is told `deleted` (once or more), then the records of the key's last
+  life from rowid 1, and the key stays in the cache; records of a life deleted
+  before the follower read them are not handed. A follower reads a key
+  directory only if it is still the directory it looked at before it asked
+  where its queue ends, and only once its stream is past that point (each event
+  carries its `offset_end`; new `FS_FLAG_BATCH_END` / `FS_BATCH_END_TYPE`); a
+  file linked in a directory that waits to be read is read with it, in order;
+  on a delete the follower closes its descriptors on the key's files. A record
+  found then forgets the debts made before the directory appeared; a feed
+  opened while a delete is in flight, and signalled after it was watched, no
+  longer takes that delete as new; a delete owed at an overflow whose key is
+  back on disk is paid, not taken as new. Before: a directory read too early
+  (`[R1 DEL]`, `[DEL R1 DEL]`, the live key out of the cache, the same after an
+  overflow), a second file of a new key first (`[R1 R1]`), a feed made to owe
+  a delete again (`[DEL DEL]` at its next overflow), and a key read before,
+  deleted and written again in the same day file, read through the old file's
+  descriptor (short reads, CRITICAL, lost records). An fs_watcher read takes
+  up to 32 events; the 69632-key overflow flood drains ~7% slower (one more
+  `statx` per key).
 - **fs_watcher: a root that cannot be watched gives no watcher** (logged):
   with `max_user_watches` used up, or no permission, the watcher ran watching
   nothing.
@@ -579,15 +587,20 @@ code before it, except the few this list marks "(no red test)".
   ones, bcc only as `bcc_count`/`refused_bcc_count`). A 4xx (rate limit,
   greylist, 421) is still paced and retried.
 - **emailsender: a refused sender is judged by the reply.** A MAIL FROM
-  refusal is the message's (to the failed queue once, a WARNING naming the
+  refusal is the message's (to the failed queue once, with a WARNING naming the
   `from`) only when its sender is its own (not the default, compared ignoring
-  case) and the reply says that address is wrong: 501, 5.1.7, or a 553 / 5.1.x
-  / 5.7.1 reply quoting the address. Everything else (a quota, a block, a
-  policy, a 4xx, the default sender) is the account's, whatever the `from`:
-  paced, a retry spent per attempt, the failed queue after `max_retries`, and
-  the alarm ERROR when it lasts. Every attempt that ends in a refusal of a
-  message sends it to the failed queue or spends a retry. Any 5xx to MAIL FROM
-  sent every queued email to the failed queue in turn.
+  case) and the reply is about the form or existence of that address: a 501, a
+  5.1.7, or a 5.1.8 / 553 saying the domain or address does not exist
+  (`553 5.1.8 <a@b>: Sender address rejected: Domain not found`). Everything
+  else is the account's, whatever the `from` and whether or not the reply
+  quotes the address (Postfix quotes it in every sender reject): any 5.7.x (a
+  quota, access denied, not owned), a 5.1.8 that does not say the address does
+  not exist, a 4xx, the default sender. These are paced and charged to the
+  message as a retry per attempt, so at most one email goes to the failed queue
+  per `max_retries` cycle, and a head stuck past `timeout_failing_alarm` raises
+  the ERROR. Every attempt that ends in a refusal of a message sends it to the
+  failed queue or spends a retry. Any 5xx to MAIL FROM sent every queued email
+  to the failed queue in turn.
 - **emailsender: new command `skip-email`** moves the email at the head of the
   queue, the one every other waits behind, to the failed queue at once (with a
   WARNING), and answers with its `to` and subject; it works while paused:
