@@ -318,8 +318,11 @@ The file is one per gobj, named
 subdirectory (`yuneta_realm_file(..., "data", ...)`). A missing file is not an
 error: the load returns 0 and the attrs keep their SData defaults. It is
 0600 (it can hold a secret), and a save writes a new file and renames it over
-the old one: the old file is never half-written, and a save that fails leaves
-it as it was (`write-attr` answers that failure).
+the old one, so a save that fails leaves the old file as it was (`write-attr`
+answers that failure). In a data directory the yuno cannot write the save goes
+in place instead, which a crash during the write can leave unparsable. The
+whole story (owners, unreadable files, the in-place path) is in
+[`db_save_persistent_attrs()`](https://doc.yuneta.io/dbsimple#db_save_persistent_attrs).
 
 APIs ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/gobj.c)):
 

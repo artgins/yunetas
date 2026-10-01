@@ -62,26 +62,31 @@ a persistent attribute can be a secret (see
 [`SDF_SECRET`](#SDF_SECRET) in [the SData guide](../../guide/guide_sdata.md)).
 The attributes not in `keys` are kept from the file. A save writes a NEW file
 in the same directory (`<file>.tmp-XXXXXX`, created 0600 with `O_EXCL`),
-syncs it, `rename()`s it over the old one and syncs the directory: the old
-file is never half-written, a symlink or a hard link in its place is
-replaced, nothing is written through it, and a save that fails leaves the
-old file as it was. A `<file>.tmp-XXXXXX` left by a save that did not end is
-removed at the next load.
+syncs it, `rename()`s it over the old one and syncs the directory: a symlink
+or a hard link in its place is replaced, nothing is written through it, and
+the old file is never truncated before the new one is complete -- a save that
+fails leaves it as it was. A `<file>.tmp-XXXXXX` left by a save that did not
+end is removed at the next load.
 
-It is refused (`-1`, nothing written) when a file is there and cannot be read
-(*"Persistent attrs NOT saved: the file there cannot be read, and its other
-attrs would be lost"*): the operator removes it (its attributes go back to
-their defaults) or repairs it. An EMPTY file holds no attributes and refuses
-nothing. It is refused too when the file there is of another user (the yuno
-run once as root): a save never takes over another user's file.
+The new file is the yuno's user's. A file there of another user was loaded
+first (its attributes are in the save): the save takes it over, logged at
+INFO with the old owner -- and when the yuno runs as root, the new file is
+given to the old owner (`fchown`), so root never takes the file from the
+yuno. A file there that cannot be read refuses the save (`-1`, nothing
+written: *"Persistent attrs NOT saved: the file there cannot be read, and
+its other attrs would be lost"*): the operator removes it (its attributes go
+back to their defaults) or repairs it. An empty file holds no attributes and
+refuses nothing.
 
-In a directory the yuno cannot write, the save goes in place, and only into a
-file of the yuno's own, regular and of one name (logged *"Persistent attrs
-saved in place"*). That path is safe against a full disk -- room is taken
-before a byte is written, and a shorter content is padded with blanks before
-the file is cut -- but not against a crash in the middle of the write itself:
-the "never half-written" above holds for the rename, not for this path. A file
-left that way cannot be parsed, and refuses the next saves as above.
+In a directory the yuno cannot write, the save goes IN PLACE, and only into
+a file of the yuno's own, regular and of one name (logged *"Persistent attrs
+saved in place"*). Room is reserved first without growing the file
+(`fallocate(FALLOC_FL_KEEP_SIZE)`; a filesystem without it -- NFSv3, FUSE --
+goes on without the reservation, logged), so a full disk leaves the old file
+as it was; a shorter content is padded with blanks and the file is cut only
+once it is on disk. A crash from the write until its first `fsync()` returns
+can leave a file that cannot be parsed: "never truncated" holds for the
+rename, not for this path, and such a file refuses the next saves as above.
 
 **Example**
 

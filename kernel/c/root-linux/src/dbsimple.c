@@ -344,13 +344,37 @@ PRIVATE json_t *load_json(
 }
 
 /***************************************************************************
+ *  Take the room of `len` bytes for the file, keeping its size (the old
+ *  content is not grown with NULs). A filesystem that cannot (NFSv3, FUSE,
+ *  an old ZFS: EOPNOTSUPP) goes on without the reservation, logged.
+ *  Return -1 (errno set, logged by the caller) when there is no room.
+ ***************************************************************************/
+PRIVATE int reserve_room(hgobj gobj, int fd, const char *filename, size_t len)
+{
+    if(fallocate(fd, FALLOC_FL_KEEP_SIZE, 0, (off_t)len) == 0) {
+        return 0;
+    }
+    if(errno == EOPNOTSUPP || errno == ENOSYS) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "The filesystem cannot reserve room: the persistent attrs are written without it",
+            "path",         "%s", filename,
+            NULL
+        );
+        return 0;
+    }
+    return -1;
+}
+
+/***************************************************************************
  *  The save of a file in a directory the yuno cannot write: in place, and
  *  only into a file of its own, regular and of one name (O_NOFOLLOW; made
  *  0600 before a byte is written). Anything else is refused, logged.
  ***************************************************************************/
 PRIVATE int save_json_in_place(hgobj gobj, const char *filename, json_t *jn)
 {
-    int fd = open(filename, O_WRONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
+    int fd = open(filename, O_RDWR|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
     if(fd < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -378,11 +402,12 @@ PRIVATE int save_json_in_place(hgobj gobj, const char *filename, json_t *jn)
 
     /*
      *  The new content is written over the old one before the file is cut:
-     *  room is taken first (no ENOSPC half way), a shorter content is
-     *  padded with blanks (a json with blanks after it parses), and the
-     *  file is cut to it only once it is on disk. Only a crash in the
-     *  middle of the write itself leaves a file that cannot be parsed --
-     *  which refuses the next saves, and says so.
+     *  room is taken first without changing the size (reserve_room(): no
+     *  ENOSPC half way, and no NULs added to the old content), a shorter
+     *  content is padded with blanks (a json with blanks after it parses),
+     *  and the file is cut to it only once it is on disk. A crash from the
+     *  pwrite() until its fsync() returns can leave a file that cannot be
+     *  parsed -- which refuses the next saves, and says so.
      */
     const char *failed = NULL;
     int last_errno = 0;
@@ -396,17 +421,18 @@ PRIVATE int save_json_in_place(hgobj gobj, const char *filename, json_t *jn)
     } else {
         memcpy(bf, content, content_len);
         memset(bf + content_len, ' ', write_len - content_len);
-        int ret;
+        ssize_t written = 0;
         if((st.st_mode & 07777) != 0600 && fchmod(fd, 0600) < 0) {
             failed = "Cannot make the persistent attrs file 0600";
             last_errno = errno;
-        } else if((ret = posix_fallocate(fd, 0, (off_t)write_len)) != 0 &&
-                ret != EOPNOTSUPP && ret != EINVAL) {
+        } else if(reserve_room(gobj, fd, filename, write_len) < 0) {
             failed = "No room for the persistent attrs, the file is left as it was";
-            last_errno = ret;
-        } else if(pwrite(fd, bf, write_len, 0) != (ssize_t)write_len) {
-            failed = "Cannot write the persistent attrs file";
             last_errno = errno;
+        } else if((written = pwrite(fd, bf, write_len, 0)) != (ssize_t)write_len) {
+            failed = written < 0?
+                "Cannot write the persistent attrs file" :
+                "Persistent attrs file written short";
+            last_errno = written < 0? errno : EIO;
         } else if(fsync(fd) < 0) {
             failed = "Cannot sync the persistent attrs file";
             last_errno = errno;
@@ -474,12 +500,14 @@ PRIVATE void sync_parent_dir(hgobj gobj, const char *filename)
 
 /***************************************************************************
  *  Write the persistent attrs to a NEW file in the same directory and
- *  rename() it over the old one. The new file is created by us, O_EXCL
- *  and 0600 (mkostemp()): its owner and mode are ours whatever the old
- *  file was -- another user's, a hard link, or a symlink planted in its
- *  place (the data dirs are 02775): rename() replaces the name, and
- *  nothing is written through it. The old file is never truncated before
- *  the new one is complete: a failed save leaves it as it was.
+ *  rename() it over the old one. The new file is created O_EXCL and 0600
+ *  (mkostemp()), so a hard link or a symlink planted in the old one's
+ *  place is replaced and nothing is written through it, and the old file
+ *  is never truncated before the new one is complete: a failed save leaves
+ *  it as it was. The new file is the yuno's user's; when root saves over a
+ *  file of another user, it is given to that user (fchown), so root never
+ *  takes the file from the yuno. A file there that cannot be read is never
+ *  replaced: db_save/remove_persistent_attrs() refuse before coming here.
  *  A persistent attr can be a secret (the SMTP password of the
  *  emailsender, set with set-email-user). Up to 7.25.18 json_dump_file()
  *  created the file with the process umask, 0666 on every node; up to
@@ -487,7 +515,8 @@ PRIVATE void sync_parent_dir(hgobj gobj, const char *filename)
  *  A crash between the create and the rename() leaves a
  *  "<file>.tmp-XXXXXX" of 0600 in the directory (the next load removes it).
  *  A directory the yuno cannot write: the save goes in place, into a file
- *  of its own only (save_json_in_place()).
+ *  of its own only (save_json_in_place()), which a crash during its write
+ *  can leave unparsable.
  ***************************************************************************/
 PRIVATE int save_json(
     hgobj gobj,
@@ -511,23 +540,15 @@ PRIVATE int save_json(
     }
 
     /*
-     *  A save never takes over a file of another user (the yuno run once
-     *  as root): its owner would then read nothing, and refuse every save
+     *  A file there of another user. Its attrs were loaded (a file that
+     *  cannot be read refused the save before it came here), so nothing is
+     *  lost by replacing it. Root (the yuno run once as root) gives the new
+     *  file to the old owner: root never takes the file from the yuno, which
+     *  would then read nothing. Anyone else takes it over, logged.
      */
     struct stat st_old;
-    if(lstat(filename, &st_old) == 0 && S_ISREG(st_old.st_mode) && st_old.st_uid != geteuid()) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Persistent attrs NOT saved: the file there is of another user; run the yuno as its owner, or give the file to the yuno's user",
-            "path",         "%s", filename,
-            "uid",          "%d", (int)st_old.st_uid,
-            "euid",         "%d", (int)geteuid(),
-            NULL
-        );
-        JSON_DECREF(jn)
-        return -1;
-    }
+    BOOL foreign = (lstat(filename, &st_old) == 0 && S_ISREG(st_old.st_mode) &&
+        st_old.st_uid != geteuid())? TRUE : FALSE;
 
     int fd = mkostemp(tmpname, O_CLOEXEC);
     if(fd < 0 && (errno == EACCES || errno == EPERM)) {
@@ -551,7 +572,10 @@ PRIVATE int save_json(
 
     const char *failed = NULL;
     int last_errno = 0;
-    if(json_dumpfd(jn, fd, JSON_INDENT(4)) < 0) {
+    if(foreign && geteuid() == 0 && fchown(fd, st_old.st_uid, st_old.st_gid) < 0) {
+        failed = "Cannot give the new persistent attrs file to the owner of the old one";
+        last_errno = errno;
+    } else if(json_dumpfd(jn, fd, JSON_INDENT(4)) < 0) {
         failed = "Cannot save device json database";
         last_errno = errno;
     } else if(fsync(fd) < 0) {
@@ -583,6 +607,19 @@ PRIVATE int save_json(
     }
 
     sync_parent_dir(gobj, filename);
+    if(foreign) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", geteuid() == 0?
+                "Persistent attrs file of another user saved, and kept its owner" :
+                "Persistent attrs file of another user taken over by the yuno's user",
+            "path",         "%s", filename,
+            "old_uid",      "%d", (int)st_old.st_uid,
+            "euid",         "%d", (int)geteuid(),
+            NULL
+        );
+    }
     JSON_DECREF(jn)
     return 0;
 }

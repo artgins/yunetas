@@ -1527,8 +1527,51 @@ PRIVATE BOOL inline_value_is_secret(const char *str)
 }
 
 /***************************************************************************
+ *  Where an unquoted secret value that begins at `p` ends: at the end, at
+ *  the quote that closes an outer quoted value (`outer`), or before the
+ *  next "word=" -- a plain word after a blank is still part of it, as a
+ *  password written with blanks is ("password=correct horse battery",
+ *  "password= hunter2"): the command parser leaves those words unread,
+ *  and they are the secret.
+ ***************************************************************************/
+PRIVATE BOOL closes_outer(const char *c, char outer)
+{
+    return (outer && *c == outer && (c[1] == 0 || c[1] == ' ' || c[1] == '\t'))? TRUE : FALSE;
+}
+
+PRIVATE const char *inline_secret_value_end(const char *p, char outer)
+{
+    const char *end = p;
+    while(1) {
+        while(*end && *end != ' ' && *end != '\t') {
+            if(closes_outer(end, outer)) {
+                return end;
+            }
+            end++;
+        }
+        if(!*end) {
+            return end;
+        }
+        const char *w = end;    // a blank: what follows is a plain word, or a name=value
+        while(*w == ' ' || *w == '\t') {
+            w++;
+        }
+        if(!*w || closes_outer(w, outer)) {
+            return end;
+        }
+        for(const char *e = w; *e && *e != ' ' && *e != '\t' && !closes_outer(e, outer); e++) {
+            if(*e == '=' && e > w) {
+                return end;     // the next parameter
+            }
+        }
+        end = w;                // a plain word: part of this value
+    }
+}
+
+/***************************************************************************
  *  A text (a command line) with the value of every "name=value" whose name
- *  is a secret's (is_secret_name()) written as "********", quoted or not.
+ *  is a secret's (is_secret_name()) written as "********", quoted or not;
+ *  an unquoted one runs to the next "word=" (inline_secret_value_end()).
  *  The rest of the text is kept as it is. A gbmem string, or NULL when
  *  there was nothing to mask.
  ***************************************************************************/
@@ -1580,15 +1623,17 @@ PUBLIC char *mask_secrets_inline(const char *str)
 
         *out++ = *p++;  // the '='
         char quote = (*p == '"' || *p == '\'')? *p : 0;
-        const char *end = quote? p + 1 : p;
-        while(*end && (quote? *end != quote : (*end != ' ' && *end != '\t'))) {
-            if(!quote && outer && *end == outer && (end[1] == 0 || end[1] == ' ' || end[1] == '\t')) {
-                break;  // the quote that closes the outer value is not part of this one
+        const char *end;
+        if(quote) {
+            end = p + 1;
+            while(*end && *end != quote) {
+                end++;
             }
-            end++;
-        }
-        if(quote && *end == quote) {
-            end++;
+            if(*end == quote) {
+                end++;
+            }
+        } else {
+            end = inline_secret_value_end(p, outer);
         }
         if(end > p) {
             memcpy(out, mask, mask_len);

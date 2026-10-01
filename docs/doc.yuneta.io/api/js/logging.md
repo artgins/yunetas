@@ -61,7 +61,7 @@ identity in the `kw`, and find the object inside the action.
 Turn the levels on and off with the functions in [Traces](traces.md).
 
 (js_trace_json_masked)=
-### [`trace_json_masked(json, msg)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L563)
+### [`trace_json_masked(json, msg)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L603)
 
 [`trace_json()`](#js_trace_json) of a value that can hold a credential: it
 writes [`json_mask_secrets(json)`](#js_json_mask_secrets). The framework
@@ -76,7 +76,7 @@ trace_json_masked({username: "bob", password: "hunter2"}, "login");
 ```
 
 (js_json_mask_secrets)=
-### [`json_mask_secrets(json)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L550)
+### [`json_mask_secrets(json)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L590)
 
 A JSON value as a log or a trace may show it, with the rule and the lists of
 the C kernel's `json_mask_secrets()`. At any depth, the value of a key whose
@@ -90,8 +90,10 @@ value is never changed.
 
 Only JSON is walked: plain objects and arrays. A gobj, a DOM node, a class
 instance, a typed array or a function is passed as it is. An object met twice
-is masked once, the same everywhere; a cycle back to one is `"<cycle>"`; a
-nesting deeper than 64 levels (as in C) is shown as `"<deeper not shown>"`;
+is masked once, the same everywhere; a cycle back to one is `"<cycle>"`; an
+object or array reached at 64 levels (as in C) is `"<deeper not shown>"` --
+counted from the FIRST time it is met: one masked higher up shows whole
+wherever else it appears;
 and a failure answers
 `"<not shown: the masking failed>"`: it never throws.
 
@@ -101,11 +103,13 @@ json_mask_secrets({password: 1234, auth: {access_token: "eyJ..."}, window: gobj}
 ```
 
 (js_mask_secrets_inline)=
-### [`mask_secrets_inline(text)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L393)
+### [`mask_secrets_inline(text)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L432)
 
 A text (a command line) with the value of every `name=value` whose name is a
 secret's written as `********`, quoted or not, and the `value=` of a
-write-attr whose `attribute=` names a secret. The rest is kept. It answers
+write-attr whose `attribute=` names a secret. An unquoted value runs to the
+next `word=`: `password=correct horse battery` is masked whole. The rest is
+kept. It answers
 `null` when there was nothing to mask.
 
 ```js

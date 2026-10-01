@@ -570,7 +570,11 @@ A NEW reference, to decref: a masked copy (the dicts and lists on the way to
 a masked value are copied, the rest is shared), or `jn` itself when there was
 nothing to mask. `NULL` for `NULL`. A dict or list met twice is masked once,
 the same everywhere; a cycle (jansson lets `json_object_set()` build one) is
-`"<cycle>"`; below 64 levels (as in gobj-js) it is `"<deeper not shown>"`.
+`"<cycle>"`; a dict or list reached at 64 levels (as in gobj-js) is
+`"<deeper not shown>"`. With the memo the limit is about the FIRST time a dict
+is met: one met first near the limit is `"<deeper not shown>"` everywhere it
+appears, and one masked first higher up shows whole wherever else it appears,
+deeper ones included.
 
 **Example**
 
@@ -594,8 +598,10 @@ JSON_DECREF(kw_shown)
 A text (a command line) with the value of every `name=value` whose name is a
 secret's ([`is_secret_name()`](#is_secret_name)) written as `********`,
 quoted or not; and the `value=` of a write-attr whose `attribute=` names a
-secret. The rest of the text is kept as it is. An unquoted value runs to a
-blank, as the command parser reads it: a quote inside it is part of it
+secret. The rest of the text is kept as it is. An unquoted value runs to the
+next `word=` (or the end): a password written with blanks
+(`password=correct horse battery`, `password= hunter2`) is masked whole, as
+the parser leaves those words unread. A quote inside it is part of it
 (`value=ab'cd` is masked whole), unless it is the quote that closes an outer
 quoted value (`command='set-user-pwd password=x'` keeps its closing quote).
 

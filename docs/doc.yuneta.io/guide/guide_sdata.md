@@ -181,18 +181,30 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
     attrs file: it is a symlink"*).
 
     A save writes a NEW file in the same directory (`<file>.tmp-XXXXXX`,
-    created 0600 with `O_EXCL`) and renames it over the old one, so the
-    file is always the yuno's own, 0600, whatever was there -- a file of
-    another user (up to 7.25.20 it could never be saved again), a hard
-    link, a symlink (replaced, nothing written through it) -- and the old
-    file is never truncated before the new one is complete: a save that
-    fails leaves it as it was. A `<file>.tmp-XXXXXX` left by a save that
-    did not end (a crash) is removed at the next load, logged; one that is
-    not a regular file is left, logged. A save is refused when a file is
-    there and cannot be read (its other attrs would be lost; an empty one
-    is no data), or is of another user; in a directory the yuno cannot
-    write it goes in place, into a file of the yuno's own only (safe
-    against a full disk, not against a crash in the middle of the write). `write-attr` answers a save that fails
+    created 0600 with `O_EXCL`), syncs it, and renames it over the old
+    one: a hard link or a symlink in its place is replaced (nothing is
+    written through it), and the old file is never truncated before the
+    new one is complete -- a save that fails leaves it as it was. A
+    `<file>.tmp-XXXXXX` left by a save that did not end is removed at the
+    next load, logged (one that is not a regular file is left, logged).
+
+    Whose file it is after a save: the yuno's user's. A file there of
+    another user was loaded first, so its attrs are in the save and
+    nothing is lost: run as the yuno's user, the save takes it over
+    (logged at INFO with the old owner); run as root (once, to debug), the
+    new file is given to the old owner, so root never takes the file from
+    the yuno. A file there that CANNOT be read refuses the save (its other
+    attrs would be lost): remove it (its attrs go back to their defaults)
+    or repair it. An empty file is no data and refuses nothing.
+
+    In a directory the yuno cannot write the save goes IN PLACE, into a
+    file of the yuno's own, regular and of one name only: room is reserved
+    first without growing the file, so a full disk leaves the old file as
+    it was; a shorter content is padded with blanks and cut only after it
+    is on disk. A crash from the write until its sync returns can leave a
+    file that cannot be parsed -- the "never truncated" above holds for the
+    rename, not for this path -- and that file refuses the next saves as
+    above. `write-attr` answers a save that fails
     (*"<gobj>: <attr> written, but NOT saved (see the log)"*, `result`
     -1); up to 7.25.20 it answered "done" with nothing on disk. A
     persistent attr of a gobj that is no service is written and NOT

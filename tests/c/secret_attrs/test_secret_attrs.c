@@ -55,6 +55,12 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
+#include <stddef.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
 #include <dirent.h>
 #include <yunetas.h>
 
@@ -364,6 +370,47 @@ PRIVATE int count_temp_files(const char *path)
     }
     closedir(d);
     return count;
+}
+
+PRIVATE int test_file_size(const char *path)
+{
+    struct stat st;
+    if(lstat(path, &st) < 0) {
+        return -1;
+    }
+    return (int)st.st_size;
+}
+
+PRIVATE int last_byte(const char *path)
+{
+    int fd = open(path, O_RDONLY);
+    if(fd < 0) {
+        return -1;
+    }
+    char c = 0;
+    off_t size = lseek(fd, 0, SEEK_END);
+    ssize_t n = size > 0? pread(fd, &c, 1, size - 1) : 0;
+    close(fd);
+    return n == 1? (unsigned char)c : -1;
+}
+
+/*
+ *  The syscall `nr` answers `err` from now on (a filesystem without
+ *  fallocate: EOPNOTSUPP; a disk that fills: ENOSPC)
+ */
+PRIVATE void deny_syscall(int nr, int err)
+{
+    struct sock_filter f[] = {
+        BPF_STMT(BPF_LD|BPF_W|BPF_ABS, offsetof(struct seccomp_data, nr)),
+        BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, (unsigned)nr, 0, 1),
+        BPF_STMT(BPF_RET|BPF_K, SECCOMP_RET_ERRNO|((unsigned)err & SECCOMP_RET_DATA)),
+        BPF_STMT(BPF_RET|BPF_K, SECCOMP_RET_ALLOW),
+    };
+    struct sock_fprog prog = {.len = sizeof(f)/sizeof(f[0]), .filter = f};
+    prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+    if(prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) < 0) {
+        printf("FAIL cannot install the seccomp filter\n");
+    }
 }
 
 PRIVATE int file_mode(const char *path)
@@ -744,17 +791,25 @@ PRIVATE void check_log_dumps(hgobj gobj)
         {"command=\"set-user password=p'q\"", "command=\"set-user password=********\""},
         {"token=abc\"def\"ghi x=1", "token=******** x=1"},
         {"command='set-user-pwd password=hunter2'", "command='set-user-pwd password=********'"},
+        {"command='set-email-user password=correct horse battery'", "command='set-email-user password=********'"},
+        {"command=\"set-user-pwd password= hunter2\"", "command=\"set-user-pwd password=********\""},
+        {"set-password password= note=x", "set-password password= note=x"},
+        {"x password=a b c user=bob", "x password=******** user=bob"},
         {0, 0}
     };
     for(int i=0; inline_cases[i].in; i++) {
-        char *m = mask_secrets_inline(inline_cases[i].in);
-        check_str("a value is masked whole, quotes in it included", m, inline_cases[i].out);
+        char *m = mask_secrets_inline(inline_cases[i].in);   // NULL: nothing to mask
+        check_str("a value is masked whole, quotes in it included",
+            m? m : inline_cases[i].in, inline_cases[i].out
+        );
         GBMEM_FREE(m)
     }
     check_true("authorization_header is a secret's name", is_secret_name("authorization_header", 20));
 
     /*
-     *  A dict shared, a cycle, and a fan-out that would be exponential
+     *  A dict shared (the C twin of a bug gobj-js had: a dict met twice was
+     *  masked once), a cycle, and a fan-out that would be exponential
+     *  without the memo (the test's ctest TIMEOUT makes that fail fast)
      */
     json_t *creds = json_pack("{s:s}", "password", "shared-hunter2");
     json_t *kw2 = json_pack("{s:O, s:O, s:[O,O]}", "first", creds, "second", creds, "list", creds, creds);
@@ -941,7 +996,12 @@ PRIVATE void check_persistent_file(void)
     json_t *resp;
     if(geteuid() != 0) {
         gobj_write_str_attr(holder, "password", "kept-on-disk");
-        gobj_save_persistent_attrs(holder, json_string("password"));
+        gobj_write_str_attr(holder, "note",
+            "a-long-note-to-make-the-old-file-longer-than-the-new-one-"
+            "a-long-note-to-make-the-old-file-longer-than-the-new-one"
+        );
+        gobj_save_persistent_attrs(holder, json_pack("[s,s]", "password", "note"));
+        int old_size = test_file_size(path);
         char dir[PATH_MAX];
         snprintf(dir, sizeof(dir), "%s", path);
         *strrchr(dir, '/') = 0;
@@ -964,6 +1024,64 @@ PRIVATE void check_persistent_file(void)
         JSON_DECREF(jn_disk)
         check_true("in place: the rest kept", file_contains(path, "kept-on-disk"));
         check_int("in place: made 0600", file_mode(path), 0600);
+        check_true("in place: a shorter content is cut to its size",
+            test_file_size(path) > 0 && test_file_size(path) < old_size && last_byte(path) == '}'
+        );
+
+        /*
+         *  A filesystem with no fallocate (seccomp answers EOPNOTSUPP, as
+         *  NFSv3 or FUSE): the in-place save goes on without the
+         *  reservation. In a child: the filter cannot be removed.
+         */
+        chmod(dir, 0555);
+        fflush(stdout);     // the child would print the buffer again
+        pid_t pid = fork();
+        if(pid == 0) {
+            deny_syscall(__NR_fallocate, EOPNOTSUPP);
+            gobj_write_str_attr(holder, "note",     // longer than the file: it grows
+                "no-fallocate-and-a-longer-note-than-the-file-has-now-"
+                "no-fallocate-and-a-longer-note-than-the-file-has-now-"
+                "no-fallocate-and-a-longer-note-than-the-file-has-now"
+            );
+            int r = gobj_save_persistent_attrs(holder, json_string("note"));
+            _exit(r == 0? 0 : 1);
+        }
+        int wstatus = 0;
+        waitpid(pid, &wstatus, 0);
+        chmod(dir, st_dir.st_mode & 07777);
+        check_true("in place with no fallocate: saved",
+            WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == 0
+        );
+        check_true("in place with no fallocate: on disk", file_contains(path, "no-fallocate"));
+
+        /*
+         *  The write fails (ENOSPC) for a content longer than the file: the
+         *  room taken did not grow the file (no NULs after the old json),
+         *  so the old file is left as it was, and parses
+         */
+        int size_before = test_file_size(path);
+        chmod(dir, 0555);
+        fflush(stdout);
+        pid = fork();
+        if(pid == 0) {
+            deny_syscall(__NR_pwrite64, ENOSPC);
+            gobj_write_str_attr(holder, "note",
+                "a-note-that-does-not-fit-a-note-that-does-not-fit-a-note-that-does-not-fit-"
+                "a-note-that-does-not-fit-a-note-that-does-not-fit-a-note-that-does-not-fit-"
+                "a-note-that-does-not-fit-a-note-that-does-not-fit-a-note-that-does-not-fit"
+            );
+            int r = gobj_save_persistent_attrs(holder, json_string("note"));
+            _exit(r == 0? 0 : 1);
+        }
+        waitpid(pid, &wstatus, 0);
+        chmod(dir, st_dir.st_mode & 07777);
+        check_true("a write that fails: the save fails",
+            WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == 1
+        );
+        check_int("a write that fails: the file keeps its size", test_file_size(path), size_before);
+        jn_disk = json_load_file(path, 0, &jerr);
+        check_true("a write that fails: the file still parses", jn_disk? TRUE : FALSE);
+        JSON_DECREF(jn_disk)
 
         unlink(path);
         chmod(dir, 0555);

@@ -82,5 +82,8 @@ foreach(test ${SRCS})
     target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 
     add_test("${current_directory_name}/${test}" ${binary})
+    # a masking that walks again what it walked (a fan-out of two, 40 levels)
+    # never ends: fail fast
+    set_tests_properties("${current_directory_name}/${test}" PROPERTIES TIMEOUT 60)
 
 endforeach()
