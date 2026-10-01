@@ -101,8 +101,10 @@ then exec's the binary with the materialised paths.
 A materialised config holds the yuno's secrets (a `client_secret`, a
 password), so every file of `bin/` that the agent writes for it is mode
 **`0640`**. The owner is the user the agent runs as (the yuno runs as the
-same user); the group comes from the setgid realm directory, the same people
-who can read the agent's treedb (`0660`). At every launch the agent writes
+same user). The group is the group of `bin/` when `bin/` is setgid (the
+`02775` of the agent's own `mkrdir()`), else the agent's primary group: on
+nodes whose `bin/` directories are `drwxrwxr-x yuneta:yuneta`, without the
+setgid bit, it is `yuneta` either way. At every launch the agent writes
 each file again: to a temporary file in `bin/` (`.<n>-<role>^<name>.json.XXXXXX`),
 created with that mode, then renamed over the old one. So the new file is the
 agent's own whoever owned the old one (for example a file of another user

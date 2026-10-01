@@ -112,16 +112,16 @@ control center stamped, with `cc_connection`, when relayed), so a forged
 extra hop names no other client's watch; a requester without `__relays__`
 naming `EV_YUNO_STATS` is refused, a direct one too; more ids than the cap
 are refused, and a cap under 1 (a bad `max_watch_ids`) refuses every watch
-naming the cap, logged.
+naming the cap, logged once per bad value (not once per request).
 
 `test_yuno_config_file` compiles the writer of the configuration files the
 agent materialises for a yuno (`yunos/c/yuno_agent/src/yuno_config_file.c`):
 a new file is `0640`, and one that existed as `0664` is narrowed to `0640`
 (up to 7.25.20 they were `0664`, with the yuno's secrets in them). The file
 is written to a temporary file and renamed over the old one: a symbolic link
-is replaced, not followed; a file whose mode the agent cannot change (another
-owner, written through the group; a link to `/dev/null` in the test) is
-replaced and the yuno runs; a write that fails (`RLIMIT_FSIZE`) leaves the old
+is replaced, not followed; a link to `/dev/null` (writable, root's, so `fchmod()`
+fails with EPERM, as for another owner's file written through the group,
+which a non-root test cannot create) is replaced and the yuno runs; a write that fails (`RLIMIT_FSIZE`) leaves the old
 file whole and no temporary file behind. The files
 of an earlier launch that wrote more of them (`4-role^name.json` when three
 are written now) are narrowed to `0640`: never widened, never removed, and a

@@ -96,6 +96,13 @@ PUBLIC json_t *watch_refusal(
         gobj_yuno_role_plus_name(), event);
 }
 
+/*
+ *  The bad max_watch_ids last logged (1: none). Every request is refused
+ *  while it is bad, at the clients' rate (renewals): it is logged once per
+ *  bad value, again only after it changes.
+ */
+PRIVATE json_int_t bad_cap_logged = 1;
+
 /***************************************************************************
  *  See watch_request.h
  ***************************************************************************/
@@ -106,17 +113,22 @@ PUBLIC json_t *watch_ids(
 )
 {
     if(max_ids < 1) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "max_watch_ids must be 1 or more, every watch-yuno-stats is refused",
-            "max_watch_ids","%lld", (long long)max_ids,
-            NULL
-        );
+        if(max_ids != bad_cap_logged) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "max_watch_ids must be 1 or more, every watch-yuno-stats is refused",
+                "max_watch_ids","%lld", (long long)max_ids,
+                NULL
+            );
+            bad_cap_logged = max_ids;
+        }
         *jn_comment = json_sprintf("%s: max_watch_ids is %lld, it must be 1 or more: no watch taken",
             gobj_yuno_role_plus_name(), (long long)max_ids);
         return NULL;
     }
+
+    bad_cap_logged = 1;
 
     int list_size = 0;
     const char **list = split2(ids, ", ", &list_size);

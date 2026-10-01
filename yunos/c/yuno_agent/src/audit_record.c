@@ -632,7 +632,8 @@ PRIVATE BOOL has_reset(const char *command, json_t *kw)
 }
 
 /***************************************************************************
- *
+ *  The kind of a key of a kw (`content64`, a secret name, or plain), in any
+ *  case; ascii_lower() is the case folding of the text scanner too.
  ***************************************************************************/
 PRIVATE char ascii_lower(char c)
 {

@@ -17,7 +17,7 @@
  *             pushed events it does not know until the watch expired;
  *          3. more yuno ids than `max_ids` are refused; a `max_ids`
  *             under 1 (a bad max_watch_ids) refuses every watch, naming
- *             the cap.
+ *             the cap, logged once per bad value.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -31,6 +31,18 @@
 #define APP     "test_watch_request"
 
 PRIVATE int global_result = 0;
+PRIVATE int bad_cap_logs = 0;
+
+/***************************************************************************
+ *  Counts the logs of a bad max_watch_ids
+ ***************************************************************************/
+PRIVATE int count_log_write(void *v, int priority, const char *bf, size_t len)
+{
+    if(strstr(bf, "max_watch_ids must be 1 or more")) {
+        bad_cap_logs++;
+    }
+    return 0;
+}
 
 /***************************************************************************
  *
@@ -204,6 +216,25 @@ PRIVATE void test_ids(void)
         JSON_DECREF(jn_yunos)
         JSON_DECREF(jn_comment)
     }
+
+    /*
+     *  Logged once per bad value, not once per request: every request is
+     *  refused while it is bad, at the clients' rate (before: each one)
+     */
+    json_int_t caps[] = {0, 0, 0, -1, -1, 5, 0};
+    int logs[] = {1, 1, 1, 2, 2, 2, 3};
+    bad_cap_logs = 0;
+    BOOL as_said = TRUE;
+    for(int i=0; i<7; i++) {
+        jn_comment = NULL;
+        jn_yunos = watch_ids("a", caps[i], &jn_comment);
+        JSON_DECREF(jn_yunos)
+        JSON_DECREF(jn_comment)
+        if(bad_cap_logs != logs[i]) {
+            as_said = FALSE;
+        }
+    }
+    check(as_said, "(ids) a bad cap is logged once per value: 0 0 0 -1 -1, good, 0 -> 3 logs");
 }
 
 /***************************************************************************
@@ -246,6 +277,8 @@ int main(int argc, char *argv[])
     );
 
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
+    gobj_log_register_handler("counting", 0, count_log_write, 0);
+    gobj_log_add_handler("count", "counting", LOG_OPT_UP_WARNING, 0);
 
     test_route_name();
     test_refusal();

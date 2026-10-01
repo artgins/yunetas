@@ -200,7 +200,8 @@ under the attribute `watch_min_period` (1000 ms), `max_watches` (30)
 bounds the requesters, and `max_watch_ids` (256) the names in one `ids`
 (*"too many yuno ids: 300, max_watch_ids is 256"*). A `max_watch_ids` under 1
 is a configuration error: every watch is refused (*"max_watch_ids is 0, it
-must be 1 or more: no watch taken"*) and the agent logs it. The answer goes first:
+must be 1 or more: no watch taken"*) and the agent logs it, once per bad
+value. The answer goes first:
 the first readings of a new or renewed watch follow it, to that requester
 only (up to 7.25.20 they went out before it, and every renewal read every
 watch of every requester again). It is not a subscription on purpose: a subscription

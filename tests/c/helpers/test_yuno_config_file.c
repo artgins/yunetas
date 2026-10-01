@@ -19,11 +19,14 @@
  *          2. a file that existed as 0664: 0640, with the new content;
  *          3. a symbolic link at the path is replaced by the file, not
  *             followed: its target keeps its content;
- *          4. a file the agent can write but whose mode it cannot change
- *             (another owner, written through the group; here a link to
- *             /dev/null, which is root's): it is replaced, the yuno runs.
- *             Before, the file was opened with O_TRUNC, fchmod() failed
- *             with EPERM and the yuno was not run;
+ *          4. a link to /dev/null: writable, and root's, so fchmod()
+ *             through it fails with EPERM. It is the only way a non-root
+ *             test reaches that path, the one of a real file of another
+ *             owner that the agent writes through the group (a test
+ *             cannot chown). It is replaced, the yuno runs. Before, it
+ *             was opened with O_TRUNC, fchmod() failed with EPERM and the
+ *             yuno was not run. Unlike case 3 it is not about following
+ *             the link: there fchmod() succeeds on the test's own file;
  *          5. a write that fails (RLIMIT_FSIZE) leaves the old file whole
  *             and no temporary file behind. Before, the file was already
  *             truncated when the write failed;
@@ -186,19 +189,20 @@ PRIVATE void test_replace(void)
     unlink(target);
 
     /*
-     *  4. A file whose mode the agent cannot change
+     *  4. The fchmod()-EPERM path: a link to /dev/null stands for a file of
+     *  another owner (a non-root test cannot chown one)
      */
     if(geteuid() != 0) {
         unlink(path);
         if(symlink("/dev/null", path)<0) {
-            check(FALSE, "(foreign) cannot create the link of the test");
+            check(FALSE, "(fchmod EPERM) cannot create the link to /dev/null");
         }
         gbuf = gbuffer_create(256, 256);
         gbuffer_printf(gbuf, "{\"password\": \"hunter2\"}");
         ret = write_yuno_config_file(0, gbuf, path);
         check(ret == 0 && is_a_regular_file(path) &&
               file_is(path, "{\"password\": \"hunter2\"}") && mode_of(path) == 0640,
-            "(foreign) a file whose mode cannot be changed is replaced, the yuno runs");
+            "(fchmod EPERM) a link to /dev/null, whose mode cannot be changed, is replaced: the yuno runs");
     }
 
     /*
