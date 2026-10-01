@@ -61,7 +61,7 @@ identity in the `kw`, and find the object inside the action.
 Turn the levels on and off with the functions in [Traces](traces.md).
 
 (js_trace_json_masked)=
-### [`trace_json_masked(json, msg)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L528)
+### [`trace_json_masked(json, msg)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L563)
 
 [`trace_json()`](#js_trace_json) of a value that can hold a credential: it
 writes [`json_mask_secrets(json)`](#js_json_mask_secrets). The framework
@@ -76,7 +76,7 @@ trace_json_masked({username: "bob", password: "hunter2"}, "login");
 ```
 
 (js_json_mask_secrets)=
-### [`json_mask_secrets(json)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L515)
+### [`json_mask_secrets(json)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L550)
 
 A JSON value as a log or a trace may show it, with the rule and the lists of
 the C kernel's `json_mask_secrets()`. At any depth, the value of a key whose
@@ -89,9 +89,10 @@ rest is shared), or the value itself when there was nothing to mask; the
 value is never changed.
 
 Only JSON is walked: plain objects and arrays. A gobj, a DOM node, a class
-instance, a typed array or a function is passed as it is. A cycle is not
-walked twice, a nesting deeper than 64 levels is shown as
-`"<deeper not shown>"`, and a failure answers
+instance, a typed array or a function is passed as it is. An object met twice
+is masked once, the same everywhere; a cycle back to one is `"<cycle>"`; a
+nesting deeper than 64 levels (as in C) is shown as `"<deeper not shown>"`;
+and a failure answers
 `"<not shown: the masking failed>"`: it never throws.
 
 ```js
@@ -100,7 +101,7 @@ json_mask_secrets({password: 1234, auth: {access_token: "eyJ..."}, window: gobj}
 ```
 
 (js_mask_secrets_inline)=
-### [`mask_secrets_inline(text)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L378)
+### [`mask_secrets_inline(text)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L393)
 
 A text (a command line) with the value of every `name=value` whose name is a
 secret's written as `********`, quoted or not, and the `value=` of a
@@ -114,7 +115,7 @@ mask_secrets_inline("list-yunos");      // null
 ```
 
 (js_is_secret_name)=
-### [`is_secret_name(name)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L351)
+### [`is_secret_name(name)`](https://github.com/artgins/gobj-js/blob/7.25.8/src/helpers.js#L361)
 
 `true` if `name` is the name of a secret, by the C kernel's lists: it holds
 `passw`, `pwd`, `passphrase`, `secret`, `token`, `jwt`, `bearer`,

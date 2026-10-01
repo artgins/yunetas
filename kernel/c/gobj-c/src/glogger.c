@@ -912,21 +912,24 @@ PUBLIC void gobj_trace_dump(
     /*
      *  The credentials that can be told, as '*' (mask_secrets_in_text())
      */
-    json_t *jn_data;
+    json_t *jn_data = json_object();    // as the gbuffer dumps: len, masked, data
+    json_object_set_new(jn_data, "len", json_integer((json_int_t)len));
     char *copy = len? gbmem_malloc(len) : NULL;
     if(copy) {
         memcpy(copy, bf, len);
         size_t masked = mask_secrets_in_text(copy, len);
-        jn_data = tdump2json((uint8_t *)copy, len);
-        GBMEM_FREE(copy)
         if(masked) {
             json_object_set_new(jn_data, "masked", json_integer((json_int_t)masked));
         }
+        json_object_set_new(jn_data, "data", tdump2json((uint8_t *)copy, len));
+        GBMEM_FREE(copy)
     } else if(len) {
         // Error already logged
-        jn_data = json_sprintf("<%lu bytes not shown: no memory to mask them>", (unsigned long)len);
+        json_object_set_new(jn_data, "data",
+            json_sprintf("<%lu bytes not shown: no memory to mask them>", (unsigned long)len)
+        );
     } else {
-        jn_data = tdump2json((uint8_t *)bf, len);
+        json_object_set_new(jn_data, "data", tdump2json((uint8_t *)bf, len));
     }
 
     if(!fmt) {

@@ -280,6 +280,21 @@ PRIVATE json_t *load_json(
         return 0;
     }
 
+    if(S_ISREG(st.st_mode) && st.st_size == 0) {
+        /*
+         *  An empty file holds nothing: no attrs, and nothing a save could
+         *  lose. It is not "a file that cannot be parsed", which refuses saves.
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Persistent attrs file empty: no attrs in it",
+            "path",         "%s", filename,
+            NULL
+        );
+        return 0;
+    }
+
     int fd = open_persist_file(gobj, filename, O_RDONLY|O_NONBLOCK);
     if(fd < 0) {
         // Error already logged
@@ -313,7 +328,7 @@ PRIVATE json_t *load_json(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON,
-            "msg",          "%s", "Cannot load device json database",
+            "msg",          "%s", "Persistent attrs file cannot be parsed: saves are refused until it is removed (its attrs go back to their defaults) or repaired",
             "path",         "%s", filename,
             "error",        "%s", error.text,
             "line",         "%d", error.line,
@@ -361,21 +376,47 @@ PRIVATE int save_json_in_place(hgobj gobj, const char *filename, json_t *jn)
         return -1;
     }
 
+    /*
+     *  The new content is written over the old one before the file is cut:
+     *  room is taken first (no ENOSPC half way), a shorter content is
+     *  padded with blanks (a json with blanks after it parses), and the
+     *  file is cut to it only once it is on disk. Only a crash in the
+     *  middle of the write itself leaves a file that cannot be parsed --
+     *  which refuses the next saves, and says so.
+     */
     const char *failed = NULL;
     int last_errno = 0;
-    if((st.st_mode & 07777) != 0600 && fchmod(fd, 0600) < 0) {
-        failed = "Cannot make the persistent attrs file 0600";
+    char *content = json_dumps(jn, JSON_INDENT(4));
+    size_t content_len = content? strlen(content) : 0;
+    size_t write_len = MAX(content_len, (size_t)st.st_size);
+    char *bf = content? gbmem_malloc(write_len) : NULL;
+    if(!content || !bf) {
+        failed = "Cannot dump the persistent attrs";
         last_errno = errno;
-    } else if(ftruncate(fd, 0) < 0) {
-        failed = "Cannot truncate the persistent attrs file";
-        last_errno = errno;
-    } else if(json_dumpfd(jn, fd, JSON_INDENT(4)) < 0) {
-        failed = "Cannot save device json database";
-        last_errno = errno;
-    } else if(fsync(fd) < 0) {
-        failed = "Cannot sync the persistent attrs file";
-        last_errno = errno;
+    } else {
+        memcpy(bf, content, content_len);
+        memset(bf + content_len, ' ', write_len - content_len);
+        int ret;
+        if((st.st_mode & 07777) != 0600 && fchmod(fd, 0600) < 0) {
+            failed = "Cannot make the persistent attrs file 0600";
+            last_errno = errno;
+        } else if((ret = posix_fallocate(fd, 0, (off_t)write_len)) != 0 &&
+                ret != EOPNOTSUPP && ret != EINVAL) {
+            failed = "No room for the persistent attrs, the file is left as it was";
+            last_errno = ret;
+        } else if(pwrite(fd, bf, write_len, 0) != (ssize_t)write_len) {
+            failed = "Cannot write the persistent attrs file";
+            last_errno = errno;
+        } else if(fsync(fd) < 0) {
+            failed = "Cannot sync the persistent attrs file";
+            last_errno = errno;
+        } else if(ftruncate(fd, (off_t)content_len) < 0 || fsync(fd) < 0) {
+            failed = "Cannot cut the persistent attrs file (it is padded with blanks, and parses)";
+            last_errno = errno;
+        }
     }
+    GBMEM_FREE(bf)
+    GBMEM_FREE(content)     // jansson allocates through gbmem
     if(close(fd) < 0 && !failed) {
         failed = "Cannot close the persistent attrs file";
         last_errno = errno;
@@ -463,6 +504,25 @@ PRIVATE int save_json(
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Path of the persistent attrs file too long",
             "path",         "%s", filename,
+            NULL
+        );
+        JSON_DECREF(jn)
+        return -1;
+    }
+
+    /*
+     *  A save never takes over a file of another user (the yuno run once
+     *  as root): its owner would then read nothing, and refuse every save
+     */
+    struct stat st_old;
+    if(lstat(filename, &st_old) == 0 && S_ISREG(st_old.st_mode) && st_old.st_uid != geteuid()) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Persistent attrs NOT saved: the file there is of another user; run the yuno as its owner, or give the file to the yuno's user",
+            "path",         "%s", filename,
+            "uid",          "%d", (int)st_old.st_uid,
+            "euid",         "%d", (int)geteuid(),
             NULL
         );
         JSON_DECREF(jn)

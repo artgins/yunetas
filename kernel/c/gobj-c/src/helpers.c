@@ -1351,7 +1351,7 @@ PRIVATE const char *secret_name_parts[] = {
     "jwt",
     "bearer",
     "authorization",// an HTTP Authorization header: "Bearer <token>", "Basic <user:pass>"
-    "cookie",       // http_cookie (the session of a browser); cookie_domain is taken too
+    "cookie",       // http_cookie (the session of a browser); not cookie_domain (a segment, below)
     "credential",
     "salt",         // visitor_salt of webstats: with it the visitors can be told again
     0
@@ -1382,7 +1382,7 @@ PRIVATE const char *secret_name_joined[] = {
 PRIVATE const char *not_secret_segments[] = {
     "endpoint", "url", "uri", "domain", "path", "file", "public", "pub",
     "count", "counts", "type", "name", "len", "length", "size", "max", "min",
-    "ttl", "timeout", "expiry", "expires", "header", "mode",
+    "ttl", "timeout", "expiry", "expires", "mode",
     0
 };
 
@@ -1555,6 +1555,7 @@ PUBLIC char *mask_secrets_inline(const char *str)
 
     BOOL changed = FALSE;
     const char *name = str;     // where the current word begins
+    char outer = 0;             // the quote of an outer value open (command='...')
     char *out = masked;
     const char *p = str;
     while(*p) {
@@ -1562,6 +1563,13 @@ PUBLIC char *mask_secrets_inline(const char *str)
             *out++ = *p++;
             name = p;
             continue;
+        }
+        if(*p == '"' || *p == '\'') {
+            if(!outer && (p == str || p[-1] == ' ' || p[-1] == '\t' || p[-1] == '=')) {
+                outer = *p;     // opens a value
+            } else if(*p == outer && (p[1] == 0 || p[1] == ' ' || p[1] == '\t')) {
+                outer = 0;      // closes it
+            }
         }
         size_t name_len = (size_t)(p - name);
         if(*p != '=' || !(is_secret_name(name, name_len) ||
@@ -1573,9 +1581,11 @@ PUBLIC char *mask_secrets_inline(const char *str)
         *out++ = *p++;  // the '='
         char quote = (*p == '"' || *p == '\'')? *p : 0;
         const char *end = quote? p + 1 : p;
-        while(*end && (quote? *end != quote :
-                (*end != ' ' && *end != '\t' && *end != '"' && *end != '\''))) {
-            end++;   // an unquoted value ends at a quote: the one that closes an outer value
+        while(*end && (quote? *end != quote : (*end != ' ' && *end != '\t'))) {
+            if(!quote && outer && *end == outer && (end[1] == 0 || end[1] == ' ' || end[1] == '\t')) {
+                break;  // the quote that closes the outer value is not part of this one
+            }
+            end++;
         }
         if(quote && *end == quote) {
             end++;
@@ -1777,26 +1787,38 @@ PRIVATE BOOL secret_value_is_set(json_t *value)
  *  key with a secret's name (is_secret_name()) is "********", whatever its
  *  json type; so is the "value" of a dict whose "attribute" names a
  *  secret (write-attr); and in a string, a secret "name=value" is masked
- *  (mask_secrets_inline()). Below MASK_MAX_DEPTH levels a dict or a list
- *  is "<deeper not shown>": a kw of a peer nests as it likes, and a cycle
- *  built with json_object_set() would never end. Return a new reference:
+ *  (mask_secrets_inline()). A dict or a list shared is masked once, the
+ *  same everywhere; a cycle (json_object_set() can build one) is "<cycle>",
+ *  and below MASK_MAX_DEPTH levels "<deeper not shown>": a kw of a peer
+ *  nests as it likes. Return a new reference:
  *  a masked copy, or jn itself when there was nothing to mask.
  ***************************************************************************/
-#define MASK_MAX_DEPTH  128
+#define MASK_MAX_DEPTH  64     // the same in gobj-js
 
-PRIVATE json_t *json_mask_secrets_depth(json_t *jn, int depth)
+PRIVATE json_t *json_mask_secrets_depth(json_t *jn, json_t *memo, int depth);
+
+/*
+ *  A dict or a list masked once: a shared one is masked the same
+ *  everywhere, and a cycle is "<cycle>" (with a fan-out of two, a cycle
+ *  walked again would be exponential before any depth limit)
+ */
+PRIVATE json_t *json_mask_container(json_t *jn, json_t *memo, int depth)
 {
-    if(!jn) {
-        return NULL;
+    char key_[32];
+    snprintf(key_, sizeof(key_), "%p", (void *)jn);
+    json_t *seen = json_object_get(memo, key_);
+    if(seen) {
+        return json_is_true(seen)? json_string("<cycle>") : json_incref(seen);
     }
-    if(depth >= MASK_MAX_DEPTH && (json_is_object(jn) || json_is_array(jn))) {
+    if(depth >= MASK_MAX_DEPTH) {
         return json_string("<deeper not shown>");  // a kw of a peer can nest at will
     }
+    json_object_set_new(memo, key_, json_true());  // in progress
 
+    json_t *jn_masked = NULL;
     if(json_is_object(jn)) {
         const char *attribute = json_string_value(json_object_get(jn, "attribute"));
         BOOL value_is_secret = attribute && is_secret_name(attribute, strlen(attribute));
-        json_t *jn_masked = NULL;
         const char *key;
         json_t *value;
         json_object_foreach(jn, key, value) {
@@ -1806,7 +1828,7 @@ PRIVATE json_t *json_mask_secrets_depth(json_t *jn, int depth)
             if(secret && secret_value_is_set(value)) {
                 shown = json_string("********");
             } else {
-                shown = json_mask_secrets_depth(value, depth+1);
+                shown = json_mask_secrets_depth(value, memo, depth+1);
             }
             if(shown != value && !jn_masked) {
                 jn_masked = json_copy(jn);
@@ -1817,15 +1839,11 @@ PRIVATE json_t *json_mask_secrets_depth(json_t *jn, int depth)
                 JSON_DECREF(shown)
             }
         }
-        return jn_masked? jn_masked : json_incref(jn);
-    }
-
-    if(json_is_array(jn)) {
-        json_t *jn_masked = NULL;
+    } else {
         size_t idx;
         json_t *value;
         json_array_foreach(jn, idx, value) {
-            json_t *shown = json_mask_secrets_depth(value, depth+1);
+            json_t *shown = json_mask_secrets_depth(value, memo, depth+1);
             if(shown != value && !jn_masked) {
                 jn_masked = json_copy(jn);
             }
@@ -1835,9 +1853,21 @@ PRIVATE json_t *json_mask_secrets_depth(json_t *jn, int depth)
                 JSON_DECREF(shown)
             }
         }
-        return jn_masked? jn_masked : json_incref(jn);
     }
 
+    json_t *result = jn_masked? jn_masked : json_incref(jn);
+    json_object_set(memo, key_, result);
+    return result;
+}
+
+PRIVATE json_t *json_mask_secrets_depth(json_t *jn, json_t *memo, int depth)
+{
+    if(!jn) {
+        return NULL;
+    }
+    if(json_is_object(jn) || json_is_array(jn)) {
+        return json_mask_container(jn, memo, depth);
+    }
     if(json_is_string(jn)) {
         char *masked = mask_secrets_inline(json_string_value(jn));
         if(masked) {
@@ -1846,13 +1876,15 @@ PRIVATE json_t *json_mask_secrets_depth(json_t *jn, int depth)
             return jn_shown;
         }
     }
-
     return json_incref(jn);
 }
 
 PUBLIC json_t *json_mask_secrets(json_t *jn)
 {
-    return json_mask_secrets_depth(jn, 0);
+    json_t *memo = json_object();
+    json_t *jn_shown = json_mask_secrets_depth(jn, memo, 0);
+    JSON_DECREF(memo)
+    return jn_shown;
 }
 
 /***************************************************************************

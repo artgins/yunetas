@@ -481,7 +481,7 @@ secrets: the PATH of a key or a certificate (`ssl_certificate_key`), a public
 (split by `_`, `-`, `.` and blanks) that names something ABOUT a credential:
 `endpoint`, `url`, `uri`, `domain`, `path`, `file`, `public`, `pub`, `count`,
 `counts`, `type`, `name`, `len`, `length`, `size`, `max`, `min`, `ttl`,
-`timeout`, `expiry`, `expires`, `header`, `mode` (`token_endpoint`,
+`timeout`, `expiry`, `expires`, `mode` (`token_endpoint`,
 `cookie_domain`, `jwt_public_keys`, `refresh_token_count`).
 
 ```C
@@ -568,7 +568,9 @@ json_t *json_mask_secrets(
 
 A NEW reference, to decref: a masked copy (the dicts and lists on the way to
 a masked value are copied, the rest is shared), or `jn` itself when there was
-nothing to mask. `NULL` for `NULL`.
+nothing to mask. `NULL` for `NULL`. A dict or list met twice is masked once,
+the same everywhere; a cycle (jansson lets `json_object_set()` build one) is
+`"<cycle>"`; below 64 levels (as in gobj-js) it is `"<deeper not shown>"`.
 
 **Example**
 
@@ -592,7 +594,10 @@ JSON_DECREF(kw_shown)
 A text (a command line) with the value of every `name=value` whose name is a
 secret's ([`is_secret_name()`](#is_secret_name)) written as `********`,
 quoted or not; and the `value=` of a write-attr whose `attribute=` names a
-secret. The rest of the text is kept as it is.
+secret. The rest of the text is kept as it is. An unquoted value runs to a
+blank, as the command parser reads it: a quote inside it is part of it
+(`value=ab'cd` is masked whole), unless it is the quote that closes an outer
+quoted value (`command='set-user-pwd password=x'` keeps its closing quote).
 
 ```C
 char *mask_secrets_inline(

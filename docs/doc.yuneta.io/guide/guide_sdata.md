@@ -180,7 +180,7 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
     A symlink in place of the file is not read (*"Refused the persistent
     attrs file: it is a symlink"*).
 
-    A save writes a NEW file in the same directory (`<file>.XXXXXX`,
+    A save writes a NEW file in the same directory (`<file>.tmp-XXXXXX`,
     created 0600 with `O_EXCL`) and renames it over the old one, so the
     file is always the yuno's own, 0600, whatever was there -- a file of
     another user (up to 7.25.20 it could never be saved again), a hard
@@ -189,9 +189,10 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
     fails leaves it as it was. A `<file>.tmp-XXXXXX` left by a save that
     did not end (a crash) is removed at the next load, logged; one that is
     not a regular file is left, logged. A save is refused when a file is
-    there and cannot be read (its other attrs would be lost); in a
-    directory the yuno cannot write it goes in place, into a file of the
-    yuno's own only. `write-attr` answers a save that fails
+    there and cannot be read (its other attrs would be lost; an empty one
+    is no data), or is of another user; in a directory the yuno cannot
+    write it goes in place, into a file of the yuno's own only (safe
+    against a full disk, not against a crash in the middle of the write). `write-attr` answers a save that fails
     (*"<gobj>: <attr> written, but NOT saved (see the log)"*, `result`
     -1); up to 7.25.20 it answered "done" with nothing on disk. A
     persistent attr of a gobj that is no service is written and NOT

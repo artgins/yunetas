@@ -331,7 +331,13 @@ PRIVATE void append_masked_parameters(
             break;
         }
         rest = p;
-        if(is_secret_parameter(cnf_cmd, key)) {
+        if(strpbrk(key, " \t")) {
+            /*
+             *  "password= hunter2 x=1": the word after a "key=" with no
+             *  value is read as part of the next key -- maybe the secret
+             */
+            gbuffer_append_string(gbuf, " <...>");
+        } else if(is_secret_parameter(cnf_cmd, key)) {
             gbuffer_printf(gbuf, " %s=%s", key, empty_string(value)? "" : "********");
         } else if(wild && strchr(value, '=')) {
             char *shown = mask_secrets_inline(value);
@@ -865,7 +871,6 @@ PRIVATE json_t *build_cmd_kw(
     char *key;
     char *value;
     const char *last_key = NULL;    // the parameter before an extra word
-    BOOL last_value_empty = FALSE;
     while(1) {
         key = NULL;
         value = get_key_value_parameter(pxxx, &key, &pxxx);
@@ -881,7 +886,7 @@ PRIVATE json_t *build_cmd_kw(
                 "%s: command '%s', parameter '%s': value with no closing quote",
                 gobj_short_name(gobj),
                 command,
-                key
+                strpbrk(key, " \t")? "<...>" : key
             );
         }
         if(!value) {
@@ -890,6 +895,21 @@ PRIVATE json_t *build_cmd_kw(
         if(!key) {
             // No parameter then stop
             break;
+        }
+        if(strpbrk(key, " \t")) {
+            /*
+             *  A key with a blank in it ("password= hunter2 x=1" reads the key
+             *  "hunter2 x"): a malformed line, refused, and the key not
+             *  echoed -- it may be a secret. Up to 7.25.20 a SDF_WILD_CMD
+             *  command took it as a free key, and any other echoed it.
+             */
+            *result = -1;
+            JSON_DECREF(kw_cmd);
+            return json_sprintf(
+                "%s: command '%s' with a malformed parameter: '<...>=...'",
+                gobj_short_name(gobj),
+                command
+            );
         }
         const sdata_desc_t *ip2 = find_ip_parameter(input_parameters, key);
         json_t *jn_param = 0;
@@ -927,19 +947,18 @@ PRIVATE json_t *build_cmd_kw(
         }
         json_object_set_new(kw_cmd, key, jn_param);
         last_key = key;
-        last_value_empty = empty_string(value);
     }
 
     if(!empty_string(pxxx)) {
         /*
          *  The extra text is echoed with its secrets masked: a secret
-         *  name=value in it, and all of it when it is the value of a secret
-         *  parameter given with a blank after its '=' (password= hunter2)
+         *  name=value in it, and all of it when it follows a secret
+         *  parameter -- the rest of its value, written with blanks
+         *  (password=correct horse battery, password= hunter2)
          */
         *result = -1;
         JSON_DECREF(kw_cmd);
-        BOOL extra_is_secret = last_key && last_value_empty &&
-            is_secret_parameter(cnf_cmd, last_key);
+        BOOL extra_is_secret = last_key && is_secret_parameter(cnf_cmd, last_key);
         char *masked = extra_is_secret? NULL : mask_secrets_inline(pxxx);
         json_t *jn_error = json_sprintf(
             "%s: command '%s' with extra parameters: '%s'",

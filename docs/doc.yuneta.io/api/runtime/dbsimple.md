@@ -70,9 +70,18 @@ removed at the next load.
 
 It is refused (`-1`, nothing written) when a file is there and cannot be read
 (*"Persistent attrs NOT saved: the file there cannot be read, and its other
-attrs would be lost"*). In a directory the yuno cannot write, the save goes in
-place, and only into a file of the yuno's own, regular and of one name (made
-0600 first; logged *"Persistent attrs saved in place"*).
+attrs would be lost"*): the operator removes it (its attributes go back to
+their defaults) or repairs it. An EMPTY file holds no attributes and refuses
+nothing. It is refused too when the file there is of another user (the yuno
+run once as root): a save never takes over another user's file.
+
+In a directory the yuno cannot write, the save goes in place, and only into a
+file of the yuno's own, regular and of one name (logged *"Persistent attrs
+saved in place"*). That path is safe against a full disk -- room is taken
+before a byte is written, and a shorter content is padded with blanks before
+the file is cut -- but not against a crash in the middle of the write itself:
+the "never half-written" above holds for the rename, not for this path. A file
+left that way cannot be parsed, and refuses the next saves as above.
 
 **Example**
 

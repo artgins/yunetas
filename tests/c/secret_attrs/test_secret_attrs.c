@@ -704,11 +704,95 @@ PRIVATE void check_log_dumps(hgobj gobj)
     /*
      *  An extra word that is not a secret is shown
      */
-    resp = gobj_command(holder, "set-password password=x stray-word", 0, holder);
+    resp = gobj_command(holder, "set-password note=x stray-word", 0, holder);
     check_true("an extra plain word is shown in the refusal",
         strstr(kw_get_str(0, resp, "comment", "", 0), "stray-word")? TRUE : FALSE
     );
     JSON_DECREF(resp)
+
+    /*
+     *  The rest of a secret written with blanks, and the word after a
+     *  "password= " read as part of the next key: never shown
+     */
+    gobj_set_global_trace("commands", TRUE);
+    watch("horse", "set-password");
+    resp = gobj_command(holder, "set-password password=correct horse battery", 0, holder);
+    check_int("a secret with blanks refuses the command", (int)kw_get_int(0, resp, "result", 0, 0), -1);
+    check_true("its refusal shows no word of it",
+        !strstr(kw_get_str(0, resp, "comment", "", 0), "horse")
+    );
+    JSON_DECREF(resp)
+    unwatch("the commands trace of a secret with blanks");
+    watch("blank-hunter2", "set-password");
+    resp = gobj_command(holder, "set-password password= blank-hunter2 note=1", 0, holder);
+    check_int("a key with a blank refuses the command", (int)kw_get_int(0, resp, "result", 0, 0), -1);
+    check_true("its refusal does not echo the key",
+        !strstr(kw_get_str(0, resp, "comment", "", 0), "blank-hunter2")
+    );
+    JSON_DECREF(resp)
+    unwatch("the commands trace of a key with a blank");
+    gobj_set_global_trace("commands", FALSE);
+
+    /*
+     *  A quote inside an unquoted value is part of it
+     */
+    struct {
+        const char *in;
+        const char *out;
+    } inline_cases[] = {
+        {"write-attr attribute=password value=ab'cd", "write-attr attribute=password value=********"},
+        {"command=\"set-user password=p'q\"", "command=\"set-user password=********\""},
+        {"token=abc\"def\"ghi x=1", "token=******** x=1"},
+        {"command='set-user-pwd password=hunter2'", "command='set-user-pwd password=********'"},
+        {0, 0}
+    };
+    for(int i=0; inline_cases[i].in; i++) {
+        char *m = mask_secrets_inline(inline_cases[i].in);
+        check_str("a value is masked whole, quotes in it included", m, inline_cases[i].out);
+        GBMEM_FREE(m)
+    }
+    check_true("authorization_header is a secret's name", is_secret_name("authorization_header", 20));
+
+    /*
+     *  A dict shared, a cycle, and a fan-out that would be exponential
+     */
+    json_t *creds = json_pack("{s:s}", "password", "shared-hunter2");
+    json_t *kw2 = json_pack("{s:O, s:O, s:[O,O]}", "first", creds, "second", creds, "list", creds, creds);
+    json_t *shown = json_mask_secrets(kw2);
+    char *ss = json2uglystr(shown);
+    check_true("a dict met twice is masked both times", ss && !strstr(ss, "shared-hunter2"));
+    GBMEM_FREE(ss)
+    JSON_DECREF(shown)
+    JSON_DECREF(kw2)
+    JSON_DECREF(creds)
+
+    json_t *a = json_pack("{s:s}", "token", "cyc-hunter2");
+    json_t *b = json_object();
+    json_object_set(a, "b", b);
+    json_object_set(b, "a", a);     // a cycle, which jansson lets build
+    shown = json_mask_secrets(a);
+    check_str("a cycle is shown as <cycle>",
+        json_string_value(json_object_get(json_object_get(shown, "b"), "a")), "<cycle>"
+    );
+    JSON_DECREF(shown)
+    json_object_del(b, "a");        // break it, or it never frees
+    JSON_DECREF(b)
+    JSON_DECREF(a)
+
+    json_t *top = json_object();
+    json_t *level = top;
+    for(int i=0; i<40; i++) {
+        json_t *next = json_object();
+        json_object_set(level, "l", next);
+        json_object_set(level, "r", next);
+        json_decref(next);
+        level = next;
+    }
+    json_object_set_new(level, "password", json_string("deep"));
+    shown = json_mask_secrets(top);     // 2^40 walks without the memo
+    check_true("a shared fan-out is masked in linear time", shown? TRUE : FALSE);
+    JSON_DECREF(shown)
+    JSON_DECREF(top)
 
     /*
      *  A gbuffer in a kw, with the gbuffers trace: dumped, masked
@@ -874,6 +958,10 @@ PRIVATE void check_persistent_file(void)
         );
         JSON_DECREF(resp)
         check_true("in place: on disk", file_contains(path, "in-place"));
+        json_error_t jerr;
+        json_t *jn_disk = json_load_file(path, 0, &jerr);
+        check_true("in place: the file parses", jn_disk? TRUE : FALSE);
+        JSON_DECREF(jn_disk)
         check_true("in place: the rest kept", file_contains(path, "kept-on-disk"));
         check_int("in place: made 0600", file_mode(path), 0600);
 
@@ -902,6 +990,16 @@ PRIVATE void check_persistent_file(void)
         check_true("the file is kept as it was", file_contains(path, "kept-unreadable"));
         check_true("the file is not replaced", !file_contains(path, "must-not-replace"));
     }
+
+    /*
+     *  An empty file holds no attrs, and does not refuse a save
+     */
+    write_file(path, "", 0600);
+    gobj_write_str_attr(holder, "note", "over-empty");
+    check_int("a save over an empty file is done",
+        gobj_save_persistent_attrs(holder, json_string("note")), 0
+    );
+    check_true("over an empty file: on disk", file_contains(path, "over-empty"));
 
     /*
      *  write-attr of a persistent attr of a gobj that is no service: it
