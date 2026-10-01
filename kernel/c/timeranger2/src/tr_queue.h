@@ -299,7 +299,7 @@ PUBLIC json_t *trq_answer(
     can be opened: at the next call, and at the next trq_msg_json() or ack
     of a message ("Queue topic taken again"). While it cannot, those calls
     fail (-1, NULL) and say it once, "Queue without topic, it cannot be
-    opened". Before this fix the topic stayed NULL for good: every read and
+    opened". Up to 7.25.4 the topic stayed NULL for good: every read and
     ack failed, and this call answered 0 and never tried again.
 */
 PUBLIC int trq_check_backup(tr_queue_t * trq);

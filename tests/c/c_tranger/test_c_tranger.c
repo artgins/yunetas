@@ -2480,7 +2480,7 @@ PRIVATE int do_test(void)
 
         /*
          *  A topic on disk that cannot be OPENED (its keys/ cannot be
-         *  listed) is not a topic that is not there. (Before this fix both
+         *  listed) is not a topic that is not there. (Up to 7.25.4 both
          *  answered "Topic not found".) Mode 0 on keys/: skipped as root.
          */
         if(geteuid() != 0) {

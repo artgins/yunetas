@@ -1336,7 +1336,7 @@ PRIVATE void test_keep_all_rename_fails(void)
 /***************************************************************************
  *  A new name is not size-rotated: the size limit is of the file being
  *  written, and at a new name the file of the day before is left. Up to
- *  this fix the size check ran on the file of the day before at the
+ *  7.25.4 the size check ran on the file of the day before at the
  *  first record of the new day: that file was renamed to .OLD (the .OLD
  *  of that day, its earlier piece, was removed first), and when that
  *  rename failed the file of the NEW day was emptied.

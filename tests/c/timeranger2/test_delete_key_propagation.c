@@ -35,7 +35,7 @@
  *        is NOT announced deleted: the notices go out after the rmrdir.
  *      - do_test_rmrdir_fails_filtered: a delete that fails with no file
  *        removed leaves a FILTERED paging iterator of the key its rows.
- *        Before this fix the failure emptied its index (a filtered index
+ *        Up to 7.25.4 the failure emptied its index (a filtered index
  *        is built only at the open): total_rows 0 for a key still on disk.
  *      - do_test_key_dir_unstatable: a key whose directory cannot be
  *        stat'ed (EIO, EACCES on keys/) is not "not found": the delete

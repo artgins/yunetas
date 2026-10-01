@@ -2766,7 +2766,7 @@ PUBLIC json_t *tranger2_backup_topic(
     /*
      *  A create that fails here is recovered below (the backup is moved
      *  back), so its CRITICALs do not end the process: the exit bits of
-     *  on_critical_error are off during the create. Before this fix a tranger
+     *  on_critical_error are off during the create. Up to 7.25.4 a tranger
      *  opened with LOG_OPT_EXIT_ZERO (the MQTT broker's queues, C_TRANGER's
      *  default) exited at the first failed mkdir, before the put-back, and
      *  the data of the topic stayed in the backup until moved back by hand.
@@ -2796,7 +2796,7 @@ PUBLIC json_t *tranger2_backup_topic(
          *  Moved, and the new topic cannot be created (ENOSPC, a mkdir
          *  that fails): the backup is put back where the topic was, and
          *  the topic opened again, as for a failure before the move. Up to
-         *  this fix the data stayed in the backup and nothing was opened:
+         *  7.25.4 the data stayed in the backup and nothing was opened:
          *  a queue had no topic until a restart, and its size read 0, so
          *  the backup was never tried again.
          */

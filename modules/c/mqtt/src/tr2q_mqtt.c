@@ -383,7 +383,7 @@ PRIVATE BOOL queue_topic_worth_opening(tr2_queue_t *trq)
 /***************************************************************************
  *  The topic of the queue. A backup that failed, and could not open the
  *  topic again, left it NULL: it is taken again by name as soon as it can
- *  be opened (before this fix it stayed NULL for good: every read and ack of
+ *  be opened (up to 7.25.4 it stayed NULL for good: every read and ack of
  *  the queue failed, and the backup was never tried again). The topic the
  *  tranger already has open is taken as it is (an append opens it by name).
  *  NULL while it cannot, said once, and once more when it is taken again.

@@ -69,7 +69,7 @@
  *                 lstat() of a file fails with EACCES (a directory that can
  *                 be read and not searched): the file is listed, as with
  *                 d_type, and the open that follows says the EACCES. Up to
- *                 this fix it was skipped with no log, and timeranger2 read
+ *                 7.25.4 it was skipped with no log, and timeranger2 read
  *                 its key EMPTY with no flag, where with d_type the key is
  *                 flagged.
  *

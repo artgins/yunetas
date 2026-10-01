@@ -1381,8 +1381,9 @@ PRIVATE int enter_idle_after_reset(hgobj gobj)
 
 /***************************************************************************
  *  The server does not take RSET (a 5xx): say goodbye, and close when the
- *  221 comes (or when it does not). Not a failure: the next message opens
- *  a connection of its own, with no paced delay.
+ *  221 comes (or when it does not). Not a failure of the server, but the
+ *  next connection still waits timeout_retry (ac_disconnected, after_refusal),
+ *  so a server that refuses every RSET is not logged in to once per message.
  ***************************************************************************/
 PRIVATE int quit_session(hgobj gobj)
 {

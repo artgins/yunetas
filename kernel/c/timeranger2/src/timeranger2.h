@@ -516,7 +516,7 @@ PUBLIC int tranger2_delete_topic(
    The create of a backup runs with the exit bits of on_critical_error off
    (LOG_OPT_EXIT_ZERO, LOG_OPT_EXIT_NEGATIVE, LOG_OPT_ABORT): its failure is
    recovered, so its CRITICALs are logged and do not end the process, also in
-   a tranger that exits on a CRITICAL (the MQTT broker's queues). Before this fix
+   a tranger that exits on a CRITICAL (the MQTT broker's queues). Up to 7.25.4
    such a tranger exited before the backup was moved back.
 */
 

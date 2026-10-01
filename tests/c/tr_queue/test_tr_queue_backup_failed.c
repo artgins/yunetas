@@ -25,7 +25,7 @@
  *  And a create that fails only at the mkdir of the topic's keys/ (all
  *  the rest written): tranger2_create_topic() answers NULL and leaves
  *  nothing, on disk or in memory, and a backup that meets it moves the
- *  queue's topic back. Before this fix the create logged the failure and
+ *  queue's topic back. Up to 7.25.4 the create logged the failure and
  *  answered a topic with no keys/ -- and a backup took that half topic as
  *  the queue's new one.
  *
@@ -33,20 +33,20 @@
  *  either (its topic_desc.json unreadable for a moment, mode 0): the queue
  *  has no topic. Once the file can be read again, the queue takes its topic
  *  again by name, at the next trq_check_backup() / tr2q_check_backup() or
- *  at the next read or ack of a message. Before this fix the topic stayed NULL
+ *  at the next read or ack of a message. Up to 7.25.4 the topic stayed NULL
  *  for good: every read answered NULL, every ack -1, and the check answered
  *  0 and never backed up again. Skipped as root (mode 0 does not stop it).
  *
  *  And a tranger opened with on_critical_error LOG_OPT_EXIT_ZERO (the MQTT
  *  broker's queues): a backup whose new topic cannot be created moves the
- *  backup back and the queue goes on. Before this fix the CRITICAL of the
+ *  backup back and the queue goes on. Up to 7.25.4 the CRITICAL of the
  *  failed mkdir called exit(0) before the put-back, and the data stayed in
  *  the backup (an atexit() handler below turns that exit into a failure).
  *
  *  And a plain create with LOG_OPT_EXIT_ZERO whose keys/ cannot be made:
  *  the process exits, as it is told to, but only once what was made is
  *  removed (the create runs in a child; the parent looks at the disk). Up to
- *  this fix it exited in the log of the failed mkdir, and the next start
+ *  7.25.4 it exited in the log of the failed mkdir, and the next start
  *  opened the half topic.
  *
  *  And the CRITICAL "Cannot create TimeRanger subdir. mkrdir() FAILED"
@@ -886,7 +886,7 @@ PRIVATE int test_tr2q_topic_desc_broken(void)
  *  A topic that cannot be opened again for a cause OUTSIDE topic_desc.json:
  *  its keys/ cannot be listed (mode 0 here; EMFILE or EIO in the field).
  *  The file the queue watched does not change when that cause goes, so up
- *  to this fix the queue never tried again: every read and ack failed, with
+ *  to 7.25.4 the queue never tried again: every read and ack failed, with
  *  no log, until a restart -- even once the tranger itself had the topic
  *  open again (an append opens it by name). Now the queue takes the topic
  *  the tranger has open, and asks the disk quietly whether what failed

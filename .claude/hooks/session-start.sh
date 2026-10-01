@@ -71,8 +71,10 @@ fi
 mkdir -p /yuneta
 # The checkouts stay the session's (git refuses a repo owned by another
 # user); only their build/, where the tests run as yuneta, is yuneta's.
-find /yuneta -xdev \( -path "${YUNETAS_DIR}" -o -path "${YUNETAS_DIR}/../gobj-js" \
-        -o -path "${YUNETAS_DIR}/../gobj-ui.js" \) -prune -o \
+# find prints normalised paths: the siblings are named without "..".
+PARENT_DIR="$(cd "${YUNETAS_DIR}/.." && pwd)"
+find /yuneta -xdev \( -path "${YUNETAS_DIR}" -o -path "${PARENT_DIR}/gobj-js" \
+        -o -path "${PARENT_DIR}/gobj-ui.js" \) -prune -o \
     \( ! -user yuneta -o ! -group yuneta \) -exec chown -h yuneta:yuneta {} +
 if [ -d "${YUNETAS_DIR}/build" ]; then
     chown -R yuneta:yuneta "${YUNETAS_DIR}/build"
@@ -104,7 +106,8 @@ if [ "${YUNETAS_HOOK_BUILD_C:-0}" = "1" ]; then
     source ./yunetas-env.sh >/dev/null
     # Rebuilt when missing or when configure-libs.sh says another VERSION:
     # a container cached on an older one would make `yunetas build` refuse.
-    WANTED="$(sed -n 's/^VERSION="\(.*\)"$/\1/p' kernel/c/linux-ext-libs/configure-libs.sh | tail -1)"
+    # The same match as the yunetas CLI: the first VERSION="..." line.
+    WANTED="$(sed -n 's/^VERSION="\([^"]*\)".*/\1/p' kernel/c/linux-ext-libs/configure-libs.sh | head -1)"
     INSTALLED="$(head -1 kernel/c/linux-ext-libs/VERSION_INSTALLED.txt 2>/dev/null || true)"
     if [ "${INSTALLED}" != "${WANTED}" ]; then
         (cd kernel/c/linux-ext-libs && ./extrae.sh && ./configure-libs.sh)

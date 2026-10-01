@@ -53,7 +53,7 @@ tranger already has open. And a tranger opened with `on_critical_error` `LOG_OPT
 not exit (an `atexit()` handler turns such an exit into a failure), moves the
 backup back, and the queue keeps its message. And a plain create with `LOG_OPT_EXIT_ZERO` whose `keys/` cannot be made,
 in a child process: the child exits(0), as told, but only after it removed
-what it made, and the next create makes the topic whole. Up to this fix it
+what it made, and the next create makes the topic whole. Up to 7.25.4 it
 exited in the log of the failed `mkdir`, and the next start opened the half
 topic. The CRITICAL *"Cannot create TimeRanger subdir. mkrdir()
 FAILED"* is checked to name `ENOSPC` (*"No space left on device"*): up to this

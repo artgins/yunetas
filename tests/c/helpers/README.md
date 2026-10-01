@@ -157,10 +157,10 @@ one whose `lstat()` fails with `EACCES` is LISTED by
 subdirectory whose `opendir()` fails with `ENOTDIR` or `ELOOP` is skipped with
 a warning, as with `EACCES`. And `rmrcontentdir()` / `rmrdir()` of a directory
 whose `readdir()` fails answer `-1` and log *"readdir() FAILED"*, with what
-was not read left in place (up to this fix `rmrcontentdir()` answered `0` with
+was not read left in place (up to 7.25.4 `rmrcontentdir()` answered `0` with
 nothing removed and nothing logged, and `rmrdir()` blamed the `rmdir()`).
 And a failed `mkrdir()` leaves the cause in `errno` after its own log
-(`ENOTDIR` under a file, `ENAMETOOLONG`): up to this fix the log changed it.
+(`ENOTDIR` under a file, `ENAMETOOLONG`): up to 7.25.4 the log changed it.
 
 `test_switchs` covers the string switch of `helpers.h` (`SWITCHS` / `CASES` /
 `ICASES` / `CASES_RE` / `DEFAULTS` / `SWITCHS_END`) and `str_match_regex()`:

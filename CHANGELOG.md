@@ -35,6 +35,10 @@ code before it, except the few this list marks "(no red test)".
   `AUTH PLAIN` (the first is answered once, as RFC 4954 allows). Every further
   attempt would be one more refused login in the provider's logs. Fix the
   cause and run the yuno again.
+- **Send a test email after upgrading emailsender, and after
+  `set-email-user`.** It no longer logs in at start, so wrong credentials or a
+  server that refuses this client are found at the first email, which then
+  stops the yuno (exit 0, not relaunched).
 - **The agent needs write permission on each yuno's `bin/`**: a config file
   is now written to a temporary file there and renamed over the old one. The
   files are 0640: a reader outside the group of the agent's user loses access.
@@ -61,7 +65,8 @@ code before it, except the few this list marks "(no red test)".
   httpOnly access_token included, and view-gobj, view-gobj-tree and view-attrs
   showed it for every connected browser. It is now masked, as are the MQTT 5
   `auth_data` of C_PROT_MQTT2/C_PROT_MQTT, webstats `visitor_salt`, the esp32
-  transport's `jwt` and C_ESP_WIFI's `wifi_list`.
+  transport's `jwt` and C_ESP_WIFI's `wifi_list`. (Each flag is a declaration;
+  the masking it drives has red tests, `http_cookie` and `auth_data` too.)
 - **A secret is masked whatever its json type.** `gobj_mask_secret_attrs()`
   and `view-attrs` of one attribute masked only non-empty strings, so
   `"pin": 1234` was shown. Only an absent value or an empty string stays.
@@ -95,7 +100,8 @@ code before it, except the few this list marks "(no red test)".
   refuses the command and is not echoed; an `SDF_WILD_CMD` command took it as a
   free key. Flagged: C_AUTHZ `password`, C_IDP_KEYCLOAK
   `kc_admin_client_secret`, ycli `user_passw`, C_PROT_MQTT `create-user`
-  `password`, emailsender `set-email-user` `password`.
+  `password`, emailsender `set-email-user` `password` (a red test covers the
+  last; the others are the same one-word declaration).
 - **Every kw the kernel dumps on an error or in a trace masks the
   credentials.** The `kw_get_*()` errors (*"path MUST BE a json str"* with the
   whole kw, so a password read with the wrong reader landed in an ERROR log),
@@ -352,7 +358,8 @@ code before it, except the few this list marks "(no red test)".
   read that cannot be armed again; a watcher its owner stopped still goes
   silently. timeranger2 checks the start of its watchers (a failed start is
   logged and no watcher is kept), and `utils/c/fs_watcher` exits with an error
-  when its watcher is gone.
+  when its watcher is gone. (no red test for the read that cannot be armed,
+  the start checks and `utils/c/fs_watcher`: none of them can be forced)
 - **A key-delete reaches only the feeds whose `rkey` matches the key.** Lists,
   iterators and the rt_mem and rt_disk feeds use the same filter as their
   records; only `key` was checked, so a feed with an `rkey` was told that every
@@ -440,10 +447,14 @@ code before it, except the few this list marks "(no red test)".
   had already stopped (an ERROR with a stack each).
 - **The message counters and rates count what it relays again.**
   `rxMsgs`/`txMsgs`, `rxMsgsec`/`txMsgsec` and their maxima always read 0:
-  nothing incremented the counters, and the timer that computed the rates was
-  never armed. They count the requests, answers and streams the control
-  center relays, the rates are computed when read (at most once a second, no
-  timer), and `stats=__reset__` zeroes them. gui_agent's Monitor shows them.
+  nothing incremented the counters, and the 1 s tick that computed the rates
+  was never armed. They count, once each way, a client's `command-agent`,
+  `stats-agent`, `write-tty` and `run-scenario`, each request and run step sent
+  to an agent, and each answer or stream relayed to the client, the run's
+  answer included. The rate is computed each `timeout` (1000 ms) over the exact
+  interval since the previous tick, so a reading is the same whoever reads and
+  however often; the maxima keep the highest tick, bursts nobody read
+  included; `stats=__reset__` zeroes them all.
 - **Several console mirrors through one agent's connection**: the clients
   are kept per console; when the agent goes, each is dropped once.
 - **A run's step is answered only by the agent it went to.** A client with
@@ -632,8 +643,8 @@ code before it, except the few this list marks "(no red test)".
   `// Error already logged` after the `gclass_create()` of `C_ASSETS`,
   `C_AUTH_BFF`, `C_PROT_RAW` and `C_PTY`. They compile to the same machine
   code as before. (no red test)
-- 31 comments said what the code did "up to this fix" without saying which
-  release; each now names it.
+- About 45 comments and test READMEs said what the code did "up to this fix"
+  or "before this fix" without saying which release; each now names it.
 
 ## v7.25.20 (2026-09-30)
 

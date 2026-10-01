@@ -300,8 +300,8 @@ static inline uint64_t tr2q2_msg_time(q2_msg_t *msg)
     the queue has no topic"), the queue takes it again BY NAME as soon as it
     can be opened: at the next call, and at the next read or hard mark of a
     message ("Queue topic taken again"). While it cannot, those calls fail
-    and say it once, "Queue without topic, it cannot be opened". Before
-    this fix the topic stayed NULL for good.
+    and say it once, "Queue without topic, it cannot be opened". Up to
+    7.25.4 the topic stayed NULL for good.
 */
 PUBLIC int tr2q_check_backup(tr2_queue_t *trq);
 
