@@ -89,6 +89,17 @@ control center routes the command to the one matching connected agent
 (`gobj_command`, first match only). The node's agent then executes it, and can
 itself target a specific yuno via its own `command-yuno` (`command=… service=…`).
 
+`command-agent` answers AT ONCE, before the node does: the first answer is
+the control center's own, *"Command sent to 1 nodes"* (or *"... to 0 nodes"*
+when no connected agent matches). The node's answer comes later, as a second
+answer along the same route. A non-interactive `ycommand` exits `--wait`
+seconds after an answer (`-w`, default 1), so it shows the node's answer only
+if it arrives in that time. Give it room, or stay interactive (`-i`):
+
+```bash
+ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=<host-or-uuid> cmd2agent="list-yunos"'
+```
+
 ### Events pushed by a node, relayed to the web client
 
 Some of what a node's agent sends is not an answer but a stream, pushed along
@@ -123,11 +134,17 @@ fallback it takes with an agent that refuses a direct watch.
 Who gets what the agent sends back is the requester named in the control
 center's OWN hop of the route: the web client's channel of `__top_side__`, or
 the control center's link to its own agent (`agent_client`, a `C_IEVENT_CLI`)
-for a request made through the local agent:
+for a request made through the local agent (it is answered twice, see
+above: `-w` gives the node's answer time to arrive):
 
 ```bash
-ycommand -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=node1 cmd2agent="list-yunos"'
+ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=node1 cmd2agent="list-yunos"'
 ```
+
+That link is believed only for an agent it asked: the agent's channel
+remembers the links whose requests it was sent, and forgets them when it
+closes. An agent that routes an answer to a link that never asked it is
+dropped with the same warning.
 
 A route that names anything else is dropped with the warning *"answer of an
 agent for no requester of this control center, dropped"* (the PTY output with
@@ -150,12 +167,15 @@ yuno stats for a web client that is gone, dropped (the agent's watch expires)  d
 
 Each capped warning (this one, the PTY of a client that is gone, PTY output
 routed to nobody, agent events sent by a web client) says what it counted when
-it speaks next. So the count left since the last one is said once more when a
-connection closes or the control center stops, with `when`:
+it speaks next. So the count left since the last one is said when its minute
+ends, or when the control center stops, with `when`:
 
 ```text
-stream for a web client that is gone, dropped  when="a connection closed"  dropped=17
+stream for a web client that is gone, dropped  when="its minute ended"  dropped=17
 ```
+
+Not when a connection closes: a client that connects, sends one, and leaves,
+in a loop, would get one warning per loop.
 
 **A web client is its CONNECTION, not its channel name** (since 7.25.15).
 The channel a browser holds in `__top_side__` (`top-12`) is taken by the next

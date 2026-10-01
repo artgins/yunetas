@@ -233,21 +233,23 @@ PRIVATE const char *expected_msgs[] = {
     "Creating topic",
     "Creating topic",
     "event of an agent not from the agents' side, dropped",   // once a minute: the other six counted
-    "event of an agent not from the agents' side, dropped",   // the six, said when the agent's connection closes
     "answer for a web client that is gone, dropped: its channel holds another connection now",
     "answer for a web client that is gone, dropped: its channel holds another connection now",
     "stream for a web client that is gone, dropped",          // the first of two frames
     "answer for a web client that is gone, dropped: its channel holds another connection now",
-    "stream for a web client that is gone, dropped",          // the second, said when the agent's connection closes
     "answer for a web client that is gone, dropped: its channel holds another connection now",
     "answer of an agent for no requester of this control center, dropped",
     "PTY output of an agent for no requester of this control center, dropped",  // two frames, said once
     "answer of an agent for no requester of this control center, dropped",
+    "answer of an agent for no requester of this control center, dropped",  // a link that did not ask
+    "answer of an agent for no requester of this control center, dropped",  // the link, after the agent's close
     "All controlcenter scenarios tests PASSED",
     "Exit to die",
     "Exit to die",
     "Pausing yuno",
-    "PTY output of an agent for no requester of this control center, dropped",  // the second frame, said when the control center stops
+    "stream for a web client that is gone, dropped",          // case 5's second frame, said at the stop
+    "PTY output of an agent for no requester of this control center, dropped",  // case 9's second frame, at the stop
+    "event of an agent not from the agents' side, dropped",   // the 6 of case 6 and the 5 of case 10, at the stop
     "Yuno stopped, gobj end",
     0
 };

@@ -37,8 +37,10 @@
  *                the client said so in its own __relays__;
  *              - what an agent sends back for no web client goes only to
  *                the C_IEVENT_CLI link the request came in by, never to a
- *                local service a hop below names; a flood of it, or of
- *                agent events injected by a client, is said once a minute.
+ *                local service a hop below names, nor to a link that never
+ *                asked that agent; a flood of it, or of agent events
+ *                injected by a client, is said once a minute, also when
+ *                the client loops connect/inject/leave.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -1012,14 +1014,37 @@ PRIVATE int test_answer_to_local_requesters(hgobj gobj, hgobj client)
     }
 
     /*
-     *  A request that came in by this yuno's link to its own agent (a
-     *  C_IEVENT_CLI gives itself as the src of a command it dispatches):
-     *  the answer goes back by that link
+     *  This yuno's link to its own agent (a C_IEVENT_CLI gives itself as
+     *  the src of a command it dispatches), in session
      */
     hgobj uplink = gobj_create_service("cc_uplink", C_IEVENT_CLI, 0, gobj);
     hgobj uplink_wire = create_peer("cc_uplink_wire", uplink);
     gobj_set_bottom_gobj(uplink, uplink_wire);
     gobj_change_state(uplink, ST_SESSION);
+
+    /*
+     *  The agent's route names that link, but the link never asked this
+     *  agent anything: dropped (a C_IEVENT_CLI is not believed by name)
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, 0, "command-agent");
+    request = agent_request(gobj, "command-agent reaches the agent");
+    if(request) {
+        jn_stack = kw_get_list(gobj, request, "__md_iev__`ievent_gate_stack", 0, 0);
+        json_object_set_new(json_array_get(jn_stack, 0), "src_service", json_string("cc_uplink"));
+        agent_sends(gobj, EV_MT_COMMAND_ANSWER, request, 0, "routed to a link that did not ask");
+        JSON_DECREF(request)
+    }
+    if(count_received(uplink_wire, EV_MT_COMMAND_ANSWER, 0) != 0) {
+        ret += fail(gobj, "an answer reached a link that never asked the agent", "");
+    }
+
+    /*
+     *  A request that came in by that link: the answer goes back by it
+     */
 
     kw = json_pack("{s:s, s:s, s:s, s:{s:[{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}]}}",
         "__username__", "yuneta",
@@ -1041,14 +1066,50 @@ PRIVATE int test_answer_to_local_requesters(hgobj gobj, hgobj client)
     request = agent_request(gobj, "command-agent by the link reaches the agent");
     if(request) {
         agent_sends(gobj, EV_MT_COMMAND_ANSWER, request, 0, "via the local agent");
-        JSON_DECREF(request)
     }
     if(count_received(uplink_wire, EV_MT_COMMAND_ANSWER, "via the local agent") != 1) {
         ret += fail(gobj, "the answer goes back by the link the request came in by", "");
     }
+
+    /*
+     *  The agent's connection closes: what it asked for the link is
+     *  forgotten with it
+     */
+    agent_closes(gobj);
+    if(request) {
+        agent_sends(gobj, EV_MT_COMMAND_ANSWER, request, 0, "after the agent's close");
+        JSON_DECREF(request)
+    }
+    if(count_received(uplink_wire, EV_MT_COMMAND_ANSWER, 0) != 0) {
+        ret += fail(gobj, "an answer for the link reached it after the agent's close", "");
+    }
     gobj_stop(uplink_wire);
     gobj_destroy(uplink);
     return ret;
+}
+
+/***************************************************************************
+ *  10. A client that connects, sends one event only an agent sends, and
+ *      leaves, in a loop: the capped warning is not said once per loop
+ *      (the counts are said when their minute ends, or at the stop)
+ ***************************************************************************/
+PRIVATE int test_inject_in_a_loop(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    for(int i=0; i<5; i++) {
+        client_opens(gobj, client);
+        json_t *kw = json_pack("{s:i, s:s, s:{s:I}}",
+            "result", 0,
+            "comment", "injected in a loop",
+            "__temp__",
+                "channel_gobj", (json_int_t)(uintptr_t)client
+        );
+        gobj_send_event(priv->cc, EV_MT_COMMAND_ANSWER, kw, priv->top_side);
+        client_closes(gobj, client);
+    }
+    client_opens(gobj, client);
+    return 0;   // the expected logs say it
 }
 
 /***************************************************************************
@@ -1085,6 +1146,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_several_mirrors(gobj, client1, client2);
     result += test_relays_only_for_who_asks(gobj, client1);
     result += test_answer_to_local_requesters(gobj, client1);
+    result += test_inject_in_a_loop(gobj, client2);
 
     if(result == 0) {
         gobj_log_info(gobj, 0,

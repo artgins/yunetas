@@ -111,6 +111,7 @@ PRIVATE json_int_t connection_number(hgobj channel);
 PRIVATE BOOL same_connection(hgobj gobj, json_t *kw, hgobj channel);
 PRIVATE void stamp_client_connection(hgobj gobj, json_t *kw, hgobj src);
 PRIVATE BOOL client_relays(json_t *kw, gobj_event_t event);
+PRIVATE void record_link_request(hgobj gobj, hgobj src, hgobj agent_srv);
 PRIVATE hgobj requester_of_route(
     hgobj gobj,
     json_t *kw,
@@ -127,7 +128,8 @@ PRIVATE hgobj requester_of_answer(
 );
 PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj requester);
 PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
-PRIVATE void say_pending_drops(hgobj gobj, const char *when);
+PRIVATE void say_pending_drops(hgobj gobj, const char *when, BOOL only_ended);
+PRIVATE void arm_drops_timer(hgobj gobj);
 PRIVATE void count_dropped_stream(
     hgobj gobj,
     gobj_event_t event,
@@ -314,6 +316,8 @@ typedef struct _PRIVATE_DATA {
     uint64_t t_tty_unrouted_log;    // msectimer: next time they may be said
     uint64_t injected;              // events of an agent sent from __top_side__
     uint64_t t_injected_log;        // msectimer: next time they may be said
+    hgobj drops_timer;              // says the counts above when their minute ends
+    BOOL drops_timer_armed;
 
     hgobj run_timer;                // deadline of the step of the run in flight
     json_t *run;                    // the run in flight, or NULL (one at a time)
@@ -352,6 +356,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->run_timer = gobj_create_pure_child("run_timer", C_TIMER, 0, gobj);
+    priv->drops_timer = gobj_create_pure_child("drops_timer", C_TIMER, 0, gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -398,6 +403,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_start(priv->timer);
     gobj_start(priv->run_timer);
+    gobj_start(priv->drops_timer);
     return 0;
 }
 
@@ -408,9 +414,12 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    say_pending_drops(gobj, "the control center stops");
+    say_pending_drops(gobj, "the control center stops", FALSE);
+    clear_timeout(priv->drops_timer);
+    priv->drops_timer_armed = FALSE;
     gobj_stop(priv->timer);
     gobj_stop(priv->run_timer);
+    gobj_stop(priv->drops_timer);
     return 0;
 }
 
@@ -861,6 +870,7 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
             }
         }
 
+        record_link_request(gobj, src, child);
         json_t *webix = gobj_command( // debe retornar siempre 0.
             child,
             cmd2agent,
@@ -955,6 +965,7 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
             }
         }
 
+        record_link_request(gobj, src, child);
         json_t *webix = gobj_stats( // debe retornar siempre 0.
             child,
             stats2agent,
@@ -2338,15 +2349,51 @@ PRIVATE BOOL client_relays(json_t *kw, gobj_event_t event)
 }
 
 /***************************************************************************
+ *  A request that came in by one of this yuno's own ievent links (a
+ *  C_IEVENT_CLI service, its agent's `agent_client`) goes to the agent of
+ *  `agent_srv`: the agent's channel remembers that link, the only one whose
+ *  name it may route an answer back to (requester_of_route()). Forgotten
+ *  when the agent's channel closes.
+ ***************************************************************************/
+PRIVATE void record_link_request(hgobj gobj, hgobj src, hgobj agent_srv)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!src || !gobj_is_service(src) || !gobj_typeof_gclass(src, C_IEVENT_CLI)) {
+        return;
+    }
+    hgobj agent_channel = channel_of_side(priv->gobj_input_side, agent_srv);
+    if(!agent_channel) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "agent not under __input_side__, the link's answers will be dropped",
+            "link",         "%s", gobj_name(src),
+            NULL
+        );
+        return;
+    }
+    json_t *links = gobj_read_user_data(agent_channel, "link_requesters");
+    if(!json_is_object(links)) {
+        links = json_object();
+        gobj_write_user_data(agent_channel, "link_requesters", links);
+    }
+    json_object_set_new(links, gobj_name(src), json_true());
+}
+
+/***************************************************************************
  *  Who gets what an agent sends back along the route of a request (kw not
  *  owned): pops this control center's hop off the stack, whose
  *  `dst_service` is who asked -- the channel of __top_side__ of a web
  *  client, or, for a request that came in by one of this yuno's own
  *  ievent links (its agent's `agent_client`: a C_IEVENT_CLI dispatches a
- *  command as its own src), that C_IEVENT_CLI service. Its name is copied
- *  in `dst_service` (the popped frame is freed here). Nothing else is a
- *  requester: the hops below were written by the client, and a name the
- *  agent echoed that names another local service is not believed.
+ *  command as its own src), that C_IEVENT_CLI service -- and only if a
+ *  request of that link went to the agent this comes from
+ *  (record_link_request()). Its name is copied in `dst_service` (the
+ *  popped frame is freed here). Nothing else is a requester: the hops
+ *  below were written by the client, and a name the agent echoed that
+ *  names another local service, or a link that never asked it, is not
+ *  believed.
  *  NULL when there is nobody; NULL and `reconnected` when the channel is
  *  held by another connection now: its name was taken by the next client.
  *  A closed channel is returned, to be found not listening.
@@ -2378,10 +2425,15 @@ PRIVATE hgobj requester_of_route(
     }
 
     hgobj gobj_link = gobj_find_service(dst_service, FALSE);
-    if(gobj_link && gobj_typeof_gclass(gobj_link, C_IEVENT_CLI)) {
-        return gobj_link;
+    if(!gobj_link || !gobj_typeof_gclass(gobj_link, C_IEVENT_CLI)) {
+        return NULL;
     }
-    return NULL;
+    hgobj agent_channel = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
+    json_t *links = agent_channel? gobj_read_user_data(agent_channel, "link_requesters") : NULL;
+    if(!json_is_true(json_object_get(links, dst_service))) {
+        return NULL;
+    }
+    return gobj_link;
 }
 
 /***************************************************************************
@@ -2455,6 +2507,7 @@ PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         priv->injected = 0;
         priv->t_injected_log = start_msectimer(60*1000);
     }
+    arm_drops_timer(gobj);
     return FALSE;
 }
 
@@ -2516,47 +2569,94 @@ PRIVATE void count_dropped_stream(
         *dropped = 0;
         *t_next_log = start_msectimer(60*1000);
     }
+    arm_drops_timer(gobj);
 }
 
 /***************************************************************************
- *  What the capped warnings counted since they last spoke (the frames of a
- *  client that is gone, PTY output routed to nobody, events of an agent
- *  sent by a web client) is said once more at a natural end -- a
- *  connection closes, the control center stops -- or it would never be:
- *  the count is said by the NEXT one, and there may be none. The timers
- *  keep running, so the cap holds.
+ *  The capped warnings: what each counted since it last spoke, and when its
+ *  minute ends.
  ***************************************************************************/
-PRIVATE void say_pending_drops(hgobj gobj, const char *when)
+typedef struct {
+    uint64_t *count;
+    uint64_t *t_window;
+    const char *msgset;
+    const char *msg;
+} drop_cap_t;
+
+#define DROP_CAPS 4
+
+PRIVATE void drop_caps(PRIVATE_DATA *priv, drop_cap_t caps[DROP_CAPS])
+{
+    caps[0] = (drop_cap_t){&priv->stats_dropped, &priv->t_stats_dropped_log, MSGSET_INFO,
+        "yuno stats for a web client that is gone, dropped (the agent's watch expires)"};
+    caps[1] = (drop_cap_t){&priv->tty_dropped, &priv->t_tty_dropped_log, MSGSET_INFO,
+        "stream for a web client that is gone, dropped"};
+    caps[2] = (drop_cap_t){&priv->tty_unrouted, &priv->t_tty_unrouted_log, MSGSET_PROTOCOL,
+        "PTY output of an agent for no requester of this control center, dropped"};
+    caps[3] = (drop_cap_t){&priv->injected, &priv->t_injected_log, MSGSET_PROTOCOL,
+        "event of an agent not from the agents' side, dropped"};
+}
+
+/***************************************************************************
+ *  A capped warning says what it counted when it speaks NEXT, and there may
+ *  be no next one: what is still counted is said when its minute ends
+ *  (`only_ended`, the drops timer) or when the control center stops. Never
+ *  on a connection's close: a client that connects, sends one, and leaves,
+ *  in a loop, would be said once per loop.
+ ***************************************************************************/
+PRIVATE void say_pending_drops(hgobj gobj, const char *when, BOOL only_ended)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    struct {
-        uint64_t *count;
-        const char *msgset;
-        const char *msg;
-    } pending[] = {
-        {&priv->stats_dropped, MSGSET_INFO,
-            "yuno stats for a web client that is gone, dropped (the agent's watch expires)"},
-        {&priv->tty_dropped, MSGSET_INFO,
-            "stream for a web client that is gone, dropped"},
-        {&priv->tty_unrouted, MSGSET_PROTOCOL,
-            "PTY output of an agent for no requester of this control center, dropped"},
-        {&priv->injected, MSGSET_PROTOCOL,
-            "event of an agent not from the agents' side, dropped"},
-    };
-    for(size_t i=0; i<ARRAY_SIZE(pending); i++) {
-        if(*pending[i].count == 0) {
+    drop_cap_t caps[DROP_CAPS];
+    drop_caps(priv, caps);
+    for(int i=0; i<DROP_CAPS; i++) {
+        if(*caps[i].count == 0) {
+            continue;
+        }
+        if(only_ended && *caps[i].t_window && !test_msectimer(*caps[i].t_window)) {
             continue;
         }
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", pending[i].msgset,
-            "msg",          "%s", pending[i].msg,
+            "msgset",       "%s", caps[i].msgset,
+            "msg",          "%s", caps[i].msg,
             "when",         "%s", when,
-            "dropped",      "%lu", (unsigned long)*pending[i].count,
+            "dropped",      "%lu", (unsigned long)*caps[i].count,
             NULL
         );
-        *pending[i].count = 0;
+        *caps[i].count = 0;
+        *caps[i].t_window = start_msectimer(60*1000);
+    }
+}
+
+/***************************************************************************
+ *  Something was counted and not said: the drops timer fires when the
+ *  first minute with a count ends (a real time, not a deferral).
+ ***************************************************************************/
+PRIVATE void arm_drops_timer(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->drops_timer_armed) {
+        return;
+    }
+    drop_cap_t caps[DROP_CAPS];
+    drop_caps(priv, caps);
+    uint64_t now = start_msectimer(0);
+    uint64_t first_end = 0;
+    for(int i=0; i<DROP_CAPS; i++) {
+        if(*caps[i].count == 0) {
+            continue;
+        }
+        uint64_t end = *caps[i].t_window > now? *caps[i].t_window : now + 1;
+        if(!first_end || end < first_end) {
+            first_end = end;
+        }
+    }
+    if(first_end) {
+        set_timeout(priv->drops_timer, (json_int_t)(first_end - now));
+        priv->drops_timer_armed = TRUE;
     }
 }
 
@@ -2753,6 +2853,9 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(src == priv->gobj_top_side && channel_gobj) {
         gobj_write_user_data(channel_gobj, "cc_connection", json_integer(0));
     }
+    if(src == priv->gobj_input_side && channel_gobj) {
+        gobj_write_user_data(channel_gobj, "link_requesters", json_object());
+    }
 
     /*
      *  The consoles mirrored through an agent's channel end with it: their
@@ -2779,8 +2882,6 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         JSON_DECREF(dropped)
         gobj_write_user_data(channel_gobj, "tty_mirrors", json_object());
     }
-
-    say_pending_drops(gobj, "a connection closed");
 
     KW_DECREF(kw);
     return 0;
@@ -2968,6 +3069,7 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
             priv->tty_unrouted = 0;
             priv->t_tty_unrouted_log = start_msectimer(60*1000);
         }
+        arm_drops_timer(gobj);
         KW_DECREF(kw);
         return 0;
     }
@@ -3109,6 +3211,13 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(src == priv->run_timer) {
         KW_DECREF(kw);
         return run_step_timed_out(gobj);
+    }
+    if(src == priv->drops_timer) {
+        priv->drops_timer_armed = FALSE;
+        say_pending_drops(gobj, "its minute ended", TRUE);
+        arm_drops_timer(gobj);
+        KW_DECREF(kw);
+        return 0;
     }
 
     uint64_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");

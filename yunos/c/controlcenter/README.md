@@ -65,23 +65,34 @@ control center, so its watch is refused and its Monitor falls back to polling
 What an agent sends back reaches a web client's channel of `__top_side__`, or,
 for a request that came in by the control center's link to its own agent
 (`ycommand -c 'command-yuno id=<cc> service=controlcenter command=command-agent ...'`),
-that `C_IEVENT_CLI` link. Nothing else: a route that names any other local
-service is dropped with a warning. Up to 7.25.20 the control center fell back
+that `C_IEVENT_CLI` link, and only for an agent it sent a request to (the
+agent's channel remembers the link until it closes). Nothing else: a route
+that names any other local service, or a link that did not ask that agent, is
+dropped with a warning. Up to 7.25.20 the control center fell back
 to a service named by the client's own hop of the route, and the answers of the
 request through the local agent went nowhere.
 
 An event that only an agent sends (an answer, the PTY, `EV_YUNO_STATS`) sent by
 a web client is dropped with the warning *"event of an agent not from the
 agents' side, dropped"*, at most once a minute (`dropped=` counts them).
-What such a capped warning counted after it last spoke is said once more when
-a connection closes or the control center stops (`when=`, `dropped=`).
+What such a capped warning counted after it last spoke is said when its
+minute ends, or when the control center stops (`when=`, `dropped=`); never per
+connection close, which a client could loop.
 
 Talk to it via `ycommand`:
 
 ```bash
 ycommand -c 'command-yuno id=<cc> service=controlcenter command=list-agents'
-ycommand -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=<host> cmd2agent="list-yunos"'
+ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=<host> cmd2agent="list-yunos"'
 ```
+
+`command-agent` answers AT ONCE, before the node does: the first answer is
+the control center's own, *"Command sent to 1 nodes"* (or *"... to 0 nodes"*
+when no connected agent matches). The node's answer comes later, as a second
+answer along the same route. A non-interactive `ycommand` exits `--wait`
+seconds after an answer (`-w`, default 1), so it shows the node's answer only
+if it arrives in that time. Give it room (`-w 10`, as in the second line
+above), or stay interactive (`-i`).
 
 The control center finds the matching connected agent (a `C_IEVENT_SRV` child
 of its `__input_side__` gate in state `ST_SESSION`) and forwards the command;

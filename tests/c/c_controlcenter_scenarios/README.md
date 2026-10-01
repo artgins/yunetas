@@ -58,10 +58,10 @@ still reported and fails the test.
    said once a minute, with `dropped=` counting the others: the one injected
    in case 4 is said, these six are counted (one warning per injected frame
    let an authenticated client flood the log). The six counted are said
-   when the next connection closes (`dropped=6`); likewise the second late
-   `EV_TTY_DATA` of case 5, and the second PTY frame routed to nobody of case
-   9 when the control center stops. Before, a count with no later event was
-   never said.
+   when their minute ends or, as here, when the control center stops, with
+   the five of case 10 (`dropped=11`); likewise the second late `EV_TTY_DATA`
+   of case 5 and the second PTY frame routed to nobody of case 9. Before, a
+   count with no later event was never said.
 7. Several consoles mirrored through one agent's channel. Two clients, two
    consoles: the agent's close drops both. One console opened again by another
    client: only that client is dropped (the agent routes it to the last
@@ -80,10 +80,17 @@ still reported and fails the test.
    names nobody and whose next hop (the client's) names a local service that
    listens: nothing reaches that service, a warning; the same for two PTY
    frames, one warning. A hop naming a local service that is not a link:
-   dropped, a warning. A `command-agent` from a `C_IEVENT_CLI` in session:
-   its answer goes back by that link. Up to 7.25.20 the answer went to the
+   dropped, a warning. A hop naming a `C_IEVENT_CLI` in session that never
+   sent a request to that agent: dropped, a warning. A `command-agent` from
+   that `C_IEVENT_CLI`: its answer goes back by that link; after the agent's
+   connection closes, the same answer is dropped, a warning. Up to 7.25.20 the answer went to the
    service of the next hop -- the local service in the forged case, the
    control center itself (nobody) through the local agent.
+
+10. A client connects, sends one event only an agent sends, and leaves, five
+    times: no warning per loop (the cap held), the five are counted with the
+    six of case 6 and said once at the stop. A flush on every connection's
+    close bounded the warnings only by the client's reconnect rate.
 
 ## Run
 
