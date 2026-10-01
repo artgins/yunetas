@@ -362,7 +362,9 @@ code before it, except the few this list marks "(no red test)".
   the reborn-key bullet below). In a master, hearing a delete makes no debts;
   `tranger2_delete_key()` makes them.
 - **A key deleted and written again (once or more) before a follower reads the
-  delete is handed right**, for any key, one the follower never saw included:
+  delete is handed right in far more cases**, for any key, one the follower
+  never saw included (with the master in another process and the follower
+  lagging, a race remains: an open defect, see `TODO.md`):
   the feed is told `deleted` (once or more), then the records of the key's last
   life from rowid 1, and the key stays in the cache; records of a life deleted
   before the follower read them are not handed. A follower reads a key

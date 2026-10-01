@@ -792,7 +792,12 @@ The deletion is **propagated to subscribers**:
   topic cache and fires the callback of **that feed only**, once.
 - A key deleted and written again (once or more) before a follower reads the
   delete: the feed hears `deleted` (once or more), then the records of the
-  key's LAST life from rowid 1, and keeps the key. The records of a life
+  key's LAST life from rowid 1, and keeps the key -- with one known exception:
+  a follower that lags behind a master in ANOTHER process can still read a
+  link of a key directory the master has meanwhile deleted and rewritten (it
+  reads and unlinks by path), and then hands a later life before an earlier
+  delete; reading through a descriptor of the watched directory (`openat` /
+  `unlinkat`) would end it (an open defect, see `TODO.md`). The records of a life
   deleted before the follower read it are not handed -- they are gone from
   disk with it. The follower reads a key directory only if it is still the
   directory it looked at before it asked where its queue ended, and only

@@ -11,10 +11,6 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 The fifth independent review of this cycle's fixes found these; its four HIGH
 findings were fixed before the merge, the rest are open.
 
-- **A feed opened after another feed heard a delete, and signalled after it
-  was watched, still takes that delete as new** (low): it needs the master to
-  stall between two signals while the follower reads, hears and opens; written
-  in fs_watcher.md.
 - **A frame before the session is parsed whole, up to the max block** (medium,
   plausible, present in 7.25.20): C_IEVENT_SRV decodes the peer's frame before
   its identity card is checked; a 16 MB `[{},…]` frame takes ~1.7 GB to parse,
@@ -22,6 +18,34 @@ findings were fixed before the merge, the rest are open.
   on a `CONFIG_DEBUG_TRACK_MEMORY` build the agent's 2 GB
   `MEM_MAX_SYSTEM_MEMORY` aborts the process. Cap the size of a frame accepted
   before the session (an identity card is small).
+- **An rt_disk follower lagging behind a master in ANOTHER process can still
+  hand a reborn key out of order** (HIGH, confirmed by probes; present since
+  7.25.20, improved but not cured in this cycle). A link heard in a KNOWN key
+  directory (timeranger2.c ~7012-7048, FS_FILE_CREATED) is consumed by PATH
+  (`update_key_by_hard_link()` unlinks it, `update_new_records_from_disk()`
+  reads `keys/<key>/<file>`): if the master appended a row, then deleted the
+  key and wrote it again before the follower read that IN_CREATE, the follower
+  unlinks the NEW life's link, reads the new life's file against the old
+  life's cache cell (an old record through the old fd, then CRITICAL short
+  reads), takes the delete heard next as first heard (the live key leaves the
+  cache) and the new directory's scan finds the link already consumed: the last
+  life is never handed, the next append hands R1..R4. The same window exists in
+  `scan_key_dir()`, which checks the directory identity once and then lists,
+  unlinks and reads each file by path with user callbacks in between. ext4
+  reuses the inode number of every rebirth, so only the birth time tells the
+  directories apart. Under a random two-process load 5-10 of 12
+  (feed, key) pairs per run still got a later life before an earlier delete
+  (12/12 before this cycle); once a deleted key stayed in the cache. Fix: read
+  and unlink through a descriptor of the watched directory (`openat` /
+  `unlinkat` on a dir fd held per watched key dir), never consume a link of a
+  directory that is not the one looked at. Probes: round 21's scratchpad
+  `review/r7-verify/` (`p7.c` case K, `mp.c` forks a real master process).
+  Related: the in-doubt rule mis-attributes a second delete queued below its
+  mark as "same" (rare, the cache is cleared late); a feed opened after the
+  first heard a delete and signalled after it was watched can also take a live
+  key out of the cache (not only `[DEL DEL]` at an overflow); records of a
+  doomed life are now handed with a NULL body (7.25.20 handed wrong content);
+  CRITICAL logs in legitimate races would kill a tranger with exit-on-critical.
 - **dbsimple: a yuno running as root hands its secrets to whoever planted the
   file** (medium, plausible): a member of the yuneta group replaces the file
   in the 02775 data dir with a readable one of their own; a root save writes
