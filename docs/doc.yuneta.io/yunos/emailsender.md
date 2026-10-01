@@ -213,18 +213,20 @@ refused ones, the bcc only as counts (`bcc_count`, `refused_bcc_count`).
 A refused sender (MAIL FROM): the reply decides, not the `from` -- most
 producers set a `from` of their own, and an account block answers them all
 alike. It is the MESSAGE's only when its sender is its own (not the
-configured default, compared ignoring case) and the reply says that address
-is wrong: a `501`, a `5.1.7` status, or a `553` / `5.1.x` / `5.7.1` reply
-that quotes the address (`553 5.1.8 <a@b>: Sender address rejected: Domain
-not found`). Then it goes to the failed queue once, with a WARNING naming the
-`from`, and the session goes on. Everything else -- a quota (`550 5.7.1 Daily
-sending quota exceeded`), a block (`550 5.1.8 Access denied, bad outbound
-sender`), a policy, a `4xx`, the default sender -- is the account's: paced like
-a failure and charged to the message as a retry, so after `max_retries`
-paced attempts it goes to the failed queue and the queue moves on, and a head
-stuck past `timeout_failing_alarm` raises the ERROR. Every attempt refused
-resolves the message or spends a retry. To move the email at the head of the
-queue to the failed queue at once:
+configured default, compared ignoring case) and the reply is about the form
+or the existence of that address: a `501`, a `5.1.7` status, or a `5.1.8` /
+`553` whose text says the domain or the address does not exist (`553 5.1.8
+<a@b>: Sender address rejected: Domain not found`). Then it goes to the
+failed queue once, with a WARNING naming the `from`, and the session goes on.
+Everything else is the account's, quoted or not -- Postfix quotes the address
+in every sender reject: any `5.7.x` (a quota, `554 5.7.1 <a@b>: Sender address
+rejected: Access denied`), a `5.1.8` that does not say the address does not
+exist (`550 5.1.8 Access denied, bad outbound sender`), a `4xx`, the default
+sender. It is paced like a failure and charged to the message as a retry, so
+at most one email goes to the failed queue per `max_retries` cycle, the queue
+moves on, and a head stuck past `timeout_failing_alarm` raises the ERROR.
+Every attempt refused resolves the message or spends a retry. To move the
+email at the head of the queue to the failed queue at once:
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=emailsender command=skip-email'

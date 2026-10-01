@@ -114,23 +114,27 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   answers them all the same way:
 
   - **The message's** only when its sender is its own (not the default; the
-    comparison ignores case) AND the reply says that address is wrong: a
-    `501` (its syntax), a `5.1.7` status (bad sender mailbox syntax, RFC 3463),
-    or a `553`, `5.1.x` or `5.7.1` reply that quotes the address itself
-    (`553 5.1.8 <a@b>: Sender address rejected: Domain not found`,
-    `553 5.7.1 <a@b>: Sender address rejected: not owned by user`).
-    Refused like above, once, to the failed queue, with a WARNING that names
-    the `from`; the session goes on, and a run of them is paced like any run
-    of refusals.
-  - **The account's** in every other case, whatever the `from`: a quota
-    (`550 5.7.1 Daily sending quota exceeded`), a block (`550 5.1.8 Access
-    denied, bad outbound sender`), a policy that does not name the address,
-    any `4xx`, any refusal of the default sender. A failure of the server:
-    paced, said, and charged to the message as a retry, so after
-    `max_retries` paced attempts it goes to the failed queue and the queue
-    moves on; a stuck head never blocks the queue for ever, and one stuck
-    past `timeout_failing_alarm` raises the ERROR. The yuno does not stop on
-    it: a quota passes.
+    comparison ignores case) AND the reply is about the FORM or the EXISTENCE
+    of that address: a `501` (its syntax), a `5.1.7` status (bad sender
+    mailbox syntax, RFC 3463), or a `5.1.8` / `553` whose text says the domain
+    or the address does not exist (*not found*, *does not exist*, *unknown*,
+    *no such*, *unroutable*): `553 5.1.8 <a@b>: Sender address rejected:
+    Domain not found`. Refused like above, once, to the failed queue, with a
+    WARNING that names the `from`; the session goes on, and a run of them is
+    paced like any run of refusals.
+  - **The account's** in every other case, whatever the `from`, and whether
+    or not the reply quotes the address -- Postfix writes every sender-stage
+    reject as `<addr>: Sender address rejected: ...`, the policy ones
+    included: any `5.7.x` (a quota, `554 5.7.1 <a@b>: Sender address
+    rejected: Access denied`, not owned by the user), a `5.1.8` that does not
+    say the address does not exist (`550 5.1.8 Access denied, bad outbound
+    sender`, an account blocked), any `4xx`, any refusal of the default
+    sender. A failure of the server: paced, said, and charged to the message
+    as a retry, so after `max_retries` paced attempts it goes to the failed
+    queue and the queue moves on -- at most one email to the failed queue
+    per `max_retries` cycle; a stuck head never blocks the queue for ever,
+    and one stuck past `timeout_failing_alarm` raises the ERROR. The yuno
+    does not stop on it: a quota passes.
 
   Every attempt that ends in a refusal of the message either sends it to the
   failed queue or spends one of its retries, whatever the session was doing.

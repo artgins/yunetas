@@ -83,6 +83,8 @@ SET(SRCS
     foreign_refused_batch
     refusal_then_sender
     rset_refused_logins
+    quoted_quota
+    quoted_access
 )
 
 ##############################################

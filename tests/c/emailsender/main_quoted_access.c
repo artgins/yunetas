@@ -1,14 +1,13 @@
 /****************************************************************************
- *          main_foreign_refused_batch.c
+ *          main_quoted_access.c
  *
- *          Twelve emails with a `from` of their own whose domain the server
- *          does not know (553 5.1.8 <intruder@example.com>: ... Domain not
- *          found): each is the message's and goes to the failed queue
- *          once, but a run of them is paced like any run of refusals: two at once on the first session,
- *          then one session per email, 1, 2, 4 s apart (timeout_retry 1 s).
- *          After 6.5 s five are in the failed queue, seven wait, and the
- *          server has seen three connections. Before, a sender refusal of the
- *          message's own did not count: twelve in milliseconds, one session.
+ *          Twelve emails with a `from` of their own, refused the way Postfix
+ *          writes every sender-stage reject (554 5.7.1 <alarm@...>: Sender
+ *          address rejected: Access denied): a 5.7.x is policy, the
+ *          account's, quoted or not. Paced, a retry spent per attempt: with
+ *          max_retries 3 one email is in the failed queue after 9 s, eleven
+ *          wait, and the stuck head raises the ERROR. Before, the quoted own
+ *          from made it the message's: five emails failed in 8 s.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -26,8 +25,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_foreign_refused_batch"
-#define APP_DOC         "A run of refused senders is paced"
+#define APP_NAME        "test_emailsender_quoted_access"
+#define APP_DOC         "An access-denied reply that quotes the sender is the account's"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -39,7 +38,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_foreign_refused_batch"
+#define BASE    "/tmp/test_emailsender_quoted_access"
 
 /***************************************************************************
  *                      Default config
@@ -86,7 +85,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7866',              \n\
+                        'url': 'tcp://127.0.0.1:7870',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -105,8 +104,7 @@ PRIVATE char variable_config[]= "\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
                                 'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'mail_replies': ['553 5.1.8 <intruder@example.com>: Sender address rejected: Domain not found'],\n\
-                                'max_connections': 3,               \n\
+                                'mail_replies': ['554 5.7.1 <alarm@example.com>: Sender address rejected: Access denied'],\n\
                                 'die_on_delivery': false            \n\
                             },                                      \n\
                             'children': [                           \n\
@@ -127,7 +125,7 @@ PRIVATE char variable_config[]= "\
             'kw': {                                                 \n\
                 'username': 'user',                                 \n\
                 'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7866',                      \n\
+                'url': 'tcp://127.0.0.1:7870',                      \n\
                 'from': 'sender@example.com',                       \n\
                 'timeout_inactivity': 30000,                        \n\
                 'tranger_path': '"BASE"/store',                     \n\
@@ -135,6 +133,8 @@ PRIVATE char variable_config[]= "\
                 'topic_emails_queue': 'emails_queue',               \n\
                 'topic_emails_failed': 'emails_failed',             \n\
                 'timeout_retry': 1000,                              \n\
+                'max_retries': 3,                                   \n\
+                'timeout_failing_alarm': 2500,                      \n\
                 'tkey': 'tm'                                        \n\
             }                                                       \n\
         },                                                          \n\
@@ -152,12 +152,12 @@ PRIVATE char variable_config[]= "\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
                 'scenario': 'send_check',                           \n\
-                'smtp_url': 'tcp://127.0.0.1:7866',                 \n\
-                'email_from': 'intruder@example.com',               \n\
+                'smtp_url': 'tcp://127.0.0.1:7870',                 \n\
+                'email_from': 'alarm@example.com',                  \n\
                 'email_count': 12,                                  \n\
-                'action_delay': 6500,                               \n\
-                'expect_queued': 7,                                 \n\
-                'expect_failed': 5                                  \n\
+                'action_delay': 9000,                               \n\
+                'expect_queued': 11,                                \n\
+                'expect_failed': 1                                  \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
@@ -247,10 +247,11 @@ static int register_yuno_and_more(void)
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: MAIL FROM refused"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "MAIL FROM rejected: the sender of this message is refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "MAIL FROM rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "SMTP server failing: emails wait, the retries are paced", "cause", "554 5.7.1 <alarm@example.com>: Sender address rejected: Access denied"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "email NOT sent, will retry"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "email NOT sent, moved to failed queue"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: RSET answered"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server refused the last messages in a row: each goes to the failed queue, the next ones are paced"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "SMTP server failing for too long: emails are NOT being sent"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "The queues hold what is expected"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Exit to die"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Pausing yuno"));
@@ -286,15 +287,15 @@ static void cleaning(void)
      *  The ERRORs, by count: the timings vary, so each one may come a
      *  number of times within its range, and no other may come.
      */
-    const char *allowed[1] = {"email NOT sent, moved to failed queue"};
-    int minimum[1] = {5};
-    int maximum[1] = {5};
-    int counts[1] = {0};
+    const char *allowed[2] = {"email NOT sent, moved to failed queue", "SMTP server failing for too long: emails are NOT being sent"};
+    int minimum[2] = {1, 1};
+    int maximum[2] = {1, 9};
+    int counts[2] = {0};
     BOOL errors_ok = errors_outside_the_test? FALSE : TRUE;
     size_t eidx; json_t *jn_err;
     json_array_foreach(error_msgs, eidx, jn_err) {
         BOOL known = FALSE;
-        for(int k = 0; k < 1; k++) {
+        for(int k = 0; k < 2; k++) {
             if(strcmp(json_string_value(jn_err), allowed[k]) == 0) {
                 counts[k]++;
                 known = TRUE;
@@ -305,7 +306,7 @@ static void cleaning(void)
             errors_ok = FALSE;
         }
     }
-    for(int k = 0; k < 1; k++) {
+    for(int k = 0; k < 2; k++) {
         if(counts[k] < minimum[k] || counts[k] > maximum[k]) {
             errors_ok = FALSE;
         }

@@ -25,11 +25,12 @@
  *          Every close caused by a reply carries the reply's text on
  *          EV_ON_CLOSE (`reply`).
  *
- *          A refused sender (MAIL FROM) is the MESSAGE's only when the reply
- *          says that this message's own sender (not the owner's default:
- *          `from_is_default` FALSE) is a bad address: a 501, a 5.1.7, or a
- *          553 / 5.1.x / 5.7.1 that quotes the address. It is refused like
- *          below, once. Anything else -- a quota, a block, a policy, any 4xx,
+ *          A refused sender (MAIL FROM) is the MESSAGE's only when this
+ *          message's own sender (not the owner's default: `from_is_default`
+ *          FALSE) is refused for its form or its existence: a 501, a 5.1.7,
+ *          or a 5.1.8 / 553 saying the domain or address does not exist. It
+ *          is refused like below, once. Anything else -- a 5.7.x policy (a
+ *          quota, access denied, not owned), quoted or not, a block, any 4xx,
  *          any refusal of the default sender -- is the account's, whatever the
  *          from: a failure of the server, paced, and charged to the message
  *          as a retry (`sender_refused` on EV_ON_CLOSE), so after max_retries
@@ -1412,24 +1413,25 @@ PRIVATE BOOL reply_status_is(const char *reply, const char *prefix)
 }
 
 /***************************************************************************
- *  A refusal of MAIL FROM is the MESSAGE's only when the REPLY says this
- *  message's own sender is a bad address, and that sender is not the
- *  owner's default:
+ *  A refusal of MAIL FROM is the MESSAGE's only when its sender is its own
+ *  (`from_is_default` FALSE: the owner compares it with its default
+ *  ignoring case) AND the reply is about the FORM or the EXISTENCE of that
+ *  address:
  *
- *      - a 5xx (a 4xx is temporary: never the message's);
- *      - `from_is_default` FALSE (a sender the producer set; the owner
- *        compares it with its default ignoring case). A refusal of the
- *        default sender would meet every message: the account's;
- *      - and the reply says the address is wrong: 501 (a syntax error in
- *        it), a 5.1.7 status (bad sender mailbox syntax, RFC 3463), or a
- *        553, a 5.1.x or a 5.7.1 that quotes this very address ("553 5.1.8
- *        <a@b>: Sender address rejected: Domain not found", "553 5.7.1
- *        <a@b>: ... not owned by user").
+ *      - 501 (a syntax error in it), or a 5.1.7 status (bad sender mailbox
+ *        syntax, RFC 3463);
+ *      - a 5.1.8 status (bad sender's system address) or a 553 whose text
+ *        says the domain or the address does not exist: "not found", "does
+ *        not exist", "unknown", "no such", "unroutable" / "unrouteable".
  *
- *  Anything else is the account's: a quota ("550 5.7.1 Daily sending quota
- *  exceeded"), a block ("550 5.1.8 Access denied, bad outbound sender", a
- *  5.1.8 status used for an account), a policy that does not name the
- *  address -- whatever the from of the message.
+ *  Anything else is the account's, whatever the from and whether or not the
+ *  reply quotes the address -- Postfix writes every sender-stage reject as
+ *  "<addr>: Sender address rejected: ...", the policy ones included:
+ *
+ *      - a 5.7.x (policy: a quota, access denied, not owned by the user), ALWAYS;
+ *      - a 5.1.8 that does not say the address does not exist ("550 5.1.8
+ *        Access denied, bad outbound sender", an account blocked);
+ *      - any 4xx, and any refusal of the default sender.
  ***************************************************************************/
 PRIVATE BOOL sender_refusal_is_the_messages(hgobj gobj, int code, const char *reply)
 {
@@ -1444,10 +1446,18 @@ PRIVATE BOOL sender_refusal_is_the_messages(hgobj gobj, int code, const char *re
     if(code == 501 || reply_status_is(reply, "5.1.7")) {
         return TRUE;
     }
-    const char *from = kw_get_str(gobj, priv->jn_current_msg, "from", "", 0);
-    BOOL names_it = (!empty_string(from) && reply && strcasestr(reply, from))? TRUE : FALSE;
-    if(names_it && (code == 553 || reply_status_is(reply, "5.1.") || reply_status_is(reply, "5.7.1"))) {
-        return TRUE;
+    if(reply_status_is(reply, "5.7.")) {
+        return FALSE;   // policy: the account's, quoted or not
+    }
+    if(code == 553 || reply_status_is(reply, "5.1.8")) {
+        const char *not_there[] = {
+            "not found", "does not exist", "unknown", "no such", "unroutable", "unrouteable", 0
+        };
+        for(int i = 0; reply && not_there[i]; i++) {
+            if(strcasestr(reply, not_there[i])) {
+                return TRUE;
+            }
+        }
     }
     return FALSE;
 }
