@@ -38,7 +38,7 @@ fs_event_t *fs_create_watcher_event(
 
 **Returns**
 
-Returns a pointer to a newly allocated [`fs_event_t`](#fs_event_t) structure representing the watcher event, or `NULL` on failure.
+Returns a pointer to a newly allocated [`fs_event_t`](#fs_event_t) structure representing the watcher event, or `NULL` on failure -- a path that is not a directory, no inotify instance, or a root that cannot be watched (`ENOSPC` at `fs.inotify.max_user_watches`, logged). Up to 7.25.20 a root that could not be watched gave a watcher all the same, running and watching nothing.
 
 **Notes**
 
@@ -348,7 +348,7 @@ What the owners of the tree do:
 A watcher whose read FAILS, cannot be armed again, or is canceled by another
 than its owner, is over: an ERROR, *"inotify read FAILED: the watcher is
 gone"*, *"inotify read cannot be armed again: the watcher is gone"*, or
-*"inotify read canceled, and not by its owner: the watcher is gone"*), with
+*"inotify read canceled, and not by its owner: the watcher is gone"*, with
 `path` (and `errno` of a read), then the owner's callback is called once with
 **`FS_WATCHER_GONE_TYPE`** (`directory` = the watched path), and the watcher
 is destroyed when the call returns. Nothing else comes. The owner drops every

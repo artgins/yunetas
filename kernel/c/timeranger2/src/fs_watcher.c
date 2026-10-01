@@ -46,7 +46,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 PRIVATE int add_watch(fs_event_t *fs_event, const char *path, BOOL may_vanish);
 PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd);
 PRIVATE const char *get_path(fs_event_t *fs_event, int wd);
-PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path);
+PRIVATE int add_watch_recursive(fs_event_t *fs_event, const char *path);
 PRIVATE void start_rescan_pass(fs_event_t *fs_event);
 PRIVATE void stop_rescan_pass(fs_event_t *fs_event);
 PRIVATE int rescan_slice_callback(yev_event_h yev_event);
@@ -214,10 +214,21 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     }
     yev_set_user_data(fs_event->yev_event, fs_event);
 
+    /*
+     *  A root that cannot be watched (ENOSPC at fs.inotify.max_user_watches,
+     *  say) is no watcher: up to 7.25.20 it was handed over all the same,
+     *  running and watching nothing, its owner deaf without knowing.
+     */
+    int wd_root;
     if(fs_flag & FS_FLAG_RECURSIVE_PATHS) {
-        add_watch_recursive(fs_event, path);
+        wd_root = add_watch_recursive(fs_event, path);
     } else {
-        add_watch(fs_event, path, FALSE);
+        wd_root = add_watch(fs_event, path, FALSE);
+    }
+    if(wd_root < 0) {
+        // Error already logged
+        fs_destroy_watcher_event(fs_event);
+        return NULL;
     }
 
     return fs_event;
@@ -939,9 +950,12 @@ PRIVATE BOOL search_by_paths_cb(
     return TRUE; // to continue
 }
 
-PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path)
+PRIVATE int add_watch_recursive(fs_event_t *fs_event, const char *path)
 {
-    add_watch(fs_event, path, FALSE);
+    int wd = add_watch(fs_event, path, FALSE);
+    if(wd < 0) {
+        return -1;  // Error already logged
+    }
     walk_dir_tree(
         0,
         path,
@@ -950,6 +964,7 @@ PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path)
         search_by_paths_cb,
         fs_event
     );
+    return wd;
 }
 
 /***************************************************************************

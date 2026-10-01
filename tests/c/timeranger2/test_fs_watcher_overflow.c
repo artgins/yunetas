@@ -45,6 +45,10 @@
  *  in the completion ring, where FIONREAD no longer counts them. The
  *  answer must still be where the events end, that read included.
  *
+ *  And a root that cannot be watched (do_test_root_unwatchable: mode 000,
+ *  SKIPPED as root): no watcher is created. Up to 7.25.20 a watcher was
+ *  handed over all the same, watching nothing.
+ *
  *  And the ROOT deleted and created again while the queue is full
  *  (do_test_root_reborn, recursive and not): after the pass the new root
  *  is watched, a file created in it is heard. Up to 7.25.20 the pass
@@ -276,7 +280,11 @@ PRIVATE int do_test_stop_on_overflow(void)
     if(!fs_event) {
         return -1;
     }
-    fs_start_watcher_event(fs_event);
+    if(fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> the watcher could not be started\n", On_Red BWhite, Color_Off);
+        fs_stop_watcher_event(fs_event);
+        return -1;
+    }
     for(int i = 0; i < 5; i++) {
         yev_loop_run_once(yev_loop);
     }
@@ -331,6 +339,53 @@ PRIVATE int do_test_stop_on_overflow(void)
 }
 
 /***************************************************************************
+ *  A root that cannot be watched
+ ***************************************************************************/
+PRIVATE int do_test_root_unwatchable(void)
+{
+    if(geteuid() == 0) {
+        printf("     SKIPPED the unwatchable root, running as root: a mode of 000 is still read\n");
+        return 0;
+    }
+    int result = 0;
+    char root5[PATH_MAX];
+    build_path(root5, sizeof(root5), getenv("HOME"), "tests_yuneta", "fs_watcher_unwatchable", NULL);
+    rmrdir(root5);
+    mkrdir(root5, 02770);
+    chmod(root5, 0);
+
+    set_expected_results(
+        "fs_watcher unwatchable root: no watcher",
+        json_pack("[{s:s}]",
+            "msg", "inotify_add_watch() FAILED"
+        ),
+        NULL, NULL, 1
+    );
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop,
+        root5,
+        FS_FLAG_RECURSIVE_PATHS,
+        fs_callback_end,
+        0,
+        NULL,
+        NULL
+    );
+    if(fs_event) {
+        printf("%sERROR%s --> a watcher of a root that cannot be watched was created\n", On_Red BWhite, Color_Off);
+        result += -1;
+        fs_stop_watcher_event(fs_event);
+        for(int i = 0; i < 5; i++) {
+            yev_loop_run_once(yev_loop);
+        }
+    }
+    result += test_json(NULL);
+
+    chmod(root5, 02770);
+    rmrdir(root5);
+    return result;
+}
+
+/***************************************************************************
  *  Where the queued events end, with a read completed and not handed over
  ***************************************************************************/
 #define END_FILES   20      // "f00".."f19": 16 bytes of header and 16 of name each
@@ -356,7 +411,11 @@ PRIVATE int do_test_queued_events_end(void)
     if(!fs_event) {
         return -1;
     }
-    fs_start_watcher_event(fs_event);
+    if(fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> the watcher could not be started\n", On_Red BWhite, Color_Off);
+        fs_stop_watcher_event(fs_event);
+        return -1;
+    }
     for(int i = 0; i < 5; i++) {
         yev_loop_run_once(yev_loop);    // the read is in the kernel, waiting
     }
@@ -430,7 +489,11 @@ PRIVATE int do_test_root_reborn(BOOL recursive)
     if(!fs_event) {
         return -1;
     }
-    fs_start_watcher_event(fs_event);
+    if(fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> the watcher could not be started\n", On_Red BWhite, Color_Off);
+        fs_stop_watcher_event(fs_event);
+        return -1;
+    }
     for(int i = 0; i < 5; i++) {
         yev_loop_run_once(yev_loop);
     }
@@ -534,7 +597,11 @@ PRIVATE int do_test(void)
     if(!fs_event) {
         return -1;
     }
-    fs_start_watcher_event(fs_event);
+    if(fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> the watcher could not be started\n", On_Red BWhite, Color_Off);
+        fs_stop_watcher_event(fs_event);
+        return -1;
+    }
     for(int i = 0; i < 5; i++) {
         yev_loop_run_once(yev_loop);
     }
@@ -730,6 +797,7 @@ int main(int argc, char *argv[])
 
     int result = do_test_stop_on_overflow();
     result += do_test_queued_events_end();
+    result += do_test_root_unwatchable();
     result += do_test_root_reborn(FALSE);
     result += do_test_root_reborn(TRUE);
     result += do_test();
