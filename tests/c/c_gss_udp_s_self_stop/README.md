@@ -40,14 +40,21 @@ the peer:
    again"*), and the peer's `five` is heard. Up to 7.25.20 that start found
    the `C_UDP_S` still holding its socket (*"yev_server_udp ALREADY
    exists"*).
+8. The same again, and when the `C_UDP_S` says `EV_STOPPED` -- to the
+   `C_GSS_UDP_S` first, which posts itself the start it waited for, then to
+   the test -- the `C_GSS_UDP_S` is stopped and started once more: that start
+   starts the `C_UDP_S` at once, and the posted start, delivered after it,
+   must do nothing (it restarted the live `C_UDP_S`). The peer's `six` is
+   heard.
 
 Up to 7.25.20 `C_GSS_UDP_S` took that `EV_STOPPED` with no action: `lost` and
 `back` each logged *"Event NOT DEFINED in state"* (from `C_UDP_S` in
-`ST_STOPPED`), and the host never got `two`. The first fix of the self-stop
-still sent `wait` to the `C_UDP_S` in `ST_WAIT_STOPPED` (*"Event NOT DEFINED
-in state"*), restarted it at every tick with no backoff, restarted a
-`C_UDP_S` stopped from outside, and took a `timeout_base` of 0 silently (no
-timer: no peer forgotten, no restart).
+`ST_STOPPED`), and the host never got `two`. The cases above also check that a
+send to a `C_UDP_S` still stopping is refused, not sent (*"Event NOT DEFINED
+in state"*), that a self-stop that comes back is restarted with a growing
+backoff and not at every tick, that a `C_UDP_S` stopped from outside is not
+restarted, and that a `timeout_base` of 0 is refused (it armed no timer: no
+peer forgotten, no restart).
 
 ## Run
 

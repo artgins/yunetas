@@ -172,6 +172,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t restart_backoff_ms;  // delay of the last restart scheduled, 0 none yet
     uint64_t t_restart_holds;       // msectimer: a stop before it doubles the backoff
     BOOL start_when_stopped;        // started while its C_UDP_S still stopped: started at its EV_STOPPED
+    BOOL start_posted;              // EV_START_UDP_SERVER posted and still wanted
 } PRIVATE_DATA;
 
 
@@ -298,6 +299,7 @@ PRIVATE int mt_stop(hgobj gobj)
         gobj_stop(priv->gobj_udp_s);    // not running: stopped from outside
     }
     priv->start_when_stopped = FALSE;
+    priv->start_posted = FALSE;
     free_channels(gobj);
 
     if(priv->tx_dropped > 0) {
@@ -772,7 +774,16 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_start_udp_server(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    if(gobj_is_running(gobj)) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Only the start it was posted for: a stop of this gobj after the post
+     *  took it back (start_posted cleared), and a start after that stop may
+     *  have started the C_UDP_S itself, which must not be started again
+     */
+    BOOL wanted = priv->start_posted;
+    priv->start_posted = FALSE;
+    if(wanted && gobj_is_running(gobj) && !gobj_is_running(priv->gobj_udp_s)) {
         restart_udp_server(gobj);   // a start that fails: tried again after a backoff
     }
     KW_DECREF(kw);
@@ -823,6 +834,7 @@ PRIVATE int ac_udp_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
          *  the next cycle: this runs inside the stop of the C_UDP_S.
          */
         priv->start_when_stopped = FALSE;
+        priv->start_posted = TRUE;
         gobj_post_event(gobj, EV_START_UDP_SERVER, json_object(), gobj);
         KW_DECREF(kw);
         return 0;

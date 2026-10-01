@@ -40,6 +40,11 @@
  *                 turn, its C_UDP_S with a read in flight (still stopping
  *                 when the start comes): it starts it when its stop ends,
  *                 and the peer's "five" is heard.
+ *             10. The same, and when the C_UDP_S says EV_STOPPED (to the
+ *                 C_GSS_UDP_S first, which posts itself the start, then to
+ *                 this gobj) the C_GSS_UDP_S is stopped and started once
+ *                 more: that start starts the C_UDP_S at once, and the
+ *                 posted one must do nothing. The peer's "six" is heard.
  *
  *          Up to 7.25.20 C_GSS_UDP_S took the EV_STOPPED of its C_UDP_S
  *          with no action: it went on sending to it ("Event NOT DEFINED in
@@ -108,6 +113,7 @@ typedef struct _PRIVATE_DATA {
     int peer_fd;
     int phase;
     BOOL keep_next;
+    BOOL restart_on_udp_stopped;    // at the next EV_STOPPED of the C_UDP_S: stop and start the C_GSS_UDP_S
     gbuffer_t *kept;
     int failures;
     char received[128];     // what the host got, in order
@@ -497,6 +503,30 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check(gobj, strcmp(priv->received, "one two three four five ")==0,
                 "the C_GSS_UDP_S stopped and started in the same turn does not hear"
             );
+
+            /*
+             *  Again, and this time the C_GSS_UDP_S is stopped and started
+             *  once more when the C_UDP_S says EV_STOPPED (after the
+             *  C_GSS_UDP_S, which posts itself the start it waited for):
+             *  the C_UDP_S is started at once by that start, and the posted
+             *  start, delivered after it, must not start it again
+             */
+            gobj_subscribe_event(priv->gobj_udp_s, EV_STOPPED, 0, gobj);
+            priv->restart_on_udp_stopped = TRUE;
+            gobj_stop(priv->gobj_gss);
+            gobj_start(priv->gobj_gss);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 12:
+            peer_send(gobj, "six");
+            set_timeout(priv->timer, 200);
+            break;
+
+        case 13:
+            check(gobj, strcmp(priv->received, "one two three four five six ")==0,
+                "the C_GSS_UDP_S does not hear after a start that overtook a posted one"
+            );
             if(!priv->failures) {
                 gobj_log_info(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -544,6 +574,23 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 gobj_post_event(gobj, EV_TEST_SEND_IN_WAIT, json_object(), gobj);
             }
         }
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The C_UDP_S stopped: once, the C_GSS_UDP_S is stopped and started again
+ ***************************************************************************/
+PRIVATE int ac_udp_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->restart_on_udp_stopped) {
+        priv->restart_on_udp_stopped = FALSE;
+        gobj_stop(priv->gobj_gss);
+        gobj_start(priv->gobj_gss);
     }
 
     KW_DECREF(kw)
@@ -630,6 +677,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,            ac_channel,         0},
         {EV_ON_CLOSE,           ac_channel,         0},
         {EV_TEST_SEND_IN_WAIT,  ac_send_in_wait,    0},
+        {EV_STOPPED,            ac_udp_stopped,     0},
         {0, 0, 0}
     };
 
@@ -644,6 +692,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,            0},
         {EV_ON_CLOSE,           0},
         {EV_TEST_SEND_IN_WAIT,  0},
+        {EV_STOPPED,            0},
         {0, 0}
     };
 
