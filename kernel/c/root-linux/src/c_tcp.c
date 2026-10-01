@@ -116,6 +116,7 @@ PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error);
 PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf);
+PRIVATE void set_disconnect_cause(hgobj gobj, const char *cause);
 
 /***************************************************************
  *              Data
@@ -151,6 +152,8 @@ SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_PERSIST,    "4096", "Rx buffer size"
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_RD, "2000", "Idle timeout to wait between attempts of connection, in milliseconds"),
 SDATA (DTP_INTEGER, "timeout_between_connections_max", SDF_RD, "0", "If > timeout_between_connections, reconnect uses exponential backoff from the base up to this cap (ms), resetting to base once a connection is established. 0 = disabled (legacy fixed interval)."),
 SDATA (DTP_INTEGER, "timeout_inactivity", SDF_RD,       "-1", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
+SDATA (DTP_BOOLEAN, "connect_on_start", SDF_RD,         "TRUE",     "Client: connect when started. FALSE: stay in ST_DISCONNECTED until the owner sends EV_CONNECT (connections on demand)"),
+SDATA (DTP_STRING,  "disconnect_cause", SDF_RD|SDF_STATS, "",       "Why the last connection, or the last attempt to connect, ended: the error of the socket, a TLS handshake that failed, 'Local dropping', 'Inactivity timeout'. Emptied at each EV_CONNECT"),
 
 SDATA (DTP_INTEGER, "txBytes",          SDF_RSTATS,     "0", "Messages transmitted"),
 SDATA (DTP_INTEGER, "rxBytes",          SDF_RSTATS,     "0", "Messages received"),
@@ -427,7 +430,13 @@ PRIVATE int mt_start(hgobj gobj)
          */
         gobj_start(priv->gobj_timer);
 
-        if(priv->timeout_inactivity > 0) {
+        if(!gobj_read_bool_attr(gobj, "connect_on_start")) {
+            /*
+             *  The owner connects, with EV_CONNECT, when it has something to
+             *  send. A client that connected at every start logged in to its
+             *  server with nothing to say (C_SMTP_SESSION).
+             */
+        } else if(priv->timeout_inactivity > 0) {
             /*
              *  don't connect until arrives data to transmit, except first time
              */
@@ -1420,7 +1429,18 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 // }
 
 /***************************************************************************
- *  YTLS callbacks, called when handshake is done
+ *  Why the connection, or the attempt to connect, ends: in the last message
+ *  of the log and in the attr `disconnect_cause`, which the owner reads when
+ *  it sees the state change (the last message is any ERROR of the process).
+ ***************************************************************************/
+PRIVATE void set_disconnect_cause(hgobj gobj, const char *cause)
+{
+    gobj_log_set_last_message("%s", cause);
+    gobj_write_str_attr(gobj, "disconnect_cause", cause);
+}
+
+/***************************************************************************
+ *  YTLS callbacks, called when handshake is done, or failed (error < 0)
  ***************************************************************************/
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
 {
@@ -1442,6 +1462,7 @@ PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
         /*
          *  Don't stop here, will be stopped in return of ytls_decrypt_data()
          */
+        set_disconnect_cause(gobj, "TLS handshake failed");
     } else {
         set_secure_connected(gobj);
     }
@@ -1590,7 +1611,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /*
                      *  Disconnected
                      */
-                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
+                    set_disconnect_cause(gobj, strerror(-yev_get_result(yev_event)));
 
                     if(trace) {
                         gobj_log_debug(gobj, 0,
@@ -1667,7 +1688,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /*
                      *  Disconnected
                      */
-                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
+                    set_disconnect_cause(gobj, strerror(-yev_get_result(yev_event)));
 
                     if(trace) {
                         gobj_log_debug(gobj, 0,
@@ -1701,7 +1722,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /*
                      *  Error on connection
                      */
-                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
+                    set_disconnect_cause(gobj, strerror(-yev_get_result(yev_event)));
 
                     if(trace) {
                         gobj_log_debug(gobj, 0,
@@ -1751,7 +1772,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /*
                      *  Error on connection
                      */
-                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
+                    set_disconnect_cause(gobj, strerror(-yev_get_result(yev_event)));
 
                     if(trace) {
                         gobj_log_debug(gobj, 0,
@@ -1779,7 +1800,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                  */
                 // int result = yev_get_result(yev_event);
                 { // if(result > 0)
-                    gobj_log_set_last_message("%s", "POLLHUP Peer shutdown");
+                    set_disconnect_cause(gobj, "POLLHUP Peer shutdown");
 
                     if(trace) {
                         gobj_log_debug(gobj, 0,
@@ -1839,6 +1860,8 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(kw)
+
+    gobj_write_str_attr(gobj, "disconnect_cause", "");
 
     /*
      *  An EV_CONNECT of the owner (a connection on demand) takes the place
@@ -1997,7 +2020,7 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    gobj_log_set_last_message("Local dropping");
+    set_disconnect_cause(gobj, "Local dropping");
     try_to_stop_yevents(gobj);
 
     JSON_DECREF(kw)
@@ -2019,7 +2042,7 @@ PRIVATE int ac_timeout_inactivity(hgobj gobj, gobj_event_t event, json_t *kw, hg
      *  reconnection, instead of scheduling a timeout_between_connections retry.
      */
     priv->idle_closed = TRUE;
-    gobj_log_set_last_message("Inactivity timeout");
+    set_disconnect_cause(gobj, "Inactivity timeout");
     try_to_stop_yevents(gobj);
 
     JSON_DECREF(kw)
