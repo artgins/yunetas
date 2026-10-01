@@ -80,7 +80,7 @@ PRIVATE char variable_config[]= "\
                 'expect_reply': '550 5.7.1',                        \n\
                 'expect_close_key': 'refused',                      \n\
                 'server_service': '__input_side__',                 \n\
-                'smtp_url': 'tcp://127.0.0.1:7841'                  \n\
+                'smtp_url': 'tcp://127.0.0.1:7845'                  \n\
             }                                                       \n\
         },                                                          \n\
         {                                                           \n\
@@ -95,7 +95,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7841',              \n\
+                        'url': 'tcp://127.0.0.1:7845',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\

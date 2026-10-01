@@ -81,7 +81,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7844',              \n\
+                        'url': 'tcp://127.0.0.1:7848',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -120,7 +120,7 @@ PRIVATE char variable_config[]= "\
             'kw': {                                                 \n\
                 'username': 'user',                                 \n\
                 'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7844',                      \n\
+                'url': 'tcp://127.0.0.1:7848',                      \n\
                 'from': 'sender@example.com',                       \n\
                 'timeout_inactivity': 30000,                        \n\
                 'tranger_path': '"BASE"/store',                     \n\
@@ -144,7 +144,7 @@ PRIVATE char variable_config[]= "\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
                 'scenario': 'send',                                 \n\
-                'smtp_url': 'tcp://127.0.0.1:7844'                  \n\
+                'smtp_url': 'tcp://127.0.0.1:7848'                  \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\

@@ -3,7 +3,8 @@
  *
  *          The email is delivered, and half a second later the server ends
  *          the idle session with a 421, as OVH does. Nothing is left to send:
- *          nothing must connect again (the fake server checks it for 60 s).
+ *          nothing must connect again (the fake server checks it until the yuno
+ *          ends, 6 s after the delivery: twice timeout_retry_max).
  *          Up to 7.25.20 the C_TCP reconnected by itself and logged in with
  *          nothing to send, for ever; the branch had put it off to
  *          timeout_retry_max (3 s here).
@@ -83,7 +84,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7842',              \n\
+                        'url': 'tcp://127.0.0.1:7846',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -125,7 +126,7 @@ PRIVATE char variable_config[]= "\
             'kw': {                                                 \n\
                 'username': 'user',                                 \n\
                 'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7842',                      \n\
+                'url': 'tcp://127.0.0.1:7846',                      \n\
                 'from': 'sender@example.com',                       \n\
                 'timeout_inactivity': 30000,                        \n\
                 'tranger_path': '"BASE"/store',                     \n\
@@ -151,7 +152,7 @@ PRIVATE char variable_config[]= "\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
                 'scenario': 'send',                                 \n\
-                'smtp_url': 'tcp://127.0.0.1:7842'                  \n\
+                'smtp_url': 'tcp://127.0.0.1:7846'                  \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
