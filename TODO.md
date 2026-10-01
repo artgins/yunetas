@@ -38,8 +38,16 @@ findings were fixed before the merge, the rest are open.
   (12/12 before this cycle); once a deleted key stayed in the cache. Fix: read
   and unlink through a descriptor of the watched directory (`openat` /
   `unlinkat` on a dir fd held per watched key dir), never consume a link of a
-  directory that is not the one looked at. Probes: round 21's scratchpad
-  `review/r7-verify/` (`p7.c` case K, `mp.c` forks a real master process).
+  directory that is not the one looked at. To reproduce (the probes of the
+  review that found it lived in a session scratchpad, now gone): (K) a
+  follower consumes a key's last link; then, before it reads the next
+  IN_CREATE, the master appends one row to that key, deletes it and writes 3
+  rows again in the SAME day file -> expected `[DEL R1 R2 R3]`, got `[R2(old)
+  DEL]`, key out of the cache, next append `[R1..R4]`; (stress) fork a real
+  master process that appends/deletes/rewrites a few keys with 0-20 us
+  between ops while the follower is slowed 0-100 us per record, tag each life
+  in the record content, and check every feed hears each life's DEL before the
+  next life's records. Schedule: a session of its own.
   Related: the in-doubt rule mis-attributes a second delete queued below its
   mark as "same" (rare, the cache is cleared late); a feed opened after the
   first heard a delete and signalled after it was watched can also take a live
