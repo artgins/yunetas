@@ -1,12 +1,9 @@
 /****************************************************************************
- *          main_auth_334.c
+ *          main_ehlo_refused.c
  *
- *          A 334 to AUTH PLAIN asks for the response on a line of its own
- *          (RFC 4954): C_SMTP_SESSION gives it once, the same credentials.
- *          A second 334 is a refusal: EV_ON_CLOSE carries auth_rejected
- *          (334) and the reply, and the emailsender stops on it. In the
- *          branch before this fix the first 334 was already the refusal
- *          (and earlier still, a transient failure retried for ever).
+ *          A 5xx to EHLO: like a 5xx greeting, the session reports it on
+ *          EV_ON_CLOSE as `refused`, with the reply, and the emailsender
+ *          stops on it. Before, it was retried, paced, for ever.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -23,8 +20,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_auth_334"
-#define APP_DOC         "C_SMTP_SESSION reports a 334 to AUTH PLAIN as a refused login"
+#define APP_NAME        "test_emailsender_ehlo_refused"
+#define APP_DOC         "C_SMTP_SESSION reports a 5xx to EHLO as a refused client"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -36,7 +33,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_auth_334"
+#define BASE    "/tmp/test_emailsender_ehlo_refused"
 
 /***************************************************************************
  *                      Default config
@@ -79,10 +76,11 @@ PRIVATE char variable_config[]= "\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
                 'scenario': 'session',                              \n\
-                'expect_auth_code': 334,                            \n\
-                'expect_reply': '334',                              \n\
+                'expect_auth_code': 550,                            \n\
+                'expect_reply': '550 5.7.1',                        \n\
+                'expect_close_key': 'refused',                      \n\
                 'server_service': '__input_side__',                 \n\
-                'smtp_url': 'tcp://127.0.0.1:7839'                  \n\
+                'smtp_url': 'tcp://127.0.0.1:7841'                  \n\
             }                                                       \n\
         },                                                          \n\
         {                                                           \n\
@@ -97,7 +95,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7839',              \n\
+                        'url': 'tcp://127.0.0.1:7841',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -115,7 +113,7 @@ PRIVATE char variable_config[]= "\
                             'name': 'fake_smtp',                    \n\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
-                                'auth_replies': ['334 '],              \n\
+                                'ehlo_replies': ['550 5.7.1 Access denied'],\n\
                                 'die_on_delivery': false            \n\
                             },                                      \n\
                             'children': [                           \n\
@@ -232,12 +230,10 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
-        "msg", "Fake smtp: AUTH answered",
-        "msg", "Fake smtp: AUTH answered",
-        "msg", "AUTH PLAIN not taken after its continuation",
+        "msg", "SMTP server refuses this client at EHLO",
         "msg", "Refused login reported with its reply",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
@@ -284,8 +280,11 @@ static void cleaning(void)
     JSON_DECREF(expected_errors)
     JSON_DECREF(error_msgs)
 
-    if(auth_line_dumped || hidden_dumps < 1) {
-        printf("<-- %sAUTH LINE IN THE TRAFFIC TRACE%s: %s\n      dumped in clear: %d (expected 0), dumped hidden: %d (expected >= 1)\n",
+    /*
+     *  A server that refuses this client is never sent the credentials
+     */
+    if(auth_line_dumped || hidden_dumps != 0) {
+        printf("<-- %sAUTH SENT TO A SERVER THAT REFUSES US%s: %s\n      dumped in clear: %d (expected 0), dumped hidden: %d (expected 0)\n",
             On_Red BWhite, Color_Off, APP_NAME, auth_line_dumped, hidden_dumps
         );
         result += -1;

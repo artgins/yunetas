@@ -17,8 +17,13 @@
  *          saying the credentials are wrong (auth_rejected on EV_ON_CLOSE,
  *          the owner stops trying them), anything else is a transient
  *          failure of the login (454, 421, ...) and closes the session like
- *          any other drop, to be tried again. Every close caused by a reply
- *          carries the reply's text on EV_ON_CLOSE (`reply`).
+ *          any other drop, to be tried again. A 334 asks for the response on
+ *          a line of its own (RFC 4954): it is given once, the same
+ *          credentials; a second 334 is a refusal (auth_rejected: 334). A
+ *          5xx to the greeting or to EHLO says the server does not take
+ *          this client: `refused` on EV_ON_CLOSE, and the owner stops.
+ *          Every close caused by a reply carries the reply's text on
+ *          EV_ON_CLOSE (`reply`).
  *
  *          A session the SERVER ends (a refusal, an unexpected or malformed
  *          reply, a reply that never comes) is logged as a WARNING of
@@ -82,6 +87,8 @@
  ***************************************************************************/
 PRIVATE int start_bottom(hgobj gobj);
 PRIVATE int send_smtp_line(hgobj gobj, const char *line);
+PRIVATE int send_line(hgobj gobj, const char *line, BOOL secret);
+PRIVATE int build_auth_plain(hgobj gobj, char *bf, size_t bfsize);
 PRIVATE int parse_response_code(const char *bf, size_t len, int *code, BOOL *is_final);
 PRIVATE int begin_send_current_message(hgobj gobj);
 PRIVATE int enter_idle_after_handshake(hgobj gobj);
@@ -164,6 +171,8 @@ typedef struct _PRIVATE_DATA {
     int recipient_index;        /* next RCPT TO index to send */
     int reject_code;            /* SMTP reply code of a per-message rejection, forwarded on EV_ON_CLOSE; 0 = transient/link error */
     int auth_reject_code;       /* SMTP reply code of a refused AUTH (5xx), forwarded on EV_ON_CLOSE as auth_rejected; 0 = none */
+    int refuse_code;            /* 5xx to the greeting or to EHLO, forwarded on EV_ON_CLOSE as refused; 0 = none */
+    BOOL auth_continued;        /* the 334 of this login was answered already */
     char close_reply[REPLY_TEXT_MAX]; /* text of the reply that closed the session, forwarded on EV_ON_CLOSE as reply */
     json_int_t retry_delay;     /* ms before the connection after the next failed one; 0 = timeout_retry */
     BOOL failed;                /* this connection is being dropped for a failure (drop_session) */
@@ -402,8 +411,18 @@ PRIVATE int start_bottom(hgobj gobj)
 
 /***************************************************************************
  *  Write one SMTP command line (CRLF appended) to the bottom transport.
+ *  An AUTH line carries the credentials: it goes as a secret line.
  ***************************************************************************/
 PRIVATE int send_smtp_line(hgobj gobj, const char *line)
+{
+    return send_line(gobj, line, strncasecmp(line, "AUTH ", 5)==0? TRUE : FALSE);
+}
+
+/***************************************************************************
+ *  Write one line; a secret one is hidden from the traffic dumps, wiped
+ *  when freed, and not written by the smtp trace.
+ ***************************************************************************/
+PRIVATE int send_line(hgobj gobj, const char *line, BOOL secret)
 {
     size_t line_len = strlen(line);
     gbuffer_t *gbuf = gbuffer_create(line_len + 2, line_len + 2);
@@ -421,7 +440,7 @@ PRIVATE int send_smtp_line(hgobj gobj, const char *line)
      *  Before the append: a secret gbuffer is wiped when freed or grown, and
      *  the traffic dumps of the bottom C_TCP show it as "<N bytes hidden>".
      */
-    gbuffer_set_secret(gbuf, strncasecmp(line, "AUTH ", 5)==0? TRUE : FALSE);
+    gbuffer_set_secret(gbuf, secret);
     gbuffer_append(gbuf, (void *)line, line_len);
     gbuffer_append(gbuf, "\r\n", 2);
 
@@ -437,6 +456,8 @@ PRIVATE int send_smtp_line(hgobj gobj, const char *line)
             const char *end = strchr(mech, ' ');
             int mech_len = end? (int)(end - mech) : (int)strlen(mech);
             gobj_trace_msg(gobj, ">>> AUTH %.*s <credentials not traced>", mech_len, mech);
+        } else if(secret) {
+            gobj_trace_msg(gobj, ">>> <credentials not traced>");
         } else {
             gobj_trace_msg(gobj, ">>> %s", line);
         }
@@ -919,6 +940,66 @@ PRIVATE int request_connection(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Write in `bf` the base64 of the AUTH PLAIN response (NUL user NUL
+ *  password). The buffers that held the password in clear are wiped
+ *  before their memory is given back. 0, or -1 (logged).
+ ***************************************************************************/
+PRIVATE int build_auth_plain(hgobj gobj, char *bf, size_t bfsize)
+{
+    const char *username = gobj_read_str_attr(gobj, "username");
+    const char *password = gobj_read_str_attr(gobj, "password");
+    size_t ulen = strlen(username);
+    size_t plen = strlen(password);
+    size_t plain_len = 1 + ulen + 1 + plen;
+
+    char *plain = gbmem_malloc(plain_len);
+    if(!plain) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "no memory for AUTH PLAIN payload",
+            NULL
+        );
+        return -1;
+    }
+    plain[0] = '\0';
+    memcpy(plain + 1, username, ulen);
+    plain[1 + ulen] = '\0';
+    memcpy(plain + 1 + ulen + 1, password, plen);
+
+    gbuffer_t *b64 = gbuffer_binary_to_base64(plain, plain_len);
+    explicit_bzero(plain, plain_len);
+    gbmem_free(plain);
+    if(!b64) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "base64 encode failed",
+            NULL
+        );
+        return -1;
+    }
+
+    size_t b64_len = gbuffer_leftbytes(b64);
+    if(b64_len >= bfsize) {
+        explicit_bzero(gbuffer_cur_rd_pointer(b64), b64_len);
+        GBUFFER_DECREF(b64)
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "AUTH PLAIN line too long",
+            NULL
+        );
+        return -1;
+    }
+    memcpy(bf, gbuffer_cur_rd_pointer(b64), b64_len);
+    bf[b64_len] = 0;
+    explicit_bzero(gbuffer_cur_rd_pointer(b64), b64_len);
+    GBUFFER_DECREF(b64)
+    return 0;
+}
+
+/***************************************************************************
  *  Reach ST_IDLE after a successful banner+EHLO[+AUTH] handshake and tell
  *  the owner the session is usable (EV_ON_OPEN).
  *
@@ -995,6 +1076,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     priv->inform_on_close = TRUE;
     priv->failed = FALSE;
+    priv->auth_continued = FALSE;
     gobj_change_state(gobj, ST_WAIT_BANNER);
     set_timeout(priv->timer, priv->timeout_response);
 
@@ -1035,6 +1117,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         priv->failed = FALSE;
         priv->reject_code = 0;
         priv->auth_reject_code = 0;
+        priv->refuse_code = 0;
         priv->close_reply[0] = 0;
         KW_DECREF(kw)
         return 0;
@@ -1060,8 +1143,8 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         );
     }
     pace_next_connection(gobj, failure);
-    if(failure && !priv->auth_reject_code) {
-        // a refused login is said by the owner, which stops on it
+    if(failure && !priv->auth_reject_code && !priv->refuse_code) {
+        // a refused login or client is said by the owner, which stops on it
         note_failure(gobj, priv->close_reply[0]? priv->close_reply : "the server closed the session");
     }
 
@@ -1098,6 +1181,9 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         if(priv->auth_reject_code) {
             json_object_set_new(kw_close, "auth_rejected", json_integer(priv->auth_reject_code));
         }
+        if(priv->refuse_code) {
+            json_object_set_new(kw_close, "refused", json_integer(priv->refuse_code));
+        }
         if(priv->close_reply[0]) {
             json_object_set_new(kw_close, "reply", json_string(priv->close_reply));
         }
@@ -1108,6 +1194,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     }
     priv->reject_code = 0;
     priv->auth_reject_code = 0;
+    priv->refuse_code = 0;
     priv->close_reply[0] = 0;
     priv->failed = FALSE;
 
@@ -1130,10 +1217,14 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
 
-    if(priv->detached) {
+    if(priv->detached || priv->failed) {
         /*
-         *  A read that completed while our stop closed the connection:
-         *  the session it belongs to is over.
+         *  A read that completed while our stop, or a drop for a failure,
+         *  closes the connection: the session it belongs to is over. A
+         *  250 read after the watchdog dropped the session resolved the
+         *  message as sent, and the next MAIL FROM went on the dying
+         *  connection, whose close then charged a retry to a message that
+         *  never left.
          */
         KW_DECREF(kw)
         return 0;
@@ -1265,6 +1356,16 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_state_t st = gobj_current_state(gobj);
 
     if(st == ST_WAIT_BANNER) {
+        if(code >= 500 && code < 600) {
+            /*
+             *  A 5xx greeting: the server does not take connections from
+             *  this client, and answers every attempt the same way. It goes
+             *  up as `refused` on EV_ON_CLOSE, and the owner stops. Before,
+             *  it was retried, paced, for ever.
+             */
+            priv->refuse_code = code;
+            return abort_session_by_peer(gobj, "SMTP server refuses this client at its greeting", code, reply);
+        }
         if(code != SMTP_CODE_SERVICE_READY) {
             return abort_session_by_peer(gobj, "server did not greet with 220", code, reply);
         }
@@ -1277,6 +1378,10 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     if(st == ST_WAIT_EHLO_RESP) {
+        if(code >= 500 && code < 600) {
+            priv->refuse_code = code;   // like a 5xx greeting
+            return abort_session_by_peer(gobj, "SMTP server refuses this client at EHLO", code, reply);
+        }
         if(code != SMTP_CODE_OK) {
             return abort_session_by_peer(gobj, "EHLO rejected", code, reply);
         }
@@ -1286,41 +1391,15 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             /* No credentials: skip AUTH, jump straight to ST_IDLE */
             return enter_idle_after_handshake(gobj);
         }
-        size_t ulen = strlen(username);
-        size_t plen = strlen(password);
-        /* AUTH PLAIN payload: \0 username \0 password */
-        size_t plain_len = 1 + ulen + 1 + plen;
-        char *plain = gbmem_malloc(plain_len);
-        if(!plain) {
-            return abort_session_on_error(gobj, "no memory for AUTH PLAIN payload");
-        }
-        plain[0] = '\0';
-        memcpy(plain + 1, username, ulen);
-        plain[1 + ulen] = '\0';
-        memcpy(plain + 1 + ulen + 1, password, plen);
-
-        /*
-         *  plain, its base64 and the AUTH line hold the password in clear:
-         *  wiped before their memory is given back.
-         */
-        gbuffer_t *b64 = gbuffer_binary_to_base64(plain, plain_len);
-        explicit_bzero(plain, plain_len);
-        gbmem_free(plain);
-        if(!b64) {
-            return abort_session_on_error(gobj, "base64 encode failed");
+        char b64[LINE_BUFFER_MAX - sizeof("AUTH PLAIN ")];
+        if(build_auth_plain(gobj, b64, sizeof(b64)) < 0) {
+            return abort_session_on_error(gobj, "AUTH PLAIN response not built");
         }
         char auth_line[LINE_BUFFER_MAX];
-        size_t b64_len = gbuffer_leftbytes(b64);
-        if(b64_len + sizeof("AUTH PLAIN ") >= sizeof(auth_line)) {
-            explicit_bzero(gbuffer_cur_rd_pointer(b64), b64_len);
-            GBUFFER_DECREF(b64)
-            return abort_session_on_error(gobj, "AUTH PLAIN line too long");
-        }
-        snprintf(auth_line, sizeof(auth_line), "AUTH PLAIN %.*s",
-            (int)b64_len, (char *)gbuffer_cur_rd_pointer(b64));
-        explicit_bzero(gbuffer_cur_rd_pointer(b64), b64_len);
-        GBUFFER_DECREF(b64)
+        snprintf(auth_line, sizeof(auth_line), "AUTH PLAIN %s", b64);
+        explicit_bzero(b64, sizeof(b64));
 
+        priv->auth_continued = FALSE;
         gobj_change_state(gobj, ST_WAIT_AUTH_RESP);
         set_timeout(priv->timer, priv->timeout_response);
         int ret = send_smtp_line(gobj, auth_line);
@@ -1340,21 +1419,30 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             priv->auth_reject_code = code;
             return abort_session_by_peer(gobj, "AUTH PLAIN rejected", code, reply);
         }
+        if(code == SMTP_CODE_AUTH_CHALLENGE && !priv->auth_continued) {
+            /*
+             *  334: the server wants the response on a line of its own
+             *  (RFC 4954 lets it ask). It is given once, the same base64
+             *  credentials: still one login. A second 334 is a refusal.
+             */
+            priv->auth_continued = TRUE;
+            char b64[LINE_BUFFER_MAX];
+            if(build_auth_plain(gobj, b64, sizeof(b64)) < 0) {
+                return abort_session_on_error(gobj, "AUTH PLAIN response not built");
+            }
+            set_timeout(priv->timer, priv->timeout_response);
+            int ret = send_line(gobj, b64, TRUE);
+            explicit_bzero(b64, sizeof(b64));
+            return ret;
+        }
         if(code == SMTP_CODE_AUTH_CHALLENGE) {
             /*
-             *  334: the server did not take the initial response we sent
-             *  with AUTH PLAIN (RFC 4954 lets the client send it, and every
-             *  submission server we know takes it) and asks for another
-             *  exchange, which this client does not speak. That is no
-             *  hiccup of the server: it is how it is configured, it comes
-             *  back at every connection, and each one is one more failed
-             *  login in its logs. So it is reported like a refusal of the
-             *  credentials (auth_rejected: 334), and the owner stops, loud,
-             *  instead of logging in again for ever. Up to 7.25.20 it was
-             *  taken as a refusal as well, with no word of why.
+             *  A second 334: the server did not take the response either
+             *  way. It repeats at every connection: reported like refused
+             *  credentials (auth_rejected: 334), and the owner stops.
              */
             priv->auth_reject_code = code;
-            return abort_session_by_peer(gobj, "AUTH PLAIN initial response not taken", code, reply);
+            return abort_session_by_peer(gobj, "AUTH PLAIN not taken after its continuation", code, reply);
         }
         /*
          *  A transient one (454 temporary authentication failure, 421,

@@ -10,7 +10,9 @@
  *              end of DATA, 354 to DATA, 221 to QUIT.
  *
  *          AUTH is answered with the lines of `auth_replies`, one per AUTH
- *          received, the last one again when they run out. Each answer and
+ *          received, the last one again when they run out; after a 334 the
+ *          next line is taken as the response to it, and answered from the
+ *          same list. EHLO is answered from `ehlo_replies`. Each answer and
  *          each message delivered is logged (INFO), so a test says in its
  *          list of expected logs what the server saw, and in which order.
  *
@@ -39,7 +41,8 @@
  *
  *          `connection_plan` says what the server does with each connection
  *          (one entry per connection, "greet" once they run out): "greet",
- *          "drop" (close it at once, nothing said), "garbage" (two malformed
+ *          "drop" (close it at once, nothing said), "refuse" (a 554 greeting),
+ *          "garbage" (two malformed
  *          lines in one write) or "long_line" (a line longer than a client's
  *          reply buffer). Each one but "greet" is logged (INFO).
  *
@@ -90,10 +93,11 @@ SDATA (DTP_INTEGER,     "banner_delay",     SDF_RD,             "0",        "ms 
 SDATA (DTP_INTEGER,     "notify_delay",     SDF_RD,             "500",      "ms after a connection to tell notify_service"),
 SDATA (DTP_STRING,      "notify_service",   SDF_RD,             "",         "service told of each client connected (EV_FAKE_CLIENT_CONNECTED)"),
 SDATA (DTP_LIST,        "auth_min_gaps",    SDF_RD,             "[]",       "ms that AUTH n must come after AUTH n-1 (entry 0 unused)"),
+SDATA (DTP_LIST,        "ehlo_replies",     SDF_RD,             "[\"250 fake.smtp\"]", "Answers to EHLO/HELO, one per EHLO, the last one repeated"),
 SDATA (DTP_LIST,        "rcpt_replies",     SDF_RD,             "[\"250 2.1.5 Ok\"]", "Answers to RCPT TO, one per RCPT, the last one repeated"),
 SDATA (DTP_LIST,        "data_replies",     SDF_RD,             "[\"250 2.0.0 Ok: queued\"]", "Answers to the end of DATA, one per message, the last one repeated"),
 SDATA (DTP_LIST,        "data_min_gaps",    SDF_RD,             "[]",       "ms that the end of DATA n must come after the end of DATA n-1 (entry 0 unused)"),
-SDATA (DTP_LIST,        "connection_plan",  SDF_RD,             "[]",       "What to do with each connection: greet, drop, garbage, long_line. greet when they run out"),
+SDATA (DTP_LIST,        "connection_plan",  SDF_RD,             "[]",       "What to do with each connection: greet, drop, refuse, garbage, long_line. greet when they run out"),
 SDATA (DTP_LIST,        "connect_min_gaps", SDF_RD,             "[]",       "ms that connection n must come after connection n-1 (entry 0 unused)"),
 SDATA (DTP_LIST,        "connect_max_gaps", SDF_RD,             "[]",       "ms that connection n must come within after connection n-1 (entry 0 unused, 0 = no check)"),
 SDATA (DTP_BOOLEAN,     "die_on_delivery",  SDF_RD,             "1",        "End the yuno die_delay ms after a message is delivered"),
@@ -124,6 +128,8 @@ typedef struct _PRIVATE_DATA {
     BOOL in_data;
     size_t auth_count;
     size_t rcpt_count;
+    size_t ehlo_count;
+    BOOL auth_continuation;     /* the last AUTH was answered 334: the next line is its response */
     size_t data_count;
     size_t conn_count;
     uint64_t auth_not_before;   /* msectimer: the next AUTH must not come sooner */
@@ -294,6 +300,9 @@ PRIVATE int greet_client(hgobj gobj)
     if(strcmp(plan, "garbage") == 0) {
         return send_reply(gobj, "garbage one\r\ngarbage two");
     }
+    if(strcmp(plan, "refuse") == 0) {
+        return send_reply(gobj, "554 5.7.1 Service unavailable; client host blocked");
+    }
     if(strcmp(plan, "long_line") == 0) {
         char line[10000];
         memset(line, 'x', sizeof(line) - 1);
@@ -373,9 +382,17 @@ PRIVATE int process_line(hgobj gobj, const char *line)
     }
 
     if(strncasecmp(line, "EHLO", 4) == 0 || strncasecmp(line, "HELO", 4) == 0) {
-        return send_reply(gobj, "250 fake.smtp");
+        const char *reply = nth_reply(gobj, "ehlo_replies", priv->ehlo_count);
+        priv->ehlo_count++;
+        if(!reply) {
+            // Error already logged
+            return -1;
+        }
+        return send_reply(gobj, reply);
     }
-    if(strncasecmp(line, "AUTH ", 5) == 0) {
+    BOOL continuation = priv->auth_continuation;
+    priv->auth_continuation = FALSE;
+    if(continuation || strncasecmp(line, "AUTH ", 5) == 0) {
         if(priv->auth_not_before && !test_msectimer(priv->auth_not_before)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -398,8 +415,12 @@ PRIVATE int process_line(hgobj gobj, const char *line)
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "Fake smtp: AUTH answered",
             "reply",        "%s", reply,
+            "continuation", "%d", continuation? 1 : 0,
             NULL
         );
+        if(strncmp(reply, "334", 3) == 0) {
+            priv->auth_continuation = TRUE;
+        }
         return send_reply(gobj, reply);
     }
     if(strncasecmp(line, "MAIL FROM:", 10) == 0) {

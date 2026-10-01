@@ -1548,12 +1548,36 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
                 "msg",          "%s", auth_rejected == 334?
-                    "SMTP server does not take AUTH PLAIN with its initial response: exiting, NOT relaunched. Check the server and the url, and run the yuno again" :
+                    "SMTP server does not take AUTH PLAIN: exiting, NOT relaunched. Check the server and the url, and run the yuno again" :
                     "SMTP credentials rejected: exiting, NOT relaunched. Fix the credentials and run the yuno again",
                 "code",         "%d", auth_rejected,
                 "reply",        "%s", kw_get_str(gobj, kw, "reply", "", 0),
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "username",     "%s", gobj_read_str_attr(gobj, "username"),
+                NULL
+            );
+            KW_DECREF(kw);
+            return 0;
+        }
+
+        int refused = (int)kw_get_int(gobj, kw, "refused", 0, 0);
+        if(refused) {
+            /*
+             *  A 5xx to the greeting or to EHLO: the server does not take
+             *  this client at all (a provider that blocked the address, a
+             *  blocklist). Every attempt meets the same answer and is seen
+             *  by the provider, so the yuno stops like on refused
+             *  credentials, and the queue waits for whoever fixes it.
+             *  Before, the message was retried, paced, for ever (7.25.20:
+             *  four attempts, then the failed queue, message by message).
+             */
+            gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "SMTP server refuses this client: exiting, NOT relaunched. Check the server's answer, and run the yuno again",
+                "code",         "%d", refused,
+                "reply",        "%s", kw_get_str(gobj, kw, "reply", "", 0),
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 NULL
             );
             KW_DECREF(kw);

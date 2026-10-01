@@ -101,7 +101,8 @@ SDATA (DTP_STRING,      "smtp_url",         SDF_RD,             "",         "url
 SDATA (DTP_BOOLEAN,     "send_on_connect",  SDF_RD,             "0",        "scenario send: send when the fake server has a client"),
 SDATA (DTP_STRING,      "server_service",   SDF_RD,             "__input_side__", "service of the fake server, started here in set_url, set_url_stash, late_server and session"),
 SDATA (DTP_STRING,      "dead_url",         SDF_RD,             "",         "url where nobody listens (url_log)"),
-SDATA (DTP_INTEGER,     "expect_auth_code", SDF_RD,             "535",      "scenario session: the auth_rejected code expected"),
+SDATA (DTP_INTEGER,     "expect_auth_code", SDF_RD,             "535",      "scenario session: the code expected on EV_ON_CLOSE"),
+SDATA (DTP_STRING,      "expect_close_key", SDF_RD,             "auth_rejected", "scenario session: the key of EV_ON_CLOSE that carries the code (auth_rejected, refused)"),
 SDATA (DTP_STRING,      "expect_reply",     SDF_RD,             "535 5.7.8","scenario session: how the reply expected starts"),
 SDATA (DTP_INTEGER,     "action_delay",     SDF_RD,             "0",        "ms to the second step of set_url_stash, refill and late_server"),
 SDATA (DTP_INTEGER,     "min_wait",         SDF_RD,             "0",        "scenario late_server: ms the session must wait at least"),
@@ -505,7 +506,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    int auth_rejected = (int)kw_get_int(gobj, kw, "auth_rejected", 0, 0);
+    int auth_rejected = (int)kw_get_int(gobj, kw, gobj_read_str_attr(gobj, "expect_close_key"), 0, 0);
     const char *reply = kw_get_str(gobj, kw, "reply", "", 0);
     int expect_code = (int)gobj_read_integer_attr(gobj, "expect_auth_code");
     const char *expect_reply = gobj_read_str_attr(gobj, "expect_reply");

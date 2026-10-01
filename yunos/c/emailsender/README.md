@@ -70,14 +70,20 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   `EV_ON_CLOSE` as `auth_rejected` (the reply code), apart from `code`: the
   message was never seen by the server, so it stays queued without spending a
   retry.
-- **A `334` to `AUTH PLAIN`** is handled the same way (`auth_rejected: 334`,
-  and the exit says *"SMTP server does not take AUTH PLAIN with its initial
-  response"*). We send the credentials with the command, as RFC 4954 allows;
-  a server that answers `334` wants another exchange, which this client does
-  not speak. It is how the server is configured, it repeats at every
-  connection, and each one is another failed login in its logs: retrying it,
-  even paced, is the wrong answer, so the yuno stops, loud, until the url or
-  the server is changed.
+- **A `334` to `AUTH PLAIN`**: we send the credentials with the command, as
+  RFC 4954 allows, and the RFC also lets the server ask for them on a line of
+  their own with a `334`. The session gives that line once, the same
+  credentials -- still a single login, not a probe. A second `334` is handled
+  like rejected credentials (`auth_rejected: 334`, the exit says *"SMTP server
+  does not take AUTH PLAIN"*): it would repeat at every connection.
+- **A server that refuses this client** -- a `5xx` to the greeting (`554` of a
+  provider that blocked the address) or to EHLO -- stops the yuno the same
+  way, with one ERROR (*"SMTP server refuses this client: exiting, NOT
+  relaunched"*, with the reply): every attempt would meet the same answer and
+  be seen by the provider. `C_SMTP_SESSION` reports it on `EV_ON_CLOSE` as
+  `refused` (the code), and no credentials are sent. Before, it was retried,
+  paced, for ever (7.25.20: four attempts per message, then the failed
+  queue).
 - **A transient refusal of the login** (a `4xx` to `AUTH PLAIN`: `454`
   temporary authentication failure, `421`, `432`, ...) says nothing of the
   credentials: the session closes like any drop, and the login is tried again

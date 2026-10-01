@@ -63,6 +63,9 @@ SET(SRCS
     url_log
     idle_close_no_reconnect
     pause_backoff
+    banner_refused
+    ehlo_refused
+    auth_334_continue
 )
 
 ##############################################

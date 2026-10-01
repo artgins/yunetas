@@ -128,10 +128,12 @@ dropped while waiting:
   `deactivate-snap`, so with the credentials still wrong each of those costs
   exactly one more attempt, never a loop.
 
-  A `334` to `AUTH PLAIN` stops the yuno the same way (*"SMTP server does not
-  take AUTH PLAIN with its initial response"*): the credentials go with the
-  command, as RFC 4954 allows, and a server that asks for another exchange
-  does so at every connection -- a mismatch of configuration, not a hiccup.
+  A `334` to `AUTH PLAIN` (the server wants the response on a line of its
+  own, RFC 4954) is answered once with the same credentials; a second `334`
+  stops the yuno the same way (*"SMTP server does not take AUTH PLAIN"*). So
+  does a `5xx` to the greeting or to EHLO (*"SMTP server refuses this client"*,
+  a provider that blocked the address): no credentials are sent, and every
+  attempt would be refused.
 - The body is persisted as part of the queued message (a string), so it
   survives both retries and a yuno restart.
 - A pause (or the stop of the yuno) with a message in flight leaves it at the
