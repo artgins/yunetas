@@ -39,6 +39,22 @@
  *        handed before a delete still ahead of it. Up to the fix a key new
  *        to the follower was read at once: [R1 DEL] and the live key out of
  *        the cache; [DEL R1 DEL] for two rebirths.
+ *      - do_test_race_in_batch: the master in another process deletes a new
+ *        key and writes it again between the batch's question (where the
+ *        queue ends) and the read of its directory (from the record
+ *        callback of the key before it): `deleted`, then the new records
+ *        (up to the fix [R1 DEL], the key out of the cache).
+ *      - do_test_inflight_open: a feed opened while a delete is in flight,
+ *        signalled after it was watched, hears it owing nothing: the delete
+ *        is not new, nobody is left owing it, and the first feed is not
+ *        told it again at its next overflow (up to the fix [DEL DEL]).
+ *      - do_test_known_reborn_fd: a key the follower read, deleted and
+ *        written again in the same day file: its new records are read from
+ *        the new file (up to the fix through the old file's descriptor:
+ *        short reads, records lost).
+ *      - do_test_second_file_first: a second file of a new key linked
+ *        while its directory waits to be read: read with it, in order (up
+ *        to the fix [R1 R1], R2 lost).
  *      - do_test_stale_debt_reborn: a debt a feed will never pay (a delete
  *        signalled across its opening) is forgotten by the first record of
  *        the key born again, found by the scan of its new directory (its
@@ -85,6 +101,7 @@
 #include <gobj.h>
 #include <kwid.h>
 #include <timeranger2.h>
+#include <fs_watcher.h>
 #include <helpers.h>
 #include <yev_loop.h>
 #include <testing.h>
@@ -124,9 +141,16 @@ PRIVATE json_t *feed_x = NULL, *feed_y = NULL;
 PRIVATE int debt_kept_in_signal = -1;           // the second feed, its IN_CREATE read: still owes?
 PRIVATE json_t *held_master = NULL;             // set: the key is written again in the hold
 PRIVATE int append_to(json_t *tranger, json_int_t id, int n);
+PRIVATE int (*rmdir_hook)(const char *path, int *ret) = NULL;   // TRUE: it did the rmdir()
 
 int __wrap_rmdir(const char *path)
 {
+    if(rmdir_hook) {
+        int ret = 0;
+        if(rmdir_hook(path, &ret)) {
+            return ret;
+        }
+    }
     size_t lp = strlen(held_signals);
     size_t lk = strlen(KEY_A);
     size_t l = strlen(path);
@@ -2013,6 +2037,538 @@ PRIVATE int do_test_mirror_fails(void)
 }
 
 /***************************************************************************
+ *  The master is another process: it acts between two steps of the
+ *  follower. Here it acts from inside the follower: from the record
+ *  callback of `trig_key` (once), or from a hook of its rmdir(). What each
+ *  feed was told, per key: pseq[feed][key].
+ ***************************************************************************/
+#define P_FEEDS 2
+#define P_KEYS  4
+PRIVATE char pseq[P_FEEDS][P_KEYS][256];
+PRIVATE int pdels[P_FEEDS][P_KEYS];
+PRIVATE json_t *pfeed[P_FEEDS];
+PRIVATE json_t *p_master = NULL;
+PRIVATE json_t *p_follower = NULL;
+PRIVATE json_int_t trig_key = 0;        // its first record runs the master
+PRIVATE json_int_t trig_target = 0;     // the key the master works on
+PRIVATE int trig_rows = 1;              // deleted, then written again with this many records
+PRIVATE BOOL trig_append_only = FALSE;  // or only one record more, in another day file
+PRIVATE BOOL trig_fired = FALSE;
+
+PRIVATE int p_feed_index(json_t *list)
+{
+    for(int f = 0; f < P_FEEDS; f++) {
+        if(pfeed[f] && pfeed[f] == list) {
+            return f;
+        }
+    }
+    return -1;
+}
+
+PRIVATE int p_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    int f = p_feed_index(list);
+    int k = atoi(key);
+    if(f >= 0 && k > 0 && k < P_KEYS) {
+        char b[32];
+        snprintf(b, sizeof(b), "R%lld ", (long long)rowid);
+        strncat(pseq[f][k], b, sizeof(pseq[f][k]) - strlen(pseq[f][k]) - 1);
+    }
+    JSON_DECREF(record)
+
+    if(trig_key && k == trig_key && !trig_fired) {
+        trig_fired = TRUE;
+        if(trig_append_only) {
+            if(append_one_at(p_master, trig_target, BASE_T + 3*86400) < 0) {
+                printf("%sERROR%s --> the master could not append\n", On_Red BWhite, Color_Off);
+            }
+            return 0;
+        }
+        char kn[32];
+        snprintf(kn, sizeof(kn), "%019d", (int)trig_target);
+        if(tranger2_delete_key(p_master, TOPIC_NAME, kn) < 0) {
+            printf("%sERROR%s --> the master could not delete\n", On_Red BWhite, Color_Off);
+        }
+        for(int i = 0; i < trig_rows; i++) {
+            if(append_one_at(p_master, trig_target, BASE_T + 50 + i) < 0) {
+                printf("%sERROR%s --> the master could not append\n", On_Red BWhite, Color_Off);
+            }
+        }
+    }
+    return 0;
+}
+
+PRIVATE int p_key_deleted_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    void *user_data
+)
+{
+    int f = p_feed_index(list);
+    int k = atoi(key);
+    if(f >= 0 && k > 0 && k < P_KEYS) {
+        strncat(pseq[f][k], "DEL ", sizeof(pseq[f][k]) - strlen(pseq[f][k]) - 1);
+        pdels[f][k]++;
+    }
+    return 0;
+}
+
+PRIVATE int p_setup(const char *label, char *path_topic, size_t topic_sz)
+{
+    memset(pseq, 0, sizeof(pseq));
+    memset(pdels, 0, sizeof(pdels));
+    memset(pfeed, 0, sizeof(pfeed));
+    trig_key = trig_target = 0;
+    trig_rows = 1;
+    trig_append_only = FALSE;
+    trig_fired = FALSE;
+
+    char title[160];
+    snprintf(title, sizeof(title), "%s: setup", label);
+    set_expected_results(
+        title,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    char path_root[PATH_MAX], path_database[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, topic_sz);
+    rmrdir(path_database);
+    p_master = startup_master(path_root, TRUE);
+    if(!p_master || create_topic(p_master) < 0) {
+        return -1;
+    }
+    p_follower = startup_tranger(path_root, FALSE, TRUE);
+    if(!p_follower || !tranger2_open_topic(p_follower, TOPIC_NAME, TRUE)) {
+        return -1;
+    }
+    return test_json(NULL);
+}
+
+PRIVATE json_t *p_open_feed(int f, const char *id)
+{
+    pfeed[f] = tranger2_open_rt_disk(
+        p_follower, TOPIC_NAME, "", NULL, p_record_callback, id, "", NULL
+    );
+    if(pfeed[f]) {
+        tranger2_set_rt_key_deleted_callback(pfeed[f], p_key_deleted_callback, NULL);
+    } else {
+        printf("%sERROR%s --> cannot open the feed %s\n", On_Red BWhite, Color_Off, id);
+    }
+    return pfeed[f];
+}
+
+PRIVATE int p_shutdown(const char *label)
+{
+    char title[160];
+    snprintf(title, sizeof(title), "%s: shutdown", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    if(p_follower) {
+        tranger2_shutdown(p_follower);
+    }
+    if(p_master) {
+        tranger2_shutdown(p_master);
+    }
+    p_follower = p_master = NULL;
+    memset(pfeed, 0, sizeof(pfeed));
+    drain(20);
+    return test_json(NULL);
+}
+
+PRIVATE int p_expect(const char *label, int f, int k, const char *exp1, const char *exp2)
+{
+    if(strcmp(pseq[f][k], exp1) == 0 || (exp2 && strcmp(pseq[f][k], exp2) == 0)) {
+        return 0;
+    }
+    printf("%sERROR%s --> %s: feed %d, key %d was told [%s], expected [%s]%s%s%s\n",
+        On_Red BWhite, Color_Off, label, f, k, pseq[f][k], exp1,
+        exp2? " or [" : "", exp2? exp2 : "", exp2? "]" : "");
+    return -1;
+}
+
+PRIVATE int p_expect_cache(const char *label, json_int_t k, BOOL in)
+{
+    char kn[32];
+    snprintf(kn, sizeof(kn), "%019d", (int)k);
+    BOOL found = json_object_get(
+        json_object_get(tranger2_topic(p_follower, TOPIC_NAME), "cache"), kn
+    )? TRUE : FALSE;
+    if(found == in) {
+        return 0;
+    }
+    printf("%sERROR%s --> %s: key %d %s the follower's cache\n",
+        On_Red BWhite, Color_Off, label, (int)k, in? "is not in" : "is still in");
+    return -1;
+}
+
+PRIVATE int p_expect_no_debts(const char *label)
+{
+    int result = 0;
+    for(int f = 0; f < P_FEEDS; f++) {
+        if(pfeed[f] && json_object_size(json_object_get(pfeed[f], "deletes_unheard")) != 0) {
+            char *s = json_dumps(json_object_get(pfeed[f], "deletes_unheard"), JSON_COMPACT);
+            printf("%sERROR%s --> %s: feed %d owes deletes it will never hear: %s\n",
+                On_Red BWhite, Color_Off, label, f, s? s : "");
+            gbmem_free(s);
+            result += -1;
+        }
+    }
+    return result;
+}
+
+/*
+ *  A read of the watcher that holds only what is made here: the next read
+ *  takes all that follows, in one batch
+ */
+PRIVATE void p_complete_the_armed_read(const char *path_topic, const char *feed_id)
+{
+    char junk[PATH_MAX];
+    build_path(junk, sizeof(junk), path_topic, "disks", feed_id, "junk", NULL);
+    mkdir(junk, 0770);
+    drain(10);
+    char d[PATH_MAX];
+    build_path(d, sizeof(d), junk, "d0", NULL);
+    mkdir(d, 0770);
+    __real_rmdir(d);
+}
+
+/***************************************************************************
+ *  do_test_race_in_batch: two new keys in one batch, nothing after it.
+ *  Where the queued events end is asked once for the batch, and its key
+ *  directories are read one after the other. While the record callback of
+ *  the first key runs, the master deletes the second key and writes it
+ *  again: the second directory read is the new one, while its delete is
+ *  queued after the question. Up to the fix: [R1 DEL], the key out of the
+ *  cache, and the next append [R1 R2].
+ ***************************************************************************/
+PRIVATE int do_test_race_in_batch(int rows)
+{
+    int result = 0;
+    char label[96];
+    snprintf(label, sizeof(label), "race in the batch, %d row(s)", rows);
+    char path_topic[PATH_MAX];
+    if(p_setup(label, path_topic, sizeof(path_topic)) < 0) {
+        p_shutdown(label);
+        return -1;
+    }
+    char title[160];
+    snprintf(title, sizeof(title), "%s: no record before a delete after the question", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    p_open_feed(0, "rtX");
+    drain(10);
+    p_complete_the_armed_read(path_topic, "rtX");
+    if(append_one_at(p_master, 1, BASE_T + 1) < 0 || append_one_at(p_master, 2, BASE_T + 1) < 0) {
+        result += -1;
+    }
+    trig_key = 1;
+    trig_target = 2;
+    trig_rows = rows;
+    drain(40);
+    if(!trig_fired) {
+        printf("%sERROR%s --> %s: the test did not test: the master never acted\n",
+            On_Red BWhite, Color_Off, label);
+        result += -1;
+    }
+    char exp1[128] = "DEL ", exp2[128] = "R1 DEL ";
+    for(int i = 1; i <= rows; i++) {
+        char b[16];
+        snprintf(b, sizeof(b), "R%d ", i);
+        strncat(exp1, b, sizeof(exp1) - strlen(exp1) - 1);
+        strncat(exp2, b, sizeof(exp2) - strlen(exp2) - 1);
+    }
+    result += p_expect(label, 0, 1, "R1 ", NULL);
+    result += p_expect(label, 0, 2, exp1, exp2);
+    result += p_expect_cache(label, 2, TRUE);
+    result += p_expect_no_debts(label);
+
+    memset(pseq, 0, sizeof(pseq));
+    if(append_one_at(p_master, 2, BASE_T + 100) < 0) {
+        result += -1;
+    }
+    drain(40);
+    char e[16];
+    snprintf(e, sizeof(e), "R%d ", rows + 1);
+    result += p_expect(label, 0, 2, e, NULL);
+    result += test_json(NULL);
+    result += p_shutdown(label);
+    return result;
+}
+
+/***************************************************************************
+ *  do_test_inflight_open: a feed opened while a delete is in flight. The
+ *  master signals the feeds one after another: the first one (opened
+ *  before) is signalled before the second one is watched, the second one
+ *  after. The first hears the delete first, and the second cannot be told
+ *  apart from a feed that never hears it; the second hears its own signal,
+ *  owing nothing. Up to the fix the second took it for a new delete and
+ *  made the first owe it again: a debt never paid, told again at the first
+ *  feed's next overflow ([DEL DEL]).
+ ***************************************************************************/
+PRIVATE const char *inflight_first_id = "";
+PRIVATE const char *inflight_second_id = "";
+PRIVATE int inflight_reached = -1;  // -1 not yet, 1 the first feed signalled first, 0 the other
+PRIVATE int inflight_hook(const char *path, int *ret)
+{
+    if(inflight_reached >= 0) {
+        return 0;
+    }
+    size_t l = strlen(path), lk = strlen(KEY_A);
+    if(l <= lk || strcmp(path + l - lk, KEY_A) != 0 || !strstr(path, "/disks/")) {
+        return 0;
+    }
+    char first[64];
+    snprintf(first, sizeof(first), "/disks/%s/", inflight_first_id);
+    *ret = __real_rmdir(path);
+    if(strstr(path, first)) {
+        inflight_reached = 1;
+        p_open_feed(1, inflight_second_id);
+    } else {
+        inflight_reached = 0;   // the master lists the second one first: try them the other way
+    }
+    return 1;
+}
+
+PRIVATE int max_queued_events_of_inotify(void)
+{
+    int n = 16384;  // the kernel's default
+    FILE *f = fopen("/proc/sys/fs/inotify/max_queued_events", "r");
+    if(f) {
+        if(fscanf(f, "%d", &n) != 1) {
+            n = 16384;
+        }
+        fclose(f);
+    }
+    return n;
+}
+
+PRIVATE int inflight_attempt(BOOL overflow_after, const char *first_id, const char *second_id)
+{
+    int result = 0;
+    char label[96];
+    snprintf(label, sizeof(label), "opened in flight%s (%s, %s)",
+        overflow_after? ", then the first overflows" : "", first_id, second_id);
+    char path_topic[PATH_MAX];
+    if(p_setup(label, path_topic, sizeof(path_topic)) < 0) {
+        p_shutdown(label);
+        return -1;
+    }
+    char title[160];
+    snprintf(title, sizeof(title), "%s: each feed told once, nobody owes", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    if(append_to(p_master, 1, 3) < 0) {
+        result += -1;
+    }
+    p_open_feed(0, first_id);
+    drain(10);
+    char second_dir[PATH_MAX];
+    build_path(second_dir, sizeof(second_dir), path_topic, "disks", second_id, NULL);
+    mkdir(second_dir, 0770);    // listed by the master's delete: signalled
+
+    inflight_first_id = first_id;
+    inflight_second_id = second_id;
+    inflight_reached = -1;
+    rmdir_hook = inflight_hook;
+    if(tranger2_delete_key(p_master, TOPIC_NAME, KEY_A) < 0) {
+        result += -1;
+    }
+    rmdir_hook = NULL;
+    if(inflight_reached != 1) {
+        p_shutdown(label);
+        return inflight_reached == 0? 1 : -1;  // 1: not reached in this order
+    }
+    drain(40);
+    result += p_expect(label, 0, 1, "DEL ", NULL);
+    result += p_expect(label, 1, 1, "DEL ", NULL);
+    result += p_expect_no_debts(label);
+    result += test_json(NULL);
+
+    if(overflow_after) {
+        snprintf(title, sizeof(title), "%s: the first feed, overflowed, is not told again", label);
+        set_expected_results_unordered(
+            title,
+            json_pack("[{s:s},{s:s}]",
+                "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
+                "msg", "watched tree rescanned after lost inotify events"
+            ),
+            NULL, NULL, 1
+        );
+        char junk[PATH_MAX];
+        build_path(junk, sizeof(junk), path_topic, "disks", first_id, "junk", NULL);
+        mkdir(junk, 0770);
+        drain(10);
+        int pairs = max_queued_events_of_inotify()/2 + 1024;
+        for(int i = 0; i < pairs; i++) {
+            char d[PATH_MAX], nm[32];
+            snprintf(nm, sizeof(nm), "d%d", i);
+            build_path(d, sizeof(d), junk, nm, NULL);
+            mkdir(d, 0770);
+            __real_rmdir(d);
+        }
+        /*
+         *  Until the pass after the overflow is over (bounded by time: the
+         *  pass runs a slice per turn on a timer)
+         */
+        fs_event_t *fs_first = (fs_event_t *)(uintptr_t)json_integer_value(
+            json_object_get(pfeed[0], "fs_event_client")
+        );
+        uint64_t t0 = time_in_milliseconds_monotonic();
+        BOOL overflowed = FALSE;
+        while(time_in_milliseconds_monotonic() - t0 < 30*1000) {
+            yev_loop_run_once(yev_loop);
+            if(fs_first && fs_first->rescan_dirs) {
+                overflowed = TRUE;
+            } else if(overflowed) {
+                break;
+            }
+        }
+        drain(20);
+        if(!overflowed) {
+            printf("%sERROR%s --> %s: the test did not test: no overflow\n",
+                On_Red BWhite, Color_Off, label);
+            result += -1;
+        }
+        result += p_expect(label, 0, 1, "DEL ", NULL);
+        result += test_json(NULL);
+    }
+    result += p_shutdown(label);
+    return result;
+}
+
+PRIVATE int do_test_inflight_open(BOOL overflow_after)
+{
+    int r = inflight_attempt(overflow_after, "rtA", "rtB");
+    if(r == 1) {
+        r = inflight_attempt(overflow_after, "rtB", "rtA");
+    }
+    if(r == 1) {
+        printf("%sERROR%s --> opened in flight: the test did not test\n", On_Red BWhite, Color_Off);
+        r = -1;
+    }
+    return r;
+}
+
+/***************************************************************************
+ *  do_test_known_reborn_fd: a key the follower READ (its files open for
+ *  reading), deleted and written again with three records, in the same
+ *  day file (the usual case: one file a day) or in another one. Up to the
+ *  fix the follower kept the descriptors of the deleted files: R1 was read
+ *  from the OLD file, R2 and R3 failed ("Cannot read record metadata,
+ *  short read") and were lost, and the next append too.
+ ***************************************************************************/
+PRIVATE int do_test_known_reborn_fd(BOOL other_day)
+{
+    int result = 0;
+    char label[96];
+    snprintf(label, sizeof(label), "a key read, born again in %s day file",
+        other_day? "another" : "the same");
+    char path_topic[PATH_MAX];
+    if(p_setup(label, path_topic, sizeof(path_topic)) < 0) {
+        p_shutdown(label);
+        return -1;
+    }
+    char title[160];
+    snprintf(title, sizeof(title), "%s: the new files are read", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    p_open_feed(0, "rtX");
+    drain(10);
+    if(append_one_at(p_master, 1, BASE_T) < 0) {
+        result += -1;
+    }
+    drain(20);
+    if(!json_object_get(json_object_get(tranger2_topic(p_follower, TOPIC_NAME), "rd_fd_files"), KEY_A)) {
+        printf("%sERROR%s --> %s: the test did not test: no file of the key open for reading\n",
+            On_Red BWhite, Color_Off, label);
+        result += -1;
+    }
+    memset(pseq, 0, sizeof(pseq));
+    if(tranger2_delete_key(p_master, TOPIC_NAME, KEY_A) < 0) {
+        result += -1;
+    }
+    uint64_t t = other_day? BASE_T + 3*86400 : BASE_T + 10;
+    for(int i = 0; i < 3; i++) {
+        if(append_one_at(p_master, 1, t + (uint64_t)i) < 0) {
+            result += -1;
+        }
+    }
+    drain(40);
+    result += p_expect(label, 0, 1, "DEL R1 R2 R3 ", NULL);
+    memset(pseq, 0, sizeof(pseq));
+    if(append_one_at(p_master, 1, t + 100) < 0) {
+        result += -1;
+    }
+    drain(40);
+    result += p_expect(label, 0, 1, "R4 ", NULL);
+    result += test_json(NULL);
+    result += p_shutdown(label);
+    return result;
+}
+
+/***************************************************************************
+ *  do_test_second_file_first: a new key whose directory waits to be read,
+ *  and a second file of the key (another day) linked meanwhile: its own
+ *  IN_CREATE comes before the read of the directory. Up to the fix the
+ *  link was read first ([R1 R1], R2 never handed).
+ ***************************************************************************/
+PRIVATE int do_test_second_file_first(void)
+{
+    int result = 0;
+    const char *label = "a second file before the directory is read";
+    char path_topic[PATH_MAX];
+    if(p_setup(label, path_topic, sizeof(path_topic)) < 0) {
+        p_shutdown(label);
+        return -1;
+    }
+    char title[160];
+    snprintf(title, sizeof(title), "%s: every record once, in order", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    p_open_feed(0, "rtX");
+    drain(10);
+    if(append_one_at(p_master, 1, BASE_T) < 0) {   // a key whose directory is watched
+        result += -1;
+    }
+    drain(20);
+    memset(pseq, 0, sizeof(pseq));
+    p_complete_the_armed_read(path_topic, "rtX");
+    if(append_one_at(p_master, 2, BASE_T) < 0 ||       // the new key
+            append_one_at(p_master, 1, BASE_T + 1) < 0) {  // a link in the watched one
+        result += -1;
+    }
+    trig_key = 1;
+    trig_target = 2;
+    trig_append_only = TRUE;
+    drain(40);
+    if(!trig_fired) {
+        printf("%sERROR%s --> %s: the test did not test: the master never acted\n",
+            On_Red BWhite, Color_Off, label);
+        result += -1;
+    }
+    result += p_expect(label, 0, 2, "R1 R2 ", NULL);
+    memset(pseq, 0, sizeof(pseq));
+    if(append_one_at(p_master, 2, BASE_T + 3*86400 + 5) < 0) {
+        result += -1;
+    }
+    drain(40);
+    result += p_expect(label, 0, 2, "R3 ", NULL);
+    result += test_json(NULL);
+    result += p_shutdown(label);
+    return result;
+}
+
+/***************************************************************************
  *              Main
  ***************************************************************************/
 PRIVATE void quit_sighandler(int sig)
@@ -2084,6 +2640,13 @@ int main(int argc, char *argv[])
     result += do_test_reborn_window(1, 3, 1, FALSE);   // three times
     result += do_test_reborn_window(1, 2, 1, TRUE);
     result += do_test_stale_debt_reborn();
+    result += do_test_race_in_batch(1);
+    result += do_test_race_in_batch(3);
+    result += do_test_inflight_open(FALSE);
+    result += do_test_inflight_open(TRUE);
+    result += do_test_known_reborn_fd(FALSE);
+    result += do_test_known_reborn_fd(TRUE);
+    result += do_test_second_file_first();
     result += do_test_rmrdir_fails();
     result += do_test_rmrdir_fails_filtered();
     result += do_test_key_dir_unstatable();

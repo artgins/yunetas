@@ -514,10 +514,19 @@ PRIVATE int update_key_by_hard_link(
     char *path // WARNING path modified
 );
 typedef enum {
-    DELETE_FIRST_HEARD = 1, // the key was in the cache: nobody had heard this delete
-    DELETE_PAID,            // heard before by another feed, and owed by this one
+    DELETE_FIRST_HEARD = 1, // owing nothing, in no doubt: nobody had heard this delete
+    DELETE_PAID,            // heard before by another feed: owed by this one, or in doubt
     DELETE_KNOWN,           // in a master: the delete was made, and forgotten, here
 } delete_heard_t;
+typedef struct {    // who a key directory is: another one made under its path is not it
+    json_int_t ino;
+    json_int_t bsec;
+    json_int_t bnsec;
+} dir_id_t;
+typedef struct {
+    dir_id_t id;
+    BOOL alive;
+} seen_dir_t;
 PRIVATE void client_key_deleted(
     hgobj gobj,
     json_t *tranger,
@@ -563,6 +572,13 @@ PRIVATE void place_new_key_dir_scans(
     fs_event_t *fs_event,
     uint64_t reached
 );
+PRIVATE void place_key_dir_scan(
+    json_t *disk,
+    const char *key,
+    uint64_t at,
+    uint64_t until,
+    const dir_id_t *seen
+);
 PRIVATE void run_due_key_dir_scans(
     hgobj gobj,
     json_t *tranger,
@@ -570,7 +586,17 @@ PRIVATE void run_due_key_dir_scans(
     fs_event_t *fs_event,
     uint64_t reached
 );
+PRIVATE BOOL key_dir_scan_waits(
+    json_t *watched_topic,
+    fs_event_t *fs_event,
+    const char *key
+);
 PRIVATE BOOL delete_told_at_overflow(
+    json_t *watched_topic,
+    fs_event_t *fs_event,
+    const char *deleted_key
+);
+PRIVATE BOOL delete_owed_at_overflow(
     json_t *watched_topic,
     fs_event_t *fs_event,
     const char *deleted_key
@@ -6903,9 +6929,10 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                     }
                     break;
                 }
-                delete_heard_t heard = count_key_delete_heard(
-                    watched_topic, fs_event, deleted_key, TRUE
-                );
+                delete_heard_t heard = DELETE_PAID;
+                if(!delete_owed_at_overflow(watched_topic, fs_event, deleted_key)) {
+                    heard = count_key_delete_heard(watched_topic, fs_event, deleted_key, TRUE);
+                }
                 client_key_deleted(gobj, tranger, watched_topic, fs_event, deleted_key, heard);
             }
             break;
@@ -6938,6 +6965,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 if(disk) {
                     json_object_set_new(disk, "fs_event_client", json_integer(0));
                     json_object_del(disk, "deletes_unheard");
+                    json_object_del(disk, "deletes_in_doubt");
                     json_object_del(disk, "deletes_told");
                     json_object_del(disk, "scans_pending");
                     json_object_del(disk, "scans_order");
@@ -7004,6 +7032,15 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                     snprintf(key_dir, sizeof(key_dir), "%s", (const char *)fs_event->directory);
                     const char *key = pop_last_segment(key_dir);
                     if(strcmp(key_dir, fs_event->path)==0) {
+                        if(key_dir_scan_waits(watched_topic, fs_event, key)) {
+                            /*
+                             *  The scan of the directory, waiting, reads
+                             *  this link with the rest, in their order: read
+                             *  here first, a second file of a new key was
+                             *  taken before the first ([R1 R1], R2 lost)
+                             */
+                            break;
+                        }
                         forget_debts_passed(watched_topic, fs_event, key, fs_event->offset);
                     }
                 }
@@ -7117,6 +7154,18 @@ PRIVATE void client_key_deleted(
 
     if(json_is_true(json_object_get(tranger, "master"))) {
         heard = DELETE_PAID;    // forgotten by tranger2_delete_key() already
+    } else {
+        /*
+         *  The files of the key are gone: the descriptors the follower
+         *  holds on them go too, as the master's in tranger2_delete_key().
+         *  Kept, the key written again in the same file (one a day is the
+         *  usual mask) was read through the old file's descriptor: its
+         *  first record with the OLD content, the rest a short read
+         *  ("Cannot read record metadata") and lost. A feed that pays may
+         *  find files of the key born again open: they are opened again
+         *  on the next read.
+         */
+        close_fd_rd_files(gobj, watched_topic, deleted_key);
     }
     if(heard == DELETE_FIRST_HEARD) {
         json_t *cache = json_object_get(watched_topic, "cache");
@@ -7186,14 +7235,18 @@ PRIVATE json_t *feed_of_watcher(
  *  cache said "not new", nobody owed it, and another feed that had loaded
  *  the key written again took the delete for a new one).
  *
- *  Nor is a debt made for a feed that cannot hear the delete: a feed
+ *  Nor is a debt made for a feed that may not hear the delete: a feed
  *  opened while the delete was in flight -- its directory made after the
  *  master listed disks/, or watched after the master signalled it. When a
  *  feed opens, it notes where the stream of every other feed ends
  *  (`watched_from`, note_where_the_other_feeds_are()): a signal heard below
- *  that point was queued before the feed was watched, and the master
- *  signals the feeds one after another in a few microseconds. Only a
- *  delete signalled across that moment is left in doubt, and it is owed:
+ *  that point was queued before the feed was watched. But the master
+ *  signals the feeds one after another, and may signal that feed after it
+ *  was watched: it would hear the delete owing nothing, and take it for a
+ *  new one (a debt for this feed, never paid). So the delete is left IN
+ *  DOUBT for it (`deletes_in_doubt`), at where its stream ends now: heard
+ *  below that, it is this delete (paid); past it, another one. A delete
+ *  signalled across the moment a feed opens is owed:
  *  a debt holds where the debtor's stream ended when it was made
  *  (fs_queued_events_end()), and when that stream, past that point, shows
  *  the key alive again the debt is forgotten (forget_debts_passed()). Kept,
@@ -7234,6 +7287,37 @@ PRIVATE delete_heard_t count_key_delete_heard(
          */
         return DELETE_KNOWN;
     }
+
+    /*
+     *  Heard first by another feed that could not tell whether this one
+     *  would hear it (opened while the delete was in flight): it is the
+     *  same delete if it was queued before the place this stream had then.
+     *  One heard past that place is another one (the doubt goes with it).
+     */
+    json_t *in_doubt = json_object_get(disk, "deletes_in_doubt");
+    json_t *dmarks = json_object_get(in_doubt, deleted_key);
+    if(dmarks) {
+        BOOL same = FALSE;
+        size_t i = 0;
+        while(i < json_array_size(dmarks)) {
+            uint64_t mark = (uint64_t)json_integer_value(json_array_get(dmarks, i));
+            if(at_its_signal && !same && fs_event->offset < mark) {
+                same = TRUE;
+                json_array_remove(dmarks, i);
+            } else if(!at_its_signal || fs_event->offset >= mark) {
+                json_array_remove(dmarks, i);   // not heard where it could be: never will
+            } else {
+                i++;
+            }
+        }
+        if(json_array_size(dmarks) == 0) {
+            json_object_del(in_doubt, deleted_key);
+        }
+        if(same) {
+            return DELETE_PAID;
+        }
+    }
+
     delete_heard_t heard = DELETE_FIRST_HEARD;  // owing nothing: heard first
 
     const char *id = json_string_value(json_object_get(disk, "id"));
@@ -7248,7 +7332,28 @@ PRIVATE delete_heard_t count_key_delete_heard(
         if(at_its_signal && id) {
             json_t *jn_from = json_object_get(json_object_get(disk_, "watched_from"), id);
             if(jn_from && fs_event->offset < (uint64_t)json_integer_value(jn_from)) {
-                continue;   // queued before that feed was watched: it cannot hear it
+                /*
+                 *  Queued before that feed was watched: whether the master
+                 *  signalled it before or after it was watched cannot be
+                 *  told. Not owed (it may never hear it, and then the next
+                 *  delete of the key would pay it), but in doubt: if it
+                 *  hears it before where its stream ends now, the delete
+                 *  is not new (count_key_delete_heard() there). Up to the
+                 *  fix it took it for a new one, and made this feed owe it
+                 *  again.
+                 */
+                json_t *in_doubt_ = json_object_get(disk_, "deletes_in_doubt");
+                if(!in_doubt_) {
+                    in_doubt_ = json_object();
+                    json_object_set_new(disk_, "deletes_in_doubt", in_doubt_);
+                }
+                json_t *dmarks_ = json_object_get(in_doubt_, deleted_key);
+                if(!dmarks_) {
+                    dmarks_ = json_array();
+                    json_object_set_new(in_doubt_, deleted_key, dmarks_);
+                }
+                json_array_append_new(dmarks_, json_integer((json_int_t)fs_queued_events_end(fs)));
+                continue;
             }
         }
         json_t *unheard_ = json_object_get(disk_, "deletes_unheard");
@@ -7356,24 +7461,24 @@ PRIVATE void forget_debts_passed(
 )
 {
     json_t *disk = feed_of_watcher(watched_topic, fs_event);
-    json_t *unheard = json_object_get(disk, "deletes_unheard");
-    if(!unheard) {
-        return;     // the common case, a record of a feed that owes nothing
-    }
-    json_t *marks = json_object_get(unheard, key);
-    if(!marks) {
-        return;
-    }
-    size_t i = 0;
-    while(i < json_array_size(marks)) {
-        if((uint64_t)json_integer_value(json_array_get(marks, i)) <= position) {
-            json_array_remove(marks, i);
-        } else {
-            i++;
+    const char *kinds[] = {"deletes_unheard", "deletes_in_doubt"};
+    for(size_t k = 0; k < ARRAY_SIZE(kinds); k++) {
+        json_t *unheard = json_object_get(disk, kinds[k]);
+        json_t *marks = json_object_get(unheard, key);
+        if(!marks) {
+            continue;   // the common case, a record of a feed that owes nothing
         }
-    }
-    if(json_array_size(marks) == 0) {
-        json_object_del(unheard, key);
+        size_t i = 0;
+        while(i < json_array_size(marks)) {
+            if((uint64_t)json_integer_value(json_array_get(marks, i)) <= position) {
+                json_array_remove(marks, i);
+            } else {
+                i++;
+            }
+        }
+        if(json_array_size(marks) == 0) {
+            json_object_del(unheard, key);
+        }
     }
 }
 
@@ -7400,8 +7505,11 @@ PRIVATE BOOL dir_identity(const char *path, json_int_t *ino, json_int_t *bsec, j
 }
 
 /***************************************************************************
- *  CLIENT: scan a key directory and hand its records; records found say
- *  the key lives at `at` (forget_debts_passed())
+ *  CLIENT: scan a key directory and hand its records, if it is still the
+ *  directory `seen` (looked at before the end of the queue was asked:
+ *  place_new_key_dir_scans()); records found say the key lives at `at`
+ *  (forget_debts_passed()). Gone: nothing in it. Another one: it is read
+ *  by its own IN_CREATE, after the delete of this one.
  ***************************************************************************/
 PRIVATE void scan_key_dir(
     hgobj gobj,
@@ -7409,15 +7517,20 @@ PRIVATE void scan_key_dir(
     json_t *watched_topic,
     fs_event_t *fs_event,
     const char *key,
-    uint64_t at
+    uint64_t at,
+    const dir_id_t *seen
 )
 {
     char key_dir[PATH_MAX];
     if(!build_path(key_dir, sizeof(key_dir), fs_event->path, key, NULL)) {
         return; // Error already logged
     }
-    if(!is_directory(key_dir)) {
-        return; // created and removed at once: the signal of a delete
+    dir_id_t now;
+    if(!dir_identity(key_dir, &now.ino, &now.bsec, &now.bnsec)) {
+        return; // gone: the signal of a delete, or deleted since
+    }
+    if(now.ino != seen->ino || now.bsec != seen->bsec || now.bnsec != seen->bnsec) {
+        return; // another directory: its own IN_CREATE reads it
     }
     char key_[NAME_MAX+1];
     snprintf(key_, sizeof(key_), "%s", key);
@@ -7447,14 +7560,16 @@ PRIVATE void scan_key_dir(
  *  signalled this feed: every event that can still remove the directory
  *  read here is queued by now. So the directory is noted here
  *  (`scans_new`); at the end of the batch, or of the slice of the pass,
- *  where the queued events end is asked once and each directory noted is
- *  looked at (place_new_key_dir_scans()); its scan waits until the stream
- *  is past that end (`scans_pending` / `scans_order`, done by
- *  run_due_key_dir_scans() at the first event or batch end past it); a
- *  delete of the key heard before drops it (the directory's own IN_CREATE,
- *  later, reads it); and it reads the directory only if it is still the
- *  one seen then (inode and birth). Only with nothing queued after the
- *  batch does it read at once. For ANY key: a key the follower never saw may
+ *  each directory noted is looked at (inode and birth) and THEN where the
+ *  queued events end is asked (place_new_key_dir_scans()); its scan waits
+ *  until the stream is past that end (`scans_pending` / `scans_order`,
+ *  done by run_due_key_dir_scans() at the first event or batch end past
+ *  it); a delete of the key heard before drops it (the directory's own
+ *  IN_CREATE, later, reads it); and it reads the directory only if it is
+ *  still the one looked at. Only with nothing queued after the batch does
+ *  it read at once, and then too only the directory looked at. A link
+ *  heard meanwhile in the directory is left to its scan
+ *  (key_dir_scan_waits()). For ANY key: a key the follower never saw may
  *  have been born, deleted and written again in the part of the stream not
  *  read yet, and a key may be deleted and written again more than once
  *  there -- read early, its records came before a delete still ahead of
@@ -7488,16 +7603,19 @@ PRIVATE void defer_key_dir_scan(
 
 #define SCANS_POSTPONE_BYTES    (256*1024)  // a backlog deeper than this: notes wait
 #define SCANS_POSTPONE_NOTES    (128*1024)  // up to this many
+#define SCANS_PLACE_CHUNK       256         // directories looked at, then one question
 
 /***************************************************************************
  *  CLIENT: the batch (or the slice of the pass) is over: the key
- *  directories noted in it are placed. Where the events queued by now end
- *  is asked ONCE for all of them -- FIONREAD walks the whole queue, and
- *  asked per directory it made a flood of new keys quadratic (18 s of a
- *  drain of 21) -- and only then is each directory looked at: what was
- *  queued before it was looked at is before that end. A directory gone is
- *  forgotten (the signal of a delete); with nothing queued after the batch
- *  it is read now; else it waits (scans_pending, scans_order).
+ *  directories noted in it are placed. Each one is looked at first (who it
+ *  is), and then where the events queued by now end is asked, once for a
+ *  chunk of them -- FIONREAD walks the whole queue, and asked per directory
+ *  it made a flood of new keys quadratic (18 s of a drain of 21). In that
+ *  order: whatever the master does to a directory after it was looked at
+ *  is either queued before that end or makes it another directory, which
+ *  is not read. A directory gone is forgotten (the signal of a delete);
+ *  with nothing queued after the batch it is read now; else it waits
+ *  (scans_pending, scans_order).
  ***************************************************************************/
 PRIVATE void place_new_key_dir_scans(
     hgobj gobj,
@@ -7529,64 +7647,108 @@ PRIVATE void place_new_key_dir_scans(
             reached < (uint64_t)json_integer_value(jn_postponed)) {
         return;
     }
-    uint64_t until = fs_queued_events_end(fs_event);
-    if(!jn_postponed && json_object_size(fresh) < SCANS_POSTPONE_NOTES &&
-            until - reached > SCANS_POSTPONE_BYTES) {
-        json_object_set_new(disk, "scans_postponed_until", json_integer((json_int_t)until));
+    if(json_object_size(fresh) == 0) {
+        json_object_del(disk, "scans_new");     // all dropped by deletes
         return;
     }
-    json_object_del(disk, "scans_postponed_until");
-    json_incref(fresh);
-    json_object_del(disk, "scans_new");
 
-    const char *key; json_t *jn_new;
-    json_object_foreach(fresh, key, jn_new) {
-        if(fs_event->stop_requested || !disk) {
-            break;  // a callback closed the feed
+    /*
+     *  Who each directory is, looked at BEFORE the end of the queue is
+     *  asked: what the master did to it before the question is queued
+     *  before that end, and the scan reads it only if it is still the one
+     *  looked at.
+     *  Looked at after the question, a key deleted and written again in
+     *  between -- the scans and the record callbacks of the keys before it
+     *  in the batch run there -- was read as the NEW directory while its
+     *  delete was queued past the end ([R1 DEL], the key out of the cache).
+     *  In chunks: a look, the question, the placement.
+     */
+    seen_dir_t seen[SCANS_PLACE_CHUNK];
+    BOOL first_chunk = TRUE;
+    void *it = json_object_iter(fresh);
+    while(it) {
+        void *it_chunk = it;
+        size_t n_seen = 0;
+        for(; it && n_seen < SCANS_PLACE_CHUNK; it = json_object_iter_next(fresh, it)) {
+            char key_dir[PATH_MAX];
+            seen[n_seen].alive = build_path(key_dir, sizeof(key_dir), fs_event->path,
+                    json_object_iter_key(it), NULL) &&
+                dir_identity(key_dir, &seen[n_seen].id.ino, &seen[n_seen].id.bsec,
+                    &seen[n_seen].id.bnsec);
+            n_seen++;
         }
-        uint64_t at = (uint64_t)json_integer_value(jn_new);
-        if(until <= reached) {
-            scan_key_dir(gobj, tranger, watched_topic, fs_event, key, at);  // a dir gone: skipped
-            disk = feed_of_watcher(watched_topic, fs_event);    // a callback may have closed the feed
-            continue;
-        }
-        char key_dir[PATH_MAX];
-        if(!build_path(key_dir, sizeof(key_dir), fs_event->path, key, NULL)) {
-            continue;   // Error already logged
-        }
-        json_int_t ino, bsec, bnsec;
-        if(!dir_identity(key_dir, &ino, &bsec, &bnsec)) {
-            continue;   // gone already: the signal of a delete, nothing in it
+        uint64_t until = fs_queued_events_end(fs_event);
+        if(first_chunk) {
+            first_chunk = FALSE;
+            if(!jn_postponed && json_object_size(fresh) < SCANS_POSTPONE_NOTES &&
+                    until - reached > SCANS_POSTPONE_BYTES) {
+                json_object_set_new(disk, "scans_postponed_until", json_integer((json_int_t)until));
+                return;
+            }
+            json_object_del(disk, "scans_postponed_until");
+            json_incref(fresh);
+            json_object_del(disk, "scans_new");
         }
 
-        /*
-         *  By key (a delete drops it), and in the order they come due: the
-         *  end of the stream only grows, so the order of arrival is that
-         *  order, and a flood of new keys costs one look at the head per
-         *  event
-         */
-        json_t *pending = json_object_get(disk, "scans_pending");
-        json_t *order = json_object_get(disk, "scans_order");
-        if(!pending || !order) {
-            pending = json_object();
-            order = json_array();
-            json_object_set_new(disk, "scans_pending", pending);
-            json_object_set_new(disk, "scans_order", order);
-            json_object_set_new(disk, "scans_order_next", json_integer(0));
+        void *it_ = it_chunk;
+        for(size_t i = 0; i < n_seen; i++, it_ = json_object_iter_next(fresh, it_)) {
+            if(fs_event->stop_requested || !disk) {
+                json_decref(fresh);
+                return;     // a callback closed the feed
+            }
+            if(!seen[i].alive) {
+                continue;   // gone at the look: the signal of a delete, nothing in it
+            }
+            const char *key = json_object_iter_key(it_);
+            uint64_t at = (uint64_t)json_integer_value(json_object_iter_value(it_));
+            if(until <= reached) {
+                scan_key_dir(gobj, tranger, watched_topic, fs_event, key, at, &seen[i].id);
+                disk = feed_of_watcher(watched_topic, fs_event);    // a callback may have closed the feed
+                continue;
+            }
+            place_key_dir_scan(disk, key, at, until, &seen[i].id);
         }
-        /*
-         *  Two strings per directory, not two json containers: a flood
-         *  notes them by the tens of thousands
-         */
-        char entry[64];
-        snprintf(entry, sizeof(entry), "%" PRIu64 " %" PRIu64 " %" PRId64 " %" PRId64 " %" PRId64,
-            until, at, (int64_t)ino, (int64_t)bsec, (int64_t)bnsec);
-        json_object_set_new(pending, key, json_string(entry));
-        char head[NAME_MAX + 32];
-        snprintf(head, sizeof(head), "%" PRIu64 " %s", until, key);
-        json_array_append_new(order, json_string(head));
     }
     json_decref(fresh);
+}
+
+/***************************************************************************
+ *  CLIENT: the scan of a key directory waits until the stream is past
+ *  `until`
+ ***************************************************************************/
+PRIVATE void place_key_dir_scan(
+    json_t *disk,
+    const char *key,
+    uint64_t at,
+    uint64_t until,
+    const dir_id_t *seen
+)
+{
+    /*
+     *  By key (a delete drops it), and in the order they come due: the end
+     *  of the stream only grows, so the order of arrival is that order,
+     *  and a flood of new keys costs one look at the head per event
+     */
+    json_t *pending = json_object_get(disk, "scans_pending");
+    json_t *order = json_object_get(disk, "scans_order");
+    if(!pending || !order) {
+        pending = json_object();
+        order = json_array();
+        json_object_set_new(disk, "scans_pending", pending);
+        json_object_set_new(disk, "scans_order", order);
+        json_object_set_new(disk, "scans_order_next", json_integer(0));
+    }
+    /*
+     *  Two strings per directory, not two json containers: a flood notes
+     *  them by the tens of thousands
+     */
+    char entry[96];
+    snprintf(entry, sizeof(entry), "%" PRIu64 " %" PRIu64 " %" PRId64 " %" PRId64 " %" PRId64,
+        until, at, (int64_t)seen->ino, (int64_t)seen->bsec, (int64_t)seen->bnsec);
+    json_object_set_new(pending, key, json_string(entry));
+    char head[NAME_MAX + 32];
+    snprintf(head, sizeof(head), "%" PRIu64 " %s", until, key);
+    json_array_append_new(order, json_string(head));
 }
 
 /***************************************************************************
@@ -7663,15 +7825,9 @@ PRIVATE void run_due_key_dir_scans(
         }
         json_object_del(pending, key_);
 
-        char key_dir[PATH_MAX];
-        json_int_t ino_, bsec_, bnsec_;
-        if(!build_path(key_dir, sizeof(key_dir), fs_event->path, key_, NULL) ||
-                !dir_identity(key_dir, &ino_, &bsec_, &bnsec_) ||
-                ino_ != (json_int_t)ino || bsec_ != (json_int_t)bsec || bnsec_ != (json_int_t)bnsec) {
-            continue;   // gone, or another directory: its own IN_CREATE reads it
-        }
+        dir_id_t seen = {(json_int_t)ino, (json_int_t)bsec, (json_int_t)bnsec};
         json_object_set_new(disk, "scans_order_next", json_integer((json_int_t)next));
-        scan_key_dir(gobj, tranger, watched_topic, fs_event, key_, at);
+        scan_key_dir(gobj, tranger, watched_topic, fs_event, key_, at, &seen);
         disk = feed_of_watcher(watched_topic, fs_event);    // a callback may have closed the feed
         order = json_object_get(disk, "scans_order");
         if(!order) {
@@ -7695,6 +7851,26 @@ PRIVATE void run_due_key_dir_scans(
     } else {
         json_object_set_new(disk, "scans_order_next", json_integer((json_int_t)next));
     }
+}
+
+/***************************************************************************
+ *  CLIENT: the scan of the key's directory is noted or waits: a link heard
+ *  in it is left to that scan
+ ***************************************************************************/
+PRIVATE BOOL key_dir_scan_waits(
+    json_t *watched_topic,
+    fs_event_t *fs_event,
+    const char *key
+)
+{
+    json_t *disk = feed_of_watcher(watched_topic, fs_event);
+    if(json_object_get(json_object_get(disk, "scans_new"), key)) {
+        return TRUE;
+    }
+    if(json_object_get(json_object_get(disk, "scans_pending"), key)) {
+        return TRUE;
+    }
+    return FALSE;
 }
 
 /***************************************************************************
@@ -7727,6 +7903,25 @@ PRIVATE BOOL delete_told_at_overflow(
         return FALSE;
     }
     return json_object_get(json_object_get(told, "keys"), deleted_key)? TRUE: FALSE;
+}
+
+/***************************************************************************
+ *  CLIENT: a delete this feed owed at its last overflow, of a key on disk
+ *  again then, may still be in its queue: heard, it is paid (told, not new)
+ ***************************************************************************/
+PRIVATE BOOL delete_owed_at_overflow(
+    json_t *watched_topic,
+    fs_event_t *fs_event,
+    const char *deleted_key
+)
+{
+    json_t *disk = feed_of_watcher(watched_topic, fs_event);
+    json_t *owed = json_object_get(json_object_get(disk, "deletes_told"), "owed");
+    if(!json_object_get(owed, deleted_key)) {
+        return FALSE;
+    }
+    json_object_del(owed, deleted_key);
+    return TRUE;
 }
 
 /***************************************************************************
@@ -7795,9 +7990,12 @@ PRIVATE void forget_keys_deleted_unheard(
     json_t *disk = feed_of_watcher(watched_topic, fs_event);
     if(disk) {
         json_t *cache = json_object_get(watched_topic, "cache");
+        json_t *owed_back = json_object();
         json_object_foreach(json_object_get(disk, "deletes_unheard"), key, v) {
             if(!json_object_get(on_disk, key) && !json_object_get(cache, key)) {
                 json_array_append_new(gone, json_string(key));
+            } else if(json_object_get(on_disk, key)) {
+                json_object_set_new(owed_back, key, json_true());
             }
         }
         json_object_del(disk, "deletes_unheard");
@@ -7810,17 +8008,26 @@ PRIVATE void forget_keys_deleted_unheard(
          *  point, or with the next overflow (here).
          */
         json_object_del(disk, "deletes_told");
-        if(json_array_size(gone) > 0) {
+        if(json_array_size(gone) > 0 || json_object_size(owed_back) > 0) {
             json_t *told_keys = json_object();
             int idx_; json_t *jn_key_;
             json_array_foreach(gone, idx_, jn_key_) {
                 json_object_set_new(told_keys, json_string_value(jn_key_), json_true());
             }
-            json_object_set_new(disk, "deletes_told", json_pack("{s:o, s:I}",
+            /*
+             *  `owed`: owed, and on disk again (deleted and written again
+             *  while the events were lost: nothing is told). Its signal may
+             *  be behind the overflow: it is that delete, told as owed, not
+             *  a new one (up to the fix the debt went, and the signal was
+             *  taken for a new delete, owed by the feed that had heard it).
+             */
+            json_object_set_new(disk, "deletes_told", json_pack("{s:o, s:O, s:I}",
                 "keys", told_keys,
+                "owed", owed_back,
                 "until", (json_int_t)fs_queued_events_end(fs_event)
             ));
         }
+        JSON_DECREF(owed_back)
     }
     JSON_DECREF(on_disk)
 

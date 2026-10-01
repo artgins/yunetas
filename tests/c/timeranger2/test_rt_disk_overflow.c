@@ -44,6 +44,10 @@
  *  comes after it: the feed must not be told twice, and the keyed feed must
  *  not be left owing a delete it already heard -- the NEXT delete of the
  *  key would pay it, and a feed that overflowed then would miss that one.
+ *  The same with the key written again before the follower reads anything:
+ *  the overflowed feed owes the delete and finds the key on disk at its
+ *  overflow; its signal, behind it, is that delete (told once, owed by
+ *  nobody after), not a new one.
  *
  *  And a feed opened while a delete was in flight
  *  (do_test_feed_opened_in_flight): the key is deleted with the loop
@@ -553,10 +557,11 @@ PRIVATE int overflow_whole_topic_feed(const char *path_database)
 /***************************************************************************
  *  The signal of a delete queued behind the overflow
  ***************************************************************************/
-PRIVATE int do_test_signal_behind_overflow(BOOL with_keyed_feed)
+PRIVATE int do_test_signal_behind_overflow(BOOL with_keyed_feed, BOOL written_again)
 {
     int result = 0;
-    const char *label = with_keyed_feed? "behind the overflow, two feeds" : "behind the overflow, one feed";
+    const char *label = written_again? "behind the overflow, written again" :
+        with_keyed_feed? "behind the overflow, two feeds" : "behind the overflow, one feed";
     char path_database[PATH_MAX];
     build_path(path_database, sizeof(path_database),
         getenv("HOME"), "tests_yuneta", DATABASE3, NULL);
@@ -640,6 +645,11 @@ PRIVATE int do_test_signal_behind_overflow(BOOL with_keyed_feed)
     snprintf(title, sizeof(title), "%s: the delete is told once", label);
     set_expected_results_unordered(
         title,
+        written_again?
+        json_pack("[{s:s},{s:s}]",  // the key is on disk at the overflow: nothing told there
+            "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
+            "msg", "watched tree rescanned after lost inotify events"
+        ):
         json_pack("[{s:s},{s:s},{s:s}]",
             "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
             "msg", "keys deleted while the inotify events were lost",
@@ -661,12 +671,37 @@ PRIVATE int do_test_signal_behind_overflow(BOOL with_keyed_feed)
         printf("%sERROR%s --> the seed key could not be deleted\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    result += drain(0);
+    if(written_again) {
+        /*
+         *  Written again before the follower reads anything: the keyed
+         *  feed hears the delete first, the overflowed one owes it and
+         *  finds the key on disk again at its overflow; its signal, behind
+         *  the overflow, is that delete, not a new one (up to the fix the
+         *  debt went at the overflow, and the signal was taken for a new
+         *  delete, owed by the keyed feed, which had heard it)
+         */
+        if(append_one(tm, SEED_KEY_ID, BASE_T + 2)<0) {
+            result += -1;
+        }
+    }
+    result += drain(written_again? 1 : 0);
 
     if(deleted_seed != 1 || deleted_other != 0) {
         printf("%sERROR%s --> the overflowed feed heard the delete %d times (others %d), expected 1\n",
             On_Red BWhite, Color_Off, deleted_seed, deleted_other);
         result += -1;
+    }
+    if(written_again) {
+        if(received[SEED_KEY_ID] != 2) {
+            printf("%sERROR%s --> the overflowed feed got %d records of the seed key, expected 2 (one of each life)\n",
+                On_Red BWhite, Color_Off, received[SEED_KEY_ID]);
+            result += -1;
+        }
+        if(!json_object_get(json_object_get(tranger2_topic(tf, TOPIC_NAME), "cache"), SEED_KEY)) {
+            printf("%sERROR%s --> the seed key written again is not in the follower's cache\n",
+                On_Red BWhite, Color_Off);
+            result += -1;
+        }
     }
     if(with_keyed_feed && seed_deleted != 1) {
         printf("%sERROR%s --> the keyed feed heard the delete %d times, expected 1\n",
@@ -1680,8 +1715,9 @@ int main(int argc, char *argv[])
     yev_loop_create(0, 2024, 10, NULL, &yev_loop);
 
     int result = do_test_two_feeds();
-    result += do_test_signal_behind_overflow(FALSE);
-    result += do_test_signal_behind_overflow(TRUE);
+    result += do_test_signal_behind_overflow(FALSE, FALSE);
+    result += do_test_signal_behind_overflow(TRUE, FALSE);
+    result += do_test_signal_behind_overflow(TRUE, TRUE);
     result += do_test_feed_opened_in_flight();
     result += do_test_old_delete_after_reborn();
     result += do_test_reborn_behind_overflow(FALSE);

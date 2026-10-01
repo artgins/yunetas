@@ -40,7 +40,9 @@ fs_event_t *fs_create_watcher_event(
 
 Returns a pointer to a newly allocated [`fs_event_t`](#fs_event_t) structure representing the watcher event, or `NULL` on failure -- a path that is not a directory, no inotify instance, or a root that cannot be watched (`ENOSPC` at `fs.inotify.max_user_watches`, logged). Up to 7.25.20 a root that could not be watched gave a watcher all the same, running and watching nothing.
 
-With `FS_FLAG_BATCH_END` the owner is also called with `FS_BATCH_END_TYPE` after each batch read from inotify (`offset` = where the batch ends), and after each slice of the pass that follows an overflow (`offset` = where the stream is), and every event carries `offset` and `offset_end`, its place in the watcher's stream: what the owner left for "when the stream is past here" can be done there. A timeranger2 follower defers the scan of a key directory that way. It notes the directory at its event, and asks where the queue ends once, at the end of the batch: [`fs_queued_events_end()`](#fs_queued_events_end) walks the whole inotify queue, and asked at each new directory it made a flood of 69632 new keys quadratic (18 s of a drain of 21):
+With `FS_FLAG_BATCH_END` the owner is also called with `FS_BATCH_END_TYPE` after each batch read from inotify (`offset` = where the batch ends), and after each slice of the pass that follows an overflow (`offset` = where the stream is), and every event carries `offset` and `offset_end`, its place in the watcher's stream: what the owner left for "when the stream is past here" can be done there. A timeranger2 follower defers the scan of a key directory that way. It notes the directory at its event, and asks where the queue ends once, at the end of the batch: [`fs_queued_events_end()`](#fs_queued_events_end) walks the whole inotify queue, and asked at each new directory it made a flood of 69632 new keys quadratic (18 s of a drain of 21). The order is the contract: first LOOK at each directory (who it is: inode and birth), THEN ask where the queue ends, and read a directory only if it is still the one looked at. A change made by another process after the look is either queued before the answer (and read before the directory is) or it changed the directory (and the read is skipped). With the question first and the look after, a directory removed and made again between the two is read as the new one, while the event of its removal is queued past the answer. The window is not small: the owner's own callbacks for the directories before it in the batch run there.
+
+A file created in a directory that is noted or placed is left to the read of that directory, which takes all its files in order. Read at its own event, a second file of a new key came before the first.
 
 ```C
 fs_event_t *fs = fs_create_watcher_event(
@@ -51,13 +53,18 @@ case FS_SUBDIR_CREATED_TYPE:
 case FS_RESCAN_DIR_TYPE:
     note_the_directory(my, fs_event);               // cheap: nothing asked here
     break;
-case FS_BATCH_END_TYPE:
-    if(fs_event->offset >= my->until) {
-        read_the_directories_placed(my);            // the stream is past what could remove them
+case FS_FILE_CREATED_TYPE:
+    if(directory_is_noted_or_placed(my, fs_event)) {
+        break;                                      // its read takes this file, in order
     }
+    read_the_file(my, fs_event);
+    break;
+case FS_BATCH_END_TYPE:
+    read_the_placed_directories_due(my, fs_event->offset);  // each one if still the one looked at
     if(has_notes(my)) {
-        my->until = fs_queued_events_end(fs_event); // ONCE per batch
-        place_the_notes(my);                        // read them when the stream is past `until`
+        look_at_the_noted_directories(my);          // FIRST: inode and birth of each one
+        uint64_t until = fs_queued_events_end(fs_event);    // THEN the question, once
+        place_the_notes(my, until);                 // read each when the stream is past `until`
     }
     break;
 ```
@@ -298,9 +305,9 @@ What the owners of the tree do:
   gone from there is heard as deleted (its `key_deleted` callback fires; INFO
   *"keys deleted while the inotify events were lost"*). The cache is shared by
   every feed of the topic and forgets a key with the first feed that hears its
-  delete, so the first feed to hear one (the feed that owes it nothing:
-  the key's being in the cache does not say it, the key may never have been
-  read by this follower) counts it as owed by every other watched feed (`deletes_unheard`, per feed), each
+  delete, so the first feed to hear one (the feed that owes it nothing and
+  holds no doubt about it, below; the key's being in the cache does not say
+  it, the key may never have been read by this follower) counts it as owed by every other watched feed (`deletes_unheard`, per feed), each
   paying when it hears it: the deletes a feed owes and that are gone from
   `keys/` are told at its overflow too. Up to 7.25.20 a feed that overflowed
   while another feed of its topic heard a delete never heard of it.
@@ -326,15 +333,36 @@ What the owners of the tree do:
   ([`fs_queued_events_end()`](#fs_queued_events_end)); a delete of one of
   them queued before that is said already, and nothing is done (up to 7.25.20
   it was told twice). The set is let go at the first key-delete the feed
-  hears from past that point, or at its next overflow.
+  hears from past that point, or at its next overflow. A delete the feed
+  OWED and whose key is on disk again at the overflow (deleted and written
+  again while the events were lost) is not told there; if its signal is
+  queued behind the overflow, it is that delete, paid (told, nothing
+  forgotten), not a new one. Up to the fix the debt went at the overflow and
+  the signal was taken for a new delete: the live key out of the cache, and
+  owed by the feed that had heard it.
 
-  A feed opened while a delete was in flight (its directory made after the
-  master listed `disks/`, or watched after the master signalled it) never
-  hears it, and does not owe it: when a feed opens it notes where the stream
-  of every other feed ends (`watched_from`), and a signal heard below that
-  point was queued before it was watched. The master signals the feeds one
-  after another, in microseconds: only a delete signalled across the very
-  moment a feed opens is left in doubt, and owed. Such a debt holds where the
+  A feed opened while a delete was in flight may hear it or not: not if its
+  directory was made after the master listed `disks/`, or if it was watched
+  after the master signalled it; yes if the master signalled it after it was
+  watched (the master signals the feeds one after another). When a feed
+  opens it notes where the stream of every other feed ends (`watched_from`);
+  a feed that hears a delete first, below that point of its own stream,
+  cannot tell which case the other one is in. It does not make it owe the
+  delete (it may never hear it, and the next delete of the key would pay
+  it): it leaves it IN DOUBT (`deletes_in_doubt`), at the place where the
+  other feed's stream ends then. If that feed hears the delete before that
+  place, the delete is not new: paid, told, nothing forgotten and no debt
+  made. Heard past that place, it is another delete, and the doubt goes.
+  Up to the fix it took the delete for a new one and made the first feed owe
+  it again: a debt never paid, and told again at that feed's next overflow
+  (`[DEL DEL]`). This happens when a follower restarts: the master lists the
+  old `disks/<rt_id>`, which the open removes and makes again. The doubt is
+  only for a feed watched when the first feed hears the delete; one opened
+  after that, and signalled after it was watched, still takes the delete
+  for new -- it needs the master to stop between two signals while the
+  follower reads, hears and opens.
+
+  A debt holds where the
   stream of the debtor ended when it was made; when the debtor's stream, past
   that point, hands it a record of the key in its place in the stream (a
   link heard, at its own `IN_CREATE`, or a key directory read once the
@@ -367,16 +395,34 @@ What the owners of the tree do:
   not in the cache and not owed was read at once. The pass after an
   overflow defers its key directories the same way. The directories are
   noted at their event (`scans_new`) and placed at the end of the batch, or
-  of the slice of the pass: where the queued events end is asked once for
-  all of them, and each one is looked at only then; only with nothing
-  queued after the batch is it read at once. The watcher tells the feed
+  of the slice of the pass: each one is LOOKED AT (inode and birth) and
+  then where the queued events end is asked, once for up to 256 of them;
+  only with nothing queued after the batch is it read at once, and a read,
+  at once or later, is done only if the directory is still the one looked
+  at. Up to the fix the question came first and the look after: a key
+  deleted and written again between them -- where the record callbacks of
+  the keys before it in the batch run -- was read as the new directory
+  while its delete was queued past the answer (`[R1 DEL]`, the key out of
+  the cache). A link heard in a key directory that is noted or placed is
+  left to the read of the directory, which takes every link of it in order
+  (read at its own event, the second file of a new key came first: `[R1 R1]`
+  and R2 lost). The watcher tells the feed
   where each batch and each slice ends (`FS_FLAG_BATCH_END`), where the
   scans come due when no other event follows. When the backlog is deeper
   than 256 KB the notes wait, unplaced, until the stream is past the end
   the backlog had then (an overflow in it drops them: the pass reads the
   directories), and the queue is not asked again meanwhile. The 69632-key
-  flood of `test_rt_disk_overflow` drains in 3753 ms, against 3588 when a
-  key not in the cache was read at once (twenty alternated runs).
+  flood of `test_rt_disk_overflow` drains in 3862 ms, against 3599 when a
+  key not in the cache was read at once and with no look before the
+  question (+7.3%, twenty alternated runs).
+
+  When a delete is heard, the follower closes the descriptors it holds on
+  the files of the key, as the master does in `tranger2_delete_key()`. Up to
+  the fix it kept them (as in 7.25.20): a key it had read, deleted and
+  written again in the same file -- one file a day is the usual mask -- was
+  read through the descriptor of the old, unlinked file: its first record
+  with the OLD content, the rest a short read (*"Cannot read record
+  metadata, short read"*, CRITICAL) and lost, and the next append lost too.
 
   In a MASTER the watcher's echo of a delete forgets nothing:
   `tranger2_delete_key()` forgot the key when it deleted it, and the master
