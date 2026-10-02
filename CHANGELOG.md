@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **rpm: the agents' SELinux label survives a relabel.** `%post` labels the
+  web server's wrapper and the two agents `bin_t` with `semanage fcontext`,
+  and fell back to `chcon` when `semanage` was missing -- which the spec did
+  not require. A `chcon` label is lost on an autorelabel or a `restorecon -R
+  /yuneta`, and then both agent units fail at boot with `203/EXEC`. The
+  package now requires `policycoreutils-python-utils` where `selinux-policy`
+  is installed (a rich dependency, for `%post` and `%postun`), says it when
+  it still has to fall back to `chcon`, and takes the three rules out of the
+  policy on erase.
+
 - **`write-attr` writes only `SDF_WR` attributes.** `gobj_is_writable_attr()`
   answered TRUE for `SDF_WR` OR `SDF_PERSIST`, so every persistent attribute
   was writable at run time by `write-attr`, which only the per-command gate

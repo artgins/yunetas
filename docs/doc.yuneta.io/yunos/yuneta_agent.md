@@ -62,8 +62,11 @@ What to know before touching them:
   ```
 
   On RHEL and Rocky, systemd cannot exec a file labelled `default_t`, and
-  everything under `/yuneta` is: the package labels both agents `bin_t`, and
-  `restorecon` gives a file moved in by hand that label back. Without it the
+  everything under `/yuneta` is: the package writes a `bin_t` rule for both
+  agents into the policy (`semanage fcontext`; it requires
+  `policycoreutils-python-utils` where `selinux-policy` is installed), and
+  `restorecon` gives a file moved in by hand that label back -- a `mv` keeps
+  the label of the source. Without it the
   unit dies with `203/EXEC` (*"Failed to locate executable ... Permission
   denied"*).
 - **The yunos outlive a restart of their agent.** They are in the unit's

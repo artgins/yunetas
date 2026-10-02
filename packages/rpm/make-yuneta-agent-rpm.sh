@@ -1635,6 +1635,10 @@ AutoReqProv:    no
 Requires:       shadow-utils, rsync, rsyslog, chkconfig, initscripts, sudo, gdb
 Requires:       logrotate
 Requires:       glibc-langpack-en, glibc-langpack-es
+# semanage, so the bin_t rule of the files systemd execs is written into the
+# policy (%post) and taken out (%postun): a chcon alone is lost on a relabel
+Requires(post): (policycoreutils-python-utils if selinux-policy)
+Requires(postun): (policycoreutils-python-utils if selinux-policy)
 Recommends:     vim-enhanced, tree, pipx, fail2ban, net-tools, mlocate, curl, telnet
 
 %description
@@ -2071,12 +2075,17 @@ if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
             restorecon -F "$_exe" >/dev/null 2>&1 || true
         fi
         #
-        # Fallback for a node without the policy tools: right now, lost on a
-        # full relabel. A label that may not survive beats a node that does
-        # not serve, or has no agent.
+        # Fallback for a node without the policy tools (the package requires
+        # them where selinux-policy is installed, so this is a node that
+        # forced the install): right now, lost on a full relabel. A label
+        # that may not survive beats a node that does not serve, or has no
+        # agent. Said, so the operator knows.
         #
         if [ "$(stat -c %C "$_exe" 2>/dev/null | cut -d: -f3)" != "bin_t" ]; then
             chcon -t bin_t "$_exe" >/dev/null 2>&1 || true
+            echo "[Yuneta] WARNING: $_exe labelled bin_t with chcon only (no semanage):" \
+                "a relabel or restorecon takes the label away, and its unit fails with 203/EXEC." \
+                "Install policycoreutils-python-utils and reinstall the package." >&2
         fi
     done
 fi
@@ -2241,6 +2250,12 @@ if [ "$1" = "0" ]; then
     # Full uninstall: drop the init script if it survived
     if [ -e /etc/init.d/yuneta_agent ]; then
         rm -f /etc/init.d/yuneta_agent || true
+    fi
+    # And the bin_t rules %post wrote into the policy
+    if command -v semanage >/dev/null 2>&1; then
+        for _exe in /yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent /yuneta/agent/yuneta_agent22; do
+            semanage fcontext -d "$_exe" >/dev/null 2>&1 || true
+        done
     fi
 fi
 exit 0
