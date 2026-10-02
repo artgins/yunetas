@@ -12,6 +12,10 @@ exempt loopback peer:
   cause, and counted in the stat `refusedConnxs`: a denied peer that
   connects 5 times more writes no line (up to 7.25.4 there was no stat,
   each refusal wrote a line, and a denied peer was not refused here);
+- a FULL server (its 3 channels taken) does not accept the next 3
+  connections: one warning (*"no free child tree found"*) for the three,
+  counted in `noChannelConnxs`, not in `refusedConnxs` (up to 7.25.21 each
+  one was an ERROR, counted nowhere);
 - loopback is accepted even when listed;
 - the list key of a peername is its ip without the port, for ipv4, ipv6 and
   an ipv4 seen by a dual-stack socket;

@@ -44,6 +44,7 @@
 typedef enum {
     REFUSAL_DENIED = 0,     // the peer is in denied_ips
     REFUSAL_NOT_ALLOWED,    // only_allowed_ips, and the peer is not in allowed_ips
+    REFUSAL_NO_FREE_CHANNEL,// child_tree_filter found no free channel: the server is full
     REFUSAL_CAUSES
 } refusal_cause_t;
 
@@ -123,6 +124,7 @@ SDATA (DTP_DICT,        "clisrv_kw",            SDF_RD,             0,          
 SDATA (DTP_INTEGER,     "connxs",               SDF_RD|SDF_STATS,   "0",            "Current connections: the connected clisrvs of the channels this server serves"),
 SDATA (DTP_INTEGER,     "tconnxs",              SDF_RD|SDF_STATS,   "0",            "Total connections accepted since the gobj was created (a stop and a start do not reset it)"),
 SDATA (DTP_INTEGER,     "refusedConnxs",        SDF_RD|SDF_RSTATS,  "0",            "Connections refused at accept: the peer is in denied_ips, or not in allowed_ips with only_allowed_ips"),
+SDATA (DTP_INTEGER,     "noChannelConnxs",      SDF_RD|SDF_RSTATS,  "0",            "Connections not accepted because no channel was free (child_tree_filter): the server is full"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,                  0,              "subscriber of output-events. Default if null is parent."),
@@ -161,6 +163,7 @@ typedef struct _PRIVATE_DATA {
     BOOL start_pending;             // started while its last stop still waited: listens when it ends
     json_t *certs_loaded;           // certs_fingerprint() of what ytls has loaded
     json_int_t refusedConnxs;
+    json_int_t noChannelConnxs;
 
     uint64_t t_refusal_log[REFUSAL_CAUSES];         // next log of a cause (msectimer)
     json_int_t refused_since_log[REFUSAL_CAUSES];   // refused since the last log
@@ -229,6 +232,9 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     if(strcmp(name, "refusedConnxs")==0) {
         v.found = 1;
         v.v.i = priv->refusedConnxs;
+    } else if(strcmp(name, "noChannelConnxs")==0) {
+        v.found = 1;
+        v.v.i = priv->noChannelConnxs;
     } else if(strcmp(name, "connxs")==0) {
         json_int_t connxs, tconnxs;
         count_connections(gobj, &connxs, &tconnxs);
@@ -922,12 +928,14 @@ PRIVATE void count_connections(hgobj gobj, json_int_t *connxs, json_int_t *tconn
 }
 
 /***************************************************************************
- *  A connection refused by the ip lists: counted always (refusedConnxs),
- *  said on the transition. The first one of a cause is logged, then at
- *  most one each REFUSAL_LOG_MSEC, with the connections of that cause
- *  refused since the last one (`refused`, this one included). Up to
- *  7.25.4 each refusal wrote its line (only the allow-list was asked
- *  here): a refused host that reconnects in a loop was a flood of the log.
+ *  A connection refused: counted always (refusedConnxs by the ip lists,
+ *  noChannelConnxs when no channel was free), said on the transition. The
+ *  first one of a cause is logged, then at most one each REFUSAL_LOG_MSEC,
+ *  with the connections of that cause refused since the last one
+ *  (`refused`, this one included). Up to 7.25.4 each refusal by the ip
+ *  lists wrote its line, and up to 7.25.21 each one of a full server an
+ *  ERROR: peers that retry made 38,156 of them in minutes (600 channels,
+ *  1000 controllers). A full server is a matter of capacity: a warning.
  ***************************************************************************/
 PRIVATE void note_refused_connection(
     hgobj gobj,
@@ -937,28 +945,50 @@ PRIVATE void note_refused_connection(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->refusedConnxs++;
+    static const char *refusals[REFUSAL_CAUSES] = {
+        [REFUSAL_DENIED]            = "TCP_S: Ip denied",
+        [REFUSAL_NOT_ALLOWED]       = "TCP_S: Ip not allowed",
+        [REFUSAL_NO_FREE_CHANNEL]   = "TCP_S: Connection not accepted: no free child tree found",
+    };
+
+    if(cause == REFUSAL_NO_FREE_CHANNEL) {
+        priv->noChannelConnxs++;
+    } else {
+        priv->refusedConnxs++;
+    }
     priv->refused_since_log[cause]++;
 
     if(priv->t_refusal_log[cause] != 0 && !test_msectimer(priv->t_refusal_log[cause])) {
         return; // counted, said at the next log of this cause
     }
 
-    const char *refusal = (cause == REFUSAL_DENIED)?
-        "TCP_S: Ip denied":
-        "TCP_S: Ip not allowed";
-    gobj_log_info(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-        "msg",          "%s", refusal,
-        "msg2",         "%s", refusal,
-        "url",          "%s", priv->url,
-        "peername",     "%s", peername,
-        "refused",      "%ld", (long)priv->refused_since_log[cause],
-        "refusedConnxs", "%ld", (long)priv->refusedConnxs,
-        "next_log_in_ms", "%d", REFUSAL_LOG_MSEC,
-        NULL
-    );
+    if(cause == REFUSAL_NO_FREE_CHANNEL) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", refusals[cause],
+            "msg2",         "%s", refusals[cause],
+            "url",          "%s", priv->url,
+            "peername",     "%s", peername,
+            "refused",      "%ld", (long)priv->refused_since_log[cause],
+            "noChannelConnxs", "%ld", (long)priv->noChannelConnxs,
+            "next_log_in_ms", "%d", REFUSAL_LOG_MSEC,
+            NULL
+        );
+    } else {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", refusals[cause],
+            "msg2",         "%s", refusals[cause],
+            "url",          "%s", priv->url,
+            "peername",     "%s", peername,
+            "refused",      "%ld", (long)priv->refused_since_log[cause],
+            "refusedConnxs", "%ld", (long)priv->refusedConnxs,
+            "next_log_in_ms", "%d", REFUSAL_LOG_MSEC,
+            NULL
+        );
+    }
     priv->refused_since_log[cause] = 0;
     priv->t_refusal_log[cause] = start_msectimer(REFUSAL_LOG_MSEC);
 }
@@ -1097,15 +1127,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         json_t *jn_filter = kw_get_dict(gobj, priv->child_tree_filter, "kw", json_object(), 0);
         gobj_top = gobj_find_child(gobj_parent(gobj), json_incref(jn_filter));
         if(!gobj_top) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                "msg",          "%s", "TCP_S: Connection not accepted: no free child tree found",
-                "msg2",         "%s", "🌐TCP_S: Connection not accepted: no free child tree found",
-                "lHost",        "%s", gobj_read_str_attr(gobj, "lHost"),
-                "lPort",        "%s", gobj_read_str_attr(gobj, "lPort"),
-                NULL
-            );
+            note_refused_connection(gobj, REFUSAL_NO_FREE_CHANNEL, peername);
             close(fd_clisrv);
             return 0;
         }

@@ -211,11 +211,12 @@ static int register_yuno_and_more(void)
          *  ipv4; denied_ips renames three (two of them one ip) and drops
          *  three that are no ip. Then one refusal in phase 1, and in phase
          *  2 only the one of the other cause: a refusal is logged on the
-         *  transition, one a minute of each cause (phase 3 adds none); a
-         *  wrong verdict is an error, which is not in this list.  */
+         *  transition, one a minute of each cause (phase 3 adds none); in
+         *  phase 4 the server is full: one warning for its three refusals.
+         *  A wrong verdict is an error, which is not in this list.  */
         json_pack("[{s:s}, {s:s,s:s}, {s:s,s:s}, "
                   "{s:s,s:s}, {s:s,s:s}, {s:s,s:s}, {s:s,s:s}, {s:s,s:s}, {s:s,s:s}, "
-                  "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+                  "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "ip list entry dropped, it never matched a peer", "entry", "fe80::7",
             "msg", "ip list entry renamed to the form a peer is looked up by", "entry", "::FFFF:10.9.9.12",
@@ -228,6 +229,7 @@ static int register_yuno_and_more(void)
             "msg", "Playing yuno",
             "msg", "TCP_S: Ip denied",
             "msg", "TCP_S: Ip not allowed",
+            "msg", "TCP_S: Connection not accepted: no free child tree found",
             "msg", "Exit to die",
             "msg", "Pausing yuno",
             "msg", "Yuno stopped, gobj end"

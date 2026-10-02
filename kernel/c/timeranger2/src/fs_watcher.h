@@ -118,6 +118,9 @@ struct fs_event_s {
                                 // happened; the one visited, in FS_RESCAN_DIR_TYPE); -1 if none
     int subdir_wd;              // Output: FS_SUBDIR_CREATED_TYPE, the watch just set on the
                                 // directory created; -1 if it is gone or is not watched
+    json_int_t dir_fds_by_path; // Internal: FS_FLAG_DIR_FDS, subdirectories watched by their path
+                                // because their descriptor could not be opened, since that was said
+    BOOL dir_fds_warned;        // Internal: FS_FLAG_DIR_FDS, half the open-files limit was said
 } ;
 
 

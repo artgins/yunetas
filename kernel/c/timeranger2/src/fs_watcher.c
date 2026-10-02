@@ -16,6 +16,7 @@
 #include <string.h>
 #include <limits.h>
 #include <sys/inotify.h>
+#include <sys/resource.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -849,6 +850,44 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 }
 
 /***************************************************************************
+ *  FS_FLAG_DIR_FDS holds a descriptor per subdirectory watched, for the
+ *  life of the watch: a follower's feed, one per key directory. Said once
+ *  per watcher when they reach half of the soft open-files limit, before
+ *  the limit is what says it (every read failing with EMFILE).
+ ***************************************************************************/
+PRIVATE void warn_dir_fds_near_the_limit(fs_event_t *fs_event)
+{
+    size_t n = json_object_size(fs_event->jn_tracked_fds);
+    if(fs_event->dir_fds_warned || (n % 64) != 0) {
+        return;
+    }
+    struct rlimit rl;
+    if(getrlimit(RLIMIT_NOFILE, &rl) < 0) {
+        gobj_log_error(fs_event->gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "getrlimit() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return;
+    }
+    if(rl.rlim_cur != RLIM_INFINITY && n >= rl.rlim_cur / 2) {
+        fs_event->dir_fds_warned = TRUE;
+        gobj_log_warning(fs_event->gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Directories watched through descriptors: half of the open-files limit",
+            "path",         "%s", fs_event->path,
+            "dir_fds",      "%lu", (unsigned long)n,
+            "soft_limit",   "%lu", (unsigned long)rl.rlim_cur,
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int add_watch(
@@ -874,18 +913,38 @@ PRIVATE int add_watch(
         dir_fd = open(path, O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
         if(dir_fd < 0) {
             if(errno != ENOENT || !may_vanish) {
-                gobj_log_error(fs_event->gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM,
-                    "msg",          "%s", "Cannot open a directory to watch it through its descriptor: watched by its path",
-                    "path" ,        "%s", path,
-                    "errno",        "%d", errno,
-                    "serrno" ,      "%s", strerror(errno),
-                    NULL
-                );
+                /*
+                 *  Said at the transition, not per directory: out of
+                 *  descriptors (EMFILE), every new key directory of a
+                 *  follower fails the same way. The ones after it are
+                 *  counted, and said when a descriptor opens again.
+                 */
+                if(fs_event->dir_fds_by_path == 0) {
+                    gobj_log_error(fs_event->gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_SYSTEM,
+                        "msg",          "%s", "Cannot open a directory to watch it through its descriptor: watched by its path (and the next ones that fail, counted)",
+                        "path" ,        "%s", path,
+                        "errno",        "%d", errno,
+                        "serrno" ,      "%s", strerror(errno),
+                        NULL
+                    );
+                }
+                fs_event->dir_fds_by_path++;
             }
             // ENOENT: inotify_add_watch() below says it the usual way
         } else {
+            if(fs_event->dir_fds_by_path > 0) {
+                gobj_log_warning(fs_event->gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Directories watched through their descriptor again",
+                    "path" ,        "%s", fs_event->path,
+                    "watched_by_path", "%ld", (long)fs_event->dir_fds_by_path,
+                    NULL
+                );
+                fs_event->dir_fds_by_path = 0;
+            }
             snprintf(watched_path, sizeof(watched_path), "/proc/self/fd/%d", dir_fd);
             mask &= ~(uint32_t)IN_DONT_FOLLOW;
         }
@@ -963,6 +1022,7 @@ PRIVATE int add_watch(
             close(dir_fd);  // the same inode, already held
         } else if(dir_fd >= 0) {
             json_object_set_new(fs_event->jn_tracked_fds, s_wd, json_integer(dir_fd));
+            warn_dir_fds_near_the_limit(fs_event);
         }
         /*
          *  Another directory watched at this path before, and gone (its

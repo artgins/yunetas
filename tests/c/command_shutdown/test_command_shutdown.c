@@ -19,11 +19,16 @@
  *          periodic never kills us, the watchdog fires first and the test
  *          fails with a message instead of hanging until ctest times out.
  *
+ *          And the open-files limit: started with a soft limit under its
+ *          hard one, the yuno (limit_open_files 0, the default) raises it to
+ *          the hard one. Up to 7.25.21 it left it as it came.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <yunetas.h>
 
 #define APP             "test_command_shutdown"
@@ -274,6 +279,17 @@ int main(int argc, char *argv[])
         MEM_SUPERBLOCK
     );
 
+    /*
+     *  A soft limit of open files under the hard one, as a desktop session
+     *  gives: the yuno raises it
+     */
+    struct rlimit rl;
+    BOOL lowered = FALSE;
+    if(getrlimit(RLIMIT_NOFILE, &rl) == 0 && rl.rlim_max > 512) {
+        rl.rlim_cur = 512;
+        lowered = (setrlimit(RLIMIT_NOFILE, &rl) == 0)? TRUE : FALSE;
+    }
+
     int result = yuneta_entry_point(
         argc, argv,
         APP, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
@@ -282,6 +298,14 @@ int main(int argc, char *argv[])
         register_yuno_and_more,
         NULL                    // cleaning
     );
+
+    if(lowered) {
+        getrlimit(RLIMIT_NOFILE, &rl);
+        check_int("the soft limit of open files raised to the hard one",
+            rl.rlim_cur == rl.rlim_max, 1);
+    } else {
+        printf("     SKIPPED: the soft limit of open files could not be lowered\n");
+    }
 
     size_t leaked = get_cur_system_memory();
     check_int("no memory leak", (int)leaked, 0);

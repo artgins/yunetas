@@ -46,6 +46,17 @@ fs_event_t *fs_event = fs_create_watcher_event(
 // mv disks/rtA disks/.closing.123.1  ->  FS_SUBDIR_DELETED_TYPE, filename "rtA"
 ```
 
+The descriptors of `FS_FLAG_DIR_FDS` live as long as their watch -- a
+follower holds one per key directory of each feed -- so the watcher says, once,
+when they reach half of the soft open-files limit (*"Directories watched
+through descriptors: half of the open-files limit"*, with `dir_fds` and
+`soft_limit`). A directory whose descriptor cannot be opened (EMFILE) is
+watched by its path; the first failure is an ERROR, the next ones are only
+counted, and the count is said when a descriptor opens again (*"Directories
+watched through their descriptor again"*, `watched_by_path`). A yuno raises its
+own soft limit to its hard one at its start (C_YUNO `limit_open_files`, `0` by
+default).
+
 With `FS_FLAG_DIR_FDS` each SUBDIRECTORY watched is opened first and watched through that descriptor, so the watch and the descriptor are one inode: see [`fs_watcher_dir_fd()`](#fs_watcher_dir_fd). Every event carries `event_wd` (the watch of `directory`) and, for `FS_SUBDIR_CREATED_TYPE`, `subdir_wd` (the watch just set on the directory created, `-1` if it was gone).
 
 **Returns**

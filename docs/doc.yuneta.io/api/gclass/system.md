@@ -64,6 +64,24 @@ what you have when the yuno answers and the agent does not, or when the yuno
 runs under no agent at all.
 :::
 
+### Open files
+
+`limit_open_files` (default `0`) is the soft limit of open files the yuno
+asks for at its start. With `0` it raises its soft limit to its hard one: a
+yuno started from a desktop session gets the soft 1024 of `systemd --user`,
+and a timeranger2 follower holds a descriptor per key directory of each feed
+(`FS_FLAG_DIR_FDS`), so 1024 ran out (up to 7.25.21, `0` left the limit as it
+came). A positive value sets both limits to it when the soft one is lower.
+What it got is in `limit_open_files_done`.
+
+```json
+{
+    "yuno": {
+        "limit_open_files": 200000
+    }
+}
+```
+
 See also the [Yuno API](../runtime/yuno.md) for C helper functions.
 
 ---

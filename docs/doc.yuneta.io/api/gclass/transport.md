@@ -203,6 +203,7 @@ Creates a child C_TCP (inside a C_CHANNEL) for each accepted client.
 | `connxs` | `integer` | Connections held now (stat): the connected clisrv `C_TCP`s of the channels this server serves whose `tcp_s` is this server, read when asked (up to 7.25.20 it read 0). |
 | `tconnxs` | `integer` | Connections accepted since the gobj was created (stat; a stop and a start do not reset it, as `connxs` of `C_TCP` is not): counted at the accept with `child_tree_filter`, or, with the new method, where each clisrv accepts by itself, the sum of the own `connxs` of the clisrvs whose `tcp_s` is this server (up to 7.25.20 it read 0). |
 | `refusedConnxs` | `integer` | Connections refused at accept by the ip lists (stat, since 7.25.5). |
+| `noChannelConnxs` | `integer` | Connections not accepted because no channel of `child_tree_filter` was free: the server is full (stat, after 7.25.21). |
 | `clisrv_kw` | `json` | Extra kw passed to each child client/server. |
 
 The stats count by OWNER, not by address: a clisrv is this server's when its
@@ -336,6 +337,19 @@ a loop was a flood of the log.
 ```text
 INFO  note_refused_connection: TCP_S: Ip denied  peername=203.0.113.7:51544 refused=1 refusedConnxs=1 next_log_in_ms=60000
 INFO  note_refused_connection: TCP_S: Ip denied  peername=203.0.113.7:51702 refused=318 refusedConnxs=319 next_log_in_ms=60000
+```
+
+A server that is FULL -- with `child_tree_filter`, no channel free for the
+connection -- refuses it the same way, as a third cause with its own stat,
+`noChannelConnxs` (not `refusedConnxs`: "full" is not "denied"), and at
+WARNING level, because it is a matter of capacity: `TCP_S: Connection not
+accepted: no free child tree found`, the first one, then one a minute at most
+with the count. Up to 7.25.21 each one was an ERROR and counted nowhere: 600
+channels and 1000 simulated controllers, which retry, made 38,156 of them in
+minutes.
+
+```text
+WARN  note_refused_connection: TCP_S: Connection not accepted: no free child tree found  peername=10.0.0.9:40112 refused=1 noChannelConnxs=1 next_log_in_ms=60000
 ```
 
 Example: ban one ip on every TCP listener of a yuno, and see the list:

@@ -22,6 +22,12 @@
  *              127.0.1.3   refused ("TCP_S: Ip not allowed")
  *              127.0.1.4   accepted
  *
+ *          Phase 4, the server full: 127.0.1.4 connects 6 times, the
+ *              first 3 take the 3 channels, the next 3 find none: one
+ *              WARNING ("no free child tree found") for the three, counted
+ *              in noChannelConnxs, not in refusedConnxs. Up to 7.25.21 each
+ *              one was an ERROR, and counted nowhere.
+ *
  *          Phase 3, 127.0.1.2 connects 5 times more: refused, not logged.
  *              A refusal is logged on the transition, the first one of a
  *              cause and then one a minute at most, with the count of the
@@ -105,6 +111,15 @@ PRIVATE peer_t phase3[] = {
     {"127.0.1.2", FALSE, -1},
     {0}
 };
+PRIVATE peer_t phase4[] = {
+    {"127.0.1.4", TRUE,  -1},
+    {"127.0.1.4", TRUE,  -1},
+    {"127.0.1.4", TRUE,  -1},
+    {"127.0.1.4", FALSE, -1},
+    {"127.0.1.4", FALSE, -1},
+    {"127.0.1.4", FALSE, -1},
+    {0}
+};
 
 /*---------------------------------------------*
  *      Attributes
@@ -179,6 +194,7 @@ PRIVATE int mt_stop(hgobj gobj)
     close_peers(phase1);
     close_peers(phase2);
     close_peers(phase3);
+    close_peers(phase4);
     return 0;
 }
 
@@ -637,14 +653,32 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, 300);
             break;
 
+        case 3:
+            check_peers(gobj, phase3, "a denied host that reconnects");
+            close_peers(phase3);
+            connect_peers(gobj, phase4);
+            set_timeout(priv->timer, 300);
+            break;
+
         default:
             {
-                check_peers(gobj, phase3, "a denied host that reconnects");
-                close_peers(phase3);
+                check_peers(gobj, phase4, "the server full");
+                close_peers(phase4);
                 hgobj server_port = gobj_find_child(
                     priv->gobj_input_side,
                     json_pack("{s:s}", "__gclass_name__", C_TCP_S)
                 );
+                json_int_t no_channel = gobj_read_integer_attr(server_port, "noChannelConnxs");
+                if(no_channel != 3) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "wrong count of connections with no free channel",
+                        "expected",     "%d", 3,
+                        "got",          "%ld", (long)no_channel,
+                        NULL
+                    );
+                }
                 json_int_t refused = gobj_read_integer_attr(server_port, "refusedConnxs");
                 if(refused != 8) {
                     gobj_log_error(gobj, 0,
@@ -657,12 +691,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     );
                 }
             }
-            if(priv->opens != 3) {
+            if(priv->opens != 6) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "wrong number of channels opened",
-                    "expected",     "%d", 3,
+                    "expected",     "%d", 6,
                     "got",          "%d", priv->opens,
                     NULL
                 );

@@ -60,6 +60,12 @@
  *  IN_IGNORED until it was closed). After the stop the process holds the
  *  descriptors it held before the watcher (/proc/self/fd): none leaks.
  *
+ *  And the open-files limit (do_test_dir_fds_limit): with a small soft
+ *  limit, the directories watched through descriptors are said once when
+ *  they reach half of it; out of descriptors (EMFILE), the failure to open
+ *  a directory is said ONCE however many fail (they are watched by path,
+ *  counted), and when one opens again, how many went by path.
+ *
  *  And the ROOT deleted and created again while the queue is full
  *  (do_test_root_reborn, recursive and not): after the pass the new root
  *  is watched, a file created in it is heard. Up to 7.25.20 the pass
@@ -81,6 +87,7 @@
 #include <time.h>
 #include <sys/inotify.h>
 #include <dirent.h>
+#include <sys/resource.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -739,6 +746,122 @@ PRIVATE int do_test_dir_fds(void)
 }
 
 /***************************************************************************
+ *  FS_FLAG_DIR_FDS and the open-files limit
+ ***************************************************************************/
+PRIVATE int fs_callback_count(fs_event_t *fs_event)
+{
+    if(fs_event->fs_type == FS_SUBDIR_CREATED_TYPE) {
+        dirfd_created++;
+    }
+    return 0;
+}
+
+PRIVATE int do_test_dir_fds_limit(void)
+{
+    int result = 0;
+    char root5[PATH_MAX];
+    build_path(root5, sizeof(root5), getenv("HOME"), "tests_yuneta", "fs_watcher_dir_fds_limit", NULL);
+    rmrdir(root5);
+    mkrdir(root5, 02770);
+
+    struct rlimit rl_saved;
+    getrlimit(RLIMIT_NOFILE, &rl_saved);
+    int base = count_open_fds();
+    if(base < 0 || base + 72 > 128 || rl_saved.rlim_max < 128) {
+        printf("     SKIPPED: dir fds limit, %d descriptors open, hard limit %lu\n",
+            base, (unsigned long)rl_saved.rlim_max);
+        rmrdir(root5);
+        return 0;
+    }
+
+    set_expected_results("fs_watcher dir fds limit",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "Directories watched through descriptors: half of the open-files limit",
+            "msg", "Cannot open a directory to watch it through its descriptor: watched by its path (and the next ones that fail, counted)",
+            "msg", "Directories watched through their descriptor again"
+        ),
+        NULL, NULL, 1
+    );
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop, root5, FS_FLAG_RECURSIVE_PATHS|FS_FLAG_DIR_FDS, fs_callback_count, 0, NULL, NULL
+    );
+    if(!fs_event || fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> dir fds limit: the watcher could not be started\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    /*
+     *  A soft limit of 128: 64 directories reach half of it
+     */
+    struct rlimit rl = rl_saved;
+    rl.rlim_cur = 128;
+    setrlimit(RLIMIT_NOFILE, &rl);
+    char sub[PATH_MAX];
+    char name[32];
+    dirfd_created = 0;
+    for(int i = 0; i < 64; i++) {
+        snprintf(name, sizeof(name), "k%02d", i);
+        build_path(sub, sizeof(sub), root5, name, NULL);
+        mkdir(sub, 0700);
+    }
+    for(int i = 0; i < 100 && dirfd_created < 64; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(!fs_event->dir_fds_warned) {
+        printf("%sERROR%s --> dir fds limit: half of the limit not said (%d dirs, %d fds)\n",
+            On_Red BWhite, Color_Off, dirfd_created, (int)json_object_size(fs_event->jn_tracked_fds));
+        result += -1;
+    }
+
+    /*
+     *  Out of descriptors: three directories, one error, three by path
+     */
+    rl.rlim_cur = (rlim_t)(count_open_fds() - 1);  // its own count held one more
+    setrlimit(RLIMIT_NOFILE, &rl);
+    dirfd_created = 0;
+    for(int i = 0; i < 3; i++) {
+        snprintf(name, sizeof(name), "e%02d", i);
+        build_path(sub, sizeof(sub), root5, name, NULL);
+        mkdir(sub, 0700);
+    }
+    for(int i = 0; i < 50 && dirfd_created < 3; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(fs_event->dir_fds_by_path != 3) {
+        printf("%sERROR%s --> dir fds limit: %ld directories by path, expected 3\n",
+            On_Red BWhite, Color_Off, (long)fs_event->dir_fds_by_path);
+        result += -1;
+    }
+
+    /*
+     *  Room again: one opens, and the count is said
+     */
+    setrlimit(RLIMIT_NOFILE, &rl_saved);
+    dirfd_created = 0;
+    build_path(sub, sizeof(sub), root5, "again", NULL);
+    mkdir(sub, 0700);
+    for(int i = 0; i < 50 && dirfd_created < 1; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(fs_event->dir_fds_by_path != 0) {
+        printf("%sERROR%s --> dir fds limit: the count was not said when a descriptor opened again\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("fs_watcher dir fds limit: stop", NULL, NULL, NULL, 1);
+    fs_stop_watcher_event(fs_event);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+    setrlimit(RLIMIT_NOFILE, &rl_saved);
+    rmrdir(root5);
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -966,6 +1089,7 @@ int main(int argc, char *argv[])
     result += do_test_queued_events_end();
     result += do_test_root_unwatchable();
     result += do_test_dir_fds();
+    result += do_test_dir_fds_limit();
     result += do_test_root_reborn(FALSE);
     result += do_test_root_reborn(TRUE);
     result += do_test();

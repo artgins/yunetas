@@ -29,8 +29,11 @@ except the hook and the entries this list marks "(no red test)".
 - **Rebuild every project against the new headers.** `fs_event_t`
   (`fs_watcher.h`) gains seven fields, at its end.
 - **An rt_disk follower holds one more descriptor per key directory of each
-  feed** (`FS_FLAG_DIR_FDS`). The packages give the yuneta user `nofile
-  unlimited`; a follower run elsewhere needs room for them.
+  feed** (`FS_FLAG_DIR_FDS`). A yuno now raises its soft open-files limit to
+  its hard one at its start (C_YUNO `limit_open_files`, `0` by default; up
+  to 7.25.21 `0` left it as it came, and a yuno started from a desktop
+  session kept the soft 1024); the packages give the yuneta user `nofile
+  unlimited`. A follower that is not a yuno raises its own.
 - **A stop of a TCP connection no longer waits for ever for a peer that does
   not take its data**: after `timeout_stop_tx` (10 s by default, a new
   `C_TCP` attr) the connection is aborted. A host that stops a connection
@@ -141,6 +144,27 @@ except the hook and the entries this list marks "(no red test)".
   `c_tcps/test7` (red: a SegFault in clear and over TLS); the `mt_stop()`
   order has no red test (a connected clisrv always has a read in flight, so
   its stop never ends inside `mt_stop()`).
+- **C_TCP_S: a full server says it once a minute, as a warning, and counts
+  it.** With `child_tree_filter`, a connection that found no free channel
+  logged an ERROR each time, and peers retry: 600 channels and 1000
+  simulated controllers made 38,156 of them in minutes. It is now a third
+  cause of refusal, said on the transition like the ip lists (the first one,
+  then one a minute with the count), as a WARNING (a matter of capacity),
+  and counted in a new stat `noChannelConnxs` -- `refusedConnxs` stays for
+  the ip lists. Test `test_c_tcp_s_ip_lists` (phase 4).
+- **A yuno raises its soft open-files limit to its hard one**, and the
+  descriptors of a follower are watched. With `limit_open_files` `0` (the
+  default) C_YUNO left the limit as it came, so a yuno started from a
+  desktop session ran with the soft 1024 of `systemd --user`, and a
+  timeranger2 follower, which holds a descriptor per key directory of each
+  feed, ran out (every record read failing). Now `0` raises the soft limit
+  to the hard one (and a `getrlimit()` that fails no longer goes on with
+  the limit unset). fs_watcher says once when its directory descriptors
+  reach half of the soft limit, and a directory that cannot be opened
+  (EMFILE) is said once, not per key directory: the next ones are counted,
+  and the count is said when a descriptor opens again. Tests
+  `command_shutdown` (the limit) and `test_fs_watcher_overflow` (`dir fds
+  limit`).
 - **timeranger2: a follower does not hand a record without its body**, and
   a read that finds its file gone is a warning. On the by-path fallback a
   record of a life already deleted could not be read and was handed with a

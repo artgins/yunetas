@@ -535,7 +535,7 @@ SDATA (DTP_INTEGER, "cert_critical_days",SDF_WR|SDF_PERSIST,"2",        "Log CRI
 SDATA (DTP_BOOLEAN, "autoplay",         SDF_RD,         "0",            "Auto play the yuno, don't use in yunos citizen, only in standalone or tests"),
 
 SDATA (DTP_INTEGER, "io_uring_entries", SDF_RD,         "0",            "Entries for the SQ ring, multiply by 3 the maximum number of wanted connections. Default if 0 = 2400"),
-SDATA (DTP_INTEGER, "limit_open_files", SDF_PERSIST,    "0",            "Limit open files"),
+SDATA (DTP_INTEGER, "limit_open_files", SDF_PERSIST,    "0",            "Limit open files. 0: the soft limit raised to the hard one"),
 SDATA (DTP_INTEGER, "limit_open_files_done", SDF_RD,    "",             "Limit open files done"),
 
 SDATA (DTP_INTEGER, "cpu_core",         SDF_WR|SDF_PERSIST, "0",        "Cpu core, used if > 0"),
@@ -5601,6 +5601,7 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
             NULL
         );
         gobj_write_integer_attr(gobj, "limit_open_files_done", -1);
+        return -1;  // up to 7.25.21 it went on with rl unset
     }
 
     gobj_log_debug(gobj, 0,
@@ -5613,17 +5614,51 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
         NULL
     );
 
-    if(rl.rlim_cur >= limit_open_files) {
+    if(limit_open_files <= 0) {
+        /*
+         *  0 (the default): as many as the system lets the process have,
+         *  its soft limit up to its hard one. A yuno started from a desktop
+         *  session got the soft 1024 of systemd --user, and a timeranger2
+         *  follower holds a descriptor per key directory of each feed: it
+         *  ran out of them. Up to 7.25.21 0 left the limit as it came.
+         */
+        if(rl.rlim_cur < rl.rlim_max) {
+            rlim_t soft = rl.rlim_cur;
+            rl.rlim_cur = rl.rlim_max;
+            if(setrlimit(RLIMIT_NOFILE, &rl) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "setrlimit() FAILED: the soft limit of open files stays",
+                    "rlim_cur",     "%lu", (unsigned long)soft,
+                    "rlim_max",     "%lu", (unsigned long)rl.rlim_max,
+                    "errno",        "%d", errno,
+                    "strerror",     "%s", strerror(errno),
+                    NULL
+                );
+                gobj_write_integer_attr(gobj, "limit_open_files_done", (json_int_t)soft);
+                return -1;
+            }
+            gobj_log_debug(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "soft limit of open files raised to the hard one",
+                "was",          "%lu", (unsigned long)soft,
+                "now",          "%lu", (unsigned long)rl.rlim_cur,
+                NULL
+            );
+        }
+        gobj_write_integer_attr(gobj, "limit_open_files_done", (json_int_t)rl.rlim_cur);
+        return 0;
+    }
+
+    if(rl.rlim_cur >= (rlim_t)limit_open_files) {
         // Valid limit for us
         gobj_write_integer_attr(gobj, "limit_open_files_done", (json_int_t)rl.rlim_cur);
         return 0;
     }
 
     gobj_write_integer_attr(gobj, "limit_open_files_done", -1); // Set fail by default
-
-    if(limit_open_files <= 0) {
-        return 0;
-    }
 
     /*
      *  Set new limit. It's common for all app's of yuneta user

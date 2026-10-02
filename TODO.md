@@ -62,28 +62,15 @@ Severity in parentheses where one was assigned.
   in the signal, which the follower can compare across feeds) rather than
   queue positions; write the red test first (`test_delete_key_propagation`
   has the hooks: `inflight_open`, `__wrap_rmdir`).
-- **An rt_disk follower out of descriptors or of watches** (medium-low; cloud
-  review of `b2f972382`). With `FS_FLAG_DIR_FDS` a follower holds one
-  descriptor per key directory of each feed, and a key directory lives until
-  its key is deleted, so the count is the distinct keys written since the
-  feed opened -- the scale its inotify watches always had, but against
-  `nofile`, far lower than `max_user_watches`. Those descriptors are outside
-  the `EMFILE` recovery of `get_topic_rd_fd()`: once they fill the limit,
-  every record read fails, and each new key directory goes back to the watch
-  by path (the reborn-key race, for that key). A yuno does NOT raise its
-  limit by default (`limit_open_files` is `"0"`, `c_yuno.c` ~538); on the
-  packaged nodes the agent's init script runs `ulimit -Sn $nr_open` and
-  `limits.d` gives `nofile unlimited`, which the yunos inherit. Exposed: an
-  agent started from a desktop session (soft 1024) and a follower process
-  that is not under it. The process limit belongs to `c_yuno`
-  (`set_limit_open_files()`, raising soft to hard when the value is 0), not
-  to the timeranger2 library. Same
-  family: a key directory whose watch cannot be made (`ENOSPC` at
-  `max_user_watches`) is taken for gone by `place_new_key_dir_scans()`, so
-  the links in it are not read, and the ones made later are not heard (no
-  watch). Both are logged as ERROR; neither is recovered. Decide: a warning
-  at a fraction of the limit, a recovery that does not close the directory
-  descriptors, a retry of the watch.
+- **A key directory whose watch cannot be made is taken for gone** (low;
+  what is left of the follower-out-of-resources item, the descriptors part
+  fixed 2026-10-02). `ENOSPC` at `max_user_watches` (or `ENOMEM`) gives
+  `subdir_wd` -1, and `place_new_key_dir_scans()` takes the directory as
+  gone: the links in it are not read, and the ones made later are not heard
+  (no watch). It is logged as an ERROR and never recovered. Reading it by
+  path once would rescue only the links of that moment; the real answer is
+  a retry of the watch at a point that comes anyway (the next overflow pass,
+  or the next record of the key), not a timer.
 - **`dir_identity()` fails in silence** (medium, smaller reach since
   `b2f972382`: used only on the no-descriptor fallback). It answers FALSE
   with no log on any `statx` failure, not only ENOENT, and its callers
@@ -171,15 +158,6 @@ Severity in parentheses where one was assigned.
   `mt_create`, monotonic, not the wall-clock `start_time`), fix the doc
   example (`yuneta_agent.md` ~176), CHANGELOG the unit change. The ESP32
   yuno has no `read_uptime()`: its `uptime` is never written and reads 0.
-- **A full `C_TCP_S` logs an ERROR per refused connection.** When the
-  `child_tree_filter` finds no free channel, `c_tcp_s.c` (~1100) logs *"TCP_S:
-  Connection not accepted: no free child tree found"* for every attempt and
-  the peers retry: 600 channels and 1000 simulated controllers made 38,156 of
-  them in minutes. The ip-list refusals already warn on the transition and
-  count in `refusedConnxs` (`e16b87583`); this path must do the same, as a
-  third cause with its own counter (`noChannelConnxs`): `refusedConnxs` is
-  incremented unconditionally today (~940), so "full" would count as
-  "denied".
 
 ### Control center
 
