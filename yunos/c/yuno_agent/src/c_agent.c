@@ -95,6 +95,7 @@ PRIVATE int run_yuno(
 PRIVATE BOOL is_launching(hgobj gobj, const char *yuno_id);
 PRIVATE json_t *find_living_yuno_pids(hgobj gobj, json_t *yuno);
 PRIVATE BOOL yuno_lives_unregistered(hgobj gobj, json_t *yuno);
+PRIVATE json_t *signal_unconnected_yunos(hgobj gobj, json_t *kw_filter, BOOL app, int signal2kill, hgobj src);
 PRIVATE void kill_yuno_unregistered(hgobj gobj, json_t *yuno);
 PRIVATE int kill_yuno(
     hgobj gobj,
@@ -5281,6 +5282,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     /*
      *  Get a iter of matched resources.
      */
+    json_t *kw_unconnected = json_deep_copy(kw);
     json_object_set_new(kw, "yuno_running", json_true());
 
     json_t *iter = gobj_list_nodes(
@@ -5290,8 +5292,38 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
+
+    /*
+     *  And the ones alive that the agent does not know running (they lost
+     *  their channel, or outlived a restart of the agent): nothing will say
+     *  they closed, so they are signalled and said now, not counted. Up to
+     *  7.25.21 kill-yuno could not reach them.
+     */
+    int signal_unconnected = (int)gobj_read_integer_attr(gobj, "signal2kill");
+    if(force) {
+        signal_unconnected = SIGKILL;
+    } else if(!signal_unconnected) {
+        signal_unconnected = SIGQUIT;
+    }
+    json_object_set_new(kw_unconnected, "yuno_running", json_false());
+    json_t *jn_unconnected = signal_unconnected_yunos(
+        gobj, kw_unconnected, app, signal_unconnected, src
+    );
+
     if(json_array_size(iter)==0) {
         JSON_DECREF(iter)
+        if(json_array_size(jn_unconnected) > 0) {
+            return msg_iev_build_response(gobj,
+                0,
+                json_sprintf("%s: %d yuno(s) alive but not connected to the agent: signalled (%d)",
+                    gobj_yuno_role_plus_name(), (int)json_array_size(jn_unconnected), signal_unconnected
+                ),
+                0,
+                jn_unconnected, // owned
+                kw  // owned
+            );
+        }
+        JSON_DECREF(jn_unconnected)
         return msg_iev_build_response(gobj,
             -1,
             json_sprintf(
@@ -5356,6 +5388,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 }
                 JSON_DECREF(iter)
                 JSON_DECREF(filterlist);
+                JSON_DECREF(jn_unconnected)
                 return msg_iev_build_response(gobj,
                     -1,
                     json_sprintf(
@@ -5376,6 +5409,18 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     if(!total_killed) {
         JSON_DECREF(iter)
         JSON_DECREF(filterlist);
+        if(json_array_size(jn_unconnected) > 0) {
+            return msg_iev_build_response(gobj,
+                0,
+                json_sprintf("%s: %d yuno(s) alive but not connected to the agent: signalled (%d)",
+                    gobj_yuno_role_plus_name(), (int)json_array_size(jn_unconnected), signal_unconnected
+                ),
+                0,
+                jn_unconnected, // owned
+                kw  // owned
+            );
+        }
+        JSON_DECREF(jn_unconnected)
         return msg_iev_build_response(gobj,
             -1,
             json_sprintf(
@@ -5394,8 +5439,15 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *--------------------------------------*/
     json_t *kw_answer = kw_incref(kw);
 
-    char info[80];
-    snprintf(info, sizeof(info), "%d yunos found to kill", total_killed);
+    char info[NAME_MAX];
+    if(json_array_size(jn_unconnected) > 0) {
+        snprintf(info, sizeof(info), "%d yunos found to kill, %d alive but not connected signalled",
+            total_killed, (int)json_array_size(jn_unconnected)
+        );
+    } else {
+        snprintf(info, sizeof(info), "%d yunos found to kill", total_killed);
+    }
+    JSON_DECREF(jn_unconnected)
     json_t *kw_counter = json_pack("{s:s, s:i, s:I, s:o, s:{s:o, s:o}}",
         "info", info,
         "max_count", total_killed,
@@ -9118,6 +9170,84 @@ PRIVATE void kill_yuno_unregistered(hgobj gobj, json_t *yuno)
         }
     }
     JSON_DECREF(jn_pids)
+}
+
+/***************************************************************************
+ *  kill-yuno of the yunos alive that the agent does not know running: the
+ *  processes of each one (its watcher and its child) get `signal2kill`; the
+ *  watcher ignores SIGQUIT and ends with its child's orderly exit, SIGKILL
+ *  takes both. Return a list of {id, yuno_role, yuno_name, pids}, owned.
+ ***************************************************************************/
+PRIVATE json_t *signal_unconnected_yunos(
+    hgobj gobj,
+    json_t *kw_filter,  // owned
+    BOOL app,
+    int signal2kill,
+    hgobj src
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_signalled = json_array();
+    json_t *iter = gobj_list_nodes(
+        priv->resource,
+        "yunos",
+        kw_filter,  // owned
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        src
+    );
+
+    int idx; json_t *yuno;
+    json_array_foreach(iter, idx, yuno) {
+        const char *id = SDATA_GET_ID(yuno);
+        if(app && atoi(id) < 1000) {
+            continue;
+        }
+        json_t *jn_pids = find_living_yuno_pids(gobj, yuno);
+        if(!jn_pids) {
+            continue;   // Error already logged
+        }
+        if(json_array_size(jn_pids) == 0) {
+            JSON_DECREF(jn_pids)
+            continue;
+        }
+        int idx2; json_t *jn_pid;
+        json_array_foreach(jn_pids, idx2, jn_pid) {
+            pid_t pid = (pid_t)json_integer_value(jn_pid);
+            if(kill(pid, signal2kill) < 0 && errno != ESRCH) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot signal a yuno not connected to the agent",
+                    "yuno_id",      "%s", id,
+                    "pid",          "%d", (int)pid,
+                    "signal",       "%d", signal2kill,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+            }
+        }
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
+            "msg",          "%s", "yuno alive but not connected to the agent: signalled by kill-yuno",
+            "yuno_id",      "%s", id,
+            "yuno_role",    "%s", kw_get_str(gobj, yuno, "yuno_role", "", KW_REQUIRED),
+            "signal",       "%d", signal2kill,
+            "pids",         "%j", jn_pids,
+            NULL
+        );
+        json_array_append_new(jn_signalled, json_pack("{s:s, s:s, s:s, s:o}",
+            "id", id,
+            "yuno_role", kw_get_str(gobj, yuno, "yuno_role", "", KW_REQUIRED),
+            "yuno_name", kw_get_str(gobj, yuno, "yuno_name", "", KW_REQUIRED),
+            "pids", jn_pids     // owned
+        ));
+    }
+    JSON_DECREF(iter)
+
+    return jn_signalled;
 }
 
 /***************************************************************************

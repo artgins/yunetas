@@ -397,6 +397,24 @@ An **orderly shutdown**, not a SIGKILL, performed by
 5. When the channel closes, [`ac_on_close()`](https://github.com/artgins/yunetas/blob/7.25.21/yunos/c/yuno_agent/src/c_agent.c#L11957)
    flips `yuno_running=false`, `yuno_playing=false`, `yuno_pid=0`.
 
+A yuno that matches and is alive but **not connected** (it lost its channel,
+or outlived a restart of the agent: §4.6) is reached too. It is found in
+`/proc` as the sweeps find it, and its processes -- watcher and child -- get
+the same signal: `signal2kill`, or SIGKILL with `force=1`. The watcher
+ignores SIGQUIT and ends with its child's orderly exit. Nothing will say
+it closed, so it is not waited for: the answer says it at once, with its
+pids, and the answer of the connected ones adds how many were signalled.
+
+```bash
+ycommand -c 'kill-yuno id=5020 force=1'
+# yuneta_agent^node: 1 yuno(s) alive but not connected to the agent: signalled (9)
+# data: [{"id": "5020", "yuno_role": "db_tracks_ce", "pids": [6933, 6934]}]
+```
+
+Up to 7.25.21 `kill-yuno` selected only the yunos the agent saw running, and
+answered *"Yuno not found or already not running"* for one that lived
+unconnected.
+
 ### 4.6 Crash detection and reconciliation
 
 **From the agent's point of view**, a crash is indistinguishable from a
@@ -473,8 +491,8 @@ What the agent contributes on top:
    living one "as not master" and aborted (*"Message NOT SAVED in the
    queue"*), and when the first one reconnected `ac_on_open()` killed it as
    the intruder. A node bounce (`restart_nodes()`, `deactivate-snap`) kills
-   such a yuno too (SIGKILL, with a WARNING) before it runs them all again.
-   `kill-yuno` does not reach it: it acts on yunos with an open channel.
+   such a yuno too (SIGKILL, with a WARNING) before it runs them all again,
+   and `kill-yuno` signals it (§4.5).
 
 Forensics: a crashed yuno also dumps a core at `/var/crash/core.<role>`
 (sysctl + PAM limits configured by the `.deb`, see

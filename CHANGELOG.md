@@ -180,6 +180,14 @@ except the hook and the entries this list marks "(no red test)".
   *"Destroying a RUNNING gobj"* and *"No subscription found"* per counter. The
   agent's `mt_stop` stops and destroys them, without answering (their
   channels are closing). (no red test)
+- **Agent: `kill-yuno` reaches a yuno alive but not connected.** It
+  selected only the yunos the agent saw running, so one that lost its
+  channel or outlived a restart of the agent answered *"Yuno not found or
+  already not running"* while it lived. Matching yunos alive in `/proc` (the
+  search of the launch sweeps) now get the same signal on their watcher and
+  child (`signal2kill`, SIGKILL with `force=1`) and are said at once in the
+  answer with their pids: nothing will say they closed. (no red test: no
+  agent harness; checked on wattyzer with a stopped webstats, 2026-10-02)
 - **ytls: a session freed inside ANY callback is no longer read.** The
   owner (C_TCP) frees the session from inside a callback when a write cannot
   start or a subscriber drops the connection. Only `on_clear_data_cb` was

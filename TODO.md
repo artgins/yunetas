@@ -53,16 +53,6 @@ Severity in parentheses where one was assigned.
   path once would rescue only the links of that moment; the real answer is
   a retry of the watch at a point that comes anyway (the next overflow pass,
   or the next record of the key), not a timer.
-### Agent
-
-- **`kill-yuno` cannot reach a yuno alive but not connected** (low; left by
-  the fix of its relaunch). Such a yuno is no longer launched again (the
-  sweeps and `run-yuno` find it in `/proc` and warn with its pids), and a
-  node bounce kills it, but `kill-yuno` selects by `yuno_running` and waits
-  for an `EV_ON_CLOSE` that a yuno without a channel never sends. Give it a
-  path for them (SIGQUIT to the pids found, answered at once), or say in the
-  answer that the yuno lives unconnected.
-
 ### Projects (code outside this repo)
 
 - **msg2db consumers do not use `msg2db_id_incomplete()`** (low): the
