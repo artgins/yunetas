@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **`C_TCP`: nothing of the gobj is touched after `EV_DISCONNECTED` if a
+  host destroyed it there.** `set_disconnected()` published the event and
+  then reset the gobj's volatile attrs: a host that destroyed a transport
+  on that event would have been a use after free (none in the tree does).
+  The publish is guarded by the liveness marker of 7.25.22.
+
 - **ytls: a subscriber's errors are not summed into TLS codes; OpenSSL's
   write stall is bounded.** `flush_clear_data()` summed the answers of
   `on_clear_data_cb` into the number space of -2222 (the session freed)

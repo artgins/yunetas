@@ -1041,7 +1041,18 @@ PRIVATE void set_disconnected(hgobj gobj)
     if(priv->inform_disconnection) {
         priv->inform_disconnection = FALSE;
 
+        /*
+         *  A host may destroy the gobj on EV_DISCONNECTED (see alive_t):
+         *  then nothing of it is touched. Up to 7.25.22 its attrs were reset
+         *  after the publish
+         */
+        alive_t marker;
+        alive_push(priv, &marker);
         gobj_publish_event(gobj, EV_DISCONNECTED, 0);
+        if(!marker.alive) {
+            return;     // the gobj is gone
+        }
+        alive_pop(priv, &marker);
     }
 
     // WARNING will reset attrs: connected,secure_connected,peername,sockname
