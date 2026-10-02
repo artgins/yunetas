@@ -1374,6 +1374,7 @@ PRIVATE int encrypt_data(
     }
 
     size_t len;
+    int want_retries = 0;
     while(sskt->ssl && (len = gbuffer_chunk(gbuf))>0) {
         const char *p = gbuffer_cur_rd_pointer(gbuf);    // Don't pop data, be sure it's written
         ERR_clear_error(); // see do_handshake() note on stale error-queue entries
@@ -1388,6 +1389,25 @@ PRIVATE int encrypt_data(
                         ret==SSL_ERROR_WANT_READ?"SSL_ERROR_WANT_READ":"SSL_ERROR_WANT_WRITE",
                         sskt->user_data
                     );
+                }
+                if(++want_retries > 5) {
+                    /*
+                     *  No progress after repeated flushes: the same bound as
+                     *  mbedTLS. Up to 7.25.22 this looped with no bound
+                     */
+                    snprintf(sskt->last_error, sizeof(sskt->last_error), "%s",
+                        "the write made no progress (WANT_READ/WANT_WRITE, 5 tries)"
+                    );
+                    gobj_log_warning(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_OPENSSL,
+                        "msg",              "%s", "SSL_write() WANT stall, aborting",
+                        "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
+                        NULL
+                    );
+                    int ret2 = flush_encrypted_data(sskt); // Send what we have so far
+                    GBUFFER_DECREF(gbuf)
+                    return ret2 == -2222? -2222 : -1;
                 }
                 if(flush_encrypted_data(sskt) == -2222 || flush_clear_data(sskt) == -2222) {
                     // a callback freed sskt re-entrantly;
@@ -1448,6 +1468,17 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
     }
     while(sskt->ssl) {
         gbuffer_t *gbuf = gbuffer_create(sskt->ytls->rx_buffer_size, sskt->ytls->rx_buffer_size);
+        if(!gbuf) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MEMORY,
+                "msg",              "%s", "Failed to create gbuffer",
+                "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
+                NULL
+            );
+            alive_pop(sskt, &marker);
+            return -1;
+        }
         char *p = gbuffer_cur_wr_pointer(gbuf);
         ERR_clear_error(); // see do_handshake() note on stale error-queue entries
         int nread = SSL_read(sskt->ssl, p, sskt->ytls->rx_buffer_size);
@@ -1485,9 +1516,17 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
 
         // Callback clear data
         gbuffer_set_wr(gbuf, nread);
-        ret += sskt->on_clear_data_cb(sskt->user_data, gbuf);
+        int cb_ret = sskt->on_clear_data_cb(sskt->user_data, gbuf);
         if(!marker.alive) {
             return -2222; // sskt freed re-entrantly inside on_clear_data_cb; signal callers not to touch it
+        }
+        if(cb_ret < 0) {
+            /*
+             *  A subscriber's error, -1 however many: up to 7.25.22 the
+             *  answers were summed, into the space of -2222 and of the
+             *  "< -1000, a TLS error" band
+             */
+            ret = -1;
         }
     }
     alive_pop(sskt, &marker);

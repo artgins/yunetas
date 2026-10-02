@@ -1341,9 +1341,17 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
 
         if(nread > 0) {
             gbuffer_set_wr(gbuf, nread);
-            ret += sskt->on_clear_data_cb(sskt->user_data, gbuf);
+            int cb_ret = sskt->on_clear_data_cb(sskt->user_data, gbuf);
             if(!marker.alive) {
                 return -2222; // sskt freed re-entrantly inside on_clear_data_cb; signal callers not to touch it
+            }
+            if(cb_ret < 0) {
+                /*
+                 *  A subscriber's error, -1 however many: up to 7.25.22 the
+                 *  answers were summed, into the space of -2222 and of the
+                 *  "< -1000, a TLS error" band
+                 */
+                ret = -1;
             }
         } else {
             gbuffer_decref(gbuf);

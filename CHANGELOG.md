@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **ytls: a subscriber's errors are not summed into TLS codes; OpenSSL's
+  write stall is bounded.** `flush_clear_data()` summed the answers of
+  `on_clear_data_cb` into the number space of -2222 (the session freed)
+  and of the *"< -1000: a TLS error"* band: more than 1000 records answered
+  -1 in one read became a TLS error and closed the connection, and a sum
+  of exactly -2222 left it hanging. It answers -1 now, however many.
+  OpenSSL's `encrypt_data()` looped on `WANT_READ`/`WANT_WRITE` with no
+  bound; it stops after 5 tries with a warning, as mbedTLS does. OpenSSL's
+  `flush_clear_data()` checks `gbuffer_create()`.
+
 - **`gbuffer_printf()` writes a text that fits exactly.** `vsnprintf()` was
   given the free bytes only, not the byte every gbuffer keeps for the NUL:
   a text of exactly the free bytes was refused (*"MAXIMUM SPACE

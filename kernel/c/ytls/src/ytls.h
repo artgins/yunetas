@@ -261,6 +261,8 @@ PUBLIC int ytls_encrypt_data(
                 the connection there: on_clear_data_cb, on_handshake_done_cb
                 or on_encrypted_data_cb): touch neither the sskt nor its
                 owner, which may be gone too,
+        -1      on_clear_data_cb answered an error (once or more: the
+                answers are not summed: up to 7.25.22 they were),
         < -1000 a TLS error.
 **rst**/
 PUBLIC int ytls_decrypt_data(
