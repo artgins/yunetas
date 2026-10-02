@@ -117,18 +117,6 @@ Severity in parentheses where one was assigned.
 
 ### Gates, queues and stats
 
-- **The size of a persistent link's queue cannot be read from outside.**
-  `C_QIOGATE` reports `msgs_in_queue` and `pending_acks` only from its
-  `mt_stats`; `C_MQIOGATE`'s `mt_stats` asks each child with `build_stats()`,
-  which reads `SDF_STATS` attrs and never calls the child's `mt_stats`, so
-  `stats-yuno service=__output_side__` shows only the bottom `C_TCP`'s
-  counters. Either `C_MQIOGATE` asks its children with `gobj_stats()`, or
-  `C_QIOGATE` declares the two as `SDF_RD|SDF_STATS` gauges backed by
-  `mt_reading` (not RSTATS: `__reset__` would pretend to zero them). Note
-  gui_agent reads `msgs_in_queue` at the top level of the data
-  (`c_agent_monitor.js` ~2067), where a `C_MQIOGATE` does not put it. Test: a
-  queue with N messages and the peer down, `stats` through the `C_MQIOGATE`,
-  `msgs_in_queue == N`.
 - **`stats-yuno` on a `C_IOGATE` or `C_QIOGATE` service answers `-1` with no
   comment.** Their `mt_stats` return the BARE data dict (written for a parent
   that reads its children), and `c_ievent_srv`'s `ac_mt_stats` sends that

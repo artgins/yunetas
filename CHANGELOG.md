@@ -144,6 +144,14 @@ except the hook and the entries this list marks "(no red test)".
   `c_tcps/test7` (red: a SegFault in clear and over TLS); the `mt_stop()`
   order has no red test (a connected clisrv always has a read in flight, so
   its stop never ends inside `mt_stop()`).
+- **C_QIOGATE: the size of its queue can be read through a C_MQIOGATE.**
+  `msgs_in_queue` and `pending_acks` were said only by the gate's own
+  `mt_stats`, and a C_MQIOGATE asks its children with `build_stats()`, which
+  reads stats attributes and never calls a child's `mt_stats`: `stats-yuno
+  service=__output_side__` showed no queue. They are `SDF_RD|SDF_STATS`
+  gauges now, read live (`mt_reading`). And `mt_stats` no longer reads a
+  closed queue (`trq_size()` of NULL). Test `test_c_qiogate_stats` (red:
+  the counts missing for both children).
 - **C_TCP_S: a full server says it once a minute, as a warning, and counts
   it.** With `child_tree_filter`, a connection that found no free channel
   logged an ERROR each time, and peers retry: 600 channels and 1000

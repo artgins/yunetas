@@ -98,6 +98,8 @@ SDATA (DTP_BOOLEAN,     "disable_alert",    SDF_WR|SDF_PERSIST, 0,          "Dis
 SDATA (DTP_STRING,      "alert_from",       SDF_WR,             "",         "Alert from"),
 SDATA (DTP_STRING,      "alert_to",         SDF_WR|SDF_PERSIST, "",         "Alert destination"),
 
+SDATA (DTP_INTEGER,     "msgs_in_queue",    SDF_RD|SDF_STATS,   "0",        "Messages in the persistent queue, not acked yet (a gauge)"),
+SDATA (DTP_INTEGER,     "pending_acks",     SDF_RD|SDF_STATS,   "0",        "Messages sent and waiting for their ack (a gauge)"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
@@ -260,6 +262,28 @@ PRIVATE int mt_stop(hgobj gobj)
 }
 
 /***************************************************************************
+ *      Framework Method reading
+ *  The two gauges are read live: they are what the queue holds now, so the
+ *  stats of a parent that reads its children's attrs (C_MQIOGATE, through
+ *  build_stats()) say them too. Up to 7.25.21 only this gclass's own
+ *  mt_stats said them, and a C_MQIOGATE never asked it.
+ ***************************************************************************/
+PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    SData_Value_t v = {0,{0}};
+    if(strcmp(name, "msgs_in_queue")==0) {
+        v.found = 1;
+        v.v.i = priv->trq_msgs? (json_int_t)trq_size(priv->trq_msgs) : 0;    // closed: none
+    } else if(strcmp(name, "pending_acks")==0) {
+        v.found = 1;
+        v.v.i = (json_int_t)priv->pending_acks;
+    }
+    return v;
+}
+
+/***************************************************************************
  *      Framework Method stats
  ***************************************************************************/
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
@@ -270,7 +294,9 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     json_object_update_new(jn_data, gobj_stats(priv->gobj_bottom_side, stats, 0, gobj));
 
-    json_object_set_new(jn_data, "msgs_in_queue", json_integer((json_int_t)trq_size(priv->trq_msgs)));
+    json_object_set_new(jn_data, "msgs_in_queue",
+        json_integer(priv->trq_msgs? (json_int_t)trq_size(priv->trq_msgs) : 0)
+    );
     json_object_set_new(jn_data, "pending_acks", json_integer((json_int_t)priv->pending_acks));
 
     KW_DECREF(kw)
@@ -1132,6 +1158,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
     .mt_destroy = mt_destroy,
     .mt_writing = mt_writing,
+    .mt_reading = mt_reading,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
     .mt_stats = mt_stats,

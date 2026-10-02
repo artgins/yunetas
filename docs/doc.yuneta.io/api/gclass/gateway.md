@@ -111,6 +111,19 @@ backed by timeranger. Provides ack-based delivery with automatic retry.
 | `timeout_poll` | `integer` | Queue poll interval in seconds. |
 | `backup_queue_size` | `integer` | Backup retention size. |
 | `alert_queue_size` | `integer` | Queue size threshold for alerts. |
+| `msgs_in_queue` | `integer` (stats) | Messages in the queue, not acked yet: a gauge, read live. |
+| `pending_acks` | `integer` (stats) | Messages sent and waiting for their ack: a gauge, read live. |
+
+`msgs_in_queue` and `pending_acks` are stats attributes, so they are in the
+stats of the gate itself and in those of a `C_MQIOGATE` above it, one entry
+per child (up to 7.25.21 only the gate's own `mt_stats` said them, which a
+`C_MQIOGATE` never asks: the size of a persistent link's queue could not be
+read through it).
+
+```bash
+ycommand -c 'stats-yuno id=<id> service=__output_side__'
+# {"output-qiogate-aire": {"msgs_in_queue": 12, "pending_acks": 3, ...}, ...}
+```
 
 ### Commands
 
