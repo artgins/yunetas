@@ -582,6 +582,21 @@ Grants the `yuneta` user passwordless sudo for all commands.
 - Supports standard `start`, `stop`, `restart`, `force-reload`, `status` operations
 - Runs agents as user `yuneta` via `su -s /bin/sh`
 
+Under systemd (since 7.25.22-3) the script drives the two agents' units
+instead of starting the agents by hand: `start` starts `yuneta_agent.service`
+and then, once it is up, `yuneta_agent22.service` (a broken binary never takes
+both down); `stop` stops the main agent alone and leaves agent22, the escape
+hatch, running, as the SysV `stop` always did; `restart` restarts the main
+agent and starts agent22 only if it was not running; `status` reports both.
+An agent running outside its unit (started by hand with `--start`) is stopped
+first and started in its unit. `service yuneta_agent22 stop` or `systemctl`
+drive one unit alone. All of it needs root, as `su - yuneta` always did.
+
+```bash
+sudo /etc/init.d/yuneta_agent restart     # the main agent; agent22 untouched
+sudo systemctl restart yuneta_agent22     # agent22 alone
+```
+
 ## Package Metadata
 
 ### Dependencies

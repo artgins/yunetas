@@ -728,6 +728,29 @@ AGENT1_CFG="${YUNETA_DIR}/agent/yuneta_agent.json"
 AGENT2_BIN="${YUNETA_DIR}/agent/yuneta_agent22"
 AGENT2_CFG="${YUNETA_DIR}/agent/yuneta_agent22.json"
 
+# Under systemd the two agents run in units of their own (since 7.25.22),
+# yuneta_agent.service and yuneta_agent22.service, and this script drives the
+# units: an agent started here by hand would run OUTSIDE its unit, where
+# systemd does not see it. The pair, as the script always did: start both
+# (agent22 only once the main agent is up, so a broken binary never takes
+# both down), stop the main agent alone (agent22, the escape hatch, stays, as
+# the SysV stop always left it), status of both. Debian's init-functions
+# would redirect the script to yuneta_agent.service alone, so that redirect
+# is skipped: it is done here, for both. `service yuneta_agent22 stop` and
+# `systemctl` still drive each unit by itself.
+UNITS=0
+if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+    for _d in /usr/lib/systemd/system /lib/systemd/system /etc/systemd/system; do
+        if [ -f "$_d/yuneta_agent.service" ]; then
+            UNITS=1
+        fi
+    done
+fi
+if [ "$UNITS" = "1" ]; then
+    SYSTEMCTL_SKIP_REDIRECT=1
+    export SYSTEMCTL_SKIP_REDIRECT
+fi
+
 # We only use log_daemon_msg / log_end_msg, and define them ourselves.
 # Do NOT source /etc/init.d/functions: on RHEL it references unset vars
 # (e.g. SYSTEMCTL_SKIP_REDIRECT) and, under this script's `set -u`, sourcing
@@ -763,9 +786,49 @@ _run_as_yuneta() {
     su -s /bin/sh - "$RUN_AS" -c "$*"
 }
 
+# An agent running OUTSIDE its unit (started by hand with --start) is stopped
+# first with its own --stop: the unit started beside it would find it running
+# and leave. The same transition the packages do on upgrade. Found by its
+# executable, not its name: this script is named yuneta_agent too, and
+# `pgrep -x yuneta_agent` finds the script itself.
+_agent_outside_unit() {
+    _a="$1"
+    for _p in $(pgrep -x "$_a" 2>/dev/null); do
+        _exe="$(readlink "/proc/$_p/exe" 2>/dev/null || true)"
+        case "$_exe" in
+            "/yuneta/agent/${_a}"|"/yuneta/agent/${_a} (deleted)")
+                return 0
+                ;;
+        esac
+    done
+    return 1
+}
+
+_start_unit() {
+    _a="$1"
+    if [ "$(systemctl show -p MainPID --value "${_a}.service")" = "0" ] && _agent_outside_unit "$_a"; then
+        _run_as_yuneta "exec /yuneta/agent/${_a} --config-file=/yuneta/agent/${_a}.json --stop" || true
+    fi
+    systemctl start "${_a}.service"
+}
+
 start_yunos() {
     RC1=1
     RC2=1
+    if [ "$UNITS" = "1" ]; then
+        log_daemon_msg "Starting yuneta_agent (systemd unit)"
+        _start_unit yuneta_agent && RC1=0 || RC1=$?
+        log_end_msg $RC1
+        logger -t yuneta_agent_init "start yuneta_agent.service rc=$RC1"
+        if [ "$RC1" -ne 0 ]; then
+            return 1    # agent22 left as it is: never both down
+        fi
+        log_daemon_msg "Starting yuneta_agent22 (systemd unit)"
+        _start_unit yuneta_agent22 && RC2=0 || RC2=$?
+        log_end_msg $RC2
+        logger -t yuneta_agent_init "start yuneta_agent22.service rc=$RC2"
+        return 0
+    fi
     _set_limits
 
     if [ -x "$AGENT1_BIN" ]; then
@@ -833,6 +896,19 @@ status_yunos() {
     S=3
     MSG=""
 
+    if [ "$UNITS" = "1" ]; then
+        for _a in yuneta_agent yuneta_agent22; do
+            if systemctl is-active --quiet "${_a}.service"; then
+                MSG="$MSG ${_a}: running;"
+                S=0
+            else
+                MSG="$MSG ${_a}: not running;"
+            fi
+        done
+        echo "$MSG"
+        return $S
+    fi
+
     if command -v pgrep >/dev/null 2>&1; then
         if pgrep -u "$RUN_AS" -f "/agent/yuneta_agent( |$)" >/dev/null; then
             MSG="$MSG yuneta_agent: running;"; S=0
@@ -856,6 +932,14 @@ status_yunos() {
 stop_yunos() {
     RC1=0
     RC2=0
+
+    if [ "$UNITS" = "1" ]; then
+        log_daemon_msg "Stopping yuneta_agent (systemd unit)"
+        systemctl stop yuneta_agent.service && RC1=0 || RC1=$?
+        log_end_msg $RC1
+        logger -t yuneta_agent_init "stop yuneta_agent.service rc=$RC1"
+        return 0
+    fi
 
     if [ -x "$AGENT1_BIN" ]; then
         log_daemon_msg "Stopping yuneta_agent"

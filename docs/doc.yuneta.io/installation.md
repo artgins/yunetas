@@ -328,8 +328,13 @@ and with no difference of layout. The full inventory is in
 >
 > The unit is named like the SysV script (`/etc/init.d/yuneta_agent`), so
 > systemd uses it instead of the unit it generated from the script, and
-> `service yuneta_agent ...` reaches it too. The script stays for an init
-> that is not systemd. Up to 7.25.21 there was no native unit: an agent
+> `service yuneta_agent ...` reaches it too (the main agent's unit alone;
+> `service yuneta_agent22 ...` reaches agent22's). The script stays, and
+> under systemd it drives the PAIR of units: `sudo /etc/init.d/yuneta_agent
+> start` starts both (agent22 once the main agent is up), `stop` stops the
+> main agent alone (agent22, the escape hatch, keeps running, as the SysV
+> `stop` always did), `status` reports both; an agent started by hand
+> outside its unit is stopped first and started in it. Up to 7.25.21 there was no native unit: an agent
 > started by hand was invisible to systemd, and `yuneta_agent22` had no unit
 > at all. The web server has its own unit (`yuneta-webserver.service`) and is
 > not started or stopped with the agent.

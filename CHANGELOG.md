@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## v7.25.22-3 (2026-10-02)
+
+A packaging revision, not a new version: the code is 7.25.22's, and the
+packages are attached to the existing tag `7.25.22`.
+
+- **`/etc/init.d/yuneta_agent` drives the two agents' units.** Under systemd
+  the script was redirected to `yuneta_agent.service` alone on Debian (by
+  `/lib/lsb/init-functions`), so agent22 was out of its reach; on RHEL it was
+  not redirected at all, and a `start` launched both agents by hand, outside
+  their units. Now it skips that redirect and drives the units itself, the
+  way the SysV script always treated the pair: `start` starts the main
+  agent's unit and then, once it is up, agent22's (a broken binary never
+  takes both down); `stop` stops the main agent alone, agent22 keeps running;
+  `restart` restarts the main agent and starts agent22 only if it was not
+  running; `status` reports both. An agent running outside its unit (a hand
+  `--start`) is stopped first and started in it -- found by its executable
+  (`/proc/<pid>/exe`), because the script is named `yuneta_agent` too and
+  `pgrep -x yuneta_agent` finds the script itself. `service yuneta_agent22
+  ...` and `systemctl` still drive one unit alone. Root is needed, as `su -
+  yuneta` always required.
+
 ## v7.25.22-2 (2026-10-02)
 
 A packaging revision, not a new version: the code is 7.25.22's, and the

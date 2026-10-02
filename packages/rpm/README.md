@@ -216,7 +216,12 @@ leaves the packaged externals in place — the same mismatch by a shorter road.
    **only when io_uring is actually enabled** (re-checked after the
    `sysctl --system` of step 6) and captures the real result — a disabled
    io_uring, or any other start failure, is reported, **not** hidden behind
-   RPM's always-"Complete" transaction.
+   RPM's always-"Complete" transaction. Under systemd the SysV script itself
+   drives the pair of units (since 7.25.22-3): `start` both, agent22 once the
+   main agent is up; `stop` the main agent alone; `status` both. Up to
+   7.25.22-2 it was not redirected on RHEL at all, and a
+   `/etc/init.d/yuneta_agent start` started the agents by hand, outside their
+   units.
 10. Ensures `pam_limits.so` in `system-auth`/`password-auth` (already default
     on RHEL; only appended if genuinely missing and not authselect-managed).
 

@@ -56,6 +56,19 @@ Severity in parentheses where one was assigned.
   the followers of a topic upgrade together (an upgrade note). Write the red
   test first (`test_delete_key_propagation` has the hooks: `inflight_open`,
   `__wrap_rmdir`).
+### Agent / ydaemon
+
+- **`--stop` (`daemon_shutdown()`) targets processes by NAME** (low): it
+  signals every process whose `comm` is the yuno's name, so the SysV script
+  `/etc/init.d/yuneta_agent` (comm `yuneta_agent`, owned by root) is one of
+  them. Run as `yuneta` from that script, `--stop` cannot signal it (EPERM),
+  waits the whole 10 s, and says it killed it. Found 2026-10-02 testing the
+  script; the script avoids it now (7.25.22-3) by finding the agent by its
+  executable. The fix is in `collect_proc()` (`ydaemon.c`): take only a
+  process whose `/proc/<pid>/exe` is the same binary (minus `" (deleted)"`,
+  for one replaced on disk). A test: a shell script named like the yuno,
+  alive while `--stop` runs, is not signalled.
+
 ### Projects (code outside this repo)
 
 Moved to the TODO of each project on 2026-10-02: `msg2db_id_incomplete()` in

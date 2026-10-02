@@ -369,7 +369,10 @@ What each line keeps from this chapter:
   another signal (`kill -SEGV`).
 
 An agent started by hand with `--start` runs outside the unit, where systemd
-does not see it: restart it with `systemctl restart yuneta_agent`.
+does not see it: `sudo /etc/init.d/yuneta_agent start` stops it and starts the
+units (main agent first, agent22 once it is up), or restart it with
+`systemctl restart yuneta_agent`. Stopping needs no root: `--stop` run as
+`yuneta` ends the agent, and its unit goes `inactive`.
 
 ---
 
