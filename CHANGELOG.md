@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## v7.25.22-2 (2026-10-02)
+
+A packaging revision, not a new version: the code is 7.25.22's, and the
+packages are attached to the existing tag `7.25.22`.
+
+- **rpm: the agents' units start under SELinux.** 7.25.22-1 runs the two
+  agents in native systemd units, and systemd (`init_t`) cannot exec a
+  `default_t` file -- everything under `/yuneta` is, outside the policy. On
+  yunovatios-central (Rocky 9, enforcing) the agent's unit died with
+  `203/EXEC`, *"Failed to locate executable /yuneta/agent/yuneta_agent:
+  Permission denied"* (`avc: denied { execute } ... scontext=init_t
+  tcontext=default_t`), and `%post`, as designed, left agent22 running
+  outside its unit rather than stopping both. `%post` now labels
+  `/yuneta/agent/yuneta_agent` and `yuneta_agent22` `bin_t` (`semanage
+  fcontext` + `restorecon`, `chcon` where the policy tools are missing), as
+  it already did for the web server's wrapper. A binary moved in by hand on
+  such a node takes the rule back with `restorecon`. The `.deb` is
+  unchanged (Debian runs no SELinux by default).
+
 ## v7.25.22 (2026-10-02)
 
 What changed after 7.25.21: the defects, the nits and the risks of two

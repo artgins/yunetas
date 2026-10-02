@@ -1970,24 +1970,31 @@ fi
 # nothing at all until the label was fixed. Measured on yunovatios-central
 # with 7.10.0-2, which had been up for two and a half hours with no web.
 #
-# Only the wrapper needs it: it is the one file systemd execs. What it execs
-# in turn, nginx or openresty, is reached from the wrapper's own domain and
-# was never the problem.
+# Only the files systemd execs need it: the web server's wrapper, and the two
+# agents since they run in units of their own (7.25.22). What they exec in
+# turn -- nginx or openresty, the yunos -- is reached from their own domain
+# and was never the problem. 7.25.22-1 labelled only the wrapper: on
+# yunovatios-central the agent's unit died the same way (203/EXEC, "avc:
+# denied { execute } ... scontext=init_t tcontext=default_t"), and %post left
+# the node with agent22 alone, outside its unit.
 if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
-    if command -v semanage >/dev/null 2>&1; then
-        semanage fcontext -a -t bin_t /yuneta/bin/yuneta-webserver >/dev/null 2>&1 ||
-        semanage fcontext -m -t bin_t /yuneta/bin/yuneta-webserver >/dev/null 2>&1 || true
-    fi
-    if command -v restorecon >/dev/null 2>&1; then
-        restorecon -F /yuneta/bin/yuneta-webserver >/dev/null 2>&1 || true
-    fi
-    #
-    # Fallback for a node without the policy tools: right now, lost on a full
-    # relabel. A label that may not survive beats a node that does not serve.
-    #
-    if [ "$(stat -c %C /yuneta/bin/yuneta-webserver 2>/dev/null | cut -d: -f3)" != "bin_t" ]; then
-        chcon -t bin_t /yuneta/bin/yuneta-webserver >/dev/null 2>&1 || true
-    fi
+    for _exe in /yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent /yuneta/agent/yuneta_agent22; do
+        if command -v semanage >/dev/null 2>&1; then
+            semanage fcontext -a -t bin_t "$_exe" >/dev/null 2>&1 ||
+            semanage fcontext -m -t bin_t "$_exe" >/dev/null 2>&1 || true
+        fi
+        if command -v restorecon >/dev/null 2>&1; then
+            restorecon -F "$_exe" >/dev/null 2>&1 || true
+        fi
+        #
+        # Fallback for a node without the policy tools: right now, lost on a
+        # full relabel. A label that may not survive beats a node that does
+        # not serve, or has no agent.
+        #
+        if [ "$(stat -c %C "$_exe" 2>/dev/null | cut -d: -f3)" != "bin_t" ]; then
+            chcon -t bin_t "$_exe" >/dev/null 2>&1 || true
+        fi
+    done
 fi
 
 # --- hand the web server over to its own unit ---
