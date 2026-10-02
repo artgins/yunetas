@@ -135,16 +135,35 @@ PRIVATE char variable_config[]= "\
                             'parent_role_id': '',                   \n\
                             'service': '*',                         \n\
                             'permission': '*'                       \n\
+                        },                                          \n\
+                        {                                           \n\
+                            'id': 'registrar',                      \n\
+                            'disabled': false,                      \n\
+                            'description': 'IdP registrar only',    \n\
+                            'realm_id': '*',                        \n\
+                            'parent_role_id': '',                   \n\
+                            'service': 'idp',                       \n\
+                            'permission': 'register-idp-user'       \n\
                         }                                           \n\
                     ],                                              \n\
                     'users': [                                      \n\
                         {                                           \n\
                             'id': 'seed_immutable',                 \n\
                             'roles': ['roles^testrole^users']       \n\
+                        },                                          \n\
+                        {                                           \n\
+                            'id': 'registrar',                      \n\
+                            'roles': ['roles^registrar^users']      \n\
                         }                                           \n\
                     ]                                               \n\
                 }                                                   \n\
             }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'idp',                                          \n\
+            'gclass': 'C_IDP_KEYCLOAK',                             \n\
+            'autostart': true,                                      \n\
+            'autoplay': true                                        \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -673,6 +692,42 @@ PRIVATE void run_checks(hgobj gobj)
         }
         check_int("external create-user without permission created nothing",
             user_exists("ext_by_nobody"), 0);
+
+        /*
+         *  A registrar of the IdP (register-idp-user, and nothing on the
+         *  users treedb) cannot hand a role: linking one is the `update` of
+         *  treedb_authzs, as for create-user. Up to 7.25.21 only the role's
+         *  existence was checked, so it could give root to an email of its own
+         */
+        {
+            hgobj idp = gobj_find_service("idp", TRUE);
+            json_t *r_idp = gobj_command(idp, "register-idp-user",
+                json_pack("{s:s, s:s, s:s}",
+                    "email", "mine@example.com", "role", "testrole",
+                    "__username__", "registrar"
+                ), gobj);
+            check_int("register-idp-user with a role, by a registrar only: refused",
+                (int)kw_get_int(0, r_idp, "result", -999, 0), -403);
+            JSON_DECREF(r_idp)
+
+            const char *who[][2] = {
+                {"registrar", "0"},         // no update on treedb_authzs
+                {"seed_immutable", "1"},    // its role grants '*'
+                {"", "1"},                  // internal
+                {0, 0}
+            };
+            for(int i=0; who[i][0]; i++) {
+                json_t *kw_role = json_pack("{s:s}", "role", "testrole");
+                if(*who[i][0]) {
+                    json_object_set_new(kw_role, "__username__", json_string(who[i][0]));
+                }
+                json_t *a = gobj_local_method(authz, "has_role", kw_role, gobj);
+                char name[NAME_MAX];
+                snprintf(name, sizeof(name), "has_role: may '%s' link a role", *who[i][0]? who[i][0] : "(internal)");
+                check_int(name, kw_get_bool(0, a, "may_link", 0, 0)? 1 : 0, atoi(who[i][1]));
+                JSON_DECREF(a)
+            }
+        }
 
         /*
          *  The trusted keys and the default role are the config's: write-attr

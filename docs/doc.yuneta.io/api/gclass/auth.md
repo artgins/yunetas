@@ -149,7 +149,7 @@ never goes into code or committed configuration.
 |---------|------------|-------------|
 | `set-kc-config` | `configure-kc` | Set and save the connection; only the parameters passed change. |
 | `view-kc-config` | `configure-kc` | Show it, secret masked. |
-| `register-idp-user` | `register-idp-user` | Create an account (`email` required, used as username; `firstName`, `lastName`). The user gets the email to set the password. Publishes `EV_IDP_USER_CREATED`. `role` is legacy: roles belong to the authorization plane, which applies its `default_role`. |
+| `register-idp-user` | `register-idp-user` | Create an account (`email` required, used as username; `firstName`, `lastName`). The user gets the email to set the password. Publishes `EV_IDP_USER_CREATED`. `role` is legacy: roles belong to the authorization plane, which applies its `default_role`. A `role` given by a peer needs, besides `register-idp-user`, the `update` of `treedb_authzs` that `create-user` asks to link one (else `-403`). |
 | `list-idp-users` | `manage-idp-users` | List the accounts: `search` (username, names, email), paging `first` / `max` (default 50, ceiling 500), `brief=0` for the full representation. |
 | `get-idp-user` | `manage-idp-users` | One account, by `user_id` (the uuid Keycloak gives, not the email). |
 | `update-idp-user` | `manage-idp-users` | Change `firstName`, `lastName`, `enabled`, `emailVerified`, `requiredActions`; an absent parameter is left unchanged. |

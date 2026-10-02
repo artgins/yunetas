@@ -1437,7 +1437,7 @@ Set it in the yuno's config, where the trusted keys are too:
 ```json
 {
     "global": {
-        "Authz.default_role": "roles^viewer^users"
+        "Authz.default_role": "viewer"
     }
 }
 ```

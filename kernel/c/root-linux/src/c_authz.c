@@ -4613,8 +4613,15 @@ PRIVATE int ac_reject_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
  *  itself through attributes, commands, events, local methods and stats,
  *  and nothing else.
  *
- *  Returns {"found": true|false}.  Not-yet-open treedb answers false: the
- *  authz service is autoplay and can be asked before mt_play.
+ *  Returns {"found": true|false, "may_link": true|false}.  Not-yet-open
+ *  treedb answers false: the authz service is autoplay and can be asked
+ *  before mt_play.  `may_link`: whether the caller may link that role to a
+ *  user -- the `update` of treedb_authzs that create-user asks for a role.
+ *  Asked for the peer named by `__username__` in the kw (the provisioner
+ *  copies it from its own command); without one the call is internal and
+ *  may. Up to 7.25.21 register-idp-user checked only that the role existed,
+ *  so a holder of register-idp-user gave any role, root included, to an
+ *  email of their own.
  ***************************************************************************/
 PRIVATE json_t *lmt_has_role(hgobj gobj, const char *lmethod, json_t *kw, hgobj src)
 {
@@ -4622,6 +4629,12 @@ PRIVATE json_t *lmt_has_role(hgobj gobj, const char *lmethod, json_t *kw, hgobj 
 
     const char *role = kw_get_str(gobj, kw, "role", "", 0);
     BOOL found = FALSE;
+    BOOL may_link = TRUE;
+    const char *username = kw_get_str(gobj, kw, "__username__", NULL, 0);
+    if(!empty_string(username)) {
+        may_link = (priv->gobj_treedb &&
+            gobj_user_has_authz(priv->gobj_treedb, "update", kw_incref(kw), src))? TRUE : FALSE;
+    }
 
     if(!priv->gobj_treedb) {
         gobj_log_warning(gobj, 0,
@@ -4639,7 +4652,7 @@ PRIVATE json_t *lmt_has_role(hgobj gobj, const char *lmethod, json_t *kw, hgobj 
     }
 
     KW_DECREF(kw)
-    return json_pack("{s:b}", "found", found? 1 : 0);
+    return json_pack("{s:b, s:b}", "found", found? 1 : 0, "may_link", may_link? 1 : 0);
 }
 
 

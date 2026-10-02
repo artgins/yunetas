@@ -193,6 +193,14 @@ except the hook and the entries this list marks "(no red test)".
   `default_role` to root for every user an IdP provisions. Both are
   `SDF_RD`, the config's. Test `command_delete_user` (red: the role was
   written).
+- **SECURITY: `register-idp-user` no longer hands any role to its caller's
+  pick.** With a `role`, it checked only that the role existed, and the
+  authz plane linked it when the IdP answered: a holder of
+  `register-idp-user` gave root to an email of their own, with no permission
+  on the users treedb. A role from a peer now needs the `update` of
+  `treedb_authzs`, as `create-user` asks to link one: C_AUTHZ's `has_role`
+  answers `may_link` for the `__username__` the IdP passes on. Test
+  `command_delete_user` (red: the request was queued).
 - **C_AUTHZ: a username holding `%s` no longer crashes the refusal.** The
   "User not found" warning of `get_user_permissions()` had a comma missing,
   so the username became the FORMAT of the log -- reached on every refused

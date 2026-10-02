@@ -515,16 +515,35 @@ PRIVATE json_t *cmd_register_idp_user(hgobj gobj, const char *cmd, json_t *kw, h
     }
     const char *role = kw_get_str(gobj, kw, "role", "", 0);
     if(!empty_string(role)) {
+        /*
+         *  The authz plane says whether the role exists, and whether the
+         *  caller may link it to a user (the peer, by its __username__)
+         */
         hgobj gobj_authz = gobj_find_service_by_gclass(C_AUTHZ, FALSE);
+        json_t *kw_role = json_pack("{s:s}", "role", role);
+        const char *username = kw_get_str(gobj, kw, "__username__", NULL, 0);
+        if(!empty_string(username)) {
+            json_object_set_new(kw_role, "__username__", json_string(username));
+        }
         json_t *jn_answer = gobj_authz?
-            gobj_local_method(gobj_authz, "has_role",
-                json_pack("{s:s}", "role", role), gobj) : NULL;
+            gobj_local_method(gobj_authz, "has_role", kw_role, gobj) : NULL;
+        if(!gobj_authz) {
+            JSON_DECREF(kw_role)
+        }
         BOOL ok = jn_answer? kw_get_bool(gobj, jn_answer, "found", 0, 0) : FALSE;
+        BOOL may_link = jn_answer? kw_get_bool(gobj, jn_answer, "may_link", 0, 0) : FALSE;
         JSON_DECREF(jn_answer)
         if(!ok) {
             return msg_iev_build_response(gobj, -1,
                 json_sprintf("Unknown role: %s", role),
                 0, json_pack("{s:s}", "error_code", "unknown_role"), kw);
+        }
+        if(!may_link) {
+            return msg_iev_build_response(gobj, -403,
+                json_sprintf("%s: no permission to 'update' in service 'treedb_authzs': a role is linked",
+                    gobj_yuno_role_plus_name()
+                ),
+                0, json_pack("{s:s}", "error_code", "no_permission"), kw);
         }
     }
 
