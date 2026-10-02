@@ -1,210 +1,64 @@
 # Cloud review of main
 
 Reviewed up to `ee940e48a` (2026-10-02, release 7.25.22, packaging revision
--3). What is resolved is removed from this file. Since `fc023c0c5` main
-carries only packaging and docs (`5728d7bc3`, `ee940e48a`): no item below is
-fixed yet, and no C file changed, so the last suite still holds (on
-`fc023c0c5`: clean build with no warning, 287/287 as user `yuneta` under
-`ulimit -Sn 1024`).
+-3). What is resolved is removed from this file; this version is the fixing
+session's answer, item by item, on `139e5441d`. Every fix has a test that
+fails on the code before it, except where it says otherwise.
 
-## Open
+Last check, on `139e5441d`: clean build (`yunetas clean/build --sdk-only`) with
+no warning, suite 287/287 under `ulimit -Sn 1024` on the dev machine. The
+wattyzer run (the second machine of the release rule) is not done yet.
+
+## Resolved
 
 ### High
 
-**1. dbsimple: the trust of a root yuno can still be planted** (item 4,
-`76a7db735`).
-
-`trusted_dir_owner()` (`dbsimple.c:77-118`) returns the owner of the FIRST
-directory upward that has no group/other write bits. Nothing checks the
-directories above it, and it uses `stat()`, which follows a symlink.
-
-Scenario for a root yuno, by a member of the `yuneta` group (the parent
-`<role^id>` is 02775):
-
-1. `mv data data.old`.
-2. `mkdir data; chmod 0755 data` and write the file there, mode 0600.
-3. The walk stops at that `data` and returns the attacker's uid: the file is
-   trusted and loaded.
-4. On the next save `give_back` (`dbsimple.c:752`) `fchown`s the new file,
-   with the yuno's secrets, to the attacker.
-
-A symlink in place of `data` does the same. The walk is by path and the file
-is checked by fd, so there is also a TOCTOU window.
-
-Preferred fix: start from a fixed anchor (the yuneta root, or the realm
-directory the agent makes) and require EVERY directory of the chain to be
-closed, with `lstat()`/`openat(O_NOFOLLOW)` along the path; or simply trust
-only root's file and the euid's own. A test as root.
+| # | Item | Commit | Test |
+|---|------|--------|------|
+| 1 | dbsimple: the yuno's user of a root yuno is the owner of the lowest directory of the chain closed from `/` DOWN (`openat(O_PATH\|O_NOFOLLOW)`), each owned by root or by that user; the chain ends at the first directory others can write, or at a symlink. What is below the open directory names nobody, so the swap between the walk and the open changes nothing | `da85b7a9b` | `secret_attrs` (run as root by `__wrap_geteuid`, directories told by `__wrap_fstat`; red with a temporary `__wrap_stat` over the old upward walk: the planted file loaded) |
 
 ### Medium
 
-**2. `write-attr` writes any `SDF_PERSIST` attr** (new).
+| # | Item | Commit | Test |
+|---|------|--------|------|
+| 2 | `ATTR_WRITABLE` is `SDF_WR`: `write-attr` refuses an `SDF_PERSIST` attr without it (*"attr not writable"*). None of the listed attrs became `SDF_WR`: each is the config's or its own command's. Every documented `write-attr` use (agent, controlcenter, yunovatios, wattyzer) is on `SDF_WR\|SDF_PERSIST` attrs already | `d9f119fb5` | `command_delete_user` (`max_sessions_per_user` refused and left 0; red: written), `secret_attrs` |
+| 3 | rpm: `Requires(post)` / `Requires(postun)`: `(policycoreutils-python-utils if selinux-policy)`; the `chcon` fallback warns; `%postun` on erase removes the three fcontext rules | `7fc93b295` | The rich dependency built with rpmbuild (`rpmlib(RichDependencies)`; Rocky 9 has rpm 4.16) |
+| 4 | C_UDP_S and C_UDP: the C_TCP liveness marker; the read is re-armed whenever the gobj lives and the event is idle | `460618ba9` | `c_udp_s_rx` 6 (the host answers -1 to every datagram; red: `"heard": "allowed"`) |
+| 5 | C_WEBSOCKET / C_PROT_TCP4H: the default max is `gbmem_get_maximum_block() - 1` (what a gbuffer holds) and a configured max above it is capped; `istream_consume()` checks `gbuffer_append()` (an ERROR, and the frame is not completed cut) | `769af7b41` | `c_prot_tcp4h/test1` (after a reconnect, a header of exactly the max block: refused at once; red: a second payload timeout) |
+| 6 | `--stop`: every `kill()` checked (EPERM said at once, not waited for, exit 1); the watcher notes SIGQUIT (`SA_RESTART`) and does not relaunch the child that ends after it; the watchers signalled first; the name scanned again before the SIGKILL. The units send SIGQUIT to `$MAINPID` before the agent | `603fde26d` | By hand, a scratch daemon whose child `abort()`s on SIGQUIT: the old code left the relaunched child alive; now nothing in 0.1 s. EPERM on a root process: exit 1 at once. A hung child: both killed at 10 s |
+| 7 | C_TIMER0's callback answers 0, always: the yuno's loop ends through `yev_loop_reset_running()` (`set_yuno_must_die()`), never through a timer | `b7de0e312` | `test_c_timer0` (a child timer cleared and stopped during play; red: the yuno ended, the five ticks never came) |
+| 8 | `restart-yuneta`, not root, with the units: `yshutdown --no-kill-agent "$@"` and `sudo -n systemctl restart yuneta_agent.service` (refused and said when sudo does not allow it); the old way only without units. logcenter's default runs `restart-yuneta -s` where it exists | `bfc86e031` | `sudo -n -l systemctl restart yuneta_agent.service` checked as `yuneta` on wattyzer (allowed: `NOPASSWD:ALL`) |
 
-`ATTR_WRITABLE` is `SDF_WR|SDF_PERSIST` and is tested with `&`
-(`gobj.c:3608`), so an attr flagged `SDF_PERSIST` alone is writable at run
-time through `write-attr`, which is `SDF_AUTHZ_X` only (nothing while
-`enable_command_authz` is off). Among them:
-
-- `C_AUTHZ.max_sessions_per_user` (`c_authz.c:339`): bypasses the
-  always-on check of `set-max-sessions`.
-- `C_IDP_KEYCLOAK` `kc_base_url` / `kc_admin_client_secret`: a changed base
-  url sends the admin client secret to another server.
-- `C_YUNO` `allowed_ips` / `denied_ips`, `C_TCP_S.crypto`,
-  `C_MQTT_BROKER.enable_acl`, emailsender `url` / `password`.
-
-Apart from `max_sessions_per_user`, each is as open through its own
-command; together they are the reason to enable the gate.
-
-Preferred fix: `write-attr` needs `SDF_WR` (an `SDF_PERSIST` attr without
-it is set by config or by its own checked command); review which of the
-attrs above should be `SDF_WR` at all.
-
-**3. rpm: the SELinux label of the agents is not durable without
-`semanage`** (`fc023c0c5`).
-
-`%post` falls back to `chcon` when `semanage` is missing, and the spec does
-not require `policycoreutils-python-utils` (`make-yuneta-agent-rpm.sh:1551`).
-A `chcon` label is lost on an autorelabel or a `restorecon -R /yuneta`:
-both agent units then fail at boot with 203/EXEC. The CHANGELOG's advice
-("a binary moved in by hand takes the rule back with restorecon") is wrong
-on such a node, and a `mv` keeps the source's label.
-
-Preferred fix: `Requires(post): policycoreutils-python-utils` (EL9) so the
-rule is always written; `%postun` on erase removes the three fcontext rules.
-
-**4. C_UDP / C_UDP_S: a subscriber's -1 stops the reading for good**
-(predates; the same defect `d64ac9ff3` fixed in C_TCP).
-
-`c_udp.c:746` and `c_udp_s.c:1150` re-arm the read only if the publish
-answered 0. One subscriber answering -1 (or "Event NOT DEFINED", which the
-publish sums) leaves the server deaf, with nothing said.
-
-Preferred fix: the same as C_TCP: re-arm when the event is still idle,
-whatever the publish answered.
-
-**5. A frame of exactly the DEFAULT max block still never completes**
-(item 7, `ff7ffd484`).
-
-With `max_payload_size=0` (websocket) or `max_pkt_size=0` (tcp4h) the max
-is `gbmem_get_maximum_block()` (`__max_block__ - TRACK_MEM`). The buffer of
-such a frame grows to `frame_length+1`, which `_mem_realloc` refuses
-(`gbmem.c:612`); the append truncates, `istream_consume` ignores it
-(`istream.c:187/191`), and the frame waits for its timeout. The tests use
-explicit maxima only.
-
-Preferred fix: with the default, refuse a frame `>=` the max block (or cap
-the default one byte lower); `istream_consume` checks what
-`gbuffer_append` answers.
-
-**6. `--stop`** (`5337b15bb`).
-
-- `kill()` is never checked: on EPERM (an agent of another user) it waits
-  10 s, prints a false "killed (SIGKILL)" and exits 0.
-- An agent that crashes during its orderly stop is relaunched by its
-  watcher after 2 s; at 10 s the watcher is SIGKILLed and the relaunched
-  agent is left alive, an orphan.
-
-Preferred fix: check and say each `kill()`; SIGQUIT the watcher first (it
-then does not relaunch) and collect the agent's pid again before the
-SIGKILL.
-
-**7. Controlcenter `mt_stop` can stop the yuno's loop** (predates).
-
-It calls `clear_timeout0()` then `gobj_stop()` of `rates_timer`. The
-cancel's completion arrives with the gobj stopped, C_TIMER0's callback
-answers -1 (`c_timer0.c:224/246`), and `yev_loop` sets `running=false`
-(`yev_loop.c:1928`). Harmless at the yuno's shutdown; if the service is
-ever stopped alone (a stop of the service, a restart of the tree), the
-whole yuno stops. Not reproduced.
-
-Preferred fix: C_TIMER0's callback answers -1 only for the yuno's own
-timers (or never); a stopped child timer is not a reason to end the loop.
-
-**8. Restarts that do not go through root start the agent OUTSIDE its unit**
-(new, `5728d7bc3` makes it visible).
-
-With the units, an agent started by hand with `--start` runs where systemd
-does not see it, and the next boot does not start it (CLAUDE.md, *Deploy
-conventions*). Two paths still do exactly that:
-
-- `/yuneta/bin/restart-yuneta` (`make-yuneta-agent-deb.sh:1545-1578`, same
-  in the rpm), run by the certbot deploy hook as its fallback: as a non-root
-  user it does `yshutdown` and then `yuneta_agent --start`.
-- logcenter's `restart_yuneta_command` default (`c_logcenter.c:127`):
-  `/yuneta/bin/yshutdown -s; sleep 1; /yuneta/agent/yuneta_agent --start ...`,
-  run by the logcenter (user `yuneta`) after a queue alarm.
-
-After either, the agent runs outside `yuneta_agent.service` (and `yshutdown`
-also took agent22 down, which `restart-yuneta` does not start again). The
-init script now puts it back in its unit at its next `start`, but nothing
-runs that until a reboot or an operator.
-
-Preferred fix: both ask systemd (`sudo -n systemctl restart
-yuneta_agent.service` with a sudoers rule for the `yuneta` user limited to
-that command, or a unit the agent can trigger), and fall back to `--start`
-only on a node without the units; `yshutdown` must not take agent22 down
-with it.
+On 8, one claim does not hold: **`yshutdown` does not take agent22 down**. It
+walks `/yuneta/realms` for `yuno.pid` files and `killall`s the exact name
+`yuneta_agent`; agent22 writes `/yuneta/realms/agent/yuneta_agent22.pid` and
+is named `yuneta_agent22`.
 
 ### Low
 
-- **The init script** (`5728d7bc3`): `stop` and `start` answer 0 whatever
-  the units answered (only logged), so `service yuneta_agent start` reports
-  success when the main agent's unit failed; `status` looks only at the
-  units, so an agent running outside its unit reads "not running".
-- **`restart_nodes()` after its 10 s** relaunches with
-  `spare_the_living=FALSE`, so a yuno still alive (D state) gets a second
-  instance: the original failure, now logged. Passing TRUE skips it with the
-  existing warning.
-- **`kill-yuno` of a yuno found only by the scan answers at once**; a
-  `run-yuno` right after it can find it still exiting and skip it ("not
-  launched again"), and the yuno ends up down. Answer when it has gone, or
-  say it in the answer.
-- **ExecStopPost** reads a cgroup v2 path written by hand
-  (`/sys/fs/cgroup/system.slice/%n/cgroup.procs`): a no-op, unsaid, on a v1
-  or hybrid host; and it kills with nothing in the journal. Read the path
-  from `/proc/self/cgroup`, and `logger` the pid it kills.
-- **C_AUTHZ with no treedb** (`d70e02d8b`): any valid JWT may run
-  `add-jwk` / `remove-jwk` there (pre-7.25.22 behaviour, in memory only).
-- **`jwks` persisted at run time is dropped with nothing said**, and stays
-  in the file for ever (`json_object_update_missing`). A node whose keys came
-  only from `add-jwk` loses its JWT logins at the first restart; only the
-  upgrade note warns. Say it once at load.
-- **CHANGELOG upgrade steps** do not name the -403 of `register-idp-user`
-  with a role, nor the immediate answer of `kill-yuno` for a yuno not
-  connected.
-- **ytls:** `flush_clear_data` sums the subscribers' answers into the same
-  number space as -2222 and the "< -1000 TLS error" band (more than 1000
-  records answered -1 in one read become a TLS error; a sum of exactly
-  -2222 hangs the connection). OpenSSL `encrypt_data` loops on
-  WANT_READ/WRITE with no bound (mbedTLS stops at 5); `flush_clear_data`
-  (OpenSSL) does not check `gbuffer_create`.
-- **`gbuffer_vprintf`** grows by `written`, with no room for the NUL
-  (`gbuffer.c:533`): an exact fit writes one character less and logs "NOT
-  ENOUGH SPACE". Pass `written+1`.
-- **`set_disconnected()`** publishes `EV_DISCONNECTED` and then touches the
-  gobj (`gobj_reset_volatil_attrs`): a host that destroys it on that event
-  would be a use-after-free (no such host in the tree).
-- **fs_watcher:** `watch_unwatched_again()` watches the directory alone,
-  not its subtree, so under `FS_FLAG_RECURSIVE_PATHS` a subdirectory made
-  during the outage is never watched; the half-limit warning has no
-  hysteresis; `kernel_queue_bound()` takes 16384 silently when `fscanf`
-  fails.
-- **C_TIMER0:** `gobj_stop()` then `set_timeout0()` in one turn leaves the
-  re-arm flag set on a stopped gobj, and no `EV_STOPPED` is published.
-- **`close_range()`** needs glibc 2.34 at compile time: a source build on an
-  older glibc does not compile.
-- **The tcp4h memory assertion** of the new test reads
-  `get_cur_system_memory()`, which is 0 without `CONFIG_DEBUG_TRACK_MEMORY`:
-  vacuous on the nodes.
+| Item | Commit | Test |
+|------|--------|------|
+| `restart_nodes()` after its 10 s: `spare_the_living` when some are left | `09712c5a2` | No ctest compiles `c_agent.c` |
+| `kill-yuno` of a yuno found only by the scan: the answer says it is not waited for, and that a `run-yuno` before it is gone does not launch it | `09712c5a2` | -- |
+| `ExecStopPost`: the unit's `ControlGroup` from systemd, read under the v2, hybrid or v1 mount; each kill `logger`ed; "no cgroup found" said | `4a8f90fe5` | The lookup run on wattyzer (agent22's unit) |
+| C_AUTHZ with no users treedb: `add-jwk` / `remove-jwk` refused to everybody. Such a yuno never creates its JWT validations, so the key was useless -- and leaked (4.4 KB per key, found by the test) | `6fc06e184` | `command_delete_user` 11b (a second C_AUTHZ with no store; red: added, and the leak) |
+| A persistent attr of the file that is not `SDF_PERSIST` (the old `jwks`) is said at load, once per attr, without its value | `6fc06e184` | `secret_attrs` (red: not said) |
+| CHANGELOG 7.25.22 upgrade steps: `register-idp-user`'s -403 with a role; `kill-yuno` of an unconnected yuno answers at once | `139e5441d` | -- |
+| ytls: `flush_clear_data()` answers -1 for a callback error, not the sum (both backends); OpenSSL `encrypt_data()` stops after 5 WANT tries, as mbedTLS; OpenSSL checks `gbuffer_create()` | `4f64eaaa8` | No red test (a thousand records in one read, or a WANT stall, is not staged) |
+| `gbuffer_vprintf()`: `vsnprintf()` given the NUL's byte too | `0348cd415` | `test_gbuffer_guards` (10 chars in a gbuffer of 10; 20 grown to exactly 20; red: refused, and cut with an ERROR) |
+| `set_disconnected()`: the `EV_DISCONNECTED` publish inside the liveness marker | `7314ad50d` | No host destroys there: no red test |
+| fs_watcher: a directory watched again brings its subtree (each subdirectory not watched yet is watched and handed as created, parent first); the half-limit warning re-arms under 40%; an unparsable `max_queued_events` is said | `1d2083dc3` | `test_fs_watcher_overflow` (`a/sub` made while `a` was not watched; red: never announced, its file never heard) |
+| C_TIMER0: `gobj_stop()` and an arm in one turn -- the cancel falls through to `EV_STOPPED` | `b7de0e312` | `test_c_timer0` |
+| `close_range()` through `syscall(SYS_close_range)` | `4f9362a6e` | Compiles; the loop as before without the header or the kernel |
+| The tcp4h memory assertion measures `mallinfo2()` (allocated, tracked or not) | `769af7b41` | `c_prot_tcp4h/test1` |
+| The init script under units: `start`/`stop`/`restart` exit with the units' answer; `status` says an agent running outside its unit | `bfc86e031` | `status` of the new script run on wattyzer: *"yuneta_agent: running OUTSIDE its unit"* -- its main agent IS outside its unit now |
 
-Items 9a/9b (a delete sequence in the master's signal) and 26 (project
-repos) are in TODO.md and the projects' TODOs by decision; not repeated
-here.
+## Not done, and why
 
-## Order I would fix them in
-
-1. The dbsimple chain (1), with a root test.
-2. `write-attr` and `SDF_PERSIST` (2); the rpm SELinux requirement (3).
-3. The UDP read stall (4) and the default-max frame (5).
-4. `--stop` (6), C_TIMER0's -1 (7) and the restarts outside the unit (8).
-5. The low items as their area is touched.
+- **9a/9b** (a delete sequence in the master's signal) and **26** (project
+  repos): in TODO.md and the projects' TODOs by decision, as before.
+- **wattyzer's main agent runs outside its unit** (found by the new
+  `status`): not touched by this session. `sudo /etc/init.d/yuneta_agent
+  start` (7.25.22-3) or `sudo systemctl restart yuneta_agent` puts it back.
+- **No red test** for: item 3 (packaging), item 6 (by hand), item 8
+  (scripts), the ytls lows, `set_disconnected()`, `close_range()`.
