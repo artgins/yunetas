@@ -104,12 +104,6 @@ Severity in parentheses where one was assigned.
   path for them (SIGQUIT to the pids found, answered at once), or say in the
   answer that the yuno lives unconnected.
 
-### Gates, queues and stats
-
-- **The ESP32 yuno never writes `uptime`** (low): it reads 0. C_YUNO computes
-  it since its `mt_create` on the monotonic clock; `c_esp_yuno.c` needs the
-  same (`esp_timer_get_time()`).
-
 ### Control center
 
 - **gui_agent: on a phone the rail's fifth item is clipped at 360 px in
