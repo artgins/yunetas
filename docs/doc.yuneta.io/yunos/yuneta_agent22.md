@@ -7,6 +7,11 @@ The init scripts deliberately leave `agent22` alive when stopping the node, so
 a remote operator is never stranded if the primary agent is down or being
 upgraded (the two agents upgrade each other, never both at once).
 
+It runs in its own systemd unit, `yuneta_agent22.service`: `sudo systemctl
+restart yuneta_agent22` (or `sudo service yuneta_agent22 restart`) restarts it
+alone. How the two units are started, stopped and deployed is in
+[`yuneta_agent`: starting and stopping it](#yuneta-agent-systemd).
+
 ## Control-center link
 
 Like the primary agent, `agent22` dials the control center when the node has an

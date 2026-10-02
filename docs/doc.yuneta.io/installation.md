@@ -434,8 +434,9 @@ The full detail is in
 (build-from-source)=
 ## Build from source
 
-The seven steps below install the full SDK under `~/yunetaprojects/`. The SDK
-holds the sources, the build dependencies and the tools.
+The seven steps below install the full SDK at `/yuneta/development/yunetas`,
+the same path on every node (see the layout contract in step 5). The SDK holds
+the sources, the build dependencies and the tools.
 
 ### 1. Create the `yuneta` user
 
@@ -452,10 +453,11 @@ steps.
 
 The repo contains a helper script. It installs all the packages below and the
 `kconfiglib` backend for `menuconfig`. It reads `/etc/os-release` to find the
-distro family: Debian and Ubuntu, or RHEL, Rocky, Alma and Fedora:
+distro family: Debian and Ubuntu, or RHEL, Rocky, Alma and Fedora. It is in
+the repo, so clone it first (step 4) and come back:
 
 ```bash
-cd ~/yunetaprojects/yunetas
+cd /yuneta/development/yunetas
 ./install-dependencies.sh
 ```
 
@@ -649,8 +651,8 @@ source ~/.bashrc
 ### 4. Clone the repo
 
 ```bash
-mkdir ~/yunetaprojects
-cd ~/yunetaprojects
+mkdir -p /yuneta/development
+cd /yuneta/development
 git clone --recurse-submodules https://github.com/artgins/yunetas.git
 ```
 
@@ -660,10 +662,11 @@ git clone -b <version> --recurse-submodules https://github.com/artgins/yunetas.g
 ```
 ````
 
+(activate-environment)=
 ### 5. Activate the environment
 
 ```bash
-cd ~/yunetaprojects/yunetas
+cd /yuneta/development/yunetas
 source yunetas-env.sh
 ```
 
@@ -690,11 +693,10 @@ source yunetas-env.sh
 > and [`yshutdown`](#util-yshutdown) are not on `PATH`. The deploy scripts then
 > fail with "command not found".
 
-**To make this permanent**, add these lines to `~/.bashrc`:
+**To make this permanent**, add this line to `~/.bashrc`:
 
 ```bash
-cd ~/yunetaprojects/yunetas
-source yunetas-env.sh
+source /yuneta/development/yunetas/yunetas-env.sh
 ```
 
 If `~/.yunetasrc` exists, the script sources it too. Use that file for your
@@ -704,7 +706,7 @@ own additions.
 ### 6. Configure (`menuconfig`)
 
 ```bash
-cd ~/yunetaprojects/yunetas
+cd /yuneta/development/yunetas
 menuconfig
 ```
 
@@ -753,7 +755,7 @@ writes `.config`, and the build needs that file.
 First, build the bundled external libraries. You do this one time only:
 
 ```bash
-cd ~/yunetaprojects/yunetas/kernel/c/linux-ext-libs
+cd /yuneta/development/yunetas/kernel/c/linux-ext-libs
 ./extrae.sh         # clone libraries
 ./configure-libs.sh # configure, build and install
 ```
@@ -764,7 +766,7 @@ the standard build interface, with the commands `init`, `build`, `clean` and
 to `$YUNETAS_OUTPUTS/lib` and the relink of each yuno in the correct order:
 
 ```bash
-cd ~/yunetaprojects/yunetas
+cd /yuneta/development/yunetas
 yunetas init     # configure build dirs + compiler/build-type from .config (menuconfig)
 yunetas build    # regenerate yuneta_version.h + `make install` everything (kernel + yunos)
 yunetas test     # ctest

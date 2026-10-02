@@ -40,7 +40,6 @@ project:
       file: get_started.md
 
     - file: installation.md
-    - file: activating.md
     - file: CHANGELOG.md
     - file: performance.md
 

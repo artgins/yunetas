@@ -18,8 +18,10 @@ Start here if this is your first contact with the framework.
 - [Installation](installation.md) — system prerequisites, the apt dependency
   list, and the one-time environment setup ([`menuconfig`](installation.md#configure-menuconfig), [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.25.22/yunetas-env.sh),
   building the external libraries).
-- [Activating](activating.md) — initialize, build, and run the agent, then
-  launch your first yuno.
+- [Activate the environment](#activate-environment) — `yunetas-env.sh`, in
+  every shell that builds or deploys.
+- [Starting and stopping the agent](#yuneta-agent-systemd) — the systemd units
+  of the two agents.
 - [Changelog](CHANGELOG.md) — release history.
 
 The build and deploy steps below are driven by the

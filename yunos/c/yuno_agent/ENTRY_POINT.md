@@ -315,6 +315,7 @@ Exported so [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.25.22/kernel/
 yuno's identity card. That is how the agent gets the `yuno_pid` and the
 `watcher_pid` rows in its treedb (used by `kill-yuno`, see §7).
 
+(entry-point-systemd)=
 ### 4.7 Under a systemd unit: `--pid-file`
 
 The agents run under native units (`yuneta_agent.service`,

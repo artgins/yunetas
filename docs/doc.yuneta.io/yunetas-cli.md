@@ -224,7 +224,7 @@ yunetas version               # installed CLI version
 ## See also
 
 - [Installation](installation.md) — prerequisites and the one-time build setup.
-- [Activating](activating.md) — initialize, build, run the agent, first yuno.
+- [Activate the environment](#activate-environment) — `yunetas-env.sh`, in every shell.
 - [Tools](tools.md) — the `tools/agent/` scripts the deploy commands wrap.
 - [`ycommand`](utilities/ycommand.md) — the control-plane client used to talk
   to a running yuno.

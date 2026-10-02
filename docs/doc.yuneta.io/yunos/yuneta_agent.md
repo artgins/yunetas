@@ -7,6 +7,91 @@ and their on-disk layout, exposes the control plane, and coordinates inter-yuno
 communication. [`ycommand`](#util-ycommand), [`ystats`](#util-ystats), [`ylist`](#util-ylist) and [`ybatch`](#util-ybatch) talk to this yuno by
 default.
 
+(yuneta-agent-systemd)=
+## Starting and stopping it: systemd
+
+Since 7.25.22 the two agents run as native systemd units,
+`yuneta_agent.service` and `yuneta_agent22.service`, independent of each
+other. systemd starts them at boot and supervises the process that matters:
+the agent's own watcher (which relaunches the agent if it crashes) is the
+unit's main process, through `--pid-file`. The packages install and enable
+both units.
+
+```bash
+systemctl status yuneta_agent            # state, main pid, last lines of its log
+sudo systemctl restart yuneta_agent      # the main agent alone
+sudo systemctl restart yuneta_agent22    # agent22 alone
+journalctl -u yuneta_agent -n 50         # what systemd saw (start, stop, failures)
+```
+
+`service yuneta_agent ...` and `service yuneta_agent22 ...` reach the same
+units. The SysV script is still installed, and under systemd it drives the
+PAIR of units, as it always treated the two agents:
+
+| `sudo /etc/init.d/yuneta_agent ...` | What it does |
+|-------------------------------------|--------------|
+| `start` | Starts the main agent's unit, then agent22's, once the main one is up (a broken binary never takes both down). |
+| `stop` | Stops the main agent alone. agent22, the escape hatch, keeps running. |
+| `restart` | Restarts the main agent, and starts agent22 if it was not running. |
+| `status` | Reports both. |
+
+What to know before touching them:
+
+- **Starting a unit needs root**, as the SysV script always did (it ran
+  `su - yuneta`). **Stopping does not**: `--stop` run as `yuneta` ends the
+  agent in order, and its unit goes `inactive`.
+
+  ```bash
+  /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --stop
+  ```
+
+- **An agent started by hand runs OUTSIDE its unit.** `yuneta_agent --start`
+  launched from a shell is a process of that shell: systemd does not see it,
+  `systemctl status` says `inactive`, and the next boot is the unit's, not
+  yours. To put it back, `sudo /etc/init.d/yuneta_agent start` (it stops the
+  agent found outside and starts the unit) or `sudo systemctl restart
+  yuneta_agent`.
+- **A new agent binary is deployed with the unit**: move the binary into place
+  and restart that unit, one agent at a time, never both.
+
+  ```bash
+  cp yuneta_agent /yuneta/agent/yuneta_agent.new
+  mv /yuneta/agent/yuneta_agent.new /yuneta/agent/yuneta_agent
+  sudo restorecon /yuneta/agent/yuneta_agent    # only on SELinux (RHEL / Rocky)
+  sudo systemctl restart yuneta_agent
+  ```
+
+  On RHEL and Rocky, systemd cannot exec a file labelled `default_t`, and
+  everything under `/yuneta` is: the package labels both agents `bin_t`, and
+  `restorecon` gives a file moved in by hand that label back. Without it the
+  unit dies with `203/EXEC` (*"Failed to locate executable ... Permission
+  denied"*).
+- **The yunos outlive a restart of their agent.** They are in the unit's
+  cgroup, but a stop takes only the agent (`KillMode=process`); the journal
+  says *"Found left-over process"* for them at the next start, which is that
+  rule working.
+- **A node built from source** (no package) gets the units by hand, from the
+  repo's templates:
+
+  ```bash
+  sudo install -m 0644 packages/templates/yuneta_agent.service \
+                       packages/templates/yuneta_agent22.service /usr/lib/systemd/system/
+  sudo systemctl daemon-reload
+  sudo systemctl enable yuneta_agent yuneta_agent22
+  /yuneta/agent/yuneta_agent22 --config-file=/yuneta/agent/yuneta_agent22.json --stop
+  sudo systemctl restart yuneta_agent22                      # agent22 first, then:
+  /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --stop
+  sudo systemctl restart yuneta_agent
+  ```
+
+  A development machine where the agents run as the developer adds a drop-in,
+  `/etc/systemd/system/yuneta_agent.service.d/override.conf` (and the same for
+  agent22), with `[Service]`, `User=<you>`, `Group=<you>`.
+
+Why each line of the units is there (`Type=forking`, `KillMode=process`,
+`Restart=no`, `ExecStop`, `ExecStopPost`) is in
+[Entry point §4.7](#entry-point-systemd) and in the comments of the units themselves.
+
 ## Control plane ports
 
 | URL | Purpose |
