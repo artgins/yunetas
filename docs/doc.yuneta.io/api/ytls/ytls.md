@@ -197,7 +197,19 @@ int ytls_decrypt_data(
 
 **Returns**
 
-Returns `0` on success, or a negative value on failure.
+Returns `0` on success; `-2222` when the secure socket was freed inside
+`on_clear_data_cb` (its owner dropped the connection there): touch neither the
+`sskt` nor its owner, which may be gone too; `< -1000` on a TLS error.
+
+```C
+int ret = ytls_decrypt_data(ytls, sskt, gbuf);
+if(ret == -2222) {
+    return;     // the connection ended inside the callback: nothing more to do
+}
+if(ret < -1000) {
+    // TLS error: close the connection
+}
+```
 
 **Notes**
 
@@ -257,7 +269,10 @@ int ytls_encrypt_data(
 
 **Returns**
 
-Returns 0 on success, or a negative value on failure.
+Returns 0 on success; `-2222` when the secure socket was freed inside a
+callback (a subscriber of the clear data published while the backend waited
+dropped the connection): touch neither the `sskt` nor its owner; any other
+negative value on failure.
 
 **Notes**
 
@@ -469,11 +484,11 @@ hsskt ytls_new_secure_filter(
     int (*on_handshake_done_cb)(void *user_data, int error),
     int (*on_clear_data_cb)(
         void *user_data,
-        gbuffer_t *gbuf  // must be decref
+        gbuffer_t *gbuf  // owned by the callback, whatever it answers
     ),
     int (*on_encrypted_data_cb)(
         void *user_data,
-        gbuffer_t *gbuf  // must be decref
+        gbuffer_t *gbuf  // owned by the callback, whatever it answers
     ),
     void *user_data
 );

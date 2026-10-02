@@ -26,6 +26,15 @@ JWT tokens, and manages users and their access rules.
 | `enable-user` / `disable-user` / `set-max-sessions` | Write ONE column of the user -- `disabled`, or `max_sessions` -- and nothing else; `disable-user` also drops the user's live sessions, and `set-max-sessions` without `username` sets the service default `max_sessions_per_user`. Until 7.25.4 they wrote back the whole view they had read, whose hidden `credentials` is a `null` mask, and so ERASED the user's local password. Example: `ycommand -c 'command-yuno id=<id> service=authz command=set-max-sessions username=ana@example.com max_sessions=3'`. |
 | `accesses` | List access rules. |
 
+**Every command from a peer asks a permission of the users treedb**
+(`treedb_authzs`), whatever `enable_command_authz` says: `read` to list,
+`create` / `update` / `delete` to manage users (`create-user` with a `role`
+asks `update` too, as `link-nodes` does), `update` for the JWKs,
+`set-max-sessions` and `check-user-pwd`. Without it the answer is `-403`. Up
+to 7.25.21 they were `SDF_AUTHZ_X` only, which does nothing while the gate is
+off: any user the entry gate let in managed users and the trusted signing keys.
+`tests/c/command_delete_user`, case 12.
+
 **Every comment starts with the yuno that answers** (new after 7.25.4; in
 7.25.4 "User enabled: x", "Set max_sessions: ..." and "User not found" did not):
 `command-yuno id=<id> service=authz command=enable-user username=pepe@example.com`

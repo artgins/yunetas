@@ -959,7 +959,21 @@ The `command_table` at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.2
 
 All are declared with `SDF_AUTHZ_X`, requiring `__execute_command__` — enforced
 only when the broker yuno sets `enable_command_authz` (§4.5). It is off by
-default.
+default. **Besides that gate, C_AUTHZ asks a permission of its own, always**
+(since the cloud review of 2026-10-02): a command from a peer (its kw carries
+the `__username__` of the entry gate) needs the permission of the users
+treedb's C_NODE, `treedb_authzs`, as `link-nodes` does -- `read` to list
+(`users`, `accesses`, `roles`, `user-roles`, `user-authzs`, `list-jwk`),
+`create` for `create-user` (and `update` too when it links a role), `update`
+for the rest of the writes (`update-user`, `enable-user`, `disable-user`,
+`set-user-pwd`, `set-max-sessions`, `add-jwk`, `remove-jwk`, and
+`check-user-pwd`, a password oracle), `delete` for `delete-user`. Without it:
+`-403`, *"no permission to 'update' in service 'treedb_authzs'"*. Internal
+calls (no `__username__`) are not asked. A role granting it:
+
+```json
+{"id": "user_admin", "service": "treedb_authzs", "permission": "*"}
+```
 
 **The event doors.** `C_AUTHZ` also writes users from three input events that
 no command guard sees: `EV_ADD_USER` (create or update, what `create-user`
