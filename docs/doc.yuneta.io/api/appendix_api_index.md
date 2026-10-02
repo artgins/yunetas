@@ -2301,7 +2301,7 @@ it by hand, run the script.
 
 3. [**`pty_sync_spawn`**](runtime/run_command.md#pty_sync_spawn) — `PUBLIC int pty_sync_spawn( const char *command )`
 
-### `ydaemon.h` — 7 functions
+### `ydaemon.h` — 8 functions
 
 **Source:** `kernel/c/root-linux/src/ydaemon.h`
 
@@ -2309,15 +2309,17 @@ it by hand, run the script.
 
 2. [**`daemon_shutdown`**](helpers/daemon_launcher.md#daemon_shutdown) — `PUBLIC void daemon_shutdown(const char *process_name)`
 
-3. [**`daemon_run`**](helpers/daemon_launcher.md#daemon_run) — `PUBLIC int daemon_run( void (*process)( const char *process_name, const char *work_dir, const char *domain_dir, void (*cleaning_fn)(void) ), const char *process_name, const char *work_dir, const char *domain_dir, void (*cleaning_fn)(void) )`
+3. [**`daemon_set_pid_file`**](helpers/daemon_launcher.md#daemon_set_pid_file) — `PUBLIC void daemon_set_pid_file(const char *path)`
 
-4. [**`search_process`**](helpers/daemon_launcher.md#search_process) — `PUBLIC int search_process( const char *process_name, void (*cb)(void *self, const char *name, pid_t pid), void *self )`
+4. [**`daemon_run`**](helpers/daemon_launcher.md#daemon_run) — `PUBLIC int daemon_run( void (*process)( const char *process_name, const char *work_dir, const char *domain_dir, void (*cleaning_fn)(void) ), const char *process_name, const char *work_dir, const char *domain_dir, void (*cleaning_fn)(void) )`
 
-5. [**`get_relaunch_times`**](helpers/daemon_launcher.md#get_relaunch_times) — `PUBLIC int get_relaunch_times(void)`
+5. [**`search_process`**](helpers/daemon_launcher.md#search_process) — `PUBLIC int search_process( const char *process_name, void (*cb)(void *self, const char *name, pid_t pid), void *self )`
 
-6. [**`daemon_set_debug_mode`**](helpers/daemon_launcher.md#daemon_set_debug_mode) — `PUBLIC int daemon_set_debug_mode(BOOL set)`
+6. [**`get_relaunch_times`**](helpers/daemon_launcher.md#get_relaunch_times) — `PUBLIC int get_relaunch_times(void)`
 
-7. [**`daemon_get_debug_mode`**](helpers/daemon_launcher.md#daemon_get_debug_mode) — `PUBLIC BOOL daemon_get_debug_mode(void)`
+7. [**`daemon_set_debug_mode`**](helpers/daemon_launcher.md#daemon_set_debug_mode) — `PUBLIC int daemon_set_debug_mode(BOOL set)`
+
+8. [**`daemon_get_debug_mode`**](helpers/daemon_launcher.md#daemon_get_debug_mode) — `PUBLIC BOOL daemon_get_debug_mode(void)`
 
 ### `yunetas_environment.h` — 14 functions
 
@@ -2357,12 +2359,12 @@ it by hand, run the script.
 
 1. [**`yunetas_register_c_core`**](runtime/runtime_entry_point.md#yunetas_register_c_core) — `PUBLIC int yunetas_register_c_core(void)`
 
-**Total: 118 functions**
+**Total: 119 functions**
 
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1025 functions** sorted alphabetically with their source header.
+All **1026 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2411,6 +2413,7 @@ All **1025 functions** sorted alphabetically with their source header.
 | [**`daemon_get_debug_mode`**](helpers/daemon_launcher.md#daemon_get_debug_mode) | `ydaemon.h` | root-linux (Runtime GClasses) |
 | [**`daemon_run`**](helpers/daemon_launcher.md#daemon_run) | `ydaemon.h` | root-linux (Runtime GClasses) |
 | [**`daemon_set_debug_mode`**](helpers/daemon_launcher.md#daemon_set_debug_mode) | `ydaemon.h` | root-linux (Runtime GClasses) |
+| [**`daemon_set_pid_file`**](helpers/daemon_launcher.md#daemon_set_pid_file) | `ydaemon.h` | root-linux (Runtime GClasses) |
 | [**`daemon_shutdown`**](helpers/daemon_launcher.md#daemon_shutdown) | `ydaemon.h` | root-linux (Runtime GClasses) |
 | [**`date_mode_from_type`**](helpers/time_date.md#date_mode_from_type) | `helpers.h` | gobj-c (Core Framework) |
 | [**`date_overflows`**](helpers/time_date.md#date_overflows) | `helpers.h` | gobj-c (Core Framework) |

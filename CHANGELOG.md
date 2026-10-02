@@ -45,6 +45,15 @@ except the hook and the entries this list marks "(no red test)".
   for `child_tree_filter`.
 - **The agent's audit log redacts more names**: one that holds a part of a
   secret's name is redacted whatever else it holds (`token_endpoint` too).
+- **The agents run as systemd units: `yuneta_agent.service` and
+  `yuneta_agent22.service`.** Start, stop and restart them with `systemctl`;
+  an agent started by hand with `--start` runs outside its unit, where
+  systemd does not see it and the next boot does not start it. To deploy an
+  agent binary: move it into place, then `sudo systemctl restart
+  yuneta_agent` (one agent at a time, as always). The package's upgrade moves
+  both agents into their units (agent22 too, which the SysV script started
+  outside any unit). A restart of an agent's unit leaves the yunos running
+  (`KillMode=process`; its journal says *"Found left-over process"* for them).
 - **A direct owner of an fs_watcher handles `FS_WATCHER_GONE_TYPE`**: the
   watcher tells it before it goes, already freed when the callback returns,
   so the owner drops its pointer and never stops it again. timeranger2,
@@ -171,6 +180,32 @@ except the hook and the entries this list marks "(no red test)".
   *"Destroying a RUNNING gobj"* and *"No subscription found"* per counter. The
   agent's `mt_stop` stops and destroys them, without answering (their
   channels are closing). (no red test)
+- **The agents are native systemd units, and systemd sees them.** The agent
+  was a SysV script that `systemd-sysv-generator` wrapped: an agent started
+  outside it (by hand, by an xscript) left `systemctl status yuneta_agent`
+  saying *inactive* while it ran -- an acceptance test on yunovatios central
+  (Rocky 9.7) failed on it -- and `yuneta_agent22` had no unit at all.
+  `yuneta_agent.service` (named like the script, so systemd takes it instead
+  of the generated one) and `yuneta_agent22.service` (independent: either can
+  stop or fail while the other keeps the node reachable) are `Type=forking`
+  over the agent's own daemon: a new option of every yuno, `--pid-file`, makes
+  the process started with `--start` write the WATCHER's pid before it
+  returns, which is the unit's main pid. The watcher keeps relaunching a
+  crashed agent (`Restart=no`: systemd never starts a second one);
+  `KillMode=process` keeps the yunos across a stop; `ExecStop` asks only the
+  unit's own agent to shut down (not `--stop`, which ends every process of
+  the name -- and systemd runs ExecStop also when the watcher ended on its
+  own, so a second agent that met the first and left took the first with
+  it). The package restarts both units (the main agent first, agent22 once
+  it runs), stopping first an agent that runs outside its unit; the SysV
+  script stays for another init. Checked by hand on wattyzer (Debian 13);
+  through the built packages, and on Rocky, before the release (`TODO.md`).
+  (no red test)
+- **gui_agent's bottom bar no longer clips its fifth item on a phone**
+  (gobj-ui 7.25.24, gui_agent 0.29.8, gui_treedb 0.17.75). Bulma's `.level`
+  put a 0.75rem gap between items that carry their padding: at 360px the bar
+  scrolled 29px in Spanish, 5px in English. Measured with the real Bulma in
+  Chromium and Firefox.
 - **fs_watcher: an end of the queued events said past the stream is reached
   on a quiet watcher.** When `fs_queued_events_end()` cannot see the
   watcher's read (completions overflowed the ring, `FIONREAD` failed, the

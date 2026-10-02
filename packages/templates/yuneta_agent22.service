@@ -1,0 +1,59 @@
+#
+#   yuneta_agent22 as a native unit. Up to 7.25.21 the SysV script
+#   (/etc/init.d/yuneta_agent) started it after the agent, and systemd did
+#   not see it. yuneta_agent.service has a unit of its own and is not tied
+#   to this one: either can be stopped, upgraded or fail while the other
+#   keeps the node reachable.
+#
+#   Type=forking with the agent's own daemon: `--start` forks a WATCHER,
+#   which relaunches the agent when it dies (the ydaemon of every yuno), and
+#   `--pid-file` writes the watcher's pid before the start returns. systemd
+#   supervises the watcher; it never restarts the agent itself (Restart=no):
+#   the watcher does, and a second agent would only fight the first for its
+#   ports.
+#
+#   KillMode=process: the yunos the agent launches live in this unit's
+#   cgroup, and a stop or a restart of the agent must not take them down.
+#   ExecStop asks THIS unit's agent, the child of the watcher ($MAINPID), for
+#   its orderly shutdown (SIGQUIT); the watcher then ends by itself. Not the
+#   agent's `--stop`: that ends every process of the name, and systemd runs
+#   ExecStop also when the watcher ended on its own -- a second agent that
+#   found the first one running and left would take the first one with it.
+#   An agent that does not end in TimeoutStopSec gets SIGKILL
+#   (SuccessExitStatus: a stop, not a failure).
+#
+#   An agent started by hand with `--start` runs outside this unit, and
+#   systemd does not see it: start and stop it with systemctl.
+#
+[Unit]
+Description=Yuneta agent22 (the escape hatch: a second agent that can upgrade the first)
+Documentation=https://doc.yuneta.io/yuneta-agent
+After=network-online.target nss-lookup.target time-sync.target remote-fs.target rsyslog.service
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=yuneta
+Group=yuneta
+WorkingDirectory=~
+Environment=YUNETA_DIR=/yuneta
+Environment=PATH=/yuneta/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+RuntimeDirectory=yuneta_agent22
+PIDFile=/run/yuneta_agent22/yuneta_agent22.pid
+ExecStart=/yuneta/agent/yuneta_agent22 --config-file=/yuneta/agent/yuneta_agent22.json --start --pid-file=/run/yuneta_agent22/yuneta_agent22.pid
+ExecStop=-/usr/bin/pkill -QUIT -P $MAINPID -x yuneta_agent22
+KillMode=process
+SuccessExitStatus=SIGKILL
+Restart=no
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+#   The limits the SysV script raised: core dumps, io_uring rings (pinned
+#   memory, per user) and open files (infinity is fs.nr_open, 4000000 with
+#   the package's sysctl). The yunos inherit them.
+LimitCORE=infinity
+LimitMEMLOCK=infinity
+LimitNOFILE=infinity
+
+[Install]
+WantedBy=multi-user.target

@@ -73,11 +73,6 @@ Severity in parentheses where one was assigned.
   path for them (SIGQUIT to the pids found, answered at once), or say in the
   answer that the yuno lives unconnected.
 
-### Control center
-
-- **gui_agent: on a phone the rail's fifth item is clipped at 360 px in
-  Spanish** (minor; the bar scrolls).
-
 ### Projects (code outside this repo)
 
 - **msg2db consumers do not use `msg2db_id_incomplete()`** (low): the
@@ -89,18 +84,6 @@ Severity in parentheses where one was assigned.
   `status`), *"missing indicator.values[]"*. Same answer as
   `c_prot_http_cl.c`: nothing a peer can trigger, the url or the endpoint name
   is the useful field. Belongs in wattyzer's own TODO.
-
-### Packaging
-
-- **The agent is a SysV script, and systemd does not see an agent started
-  outside it** (low). `/etc/init.d/yuneta_agent` is wrapped by
-  `systemd-sysv-generator`; when the agent is started by hand or by an
-  xscript, `systemctl status yuneta_agent` answers *inactive (dead)* while it
-  runs (yunovatios central, Rocky 9.7, 2026-09-28), which fails an acceptance
-  test that checks the service with `systemctl`. Ship a native unit like
-  `yuneta-webserver.service` (`Type=forking` with the daemon's pid file, or
-  the agent in the foreground), keep `yuneta_agent22` outside it as the
-  escape hatch, and make the xscripts start it through `systemctl`.
 
 ---
 
@@ -514,6 +497,22 @@ Severity in parentheses where one was assigned.
 ---
 
 ## 6. Operations and deployment
+
+- **The agents' systemd units, still to verify through the packages.** The
+  units and `--pid-file` were checked by hand on wattyzer (Debian 13,
+  2026-10-02: crash relaunch, restart keeping the yunos, an agent outside its
+  unit moved in, a hand-run second agent leaving alone), not through a built
+  package. Before the release that ships them: build the `.deb` and upgrade a
+  node from the 7.25.21 package (the SysV generated unit "active (exited)",
+  agent22 outside); and the `.rpm` on yunovatios central (Rocky 9, the node
+  whose acceptance test asked for it, package only). wattyzer runs both
+  units now, with hand-installed unit files and agents built locally.
+- **xscripts start the agents with `systemctl`** once the units ship: the
+  `create-*.sh` of the operation repos (estadodelaire, yunovatios, artgins)
+  stop and start the agent by hand (`--stop` / `--start`), which puts it
+  outside its unit -- the case the units exist to end.
+- **Deploy gui_agent 0.29.8 and gui_treedb 0.17.75 to a.com** (gobj-ui
+  7.25.24: the phone's bottom bar fits at 360px).
 
 - **a.com: deploy controlcenter config 7** (both planes, 1996 and 1997;
   the artgins operation repo, `ce894df`): `__input_side__` not autostarted

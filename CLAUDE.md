@@ -71,7 +71,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.25.23`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.25.24`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -1804,9 +1804,15 @@ equivalent.
   settles it. (`delete-config` refuses a version still in use unless
   `force=1`.)
 - **The agent itself is a standalone daemon, not a managed yuno** —
-  `kill-yuno` / `update-binary` / `run-yuno` do nothing to it. Deploy it with
-  `yuneta_agent --config-file=<its json> --stop` then `--start` (it
-  re-daemonizes on the new binary). SIGTERM is ignored by design. Every node
+  `kill-yuno` / `update-binary` / `run-yuno` do nothing to it. Since the
+  native units (`yuneta_agent.service`, `yuneta_agent22.service`, after
+  7.25.21) deploy it with the new binary moved into place and
+  `sudo systemctl restart yuneta_agent` (or `yuneta_agent22`): a hand-run
+  `--start` puts the agent OUTSIDE its unit, where systemd does not see it
+  and the next boot does not start it. A node still on the SysV script (no
+  `/usr/lib/systemd/system/yuneta_agent.service`) keeps
+  `yuneta_agent --config-file=<its json> --stop` then `--start`. SIGTERM is
+  ignored by design. Every node
   runs `yuneta_agent` + `yuneta_agent22` (minimal escape hatch) as deliberate
   redundancy — each can upgrade the other; **never stop or upgrade both at
   once**.
@@ -1831,7 +1837,8 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   release while a cycle is open** (rule of 2026-09-29). Bump `YUNETA_VERSION`
   (`RELEASE` back to 1), write its CHANGELOG section and tag it as usual, but:
   run only the tests the change affects (not the two-machine suite below), and
-  deploy ONLY the affected binary -- the agent with `--stop`/`--start`, one
+  deploy ONLY the affected binary -- the agent with `systemctl restart` of its
+  unit (`--stop`/`--start` on a node without the units), one
   agent at a time and a `*.bak-pre-<version>` of the running one first; the
   controlcenter as a new release of 1996/1997 on a.com. No rebuild of every
   yuno, no `sync-binaries` round over the nodes. **Why:** 7.25.13 changed only

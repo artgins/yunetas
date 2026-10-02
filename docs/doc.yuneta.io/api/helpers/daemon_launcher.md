@@ -144,6 +144,42 @@ The watcher process PID, or `0` if the current process has no watcher.
 
 ---
 
+(daemon_set_pid_file)=
+### [`daemon_set_pid_file()`](https://github.com/artgins/yunetas/blob/7.25.21/kernel/c/root-linux/src/ydaemon.c#L529)
+
+`daemon_set_pid_file()` names the file where, under `--start`, the pid of
+the WATCHER is written -- by the process that was started, before it exits,
+which is when a systemd unit of `Type=forking` reads its `PIDFile=`. The
+entry point calls it with the value of `--pid-file`; a yuno has nothing else
+to do for it.
+
+```C
+void daemon_set_pid_file(const char *path);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `path` | `const char *` | The file. It must live until `daemon_run()` (an argv string does). NULL or empty: no file. |
+
+**Example**
+
+```bash
+/yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json \
+    --start --pid-file=/run/yuneta_agent/yuneta_agent.pid
+cat /run/yuneta_agent/yuneta_agent.pid      # the watcher, the unit's main pid
+```
+
+**Notes**
+
+The file is written aside (`<file>.tmp`) and renamed, so systemd reads it
+whole or not at all. A failure to write it is printed and sent to syslog; the
+daemon goes on. The unit that uses it is described in
+[the entry point chapter](#entry-point-watcher).
+
+---
+
 (get_relaunch_times)=
 ### [`get_relaunch_times()`](https://github.com/artgins/yunetas/blob/7.25.21/kernel/c/root-linux/src/ydaemon.c#L469)
 

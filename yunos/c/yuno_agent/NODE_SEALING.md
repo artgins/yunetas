@@ -107,8 +107,10 @@ reachable **three** ways, and they are **not** equivalent:
 
 The two agents exist so **each can maintain the other**. The agent is a
 standalone daemon (not a managed yuno), so updating an agent binary is a
-`--stop` / replace / `--start` run **on the box, from a root console** — and you
-must open that console through the *other* agent's plane:
+replace + `sudo systemctl restart yuneta_agent` (or `yuneta_agent22`: each
+agent has its own unit since 7.25.21; `--stop` / `--start` on a node without
+them) run **on the box, from a root console** — and you must open that
+console through the *other* agent's plane:
 
 - To update / restart **`yuneta_agent`** → open a console through **agent22**
   (`.ovh:1997`) and do the stop/replace/start there. If instead you entered
@@ -317,7 +319,8 @@ here is a candidate for promotion to Tier 1:
   stays a break-glass operation.
 - Upgrading **the agent binary**. The agent is a standalone daemon, not a
   managed yuno: `update-binary` does not reach it, and it is restarted with
-  `yuneta_agent --config-file=<json> --stop` then `--start`. The intended
+  `systemctl restart` of its unit (`--stop` then `--start` on a node without
+  the units). The intended
   agent-side answer is the twin (each agent can replace the other — never both
   at once), but there is no command for it today.
 

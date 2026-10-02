@@ -116,6 +116,7 @@ struct arguments {
     int verbose_log;
     const char *global_traces[MAX_CLI_GLOBAL_TRACES];
     int global_traces_count;
+    const char *pid_file;
 };
 
 /***************************************************************************
@@ -140,10 +141,13 @@ const char *argp_program_version = __argp_program_version__;        // Public fo
 /* A description of the arguments we accept. */
 PRIVATE char args_doc[] = "[{json config}]";
 
+#define OPT_PID_FILE    1001    // long option only
+
 /* The options we understand. */
 PRIVATE struct argp_option options[] = {
 {"start",                   'S',    0,      0,  "Start the yuno (as daemon)",   0},
 {"stop",                    'K',    0,      0,  "Stop the yuno (as daemon)",    0},
+{"pid-file",        OPT_PID_FILE,   "FILE", 0,  "With --start: write the pid of the watcher in FILE (a systemd unit's PIDFile=)", 0},
 {"config-file",             'f',    "FILE", 0,  "Load settings from json config file or [files]", 0},
 {"print-config",            'p',    0,      0,  "Print the final json config", 0},
 {"print-verbose-config",    'P',    0,      0,  "Print verbose json config", 0},
@@ -181,6 +185,9 @@ PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state)
         break;
     case 'K':
         arguments->stop = 1;
+        break;
+    case OPT_PID_FILE:
+        arguments->pid_file = arg;
         break;
     case 'v':
         printf("%s\n", argp_program_version);
@@ -409,6 +416,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     }
     if(arguments.start) {
         __as_daemon__ = 1;
+        daemon_set_pid_file(arguments.pid_file);
     }
     if(arguments.print_verbose_config ||
             arguments.print_final_config ||

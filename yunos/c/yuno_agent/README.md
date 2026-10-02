@@ -126,7 +126,7 @@ to by default.
      shell on the host without touching the primary agent.
   2. *Self-update channel for the primary agent*: because `yuneta_agent22`
      is an independent process (its own `--config-file`, its own watcher),
-     you can `--stop` / replace the binary / `--start` of `yuneta_agent`
+     you can replace the binary of `yuneta_agent` and restart its unit
      without losing the inbound channel to the host. Same `authz.master`
      wiring as the primary, but typically with `authz.master=false`
      so it follows the primary's authz treedb instead of forking one.

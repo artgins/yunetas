@@ -2,7 +2,8 @@
 #######################################################################
 #               make-yuneta-agent-rpm.sh
 #######################################################################
-# Build an .rpm for Yuneta's Agent with SysV integration (RHEL/Rocky/Alma).
+# Build an .rpm for Yuneta's Agent with systemd units (and a SysV script for
+# other inits) (RHEL/Rocky/Alma).
 #
 # This is the RPM counterpart of ../make-yuneta-agent-deb.sh. It stages
 # the SAME /yuneta runtime tree and the same generated helpers/configs,
@@ -897,6 +898,23 @@ exit 0
 EOF
 chmod 0755 "${STAGE}/etc/init.d/yuneta_agent"
 
+# --- The agents as native systemd units ---
+#
+# yuneta_agent.service has the name of the SysV script, so systemd takes it
+# instead of the unit it generated from /etc/init.d/yuneta_agent, and
+# yuneta_agent22.service is the escape hatch's own: independent, either can
+# stop or fail while the other keeps the node reachable. Up to 7.25.21
+# systemd did not see an agent started outside the generated unit (by hand,
+# by an xscript), and `systemctl status yuneta_agent` answered "inactive"
+# while it ran -- yunovatios central, Rocky 9.7, 2026-09-28. The units carry
+# their reasons (Type=forking + the watcher's --pid-file, KillMode=process,
+# Restart=no); the files are packages/templates/yuneta_agent{,22}.service.
+mkdir -p "${STAGE}/usr/lib/systemd/system"
+for _unit in yuneta_agent.service yuneta_agent22.service; do
+    install -m 0644 "${YUNETAS_BASE}/packages/templates/${_unit}" \
+        "${STAGE}/usr/lib/systemd/system/${_unit}"
+done
+
 # --- The node's web server, as its own unit ---
 #
 # It used to be started by /etc/init.d/yuneta_agent, which ran nginx and let it
@@ -1011,9 +1029,22 @@ install -m 0755 "${STAGE}/etc/init.d/yuneta_agent" "${STAGE}/yuneta/agent/servic
 cat > "${STAGE}/yuneta/agent/service/install-yuneta-service.sh" <<'EOF'
 #!/bin/sh
 #######################################################################
-# Install SysV service: place init script and enable/start it (RHEL)
+# Install the service: the systemd units, or the SysV script elsewhere
 #######################################################################
 set -eu
+
+if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload || true
+    systemctl enable yuneta_agent.service yuneta_agent22.service || true
+    for _a in yuneta_agent yuneta_agent22; do
+        if [ "$(systemctl show -p MainPID --value "${_a}.service")" = "0" ] && pgrep -x "${_a}" >/dev/null 2>&1; then
+            su -s /bin/sh -c "/yuneta/agent/${_a} --config-file=/yuneta/agent/${_a}.json --stop" yuneta || true
+            sleep 2
+        fi
+        systemctl restart "${_a}.service" || break
+    done
+    exit 0
+fi
 
 if [ ! -x "/etc/init.d/yuneta_agent" ]; then
     install -m 0755 /yuneta/agent/service/yuneta_agent /etc/init.d/yuneta_agent
@@ -1036,9 +1067,13 @@ chmod 0755 "${STAGE}/yuneta/agent/service/install-yuneta-service.sh"
 cat > "${STAGE}/yuneta/agent/service/remove-yuneta-service.sh" <<'EOF'
 #!/bin/sh
 #######################################################################
-# Disable SysV service: stop and remove from chkconfig (RHEL)
+# Disable the service: the systemd units (both agents: the package goes),
+# and the SysV script from chkconfig
 #######################################################################
 set -eu
+if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+    systemctl disable --now yuneta_agent.service yuneta_agent22.service >/dev/null 2>&1 || true
+fi
 if command -v service >/dev/null 2>&1; then
     service yuneta_agent stop || true
 else
@@ -1543,6 +1578,8 @@ cp -a %{_staging}/. %{buildroot}/
 %config(noreplace) /etc/letsencrypt/renewal-hooks/deploy/reload-certs
 %config(noreplace) /etc/logrotate.d/yuneta
 /usr/lib/systemd/system/yuneta-webserver.service
+/usr/lib/systemd/system/yuneta_agent.service
+/usr/lib/systemd/system/yuneta_agent22.service
 /yuneta/bin/yuneta-webserver
 %config(noreplace) /etc/fail2ban/filter.d/yuneta-nginx-probe.conf
 %config(noreplace) /etc/fail2ban/jail.d/yuneta-nginx.conf
@@ -2017,7 +2054,34 @@ IOURING_NOW="$(sysctl -n kernel.io_uring_disabled 2>/dev/null || echo 0)"
 if [ "$IOURING_NOW" != "0" ]; then
     YUNETA_START_MSG="io_uring is disabled (kernel.io_uring_disabled=$IOURING_NOW); agent NOT started. Enable it (sudo sysctl -w kernel.io_uring_disabled=0, or reboot) then: sudo service yuneta_agent start"
 else
-    if command -v service >/dev/null 2>&1; then
+    #   Under systemd the agents run in their units, RESTARTED, not started:
+    #   %pre stopped the agent behind the generated unit's back, which stays
+    #   "active (exited)", and a start of an active unit does nothing. The
+    #   main agent first, and agent22 only once it runs: never both down.
+    #   An agent running OUTSIDE its unit (the SysV script started it, or a
+    #   hand-run --start; the unit has no main pid, though it may say "active
+    #   (exited)") is stopped first with its own --stop: a unit started
+    #   beside it would find it running and leave, and systemd would then run
+    #   the unit's ExecStop. Then the unit is (re)started.
+    _agent_into_its_unit() {
+        _a="$1"
+        if [ "$(systemctl show -p MainPID --value "${_a}.service")" = "0" ] && pgrep -x "${_a}" >/dev/null 2>&1; then
+            su -s /bin/sh -c "/yuneta/agent/${_a} --config-file=/yuneta/agent/${_a}.json --stop" yuneta >/dev/null 2>&1 || true
+            sleep 2
+        fi
+        systemctl restart "${_a}.service"
+    }
+    if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+        systemctl daemon-reload >/dev/null 2>&1 || true
+        systemctl enable yuneta_agent.service yuneta_agent22.service >/dev/null 2>&1 || true
+        if _agent_into_its_unit yuneta_agent; then
+            YUNETA_STARTED=1
+            _agent_into_its_unit yuneta_agent22 \
+                || warn "yuneta_agent22.service did not start: systemctl status yuneta_agent22"
+        else
+            YUNETA_STARTED=0
+        fi
+    elif command -v service >/dev/null 2>&1; then
         service yuneta_agent start && YUNETA_STARTED=1 || YUNETA_STARTED=0
     elif [ -x /etc/init.d/yuneta_agent ]; then
         /etc/init.d/yuneta_agent start && YUNETA_STARTED=1 || YUNETA_STARTED=0
@@ -2060,6 +2124,9 @@ exit 0
 #######################################################################
 set -u
 if [ "$1" = "0" ]; then
+    if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+        systemctl disable --now yuneta_agent.service yuneta_agent22.service >/dev/null 2>&1 || true
+    fi
     if command -v service >/dev/null 2>&1; then
         service yuneta_agent stop || true
     else

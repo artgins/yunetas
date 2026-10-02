@@ -88,7 +88,7 @@ the packaging metadata and the install/remove logic differ:
 | Create user        | `adduser --disabled-password`         | `useradd -m` + `passwd -l`                    |
 | sudo group         | `sudo`                                | `wheel`                                       |
 | Locales            | `locale-gen` / `update-locale`        | `glibc-langpack-{en,es}` + `/etc/locale.conf` |
-| SysV enable        | `update-rc.d` / `invoke-rc.d`         | `chkconfig` + `service`                       |
+| Agent services     | systemd units (+ `update-rc.d` for the SysV script) | systemd units (+ `chkconfig` for the SysV script) |
 | Conffiles          | `DEBIAN/conffiles`                    | `%config(noreplace)`                          |
 | certbot helper     | `install-certbot.sh` (snap)      | `install-certbot.sh` (EPEL `dnf`)            |
 | dev-deps helper    | `install-yuneta-dev-deps.sh` (apt)    | same name, `dnf` + EPEL + CRB                 |
@@ -208,8 +208,12 @@ leaves the packaged externals in place — the same mismatch by a shorter road.
    [`tools/README.md`](../../tools/README.md)).
 7. Installs bundled `authorized_keys` for `yuneta` (if present).
 8. Enables `rsyslog`.
-9. Installs + enables the SysV service via `chkconfig`. It then starts the
-   agent **only when io_uring is actually enabled** (re-checked after the
+9. Installs the SysV script via `chkconfig` (for an init that is not systemd),
+   enables the units `yuneta_agent.service` and `yuneta_agent22.service`, and
+   RESTARTS them -- the main agent first, agent22 only once it runs; a restart
+   because `%pre` stopped the agent behind the generated unit's back, leaving
+   it `active (exited)`, where a start does nothing. It does so
+   **only when io_uring is actually enabled** (re-checked after the
    `sysctl --system` of step 6) and captures the real result — a disabled
    io_uring, or any other start failure, is reported, **not** hidden behind
    RPM's always-"Complete" transaction.

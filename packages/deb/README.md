@@ -180,10 +180,21 @@ The `postinst` script runs automatically after file extraction and performs thes
 #### 2.7. Syslog Setup
 - Enables and starts `rsyslog` to ensure `/var/log/syslog` is available
 
-#### 2.8. SysV Service Installation
-- Installs `/etc/init.d/yuneta_agent` (if not present)
-- Creates runlevel symlinks via `update-rc.d yuneta_agent defaults`
-- **Starts the service** on `configure`/`reconfigure` actions
+#### 2.8. The agents' services
+- Installs the systemd units `/usr/lib/systemd/system/yuneta_agent.service`
+  and `yuneta_agent22.service` (from `packages/templates/`), enables both, and
+  on `configure`/`reconfigure` **restarts** them: the main agent first, agent22
+  only once it runs, so both are never down. A restart, not a start: an agent
+  the SysV script started left its generated unit `active (exited)`, where a
+  start does nothing; and a restart moves an agent22 running outside its unit
+  into it. The units' own comments say why each line is there
+  (`Type=forking` + the watcher's `--pid-file`, `KillMode=process`,
+  `Restart=no`).
+- `yuneta_agent.service` has the name of the SysV script, so under systemd it
+  replaces the unit generated from `/etc/init.d/yuneta_agent`. The script is
+  still installed (with its `update-rc.d` links) for an init that is not
+  systemd. Up to 7.25.21 it was the only service, agent22 had no unit, and an
+  agent started outside it was invisible to `systemctl`.
 
 #### 2.8bis. Web server service
 
@@ -241,7 +252,7 @@ one gets a default.
 ### 3. Package Removal
 
 - **`prerm`**: Stops the `yuneta_agent` service gracefully before removing files, and stops and disables `yuneta-webserver.service`
-- **`postrm remove`**: Removes SysV runlevel symlinks (keeps conffiles)
+- **`postrm remove`**: Disables and stops both agent units, removes SysV runlevel symlinks (keeps conffiles)
 - **`postrm purge`**: Also deletes `/etc/init.d/yuneta_agent`
 
 ### 4. Configuration Files Preserved on Upgrade

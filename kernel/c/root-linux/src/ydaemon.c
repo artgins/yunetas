@@ -37,6 +37,7 @@ PRIVATE volatile int debug = 0;
 PRIVATE volatile int exit_code;
 PRIVATE volatile int signal_code;
 PRIVATE volatile int watcher_pid = 0;
+PRIVATE const char *pid_file = NULL;
 
 /***************************************************************************
  *  Parent → daemon_catch_signals() → ignores signals → pure waitpid().
@@ -51,6 +52,37 @@ PRIVATE void daemon_catch_signals(void)
     signal(SIGINT, SIG_IGN);     // ctrl+c
     signal(SIGUSR1, SIG_IGN);
     signal(SIGUSR2, SIG_IGN);
+}
+
+/***************************************************************************
+ *  The pid of the watcher in `pid_file`, whole or not at all (written aside
+ *  and renamed): systemd reads it as soon as the process it started exits
+ ***************************************************************************/
+PRIVATE void write_pid_file(pid_t pid)
+{
+    char tmp[PATH_MAX];
+    if(snprintf(tmp, sizeof(tmp), "%s.tmp", pid_file) >= (int)sizeof(tmp)) {
+        print_error(0, "pid file path too long: %s", pid_file);
+        return;
+    }
+    int fd = open(tmp, O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC, 0644);
+    if(fd < 0) {
+        print_error(0, "Cannot create the pid file %s, errno %d %s", tmp, errno, strerror(errno));
+        return;
+    }
+    char bf[32];
+    int len = snprintf(bf, sizeof(bf), "%d\n", (int)pid);
+    if(write(fd, bf, (size_t)len) != len) {
+        print_error(0, "Cannot write the pid file %s, errno %d %s", tmp, errno, strerror(errno));
+        close(fd);
+        unlink(tmp);
+        return;
+    }
+    close(fd);
+    if(rename(tmp, pid_file) < 0) {
+        print_error(0, "Cannot rename the pid file to %s, errno %d %s", pid_file, errno, strerror(errno));
+        unlink(tmp);
+    }
 }
 
 /***************************************************************************
@@ -85,6 +117,9 @@ PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
             break;                  // child falls through
         default:
             /* If we got a good PID, then we can exit the parent process. */
+            if(pid_file) {
+                write_pid_file(pid);    // the child is the watcher
+            }
             _exit(EXIT_SUCCESS);   // parent terminates
     }
 
@@ -486,6 +521,14 @@ PUBLIC int daemon_set_debug_mode(BOOL set)
 PUBLIC BOOL daemon_get_debug_mode(void)
 {
     return debug;
+}
+
+/***************************************************************************
+ *  See ydaemon.h
+ ***************************************************************************/
+PUBLIC void daemon_set_pid_file(const char *path)
+{
+    pid_file = (path && *path)? path : NULL;
 }
 
 /***************************************************************************

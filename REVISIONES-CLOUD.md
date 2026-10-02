@@ -1,8 +1,8 @@
 # Cloud review of main
 
 Reviewed up to `62e070ec5` (2026-10-02). What is resolved is removed from
-this file: of the 28 items of the review of TODO.md section 1, four are left
-below (9a/9b, 24, 26, 27); every other one is listed under *Acted on*. Last check of the code: clean build with no warning, suite
+this file: of the 28 items of the review of TODO.md section 1, two are left
+below (9a/9b, 26); every other one is listed under *Acted on*. Last check of the code: clean build with no warning, suite
 278/278 as user `yuneta` under `ulimit -Sn 1024`.
 
 ## Acted on (2026-10-02)
@@ -83,6 +83,14 @@ that fails without the fix unless said):
   watcher itself (a one-shot turn of the loop, and after each batch): the
   stream jumps to it with an `FS_BATCH_END`.
 - **28**: every stale text, the gobj-js CHANGELOG included.
+- **24**: the gap of Bulma's `.level` dropped from gobj-ui's icon bar
+  (7.25.24); measured at 360px with the real Bulma in two engines.
+- **27**: native units for both agents, `Type=forking` with a new
+  `--pid-file` (the watcher's pid). Two points beyond the review: systemd
+  runs ExecStop also when the watcher ended on its own, so ExecStop is
+  scoped to the unit's own agent, not `--stop`; and the transition stops an
+  agent running outside its unit before starting the unit. Checked by hand
+  on wattyzer; the package transition and Rocky are in `TODO.md`.
 
 ## Still open from the review of TODO.md section 1
 
@@ -110,27 +118,7 @@ Verdicts as written by the review; line numbers are those of `62e070ec5`.
     delete is queued), not handed to the callback.
   - (d): ENOENT down to a warning.
 
-**24. gui_agent: fifth rail item clipped at 360 px in Spanish** —
-plausible; a layout cannot be verified by reading. Low.
-- Five labelled items, and `.yui-nav-iconbar` does not let them shrink.
-- **Preferred fix:** decided once against the longest locale, as
-  `CLAUDE.md` says: an icon-only bottom bar, or shorter mobile labels.
-  Check it with the real Bulma.
-
 **26. msg2db consumers; wattyzer `C_GATE_PVPC`** — not verifiable here.
 - `msg2db_id_incomplete()` exists, is documented with an example and is
   tested.
 - Both items belong in each project's own TODO.
-
-**27. The agent is a SysV script** — TRUE, low.
-- **Preferred fix:** a native `yuneta-agent.service` for agent1 only.
-  `yuneta_agent22` stays outside it. Two points that the TODO does not
-  mention:
-  - **The pid file.** `--start` daemonizes behind the ydaemon watcher, and
-    the pid file holds the CHILD's pid, which changes when the watcher
-    restarts it. So either `PIDFile` takes the watcher's pid, or the unit
-    runs the agent in the foreground with `Restart=on-failure`.
-  - **The cgroup.** The yunos are launched by the agent and land in its
-    cgroup. The unit needs `KillMode=process` with
-    `ExecStop=... --stop`, or a `systemctl restart` kills every yuno.
-- Test it on Rocky and on Debian.

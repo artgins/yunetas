@@ -95,6 +95,7 @@ for a representative call site.
 |--------------------------|--------------------------------------------------------|
 | `-S, --start`            | Run as daemon (double-fork + watcher). Else foreground. |
 | `-K, --stop`             | Call `daemon_shutdown(process_name)` and exit (see §4.5). |
+| `--pid-file=FILE`        | With `--start`: write the WATCHER's pid in FILE before returning (see §4.7). |
 | `-f, --config-file=FILE` | Merge external JSON on top of fixed/variable config.   |
 | `-p, --print-config`     | Print final merged config and exit.                    |
 | `-P, --print-verbose-config` | Print config with all defaults expanded and exit.  |
@@ -305,6 +306,48 @@ precisely what asks the watcher to launch the yuno again.
 Exported so [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.25.21/kernel/c/root-linux/src/c_yuno.c) can include both `pid` and `watcher_pid` in the
 yuno's identity card. That is how the agent gets the `yuno_pid` and the
 `watcher_pid` rows in its treedb (used by `kill-yuno`, see §7).
+
+### 4.7 Under a systemd unit: `--pid-file`
+
+The agents run under native units (`yuneta_agent.service`,
+`yuneta_agent22.service`, shipped by the packages after 7.25.21). A unit of
+`Type=forking` needs the pid of the process that STAYS, and here that is the
+watcher, not the agent: `--pid-file` makes the process started with `--start`
+write the watcher's pid (the child of its fork) before it exits, which is the
+moment systemd reads `PIDFile=`. The file is written aside and renamed, so it
+is whole or absent; a failure to write it is printed and logged to syslog.
+
+```ini
+[Service]
+Type=forking
+User=yuneta
+RuntimeDirectory=yuneta_agent
+PIDFile=/run/yuneta_agent/yuneta_agent.pid
+ExecStart=/yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --start --pid-file=/run/yuneta_agent/yuneta_agent.pid
+ExecStop=/yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --stop
+KillMode=process
+SuccessExitStatus=SIGKILL
+Restart=no
+```
+
+What each line keeps from this chapter:
+
+- **`Restart=no`.** The watcher relaunches the agent (§4.3). A crash of the
+  agent is seen by the watcher, not by systemd: the unit stays `running`
+  with the same main pid. systemd restarting it too would start a second
+  agent that fights the first for its ports.
+- **`SuccessExitStatus=SIGKILL`.** `--stop` ends the watcher with SIGKILL
+  (§4.5); without it every stop would leave the unit `failed`.
+- **`KillMode=process`.** The yunos the agent launches are in the unit's
+  cgroup. A stop or a restart must not take them (they outlive their agent,
+  §4.4); the journal says *"Found left-over process"* for them at the next
+  start, which is that rule working.
+- **A SIGKILL of the agent alone is a stop, not a crash** (§4.3): the watcher
+  exits and the unit goes `inactive`. To test the relaunch, crash it with
+  another signal (`kill -SEGV`).
+
+An agent started by hand with `--start` runs outside the unit, where systemd
+does not see it: restart it with `systemctl restart yuneta_agent`.
 
 ---
 

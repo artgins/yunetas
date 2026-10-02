@@ -243,7 +243,7 @@ different options. First [build from source](#build-from-source). Then run
 
 The package installs the agent, the CLI tools and the bundled openresty under
 `/yuneta/`. It creates the `yuneta` system user. It applies the kernel tuning
-and the PAM limits. Then it starts the SysV service.
+and the PAM limits. Then it starts the two agents, each in its systemd unit.
 
 The package also installs a sparse SDK under `/yuneta/development/yunetas/`.
 This sparse SDK holds the Yuneta libraries, the headers, the CMake toolchain
@@ -299,22 +299,40 @@ and with no difference of layout. The full inventory is in
 > your options with [`menuconfig`](#configure-menuconfig). Two examples are
 > mbedTLS for smaller binaries, and a smaller set of modules.
 
-> ⚠️ **The agent is a SysV service. Control it with the `--start` and `--stop`
-> options of the agent binary. Do not use `systemctl` or systemd.** Yuneta runs
-> its own daemon and watchdog. Thus `systemctl restart yuneta_agent` does
-> **nothing**: the process keeps its old PID and its old binary. To start, stop
-> or restart the agent, use these commands:
+> ⚠️ **The two agents are systemd units: `yuneta_agent.service` and
+> `yuneta_agent22.service`. Start, stop and restart them with `systemctl`.**
+> Each unit runs the agent's own daemon (`--start`), whose watcher relaunches
+> the agent when it crashes, and writes the watcher's pid for systemd
+> (`--pid-file`). Stopping or restarting a unit does not stop the yunos
+> (`KillMode=process`). The units are independent: one agent can be stopped,
+> upgraded or fail while the other keeps the node reachable, so never stop
+> both at once.
 >
 > ```bash
-> /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --stop
-> /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --start
+> sudo systemctl restart yuneta_agent          # the agent, on its new binary
+> sudo systemctl status yuneta_agent yuneta_agent22
 > ```
 >
-> You can also use the init script
-> `/etc/init.d/yuneta_agent {start|stop|restart}`. It also controls the bundled
-> web server. To install
-> a new agent binary, write it over `/yuneta/agent/yuneta_agent`. Then use
-> `--stop` and `--start`.
+> **An agent started by hand runs outside its unit**, and systemd does not
+> see it: `systemctl status` says `inactive` while it runs, and nothing starts
+> it at the next boot. Do not use `yuneta_agent --start` on a node with the
+> units. `--stop` is what the unit's `ExecStop` runs. A binary cannot be
+> written over while it runs (`ETXTBSY`): copy the new one beside it, move it
+> into place, then restart the unit.
+>
+> ```bash
+> cp yuneta_agent /yuneta/agent/yuneta_agent.new
+> mv /yuneta/agent/yuneta_agent.new /yuneta/agent/yuneta_agent
+> sudo systemctl restart yuneta_agent
+> ```
+>
+> The unit is named like the SysV script (`/etc/init.d/yuneta_agent`), so
+> systemd uses it instead of the unit it generated from the script, and
+> `service yuneta_agent ...` reaches it too. The script stays for an init
+> that is not systemd. Up to 7.25.21 there was no native unit: an agent
+> started by hand was invisible to systemd, and `yuneta_agent22` had no unit
+> at all. The web server has its own unit (`yuneta-webserver.service`) and is
+> not started or stopped with the agent.
 
 > ℹ️ **You can build the `.deb` yourself** and not use the published asset.
 > See `packages/README.md` for the four wrapper scripts, one for each
@@ -332,9 +350,9 @@ occurred on a new node:
 # 1. The three processes are up (agent, agent22, bundled web server)
 ps -ef | grep -E 'yuneta_agent|nginx' | grep -v grep
 
-# 2. They come back after a reboot (SysV, enabled — there is no native unit
-#    for agent22/nginx, the init script starts all three)
-systemctl is-enabled yuneta_agent
+# 2. They come back after a reboot, and systemd sees them running
+systemctl is-enabled yuneta_agent yuneta_agent22 yuneta-webserver
+systemctl is-active yuneta_agent yuneta_agent22 yuneta-webserver
 
 # 3. The control channel answers (empty list on a fresh node is correct)
 sudo -u yuneta ycommand -c 'list-yunos'
@@ -348,10 +366,14 @@ cat /proc/sys/kernel/core_pattern      # -> /var/crash/core.%e
 
 If the node must **build** software, do the glibc-stamp test above too.
 
-Two results look like a fault and are correct. First,
-`systemctl is-active yuneta_agent22` and `nginx` report `inactive` or
-`not-found`. Neither has a systemd unit, and the init script controls them. Second, on RHEL,
-`certbot-renew.timer` is `enabled` but `inactive` until the next boot.
+One result looks like a fault and is correct: on RHEL,
+`certbot-renew.timer` is `enabled` but `inactive` until the next boot. And
+one is a fault even if the agent answers: `systemctl is-active yuneta_agent`
+answering `inactive` while `ps` shows the agent means it was started by hand,
+outside its unit (see above). After a restart of a unit, its journal says
+*"Found left-over process ... in control group"* for the yunos the agent
+launched: they are meant to survive the agent, and that is the line saying
+so.
 
 ### Logs and banning
 
