@@ -80,6 +80,10 @@ foreach(test ${SRCS})
         ${DEBUG_LIBS}
     )
     target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
+    if(test STREQUAL "test_secret_attrs")
+        # a file of another user, as its fstat() tells it (__wrap_fstat)
+        target_link_options(${binary} PRIVATE "-Wl,--wrap=fstat")
+    endif()
 
     add_test("${current_directory_name}/${test}" ${binary})
     # a masking that walks again what it walked (a fan-out of two, 40 levels)

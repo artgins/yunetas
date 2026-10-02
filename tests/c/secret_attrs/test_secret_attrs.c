@@ -46,6 +46,11 @@
  *               writes a new file and renames it over the old one: no
  *               temporary file is left, and a save that fails leaves the
  *               old file as it was -- and write-attr answers the failure.
+ *            7. a file of another user (fstat() of the test tells it so,
+ *               __wrap_fstat) is not loaded, a save is refused and leaves
+ *               it as it was: a member of the group (the data dirs are
+ *               02775) could plant it. Root's is loaded. Up to 7.25.21 it
+ *               was loaded, with a warning.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -63,6 +68,24 @@
 #include <linux/seccomp.h>
 #include <dirent.h>
 #include <yunetas.h>
+
+/*
+ *  An fstat() that tells the inode marked here as another user's (the test
+ *  runs as one user: a file of another one cannot be made)
+ */
+int __real_fstat(int fd, struct stat *st);
+int __wrap_fstat(int fd, struct stat *st);
+static ino_t foreign_ino = 0;
+static uid_t foreign_uid = 0;
+
+int __wrap_fstat(int fd, struct stat *st)
+{
+    int ret = __real_fstat(fd, st);
+    if(ret == 0 && foreign_ino && st->st_ino == foreign_ino) {
+        st->st_uid = foreign_uid;
+    }
+    return ret;
+}
 
 #define APP             "test_secret_attrs"
 #define APP_VERSION     "1.0.0"
@@ -1319,6 +1342,34 @@ PRIVATE void check_persistent_file(void)
     check_int("write-attr answers a save that worked", (int)kw_get_int(0, resp, "result", -1, 0), 0);
     JSON_DECREF(resp)
     check_true("and it is on disk", file_contains(path, "saved"));
+
+    /*
+     *  A file of another user, not root: not loaded, a save refused
+     */
+    unlink(path);
+    write_file(path, "{\"password\": \"planted-by-another\"}", 0644);
+    struct stat st_file;
+    stat(path, &st_file);
+    foreign_ino = st_file.st_ino;
+    foreign_uid = geteuid() + 4242;
+    gobj_write_str_attr(holder, "password", "mine");
+    gobj_load_persistent_attrs(holder, 0);
+    check_str("a file of another user is not loaded",
+        gobj_read_str_attr(holder, "password"), "mine"
+    );
+    int ret2 = gobj_save_persistent_attrs(holder, json_string("password"));
+    check_true("a save over a file of another user is refused", ret2 < 0);
+    check_true("and leaves it as it was", file_contains(path, "planted-by-another"));
+
+    /*
+     *  Root's is trusted (the yuno run once as root)
+     */
+    foreign_uid = 0;
+    gobj_load_persistent_attrs(holder, 0);
+    check_str("a file of root is loaded",
+        gobj_read_str_attr(holder, "password"), "planted-by-another"
+    );
+    foreign_ino = 0;
 
     unlink(path);
     unlink(planted);

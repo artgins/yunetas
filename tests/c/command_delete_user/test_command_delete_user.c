@@ -24,6 +24,12 @@
  *                                                   command table, and the causes are
  *                                                   the command's own, never the global
  *                                                   last message
+ *           12. an EXTERNAL call (its kw carries the `__username__` of an
+ *               entry gate) asks the permission of the users treedb, with
+ *               the per-command gate off: a user with no role is refused
+ *               (-403) users, create-user, add-jwk and delete-user, and
+ *               nothing is created; a user whose role grants `*` is served.
+ *               Up to 7.25.21 they were SDF_AUTHZ_X only: open to anyone.
  *
  *          A real C_AUTHZ service is instantiated over a temp tranger store;
  *          a role and an immutable user are seeded via initial_load, and the
@@ -637,6 +643,47 @@ PRIVATE void run_checks(hgobj gobj)
             "Password match");
         check_comment(authz, "delete-user",
             json_pack("{s:s}", "username", "local_comment"), 0, "User deleted");
+    }
+
+    /*
+     *  12. An external call asks the permission of the users treedb
+     */
+    {
+        struct {
+            const char *command;
+            json_t *kw;
+        } refused[] = {
+            {"users",       json_object()},
+            {"create-user", json_pack("{s:s}", "username", "ext_by_nobody")},
+            {"add-jwk",     json_pack("{s:s, s:s}", "kid", "planted-kid", "n", "AQAB")},
+            {"delete-user", json_pack("{s:s}", "username", "seed_immutable")},
+            {0, 0}
+        };
+        for(int i=0; refused[i].command; i++) {
+            json_object_set_new(refused[i].kw, "__username__", json_string("nobody_here"));
+            json_t *r = gobj_command(authz, refused[i].command, refused[i].kw, gobj);
+            char name[NAME_MAX];
+            snprintf(name, sizeof(name), "external %s without permission", refused[i].command);
+            check_int(name, (int)kw_get_int(0, r, "result", -999, 0), -403);
+            JSON_DECREF(r)
+        }
+        check_int("external create-user without permission created nothing",
+            user_exists("ext_by_nobody"), 0);
+
+        json_t *r = gobj_command(authz, "users",
+            json_pack("{s:s}", "__username__", "seed_immutable"), gobj);
+        check_int("external users with a role of '*'", (int)kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+        r = gobj_command(authz, "create-user",
+            json_pack("{s:s, s:s, s:s}",
+                "username", "ext_by_root", "role", "roles^testrole^users",
+                "__username__", "seed_immutable"
+            ), gobj);
+        check_int("external create-user with a role of '*'", (int)kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+        check_int("cleanup ext_by_root",
+            cmd_result(authz, "delete-user",
+                json_pack("{s:s, s:b}", "username", "ext_by_root", "force", 1)), 0);
     }
 }
 

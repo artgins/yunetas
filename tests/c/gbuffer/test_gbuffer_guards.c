@@ -8,7 +8,9 @@
  *          Also asserts the valid path is unchanged, and that bytes from
  *          a peer that are not json are a WARNING, not an error
  *          (gbuf2json_from_peer). gbuffer_serialize() of a NULL gbuffer
- *          answers NULL with an ERROR.
+ *          answers NULL with an ERROR. A gbuffer grown from small reaches
+ *          its max (up to 7.25.21 it stopped at its last doubling under
+ *          the max: 4 KB with a max of 10 KB held 8 KB).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -157,6 +159,42 @@ PRIVATE void test_serialize_null(void)
 }
 
 /***************************************************************************
+ *  A gbuffer grown from small reaches its max: 9000 bytes in a gbuffer of
+ *  4096 with a max of 10000, appended 1000 at a time. Up to 7.25.21 the
+ *  growth doubled past the max (8192 -> 16384) and was refused: the append
+ *  that crossed 8192 failed, "MAXIMUM SPACE REACHED". Runs after
+ *  test_json_from_peer(), which registers the handler.
+ ***************************************************************************/
+PRIVATE void test_grow_to_max(void)
+{
+    captured_warnings = 0;
+    captured_errors = 0;
+    gobj_log_add_handler("capture", "capture", LOG_OPT_ALL, 0);
+
+    gbuffer_t *gbuf = gbuffer_create(4096, 10000);
+    char chunk[1000];
+    memset(chunk, 'x', sizeof(chunk));
+    size_t appended = 0;
+    for(int i = 0; i < 9; i++) {
+        appended += gbuffer_append(gbuf, chunk, sizeof(chunk));
+    }
+    ok_or_fail(appended == 9000 && gbuffer_leftbytes(gbuf) == 9000,
+        "gbuffer grows to its max: 9000 bytes in a max of 10000");
+    ok_or_fail(captured_errors == 0, "gbuffer grows to its max: no error");
+
+    /*
+     *  Past the max it is still refused
+     */
+    captured_errors = 0;
+    appended = gbuffer_append(gbuf, chunk, sizeof(chunk));
+    ok_or_fail(gbuffer_leftbytes(gbuf) < 10000, "gbuffer never holds more than its max");
+    ok_or_fail(captured_errors > 0, "gbuffer past its max: an error");
+    GBUFFER_DECREF(gbuf)
+
+    gobj_log_del_handler("capture");
+}
+
+/***************************************************************************
  *      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -197,6 +235,7 @@ int main(int argc, char *argv[])
     test_valid_path();
     test_json_from_peer();
     test_serialize_null();
+    test_grow_to_max();
 
     gobj_end();
 

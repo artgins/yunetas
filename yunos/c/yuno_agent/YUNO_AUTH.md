@@ -1043,6 +1043,19 @@ dropping live connections.
 | `cert_sync_last_result` | `""`                                             | `ok` / `skipped` / `error`               |
 | `cert_sync_failures`    | `0`                                              | Cumulative failure counter               |
 
+`cert_sync_store_dir` and `cert_sync_copy_cmd` are set in the agent's
+configuration only (`SDF_RD`): the command is run with `system()`, and up to
+7.25.21 `write-attr` could set it and persist it. `cert-sync-now` and
+`cert-sync-status` need the authz of a command (`SDF_AUTHZ_X`).
+
+```json
+{
+    "global": {
+        "agent.cert_sync_copy_cmd": "/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh"
+    }
+}
+```
+
 ### 6.3 The `copy-certs.sh` convention
 
 The default `cert_sync_copy_cmd` shells out via `sudo -n` to a script you

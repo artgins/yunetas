@@ -26,87 +26,6 @@ Severity in parentheses where one was assigned.
 
 ## 1. Defects to fix
 
-### Security
-
-- **A frame before the session is parsed whole, up to the max block**
-  (medium, present in 7.25.20). C_IEVENT_SRV `ac_on_message()` decodes the
-  peer's frame (`iev_create_from_gbuffer()`) before its identity card is
-  checked. A 16 MB `[{},…]` frame takes ~1.7 GB to parse, so a 200 MB frame
-  (the max block of the agent and most yunos) needs ~20 GB. Before that,
-  `c_websocket.c` (~1920-1936) reserves `istream_create(frame_length,
-  frame_length)` from the length the PEER writes in the frame header, before
-  any payload arrives. In production nothing bounds the sum (the 2 GB
-  `MEM_MAX_SYSTEM_MEMORY` is enforced only with `CONFIG_DEBUG_TRACK_MEMORY`,
-  where it aborts the process); the reservation is virtual memory until
-  bytes arrive, and `timeout_idgot` / `timeout_payload` (5 s) bound how long.
-  Fix at the transport's layer: grow the payload buffer as data arrives, as
-  `c_websocket` already does for fragments (`gbuffer_create(4*1024,
-  gbmem_get_maximum_block())`, ~1124), with an `SDF_RD` max payload attr; a
-  cap "while there is no session" would make the transport know the session
-  layer. (Cloud review 2026-10-02, checked.)
-- **dbsimple: a yuno running as root hands its secrets to whoever planted the
-  file** (medium). A member of the yuneta group replaces the file in the 02775
-  data dir with a readable one of their own; a root save writes every
-  persistent attr (the SMTP password included) into the new 0600 file and
-  fchowns it to the planter (`dbsimple.c` `save_json()`, ~550/~575). Give the
-  file back only when its old owner is the data directory's owner (the yuno's
-  user); otherwise keep it root's or refuse, logged. Also: the load logs
-  *"Persistent attrs file of another user, left as it is"* and the save then
-  *"taken over"* / *"kept its owner"*. The LOAD is the wider half:
-  `check_persist_file()` (~105-127) accepts a file of another user with a
-  warning and `load_json()` loads it, so a group member writes the persistent
-  attrs of any service -- `cert_sync_copy_cmd` of the agent and
-  `restart_yuneta_command` of logcenter reach `system()` (see `write-attr`
-  below). Refuse at load a file whose owner is neither the euid nor the data
-  directory's owner (ERROR, `*failed = TRUE`, so the saves are refused too).
-  Defense in depth, not a new escalation: the same group can already
-  overwrite the yuno binaries and launch scripts the agent writes 02775
-  (`copyfile(..., yuneta_xpermission())`, `c_agent.c` ~3188/3416/9020).
-- **User management is open to whoever the control center lets run
-  `command-agent`.** Seen live with gui_agent's Users workspace (0.28.0,
-  2026-09-29): through the control center, `claudia@artgins.com` — with NO
-  role in the local agent's store — created, disabled, enabled and deleted a
-  user there, because `create-user` / `enable-user` / `disable-user` /
-  `delete-user` of `C_AUTHZ` (`c_authz.c` ~285) are `SDF_AUTHZ_X` only, which
-  does nothing while `enable_command_authz` is off (the default). The role
-  link of the same session was refused: `link-nodes` is a `C_NODE` command
-  with its own check, always on. All of `C_AUTHZ` is in this state
-  (`c_authz.c` ~279-296): `update-user`, `set-user-pwd`, `add-jwk` /
-  `remove-jwk` (a trusted signing key added at will), and the role link that
-  `link-nodes` refused is reachable through `create-user` / `update-user
-  role=...` (`gobj_update_node()` with autolink, ~4245/4342;
-  `role_ref_is_linkable()` checks only that the role exists). The root cause
-  is the gate off: the same operator has `install-binary` / `run-yuno`.
-  Either enable the gate (see [Operations](#6-operations-and-deployment)), or
-  give `C_AUTHZ` an always-on check like `C_NODE`'s `refuse_without_authz()`
-  -- which must skip internal calls with no `__username__` the way
-  `command_parser` does, because `authz_checker` refuses them with an ERROR;
-  and gui_agent's Users workspace then gets `-403` for operators without
-  write permission on the authz treedb.
-- **`write-attr` reaches a command the agent passes to `system()`.**
-  `C_YUNO`'s `write-attr` (`c_yuno.c` ~414, `SDF_AUTHZ_X` only) writes any
-  `SDF_WR` attr, and the agent's `cert_sync_copy_cmd` (`c_agent.c` ~990,
-  `SDF_WR|SDF_PERSIST`) is run with `system()` by the cert-sync tick
-  (~10253-10267). An authenticated agent operator can already install
-  binaries, so it adds nothing for that operator — but it is the trigger the
-  old "re-audit the agent control plane if its `SDF_WR` command attrs become
-  remote-writable" note was waiting for: they are. Make the command attrs
-  not writable at run time: drop `SDF_WR` AND `SDF_PERSIST` (`write-attr`
-  accepts `ATTR_WRITABLE`, which is either flag, `gobj.h` ~124), config only,
-  for `cert_sync_copy_cmd`, `cert_sync_store_dir` and logcenter's
-  `restart_yuneta_command` (`system()` at `c_logcenter.c` ~956/968); give
-  `cert-sync-now` (flag 0, fires the command at once) and `cert-sync-status`
-  `SDF_AUTHZ_X`. A value persisted at run time is then no longer read
-  (CHANGELOG), and `guide_cert_management.md` ~120-128, `YUNO_AUTH.md`
-  §6.2/§8.10, `logcenter.md` ~92 and `yunos/c/README.md` ~235 describe them
-  as runtime-persistent. Then re-audit the agent control plane + `watchfs`
-  command-exec (prior fixes `8c03eb686` / `5dbede6a1`).
-- **`skip-email` has no `SDF_AUTHZ_X`** (low), though it moves an email out of
-  the send path (`c_emailsender.c` ~111; `set-email-user` / `set-url-from`
-  have it). Nor do `remove-emails-failed`, `disable-alarm-emails` and
-  `enable-alarm-emails` (~106-110): the four want it; `send-email`, `help`
-  and `list-queues` stay open.
-
 ### TLS and transport
 
 - **ytls: the alive marker covers only `flush_clear_data()`** (low; follow-up
@@ -127,22 +46,22 @@ Severity in parentheses where one was assigned.
 
 ### timeranger2 and fs_watcher
 
-- **rt_disk follower: what was noted beside the reborn-key defect** (low; the
-  defect itself is fixed in `b2f972382`, these are not): the in-doubt rule
-  mis-attributes a second delete queued below its mark as "same" (rare, the
-  cache is cleared late); a feed opened after the first heard a delete and
-  signalled after it was watched can take a live key out of the cache (not
-  only `[DEL DEL]` at an overflow); records of a doomed life are handed with a
-  NULL body; CRITICAL logs in legitimate races would kill a tranger with
-  exit-on-critical. Re-check each against the descriptor read path before
-  fixing: the NULL body may behave differently now. Checked 2026-10-02: the
-  first is there (`count_key_delete_heard()`, ~7839-7856); the second too,
-  but not from ~7973 (that is a note of another feed): a feed that opens
-  after the first heard the delete gets no debt and no doubt; the NULL body
-  is gone on the descriptor path and stays on the by-path fallback
-  (`publish_new_rt_disk_records()` ~9157-9200); and the CRITICALs are logged
-  with opt 0, so they cannot kill the tranger -- they are only noise on the
-  fallback (ENOENT should be a warning).
+- **rt_disk follower: two holes left in the accounting of key deletes**
+  (low; `count_key_delete_heard()`; the NULL body and the CRITICALs noted
+  with them were fixed 2026-10-02). (a) A doubt is matched by position: a
+  SECOND delete of the key queued below the mark is taken as the first one
+  (the mark is where the doubting feed's queue ended when the first feed
+  PROCESSED the delete, later than where it was emitted): the debt the
+  first feed then makes for the second is never paid, and the cache is
+  cleared late. (b) A feed opened after the first feed heard a delete is
+  not in that feed's walk of the disks: no debt, no doubt. If it then hears
+  the signal (its directory existed when the master signalled), it takes it
+  for a new delete and clears the cache -- taking out a key written again
+  meanwhile. The review's "check the deletes of the last window" is not a
+  design. A fix needs the master's own order of signals (a sequence number
+  in the signal, which the follower can compare across feeds) rather than
+  queue positions; write the red test first (`test_delete_key_propagation`
+  has the hooks: `inflight_open`, `__wrap_rmdir`).
 - **An rt_disk follower out of descriptors or of watches** (medium-low; cloud
   review of `b2f972382`). With `FS_FLAG_DIR_FDS` a follower holds one
   descriptor per key directory of each feed, and a key directory lives until
@@ -758,8 +677,10 @@ Severity in parentheses where one was assigned.
   - run a real **low-privilege deny test** on staging (needs a non-root
     external principal);
   - set `enable_command_authz: true` per yuno, the agent first, staging →
-    production. This also closes the open user management of
-    [Security](#security).
+    production. (User management no longer waits for it: C_AUTHZ asks the
+    permissions of `treedb_authzs` on its own since the cloud review of
+    2026-10-02; the gate is still what guards every OTHER command, the
+    agent's `install-binary` / `run-yuno` among them.)
 - **Subscription gate.** `enable_subscription_authz` (YUNO_AUTH.md §4.6) is
   default-off too. Enabling it needs the same role model, and every user of a
   treedb GUI needs `read` on the C_NODE and C_TRANGER services it watches

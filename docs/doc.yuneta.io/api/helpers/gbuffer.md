@@ -171,6 +171,17 @@ Returns a pointer to the newly allocated `gbuffer_t` structure, or `NULL` if mem
 
 If memory allocation for the buffer fails, an error is logged, and `NULL` is returned.
 
+The buffer grows as data is appended, doubling, up to `max_memory_size`: a
+growth that would double past it takes the buffer to the max when what is
+needed fits, so a buffer started small can hold `max_memory_size - 1` bytes.
+Up to 7.25.21 that growth was refused (*"MAXIMUM SPACE REACHED"*), and the
+buffer stopped at its last doubling under the max.
+
+```C
+gbuffer_t *gbuf = gbuffer_create(4*1024, 10000);  // starts at 4 KB
+gbuffer_append(gbuf, data, 9000);                  // grows to hold it: 9000 <= 10000
+```
+
 ---
 
 (gbuffer_deserialize)=

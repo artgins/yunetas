@@ -147,6 +147,7 @@ SDATA (DTP_INTEGER,     "timeout_handshake",SDF_PERSIST,    "30000",     "Timeou
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_PERSIST,    "3000",      "Timeout to close"),
 SDATA (DTP_INTEGER,     "timeout_payload",  SDF_PERSIST,    "5000",      "Timeout to payload"),
 SDATA (DTP_INTEGER,     "pingT",            SDF_PERSIST,    "0",        "Ping interval. If value <= 0 then No ping"),
+SDATA (DTP_INTEGER,     "max_payload_size", SDF_RD,         "0",        "Maximum payload of a frame, in bytes; 0: the max block of the yuno. A bigger frame closes the connection (1009)"),
 SDATA (DTP_POINTER,     "user_data",        0,              0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,              0,          "more user data"),
 SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,         0,          "What side? server or client"),
@@ -178,6 +179,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t timeout_handshake;
     json_int_t timeout_payload;
     json_int_t timeout_close;
+    json_int_t max_payload_size;
 
     FRAME_HEAD frame_head;
     istream_h istream_frame;
@@ -268,6 +270,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(timeout_handshake,     gobj_read_integer_attr)
     SET_PRIV(timeout_payload,       gobj_read_integer_attr)
     SET_PRIV(timeout_close,         gobj_read_integer_attr)
+    SET_PRIV(max_payload_size,      gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -281,6 +284,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(timeout_handshake,     gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_payload,       gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_close,         gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(max_payload_size,      gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -1930,10 +1934,34 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
                     ret = -1;
                     break;
                 }
+                /*
+                 *  The length is the PEER's word, written in the header
+                 *  before any of the payload comes: the buffer starts small
+                 *  and grows with what arrives, up to the max. Reserved
+                 *  whole at once, a few connections that each claimed the
+                 *  max block reserved it each, with a few bytes sent.
+                 */
+                size_t max_payload = priv->max_payload_size > 0?
+                    (size_t)priv->max_payload_size : gbmem_get_maximum_block();
+                if(frame_length > max_payload) {
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PROTOCOL,
+                        "msg",          "%s", "Websocket frame bigger than the max payload, connection closed",
+                        "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+                        "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+                        "frame_length", "%lu", (unsigned long)frame_length,
+                        "max_payload",  "%lu", (unsigned long)max_payload,
+                        NULL
+                    );
+                    ws_close(gobj, STATUS_MESSAGE_TOO_BIG, "");
+                    ret = -1;
+                    break;
+                }
                 priv->istream_payload = istream_create(
                     gobj,
-                    frame_length,
-                    frame_length
+                    MIN(frame_length, 4*1024),
+                    max_payload
                 );
                 if(!priv->istream_payload) {
                     gobj_log_error(gobj, 0,

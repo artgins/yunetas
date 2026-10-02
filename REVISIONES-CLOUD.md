@@ -23,6 +23,25 @@ the corrections). Fixed, see `CHANGELOG.md` "Unreleased":
   release): by `/proc`, argv[0] and the configuration files in its `bin/`.
   `yuno_pid` is not written (the guard of `ac_on_open()` would then kill the
   yuno when it reconnects). `restart_nodes()` kills such a yuno.
+- **1** (frame before the session): both halves. The C_IEVENT_SRV cap does
+  matter -- parsing amplifies ~100x, so it is not only "saving the parse";
+  the frame is not dumped (a card carries a jwt). The websocket buffer
+  grows with what arrives; that needed `gbuffer_realloc()` to grow to its
+  max (a doubling past it was refused). No production ceiling existed
+  (the 2 GB one is a TRACK_MEMORY build's).
+- **2** (dbsimple). The proposed "owner is the data directory's owner" is
+  not used for a yuno not run as root: the parents are 02775 too, so the
+  directory could be replaced. Trusted: euid, root, and (as root) the data
+  directory's owner.
+- **3** (C_AUTHZ). Permissions of `treedb_authzs`'s C_NODE, only for
+  external calls (as command_parser): `authz_checker` refuses a call with no
+  `__username__`. `check-user-pwd` asks `update` (a password oracle).
+- **4** and **5**: as proposed (`restart_on_alarm` kept writable: a boolean,
+  toggled by its own command).
+- **9**: (c) and (d) fixed (a record with no body is not handed; ENOENT of
+  a read is a warning). (a) and (b) are real, and left in `TODO.md` with
+  their analysis: they need the master's order of signals, not queue
+  positions, and a red test first.
 - **13** (rt_disk close races the master). `IN_MOVED_FROM` was not in
   fs_watcher's mask, `rt_id_is_confined()` did not refuse a leading dot,
   `walk_dir_tree()` skips dot names, and the master's `FS_SUBDIR_DELETED` of

@@ -149,6 +149,7 @@ PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_accesses(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *refuse_on_replica(hgobj gobj, json_t *kw);
+PRIVATE json_t *refuse_without_authz(hgobj gobj, const char *permission, json_t *kw, hgobj src);
 PRIVATE BOOL users_store_written_here(hgobj gobj, const char *what, const char *username);
 PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE BOOL role_ref_is_linkable(hgobj gobj, const char *role_ref);
@@ -1390,6 +1391,10 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_list_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused_authz = refuse_without_authz(gobj, "read", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
     json_t *jwks = gobj_read_json_attr(gobj, "jwks");
     json_t *jn_schema = json_desc_to_schema(jwk_desc);
 
@@ -1408,6 +1413,10 @@ PRIVATE json_t *cmd_list_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused_authz = refuse_without_authz(gobj, "update", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
     const char *kid = kw_get_str(
         gobj,
         kw,
@@ -1539,6 +1548,10 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused_authz = refuse_without_authz(gobj, "update", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
     const char *kid = kw_get_str(
         gobj,
         kw,
@@ -1638,6 +1651,10 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused_authz = refuse_without_authz(gobj, "read", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
     json_t *jn_filter = kw_get_dict(gobj, kw, "filter", 0, KW_EXTRACT);
     json_t *jn_users = gobj_list_nodes(
         priv->gobj_treedb,
@@ -1665,6 +1682,10 @@ PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_accesses(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused_authz = refuse_without_authz(gobj, "read", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
     json_t *jn_filter = kw_get_dict(gobj, kw, "filter", 0, KW_EXTRACT);
     json_t *jn_users = gobj_list_nodes(
         priv->gobj_treedb,
@@ -1711,6 +1732,44 @@ PRIVATE json_t *refuse_on_replica(hgobj gobj, json_t *kw)
 }
 
 /***************************************************************************
+ *  The response of a command the user has no `permission` for, or NULL when
+ *  they have it (kw untouched). The permission is the one of the users
+ *  treedb's own C_NODE (create, read, update, delete), so the same user may
+ *  do the same thing through `link-nodes` and through `create-user role=`.
+ *  Always on, as C_NODE's: up to 7.25.21 these commands were SDF_AUTHZ_X
+ *  only, which does nothing while `enable_command_authz` is off (the
+ *  default), so any user the gate let in managed users, roles and the
+ *  trusted signing keys (add-jwk). Only an EXTERNAL call is checked (its kw
+ *  carries the `__username__` the entry gate set, which a peer cannot
+ *  spoof), as command_parser does: an internal call carries none.
+ ***************************************************************************/
+PRIVATE json_t *refuse_without_authz(hgobj gobj, const char *permission, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *username = kw_get_str(gobj, kw, "__username__", NULL, 0);
+    if(empty_string(username) || src == gobj) {
+        return NULL;    // internal call
+    }
+    if(priv->gobj_treedb &&
+            gobj_user_has_authz(priv->gobj_treedb, permission, kw_incref(kw), src)) {
+        return NULL;
+    }
+    return msg_iev_build_response(
+        gobj,
+        -403,
+        json_sprintf("%s: no permission to '%s' in service '%s'",
+            gobj_yuno_role_plus_name(),
+            permission,
+            priv->gobj_treedb? gobj_name(priv->gobj_treedb) : "treedb_authzs"
+        ),
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
  *  The same question for the EVENT doors -- EV_ADD_USER, EV_REJECT_USER,
  *  EV_IDP_USER_CREATED -- which no command guard sees: FALSE on a replica,
  *  and said in the log, naming what was not done.
@@ -1739,6 +1798,19 @@ PRIVATE BOOL users_store_written_here(hgobj gobj, const char *what, const char *
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused_authz = refuse_without_authz(gobj, "create", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
+    if(!empty_string(kw_get_str(gobj, kw, "role", "", 0))) {
+        /*
+         *  The role link is an update of the users treedb, as link-nodes
+         */
+        refused_authz = refuse_without_authz(gobj, "update", kw, src);
+        if(refused_authz) {
+            return refused_authz;
+        }
+    }
     json_t *refused = refuse_on_replica(gobj, kw);
     if(refused) {
         return refused;
@@ -1873,6 +1945,10 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused_authz = refuse_without_authz(gobj, "update", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
     json_t *refused = refuse_on_replica(gobj, kw);
     if(refused) {
         return refused;
@@ -2008,6 +2084,10 @@ PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused_authz = refuse_without_authz(gobj, "update", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
     json_t *refused = refuse_on_replica(gobj, kw);
     if(refused) {
         return refused;
@@ -2088,6 +2168,10 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused_authz = refuse_without_authz(gobj, "update", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
     json_t *refused = refuse_on_replica(gobj, kw);
     if(refused) {
         return refused;
@@ -2176,6 +2260,10 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused_authz = refuse_without_authz(gobj, "delete", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
     json_t *refused = refuse_on_replica(gobj, kw);
     if(refused) {
         return refused;
@@ -2301,6 +2389,10 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_check_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused_authz = refuse_without_authz(gobj, "update", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
 
     /*--------------------------*
      *      Get parameters
@@ -2370,6 +2462,10 @@ PRIVATE json_t *cmd_check_user_passw(hgobj gobj, const char *cmd, json_t *kw, hg
 PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused_authz = refuse_without_authz(gobj, "update", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
     json_t *refused = refuse_on_replica(gobj, kw);
     if(refused) {
         return refused;
@@ -2499,6 +2595,10 @@ PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgob
 PRIVATE json_t *cmd_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused_authz = refuse_without_authz(gobj, "read", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
     json_t *jn_filter = kw_get_dict(gobj, kw, "filter", 0, KW_EXTRACT);
     json_t *jn_roles = gobj_list_nodes(
         priv->gobj_treedb,
@@ -2528,6 +2628,10 @@ PRIVATE json_t *cmd_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_user_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused_authz = refuse_without_authz(gobj, "read", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
 
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
@@ -2594,6 +2698,10 @@ PRIVATE json_t *cmd_user_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused_authz = refuse_without_authz(gobj, "read", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
 
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
@@ -2701,6 +2809,10 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused_authz = refuse_without_authz(gobj, "update", kw, src);
+    if(refused_authz) {
+        return refused_authz;
+    }
     json_t *refused = refuse_on_replica(gobj, kw);
     if(refused) {
         return refused;

@@ -14,6 +14,15 @@ taken as nothing: no error, no message delivered; the client drops at
 `timeout_close` and the test ends. Up to 7.25.10 `ST_DISCONNECTED` did not
 declare `EV_RX_DATA`: *"Event NOT DEFINED in state"* (red).
 
+`test2` (`main_test2.c` + `c_test2.c`) is about the size of a frame. The
+client has a `max_payload_size` of 64 KB. The raw server sends a frame of
+60000 bytes in three parts: the client must deliver it whole (its payload
+buffer starts at 4 KB and grows with what arrives). Then it sends only the
+header of a frame of 1 MB: the client must warn (*"Websocket frame bigger than
+the max payload, connection closed"*) and close with 1009, reserving nothing.
+Up to 7.25.21 the length written in the header was reserved at once, and
+there was no maximum but the max block of the yuno.
+
 ## Run
 
 ```bash

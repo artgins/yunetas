@@ -89,8 +89,12 @@ to any logic in the current code; setting them has no effect.
 | `disable-alarm-emails` | — | Suppress "ALERT Queuing" alarm emails |
 | `help` | `cmd`, `level` | Command help |
 
-`set-email-user` and `set-url-from` are tagged `SDF_AUTHZ_X` — they require the
-`__execute_command__` permission when the per-command authz gate is enabled.
+`set-email-user`, `set-url-from`, `skip-email`, `remove-emails-failed`,
+`disable-alarm-emails` and `enable-alarm-emails` are tagged `SDF_AUTHZ_X` —
+they require the `__execute_command__` permission when the per-command authz
+gate is enabled (the last four move or remove emails, or silence the alarms;
+up to 7.25.21 they had no tag). `send-email`, `list-queues` and `help` stay
+open.
 
 Other yunos send mail by publishing `EV_SEND_EMAIL` to the `emailsender`
 service (for example `logcenter`'s summary report).

@@ -19,7 +19,10 @@ refused and its channel closed; the client connects again and sends the next:
 7. a command (`EV_MT_COMMAND`) before any card, carrying credentials: a
    `password` key, a `passw` and a `client_secret` down its kw, and
    `token=...` in its command line;
-8. a good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session.
+8. a card bigger than `max_pre_session_frame` (1 MB in this test; the
+   default is 64 KB): not parsed, *"Frame before the identity card too big,
+   channel closed"*, and its bytes not dumped (a card carries a jwt);
+9. a good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session.
 
 Each refusal is caused by the peer, so it is ONE warning (`MSGSET_PROTOCOL`,
 `peername`, the kw capped, no stack), and the jwt of the card is never

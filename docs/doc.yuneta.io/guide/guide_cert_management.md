@@ -117,14 +117,28 @@ ycommand -c 'cert-sync-status'
 stale or missing timestamp is a direct hint that the deploy hook is
 not firing.
 
-### Configurable attrs (persistent on the agent)
+### Configurable attrs
 
-| Attr | Default | Purpose |
-|---|---|---|
-| `cert_sync_enabled` | `1` | Master on/off for the timer |
-| `cert_sync_interval_sec` | `900` | Seconds between checks (floor 30) |
-| `cert_sync_store_dir` | `/yuneta/store/certs` | Watched directory |
-| `cert_sync_copy_cmd` | `sudo -n /yuneta/store/certs/copy-certs.sh` | Privileged copy command |
+| Attr | Default | Set by | Purpose |
+|---|---|---|---|
+| `cert_sync_enabled` | `1` | config, or `write-attr` (persistent) | Master on/off for the timer |
+| `cert_sync_interval_sec` | `900` | config, or `write-attr` (persistent) | Seconds between checks (floor 30) |
+| `cert_sync_store_dir` | `/yuneta/store/certs` | config only | Watched directory |
+| `cert_sync_copy_cmd` | `sudo -n /yuneta/store/certs/copy-certs.sh` | config only | Privileged copy command, run with `system()` |
+
+The command and its directory are set in the agent's configuration only, never
+at run time: up to 7.25.21 `write-attr` could set the command the agent runs
+with `system()` (as root, through `sudo`), and persist it. A value persisted
+then is no longer read; set it in `/yuneta/agent/yuneta_agent.json`:
+
+```json
+{
+    "global": {
+        "agent.cert_sync_copy_cmd": "/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh",
+        "agent.cert_sync_store_dir": "/yuneta/store/certs"
+    }
+}
+```
 
 ## Layer 3 — expiry monitor (alerting)
 

@@ -74,6 +74,7 @@ services, and handles WebSocket upgrade.
 | `authenticated` | `bool` | Whether the connection is authenticated. |
 | `max_subscriptions` | `integer` | Subscriptions a peer may hold on the channel (default `5000`, `0` no limit). See *What a peer may hold*. |
 | `max_subscription_size` | `integer` | Bytes, as compact json, of the `__filter__`, of the `__global__` and of the routing back (`__md_iev__`) of a peer's subscription, each one (default `16384`, `0` no limit). |
+| `max_pre_session_frame` | `integer` | Bytes of a frame received before the session (default `65536`, `0` no limit). See below. |
 
 ### Lifecycle of a channel
 
@@ -438,6 +439,24 @@ log  {"event": "EV_MT_COMMAND", "kw": {"__command__": "set-user-pwd username=bob
 | `dst_service` is no service of this yuno | *"Identity card refused, dst_service NOT FOUND in this yuno"*, with `dst_service` |
 | `jwt` present and not a string | *"Identity card refused, its jwt is not a string"* |
 | Any event but the card or `EV_GOODBYE` | *"Event before the identity card, channel closed"*, with `event` |
+| A frame bigger than `max_pre_session_frame` | *"Frame before the identity card too big, channel closed"*, with `size` and `max`; the frame is not parsed, and its bytes are not dumped (unparsed they cannot be masked, and a card carries a jwt) |
+
+A frame before the session is not even parsed when it is bigger than
+`max_pre_session_frame`. An identity card is a few KB (its jwt the largest
+part); parsed, a frame of `[{},...]` takes about 100 times its size (16 MB:
+1.7 GB), so up to 7.25.21 the max block of a yuno (200 MB) let a peer nobody
+had authenticated ask for some 20 GB. A gate whose peers send bigger cards
+raises it:
+
+```json
+{
+    "name": "input",
+    "gclass": "C_IEVENT_SRV",
+    "kw": {
+        "max_pre_session_frame": 1048576
+    }
+}
+```
 
 A card refused by the authentication is answered with a negative
 `EV_IDENTITY_CARD_ACK`, logged by the authenticator, and the channel is

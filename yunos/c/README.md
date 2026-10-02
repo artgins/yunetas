@@ -232,7 +232,7 @@ Collects log messages from all yunos on the host via UDP (default `udp://127.0.0
 | `min_free_disk` | integer | — | Minimum free disk percentage |
 | `min_free_mem` | integer | — | Minimum free memory percentage |
 | `restart_on_alarm` | boolean | false | Restart yuneta on queue alarm |
-| `restart_yuneta_command` | string | `yshutdown -s; ...` | Restart command |
+| `restart_yuneta_command` | string | `yshutdown -s; ...` | Restart command, run with `system()`: config only |
 | `timeout_restart_yuneta` | integer | 3600 | Min seconds between restarts |
 
 **Commands:**

@@ -131,6 +131,16 @@ PRIVATE BOOL gbuffer_realloc(gbuffer_t *gbuf, size_t need_size)
     char *new_buf;
 
     more = gbuf->data_size + MAX(gbuf->data_size, need_size);
+    if((more + 1) > gbuf->max_memory_size &&
+            (gbuf->data_size + need_size + 1) <= gbuf->max_memory_size) {
+        /*
+         *  Doubled it would pass the max, but what is needed fits: up to
+         *  the max. Up to 7.25.21 it failed, so a buffer grown from small
+         *  stopped at its last doubling under the max (4 KB with a max of
+         *  10 KB: 8 KB).
+         */
+        more = gbuf->max_memory_size - 1;
+    }
     if((more + 1) > gbuf->max_memory_size) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",         "%s", __FUNCTION__,

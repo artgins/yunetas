@@ -204,6 +204,7 @@ SDATA (DTP_JSON,        "authorized_services",  SDF_VOLATIL, "[]", "Service name
 SDATA (DTP_BOOLEAN,     "is_superuser",         SDF_VOLATIL, 0, "Channel user holds a wildcard (root) role; bypasses the service gate"),
 
 SDATA (DTP_INTEGER,     "timeout_idgot",        SDF_RD, "5000", "timeout waiting Identity Card"),
+SDATA (DTP_INTEGER,     "max_pre_session_frame",SDF_RD, "65536", "Maximum size, in bytes, of a frame received before the session (the identity card, a few KB), 0 no limit. A bigger one is not parsed: the channel is closed"),
 
 // What one peer may hold. Every subscription costs a scan of the publisher's
 // subscriptions, when it is made and on every publish, and a peer could make
@@ -2037,6 +2038,32 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "msg",          "%s", "gbuffer NULL, expected gbuf with inter-event",
             "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
             "sockname",     "%s", gobj_has_bottom_attr(gobj, "sockname")?gobj_read_str_attr(gobj, "sockname"):"",
+            NULL
+        );
+        drop(gobj);
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    /*
+     *  Before its session a peer may send only its identity card, or leave:
+     *  a bigger frame is not even parsed. Parsed, a frame of `[{},...]`
+     *  takes ~100 times its size (16 MB: 1.7 GB), so the max block of a
+     *  yuno (200 MB) let a peer nobody authenticated ask for ~20 GB. Its
+     *  bytes are not dumped: unparsed they cannot be masked, and a card
+     *  carries a jwt.
+     */
+    json_int_t max_pre_session = gobj_read_integer_attr(gobj, "max_pre_session_frame");
+    if(gobj_current_state(gobj) != ST_SESSION && max_pre_session > 0 &&
+            (json_int_t)gbuffer_leftbytes(gbuf) > max_pre_session) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "Frame before the identity card too big, channel closed",
+            "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
+            "sockname",     "%s", gobj_has_bottom_attr(gobj, "sockname")?gobj_read_str_attr(gobj, "sockname"):"",
+            "size",         "%lu", (unsigned long)gbuffer_leftbytes(gbuf),
+            "max",          "%ld", (long)max_pre_session,
             NULL
         );
         drop(gobj);

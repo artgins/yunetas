@@ -125,6 +125,24 @@ with frame masking, ping/pong, and graceful close handshake.
 | `timeout_payload` | `integer` | Milliseconds to receive the rest of a frame whose header came (default `5000`); when it runs out the connection is closed. |
 | `timeout_close` | `integer` | Milliseconds a closing client waits for the server to drop the connection before it drops it itself (default `3000`). |
 | `pingT` | `integer` | Ping interval in milliseconds (`0` = disabled). |
+| `max_payload_size` | `integer` | Largest payload of a frame, in bytes (default `0`: the max block of the yuno). A frame announced bigger is refused: a warning (*"Websocket frame bigger than the max payload, connection closed"*, with `frame_length`) and the connection closed with `1009`. |
+
+The length of a frame is the peer's word, written in its header before any of
+its payload. The payload buffer starts at 4 KB and grows with what arrives, up
+to `max_payload_size`; up to 7.25.21 the whole length was reserved at the
+header, so a few connections that each announced the max block reserved it
+each with a few bytes sent.
+
+```json
+{
+    "name": "input",
+    "gclass": "C_WEBSOCKET",
+    "kw": {
+        "iamServer": true,
+        "max_payload_size": 1048576
+    }
+}
+```
 
 ### Closing
 

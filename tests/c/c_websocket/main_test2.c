@@ -1,32 +1,40 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Main of test_c_ievent_srv_identity_card
- *          Tests the identity cards a peer sends to C_IEVENT_SRV: what it
- *          refuses is logged as the peer's, a capped warning
+ *          Test: a websocket client and the size of a frame
+ *
+ *          Tasks
+ *          - Play a raw server (C_PROT_RAW) that plays websocket by hand
+ *          - Open __output_side__, a C_WEBSOCKET client with a
+ *            max_payload_size of 64 KB
+ *          - The server sends a frame of 60000 bytes in three parts: the
+ *            client delivers it whole
+ *          - The server sends the header of a frame of 1 MB: the client
+ *            warns and closes (1009)
+ *          - The client drops at timeout_close: shutdown
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <string.h>
 #include <yunetas.h>
-#include "c_test_identity_card.h"
+#include "c_test2.h"
 
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_c_ievent_srv_identity_card"
-#define APP_DOC         "Test the identity cards a peer sends to C_IEVENT_SRV"
+#define APP_NAME        "test_websocket_" "test2"
+#define APP_DOC         "Test C_WEBSOCKET frame size"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
 #define APP_DATETIME    __DATE__ " " __TIME__
 
 #define USE_OWN_SYSTEM_MEMORY   FALSE
-#define MEM_MIN_BLOCK           0
-#define MEM_MAX_BLOCK           0
-#define MEM_SUPERBLOCK          0
-#define MEM_MAX_SYSTEM_MEMORY   0
+#define DEBUG_MEMORY            false
+#define MEM_MIN_BLOCK           0       // use default
+#define MEM_MAX_BLOCK           0       // use default
+#define MEM_SUPERBLOCK          0       // use default
+#define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
 /***************************************************************************
  *                      Default config
@@ -53,67 +61,70 @@ PRIVATE char variable_config[]= "\
         'public_services': [],                                      \n\
         'service_descriptor': {                                     \n\
         },                                                          \n\
+        'i18n_dirname': '/yuneta/share/locale/',                    \n\
+        'i18n_domain': 'test_timer',                                \n\
         'trace_levels': {                                           \n\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
+        '__input_side__.__json_config_variables__': {               \n\
+            '__input_url__': 'tcp://0.0.0.0:7742',                 \n\
+            '__input_host__': '0.0.0.0',                            \n\
+            '__input_port__': '7742'                                \n\
+        }                                                           \n\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'tester',                                       \n\
-            'gclass': 'C_TEST_IDENTITY_CARD',                       \n\
+            'name': 'c_test2',                                      \n\
+            'gclass': 'C_TEST2',                                    \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
-            'autoplay': false                                       \n\
+            'autoplay': false,                                      \n\
+            'kw': {                                                 \n\
+            },                                                      \n\
+            'children': [                                            \n\
+            ]                                                       \n\
         },                                                          \n\
         {                                                           \n\
             'name': '__input_side__',                               \n\
             'gclass': 'C_IOGATE',                                   \n\
             'autostart': false,                                     \n\
             'autoplay': false,                                      \n\
-            'children': [                                           \n\
+            'kw': {                                                 \n\
+            },                                                      \n\
+            'children': [                                            \n\
                 {                                                   \n\
                     'name': 'server_port',                          \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'ws://127.0.0.1:7813',               \n\
+                        'url': '(^^__input_url__^^)',               \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
-                                '__disabled__': false,              \n\
+                                '__disabled__': false,               \n\
                                 'connected': false                  \n\
                             }                                       \n\
                         }                                           \n\
                     }                                               \n\
                 }                                                   \n\
             ],                                                      \n\
-            '[^^children^^]': {                                     \n\
-                '__range__': [1,2],                                 \n\
-                '__vars__': {                                       \n\
+            '[^^children^^]': {                                      \n\
+                '__range__': [1,1],                                  \n\
+                '__vars__': {                                        \n\
                 },                                                  \n\
-                '__content__': {                                    \n\
-                    'name': 'input-(^^__range__^^)',                \n\
+                '__content__': {                                     \n\
+                    'name': '__input_port__-(^^__range__^^)',        \n\
                     'gclass': 'C_CHANNEL',                          \n\
-                    'children': [                                   \n\
+                    'children': [                                    \n\
                         {                                           \n\
-                            'name': 'input-(^^__range__^^)',        \n\
-                            'gclass': 'C_IEVENT_SRV',               \n\
+                            'name': '__input_port__-(^^__range__^^)', \n\
+                            'gclass': 'C_PROT_RAW',                 \n\
                             'kw': {                                 \n\
-                                'max_pre_session_frame': 1048576    \n\
                             },                                      \n\
-                            'children': [                           \n\
+                            'children': [                            \n\
                                 {                                   \n\
-                                    'name': 'input-(^^__range__^^)', \n\
-                                    'gclass': 'C_WEBSOCKET',        \n\
-                                    'kw': {                         \n\
-                                        'iamServer': true           \n\
-                                    },                              \n\
-                                    'children': [                   \n\
-                                        {                           \n\
-                                    'name': 'input-(^^__range__^^)', \n\
-                                            'gclass': 'C_TCP'       \n\
-                                        }                           \n\
-                                    ]                               \n\
+                                    'name': '__input_port__-(^^__range__^^)', \n\
+                                    'gclass': 'C_TCP'               \n\
                                 }                                   \n\
                             ]                                       \n\
                         }                                           \n\
@@ -122,25 +133,28 @@ PRIVATE char variable_config[]= "\
             }                                                       \n\
         },                                                          \n\
         {                                                           \n\
-            'name': 'cli_raw',                                      \n\
+            'name': '__output_side__',                              \n\
             'gclass': 'C_IOGATE',                                   \n\
             'autostart': false,                                     \n\
             'autoplay': false,                                      \n\
-            'children': [                                           \n\
+            'children': [                                            \n\
                 {                                                   \n\
-                    'name': 'cli_raw',                              \n\
+                    'name': 'output',                               \n\
                     'gclass': 'C_CHANNEL',                          \n\
-                    'children': [                                   \n\
+                    'children': [                                    \n\
                         {                                           \n\
-                            'name': 'cli_raw',                      \n\
+                            'name': 'output',                       \n\
                             'gclass': 'C_WEBSOCKET',                \n\
-                            'children': [                           \n\
+                            'kw': {                                 \n\
+                                'max_payload_size': 65536,          \n\
+                                'timeout_close': 2000               \n\
+                            },                                      \n\
+                            'children': [                            \n\
                                 {                                   \n\
-                                    'name': 'cli_raw',              \n\
+                                    'name': 'output',               \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
-                                        'url': 'ws://127.0.0.1:7813', \n\
-                                        'timeout_between_connections': 100 \n\
+                                        'url':'ws://127.0.0.1:7742' \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\
@@ -156,75 +170,6 @@ PRIVATE char variable_config[]= "\
 time_measure_t time_measure;
 
 /***************************************************************************
- *  Authentication without a C_AUTHZ: the user is the `jwt` of the card,
- *  and it may reach the `tester`.
- ***************************************************************************/
-static json_t *test_authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)
-{
-    const char *username = kw_get_str(gobj_service, kw, "jwt", "", 0);
-    gobj_write_str_attr(src, "__username__", username);
-
-    json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:{s:[]}}",
-        "result", 0,
-        "comment", "test authentication",
-        "username", username,
-        "services_roles",
-            "tester"
-    );
-    KW_DECREF(kw)
-    return jn_resp;
-}
-
-/***************************************************************************
- *  Each refusal: ONE line (a stack is written as more lines of the same
- *  log), a WARNING, capped, and without the jwt of the card
- ***************************************************************************/
-typedef struct {
-    const char *mark;
-    int lines;
-    int priority;
-    size_t longest;
-} peer_log_count_t;
-peer_log_count_t peer_log_counts[] = {
-    {"Identity card without its routing",               0, -1, 0},
-    {"Identity card refused, dst_role NOT MATCH",       0, -1, 0},
-    {"Identity card refused, dst_yuno NOT MATCH",       0, -1, 0},
-    {"Identity card refused, without yuno role",        0, -1, 0},
-    {"Identity card refused, without yuno service",     0, -1, 0},
-    {"Identity card refused, dst_service NOT FOUND",    0, -1, 0},
-    {"Identity card refused, its jwt is not a string",  0, -1, 0},
-    {"Event before the identity card, channel closed",  0, -1, 0},
-    {"Frame before the identity card too big, channel closed", 0, -1, 0},
-    {0, 0, 0, 0}
-};
-
-int jwt_logged = 0;     // lines that carry the jwt of a card: none
-int secret_logged = 0;  // lines that carry a credential of the command before the card: none
-
-static int peer_log_write(void *v, int priority, const char *bf, size_t len)
-{
-    const char *jwt = "tester-jwt-credential";
-    if(memmem(bf, len, jwt, strlen(jwt))) {
-        jwt_logged++;
-    }
-    const char *secret = "tester-secret";
-    if(memmem(bf, len, secret, strlen(secret))) {
-        secret_logged++;
-    }
-    for(int i=0; peer_log_counts[i].mark; i++) {
-        peer_log_count_t *c = &peer_log_counts[i];
-        if(memmem(bf, len, c->mark, strlen(c->mark))) {
-            c->lines++;
-            c->priority = priority;
-            if(len > c->longest) {
-                c->longest = len;
-            }
-        }
-    }
-    return 0;
-}
-
-/***************************************************************************
  *  HACK This function is executed on yunetas environment (mem, log, paths)
  *  BEFORE creating the yuno
  ***************************************************************************/
@@ -237,27 +182,42 @@ static int register_yuno_and_more(void)
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    result += register_c_test_identity_card();
+    result += register_c_test2();
+
+    /*------------------------------------------------*
+     *          Traces
+     *------------------------------------------------*/
+    // Avoid timer trace, too much information
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", TRUE);
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
+    gobj_set_global_no_trace("timer_periodic", TRUE);
+
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
+
+    // Samples of global traces
+    gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
+    gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
+    // gobj_set_gobj_trace(0, "machine", TRUE, 0);
+    // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
 
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    set_expected_results(
-        APP_NAME,
-        /*  Strict FIFO of the warnings and errors: one warning per refused
-         *  card, and no error  */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
-            "msg", "Identity card without its routing (__md_iev__ ievent stack), refused",
-            "msg", "Identity card refused, dst_role NOT MATCH",
-            "msg", "Identity card refused, dst_yuno NOT MATCH",
-            "msg", "Identity card refused, without yuno role",
-            "msg", "Identity card refused, without yuno service",
-            "msg", "Identity card refused, dst_service NOT FOUND in this yuno",
-            "msg", "Identity card refused, its jwt is not a string",
-            "msg", "Event before the identity card, channel closed",
-            "msg", "Frame before the identity card too big, channel closed"
-        ),
-        NULL,   // expected
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        "msg", "Starting yuno",
+        "msg", "Playing yuno",
+        "msg", "Websocket frame bigger than the max payload, connection closed",
+        "msg", "Timeout waiting websocket disconnected",
+        "msg", "Exit to die",
+        "msg", "Pausing yuno",
+        "msg", "Yuno stopped, gobj end"
+    );
+
+    set_expected_results( // Check that no logs happen
+        APP_NAME, // test name
+        errors_list, // errors_list,
+        NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
         1       // verbose
     );
@@ -268,53 +228,15 @@ static int register_yuno_and_more(void)
 }
 
 /***************************************************************************
- *  HACK This function is executed on yunetas environment
- *  AFTER the yuno has stopped
+ *  HACK This function is executed on yunetas environment (mem, log, paths)
+ *  BEFORE creating the yuno
  ***************************************************************************/
 static void cleaning(void)
 {
     MT_INCREMENT_COUNT(time_measure, 1)
     MT_PRINT_TIME(time_measure, APP_NAME)
 
-    result += test_json(NULL);
-
-    for(int i=0; peer_log_counts[i].mark; i++) {
-        peer_log_count_t *c = &peer_log_counts[i];
-        if(c->lines != 1 || c->priority != LOG_WARNING || c->longest > 1500) {
-            printf("%sERROR --> %s: '%s' lines %d (expected 1), priority %d (expected %d), longest %lu%s\n",
-                On_Red BWhite,
-                "a refused identity card is not ONE capped warning",
-                c->mark,
-                c->lines,
-                c->priority,
-                LOG_WARNING,
-                (unsigned long)c->longest,
-                Color_Off
-            );
-            result += -1;
-        }
-    }
-    if(jwt_logged) {
-        printf("%sERROR --> %s: %d lines%s\n",
-            On_Red BWhite,
-            "the jwt of a card was written to the log",
-            jwt_logged,
-            Color_Off
-        );
-        result += -1;
-    }
-    if(secret_logged) {
-        printf("%sERROR --> %s: %d lines%s\n",
-            On_Red BWhite,
-            "a credential of a command before the card was written to the log",
-            secret_logged,
-            Color_Off
-        );
-        result += -1;
-    }
-    if(test_identity_card_failed) {
-        result += -1;
-    }
+    result += test_json(NULL);  // NULL: we want to check only the logs
 }
 
 /***************************************************************************
@@ -327,31 +249,25 @@ int main(int argc, char *argv[])
      *------------------------------*/
     glog_init();
 
+    /*
+     *  Add all handlers very early
+     */
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
 
     gobj_log_register_handler(
-        "testing",
-        0,
-        capture_log_write,
-        0
+        "testing",          // handler_name
+        0,                  // close_fn
+        capture_log_write,  // write_fn
+        0                   // fwrite_fn
     );
-    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
 
-    gobj_log_register_handler(
-        "peer_log",
-        0,
-        peer_log_write,
-        0
-    );
-    gobj_log_add_handler("peer_log", "peer_log", LOG_OPT_ALL, 0);
 
     /*------------------------------------------------*
      *      To check memory loss
      *------------------------------------------------*/
-    unsigned long memory_check_list[] = {0, 0};
+    unsigned long memory_check_list[] = {0, 0}; // WARNING: the list ended with 0
     set_memory_check_list(memory_check_list);
-
-    set_auto_kill_time(20);    // a crash-free hang must not hang the suite
 
     /*------------------------------------------------*
      *          Start yuneta
@@ -359,11 +275,11 @@ int main(int argc, char *argv[])
     helper_quote2doublequote(fixed_config);
     helper_quote2doublequote(variable_config);
     yuneta_setup(
-        NULL,       // persistent_attrs
-        NULL,       // command_parser
-        NULL,       // stats_parser
-        NULL,       // authz_checker
-        test_authentication_parser,
+        NULL,       // persistent_attrs, default internal dbsimple
+        NULL,       // command_parser, default internal command_parser
+        NULL,       // stats_parser, default internal stats_parser
+        NULL,       // authz_checker, default Monoclass C_AUTHZ
+        NULL,       // authentication_parser, default Monoclass C_AUTHZ
         MEM_MAX_BLOCK,
         MEM_MAX_SYSTEM_MEMORY,
         USE_OWN_SYSTEM_MEMORY,

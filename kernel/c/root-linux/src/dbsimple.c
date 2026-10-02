@@ -67,8 +67,37 @@ PRIVATE char *get_persist_filename(
 }
 
 /***************************************************************************
+ *  The owner of the directory of the persistent attrs file, (uid_t)-1 if
+ *  it cannot be known (logged)
+ ***************************************************************************/
+PRIVATE uid_t data_dir_owner(hgobj gobj, const char *filename)
+{
+    char dir[PATH_MAX];
+    snprintf(dir, sizeof(dir), "%s", filename);
+    char *slash = strrchr(dir, '/');
+    if(slash) {
+        *slash = 0;
+    }
+    struct stat st;
+    if(stat(dir, &st) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot stat the directory of the persistent attrs file",
+            "path",         "%s", dir,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return (uid_t)-1;
+    }
+    return st.st_uid;
+}
+
+/***************************************************************************
  *  Is the persistent attrs file one to read, and one the yuno can keep?
- *  Return -1 when it is not a regular file (logged). Else 0, and
+ *  Return -1 when it is not a regular file, or one of another user not to
+ *  be trusted (logged). Else 0, and
  *  `*must_replace` TRUE when it is the yuno's own and not as save_json()
  *  writes it: 0600 and one name only. Such a file (one left 0664 by a
  *  release before 7.25.19, a hard link) is not changed in place -- a
@@ -111,10 +140,36 @@ PRIVATE int check_persist_file(hgobj gobj, int fd, const char *filename, BOOL *m
     snprintf(mode, sizeof(mode), "0%o", (unsigned)(st.st_mode & 07777));
     if(st.st_uid != geteuid()) {
         /*
-         *  Another user's (the yuno run once as root, a member of the
-         *  group): a load only reads, and never takes it. Replacing it here
-         *  made the next start, as its own user, read nothing, and its next
-         *  save write only the attrs given -- every other one lost.
+         *  Another user's. Root's is trusted (the yuno run once as root),
+         *  and so, for a yuno run as root, is the one of the yuno's own
+         *  user (the owner of the data directory). Any other is refused:
+         *  the data directory is group-writable (02775), so a member of the
+         *  group could plant it, and the persistent attrs of the agent and
+         *  of logcenter held commands run with system(). Up to 7.25.21 it
+         *  was loaded, with a warning. Refused, nothing is loaded and the
+         *  saves are refused (they would lose its other attrs).
+         */
+        BOOL trusted = (st.st_uid == 0)? TRUE : FALSE;
+        if(!trusted && geteuid() == 0) {
+            trusted = (st.st_uid == data_dir_owner(gobj, filename))? TRUE : FALSE;
+        }
+        if(!trusted) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Persistent attrs file of another user refused: not loaded, saves refused until it is removed or given to the yuno's user",
+                "path",         "%s", filename,
+                "mode",         "%s", mode,
+                "uid",          "%d", (int)st.st_uid,
+                "euid",         "%d", (int)geteuid(),
+                NULL
+            );
+            return -1;
+        }
+        /*
+         *  A load only reads, and never takes it. Replacing it here made
+         *  the next start, as its own user, read nothing, and its next save
+         *  write only the attrs given -- every other one lost.
          */
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -541,10 +596,13 @@ PRIVATE int save_json(
 
     /*
      *  A file there of another user. Its attrs were loaded (a file that
-     *  cannot be read refused the save before it came here), so nothing is
-     *  lost by replacing it. Root (the yuno run once as root) gives the new
-     *  file to the old owner: root never takes the file from the yuno, which
-     *  would then read nothing. Anyone else takes it over, logged.
+     *  cannot be read, or is not trusted, refused the save before it came
+     *  here), so nothing is lost by replacing it. Root (the yuno run once
+     *  as root) gives the new file to the old owner when that is the yuno's
+     *  user, the owner of the data directory: root never takes the file
+     *  from the yuno, which would then read nothing. To anybody else root
+     *  gives nothing: up to 7.25.21 it gave the new file, the secrets in
+     *  it, to whoever owned the old one. Anyone else takes it over, logged.
      */
     struct stat st_old;
     BOOL foreign = (lstat(filename, &st_old) == 0 && S_ISREG(st_old.st_mode) &&
@@ -572,7 +630,9 @@ PRIVATE int save_json(
 
     const char *failed = NULL;
     int last_errno = 0;
-    if(foreign && geteuid() == 0 && fchown(fd, st_old.st_uid, st_old.st_gid) < 0) {
+    BOOL give_back = (foreign && geteuid() == 0 &&
+        st_old.st_uid == data_dir_owner(gobj, filename))? TRUE : FALSE;
+    if(give_back && fchown(fd, st_old.st_uid, st_old.st_gid) < 0) {
         failed = "Cannot give the new persistent attrs file to the owner of the old one";
         last_errno = errno;
     } else if(json_dumpfd(jn, fd, JSON_INDENT(4)) < 0) {
@@ -611,7 +671,7 @@ PRIVATE int save_json(
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", geteuid() == 0?
+            "msg",          "%s", give_back?
                 "Persistent attrs file of another user saved, and kept its owner" :
                 "Persistent attrs file of another user taken over by the yuno's user",
             "path",         "%s", filename,

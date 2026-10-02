@@ -39,7 +39,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define LAST_CARD   8
+#define LAST_CARD   9
 
 /***************************************************************************
  *              Structures
@@ -298,6 +298,22 @@ PRIVATE int send_card(hgobj gobj, int card)
             );
             msg_iev_set_msg_type(gobj, kw, "__command__");
             return send_frame(gobj, EV_MT_COMMAND, kw);
+
+        case 8:
+            {
+                /*
+                 *  A card bigger than max_pre_session_frame (1 MB here): not
+                 *  parsed, the channel closed
+                 */
+                size_t big_len = 1100*1024;
+                char *big = gbmem_malloc(big_len + 1);
+                memset(big, 'x', big_len);
+                big[big_len] = 0;
+                json_object_set_new(kw, "extra", json_string(big));
+                GBMEM_FREE(big)
+                jn_routing = card_routing("", role, "tester", role, "cli");
+            }
+            break;
 
         default:
             jn_routing = card_routing("", role, "tester", role, "cli");

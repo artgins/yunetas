@@ -8,6 +8,24 @@ except the hook and the entries this list marks "(no red test)".
 
 ### Upgrade steps (operators, read first)
 
+- **The command attrs run with `system()` are set in the config only**:
+  the agent's `cert_sync_copy_cmd` and `cert_sync_store_dir`, logcenter's
+  `restart_yuneta_command`. A value set at run time with `write-attr` and
+  persisted is no longer read: put it in the yuno's config
+  (`"global": {"agent.cert_sync_copy_cmd": "..."}`).
+- **C_AUTHZ asks the permissions of its users treedb (`treedb_authzs`) for
+  every command from a peer**, with the per-command gate off too: `read`
+  to list, `create`/`update`/`delete` to manage users, `update` for the
+  JWKs, `check-user-pwd` and `set-max-sessions`. A gui_agent operator with
+  no such permission now gets `-403` in the Users workspace.
+- **A persistent attrs file of another user is refused** (not loaded, saves
+  refused) unless it is root's, or the yuno runs as root and it is the data
+  directory owner's. A node whose yunos changed of user (a dev box: `yuneta`
+  after a reboot, `gines` by hand) gives the files to the yuno's user.
+- **A frame before the session is limited** (`max_pre_session_frame` of
+  `C_IEVENT_SRV`, 64 KB by default): a client that sends a bigger identity
+  card needs it raised.
+
 - **Rebuild every project against the new headers.** `fs_event_t`
   (`fs_watcher.h`) gains seven fields, at its end.
 - **An rt_disk follower holds one more descriptor per key directory of each
@@ -123,6 +141,59 @@ except the hook and the entries this list marks "(no red test)".
   `c_tcps/test7` (red: a SegFault in clear and over TLS); the `mt_stop()`
   order has no red test (a connected clisrv always has a read in flight, so
   its stop never ends inside `mt_stop()`).
+- **timeranger2: a follower does not hand a record without its body**, and
+  a read that finds its file gone is a warning. On the by-path fallback a
+  record of a life already deleted could not be read and was handed with a
+  NULL body to a feed that wanted the body; it is skipped now (the read
+  logged it, and the delete comes next). And `Cannot open file to read` /
+  `Cannot open md2 file` with ENOENT -- a key deleted under the reader -- are
+  warnings (`MSGSET_TRANGER`, *"gone: its key deleted under the reader"*),
+  not CRITICALs. (no red test: the fallback needs a system without /proc)
+- **SECURITY: C_AUTHZ's commands ask a permission, always.** They were
+  `SDF_AUTHZ_X` only, which does nothing while `enable_command_authz` is off
+  (the default): any user the entry gate let in created, updated, disabled
+  and deleted users, set passwords, and added trusted signing keys
+  (`add-jwk`), and linked a role through `create-user role=` that
+  `link-nodes` refused. Now a command from a peer (its kw carries the
+  `__username__` of the entry gate) asks the permission of the users
+  treedb's own C_NODE, as `link-nodes` does: `read`, `create` (and `update`
+  when it links a role), `update`, `delete`; `-403` without it. Internal
+  calls are not asked. Test `command_delete_user` (case 12).
+- **SECURITY: dbsimple refuses a persistent attrs file of another user.**
+  The data directories are group-writable (02775), so a member of the group
+  could plant the file of any service, and the persistent attrs of the agent
+  and of logcenter held commands run with `system()`; it was loaded, with a
+  warning. Now only the yuno's own file, root's, or (for a yuno run as
+  root) the data directory owner's is loaded; any other is refused with an
+  ERROR and the saves with it. A save as root gives the new file only to
+  the data directory's owner (it gave it, secrets in it, to whoever owned
+  the old one). Test `secret_attrs` (case 7, with `__wrap_fstat`).
+- **SECURITY: the commands the agent and logcenter run with `system()` are
+  config only.** `write-attr` could set and persist `cert_sync_copy_cmd`
+  (run as root through sudo, and at once by `cert-sync-now`, which had no
+  flag) and `restart_yuneta_command`. They are `SDF_RD` now, and
+  `cert-sync-now` / `cert-sync-status` are `SDF_AUTHZ_X`. (no red test)
+- **SECURITY: emailsender's `skip-email`, `remove-emails-failed`,
+  `disable-alarm-emails` and `enable-alarm-emails` are `SDF_AUTHZ_X`**: they
+  move or remove emails, or silence the alarms. (no red test)
+- **A frame before the session is not parsed when it is big.** C_IEVENT_SRV
+  parsed a peer's whole frame before checking its identity card, and a
+  frame of `[{},...]` takes ~100 times its size to parse (16 MB: 1.7 GB):
+  the max block of a yuno let an unauthenticated peer ask for ~20 GB. A
+  frame bigger than `max_pre_session_frame` (64 KB) is refused with a
+  warning, unparsed and not dumped. Test `c_ievent_srv_identity_card`
+  (card 8).
+- **C_WEBSOCKET no longer reserves the length a peer announces.** The
+  payload buffer was created with the frame's length from its header,
+  before any of it came: a few connections each claiming the max block
+  reserved it each. It starts at 4 KB and grows with what arrives, up to a
+  new `max_payload_size` (0: the max block); a bigger frame is refused
+  with a warning and 1009. Test `c_websocket/test2`.
+- **gbuffer: a buffer grown from small reaches its max.** The growth
+  doubles, and a doubling past `max_memory_size` was refused even when
+  what was needed fitted (*"MAXIMUM SPACE REACHED"*): 4 KB with a max of
+  10 KB stopped at 8 KB. It grows to the max now. Test `gbuffer`
+  (`test_grow_to_max`).
 - **timeranger2: closing a follower's rt_disk feed under load no longer
   leaves its directory fed for ever.** `tranger2_close_rt_disk()` removed
   `disks/<rt_id>/` where it was, while the master kept linking new records

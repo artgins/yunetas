@@ -3533,16 +3533,31 @@ PRIVATE int get_topic_rd_fd(
              *  not: nothing was written, and the caller answers an error. It
              *  is reached by a key deleted under an open iterator, and with
              *  on_critical_error=2 it was an exit(0) nobody relaunches.
+             *  A file that is not there (ENOENT) is that race -- its key
+             *  deleted under the reader, a follower reading by path -- not
+             *  a broken system: a warning.
              */
-            gobj_log_critical(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot open file to read",
-                "path",         "%s", full_path,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
+            int last_errno = errno;
+            if(last_errno == ENOENT) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TRANGER,
+                    "msg",          "%s", "Cannot open file to read",
+                    "reason",       "%s", "gone: its key deleted under the reader",
+                    "path",         "%s", full_path,
+                    NULL
+                );
+            } else {
+                gobj_log_critical(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot open file to read",
+                    "path",         "%s", full_path,
+                    "errno",        "%d", last_errno,
+                    "serrno",       "%s", strerror(last_errno),
+                    NULL
+                );
+            }
             return -1;
         }
 
@@ -9262,9 +9277,16 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                 file_id,
                 &md_record_ex
             );
-            if(record) {
-                json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
+            if(!record) {
+                /*
+                 *  Error already logged. Not handed with a NULL body to a
+                 *  feed that wants the body: on the by-path fallback that is
+                 *  a record of a life already deleted (its delete comes
+                 *  next), and a consumer takes NULL for a record
+                 */
+                continue;
             }
+            json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
         }
 
         /*----------------------------*
@@ -11658,15 +11680,27 @@ PRIVATE json_int_t load_first_and_last_record_md(
     BOOL own_fd = (md2_fd < 0)? TRUE : FALSE;
     int fd = own_fd? open(full_path, O_RDONLY|O_CLOEXEC, 0) : md2_fd;
     if(fd<0) {
-        gobj_log_critical(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot open md2 file",
-            "path",         "%s", full_path,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
+        int last_errno = errno;
+        if(last_errno == ENOENT) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "Cannot open md2 file",
+                "reason",       "%s", "gone: its key deleted under the reader",
+                "path",         "%s", full_path,
+                NULL
+            );
+        } else {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot open md2 file",
+                "path",         "%s", full_path,
+                "errno",        "%d", last_errno,
+                "serrno",       "%s", strerror(last_errno),
+                NULL
+            );
+        }
         return -1;
     }
 

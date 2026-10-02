@@ -104,15 +104,15 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,        cmd_help,       "Command's help"),
 SDATACM (DTP_SCHEMA,    "send-email",       0,      pm_send_email,  cmd_send_email, "Send email."),
-SDATACM (DTP_SCHEMA,    "disable-alarm-emails",0,   0,              cmd_disable_alarm_emails, "Disable send alarm emails."),
-SDATACM (DTP_SCHEMA,    "enable-alarm-emails",0,    0,              cmd_enable_alarm_emails, "Enable send alarm emails."),
 SDATACM (DTP_SCHEMA,    "list-queues",      0,      pm_list_queues, cmd_list_queues, "List email queues"),
-SDATACM (DTP_SCHEMA,    "remove-emails-failed",0,   0,              cmd_remove_emails_failed, "Remove emails failed"),
-SDATACM (DTP_SCHEMA,    "skip-email",       0,      0,              cmd_skip_email, "Move the email at the head of the queue (the one being tried) to the failed queue"),
 
 /*-CMD2---type------name------------flag------------ali-items---------------json_fn-------------description--*/
 SDATACM2(DTP_SCHEMA,"set-email-user",SDF_AUTHZ_X,   0,  pm_set_email_user,  cmd_set_email_user, "Set email user"),
 SDATACM2(DTP_SCHEMA,"set-url-from", SDF_AUTHZ_X,    0,  pm_set_url_from,    cmd_set_url_and_from, "Set url and/or from"),
+SDATACM2(DTP_SCHEMA,"disable-alarm-emails",SDF_AUTHZ_X,0, 0,                cmd_disable_alarm_emails, "Disable send alarm emails."),
+SDATACM2(DTP_SCHEMA,"enable-alarm-emails",SDF_AUTHZ_X,0,  0,                cmd_enable_alarm_emails, "Enable send alarm emails."),
+SDATACM2(DTP_SCHEMA,"remove-emails-failed",SDF_AUTHZ_X,0, 0,                cmd_remove_emails_failed, "Remove emails failed"),
+SDATACM2(DTP_SCHEMA,"skip-email",   SDF_AUTHZ_X,    0,  0,                  cmd_skip_email, "Move the email at the head of the queue (the one being tried) to the failed queue"),
 
 SDATA_END()
 };
