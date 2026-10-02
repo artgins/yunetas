@@ -2,8 +2,8 @@
 
 Reviewed up to `a8e6dd30d` (2026-10-02): the answer to the review of
 7.25.22 (`da85b7a9b..a8e6dd30d`). What is resolved is removed from this file.
-Clean build with no warning; the full suite was still running when this was
-written, its result follows in the next commit.
+Last check, on `a8e6dd30d`: clean build with no warning, suite 287/287 as
+user `yuneta` under `ulimit -Sn 1024`.
 
 ## Verdict
 
