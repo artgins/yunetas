@@ -49,6 +49,7 @@ is named `yuneta_agent22`.
 | `set_disconnected()`: the `EV_DISCONNECTED` publish inside the liveness marker | `7314ad50d` | No host destroys there: no red test |
 | fs_watcher: a directory watched again brings its subtree (each subdirectory not watched yet is watched and handed as created, parent first); the half-limit warning re-arms under 40%; an unparsable `max_queued_events` is said | `1d2083dc3` | `test_fs_watcher_overflow` (`a/sub` made while `a` was not watched; red: never announced, its file never heard) |
 | C_TIMER0: `gobj_stop()` and an arm in one turn -- the cancel falls through to `EV_STOPPED` | `b7de0e312` | `test_c_timer0` |
+| `--stop` takes only the processes of the name that run its binary (`/proc/<pid>/exe`): the SysV script of the same name is not signalled (TODO.md §1, made necessary by the EPERM check of item 6) | (this commit) | By hand: a shell script named like the daemon survives its `--stop` |
 | `close_range()` through `syscall(SYS_close_range)` | `4f9362a6e` | Compiles; the loop as before without the header or the kernel |
 | The tcp4h memory assertion measures `mallinfo2()` (allocated, tracked or not) | `769af7b41` | `c_prot_tcp4h/test1` |
 | The init script under units: `start`/`stop`/`restart` exit with the units' answer; `status` says an agent running outside its unit | `bfc86e031` | `status` of the new script run on wattyzer: *"yuneta_agent: running OUTSIDE its unit"* -- its main agent IS outside its unit now |

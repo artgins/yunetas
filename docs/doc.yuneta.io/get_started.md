@@ -1,7 +1,7 @@
 # Get Started
 
 **Current version: [7.25.22](https://github.com/artgins/yunetas/tree/7.25.22)** ·
-*Documentation updated: 2026-10-02*
+*Documentation updated: 2026-10-03*
 
 ## What is Yuneta
 

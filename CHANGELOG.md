@@ -114,7 +114,11 @@
   `daemon_shutdown()` signals the watchers first, then their children,
   checks every `kill()` (a refusal is said, not waited for, and `--stop`
   exits 1), and before the SIGKILL scans the name again, so a child started
-  meanwhile is killed too. `daemon_shutdown()` returns `int` (was `void`).
+  meanwhile is killed too. And it takes only the processes of the name that
+  run ITS binary (`/proc/<pid>/exe`): the SysV script
+  `/etc/init.d/yuneta_agent`, root's and of the same name, was signalled by
+  the `--stop` it ran; another user's, whose binary cannot be read, is said
+  and left alone. `daemon_shutdown()` returns `int` (was `void`).
   The agents' units send SIGQUIT to the watcher (`$MAINPID`) before the
   agent, so a stop under systemd does not relaunch it either.
 

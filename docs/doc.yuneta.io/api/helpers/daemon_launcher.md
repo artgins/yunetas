@@ -104,8 +104,9 @@ Returns `0` on normal shutdown, or a non-zero value on error.
 ### [`daemon_shutdown()`](https://github.com/artgins/yunetas/blob/7.25.22/kernel/c/root-linux/src/ydaemon.c#L424)
 
 `daemon_shutdown()` requests an orderly shutdown of a running daemon
-by process name. Every process of that name gets SIGQUIT, the watchers
-first: a watcher notes it and does not relaunch its child, whatever its end;
+by process name. Every process of that name running the caller's binary
+(`/proc/<pid>/exe`: a script of the same name is not one) gets SIGQUIT, the
+watchers first: a watcher notes it and does not relaunch its child, whatever its end;
 the child shuts down in order and exits 0, and its watcher exits with it.
 They are given 10 s to be gone; then the name is scanned again and what is
 left is killed with SIGKILL, said on stderr. Each `kill()` is checked.
