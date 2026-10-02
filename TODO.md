@@ -39,22 +39,28 @@ Severity in parentheses where one was assigned.
   not in that feed's walk of the disks: no debt, no doubt. If it then hears
   the signal (its directory existed when the master signalled), it takes it
   for a new delete and clears the cache -- taking out a key written again
-  meanwhile. The review's "check the deletes of the last window" is not a
-  design. A fix needs the master's own order of signals (a sequence number
-  in the signal, which the follower can compare across feeds) rather than
-  queue positions; write the red test first (`test_delete_key_propagation`
-  has the hooks: `inflight_open`, `__wrap_rmdir`).
+  meanwhile.
+  **Design chosen (2026-10-02), for the next cycle, not this release**: the
+  master's signal carries the master's own order. A per-topic delete
+  sequence, persisted by the master (monotonic across its restarts), goes in
+  the NAME of the signal: the master renames `disks/<rt>/<key>` to
+  `disks/<rt>/.delete.<seq>.<key>` before removing it, or makes and removes
+  `.delete.<seq>.<key>` where the feed has no directory of the key. Every
+  follower feed hears that name (an `IN_MOVED_TO` paired with the
+  `IN_MOVED_FROM` of `<key>` by its cookie, or an `IN_CREATE`), and the
+  follower keeps, per key, the last sequence it applied to the cache: a
+  delete at or below it is known (no clear), one above it is new. Debts and
+  doubts then match by sequence, not by queue position. **Compatibility**:
+  it changes the protocol between master and follower PROCESSES; a follower
+  of the old release does not understand the new signal, so the master and
+  the followers of a topic upgrade together (an upgrade note). Write the red
+  test first (`test_delete_key_propagation` has the hooks: `inflight_open`,
+  `__wrap_rmdir`).
 ### Projects (code outside this repo)
 
-- **msg2db consumers do not use `msg2db_id_incomplete()`** (low): the
-  db_history alarms of wattyzer, yunovatios, estadodelaire and hidraulia. An
-  alarm absent after a damaged load can be announced again as new
-  (`tr_msg2db.md` has the code).
-- **wattyzer `C_GATE_PVPC` logs its failures without the url** (low,
-  observability): *"ESIOS not connected yet"*, *"ESIOS GET non-200"* (only
-  `status`), *"missing indicator.values[]"*. Same answer as
-  `c_prot_http_cl.c`: nothing a peer can trigger, the url or the endpoint name
-  is the useful field. Belongs in wattyzer's own TODO.
+Moved to the TODO of each project on 2026-10-02: `msg2db_id_incomplete()` in
+the db_history alarms (wattyzer, yunovatios, estadodelaire, hidraulia), and the
+url in `C_GATE_PVPC`'s logs (wattyzer).
 
 ---
 
