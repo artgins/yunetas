@@ -166,6 +166,16 @@ except the hook and the entries this list marks "(no red test)".
   *"Destroying a RUNNING gobj"* and *"No subscription found"* per counter. The
   agent's `mt_stop` stops and destroys them, without answering (their
   channels are closing). (no red test)
+- **C_TCP: the `disconnect_cause` of a TLS failure says the backend's reason
+  on mbedTLS too.** mbedTLS never wrote the reason where `C_TCP` reads it
+  (`ytls_get_last_error()`), so its causes were a bare *"TLS handshake
+  failed"*, or *"TLS: "* with nothing after it. Every TLS cause is now what
+  failed plus the reason when there is one (no dangling `": "`), the flush
+  of clear data and the decrypt included; *"cannot create the secure
+  filter"* no longer appends the `"???"` of a session that does not exist;
+  and a cause longer than its buffer (now 512 bytes) is truncated with a
+  warning, no longer in silence. Test `ytls/test_handshake_reject_mbedtls`
+  (the reason is empty without the fix; it needs `CONFIG_HAVE_MBEDTLS`).
 - **Control center: the rate tick is a real period, checked, and off while
   paused.** It was a `C_TIMER`, which checks its deadline on the yuno's
   `timeout_periodic` (1000 ms) and re-arms from when it was served: a tick of

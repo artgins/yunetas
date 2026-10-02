@@ -35,14 +35,6 @@ Severity in parentheses where one was assigned.
   frees the sskt. Extend the marker to every callback before freeing the
   sskt any earlier (the review's idea of freeing it in
   `try_to_stop_yevents()` once the end is decided).
-- **C_TCP `disconnect_cause` carries the backend's reason on OpenSSL only**
-  (low). mbedTLS never writes `sskt->last_error` (the reason goes only to
-  `gobj_log_set_last_message()`), so its causes are a bare *"TLS handshake
-  failed"* and *"TLS: …: "* with an empty reason; on OpenSSL *"cannot create
-  the secure filter: "* always ends empty (no sskt yet) and the flush cause
-  omits the `last_error` `flush_clear_data` filled. And
-  `set_disconnect_cause()` truncates into `char cause[256]` silently (never
-  swallow a truncation). The docs half is under *Stale texts* below.
 
 ### timeranger2 and fs_watcher
 
@@ -137,9 +129,7 @@ Severity in parentheses where one was assigned.
 
 - `docs/doc.yuneta.io/api/gclass/transport.md:31` and `protocol.md:30` say
   `timeout_inactivity` is in seconds (it is ms; `protocol.md:54`,
-  `C_PROT_HTTP_SR`, is right: that one is seconds); `transport.md:35` says the
-  disconnect cause is emptied "at each EV_CONNECT" (the reconnect EV_TIMEOUT
-  empties it too, through `ac_connect`).
+  `C_PROT_HTTP_SR`, is right: that one is seconds).
 - `tests/c/c_tcp/README.md` test7 describes the "Operation canceled"
   replacement as if current, with no "up to" release.
 - gobj-js `CHANGELOG.md` 7.25.9 still says "an unquoted value ends at a

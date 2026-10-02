@@ -131,6 +131,7 @@ PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error);
 PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE void set_disconnect_cause(hgobj gobj, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+PRIVATE void set_tls_disconnect_cause(hgobj gobj, const char *what);
 PRIVATE const char *tls_last_error(hgobj gobj);
 
 /***************************************************************
@@ -169,7 +170,7 @@ SDATA (DTP_INTEGER, "timeout_between_connections_max", SDF_RD, "0", "If > timeou
 SDATA (DTP_INTEGER, "timeout_inactivity", SDF_RD,       "-1", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
 SDATA (DTP_INTEGER, "timeout_stop_tx",  SDF_RD,         "10000", "A stop (or a drop) waits for the write in flight: a peer that does not take its data for this many ms aborts the connection (TCP_USER_TIMEOUT), so the stop ends. 0: no bound"),
 SDATA (DTP_BOOLEAN, "connect_on_start", SDF_RD,         "TRUE",     "Client: connect when started. FALSE: stay in ST_DISCONNECTED until the owner sends EV_CONNECT (connections on demand)"),
-SDATA (DTP_STRING,  "disconnect_cause", SDF_RD|SDF_STATS, "",       "Why the last connection, or the last attempt to connect, ended: the error of the socket, a TLS failure with its reason, 'Local dropping', 'Inactivity timeout', 'Local stop'. The first cause of an end is kept. Emptied at each EV_CONNECT and when a connection begins"),
+SDATA (DTP_STRING,  "disconnect_cause", SDF_RD|SDF_STATS, "",       "Why the last connection, or the last attempt to connect, ended: the error of the socket, a TLS failure with its reason, 'Local dropping', 'Inactivity timeout', 'Local stop'. The first cause of an end is kept. Emptied when a connection attempt starts (EV_CONNECT or the reconnect timer) and when a connection begins"),
 
 SDATA (DTP_INTEGER, "txBytes",          SDF_RSTATS,     "0", "Messages transmitted"),
 SDATA (DTP_INTEGER, "rxBytes",          SDF_RSTATS,     "0", "Messages received"),
@@ -714,10 +715,9 @@ PRIVATE void set_connected(hgobj gobj, int fd)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "ytls_new_secure_filter() FAILED",
-                "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
                 NULL
             );
-            set_disconnect_cause(gobj, "TLS: cannot create the secure filter: %s", tls_last_error(gobj));
+            set_disconnect_cause(gobj, "TLS: cannot create the secure filter"); // the backend logged why
             try_to_stop_yevents(gobj);
             return;
         }
@@ -746,7 +746,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
                 "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
                 NULL
             );
-            set_disconnect_cause(gobj, "TLS: the handshake cannot start: %s", tls_last_error(gobj));
+            set_tls_disconnect_cause(gobj, "TLS: the handshake cannot start");
             try_to_stop_yevents(gobj);
             return;
         }
@@ -823,7 +823,7 @@ PRIVATE void set_secure_connected(hgobj gobj)
          *  caller (which calls try_to_stop_yevents() on a TLS error).
          *  Error already logged in flush_clear_data.
          */
-        set_disconnect_cause(gobj, "TLS: the flush of clear data failed");
+        set_tls_disconnect_cause(gobj, "TLS: the flush of clear data failed");
         try_to_stop_yevents(gobj);
         return;
     }
@@ -1136,7 +1136,7 @@ PRIVATE int write_data(hgobj gobj)
                 "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
                 NULL
             );
-            set_disconnect_cause(gobj, "TLS: encrypt failed: %s", tls_last_error(gobj));
+            set_tls_disconnect_cause(gobj, "TLS: encrypt failed");
             try_to_stop_yevents(gobj);
             return -1;  // the end of the connection released gbuf, and maybe the gobj
         }
@@ -1541,12 +1541,45 @@ PRIVATE void set_disconnect_cause(hgobj gobj, const char *fmt, ...)
     if(!empty_string(gobj_read_str_attr(gobj, "disconnect_cause"))) {
         return; // the first cause of this end is kept
     }
-    char cause[256];
+    char cause[512];    // a TLS reason (256, the backends' last_error) and what failed
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(cause, sizeof(cause), fmt, ap);
+    int len = vsnprintf(cause, sizeof(cause), fmt, ap);
     va_end(ap);
+    if(len < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "cannot format the disconnect cause",
+            "fmt",          "%s", fmt,
+            NULL
+        );
+        return;
+    }
+    if(len >= (int)sizeof(cause)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "disconnect cause truncated",
+            "length",       "%d", len,
+            "cause",        "%s", cause,
+            NULL
+        );
+    }
     gobj_write_str_attr(gobj, "disconnect_cause", cause);
+}
+
+/***************************************************************************
+ *  A TLS cause: what failed, and the backend's reason when it has one
+ ***************************************************************************/
+PRIVATE void set_tls_disconnect_cause(hgobj gobj, const char *what)
+{
+    const char *reason = tls_last_error(gobj);
+    set_disconnect_cause(gobj, "%s%s%s",
+        what,
+        empty_string(reason)? "" : ": ",
+        empty_string(reason)? "" : reason
+    );
 }
 
 /***************************************************************************
@@ -1572,11 +1605,7 @@ PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
         /*
          *  Don't stop here, will be stopped in return of ytls_decrypt_data()
          */
-        const char *reason = tls_last_error(gobj);
-        set_disconnect_cause(gobj, "TLS handshake failed%s%s",
-            empty_string(reason)? "" : ": ",
-            empty_string(reason)? "" : reason
-        );
+        set_tls_disconnect_cause(gobj, "TLS handshake failed");
     } else {
         set_secure_connected(gobj);
     }
@@ -1704,7 +1733,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                              *      Solution: don't return -1 on ytls_on_clear_data_callback
                              */
                             if(ret < -1000) { // Mark as TLS error
-                                set_disconnect_cause(gobj, "TLS: %s", tls_last_error(gobj));
+                                set_tls_disconnect_cause(gobj, "TLS: decrypt failed");
                                 try_to_stop_yevents(gobj);
                             }
                             break;

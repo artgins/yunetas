@@ -9,6 +9,10 @@
  *          handshake MUST fail without crashing:
  *              1. ytls_decrypt_data() returns a TLS error (< -1000)
  *              2. on_handshake_done_cb is invoked exactly once with error=-1
+ *              3. ytls_get_last_error() says the backend's reason (what
+ *                 C_TCP puts in its disconnect_cause). Up to 7.25.21 the
+ *                 mbedTLS backend never wrote it: the cause was a bare
+ *                 "TLS handshake failed".
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -153,6 +157,17 @@ int main(int argc, char *argv[])
             APP, handshake_cb_last_error
         );
         result++;
+    }
+
+    const char *reason = ytls_get_last_error(ytls, sskt);
+    if(!reason || !*reason) {
+        fprintf(stderr,
+            "%s: ytls_get_last_error() empty after a failed handshake\n",
+            APP
+        );
+        result++;
+    } else {
+        printf("%s: reason of the failed handshake: %s\n", APP, reason);
     }
 
     ytls_free_secure_filter(ytls, sskt);

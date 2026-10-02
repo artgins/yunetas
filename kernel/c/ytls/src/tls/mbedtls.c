@@ -1022,6 +1022,7 @@ PRIVATE int do_handshake(hsskt sskt_)
         } else {
             char error_buf[256];
             mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+            snprintf(sskt->last_error, sizeof(sskt->last_error), "%s", error_buf);
             gobj_log_set_last_message("MBEDTLS: %s", error_buf);
             /*
              *  Default-on trace of the rejected handshake (not just under
@@ -1203,6 +1204,7 @@ PRIVATE int encrypt_data(
             } else {
                 char error_buf[256];
                 mbedtls_strerror(written, error_buf, sizeof(error_buf));
+                snprintf(sskt->last_error, sizeof(sskt->last_error), "%s", error_buf);
                 gobj_log_error(gobj, 0,
                     "function",         "%s", __FUNCTION__,
                     "msgset",           "%s", MSGSET_MBEDTLS,
@@ -1338,6 +1340,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
                         gobj_trace_msg(gobj, "------- flush_clear_data: The peer notified connection is going to be closed, userp %p", sskt->user_data);
                     }
                 } else {
+                    snprintf(sskt->last_error, sizeof(sskt->last_error), "%s", error_buf);
                     gobj_log_error(gobj, 0,
                         "function",         "%s", __FUNCTION__,
                         "msgset",           "%s", MSGSET_MBEDTLS,
