@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **`write-attr` writes only `SDF_WR` attributes.** `gobj_is_writable_attr()`
+  answered TRUE for `SDF_WR` OR `SDF_PERSIST`, so every persistent attribute
+  was writable at run time by `write-attr`, which only the per-command gate
+  guards (off by default) -- around the checks of the attribute's own
+  command. `C_AUTHZ`'s `max_sessions_per_user` could be set without the
+  `update` permission `set-max-sessions` asks for; `C_IDP_KEYCLOAK`'s
+  `kc_base_url`, `C_YUNO`'s `allowed_ips` / `denied_ips` (not normalised
+  either), emailsender's `url` / `password`, and the rest, were open the
+  same way. Now `SDF_PERSIST` without `SDF_WR` is set by the config or by its
+  own command; `write-attr` answers *"attr not writable"*. **Upgrade:** a
+  script that set such an attribute with `write-attr` uses the config or the
+  attribute's command instead; a gclass that wants one writable at run time
+  declares it `SDF_WR|SDF_PERSIST`.
+
 - **dbsimple: a yuno run as root takes its user from the chain closed from
   `/` down.** For a yuno run as root, the persistent attrs file of the
   yuno's user is trusted, and that user was the owner of the first closed

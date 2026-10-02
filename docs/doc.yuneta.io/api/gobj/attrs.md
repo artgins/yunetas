@@ -179,7 +179,19 @@ Returns `TRUE` if the attribute is writable, otherwise returns `FALSE`.
 
 **Notes**
 
-The function verifies if the attribute has the `SDF_WR` or `SDF_PERSIST` flag set.
+The function verifies if the attribute has the `SDF_WR` flag set. It is what
+`write-attr` asks. An `SDF_PERSIST` attribute without `SDF_WR` is not
+writable: the config or its own command sets it (up to 7.25.22 `SDF_PERSIST`
+alone answered `TRUE`).
+
+**Examples**
+
+```C
+// SDATA (DTP_INTEGER, "cert_sync_interval_sec", SDF_WR|SDF_PERSIST, "900", "...")
+// SDATA (DTP_INTEGER, "max_sessions_per_user",  SDF_PERSIST,        "0",   "...")
+gobj_is_writable_attr(gobj, "cert_sync_interval_sec");  // TRUE
+gobj_is_writable_attr(gobj, "max_sessions_per_user");   // FALSE
+```
 
 ---
 

@@ -249,9 +249,9 @@ The ones that matter most often:
 | Flag             | Effect                                                                |
 |------------------|-----------------------------------------------------------------------|
 | `SDF_RD`         | Reads allowed. Writes denied.                                          |
-| `SDF_WR`         | Writes allowed (implies `SDF_RD`).                                    |
+| `SDF_WR`         | Writes allowed (implies `SDF_RD`). The only flag `write-attr` accepts. |
 | `SDF_REQUIRED`   | Must not be null at creation time.                                    |
-| `SDF_PERSIST`    | Survives a yuno restart. Loaded on `mt_create` if persistence backend is installed. |
+| `SDF_PERSIST`    | Survives a yuno restart. Loaded on `mt_create` if persistence backend is installed. Not writable by `write-attr` without `SDF_WR` (it was up to 7.25.22). |
 | `SDF_VOLATIL`    | Set by the framework or by other gclasses on this gobj. Read-only from user code. |
 | `SDF_STATS`      | Treated as a statistic for stats output.                              |
 | `SDF_RSTATS`     | Resettable stat — **requires `mt_reading` wired** to compute on read. See `feedback_mt_reading_for_rstats`. |

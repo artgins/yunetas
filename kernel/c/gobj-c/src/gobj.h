@@ -100,7 +100,7 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     SDF_RD          = 0x00000002,   /* Field only readable by user */
     SDF_WR          = 0x00000004,   /* Field writable (an readable) by user */
     SDF_REQUIRED    = 0x00000008,   /* Required attribute. Must not be null */
-    SDF_PERSIST     = 0x00000010,   /* (implicit SDF_WR) Field MUST be loaded/saved HACK */
+    SDF_PERSIST     = 0x00000010,   /* Field MUST be loaded/saved. Not writable by write-attr without SDF_WR */
     SDF_VOLATIL     = 0x00000020,   /* (implicit SDF_RD) Field must NOT be loaded/saved HACK */
     SDF_RESOURCE    = 0x00000040,   /* Mark as resource.  Use `schema` to specify the sdata schema */
     SDF_PKEY        = 0x00000080,   /* field used as primary key */
@@ -121,7 +121,12 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
 } sdata_flag_t;
 
 #define SDF_PUBLIC_ATTR (SDF_RD|SDF_WR|SDF_STATS|SDF_PERSIST|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS)
-#define ATTR_WRITABLE   (SDF_WR|SDF_PERSIST)
+/*
+ *  Writable at run time (write-attr): SDF_WR. An SDF_PERSIST attr without it
+ *  is set by the config or by its own command, which checks what it gets
+ *  (up to 7.25.22 SDF_PERSIST alone was writable too)
+ */
+#define ATTR_WRITABLE   SDF_WR
 #define ATTR_READABLE   SDF_PUBLIC_ATTR
 
 /*

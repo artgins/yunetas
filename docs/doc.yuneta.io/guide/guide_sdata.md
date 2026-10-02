@@ -83,7 +83,8 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
 
 (SDF_WR)=
 ### SDF_WR
-    Field is writable (and readable).
+    Field is writable (and readable). Only an attribute with SDF_WR can be
+    written at run time by `write-attr` (`gobj_is_writable_attr()`).
 
 (SDF_REQUIRED)=
 ### SDF_REQUIRED
@@ -91,7 +92,16 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
 
 (SDF_PERSIST)=
 ### SDF_PERSIST
-    Field is persistent and must be saved/loaded.
+    Field is persistent and must be saved/loaded. It does not make the
+    field writable by `write-attr`: without SDF_WR it is set by the config,
+    or by the gclass's own command, which checks the value (up to 7.25.22
+    SDF_PERSIST alone was writable, so `write-attr` went round the checks
+    of such a command).
+
+```C
+SDATA (DTP_INTEGER, "max_sessions_per_user", SDF_PERSIST,        "0", "config or set-max-sessions"),
+SDATA (DTP_INTEGER, "cert_sync_interval_sec",SDF_WR|SDF_PERSIST, "900", "config or write-attr"),
+```
 
 (SDF_VOLATIL)=
 ### SDF_VOLATIL
@@ -231,7 +241,7 @@ SDATAPM (DTP_STRING,    "password",     SDF_SECRET,     0,          "Password"),
 
 ## Common Flag Combinations
 - **Public Attributes:** Combine `SDF_RD|SDF_WR|SDF_STATS|SDF_PERSIST|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS`.
-- **Writable Attributes:** Combine `SDF_WR|SDF_PERSIST`.
+- **Writable and persistent Attributes:** Combine `SDF_WR|SDF_PERSIST`.
 
 ---
 

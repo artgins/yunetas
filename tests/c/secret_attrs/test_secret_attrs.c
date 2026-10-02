@@ -1478,6 +1478,19 @@ PRIVATE void check_persistent_file(void)
     check_true("and it is on disk", file_contains(path, "saved"));
 
     /*
+     *  SDF_PERSIST without SDF_WR is not writable at run time: up to
+     *  7.25.22 write-attr took SDF_PERSIST alone as writable
+     */
+    resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=config_only value=planted", json_object(), holder
+    );
+    check_int("write-attr of an attr SDF_PERSIST without SDF_WR is refused",
+        (int)kw_get_int(0, resp, "result", 0, 0), -1
+    );
+    JSON_DECREF(resp)
+    check_str("and it is not written", gobj_read_str_attr(holder, "config_only"), "");
+
+    /*
      *  A file of another user, not root: not loaded, a save refused
      */
     unlink(path);
@@ -1682,9 +1695,10 @@ PRIVATE sdata_desc_t driver_attrs_table[] = {
 
 PRIVATE sdata_desc_t holder_attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------------default-description---------- */
-SDATA (DTP_STRING,      "password",         SDF_PERSIST|SDF_SECRET,   "",     "A secret"),
-SDATA (DTP_STRING,      "note",             SDF_PERSIST,              "",     "Not a secret"),
-SDATA (DTP_INTEGER,     "pin",              SDF_PERSIST|SDF_SECRET,   "0",    "A secret that is a number"),
+SDATA (DTP_STRING,      "password",         SDF_WR|SDF_PERSIST|SDF_SECRET,"", "A secret"),
+SDATA (DTP_STRING,      "note",             SDF_WR|SDF_PERSIST,       "",     "Not a secret"),
+SDATA (DTP_INTEGER,     "pin",              SDF_WR|SDF_PERSIST|SDF_SECRET,"0","A secret that is a number"),
+SDATA (DTP_STRING,      "config_only",      SDF_PERSIST,              "",     "Persistent, set by the config"),
 SDATA_END()
 };
 
