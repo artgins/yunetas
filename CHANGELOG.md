@@ -261,6 +261,15 @@ except the hook and the entries this list marks "(no red test)".
   script stays for another init. Checked by hand on wattyzer (Debian 13);
   through the built packages, and on Rocky, before the release (`TODO.md`).
   (no red test)
+- **The agents' units: a removal of the `.deb` stops every unit, and a hung
+  agent does not outlive its unit.** The `postrm` disabled the units through
+  a script of the package, which dpkg had already deleted: a removal left
+  `yuneta_agent22` running from a deleted binary (and the web server's unit
+  enabled). `prerm` does it inline now. And with `KillMode=process` the
+  final SIGKILL of a stop that timed out reached only the watcher: an agent
+  hung in its shutdown stayed in the cgroup; `ExecStopPost` kills what is
+  left of the unit's own agent there. Checked on wattyzer with a SIGSTOPped
+  agent22 (no red test).
 - **gui_agent's bottom bar no longer clips its fifth item on a phone**
   (gobj-ui 7.25.24, gui_agent 0.29.8, gui_treedb 0.17.75). Bulma's `.level`
   put a 0.75rem gap between items that carry their padding: at 360px the bar

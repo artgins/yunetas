@@ -2299,8 +2299,23 @@ cat > "${WORKDIR}/DEBIAN/prerm" <<'EOF'
 #######################################################################
 # prerm
 # Stop the service prior to upgrade/remove (links removed in postrm)
+#
+# On an upgrade only the main agent stops (agent22 stays up: each can
+# recover the other). On a removal the package goes, so every unit it
+# brought is stopped and disabled HERE, inline: by postrm the package's
+# files are gone, remove-yuneta-service.sh included, and up to 7.25.21
+# that is where it was done -- agent22 was left running from a deleted
+# binary, with a dangling multi-user.target.wants link.
 #######################################################################
 set -eu
+case "${1:-}" in
+    remove|deconfigure)
+        if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+            systemctl disable --now yuneta_agent.service yuneta_agent22.service \
+                yuneta-webserver.service yuneta-core-pattern.service >/dev/null 2>&1 || true
+        fi
+        ;;
+esac
 if command -v invoke-rc.d >/dev/null 2>&1; then
     invoke-rc.d yuneta_agent stop || true
 else
@@ -2321,12 +2336,13 @@ cat > "${WORKDIR}/DEBIAN/postrm" <<'EOF'
 set -eu
 case "${1:-}" in
     remove)
-        if [ -x /yuneta/agent/service/remove-yuneta-service.sh ]; then
-            /yuneta/agent/service/remove-yuneta-service.sh || true
-        else
-            if [ -x /usr/sbin/update-rc.d ]; then
-                /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
-            fi
+        # The units were stopped and disabled by prerm (this package's
+        # files are already gone): only the SysV links are left to clean
+        if [ -x /usr/sbin/update-rc.d ]; then
+            /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
+        fi
+        if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload >/dev/null 2>&1 || true
         fi
         ;;
     purge)

@@ -19,8 +19,13 @@
 #   agent's `--stop`: that ends every process of the name, and systemd runs
 #   ExecStop also when the watcher ended on its own -- a second agent that
 #   found the first one running and left would take the first one with it.
-#   An agent that does not end in TimeoutStopSec gets SIGKILL
-#   (SuccessExitStatus: a stop, not a failure).
+#   The watcher ignores SIGTERM, so after TimeoutStopSec systemd SIGKILLs it
+#   (SuccessExitStatus: a stop, not a failure) -- it, ONLY: with
+#   KillMode=process the agent is not signalled. An agent hung in its
+#   shutdown, or one the watcher relaunched while the stop ran, would stay
+#   alive in the cgroup, unsupervised, and meet the next start; ExecStopPost
+#   kills what is left of THIS agent in this unit's cgroup (the yunos have
+#   other names, and live on).
 #
 #   An agent started by hand with `--start` runs outside this unit, and
 #   systemd does not see it: start and stop it with systemctl.
@@ -42,6 +47,7 @@ RuntimeDirectory=yuneta_agent22
 PIDFile=/run/yuneta_agent22/yuneta_agent22.pid
 ExecStart=/yuneta/agent/yuneta_agent22 --config-file=/yuneta/agent/yuneta_agent22.json --start --pid-file=/run/yuneta_agent22/yuneta_agent22.pid
 ExecStop=-/usr/bin/pkill -QUIT -P $MAINPID -x yuneta_agent22
+ExecStopPost=-/bin/sh -c 'for p in $$(cat /sys/fs/cgroup/system.slice/%n/cgroup.procs 2>/dev/null); do [ "$$(cat /proc/$$p/comm 2>/dev/null)" = "yuneta_agent22" ] && kill -KILL $$p; done; exit 0'
 KillMode=process
 SuccessExitStatus=SIGKILL
 Restart=no

@@ -251,8 +251,8 @@ one gets a default.
 
 ### 3. Package Removal
 
-- **`prerm`**: Stops the `yuneta_agent` service gracefully before removing files, and stops and disables `yuneta-webserver.service`
-- **`postrm remove`**: Disables and stops both agent units, removes SysV runlevel symlinks (keeps conffiles)
+- **`prerm`**: on an upgrade, stops the main agent only (agent22 stays up). On a removal, stops and disables every unit the package brought -- both agents, `yuneta-webserver.service`, `yuneta-core-pattern.service` -- inline: by `postrm` the package's files are gone (up to 7.25.21 this was done from `postrm` through a script of the package, which no longer existed, so agent22 kept running from a deleted binary)
+- **`postrm remove`**: Removes SysV runlevel symlinks (keeps conffiles) and reloads systemd
 - **`postrm purge`**: Also deletes `/etc/init.d/yuneta_agent`
 
 ### 4. Configuration Files Preserved on Upgrade

@@ -324,7 +324,8 @@ User=yuneta
 RuntimeDirectory=yuneta_agent
 PIDFile=/run/yuneta_agent/yuneta_agent.pid
 ExecStart=/yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --start --pid-file=/run/yuneta_agent/yuneta_agent.pid
-ExecStop=/yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --stop
+ExecStop=-/usr/bin/pkill -QUIT -P $MAINPID -x yuneta_agent
+ExecStopPost=-/bin/sh -c 'for p in $$(cat /sys/fs/cgroup/system.slice/%n/cgroup.procs 2>/dev/null); do [ "$$(cat /proc/$$p/comm 2>/dev/null)" = "yuneta_agent" ] && kill -KILL $$p; done; exit 0'
 KillMode=process
 SuccessExitStatus=SIGKILL
 Restart=no
@@ -336,8 +337,20 @@ What each line keeps from this chapter:
   agent is seen by the watcher, not by systemd: the unit stays `running`
   with the same main pid. systemd restarting it too would start a second
   agent that fights the first for its ports.
-- **`SuccessExitStatus=SIGKILL`.** `--stop` ends the watcher with SIGKILL
-  (§4.5); without it every stop would leave the unit `failed`.
+- **`ExecStop` asks only THIS unit's agent** (the child of `$MAINPID`) for
+  its orderly shutdown; the watcher then ends by itself. Not `--stop`
+  (§4.5), which ends every process of the name: systemd runs `ExecStop`
+  also when the watcher ended on its own, and a second agent that met the
+  first one running and left would take the first one with it.
+- **`SuccessExitStatus=SIGKILL`.** A hand-run `--stop` ends the watcher with
+  SIGKILL; without it the unit would read `failed`.
+- **`ExecStopPost`.** The watcher ignores SIGTERM, so after
+  `TimeoutStopSec` systemd SIGKILLs it -- it only, with `KillMode=process`.
+  An agent hung in its shutdown, or relaunched by the watcher while the stop
+  ran, would stay in the cgroup, unsupervised, and meet the next start:
+  `ExecStopPost` kills what is left of that agent in the unit's own cgroup
+  (the yunos there have other names). Such a stop ends `failed (timeout)`,
+  which is what it was.
 - **`KillMode=process`.** The yunos the agent launches are in the unit's
   cgroup. A stop or a restart must not take them (they outlive their agent,
   §4.4); the journal says *"Found left-over process"* for them at the next
