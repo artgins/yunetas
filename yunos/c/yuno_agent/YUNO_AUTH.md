@@ -982,7 +982,11 @@ for the rest of the writes (`update-user`, `enable-user`, `disable-user`,
 `set-user-pwd`, `set-max-sessions`, `add-jwk`, `remove-jwk`, and
 `check-user-pwd`, a password oracle), `delete` for `delete-user`. Without it:
 `-403`, *"no permission to 'update' in service 'treedb_authzs'"*. Internal
-calls (no `__username__`) are not asked. A role granting it:
+calls (no `__username__`) are not asked. A yuno with **no** users treedb
+(local access only: no JWT is validated there) answers `list-jwk` (empty)
+and refuses `add-jwk` / `remove-jwk` to everybody -- up to 7.25.22 any
+valid JWT could add a key there, and the key, never used, leaked. A role
+granting it:
 
 ```json
 {"id": "user_admin", "realm_id": "*", "service": "treedb_authzs", "permission": "*"}
@@ -1447,7 +1451,11 @@ Up to 7.25.21 it was writable and persisted, and the way to set it was
 default (§4.5): anyone who could send commands to the yuno could set it to
 `root` and so give root to every user an IdP provisions. The same held for
 `jwks`, where `write-attr` could plant a trusted signing key. Both are the
-config's now; a value persisted by an older release is no longer read.
+config's now; a value persisted by an older release is no longer read, and
+the load says so once per start (*"Persistent attrs file holds an attr that
+is not persistent: NOT loaded"*, with the attr's name) -- up to 7.25.22 it
+was dropped in silence, and a node whose keys came only from `add-jwk` lost
+its JWT logins at the restart with nothing in its log.
 
 ---
 

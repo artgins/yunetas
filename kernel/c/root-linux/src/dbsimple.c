@@ -867,6 +867,27 @@ PUBLIC int db_load_persistent_attrs(
             FALSE
         );
 
+        /*
+         *  An attr of the file that is not SDF_PERSIST (any more) is not
+         *  loaded, and a save keeps it in the file: said, once per load.
+         *  Up to 7.25.22 it was dropped in silence -- the jwks that
+         *  add-jwk persisted before 7.25.22, now the config's: a node whose
+         *  keys came only from there lost its JWT logins at the restart.
+         */
+        const char *key; json_t *jn_value;
+        json_object_foreach(attrs, key, jn_value) {
+            const sdata_desc_t *it = gobj_attr_desc(gobj, key, FALSE);
+            if(!it || !(it->flag & SDF_PERSIST)) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_CONFIGURATION,
+                    "msg",          "%s", "Persistent attrs file holds an attr that is not persistent: NOT loaded (set it in the config; remove-persistent-attrs drops it from the file)",
+                    "attr",         "%s", key,
+                    NULL
+                );
+            }
+        }
+
         gobj_write_attrs(gobj, attrs, SDF_PERSIST, 0);
     } else {
         JSON_DECREF(keys)

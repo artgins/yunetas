@@ -1794,16 +1794,34 @@ PRIVATE json_t *refuse_without_authz(hgobj gobj, const char *permission, json_t 
 }
 
 /***************************************************************************
- *  The question for the jwk commands: they never used the users treedb, so
- *  a yuno with none (local access only) keeps answering them; with one,
- *  its `permission` is asked as for the rest
+ *  The question for the jwk commands. A yuno with no users treedb (local
+ *  access only) validates no JWT: it answers list-jwk (empty) and refuses
+ *  add-jwk/remove-jwk. With one, its `permission` is asked as for the rest
  ***************************************************************************/
 PRIVATE json_t *refuse_jwk_without_authz(hgobj gobj, const char *permission, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(!priv->gobj_treedb) {
-        return NULL;
+        if(strcmp(permission, "read")==0) {
+            return NULL;    // the list: empty
+        }
+        /*
+         *  Local access only: no JWT is validated here (the validations are
+         *  not even made), and nobody can be asked whether the caller may
+         *  change the keys. Up to 7.25.22 any valid JWT could add one, and
+         *  the key, never used, leaked
+         */
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: no users treedb in this yuno: local access only, no JWT is validated here",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
     }
     return refuse_without_authz(gobj, permission, kw, src);
 }

@@ -1579,6 +1579,16 @@ PRIVATE void check_persistent_file(void)
     );
     memset(fake_dirs, 0, sizeof(fake_dirs));
 
+    /*
+     *  An attr of the file that is not persistent (any more: the jwks that
+     *  add-jwk persisted before 7.25.22) is not loaded, and it is said,
+     *  without its value. Up to 7.25.22 it was dropped in silence
+     */
+    write_file(path, "{\"note\": \"n\", \"jwks\": \"jwks-value-x\"}", 0600);
+    watch("jwks-value-x", "holds an attr that is not persistent");
+    gobj_load_persistent_attrs(holder, 0);
+    unwatch("an attr of the file that is not persistent");
+
     unlink(path);
     unlink(planted);
 }

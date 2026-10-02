@@ -35,6 +35,9 @@
  *               And `write-attr` of the authz service's `jwks` and
  *               `default_role` is refused: they are the config's; and of
  *               its `max_sessions_per_user`, SDF_PERSIST without SDF_WR.
+ *               A C_AUTHZ with no users treedb refuses add-jwk and
+ *               remove-jwk (up to 7.25.22 any valid JWT could add a key,
+ *               which leaked), and answers its list-jwk.
  *
  *          A real C_AUTHZ service is instantiated over a temp tranger store;
  *          a role and an immutable user are seeded via initial_load, and the
@@ -178,6 +181,15 @@ PRIVATE char variable_config[]= "\
             'gclass': 'C_IDP_KEYCLOAK',                             \n\
             'autostart': true,                                      \n\
             'autoplay': true                                        \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'authz_local',                                  \n\
+            'gclass': 'C_AUTHZ',                                    \n\
+            'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+                'tranger_path': '" STORE "-none'                    \n\
+            }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -680,6 +692,47 @@ PRIVATE void run_checks(hgobj gobj)
             "Password match");
         check_comment(authz, "delete-user",
             json_pack("{s:s}", "username", "local_comment"), 0, "User deleted");
+    }
+
+    /*
+     *  11b. A C_AUTHZ with no users treedb (local access only) validates
+     *  no JWT: add-jwk and remove-jwk are refused, list-jwk answers. Up to
+     *  7.25.22 any valid JWT could add a key there, and the key leaked
+     */
+    {
+        hgobj authz_local = gobj_find_service("authz_local", FALSE);
+        json_t *r = gobj_command(authz_local, "add-jwk",
+            json_pack("{s:s, s:s, s:s}", "kid", "planted-kid", "n", "AQAB", "__username__", "anyone"),
+            gobj
+        );
+        check_int("no users treedb: a peer's add-jwk refused",
+            (int)kw_get_int(0, r, "result", -999, 0), -1);
+        check_int("no users treedb: and says why (add-jwk)",
+            strstr(kw_get_str(0, r, "comment", "", 0), "no users treedb")? 1 : 0, 1);
+        JSON_DECREF(r)
+        r = gobj_command(authz_local, "remove-jwk",
+            json_pack("{s:s, s:s}", "kid", "planted-kid", "__username__", "anyone"),
+            gobj
+        );
+        check_int("no users treedb: a peer's remove-jwk refused",
+            (int)kw_get_int(0, r, "result", -999, 0), -1);
+        check_int("no users treedb: and says why (remove-jwk)",
+            strstr(kw_get_str(0, r, "comment", "", 0), "no users treedb")? 1 : 0, 1);
+        JSON_DECREF(r)
+        r = gobj_command(authz_local, "list-jwk",
+            json_pack("{s:s}", "__username__", "anyone"),
+            gobj
+        );
+        check_int("no users treedb: a peer's list-jwk answered",
+            (int)kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+        r = gobj_command(authz_local, "add-jwk",
+            json_pack("{s:s, s:s}", "kid", "internal-kid", "n", "AQAB"),
+            authz_local
+        );
+        check_int("no users treedb: an internal add-jwk refused too (the key leaked)",
+            (int)kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
     }
 
     /*

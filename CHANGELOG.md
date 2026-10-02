@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **`C_AUTHZ` with no users treedb refuses `add-jwk` / `remove-jwk`.** Such
+  a yuno (local access only) validates no JWT, and asked nobody whether the
+  caller could change its keys: any valid JWT could add one. The key was
+  never used, and leaked (4.4 KB per key, seen by the test). They are
+  refused now, with *"no users treedb in this yuno: local access only, no
+  JWT is validated here"*; `list-jwk` answers.
+- **A persistent attr the gclass no longer persists is said at load.** The
+  load wrote only the `SDF_PERSIST` attrs of the file and dropped the rest
+  in silence, while every save kept them in the file: the `jwks` that
+  `add-jwk` persisted before 7.25.22 (now the config's) vanished at the
+  first restart, and a node whose keys came only from there lost its JWT
+  logins with nothing in its log. The load now warns once per attr
+  (*"Persistent attrs file holds an attr that is not persistent: NOT
+  loaded"*); `remove-persistent-attrs` drops it from the file.
+
 - **Agents' units: `ExecStopPost` works on a v1 or hybrid cgroup host, and
   says what it kills.** It read `/sys/fs/cgroup/system.slice/%n/cgroup.procs`,
   a v2 path written by hand: a no-op, unsaid, elsewhere, and its kills left
