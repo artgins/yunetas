@@ -15,13 +15,22 @@
  *            sent in three parts: it must arrive whole;
  *          - then the header of a frame of HUGE_LEN bytes, with no
  *            payload: the memory of the yuno must not grow by its length
- *            (MEM_CHECK_DELAY_MS later), and the client drops at its
- *            timeout_payload.
+ *            (MEM_CHECK_DELAY_MS later, measured with mallinfo2(): the
+ *            gbmem count is 0 without CONFIG_DEBUG_TRACK_MEMORY, and up to
+ *            7.25.22 the check was empty on such a build), and the client
+ *            drops at its timeout_payload;
+ *          - the client connects again, and the server sends the header of
+ *            a packet of exactly the default max_pkt_size, the max block:
+ *            it is refused ("tcp4h head too long") and the client drops at
+ *            once. A gbuffer holds one byte less than the max block, and
+ *            up to 7.25.22 such a packet was taken, could not be held, and
+ *            never ended.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <malloc.h>
 
 #include <arpa/inet.h>
 #include "c_test1.h"
@@ -86,6 +95,7 @@ typedef struct _PRIVATE_DATA {
     int parts_sent;             // of the big frame
     BOOL huge_sent;
     size_t mem_before_huge;     // the yuno's memory before the huge header
+    BOOL max_sent;              // the header of a packet of the max block, after reconnecting
     int client_messages;        // messages the client delivered: must be 1, the big frame
 } PRIVATE_DATA;
 
@@ -199,6 +209,15 @@ PRIVATE void mt_destroy(hgobj gobj)
 
 
 /***************************************************************************
+ *  What the process has allocated, whatever gbmem tracks
+ ***************************************************************************/
+PRIVATE size_t allocated_memory(void)
+{
+    struct mallinfo2 mi = mallinfo2();
+    return mi.uordblks + mi.hblkhd;
+}
+
+/***************************************************************************
  *  A part of a frame from the server
  ***************************************************************************/
 PRIVATE void server_send(hgobj gobj, gbuffer_t *gbuf)
@@ -228,7 +247,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_start_tree(priv->gobj_output_side);
 
     } else if(priv->huge_sent) {
-        size_t now = get_cur_system_memory();
+        size_t now = allocated_memory();
         size_t growth = now > priv->mem_before_huge? now - priv->mem_before_huge : 0;
         if(growth > MEM_GROWTH_MAX) {
             gobj_log_error(0, 0,
@@ -287,7 +306,7 @@ PRIVATE void client_message(hgobj gobj, json_t *kw)
     }
 
     priv->huge_sent = TRUE;
-    priv->mem_before_huge = get_cur_system_memory();
+    priv->mem_before_huge = allocated_memory();
     gbuffer_t *huge = gbuffer_create(4, 4);
     uint32_t huge_len = htonl(HUGE_LEN + 4);
     gbuffer_append(huge, &huge_len, sizeof(huge_len));
@@ -321,6 +340,18 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->connected = TRUE;
         priv->server_channel = (hgobj)(uintptr_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
         set_timeout(priv->timer, HEADER_DELAY_MS);
+
+    } else if(src == priv->gobj_input_side && priv->huge_sent && !priv->max_sent) {
+        /*
+         *  The client again, after the huge header: a packet of exactly the
+         *  default max_pkt_size, the max block
+         */
+        priv->max_sent = TRUE;
+        priv->server_channel = (hgobj)(uintptr_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
+        gbuffer_t *head = gbuffer_create(4, 4);
+        uint32_t max_len = htonl((uint32_t)gbmem_get_maximum_block() + 4);
+        gbuffer_append(head, &max_len, sizeof(max_len));
+        server_send(gobj, head);
     }
 
     JSON_DECREF(kw)
@@ -328,7 +359,8 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  The client closed (the huge header, then timeout_payload): the end
+ *  The client closed: after the huge header (timeout_payload), it connects
+ *  again; after the header of the max block (refused), the end
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -344,6 +376,10 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
         }
         clear_timeout(priv->timer);
+        if(priv->huge_sent && !priv->max_sent) {
+            JSON_DECREF(kw)
+            return 0;   // it connects again
+        }
         set_yuno_must_die();
     }
 

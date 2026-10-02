@@ -377,13 +377,21 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
         );
     }
 
-    if(header_erpl4.len > priv->max_pkt_size) {
+    /*
+     *  What one gbuffer can hold: one byte less than the max block (its
+     *  NUL), and a bigger max_pkt_size is capped to it. Up to 7.25.22 the
+     *  default was the max block itself: a packet of exactly that length
+     *  was taken, its buffer could not grow to hold it, and it never ended
+     */
+    size_t max_pkt = MIN((size_t)priv->max_pkt_size, gbmem_get_maximum_block() - 1);
+    if(header_erpl4.len > max_pkt) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "tcp4h head too long",
             "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
-            "len",          "%d", header_erpl4.len,
+            "len",          "%u", (unsigned)header_erpl4.len,
+            "max",          "%lu", (unsigned long)max_pkt,
             NULL
         );
         return -1;

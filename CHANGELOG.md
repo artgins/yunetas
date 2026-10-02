@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **`C_WEBSOCKET` / `C_PROT_TCP4H`: a frame of exactly the default max no
+  longer hangs.** With `max_payload_size` / `max_pkt_size` at 0 the max was
+  the yuno's max block, but a gbuffer holds one byte less than its block
+  (its NUL): a frame of exactly that length was taken, its buffer could not
+  grow to hold it, `istream_consume()` dropped the bytes in silence, and the
+  frame waited for its timeout. The max is now what a gbuffer holds (the
+  max block less one byte), and a configured value above it is capped to
+  it; such a frame is refused like any frame too big. `istream_consume()`
+  checks what `gbuffer_append()` answers: a buffer that cannot hold the
+  bytes asked for is an ERROR, and the frame is not completed cut.
+- **Tests:** the memory check of `c_prot_tcp4h/test1` measured
+  `get_cur_system_memory()`, which is 0 without
+  `CONFIG_DEBUG_TRACK_MEMORY` -- empty on the nodes. It measures
+  `mallinfo2()` now.
+
 - **`C_UDP_S` / `C_UDP`: a subscriber's error does not stop the reading.**
   The read was re-armed only when the publish of `EV_RX_DATA` answered 0,
   taken as a sign that the gobj lived: one subscriber answering -1 (or an

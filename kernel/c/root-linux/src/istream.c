@@ -183,14 +183,31 @@ PUBLIC size_t istream_consume(istream_h istream, char *bf, size_t len)
     if(ist->num_bytes) {
         size_t accumulated = gbuffer_leftbytes(ist->gbuf);
         size_t needed = ist->num_bytes - accumulated;
+        size_t to_append = needed > len? len : needed;
+        if(to_append > 0 && gbuffer_append(ist->gbuf, bf, to_append) != to_append) {
+            /*
+             *  The buffer cannot hold what num_bytes asked for: a max too
+             *  small for the length given to istream_read_until_num_bytes(),
+             *  the caller's contract broken. The bytes are taken, so the
+             *  caller does not loop on them, and the frame is not completed:
+             *  its timeout ends it. Up to 7.25.22 nothing was said, and a
+             *  last part that did not fit completed the frame cut
+             */
+            gobj_log_error(ist->gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "istream buffer cannot hold the bytes asked for",
+                "num_bytes",    "%lu", (unsigned long)ist->num_bytes,
+                "accumulated",  "%lu", (unsigned long)accumulated,
+                "len",          "%lu", (unsigned long)to_append,
+                NULL
+            );
+            return to_append;
+        }
         if(needed > len) {
-            gbuffer_append(ist->gbuf, bf, len);
             return len;
         }
-        if(needed > 0) {
-            gbuffer_append(ist->gbuf, bf, needed);
-            consumed = needed;
-        }
+        consumed = needed;
         ist->completed = TRUE;
 
     } else if(ist->delimiter) {

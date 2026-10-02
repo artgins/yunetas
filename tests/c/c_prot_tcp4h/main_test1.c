@@ -10,7 +10,9 @@
  *            client delivers it whole
  *          - The server sends the header of a frame of 10 MB, no payload:
  *            the yuno's memory does not grow by its length
- *          - The client drops at timeout_payload: shutdown
+ *          - The client drops at timeout_payload, and connects again
+ *          - The server sends the header of a packet of exactly the max
+ *            block: refused, the client drops: shutdown
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -200,10 +202,11 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Timeout waiting PAYLOAD data",
+        "msg", "tcp4h head too long",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

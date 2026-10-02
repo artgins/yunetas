@@ -147,7 +147,7 @@ SDATA (DTP_INTEGER,     "timeout_handshake",SDF_PERSIST,    "30000",     "Timeou
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_PERSIST,    "3000",      "Timeout to close"),
 SDATA (DTP_INTEGER,     "timeout_payload",  SDF_PERSIST,    "5000",      "Timeout to payload"),
 SDATA (DTP_INTEGER,     "pingT",            SDF_PERSIST,    "0",        "Ping interval. If value <= 0 then No ping"),
-SDATA (DTP_INTEGER,     "max_payload_size", SDF_RD,         "0",        "Maximum payload of a frame, in bytes; 0: the max block of the yuno. A bigger frame closes the connection (1009)"),
+SDATA (DTP_INTEGER,     "max_payload_size", SDF_RD,         "0",        "Maximum payload of a frame, in bytes; 0 (or more than a gbuffer holds): the max block of the yuno less one. A bigger frame closes the connection (1009)"),
 SDATA (DTP_POINTER,     "user_data",        0,              0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,              0,          "more user data"),
 SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,         0,          "What side? server or client"),
@@ -1941,8 +1941,17 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
                  *  whole at once, a few connections that each claimed the
                  *  max block reserved it each, with a few bytes sent.
                  */
-                size_t max_payload = priv->max_payload_size > 0?
-                    (size_t)priv->max_payload_size : gbmem_get_maximum_block();
+                /*
+                 *  What one gbuffer can hold: one byte less than the max
+                 *  block (its NUL), and a bigger max_payload_size is capped
+                 *  to it. Up to 7.25.22 the default was the max block
+                 *  itself: a frame of exactly that length was taken, its
+                 *  buffer could not grow to hold it, and it never ended
+                 */
+                size_t max_payload = gbmem_get_maximum_block() - 1;
+                if(priv->max_payload_size > 0 && (size_t)priv->max_payload_size < max_payload) {
+                    max_payload = (size_t)priv->max_payload_size;
+                }
                 if(frame_length > max_payload) {
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,

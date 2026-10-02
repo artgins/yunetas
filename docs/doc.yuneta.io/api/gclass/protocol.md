@@ -74,7 +74,7 @@ Works in both client and server modes.
 |-----------|------|-------------|
 | `url` | `string` | Connection URL. |
 | `iamServer` | `bool` | `TRUE` for server mode. |
-| `max_pkt_size` | `integer` | Largest payload of a frame, in bytes (default `0`: the max block of the yuno). A frame announced bigger closes the connection, with a warning (*"tcp4h head too long"*). |
+| `max_pkt_size` | `integer` | Largest payload of a frame, in bytes (default `0`: what a gbuffer holds, the max block of the yuno less one byte; a bigger value is capped to that). A frame announced bigger closes the connection, with a warning (*"tcp4h head too long"*, with `len` and `max`). Up to 7.25.22 the default was the max block itself, and a frame of exactly that length never ended. |
 | `timeout_handshake` | `integer` | Handshake timeout in milliseconds (default `30000`). |
 | `timeout_payload` | `integer` | Milliseconds to receive the rest of a frame whose header came (default `5000`); when it runs out the connection is closed. |
 | `timeout_close` | `integer` | Milliseconds a closing client waits for the server to drop the connection before it drops it itself (default `3000`). |
@@ -141,7 +141,7 @@ with frame masking, ping/pong, and graceful close handshake.
 | `timeout_payload` | `integer` | Milliseconds to receive the rest of a frame whose header came (default `5000`); when it runs out the connection is closed. |
 | `timeout_close` | `integer` | Milliseconds a closing client waits for the server to drop the connection before it drops it itself (default `3000`). |
 | `pingT` | `integer` | Ping interval in milliseconds (`0` = disabled). |
-| `max_payload_size` | `integer` | Largest payload of a frame, in bytes (default `0`: the max block of the yuno). A frame announced bigger is refused: a warning (*"Websocket frame bigger than the max payload, connection closed"*, with `frame_length`) and the connection closed with `1009`. |
+| `max_payload_size` | `integer` | Largest payload of a frame, in bytes (default `0`: what a gbuffer holds, the max block of the yuno less one byte; a bigger value is capped to that -- up to 7.25.22 the default was the max block itself, and a frame of exactly that length never ended). A frame announced bigger is refused: a warning (*"Websocket frame bigger than the max payload, connection closed"*, with `frame_length`) and the connection closed with `1009`. |
 
 The length of a frame is the peer's word, written in its header before any of
 its payload. The payload buffer starts at 4 KB and grows with what arrives, up
