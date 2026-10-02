@@ -136,7 +136,7 @@ the Monitor workspace of `gui_agent` that talks to a node's agent directly
 `C_IEVENT_CLI` identity_card `jwt` field. The remote `C_IEVENT_SRV` accepts an identity-card JWT with priority
 over the (absent) cookie, and `C_AUTHZ` validates it against the issuer JWKS
 exactly as a cookie token — so each remote backend must have the issuer's
-JWKS provisioned (`add-jwk`) and a role for the target service.
+JWKS in its config (`Authz.jwks`) and a role for the target service.
 
 `POST /auth/token` (reads the `access_token` cookie, sent same-origin by the
 browser, and returns it in the body: `{success, access_token}`) is the only
@@ -955,8 +955,8 @@ The `command_table` at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.2
 | `help`             | List commands                                                 |
 | `authzs`           | Authz help                                                    |
 | `list-jwk`         | JWKS keys cached by libjwt                                    |
-| `add-jwk`          | Add a JWK manually                                            |
-| `remove-jwk`       | Remove a JWK                                                  |
+| `add-jwk`          | Add a JWK to the running set (until the yuno restarts: the persistent set is the config's `Authz.jwks`) |
+| `remove-jwk`       | Remove a JWK from the running set (until the yuno restarts)   |
 | `users`            | List users                                                    |
 | `accesses`         | List `users_accesses` audit rows                              |
 | `create-user`      | Create a user row                                             |
@@ -985,8 +985,11 @@ for the rest of the writes (`update-user`, `enable-user`, `disable-user`,
 calls (no `__username__`) are not asked. A role granting it:
 
 ```json
-{"id": "user_admin", "service": "treedb_authzs", "permission": "*"}
+{"id": "user_admin", "realm_id": "*", "service": "treedb_authzs", "permission": "*"}
 ```
+
+(`realm_id` is required in a role, `"*"` for any realm: without it the role is
+refused by the schema.)
 
 **The event doors.** `C_AUTHZ` also writes users from three input events that
 no command guard sees: `EV_ADD_USER` (create or update, what `create-user`
@@ -1418,7 +1421,7 @@ ycommand -c 'command-yuno id=<yuno> service=idp command=send-idp-user-actions us
 
 ### 7.5 The default role of a provisioned user
 
-`C_AUTHZ` has the persistent attr `default_role`. When it reacts to
+`C_AUTHZ` has the attr `default_role`, set in the config. When it reacts to
 `EV_IDP_USER_CREATED` and the event carries no role, it links this one. Empty
 is the default, and then the user enters and can do nothing, which is visible
 and safe.
@@ -1429,12 +1432,22 @@ checked before it is used: a `default_role` that is not in `treedb_authzs`
 creates the user with no role and logs an error, instead of failing in silence
 for ever.
 
-`write-attr` belongs to the yuno, not to the authz service, so it is addressed
-to `__yuno__` and names the gobj to write. It persists what it writes.
+Set it in the yuno's config, where the trusted keys are too:
 
-```bash
-ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=write-attr gobj=authz attribute=default_role value=<role_id>'
+```json
+{
+    "global": {
+        "Authz.default_role": "roles^viewer^users"
+    }
+}
 ```
+
+Up to 7.25.21 it was writable and persisted, and the way to set it was
+`write-attr`. But `write-attr` is guarded only by the per-command gate, off by
+default (§4.5): anyone who could send commands to the yuno could set it to
+`root` and so give root to every user an IdP provisions. The same held for
+`jwks`, where `write-attr` could plant a trusted signing key. Both are the
+config's now; a value persisted by an older release is no longer read.
 
 ---
 

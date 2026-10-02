@@ -336,7 +336,7 @@ SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "The master is t
 
 SDATA (DTP_BOOLEAN, "allow_anonymous_in_localhost",SDF_RD,"0",  "Allow no user in local connections"),
 SDATA (DTP_INTEGER, "max_sessions_per_user",SDF_PERSIST,    "0",        "Max sessions per user (0 no limit)"),
-SDATA (DTP_JSON,    "jwks",                 SDF_WR|SDF_PERSIST, "[]",   "JWKS public keys, OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create."),
+SDATA (DTP_JSON,    "jwks",                 SDF_RD,         "[]",   "JWKS public keys, OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create. Set in the config only: add-jwk/remove-jwk change the running set, not the config"),
 SDATA (DTP_JSON,    "initial_load",         SDF_RD,         "{}",       "Initial data for treedb"),
 
 SDATA (DTP_INTEGER, "hashIterations",   0,          "27500",    "Default To build a password"),
@@ -346,8 +346,11 @@ SDATA (DTP_STRING,  "algorithm",        0,          "sha256",   "Default To buil
  *  carries none.  Empty on purpose: the user then enters and can do
  *  nothing, which is visible and safe.  No role can be hardcoded, because
  *  the roles come from the initial_load of each realm and none is
- *  guaranteed to exist.  Set it with `write-attr`, which persists it. */
-SDATA (DTP_STRING,  "default_role",     SDF_WR|SDF_PERSIST, "", "Role linked to a user provisioned from an IdP when none is given. Empty: no role"),
+ *  guaranteed to exist.  Set in the config only (Authz.default_role): up
+ *  to 7.25.21 it was writable and persisted, so `write-attr` -- which the
+ *  per-command gate leaves open -- could give root to every user an IdP
+ *  provisions. */
+SDATA (DTP_STRING,  "default_role",     SDF_RD,         "", "Role linked to a user provisioned from an IdP when none is given. Empty: no role. Set in the config only"),
 
 SDATA (DTP_POINTER, "user_data",        0,          0,          "user data"),
 SDATA (DTP_POINTER, "user_data2",       0,          0,          "more user data"),
@@ -1517,9 +1520,9 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     );
 
     /*
-     *  Save new record in persistent attrs
+     *  The running set only: `jwks` is the config's, and not persisted. Up
+     *  to 7.25.21 it was, and `write-attr` could plant a trusted key in it
      */
-    gobj_save_persistent_attrs(gobj, json_string("jwks"));
 
     /*
      *  Create validation key
@@ -1531,6 +1534,11 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     int status = create_validation_key(gobj, jn_jwk);
     if(status != 0) {
         jn_comment = json_sprintf("%s: Cannot create validation key", gobj_yuno_role_plus_name());
+    } else {
+        jn_comment = json_sprintf(
+            "%s: kid (iss) '%s' added until the yuno restarts: put it in the config (jwks) to keep it",
+            gobj_yuno_role_plus_name(), kid
+        );
     }
 
     return msg_iev_build_response(
@@ -1609,9 +1617,8 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     );
 
     /*
-     *  Save new record in persistent attrs
+     *  The running set only (see cmd_add_jwk)
      */
-    gobj_save_persistent_attrs(gobj, json_string("jwks"));
 
     /*
      *  Destroy validation key
@@ -1621,7 +1628,7 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("%s: kid (iss) '%s' deleted", gobj_yuno_role_plus_name(), kid),
+        json_sprintf("%s: kid (iss) '%s' deleted until the yuno restarts: take it out of the config (jwks) too", gobj_yuno_role_plus_name(), kid),
         json_desc_to_schema(jwk_desc),
         jn_record, // owned
         kw  // owned
@@ -4017,7 +4024,7 @@ PRIVATE json_t *get_user_permissions(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "User not found",
-            "username"      "%s", username,
+            "username",     "%s", username,
             NULL
         );
         return services_roles;

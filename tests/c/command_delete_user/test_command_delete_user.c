@@ -30,6 +30,10 @@
  *               (-403) users, create-user, add-jwk and delete-user, and
  *               nothing is created; a user whose role grants `*` is served.
  *               Up to 7.25.21 they were SDF_AUTHZ_X only: open to anyone.
+ *               A username holding `%s` is refused like any other (its
+ *               warning took it as the format, a comma was missing).
+ *               And `write-attr` of the authz service's `jwks` and
+ *               `default_role` is refused: they are the config's.
  *
  *          A real C_AUTHZ service is instantiated over a temp tranger store;
  *          a role and an immutable user are seeded via initial_load, and the
@@ -669,6 +673,47 @@ PRIVATE void run_checks(hgobj gobj)
         }
         check_int("external create-user without permission created nothing",
             user_exists("ext_by_nobody"), 0);
+
+        /*
+         *  The trusted keys and the default role are the config's: write-attr
+         *  (left open by the per-command gate) cannot plant a signing key nor
+         *  give root to every user an IdP provisions. Up to 7.25.21 both were
+         *  SDF_WR|SDF_PERSIST
+         */
+        {
+            const char *attrs[][2] = {
+                {"jwks", "[{\"kid\": \"planted\", \"n\": \"AQAB\"}]"},
+                {"default_role", "roles^root^users"},
+                {0, 0}
+            };
+            for(int i=0; attrs[i][0]; i++) {
+                json_t *r_wa = gobj_command(gobj_yuno(), "write-attr",
+                    json_pack("{s:s, s:s, s:s}",
+                        "gobj_name", "authz", "attribute", attrs[i][0], "value", attrs[i][1]
+                    ), gobj);
+                char name[NAME_MAX];
+                snprintf(name, sizeof(name), "write-attr %s of the authz service: refused", attrs[i][0]);
+                check_int(name, (int)kw_get_int(0, r_wa, "result", -999, 0), -1);
+                JSON_DECREF(r_wa)
+            }
+            check_int("default_role is still empty",
+                empty_string(gobj_read_str_attr(authz, "default_role"))? 1 : 0, 1);
+            char *s_jwks = json2uglystr(gobj_read_json_attr(authz, "jwks"));
+            check_int("no key planted in jwks",
+                (s_jwks && strstr(s_jwks, "planted"))? 1 : 0, 0);
+            GBMEM_FREE(s_jwks)
+        }
+
+        /*
+         *  A username that is a format string (an email from a JWT can hold a
+         *  '%'): its "User not found" warning passed it as the FORMAT (a
+         *  comma was missing), up to 7.25.21
+         */
+        json_t *r_fmt = gobj_command(authz, "users",
+            json_pack("{s:s}", "__username__", "evil%s%s%s%s%s%s%s%s%s%s%s%s@example.com"), gobj);
+        check_int("external users of a username holding %s: refused, not a crash",
+            (int)kw_get_int(0, r_fmt, "result", -999, 0), -403);
+        JSON_DECREF(r_fmt)
 
         json_t *r = gobj_command(authz, "users",
             json_pack("{s:s}", "__username__", "seed_immutable"), gobj);

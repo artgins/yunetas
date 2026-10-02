@@ -23,6 +23,12 @@ except the hook and the entries this list marks "(no red test)".
   directory owner's. A node whose yunos changed of user (a dev box: `yuneta`
   after a reboot, the developer's own user by hand) gives the files to the
   yuno's user.
+- **C_AUTHZ's `jwks` and `default_role` are set in the config only.** A
+  value persisted by an older release (`write-attr`, `add-jwk`) is no longer
+  read: put the keys in `Authz.jwks` and the role in `Authz.default_role`.
+  `add-jwk` / `remove-jwk` still change the running set, until the yuno
+  restarts. yunovatios sets `default_role` with `write-attr` in its
+  deployment notes: move it to the batch config.
 - **A frame before the session is limited** (`max_pre_session_frame` of
   `C_IEVENT_SRV`, 64 KB by default): a client that sends a bigger identity
   card needs it raised.
@@ -180,6 +186,18 @@ except the hook and the entries this list marks "(no red test)".
   *"Destroying a RUNNING gobj"* and *"No subscription found"* per counter. The
   agent's `mt_stop` stops and destroys them, without answering (their
   channels are closing). (no red test)
+- **SECURITY: `write-attr` can no longer plant a trusted signing key nor
+  hand root to IdP users.** C_AUTHZ's `jwks` and `default_role` were
+  `SDF_WR|SDF_PERSIST`, so `write-attr` -- guarded only by the per-command
+  gate, off by default -- could add a JWK that the next start trusts, or set
+  `default_role` to root for every user an IdP provisions. Both are
+  `SDF_RD`, the config's. Test `command_delete_user` (red: the role was
+  written).
+- **C_AUTHZ: a username holding `%s` no longer crashes the refusal.** The
+  "User not found" warning of `get_user_permissions()` had a comma missing,
+  so the username became the FORMAT of the log -- reached on every refused
+  peer command since the always-on permission check, and a username is an
+  email taken from a JWT. Test `command_delete_user` (red: SegFault).
 - **Agent: `kill-yuno` reaches a yuno alive but not connected.** It
   selected only the yunos the agent saw running, so one that lost its
   channel or outlived a restart of the agent answered *"Yuno not found or
