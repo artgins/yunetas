@@ -47,10 +47,13 @@ fs_event_t *fs_event = fs_create_watcher_event(
 ```
 
 The descriptors of `FS_FLAG_DIR_FDS` live as long as their watch -- a
-follower holds one per key directory of each feed -- so the watcher says, once,
-when they reach half of the soft open-files limit (*"Directories watched
-through descriptors: half of the open-files limit"*, with `dir_fds` and
-`soft_limit`). A directory whose descriptor cannot be opened (EMFILE) is
+follower holds one per key directory of each feed -- so the watcher says
+when the ones held by **every watcher of the process** reach half of the soft
+open-files limit (*"Directories watched through descriptors: half of the
+open-files limit"*, with `dir_fds` of the process, `dir_fds_of_this_watcher`
+and `soft_limit`), and says it again only after they fell under the half. The
+limit is the process's: up to 7.25.21 each watcher counted only its own, so
+four followers of 400 directories each, under a limit of 1024, never said it. A directory whose descriptor cannot be opened (EMFILE) is
 watched by its path; the first failure is an ERROR, the next ones are only
 counted, and the count is said when a descriptor opens again (*"Directories
 watched through their descriptor again"*, `watched_by_path`). A yuno raises its
@@ -180,8 +183,13 @@ The offset in the stream where the events queued by now end: the rest of the
 batch being walked, if one is -- or else what a read the kernel completed and
 the loop has not delivered took --, plus what the kernel still holds
 (`FIONREAD`). `0` for a NULL watcher. If `FIONREAD` fails the error is logged
-and a read is counted whole (inside a batch too: up to 7.25.21 that answer
-was the batch's end alone, which could be short).
+and the answer is past everything the kernel can hold for the fd
+(`max_queued_events` events of the largest size, from
+`/proc/sys/fs/inotify/max_queued_events`), plus a read whole outside a batch:
+never short. Up to 7.25.21 only a read whole was added (inside a batch, at
+first, nothing), and with more than a read queued the owner did too soon what
+it left for after those events. If `FIONREAD` fails again when the watcher
+comes to close that end, the watcher is gone (see below).
 
 **Notes**
 
@@ -581,7 +589,11 @@ gone"*, *"inotify read cannot be armed again: the watcher is gone"*, or
 *"inotify read canceled, and not by its owner: the watcher is gone"*, with
 `path` (and `errno` of a read), then the owner's callback is called once with
 **`FS_WATCHER_GONE_TYPE`** (`directory` = the watched path), and the watcher
-is destroyed when the call returns. Nothing else comes. The owner drops every
+is destroyed when the call returns. Nothing else comes. So is a watcher that
+cannot count the kernel's queue (`FIONREAD` failing) when it comes to close an
+end said past the stream: *"The events queued by the kernel cannot be counted:
+an end said past the stream cannot be closed, the watcher is gone"* -- up to
+7.25.21 that end was left open, and on a quiet watcher never reached. The owner drops every
 pointer it keeps to it -- and must not stop it: it is freed. An owner that
 stopped the watcher itself (`fs_stop_watcher_event()`) is not told. Up to
 7.25.20 the watcher went silently (the failure logged only under a trace), and

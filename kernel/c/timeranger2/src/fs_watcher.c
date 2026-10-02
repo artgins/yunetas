@@ -72,13 +72,17 @@ PRIVATE uint64_t monotonic_us(void);
 PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event);
 PRIVATE int queued_in_kernel(fs_event_t *fs_event, uint64_t *queued);
 PRIVATE uint64_t note_padded_end(fs_event_t *fs_event, uint64_t end);
+PRIVATE uint64_t kernel_queue_bound(fs_event_t *fs_event);
 PRIVATE void arm_pad_check(fs_event_t *fs_event);
 PRIVATE int pad_check_callback(yev_event_h yev_event);
 PRIVATE void tell_owner_watcher_gone(fs_event_t *fs_event);
+PRIVATE void close_tracked_dir_fd(int dfd);
 
 /***************************************************************************
  *  Data
  ***************************************************************************/
+PRIVATE size_t dir_fds_held = 0;        // FS_FLAG_DIR_FDS: by every watcher of the process
+PRIVATE BOOL dir_fds_half_said = FALSE; // see warn_dir_fds_near_the_limit()
 
 typedef struct {
     uint32_t bit;
@@ -343,10 +347,20 @@ PUBLIC uint64_t fs_queued_events_end(
     if(!fs_event) {
         return 0;
     }
+    /*
+     *  The kernel's queue not counted (FIONREAD failed), the end is said
+     *  past all it can hold: an end said short is reached before the
+     *  events queued now, and an owner does too soon what it left for
+     *  after them (up to 7.25.21 a read whole was all that was added).
+     *  The pad check closes it when nothing is left, or ends the watcher
+     *  if the kernel cannot be asked again.
+     */
     uint64_t queued = 0;
     if(fs_event->in_batch) {
         if(queued_in_kernel(fs_event, &queued) < 0) {
-            return note_padded_end(fs_event, fs_event->batch_end + READ_SIZE); // Error already logged
+            return note_padded_end( // Error already logged
+                fs_event, fs_event->batch_end + kernel_queue_bound(fs_event)
+            );
         }
         return fs_event->batch_end + queued;
     }
@@ -355,7 +369,9 @@ PUBLIC uint64_t fs_queued_events_end(
         int res1 = 0, res2 = 0;
         int waiting1 = yev_get_waiting_completion(fs_event->yev_event, &res1);
         if(queued_in_kernel(fs_event, &queued) < 0) {
-            return note_padded_end(fs_event, fs_event->offset + READ_SIZE); // Error already logged
+            return note_padded_end( // Error already logged
+                fs_event, fs_event->offset + READ_SIZE + kernel_queue_bound(fs_event)
+            );
         }
         int waiting2 = yev_get_waiting_completion(fs_event->yev_event, &res2);
         if(waiting1 < 0 || waiting2 < 0) {
@@ -393,6 +409,33 @@ PRIVATE uint64_t note_padded_end(fs_event_t *fs_event, uint64_t end)
     }
     arm_pad_check(fs_event);
     return end;
+}
+
+/***************************************************************************
+ *  The most the kernel can hold queued for an inotify fd: max_queued_events
+ *  events of the largest size (an overflow event past them)
+ ***************************************************************************/
+PRIVATE uint64_t kernel_queue_bound(fs_event_t *fs_event)
+{
+    uint64_t max_events = 16384;    // the kernel's default
+    FILE *file = fopen("/proc/sys/fs/inotify/max_queued_events", "r");
+    if(file) {
+        unsigned long long n = 0;
+        if(fscanf(file, "%llu", &n) == 1 && n > 0) {
+            max_events = (uint64_t)n;
+        }
+        fclose(file);
+    } else {
+        gobj_log_warning(fs_event->gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot read max_queued_events of inotify: the default 16384 taken",
+            "path",         "%s", fs_event->path,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+    return (max_events + 1) * (sizeof(struct inotify_event) + NAME_MAX + 1);
 }
 
 PRIVATE void arm_pad_check(fs_event_t *fs_event)
@@ -447,7 +490,22 @@ PRIVATE int pad_check_callback(yev_event_h yev_event)
     uint64_t queued = 0;
     int waiting1 = yev_get_waiting_completion(fs_event->yev_event, &res1);
     if(queued_in_kernel(fs_event, &queued) < 0) {
-        return 0;   // Error already logged: the next batch looks again
+        /*
+         *  Error already logged. The end cannot be closed without the
+         *  kernel's count, and on a quiet watcher nothing else closes it:
+         *  the watcher is over, and its owner is told. Up to 7.25.21 the
+         *  end waited for the next batch, for ever on a quiet watcher.
+         */
+        gobj_log_error(fs_event->gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "The events queued by the kernel cannot be counted: an end said past the stream cannot be closed, the watcher is gone",
+            "path",         "%s", fs_event->path,
+            NULL
+        );
+        tell_owner_watcher_gone(fs_event);
+        fs_stop_watcher_event(fs_event);
+        return 0;
     }
     int waiting2 = yev_get_waiting_completion(fs_event->yev_event, &res2);
     if(waiting1 < 0 || waiting2 < 0) {
@@ -538,7 +596,7 @@ PRIVATE void fs_destroy_watcher_event(
         json_object_foreach(fs_event->jn_tracked_fds, s_wd, jn_fd) {
             int dfd = (int)json_integer_value(jn_fd);
             if(dfd >= 0) {
-                close(dfd);
+                close_tracked_dir_fd(dfd);
             }
         }
     }
@@ -968,16 +1026,24 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 
 /***************************************************************************
  *  FS_FLAG_DIR_FDS holds a descriptor per subdirectory watched, for the
- *  life of the watch: a follower's feed, one per key directory. Said once
- *  per watcher when they reach half of the soft open-files limit, before
- *  the limit is what says it (every read failing with EMFILE).
+ *  life of the watch: a follower's feed, one per key directory. Said when
+ *  the ones held by all the watchers of the process reach half of the soft
+ *  open-files limit, before the limit is what says it (every read failing
+ *  with EMFILE), and said again only after they fell under the half. The
+ *  limit is the process's: up to 7.25.21 each watcher counted its own, and
+ *  four followers of 400 directories each, under 1024, never said it.
  ***************************************************************************/
+PRIVATE void close_tracked_dir_fd(int dfd)
+{
+    close(dfd);
+    if(dir_fds_held > 0) {
+        dir_fds_held--;
+    }
+}
+
 PRIVATE void warn_dir_fds_near_the_limit(fs_event_t *fs_event)
 {
-    size_t n = json_object_size(fs_event->jn_tracked_fds);
-    if(fs_event->dir_fds_warned || (n % 64) != 0) {
-        return;
-    }
+    size_t n = dir_fds_held;
     struct rlimit rl;
     if(getrlimit(RLIMIT_NOFILE, &rl) < 0) {
         gobj_log_error(fs_event->gobj, 0,
@@ -990,18 +1056,25 @@ PRIVATE void warn_dir_fds_near_the_limit(fs_event_t *fs_event)
         );
         return;
     }
-    if(rl.rlim_cur != RLIM_INFINITY && n >= rl.rlim_cur / 2) {
-        fs_event->dir_fds_warned = TRUE;
-        gobj_log_warning(fs_event->gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Directories watched through descriptors: half of the open-files limit",
-            "path",         "%s", fs_event->path,
-            "dir_fds",      "%lu", (unsigned long)n,
-            "soft_limit",   "%lu", (unsigned long)rl.rlim_cur,
-            NULL
-        );
+    if(rl.rlim_cur == RLIM_INFINITY || n < rl.rlim_cur / 2) {
+        dir_fds_half_said = FALSE;
+        return;
     }
+    if(dir_fds_half_said) {
+        return;
+    }
+    dir_fds_half_said = TRUE;
+    fs_event->dir_fds_warned = TRUE;
+    gobj_log_warning(fs_event->gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_SYSTEM,
+        "msg",          "%s", "Directories watched through descriptors: half of the open-files limit",
+        "path",         "%s", fs_event->path,
+        "dir_fds",      "%lu", (unsigned long)n,
+        "dir_fds_of_this_watcher", "%lu", (unsigned long)json_object_size(fs_event->jn_tracked_fds),
+        "soft_limit",   "%lu", (unsigned long)rl.rlim_cur,
+        NULL
+    );
 }
 
 /***************************************************************************
@@ -1139,6 +1212,7 @@ PRIVATE int add_watch(
             close(dir_fd);  // the same inode, already held
         } else if(dir_fd >= 0) {
             json_object_set_new(fs_event->jn_tracked_fds, s_wd, json_integer(dir_fd));
+            dir_fds_held++;
             warn_dir_fds_near_the_limit(fs_event);
         }
         /*
@@ -1249,7 +1323,7 @@ PRIVATE void drop_tracked(fs_event_t *fs_event, int wd)
     if(jn_fd) {
         int dfd = (int)json_integer_value(jn_fd);
         if(dfd >= 0) {
-            close(dfd);
+            close_tracked_dir_fd(dfd);
         }
         json_object_del(fs_event->jn_tracked_fds, s_wd);
     }
@@ -1286,7 +1360,7 @@ PRIVATE void close_dir_fd_of_gone(fs_event_t *fs_event, const char *path)
     if(fstat(dfd, &st) == 0 && st.st_nlink > 0) {
         return;     // there: another one of the same name is the one gone
     }
-    close(dfd);
+    close_tracked_dir_fd(dfd);
     json_object_set_new(fs_event->jn_tracked_fds, s_wd, json_integer(-1));
 }
 

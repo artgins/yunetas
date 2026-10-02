@@ -226,6 +226,18 @@ except the hook and the entries this list marks "(no red test)".
     open under `ulimit -Sn 20` keeps only its own).
 - **C_YUNO `info-uptime` names the right error.** It read `errno` after the
     log that may change it.
+- **fs_watcher: the half of the open-files limit is the process's.** The
+    warning counted the descriptors of each watcher alone, while `EMFILE` is
+    per process: four followers of 400 directories each, under 1024, never
+    said it. It counts every watcher's now, and says it again only after
+    they fell under the half.
+- **fs_watcher: an end said when `FIONREAD` fails is never short**, and a
+    `FIONREAD` that keeps failing ends the watcher. The end added a read
+    whole to what it could not count: with more queued, the owner did too
+    soon what it left for after those events. It adds all the kernel can
+    hold now (`max_queued_events`). And the turn that closes that end, when
+    `FIONREAD` fails again, tells the owner `FS_WATCHER_GONE` instead of
+    waiting for the next batch, for ever on a quiet watcher.
 - **C_TCP: a subscriber's error no longer stops the reading, and nothing is
   touched after a publish that destroyed the gobj.** A subscriber of
   `EV_RX_DATA` that answered an error (`-1`, its own) stopped the reading:

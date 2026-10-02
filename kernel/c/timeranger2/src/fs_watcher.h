@@ -41,7 +41,9 @@ typedef enum  {
     FS_WATCHER_GONE_TYPE,           // directory: the watched path. The read of the watcher
                                     // FAILED, could not be armed again, or was canceled
                                     // from outside fs_watcher (an order broken, see
-                                    // fs_watcher.md), logged: it is destroyed when this
+                                    // fs_watcher.md), or the kernel's queue could not be
+                                    // counted (FIONREAD) to close an end said past the
+                                    // stream, logged: it is destroyed when this
                                     // call returns, and nothing else comes. Drop every
                                     // pointer to it. Not told when its owner stopped it.
     FS_BATCH_END_TYPE,              // Only with FS_FLAG_BATCH_END. A batch read from inotify
@@ -120,7 +122,8 @@ struct fs_event_s {
                                 // directory created; -1 if it is gone or is not watched
     json_int_t dir_fds_by_path; // Internal: FS_FLAG_DIR_FDS, subdirectories watched by their path
                                 // because their descriptor could not be opened, since that was said
-    BOOL dir_fds_warned;        // Internal: FS_FLAG_DIR_FDS, half the open-files limit was said
+    BOOL dir_fds_warned;        // Internal: FS_FLAG_DIR_FDS, this watcher said the half of the
+                                // open-files limit reached by the dir fds of the process
     uint64_t pad_end;           // Internal: an end of the queued events said past the stream
                                 // (fs_queued_events_end() could not see a read), to close
     yev_event_h yev_pad;        // Internal: one-shot turn of the loop that closes pad_end

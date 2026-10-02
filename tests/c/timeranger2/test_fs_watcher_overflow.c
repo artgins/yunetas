@@ -64,7 +64,10 @@
  *  limit, the directories watched through descriptors are said once when
  *  they reach half of it; out of descriptors (EMFILE), the failure to open
  *  a directory is said ONCE however many fail (they are watched by path,
- *  counted), and when one opens again, how many went by path.
+ *  counted), and when one opens again, how many went by path. The half is
+ *  the process's (do_test_dir_fds_limit_process): two watchers of 40
+ *  directories each, under a soft limit of 128, say it once. Up to 7.25.21
+ *  each watcher counted its own, and neither said it.
  *
  *  And an end of the queued events said past the stream
  *  (do_test_padded_end): FIONREAD fails once (__wrap_ioctl), so
@@ -73,6 +76,14 @@
  *  stream there, and the next events after it. Up to 7.25.21 an owner
  *  waiting for that end waited for unrelated events, for ever on a quiet
  *  watcher.
+ *
+ *  The end said when FIONREAD fails is not short
+ *  (do_test_padded_end_not_short): with far more than a read queued, every
+ *  event queued when it was said ends at it or before. Up to 7.25.21 a
+ *  read whole was all that was added, and the owner did too soon what it
+ *  left for after them. And a FIONREAD that keeps failing
+ *  (do_test_fionread_broken) ends the watcher, its owner told
+ *  (FS_WATCHER_GONE): up to 7.25.21 the end was never closed.
  *
  *  And the ROOT deleted and created again while the queue is full
  *  (do_test_root_reborn, recursive and not): after the pass the new root
@@ -537,10 +548,19 @@ PRIVATE int pad_files = 0;
 PRIVATE int pad_batch_ends = 0;
 PRIVATE uint64_t pad_last_end = 0;
 
+PRIVATE uint64_t pad_last_event_end = 0;
+PRIVATE int pad_gone = 0;
+
 PRIVATE int fs_callback_pad(fs_event_t *fs_event)
 {
     if(fs_event->fs_type == FS_FILE_CREATED_TYPE) {
         pad_files++;
+        if(fs_event->offset_end > pad_last_event_end) {
+            pad_last_event_end = fs_event->offset_end;
+        }
+    }
+    if(fs_event->fs_type == FS_WATCHER_GONE_TYPE) {
+        pad_gone++;
     }
     if(fs_event->fs_type == FS_BATCH_END_TYPE) {
         pad_batch_ends++;
@@ -641,6 +661,132 @@ PRIVATE int do_test_padded_end(void)
     result += test_json(NULL);
 
     rmrdir(root5);
+    return result;
+}
+
+/***************************************************************************
+ *  The end said when FIONREAD fails holds every event queued
+ ***************************************************************************/
+PRIVATE int do_test_padded_end_not_short(void)
+{
+    int result = 0;
+    char root7[PATH_MAX];
+    build_path(root7, sizeof(root7), getenv("HOME"), "tests_yuneta", "fs_watcher_pad_not_short", NULL);
+    rmrdir(root7);
+    mkrdir(root7, 02770);
+    pad_files = 0;
+    pad_last_event_end = 0;
+
+    set_expected_results(
+        "fs_watcher padded end: not short",
+        json_pack("[{s:s}]",
+            "msg", "ioctl(FIONREAD) FAILED: the events queued by now are not counted"
+        ),
+        NULL, NULL, 1
+    );
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop, root7, FS_FLAG_BATCH_END, fs_callback_pad, 0, NULL, NULL
+    );
+    if(!fs_event || fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> the watcher could not be started\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    for(int i = 0; i < 5; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+
+    /*
+     *  1000 files: far more than a read (32 events of the largest size)
+     */
+    char name[32];
+    for(int i = 0; i < 1000; i++) {
+        snprintf(name, sizeof(name), "f%04d", i);
+        create_file_in(root7, name);
+    }
+    fionread_fails = 1;
+    uint64_t end = fs_queued_events_end(fs_event);
+    fionread_fails = 0;
+
+    for(int i = 0; i < 500 && pad_files < 1000; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(pad_files != 1000 || pad_last_event_end > end) {
+        printf("%sERROR%s --> the end said with FIONREAD failed (%lu) is short: %d files heard, the last ends at %lu\n",
+            On_Red BWhite, Color_Off, (unsigned long)end, pad_files, (unsigned long)pad_last_event_end);
+        result += -1;
+    }
+
+    pad_batch_ends = 0;
+    pad_last_end = 0;
+    for(int i = 0; i < 50 && pad_last_end < end; i++) {
+        usleep(2000);
+        yev_loop_run_once(yev_loop);
+    }
+    if(fs_event->offset < end) {
+        printf("%sERROR%s --> a quiet watcher did not reach the end said past it: the stream at %lu, the end %lu\n",
+            On_Red BWhite, Color_Off, (unsigned long)fs_event->offset, (unsigned long)end);
+        result += -1;
+    }
+
+    fs_stop_watcher_event(fs_event);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+    rmrdir(root7);
+    return result;
+}
+
+/***************************************************************************
+ *  A FIONREAD that keeps failing ends the watcher, its owner told
+ ***************************************************************************/
+PRIVATE int do_test_fionread_broken(void)
+{
+    int result = 0;
+    char root8[PATH_MAX];
+    build_path(root8, sizeof(root8), getenv("HOME"), "tests_yuneta", "fs_watcher_fionread_broken", NULL);
+    rmrdir(root8);
+    mkrdir(root8, 02770);
+    pad_gone = 0;
+
+    set_expected_results(
+        "fs_watcher FIONREAD broken: the watcher is gone, its owner told",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "ioctl(FIONREAD) FAILED: the events queued by now are not counted",
+            "msg", "ioctl(FIONREAD) FAILED: the events queued by now are not counted",
+            "msg", "The events queued by the kernel cannot be counted: an end said past the stream cannot be closed, the watcher is gone"
+        ),
+        NULL, NULL, 1
+    );
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop, root8, FS_FLAG_BATCH_END, fs_callback_pad, 0, NULL, NULL
+    );
+    if(!fs_event || fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> the watcher could not be started\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    for(int i = 0; i < 5; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+
+    fionread_fails = 1000;
+    fs_queued_events_end(fs_event);
+    for(int i = 0; i < 50 && pad_gone == 0; i++) {
+        usleep(2000);
+        yev_loop_run_once(yev_loop);
+    }
+    fionread_fails = 0;
+    if(pad_gone != 1) {
+        printf("%sERROR%s --> FIONREAD broken: the owner was told the watcher is gone %d times, expected 1\n",
+            On_Red BWhite, Color_Off, pad_gone);
+        result += -1;
+        fs_stop_watcher_event(fs_event);
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+    rmrdir(root8);
     return result;
 }
 
@@ -1007,6 +1153,85 @@ PRIVATE int do_test_dir_fds_limit(void)
 }
 
 /***************************************************************************
+ *  The half of the limit counts the descriptors of every watcher
+ ***************************************************************************/
+PRIVATE int do_test_dir_fds_limit_process(void)
+{
+    int result = 0;
+    char root6[PATH_MAX];
+    build_path(root6, sizeof(root6), getenv("HOME"), "tests_yuneta", "fs_watcher_dir_fds_process", NULL);
+    rmrdir(root6);
+    mkrdir(root6, 02770);
+
+    struct rlimit rl_saved;
+    getrlimit(RLIMIT_NOFILE, &rl_saved);
+    int base = count_open_fds();
+    if(base < 0 || base + 2 + 80 > 128 || rl_saved.rlim_max < 128) {
+        printf("     SKIPPED: dir fds of the process, %d descriptors open, hard limit %lu\n",
+            base, (unsigned long)rl_saved.rlim_max);
+        rmrdir(root6);
+        return 0;
+    }
+
+    set_expected_results("fs_watcher dir fds of the process",
+        json_pack("[{s:s}]",
+            "msg", "Directories watched through descriptors: half of the open-files limit"
+        ),
+        NULL, NULL, 1
+    );
+
+    struct rlimit rl = rl_saved;
+    rl.rlim_cur = 128;
+    setrlimit(RLIMIT_NOFILE, &rl);
+
+    fs_event_t *fs_events[2] = {0};
+    char sub[PATH_MAX];
+    char name[32];
+    for(int w = 0; w < 2; w++) {
+        char wroot[PATH_MAX];
+        snprintf(name, sizeof(name), "w%d", w);
+        build_path(wroot, sizeof(wroot), root6, name, NULL);
+        mkrdir(wroot, 02770);
+        fs_events[w] = fs_create_watcher_event(
+            yev_loop, wroot, FS_FLAG_RECURSIVE_PATHS|FS_FLAG_DIR_FDS, fs_callback_count, 0, NULL, NULL
+        );
+        if(!fs_events[w] || fs_start_watcher_event(fs_events[w]) < 0) {
+            printf("%sERROR%s --> dir fds of the process: the watcher could not be started\n",
+                On_Red BWhite, Color_Off);
+            setrlimit(RLIMIT_NOFILE, &rl_saved);
+            return -1;
+        }
+        dirfd_created = 0;
+        for(int i = 0; i < 40; i++) {
+            snprintf(name, sizeof(name), "k%02d", i);
+            build_path(sub, sizeof(sub), wroot, name, NULL);
+            mkdir(sub, 0700);
+        }
+        for(int i = 0; i < 100 && dirfd_created < 40; i++) {
+            yev_loop_run_once(yev_loop);
+        }
+    }
+    if(fs_events[0]->dir_fds_warned || !fs_events[1]->dir_fds_warned) {
+        printf("%sERROR%s --> dir fds of the process: the half not said by the second watcher (%d, %d)\n",
+            On_Red BWhite, Color_Off, fs_events[0]->dir_fds_warned, fs_events[1]->dir_fds_warned);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("fs_watcher dir fds of the process: stop", NULL, NULL, NULL, 1);
+    for(int w = 0; w < 2; w++) {
+        fs_stop_watcher_event(fs_events[w]);
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+    setrlimit(RLIMIT_NOFILE, &rl_saved);
+    rmrdir(root6);
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -1233,9 +1458,12 @@ int main(int argc, char *argv[])
     int result = do_test_stop_on_overflow();
     result += do_test_queued_events_end();
     result += do_test_padded_end();
+    result += do_test_padded_end_not_short();
+    result += do_test_fionread_broken();
     result += do_test_root_unwatchable();
     result += do_test_dir_fds();
     result += do_test_dir_fds_limit();
+    result += do_test_dir_fds_limit_process();
     result += do_test_root_reborn(FALSE);
     result += do_test_root_reborn(TRUE);
     result += do_test();
