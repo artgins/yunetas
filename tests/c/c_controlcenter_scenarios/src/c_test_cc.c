@@ -1253,15 +1253,26 @@ PRIVATE int test_rates_read(hgobj gobj)
  *      the shutdown, where a stop of a gobj that is not running is
  *      quiet): its timers, already stopped by clear_timeout(), are not
  *      stopped again ("GObj NOT RUNNING", an ERROR with a stack, before).
- *      The expected logs say it.
+ *      The expected logs say it. A tick has measured the 3 messages of
+ *      test 13, so the rates are not 0; paused, they read 0: up to 7.25.21
+ *      they kept the value of the last tick.
  ***************************************************************************/
 PRIVATE int test_stop_outside_shutdown(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
 
+    if(gobj_read_integer_attr(priv->cc, "txMsgsec") == 0 ||
+            gobj_read_integer_attr(priv->cc, "rxMsgsec") == 0) {
+        ret += fail(gobj, "a tick measured the messages before the pause", "");
+    }
     gobj_pause(priv->cc);
+    if(gobj_read_integer_attr(priv->cc, "txMsgsec") != 0 ||
+            gobj_read_integer_attr(priv->cc, "rxMsgsec") != 0) {
+        ret += fail(gobj, "the rates read 0 while paused", "");
+    }
     gobj_stop(priv->cc);
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
@@ -1408,7 +1419,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             priv->result += fail(gobj, "the drops timer did not fire in time",
                 priv->phase == 2? "phase 2" : "phase 3");
-            priv->phase = 5;
+            priv->phase = 6;
         }
     }
 
@@ -1438,6 +1449,10 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             return 0;
         case 4:
             priv->result += test_rates_read(gobj);
+            set_timeout(priv->timer, RATES_TICK_MS + 500);  // a tick with the 3 messages
+            KW_DECREF(kw)
+            return 0;
+        case 5:
             priv->result += test_stop_outside_shutdown(gobj);
             break;
         default:

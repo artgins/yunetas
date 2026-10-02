@@ -399,7 +399,23 @@ default service). `Authz.max_sessions_per_user` defaults to 4. Key attributes:
 | `timeout` | Period of the rate tick, ms (1000): `rxMsgsec`/`txMsgsec` and their maxima |
 
 The listen URLs/ports live in the realm config (`__top_side__` /
-`__input_side__`), not in the binary.
+`__input_side__`), not in the binary. Neither side is autostarted nor
+autoplayed: the control center starts both in its `mt_play`, where it
+subscribes to them, and stops them in its `mt_pause`. An autostarted
+`__input_side__` listens from the yuno's start (`C_TCP_S` listens in its
+`mt_start`), so an agent that connects to a control center run with `play=0`
+logs *"Publish event WITHOUT subscribers"*, and a paused control center
+accepts agents.
+
+```json
+{
+    "name": "__input_side__",
+    "gclass": "C_IOGATE",
+    "autostart": false,
+    "autoplay": false,
+    "kw": {"persistent_channels": false}
+}
+```
 
 ### Stats
 
@@ -419,6 +435,15 @@ whoever reads and however often. `maxrxMsgsec`/`maxtxMsgsec` keep the highest
 rate of any tick, a burst nobody read included; write 0 to start them again.
 `stats=__reset__` zeroes the counters, the rates and the maxima. `drops_timer_armed` says whether a capped
 warning has a count waiting for its window.
+
+The tick is a real period (a `C_TIMER0`, io_uring), and runs only while the
+control center plays: paused, the rates read 0. A `timeout` under 1 ms, in the
+config or written, is refused with an ERROR and 1000 is put back. Up to
+7.25.21 the tick was a `C_TIMER`, which checks its deadline on the yuno's
+`timeout_periodic` (1000 ms) and re-arms from when it was served, so a tick of
+1000 came every 1 or 2 s and a burst of one second in a tick of two was halved
+in the maxima; a `timeout` under 1 in the config was not checked (the tick was
+off and the rates read 0), and paused, the rates kept the last tick's value.
 
 ```bash
 ycommand -c 'stats-yuno id=<cc> service=controlcenter'

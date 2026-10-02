@@ -108,7 +108,9 @@ still reported and fails the test.
     shutdown: no log. Before, `mt_stop()` stopped again the timers that
     `clear_timeout()` had already stopped (and the rate timer, never armed,
     that `mt_pause()` had cleared): three *"GObj NOT RUNNING"* errors with a
-    stack.
+    stack. It runs a tick after the 3 messages of test 13, so the rates are
+    not 0 before the pause; paused, they read 0 (up to 7.25.21 they kept the
+    last tick's value). It is the last test.
 13. The message counters and rates. The rate tick (`timeout`) is set to
     1500 ms and the stats reset; 100 `command-agent` round trips add exactly
     200 to `rxMsgs` and to `txMsgs`. Over two ticks later, the maxima hold

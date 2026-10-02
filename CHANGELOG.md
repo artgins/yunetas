@@ -166,6 +166,24 @@ except the hook and the entries this list marks "(no red test)".
   *"Destroying a RUNNING gobj"* and *"No subscription found"* per counter. The
   agent's `mt_stop` stops and destroys them, without answering (their
   channels are closing). (no red test)
+- **Control center: the rate tick is a real period, checked, and off while
+  paused.** It was a `C_TIMER`, which checks its deadline on the yuno's
+  `timeout_periodic` (1000 ms) and re-arms from when it was served: a tick of
+  1000 came every 1 or 2 s, and a burst of one second in a tick of two was
+  halved in `maxrxMsgsec`/`maxtxMsgsec`. It is a `C_TIMER0` now (io_uring,
+  periodic). A `timeout` under 1 in the CONFIG was not checked (only a write
+  was): the tick was off and the rates read 0 with nothing said; it is
+  refused with an ERROR and 1000 put back. And paused, the rates read 0
+  instead of the last tick's value. Test `c_controlcenter_scenarios` (test
+  12, red: the rates of the last tick while paused); the config check and the
+  period have no red test.
+- **Control center: `__input_side__` is not autostarted nor autoplayed** in
+  the realm configs of a.com (its operation repo, config 7, not deployed
+  yet). The control center starts and plays it in `mt_play`, as
+  `__top_side__`: autostarted, it listened from the yuno's start, and an agent
+  that connected to a control center run with `play=0` logged *"Publish event
+  WITHOUT subscribers"*. A realm config of your own does the same (the
+  example is in `controlcenter.md`).
 - **C_QIOGATE: the size of its queue can be read through a C_MQIOGATE.**
   `msgs_in_queue` and `pending_acks` were said only by the gate's own
   `mt_stats`, and a C_MQIOGATE asks its children with `build_stats()`, which

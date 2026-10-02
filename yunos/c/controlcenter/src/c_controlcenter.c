@@ -367,7 +367,7 @@ PRIVATE void mt_create(hgobj gobj)
     );
 
     priv->run_timer = gobj_create_pure_child("run_timer", C_TIMER, 0, gobj);
-    priv->rates_timer = gobj_create_pure_child("rates_timer", C_TIMER, 0, gobj);
+    priv->rates_timer = gobj_create_pure_child("rates_timer", C_TIMER0, 0, gobj);
     priv->drops_timer = gobj_create_pure_child("drops_timer", C_TIMER, 0, gobj);
 
     /*
@@ -375,6 +375,17 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(timeout,               gobj_read_integer_attr)
+    if(priv->timeout < 1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "timeout (the rate tick) must be 1 ms or more, 1000 put back",
+            "timeout",      "%d", (int)priv->timeout,
+            NULL
+        );
+        gobj_write_integer_attr(gobj, "timeout", 1000);
+        priv->timeout = 1000;
+    }
     SET_PRIV(drops_warning_window,  gobj_read_integer_attr)
     check_drops_warning_window(gobj);
 }
@@ -492,7 +503,10 @@ PRIVATE int mt_stop(hgobj gobj)
     priv->drops_timer_armed = FALSE;
     gobj_write_bool_attr(gobj, "drops_timer_armed", FALSE);
     clear_timeout(priv->run_timer);
-    clear_timeout(priv->rates_timer);
+    clear_timeout0(priv->rates_timer);
+    if(gobj_is_running(priv->rates_timer)) {
+        gobj_stop(priv->rates_timer);
+    }
     return 0;
 }
 
@@ -642,7 +656,9 @@ PRIVATE int mt_pause(hgobj gobj)
         run_end(gobj, -1, "the control center was paused in the middle of the run");
     }
 
-    clear_timeout(priv->rates_timer);
+    clear_timeout0(priv->rates_timer);
+    priv->txMsgsec = 0;
+    priv->rxMsgsec = 0;
 
     /*---------------------------------------*
      *      Stop services
@@ -2658,12 +2674,16 @@ PRIVATE void count_dropped_stream(
 }
 
 /***************************************************************************
- *  The rate tick (re)starts: a periodic C_TIMER of `timeout` ms, the
- *  rates measured from now. A deliberate timer: the rates are SAMPLED
- *  each period over the exact interval, not computed by whoever reads
- *  them (a reading 1.9 s after another divided by 1 s; two readers stole
- *  each other's window -- TODO.md, C_CHANNEL/C_IOGATE), and the maxima
- *  catch a burst nobody read. It re-issues no query: it is not polling.
+ *  The rate tick (re)starts: a periodic timer of `timeout` ms, the rates
+ *  measured from now. A deliberate timer: the rates are SAMPLED each
+ *  period over the exact interval, not computed by whoever reads them (two
+ *  readers would share one window), and the maxima catch a burst nobody
+ *  read. It re-issues no query: it is not polling.
+ *
+ *  A C_TIMER0 (io_uring, a real period), not a C_TIMER: a C_TIMER checks
+ *  its deadline on the yuno's periodic grain (1000 ms) and re-arms from
+ *  when it was served, so a tick of 1000 came every 1 or 2 s, and a burst
+ *  of 1 s in a tick of 2 s was halved in the maxima (up to 7.25.21).
  ***************************************************************************/
 PRIVATE void start_rates_tick(hgobj gobj)
 {
@@ -2672,7 +2692,10 @@ PRIVATE void start_rates_tick(hgobj gobj)
     priv->t_rates = start_msectimer(0);
     priv->last_txMsgs = priv->txMsgs;
     priv->last_rxMsgs = priv->rxMsgs;
-    set_timeout_periodic(priv->rates_timer, priv->timeout);
+    if(!gobj_is_running(priv->rates_timer)) {
+        gobj_start(priv->rates_timer);
+    }
+    set_timeout_periodic0(priv->rates_timer, priv->timeout);
 }
 
 /***************************************************************************

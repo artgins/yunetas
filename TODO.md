@@ -112,22 +112,6 @@ Severity in parentheses where one was assigned.
 
 ### Control center
 
-- **The rate tick** (low). A `timeout` < 1 given in the CONFIG is not checked
-  (only `mt_writing` checks it, and it does not run before `mt_create`): the
-  tick is off and the rates read 0 with nothing said — check it in
-  `mt_create` / `start_rates_tick()`. The rates keep their last value while
-  paused (zero them in `mt_pause`). And the tick is a C_TIMER, which checks its deadline on the
-  yuno's `timeout_periodic` grain (1000 ms) and re-arms from the moment it was
-  processed, so with `timeout` 1000 it fires every 1 s or 2 s: the rate stays
-  exact, but a 1 s burst in a 2 s interval is halved in `max*Msgsec`. A real
-  period is what `C_TIMER0` is for (io_uring, periodic): use it for this
-  tick rather than changing every C_TIMER.
-- **A control center started with `run-yuno play=0` and played later logs one
-  *"Publish event WITHOUT subscribers"*** (`EV_ON_OPEN` of `__input_side__`,
-  autoplay) per agent that connects in between: its subscription is made in
-  `mt_play` (~622). Do not autoplay the input side -- and do not AUTOSTART it
-  either: `C_TCP_S` listens in `mt_start`, and `autostart_services()` starts
-  the tree of a gclass with no `mt_play`, so the port opens at autostart.
 - **gui_agent: on a phone the rail's fifth item is clipped at 360 px in
   Spanish** (minor; the bar scrolls).
 
@@ -586,6 +570,12 @@ Severity in parentheses where one was assigned.
 ---
 
 ## 6. Operations and deployment
+
+- **a.com: deploy controlcenter config 7** (both planes, 1996 and 1997;
+  the artgins operation repo, `ce894df`): `__input_side__` not autostarted
+  nor autoplayed. With the controlcenter binary that carries the C_TIMER0
+  rate tick (next release); `update-config` of the row in use, or
+  `create-config` + `find-new-yunos create=1` + a restart of just those two.
 
 - **Per-command authz gate — production enablement.** `enable_command_authz`
   is default-off (YUNO_AUTH.md §4.5). Per node:
