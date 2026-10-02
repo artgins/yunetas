@@ -43,7 +43,7 @@ fs_event_t *fs_event = fs_create_watcher_event(
     yev_loop, "/yuneta/store/db/topic/disks", FS_FLAG_MOVED_AS_DELETED,
     master_fs_callback, gobj, tranger, NULL
 );
-// mv disks/rtA disks/.closing.123.1  ->  FS_SUBDIR_DELETED_TYPE, filename "rtA"
+// mv disks/rtA disks/.closing.123-4567.1  ->  FS_SUBDIR_DELETED_TYPE, filename "rtA"
 ```
 
 The descriptors of `FS_FLAG_DIR_FDS` live as long as their watch -- a

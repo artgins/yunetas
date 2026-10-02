@@ -545,7 +545,11 @@ PRIVATE int walk_path_append(char *path, size_t path_len, const char *name)
  *  An entry that is already gone (another process removed it between the
  *  readdir() and here) is not an error: 0, no log. Up to 7.25.4 that
  *  case returned -1 with no log, and every level above answered -1 as
- *  "Error already logged". A symbolic link is removed, never descended.
+ *  "Error already logged". Nor is, once, an entry another process made
+ *  in a directory while it was walked (its rmdir() fails, ENOTEMPTY): the
+ *  directory is walked again; up to 7.25.21 that was an ERROR, even when
+ *  the caller's own retry then removed it. A symbolic link is removed,
+ *  never descended.
  ****************************************************************************/
 PRIVATE int remove_tree_walk(char *path, int depth)
 {
@@ -585,78 +589,83 @@ PRIVATE int remove_tree_walk(char *path, int depth)
         return -1;
     }
 
-    dir = opendir(path);
-    if(dir == NULL) {
-        if(errno == ENOENT) {
-            return 0;   // Already gone
-        }
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot open directory",
-            "path",         "%s", path,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-        return -1;
-    }
-
-    size_t path_len = strlen(path);
-    while((errno = 0, dir_entry = readdir(dir)) != NULL) {   // errno tells the end from a failure
-        if(strcmp(dir_entry->d_name, ".") == 0 || strcmp(dir_entry->d_name, "..") == 0) {
-            continue;
+    for(int pass = 0; ; pass++) {
+        dir = opendir(path);
+        if(dir == NULL) {
+            if(errno == ENOENT) {
+                return 0;   // Already gone
+            }
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot open directory",
+                "path",         "%s", path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            return -1;
         }
 
-        if(walk_path_append(path, path_len, dir_entry->d_name) < 0) {
-            closedir(dir);
-            return -1;  // Error already logged
+        size_t path_len = strlen(path);
+        while((errno = 0, dir_entry = readdir(dir)) != NULL) {   // errno tells the end from a failure
+            if(strcmp(dir_entry->d_name, ".") == 0 || strcmp(dir_entry->d_name, "..") == 0) {
+                continue;
+            }
+
+            if(walk_path_append(path, path_len, dir_entry->d_name) < 0) {
+                closedir(dir);
+                return -1;  // Error already logged
+            }
+            int ret = remove_tree_walk(path, depth + 1);
+            path[path_len] = 0;
+            if(ret != 0) {
+                closedir(dir);
+                return -1;  // Error already logged
+            }
         }
-        int ret = remove_tree_walk(path, depth + 1);
-        path[path_len] = 0;
-        if(ret != 0) {
+        if(errno != 0) {
+            /*
+             *  Up to 7.25.4 a failed readdir() was the end, and the rmdir()
+             *  below failed with ENOTEMPTY: the log blamed the rmdir()
+             */
+            int last_errno = errno;
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot remove directory, readdir() FAILED",
+                "path",         "%s", path,
+                "errno",        "%d", last_errno,
+                "serrno",       "%s", strerror(last_errno),
+                NULL
+            );
             closedir(dir);
-            return -1;  // Error already logged
+            return -1;
         }
-    }
-    if(errno != 0) {
-        /*
-         *  Up to 7.25.4 a failed readdir() was the end, and the rmdir()
-         *  below failed with ENOTEMPTY: the log blamed the rmdir()
-         */
-        int last_errno = errno;
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot remove directory, readdir() FAILED",
-            "path",         "%s", path,
-            "errno",        "%d", last_errno,
-            "serrno",       "%s", strerror(last_errno),
-            NULL
-        );
+
         closedir(dir);
-        return -1;
-    }
 
-    closedir(dir);
-
-    if(rmdir(path) != 0) {
-        if(errno == ENOENT) {
-            return 0;   // Already gone
+        if(rmdir(path) != 0) {
+            if(errno == ENOENT) {
+                return 0;   // Already gone
+            }
+            if((errno == ENOTEMPTY || errno == EEXIST) && pass == 0) {
+                continue;   // something made in it while it was walked: once more
+            }
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "rmdir() FAILED",
+                "path",         "%s", path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            return -1;
         }
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "rmdir() FAILED",
-            "path",         "%s", path,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-        return -1;
-    }
 
-    return 0;
+        return 0;
+    }
 }
 
 /****************************************************************************

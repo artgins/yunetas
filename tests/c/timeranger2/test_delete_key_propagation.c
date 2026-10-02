@@ -69,7 +69,10 @@
  *        removal failed ("Directory not empty"), and the master went on
  *        linking into it for ever. A leading dot is no rt id, and a
  *        `.closing.*` a dead reader left is removed at the master's next
- *        open (one of a live process is not).
+ *        open (one of a live process is not). The name carries the start
+ *        time of the process: one whose pid lives but started at another
+ *        time is a pid reused, and its leftover is removed. Up to 7.25.21
+ *        the name had the pid alone, and it stayed.
  *      - do_test_master_rt_disk_reborn: a master's own rt_disk feed hears
  *        the delete after the master wrote the key again: the live key
  *        stays in the master's cache.
@@ -915,6 +918,30 @@ PRIVATE int do_test_rt_disk_in_process(void)
 PRIVATE int count_a = 0, count_b = 0, count_all = 0, count_close = 0, count_rkey = 0;
 PRIVATE json_t *closing_tranger = NULL;
 
+/*
+ *  When this process started, in clock ticks since boot (/proc/self/stat,
+ *  field 22): what a `.closing.<pid>-<start>.<seq>` of ours carries
+ */
+PRIVATE unsigned long long own_start_time(void)
+{
+    char bf[1024] = {0};
+    FILE *file = fopen("/proc/self/stat", "r");
+    if(!file) {
+        return 0;
+    }
+    size_t n = fread(bf, 1, sizeof(bf) - 1, file);
+    fclose(file);
+    bf[n] = 0;
+    const char *p = strrchr(bf, ')');
+    unsigned long long start = 0;
+    if(!p || sscanf(p + 1,
+            " %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %*u %*u %*d %*d %*d %*d %*d %*d %llu",
+            &start) != 1) {
+        return 0;
+    }
+    return start;
+}
+
 PRIVATE int follower_key_deleted_callback(
     json_t *tranger,
     json_t *topic,
@@ -1242,14 +1269,24 @@ PRIVATE int do_test_close_races_master(void)
         }
     }
     char dead_name[NAME_MAX], live_name[NAME_MAX];
+    char reused_name[NAME_MAX], started_name[NAME_MAX];
     char dead_dir[PATH_MAX], live_dir[PATH_MAX], dead_key[PATH_MAX];
+    char reused_dir[PATH_MAX], started_dir[PATH_MAX];
     snprintf(dead_name, sizeof(dead_name), ".closing.%d.1", (int)dead_pid);
     snprintf(live_name, sizeof(live_name), ".closing.%d.1", (int)getpid());
+    snprintf(reused_name, sizeof(reused_name), ".closing.%d-1.1", (int)getpid());  // started at tick 1: not us
+    snprintf(started_name, sizeof(started_name), ".closing.%d-%llu.1",
+        (int)getpid(), own_start_time()
+    );
     build_path(dead_dir, sizeof(dead_dir), disks, dead_name, NULL);
     build_path(live_dir, sizeof(live_dir), disks, live_name, NULL);
+    build_path(reused_dir, sizeof(reused_dir), disks, reused_name, NULL);
+    build_path(started_dir, sizeof(started_dir), disks, started_name, NULL);
     build_path(dead_key, sizeof(dead_key), dead_dir, KEY_A, NULL);
     mkrdir(dead_key, 02770);
     mkrdir(live_dir, 02770);
+    mkrdir(reused_dir, 02770);
+    mkrdir(started_dir, 02770);
     tm = startup_master(path_root, TRUE);
     if(!tm || !tranger2_open_topic(tm, TOPIC_NAME, TRUE)) {
         printf("%sERROR%s --> close races: cannot open the master again\n", On_Red BWhite, Color_Off);
@@ -1260,8 +1297,13 @@ PRIVATE int do_test_close_races_master(void)
             On_Red BWhite, Color_Off);
         result += -1;
     }
-    if(!is_directory(live_dir)) {
+    if(!is_directory(live_dir) || !is_directory(started_dir)) {
         printf("%sERROR%s --> close races: the directory of a live reader was removed\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(is_directory(reused_dir)) {
+        printf("%sERROR%s --> close races: the leftover of a pid reused is not removed\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }
@@ -1270,6 +1312,7 @@ PRIVATE int do_test_close_races_master(void)
         result += -1;
     }
     rmrdir(live_dir);
+    rmrdir(started_dir);
     if(tm) {
         tranger2_shutdown(tm);
     }

@@ -13,6 +13,10 @@
  *        key is gone from disk. (A delete in the SAME process empties the
  *        iterator's index, and its page reads nothing: see
  *        test_key_reborn_pages.)
+ *      - the same page when only the CONTENT file is gone, its key still on
+ *        disk: on a master that is not a race (the master deletes a key
+ *        whole, in this process) but a store damaged, a CRITICAL that says
+ *        so. Up to 7.25.21 it was the warning of a key deleted.
  *      - tranger2_read_user_flag() on a (key, __t__) whose md2 file does not
  *        exist: a master CREATED an empty md2 there (the read went through
  *        the write fd), then failed to read it with on_critical_error.
@@ -177,6 +181,52 @@ PRIVATE int do_test(void)
         build_path(path_key, sizeof(path_key), path_database, TOPIC_NAME, "keys", KEY_GONE, NULL);
         if(rmrdir(path_key) < 0) {
             printf("%sERROR%s --> cannot delete the key\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        json_t *page = tranger2_iterator_get_page(tranger, iterator, 1, 10, FALSE);
+        JSON_DECREF(page)
+        tranger2_close_iterator(tranger, iterator);
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A content file missing from a key
+     *  still on disk: the store is damaged
+     *-------------------------------------*/
+    set_expected_results(
+        "a content file missing from a key on disk, on a master, is a damaged store",
+        json_pack("[{s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}]",   // one per record of the page
+            "msg", "Cannot open file to read",
+            "reason", "missing from a key that is on disk: the store is damaged",
+            "msg", "Cannot open file to read",
+            "reason", "missing from a key that is on disk: the store is damaged",
+            "msg", "Cannot open file to read",
+            "reason", "missing from a key that is on disk: the store is damaged",
+            "msg", "Cannot open file to read",
+            "reason", "missing from a key that is on disk: the store is damaged"
+        ),
+        NULL, NULL, 1
+    );
+    iterator = tranger2_open_iterator(
+        tranger,
+        TOPIC_NAME,
+        KEY_KEPT,
+        json_pack("{s:I}", "from_rowid", (json_int_t)2),
+        NULL,
+        "it_damaged",
+        APP,
+        NULL,
+        NULL
+    );
+    if(!iterator) {
+        printf("%sERROR%s --> cannot open the iterator\n", On_Red BWhite, Color_Off);
+        result += -1;
+    } else {
+        char path_content[PATH_MAX];
+        build_path(path_content, sizeof(path_content),
+            path_database, TOPIC_NAME, "keys", KEY_KEPT, "2000-01-01.json", NULL);
+        if(unlink(path_content) < 0) {
+            printf("%sERROR%s --> cannot remove the content file\n", On_Red BWhite, Color_Off);
             result += -1;
         }
         json_t *page = tranger2_iterator_get_page(tranger, iterator, 1, 10, FALSE);

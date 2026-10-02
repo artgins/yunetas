@@ -3538,7 +3538,28 @@ PRIVATE int get_topic_rd_fd(
              *  a broken system: a warning.
              */
             int last_errno = errno;
-            if(last_errno == ENOENT) {
+            char key_path[PATH_MAX];
+            build_path(key_path, sizeof(key_path), topic_dir, "keys", key, NULL);
+            if(last_errno == ENOENT &&
+                    json_boolean_value(json_object_get(tranger, "master")) &&
+                    is_directory(key_path)) {
+                /*
+                 *  The master deletes a key whole, in this process, before
+                 *  any read can follow: a file missing from a key still on
+                 *  disk is a store damaged, not a race (up to 7.25.21 it was
+                 *  a warning too)
+                 */
+                gobj_log_critical(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot open file to read",
+                    "reason",       "%s", "missing from a key that is on disk: the store is damaged",
+                    "path",         "%s", full_path,
+                    "errno",        "%d", last_errno,
+                    "serrno",       "%s", strerror(last_errno),
+                    NULL
+                );
+            } else if(last_errno == ENOENT) {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TRANGER,
@@ -6078,10 +6099,38 @@ PUBLIC json_t *tranger2_open_rt_disk(
  *  stayed, and the master went on feeding it for ever (up to 7.25.21; seen
  *  at 3000 records/s). Renamed, the master cannot reach it -- its links
  *  name the old path --, and it hears the rename as the delete
- *  (FS_FLAG_MOVED_AS_DELETED). `.closing.<pid>.<seq>`: a leading dot is no
- *  rt id (rt_id_is_confined()), and the master removes at its next open
- *  the ones of a process that is gone.
+ *  (FS_FLAG_MOVED_AS_DELETED). `.closing.<pid>-<start>.<seq>`: a leading
+ *  dot is no rt id (rt_id_is_confined()), and the master removes at its
+ *  next open the ones of a process that is gone. <start> is when the
+ *  process started (process_start_time()): a pid reused by another process
+ *  is not the one that left it (up to 7.25.21 the name had the pid alone,
+ *  and a leftover stayed while an unrelated process held that pid).
  ***************************************************************************/
+PRIVATE unsigned long long process_start_time(pid_t pid)
+{
+    char path[PATH_MAX];
+    char bf[1024];
+    snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
+    int fd = open(path, O_RDONLY|O_CLOEXEC);
+    if(fd < 0) {
+        return 0;   // gone, or no /proc: unknown
+    }
+    ssize_t n = read(fd, bf, sizeof(bf) - 1);
+    close(fd);
+    if(n <= 0) {
+        return 0;
+    }
+    bf[n] = 0;
+    const char *p = strrchr(bf, ')');  // the name may hold spaces and parens
+    unsigned long long start = 0;
+    if(!p || sscanf(p + 1,
+            " %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %*u %*u %*d %*d %*d %*d %*d %*d %llu",
+            &start) != 1) {
+        return 0;
+    }
+    return start;   // field 22: clock ticks since boot
+}
+
 PRIVATE void remove_rt_disk_directory(
     hgobj gobj,
     const char *topic_directory,
@@ -6093,7 +6142,9 @@ PRIVATE void remove_rt_disk_directory(
     char closing_name[NAME_MAX];
     char closing_path[PATH_MAX];
     build_path(full_path, sizeof(full_path), topic_directory, "disks", rt_id, NULL);
-    snprintf(closing_name, sizeof(closing_name), ".closing.%d.%u", (int)getpid(), ++closing_seq);
+    snprintf(closing_name, sizeof(closing_name), ".closing.%d-%llu.%u",
+        (int)getpid(), process_start_time(getpid()), ++closing_seq
+    );
     build_path(closing_path, sizeof(closing_path), topic_directory, "disks", closing_name, NULL);
 
     if(gobj_global_trace_level() & TRACE_FS) {
@@ -6128,9 +6179,11 @@ PRIVATE void remove_rt_disk_directory(
 
     /*
      *  A link the master was making when the rename came may land in it:
-     *  once, the removal is tried again
+     *  rmrdir() walks a directory filled meanwhile once more, and logs only
+     *  when that fails too (up to 7.25.21 the first failure was an ERROR
+     *  even when the retry removed it)
      */
-    if(rmrdir(closing_path) < 0 && rmrdir(closing_path) < 0) {
+    if(rmrdir(closing_path) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -6350,9 +6403,19 @@ PRIVATE BOOL find_rt_disk_cb(
          *  removed here: nobody else is removing it
          */
         unsigned closing_pid = 0;
-        if(sscanf(rt_id, ".closing.%u.", &closing_pid) == 1 &&
-                closing_pid > 0 && kill((pid_t)closing_pid, 0) < 0 && errno == ESRCH) {
-            rmrdir(full_path2);     // a failure is logged by rmrdir
+        unsigned long long closing_start = 0;
+        int n = sscanf(rt_id, ".closing.%u-%llu.", &closing_pid, &closing_start);
+        if(n >= 1 && closing_pid > 0) {
+            BOOL gone = (kill((pid_t)closing_pid, 0) < 0 && errno == ESRCH)? TRUE : FALSE;
+            if(!gone && n == 2 && closing_start != 0) {
+                unsigned long long now_start = process_start_time((pid_t)closing_pid);
+                if(now_start != 0 && now_start != closing_start) {
+                    gone = TRUE;    // its pid reused by another process
+                }
+            }
+            if(gone) {
+                rmrdir(full_path2);     // a failure is logged by rmrdir
+            }
         }
         return TRUE; // continue
     }
@@ -9305,6 +9368,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
         md_record_ex.g_rowid = g_rowid;
 
         json_t *record = NULL;
+        BOOL body_lost = FALSE;
         if(need_body) {
             record = read_record_content(
                 tranger,
@@ -9318,11 +9382,13 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                  *  Error already logged. Not handed with a NULL body to a
                  *  feed that wants the body: on the by-path fallback that is
                  *  a record of a life already deleted (its delete comes
-                 *  next), and a consumer takes NULL for a record
+                 *  next), and a consumer takes NULL for a record. A feed of
+                 *  metadata only is fed: up to 7.25.21 it lost the record too
                  */
-                continue;
+                body_lost = TRUE;
+            } else {
+                json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
             }
-            json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
         }
 
         /*----------------------------*
@@ -9335,7 +9401,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                     json_object_get(fired_disk, "load_record_callback")
                 );
 
-            if(load_record_callback) {
+            if(load_record_callback && !(body_lost && !fired_only_md)) {
                 // Inform to the user list: record realtime from disk
                 load_record_callback(
                     tranger,
@@ -9357,7 +9423,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
             json_t *lists = json_object_get(topic, "lists");
             json_t *list;
             json_array_foreach(lists, idx, list) {
-                if(list_wants_key(list, key)) {
+                if(list_wants_key(list, key) && !(body_lost && !feed_wants_only_md(list))) {
                     tranger2_load_record_callback_t load_record_callback =
                         (tranger2_load_record_callback_t)(size_t)json_integer_value(
                             json_object_get(list, "load_record_callback")
@@ -11717,7 +11783,25 @@ PRIVATE json_int_t load_first_and_last_record_md(
     int fd = own_fd? open(full_path, O_RDONLY|O_CLOEXEC, 0) : md2_fd;
     if(fd<0) {
         int last_errno = errno;
-        if(last_errno == ENOENT) {
+        char key_path[PATH_MAX];
+        build_path(key_path, sizeof(key_path), topic_directory, "keys", key, NULL);
+        if(last_errno == ENOENT && master && is_directory(key_path)) {
+            /*
+             *  The master deletes a key whole, in this process: a file
+             *  missing from a key still on disk is a store damaged, not a
+             *  race (up to 7.25.21 it was a warning too)
+             */
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot open md2 file",
+                "reason",       "%s", "missing from a key that is on disk: the store is damaged",
+                "path",         "%s", full_path,
+                "errno",        "%d", last_errno,
+                "serrno",       "%s", strerror(last_errno),
+                NULL
+            );
+        } else if(last_errno == ENOENT) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TRANGER,

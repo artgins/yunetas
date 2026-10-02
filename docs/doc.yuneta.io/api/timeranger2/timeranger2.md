@@ -539,7 +539,7 @@ Returns `0` on success, or a negative value on failure.
 This function must be called when a real-time disk stream is no longer needed to free resources.
 
 The directory of the feed, `<topic>/disks/<id>/`, is **renamed away first**
-(`disks/.closing.<pid>.<seq>`) and then removed. The master keeps hard-linking
+(`disks/.closing.<pid>-<start>.<seq>`) and then removed. The master keeps hard-linking
 the new records into that directory until it hears the feed is gone; removed
 where it was, a key directory the master made in between made the removal
 fail (*"rmdir() FAILED ... Directory not empty"*), the directory stayed, and the
@@ -548,6 +548,11 @@ Renamed, the master cannot reach it, and its watch of `disks/`
 (`FS_FLAG_MOVED_AS_DELETED`) hears the rename as the close of the feed. A
 `.closing.*` left by a reader that died while removing it is removed by the
 master the next time it reads `disks/` (only when that process is gone).
+`<start>` is when the reader's process started (field 22 of
+`/proc/<pid>/stat`): a pid alive with another start time is a pid reused by
+another process, and the leftover is removed too. Up to 7.25.21 the name had
+the pid alone, and such a leftover stayed while the unrelated process lived.
+A name of the old form (`.closing.<pid>.<seq>`) is judged by its pid alone.
 
 ---
 

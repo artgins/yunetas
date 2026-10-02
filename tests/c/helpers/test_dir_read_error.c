@@ -72,6 +72,12 @@
  *                 7.25.4 it was skipped with no log, and timeranger2 read
  *                 its key EMPTY with no flag, where with d_type the key is
  *                 flagged.
+ *             19. rmrdir() of a directory another process fills while it
+ *                 is walked (an entry made at the end of its readdir()):
+ *                 the directory is walked once more and removed, 0, with
+ *                 nothing logged. Up to 7.25.21 the rmdir() failed with
+ *                 ENOTEMPTY, an ERROR, and -1 (a closed rt_disk feed that
+ *                 the master was still linking into).
  *
  *          The failure of readdir() is made by __wrap_readdir() below, for
  *          the directory named by `failing_dir` (seen at its opendir()).
@@ -114,6 +120,9 @@ PRIVATE int failures = 0;
 PRIVATE const char *failing_open_dir = NULL;   // the directory whose opendir() fails
 PRIVATE int failing_open_errno = 0;
 PRIVATE BOOL hide_d_type = FALSE;
+PRIVATE const char *filled_dir = NULL;     // the directory filled at the end of its readdir()
+PRIVATE DIR *filled_dirp = NULL;
+PRIVATE int fills = 0;
 
 DIR *__wrap_opendir(const char *name)
 {
@@ -122,6 +131,9 @@ DIR *__wrap_opendir(const char *name)
         return NULL;
     }
     DIR *dirp = __real_opendir(name);
+    if(dirp && filled_dir && fills == 0 && strcmp(name, filled_dir) == 0) {
+        filled_dirp = dirp;
+    }
     if(dirp && failing_dir && strcmp(name, failing_dir) == 0) {
         failing_dirp = dirp;
         entries_given = 0;
@@ -131,6 +143,25 @@ DIR *__wrap_opendir(const char *name)
 
 struct dirent *__wrap_readdir(DIR *dirp)
 {
+    if(dirp && dirp == filled_dirp) {
+        struct dirent *dent = __real_readdir(dirp);
+        if(!dent && fills == 0) {
+            /*
+             *  Another process makes an entry in it, after its last one was
+             *  read and before the rmdir()
+             */
+            fills++;
+            filled_dirp = NULL;
+            char path[PATH_MAX];
+            snprintf(path, sizeof(path), "%s/late", filled_dir);
+            int fd = newfile(path, 0660, FALSE);
+            if(fd >= 0) {
+                close(fd);
+            }
+            errno = 0;
+        }
+        return dent;
+    }
     if(dirp && dirp == failing_dirp) {
         if(entries_given >= entries_before_failure) {
             failing_dirp = NULL;
@@ -512,6 +543,23 @@ PRIVATE void test_remove_read_error(void)
 }
 
 /***************************************************************************
+ *  19. A directory filled while rmrdir() walks it
+ ***************************************************************************/
+PRIVATE void test_remove_filled_meanwhile(void)
+{
+    make_rm_tree();
+    filled_dir = RM_BASE "/sub";
+    fills = 0;
+    int logs_before = s_logs;
+    int ret = rmrdir(RM_BASE);
+    filled_dir = NULL;
+    ok_or_fail(fills == 1, "19. an entry was made in the directory while it was walked");
+    ok_or_fail(ret == 0 && access(RM_BASE, F_OK) != 0, "19. rmrdir() walks it again and removes it");
+    ok_or_fail(s_logs == logs_before, "19. and logs nothing");
+    rmrdir(RM_BASE);
+}
+
+/***************************************************************************
  *  17. The errno of a failed mkrdir()
  ***************************************************************************/
 PRIVATE void test_mkrdir_errno(void)
@@ -743,6 +791,7 @@ int main(int argc, char *argv[])
     test_subdir_open_error();
     test_stat_errors();
     test_remove_read_error();
+    test_remove_filled_meanwhile();
     test_mkrdir_errno();
     test_callback_stops();
     test_long_paths();

@@ -460,6 +460,8 @@ A `path` that does not exist returns `-1` without a log, because callers use `rm
 
 An entry inside the tree that another process removes during the walk (between `readdir()` and `lstat()`) is already gone, so it is not an error: the walk continues. Up to 7.25.4 that case returned `-1` with no log.
 
+An entry that another process makes in a directory while it is walked (after its last `readdir()`, before its `rmdir()`) makes the `rmdir()` fail with `ENOTEMPTY`: the directory is walked once more, and only a second failure is logged. Up to 7.25.21 the first one was an ERROR, even when the caller's own retry then removed the directory (a timeranger2 reader closing a feed the master was still linking into).
+
 A `readdir()` that fails inside the tree returns `-1` with *"Cannot remove directory, readdir() FAILED"* and its `errno`, and what was not read stays. Up to 7.25.4 the failure was taken as the end of the directory, and the log blamed the `rmdir()` that followed (*"rmdir() FAILED"*, `ENOTEMPTY`).
 
 (rmrdir-deep-tree)=

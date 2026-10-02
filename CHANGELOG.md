@@ -252,6 +252,27 @@ except the hook and the entries this list marks "(no red test)".
     before the handshake ended"*, *"the write made no progress"*), and C_TCP
     puts them in its `disconnect_cause`. Tested on both backends (mbedTLS
     linked by hand: the local build has OpenSSL only).
+- **timeranger2: a feed of metadata only is fed a record whose body is
+    lost.** A follower that could not read a record's body (on the by-path
+    fallback, a life already deleted) skipped the record for every feed;
+    the feeds that want the body still skip it, the ones of metadata only
+    get it (no red test: the fallback needs a system without /proc).
+- **timeranger2: on a master, a file missing from a key still on disk is a
+    damaged store, a CRITICAL.** `Cannot open file to read` / `Cannot open
+    md2 file` with ENOENT was a warning (*"its key deleted under the
+    reader"*) everywhere. A master deletes a key whole, in its own process:
+    when the key's directory is still there, the reason is now *"missing from
+    a key that is on disk: the store is damaged"*. A follower, or a key gone,
+    keeps the warning.
+- **`rmrdir()` walks once more a directory filled while it was walked**, and
+    logs only a second failure. An entry made by another process after the
+    last `readdir()` failed the `rmdir()` with `ENOTEMPTY`, an ERROR, even
+    when the caller's retry removed it (a reader closing an rt_disk feed the
+    master was still linking into, which now calls it once).
+- **timeranger2: the leftover of a closing feed whose pid was reused is
+    removed.** `.closing.<pid>-<start>.<seq>` carries the start time of the
+    reader's process; the master removes one whose pid lives but started at
+    another time. Up to 7.25.21 it stayed while the unrelated process lived.
 - **C_TCP: a subscriber's error no longer stops the reading, and nothing is
   touched after a publish that destroyed the gobj.** A subscriber of
   `EV_RX_DATA` that answered an error (`-1`, its own) stopped the reading:
