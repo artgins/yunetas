@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Builds on a glibc older than 2.34.** The daemon start closed its
+  inherited files with `close_range()`, whose glibc wrapper is 2.34's: a
+  source build on an older glibc did not compile. It calls the system call
+  directly (`syscall(SYS_close_range)`), with the loop as before where the
+  headers or the kernel lack it.
+
 - **fs_watcher: a directory watched again brings its subtree.** Under
   `FS_FLAG_RECURSIVE_PATHS`, a directory that could not be watched (out of
   inotify watches) was watched alone when watches came back: a

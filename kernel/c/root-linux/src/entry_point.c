@@ -17,6 +17,7 @@
 #include <argp-standalone.h>
 #include <pwd.h>
 #include <fcntl.h>
+#include <sys/syscall.h>
 
 #include <command_parser.h>
 #include <stats_parser.h>
@@ -435,9 +436,15 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
          *  limit: the loop up to _SC_OPEN_MAX missed an fd inherited above a
          *  soft limit lowered after it was opened, and with the limit the
          *  agent's CLI sets (1048576) it was a million close() calls (up to
-         *  7.25.21). The loop stays for a kernel without close_range (< 5.9)
+         *  7.25.21). The loop stays for a kernel without close_range (< 5.9).
+         *  Called through syscall(): the glibc wrapper is 2.34's, and a build
+         *  on an older glibc did not compile (up to 7.25.22)
          */
-        if(close_range(0, ~0U, 0) < 0) {
+        long closed = -1;
+#ifdef SYS_close_range
+        closed = syscall(SYS_close_range, 0U, ~0U, 0U);
+#endif
+        if(closed < 0) {
             long maxfd = sysconf(_SC_OPEN_MAX);
             if(maxfd == -1) {
                 #define BD_MAX_CLOSE 8192
