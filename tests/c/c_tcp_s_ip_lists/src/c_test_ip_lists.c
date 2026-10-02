@@ -690,6 +690,26 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                         NULL
                     );
                 }
+
+                /*
+                 *  stats=__reset__ zeroes them. Up to 7.25.21 it wrote
+                 *  the attrs, but they are read from priv (mt_reading),
+                 *  which kept counting from where it was
+                 */
+                json_t *jn_stats = gobj_stats(server_port, "__reset__", 0, gobj);
+                JSON_DECREF(jn_stats)
+                no_channel = gobj_read_integer_attr(server_port, "noChannelConnxs");
+                refused = gobj_read_integer_attr(server_port, "refusedConnxs");
+                if(no_channel != 0 || refused != 0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "stats=__reset__ did not zero the counters of refused connections",
+                        "noChannelConnxs", "%ld", (long)no_channel,
+                        "refusedConnxs", "%ld", (long)refused,
+                        NULL
+                    );
+                }
             }
             if(priv->opens != 6) {
                 gobj_log_error(gobj, 0,

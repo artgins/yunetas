@@ -4044,19 +4044,20 @@ PRIVATE json_t *cmd_info_uptime(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 {
     struct timespec ts;
     if(clock_gettime(CLOCK_BOOTTIME, &ts) < 0) {
+        int err = errno;    // the log may change errno
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "clock_gettime(CLOCK_BOOTTIME) FAILED",
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
             NULL
         );
         json_t *kw_response = build_command_response(
             gobj,
             -1,
             json_sprintf("%s: cannot read the machine's uptime: %s",
-                gobj_yuno_role_plus_name(), strerror(errno)
+                gobj_yuno_role_plus_name(), strerror(err)
             ),
             0,
             0

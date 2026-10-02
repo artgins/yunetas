@@ -209,6 +209,23 @@ except the hook and the entries this list marks "(no red test)".
   a peer, `list-jwk` included, got `-403`. The jwk commands, which never used
   the treedb, are answered as before; the user commands answer `-1` naming
   the cause. (no red test: no test yuno runs a C_AUTHZ without a store)
+- **`stats=__reset__` zeroes the counters of C_TCP, C_TCP_S and C_UDP_S.**
+    The reset writes the defaults of the `SDF_RSTATS` attrs, but these
+    gclasses read their counters from private fields (`mt_reading`), which
+    nobody zeroed: a reset changed nothing. `mt_writing` zeroes them now
+    (`txBytes`, `rxBytes`, `txMsgs`, `rxMsgs`, `max_tx_in_progress`,
+    `refusedConnxs`, `noChannelConnxs`, `rxRefusedMsgs`). Tested for C_TCP_S
+    and C_UDP_S; C_TCP takes the same code.
+- **`--pid-file` without `--start` is refused** at the start, instead of
+    being ignored in silence: there is no watcher whose pid it could hold.
+- **A daemon closes every inherited descriptor** with `close_range()`. The
+    loop up to `_SC_OPEN_MAX` missed one inherited above a soft limit lowered
+    after it was opened, and under the limit the agent's CLI sets (1048576)
+    it made a million `close()` calls. The loop stays for a kernel without
+    `close_range` (no red test: checked by hand, a yuno started with fd 50
+    open under `ulimit -Sn 20` keeps only its own).
+- **C_YUNO `info-uptime` names the right error.** It read `errno` after the
+    log that may change it.
 - **C_TCP: a subscriber's error no longer stops the reading, and nothing is
   touched after a publish that destroyed the gobj.** A subscriber of
   `EV_RX_DATA` that answered an error (`-1`, its own) stopped the reading:

@@ -598,6 +598,28 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     json_int_t refused = gobj_read_integer_attr(priv->gobj_allow, "rxRefusedMsgs");
+
+    /*
+     *  stats=__reset__ zeroes the counters. Up to 7.25.21 it wrote the
+     *  attrs, but they are read from priv (mt_reading), which kept counting
+     *  from where it was
+     */
+    json_t *jn_stats = gobj_stats(priv->gobj_allow, "__reset__", 0, gobj);
+    JSON_DECREF(jn_stats)
+    json_int_t after_reset =
+        gobj_read_integer_attr(priv->gobj_allow, "rxRefusedMsgs") +
+        gobj_read_integer_attr(priv->gobj_allow, "rxMsgs") +
+        gobj_read_integer_attr(priv->gobj_allow, "rxBytes");
+    if(after_reset != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "stats=__reset__ did not zero the counters of C_UDP_S",
+            "sum",          "%ld", (long)after_reset,
+            NULL
+        );
+    }
+
     if(strcmp(priv->frames, "a1a2 b1b2") != 0 ||
             priv->opened != 2 ||
             strcmp(priv->heard, "allowed local") != 0 ||

@@ -417,6 +417,8 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     if(arguments.start) {
         __as_daemon__ = 1;
         daemon_set_pid_file(arguments.pid_file);
+    } else if(arguments.pid_file) {
+        print_error(PEF_EXIT, "--pid-file is the pid of the watcher of a --start: without --start there is none");
     }
     if(arguments.print_verbose_config ||
             arguments.print_final_config ||
@@ -430,19 +432,24 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     if(__as_daemon__) {
 
         /*
-         *  Close all open files
+         *  Close all open files. close_range() closes them all, whatever the
+         *  limit: the loop up to _SC_OPEN_MAX missed an fd inherited above a
+         *  soft limit lowered after it was opened, and with the limit the
+         *  agent's CLI sets (1048576) it was a million close() calls (up to
+         *  7.25.21). The loop stays for a kernel without close_range (< 5.9)
          */
-        long maxfd = sysconf(_SC_OPEN_MAX);
-        if(maxfd == -1) {
-            #define BD_MAX_CLOSE 8192
-            maxfd = BD_MAX_CLOSE;         // if we don't know then guess
-        }
-        int fd;
-        for(fd = 0; fd < maxfd; fd++) {
-            close(fd);
+        if(close_range(0, ~0U, 0) < 0) {
+            long maxfd = sysconf(_SC_OPEN_MAX);
+            if(maxfd == -1) {
+                #define BD_MAX_CLOSE 8192
+                maxfd = BD_MAX_CLOSE;         // if we don't know then guess
+            }
+            for(int fd = 0; fd < maxfd; fd++) {
+                close(fd);
+            }
         }
 
-        fd = open("/dev/null", O_RDWR);
+        int fd = open("/dev/null", O_RDWR);
         if(fd != STDIN_FILENO) {
             print_error(0, "open() doesn't return %d", STDIN_FILENO);
         }

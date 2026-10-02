@@ -264,6 +264,17 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     END_EQ_SET_PRIV()
 
     /*
+     *  `stats=__reset__` writes the defaults of the SDF_RSTATS attrs: the
+     *  counters live in priv (mt_reading), so they are zeroed here. Up to
+     *  7.25.21 they were not, and kept counting from where they were
+     */
+    if(path && strcmp(path, "refusedConnxs")==0) {
+        priv->refusedConnxs = 0;
+    } else if(path && strcmp(path, "noChannelConnxs")==0) {
+        priv->noChannelConnxs = 0;
+    }
+
+    /*
      * If the 'crypto' attribute is written while the listener is running with
      * TLS enabled, hot-reload the certificates. New connections will use the
      * new cert/key; existing TLS sessions keep working until they close.

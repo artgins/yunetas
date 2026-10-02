@@ -319,6 +319,23 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(max_tx_queue,          gobj_read_integer_attr)
     END_EQ_SET_PRIV()
+
+    /*
+     *  `stats=__reset__` writes the defaults of the SDF_RSTATS attrs: the
+     *  counters live in priv (mt_reading), so they are zeroed here. Up to
+     *  7.25.21 they were not, and kept counting from where they were
+     */
+    if(path && strcmp(path, "txBytes")==0) {
+        priv->txBytes = 0;
+    } else if(path && strcmp(path, "rxBytes")==0) {
+        priv->rxBytes = 0;
+    } else if(path && strcmp(path, "txMsgs")==0) {
+        priv->txMsgs = 0;
+    } else if(path && strcmp(path, "rxMsgs")==0) {
+        priv->rxMsgs = 0;
+    } else if(path && strcmp(path, "max_tx_in_progress")==0) {
+        priv->max_tx_in_progress = 0;
+    }
 }
 
 /***************************************************************************
