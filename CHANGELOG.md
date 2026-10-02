@@ -238,6 +238,12 @@ except the hook and the entries this list marks "(no red test)".
     hold now (`max_queued_events`). And the turn that closes that end, when
     `FIONREAD` fails again, tells the owner `FS_WATCHER_GONE` instead of
     waiting for the next batch, for ever on a quiet watcher.
+- **C_TIMER0: a timer cleared and armed again in one turn of the loop runs.**
+    A pause and a play together (the control center's rate tick) armed the
+    timer while its cancel was in flight: *"cannot start timer: is
+    CANCELING"*, and the timer stayed off until the next play. The arm is
+    kept and done when the cancel ends, and that cancel is not published as
+    `EV_STOPPED`.
 - **C_TCP: a subscriber's error no longer stops the reading, and nothing is
   touched after a publish that destroyed the gobj.** A subscriber of
   `EV_RX_DATA` that answered an error (`-1`, its own) stopped the reading:

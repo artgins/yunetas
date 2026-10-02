@@ -156,6 +156,8 @@ static int register_yuno_and_more(void)
 
     MT_START_TIME(time_measure)
 
+    set_auto_kill_time(15);     // a timer that never ticks ends the test, failed
+
     return result;
 }
 

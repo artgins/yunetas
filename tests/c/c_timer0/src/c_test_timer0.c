@@ -170,6 +170,15 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  A pause and a play in one turn of the loop: the timer cleared and
+     *  armed again before its cancel came back. The second arm is kept and
+     *  done when the cancel ends, and the cancel is not published (the
+     *  timer runs). Up to 7.25.21 it failed, "cannot start timer: is
+     *  CANCELING", and the timer stayed off
+     */
+    set_timeout_periodic0(priv->timer, priv->timeout);
+    clear_timeout0(priv->timer);
     set_timeout_periodic0(priv->timer, priv->timeout);
     priv->time_measure_start = time_in_milliseconds_monotonic();
 

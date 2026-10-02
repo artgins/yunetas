@@ -87,6 +87,25 @@ Same as [C_TIMER](#gclass-c-timer).
   `EV_TIMEOUT`, so the `machine` trace says "timeout" instead of what happened.
   Use [`gobj_post_event()`](../gobj/events_state.md#gobj_post_event) for
   that, and a timer when there is a real time to measure.
+- **Cleared and armed again in one turn of the loop** (a pause and a play):
+  the cancel of the first arm is in flight, and the io_uring timer cannot
+  start until it ends. The new arm is kept and done when the cancel comes
+  back, and that cancel is not published as `EV_STOPPED`: the timer runs.
+  Up to 7.25.21 the arm failed (*"cannot start timer: is CANCELING"*) and the
+  timer stayed off.
+
+  ```C
+  PRIVATE int mt_pause(hgobj gobj)
+  {
+      clear_timeout0(priv->timer);    // the cancel goes out
+      return 0;
+  }
+  PRIVATE int mt_play(hgobj gobj)
+  {
+      set_timeout_periodic0(priv->timer, priv->timeout);  // kept, done when the cancel ends
+      return 0;
+  }
+  ```
 
 ---
 

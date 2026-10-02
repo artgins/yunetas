@@ -53,6 +53,7 @@ typedef struct _PRIVATE_DATA {
     yev_event_h yev_event;
     BOOL periodic;
     json_int_t msec;
+    BOOL rearm_on_cancel;   // armed while its cancel was in flight: done when it ends
 } PRIVATE_DATA;
 
 
@@ -112,8 +113,20 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
          *  runs before mt_create().
          */
         if(priv->msec > 0) {
-            yev_start_timer_event(priv->yev_event, priv->msec, priv->periodic);
+            if(yev_get_state(priv->yev_event) == YEV_ST_CANCELING) {
+                /*
+                 *  Cleared and armed again in one turn of the loop (a pause
+                 *  and a play): the cancel is in flight, and a timer cannot
+                 *  be started until it ends. Up to 7.25.21 the arm failed,
+                 *  "cannot start timer: is CANCELING", and the timer stayed
+                 *  off. It is done when the cancel ends (yev_callback)
+                 */
+                priv->rearm_on_cancel = TRUE;
+            } else {
+                yev_start_timer_event(priv->yev_event, priv->msec, priv->periodic);
+            }
         } else {
+            priv->rearm_on_cancel = FALSE;
             yev_stop_event(priv->yev_event);
         }
     END_EQ_SET_PRIV()
@@ -134,6 +147,7 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    priv->rearm_on_cancel = FALSE;
     if(yev_event_is_running(priv->yev_event)) {
         yev_stop_event(priv->yev_event);
     }
@@ -196,6 +210,18 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             NULL
         );
         json_decref(jn_flags);
+    }
+
+    if(yev_event_is_stopped(yev_event) && priv->rearm_on_cancel) {
+        /*
+         *  The cancel of a timer armed again meanwhile: it is not a stop,
+         *  the timer runs on with its new timeout
+         */
+        priv->rearm_on_cancel = FALSE;
+        if(gobj_is_running(gobj) && priv->msec > 0) {
+            yev_start_timer_event(yev_event, priv->msec, priv->periodic);
+        }
+        return gobj_is_running(gobj)?0:-1;
     }
 
     gobj_event_t event;
