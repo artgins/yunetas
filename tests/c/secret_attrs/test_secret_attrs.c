@@ -49,8 +49,9 @@
  *            7. a file of another user (fstat() of the test tells it so,
  *               __wrap_fstat) is not loaded, a save is refused and leaves
  *               it as it was: a member of the group (the data dirs are
- *               02775) could plant it. Root's is loaded. Up to 7.25.21 it
- *               was loaded, with a warning.
+ *               02775) could plant it. Root's is loaded, unless the group
+ *               or others can write it. Up to 7.25.21 it was loaded, with
+ *               a warning.
  *            8. an in-place save whose write stops half way (a short
  *               pwrite(), then ENOSPC, as on NFSv3 or a copy-on-write
  *               filesystem: __wrap_pwrite) writes the old content back: the
@@ -1462,6 +1463,18 @@ PRIVATE void check_persistent_file(void)
     gobj_load_persistent_attrs(holder, 0);
     check_str("a file of root is loaded",
         gobj_read_str_attr(holder, "password"), "planted-by-another"
+    );
+
+    /*
+     *  But not one that others can write: root's file left 0664 by a
+     *  release before 7.25.19, in the group-writable data dir, can be
+     *  edited by any member of the group. Up to 7.25.21 it was loaded
+     */
+    chmod(path, 0664);
+    gobj_write_str_attr(holder, "password", "mine-again");
+    gobj_load_persistent_attrs(holder, 0);
+    check_str("a file of root that the group can write is not loaded",
+        gobj_read_str_attr(holder, "password"), "mine-again"
     );
     foreign_ino = 0;
 

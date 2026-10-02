@@ -67,31 +67,55 @@ PRIVATE char *get_persist_filename(
 }
 
 /***************************************************************************
- *  The owner of the directory of the persistent attrs file, (uid_t)-1 if
- *  it cannot be known (logged)
+ *  Who the yuno's user is, for a yuno run as root: the owner of the nearest
+ *  directory above the persistent attrs file that nobody else can write
+ *  (/yuneta/realms, 0755, on a node). Not the data directory's own owner:
+ *  its parents are group-writable (02775) too, so a member of the group
+ *  could rename it away and make one of their own, with a file of their
+ *  own (up to 7.25.21). (uid_t)-1 if it cannot be known (logged).
  ***************************************************************************/
-PRIVATE uid_t data_dir_owner(hgobj gobj, const char *filename)
+PRIVATE uid_t trusted_dir_owner(hgobj gobj, const char *filename)
 {
     char dir[PATH_MAX];
     snprintf(dir, sizeof(dir), "%s", filename);
-    char *slash = strrchr(dir, '/');
-    if(slash) {
-        *slash = 0;
+    while(TRUE) {
+        char *slash = strrchr(dir, '/');
+        if(!slash) {
+            break;
+        }
+        if(slash == dir) {
+            dir[1] = 0;     // "/"
+        } else {
+            *slash = 0;
+        }
+        struct stat st;
+        if(stat(dir, &st) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot stat a directory above the persistent attrs file",
+                "path",         "%s", dir,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            return (uid_t)-1;
+        }
+        if(!(st.st_mode & (S_IWGRP|S_IWOTH))) {
+            return st.st_uid;
+        }
+        if(strcmp(dir, "/") == 0) {
+            break;
+        }
     }
-    struct stat st;
-    if(stat(dir, &st) < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot stat the directory of the persistent attrs file",
-            "path",         "%s", dir,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-        return (uid_t)-1;
-    }
-    return st.st_uid;
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_SYSTEM,
+        "msg",          "%s", "No directory above the persistent attrs file is closed to others: its owner cannot be trusted",
+        "path",         "%s", filename,
+        NULL
+    );
+    return (uid_t)-1;
 }
 
 /***************************************************************************
@@ -142,7 +166,7 @@ PRIVATE int check_persist_file(hgobj gobj, int fd, const char *filename, BOOL *m
         /*
          *  Another user's. Root's is trusted (the yuno run once as root),
          *  and so, for a yuno run as root, is the one of the yuno's own
-         *  user (the owner of the data directory). Any other is refused:
+         *  user (trusted_dir_owner()). Any other is refused:
          *  the data directory is group-writable (02775), so a member of the
          *  group could plant it, and the persistent attrs of the agent and
          *  of logcenter held commands run with system(). Up to 7.25.21 it
@@ -151,7 +175,27 @@ PRIVATE int check_persist_file(hgobj gobj, int fd, const char *filename, BOOL *m
          */
         BOOL trusted = (st.st_uid == 0)? TRUE : FALSE;
         if(!trusted && geteuid() == 0) {
-            trusted = (st.st_uid == data_dir_owner(gobj, filename))? TRUE : FALSE;
+            trusted = (st.st_uid == trusted_dir_owner(gobj, filename))? TRUE : FALSE;
+        }
+        if(trusted && (st.st_mode & (S_IWGRP|S_IWOTH))) {
+            /*
+             *  Trusted by its owner, but writable by others: one left 0664
+             *  by a release before 7.25.19, in the group-writable data dir,
+             *  can have been edited by any member of the group. It is not
+             *  the yuno's, so it is not replaced either (up to 7.25.21 it
+             *  was loaded)
+             */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Persistent attrs file of another user that others can write refused: not loaded, saves refused until it is made 0600 or given to the yuno's user",
+                "path",         "%s", filename,
+                "mode",         "%s", mode,
+                "uid",          "%d", (int)st.st_uid,
+                "euid",         "%d", (int)geteuid(),
+                NULL
+            );
+            return -1;
         }
         if(!trusted) {
             gobj_log_error(gobj, 0,
@@ -674,7 +718,7 @@ PRIVATE int save_json(
      *  cannot be read, or is not trusted, refused the save before it came
      *  here), so nothing is lost by replacing it. Root (the yuno run once
      *  as root) gives the new file to the old owner when that is the yuno's
-     *  user, the owner of the data directory: root never takes the file
+     *  user (trusted_dir_owner()): root never takes the file
      *  from the yuno, which would then read nothing. To anybody else root
      *  gives nothing: up to 7.25.21 it gave the new file, the secrets in
      *  it, to whoever owned the old one. Anyone else takes it over, logged.
@@ -706,7 +750,7 @@ PRIVATE int save_json(
     const char *failed = NULL;
     int last_errno = 0;
     BOOL give_back = (foreign && geteuid() == 0 &&
-        st_old.st_uid == data_dir_owner(gobj, filename))? TRUE : FALSE;
+        st_old.st_uid == trusted_dir_owner(gobj, filename))? TRUE : FALSE;
     if(give_back && fchown(fd, st_old.st_uid, st_old.st_gid) < 0) {
         failed = "Cannot give the new persistent attrs file to the owner of the old one";
         last_errno = errno;

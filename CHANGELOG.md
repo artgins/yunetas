@@ -19,8 +19,11 @@ except the hook and the entries this list marks "(no red test)".
   JWKs, `check-user-pwd` and `set-max-sessions`. A gui_agent operator with
   no such permission now gets `-403` in the Users workspace.
 - **A persistent attrs file of another user is refused** (not loaded, saves
-  refused) unless it is root's, or the yuno runs as root and it is the data
-  directory owner's. A node whose yunos changed of user (a dev box: `yuneta`
+  refused) unless it is root's, or the yuno runs as root and it is its
+  user's (the owner of the nearest directory above it that nobody else can
+  write: `/yuneta/realms` on a node) -- and even then when the group or
+  others can write it. A root file left 0664 by a release before 7.25.19 is
+  refused: make it 0600. A node whose yunos changed of user (a dev box: `yuneta`
   after a reboot, the developer's own user by hand) gives the files to the
   yuno's user.
 - **C_AUTHZ's `jwks` and `default_role` are set in the config only.** A
@@ -201,6 +204,17 @@ except the hook and the entries this list marks "(no red test)".
   `treedb_authzs`, as `create-user` asks to link one: C_AUTHZ's `has_role`
   answers `may_link` for the `__username__` the IdP passes on. Test
   `command_delete_user` (red: the request was queued).
+- **SECURITY: dbsimple no longer reads a trusted file that others can
+  write, nor trusts a data directory's owner.** A root file (or, for a yuno
+  run as root, one of the yuno's user) was read whatever its mode: one left
+  0664 by a release before 7.25.19, in the group-writable data directory,
+  could be edited by any member of the group. And the yuno's user, for a
+  root yuno, was the data directory's owner, while its parents are 02775: a
+  member of the group could rename it away and make one of their own. Such
+  a file is refused now, and the yuno's user is the owner of the nearest
+  directory above that nobody else can write. Test `secret_attrs` (case 7,
+  red: the group-writable root file loaded); the root-yuno branch has no red
+  test (a directory of another user needs root).
 - **C_AUTHZ: a username holding `%s` no longer crashes the refusal.** The
   "User not found" warning of `get_user_permissions()` had a comma missing,
   so the username became the FORMAT of the log -- reached on every refused

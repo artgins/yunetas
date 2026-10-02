@@ -68,6 +68,23 @@ the old file is never truncated before the new one is complete -- a save that
 fails leaves it as it was. A `<file>.tmp-XXXXXX` left by a save that did not
 end is removed at the next load.
 
+**Whose file is read.** The yuno's own, root's (the yuno run once as root),
+and -- for a yuno run as root -- the one of the yuno's user: the owner of the
+nearest directory above the file that nobody else can write (`/yuneta/realms`,
+0755, on a node; not the data directory's own owner, whose parents are 02775
+and could be replaced by a member of the group). A file of another user that
+the group or others can write is refused as well: it can have been edited
+there. Refused, it is not loaded and the saves are refused, with an ERROR;
+the operator gives it to the yuno's user or makes it 0600:
+
+```bash
+stat -c '%a %U' /yuneta/realms/<owner>/<realm>/<yuno>/data/*-persistent-attrs.json
+sudo chown yuneta: <file> && sudo chmod 0600 <file>
+```
+
+Up to 7.25.21 the yuno's user was the data directory's owner, and a trusted
+file was read whatever its mode.
+
 The new file is the yuno's user's. A file there of another user was loaded
 first (its attributes are in the save): the save takes it over, logged at
 INFO with the old owner -- and when the yuno runs as root, the new file is
