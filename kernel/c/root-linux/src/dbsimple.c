@@ -67,55 +67,103 @@ PRIVATE char *get_persist_filename(
 }
 
 /***************************************************************************
- *  Who the yuno's user is, for a yuno run as root: the owner of the nearest
- *  directory above the persistent attrs file that nobody else can write
- *  (/yuneta/realms, 0755, on a node). Not the data directory's own owner:
- *  its parents are group-writable (02775) too, so a member of the group
- *  could rename it away and make one of their own, with a file of their
- *  own (up to 7.25.21). (uid_t)-1 if it cannot be known (logged).
+ *  Who the yuno's user is, for a yuno run as root: the owner of the lowest
+ *  directory of the CLOSED chain that starts at "/" -- every directory from
+ *  "/" down to it nobody else can write, and each one owned by root or by
+ *  that user (/yuneta/realms, 0755, on a node). The chain is walked down
+ *  with openat(O_NOFOLLOW) and ends at the first directory others can write
+ *  (the realm's, 02775) or at a symlink: what lies below it can be renamed
+ *  away and replaced by a member of the group, so nothing found there says
+ *  who the yuno's user is. Up to 7.25.22 the walk went UP from the file and
+ *  took the first closed directory: one planted under the 02775 parent, or
+ *  a symlink to one, named its maker as the yuno's user -- the file was
+ *  loaded, and the next save given to them with the yuno's secrets.
+ *  (uid_t)-1 if it cannot be known (logged).
  ***************************************************************************/
 PRIVATE uid_t trusted_dir_owner(hgobj gobj, const char *filename)
 {
+    if(filename[0] != '/') {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The persistent attrs file is not a full path",
+            "path",         "%s", filename,
+            NULL
+        );
+        return (uid_t)-1;
+    }
+
     char dir[PATH_MAX];
     snprintf(dir, sizeof(dir), "%s", filename);
-    while(TRUE) {
-        char *slash = strrchr(dir, '/');
-        if(!slash) {
-            break;
+    char *slash = strrchr(dir, '/');
+    *slash = 0;     // the directory of the file
+
+    int fd = open("/", O_PATH|O_DIRECTORY|O_CLOEXEC);
+    struct stat st;
+    if(fd < 0 || fstat(fd, &st) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot stat the root directory",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        if(fd >= 0) {
+            close(fd);
         }
-        if(slash == dir) {
-            dir[1] = 0;     // "/"
-        } else {
-            *slash = 0;
+        return (uid_t)-1;
+    }
+    if(st.st_mode & (S_IWGRP|S_IWOTH)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "The root directory is open to others: no owner can be trusted",
+            "path",         "%s", filename,
+            NULL
+        );
+        close(fd);
+        return (uid_t)-1;
+    }
+    uid_t trusted = st.st_uid;
+
+    char *saveptr = NULL;
+    for(char *seg = strtok_r(dir, "/", &saveptr); seg; seg = strtok_r(NULL, "/", &saveptr)) {
+        if(strcmp(seg, ".")==0 || strcmp(seg, "..")==0) {
+            break;  // not a name of the chain: stop, with what it said so far
         }
-        struct stat st;
-        if(stat(dir, &st) < 0) {
+        int next = openat(fd, seg, O_PATH|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+        if(next < 0 && (errno == ELOOP || errno == ENOTDIR)) {
+            break;  // a symlink: the chain below it is not this one
+        }
+        if(next < 0 || fstat(next, &st) < 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot stat a directory above the persistent attrs file",
-                "path",         "%s", dir,
+                "path",         "%s", filename,
+                "segment",      "%s", seg,
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
+            if(next >= 0) {
+                close(next);
+            }
+            close(fd);
             return (uid_t)-1;
         }
-        if(!(st.st_mode & (S_IWGRP|S_IWOTH))) {
-            return st.st_uid;
+        close(fd);
+        fd = next;
+        if(st.st_mode & (S_IWGRP|S_IWOTH)) {
+            break;  // open to others: what is below can be replaced
         }
-        if(strcmp(dir, "/") == 0) {
-            break;
+        if(trusted == 0) {
+            trusted = st.st_uid;
         }
     }
-    gobj_log_error(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_SYSTEM,
-        "msg",          "%s", "No directory above the persistent attrs file is closed to others: its owner cannot be trusted",
-        "path",         "%s", filename,
-        NULL
-    );
-    return (uid_t)-1;
+    close(fd);
+    return trusted;
 }
 
 /***************************************************************************

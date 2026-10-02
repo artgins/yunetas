@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **dbsimple: a yuno run as root takes its user from the chain closed from
+  `/` down.** For a yuno run as root, the persistent attrs file of the
+  yuno's user is trusted, and that user was the owner of the first closed
+  directory found going UP from the file. A member of the `yuneta` group
+  could rename the data directory away (its parent is 02775), make one of
+  their own 0755 -- or a symlink to one -- with their file in it: the walk
+  stopped there, the file was loaded, and the next save was `fchown`ed to
+  them with the yuno's secrets. Now the walk goes DOWN from `/` with
+  `openat(O_NOFOLLOW)`, and the yuno's user is the owner of the lowest
+  directory of the chain closed to others, each one owned by root or by
+  that user (`/yuneta/realms` on a node); it ends at the first directory
+  others can write, or at a symlink. A node whose `/yuneta` is a symlink no
+  longer trusts the yuno's user's file for a root yuno (refused, logged).
+
 ## v7.25.22-3 (2026-10-02)
 
 A packaging revision, not a new version: the code is 7.25.22's, and the

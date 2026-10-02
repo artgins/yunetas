@@ -70,9 +70,12 @@ end is removed at the next load.
 
 **Whose file is read.** The yuno's own, root's (the yuno run once as root),
 and -- for a yuno run as root -- the one of the yuno's user: the owner of the
-nearest directory above the file that nobody else can write (`/yuneta/realms`,
-0755, on a node; not the data directory's own owner, whose parents are 02775
-and could be replaced by a member of the group). A file of another user that
+lowest directory of the chain that is closed from `/` down -- every directory
+of it nobody else can write, each one owned by root or by that user
+(`/yuneta/realms`, 0755, on a node). The chain is walked down with
+`openat(O_NOFOLLOW)` and ends at the first directory others can write (the
+realm's, 02775) or at a symlink: what is below can be renamed away and
+replaced by a member of the group, so it names nobody. A file of another user that
 the group or others can write is refused as well: it can have been edited
 there. Refused, it is not loaded and the saves are refused, with an ERROR;
 the operator gives it to the yuno's user or makes it 0600:
@@ -83,7 +86,10 @@ sudo chown yuneta: <file> && sudo chmod 0600 <file>
 ```
 
 Up to 7.25.21 the yuno's user was the data directory's owner, and a trusted
-file was read whatever its mode.
+file was read whatever its mode. In 7.25.22 it was the owner of the first
+closed directory found going UP from the file: a closed data directory
+planted under its 02775 parent (or a symlink to one) named its maker, whose
+file was loaded and given the next save.
 
 The new file is the yuno's user's. A file there of another user was loaded
 first (its attributes are in the save): the save takes it over, logged at

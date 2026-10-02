@@ -51,7 +51,11 @@
  *               it as it was: a member of the group (the data dirs are
  *               02775) could plant it. Root's is loaded, unless the group
  *               or others can write it. Up to 7.25.21 it was loaded, with
- *               a warning.
+ *               a warning. Run as root (__wrap_geteuid), the yuno's user is
+ *               the owner of the chain closed from "/" down, so a closed
+ *               data directory planted under the 02775 parent names nobody
+ *               (directories told by __wrap_fstat). Up to 7.25.22 it named
+ *               its maker, whose file was loaded.
  *            8. an in-place save whose write stops half way (a short
  *               pwrite(), then ENOSPC, as on NFSv3 or a copy-on-write
  *               filesystem: __wrap_pwrite) writes the old content back: the
@@ -86,13 +90,48 @@ int __wrap_fstat(int fd, struct stat *st);
 static ino_t foreign_ino = 0;
 static uid_t foreign_uid = 0;
 
+/*
+ *  Directories told with another owner and mode (fake_dirs[], ino 0 ends
+ *  it), to build the chain a yuno run as root walks
+ */
+typedef struct {
+    ino_t ino;
+    uid_t uid;
+    mode_t mode;
+} fake_dir_t;
+static fake_dir_t fake_dirs[4] = {{0}};
+
 int __wrap_fstat(int fd, struct stat *st)
 {
     int ret = __real_fstat(fd, st);
     if(ret == 0 && foreign_ino && st->st_ino == foreign_ino) {
         st->st_uid = foreign_uid;
     }
+    for(int i = 0; ret == 0 && i < (int)(sizeof(fake_dirs)/sizeof(fake_dirs[0])); i++) {
+        if(!fake_dirs[i].ino) {
+            break;
+        }
+        if(st->st_ino == fake_dirs[i].ino && S_ISDIR(st->st_mode)) {
+            st->st_uid = fake_dirs[i].uid;
+            st->st_mode = (st->st_mode & S_IFMT) | fake_dirs[i].mode;
+        }
+    }
     return ret;
+}
+
+/*
+ *  A geteuid() that answers root while armed: the yuno run as root
+ */
+uid_t __real_geteuid(void);
+uid_t __wrap_geteuid(void);
+static BOOL fake_root = FALSE;
+
+uid_t __wrap_geteuid(void)
+{
+    if(fake_root) {
+        return 0;
+    }
+    return __real_geteuid();
 }
 
 /*
@@ -1477,6 +1516,55 @@ PRIVATE void check_persistent_file(void)
         gobj_read_str_attr(holder, "password"), "mine-again"
     );
     foreign_ino = 0;
+
+    /*
+     *  Run as root, the trust comes from the chain closed from "/" down:
+     *  here /tmp (told 0755) and the realm directory (told 0755, of the
+     *  yuno's user). A member of the group renames the data directory away
+     *  -- its parent is 02775 on a node -- and makes one of their own, 0755,
+     *  with their file in it. Up to 7.25.22 the walk went up from the file,
+     *  and that closed data directory named its maker as the yuno's user:
+     *  the file was loaded, and the next save given to them
+     */
+    char data_dir[PATH_MAX];
+    snprintf(data_dir, sizeof(data_dir), "%s", path);
+    *strrchr(data_dir, '/') = 0;
+    char realm_dir[PATH_MAX];
+    snprintf(realm_dir, sizeof(realm_dir), "%s", data_dir);
+    *strrchr(realm_dir, '/') = 0;
+    struct stat st_dir;
+    stat("/tmp", &st_dir);
+    fake_dirs[0] = (fake_dir_t){st_dir.st_ino, 0, 0755};
+    stat(realm_dir, &st_dir);
+    fake_dirs[1] = (fake_dir_t){st_dir.st_ino, geteuid(), 0755};
+    uid_t intruder = geteuid() + 4243;
+    stat(data_dir, &st_dir);
+    fake_dirs[2] = (fake_dir_t){st_dir.st_ino, intruder, 0755};
+
+    write_file(path, "{\"password\": \"planted-in-a-dir-of-mine\"}", 0600);
+    stat(path, &st_file);
+    foreign_ino = st_file.st_ino;
+    foreign_uid = intruder;
+    gobj_write_str_attr(holder, "password", "mine-as-root");
+    fake_root = TRUE;
+    gobj_load_persistent_attrs(holder, 0);
+    fake_root = FALSE;
+    check_str("run as root, a file in a planted closed directory is not loaded",
+        gobj_read_str_attr(holder, "password"), "mine-as-root"
+    );
+
+    /*
+     *  While the file of the yuno's user, there, is
+     */
+    foreign_ino = 0;
+    write_file(path, "{\"password\": \"of-the-yunos-user\"}", 0600);
+    fake_root = TRUE;
+    gobj_load_persistent_attrs(holder, 0);
+    fake_root = FALSE;
+    check_str("run as root, the file of the owner of the closed chain is loaded",
+        gobj_read_str_attr(holder, "password"), "of-the-yunos-user"
+    );
+    memset(fake_dirs, 0, sizeof(fake_dirs));
 
     unlink(path);
     unlink(planted);
