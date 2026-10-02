@@ -691,7 +691,7 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
                             case SIGTERM:
                                 /*
                                  *  A DAEMON ignores SIGTERM on purpose: its
-                                 *  watcher parent ignores every signal, and
+                                 *  watcher parent ignores it too, and
                                  *  `--stop` kills with SIGQUIT then SIGKILL
                                  *  (ydaemon.c), so SIGTERM is no part of the
                                  *  stop protocol. Honouring it would let any

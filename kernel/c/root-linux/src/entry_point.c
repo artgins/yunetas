@@ -411,8 +411,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
     if(arguments.stop) {
-        daemon_shutdown(process_name);
-        return 0;
+        return daemon_shutdown(process_name) < 0? 1 : 0;   // Error already printed
     }
     if(arguments.start) {
         __as_daemon__ = 1;

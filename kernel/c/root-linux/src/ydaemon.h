@@ -22,7 +22,7 @@ extern "C"{
  *********************************************************************/
 #ifdef __linux__
 PUBLIC int get_watcher_pid(void);
-PUBLIC void daemon_shutdown(const char *process_name);
+PUBLIC int daemon_shutdown(const char *process_name); // 0, or -1 if a process could not be signalled
 
 /*
  *  With --start: the file where the pid of the WATCHER (the process that

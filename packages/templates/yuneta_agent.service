@@ -13,8 +13,11 @@
 #
 #   KillMode=process: the yunos the agent launches live in this unit's
 #   cgroup, and a stop or a restart of the agent must not take them down.
-#   ExecStop asks THIS unit's agent, the child of the watcher ($MAINPID), for
-#   its orderly shutdown (SIGQUIT); the watcher then ends by itself. Not the
+#   ExecStop asks THIS unit's agent for its orderly shutdown: first its
+#   watcher ($MAINPID), which notes the SIGQUIT and will not relaunch it
+#   (up to 7.25.22 it ignored it, and relaunched an agent that crashed in its
+#   stop), then the agent, the child of the watcher; the watcher then ends
+#   by itself. Not the
 #   agent's `--stop`: that ends every process of the name, and systemd runs
 #   ExecStop also when the watcher ended on its own -- a second agent that
 #   found the first one running and left would take the first one with it.
@@ -45,6 +48,7 @@ Environment=PATH=/yuneta/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/
 RuntimeDirectory=yuneta_agent
 PIDFile=/run/yuneta_agent/yuneta_agent.pid
 ExecStart=/yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --start --pid-file=/run/yuneta_agent/yuneta_agent.pid
+ExecStop=-/bin/kill -QUIT $MAINPID
 ExecStop=-/usr/bin/pkill -QUIT -P $MAINPID -x yuneta_agent
 ExecStopPost=-/bin/sh -c 'for p in $$(cat /sys/fs/cgroup/system.slice/%n/cgroup.procs 2>/dev/null); do [ "$$(cat /proc/$$p/comm 2>/dev/null)" = "yuneta_agent" ] && kill -KILL $$p; done; exit 0'
 KillMode=process

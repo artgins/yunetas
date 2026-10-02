@@ -104,13 +104,14 @@ Returns `0` on normal shutdown, or a non-zero value on error.
 ### [`daemon_shutdown()`](https://github.com/artgins/yunetas/blob/7.25.22/kernel/c/root-linux/src/ydaemon.c#L424)
 
 `daemon_shutdown()` requests an orderly shutdown of a running daemon
-by process name. Every process of that name (the watcher and its child)
-gets SIGQUIT: the child shuts down in order and exits 0, and its watcher,
-which ignores the signal, exits with it. They are given 10 s to be gone;
-only the ones left then are killed with SIGKILL, said on stderr.
+by process name. Every process of that name gets SIGQUIT, the watchers
+first: a watcher notes it and does not relaunch its child, whatever its end;
+the child shuts down in order and exits 0, and its watcher exits with it.
+They are given 10 s to be gone; then the name is scanned again and what is
+left is killed with SIGKILL, said on stderr. Each `kill()` is checked.
 
 ```C
-void daemon_shutdown(const char *process_name);
+int daemon_shutdown(const char *process_name);
 ```
 
 **Parameters**
@@ -121,7 +122,9 @@ void daemon_shutdown(const char *process_name);
 
 **Returns**
 
-This function does not return a value.
+`0` when every process of the name is gone or killed; `-1` when one could
+not be signalled (another user's process: `EPERM`), said on stderr and not
+waited for.
 
 **Notes**
 
@@ -129,14 +132,16 @@ No-op if no process with the given name is found. The calling process is
 never signaled. It returns once every process is gone (a zombie counts as
 gone), so a start that follows does not meet the old one. Up to 7.25.21 each
 process was killed 1 s after its own SIGQUIT, one after the other: an agent
-had one second for its orderly shutdown.
+had one second for its orderly shutdown. Up to 7.25.22 it returned nothing:
+an `EPERM` waited 10 s, said *"killed (SIGKILL)"* and the `--stop` exited 0;
+and a child that crashed in its shutdown was relaunched by its watcher and
+left alive once the watcher was killed.
 
 **Example**
 
 ```C
 if(arguments.stop) {
-    daemon_shutdown(APP_NAME);  // returns when the daemon is gone
-    return 0;
+    return daemon_shutdown(APP_NAME) < 0? 1 : 0;  // returns when the daemon is gone
 }
 ```
 

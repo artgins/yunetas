@@ -230,14 +230,18 @@ inherits umask 0, chdirs to `work_dir`, and calls `process()`.
 signal(SIGPIPE, SIG_IGN);
 signal(SIGTERM, SIG_IGN);
 signal(SIGALRM, SIG_IGN);
-signal(SIGQUIT, SIG_IGN);
 signal(SIGINT,  SIG_IGN);     // ctrl+c
 signal(SIGUSR1, SIG_IGN);
 signal(SIGUSR2, SIG_IGN);
+sigaction(SIGQUIT, {on_watcher_sigquit, SA_RESTART});   // notes the stop
 ```
 
 The watcher is deliberately deaf to everything except `SIGCHLD` (delivered
-implicitly via `waitpid`) and `SIGKILL` (uncatchable, terminates it).
+implicitly via `waitpid`), `SIGKILL` (uncatchable, terminates it) and
+`SIGQUIT`, which does not end it: it notes the stop, and the child that ends
+after it is **not relaunched**, whatever its end (`SA_RESTART` keeps the
+`waitpid()` going). Up to 7.25.22 SIGQUIT was ignored too, and an agent that
+crashed during its orderly stop was relaunched 2 s later.
 
 ### 4.3 `waitpid()` decision matrix
 
@@ -272,16 +276,25 @@ If you see `relaunch_times > 0` after a quiet day, something crashed.
 ### 4.5 `--stop` / [`daemon_shutdown()`](#daemon_shutdown)
 
 `daemon_shutdown()` scans `/proc/*/comm` for entries matching
-`process_name`, sends SIGQUIT to every one of them, gives them 10 s to be
-gone (looked at every 100 ms), and kills with SIGKILL only the ones still
-alive then:
+`process_name`, sends SIGQUIT to every one of them -- the watchers first (a
+process whose parent is not of the name), so none relaunches its child --,
+gives them 10 s to be gone (looked at every 100 ms), then scans again and
+kills with SIGKILL what is still there:
 
 ```c
-kill(pid, SIGQUIT);                         // to each: soft exit, let it delete pid file, flush logs
+kill(watcher, SIGQUIT);                     // first: it will not relaunch
+kill(child, SIGQUIT);                       // soft exit, let it delete pid file, flush logs
 wait_until = start_msectimer(STOP_WAIT_MS); // 10 s for all of them
 ...                                         // every 100 ms: gone, or a zombie?
-kill(pid, SIGKILL);                         // only to the ones left: guarantee they go
+search_process(name, ...);                  // again: what is left, relaunched or not
+kill(pid, SIGKILL);                         // guarantee they go
 ```
+
+Every `kill()` is checked: one that fails (another user's agent: `EPERM`)
+is said on stderr, not waited for, and `--stop` exits 1. Up to 7.25.22 none
+was checked: an `EPERM` waited 10 s, printed *"killed (SIGKILL)"* and exited
+0; and an agent that crashed during its stop was relaunched by its watcher,
+the watcher was SIGKILLed at 10 s, and the new agent was left an orphan.
 
 Up to 7.25.21 each process was killed 1 s after its own SIGQUIT, one after
 the other: the agent had one second for its orderly shutdown, and the
@@ -295,15 +308,16 @@ child share the process name. Each one answers differently:
   shutdown. So it exits **0** — and per the matrix in §4.3 the watcher then
   returns 1 and exits by itself. **A SIGQUIT does not leave a resurrecting
   yuno behind.**
-- The **watcher** ignores SIGQUIT (`signal(SIGQUIT, SIG_IGN)` in
-  `daemon_catch_signals()`, [`ydaemon.c:50`](https://github.com/artgins/yunetas/blob/7.25.22/kernel/c/root-linux/src/ydaemon.c#L50)). It is deaf to the soft signal
-  by design.
+- The **watcher** notes SIGQUIT (§4.2) and stays in its `waitpid()`: when
+  the child ends, it exits instead of relaunching it, even if the child
+  crashed in its shutdown.
 
 The SIGKILL is therefore not what breaks a relaunch loop: it is the
 guarantee for the case where 10 s were not enough — a child stuck in its
 shutdown, and the watcher still sitting in `waitpid()`. SIGKILL is uncatchable
-and takes both; `--stop` says so on stderr (*"still alive after 10000 ms:
-killed (SIGKILL)"*).
+and takes both; `--stop` says so on stderr (*"still alive after the wait:
+killed (SIGKILL)"*, or *"started while the stop ran"* for a process of the
+name that was not in the first scan).
 
 That exit code is the whole protocol. The restart path uses the other value:
 `timeout_restart` sets `gobj_set_exit_code(-1)`, and the non-zero exit is
@@ -333,6 +347,7 @@ User=yuneta
 RuntimeDirectory=yuneta_agent
 PIDFile=/run/yuneta_agent/yuneta_agent.pid
 ExecStart=/yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --start --pid-file=/run/yuneta_agent/yuneta_agent.pid
+ExecStop=-/bin/kill -QUIT $MAINPID
 ExecStop=-/usr/bin/pkill -QUIT -P $MAINPID -x yuneta_agent
 ExecStopPost=-/bin/sh -c 'for p in $$(cat /sys/fs/cgroup/system.slice/%n/cgroup.procs 2>/dev/null); do [ "$$(cat /proc/$$p/comm 2>/dev/null)" = "yuneta_agent" ] && kill -KILL $$p; done; exit 0'
 KillMode=process
@@ -346,8 +361,9 @@ What each line keeps from this chapter:
   agent is seen by the watcher, not by systemd: the unit stays `running`
   with the same main pid. systemd restarting it too would start a second
   agent that fights the first for its ports.
-- **`ExecStop` asks only THIS unit's agent** (the child of `$MAINPID`) for
-  its orderly shutdown; the watcher then ends by itself. Not `--stop`
+- **`ExecStop` asks only THIS unit's agent** for its orderly shutdown:
+  first its watcher (`$MAINPID`), which then does not relaunch it, then the
+  agent (the child of `$MAINPID`); the watcher ends with it. Not `--stop`
   (§4.5), which ends every process of the name: systemd runs `ExecStop`
   also when the watcher ended on its own, and a second agent that met the
   first one running and left would take the first one with it.

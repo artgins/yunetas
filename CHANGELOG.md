@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **`--stop` checks its signals, and a stopped daemon is not relaunched.**
+  `kill()` was never checked: on `EPERM` (an agent of another user) `--stop`
+  waited 10 s, printed *"killed (SIGKILL)"* and exited 0. And the watcher
+  ignored SIGQUIT, so a child that crashed during its orderly stop was
+  relaunched 2 s later; at 10 s the watcher was SIGKILLed and the new child
+  left alive, an orphan. Now the watcher notes SIGQUIT (`SA_RESTART`) and
+  does not relaunch the child that ends after it, whatever its end;
+  `daemon_shutdown()` signals the watchers first, then their children,
+  checks every `kill()` (a refusal is said, not waited for, and `--stop`
+  exits 1), and before the SIGKILL scans the name again, so a child started
+  meanwhile is killed too. `daemon_shutdown()` returns `int` (was `void`).
+  The agents' units send SIGQUIT to the watcher (`$MAINPID`) before the
+  agent, so a stop under systemd does not relaunch it either.
+
 - **`C_WEBSOCKET` / `C_PROT_TCP4H`: a frame of exactly the default max no
   longer hangs.** With `max_payload_size` / `max_pkt_size` at 0 the max was
   the yuno's max block, but a gbuffer holds one byte less than its block

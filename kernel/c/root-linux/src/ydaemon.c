@@ -37,21 +37,38 @@ PRIVATE volatile int debug = 0;
 PRIVATE volatile int exit_code;
 PRIVATE volatile int signal_code;
 PRIVATE volatile int watcher_pid = 0;
+PRIVATE volatile sig_atomic_t stop_requested = 0;   // the watcher got SIGQUIT: no relaunch
 PRIVATE const char *pid_file = NULL;
 
 /***************************************************************************
  *  Parent → daemon_catch_signals() → ignores signals → pure waitpid().
  *  Child → daemon_catch_signals_child() → installs signalfd() → clean shutdown → _exit().
+ *
+ *  SIGQUIT, the stop, is not ignored by the watcher: it is noted, and the
+ *  child that ends after it is not relaunched, whatever its end (SA_RESTART:
+ *  the waitpid() goes on). Up to 7.25.22 it was ignored, and an agent that
+ *  crashed in its orderly stop was relaunched 2 s later.
  ***************************************************************************/
+PRIVATE void on_watcher_sigquit(int sig)
+{
+    stop_requested = 1;
+}
+
 PRIVATE void daemon_catch_signals(void)
 {
     signal(SIGPIPE, SIG_IGN);
     signal(SIGTERM, SIG_IGN);
     signal(SIGALRM, SIG_IGN);
-    signal(SIGQUIT, SIG_IGN);
     signal(SIGINT, SIG_IGN);     // ctrl+c
     signal(SIGUSR1, SIG_IGN);
     signal(SIGUSR2, SIG_IGN);
+
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = on_watcher_sigquit;
+    sa.sa_flags = SA_RESTART;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGQUIT, &sa, NULL);
 }
 
 /***************************************************************************
@@ -207,6 +224,10 @@ PRIVATE int relauncher(
             print_error(0, "waitpid() return status %d", status);
         }
 
+        if(stop_requested) {
+            return 1;   // stopped: whatever its end, not relaunched
+        }
+
         if(WIFSIGNALED(status)) {
             signal_code = (int)(int8_t)(WTERMSIG(status));
             if(debug) {
@@ -343,6 +364,10 @@ PUBLIC int daemon_run(
         // sleep 2 sec and launch again while relauncher return negative
         relaunch_times++;
         sleep(2);
+        if(stop_requested) {
+            ret = 1;    // stopped while waiting to relaunch
+            break;
+        }
     }
     if(ret==1) { // the watcher returns 1
         if(debug) {
@@ -365,12 +390,18 @@ PUBLIC int daemon_run(
 
 /***************************************************************************
  *  Stop the daemon: every process of its name (the watcher and its child)
- *  is asked to end (SIGQUIT: the child shuts down in order and exits 0,
- *  and its watcher, which ignores the signal, exits with it), and is given
- *  STOP_WAIT_MS to be gone. Only the ones left then are killed. Up to
- *  7.25.21 each was killed 1 s after its SIGQUIT, one after the other: the
- *  agent had 1 s for its orderly shutdown, and the watcher, which ignores
- *  SIGQUIT, always took its whole second.
+ *  is asked to end (SIGQUIT), the watchers first: a watcher notes it and
+ *  does not relaunch its child, whatever its end; the child shuts down in
+ *  order and exits, and its watcher with it. They are given STOP_WAIT_MS to
+ *  be gone. Then every process of the name still there is killed --
+ *  collected again, so a child relaunched meanwhile is not left an orphan.
+ *  Each signal is checked and said when it fails (another user's process:
+ *  EPERM). Return 0 when every process of the name is gone or killed, -1
+ *  if one could not be signalled.
+ *  Up to 7.25.21 each was killed 1 s after its SIGQUIT, one after the
+ *  other. Up to 7.25.22 kill() was not checked (EPERM waited 10 s, said
+ *  "killed" and exited 0), and an agent that crashed in its stop was
+ *  relaunched by its watcher and left alive.
  ***************************************************************************/
 #define STOP_WAIT_MS    (10*1000)
 #define MAX_STOP_PIDS   64
@@ -396,6 +427,34 @@ PRIVATE void collect_proc(void *self, const char *name, pid_t pid)
 }
 
 /*
+ *  The fields of /proc/<pid>/stat after the command: its state and its
+ *  parent. FALSE when it is gone.
+ */
+PRIVATE BOOL stop_pid_stat(pid_t pid, char *state, pid_t *ppid)
+{
+    char path[PATH_MAX];
+    char bf[512];
+    snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
+    int fd = open(path, O_RDONLY|O_CLOEXEC);
+    if(fd < 0) {
+        return FALSE;
+    }
+    ssize_t n = read(fd, bf, sizeof(bf) - 1);
+    close(fd);
+    if(n <= 0) {
+        return FALSE;
+    }
+    bf[n] = 0;
+    const char *p = strrchr(bf, ')');
+    int pp = 0;
+    if(!p || sscanf(p + 1, " %c %d", state, &pp) != 2) {
+        return FALSE;
+    }
+    *ppid = (pid_t)pp;
+    return TRUE;
+}
+
+/*
  *  Gone: it does not exist, or it is a zombie (dead, its parent has not
  *  reaped it yet)
  */
@@ -404,30 +463,75 @@ PRIVATE BOOL stop_pid_is_gone(pid_t pid)
     if(kill(pid, 0) < 0 && errno == ESRCH) {
         return TRUE;
     }
-    char path[PATH_MAX];
-    char bf[512];
-    snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
-    int fd = open(path, O_RDONLY|O_CLOEXEC);
-    if(fd < 0) {
+    char state;
+    pid_t ppid;
+    if(!stop_pid_stat(pid, &state, &ppid)) {
         return TRUE;
     }
-    ssize_t n = read(fd, bf, sizeof(bf) - 1);
-    close(fd);
-    if(n <= 0) {
-        return TRUE;
-    }
-    bf[n] = 0;
-    const char *p = strrchr(bf, ')');
-    return (p && p[1] == ' ' && p[2] == 'Z')? TRUE : FALSE;
+    return (state == 'Z')? TRUE : FALSE;
 }
 
-PUBLIC void daemon_shutdown(const char *process_name)
+/*
+ *  A watcher: its parent is not a process of the name (a child's parent is
+ *  its watcher)
+ */
+PRIVATE BOOL stop_pid_is_watcher(stop_pids_t *stop, pid_t pid)
 {
+    char state;
+    pid_t ppid;
+    if(!stop_pid_stat(pid, &state, &ppid)) {
+        return FALSE;
+    }
+    for(int i = 0; i < stop->n; i++) {
+        if(stop->pids[i] == ppid) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+PRIVATE int stop_signal(const char *process_name, pid_t pid, int sig)
+{
+    if(kill(pid, sig) < 0) {
+        if(errno == ESRCH) {
+            return 0;   // gone meanwhile
+        }
+        print_error(0, "--stop: cannot signal %s pid %d (%s): errno %d %s",
+            process_name, (int)pid, sig == SIGKILL? "SIGKILL" : "SIGQUIT",
+            errno, strerror(errno)
+        );
+        return -1;
+    }
+    return 0;
+}
+
+PUBLIC int daemon_shutdown(const char *process_name)
+{
+    int ret = 0;
     stop_pids_t stop = {0};
     search_process(process_name, collect_proc, &stop);
 
+    /*
+     *  The watchers first (they then do not relaunch), then their children
+     *  (soft exit, let them delete the pid file). One that cannot be
+     *  signalled is not waited for.
+     */
+    BOOL watcher[MAX_STOP_PIDS] = {0};
+    pid_t refused[MAX_STOP_PIDS] = {0};
     for(int i = 0; i < stop.n; i++) {
-        kill(stop.pids[i], SIGQUIT);  // soft exit, let it delete pid file
+        watcher[i] = stop_pid_is_watcher(&stop, stop.pids[i]);
+    }
+    for(int pass = 0; pass < 2; pass++) {
+        for(int i = 0; i < stop.n; i++) {
+            if(!stop.pids[i] || watcher[i] != (pass == 0)) {
+                continue;
+            }
+            if(stop_signal(process_name, stop.pids[i], SIGQUIT) < 0) {
+                ret = -1;
+                refused[i] = stop.pids[i];
+                stop.pids[i] = 0;
+            }
+        }
     }
 
     uint64_t wait_until = start_msectimer(STOP_WAIT_MS);
@@ -447,14 +551,39 @@ PUBLIC void daemon_shutdown(const char *process_name)
         usleep(100*1000);
     }
 
-    for(int i = 0; i < stop.n; i++) {
-        if(stop.pids[i]) {
-            print_error(0, "--stop: %s pid %d still alive after %d ms: killed (SIGKILL)",
-                process_name, (int)stop.pids[i], STOP_WAIT_MS
-            );
-            kill(stop.pids[i], SIGKILL);  // hard exit, assure that exits
+    /*
+     *  What is left of the name now, collected again: a child relaunched
+     *  while the stop ran is not in the first list
+     */
+    stop_pids_t left = {0};
+    search_process(process_name, collect_proc, &left);
+    for(int i = 0; i < left.n; i++) {
+        if(stop_pid_is_gone(left.pids[i])) {
+            continue;
         }
+        BOOL first = FALSE;
+        BOOL was_refused = FALSE;
+        for(int j = 0; j < stop.n; j++) {
+            if(stop.pids[j] == left.pids[i]) {
+                first = TRUE;
+            }
+            if(refused[j] == left.pids[i]) {
+                was_refused = TRUE;
+            }
+        }
+        if(was_refused) {
+            continue;   // said already
+        }
+        if(stop_signal(process_name, left.pids[i], SIGKILL) < 0) {
+            ret = -1;
+            continue;
+        }
+        print_error(0, "--stop: %s pid %d %s: killed (SIGKILL)",
+            process_name, (int)left.pids[i],
+            first? "still alive after the wait" : "started while the stop ran"
+        );
     }
+    return ret;
 }
 
 /***************************************************************************
