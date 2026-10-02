@@ -88,6 +88,14 @@ except the hook and the entries this list marks "(no red test)".
   it: it skipped it silently, and its ports were not checked. Its files are
   closed after reading.
 
+- **SECURITY: a required secret parameter must be the last required one.**
+  `gclass_create()` refuses, with an ERROR, a command table where a required
+  secret (`SDF_SECRET`, or a secret's name) is followed by another required
+  parameter: written with blanks, the secret spilled a piece into the next
+  parameter (shown in the traces and its errors) and the rest into the
+  "extra parameters" answer. No command of the SDK or of the projects
+  declares one. Test `command_secret_positional`.
+
 ### The reborn key of an rt_disk follower (the HIGH open since 7.25.20)
 
 - **An rt_disk follower behind a master in another process no longer hands

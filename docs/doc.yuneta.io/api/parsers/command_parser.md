@@ -292,6 +292,25 @@ hunter2` is refused with *"command 'set-password' with extra parameters:
 7.25.21 the answer showed `'horse battery'`); `list-yunos foo` with *"...
 extra parameters: 'foo'"*.
 
+That masking holds because a required secret is always the LAST required
+parameter: [`gclass_create()`](#gclass_create) refuses a command table where
+a required secret (`SDF_SECRET`, or a secret's name) is followed by another
+required parameter. There a secret written with blanks would spill into the
+next one: `login correct horse battery` gives `correct` to the secret,
+`horse` to the next parameter -- shown in the traces and its errors -- and
+echoes `battery`. Declare a second required parameter BEFORE the secret, or
+make it optional:
+
+```C
+PRIVATE sdata_desc_t pm_login[] = {
+/*-PM----type-----------name------------flag------------------------default-description--*/
+SDATAPM (DTP_STRING,    "user",         SDF_REQUIRED,               0,      "User"),
+SDATAPM (DTP_STRING,    "password",     SDF_REQUIRED|SDF_SECRET,    0,      "Password, the last required one"),
+SDATAPM (DTP_STRING,    "note",         0,                          "",     "Optional, after it"),
+SDATA_END()
+};
+```
+
 A value opened with a quote and never closed (`password='abc`) refuses the
 command: *"command 'set-password', parameter 'password': value with no
 closing quote"*. Up to 7.25.20 the parameter was dropped and the command ran

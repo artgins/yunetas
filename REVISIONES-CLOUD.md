@@ -13,10 +13,6 @@ main (`6fab00d69`, `5867b1e20`, `6b53c8b17`; see `CHANGELOG.md`
   timeout. It works on 6.x (this container, Debian 12); run
   `c_tcp_s_stats` (`drain_port`) on a 4.18 node (RHEL 8) before relying on
   it there.
-- **A positional secret that is not the last required parameter.** Written
-  with blanks, the rest of it goes into the next required parameter, and
-  an extra word after that one is echoed in the "extra parameters" answer.
-  No command in the tree has a required `SDF_SECRET` parameter today.
 
 ## Closed after the review
 
@@ -27,3 +23,6 @@ main (`6fab00d69`, `5867b1e20`, `6b53c8b17`; see `CHANGELOG.md`
   fixed by reading each key directory through a descriptor of its own
   (`FS_FLAG_DIR_FDS`, `openat`/`unlinkat`). The test passes 30 in 30 on
   wattyzer. See `CHANGELOG.md` "Unreleased".
+- **A positional secret that is not the last required parameter**: such a
+  command table is refused by `gclass_create()`, with an ERROR (no command of
+  the SDK or of the projects declares one). See `CHANGELOG.md` "Unreleased".

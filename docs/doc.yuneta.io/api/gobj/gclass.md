@@ -291,6 +291,11 @@ The `gclass_name` must be unique and cannot contain the characters `.` or `^`.
 If the `gclass` already exists, an error is logged and `NULL` is returned.
 The function initializes the finite state machine (FSM) and event list for the `gclass`.
 If the FSM is invalid, the `gclass` is unregistered and `NULL` is returned.
+A command table where a required secret parameter (`SDF_SECRET`, or a
+secret's name) is followed by another required parameter is refused with an
+ERROR (*"A required secret parameter must be the last required one"*): a
+secret written with blanks would spill into the next parameter (see
+[command_parser](#command_parser)). Up to 7.25.21 it was accepted.
 
 ---
 

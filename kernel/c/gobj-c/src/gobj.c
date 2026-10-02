@@ -740,6 +740,53 @@ PUBLIC void gobj_end(void)
 
 
 /***************************************************************************
+ *  A required parameter of a command can be given without its key, in the
+ *  order of the table, and the line is split by blanks. A secret written
+ *  with blanks spills into what follows it: as the LAST required parameter,
+ *  what spills is extra text, which the parser takes as the rest of the
+ *  secret and never shows; before another required parameter, a piece of
+ *  the secret becomes that parameter's value (shown in the command traces
+ *  and in its errors), and the rest is echoed in the "extra parameters"
+ *  answer. So a required secret -- SDF_SECRET or a secret's name, as the
+ *  parser tells them -- must be the last required parameter. Up to 7.25.21
+ *  such a table was accepted.
+ ***************************************************************************/
+PRIVATE int check_secret_positional_params(
+    gclass_name_t gclass_name,
+    const sdata_desc_t *command_table
+)
+{
+    for(const sdata_desc_t *cmd = command_table; cmd && cmd->name; cmd++) {
+        const char *secret = NULL;
+        for(const sdata_desc_t *ip = cmd->schema; ip && ip->name; ip++) {
+            if(ip->flag & SDF_NOTACCESS) {
+                continue;
+            }
+            if(!(ip->flag & SDF_REQUIRED)) {
+                break;  // the positional ones are the leading required ones
+            }
+            if(secret) {
+                gobj_log_error(NULL, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "A required secret parameter must be the last required one: a secret written with blanks would spill into the next",
+                    "gclass",       "%s", gclass_name,
+                    "command",      "%s", cmd->name,
+                    "secret",       "%s", secret,
+                    "next",         "%s", ip->name,
+                    NULL
+                );
+                return -1;
+            }
+            if((ip->flag & SDF_SECRET) || is_secret_name(ip->name, strlen(ip->name))) {
+                secret = ip->name;
+            }
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC hgclass gclass_create( // create and register gclass
@@ -789,6 +836,10 @@ PUBLIC hgclass gclass_create( // create and register gclass
             NULL
         );
         return NULL;
+    }
+
+    if(check_secret_positional_params(gclass_name, command_table) < 0) {
+        return NULL;    // Error already logged
     }
 
 #ifdef ESP_PLATFORM
