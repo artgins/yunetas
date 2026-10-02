@@ -60,6 +60,12 @@
  *              to C_UDP_S with no address, the kernel refused it (EINVAL)
  *              and C_UDP_S stopped.
  *
+ *          6.  A subscriber's error does not stop the reading: the host
+ *              answers -1 to every datagram of 2., and must hear them all.
+ *              Up to 7.25.22 C_UDP_S re-armed the read only when the
+ *              publish answered 0: after the first datagram the server was
+ *              deaf, with nothing said.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -708,7 +714,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  A datagram of the C_UDP_S with only_allowed_ips
+ *  A datagram of the C_UDP_S with only_allowed_ips. Answered -1: a
+ *  subscriber's error must not stop the reading (6.)
  ***************************************************************************/
 PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -718,7 +725,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     append_text(priv->heard, sizeof(priv->heard), gbuf);
 
     KW_DECREF(kw)
-    return 0;
+    return -1;
 }
 
 /***************************************************************************

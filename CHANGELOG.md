@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **`C_UDP_S` / `C_UDP`: a subscriber's error does not stop the reading.**
+  The read was re-armed only when the publish of `EV_RX_DATA` answered 0,
+  taken as a sign that the gobj lived: one subscriber answering -1 (or an
+  *"Event NOT DEFINED"*, which the publish sums) left the server deaf, with
+  nothing said -- the defect fixed in `C_TCP` in 7.25.22. Now, as there, a
+  marker on the stack says whether the gobj lives after the publish, and the
+  read is re-armed whenever it does and the event is idle.
+
 - **rpm: the agents' SELinux label survives a relabel.** `%post` labels the
   web server's wrapper and the two agents `bin_t` with `semanage fcontext`,
   and fell back to `chcon` when `semanage` was missing -- which the spec did

@@ -76,6 +76,18 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 /*---------------------------------------------*
  *              Private data
  *---------------------------------------------*/
+/*
+ *  A publish of an event hands control to the subscribers, which may stop
+ *  the gobj or, through its host, destroy it: the call that published keeps
+ *  a marker on its stack, the markers are chained, and mt_destroy() clears
+ *  them all. Read after the publish: FALSE, the gobj is gone and nothing of
+ *  it may be touched (the same as C_TCP).
+ */
+typedef struct alive_s {
+    BOOL alive;
+    struct alive_s *prev;
+} alive_t;
+
 typedef struct _PRIVATE_DATA {
     // Data oid
     json_int_t connxs;
@@ -96,6 +108,7 @@ typedef struct _PRIVATE_DATA {
     BOOL no_tx_ready_event;
     int tx_in_progress;
 
+    alive_t *alive;                 // the markers of the publishes in progress (see alive_t)
 } PRIVATE_DATA;
 
 
@@ -232,6 +245,10 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    for(alive_t *marker = priv->alive; marker; marker = marker->prev) {
+        marker->alive = FALSE;  // destroyed inside a publish: its caller must not go on
+    }
 
     if(!gobj_in_this_state(gobj, ST_STOPPED)) {
         gobj_log_error(gobj, 0,
@@ -658,6 +675,21 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
 #endif
 
 /***************************************************************************
+ *  The marker of a publish in progress (see alive_t)
+ ***************************************************************************/
+PRIVATE void alive_push(PRIVATE_DATA *priv, alive_t *marker)
+{
+    marker->alive = TRUE;
+    marker->prev = priv->alive;
+    priv->alive = marker;
+}
+
+PRIVATE void alive_pop(PRIVATE_DATA *priv, alive_t *marker)
+{
+    priv->alive = marker->prev;     // only while the gobj lives
+}
+
+/***************************************************************************
  *  TODO not checked
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event)
@@ -717,21 +749,25 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
                     int ret = 0;
 
+                    /*
+                     *  The clear data is published (EV_RX_DATA): a
+                     *  subscriber may stop the gobj, or its host destroy it
+                     *  (see alive_t)
+                     */
+                    alive_t marker;
+                    alive_push(priv, &marker);
                     if(priv->use_ssl) {
                         GBUFFER_INCREF(yev_get_gbuf(yev_event))
                         ret = ytls_decrypt_data(priv->ytls, priv->sskt, yev_get_gbuf(yev_event));
-                        if(ret < 0) {
-                            /*
-                             *  If return -1 while doing handshake then is good stop here the gobj,
-                             *  But if return -1 in response of gobj_send_event,
-                             *      then it can be already stopped and destroyed
-                             *      Solution: don't return -1 on ytls_on_clear_data_callback
-                             */
-                            if(ret < -1000) { // Mark as TLS error
-                                try_to_stop_yevents(gobj);
-                            }
+                        if(!marker.alive) {
+                            break;  // the gobj is gone
+                        }
+                        alive_pop(priv, &marker);
+                        if(ret < -1000) { // Mark as TLS error
+                            try_to_stop_yevents(gobj);
                             break;
                         }
+                        // a subscriber's own error: the reading goes on
 
                     } else {
                         GBUFFER_INCREF(yev_get_gbuf(yev_event))
@@ -739,18 +775,21 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             "gbuffer", (json_int_t)(uintptr_t)yev_get_gbuf(yev_event)
                         );
                         ret = gobj_publish_event(gobj, EV_RX_DATA, kw);
+                        if(!marker.alive) {
+                            break;  // the gobj is gone
+                        }
+                        alive_pop(priv, &marker);
                     }
 
                     /*
-                     *  Clear buffer, re-arm read
-                     *  Check ret is 0 because the EV_RX_DATA could provoke
-                     *      stop or destroy of gobj
-                     *      or order to disconnect (EV_DROP)
-                     *  If try_to_stop_yevents() has been called (mt_stop, EV_DROP,...)
-                     *      this event will be in stopped state.
-                     *  If it's in idle then re-arm
+                     *  Clear buffer, re-arm read. The gobj lives (the
+                     *  marker): if try_to_stop_yevents() was called (mt_stop,
+                     *  EV_DROP,...) this event is not idle, and is not
+                     *  re-armed. A subscriber that answered an error does not
+                     *  stop the reading: up to 7.25.22 it did (ret was asked
+                     *  to be 0), and the reading ended in silence.
                      */
-                    if(ret == 0 && yev_event_is_idle(yev_event)) {
+                    if(yev_event_is_idle(yev_event)) {
                         gbuffer_clear(yev_get_gbuf(yev_event));
                         yev_start_event(yev_event);
                     }
