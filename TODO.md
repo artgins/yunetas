@@ -44,15 +44,6 @@ Severity in parentheses where one was assigned.
   in the signal, which the follower can compare across feeds) rather than
   queue positions; write the red test first (`test_delete_key_propagation`
   has the hooks: `inflight_open`, `__wrap_rmdir`).
-- **A key directory whose watch cannot be made is taken for gone** (low;
-  what is left of the follower-out-of-resources item, the descriptors part
-  fixed 2026-10-02). `ENOSPC` at `max_user_watches` (or `ENOMEM`) gives
-  `subdir_wd` -1, and `place_new_key_dir_scans()` takes the directory as
-  gone: the links in it are not read, and the ones made later are not heard
-  (no watch). It is logged as an ERROR and never recovered. Reading it by
-  path once would rescue only the links of that moment; the real answer is
-  a retry of the watch at a point that comes anyway (the next overflow pass,
-  or the next record of the key), not a timer.
 ### Projects (code outside this repo)
 
 - **msg2db consumers do not use `msg2db_id_incomplete()`** (low): the

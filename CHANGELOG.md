@@ -43,7 +43,7 @@ except the hook and the entries this list marks "(no red test)".
   card needs it raised.
 
 - **Rebuild every project against the new headers.** `fs_event_t`
-  (`fs_watcher.h`) gains nine fields, at its end.
+  (`fs_watcher.h`) gains ten fields, at its end.
 - **An rt_disk follower holds one more descriptor per key directory of each
   feed** (`FS_FLAG_DIR_FDS`). A yuno now raises its soft open-files limit to
   its hard one at its start (C_YUNO `limit_open_files`, `0` by default; up
@@ -281,6 +281,14 @@ except the hook and the entries this list marks "(no red test)".
     SIGQUIT, waited its whole second). The packages use `--stop` to move an
     agent into its unit. (no red test: checked by hand, a watchfs `--stop`
     takes 109 ms and leaves nothing)
+- **fs_watcher: a subdirectory whose watch cannot be made is watched
+    later**, and timeranger2 reads its records. Out of watches (`ENOSPC` at
+    `max_user_watches`) or memory, the directory was never watched: a
+    follower took the key directory for gone and lost every record of the
+    key, with an ERROR per directory. It is tried again at the end of each
+    batch of the watcher, and handed as created again once watched (its
+    owner reads what was made meanwhile); said once when it starts and once
+    when every directory is watched.
 - **C_TCP: a subscriber's error no longer stops the reading, and nothing is
   touched after a publish that destroyed the gobj.** A subscriber of
   `EV_RX_DATA` that answered an error (`-1`, its own) stopped the reading:

@@ -66,6 +66,7 @@ set(SRCS
     test_rt_disk_overflow
     test_fs_watcher_overflow
     test_rt_disk_watcher_gone
+    test_rt_disk_unwatched_key
     test_out_of_order_append
     test_pkey_path_traversal
     test_topic_path_traversal
@@ -153,9 +154,15 @@ foreach(test ${SRCS})
         # holds the master's delete signals in __wrap_rmdir()
         target_link_options(${binary} PRIVATE "-Wl,--wrap=stat,--wrap=opendir,--wrap=readdir,--wrap=rmdir")
     endif()
+    if(test STREQUAL "test_rt_disk_unwatched_key")
+        # The test fails the watch of one key directory (ENOSPC) in its own
+        # __wrap_inotify_add_watch()
+        target_link_options(${binary} PRIVATE "-Wl,--wrap=inotify_add_watch")
+    endif()
     if(test STREQUAL "test_fs_watcher_overflow")
-        # The test fails FIONREAD once in its own __wrap_ioctl()
-        target_link_options(${binary} PRIVATE "-Wl,--wrap=ioctl")
+        # The test fails FIONREAD once in its own __wrap_ioctl(), and the
+        # watch of one directory (ENOSPC) in __wrap_inotify_add_watch()
+        target_link_options(${binary} PRIVATE "-Wl,--wrap=ioctl,--wrap=inotify_add_watch")
     endif()
     if(test STREQUAL "test_torn_tail_check_fails")
         # The test fails the open of a content file in its own __wrap_open()

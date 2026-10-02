@@ -127,6 +127,8 @@ struct fs_event_s {
     uint64_t pad_end;           // Internal: an end of the queued events said past the stream
                                 // (fs_queued_events_end() could not see a read), to close
     yev_event_h yev_pad;        // Internal: one-shot turn of the loop that closes pad_end
+    json_t *jn_unwatched;       // Internal: subdirectories whose watch could not be made (ENOSPC,
+                                // ENOMEM), by path: tried again at the end of each batch
 } ;
 
 

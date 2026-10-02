@@ -581,6 +581,36 @@ What the owners of the tree do:
 - **`C_FS`** publishes `EV_FS_CHANGED` for the watched root, once.
 - **`utils/c/fs_watcher`** prints *"Events LOST"* and each *"Rescan dir"*.
 
+## A subdirectory that cannot be watched (`ENOSPC`)
+
+A subdirectory met by a recursive watch whose watch cannot be made -- out of
+watches (`fs.inotify.max_user_watches`, `ENOSPC`) or of kernel memory
+(`ENOMEM`) -- is handed as created with `subdir_wd` -1, and nothing made in it
+is heard. It is kept, and tried again at the end of each batch of the
+watcher (64 per batch); once its watch is made it is handed AGAIN as
+created, now with its `subdir_wd`, at the batch's end, so its owner reads
+what was made in it meanwhile. One gone by then is forgotten (its parent
+said it). The first failure is an ERROR, *"Cannot watch a directory, out of
+inotify watches or memory: tried again at each batch (and the next ones that
+fail, counted)"*; when the last one is watched, a warning, *"Directories
+watched again: every one that could not be is watched now"*. Up to 7.25.21
+it was an ERROR per directory, and the directory was never watched: a
+timeranger2 follower took a key directory for gone, and lost every record
+of the key.
+
+```C
+case FS_SUBDIR_CREATED_TYPE:
+    if(fs_event->subdir_wd < 0) {
+        break;  // gone, or not watched yet: if it lives, it comes again with its watch
+    }
+    read_what_is_in(fs_event->directory, fs_event->filename);
+    break;
+```
+
+The retry needs a batch: a watcher whose only activity is inside the
+directory it cannot watch hears nothing to retry on (nothing made there
+reaches it), which the ERROR says. Raise `fs.inotify.max_user_watches`.
+
 ## When the watcher goes (`FS_WATCHER_GONE_TYPE`)
 
 A watcher whose read FAILS, cannot be armed again, or is canceled by another

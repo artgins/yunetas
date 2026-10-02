@@ -85,6 +85,12 @@
  *  (do_test_fionread_broken) ends the watcher, its owner told
  *  (FS_WATCHER_GONE): up to 7.25.21 the end was never closed.
  *
+ *  A subdirectory whose watch cannot be made (ENOSPC at max_user_watches,
+ *  __wrap_inotify_add_watch) is tried again at the end of each batch
+ *  (do_test_unwatched_retry): once there are watches again, it is handed
+ *  as created with its watch, and what is made in it is heard. Up to
+ *  7.25.21 it was never watched: nothing made in it was ever heard.
+ *
  *  And the ROOT deleted and created again while the queue is full
  *  (do_test_root_reborn, recursive and not): after the pass the new root
  *  is watched, a file created in it is heard. Up to 7.25.20 the pass
@@ -138,6 +144,19 @@ int __wrap_ioctl(int fd, unsigned long request, ...)
         return -1;
     }
     return __real_ioctl(fd, request, arg);
+}
+
+int __real_inotify_add_watch(int fd, const char *pathname, uint32_t mask);
+int __wrap_inotify_add_watch(int fd, const char *pathname, uint32_t mask);
+static const char *watch_enospc_path = NULL;   // its watch fails, ENOSPC
+
+int __wrap_inotify_add_watch(int fd, const char *pathname, uint32_t mask)
+{
+    if(watch_enospc_path && strcmp(pathname, watch_enospc_path) == 0) {
+        errno = ENOSPC;
+        return -1;
+    }
+    return __real_inotify_add_watch(fd, pathname, mask);
 }
 
 #define EXTRA_DIRS  4096        // beyond the queue's limit
@@ -787,6 +806,101 @@ PRIVATE int do_test_fionread_broken(void)
     }
     result += test_json(NULL);
     rmrdir(root8);
+    return result;
+}
+
+/***************************************************************************
+ *  A subdirectory that could not be watched is watched later
+ ***************************************************************************/
+PRIVATE int unw_created_unwatched = 0;
+PRIVATE int unw_created_watched = 0;
+PRIVATE int unw_files_in_a = 0;
+
+PRIVATE int fs_callback_unwatched(fs_event_t *fs_event)
+{
+    if(fs_event->fs_type == FS_SUBDIR_CREATED_TYPE &&
+            strcmp((const char *)fs_event->filename, "a") == 0) {
+        if(fs_event->subdir_wd < 0) {
+            unw_created_unwatched++;
+        } else {
+            unw_created_watched++;
+        }
+    }
+    if(fs_event->fs_type == FS_FILE_CREATED_TYPE) {
+        const char *dir = (const char *)fs_event->directory;
+        size_t n = strlen(dir);
+        if(n >= 2 && strcmp(dir + n - 2, "/a") == 0) {
+            unw_files_in_a++;
+        }
+    }
+    return 0;
+}
+
+PRIVATE int do_test_unwatched_retry(void)
+{
+    int result = 0;
+    char root9[PATH_MAX], dir_a[PATH_MAX], dir_b[PATH_MAX];
+    build_path(root9, sizeof(root9), getenv("HOME"), "tests_yuneta", "fs_watcher_unwatched", NULL);
+    build_path(dir_a, sizeof(dir_a), root9, "a", NULL);
+    build_path(dir_b, sizeof(dir_b), root9, "b", NULL);
+    rmrdir(root9);
+    mkrdir(root9, 02770);
+    unw_created_unwatched = unw_created_watched = unw_files_in_a = 0;
+
+    set_expected_results(
+        "fs_watcher: a directory that could not be watched is watched later",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot watch a directory, out of inotify watches or memory: tried again at each batch (and the next ones that fail, counted)",
+            "msg", "Directories watched again: every one that could not be is watched now"
+        ),
+        NULL, NULL, 1
+    );
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop, root9, FS_FLAG_RECURSIVE_PATHS, fs_callback_unwatched, 0, NULL, NULL
+    );
+    if(!fs_event || fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> the watcher could not be started\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    /*
+     *  Out of watches: "a" is created, not watched, and a file in it is
+     *  not heard
+     */
+    watch_enospc_path = dir_a;
+    mkdir(dir_a, 02770);
+    for(int i = 0; i < 50 && unw_created_unwatched == 0; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    create_file_in(dir_a, "made_while_unwatched");
+
+    /*
+     *  Watches again: the next batch ("b") watches "a", hands it as created
+     *  with its watch, and a file in it is heard
+     */
+    watch_enospc_path = NULL;
+    mkdir(dir_b, 02770);
+    for(int i = 0; i < 50 && unw_created_watched == 0; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    create_file_in(dir_a, "made_once_watched");
+    for(int i = 0; i < 50 && unw_files_in_a == 0; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(unw_created_unwatched != 1 || unw_created_watched != 1 || unw_files_in_a != 1 ||
+            json_object_size(fs_event->jn_unwatched) != 0) {
+        printf("%sERROR%s --> unwatched retry: created unwatched %d (1), then watched %d (1), files heard in it %d (1), left unwatched %d (0)\n",
+            On_Red BWhite, Color_Off, unw_created_unwatched, unw_created_watched, unw_files_in_a,
+            (int)json_object_size(fs_event->jn_unwatched));
+        result += -1;
+    }
+
+    fs_stop_watcher_event(fs_event);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+    rmrdir(root9);
     return result;
 }
 
@@ -1460,6 +1574,7 @@ int main(int argc, char *argv[])
     result += do_test_padded_end();
     result += do_test_padded_end_not_short();
     result += do_test_fionread_broken();
+    result += do_test_unwatched_retry();
     result += do_test_root_unwatchable();
     result += do_test_dir_fds();
     result += do_test_dir_fds_limit();

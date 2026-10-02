@@ -77,6 +77,7 @@ PRIVATE void arm_pad_check(fs_event_t *fs_event);
 PRIVATE int pad_check_callback(yev_event_h yev_event);
 PRIVATE void tell_owner_watcher_gone(fs_event_t *fs_event);
 PRIVATE void close_tracked_dir_fd(int dfd);
+PRIVATE void watch_unwatched_again(fs_event_t *fs_event);
 
 /***************************************************************************
  *  Data
@@ -196,6 +197,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     fs_event->stale_mark = 0;
     fs_event->jn_tracked_fds = json_object();
     fs_event->jn_paths_wd = json_object();
+    fs_event->jn_unwatched = json_object();
     fs_event->event_wd = -1;
     fs_event->subdir_wd = -1;
 
@@ -602,6 +604,7 @@ PRIVATE void fs_destroy_watcher_event(
     }
     JSON_DECREF(fs_event->jn_tracked_fds)
     JSON_DECREF(fs_event->jn_paths_wd)
+    JSON_DECREF(fs_event->jn_unwatched)
     GBMEM_FREE(fs_event)
 }
 
@@ -720,6 +723,11 @@ PRIVATE int yev_callback(
 
                         ptr += sizeof(struct inotify_event) + event->len;
                     }
+                    if(!fs_event->stop_requested && json_object_size(fs_event->jn_unwatched) > 0) {
+                        fs_event->offset = fs_event->batch_end;
+                        fs_event->offset_end = fs_event->batch_end;
+                        watch_unwatched_again(fs_event);
+                    }
                     if(!fs_event->stop_requested && (fs_event->fs_flag & FS_FLAG_BATCH_END)) {
                         fs_event->fs_type = FS_BATCH_END_TYPE;
                         fs_event->event_wd = -1;
@@ -804,6 +812,74 @@ PRIVATE void tell_owner_watcher_gone(fs_event_t *fs_event)
     fs_event->in_callback = TRUE;
     fs_event->callback(fs_event);
     fs_event->in_callback = FALSE;
+}
+
+/***************************************************************************
+ *  The end of a batch: the subdirectories whose watch could not be made
+ *  (ENOSPC, ENOMEM; add_watch()) are tried again, some per batch. One
+ *  watched now is handed as created (FS_SUBDIR_CREATED_TYPE, `subdir_wd`
+ *  its watch, at the batch's end): its owner reads what was made in it
+ *  while it was not watched. One gone is forgotten (its parent said it).
+ *  Out of watches still, the rest wait for the next batch. Not on a timer:
+ *  a watcher whose only activity is in a directory it cannot watch hears
+ *  nothing to retry on, which the ERROR of the first failure says.
+ ***************************************************************************/
+#define UNWATCHED_RETRIES_PER_BATCH 64
+
+PRIVATE void watch_unwatched_again(fs_event_t *fs_event)
+{
+    json_t *paths = json_array();
+    const char *path_; json_t *v;
+    json_object_foreach(fs_event->jn_unwatched, path_, v) {
+        if(json_array_size(paths) >= UNWATCHED_RETRIES_PER_BATCH) {
+            break;
+        }
+        json_array_append_new(paths, json_string(path_));
+    }
+
+    int idx; json_t *jn_path;
+    json_array_foreach(paths, idx, jn_path) {
+        if(fs_event->stop_requested) {
+            break;  // its owner stopped it from a callback
+        }
+        const char *path = json_string_value(jn_path);
+        if(!is_directory(path)) {
+            json_object_del(fs_event->jn_unwatched, path);  // gone: its parent said it
+            continue;
+        }
+        int wd = add_watch(fs_event, path, TRUE);
+        if(wd < 0) {
+            if(errno == ENOSPC || errno == ENOMEM) {
+                break;  // still out of watches: the next batch
+            }
+            json_object_del(fs_event->jn_unwatched, path);  // Error already logged
+            continue;
+        }
+
+        char parent[PATH_MAX];
+        snprintf(parent, sizeof(parent), "%s", path);
+        char *slash = strrchr(parent, '/');
+        if(!slash) {
+            continue;   // a subdirectory always has a parent
+        }
+        *slash = 0;
+        int parent_wd = -1;
+        const char *s_wd; json_t *jn_p;
+        json_object_foreach(fs_event->jn_tracked_paths, s_wd, jn_p) {
+            if(strcmp(json_string_value(jn_p)? json_string_value(jn_p) : "", parent) == 0) {
+                parent_wd = atoi(s_wd);
+                break;
+            }
+        }
+        fs_event->fs_type = FS_SUBDIR_CREATED_TYPE;
+        fs_event->event_wd = parent_wd;
+        fs_event->subdir_wd = wd;
+        fs_event->directory = (volatile char *)parent;
+        fs_event->filename = slash + 1;
+        fs_event->callback(fs_event);
+        fs_event->subdir_wd = -1;
+    }
+    JSON_DECREF(paths)
 }
 
 /***************************************************************************
@@ -1191,6 +1267,34 @@ PRIVATE int add_watch(
             );
             return -1;
         }
+        if((errno == ENOSPC || errno == ENOMEM) && may_vanish) {
+            /*
+             *  Out of watches (fs.inotify.max_user_watches) or memory: a
+             *  subdirectory is not watched, and nothing made in it is heard.
+             *  It is kept, and tried again at the end of each batch
+             *  (watch_unwatched_again()); when its watch is made it is
+             *  handed as created then, so its owner reads what was made in
+             *  it meanwhile. Said at the transition, the ones after it
+             *  counted. Up to 7.25.21 it was an ERROR per directory, and the
+             *  directory was never watched (a timeranger2 follower took a
+             *  key directory for gone, and lost its records).
+             */
+            int err = errno;
+            if(json_object_size(fs_event->jn_unwatched) == 0) {
+                gobj_log_error(fs_event->gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot watch a directory, out of inotify watches or memory: tried again at each batch (and the next ones that fail, counted)",
+                    "path" ,        "%s", path,
+                    "errno",        "%d", err,
+                    "serrno" ,      "%s", strerror(err),
+                    NULL
+                );
+            }
+            json_object_set_new(fs_event->jn_unwatched, path, json_true());
+            errno = err;
+            return -1;
+        }
         gobj_log_error(fs_event->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
@@ -1200,6 +1304,19 @@ PRIVATE int add_watch(
             NULL
         );
         return -1;
+    }
+
+    if(json_object_get(fs_event->jn_unwatched, path)) {
+        json_object_del(fs_event->jn_unwatched, path);  // watched at last (here, or by a pass)
+        if(json_object_size(fs_event->jn_unwatched) == 0) {
+            gobj_log_warning(fs_event->gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Directories watched again: every one that could not be is watched now",
+                "path" ,        "%s", fs_event->path,
+                NULL
+            );
+        }
     }
 
     char s_wd[64];
