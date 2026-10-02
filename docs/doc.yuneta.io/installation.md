@@ -56,9 +56,14 @@ flight on an older kernel. Below 5.6 a yuno cannot run at all.
 | RHEL / Rocky / Alma **8** | 4.18 | ❌ **no io_uring at all**: Yuneta does not run |
 | Any other kernel below 5.19 | | ❌ not supported |
 
-Without io_uring the yuno says so and stops at its start: *"Linux kernel
-without io_uring, cannot run yunetas"* (a CRITICAL, then an abort). To check a
-node before installing:
+A yuno checks this when its loop is created, and on a kernel that does not
+have it, it says so and stops at its start (a CRITICAL, then an abort):
+*"Linux kernel without io_uring, cannot run yunetas"* when there is no
+io_uring at all (or it is disabled), and *"Linux kernel too old for yunetas:
+it needs Linux 5.19 or later (or RHEL/Rocky/Alma 9)"*, with `lacks` (the
+operation missing) and `kernel` (`uname -r`), when io_uring is there but
+lacks one of the operations above. Up to 7.25.21 a yuno started on 5.6 to
+5.18 and failed only when it stopped. To check a node before installing:
 
 ```bash
 uname -r                                 # 5.19 or later (or an EL9 5.14)

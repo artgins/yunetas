@@ -880,6 +880,13 @@ Returns `0` on success, or a negative value on failure.
 
 If `callback` is `NULL`, a default callback will be used when processing events in [`yev_loop_run()`](<#yev_loop_run>).
 
+It first checks that the kernel's io_uring has every operation the loop uses
+(the probe of the opcodes) and the cancel of everything still in flight with
+which a loop stops (`IORING_ASYNC_CANCEL_ALL | ANY`, tried once): Linux 5.19
+or later, or the 5.14 of RHEL/Rocky/Alma 9. Without them it logs a CRITICAL
+and aborts: *"Linux kernel too old for yunetas: ..."*, with `lacks` and
+`kernel`. See [Linux kernel](#kernel-required).
+
 ---
 
 (yev_loop_destroy)=

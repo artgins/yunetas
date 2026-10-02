@@ -96,6 +96,16 @@ except the hook and the entries this list marks "(no red test)".
   "extra parameters" answer. No command of the SDK or of the projects
   declares one. Test `command_secret_positional`.
 
+- **yev_loop: a kernel too old for Yuneta stops the yuno at its start, and
+  says why.** `yev_loop_create()` probes the io_uring operations the loop
+  uses and tries the cancel of everything with which a loop stops
+  (`IORING_ASYNC_CANCEL_ALL|ANY`, Linux 5.19); missing one, a CRITICAL
+  (*"Linux kernel too old for yunetas: it needs Linux 5.19 or later (or
+  RHEL/Rocky/Alma 9)"*, with `lacks` and `kernel`) and an abort. On 5.6 to
+  5.18 a yuno started and could not stop its events. The minimum kernel is
+  now documented (installation, README). (no red test: every kernel at hand
+  has them; the probe checked on 7.0, 6.12 and Rocky 9.7's 5.14)
+
 ### The reborn key of an rt_disk follower (the HIGH open since 7.25.20)
 
 - **An rt_disk follower behind a master in another process no longer hands

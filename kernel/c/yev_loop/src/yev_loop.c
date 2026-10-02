@@ -72,6 +72,7 @@ Cancel CQE: res = 0    (success)
 #include <time.h>
 #include <sys/timerfd.h>
 #include <sys/resource.h>
+#include <sys/utsname.h>
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <netinet/in.h>
@@ -213,6 +214,72 @@ PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
 PRIVATE yev_protocol_fill_hints_fn_t yev_protocol_fill_hints_fn = _yev_protocol_fill_hints;
 
 /***************************************************************************
+ *  What the kernel's io_uring lacks of what yev_loop uses, or NULL: the
+ *  operations of every event (up to 5.6: READ and WRITE, and the probe of
+ *  the opcodes itself), and the cancel of everything still in flight with
+ *  which a loop stops (IORING_ASYNC_CANCEL_ALL|ANY, 5.19). On 5.6 to 5.18 a
+ *  yuno started and could not stop: its events were never canceled. Up to
+ *  7.25.21 nothing said so. SENDMSG_ZC is optional, probed apart.
+ ***************************************************************************/
+PRIVATE const char *io_uring_lacks(struct io_uring *ring)
+{
+    struct io_uring_probe *probe = io_uring_get_probe_ring(ring);
+    if(!probe) {
+        return "the probe of the opcodes (Linux 5.6)";
+    }
+    struct {
+        int op;
+        const char *name;
+    } ops[] = {
+        {IORING_OP_NOP,             "IORING_OP_NOP"},
+        {IORING_OP_POLL_ADD,        "IORING_OP_POLL_ADD"},
+        {IORING_OP_SENDMSG,         "IORING_OP_SENDMSG"},
+        {IORING_OP_RECVMSG,         "IORING_OP_RECVMSG"},
+        {IORING_OP_ACCEPT,          "IORING_OP_ACCEPT"},
+        {IORING_OP_CONNECT,         "IORING_OP_CONNECT"},
+        {IORING_OP_ASYNC_CANCEL,    "IORING_OP_ASYNC_CANCEL"},
+        {IORING_OP_READ,            "IORING_OP_READ"},
+        {IORING_OP_WRITE,           "IORING_OP_WRITE"},
+    };
+    const char *lacks = NULL;
+    for(size_t i = 0; i < sizeof(ops)/sizeof(ops[0]); i++) {
+        if(!io_uring_opcode_supported(probe, ops[i].op)) {
+            lacks = ops[i].name;
+            break;
+        }
+    }
+    io_uring_free_probe(probe);
+    if(lacks) {
+        return lacks;
+    }
+
+    /*
+     *  The flags of a cancel are not in the probe: one is tried. An older
+     *  kernel answers -EINVAL; with nothing to cancel a newer one answers
+     *  0 or -ENOENT.
+     */
+    struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
+    if(!sqe) {
+        return "a submission slot to try the cancel of everything";
+    }
+    io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ALL|IORING_ASYNC_CANCEL_ANY);
+    io_uring_sqe_set_data(sqe, NULL);
+    if(io_uring_submit(ring) < 0) {
+        return "the submission of the cancel of everything";
+    }
+    struct io_uring_cqe *cqe = NULL;
+    if(io_uring_wait_cqe(ring, &cqe) < 0 || !cqe) {
+        return "the answer to the cancel of everything";
+    }
+    int res = cqe->res;
+    io_uring_cqe_seen(ring, cqe);
+    if(res == -EINVAL) {
+        return "IORING_ASYNC_CANCEL_ALL|IORING_ASYNC_CANCEL_ANY (Linux 5.19)";
+    }
+    return NULL;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC int yev_loop_create(
@@ -257,7 +324,21 @@ retry:
         );
         return -1;
     }
+    const char *lacks = io_uring_lacks(&ring_test);
     io_uring_queue_exit(&ring_test);
+    if(lacks) {
+        struct utsname uts = {0};
+        uname(&uts);
+        gobj_log_critical(yuno, LOG_OPT_ABORT,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "Linux kernel too old for yunetas: it needs Linux 5.19 or later (or RHEL/Rocky/Alma 9)",
+            "lacks",        "%s", lacks,
+            "kernel",       "%s", uts.release,
+            NULL
+        );
+        return -1;
+    }
 
     yev_loop_t *yev_loop = GBMEM_MALLOC(sizeof(yev_loop_t));
     if(!yev_loop) {
