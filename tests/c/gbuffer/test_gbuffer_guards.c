@@ -191,6 +191,25 @@ PRIVATE void test_grow_to_max(void)
     ok_or_fail(captured_errors > 0, "gbuffer past its max: an error");
     GBUFFER_DECREF(gbuf)
 
+    /*
+     *  What decides is what is IN it plus what comes, not its size plus what
+     *  comes: a websocket frame of 4459 bytes (a max of 4460) read into 4096,
+     *  then 371 more with 8 free. The first version of the growth to the max
+     *  asked size + need (4096 + 371 > 4460) and refused it
+     */
+    captured_errors = 0;
+    gbuf = gbuffer_create(4096, 4460);
+    char big[4088];
+    memset(big, 'y', sizeof(big));
+    appended = gbuffer_append(gbuf, big, sizeof(big));
+    char tail[371];
+    memset(tail, 'z', sizeof(tail));
+    appended += gbuffer_append(gbuf, tail, sizeof(tail));
+    ok_or_fail(appended == 4459 && gbuffer_leftbytes(gbuf) == 4459,
+        "gbuffer filled to its max: 4459 bytes in a max of 4460");
+    ok_or_fail(captured_errors == 0, "gbuffer filled to its max: no error");
+    GBUFFER_DECREF(gbuf)
+
     gobj_log_del_handler("capture");
 }
 

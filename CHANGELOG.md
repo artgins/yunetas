@@ -573,7 +573,9 @@ except the hook and the entries this list marks "(no red test)".
 - **gbuffer: a buffer grown from small reaches its max.** The growth
   doubles, and a doubling past `max_memory_size` was refused even when
   what was needed fitted (*"MAXIMUM SPACE REACHED"*): 4 KB with a max of
-  10 KB stopped at 8 KB. It grows to the max now. Test `gbuffer`
+  10 KB stopped at 8 KB. It grows to the max now, when what is IN it plus
+  what is needed fits (a websocket frame of exactly its max, read into a
+  smaller buffer, is the case that needs it). Test `gbuffer`
   (`test_grow_to_max`).
 - **timeranger2: closing a follower's rt_disk feed under load no longer
   leaves its directory fed for ever.** `tranger2_close_rt_disk()` removed
