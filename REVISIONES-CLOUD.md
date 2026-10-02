@@ -1,65 +1,152 @@
 # Cloud review of main
 
-Reviewed up to `ee940e48a` (2026-10-02, release 7.25.22, packaging revision
--3). What is resolved is removed from this file; this version is the fixing
-session's answer, item by item, on `139e5441d`. Every fix has a test that
-fails on the code before it, except where it says otherwise.
+Reviewed up to `a8e6dd30d` (2026-10-02): the answer to the review of
+7.25.22 (`da85b7a9b..a8e6dd30d`). What is resolved is removed from this file.
+Clean build with no warning; the full suite was still running when this was
+written, its result follows in the next commit.
 
-Last check, on `139e5441d`: clean build (`yunetas clean/build --sdk-only`) with
-no warning, suite 287/287 under `ulimit -Sn 1024` on the dev machine. The
-wattyzer run (the second machine of the release rule) is not done yet.
+## Verdict
 
-## Resolved
+The eight open items are fixed in what they asked:
 
-### High
+- the dbsimple trust chain planted by a group member;
+- `write-attr` of `SDF_PERSIST`-only attrs;
+- the rpm SELinux requirement;
+- the UDP read stall;
+- the frame of exactly the default max;
+- `--stop`;
+- C_TIMER0 ending the loop;
+- the restarts outside the unit.
 
-| # | Item | Commit | Test |
-|---|------|--------|------|
-| 1 | dbsimple: the yuno's user of a root yuno is the owner of the lowest directory of the chain closed from `/` DOWN (`openat(O_PATH\|O_NOFOLLOW)`), each owned by root or by that user; the chain ends at the first directory others can write, or at a symlink. What is below the open directory names nobody, so the swap between the walk and the open changes nothing | `da85b7a9b` | `secret_attrs` (run as root by `__wrap_geteuid`, directories told by `__wrap_fstat`; red with a temporary `__wrap_stat` over the old upward walk: the planted file loaded) |
+So are the low items, except the ones below.
+
+Three fixes bring a defect of their own: `--stop` in `a8e6dd30d`, the
+fs_watcher re-watch in `1d2083dc3`, and the dbsimple walk in `da85b7a9b`.
+One path of the -1 contract was left in C_TCP.
+
+## Open
 
 ### Medium
 
-| # | Item | Commit | Test |
-|---|------|--------|------|
-| 2 | `ATTR_WRITABLE` is `SDF_WR`: `write-attr` refuses an `SDF_PERSIST` attr without it (*"attr not writable"*). None of the listed attrs became `SDF_WR`: each is the config's or its own command's. Every documented `write-attr` use (agent, controlcenter, yunovatios, wattyzer) is on `SDF_WR\|SDF_PERSIST` attrs already | `d9f119fb5` | `command_delete_user` (`max_sessions_per_user` refused and left 0; red: written), `secret_attrs` |
-| 3 | rpm: `Requires(post)` / `Requires(postun)`: `(policycoreutils-python-utils if selinux-policy)`; the `chcon` fallback warns; `%postun` on erase removes the three fcontext rules | `7fc93b295` | The rich dependency built with rpmbuild (`rpmlib(RichDependencies)`; Rocky 9 has rpm 4.16) |
-| 4 | C_UDP_S and C_UDP: the C_TCP liveness marker; the read is re-armed whenever the gobj lives and the event is idle | `460618ba9` | `c_udp_s_rx` 6 (the host answers -1 to every datagram; red: `"heard": "allowed"`) |
-| 5 | C_WEBSOCKET / C_PROT_TCP4H: the default max is `gbmem_get_maximum_block() - 1` (what a gbuffer holds) and a configured max above it is capped; `istream_consume()` checks `gbuffer_append()` (an ERROR, and the frame is not completed cut) | `769af7b41` | `c_prot_tcp4h/test1` (after a reconnect, a header of exactly the max block: refused at once; red: a second payload timeout) |
-| 6 | `--stop`: every `kill()` checked (EPERM said at once, not waited for, exit 1); the watcher notes SIGQUIT (`SA_RESTART`) and does not relaunch the child that ends after it; the watchers signalled first; the name scanned again before the SIGKILL. The units send SIGQUIT to `$MAINPID` before the agent | `603fde26d` | By hand, a scratch daemon whose child `abort()`s on SIGQUIT: the old code left the relaunched child alive; now nothing in 0.1 s. EPERM on a root process: exit 1 at once. A hung child: both killed at 10 s |
-| 7 | C_TIMER0's callback answers 0, always: the yuno's loop ends through `yev_loop_reset_running()` (`set_yuno_must_die()`), never through a timer | `b7de0e312` | `test_c_timer0` (a child timer cleared and stopped during play; red: the yuno ended, the five ticks never came) |
-| 8 | `restart-yuneta`, not root, with the units: `yshutdown --no-kill-agent "$@"` and `sudo -n systemctl restart yuneta_agent.service` (refused and said when sudo does not allow it); the old way only without units. logcenter's default runs `restart-yuneta -s` where it exists | `bfc86e031` | `sudo -n -l systemctl restart yuneta_agent.service` checked as `yuneta` on wattyzer (allowed: `NOPASSWD:ALL`) |
+**1. C_TCP: a subscriber's -1 still closes a TLS connection on the flush
+after the handshake** (`4f64eaaa8`).
 
-On 8, one claim does not hold: **`yshutdown` does not take agent22 down**. It
-walks `/yuneta/realms` for `yuno.pid` files and `killall`s the exact name
-`yuneta_agent`; agent22 writes `/yuneta/realms/agent/yuneta_agent22.pid` and
-is named `yuneta_agent22`.
+`set_secure_connected()` (`c_tcp.c:893-914`) takes any negative answer of
+`ytls_flush()` as a TLS error: *"TLS: the flush of clear data failed"*, then
+`try_to_stop_yevents()`.
+
+`ytls_flush` → `flush_clear_data` → `on_clear_data_cb` publishes
+`EV_RX_DATA`, and since `4f64eaaa8` a subscriber's -1 comes back as -1. So a
+subscriber that answers -1 to the first application data arriving with the
+handshake closes the connection. That is the contract `ytls.h` now says it
+does not do, and the decrypt path already handles the same case
+(`ret < -1000`).
+
+Preferred fix: `if(ret < -1000)` there too, as on the decrypt path.
+
+**2. `--stop` exits 0 again when it cannot stop the agent** (`a8e6dd30d`
+undoes part of `603fde26d`).
+
+`collect_proc()` (`ydaemon.c:440-465`) reads `/proc/<pid>/exe`. That fails
+with EACCES for another user's process, so the process is "left alone" with a
+line on stderr and nothing marks a failure: `--stop` exits 0 and the agent
+stays up. This is item 6a of the previous review in another form, and the
+EPERM path of `603fde26d` is now practically unreachable.
+
+Two more effects:
+
+- Run as `yuneta` from the root init script, `--stop` prints that line for
+  the script itself on every non-unit `stop` and in `_start_unit()`.
+- An agent whose binary was renamed (a `mv` to `*.bak-pre-<version>` before
+  the new one is put in place) has an `exe` that follows the rename. It reads
+  as "another binary of the same name" and is skipped, and `--stop` exits 0.
+
+Preferred fix:
+
+- Take a process whose exe cannot be read as a failure of `--stop` (exit 1,
+  said) unless its uid shows it is not a yuneta process. For the init script,
+  compare the `exe` with the shell's, or skip by uid 0 when the caller is not
+  root.
+- Match a renamed binary by inode (`stat` of `/proc/pid/exe` against the
+  file), not by path.
+
+**3. fs_watcher: the subtree re-watch has no bound** (`1d2083dc3`).
+
+`rewatch_subtree_cb()` (`fs_watcher.c:935-961`) has three problems:
+
+- It answers TRUE when `add_watch()` fails with ENOSPC/ENOMEM, so the walk
+  goes on trying every remaining directory, each one failing.
+- It runs synchronously at a batch end, bypassing the 64-per-batch cap of the
+  retries.
+- For each directory it scans all of `jn_tracked_paths` by value: O(subtree ×
+  tracked).
+
+With 100 000 key directories, at exactly the moment watches ran out, that
+blocks the loop for a long time.
+
+Preferred fix:
+
+- Stop the walk on ENOSPC/ENOMEM (FALSE) and leave the rest to the next
+  retry.
+- Count the walk against the per-batch cap.
+- Keep a path → wd index beside `jn_tracked_paths`.
+
+**4. dbsimple: a symlinked parent makes a root yuno lose its attrs**
+(`da85b7a9b`).
+
+The walk from `/` down uses `O_NOFOLLOW`, so it stops at a symlink, for
+example `/yuneta -> /srv/yuneta`, and trusts nobody. A root yuno then refuses
+its own yuneta-owned file and refuses every save. The old `stat()` walk
+followed the link. No layout of this repo symlinks `/yuneta`, so this is
+conditional.
+
+Also, *"each owned by root or by that user"* (in the comment, the commit and
+the answer) is not enforced (`dbsimple.c:160-163`). Once a non-root owner is
+taken, a lower closed directory of a third user continues the chain. The
+impact is low: that user can only move existing files.
+
+The committed test does not fail on the old code for the planted case. The
+old walk used `stat()`, which the test's `__wrap_fstat` does not cover; the
+red came from a temporary `__wrap_stat` that was not committed.
+
+Preferred fix:
+
+- Follow a symlink only when it and its target are owned by root (or resolve
+  the data directory once with `realpath()` and walk the result).
+- Enforce the owner rule as written.
+- Commit the red case for the plant.
 
 ### Low
 
-| Item | Commit | Test |
-|------|--------|------|
-| `restart_nodes()` after its 10 s: `spare_the_living` when some are left | `09712c5a2` | No ctest compiles `c_agent.c` |
-| `kill-yuno` of a yuno found only by the scan: the answer says it is not waited for, and that a `run-yuno` before it is gone does not launch it | `09712c5a2` | -- |
-| `ExecStopPost`: the unit's `ControlGroup` from systemd, read under the v2, hybrid or v1 mount; each kill `logger`ed; "no cgroup found" said | `4a8f90fe5` | The lookup run on wattyzer (agent22's unit) |
-| C_AUTHZ with no users treedb: `add-jwk` / `remove-jwk` refused to everybody. Such a yuno never creates its JWT validations, so the key was useless -- and leaked (4.4 KB per key, found by the test) | `6fc06e184` | `command_delete_user` 11b (a second C_AUTHZ with no store; red: added, and the leak) |
-| A persistent attr of the file that is not `SDF_PERSIST` (the old `jwks`) is said at load, once per attr, without its value | `6fc06e184` | `secret_attrs` (red: not said) |
-| CHANGELOG 7.25.22 upgrade steps: `register-idp-user`'s -403 with a role; `kill-yuno` of an unconnected yuno answers at once | `139e5441d` | -- |
-| ytls: `flush_clear_data()` answers -1 for a callback error, not the sum (both backends); OpenSSL `encrypt_data()` stops after 5 WANT tries, as mbedTLS; OpenSSL checks `gbuffer_create()` | `4f64eaaa8` | No red test (a thousand records in one read, or a WANT stall, is not staged) |
-| `gbuffer_vprintf()`: `vsnprintf()` given the NUL's byte too | `0348cd415` | `test_gbuffer_guards` (10 chars in a gbuffer of 10; 20 grown to exactly 20; red: refused, and cut with an ERROR) |
-| `set_disconnected()`: the `EV_DISCONNECTED` publish inside the liveness marker | `7314ad50d` | No host destroys there: no red test |
-| fs_watcher: a directory watched again brings its subtree (each subdirectory not watched yet is watched and handed as created, parent first); the half-limit warning re-arms under 40%; an unparsable `max_queued_events` is said | `1d2083dc3` | `test_fs_watcher_overflow` (`a/sub` made while `a` was not watched; red: never announced, its file never heard) |
-| C_TIMER0: `gobj_stop()` and an arm in one turn -- the cancel falls through to `EV_STOPPED` | `b7de0e312` | `test_c_timer0` |
-| `--stop` takes only the processes of the name that run its binary (`/proc/<pid>/exe`): the SysV script of the same name is not signalled (TODO.md §1, made necessary by the EPERM check of item 6) | (this commit) | By hand: a shell script named like the daemon survives its `--stop` |
-| `close_range()` through `syscall(SYS_close_range)` | `4f9362a6e` | Compiles; the loop as before without the header or the kernel |
-| The tcp4h memory assertion measures `mallinfo2()` (allocated, tracked or not) | `769af7b41` | `c_prot_tcp4h/test1` |
-| The init script under units: `start`/`stop`/`restart` exit with the units' answer; `status` says an agent running outside its unit | `bfc86e031` | `status` of the new script run on wattyzer: *"yuneta_agent: running OUTSIDE its unit"* -- its main agent IS outside its unit now |
+- **Deprecated `C_PROT_MQTT`:** with `istream_consume()` now checking the
+  append (`769af7b41`), a PUBLISH at or above the max block never completes.
+  Before, it was delivered truncated. Every later chunk logs an ERROR with a
+  stack, and no payload timeout ends it. A peer can do it. Cap the remaining
+  length, as tcp4h and websocket now do.
+- **OpenSSL `encrypt_data`** never resets `want_retries` after a write that
+  made progress (mbedTLS does): six WANTs spread over a long write abort it.
+- **logcenter:** a refused or failed `restart-yuneta` (sudo refused, or
+  systemctl failed) is not logged (`c_logcenter.c:957-977` checks only
+  `ret < 0`). Its loop is now blocked in `system()` up to the units' stop and
+  start timeouts (60 s), where it used to be about 1 s.
+- **`restart_nodes()`:** a yuno spared after its 10 s (D state, SIGKILLed,
+  certain to die) is never launched again once it dies. Re-arm its launch
+  when it goes, or list it in the answer.
+- **ExecStopPost:** `kill -KILL $p && logger` logs nothing when the kill
+  fails.
+- **`close_range`:** `SYS_close_range` comes from the kernel headers; with
+  headers older than 5.9 it compiles but always takes the slow loop
+  (`#define __NR_close_range 436` as a fallback).
+- **No test** for the C_UDP client, the websocket default max, a frame of
+  exactly `max-1` completing, the ytls -1 and WANT-stall paths, `--stop`,
+  `restart-yuneta`, the init script and ExecStopPost.
+- **Docs:** `list-jwk` "(empty)" for a C_AUTHZ without a treedb is wrong when
+  the config sets `jwks`: it lists keys that are never validated.
 
-## Not done, and why
+## Order I would fix them in
 
-- **9a/9b** (a delete sequence in the master's signal) and **26** (project
-  repos): in TODO.md and the projects' TODOs by decision, as before.
-- **wattyzer's main agent runs outside its unit** (found by the new
-  `status`): not touched by this session. `sudo /etc/init.d/yuneta_agent
-  start` (7.25.22-3) or `sudo systemctl restart yuneta_agent` puts it back.
-- **No red test** for: item 3 (packaging), item 6 (by hand), item 8
-  (scripts), the ytls lows, `set_disconnected()`, `close_range()`.
+1. The C_TCP flush path (1): one line, the same rule as the decrypt path.
+2. `--stop` (2).
+3. The fs_watcher re-watch (3).
+4. The dbsimple symlinked parent (4), and its test.
+5. The low items as their area is touched.
