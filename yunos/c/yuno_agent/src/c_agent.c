@@ -1347,6 +1347,24 @@ PRIVATE int mt_stop(hgobj gobj)
         delete_console(gobj, name_);
     }
 
+    /*
+     *  And the C_COUNTERs of run/kill/play/pause-yuno still waiting: the
+     *  yuno stops only its direct children, so they reach gobj_end still
+     *  running. Not answered: their channels are closing.
+     */
+    json_t *dl_counters = gobj_match_children(gobj, json_pack("{s:s}",
+        "__gclass_name__", C_COUNTER
+    ));
+    int idx; json_t *jn_counter;
+    json_array_foreach(dl_counters, idx, jn_counter) {
+        hgobj gobj_counter = (hgobj)(size_t)json_integer_value(jn_counter);
+        if(gobj_is_running(gobj_counter)) {
+            gobj_stop(gobj_counter);
+        }
+        gobj_destroy(gobj_counter);
+    }
+    gobj_free_iter(dl_counters);
+
     clear_timeout(priv->timer);
     if(priv->cert_sync_timer) {
         clear_timeout(priv->cert_sync_timer);

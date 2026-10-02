@@ -159,6 +159,13 @@ except the hook and the entries this list marks "(no red test)".
   `c_tcps/test7` (red: a SegFault in clear and over TLS); the `mt_stop()`
   order has no red test (a connected clisrv always has a read in flight, so
   its stop never ends inside `mt_stop()`).
+- **Agent: an orderly `--stop` with a `run-yuno` (or `kill-yuno`,
+  `play-yuno`, `pause-yuno`) still waiting logs nothing.** Each of them arms a
+  volatile `C_COUNTER` that waits for the yunos (30 s); the yuno stops only
+  its direct children, so a counter still waiting reached `gobj_end` running:
+  *"Destroying a RUNNING gobj"* and *"No subscription found"* per counter. The
+  agent's `mt_stop` stops and destroys them, without answering (their
+  channels are closing). (no red test)
 - **C_QIOGATE: the size of its queue can be read through a C_MQIOGATE.**
   `msgs_in_queue` and `pending_acks` were said only by the gate's own
   `mt_stats`, and a C_MQIOGATE asks its children with `build_stats()`, which

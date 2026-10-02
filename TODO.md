@@ -103,17 +103,6 @@ Severity in parentheses where one was assigned.
   for an `EV_ON_CLOSE` that a yuno without a channel never sends. Give it a
   path for them (SIGQUIT to the pids found, answered at once), or say in the
   answer that the yuno lives unconnected.
-- **A C_COUNTER still running when the agent stops** (low). At an orderly
-  `--stop`, per pending counter: *"Destroying a RUNNING gobj"* and *"No
-  subscription found"* (`EV_TIMEOUT_PERIODIC` of the yuno). The counters are
-  the ones `run-yuno` / `kill-yuno` / `play-yuno` / `pause-yuno` arm
-  (`gobj_create_volatil(..., C_COUNTER, ...)`, `c_agent.c`
-  ~5194/5373/5561/5737) with a 30 s expiration; `C_COUNTER` stops and
-  destroys itself only in `publish_finalcount()`. The agent's `mt_stop` must
-  stop AND destroy its `C_COUNTER` children (`gobj_stop()` alone does not
-  destroy one) — `gobj_match_children` by `__gclass_name__` — before
-  `gobj_end` walks the tree, without forcing `publish_finalcount()` (it
-  would answer over channels that are closing).
 
 ### Gates, queues and stats
 
