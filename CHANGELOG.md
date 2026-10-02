@@ -134,6 +134,27 @@ except the hook and the entries this list marks "(no red test)".
   "a stale link", fails on the code before it locally too: `[R2 DEL]`;
   "race in the batch" passes 30 in 30 on wattyzer, 1 in 10 before) and
   `test_fs_watcher_overflow` (new "dir fds").
+- **Out of descriptors, that read no longer uses memory freed or a
+  descriptor closed.** The check of a life borrowed its record of what was
+  checked, then opened the content: out of descriptors, that open closes
+  every read descriptor, the md2 just checked and that record too, and the
+  check wrote into the freed record and handed the md2's number, by then
+  the content's, to be read as md2 rows. The md2 is now looked for again
+  after the open: closed, the check starts again, once; a second time, the
+  records are not read, with an ERROR. (no red test: found by reading)
+- **A link consumed already is not read again by path.** The scan of a key
+  directory and the link's own event can both meet a link; the second one
+  found it gone and read the key's files by path, which is the race this
+  section fixes (a new life read against the old one's cache) and re-read
+  what the first one had read, or had left unread for being another life.
+  The first one unlinks and THEN reads, so nothing is lost: a record made
+  later makes a new link. (no red test: a window of microseconds)
+- **fs_watcher: a watch that cannot be made is said as what it is.** A
+  failure of the watch through `/proc/self/fd` was always taken for a
+  missing `/proc`, said once per process and retried by path; with no
+  watches left (`ENOSPC`, `ENOMEM`) that spent the only `/proc` message and
+  a second watch. Those two now fail at once with their own ERROR. The test
+  "dir fds" now checks that no descriptor is left open after the stop.
 
 ### Risks the review named
 

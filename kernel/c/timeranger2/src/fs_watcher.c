@@ -888,24 +888,34 @@ PRIVATE int add_watch(
 
     int wd = inotify_add_watch(fs_event->fd, watched_path, mask);
     if (wd == -1 && dir_fd >= 0) {
-        /*
-         *  Not through the descriptor (no /proc?): by its path, as without
-         *  FS_FLAG_DIR_FDS, said once
-         */
+        int err = errno;
         close(dir_fd);
         dir_fd = -1;
-        if(!proc_fd_watch_failed_said) {
-            proc_fd_watch_failed_said = TRUE;
-            gobj_log_error(fs_event->gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot watch a directory through its descriptor (/proc/self/fd): watched by its path",
-                "path" ,        "%s", path,
-                "serrno" ,      "%s", strerror(errno),
-                NULL
-            );
+        if(err == ENOSPC || err == ENOMEM) {
+            /*
+             *  No watch can be made (max_user_watches, memory), by its path
+             *  neither: said below as what it is, not as /proc
+             */
+            errno = err;
+        } else {
+            /*
+             *  Not through the descriptor (no /proc?): by its path, as
+             *  without FS_FLAG_DIR_FDS, said once
+             */
+            if(!proc_fd_watch_failed_said) {
+                proc_fd_watch_failed_said = TRUE;
+                gobj_log_error(fs_event->gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot watch a directory through its descriptor (/proc/self/fd): watched by its path",
+                    "path" ,        "%s", path,
+                    "errno",        "%d", err,
+                    "serrno" ,      "%s", strerror(err),
+                    NULL
+                );
+            }
+            wd = inotify_add_watch(fs_event->fd, path, fs_type_2_inotify_mask(fs_event));
         }
-        wd = inotify_add_watch(fs_event->fd, path, fs_type_2_inotify_mask(fs_event));
     }
     if (wd == -1) {
         if(errno == ENOENT && may_vanish) {
@@ -1417,10 +1427,8 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event)
         fs_event->rescan_visited++;
         json_object_set_new(fs_event->rescan_seen, dir, json_true());
         fs_event->fs_type = FS_RESCAN_DIR_TYPE;
-        fs_event->event_wd = watched? (int)json_integer_value(json_object_get(watched, dir)) : -1;
-        if(!watched || !json_object_get(watched, dir)) {
-            fs_event->event_wd = -1;
-        }
+        json_t *jn_dir_wd = watched? json_object_get(watched, dir) : NULL;
+        fs_event->event_wd = jn_dir_wd? (int)json_integer_value(jn_dir_wd) : -1;
         fs_event->subdir_wd = -1;
         fs_event->directory = dir;
         fs_event->filename = "";

@@ -57,7 +57,8 @@
  *  openat() through the old descriptor does not reach the new directory,
  *  and once the events held by the old descriptor come the table holds the
  *  root and the new directory only (the descriptor held IN_DELETE_SELF and
- *  IN_IGNORED until it was closed).
+ *  IN_IGNORED until it was closed). After the stop the process holds the
+ *  descriptors it held before the watcher (/proc/self/fd): none leaks.
  *
  *  And the ROOT deleted and created again while the queue is full
  *  (do_test_root_reborn, recursive and not): after the pass the new root
@@ -79,6 +80,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <sys/inotify.h>
+#include <dirent.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -254,6 +256,23 @@ PRIVATE int max_queued_events(void)
         }
         fclose(f);
     }
+    return n;
+}
+
+PRIVATE int count_open_fds(void)    // -1: /proc/self/fd cannot be listed
+{
+    DIR *d = opendir("/proc/self/fd");
+    if(!d) {
+        return -1;
+    }
+    int n = 0;
+    struct dirent *de;
+    while((de = readdir(d)) != NULL) {
+        if(de->d_name[0] != '.') {
+            n++;
+        }
+    }
+    closedir(d);
     return n;
 }
 
@@ -621,6 +640,8 @@ PRIVATE int do_test_dir_fds(void)
     rmrdir(root4);
     mkrdir(root4, 02770);
 
+    int fds_before = count_open_fds();
+
     set_expected_results("fs_watcher dir fds", NULL, NULL, NULL, 1);
     fs_event_t *fs_event = fs_create_watcher_event(
         yev_loop, root4, FS_FLAG_RECURSIVE_PATHS|FS_FLAG_DIR_FDS, fs_callback_dirfd, 0, NULL, NULL
@@ -706,6 +727,13 @@ PRIVATE int do_test_dir_fds(void)
         yev_loop_run_once(yev_loop);
     }
     result += test_json(NULL);
+
+    int fds_after = count_open_fds();
+    if(fds_before < 0 || fds_after != fds_before) {
+        printf("%sERROR%s --> dir fds: %d descriptors open after the stop, %d before the watcher\n",
+            On_Red BWhite, Color_Off, fds_after, fds_before);
+        result += -1;
+    }
     rmrdir(root4);
     return result;
 }

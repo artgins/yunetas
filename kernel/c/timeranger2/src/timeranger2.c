@@ -7430,9 +7430,25 @@ PRIVATE int consume_link_by_fd(
         }
         /*
          *  Consumed already, by the other path (the directory's scan and
-         *  the link's IN_CREATE both meet a link made in between): read
-         *  again, it hands only what the cache has not
+         *  the link's IN_CREATE both meet a link made in between). Not read
+         *  again: that path unlinked it and read it AFTER, so it read every
+         *  record made before; one made since finds no link and makes a new
+         *  one, with its own IN_CREATE. Read again by path, keys/<key>/ could
+         *  be a new life of the key by now, read against the old one's cache
+         *  (and that path may have left the link unread for being another
+         *  life).
          */
+        if(gobj_global_trace_level() & TRACE_FS) {
+            gobj_log_debug(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_YEV_LOOP,
+                "msg",              "%s", "CLIENT: link consumed already, not read again",
+                "key",              "%s", key,
+                "link",             "%s", link_name,
+                NULL
+            );
+        }
+        return 0;
     } else if(link_fd >= 0 && fstat(link_fd, &pin) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7470,7 +7486,7 @@ PRIVATE int consume_link_by_fd(
         key,
         md2,
         rt_id,
-        (link_fd >= 0 || life_md2_fd >= 0)? &pin : NULL,
+        &pin,       // the link open, or its life's md2 known
         life_md2_fd
     );
     if(link_fd >= 0) {
@@ -7490,6 +7506,58 @@ PRIVATE BOOL path_is_file(const char *path, const struct stat *st_file)
         return FALSE;
     }
     return (st.st_ino == st_file->st_ino && st.st_dev == st_file->st_dev)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  CLIENT: the read descriptor kept of `file_id` of the key, its md2 or its
+ *  content, named as get_topic_rd_fd() names it; 0 if none is kept
+ ***************************************************************************/
+PRIVATE int rd_fd_of_file(
+    json_t *topic,
+    const char *key,
+    const char *file_id,
+    BOOL for_data
+)
+{
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.%s", file_id, for_data?"json":"md2");
+    return (int)json_integer_value(
+        json_object_get(json_object_get(json_object_get(topic, "rd_fd_files"), key), filename)
+    );
+}
+
+/***************************************************************************
+ *  CLIENT: the paths of the md2 and of the content of `file_id` of the key
+ ***************************************************************************/
+PRIVATE BOOL build_md2_and_data_paths(
+    hgobj gobj,
+    const char *topic_dir,
+    const char *key,
+    const char *file_id,
+    char *md2_path,
+    char *data_path,
+    size_t path_size    // of each of them
+)
+{
+    char md2_name[NAME_MAX+1];
+    char data_name[NAME_MAX+1];
+    int md2_len = snprintf(md2_name, sizeof(md2_name), "%s.md2", file_id);
+    int data_len = snprintf(data_name, sizeof(data_name), "%s.json", file_id);
+    if(md2_len < 0 || (size_t)md2_len >= sizeof(md2_name) ||
+            data_len < 0 || (size_t)data_len >= sizeof(data_name)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "file_id too long for a filename: the records are not read",
+            "key",          "%s", key,
+            "file_id",      "%s", file_id,
+            NULL
+        );
+        return FALSE;
+    }
+    build_path(md2_path, path_size, topic_dir, "keys", key, md2_name, NULL);
+    build_path(data_path, path_size, topic_dir, "keys", key, data_name, NULL);
+    return TRUE;
 }
 
 /***************************************************************************
@@ -7530,12 +7598,38 @@ PRIVATE BOOL keys_are_the_life_of(
                 return TRUE;    // its content checked already
             }
             int data_fd = get_topic_rd_fd(gobj, tranger, topic, key, file_id, TRUE);
+            if(data_fd < 0) {
+                return FALSE;   // Error already logged
+            }
+            if(rd_fd_of_file(topic, key, file_id, FALSE) != md2_fd) {
+                /*
+                 *  Out of descriptors, the open of the content closed every
+                 *  read descriptor (get_topic_rd_fd()), the md2 and `life`
+                 *  too: kept, the md2 was read through a number the content
+                 *  had taken
+                 */
+                if(tries == 0) {
+                    continue;
+                }
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Out of descriptors: the new records of the key not read",
+                    "topic_name",   "%s", tranger2_topic_name(topic),
+                    "key",          "%s", key,
+                    "file_id",      "%s", file_id,
+                    NULL
+                );
+                return FALSE;
+            }
             struct stat st_data;
             char md2_path[PATH_MAX];
             char data_path[PATH_MAX];
-            snprintf(md2_path, sizeof(md2_path), "%s/keys/%s/%s.md2", topic_dir, key, file_id);
-            snprintf(data_path, sizeof(data_path), "%s/keys/%s/%s.json", topic_dir, key, file_id);
-            if(data_fd >= 0 && fstat(data_fd, &st_data) == 0 &&
+            if(!build_md2_and_data_paths(gobj, topic_dir, key, file_id,
+                    md2_path, data_path, PATH_MAX)) {
+                return FALSE;   // Error already logged
+            }
+            if(fstat(data_fd, &st_data) == 0 &&
                     path_is_file(data_path, &st_data) &&
                     path_is_file(md2_path, pin)) {
                 json_t *fd_life = json_object_get(topic, "rd_fd_life");
@@ -7543,6 +7637,7 @@ PRIVATE BOOL keys_are_the_life_of(
                     fd_life = json_object();    // made by the first follower read: only a follower has it
                     json_object_set_new(topic, "rd_fd_life", fd_life);
                 }
+                life = json_object_get(fd_life, key);
                 if(!life) {
                     life = json_object();
                     json_object_set_new(fd_life, key, life);
@@ -7551,12 +7646,12 @@ PRIVATE BOOL keys_are_the_life_of(
                 *md2_fd_ = md2_fd;
                 return TRUE;
             }
-            if(data_fd < 0) {
-                return FALSE;   // Error already logged
-            }
         }
         char md2_path[PATH_MAX];
-        snprintf(md2_path, sizeof(md2_path), "%s/keys/%s/%s.md2", topic_dir, key, file_id);
+        char data_path[PATH_MAX];
+        if(!build_md2_and_data_paths(gobj, topic_dir, key, file_id, md2_path, data_path, PATH_MAX)) {
+            return FALSE;   // Error already logged
+        }
         if(!path_is_file(md2_path, pin)) {
             return FALSE;   // keys/<key>/ is another life: its files cannot be opened
         }
@@ -11518,8 +11613,8 @@ PRIVATE json_int_t load_first_and_last_record_md(
         if(check_torn_md2_tail(gobj, topic_directory, key, file_id, fd, size, -1) < 0) {
             // Error already logged
             if(own_fd) {
-            close(fd);
-        }
+                close(fd);
+            }
             return -1;
         }
         if(master) {
@@ -11538,8 +11633,8 @@ PRIVATE json_int_t load_first_and_last_record_md(
                     NULL
                 );
                 if(own_fd) {
-            close(fd);
-        }
+                    close(fd);
+                }
                 return -1;
             }
 

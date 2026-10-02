@@ -111,6 +111,23 @@ Severity in parentheses where one was assigned.
   NULL body; CRITICAL logs in legitimate races would kill a tranger with
   exit-on-critical. Re-check each against the descriptor read path before
   fixing: the NULL body may behave differently now.
+- **An rt_disk follower out of descriptors or of watches** (medium-low; cloud
+  review of `b2f972382`). With `FS_FLAG_DIR_FDS` a follower holds one
+  descriptor per key directory of each feed, and a key directory lives until
+  its key is deleted, so the count is the distinct keys written since the
+  feed opened -- the scale its inotify watches always had, but against
+  `nofile`, far lower than `max_user_watches`. Those descriptors are outside
+  the `EMFILE` recovery of `get_topic_rd_fd()`: once they fill the limit,
+  every record read fails, and each new key directory goes back to the watch
+  by path (the reborn-key race, for that key). A yuno raises its limit
+  (`c_yuno.c`, `limit_open_files`) and the packages give `nofile unlimited`;
+  a follower that is not a yuno and does not raise it is exposed. Same
+  family: a key directory whose watch cannot be made (`ENOSPC` at
+  `max_user_watches`) is taken for gone by `place_new_key_dir_scans()`, so
+  the links in it are not read, and the ones made later are not heard (no
+  watch). Both are logged as ERROR; neither is recovered. Decide: a warning
+  at a fraction of the limit, a recovery that does not close the directory
+  descriptors, a retry of the watch.
 - **`dir_identity()` fails in silence** (medium, smaller reach since
   `b2f972382`: used only on the no-descriptor fallback). It answers FALSE
   with no log on any `statx` failure, not only ENOENT, and its callers
