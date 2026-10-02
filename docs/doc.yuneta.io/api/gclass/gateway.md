@@ -40,6 +40,20 @@ in whole seconds (a read after 1.9 s divided by 1: +90 %), and every read
 moved the window, so the messages of a read under a second went into no
 rate.
 
+What the design does not do, by choice (there is no timer: a gate nobody
+reads costs nothing):
+
+- The window is as wide as the reader's interval: a reader every 60 s gets
+  the average of those 60 s, and a burst of one second inside them is
+  diluted.
+- The maxima (`maxtxMsgsec` / `maxrxMsgsec`) move only when a window closes,
+  so they are maxima of the readers' windows, not of any second.
+- The messages before the first read go into no rate: the first read opens
+  the window.
+
+A rate per second whatever the readers do needs a tick of its own, as the
+control center keeps (its `timeout` attr).
+
 A `C_CHANNEL` read by its parent (a gate) answers its BARE counters, which
 the gate merges into its own stats.
 
