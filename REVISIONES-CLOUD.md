@@ -1,71 +1,180 @@
 # Cloud review of main
 
-Reviewed up to `f35562dea` (2026-10-02). What is resolved is removed from this
-file; this version is the fixing session's answer, item by item, on
-`94533480e`. Every fix has a test that fails on the code before it, except
-where it says otherwise.
+Reviewed up to `fc023c0c5` (2026-10-02, release 7.25.22, packaging revision
+-2). What is resolved is removed from this file: every item of the previous
+review is fixed, except those listed below. Last check, on `fc023c0c5`:
+clean build with no warning, suite 287/287 as user `yuneta` under
+`ulimit -Sn 1024`.
 
-## Resolved
+## Open
 
 ### High
 
-| # | Item | Commit | Test |
-|---|------|--------|------|
-| 1 | `jwks` / `default_role` config-only (`SDF_RD`); `add-jwk`/`remove-jwk` change the running set only | `34f8db075` | `command_delete_user`: `write-attr` of both refused, nothing planted |
-| 2 | `register-idp-user` with a role asks `update` of `treedb_authzs` (`has_role` answers `may_link`) | `7c03eadea` | `command_delete_user`: a registrar only gets -403; `may_link` per user |
-| 3 | The missing comma (`"username" "%s"`) | `34f8db075` | `command_delete_user`: a username holding `%s` |
-| 4 | dbsimple: a trusted file writable by group/others refused; the yuno's user = owner of the nearest directory nobody else can write | `76a7db735` | `secret_attrs` case 7 (a root file 0664). The root-yuno branch needs root: no ctest |
-| 5 | Units: the deb `prerm` stops and disables both units inline; `ExecStopPost` kills a leftover agent in the unit's own cgroup; the comment says what `KillMode=process` does | `bb3796a55` | The units by hand on wattyzer; the packages (deb upgrade from 7.25.21, removal) are tested with the release |
+**1. dbsimple: the trust of a root yuno can still be planted** (item 4,
+`76a7db735`).
+
+`trusted_dir_owner()` (`dbsimple.c:77-118`) returns the owner of the FIRST
+directory upward that has no group/other write bits. Nothing checks the
+directories above it, and it uses `stat()`, which follows a symlink.
+
+Scenario for a root yuno, by a member of the `yuneta` group (the parent
+`<role^id>` is 02775):
+
+1. `mv data data.old`.
+2. `mkdir data; chmod 0755 data` and write the file there, mode 0600.
+3. The walk stops at that `data` and returns the attacker's uid: the file is
+   trusted and loaded.
+4. On the next save `give_back` (`dbsimple.c:752`) `fchown`s the new file,
+   with the yuno's secrets, to the attacker.
+
+A symlink in place of `data` does the same. The walk is by path and the file
+is checked by fd, so there is also a TOCTOU window.
+
+Preferred fix: start from a fixed anchor (the yuneta root, or the realm
+directory the agent makes) and require EVERY directory of the chain to be
+closed, with `lstat()`/`openat(O_NOFOLLOW)` along the path; or simply trust
+only root's file and the euid's own. A test as root.
 
 ### Medium
 
-| # | Item | Commit | Test |
-|---|------|--------|------|
-| 6 | `kill-yuno` signals a yuno alive and not connected (found by the `/proc` scan); `restart_nodes()` relaunches once the killed pids are gone (100 ms look, 10 s max, then says who was left) | `6cd4063c1`, `b0b0068fd` | No ctest compiles `c_agent.c`: checked by hand (SIGSTOP) |
-| 7 | C_PROT_TCP4H: small initial buffer, max = frame length + 1; C_WEBSOCKET: a frame of exactly `max_payload_size` completes | `ff7ffd484` | `c_prot_tcp4h/test1` (new), `c_websocket/test2` |
-| 8 | C_TCP: an alive marker chain in priv around `EV_CONNECTED` and `EV_RX_DATA` (cleared by `mt_destroy`); the read re-armed when a subscriber answers -1; `set_secure_connected()` checks the sskt and the state after its publish; OpenSSL `flush_encrypted_data()` releases its gbuffer | `d64ac9ff3`, `f35562dea` | `c_tcps/test8` (new); the `EV_CONNECTED` TLS drop has no red test (asynchronous in the test) |
-| 9 | C_AUTHZ with no users treedb answers the jwk commands, and the user commands `-1` *"no users treedb in this yuno"*; the upgrade notes say the -403 through `command-yuno` and that `SDF_AUTHZ_X` does nothing by default; the role example carries `realm_id` | `d70e02d8b` | `command_delete_user` |
+**2. `write-attr` writes any `SDF_PERSIST` attr** (new).
+
+`ATTR_WRITABLE` is `SDF_WR|SDF_PERSIST` and is tested with `&`
+(`gobj.c:3608`), so an attr flagged `SDF_PERSIST` alone is writable at run
+time through `write-attr`, which is `SDF_AUTHZ_X` only (nothing while
+`enable_command_authz` is off). Among them:
+
+- `C_AUTHZ.max_sessions_per_user` (`c_authz.c:339`): bypasses the
+  always-on check of `set-max-sessions`.
+- `C_IDP_KEYCLOAK` `kc_base_url` / `kc_admin_client_secret`: a changed base
+  url sends the admin client secret to another server.
+- `C_YUNO` `allowed_ips` / `denied_ips`, `C_TCP_S.crypto`,
+  `C_MQTT_BROKER.enable_acl`, emailsender `url` / `password`.
+
+Apart from `max_sessions_per_user`, each is as open through its own
+command; together they are the reason to enable the gate.
+
+Preferred fix: `write-attr` needs `SDF_WR` (an `SDF_PERSIST` attr without
+it is set by config or by its own checked command); review which of the
+attrs above should be `SDF_WR` at all.
+
+**3. rpm: the SELinux label of the agents is not durable without
+`semanage`** (`fc023c0c5`).
+
+`%post` falls back to `chcon` when `semanage` is missing, and the spec does
+not require `policycoreutils-python-utils` (`make-yuneta-agent-rpm.sh:1551`).
+A `chcon` label is lost on an autorelabel or a `restorecon -R /yuneta`:
+both agent units then fail at boot with 203/EXEC. The CHANGELOG's advice
+("a binary moved in by hand takes the rule back with restorecon") is wrong
+on such a node, and a `mv` keeps the source's label.
+
+Preferred fix: `Requires(post): policycoreutils-python-utils` (EL9) so the
+rule is always written; `%postun` on erase removes the three fcontext rules.
+
+**4. C_UDP / C_UDP_S: a subscriber's -1 stops the reading for good**
+(predates; the same defect `d64ac9ff3` fixed in C_TCP).
+
+`c_udp.c:746` and `c_udp_s.c:1150` re-arm the read only if the publish
+answered 0. One subscriber answering -1 (or "Event NOT DEFINED", which the
+publish sums) leaves the server deaf, with nothing said.
+
+Preferred fix: the same as C_TCP: re-arm when the event is still idle,
+whatever the publish answered.
+
+**5. A frame of exactly the DEFAULT max block still never completes**
+(item 7, `ff7ffd484`).
+
+With `max_payload_size=0` (websocket) or `max_pkt_size=0` (tcp4h) the max
+is `gbmem_get_maximum_block()` (`__max_block__ - TRACK_MEM`). The buffer of
+such a frame grows to `frame_length+1`, which `_mem_realloc` refuses
+(`gbmem.c:612`); the append truncates, `istream_consume` ignores it
+(`istream.c:187/191`), and the frame waits for its timeout. The tests use
+explicit maxima only.
+
+Preferred fix: with the default, refuse a frame `>=` the max block (or cap
+the default one byte lower); `istream_consume` checks what
+`gbuffer_append` answers.
+
+**6. `--stop`** (`5337b15bb`).
+
+- `kill()` is never checked: on EPERM (an agent of another user) it waits
+  10 s, prints a false "killed (SIGKILL)" and exits 0.
+- An agent that crashes during its orderly stop is relaunched by its
+  watcher after 2 s; at 10 s the watcher is SIGKILLed and the relaunched
+  agent is left alive, an orphan.
+
+Preferred fix: check and say each `kill()`; SIGQUIT the watcher first (it
+then does not relaunch) and collect the agent's pid again before the
+SIGKILL.
+
+**7. Controlcenter `mt_stop` can stop the yuno's loop** (predates).
+
+It calls `clear_timeout0()` then `gobj_stop()` of `rates_timer`. The
+cancel's completion arrives with the gobj stopped, C_TIMER0's callback
+answers -1 (`c_timer0.c:224/246`), and `yev_loop` sets `running=false`
+(`yev_loop.c:1928`). Harmless at the yuno's shutdown; if the service is
+ever stopped alone (a stop of the service, a restart of the tree), the
+whole yuno stops. Not reproduced.
+
+Preferred fix: C_TIMER0's callback answers -1 only for the yuno's own
+timers (or never); a stopped child timer is not a reason to end the loop.
 
 ### Low
 
-| Item | Commit | Test |
-|------|--------|------|
-| `__reset__` zeroes `refusedConnxs` / `noChannelConnxs` -- and, the same defect, every priv counter read through `mt_reading` in C_TCP, C_TCP_S and C_UDP_S | `b6e7dd43c` | `c_tcp_s_ip_lists`, `c_udp_s_rx` |
-| The daemon's close loop: `close_range()` (the loop stays for a kernel < 5.9) | `b6e7dd43c` | By hand: a yuno started with fd 50 open under `ulimit -Sn 20` keeps only its own |
-| `info-uptime` reads `errno` before the log | `b6e7dd43c` | -- |
-| `--pid-file` without `--start` is refused | `b6e7dd43c` | By hand |
-| fs_watcher: the half-limit warning counts the dir fds of every watcher of the process, said again only after falling under the half | `3554be928` | `test_fs_watcher_overflow` (two watchers of 40 under 128) |
-| fs_watcher: an end said when `FIONREAD` fails adds all the kernel can hold (`max_queued_events`), never short; a `FIONREAD` that fails again at the pad check ends the watcher (`FS_WATCHER_GONE`) | `3554be928` | `test_fs_watcher_overflow` (1000 files; a broken FIONREAD) |
-| Control center pause+play in one turn: fixed in C_TIMER0 -- an arm while its cancel is in flight is done when the cancel ends, and that cancel is not published as `EV_STOPPED` | `868afac7c` | `test_c_timer0` |
-| TLS reasons: mbedTLS `close_notify` (*"the peer closed the TLS session"*), data before the handshake (both backends), the WANT stall | `a2d6db1a5` | `ytls/test_free_inside_callback`, both backends (mbedTLS linked by hand: the local build has OpenSSL only) |
-| Rates (accepted design): its three limits are written in `gateway.md` | `bccb3b181` | -- |
-| timeranger2 9c: a feed of metadata only is fed a record whose body is lost | `43bfe823e` | No red test (the fallback needs a system without /proc) |
-| timeranger2 9d: on a master, a file missing from a key still on disk is a CRITICAL *"the store is damaged"*; a follower or a key gone keeps the warning | `43bfe823e` | `test_read_never_exits` |
-| rt_disk close: `rmrdir()` walks once more a directory filled while walked (ENOTEMPTY), so only a real failure logs; `.closing.<pid>-<start>.<seq>` carries the process start time, and a reused pid's leftover is removed | `43bfe823e` | `helpers/test_dir_read_error` 19; `test_delete_key_propagation` |
-| `--stop`: SIGQUIT to every process of the name, 10 s to be gone, SIGKILL only to what is left | `5337b15bb` | By hand: a `--stop` takes 109 ms (it took 2 s, and gave the agent 1 s) |
-| "has `create` but not `update`, with a role" | `8c9783245` | `command_delete_user` |
+- **`restart_nodes()` after its 10 s** relaunches with
+  `spare_the_living=FALSE`, so a yuno still alive (D state) gets a second
+  instance: the original failure, now logged. Passing TRUE skips it with the
+  existing warning.
+- **`kill-yuno` of a yuno found only by the scan answers at once**; a
+  `run-yuno` right after it can find it still exiting and skip it ("not
+  launched again"), and the yuno ends up down. Answer when it has gone, or
+  say it in the answer.
+- **ExecStopPost** reads a cgroup v2 path written by hand
+  (`/sys/fs/cgroup/system.slice/%n/cgroup.procs`): a no-op, unsaid, on a v1
+  or hybrid host; and it kills with nothing in the journal. Read the path
+  from `/proc/self/cgroup`, and `logger` the pid it kills.
+- **C_AUTHZ with no treedb** (`d70e02d8b`): any valid JWT may run
+  `add-jwk` / `remove-jwk` there (pre-7.25.22 behaviour, in memory only).
+- **`jwks` persisted at run time is dropped with nothing said**, and stays
+  in the file for ever (`json_object_update_missing`). A node whose keys came
+  only from `add-jwk` loses its JWT logins at the first restart; only the
+  upgrade note warns. Say it once at load.
+- **CHANGELOG upgrade steps** do not name the -403 of `register-idp-user`
+  with a role, nor the immediate answer of `kill-yuno` for a yuno not
+  connected.
+- **ytls:** `flush_clear_data` sums the subscribers' answers into the same
+  number space as -2222 and the "< -1000 TLS error" band (more than 1000
+  records answered -1 in one read become a TLS error; a sum of exactly
+  -2222 hangs the connection). OpenSSL `encrypt_data` loops on
+  WANT_READ/WRITE with no bound (mbedTLS stops at 5); `flush_clear_data`
+  (OpenSSL) does not check `gbuffer_create`.
+- **`gbuffer_vprintf`** grows by `written`, with no room for the NUL
+  (`gbuffer.c:533`): an exact fit writes one character less and logs "NOT
+  ENOUGH SPACE". Pass `written+1`.
+- **`set_disconnected()`** publishes `EV_DISCONNECTED` and then touches the
+  gobj (`gobj_reset_volatil_attrs`): a host that destroys it on that event
+  would be a use-after-free (no such host in the tree).
+- **fs_watcher:** `watch_unwatched_again()` watches the directory alone,
+  not its subtree, so under `FS_FLAG_RECURSIVE_PATHS` a subdirectory made
+  during the outage is never watched; the half-limit warning has no
+  hysteresis; `kernel_queue_bound()` takes 16384 silently when `fscanf`
+  fails.
+- **C_TIMER0:** `gobj_stop()` then `set_timeout0()` in one turn leaves the
+  re-arm flag set on a stopped gobj, and no `EV_STOPPED` is published.
+- **`close_range()`** needs glibc 2.34 at compile time: a source build on an
+  older glibc does not compile.
+- **The tcp4h memory assertion** of the new test reads
+  `get_cur_system_memory()`, which is 0 without `CONFIG_DEBUG_TRACK_MEMORY`:
+  vacuous on the nodes.
 
-Also fixed in this round, from TODO.md section 1: a key directory whose watch
-fails with `ENOSPC`/`ENOMEM` is tried again at each batch of the watcher and
-handed as created once watched, so the follower reads its records
-(`94533480e`; `test_fs_watcher_overflow`, `test_rt_disk_unwatched_key` new).
+Items 9a/9b (a delete sequence in the master's signal) and 26 (project
+repos) are in TODO.md and the projects' TODOs by decision; not repeated
+here.
 
-## Not done, and why
+## Order I would fix them in
 
-- **The soft open-files limit and the release suite's `ulimit -Sn 1024`
-  axis.** Every yuno raises its soft limit to the hard one, so a yuno-based
-  test no longer runs at 1024. Kept on purpose: the nodes' yunos do the same
-  (the packages give `nofile unlimited`), so a yuno test at 1024 tests a
-  configuration no node runs. The axis keeps covering what does not go through
-  the entry point (the timeranger2 tests, the CLI tools).
-- **9a/9b** (the accounting of key deletes in rt_disk followers): the design
-  is decided and written in TODO.md -- a per-topic delete sequence carried
-  in the NAME of the master's signal (`.delete.<seq>.<key>`), compared per key
-  by the follower. It changes the protocol between master and follower
-  processes (an old follower does not understand the new signal), so it goes
-  in its own release, next cycle, with an upgrade note.
-- **26** (msg2db consumers, `C_GATE_PVPC` urls): code of the projects, moved
-  to their own TODO files.
-- **No red test** still for: item 6 (mbedTLS in `ST_WAIT_STOPPED`), item 15
-  (the agent; no ctest compiles `c_agent.c`), item 16, the root-yuno branch
-  of item 2.
+1. The dbsimple chain (1), with a root test.
+2. `write-attr` and `SDF_PERSIST` (2); the rpm SELinux requirement (3).
+3. The UDP read stall (4) and the default-max frame (5).
+4. `--stop` (6) and C_TIMER0's -1 (7).
+5. The low items as their area is touched.
