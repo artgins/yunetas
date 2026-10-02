@@ -66,6 +66,14 @@
  *  a directory is said ONCE however many fail (they are watched by path,
  *  counted), and when one opens again, how many went by path.
  *
+ *  And an end of the queued events said past the stream
+ *  (do_test_padded_end): FIONREAD fails once (__wrap_ioctl), so
+ *  fs_queued_events_end() counts a read whole, unseen. The watcher is quiet
+ *  after it, and must still reach that end: an FS_BATCH_END at it, the
+ *  stream there, and the next events after it. Up to 7.25.21 an owner
+ *  waiting for that end waited for unrelated events, for ever on a quiet
+ *  watcher.
+ *
  *  And the ROOT deleted and created again while the queue is full
  *  (do_test_root_reborn, recursive and not): after the pass the new root
  *  is watched, a file created in it is heard. Up to 7.25.20 the pass
@@ -88,6 +96,8 @@
 #include <sys/inotify.h>
 #include <dirent.h>
 #include <sys/resource.h>
+#include <sys/ioctl.h>
+#include <stdarg.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -97,6 +107,27 @@
 #include <testing.h>
 
 #define APP "test_fs_watcher_overflow"
+
+/*
+ *  FIONREAD fails `fionread_fails` times (linked with --wrap=ioctl)
+ */
+int __real_ioctl(int fd, unsigned long request, ...);
+int __wrap_ioctl(int fd, unsigned long request, ...);
+static int fionread_fails = 0;
+
+int __wrap_ioctl(int fd, unsigned long request, ...)
+{
+    va_list ap;
+    va_start(ap, request);
+    void *arg = va_arg(ap, void *);
+    va_end(ap);
+    if(request == FIONREAD && fionread_fails > 0) {
+        fionread_fails--;
+        errno = EIO;
+        return -1;
+    }
+    return __real_ioctl(fd, request, arg);
+}
 
 #define EXTRA_DIRS  4096        // beyond the queue's limit
 #define OWNER_US    100         // what the owner spends on each directory of the pass
@@ -496,6 +527,120 @@ PRIVATE int do_test_queued_events_end(void)
     result += test_json(NULL);
 
     rmrdir(root4);
+    return result;
+}
+
+/***************************************************************************
+ *  An end said past the stream, on a quiet watcher
+ ***************************************************************************/
+PRIVATE int pad_files = 0;
+PRIVATE int pad_batch_ends = 0;
+PRIVATE uint64_t pad_last_end = 0;
+
+PRIVATE int fs_callback_pad(fs_event_t *fs_event)
+{
+    if(fs_event->fs_type == FS_FILE_CREATED_TYPE) {
+        pad_files++;
+    }
+    if(fs_event->fs_type == FS_BATCH_END_TYPE) {
+        pad_batch_ends++;
+        pad_last_end = fs_event->offset;
+    }
+    return 0;
+}
+
+PRIVATE int create_file_in(const char *dir, const char *name)
+{
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), dir, name, NULL);
+    int fd = open(path, O_CREAT|O_WRONLY, 0600);
+    if(fd < 0) {
+        return -1;
+    }
+    close(fd);
+    return 0;
+}
+
+PRIVATE int do_test_padded_end(void)
+{
+    int result = 0;
+    char root5[PATH_MAX];
+    build_path(root5, sizeof(root5), getenv("HOME"), "tests_yuneta", "fs_watcher_padded_end", NULL);
+    rmrdir(root5);
+    mkrdir(root5, 02770);
+    pad_files = 0;
+
+    set_expected_results(
+        "fs_watcher padded end: an end said past the stream is reached on a quiet watcher",
+        json_pack("[{s:s}]",
+            "msg", "ioctl(FIONREAD) FAILED: the events queued by now are not counted"
+        ),
+        NULL, NULL, 1
+    );
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop,
+        root5,
+        FS_FLAG_BATCH_END,
+        fs_callback_pad,
+        0,
+        NULL,
+        NULL
+    );
+    if(!fs_event) {
+        return -1;
+    }
+    if(fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> the watcher could not be started\n", On_Red BWhite, Color_Off);
+        fs_stop_watcher_event(fs_event);
+        return -1;
+    }
+    for(int i = 0; i < 5; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    create_file_in(root5, "first");
+    for(int i = 0; i < 50 && pad_files < 1; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+
+    fionread_fails = 1;
+    uint64_t end = fs_queued_events_end(fs_event);
+    fionread_fails = 0;
+    if(end <= fs_event->offset) {
+        printf("%sERROR%s --> FIONREAD failed and the end (%lu) is not past the stream (%lu)\n",
+            On_Red BWhite, Color_Off, (unsigned long)end, (unsigned long)fs_event->offset);
+        result += -1;
+    }
+
+    pad_batch_ends = 0;
+    pad_last_end = 0;
+    for(int i = 0; i < 50 && pad_batch_ends == 0; i++) {
+        usleep(2000);                   // nothing happens in the tree; the turn
+        yev_loop_run_once(yev_loop);    // of the loop does not wait: time passes here
+    }
+    if(pad_batch_ends == 0 || pad_last_end < end || fs_event->offset < end) {
+        printf("%sERROR%s --> a quiet watcher did not reach the end said past it: %d FS_BATCH_END, at %lu, the stream at %lu, the end %lu\n",
+            On_Red BWhite, Color_Off, pad_batch_ends, (unsigned long)pad_last_end,
+            (unsigned long)fs_event->offset, (unsigned long)end);
+        result += -1;
+    }
+
+    create_file_in(root5, "second");
+    for(int i = 0; i < 50 && pad_files < 2; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(pad_files != 2 || fs_event->offset <= end) {
+        printf("%sERROR%s --> the events after the end: %d files heard (expected 2), the stream at %lu (past %lu)\n",
+            On_Red BWhite, Color_Off, pad_files, (unsigned long)fs_event->offset, (unsigned long)end);
+        result += -1;
+    }
+
+    fs_stop_watcher_event(fs_event);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    rmrdir(root5);
     return result;
 }
 
@@ -1087,6 +1232,7 @@ int main(int argc, char *argv[])
 
     int result = do_test_stop_on_overflow();
     result += do_test_queued_events_end();
+    result += do_test_padded_end();
     result += do_test_root_unwatchable();
     result += do_test_dir_fds();
     result += do_test_dir_fds_limit();

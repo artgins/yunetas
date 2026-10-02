@@ -28,7 +28,7 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 | `use_ssl` | `bool` | Enable TLS on the connection. |
 | `crypto` | `json` | TLS configuration (certificates, keys). |
 | `rx_buffer_size` | `integer` | Receive buffer size in bytes. |
-| `timeout_inactivity` | `integer` | Inactivity timeout in seconds (`-1` = no timeout). |
+| `timeout_inactivity` | `integer` | Inactivity timeout in milliseconds (`-1`, the default = no timeout). |
 | `timeout_between_connections` | `integer` | Idle delay between reconnection attempts, in milliseconds (default `2000`). |
 | `timeout_between_connections_max` | `integer` | If `> timeout_between_connections`, the reconnect delay backs off exponentially from the base up to this cap (ms), resetting to base once a connection is established (for a TLS client, only on a successful handshake). `0` (default) = disabled, legacy fixed interval. A peer that keeps failing no longer hammers at the base cadence. |
 | `connect_on_start` | `bool` | A client connects when it starts (default `true`). `false`: it stays in `ST_DISCONNECTED` until its owner sends `EV_CONNECT`. Only that FIRST connection waits for the owner: once a connection ends (an error, a drop by the peer) the client connects again after `timeout_between_connections`, as any client does, unless that is `-1` (no timer: every connection waits for an `EV_CONNECT` of the owner) -- `json_pack("{s:s, s:b, s:i}", "url", url, "connect_on_start", 0, "timeout_between_connections", -1)`. `C_SMTP_SESSION` starts its transport this way, so a yuno with nothing to send logs in to nobody (added after 7.25.20). Example in a gclass that builds its client: `json_pack("{s:s, s:b}", "url", url, "connect_on_start", 0)` |

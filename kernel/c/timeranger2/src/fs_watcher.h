@@ -121,6 +121,9 @@ struct fs_event_s {
     json_int_t dir_fds_by_path; // Internal: FS_FLAG_DIR_FDS, subdirectories watched by their path
                                 // because their descriptor could not be opened, since that was said
     BOOL dir_fds_warned;        // Internal: FS_FLAG_DIR_FDS, half the open-files limit was said
+    uint64_t pad_end;           // Internal: an end of the queued events said past the stream
+                                // (fs_queued_events_end() could not see a read), to close
+    yev_event_h yev_pad;        // Internal: one-shot turn of the loop that closes pad_end
 } ;
 
 
@@ -154,8 +157,12 @@ PUBLIC int fs_stop_watcher_event( // When the event is stopped the fs_event will
  *  has just read from the disk. Exact, from the owner's own callback and of
  *  another watcher alike: a read the kernel completed and the loop has not
  *  delivered is counted (its completion is looked for in the ring). Only
- *  when completions overflowed the ring is a read counted whole, unseen: the
- *  answer may then be past the end, never short.
+ *  when completions overflowed the ring (or FIONREAD failed) is a read
+ *  counted whole, unseen: the answer may then be past the end, never short.
+ *  Such an end is closed by the watcher itself: once everything queued has
+ *  been delivered, the stream jumps to it with an FS_BATCH_END, so an owner
+ *  waiting for it does not wait for unrelated events (up to 7.25.21 a quiet
+ *  watcher never got there).
  */
 PUBLIC uint64_t fs_queued_events_end(
     fs_event_t *fs_event

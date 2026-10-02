@@ -51,8 +51,8 @@
                             "src_yuno": "",
                             "src_role": "yuneta_cli",
                             "src_service": "cli",
-                            "user": "gines",
-                            "host": "gines-Nitro-AN517-53"
+                            "user": "yuneta",
+                            "host": "dev-laptop"
                         }
                     ]
                 }

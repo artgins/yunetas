@@ -71,6 +71,9 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event);
 PRIVATE uint64_t monotonic_us(void);
 PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event);
 PRIVATE int queued_in_kernel(fs_event_t *fs_event, uint64_t *queued);
+PRIVATE uint64_t note_padded_end(fs_event_t *fs_event, uint64_t end);
+PRIVATE void arm_pad_check(fs_event_t *fs_event);
+PRIVATE int pad_check_callback(yev_event_h yev_event);
 PRIVATE void tell_owner_watcher_gone(fs_event_t *fs_event);
 
 /***************************************************************************
@@ -284,6 +287,9 @@ PUBLIC int fs_stop_watcher_event(
     }
     fs_event->stopping = TRUE;
     stop_rescan_pass(fs_event);
+    if(fs_event->yev_pad && yev_event_is_running(fs_event->yev_pad)) {
+        yev_stop_event(fs_event->yev_pad);
+    }
     if(fs_event->in_callback) {
         /*
          *  Stopped by a consumer reacting to one of our own events (a feed
@@ -339,7 +345,9 @@ PUBLIC uint64_t fs_queued_events_end(
     }
     uint64_t queued = 0;
     if(fs_event->in_batch) {
-        queued_in_kernel(fs_event, &queued);    // Error already logged
+        if(queued_in_kernel(fs_event, &queued) < 0) {
+            return note_padded_end(fs_event, fs_event->batch_end + READ_SIZE); // Error already logged
+        }
         return fs_event->batch_end + queued;
     }
 
@@ -347,7 +355,7 @@ PUBLIC uint64_t fs_queued_events_end(
         int res1 = 0, res2 = 0;
         int waiting1 = yev_get_waiting_completion(fs_event->yev_event, &res1);
         if(queued_in_kernel(fs_event, &queued) < 0) {
-            return fs_event->offset + READ_SIZE;    // Error already logged: a read, at most
+            return note_padded_end(fs_event, fs_event->offset + READ_SIZE); // Error already logged
         }
         int waiting2 = yev_get_waiting_completion(fs_event->yev_event, &res2);
         if(waiting1 < 0 || waiting2 < 0) {
@@ -355,7 +363,7 @@ PUBLIC uint64_t fs_queued_events_end(
              *  Completions overflowed the ring: whether one of this read
              *  waits cannot be seen. A read holds READ_SIZE at most.
              */
-            return fs_event->offset + READ_SIZE + queued;
+            return note_padded_end(fs_event, fs_event->offset + READ_SIZE + queued);
         }
         if(waiting1 == waiting2 && res1 == res2) {
             return fs_event->offset + ((waiting2 && res2 > 0)? (uint64_t)res2 : 0) + queued;
@@ -369,7 +377,109 @@ PUBLIC uint64_t fs_queued_events_end(
         "path",         "%s", fs_event->path,
         NULL
     );
-    return fs_event->offset + READ_SIZE + queued;
+    return note_padded_end(fs_event, fs_event->offset + READ_SIZE + queued);
+}
+
+/***************************************************************************
+ *  An end said past the stream (a read counted whole, unseen) is noted, and
+ *  closed by the watcher (pad_check_callback()): an owner waiting for the
+ *  stream to reach it would otherwise wait for READ_SIZE bytes of unrelated
+ *  events, for ever on a quiet watcher.
+ ***************************************************************************/
+PRIVATE uint64_t note_padded_end(fs_event_t *fs_event, uint64_t end)
+{
+    if(end > fs_event->pad_end) {
+        fs_event->pad_end = end;
+    }
+    arm_pad_check(fs_event);
+    return end;
+}
+
+PRIVATE void arm_pad_check(fs_event_t *fs_event)
+{
+    if(fs_event->stopping) {
+        return;
+    }
+    if(!fs_event->yev_pad) {
+        fs_event->yev_pad = yev_create_timer_event(
+            fs_event->yev_loop,
+            pad_check_callback,
+            fs_event->gobj
+        );
+        if(!fs_event->yev_pad) {
+            gobj_log_error(fs_event->gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Cannot create the timer that closes an end said past the stream: it is reached by the next events",
+                "path",         "%s", fs_event->path,
+                NULL
+            );
+            return;
+        }
+        yev_set_user_data(fs_event->yev_pad, fs_event);
+    }
+    if(!yev_event_is_running(fs_event->yev_pad)) {
+        yev_start_timer_event(fs_event->yev_pad, 1, FALSE);   // the next turn of the loop
+    }
+}
+
+/***************************************************************************
+ *  The next turn of the loop after an end was said past the stream, or
+ *  after a batch while one is open. When nothing is left to deliver -- no
+ *  completion of the read waiting in the ring, none in the kernel's queue,
+ *  the same answer before and after asking it -- everything queued when the
+ *  end was said has been handed over: the stream jumps to that end, and the
+ *  owner is told with an FS_BATCH_END. A read still to come closes it at its
+ *  batch's end; a ring still overflowed is looked at again next turn.
+ ***************************************************************************/
+PRIVATE int pad_check_callback(yev_event_h yev_event)
+{
+    fs_event_t *fs_event = yev_get_user_data(yev_event);
+    if(!fs_event || yev_get_state(yev_event) != YEV_ST_IDLE || fs_event->stopping) {
+        return 0;   // the stop of the timer, or of the watcher
+    }
+    if(fs_event->pad_end <= fs_event->offset) {
+        fs_event->pad_end = 0;
+        return 0;   // reached by the events themselves
+    }
+
+    int res1 = 0, res2 = 0;
+    uint64_t queued = 0;
+    int waiting1 = yev_get_waiting_completion(fs_event->yev_event, &res1);
+    if(queued_in_kernel(fs_event, &queued) < 0) {
+        return 0;   // Error already logged: the next batch looks again
+    }
+    int waiting2 = yev_get_waiting_completion(fs_event->yev_event, &res2);
+    if(waiting1 < 0 || waiting2 < 0) {
+        yev_start_timer_event(yev_event, 1, FALSE);     // the loop flushes the ring
+        return 0;
+    }
+    if(waiting1 || waiting2 || queued) {
+        return 0;   // a read comes: its batch's end looks again
+    }
+
+    fs_event->offset = fs_event->pad_end;
+    fs_event->pad_end = 0;
+    if(fs_event->fs_flag & FS_FLAG_BATCH_END) {
+        fs_event->fs_type = FS_BATCH_END_TYPE;
+        fs_event->event_wd = -1;
+        fs_event->subdir_wd = -1;
+        fs_event->directory = (volatile char *)fs_event->path;
+        fs_event->filename = "";
+        fs_event->offset_end = fs_event->offset;
+        fs_event->in_callback = TRUE;
+        fs_event->callback(fs_event);
+        fs_event->in_callback = FALSE;
+        if(fs_event->stop_requested) {
+            /*
+             *  The owner stopped the watcher from its callback: stop it now
+             *  that nobody is walking with it
+             */
+            fs_event->stop_requested = FALSE;
+            fs_stop_watcher_event(fs_event);
+        }
+    }
+    return 0;
 }
 
 /***************************************************************************
@@ -416,6 +526,10 @@ PRIVATE void fs_destroy_watcher_event(
     EXEC_AND_RESET(yev_destroy_event, fs_event->yev_event)
     stop_rescan_pass(fs_event);
     EXEC_AND_RESET(yev_destroy_event, fs_event->yev_rescan) // no callback after this, see yev_loop
+    if(fs_event->yev_pad && yev_event_is_running(fs_event->yev_pad)) {
+        yev_stop_event(fs_event->yev_pad);
+    }
+    EXEC_AND_RESET(yev_destroy_event, fs_event->yev_pad)
     GBMEM_FREE(fs_event->path)
     JSON_DECREF(fs_event->jn_tracked_paths)
     JSON_DECREF(fs_event->stale_wds)
@@ -563,6 +677,9 @@ PRIVATE int yev_callback(
                     fs_event->offset = fs_event->batch_end;
                     if(!fs_event->stop_requested) {
                         forget_stale_wds(fs_event);
+                        if(fs_event->pad_end > fs_event->offset) {
+                            arm_pad_check(fs_event);
+                        }
                     }
 
                     if(fs_event->stop_requested) {

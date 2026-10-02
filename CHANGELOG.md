@@ -21,13 +21,14 @@ except the hook and the entries this list marks "(no red test)".
 - **A persistent attrs file of another user is refused** (not loaded, saves
   refused) unless it is root's, or the yuno runs as root and it is the data
   directory owner's. A node whose yunos changed of user (a dev box: `yuneta`
-  after a reboot, `gines` by hand) gives the files to the yuno's user.
+  after a reboot, the developer's own user by hand) gives the files to the
+  yuno's user.
 - **A frame before the session is limited** (`max_pre_session_frame` of
   `C_IEVENT_SRV`, 64 KB by default): a client that sends a bigger identity
   card needs it raised.
 
 - **Rebuild every project against the new headers.** `fs_event_t`
-  (`fs_watcher.h`) gains seven fields, at its end.
+  (`fs_watcher.h`) gains nine fields, at its end.
 - **An rt_disk follower holds one more descriptor per key directory of each
   feed** (`FS_FLAG_DIR_FDS`). A yuno now raises its soft open-files limit to
   its hard one at its start (C_YUNO `limit_open_files`, `0` by default; up
@@ -44,6 +45,10 @@ except the hook and the entries this list marks "(no red test)".
   for `child_tree_filter`.
 - **The agent's audit log redacts more names**: one that holds a part of a
   secret's name is redacted whatever else it holds (`token_endpoint` too).
+- **A direct owner of an fs_watcher handles `FS_WATCHER_GONE_TYPE`**: the
+  watcher tells it before it goes, already freed when the callback returns,
+  so the owner drops its pointer and never stops it again. timeranger2,
+  `C_FS` and `utils/c/fs_watcher` do; no project owns one directly today.
 - **`gobj_stats()` of a `C_IOGATE` or a `C_QIOGATE` answers the envelope**
   (`{"result", "comment", "schema", "data"}`) like every other `mt_stats`; the
   counters are under `data`. A project that read them bare reads 0 now:
@@ -166,6 +171,19 @@ except the hook and the entries this list marks "(no red test)".
   *"Destroying a RUNNING gobj"* and *"No subscription found"* per counter. The
   agent's `mt_stop` stops and destroys them, without answering (their
   channels are closing). (no red test)
+- **fs_watcher: an end of the queued events said past the stream is reached
+  on a quiet watcher.** When `fs_queued_events_end()` cannot see the
+  watcher's read (completions overflowed the ring, `FIONREAD` failed, the
+  completions kept moving) it counts a read whole, about 8 KB past the real
+  end; a timeranger2 follower that deferred the scan of a key directory to
+  that end waited for as many bytes of unrelated events, for ever on a quiet
+  feed. The watcher now notes such an end and closes it on the next turn of
+  the loop (and after each batch while open): once nothing waits in the
+  ring nor in the kernel, the stream jumps to it with an `FS_BATCH_END`. And
+  a `FIONREAD` that fails inside a batch no longer answers the batch's end
+  alone, which could be short. `fs_event_t` gains two fields, at its end.
+  Test `timeranger2/test_fs_watcher_overflow` (`do_test_padded_end`, with a
+  `__wrap_ioctl` that fails `FIONREAD` once; red: no `FS_BATCH_END` comes).
 - **dbsimple: an in-place save whose write stops half way writes the old
   content back.** In a directory the yuno cannot write, the persistent attrs
   are saved in place with ONE `pwrite()`: where the room cannot be reserved
@@ -17219,7 +17237,7 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       but it blocked the yev_loop between lines, so any
       programmatic driver that wanted to send a command, read its
       response, then send another would hang. `-i` was also
-      unusable for non-TTY drivers (e.g. claudia-console running
+      unusable for non-TTY drivers (e.g. an AI coding agent running
       `ycommand` via Bash) because `tty_keyboard_init`
       unconditionally calls `enableRawMode`, which fails with
       "NOT a TTY" on a piped fd. Net effect: every remote command

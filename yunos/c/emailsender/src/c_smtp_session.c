@@ -250,7 +250,7 @@ typedef struct _PRIVATE_DATA {
     BOOL connect_posted;        /* EV_CONNECT_AFTER_CLOSE is on its way */
     BOOL connecting;            /* EV_CONNECT sent: the timer is the watchdog of the connect and TLS */
     BOOL connect_timed_out;     /* the watchdog dropped the attempt */
-    int refused_in_row;         /* messages refused with a 5xx since the last delivery (not counting a bad address) */
+    int refused_in_row;         /* messages refused with a 5xx since the last delivery */
     int sender_refused;         /* reply code of a refused default sender: EV_ON_CLOSE sender_refused; 0 = none */
     BOOL refusing;              /* this drop is for a run of refusals */
     BOOL streak_ends_at_handshake; /* the failing streak is of connections/handshakes only */

@@ -546,7 +546,7 @@ parameters:
  "date":"2026-09-24T10:00:00.000000000+0200",
  "user":"yuneta",
  "source":{"hops":[{"role":"ycommand","yuno":"","service":"ycommand",
-                    "user":"yuneta","host":"gines-nitroan51753"}]},
+                    "user":"yuneta","host":"dev-laptop"}]},
  "kw":{"__username__":"yuneta"}}
 ```
 

@@ -27,7 +27,7 @@ message.
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `url` | `string` | HTTP endpoint URL. |
-| `timeout_inactivity` | `integer` | Inactivity timeout in seconds. |
+| `timeout_inactivity` | `integer` | Inactivity timeout in milliseconds (`60000`). |
 | `cert_pem` | `string` | TLS certificate (PEM). |
 | `crypto` | `json` | TLS config forwarded to the bottom C_TCP for `https://` URLs. Default `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` — verifies the server cert against the system CA. Override with `ssl_trusted_certificate` for a private CA, or `ssl_allow_insecure_client: true` to skip verification (MITM risk). |
 | `raw_body_data` | `bool` | `TRUE` to deliver body chunks incrementally. |

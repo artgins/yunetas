@@ -180,7 +180,8 @@ The offset in the stream where the events queued by now end: the rest of the
 batch being walked, if one is -- or else what a read the kernel completed and
 the loop has not delivered took --, plus what the kernel still holds
 (`FIONREAD`). `0` for a NULL watcher. If `FIONREAD` fails the error is logged
-and a read is counted whole.
+and a read is counted whole (inside a batch too: up to 7.25.21 that answer
+was the batch's end alone, which could be short).
 
 **Notes**
 
@@ -194,6 +195,24 @@ between (there is one read at a time, and once completed it waits for the
 loop). Only when completions overflowed the ring, and whether one of this
 read waits cannot be seen, is a read counted whole: the answer is then past
 the end, never short.
+
+An answer past the end is closed by the watcher itself. It notes it, and on
+the next turn of the loop (and after each batch while it is open) it looks
+again: once no completion of its read waits in the ring and the kernel holds
+nothing, everything queued when it was asked has been handed over, so the
+stream JUMPS to that answer and the owner is called with `FS_BATCH_END_TYPE`
+at it (with `FS_FLAG_BATCH_END`). The offsets after it continue from there: an
+offset is a place in the stream to compare, not a count of bytes read. Up to
+7.25.21 nothing closed it, and an owner waiting for "the stream past here"
+waited for about 8 KB of unrelated events -- on a quiet watcher, for ever.
+
+```C
+case FS_BATCH_END_TYPE:
+    if(owner->scan_pending && fs_event->offset >= owner->scan_until) {
+        scan_the_directory(owner);  // reached, even if no event came after it
+    }
+    break;
+```
 
 It costs what the queue holds: `FIONREAD` walks the whole inotify queue. Ask
 it once per batch (`FS_BATCH_END_TYPE`), not once per event: asked at each of

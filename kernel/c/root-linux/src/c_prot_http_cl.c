@@ -47,7 +47,7 @@ PRIVATE int check_url(hgobj gobj);
 PRIVATE const sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to connect"),
-SDATA (DTP_INTEGER, "timeout_inactivity",SDF_WR,        "60000",    "Timeout inactivity"),
+SDATA (DTP_INTEGER, "timeout_inactivity",SDF_WR,        "60000",    "Timeout inactivity, in milliseconds"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
 SDATA (DTP_DICT,    "crypto",           SDF_RD,         "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}", "TLS crypto forwarded to the bottom C_TCP for https:// urls. Verifies the server cert against the system CA by default; override with ssl_trusted_certificate for a private CA, or ssl_allow_insecure_client=true to skip (MITM risk)."),
 SDATA (DTP_BOOLEAN, "raw_body_data",    SDF_RD,         "FALSE",    "Publish raw partial data of body or full body at the end"),

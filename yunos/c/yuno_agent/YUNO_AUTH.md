@@ -212,6 +212,19 @@ Logout clears both with `Max-Age=0` ([`c_auth_bff.c`](https://github.com/artgins
 | `idp_timeout_ms`       | default `30000`     | Bounds the IdP **round-trip once connected** (`C_TASK`'s `exec_timeout`). On expiry the browser gets 504. |
 | `idp_connect_timeout_ms` | default `30000`   | Bounds the **wait to connect** to the IdP. See §2.6.  |
 
+Discovery requires BOTH endpoints in the issuer's document: without
+`end_session_endpoint` it fails. Auth0 does not publish one (it has its own
+`/v2/logout`) and some Cognito setups omit it, so for them set both explicit
+endpoints, which skips discovery. Keycloak and Authentik publish both.
+
+```json
+"kw": {
+    "token_endpoint": "https://example.auth0.com/oauth/token",
+    "end_session_endpoint": "https://example.auth0.com/v2/logout",
+    "client_id": "my-spa"
+}
+```
+
 The 2026-04-30 migration unified everything under `issuer` + (optional)
 explicit endpoints. The legacy Keycloak `idp_url` + `realm` pair was
 deprecated then and **removed** after 7.5.4 — configure `issuer` (or the

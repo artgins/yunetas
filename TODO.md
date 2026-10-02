@@ -63,12 +63,6 @@ Severity in parentheses where one was assigned.
   path once would rescue only the links of that moment; the real answer is
   a retry of the watch at a point that comes anyway (the next overflow pass,
   or the next record of the key), not a timer.
-- **A deferred scan can wait without limit on a quiet feed** (low).
-  `fs_queued_events_end()` over-estimates by `READ_SIZE` on its fallbacks
-  (FIONREAD failure, CQ ring overflow, completions still moving after 3 tries),
-  reachable from a deferral made in the overflow pass; the scan then waits for
-  ~`READ_SIZE` more bytes of unrelated events.
-
 ### Agent
 
 - **`kill-yuno` cannot reach a yuno alive but not connected** (low; left by
@@ -107,23 +101,6 @@ Severity in parentheses where one was assigned.
   `yuneta-webserver.service` (`Type=forking` with the daemon's pid file, or
   the agent in the foreground), keep `yuneta_agent22` outside it as the
   escape hatch, and make the xscripts start it through `systemctl`.
-
-### Stale texts
-
-- `docs/doc.yuneta.io/api/gclass/transport.md:31` and `protocol.md:30` say
-  `timeout_inactivity` is in seconds (it is ms; `protocol.md:54`,
-  `C_PROT_HTTP_SR`, is right: that one is seconds).
-- `tests/c/c_tcp/README.md` test7 describes the "Operation canceled"
-  replacement as if current, with no "up to" release.
-- gobj-js `CHANGELOG.md` 7.25.9 still says "an unquoted value ends at a
-  quote".
-- `c_smtp_session.c` ~253: the `refused_in_row` comment still says "(not
-  counting a bad address)"; every refusal counts since `d3acb0390`.
-- No upgrade note for a direct fs_watcher owner, which must now handle
-  `FS_WATCHER_GONE_TYPE` (drop the pointer, never stop the freed watcher). No
-  project is one today; the CHANGELOG has it only as a Fixes bullet.
-- `YUNO_AUTH.md` does not say that Auth0 / Cognito need explicit endpoints
-  (see *OIDC discovery* under [Accepted limitations](#4-accepted-limitations)).
 
 ---
 
