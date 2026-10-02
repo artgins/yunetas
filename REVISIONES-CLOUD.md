@@ -1,10 +1,11 @@
 # Cloud review of main
 
-Reviewed up to `fc023c0c5` (2026-10-02, release 7.25.22, packaging revision
--2). What is resolved is removed from this file: every item of the previous
-review is fixed, except those listed below. Last check, on `fc023c0c5`:
-clean build with no warning, suite 287/287 as user `yuneta` under
-`ulimit -Sn 1024`.
+Reviewed up to `ee940e48a` (2026-10-02, release 7.25.22, packaging revision
+-3). What is resolved is removed from this file. Since `fc023c0c5` main
+carries only packaging and docs (`5728d7bc3`, `ee940e48a`): no item below is
+fixed yet, and no C file changed, so the last suite still holds (on
+`fc023c0c5`: clean build with no warning, 287/287 as user `yuneta` under
+`ulimit -Sn 1024`).
 
 ## Open
 
@@ -119,8 +120,37 @@ whole yuno stops. Not reproduced.
 Preferred fix: C_TIMER0's callback answers -1 only for the yuno's own
 timers (or never); a stopped child timer is not a reason to end the loop.
 
+**8. Restarts that do not go through root start the agent OUTSIDE its unit**
+(new, `5728d7bc3` makes it visible).
+
+With the units, an agent started by hand with `--start` runs where systemd
+does not see it, and the next boot does not start it (CLAUDE.md, *Deploy
+conventions*). Two paths still do exactly that:
+
+- `/yuneta/bin/restart-yuneta` (`make-yuneta-agent-deb.sh:1545-1578`, same
+  in the rpm), run by the certbot deploy hook as its fallback: as a non-root
+  user it does `yshutdown` and then `yuneta_agent --start`.
+- logcenter's `restart_yuneta_command` default (`c_logcenter.c:127`):
+  `/yuneta/bin/yshutdown -s; sleep 1; /yuneta/agent/yuneta_agent --start ...`,
+  run by the logcenter (user `yuneta`) after a queue alarm.
+
+After either, the agent runs outside `yuneta_agent.service` (and `yshutdown`
+also took agent22 down, which `restart-yuneta` does not start again). The
+init script now puts it back in its unit at its next `start`, but nothing
+runs that until a reboot or an operator.
+
+Preferred fix: both ask systemd (`sudo -n systemctl restart
+yuneta_agent.service` with a sudoers rule for the `yuneta` user limited to
+that command, or a unit the agent can trigger), and fall back to `--start`
+only on a node without the units; `yshutdown` must not take agent22 down
+with it.
+
 ### Low
 
+- **The init script** (`5728d7bc3`): `stop` and `start` answer 0 whatever
+  the units answered (only logged), so `service yuneta_agent start` reports
+  success when the main agent's unit failed; `status` looks only at the
+  units, so an agent running outside its unit reads "not running".
 - **`restart_nodes()` after its 10 s** relaunches with
   `spare_the_living=FALSE`, so a yuno still alive (D state) gets a second
   instance: the original failure, now logged. Passing TRUE skips it with the
@@ -176,5 +206,5 @@ here.
 1. The dbsimple chain (1), with a root test.
 2. `write-attr` and `SDF_PERSIST` (2); the rpm SELinux requirement (3).
 3. The UDP read stall (4) and the default-max frame (5).
-4. `--stop` (6) and C_TIMER0's -1 (7).
+4. `--stop` (6), C_TIMER0's -1 (7) and the restarts outside the unit (8).
 5. The low items as their area is touched.
