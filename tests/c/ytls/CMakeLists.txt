@@ -47,6 +47,7 @@ set(SRCS
     test_handshake_reject_mbedtls
     test_tls_floor_openssl
     test_tls_verify_openssl
+    test_free_inside_callback
 )
 
 ##############################################
@@ -54,7 +55,15 @@ set(SRCS
 ##############################################
 foreach(test ${SRCS})
     set(binary "${test}")
-    add_yuno_executable(${binary} "${test}.c")
+    if(test STREQUAL "test_free_inside_callback")
+        # freed memory poisoned and held: a read after the free crashes
+        add_yuno_executable(${binary} "${test}.c"
+            ${CMAKE_CURRENT_SOURCE_DIR}/../emailsender/poison_alloc.c
+        )
+        target_include_directories(${binary} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../emailsender)
+    else()
+        add_yuno_executable(${binary} "${test}.c")
+    endif()
 
     if(CONFIG_FULLY_STATIC)
         set_target_properties(${binary} PROPERTIES

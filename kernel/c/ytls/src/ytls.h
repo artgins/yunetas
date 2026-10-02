@@ -99,7 +99,7 @@ typedef struct api_tls_s {
         void *user_data
     );
     void (*free_secure_filter)(hsskt sskt);
-    int (*do_handshake)(hsskt sskt); // Must return 1 (done), 0 (in progress), -1 (failure)
+    int (*do_handshake)(hsskt sskt); // Must return 1 (done), 0 (in progress), -1 (failure), -2222 (sskt freed inside a callback)
     int (*encrypt_data)(                // return 0 on success, -2222 sskt freed inside, <-1000 on TLS error (c_tcp closes socket)
         hsskt sskt,
         gbuffer_t *gbuf  // owned
@@ -110,7 +110,7 @@ typedef struct api_tls_s {
     );
     const char * (*get_last_error)(hsskt sskt);
     void (*set_trace)(hsskt sskt, BOOL set);
-    int (*flush)(hsskt sskt); // flush clear and encrypted data
+    int (*flush)(hsskt sskt); // flush clear and encrypted data: 0, -2222 (sskt freed inside a callback), < 0 failure
     void (*shutdown)(hsskt sskt);
     void (*set_peer_name)(hsskt sskt, const char *peername, const char *sockname);
 } api_tls_t;
@@ -221,8 +221,16 @@ PUBLIC void ytls_free_secure_filter(hytls ytls, hsskt sskt);
     Return
         1   (handshake done),
         0   (handshake in progress),
-        -1  (handshake failure).
+        -1  (handshake failure),
+        -2222 (the sskt was freed inside a callback -- on_handshake_done_cb,
+            or on_encrypted_data_cb with the handshake's bytes: its owner
+            ended the connection there; touch neither the sskt nor its
+            owner, which may be gone too).
     Callback on_handshake_done_cb will be called once for successfully case, or more for failure case.
+    Any of the three callbacks may free the sskt (ytls_free_secure_filter())
+    from inside: every call in progress then returns -2222 on its way out,
+    without touching it again. Up to 7.25.21 only on_clear_data_cb was
+    covered.
 **rst**/
 PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt);
 
@@ -233,8 +241,9 @@ PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt);
         0       success,
         -2222   the sskt was freed inside a callback (a subscriber of the
                 clear data it published while it waited dropped the
-                connection): touch neither the sskt nor its owner, which
-                may be gone too,
+                connection, or the write of the encrypted data could not
+                start): touch neither the sskt nor its owner, which may be
+                gone too,
         < 0     failure (< -1000: a TLS error).
 **rst**/
 PUBLIC int ytls_encrypt_data(
@@ -248,9 +257,10 @@ PUBLIC int ytls_encrypt_data(
     The clear data will be returned in on_clear_data_cb callback.
     Return
         0       success,
-        -2222   the sskt was freed inside on_clear_data_cb (its owner
-                dropped the connection there): touch neither the sskt nor
-                its owner, which may be gone too,
+        -2222   the sskt was freed inside a callback (its owner dropped
+                the connection there: on_clear_data_cb, on_handshake_done_cb
+                or on_encrypted_data_cb): touch neither the sskt nor its
+                owner, which may be gone too,
         < -1000 a TLS error.
 **rst**/
 PUBLIC int ytls_decrypt_data(
@@ -278,6 +288,11 @@ PUBLIC void ytls_set_peer_name(hytls ytls, hsskt sskt, const char *peername, con
 
 /**rst**
     Flush data
+    Return
+        0       success,
+        -2222   the sskt was freed inside a callback: touch neither the
+                sskt nor its owner,
+        < 0     failure (< -1000: a TLS error).
 **rst**/
 PUBLIC int ytls_flush(hytls ytls, hsskt sskt);
 

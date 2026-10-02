@@ -101,6 +101,19 @@ typedef struct ytls_s {
     hgobj gobj;
 } ytls_t;
 
+/*
+ *  A call in progress that hands control to the owner (a callback) may see
+ *  the session freed inside it: the owner's connection ends there. Each such
+ *  call keeps a marker on its stack, the markers of the calls in progress
+ *  are chained (they nest: decrypt -> handshake -> flush of encrypted data),
+ *  and free_secure_filter() clears them all, so every caller learns it on
+ *  its way out (-2222) without touching the session again.
+ */
+typedef struct alive_s {
+    BOOL alive;
+    struct alive_s *prev;
+} alive_t;
+
 typedef struct sskt_s {
     ytls_t *ytls;
     SSL *ssl;
@@ -114,7 +127,7 @@ typedef struct sskt_s {
     void *user_data;
     char last_error[256];
     unsigned long error; // holds ERR_get_error() (unsigned long per OpenSSL API)
-    BOOL *alive; // Points to stack var in flush_clear_data; set to FALSE when freed mid-callback
+    alive_t *alive; // the markers of the calls in progress that hand control to the owner
     char peername[64]; // Set by the transport via set_peer_name(), for self-contained logs ("" if unset)
     char sockname[64];
 } sskt_t;
@@ -1032,6 +1045,21 @@ PRIVATE hsskt new_secure_filter(
 }
 
 /***************************************************************************
+ *  The marker of a call that hands control to the owner (see alive_t)
+ ***************************************************************************/
+PRIVATE void alive_push(sskt_t *sskt, alive_t *marker)
+{
+    marker->alive = TRUE;
+    marker->prev = sskt->alive;
+    sskt->alive = marker;
+}
+
+PRIVATE void alive_pop(sskt_t *sskt, alive_t *marker)
+{
+    sskt->alive = marker->prev;     // only while the session lives
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void shutdown_sskt(hsskt sskt_)
@@ -1050,12 +1078,11 @@ PRIVATE void free_secure_filter(hsskt sskt_)
     sskt_t *sskt = sskt_;
 
     /*
-     * If we are being freed from within the on_clear_data_cb callback
-     * (re-entrant destruction), signal the alive marker on the caller's
-     * stack so that flush_clear_data() can stop iterating after we return.
+     *  Freed from inside a callback (the owner's connection ended there): every
+     *  call in progress learns it from its marker on the way out
      */
-    if(sskt->alive) {
-        *sskt->alive = FALSE;
+    for(alive_t *marker = sskt->alive; marker; marker = marker->prev) {
+        marker->alive = FALSE;
     }
 
     SSL_free(sskt->ssl);   /* free the SSL object and its BIO's */
@@ -1178,12 +1205,20 @@ PRIVATE int do_handshake(hsskt sskt_)
                 "negotiated_version", "%s", SSL_get_version(sskt->ssl),
                 NULL
             );
+            alive_t marker;
+            alive_push(sskt, &marker);
             sskt->on_handshake_done_cb(sskt->user_data, -1);
+            if(!marker.alive) {
+                return -2222;   // the session was freed inside the callback
+            }
+            alive_pop(sskt, &marker);
             return -1;
         }
     }
 
-    flush_encrypted_data(sskt);
+    if(flush_encrypted_data(sskt) == -2222) {
+        return -2222;   // the session was freed inside the callback
+    }
 
     BOOL handshake_end = SSL_is_init_finished(sskt->ssl);
     if(ret==1 || handshake_end) { // Viene los dos a la vez
@@ -1212,7 +1247,13 @@ PRIVATE int do_handshake(hsskt sskt_)
                     NULL
                 );
             }
+            alive_t marker;
+            alive_push(sskt, &marker);
             sskt->on_handshake_done_cb(sskt->user_data, 0);
+            if(!marker.alive) {
+                return -2222;   // the session was freed inside the callback
+            }
+            alive_pop(sskt, &marker);
         }
         return 1; // handshake done
     }
@@ -1263,7 +1304,14 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
         }
         if(ret > 0) {
             gbuffer_set_wr(gbuf, ret);
-            if(sskt->on_encrypted_data_cb(sskt->user_data, gbuf) < 0) {
+            alive_t marker;
+            alive_push(sskt, &marker);
+            int cb_ret = sskt->on_encrypted_data_cb(sskt->user_data, gbuf);
+            if(!marker.alive) {
+                return -2222;   // the session was freed inside the callback
+            }
+            alive_pop(sskt, &marker);
+            if(cb_ret < 0) {
                 /*
                  *  gbuf is the callback's, whatever it answers (ytls.h): not
                  *  released here
@@ -1322,9 +1370,8 @@ PRIVATE int encrypt_data(
                         sskt->user_data
                     );
                 }
-                flush_encrypted_data(sskt);
-                if(flush_clear_data(sskt) == -2222) {
-                    // on_clear_data_cb freed sskt re-entrantly inside flush_clear_data;
+                if(flush_encrypted_data(sskt) == -2222 || flush_clear_data(sskt) == -2222) {
+                    // a callback freed sskt re-entrantly;
                     // do NOT touch sskt again (the loop re-test below would deref it),
                     // and tell the caller so: its connection, maybe its gobj, is gone.
                     GBUFFER_DECREF(gbuf)
@@ -1355,10 +1402,11 @@ PRIVATE int encrypt_data(
         if(sskt->ytls->trace_tls) {
             gobj_trace_msg(gobj, "------- ==> encrypt_data DATA, userp %p, len %d", sskt->user_data, (int)len);
         }
-        if(flush_encrypted_data(sskt)<0) {
-            // Error already logged
+        int ret = flush_encrypted_data(sskt);
+        if(ret < 0) {
+            // Error already logged (-2222: the session is gone)
             GBUFFER_DECREF(gbuf)
-            return -1;
+            return ret == -2222? -2222 : -1;
         }
     }
     GBUFFER_DECREF(gbuf)
@@ -1373,15 +1421,8 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
     hgobj gobj = sskt->ytls->gobj;
     int ret = 0;
 
-    /*
-     * Alive marker: a stack variable whose address is stored in sskt->alive.
-     * If on_clear_data_cb triggers re-entrant destruction of sskt
-     * (i.e. free_secure_filter is called while we are still iterating),
-     * free_secure_filter will set this to FALSE before freeing sskt,
-     * and we will stop the loop without touching the freed memory.
-     */
-    BOOL sskt_alive = TRUE;
-    sskt->alive = &sskt_alive;
+    alive_t marker;     // on_clear_data_cb may free the session (see alive_t)
+    alive_push(sskt, &marker);
 
     if(sskt->ytls->trace_tls) {
         gobj_trace_msg(gobj, "------- flush_clear_data(), userp %p", sskt->user_data);
@@ -1419,23 +1460,18 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
                 NULL
             );
             GBUFFER_DECREF(gbuf)
-            sskt->alive = NULL;
+            alive_pop(sskt, &marker);
             return -1111; // Mark as TLS error
         }
 
         // Callback clear data
         gbuffer_set_wr(gbuf, nread);
         ret += sskt->on_clear_data_cb(sskt->user_data, gbuf);
-        /*
-         * Check alive marker: if the callback caused sskt to be freed
-         * (re-entrant destruction), sskt_alive is now FALSE.
-         * Do NOT touch sskt after this point.
-         */
-        if(!sskt_alive) {
+        if(!marker.alive) {
             return -2222; // sskt freed re-entrantly inside on_clear_data_cb; signal callers not to touch it
         }
     }
-    sskt->alive = NULL;
+    alive_pop(sskt, &marker);
     return ret;
 }
 
@@ -1479,10 +1515,11 @@ PRIVATE int decrypt_data(
             gobj_trace_msg(gobj, "------- <== decrypt_data, userp %p, len %zu", sskt->user_data, len);
         }
         if(!SSL_is_init_finished(sskt->ssl)) {
-            if(do_handshake(sskt)<0) {
-                // Error already logged
+            int ret = do_handshake(sskt);
+            if(ret < 0) {
+                // Error already logged (-2222: the session is gone)
                 GBUFFER_DECREF(gbuf)
-                return -1111; // Mark as TLS error
+                return ret == -2222? -2222 : -1111; // Mark as TLS error
             }
         } else {
             int ret = flush_clear_data(sskt);
@@ -1514,7 +1551,9 @@ PRIVATE const char *last_error(hsskt sskt_)
  ***************************************************************************/
 PRIVATE int flush(hsskt sskt)
 {
-    flush_encrypted_data(sskt);
+    if(flush_encrypted_data(sskt) == -2222) {
+        return -2222;   // the session was freed inside the callback
+    }
     int ret = flush_clear_data(sskt);
     if(ret < 0) {
         // Error already logged in flush_clear_data (incl. -2222 re-entrant-free sentinel)

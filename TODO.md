@@ -26,16 +26,6 @@ Severity in parentheses where one was assigned.
 
 ## 1. Defects to fix
 
-### TLS and transport
-
-- **ytls: the alive marker covers only `flush_clear_data()`** (low; follow-up
-  of the -2222 fix). `do_handshake()` touches `sskt->handshake_informed`
-  after `flush_encrypted_data()` (`openssl.c` ~1052), and a write that cannot
-  start inside that callback already reaches `set_disconnected()`, which
-  frees the sskt. Extend the marker to every callback before freeing the
-  sskt any earlier (the review's idea of freeing it in
-  `try_to_stop_yevents()` once the end is decided).
-
 ### timeranger2 and fs_watcher
 
 - **rt_disk follower: two holes left in the accounting of key deletes**

@@ -197,9 +197,11 @@ int ytls_decrypt_data(
 
 **Returns**
 
-Returns `0` on success; `-2222` when the secure socket was freed inside
-`on_clear_data_cb` (its owner dropped the connection there): touch neither the
-`sskt` nor its owner, which may be gone too; `< -1000` on a TLS error.
+Returns `0` on success; `-2222` when the secure socket was freed inside a
+callback (its owner dropped the connection there: `on_clear_data_cb`, or
+`on_handshake_done_cb` / `on_encrypted_data_cb` while the handshake runs):
+touch neither the `sskt` nor its owner, which may be gone too; `< -1000` on a
+TLS error.
 
 ```C
 int ret = ytls_decrypt_data(ytls, sskt, gbuf);
@@ -238,11 +240,35 @@ int ytls_do_handshake(
 
 **Returns**
 
-Returns `1` if the handshake is complete, `0` if it is in progress, and `-1` if it fails.
+Returns `1` if the handshake is complete, `0` if it is in progress, `-1` if
+it fails, and `-2222` when the secure socket was freed inside a callback --
+the owner ended the connection in `on_handshake_done_cb`, or in
+`on_encrypted_data_cb` because the write of the handshake's bytes could not
+start: touch neither the `sskt` nor its owner.
+
+```C
+int ret = ytls_do_handshake(ytls, sskt);
+if(ret == -2222) {
+    return;     // the connection ended inside a callback: the gobj may be gone
+}
+if(ret < 0) {
+    // the handshake cannot start: end the connection
+}
+```
 
 **Notes**
 
 The callback `on_handshake_done_cb` will be invoked once upon success or multiple times in case of failure.
+
+**Freed inside a callback.** Any of the three callbacks may free the session
+(`ytls_free_secure_filter()`) from inside: C_TCP does, when a write cannot
+start or a subscriber drops the connection. Each call in progress keeps a
+marker on its stack, the markers are chained (the calls nest: decrypt,
+handshake, the flush of the encrypted bytes), and the free clears them all:
+every call returns `-2222` on its way out and never reads the session again.
+Up to 7.25.21 only `on_clear_data_cb` was covered, and the backends read the
+freed session after the other two (`tests/c/ytls/test_free_inside_callback`,
+both backends).
 
 ---
 
@@ -271,8 +297,8 @@ int ytls_encrypt_data(
 
 Returns 0 on success; `-2222` when the secure socket was freed inside a
 callback (a subscriber of the clear data published while the backend waited
-dropped the connection): touch neither the `sskt` nor its owner; any other
-negative value on failure.
+dropped the connection, or the write of the encrypted data could not start):
+touch neither the `sskt` nor its owner; any other negative value on failure.
 
 **Notes**
 
@@ -301,7 +327,9 @@ int ytls_flush(
 
 **Returns**
 
-Returns `0` on success, or a negative value on failure.
+Returns `0` on success, `-2222` when the secure socket was freed inside a
+callback (touch neither the `sskt` nor its owner), or another negative value
+on failure.
 
 **Notes**
 

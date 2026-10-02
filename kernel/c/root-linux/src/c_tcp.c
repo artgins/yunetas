@@ -738,7 +738,17 @@ PRIVATE void set_connected(hgobj gobj, int fd)
          *  the event is accepted). On the server side it is a no-op that
          *  returns 0 (WANT_READ) until the peer speaks first.
          */
-        if(ytls_do_handshake(priv->ytls, priv->sskt) < 0) {
+        int ret = ytls_do_handshake(priv->ytls, priv->sskt);
+        if(ret == -2222) {
+            /*
+             *  The ClientHello's write could not start, and its end
+             *  (set_disconnected) freed the session inside the callback:
+             *  the connection is over and the gobj may be gone. Up to
+             *  7.25.21 ytls touched the freed session on its way out.
+             */
+            return;
+        }
+        if(ret < 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,

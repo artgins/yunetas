@@ -180,6 +180,18 @@ except the hook and the entries this list marks "(no red test)".
   *"Destroying a RUNNING gobj"* and *"No subscription found"* per counter. The
   agent's `mt_stop` stops and destroys them, without answering (their
   channels are closing). (no red test)
+- **ytls: a session freed inside ANY callback is no longer read.** The
+  owner (C_TCP) frees the session from inside a callback when a write cannot
+  start or a subscriber drops the connection. Only `on_clear_data_cb` was
+  covered: after `on_encrypted_data_cb` the backends went on reading the
+  freed session (the loop of the flush, the log of a failed callback, the
+  state of the handshake), and after `on_handshake_done_cb` the decrypt
+  went on with it. Every call that hands control to the owner now keeps a
+  marker, the markers are chained (the calls nest) and the free clears them
+  all: each call returns `-2222` on its way out -- `ytls_do_handshake()`
+  and `ytls_flush()` included, which C_TCP now handles at the start of a
+  handshake. Both backends. Test `ytls/test_free_inside_callback` (red: a
+  SegFault on the poisoned session; mbedTLS run linked by hand).
 - **The agents are native systemd units, and systemd sees them.** The agent
   was a SysV script that `systemd-sysv-generator` wrapped: an agent started
   outside it (by hand, by an xscript) left `systemctl status yuneta_agent`
