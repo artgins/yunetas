@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Agent: a yuno still alive 10 s after a node bounce gets no second
+  instance.** `restart_nodes()` waits for the yunos it killed, and after
+  10 s relaunched them anyway, without asking whether they were alive: a
+  yuno stuck in a disk wait got a second instance. Those are now skipped,
+  each with the warning *"yuno alive but not connected to the agent: not
+  launched again"*.
+- **Agent: `kill-yuno` of a yuno found only by the scan says it is not
+  waited for.** Such a yuno is signalled and the answer comes at once; a
+  `run-yuno` sent before it is gone finds it alive and does not launch it.
+  The answer now says so.
+
 - **Restarts without root put the agent back in its unit.**
   `/yuneta/bin/restart-yuneta` (the certbot hook's fallback) and logcenter's
   default `restart_yuneta_command` (on a queue alarm) restarted the agent,

@@ -5328,7 +5328,8 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         if(json_array_size(jn_unconnected) > 0) {
             return msg_iev_build_response(gobj,
                 0,
-                json_sprintf("%s: %d yuno(s) alive but not connected to the agent: signalled (%d)",
+                json_sprintf("%s: %d yuno(s) alive but not connected to the agent: signalled (%d), "
+                    "not waited for: a run-yuno before they are gone does not launch them again",
                     gobj_yuno_role_plus_name(), (int)json_array_size(jn_unconnected), signal_unconnected
                 ),
                 0,
@@ -5425,7 +5426,8 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         if(json_array_size(jn_unconnected) > 0) {
             return msg_iev_build_response(gobj,
                 0,
-                json_sprintf("%s: %d yuno(s) alive but not connected to the agent: signalled (%d)",
+                json_sprintf("%s: %d yuno(s) alive but not connected to the agent: signalled (%d), "
+                    "not waited for: a run-yuno before they are gone does not launch them again",
                     gobj_yuno_role_plus_name(), (int)json_array_size(jn_unconnected), signal_unconnected
                 ),
                 0,
@@ -5454,7 +5456,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     char info[NAME_MAX];
     if(json_array_size(jn_unconnected) > 0) {
-        snprintf(info, sizeof(info), "%d yunos found to kill, %d alive but not connected signalled",
+        snprintf(info, sizeof(info), "%d yunos found to kill, %d alive but not connected signalled (not waited for)",
             total_killed, (int)json_array_size(jn_unconnected)
         );
     } else {
@@ -9858,7 +9860,7 @@ PRIVATE int promote_highest_release_yunos(hgobj gobj)
  ***************************************************************************/
 PRIVATE int run_enabled_yunos(
     hgobj gobj,
-    BOOL spare_the_living   // FALSE only after restart_nodes() killed them all
+    BOOL spare_the_living   // FALSE only after restart_nodes() killed them all, and all are gone
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -10562,6 +10564,7 @@ PRIVATE void restart_wait_tick(hgobj gobj)
         }
     }
 
+    BOOL some_left = FALSE;
     if(json_array_size(priv->restart_wait_pids) > 0) {
         if(!test_msectimer(priv->restart_wait_until)) {
             if(!gobj_is_running(priv->restart_wait_timer)) {
@@ -10569,18 +10572,24 @@ PRIVATE void restart_wait_tick(hgobj gobj)
             }
             return;
         }
+        /*
+         *  Not launched beside the one still alive (each one said by
+         *  run_enabled_yunos()): up to 7.25.22 they were relaunched anyway,
+         *  and a yuno stuck in a disk wait got a second instance
+         */
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL,
-            "msg",          "%s", "yunos killed for the restart still alive after 10 s: relaunched anyway",
+            "msg",          "%s", "yunos killed for the restart still alive after 10 s: those are not launched again",
             "pids",         "%j", priv->restart_wait_pids,
             NULL
         );
         json_array_clear(priv->restart_wait_pids);
+        some_left = TRUE;
     }
 
     clear_timeout(priv->restart_wait_timer);
-    run_enabled_yunos(gobj, FALSE);    // all killed: none is left alive to spare
+    run_enabled_yunos(gobj, some_left);    // all gone: none is left alive to spare
 }
 
 /***************************************************************************
