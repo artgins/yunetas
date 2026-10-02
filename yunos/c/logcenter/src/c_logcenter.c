@@ -125,7 +125,7 @@ SDATA (DTP_INTEGER,     "min_free_disk",        SDF_WR|SDF_PERSIST|SDF_REQUIRED,
 SDATA (DTP_INTEGER,     "min_free_mem",         SDF_WR|SDF_PERSIST|SDF_REQUIRED, MIN_FREE_MEM, "Minimun free percent memory"),
 
 SDATA (DTP_BOOLEAN,     "restart_on_alarm",     SDF_PERSIST|SDF_WR,         FALSE, "If true the logcenter will execute 'restart_yuneta_command' after receive a queue alarm. Next restart will not execute until 'timeout_restart_yuneta' has pass"),
-SDATA (DTP_STRING,      "restart_yuneta_command", SDF_RD,                   "/yuneta/bin/yshutdown -s; sleep 1; /yuneta/agent/yuneta_agent --start --config-file=/yuneta/agent/yuneta_agent.json", "Restart yuneta command, run with system(): set in the config only (up to 7.25.21 write-attr could set it, and persist it)"),
+SDATA (DTP_STRING,      "restart_yuneta_command", SDF_RD,                   "if [ -x /yuneta/bin/restart-yuneta ]; then /yuneta/bin/restart-yuneta -s; else /yuneta/bin/yshutdown -s; sleep 1; /yuneta/agent/yuneta_agent --start --config-file=/yuneta/agent/yuneta_agent.json; fi", "Restart yuneta command, run with system(): set in the config only (up to 7.25.21 write-attr could set it, and persist it). The default restarts the agent in its systemd unit where there is one (restart-yuneta); up to 7.25.22 it started it with --start, outside the unit"),
 SDATA (DTP_INTEGER,     "timeout_restart_yuneta",SDF_PERSIST|SDF_WR,        "3600", "Timeout between restarts in seconds"),
 SDATA (DTP_INTEGER,     "queue_restart_limit",  SDF_PERSIST|SDF_WR,         0, "Restart yuneta when queue size is greater"),
 

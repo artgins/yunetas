@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Restarts without root put the agent back in its unit.**
+  `/yuneta/bin/restart-yuneta` (the certbot hook's fallback) and logcenter's
+  default `restart_yuneta_command` (on a queue alarm) restarted the agent,
+  as user `yuneta`, with `yshutdown` and `yuneta_agent --start`: with the
+  agents' units (7.25.22) that agent ran OUTSIDE its unit, where systemd
+  does not see it and the next boot does not start it. Now, where the units
+  are, `restart-yuneta` stops the yunos (`yshutdown --no-kill-agent`, plus
+  its arguments) and restarts the unit with `sudo -n systemctl restart
+  yuneta_agent.service`; it refuses, and says so, when sudo does not allow
+  it. A node without the units keeps the old way. logcenter's default runs
+  `restart-yuneta -s` where it exists (logcenter is not stopped). agent22
+  was never touched by `yshutdown`, and is not now.
+- **`/etc/init.d/yuneta_agent` answers what the units answered.** Under
+  systemd, `start`, `stop` and `restart` exited 0 whatever the units did
+  (only logged), so `service yuneta_agent start` reported success with the
+  agent's unit failed; `status` asked only the units, so an agent running
+  outside its unit read *"not running"*. Now each exits with the units'
+  answer, and `status` says *"running OUTSIDE its unit (start puts it
+  back)"*.
+
 - **`C_TIMER0`: a stopped timer no longer ends the yuno's loop.** Its
   callback answered -1 when its gobj was not running, and `yev_loop` ends
   the loop on a -1: the cancel of a child timer stopped while the yuno runs

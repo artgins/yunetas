@@ -90,7 +90,7 @@ Inspect the effective config at runtime with
 | `min_free_mem` | `20` | Warn below this % free RAM |
 | `send_summary_disabled` | `false` | Suppress summary e-mails |
 | `restart_on_alarm` | `false` | Run `restart_yuneta_command` on a queue alarm |
-| `restart_yuneta_command` | `yshutdown … ; yuneta_agent --start …` | Command run on alarm, with `system()`. Config only: up to 7.25.21 `write-attr` could set it and persist it (`"global": {"logcenter.restart_yuneta_command": "..."}`) |
+| `restart_yuneta_command` | `/yuneta/bin/restart-yuneta -s` (where it exists; else `yshutdown -s; … yuneta_agent --start …`) | Command run on alarm, with `system()`. `restart-yuneta` stops the yunos but logcenter and restarts the agent IN its systemd unit (`sudo -n systemctl restart yuneta_agent.service`); up to 7.25.22 the default started the agent with `--start`, outside its unit, where systemd did not see it and the next boot did not start it. Config only: up to 7.25.21 `write-attr` could set it and persist it (`"global": {"logcenter.restart_yuneta_command": "..."}`) |
 | `queue_restart_limit` | `0` | Only restart if reported `queue_size` ≥ this (cmd enforces ≥ 10000) |
 | `timeout_restart_yuneta` | `3600` | Min seconds between restarts (must be ≥ 3600) |
 | `timeout` | `1000` | Monitor tick (ms) |

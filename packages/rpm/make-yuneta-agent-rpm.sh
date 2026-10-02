@@ -827,7 +827,7 @@ start_yunos() {
         _start_unit yuneta_agent22 && RC2=0 || RC2=$?
         log_end_msg $RC2
         logger -t yuneta_agent_init "start yuneta_agent22.service rc=$RC2"
-        return 0
+        return $RC2     # up to 7.25.22-3: 0, whatever the unit answered
     fi
     _set_limits
 
@@ -901,6 +901,10 @@ status_yunos() {
             if systemctl is-active --quiet "${_a}.service"; then
                 MSG="$MSG ${_a}: running;"
                 S=0
+            elif _agent_outside_unit "$_a"; then
+                # up to 7.25.22-3 it read "not running"
+                MSG="$MSG ${_a}: running OUTSIDE its unit (start puts it back);"
+                S=0
             else
                 MSG="$MSG ${_a}: not running;"
             fi
@@ -938,7 +942,7 @@ stop_yunos() {
         systemctl stop yuneta_agent.service && RC1=0 || RC1=$?
         log_end_msg $RC1
         logger -t yuneta_agent_init "stop yuneta_agent.service rc=$RC1"
-        return 0
+        return $RC1     # up to 7.25.22-3: 0, whatever the unit answered
     fi
 
     if [ -x "$AGENT1_BIN" ]; then
@@ -953,24 +957,25 @@ stop_yunos() {
     return 0
 }
 
+RC=0
 case "$1" in
     start)
-        start_yunos
+        start_yunos || RC=$?
         start_web
         ;;
     stop)
         stop_web
-        stop_yunos
+        stop_yunos || RC=$?
         ;;
     restart|force-reload)
         stop_web || true
         stop_yunos || true
-        start_yunos
+        start_yunos || RC=$?
         start_web
         ;;
     status)
-        status_yunos
-        status_web
+        status_yunos || RC=$?
+        status_web || true
         ;;
     *)
         echo "Usage: $0 {start|stop|restart|force-reload|status}"
@@ -978,7 +983,7 @@ case "$1" in
         ;;
 esac
 
-exit 0
+exit $RC     # the agents' answer (up to 7.25.22-3: always 0)
 EOF
 chmod 0755 "${STAGE}/etc/init.d/yuneta_agent"
 
@@ -1337,7 +1342,9 @@ cat > "${STAGE}/yuneta/bin/restart-yuneta" <<'EOF'
 #!/usr/bin/env bash
 #######################################################################
 # Restart Yuneta stack. If root, prefer service restart; otherwise
-# fallback to yshutdown + agent start.
+# yshutdown of the yunos + a restart of the agent's unit (sudo -n
+# systemctl), or yshutdown + agent start on a node without the units.
+# The arguments go to yshutdown (-s: logcenter is not stopped).
 #######################################################################
 set -euo pipefail
 
@@ -1352,8 +1359,35 @@ if [ "${EUID:-$(id -u)}" -eq 0 ]; then
     fi
 fi
 
+#
+#   Not root (the certbot hook, logcenter on a queue alarm: user yuneta).
+#   With the agents' units the agent is restarted IN its unit, through
+#   systemd: one started with --start runs outside it, where systemd does
+#   not see it and the next boot does not start it (up to 7.25.22 it was
+#   started that way). The yunos are stopped first (yshutdown
+#   --no-kill-agent, plus the arguments given: -s keeps logcenter, the
+#   caller on a queue alarm), and the agent starts them again. agent22 is
+#   not touched.
+#
+if [ -d /run/systemd/system ] && systemctl cat yuneta_agent.service >/dev/null 2>&1; then
+    if ! sudo -n -l systemctl restart yuneta_agent.service >/dev/null 2>&1; then
+        echo "restart-yuneta: not allowed to restart yuneta_agent.service (sudo -n systemctl): nothing done" >&2
+        exit 1
+    fi
+    if [ -x /yuneta/bin/yshutdown ]; then
+        /yuneta/bin/yshutdown --no-kill-agent "$@" || true
+        sleep 1
+    fi
+    if ! sudo -n systemctl restart yuneta_agent.service; then
+        echo "restart-yuneta: systemctl restart yuneta_agent.service FAILED: see journalctl -u yuneta_agent" >&2
+        exit 1
+    fi
+    exit 0
+fi
+
+# No units (a node before 7.25.22): yshutdown + agent start, as always
 if [ -x /yuneta/bin/yshutdown ]; then
-    /yuneta/bin/yshutdown || true
+    /yuneta/bin/yshutdown "$@" || true
     sleep 1
 fi
 if [ -x /yuneta/agent/yuneta_agent ]; then
