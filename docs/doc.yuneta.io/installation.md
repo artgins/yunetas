@@ -1,6 +1,8 @@
 # **Installation**
 
-> **Prerequisites:** Linux, Python 3.7+, `sudo` access.
+> **Prerequisites:** Linux with a kernel of **5.19 or later** (or RHEL /
+> Rocky / Alma **9**, see [Linux kernel](#kernel-required)), Python 3.7+,
+> `sudo` access.
 > The full lists of dependencies and licenses are in [Reference](#reference).
 
 Yunetas has two installation methods. Your task decides which method you use:
@@ -26,6 +28,42 @@ Yunetas has two installation methods. Your task decides which method you use:
 > build from source uses the CLI to drive the build.
 
 ---
+
+(kernel-required)=
+## Linux kernel
+
+Yuneta needs **Linux 5.19 or later**. Its event loop (`yev_loop`) does all its
+work with **io_uring**, and it uses these operations of it:
+
+| io_uring | Since | Used for |
+|---|---|---|
+| `NOP`, `POLL_ADD` | 5.1 | wake-ups, readiness |
+| `SENDMSG`, `RECVMSG` | 5.3 | UDP |
+| `ACCEPT`, `CONNECT`, `ASYNC_CANCEL` | 5.5 | TCP, stopping events |
+| `READ`, `WRITE`, `IORING_SETUP_CLAMP`, the opcode probe | 5.6 | sockets, files, timers, signals, inotify |
+| `ASYNC_CANCEL` with `IORING_ASYNC_CANCEL_ALL \| ANY` | **5.19** | stopping the loop: every event still in flight is canceled |
+| `SENDMSG_ZC` | 6.1 | zero-copy UDP send, **optional**: probed at start, plain `SENDMSG` without it |
+
+5.19 is the floor because of the stop: a loop cannot cancel what it has in
+flight on an older kernel. Below 5.6 a yuno cannot run at all.
+
+| Distribution | Kernel | Yuneta |
+|---|---|---|
+| Debian 13 (trixie) | 6.12 | ✅ (staging and production nodes) |
+| Debian 12 (bookworm) | 6.1 | ✅ (production nodes) |
+| Ubuntu 24.04 and later | 6.8+ | ✅ by its kernel (the development machine runs Ubuntu 26.04, kernel 7.0); no package install is tested there |
+| RHEL / Rocky / Alma 9 | 5.14 | ✅ — Red Hat backports io_uring into its 5.14: on Rocky 9.7 (`5.14.0-611`) every operation above is there, `CANCEL_ALL \| ANY` and `SENDMSG_ZC` included. It is **disabled by default**: [enable it](#io_uring-required) |
+| RHEL / Rocky / Alma **8** | 4.18 | ❌ **no io_uring at all**: Yuneta does not run |
+| Any other kernel below 5.19 | | ❌ not supported |
+
+Without io_uring the yuno says so and stops at its start: *"Linux kernel
+without io_uring, cannot run yunetas"* (a CRITICAL, then an abort). To check a
+node before installing:
+
+```bash
+uname -r                                 # 5.19 or later (or an EL9 5.14)
+sysctl kernel.io_uring_disabled          # must be 0 (RHEL family: see below)
+```
 
 (quick-install)=
 ## Quick install

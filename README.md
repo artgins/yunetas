@@ -35,6 +35,13 @@ For more details, see [doc.yuneta.io](https://doc.yuneta.io)
 
 ## Install
 
+> [!IMPORTANT]
+> **Yuneta needs Linux 5.19 or later**: its event loop runs on io_uring. RHEL,
+> Rocky and Alma **9** work too (Red Hat backports io_uring into their 5.14,
+> disabled by default: set `kernel.io_uring_disabled=0`). **RHEL / Rocky / Alma
+> 8 (kernel 4.18) have no io_uring and cannot run Yuneta.** Details:
+> [Linux kernel](https://doc.yuneta.io/installation#kernel-required).
+
 One command, on both distro families — Debian/Ubuntu (`.deb`) and
 RHEL/Rocky/Alma (`.rpm`). It installs the **`yuneta-agent` package** (the
 runtime: agent, CLI tools, bundled web server, plus the libraries, headers and
@@ -60,7 +67,7 @@ latest, pass its tag: `… | sudo sh -s -- 7.8.6`.
 > | `.deb` (amd64) | **Debian 13** (trixie)        | 2.41 |
 >
 > The shipped binaries are fully static, so the agent, the CLI tools and your
-> yunos run on any Linux of the same architecture. But the package also carries
+> yunos run on any Linux of the same architecture with the kernel above. But the package also carries
 > a sparse SDK — prebuilt static archives under `outputs/` — and those archives
 > reference glibc internals whose layout moves between releases. Linking your
 > own code against them requires the node's glibc to match **exactly**.
