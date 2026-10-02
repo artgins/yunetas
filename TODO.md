@@ -511,9 +511,6 @@ Severity in parentheses where one was assigned.
   `create-*.sh` of the operation repos (estadodelaire, yunovatios, artgins)
   stop and start the agent by hand (`--stop` / `--start`), which puts it
   outside its unit -- the case the units exist to end.
-- **Deploy gui_agent 0.29.8 and gui_treedb 0.17.75 to a.com** (gobj-ui
-  7.25.24: the phone's bottom bar fits at 360px).
-
 - **a.com: deploy controlcenter config 7** (both planes, 1996 and 1997;
   the artgins operation repo, `ce894df`): `__input_side__` not autostarted
   nor autoplayed. With the controlcenter binary that carries the C_TIMER0
