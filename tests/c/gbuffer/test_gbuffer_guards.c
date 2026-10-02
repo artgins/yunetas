@@ -10,7 +10,9 @@
  *          (gbuf2json_from_peer). gbuffer_serialize() of a NULL gbuffer
  *          answers NULL with an ERROR. A gbuffer grown from small reaches
  *          its max (up to 7.25.21 it stopped at its last doubling under
- *          the max: 4 KB with a max of 10 KB held 8 KB).
+ *          the max: 4 KB with a max of 10 KB held 8 KB). gbuffer_printf()
+ *          of a text that fits exactly is written whole (up to 7.25.22 it
+ *          was refused, or cut by one character).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -214,6 +216,40 @@ PRIVATE void test_grow_to_max(void)
 }
 
 /***************************************************************************
+ *  gbuffer_printf() of a text that fits exactly. A gbuffer holds data_size
+ *  bytes and one more for the NUL; vsnprintf() was given only data_size,
+ *  so an exact fit needed one byte more: refused when the gbuffer could
+ *  not grow ("MAXIMUM SPACE REACHED"), or, grown to exactly the text,
+ *  written one character short with "NOT ENOUGH SPACE" and its NUL counted
+ *  as data (up to 7.25.22). Runs after test_json_from_peer(), which
+ *  registers the handler.
+ ***************************************************************************/
+PRIVATE void test_printf_exact_fit(void)
+{
+    captured_warnings = 0;
+    captured_errors = 0;
+    gobj_log_add_handler("capture", "capture", LOG_OPT_ALL, 0);
+
+    gbuffer_t *gbuf = gbuffer_create(10, 10);
+    int written = gbuffer_printf(gbuf, "%s", "0123456789");
+    ok_or_fail(written == 10 && gbuffer_leftbytes(gbuf) == 10 &&
+        strcmp(gbuffer_cur_rd_pointer(gbuf), "0123456789") == 0,
+        "gbuffer_printf: 10 chars in a gbuffer of 10");
+    GBUFFER_DECREF(gbuf)
+
+    gbuf = gbuffer_create(4, 21);
+    written = gbuffer_printf(gbuf, "%s", "abcdefghijklmnopqrst");
+    ok_or_fail(written == 20 && gbuffer_leftbytes(gbuf) == 20 &&
+        strcmp(gbuffer_cur_rd_pointer(gbuf), "abcdefghijklmnopqrst") == 0,
+        "gbuffer_printf: 20 chars, grown to exactly 20");
+    GBUFFER_DECREF(gbuf)
+
+    ok_or_fail(captured_errors == 0, "gbuffer_printf exact fit: no error");
+
+    gobj_log_del_handler("capture");
+}
+
+/***************************************************************************
  *      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -255,6 +291,7 @@ int main(int argc, char *argv[])
     test_json_from_peer();
     test_serialize_null();
     test_grow_to_max();
+    test_printf_exact_fit();
 
     gobj_end();
 

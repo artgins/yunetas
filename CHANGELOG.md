@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **`gbuffer_printf()` writes a text that fits exactly.** `vsnprintf()` was
+  given the free bytes only, not the byte every gbuffer keeps for the NUL:
+  a text of exactly the free bytes was refused (*"MAXIMUM SPACE
+  REACHED"*) when the gbuffer could not grow, or, grown to exactly the
+  text, written one character short with *"NOT ENOUGH SPACE"* and the NUL
+  counted as data.
+
 - **`C_AUTHZ` with no users treedb refuses `add-jwk` / `remove-jwk`.** Such
   a yuno (local access only) validates no JWT, and asked nobody whether the
   caller could change its keys: any valid JWT could add one. The key was

@@ -514,11 +514,17 @@ PUBLIC int gbuffer_vprintf(gbuffer_t *gbuf, const char *format, va_list ap)
     /*--------------------------*
      *  Using data in memory
      *--------------------------*/
+    /*
+     *  vsnprintf() is given the free bytes AND the byte every gbuffer keeps
+     *  for the NUL after its data: a text of exactly the free bytes fits.
+     *  Up to 7.25.22 it was given only the free bytes, and an exact fit was
+     *  refused or written one character short
+     */
     bf = gbuffer_cur_wr_pointer(gbuf);
     len = gbuffer_freebytes(gbuf);
 
     va_copy(aq, ap);
-    written = vsnprintf(bf, len, format, aq);
+    written = vsnprintf(bf, len + 1, format, aq);
     va_end(aq);
     if(written < 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -529,14 +535,14 @@ PUBLIC int gbuffer_vprintf(gbuffer_t *gbuf, const char *format, va_list ap)
         );
         written = 0;
 
-    } else if(written >= (int)len) {
+    } else if(written > (int)len) {
         if(!gbuffer_realloc(gbuf, (size_t)written)) {
             written = 0;
         } else {
             bf = gbuffer_cur_wr_pointer(gbuf);
             len = gbuffer_freebytes(gbuf);
             va_copy(aq, ap);
-            written = vsnprintf(bf, len, format, aq);
+            written = vsnprintf(bf, len + 1, format, aq);
             va_end(aq);
             if(written < 0) {
                 gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -548,13 +554,13 @@ PUBLIC int gbuffer_vprintf(gbuffer_t *gbuf, const char *format, va_list ap)
                     NULL
                 );
                 written = 0;
-            } else if(written >= (int)len) {
+            } else if(written > (int)len) {
                 gobj_log_error(0, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "NOT ENOUGH SPACE",
                     "free",         "%d", (int)gbuffer_freebytes(gbuf),
-                    "needed",       "%d", (int)len,
+                    "needed",       "%d", written,
                     NULL
                 );
                 gbuf->tail += len;
