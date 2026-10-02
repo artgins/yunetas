@@ -1,41 +1,41 @@
-/***********************************************************************
- *          C_TEST2.C
+/****************************************************************************
+ *          C_TEST1.C
  *
- *          A websocket client and the size of a frame.
+ *          A C_PROT_TCP4H client and the size of a frame.
  *
- *          The length of a frame is the PEER's word, written in its header
- *          before any of the payload comes. Up to 7.25.21 C_WEBSOCKET
- *          reserved that length at once: a few connections that each
- *          claimed the max block of the yuno reserved it each, with a few
- *          bytes sent. Now the buffer starts small and grows with what
- *          arrives, up to `max_payload_size` (0: the max block), and a
- *          frame announced bigger than that closes the connection (1009)
- *          with a warning.
+ *          The length of a frame is the PEER's word, in a 4-byte header
+ *          before any payload. Up to 7.25.21 C_PROT_TCP4H reserved that
+ *          length at once (C_WEBSOCKET did too, up to the same release):
+ *          a few headers claiming the max block reserved it each, with no
+ *          payload sent. Now the buffer starts small and grows with what
+ *          arrives.
  *
- *          The server is raw (C_PROT_RAW) and plays websocket by hand, as
- *          test1. The client has a max_payload_size of BIG_LEN bytes:
- *          - a frame of BIG_LEN bytes, exactly the max (past the first 4 KB
- *            of the buffer), sent in three parts: it must arrive whole. Up
- *            to 7.25.21 the buffer's max was the max payload, and a gbuffer
- *            holds one byte less than its max: such a frame never ended;
- *          - then the header of a frame of HUGE_LEN bytes, past the max,
- *            with no payload: a warning, and the connection closed.
+ *          The server is raw (C_PROT_RAW) and writes tcp4h by hand:
+ *          - a frame of BIG_LEN bytes (past the first 4 KB of the buffer),
+ *            sent in three parts: it must arrive whole;
+ *          - then the header of a frame of HUGE_LEN bytes, with no
+ *            payload: the memory of the yuno must not grow by its length
+ *            (MEM_CHECK_DELAY_MS later), and the client drops at its
+ *            timeout_payload.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
 
-#include "c_test2.h"
+#include <arpa/inet.h>
+#include "c_test1.h"
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define BIG_LEN         60000   // a frame of exactly the client's max_payload_size
+#define BIG_LEN         60000   // a frame past the first 4 KB of the buffer
 #define PART_LEN        20000   // sent in three parts
-#define HUGE_LEN        1000000 // a frame past it: only its header is sent
-#define HEADER_DELAY_MS 300     // the frame, after the 101
+#define HUGE_LEN        (10*1024*1024)  // only its header is sent
+#define HEADER_DELAY_MS 300     // the frame, after the client connects
 #define PART_DELAY_MS   100     // between the parts
+#define MEM_CHECK_DELAY_MS 300  // the memory, after the huge header
+#define MEM_GROWTH_MAX  (1024*1024)     // what the huge header may take, at most
 
 /***************************************************************************
  *              Structures
@@ -81,11 +81,11 @@ typedef struct _PRIVATE_DATA {
 
     hgobj gobj_input_side;
     hgobj gobj_output_side;
-    hgobj server_channel;       // the channel of the server that answers the client
-    gbuffer_t *request;         // the client's upgrade request, until complete
-    BOOL answered;
+    hgobj server_channel;       // the channel of the server, where the client connected
+    BOOL connected;
     int parts_sent;             // of the big frame
     BOOL huge_sent;
+    size_t mem_before_huge;     // the yuno's memory before the huge header
     int client_messages;        // messages the client delivered: must be 1, the big frame
 } PRIVATE_DATA;
 
@@ -173,9 +173,6 @@ PRIVATE int mt_pause(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    GBUFFER_DECREF(priv->request)
 }
 
 
@@ -218,7 +215,8 @@ PRIVATE void server_send(hgobj gobj, gbuffer_t *gbuf)
 
 /***************************************************************************
  *  First timeout: the server listens, the client connects.
- *  Then: the big frame, in three parts.
+ *  Then: the big frame, in three parts; and the check of the memory after
+ *  the huge header.
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -229,13 +227,25 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_subscribe_event(priv->gobj_output_side, NULL, 0, gobj);
         gobj_start_tree(priv->gobj_output_side);
 
-    } else if(priv->answered && priv->parts_sent < BIG_LEN/PART_LEN) {
+    } else if(priv->huge_sent) {
+        size_t now = get_cur_system_memory();
+        size_t growth = now > priv->mem_before_huge? now - priv->mem_before_huge : 0;
+        if(growth > MEM_GROWTH_MAX) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "The header of a huge frame reserved its length",
+                "growth",       "%lu", (unsigned long)growth,
+                "frame_length", "%lu", (unsigned long)HUGE_LEN,
+                NULL
+            );
+        }
+
+    } else if(priv->connected && priv->parts_sent < BIG_LEN/PART_LEN) {
         gbuffer_t *gbuf = gbuffer_create(PART_LEN + 4, PART_LEN + 4);
         if(priv->parts_sent == 0) {
-            gbuffer_append_char(gbuf, (char)0x82);              // FIN, binary
-            gbuffer_append_char(gbuf, 126);                     // 16-bit length follows
-            gbuffer_append_char(gbuf, (char)(BIG_LEN >> 8));
-            gbuffer_append_char(gbuf, (char)(BIG_LEN & 0xFF));
+            uint32_t len = htonl(BIG_LEN + 4);                 // the header counts itself
+            gbuffer_append(gbuf, &len, sizeof(len));
         }
         for(int i = 0; i < PART_LEN; i++) {
             gbuffer_append_char(gbuf, 'y');
@@ -252,52 +262,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  The server gets the client's bytes: its upgrade request, answered by
- *  hand once complete (the client checks only the 101)
- ***************************************************************************/
-PRIVATE int ac_server_message(hgobj gobj, json_t *kw)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-    if(priv->answered || !gbuf) {
-        return 0;   // the client's Close frame, after its timeout: not for us
-    }
-    if(!priv->request) {
-        priv->request = gbuffer_create(4096, 4096);
-    }
-    gbuffer_append_gbuf(priv->request, gbuf);
-    char *p = gbuffer_cur_rd_pointer(priv->request);
-    size_t len = gbuffer_leftbytes(priv->request);
-    if(!memmem(p, len, "\r\n\r\n", 4)) {
-        return 0;   // the request is not complete yet
-    }
-
-    priv->answered = TRUE;
-    priv->server_channel = (hgobj)(uintptr_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
-
-    gbuffer_t *answer = gbuffer_create(1024, 1024);
-    gbuffer_printf(answer,
-        "HTTP/1.1 101 Switching Protocols\r\n"
-        "Upgrade: websocket\r\n"
-        "Connection: Upgrade\r\n"
-        "Sec-WebSocket-Accept: whatever\r\n"
-        "\r\n"
-    );
-    gobj_send_event(
-        priv->server_channel,
-        EV_SEND_MESSAGE,
-        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)answer),
-        gobj
-    );
-
-    set_timeout(priv->timer, HEADER_DELAY_MS);
-    return 0;
-}
-
-/***************************************************************************
  *  The client got the big frame: it must be whole. Then the header of a
- *  frame past its max_payload_size.
+ *  huge frame, with no payload.
  ***************************************************************************/
 PRIVATE void client_message(hgobj gobj, json_t *kw)
 {
@@ -321,13 +287,12 @@ PRIVATE void client_message(hgobj gobj, json_t *kw)
     }
 
     priv->huge_sent = TRUE;
-    gbuffer_t *huge = gbuffer_create(10, 10);
-    gbuffer_append_char(huge, (char)0x82);                  // FIN, binary
-    gbuffer_append_char(huge, 127);                         // 64-bit length follows
-    for(int i = 7; i >= 0; i--) {
-        gbuffer_append_char(huge, (char)(((uint64_t)HUGE_LEN >> (i*8)) & 0xFF));
-    }
+    priv->mem_before_huge = get_cur_system_memory();
+    gbuffer_t *huge = gbuffer_create(4, 4);
+    uint32_t huge_len = htonl(HUGE_LEN + 4);
+    gbuffer_append(huge, &huge_len, sizeof(huge_len));
     server_send(gobj, huge);
+    set_timeout(priv->timer, MEM_CHECK_DELAY_MS);
 }
 
 /***************************************************************************
@@ -337,9 +302,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(src == priv->gobj_input_side) {
-        ac_server_message(gobj, kw);
-    } else {
+    if(src != priv->gobj_input_side) {
         client_message(gobj, kw);
     }
 
@@ -352,12 +315,20 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->gobj_input_side && !priv->connected) {
+        priv->connected = TRUE;
+        priv->server_channel = (hgobj)(uintptr_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
+        set_timeout(priv->timer, HEADER_DELAY_MS);
+    }
+
     JSON_DECREF(kw)
     return 0;
 }
 
 /***************************************************************************
- *  The client closed (the huge frame, then timeout_close): the end
+ *  The client closed (the huge header, then timeout_payload): the end
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -368,7 +339,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "The client closed before the huge frame was sent: nothing tested",
+                "msg",          "%s", "The client closed before the huge header was sent: nothing tested",
                 NULL
             );
         }
@@ -412,7 +383,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_TEST2);
+GOBJ_DEFINE_GCLASS(C_TEST1);
 
 /*------------------------*
  *      States
@@ -492,7 +463,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int register_c_test2(void)
+PUBLIC int register_c_test1(void)
 {
-    return create_gclass(C_TEST2);
+    return create_gclass(C_TEST1);
 }

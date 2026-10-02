@@ -1958,10 +1958,16 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
                     ret = -1;
                     break;
                 }
+                /*
+                 *  Small at first, grown by what arrives; its max is what
+                 *  THIS frame needs, + 1: a gbuffer holds one byte less
+                 *  than its max, and up to 7.25.21 a frame of exactly
+                 *  max_payload_size never ended
+                 */
                 priv->istream_payload = istream_create(
                     gobj,
                     MIN(frame_length, 4*1024),
-                    max_payload
+                    frame_length + 1
                 );
                 if(!priv->istream_payload) {
                     gobj_log_error(gobj, 0,

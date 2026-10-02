@@ -74,11 +74,27 @@ Works in both client and server modes.
 |-----------|------|-------------|
 | `url` | `string` | Connection URL. |
 | `iamServer` | `bool` | `TRUE` for server mode. |
-| `max_pkt_size` | `integer` | Maximum allowed packet size. |
+| `max_pkt_size` | `integer` | Largest payload of a frame, in bytes (default `0`: the max block of the yuno). A frame announced bigger closes the connection, with a warning (*"tcp4h head too long"*). |
 | `timeout_handshake` | `integer` | Handshake timeout in milliseconds (default `30000`). |
 | `timeout_payload` | `integer` | Milliseconds to receive the rest of a frame whose header came (default `5000`); when it runs out the connection is closed. |
 | `timeout_close` | `integer` | Milliseconds a closing client waits for the server to drop the connection before it drops it itself (default `3000`). |
 | `cert_pem` | `string` | TLS certificate (PEM). |
+
+The length of a frame is the peer's word, in the 4-byte header (big-endian,
+counting the header itself) before any of its payload. The payload buffer
+starts at 4 KB and grows with what arrives, up to what the frame needs; up to
+7.25.21 the whole length was reserved at the header, so a peer that wrote only
+headers announcing the max block reserved it each time, with no payload sent.
+
+```C
+uint32_t len = htonl(payload_len + 4);      // the header counts itself
+gbuffer_append(gbuf, &len, sizeof(len));
+gbuffer_append(gbuf, payload, payload_len);
+```
+
+`tests/c/c_prot_tcp4h` (`test1`): a frame of 60000 bytes in three parts
+arrives whole, and the header of a frame of 10 MB with no payload does not
+grow the yuno's memory.
 
 ---
 
@@ -129,9 +145,10 @@ with frame masking, ping/pong, and graceful close handshake.
 
 The length of a frame is the peer's word, written in its header before any of
 its payload. The payload buffer starts at 4 KB and grows with what arrives, up
-to `max_payload_size`; up to 7.25.21 the whole length was reserved at the
-header, so a few connections that each announced the max block reserved it
-each with a few bytes sent.
+to what the frame needs (a frame of exactly `max_payload_size` included: up to
+7.25.21 it never ended, a gbuffer holding one byte less than its max); up to
+7.25.21 the whole length was reserved at the header, so a few connections that
+each announced the max block reserved it each with a few bytes sent.
 
 ```json
 {

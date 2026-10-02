@@ -196,6 +196,17 @@ except the hook and the entries this list marks "(no red test)".
   `default_role` to root for every user an IdP provisions. Both are
   `SDF_RD`, the config's. Test `command_delete_user` (red: the role was
   written).
+- **C_PROT_TCP4H no longer reserves the length a peer announces, and a
+  websocket frame of exactly `max_payload_size` ends.** tcp4h reserved the
+  whole length of a frame at its 4-byte header, before any payload, up to
+  `max_pkt_size` (the max block by default): a peer that wrote only headers
+  reserved it each time -- the reservation C_WEBSOCKET dropped earlier in
+  this cycle. Its buffer starts at 4 KB now and grows with what arrives. And
+  in both, the buffer's max is what the frame needs + 1 (a gbuffer holds one
+  byte less than its max): C_WEBSOCKET's was `max_payload_size`, so a frame
+  of exactly that size never ended. Tests `c_prot_tcp4h/test1` (new; red:
+  10 MB grown for a header) and `c_websocket/test2` (the frame at exactly
+  the max; red: it hung).
 - **SECURITY: `register-idp-user` no longer hands any role to its caller's
   pick.** With a `role`, it checked only that the role existed, and the
   authz plane linked it when the IdP answered: a holder of

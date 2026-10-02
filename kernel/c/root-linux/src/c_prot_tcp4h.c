@@ -634,10 +634,19 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
                     ws_close(gobj, -1);
                     break;
                 }
+                /*
+                 *  The length is the PEER's word, in a 4-byte header
+                 *  before any payload: the buffer starts small and grows
+                 *  with what arrives, up to what this frame needs (+ 1: a
+                 *  gbuffer holds one byte less than its max). Up to 7.25.21
+                 *  the whole length was reserved at once, as C_WEBSOCKET
+                 *  did: a few headers claiming the max block reserved it
+                 *  each, with no payload sent
+                 */
                 priv->istream_payload = istream_create(
                     gobj,
-                    frame_length,
-                    frame_length
+                    MIN(frame_length, 4*1024),
+                    frame_length + 1
                 );
                 if(!priv->istream_payload) {
                     gobj_log_error(gobj, 0,

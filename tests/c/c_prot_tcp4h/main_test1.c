@@ -1,29 +1,28 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Test: a websocket client and the size of a frame
+ *          Test: a C_PROT_TCP4H client and the size of a frame
  *
  *          Tasks
- *          - Play a raw server (C_PROT_RAW) that plays websocket by hand
- *          - Open __output_side__, a C_WEBSOCKET client with a
- *            max_payload_size of 60000 bytes, the size of its big frame
+ *          - Play a raw server (C_PROT_RAW) that writes tcp4h by hand
+ *          - Open __output_side__, a C_PROT_TCP4H client
  *          - The server sends a frame of 60000 bytes in three parts: the
  *            client delivers it whole
- *          - The server sends the header of a frame of 1 MB: the client
- *            warns and closes (1009)
- *          - The client drops at timeout_close: shutdown
+ *          - The server sends the header of a frame of 10 MB, no payload:
+ *            the yuno's memory does not grow by its length
+ *          - The client drops at timeout_payload: shutdown
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
-#include "c_test2.h"
+#include "c_test1.h"
 
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_websocket_" "test2"
-#define APP_DOC         "Test C_WEBSOCKET frame size"
+#define APP_NAME        "test_prot_tcp4h_" "test1"
+#define APP_DOC         "Test C_PROT_TCP4H frame size"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -68,15 +67,15 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'global': {                                                     \n\
         '__input_side__.__json_config_variables__': {               \n\
-            '__input_url__': 'tcp://0.0.0.0:7742',                 \n\
+            '__input_url__': 'tcp://0.0.0.0:7743',                 \n\
             '__input_host__': '0.0.0.0',                            \n\
-            '__input_port__': '7742'                                \n\
+            '__input_port__': '7743'                                \n\
         }                                                           \n\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'c_test2',                                      \n\
-            'gclass': 'C_TEST2',                                    \n\
+            'name': 'c_test1',                                      \n\
+            'gclass': 'C_TEST1',                                    \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
@@ -144,17 +143,16 @@ PRIVATE char variable_config[]= "\
                     'children': [                                    \n\
                         {                                           \n\
                             'name': 'output',                       \n\
-                            'gclass': 'C_WEBSOCKET',                \n\
+                            'gclass': 'C_PROT_TCP4H',               \n\
                             'kw': {                                 \n\
-                                'max_payload_size': 60000,          \n\
-                                'timeout_close': 2000               \n\
+                                'timeout_payload': 2000             \n\
                             },                                      \n\
                             'children': [                            \n\
                                 {                                   \n\
                                     'name': 'output',               \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
-                                        'url':'ws://127.0.0.1:7742' \n\
+                                        'url':'tcp://127.0.0.1:7743' \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\
@@ -182,7 +180,7 @@ static int register_yuno_and_more(void)
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    result += register_c_test2();
+    result += register_c_test1();
 
     /*------------------------------------------------*
      *          Traces
@@ -192,9 +190,7 @@ static int register_yuno_and_more(void)
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
-    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
-    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
-
+        
     // Samples of global traces
     gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
     gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
@@ -204,11 +200,10 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
-        "msg", "Websocket frame bigger than the max payload, connection closed",
-        "msg", "Timeout waiting websocket disconnected",
+        "msg", "Timeout waiting PAYLOAD data",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"
