@@ -19,6 +19,17 @@
  *  emailsender tests), so that read crashes instead of reading what was
  *  there.
  *
+ *  And the reasons a session ends with, which C_TCP puts in its
+ *  disconnect_cause (ytls_get_last_error()):
+ *
+ *      3. data to encrypt before the handshake ended: said, both backends.
+ *      4. the peer's close_notify: mbedTLS ends the session (a TLS error)
+ *         and says why; OpenSSL takes it as no more data, and the TCP close
+ *         that follows ends it.
+ *
+ *  Up to 7.25.21 mbedTLS gave those causes no reason: "TLS: decrypt
+ *  failed" alone for a peer that closed in order.
+ *
  *  Run for every backend compiled in (OpenSSL, mbedTLS).
  *
  *          Copyright (c) 2026, ArtGins.
@@ -233,6 +244,58 @@ PRIVATE int test_backend(const char *library)
         ret = ytls_encrypt_data(client.ytls, client.sskt, gbuf);
         result += check(library, "a session freed in the write's callback: encrypt_data answers -2222",
             ret == -2222 && client.sskt == NULL);
+    }
+    close_peers();
+
+    /*
+     *  3. Data to encrypt before the handshake ended
+     */
+    if(open_peers(library) < 0) {
+        close_peers();
+        return -1;
+    }
+    {
+        gbuffer_t *gbuf = gbuffer_create(64, 64);
+        gbuffer_append_string(gbuf, "too soon");
+        ret = ytls_encrypt_data(client.ytls, client.sskt, gbuf);
+        const char *reason = ytls_get_last_error(client.ytls, client.sskt);
+        result += check(library, "data before the handshake: refused, and the reason said",
+            ret < 0 && reason && strstr(reason, "before the handshake ended"));
+    }
+    close_peers();
+
+    /*
+     *  4. The peer's close_notify
+     */
+    if(open_peers(library) < 0) {
+        close_peers();
+        return -1;
+    }
+    ytls_do_handshake(server.ytls, server.sskt);
+    ytls_do_handshake(client.ytls, client.sskt);
+    for(int i = 0; i < 10 && !(client.handshake_done && server.handshake_done); i++) {
+        deliver(&client, &server);
+        deliver(&server, &client);
+    }
+    if(client.handshake_done && server.handshake_done) {
+        deliver(&server, &client);  // what is left (TLS 1.3 tickets)
+        gbuffer_clear(client.out);
+        ytls_shutdown(client.ytls, client.sskt);
+        size_t len = gbuffer_leftbytes(client.out);
+        gbuffer_t *gbuf = gbuffer_create(len? len : 1, len? len : 1);
+        gbuffer_append(gbuf, gbuffer_get(client.out, len), len);
+        gbuffer_clear(client.out);
+        ret = ytls_decrypt_data(server.ytls, server.sskt, gbuf);
+        const char *reason = ytls_get_last_error(server.ytls, server.sskt);
+        if(strcmp(library, "mbedtls") == 0) {
+            result += check(library, "the peer's close_notify ends the session, and says why",
+                ret < -1000 && reason && strstr(reason, "close_notify"));
+        } else {
+            result += check(library, "the peer's close_notify is no more data",
+                ret >= 0);
+        }
+    } else {
+        result += check(library, "the handshake ends (close_notify)", FALSE);
     }
     close_peers();
 

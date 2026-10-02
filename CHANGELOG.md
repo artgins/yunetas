@@ -244,6 +244,14 @@ except the hook and the entries this list marks "(no red test)".
     CANCELING"*, and the timer stayed off until the next play. The arm is
     kept and done when the cancel ends, and that cancel is not published as
     `EV_STOPPED`.
+- **ytls: the causes with no reason say it.** A peer's `close_notify` under
+    mbedTLS ended the connection as *"TLS: decrypt failed"* alone; data to
+    encrypt before the handshake ended (both backends) and the mbedTLS write
+    that makes no progress gave no reason either. They are said now
+    (*"the peer closed the TLS session (close_notify)"*, *"data to encrypt
+    before the handshake ended"*, *"the write made no progress"*), and C_TCP
+    puts them in its `disconnect_cause`. Tested on both backends (mbedTLS
+    linked by hand: the local build has OpenSSL only).
 - **C_TCP: a subscriber's error no longer stops the reading, and nothing is
   touched after a publish that destroyed the gobj.** A subscriber of
   `EV_RX_DATA` that answered an error (`-1`, its own) stopped the reading:

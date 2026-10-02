@@ -1359,6 +1359,9 @@ PRIVATE int encrypt_data(
     hgobj gobj = sskt->ytls->gobj;
 
     if(!SSL_is_init_finished(sskt->ssl)) {
+        snprintf(sskt->last_error, sizeof(sskt->last_error), "%s",
+            "data to encrypt before the handshake ended"
+        );
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_OPENSSL,

@@ -1206,6 +1206,9 @@ PRIVATE int encrypt_data(
     hgobj gobj = sskt->ytls->gobj;
 
     if(!mbedtls_ssl_is_handshake_over(&sskt->ssl)) {
+        snprintf(sskt->last_error, sizeof(sskt->last_error), "%s",
+            "data to encrypt before the handshake ended"
+        );
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MBEDTLS,
@@ -1231,6 +1234,9 @@ PRIVATE int encrypt_data(
                 if(++want_retries > 5) {
                     // Network stalled: no progress after repeated flush attempts.
                     // Caller will retry when new data arrives via the event loop.
+                    snprintf(sskt->last_error, sizeof(sskt->last_error), "%s",
+                        "the write made no progress (WANT_READ/WANT_WRITE, 5 tries)"
+                    );
                     gobj_log_warning(gobj, 0,
                         "function",         "%s", __FUNCTION__,
                         "msgset",           "%s", MSGSET_MBEDTLS,
@@ -1375,6 +1381,9 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
                 mbedtls_strerror(nread, error_buf, sizeof(error_buf));
                 if(nread == -30848) {
                     // SSL - The peer notified us that the connection is going to be closed
+                    snprintf(sskt->last_error, sizeof(sskt->last_error), "%s",
+                        "the peer closed the TLS session (close_notify)"    // the cause had no reason up to 7.25.21
+                    );
                     if(sskt->ytls->trace_tls) {
                         gobj_trace_msg(gobj, "------- flush_clear_data: The peer notified connection is going to be closed, userp %p", sskt->user_data);
                     }
