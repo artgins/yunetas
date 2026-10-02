@@ -783,6 +783,7 @@ PRIVATE json_t *cmd_skip_email(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
+    BOOL smtp_was_started = priv->smtp_started;
     if(head == priv->qmsg_cur_email) {
         if(priv->smtp_started) {
             gobj_stop(priv->smtp);
@@ -817,7 +818,9 @@ PRIVATE json_t *cmd_skip_email(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     if(!playing) {
         close_queues(gobj);
     } else {
-        start_smtp(gobj);
+        if(smtp_was_started) {
+            start_smtp(gobj);
+        }
         tira_dela_cola(gobj);
     }
 

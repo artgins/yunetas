@@ -62,6 +62,11 @@ except the hook and the entries this list marks "(no red test)".
   command only started it: an email queued before the credentials waited for
   the next one queued, or for a pause and a play. Test
   `emailsender/set_user_queued`.
+- **emailsender: `skip-email` no longer repeats the "username or password is
+  empty" ERROR.** It started the SMTP side after every skip, whatever it was
+  before, so a service playing without credentials said its ERROR once more
+  per skip. It restarts the side only if it had been started. Test
+  `emailsender/skip_no_credentials`.
 - **emailsender: `skip-email` of an email in its mail transaction no longer
   stalls the queue.** The stopped session stays in its transaction state until
   its C_TCP reports the close, and refused the next email there (*"Event NOT

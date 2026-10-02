@@ -142,11 +142,6 @@ Severity in parentheses where one was assigned.
 - **gui_agent: on a phone the rail's fifth item is clipped at 360 px in
   Spanish** (minor; the bar scrolls).
 
-### emailsender
-
-- **`skip-email` while playing without credentials repeats the "username or
-  password is empty" ERROR** (low): it calls `start_smtp()` (~888).
-
 ### Projects (code outside this repo)
 
 - **msg2db consumers do not use `msg2db_id_incomplete()`** (low): the

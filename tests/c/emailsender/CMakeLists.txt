@@ -87,6 +87,7 @@ SET(SRCS
     quoted_access
     set_user_queued
     skip_in_flight
+    skip_no_credentials
 )
 
 ##############################################
