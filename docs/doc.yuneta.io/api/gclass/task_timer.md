@@ -107,6 +107,25 @@ Same as [C_TIMER](#gclass-c-timer).
   }
   ```
 
+  If the gobj is stopped in that same turn (`gobj_stop()` and an arm), the
+  cancel is a stop after all: `EV_STOPPED` is said and the arm dropped. Up to
+  7.25.22 nothing was said.
+- **A stopped timer never ends the loop.** Its callback answers 0 whatever
+  the state of its gobj; the yuno's loop ends with `set_yuno_must_die()`.
+  Up to 7.25.22 it answered -1 when its gobj was not running, and `yev_loop`
+  ends the loop on a -1: a child timer stopped while the yuno ran -- a
+  service stopped alone, clearing and stopping its own timer in `mt_stop`
+  -- stopped the whole yuno.
+
+  ```C
+  PRIVATE int mt_stop(hgobj gobj)
+  {
+      clear_timeout0(priv->timer);
+      gobj_stop(priv->timer);         // its cancel comes back as EV_STOPPED; the yuno runs on
+      return 0;
+  }
+  ```
+
 ---
 
 (gclass-c-counter)=

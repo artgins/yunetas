@@ -215,13 +215,16 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     if(yev_event_is_stopped(yev_event) && priv->rearm_on_cancel) {
         /*
          *  The cancel of a timer armed again meanwhile: it is not a stop,
-         *  the timer runs on with its new timeout
+         *  the timer runs on with its new timeout. Unless the gobj was
+         *  stopped meanwhile (a gobj_stop() and an arm in one turn): then
+         *  it is a stop after all, and EV_STOPPED is said below. Up to
+         *  7.25.22 nothing was said, and the arm stayed noted
          */
         priv->rearm_on_cancel = FALSE;
         if(gobj_is_running(gobj) && priv->msec > 0) {
             yev_start_timer_event(yev_event, priv->msec, priv->periodic);
+            return 0;
         }
-        return gobj_is_running(gobj)?0:-1;
     }
 
     gobj_event_t event;
@@ -243,7 +246,13 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         gobj_publish_event(gobj, event, kw);
     }
 
-    return gobj_is_running(gobj)?0:-1;
+    /*
+     *  Never -1: that ends the yuno's loop, and a timer is not the one to
+     *  end it (set_yuno_must_die() is). Up to 7.25.22 it answered -1 when
+     *  its gobj was not running: the cancel of a child timer stopped while
+     *  the yuno runs (a service stopped alone) stopped the whole yuno
+     */
+    return 0;
 }
 
 

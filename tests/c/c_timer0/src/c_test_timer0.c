@@ -86,6 +86,8 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     json_int_t timeout;
     hgobj timer;
+    hgobj side_timer;       // stopped while the yuno runs
+    hgobj side_timer2;      // stopped, then armed in the same turn
     int rxMsgs;
     uint64_t time_measure_start;
 } PRIVATE_DATA;
@@ -181,6 +183,30 @@ PRIVATE int mt_play(hgobj gobj)
     clear_timeout0(priv->timer);
     set_timeout_periodic0(priv->timer, priv->timeout);
     priv->time_measure_start = time_in_milliseconds_monotonic();
+
+    /*
+     *  A child timer stopped while the yuno runs, as a service stopped
+     *  alone does with its own (the control center's rates_timer): clear,
+     *  then stop. Its cancel comes back with the gobj stopped, and up to
+     *  7.25.22 C_TIMER0 answered it -1, which ends the yuno's loop: the five
+     *  ticks above never came. It says EV_STOPPED ("timer0 child stopped")
+     */
+    priv->side_timer = gobj_create_pure_child("side", C_TIMER0, 0, gobj);
+    gobj_start(priv->side_timer);
+    set_timeout0(priv->side_timer, 60*1000);
+    clear_timeout0(priv->side_timer);
+    gobj_stop(priv->side_timer);
+
+    /*
+     *  And a stop then an arm in one turn: the cancel is a stop after all.
+     *  Up to 7.25.22 it said nothing ("timer0 child stopped" missing) and
+     *  left the arm noted on the stopped gobj
+     */
+    priv->side_timer2 = gobj_create_pure_child("side2", C_TIMER0, 0, gobj);
+    gobj_start(priv->side_timer2);
+    set_timeout0(priv->side_timer2, 60*1000);
+    gobj_stop(priv->side_timer2);
+    set_timeout0(priv->side_timer2, 60*1000);
 
     return 0;
 }

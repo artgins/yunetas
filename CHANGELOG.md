@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **`C_TIMER0`: a stopped timer no longer ends the yuno's loop.** Its
+  callback answered -1 when its gobj was not running, and `yev_loop` ends
+  the loop on a -1: the cancel of a child timer stopped while the yuno runs
+  -- the control center's `mt_stop` clears and stops its `rates_timer` --
+  stopped the whole yuno whenever the service was stopped alone. It answers
+  0 now; the loop ends with `set_yuno_must_die()`, as it always did. And a
+  `gobj_stop()` followed by an arm in one turn now says `EV_STOPPED` when
+  the cancel comes back (it said nothing, and left the arm noted on the
+  stopped gobj).
+
 - **`--stop` checks its signals, and a stopped daemon is not relaunched.**
   `kill()` was never checked: on `EPERM` (an agent of another user) `--stop`
   waited 10 s, printed *"killed (SIGKILL)"* and exited 0. And the watcher
