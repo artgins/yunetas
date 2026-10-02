@@ -150,6 +150,7 @@ PRIVATE json_t *cmd_accesses(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *refuse_on_replica(hgobj gobj, json_t *kw);
 PRIVATE json_t *refuse_without_authz(hgobj gobj, const char *permission, json_t *kw, hgobj src);
+PRIVATE json_t *refuse_jwk_without_authz(hgobj gobj, const char *permission, json_t *kw, hgobj src);
 PRIVATE BOOL users_store_written_here(hgobj gobj, const char *what, const char *username);
 PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE BOOL role_ref_is_linkable(hgobj gobj, const char *role_ref);
@@ -1394,7 +1395,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_list_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    json_t *refused_authz = refuse_without_authz(gobj, "read", kw, src);
+    json_t *refused_authz = refuse_jwk_without_authz(gobj, "read", kw, src);
     if(refused_authz) {
         return refused_authz;
     }
@@ -1416,7 +1417,7 @@ PRIVATE json_t *cmd_list_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    json_t *refused_authz = refuse_without_authz(gobj, "update", kw, src);
+    json_t *refused_authz = refuse_jwk_without_authz(gobj, "update", kw, src);
     if(refused_authz) {
         return refused_authz;
     }
@@ -1556,7 +1557,7 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    json_t *refused_authz = refuse_without_authz(gobj, "update", kw, src);
+    json_t *refused_authz = refuse_jwk_without_authz(gobj, "update", kw, src);
     if(refused_authz) {
         return refused_authz;
     }
@@ -1758,8 +1759,24 @@ PRIVATE json_t *refuse_without_authz(hgobj gobj, const char *permission, json_t 
     if(empty_string(username) || src == gobj) {
         return NULL;    // internal call
     }
-    if(priv->gobj_treedb &&
-            gobj_user_has_authz(priv->gobj_treedb, permission, kw_incref(kw), src)) {
+    if(!priv->gobj_treedb) {
+        /*
+         *  No users treedb in this yuno ("authz only to local access":
+         *  logcenter, auth_bff, sgateway...): nobody can be asked, and
+         *  there is nothing to manage. Said as what it is, not as a -403
+         */
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: no users treedb in this yuno: users, roles and permissions are not managed here",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(gobj_user_has_authz(priv->gobj_treedb, permission, kw_incref(kw), src)) {
         return NULL;
     }
     return msg_iev_build_response(
@@ -1774,6 +1791,21 @@ PRIVATE json_t *refuse_without_authz(hgobj gobj, const char *permission, json_t 
         0,
         kw  // owned
     );
+}
+
+/***************************************************************************
+ *  The question for the jwk commands: they never used the users treedb, so
+ *  a yuno with none (local access only) keeps answering them; with one,
+ *  its `permission` is asked as for the rest
+ ***************************************************************************/
+PRIVATE json_t *refuse_jwk_without_authz(hgobj gobj, const char *permission, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->gobj_treedb) {
+        return NULL;
+    }
+    return refuse_without_authz(gobj, permission, kw, src);
 }
 
 /***************************************************************************

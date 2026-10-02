@@ -17,7 +17,13 @@ except the hook and the entries this list marks "(no red test)".
   every command from a peer**, with the per-command gate off too: `read`
   to list, `create`/`update`/`delete` to manage users, `update` for the
   JWKs, `check-user-pwd` and `set-max-sessions`. A gui_agent operator with
-  no such permission now gets `-403` in the Users workspace.
+  no such permission now gets `-403` in the Users workspace. `command-yuno`
+  forwards the operator's `__username__`, so the operator is asked in the
+  target yuno's OWN treedb: an operator who manages users in the agent may
+  get `-403` in another yuno. A yuno with no users treedb (local access
+  only: logcenter, auth_bff, sgateway, watchfs, dba_postgres) answers the
+  user commands `-1`, *"no users treedb in this yuno: users, roles and
+  permissions are not managed here"*, and the jwk commands as before.
 - **A persistent attrs file of another user is refused** (not loaded, saves
   refused) unless it is root's, or the yuno runs as root and it is its
   user's (the owner of the nearest directory above it that nobody else can
@@ -196,6 +202,13 @@ except the hook and the entries this list marks "(no red test)".
   `default_role` to root for every user an IdP provisions. Both are
   `SDF_RD`, the config's. Test `command_delete_user` (red: the role was
   written).
+- **C_AUTHZ with no users treedb: the jwk commands answer again, and the
+  user commands say why they cannot.** The always-on permission check of
+  this cycle asked a treedb that a yuno of local access only does not have
+  (logcenter, auth_bff, sgateway, watchfs, dba_postgres): every command from
+  a peer, `list-jwk` included, got `-403`. The jwk commands, which never used
+  the treedb, are answered as before; the user commands answer `-1` naming
+  the cause. (no red test: no test yuno runs a C_AUTHZ without a store)
 - **C_TCP: a subscriber's error no longer stops the reading, and nothing is
   touched after a publish that destroyed the gobj.** A subscriber of
   `EV_RX_DATA` that answered an error (`-1`, its own) stopped the reading:
@@ -455,10 +468,15 @@ except the hook and the entries this list marks "(no red test)".
   config only.** `write-attr` could set and persist `cert_sync_copy_cmd`
   (run as root through sudo, and at once by `cert-sync-now`, which had no
   flag) and `restart_yuneta_command`. They are `SDF_RD` now, and
-  `cert-sync-now` / `cert-sync-status` are `SDF_AUTHZ_X`. (no red test)
-- **SECURITY: emailsender's `skip-email`, `remove-emails-failed`,
+  `cert-sync-now` / `cert-sync-status` are `SDF_AUTHZ_X` -- which, like
+  every `SDF_AUTHZ_X`, guards them only where a yuno sets
+  `enable_command_authz` (off by default, and no yuno sets it yet): the
+  protection that holds today is the attrs being config only. (no red test)
+- **emailsender's `skip-email`, `remove-emails-failed`,
   `disable-alarm-emails` and `enable-alarm-emails` are `SDF_AUTHZ_X`**: they
-  move or remove emails, or silence the alarms. (no red test)
+  move or remove emails, or silence the alarms. The flag does nothing until
+  the yuno sets `enable_command_authz` (off by default): it marks them for
+  the day the gate is on. (no red test)
 - **A frame before the session is not parsed when it is big.** C_IEVENT_SRV
   parsed a peer's whole frame before checking its identity card, and a
   frame of `[{},...]` takes ~100 times its size to parse (16 MB: 1.7 GB):
