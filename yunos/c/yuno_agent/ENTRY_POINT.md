@@ -391,9 +391,10 @@ Two modes, toggled by the agent's `signal2kill` attribute (SDATA default
   child's signalfd handler runs `set_yuno_must_die()` → clean exit code
   0 → watcher exits on its own. The agent does **not** touch the watcher.
 - **Quick kill (`set-quick-kill`, or `kill-yuno force=1`).** SIGKILL to
-  the child *and* to the watcher. This is necessary because the watcher
-  classifies a SIGKILL on the child alone as an "abnormal death", and then
-  it relaunches the child.
+  the child *and* to the watcher. A SIGKILL on the child alone would do:
+  the watcher exits on it (table above), it does not relaunch -- the
+  watcher's own SIGKILL is belt and braces. (This line said the opposite
+  until 2026-10, against the code.)
 
 That is why `kill-yuno` with default options can fail to make a wedged
 yuno go away: the child has to cooperate with SIGQUIT. If a yuno hangs

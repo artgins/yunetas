@@ -538,6 +538,17 @@ Returns `0` on success, or a negative value on failure.
 
 This function must be called when a real-time disk stream is no longer needed to free resources.
 
+The directory of the feed, `<topic>/disks/<id>/`, is **renamed away first**
+(`disks/.closing.<pid>.<seq>`) and then removed. The master keeps hard-linking
+the new records into that directory until it hears the feed is gone; removed
+where it was, a key directory the master made in between made the removal
+fail (*"rmdir() FAILED ... Directory not empty"*), the directory stayed, and the
+master went on feeding it for ever (up to 7.25.21, seen at 3000 records/s).
+Renamed, the master cannot reach it, and its watch of `disks/`
+(`FS_FLAG_MOVED_AS_DELETED`) hears the rename as the close of the feed. A
+`.closing.*` left by a reader that died while removing it is removed by the
+master the next time it reads `disks/` (only when that process is gone).
+
 ---
 
 (tranger2_close_rt_mem)=
@@ -728,10 +739,19 @@ follower's `open-rt` / `open-list`) becomes the directory
 it. An empty id is refused with *"Invalid rt id (empty)"*; `.`, `..`, or an id
 holding `/` with *"Invalid rt id (path metacharacters not allowed)"*, and an id
 longer than `NAME_MAX` (255 bytes on Linux) with *"Invalid rt id (longer than
-NAME_MAX)"* (its directory cannot exist). A backtick is accepted, since an rt
-id is not a segment of any kw path (treedb names its own feeds
-`` <treedb>`<topic>`<id> ``). The id may come from a peer, so a refused id is
-logged as a **warning**, without a stack.
+NAME_MAX)"* (its directory cannot exist). A leading `.` is refused too, with
+*"Invalid rt id (a leading dot is reserved)"*: `disks/.<name>` is where a feed
+goes while it is removed (see [`tranger2_close_rt_disk()`](<#tranger2_close_rt_disk>)).
+A backtick is accepted, since an rt id is not a segment of any kw path (treedb
+names its own feeds `` <treedb>`<topic>`<id> ``). The id may come from a peer,
+so a refused id is logged as a **warning**, without a stack.
+
+```C
+tranger2_open_rt_disk(tranger, "raw_tracks", "", NULL, cb, "db_history^1620", "", NULL); // ok
+tranger2_open_rt_disk(tranger, "raw_tracks", "", NULL, cb, "a`b`c", "", NULL);           // ok
+tranger2_open_rt_disk(tranger, "raw_tracks", "", NULL, cb, ".hidden", "", NULL);         // NULL: reserved
+tranger2_open_rt_disk(tranger, "raw_tracks", "", NULL, cb, "../x", "", NULL);            // NULL: escapes
+```
 
 **One id, one feed.** The directory is keyed by the id alone, so an id already
 in use by a live feed of the topic is refused whatever the `creator`, with a

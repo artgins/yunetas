@@ -1263,10 +1263,20 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
         }
         if(ret > 0) {
             gbuffer_set_wr(gbuf, ret);
-            sskt->on_encrypted_data_cb(sskt->user_data, gbuf);
-            // TODO check mbedtls does:
-            // gbuffer_decref(gbuf);
-            // return MBEDTLS_ERR_SSL_INTERNAL_ERROR; // Callback failed
+            if(sskt->on_encrypted_data_cb(sskt->user_data, gbuf) < 0) {
+                /*
+                 *  gbuf is the callback's, whatever it answers (ytls.h): not
+                 *  released here
+                 */
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_OPENSSL,
+                    "msg",              "%s", "on_encrypted_data_cb() FAILED",
+                    "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
+                    NULL
+                );
+                return -1;
+            }
         }
     }
 
@@ -1315,9 +1325,10 @@ PRIVATE int encrypt_data(
                 flush_encrypted_data(sskt);
                 if(flush_clear_data(sskt) == -2222) {
                     // on_clear_data_cb freed sskt re-entrantly inside flush_clear_data;
-                    // do NOT touch sskt again (the loop re-test below would deref it).
+                    // do NOT touch sskt again (the loop re-test below would deref it),
+                    // and tell the caller so: its connection, maybe its gobj, is gone.
                     GBUFFER_DECREF(gbuf)
-                    return -1;
+                    return -2222;
                 }
                 continue;
 

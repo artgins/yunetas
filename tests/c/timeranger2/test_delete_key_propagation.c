@@ -59,6 +59,17 @@
  *        signalled across its opening) is forgotten by the first record of
  *        the key born again, found by the scan of its new directory (its
  *        link made before the directory was watched).
+ *      - do_test_close_races_master: the master writes a new key in the
+ *        middle of the close of a follower's feed (from __wrap_rmdir(), in
+ *        the removal of its directory). The directory goes, nothing is left
+ *        in disks/, and the master closes its side of the feed: the reader
+ *        renames the directory away before removing it, where the master
+ *        cannot link into it, and the master hears the move. Up to 7.25.21
+ *        the master made the key's directory in the one being removed, the
+ *        removal failed ("Directory not empty"), and the master went on
+ *        linking into it for ever. A leading dot is no rt id, and a
+ *        `.closing.*` a dead reader left is removed at the master's next
+ *        open (one of a live process is not).
  *      - do_test_master_rt_disk_reborn: a master's own rt_disk feed hears
  *        the delete after the master wrote the key again: the live key
  *        stays in the master's cache.
@@ -1073,6 +1084,195 @@ PRIVATE int do_test_follower(void)
     set_expected_results("follower: shutdown", NULL, NULL, NULL, 1);
     tranger2_shutdown(tf);
     tranger2_shutdown(tm);
+    drain(10);
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  do_test_close_races_master
+ ***************************************************************************/
+PRIVATE json_t *racing_master = NULL;   // set: writes a new key at the first rmdir in disks/
+PRIVATE int racing_appends = 0;
+
+PRIVATE int append_while_the_feed_closes(const char *path, int *ret)
+{
+    if(racing_master && racing_appends == 0 && strstr(path, "/disks/")) {
+        racing_appends++;
+        if(append_to(racing_master, 2, 1) < 0) {   // KEY_B: a key directory the master makes
+            printf("%sERROR%s --> close races: the master cannot append\n", On_Red BWhite, Color_Off);
+        }
+    }
+    return FALSE;   // the rmdir() itself is done as usual
+}
+
+PRIVATE int count_entries(const char *path)
+{
+    DIR *d = opendir(path);
+    if(!d) {
+        return -1;
+    }
+    int n = 0;
+    struct dirent *de;
+    while((de = readdir(d)) != NULL) {
+        if(strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0) {
+            n++;
+        }
+    }
+    closedir(d);
+    return n;
+}
+
+PRIVATE int do_test_close_races_master(void)
+{
+    int result = 0;
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+
+    set_expected_results(
+        "close races master: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_master(path_root, TRUE);
+    if(!tm || create_topic(tm) < 0) {
+        if(tm) {
+            tranger2_shutdown(tm);
+        }
+        return -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("close races master: the feed closes whole", NULL, NULL, NULL, 1);
+    json_t *tf = startup_tranger(path_root, FALSE, TRUE);
+    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
+        printf("%sERROR%s --> close races: cannot open the follower\n", On_Red BWhite, Color_Off);
+        if(tf) {
+            tranger2_shutdown(tf);
+        }
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    json_t *rt = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, my_record_callback, "rtC", "", NULL);
+    drain(10);
+    if(append_to(tm, 1, 2) < 0) {   // KEY_A: disks/rtC/KEY_A/ with its link
+        result += -1;
+    }
+    drain(20);
+    if(!rt || !tranger2_get_rt_mem_by_id(tm, TOPIC_NAME, "rtC", "")) {
+        printf("%sERROR%s --> close races: the master does not feed rtC\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    racing_master = tm;
+    racing_appends = 0;
+    rmdir_hook = append_while_the_feed_closes;
+    tranger2_close_rt_disk(tf, rt);
+    rmdir_hook = NULL;
+    racing_master = NULL;
+    drain(30);
+    if(append_to(tm, 1, 1) < 0) {   // and the master goes on writing
+        result += -1;
+    }
+    drain(10);
+
+    char disks[PATH_MAX], feed_dir[PATH_MAX];
+    build_path(disks, sizeof(disks), path_topic, "disks", NULL);
+    build_path(feed_dir, sizeof(feed_dir), disks, "rtC", NULL);
+    if(racing_appends != 1) {
+        printf("%sERROR%s --> close races: the master did not write during the close\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(is_directory(feed_dir)) {
+        printf("%sERROR%s --> close races: disks/rtC/ is left behind\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(count_entries(disks) != 0) {
+        printf("%sERROR%s --> close races: disks/ is not empty (%d entries)\n",
+            On_Red BWhite, Color_Off, count_entries(disks));
+        result += -1;
+    }
+    if(tranger2_get_rt_mem_by_id(tm, TOPIC_NAME, "rtC", "")) {
+        printf("%sERROR%s --> close races: the master still feeds rtC\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A leading dot is no rt id: that is where a feed goes while it is
+     *  removed
+     */
+    set_expected_results(
+        "close races master: an rt id with a leading dot",
+        json_pack("[{s:s}]",
+            "msg", "Invalid rt id (a leading dot is reserved)"
+        ),
+        NULL, NULL, 1
+    );
+    if(tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, my_record_callback, ".closing.1.1", "", NULL)) {
+        printf("%sERROR%s --> close races: an rt id with a leading dot was accepted\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("close races master: shutdown", NULL, NULL, NULL, 1);
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    drain(10);
+    result += test_json(NULL);
+
+    /*
+     *  What a reader that died while removing its feed left: the master
+     *  removes it at its next open, unless its process lives
+     */
+    set_expected_results("close races master: leftovers of a dead reader", NULL, NULL, NULL, 1);
+    pid_t dead_pid = 0;
+    for(pid_t p = 4000000; p > 3000000; p--) {
+        if(kill(p, 0) < 0 && errno == ESRCH) {
+            dead_pid = p;
+            break;
+        }
+    }
+    char dead_name[NAME_MAX], live_name[NAME_MAX];
+    char dead_dir[PATH_MAX], live_dir[PATH_MAX], dead_key[PATH_MAX];
+    snprintf(dead_name, sizeof(dead_name), ".closing.%d.1", (int)dead_pid);
+    snprintf(live_name, sizeof(live_name), ".closing.%d.1", (int)getpid());
+    build_path(dead_dir, sizeof(dead_dir), disks, dead_name, NULL);
+    build_path(live_dir, sizeof(live_dir), disks, live_name, NULL);
+    build_path(dead_key, sizeof(dead_key), dead_dir, KEY_A, NULL);
+    mkrdir(dead_key, 02770);
+    mkrdir(live_dir, 02770);
+    tm = startup_master(path_root, TRUE);
+    if(!tm || !tranger2_open_topic(tm, TOPIC_NAME, TRUE)) {
+        printf("%sERROR%s --> close races: cannot open the master again\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!dead_pid || is_directory(dead_dir)) {
+        printf("%sERROR%s --> close races: the leftover of a dead reader is not removed\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!is_directory(live_dir)) {
+        printf("%sERROR%s --> close races: the directory of a live reader was removed\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(tranger2_get_rt_mem_by_id(tm, TOPIC_NAME, live_name, "")) {
+        printf("%sERROR%s --> close races: a feed being removed is fed\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    rmrdir(live_dir);
+    if(tm) {
+        tranger2_shutdown(tm);
+    }
     drain(10);
     result += test_json(NULL);
     return result;
@@ -2687,6 +2887,7 @@ int main(int argc, char *argv[])
     result += do_test_rt_mem_filter_skip();
     result += do_test_rt_disk_in_process();
     result += do_test_follower();
+    result += do_test_close_races_master();
     result += do_test_cache_cleared();
     result += do_test_rkey_filter();
     result += do_test_signal_dir_seen(FALSE);

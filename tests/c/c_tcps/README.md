@@ -28,6 +28,20 @@ restart reloads nothing (they did not change: no *"TLS certificates
 reloaded"*), `reload-certs` once, and, after the copy is touched, another
 stop and start of the server reloads it.
 
+`test7` drops a connection from inside its own `EV_RX_DATA`, over TLS and in
+clear. The servers use the legacy method (`child_tree_filter`) with channels
+that have no `C_TCP` of their own (`C_CHANNEL` -> `C_WEBSOCKET`), so each
+accepted connection gets a VOLATILE `C_TCP`, which `C_WEBSOCKET` destroys when
+it publishes `EV_STOPPED`. Each client sends a request that is not HTTP; the
+websocket drops the connection while it parses it, so the `C_TCP` is destroyed
+inside its own callback. Both clients must be disconnected, and no `C_TCP` must
+be left in the channels. Freed memory is poisoned, as in test6. Up to 7.25.21
+the `C_TCP` went on using itself after that `EV_STOPPED`: `set_disconnected()`
+read its url (red in clear: a SegFault), and over TLS the read path took ytls's
+-2222 ("the session was freed inside the callback") for a TLS error, wrote the
+cause and stopped the destroyed gobj again (red: a SegFault). `test7_mbedtls`
+runs it on mbedTLS when both backends are compiled in.
+
 ## Run
 
 ```bash

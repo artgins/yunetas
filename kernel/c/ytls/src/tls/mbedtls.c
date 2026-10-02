@@ -1126,6 +1126,11 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
     }
 
     if(sskt->on_encrypted_data_cb(sskt->user_data, to_send) < 0) {
+        /*
+         *  to_send is the callback's, whatever it answers (ytls.h): it was
+         *  released there. Released again here, it was a double free
+         *  (up to 7.25.21; C_TCP's kw of EV_SEND_ENCRYPTED_DATA owns it)
+         */
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MBEDTLS,
@@ -1133,7 +1138,6 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
             "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
             NULL
         );
-        gbuffer_decref(to_send);
         return -1;
     }
 
@@ -1190,9 +1194,10 @@ PRIVATE int encrypt_data(
                 flush_encrypted_data(sskt); // Send what we have to make progress
                 if(flush_clear_data(sskt) == -2222) {
                     // on_clear_data_cb freed sskt re-entrantly inside flush_clear_data;
-                    // do NOT touch sskt again (the loop re-test below would deref it).
+                    // do NOT touch sskt again (the loop re-test below would deref it),
+                    // and tell the caller so: its connection, maybe its gobj, is gone.
                     GBUFFER_DECREF(gbuf);
-                    return -1;
+                    return -2222;
                 }
                 continue;
             } else {

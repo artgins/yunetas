@@ -90,21 +90,21 @@ typedef struct api_tls_s {
         int (*on_handshake_done_cb)(void *user_data, int error),
         int (*on_clear_data_cb)(
             void *user_data,
-            gbuffer_t *gbuf  // must be decref
+            gbuffer_t *gbuf  // owned by the callback, whatever it answers
         ),
         int (*on_encrypted_data_cb)(
             void *user_data,
-            gbuffer_t *gbuf // must be decref
+            gbuffer_t *gbuf // owned by the callback, whatever it answers
         ),
         void *user_data
     );
     void (*free_secure_filter)(hsskt sskt);
     int (*do_handshake)(hsskt sskt); // Must return 1 (done), 0 (in progress), -1 (failure)
-    int (*encrypt_data)(                // return 0 on success, <-1000 on TLS error (c_tcp closes socket)
+    int (*encrypt_data)(                // return 0 on success, -2222 sskt freed inside, <-1000 on TLS error (c_tcp closes socket)
         hsskt sskt,
         gbuffer_t *gbuf  // owned
     );
-    int (*decrypt_data)(                // return 0 on success, <-1000 on TLS error (c_tcp closes socket)
+    int (*decrypt_data)(                // return 0 on success, -2222 sskt freed inside, <-1000 on TLS error (c_tcp closes socket)
         hsskt sskt,
         gbuffer_t *gbuf  // owned
     );
@@ -197,11 +197,11 @@ PUBLIC hsskt ytls_new_secure_filter(
     int (*on_handshake_done_cb)(void *user_data, int error),
     int (*on_clear_data_cb)(
         void *user_data,
-        gbuffer_t *gbuf  // must be decref
+        gbuffer_t *gbuf  // owned by the callback, whatever it answers
     ),
     int (*on_encrypted_data_cb)(
         void *user_data,
-        gbuffer_t *gbuf  // must be decref
+        gbuffer_t *gbuf  // owned by the callback, whatever it answers
     ),
     void *user_data
 );
@@ -229,6 +229,13 @@ PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt);
 /**rst**
     Use this function to encrypt clear data.
     The encrypted data will be returned in on_encrypted_data_cb callback.
+    Return
+        0       success,
+        -2222   the sskt was freed inside a callback (a subscriber of the
+                clear data it published while it waited dropped the
+                connection): touch neither the sskt nor its owner, which
+                may be gone too,
+        < 0     failure (< -1000: a TLS error).
 **rst**/
 PUBLIC int ytls_encrypt_data(
     hytls ytls,
@@ -239,6 +246,12 @@ PUBLIC int ytls_encrypt_data(
 /**rst**
     Use this function decrypt encrypted data.
     The clear data will be returned in on_clear_data_cb callback.
+    Return
+        0       success,
+        -2222   the sskt was freed inside on_clear_data_cb (its owner
+                dropped the connection there): touch neither the sskt nor
+                its owner, which may be gone too,
+        < -1000 a TLS error.
 **rst**/
 PUBLIC int ytls_decrypt_data(
     hytls ytls,

@@ -4,6 +4,31 @@ Reviewed up to `62e070ec5` (2026-10-02). What is resolved is removed from
 this file. Last check of the code: clean build with no warning, suite
 278/278 as user `yuneta` under `ulimit -Sn 1024`.
 
+## Acted on (2026-10-02)
+
+Every item was checked against the code before acting (TODO.md §1 carries
+the corrections). Fixed, see `CHANGELOG.md` "Unreleased":
+
+- **6** (mbedTLS double decref) and **7** (C_TCP -2222). The fix differs
+  from the one proposed: its point 3 (`try_to_stop_yevents()` idempotent in
+  `ST_DISCONNECTED`) would hang the stop of an idle clisrv of the new method
+  and of a disconnected client, and was not done. The defect is wider than
+  item 7 says: `EV_STOPPED` is where a host destroys a VOLATILE C_TCP, and
+  C_TCP used itself after it in `set_disconnected()` (its url, and a
+  client's `idle_closed`) and in `mt_stop()`. Reach: only a clisrv of the
+  legacy method in a channel with no C_TCP (sgateway); the agent's input
+  pre-creates its C_TCP. Test `c_tcps/test7`.
+- **15** (agent relaunch of a living yuno). Not by `yuno.pid` (a yuno writes
+  it where its own config says) nor by `/proc/<pid>/exe` (it names the
+  release): by `/proc`, argv[0] and the configuration files in its `bin/`.
+  `yuno_pid` is not written (the guard of `ac_on_open()` would then kill the
+  yuno when it reconnects). `restart_nodes()` kills such a yuno.
+- **13** (rt_disk close races the master). `IN_MOVED_FROM` was not in
+  fs_watcher's mask, `rt_id_is_confined()` did not refuse a leading dot,
+  `walk_dir_tree()` skips dot names, and the master's `FS_SUBDIR_DELETED` of
+  the renamed directory would have logged an ERROR: all handled. Test
+  `test_delete_key_propagation` (`close_races_master`).
+
 ## Review of TODO.md, section 1 "Defects to fix"
 
 Each item was read against the code of main. Line numbers are those of

@@ -60,6 +60,10 @@ typedef enum  {
     FS_FLAG_BATCH_END           = 0x0004,     // Add FS_BATCH_END_TYPE after each batch
     FS_FLAG_DIR_FDS             = 0x0008,     // Hold a descriptor of each SUBDIRECTORY watched,
                                               // the very inode its watch is on: fs_watcher_dir_fd()
+    FS_FLAG_MOVED_AS_DELETED    = 0x0010,     // A subdirectory moved away (renamed) is told as
+                                              // FS_SUBDIR_DELETED_TYPE, by its old name. For a watch
+                                              // that is NOT recursive (a moved subdirectory's own
+                                              // watch would keep its old path)
 } fs_flag_t;
 
 

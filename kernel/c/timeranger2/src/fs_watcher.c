@@ -441,6 +441,9 @@ PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event)
     if(fs_event->fs_flag & FS_FLAG_MODIFIED_FILES) {
         inotify_mask |= IN_MODIFY;
     }
+    if(fs_event->fs_flag & FS_FLAG_MOVED_AS_DELETED) {
+        inotify_mask |= IN_MOVED_FROM;
+    }
 
     return inotify_mask;
 }
@@ -794,10 +797,12 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             fs_event->callback(fs_event);
         }
 
-        if (event->mask & (IN_DELETE)) {
+        if((event->mask & IN_DELETE) ||
+                ((event->mask & IN_MOVED_FROM) && (fs_event->fs_flag & FS_FLAG_MOVED_AS_DELETED))) {
             if(path != NULL) {
                 /*
-                 *  The descriptor held on it delays its IN_DELETE_SELF and
+                 *  Gone from this directory: removed, or (FS_FLAG_MOVED_AS_DELETED)
+                 *  renamed away. The descriptor held on it delays its IN_DELETE_SELF and
                  *  IN_IGNORED to its close: closed now, they come, and the
                  *  watch goes as without one
                  */

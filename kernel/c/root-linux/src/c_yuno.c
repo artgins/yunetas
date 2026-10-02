@@ -5204,6 +5204,19 @@ PRIVATE int save_pid_in_file(hgobj gobj)
     unsigned int pid = getpid();
     yuneta_bin_file(pidfile, sizeof(pidfile), "yuno.pid", TRUE);
     FILE *file = fopen(pidfile, "w");
+    if(!file) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot write the pid file",
+            "path",         "%s", pidfile,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        pidfile[0] = 0;     // nothing to remove at exit
+        return -1;
+    }
     fprintf(file, "%d\n", pid);
     fclose(file);
     return 0;

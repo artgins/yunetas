@@ -36,6 +36,16 @@ fs_event_t *fs_create_watcher_event(
 | `user_data` | `void *` | User-defined data passed to the callback function. |
 | `user_data2` | `void *` | Additional user-defined data passed to the callback function. |
 
+With `FS_FLAG_MOVED_AS_DELETED` a subdirectory renamed away (out of the watched directory, or to another name in it) is told as `FS_SUBDIR_DELETED_TYPE`, by its OLD name -- for a watch that is not recursive (in a recursive one the moved directory's own watch would keep its old path). The master of a timeranger2 topic watches `disks/` this way: a reader closes its feed by renaming `disks/<rt_id>/` away before removing it.
+
+```C
+fs_event_t *fs_event = fs_create_watcher_event(
+    yev_loop, "/yuneta/store/db/topic/disks", FS_FLAG_MOVED_AS_DELETED,
+    master_fs_callback, gobj, tranger, NULL
+);
+// mv disks/rtA disks/.closing.123.1  ->  FS_SUBDIR_DELETED_TYPE, filename "rtA"
+```
+
 With `FS_FLAG_DIR_FDS` each SUBDIRECTORY watched is opened first and watched through that descriptor, so the watch and the descriptor are one inode: see [`fs_watcher_dir_fd()`](#fs_watcher_dir_fd). Every event carries `event_wd` (the watch of `directory`) and, for `FS_SUBDIR_CREATED_TYPE`, `subdir_wd` (the watch just set on the directory created, `-1` if it was gone).
 
 **Returns**

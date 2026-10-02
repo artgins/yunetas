@@ -99,6 +99,15 @@
     to destroy a volatile transport (if(gobj_is_volatil(src)) gobj_destroy).
     This holds for a client already disconnected (waiting for its reconnect
     timer) too: up to 7.25.4 that stop published nothing.
+
+    So EV_STOPPED is the LAST thing a C_TCP does with itself: the host may
+    have destroyed it when the publish returns, also when the stop comes
+    from inside one of its own callbacks (a host that drops the connection
+    in EV_RX_DATA). Nothing of the gobj is touched after it, and a caller
+    that may have run a stop (try_to_stop_yevents(), ytls's -2222) returns
+    at once. Up to 7.25.21 a volatile clisrv dropped in its EV_RX_DATA read
+    its url after the publish, and over TLS took -2222 for a TLS error and
+    wrote the cause and stopped the destroyed gobj again.
  */
 
 /***************************************************************
@@ -477,8 +486,14 @@ PRIVATE int mt_stop(hgobj gobj)
     if(!gobj_in_this_state(gobj, ST_STOPPED) && !gobj_in_this_state(gobj, ST_DISCONNECTED)) {
         set_disconnect_cause(gobj, "Local stop");
     }
-    try_to_stop_yevents(gobj);
 
+    /*
+     *  Released BEFORE the stop of the yevents, which is the last use of
+     *  the gobj here: that stop can end in EV_STOPPED, where the host of a
+     *  volatile C_TCP (a clisrv of the legacy method in a channel with no
+     *  C_TCP) destroys it. The volatile attrs are reset where the stop
+     *  ends (set_disconnected()), so its trace still says the peer.
+     */
     if(priv->sskt) {
         ytls_free_secure_filter(priv->ytls, priv->sskt);
         priv->sskt = 0;
@@ -491,7 +506,7 @@ PRIVATE int mt_stop(hgobj gobj)
     dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
     dl_flush(&priv->dl_tx_encrypted, (fnfree)gbuffer_decref);
 
-    gobj_reset_volatil_attrs(gobj);
+    try_to_stop_yevents(gobj);
 
     return 0;
 }
@@ -793,10 +808,11 @@ PRIVATE void set_secure_connected(hgobj gobj)
     if(ret == -2222) {
         /*
          *  Re-entrant free: a subscriber of EV_RX_DATA (published from
-         *  flush_clear_data's on_clear_data_cb) destroyed this connection
-         *  while we were still inside ytls_flush. gobj/priv are already freed.
-         *  Bail before touching them; do NOT call try_to_stop_yevents() — the
-         *  gobj is gone.
+         *  flush_clear_data's on_clear_data_cb) dropped or stopped this
+         *  connection while we were still inside ytls_flush: its end is
+         *  done or under way, and its host may have destroyed the gobj (a
+         *  volatile clisrv). Bail before touching it; do NOT call
+         *  try_to_stop_yevents().
          */
         return;
     }
@@ -968,19 +984,24 @@ PRIVATE void set_disconnected(hgobj gobj)
 
         if(!gobj_is_running(gobj)) {
             /*
-             *  The gobj is in stop
+             *  The gobj is in stop. Its host may destroy it here (a
+             *  volatile clisrv): nothing of it is touched after this
              */
             gobj_publish_event(gobj, EV_STOPPED, 0);
         }
+        return;
     }
 
     if(IS_CLI) {
         /*
          *  cli
          */
+        BOOL idle_closed = priv->idle_closed;
+        priv->idle_closed = FALSE;  // consumed; the next disconnect decides afresh
+
         if(gobj_is_running(gobj)) {
             gobj_change_state(gobj, ST_DISCONNECTED);
-            if(priv->timeout_inactivity > 0 && priv->idle_closed) {
+            if(priv->timeout_inactivity > 0 && idle_closed) {
                 /*
                  *  Inactivity idle-close (connection was up, no pending work):
                  *  do NOT auto-reconnect. Stay disconnected until the next
@@ -1019,14 +1040,13 @@ PRIVATE void set_disconnected(hgobj gobj)
             }
         } else {
             /*
-             *  The gobj is in stop
+             *  The gobj is in stop. Its host may destroy it here: nothing
+             *  of it is touched after this
              */
             EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
 
             gobj_publish_event(gobj, EV_STOPPED, 0);
         }
-
-        priv->idle_closed = FALSE;  // consumed; the next disconnect decides afresh
     }
 }
 
@@ -1098,7 +1118,17 @@ PRIVATE int write_data(hgobj gobj)
 
     if(priv->sskt) {
         GBUFFER_INCREF(gbuf)
-        if(ytls_encrypt_data(priv->ytls, priv->sskt, gbuf)<0) {
+        int ret = ytls_encrypt_data(priv->ytls, priv->sskt, gbuf);
+        if(ret == -2222) {
+            /*
+             *  The TLS session was freed inside: a subscriber of the
+             *  EV_RX_DATA the backend published while it waited dropped the
+             *  connection. Its end may have released gbuf, and its host
+             *  may have destroyed the gobj: not touched
+             */
+            return -1;
+        }
+        if(ret < 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
@@ -1108,6 +1138,7 @@ PRIVATE int write_data(hgobj gobj)
             );
             set_disconnect_cause(gobj, "TLS: encrypt failed: %s", tls_last_error(gobj));
             try_to_stop_yevents(gobj);
+            return -1;  // the end of the connection released gbuf, and maybe the gobj
         }
         if(gbuffer_leftbytes(gbuf) > 0) {
             gobj_log_error(gobj, 0,
@@ -1655,6 +1686,16 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     if(priv->use_ssl) {
                         GBUFFER_INCREF(gbuf)
                         ret = ytls_decrypt_data(priv->ytls, priv->sskt, gbuf);
+                        if(ret == -2222) {
+                            /*
+                             *  The TLS session was freed inside the callback:
+                             *  a subscriber of EV_RX_DATA dropped or stopped
+                             *  the connection, whose end is done or under way,
+                             *  and whose host may have destroyed the gobj
+                             *  already (a volatile clisrv): not touched
+                             */
+                            break;
+                        }
                         if(ret < 0) {
                             /*
                              *  If return -1 while doing handshake then is good stop here the gobj,
@@ -2093,8 +2134,9 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
 
     /*
      *  0 even when the write cannot start: that is logged and the connection
-     *  dropped already, and the gbuffer went with the kw. The mbedTLS backend
-     *  frees the gbuffer again on a negative answer.
+     *  dropped already, and the gbuffer went with the kw. The gbuffer is
+     *  ours whatever we answer (ytls.h): up to 7.25.21 the mbedTLS backend
+     *  freed it again on a negative answer.
      */
     write_encrypted_data(gobj, gbuffer_incref(gbuf));
 

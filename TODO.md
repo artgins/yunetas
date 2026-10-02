@@ -32,10 +32,18 @@ Severity in parentheses where one was assigned.
   (medium, present in 7.25.20). C_IEVENT_SRV `ac_on_message()` decodes the
   peer's frame (`iev_create_from_gbuffer()`) before its identity card is
   checked. A 16 MB `[{},…]` frame takes ~1.7 GB to parse, so a 200 MB frame
-  (the max block of the agent and most yunos) needs ~20 GB; on a
-  `CONFIG_DEBUG_TRACK_MEMORY` build the agent's 2 GB `MEM_MAX_SYSTEM_MEMORY`
-  aborts the process. Cap the size of a frame accepted before the session (an
-  identity card is small).
+  (the max block of the agent and most yunos) needs ~20 GB. Before that,
+  `c_websocket.c` (~1920-1936) reserves `istream_create(frame_length,
+  frame_length)` from the length the PEER writes in the frame header, before
+  any payload arrives. In production nothing bounds the sum (the 2 GB
+  `MEM_MAX_SYSTEM_MEMORY` is enforced only with `CONFIG_DEBUG_TRACK_MEMORY`,
+  where it aborts the process); the reservation is virtual memory until
+  bytes arrive, and `timeout_idgot` / `timeout_payload` (5 s) bound how long.
+  Fix at the transport's layer: grow the payload buffer as data arrives, as
+  `c_websocket` already does for fragments (`gbuffer_create(4*1024,
+  gbmem_get_maximum_block())`, ~1124), with an `SDF_RD` max payload attr; a
+  cap "while there is no session" would make the transport know the session
+  layer. (Cloud review 2026-10-02, checked.)
 - **dbsimple: a yuno running as root hands its secrets to whoever planted the
   file** (medium). A member of the yuneta group replaces the file in the 02775
   data dir with a readable one of their own; a root save writes every
@@ -44,7 +52,16 @@ Severity in parentheses where one was assigned.
   file back only when its old owner is the data directory's owner (the yuno's
   user); otherwise keep it root's or refuse, logged. Also: the load logs
   *"Persistent attrs file of another user, left as it is"* and the save then
-  *"taken over"* / *"kept its owner"* — contradictory lines.
+  *"taken over"* / *"kept its owner"*. The LOAD is the wider half:
+  `check_persist_file()` (~105-127) accepts a file of another user with a
+  warning and `load_json()` loads it, so a group member writes the persistent
+  attrs of any service -- `cert_sync_copy_cmd` of the agent and
+  `restart_yuneta_command` of logcenter reach `system()` (see `write-attr`
+  below). Refuse at load a file whose owner is neither the euid nor the data
+  directory's owner (ERROR, `*failed = TRUE`, so the saves are refused too).
+  Defense in depth, not a new escalation: the same group can already
+  overwrite the yuno binaries and launch scripts the agent writes 02775
+  (`copyfile(..., yuneta_xpermission())`, `c_agent.c` ~3188/3416/9020).
 - **User management is open to whoever the control center lets run
   `command-agent`.** Seen live with gui_agent's Users workspace (0.28.0,
   2026-09-29): through the control center, `claudia@artgins.com` — with NO
@@ -53,9 +70,19 @@ Severity in parentheses where one was assigned.
   `delete-user` of `C_AUTHZ` (`c_authz.c` ~285) are `SDF_AUTHZ_X` only, which
   does nothing while `enable_command_authz` is off (the default). The role
   link of the same session was refused: `link-nodes` is a `C_NODE` command
-  with its own check, always on. Either give these commands an always-on check
-  like `C_NODE`'s, or enable the gate (see
-  [Operations](#6-operations-and-deployment)).
+  with its own check, always on. All of `C_AUTHZ` is in this state
+  (`c_authz.c` ~279-296): `update-user`, `set-user-pwd`, `add-jwk` /
+  `remove-jwk` (a trusted signing key added at will), and the role link that
+  `link-nodes` refused is reachable through `create-user` / `update-user
+  role=...` (`gobj_update_node()` with autolink, ~4245/4342;
+  `role_ref_is_linkable()` checks only that the role exists). The root cause
+  is the gate off: the same operator has `install-binary` / `run-yuno`.
+  Either enable the gate (see [Operations](#6-operations-and-deployment)), or
+  give `C_AUTHZ` an always-on check like `C_NODE`'s `refuse_without_authz()`
+  -- which must skip internal calls with no `__username__` the way
+  `command_parser` does, because `authz_checker` refuses them with an ERROR;
+  and gui_agent's Users workspace then gets `-403` for operators without
+  write permission on the authz treedb.
 - **`write-attr` reaches a command the agent passes to `system()`.**
   `C_YUNO`'s `write-attr` (`c_yuno.c` ~414, `SDF_AUTHZ_X` only) writes any
   `SDF_WR` attr, and the agent's `cert_sync_copy_cmd` (`c_agent.c` ~990,
@@ -64,33 +91,31 @@ Severity in parentheses where one was assigned.
   binaries, so it adds nothing for that operator — but it is the trigger the
   old "re-audit the agent control plane if its `SDF_WR` command attrs become
   remote-writable" note was waiting for: they are. Make the command attrs
-  not writable at run time (drop `SDF_WR`, config only), and re-audit the
-  agent control plane + `watchfs` command-exec (prior fixes `8c03eb686` /
-  `5dbede6a1`).
+  not writable at run time: drop `SDF_WR` AND `SDF_PERSIST` (`write-attr`
+  accepts `ATTR_WRITABLE`, which is either flag, `gobj.h` ~124), config only,
+  for `cert_sync_copy_cmd`, `cert_sync_store_dir` and logcenter's
+  `restart_yuneta_command` (`system()` at `c_logcenter.c` ~956/968); give
+  `cert-sync-now` (flag 0, fires the command at once) and `cert-sync-status`
+  `SDF_AUTHZ_X`. A value persisted at run time is then no longer read
+  (CHANGELOG), and `guide_cert_management.md` ~120-128, `YUNO_AUTH.md`
+  §6.2/§8.10, `logcenter.md` ~92 and `yunos/c/README.md` ~235 describe them
+  as runtime-persistent. Then re-audit the agent control plane + `watchfs`
+  command-exec (prior fixes `8c03eb686` / `5dbede6a1`).
 - **`skip-email` has no `SDF_AUTHZ_X`** (low), though it moves an email out of
   the send path (`c_emailsender.c` ~111; `set-email-user` / `set-url-from`
-  have it).
+  have it). Nor do `remove-emails-failed`, `disable-alarm-emails` and
+  `enable-alarm-emails` (~106-110): the four want it; `send-email`, `help`
+  and `list-queues` stay open.
 
 ### TLS and transport
 
-- **ytls (mbedTLS): a failed encrypted-output callback frees the gbuffer
-  twice.** `flush_encrypted_data()` of `mbedtls.c` (~1128) does
-  `gbuffer_decref(to_send)` when `on_encrypted_data_cb()` answers < 0, but
-  `C_TCP`'s callback hands the gbuffer to the kw of `EV_SEND_ENCRYPTED_DATA`,
-  which releases it whatever happens. `gobj_send_event()` answers < 0 when the
-  event is not in the current state (a TLS record produced while the
-  connection is already in `ST_WAIT_STOPPED`): a double decref. The OpenSSL
-  backend ignores the answer. Decide who owns the gbuffer after the callback
-  and make both backends agree.
-- **C_TCP: the -2222 decrypt branch can run on a freed gobj** (low).
-  `ytls_decrypt_data()` returns -2222 when the sskt was freed inside
-  `on_clear_data_cb` (an `EV_RX_DATA` subscriber destroyed the connection
-  synchronously); `c_tcp.c` ~1658 tests `ret < -1000`, which matches it, and
-  calls `tls_last_error(gobj)` and `set_disconnect_cause()` on freed priv
-  before `try_to_stop_yevents()`. `set_secure_connected()` treats -2222 as
-  "already freed"; the decrypt path must too (`if(ret == -2222) { break; }`
-  first), and the re-entrant `encrypt_data` path into `write_data` (~1101) the
-  same.
+- **ytls: the alive marker covers only `flush_clear_data()`** (low; follow-up
+  of the -2222 fix). `do_handshake()` touches `sskt->handshake_informed`
+  after `flush_encrypted_data()` (`openssl.c` ~1052), and a write that cannot
+  start inside that callback already reaches `set_disconnected()`, which
+  frees the sskt. Extend the marker to every callback before freeing the
+  sskt any earlier (the review's idea of freeing it in
+  `try_to_stop_yevents()` once the end is decided).
 - **C_TCP `disconnect_cause` carries the backend's reason on OpenSSL only**
   (low). mbedTLS never writes `sskt->last_error` (the reason goes only to
   `gobj_log_set_last_message()`), so its causes are a bare *"TLS handshake
@@ -110,7 +135,14 @@ Severity in parentheses where one was assigned.
   only `[DEL DEL]` at an overflow); records of a doomed life are handed with a
   NULL body; CRITICAL logs in legitimate races would kill a tranger with
   exit-on-critical. Re-check each against the descriptor read path before
-  fixing: the NULL body may behave differently now.
+  fixing: the NULL body may behave differently now. Checked 2026-10-02: the
+  first is there (`count_key_delete_heard()`, ~7839-7856); the second too,
+  but not from ~7973 (that is a note of another feed): a feed that opens
+  after the first heard the delete gets no debt and no doubt; the NULL body
+  is gone on the descriptor path and stays on the by-path fallback
+  (`publish_new_rt_disk_records()` ~9157-9200); and the CRITICALs are logged
+  with opt 0, so they cannot kill the tranger -- they are only noise on the
+  fallback (ENOENT should be a warning).
 - **An rt_disk follower out of descriptors or of watches** (medium-low; cloud
   review of `b2f972382`). With `FS_FLAG_DIR_FDS` a follower holds one
   descriptor per key directory of each feed, and a key directory lives until
@@ -119,9 +151,14 @@ Severity in parentheses where one was assigned.
   `nofile`, far lower than `max_user_watches`. Those descriptors are outside
   the `EMFILE` recovery of `get_topic_rd_fd()`: once they fill the limit,
   every record read fails, and each new key directory goes back to the watch
-  by path (the reborn-key race, for that key). A yuno raises its limit
-  (`c_yuno.c`, `limit_open_files`) and the packages give `nofile unlimited`;
-  a follower that is not a yuno and does not raise it is exposed. Same
+  by path (the reborn-key race, for that key). A yuno does NOT raise its
+  limit by default (`limit_open_files` is `"0"`, `c_yuno.c` ~538); on the
+  packaged nodes the agent's init script runs `ulimit -Sn $nr_open` and
+  `limits.d` gives `nofile unlimited`, which the yunos inherit. Exposed: an
+  agent started from a desktop session (soft 1024) and a follower process
+  that is not under it. The process limit belongs to `c_yuno`
+  (`set_limit_open_files()`, raising soft to hard when the value is 0), not
+  to the timeranger2 library. Same
   family: a key directory whose watch cannot be made (`ENOSPC` at
   `max_user_watches`) is taken for gone by `place_new_key_dir_scans()`, so
   the links in it are not read, and the ones made later are not heard (no
@@ -132,25 +169,14 @@ Severity in parentheses where one was assigned.
   `b2f972382`: used only on the no-descriptor fallback). It answers FALSE
   with no log on any `statx` failure, not only ENOENT, and its callers
   (`scan_key_dir`, the scan placement) skip the scan, so the key's pending
-  links wait for its next record. Log the non-ENOENT failures.
+  links wait for its next record. Log the non-ENOENT failures. In a
+  container the silent one is `EPERM` (a seccomp profile); `ENOSYS` is not,
+  glibc emulates `statx` then (inode, no birth time).
 - **A deferred scan can wait without limit on a quiet feed** (low).
   `fs_queued_events_end()` over-estimates by `READ_SIZE` on its fallbacks
   (FIONREAD failure, CQ ring overflow, completions still moving after 3 tries),
   reachable from a deferral made in the overflow pass; the scan then waits for
   ~`READ_SIZE` more bytes of unrelated events.
-- **Closing a reader's rt_disk feed races the master that feeds it.** Seen
-  2026-09-26 in yunovatios' stress test (a `db_history_ce` reading the
-  `raw_tracks` of a `db_tracks_ce` that appends 3000 records/s over 30000
-  keys): every orderly stop of the reader under load logs `remove_tree_walk`
-  `rmdir() FAILED` *"Directory not empty"* on `<topic>/disks/<rt_id>/`.
-  `tranger2_close_rt_disk()` stops the watcher and removes the tree while the
-  master keeps hard-linking new md2 files into its key subdirectories, so the
-  directory is left behind with fresh links in it. Never seen without load.
-  Unknown yet whether the master goes on linking into a feed nobody reads
-  after that (the master's `disks/` watch closes a feed only when its
-  directory is gone, and here it stays), which would be links accumulating for
-  ever. Repro: `yunovatios/yunos/sim_controllers` at 3000/s against the stress
-  realm, then `kill-yuno` of its `db_history_ce`.
 
 ### dbsimple
 
@@ -164,21 +190,13 @@ Severity in parentheses where one was assigned.
 
 ### Agent
 
-- **A yuno that lost its channel is launched AGAIN while it still lives**
-  (high impact). Found 2026-09-26 on the dev node (yunovatios'
-  `sim_controllers`): the yuno was alive but stuck loading 13.7 M queued
-  messages, the agent restarted and the yuno could not keep the channel;
-  `ac_on_close` logged *"yuno down"* and, the yuno being `must_play`,
-  `run_yuno` launched a SECOND process at once. The first still held its
-  persistent queues' exclusive lock, so the second opened them *"as not
-  master"*, its first `trq_append()` failed and `C_QIOGATE` aborted
-  (*"Message NOT SAVED in the queue"*, `LOG_OPT_ABORT`: a 2.6 GB core).
-  Seconds later the old one reconnected and the agent killed it (*"yuno
-  ALREADY living, killing new yuno"* kills the one reconnecting). A dropped
-  channel is not a dead process: `run_enabled_yunos()` / `run_util_yunos()`
-  must check that the known pid (or `yuno.pid`) is gone, and give a live one
-  time to come back. (`is_launching()` covers only the agent's own
-  just-launched yunos.)
+- **`kill-yuno` cannot reach a yuno alive but not connected** (low; left by
+  the fix of its relaunch). Such a yuno is no longer launched again (the
+  sweeps and `run-yuno` find it in `/proc` and warn with its pids), and a
+  node bounce kills it, but `kill-yuno` selects by `yuno_running` and waits
+  for an `EV_ON_CLOSE` that a yuno without a channel never sends. Give it a
+  path for them (SIGQUIT to the pids found, answered at once), or say in the
+  answer that the yuno lives unconnected.
 - **A C_COUNTER still running when the agent stops** (low). At an orderly
   `--stop`, per pending counter: *"Destroying a RUNNING gobj"* and *"No
   subscription found"* (`EV_TIMEOUT_PERIODIC` of the yuno). The counters are
@@ -186,8 +204,10 @@ Severity in parentheses where one was assigned.
   (`gobj_create_volatil(..., C_COUNTER, ...)`, `c_agent.c`
   ~5194/5373/5561/5737) with a 30 s expiration; `C_COUNTER` stops and
   destroys itself only in `publish_finalcount()`. The agent's `mt_stop` must
-  stop (and so destroy) its `C_COUNTER` children — `gobj_match_children` by
-  `__gclass_name__` — before `gobj_end` walks the tree.
+  stop AND destroy its `C_COUNTER` children (`gobj_stop()` alone does not
+  destroy one) — `gobj_match_children` by `__gclass_name__` — before
+  `gobj_end` walks the tree, without forcing `publish_finalcount()` (it
+  would answer over channels that are closing).
 
 ### Gates, queues and stats
 
@@ -197,7 +217,10 @@ Severity in parentheses where one was assigned.
   which reads `SDF_STATS` attrs and never calls the child's `mt_stats`, so
   `stats-yuno service=__output_side__` shows only the bottom `C_TCP`'s
   counters. Either `C_MQIOGATE` asks its children with `gobj_stats()`, or
-  `C_QIOGATE` declares the two as `SDF_RSTATS` backed by `mt_reading`. Test: a
+  `C_QIOGATE` declares the two as `SDF_RD|SDF_STATS` gauges backed by
+  `mt_reading` (not RSTATS: `__reset__` would pretend to zero them). Note
+  gui_agent reads `msgs_in_queue` at the top level of the data
+  (`c_agent_monitor.js` ~2067), where a `C_MQIOGATE` does not put it. Test: a
   queue with N messages and the peer down, `stats` through the `C_MQIOGATE`,
   `msgs_in_queue == N`.
 - **`stats-yuno` on a `C_IOGATE` or `C_QIOGATE` service answers `-1` with no
@@ -205,26 +228,39 @@ Severity in parentheses where one was assigned.
   that reads its children), and `c_ievent_srv`'s `ac_mt_stats` sends that
   dict back where the caller expects the `build_command_response()` envelope.
   A silent error, and the only direct way to read a `C_QIOGATE`'s
-  `msgs_in_queue`. Either those `mt_stats` return the envelope (adapting their
-  parents), or `ac_mt_stats` wraps a bare dict.
+  `msgs_in_queue`. The contract is `gobj.h` ~689 (the envelope): fix the
+  gclasses, not `ac_mt_stats`. Simplest: once the counts are attrs (above),
+  delete both `mt_stats` and let `stats_parser` build the envelope. Readers of
+  the bare form: `C_QIOGATE` merging its bottom (~271) and **yunovatios'
+  `c_sim_controller.c` ~302**, which would read 0 silently (migrate it in the
+  same round). `C_CHANNEL`'s `mt_stats` breaks the same contract.
 - **`C_IOGATE`'s and `C_CHANNEL`'s msg/s depend on who reads them, and
   when.** `txMsgsec` / `rxMsgsec` are computed INSIDE `mt_stats`: the counter
   delta since the previous read divided by WHOLE seconds (truncated), and
   `last_*` reset by the read. A read 1.9 s after the previous one divides by 1
-  (+90 %); two readers steal each other's window. Compute the rate on a timer
-  (as yunovatios' `c_gate_central.c` and `C_YUNO`'s `cpu` do). The agent's
+  (+90 %); two readers steal each other's window, and a read less than 1 s
+  after the previous one computes nothing yet moves the baseline: those
+  messages go into no rate. Compute the rate on a timer (as yunovatios'
+  `c_gate_central.c` and `C_YUNO`'s `cpu` do) -- ONE in `C_IOGATE` sampling
+  its channels, not one per `C_CHANNEL` (a gate has 600). The agent's
   `watch-yuno-stats` sampling narrows it to one reader per agent; it does not
   fix the gclasses.
 - **`C_YUNO`'s `uptime` is the MACHINE's uptime, in jiffies** (low). Described
   as *"Yuno living time"*, but `read_uptime()` reads `/proc/uptime` × HZ (a
   yuno started the day before answered `31007411`, 3.6 days of the host).
-  Compute it from `start_time`, or rename/redescribe it.
+  `read_uptime()` also fails in silence. Compute it (seconds since
+  `mt_create`, monotonic, not the wall-clock `start_time`), fix the doc
+  example (`yuneta_agent.md` ~176), CHANGELOG the unit change. The ESP32
+  yuno has no `read_uptime()`: its `uptime` is never written and reads 0.
 - **A full `C_TCP_S` logs an ERROR per refused connection.** When the
   `child_tree_filter` finds no free channel, `c_tcp_s.c` (~1100) logs *"TCP_S:
   Connection not accepted: no free child tree found"* for every attempt and
   the peers retry: 600 channels and 1000 simulated controllers made 38,156 of
   them in minutes. The ip-list refusals already warn on the transition and
-  count in `refusedConnxs` (`e16b87583`); this path must do the same.
+  count in `refusedConnxs` (`e16b87583`); this path must do the same, as a
+  third cause with its own counter (`noChannelConnxs`): `refusedConnxs` is
+  incremented unconditionally today (~940), so "full" would count as
+  "denied".
 
 ### Control center
 
@@ -232,17 +268,18 @@ Severity in parentheses where one was assigned.
   (only `mt_writing` checks it, and it does not run before `mt_create`): the
   tick is off and the rates read 0 with nothing said — check it in
   `mt_create` / `start_rates_tick()`. The rates keep their last value while
-  paused (zero them in `mt_pause`); the refusal log prints `timeout` with `%d`
-  (use `%lld`). And the tick is a C_TIMER, which checks its deadline on the
+  paused (zero them in `mt_pause`). And the tick is a C_TIMER, which checks its deadline on the
   yuno's `timeout_periodic` grain (1000 ms) and re-arms from the moment it was
   processed, so with `timeout` 1000 it fires every 1 s or 2 s: the rate stays
-  exact, but a 1 s burst in a 2 s interval is halved in `max*Msgsec`. Fix
-  C_TIMER (`t_flush += msec`) or say it in the docs ("at least `timeout`, on
-  the yuno's grain").
+  exact, but a 1 s burst in a 2 s interval is halved in `max*Msgsec`. A real
+  period is what `C_TIMER0` is for (io_uring, periodic): use it for this
+  tick rather than changing every C_TIMER.
 - **A control center started with `run-yuno play=0` and played later logs one
   *"Publish event WITHOUT subscribers"*** (`EV_ON_OPEN` of `__input_side__`,
   autoplay) per agent that connects in between: its subscription is made in
-  `mt_play` (~622). Subscribe earlier, or do not autoplay the input side.
+  `mt_play` (~622). Do not autoplay the input side -- and do not AUTOSTART it
+  either: `C_TCP_S` listens in `mt_start`, and `autostart_services()` starts
+  the tree of a gclass with no `mt_play`, so the port opens at autostart.
 - **gui_agent: on a phone the rail's fifth item is clipped at 360 px in
   Spanish** (minor; the bar scrolls).
 
@@ -277,8 +314,9 @@ Severity in parentheses where one was assigned.
 
 ### Stale texts
 
-- `docs/doc.yuneta.io/api/gclass/transport.md:31` and `protocol.md:30,54` say
-  `timeout_inactivity` is in seconds (it is ms); `transport.md:35` says the
+- `docs/doc.yuneta.io/api/gclass/transport.md:31` and `protocol.md:30` say
+  `timeout_inactivity` is in seconds (it is ms; `protocol.md:54`,
+  `C_PROT_HTTP_SR`, is right: that one is seconds); `transport.md:35` says the
   disconnect cause is emptied "at each EV_CONNECT" (the reconnect EV_TIMEOUT
   empties it too, through `ac_connect`).
 - `tests/c/c_tcp/README.md` test7 describes the "Operation canceled"

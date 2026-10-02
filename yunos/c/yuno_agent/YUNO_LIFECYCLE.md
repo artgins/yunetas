@@ -447,6 +447,35 @@ What the agent contributes on top:
    agent watches no pids. Without the expiry, one failed launch blocks
    `run-yuno` for that yuno until the agent restarts.
 
+   **A yuno alive that the agent does not know running is not launched
+   again.** `yuno_running` and `yuno_pid` say only what the agent saw on the
+   yuno's channel, and they are not persistent: a yuno that lost its
+   channel, or that outlived a restart of the agent, is "not running" there
+   while it lives -- typically one still busy at start (loading a big queue
+   or treedb) when the agent comes back. Before a launch, the two sweeps and
+   `run-yuno` look in `/proc` for a process of that yuno: `argv[0]` is its
+   role and its command line names its configuration files in its `bin/`
+   (so a release change does not hide it, nor does a launch by hand with
+   its `.sh`). If one lives, the yuno is skipped with a WARNING that names
+   its pids:
+
+   ```
+   "msg": "yuno alive but not connected to the agent: not launched again",
+   "yuno_id": "5020", "yuno_role": "db_tracks_ce", "pids": [6933, 6934]
+   ```
+
+   It comes back on its own when it reaches the agent. A `run-yuno` that
+   finds only such yunos answers *"N yuno(s) alive but not connected to the
+   agent: not launched again"*. `yuno.pid` is not used for this: a yuno
+   writes it where its own config says (logcenter's is under
+   `realms/agent/`), not in the `bin/` the agent made. Up to 7.25.21 the
+   agent launched a second instance: it opened the persistent queues of the
+   living one "as not master" and aborted (*"Message NOT SAVED in the
+   queue"*), and when the first one reconnected `ac_on_open()` killed it as
+   the intruder. A node bounce (`restart_nodes()`, `deactivate-snap`) kills
+   such a yuno too (SIGKILL, with a WARNING) before it runs them all again.
+   `kill-yuno` does not reach it: it acts on yunos with an open channel.
+
 Forensics: a crashed yuno also dumps a core at `/var/crash/core.<role>`
 (sysctl + PAM limits configured by the `.deb`, see
 [`ENTRY_POINT.md`](ENTRY_POINT.md#entry-point-crash-forensics) §8).
@@ -595,12 +624,12 @@ This is the worst form of flapping. If you suspect a stale pid, clear
 SIGKILL". A yuno that discards `SIGQUIT`, or whose signalfd handler is
 blocked, stays alive, and the record of the agent stays at `running`.
 
-A `kill -9 <yuno_pid>` from the shell is worse: it **does not** kill the
-yuno permanently. The watcher classifies a SIGKILL on the child as
-"abnormal" and relaunches it after 2s. You must kill **both** the child and
-its watcher. It is better to use `kill-yuno force=1` or `set-quick-kill`,
-which send SIGKILL to both pids. That is the only way for the agent to stop
-a yuno that does not cooperate
+A `kill -9 <yuno_pid>` from the shell ends the yuno for good: the watcher
+takes a SIGKILL on its child as a decision, not a crash, and exits too
+(`ydaemon.c`; any other signal is a crash, and the child is relaunched
+after 2s). `kill-yuno force=1` and `set-quick-kill` send
+SIGKILL to both pids, the watcher too. That is the only way for the agent to
+stop a yuno that does not cooperate
 ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.25.21/yunos/c/yuno_agent/src/c_agent.c), and [`ENTRY_POINT.md §7`](ENTRY_POINT.md#entry-point-kill-yuno)).
 
 ### 5.4 `pause` ≠ `SIGSTOP`, `play` ≠ `SIGCONT`

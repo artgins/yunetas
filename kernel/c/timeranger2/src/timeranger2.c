@@ -15,6 +15,7 @@
 #include <string.h>
 #include <limits.h>
 #include <errno.h>
+#include <signal.h>
 #include <unistd.h>
 #include <sys/resource.h>
 #include <fnmatch.h>
@@ -1148,7 +1149,9 @@ PRIVATE BOOL topic_name_is_confined(
  *  And one component: longer than NAME_MAX, the mkdir fails and the feed
  *  answered "opened" while it could never receive anything.
  *  A backtick is fine here: an rt id is not a segment of any kw path, and
- *  treedb names its own feeds `<treedb>`<topic>`<id>`.
+ *  treedb names its own feeds `<treedb>`<topic>`<id>`. A leading '.' is
+ *  not: `disks/.<name>` is where a feed goes while it is removed
+ *  (tranger2_close_rt_disk()), and nobody feeds or tells it.
  *
  *  The id may come from a peer (open-rt / open-list of C_TRANGER): a
  *  refusal is a WARNING, with no stack -- nothing of ours is broken.
@@ -1181,6 +1184,18 @@ PRIVATE BOOL rt_id_is_confined(
             NULL
         );
         gobj_log_set_last_message("Invalid rt id '%s'", id?id:"");
+        return FALSE;
+    }
+    if(id[0] == '.') {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", caller,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Invalid rt id (a leading dot is reserved)",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "id",           "%s", id,
+            NULL
+        );
+        gobj_log_set_last_message("Invalid rt id '%s': a leading dot is reserved", id);
         return FALSE;
     }
     if(strlen(id) > NAME_MAX) {
@@ -4535,10 +4550,8 @@ PRIVATE void mirror_key_delete_to_disks(
     }
     struct dirent *entry;
     while((errno = 0, entry = readdir(dir)) != NULL) {   // errno tells the end from a failure
-        if(entry->d_name[0] == '.' &&
-          (entry->d_name[1] == '\0' ||
-           (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) {
-            continue;
+        if(entry->d_name[0] == '.') {
+            continue;   // ".", "..", and a feed being removed (no rt id starts with '.')
         }
         char rt_path[PATH_MAX];
         build_path(rt_path, sizeof(rt_path), disks_root, entry->d_name, NULL);
@@ -6042,6 +6055,77 @@ PUBLIC json_t *tranger2_open_rt_disk(
 /***************************************************************************
  *  Close realtime disk
  ***************************************************************************/
+/***************************************************************************
+ *  CLIENT: the directory of a feed closed, `disks/<rt_id>/`, renamed away
+ *  and then removed. The master goes on linking into it until it hears
+ *  that it went: removed where it is, a key directory the master made in
+ *  between made the removal fail (*"Directory not empty"*), the directory
+ *  stayed, and the master went on feeding it for ever (up to 7.25.21; seen
+ *  at 3000 records/s). Renamed, the master cannot reach it -- its links
+ *  name the old path --, and it hears the rename as the delete
+ *  (FS_FLAG_MOVED_AS_DELETED). `.closing.<pid>.<seq>`: a leading dot is no
+ *  rt id (rt_id_is_confined()), and the master removes at its next open
+ *  the ones of a process that is gone.
+ ***************************************************************************/
+PRIVATE void remove_rt_disk_directory(
+    hgobj gobj,
+    const char *topic_directory,
+    const char *rt_id
+)
+{
+    static unsigned closing_seq = 0;
+    char full_path[PATH_MAX];
+    char closing_name[NAME_MAX];
+    char closing_path[PATH_MAX];
+    build_path(full_path, sizeof(full_path), topic_directory, "disks", rt_id, NULL);
+    snprintf(closing_name, sizeof(closing_name), ".closing.%d.%u", (int)getpid(), ++closing_seq);
+    build_path(closing_path, sizeof(closing_path), topic_directory, "disks", closing_name, NULL);
+
+    if(gobj_global_trace_level() & TRACE_FS) {
+        gobj_log_debug(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_YEV_LOOP,
+            "msg",              "%s", "CLIENT: (D) /disks/rt_id/",
+            "msg2",             "%s", "👓🔶 CLIENT: (D) /disks/rt_id/",
+            "action",           "%s", "rename() and rmrdir()",
+            "full_path",        "%s", full_path,
+            "closing_path",     "%s", closing_path,
+            NULL
+        );
+    }
+
+    if(rename(full_path, closing_path) < 0) {
+        if(errno == ENOENT) {
+            return; // nothing to remove
+        }
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot rename the directory of a closed rt_disk feed: removed where it is",
+            "path",         "%s", full_path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        rmrdir(full_path);  // a failure is logged by rmrdir
+        return;
+    }
+
+    /*
+     *  A link the master was making when the rename came may land in it:
+     *  once, the removal is tried again
+     */
+    if(rmrdir(closing_path) < 0 && rmrdir(closing_path) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot remove the directory of a closed rt_disk feed: the master removes it at its next open",
+            "path",         "%s", closing_path,
+            NULL
+        );
+    }
+}
+
 PUBLIC int tranger2_close_rt_disk(
     json_t *tranger,
     json_t *disk
@@ -6100,25 +6184,8 @@ PUBLIC int tranger2_close_rt_disk(
         }
 
         // MONITOR (D) /disks/rt_id/
-        char full_path[PATH_MAX];
         const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
-        snprintf(full_path, sizeof(full_path), "%s/disks/%s",
-            directory,
-            kw_get_str(gobj, disk, "id", "", KW_REQUIRED)
-        );
-
-        if(gobj_global_trace_level() & TRACE_FS) {
-            gobj_log_debug(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_YEV_LOOP,
-                "msg",              "%s", "CLIENT: (D) /disks/rt_id/",
-                "msg2",             "%s", "👓🔶 CLIENT: (D) /disks/rt_id/",
-                "action",           "%s", "rmrdir()",
-                "full_path",        "%s", full_path,
-                NULL
-            );
-        }
-        rmrdir(full_path);
+        remove_rt_disk_directory(gobj, directory, kw_get_str(gobj, disk, "id", "", KW_REQUIRED));
     }
 
     json_t *disks = kw_get_dict_value(gobj, topic, "disks", 0, KW_REQUIRED);
@@ -6261,6 +6328,20 @@ PRIVATE BOOL find_rt_disk_cb(
         return TRUE; // continue
     }
 
+    if(rt_id[0] == '.') {
+        /*
+         *  A feed being removed (remove_rt_disk_directory()): not fed. The
+         *  one of a process that is gone (it died while removing it) is
+         *  removed here: nobody else is removing it
+         */
+        unsigned closing_pid = 0;
+        if(sscanf(rt_id, ".closing.%u.", &closing_pid) == 1 &&
+                closing_pid > 0 && kill((pid_t)closing_pid, 0) < 0 && errno == ESRCH) {
+            rmrdir(full_path2);     // a failure is logged by rmrdir
+        }
+        return TRUE; // continue
+    }
+
     if(tranger2_get_rt_mem_by_id(tranger, topic_name, rt_id, "")) {
         /*
          *  Already fed: a rescan after lost events (rescan_rt_disks_by_master)
@@ -6293,7 +6374,7 @@ PRIVATE void find_rt_disk(json_t *tranger, const char *path)
         0,
         path,
         0,
-        WD_MATCH_DIRECTORY,
+        WD_MATCH_DIRECTORY|WD_HIDDENFILES,  // a feed being removed is seen: skipped, or its leftover removed
         find_rt_disk_cb,
         tranger
     );
@@ -6386,7 +6467,7 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
     fs_event_t *fs_event = fs_create_watcher_event(
         yev_loop,
         full_path,
-        0,      // fs_flag,
+        FS_FLAG_MOVED_AS_DELETED,   // a feed closed is renamed away first
         master_fs_callback,
         gobj,
         tranger,    // user_data
@@ -6474,6 +6555,9 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
                     );
                     break;
                 }
+                if(rt_id[0] == '.') {
+                    break;  // no rt id (rt_id_is_confined()): a feed being removed
+                }
 
                 json_t *rt = tranger2_open_rt_mem(
                     tranger,
@@ -6535,6 +6619,9 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
                         NULL
                     );
                     break;
+                }
+                if(rt_id[0] == '.') {
+                    break;  // the removal of a feed already closed (renamed away)
                 }
 
                 json_t *rt = tranger2_get_rt_mem_by_id(
@@ -6678,6 +6765,15 @@ PRIVATE int master_to_update_client_load_record_callback(
             );
         }
         if(mkdir(full_path_dest, json_integer_value(json_object_get(tranger, "xpermission")))<0) {
+            if(errno == ENOENT && !is_directory(disk_path)) {
+                /*
+                 *  The feed is closing: its directory was renamed away
+                 *  (remove_rt_disk_directory()), and its close is heard
+                 *  next (FS_SUBDIR_DELETED_TYPE)
+                 */
+                JSON_DECREF(record)
+                return 0;
+            }
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
@@ -6726,7 +6822,8 @@ PRIVATE int master_to_update_client_load_record_callback(
             );
         }
 
-        if(link(full_path_orig, full_path_dest)<0) {
+        if(link(full_path_orig, full_path_dest)<0 &&
+                !(errno == ENOENT && !is_directory(disk_path))) {  // ENOENT: the feed is closing
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,

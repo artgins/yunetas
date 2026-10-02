@@ -105,6 +105,72 @@ except the hook and the entries this list marks "(no red test)".
   5.18 a yuno started and could not stop its events. The minimum kernel is
   now documented (installation, README). (no red test: every kernel at hand
   has them; the probe checked on 7.0, 6.12 and Rocky 9.7's 5.14)
+- **C_TCP: a connection dropped from inside its own `EV_RX_DATA` no longer
+  uses itself after its `EV_STOPPED`.** `EV_STOPPED` is where the host of a
+  volatile `C_TCP` destroys it: a clisrv of the legacy method in a channel
+  with no `C_TCP` of its own (in this tree, sgateway's input). A host that
+  dropped such a connection while handling its data (a websocket refusing a
+  request that is not HTTP) destroyed it inside its own stack, and the
+  `C_TCP` then read its url (`set_disconnected()`), and over TLS took ytls's
+  `-2222` (*the session was freed inside the callback*) for a TLS error,
+  wrote the cause and stopped the destroyed gobj again. Now `EV_STOPPED` is
+  the last thing a `C_TCP` does with itself, and `-2222` is a return:
+  `set_disconnected()` ends there (the client's `idle_closed` is consumed
+  before it), `mt_stop()` releases the TLS session and the queues BEFORE the
+  stop of its events, and both TLS backends answer `-2222` from the encrypt
+  path too, where `write_data()` used the released gbuffer. The volatile
+  attrs are reset where a stop ends, no longer in `mt_stop()`. Test
+  `c_tcps/test7` (red: a SegFault in clear and over TLS); the `mt_stop()`
+  order has no red test (a connected clisrv always has a read in flight, so
+  its stop never ends inside `mt_stop()`).
+- **timeranger2: closing a follower's rt_disk feed under load no longer
+  leaves its directory fed for ever.** `tranger2_close_rt_disk()` removed
+  `disks/<rt_id>/` where it was, while the master kept linking new records
+  into it: a key directory made in between made the removal fail
+  (*"rmdir() FAILED ... Directory not empty"*, every orderly stop of a
+  `db_history_ce` reading 3000 records/s), the directory stayed, and the
+  master, which closes its side only when it hears the directory go, went on
+  making a directory and a link per key and file into it (an id that never
+  came back grew for ever). The reader now renames the directory away
+  (`disks/.closing.<pid>.<seq>`) and removes the renamed one, where the
+  master cannot reach it; the master's watch of `disks/` hears the rename as
+  the close (new `FS_FLAG_MOVED_AS_DELETED` of fs_watcher), its link of a
+  feed that is closing is quiet, and it removes at its next read of `disks/`
+  the `.closing.*` of a reader that died while removing it. **A leading dot
+  is no longer a valid rt id** (*"Invalid rt id (a leading dot is
+  reserved)"*, a warning): no id of the SDK or the projects has one. Test
+  `test_delete_key_propagation` (`close_races_master`; red: the directory
+  left, the master still feeding it).
+- **Agent: a yuno alive but not connected is no longer launched again.**
+  `yuno_running` / `yuno_pid` say only what the agent saw on the yuno's
+  channel and are not persistent, so a yuno that lost its channel, or that
+  outlived a restart of the agent (a yuno still loading 13.7 M queued
+  messages, 2026-09-26), was launched a second time by the boot sweeps or by
+  `run-yuno`: the second instance opened the persistent queues of the first
+  "as not master" and aborted, and when the first reconnected the agent
+  killed it as the intruder. Before a launch the agent now looks in `/proc`
+  for a process of that yuno (its role as `argv[0]`, its configuration files
+  in its `bin/` on the command line -- not `yuno.pid`, which a yuno writes
+  where its own config says) and skips it with a WARNING naming its pids
+  (*"yuno alive but not connected to the agent: not launched again"*); a
+  `run-yuno` that finds only such yunos says so. A node bounce
+  (`restart_nodes()`, `deactivate-snap`) kills them too, SIGKILL with a
+  WARNING, before it runs them all again. `kill-yuno` still acts only on
+  yunos with an open channel. Also: a yuno whose pid file cannot be written
+  logs it, instead of a SegFault in `fprintf()`. (no red test; checked on
+  the local agent: two yunos stopped by SIGSTOP across a restart of the
+  agent were not launched again, the WARNING named their pids, and they
+  reconnected on their own when resumed)
+- **Docs: `kill -9` on a yuno's child ends it for good.** `ENTRY_POINT.md`
+  §7 and `YUNO_LIFECYCLE.md` §5.3 said the watcher relaunches a child killed
+  by SIGKILL; it exits on it (`ydaemon.c`, as the table of `ENTRY_POINT.md`
+  says). Any other signal is a crash and is relaunched.
+- **mbedTLS: a failed output callback no longer frees its gbuffer twice.**
+  The gbuffer is the callback's whatever it answers, and C_TCP's releases it
+  with the kw of `EV_SEND_ENCRYPTED_DATA` on every path; the backend
+  released it again (a C_TCP that refused the output, in `ST_WAIT_STOPPED`
+  with its TLS session alive). OpenSSL ignored the answer: it now logs it.
+  The ownership is written in `ytls.h`. (no red test: found by reading)
 
 ### The reborn key of an rt_disk follower (the HIGH open since 7.25.20)
 

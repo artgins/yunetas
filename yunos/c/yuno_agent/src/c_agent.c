@@ -93,6 +93,9 @@ PRIVATE int run_yuno(
     hgobj src
 );
 PRIVATE BOOL is_launching(hgobj gobj, const char *yuno_id);
+PRIVATE json_t *find_living_yuno_pids(hgobj gobj, json_t *yuno);
+PRIVATE BOOL yuno_lives_unregistered(hgobj gobj, json_t *yuno);
+PRIVATE void kill_yuno_unregistered(hgobj gobj, json_t *yuno);
 PRIVATE int kill_yuno(
     hgobj gobj,
     json_t *yuno
@@ -5072,6 +5075,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *------------------------------------------------*/
     json_t *filterlist = json_array();
     int total_run = 0;
+    int total_living = 0;
 
     /*
      *  Update database, with the same node modified.
@@ -5090,6 +5094,10 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
          *  landing in that window would launch a second instance.
          */
         if(!disabled && !yuno_running && !is_launching(gobj, id)) {
+            if(yuno_lives_unregistered(gobj, yuno)) {
+                total_living++;
+                continue;   // Warning already logged
+            }
             int r = run_yuno(gobj, yuno, src);
             if(r==0) {
                 json_t *jn_EvChkItem = json_pack("{s:s, s:{s:s, s:s, s:I}}",
@@ -5157,6 +5165,18 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     if(!total_run) {
         JSON_DECREF(iter)
         JSON_DECREF(filterlist)
+        if(total_living) {
+            return msg_iev_build_response(gobj,
+                -1,
+                json_sprintf(
+                    "%s: %d yuno(s) alive but not connected to the agent: not launched again",
+                    gobj_yuno_role_plus_name(), total_living
+                ),
+                0,
+                0,
+                kw  // owned
+            );
+        }
         return msg_iev_build_response(gobj,
             -1,
             json_sprintf(
@@ -8929,6 +8949,160 @@ PRIVATE BOOL is_launching(hgobj gobj, const char *yuno_id)
 }
 
 /***************************************************************************
+ *  The pids of the processes that run this yuno, whether the agent knows
+ *  them or not (its watcher and its child both): argv[0] is its role and
+ *  its configuration files are in its bin dir. A json list of pids, owned;
+ *  NULL if /proc cannot be read (logged): then nobody can tell.
+ *
+ *  yuno_running and yuno_pid say only what the agent saw on the yuno's
+ *  channel, and are not persistent: a yuno that lost its channel, or that
+ *  outlived a restart of the agent, is "not running" there while it lives.
+ *  Its yuno.pid is no guide either: a yuno writes it where its own config
+ *  says (logcenter's is under realms/agent/), not in the bin dir the agent
+ *  made. A zombie has no cmdline: it is dead.
+ ***************************************************************************/
+PRIVATE json_t *find_living_yuno_pids(hgobj gobj, json_t *yuno)
+{
+    const char *yuno_role = kw_get_str(gobj, yuno, "yuno_role", "", KW_REQUIRED);
+
+    char yuno_bin_path[PATH_MAX];
+    build_yuno_bin_path(gobj, yuno, yuno_bin_path, sizeof(yuno_bin_path), FALSE);
+    char config_mark[PATH_MAX];
+    if(snprintf(config_mark, sizeof(config_mark), "%s/1-", yuno_bin_path) >= (int)sizeof(config_mark)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "yuno bin path too long: its processes cannot be looked for",
+            "yuno_id",      "%s", SDATA_GET_ID(yuno),
+            "path",         "%s", yuno_bin_path,
+            NULL
+        );
+        return NULL;
+    }
+
+    DIR *dir = opendir("/proc");
+    if(!dir) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot read /proc: the processes of a yuno cannot be looked for",
+            "yuno_id",      "%s", SDATA_GET_ID(yuno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return NULL;
+    }
+
+    json_t *jn_pids = json_array();
+    pid_t self = getpid();
+    struct dirent *de;
+    while((de = readdir(dir)) != NULL) {
+        if(!all_numbers(de->d_name)) {
+            continue;   // not a process
+        }
+        pid_t pid = (pid_t)atoi(de->d_name);
+        if(pid <= 0 || pid == self) {
+            continue;
+        }
+        char cmdline[2*PATH_MAX];
+        if(read_process_cmdline(cmdline, sizeof(cmdline), pid) < 0) {
+            continue;   // gone meanwhile
+        }
+        char *end_argv0 = strchr(cmdline, ' ');
+        if(!end_argv0) {
+            continue;   // no arguments: not a yuno launched with its configuration
+        }
+        *end_argv0 = 0;
+        const char *argv0 = strrchr(cmdline, '/');
+        argv0 = argv0? argv0 + 1 : cmdline;
+        if(strcmp(argv0, yuno_role) != 0) {
+            continue;
+        }
+        if(!strstr(end_argv0 + 1, config_mark)) {
+            continue;
+        }
+        json_array_append_new(jn_pids, json_integer(pid));
+    }
+    closedir(dir);
+
+    return jn_pids;
+}
+
+/***************************************************************************
+ *  A yuno alive that the agent does not know running: not launched again.
+ *  It comes back on its own once it reaches the agent (a yuno slow to
+ *  start, or one that outlived a restart of the agent). A second instance
+ *  fought the first for its exclusive resources: up to 7.25.21 it opened
+ *  the persistent queues of a living one "as not master" and aborted.
+ ***************************************************************************/
+PRIVATE BOOL yuno_lives_unregistered(hgobj gobj, json_t *yuno)
+{
+    json_t *jn_pids = find_living_yuno_pids(gobj, yuno);
+    if(!jn_pids) {
+        return FALSE;   // Error already logged: launched as before
+    }
+    if(json_array_size(jn_pids) == 0) {
+        JSON_DECREF(jn_pids)
+        return FALSE;
+    }
+
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_OPERATIONAL,
+        "msg",          "%s", "yuno alive but not connected to the agent: not launched again",
+        "yuno_id",      "%s", SDATA_GET_ID(yuno),
+        "yuno_role",    "%s", kw_get_str(gobj, yuno, "yuno_role", "", KW_REQUIRED),
+        "yuno_name",    "%s", kw_get_str(gobj, yuno, "yuno_name", "", KW_REQUIRED),
+        "yuno_release", "%s", kw_get_str(gobj, yuno, "yuno_release", "", KW_REQUIRED),
+        "pids",         "%j", jn_pids,
+        NULL
+    );
+    JSON_DECREF(jn_pids)
+    return TRUE;
+}
+
+/***************************************************************************
+ *  A bounce of the node (restart_nodes()) kills every yuno before it runs
+ *  them again: also the ones alive that the agent does not know running,
+ *  or they would outlive it beside their new instance
+ ***************************************************************************/
+PRIVATE void kill_yuno_unregistered(hgobj gobj, json_t *yuno)
+{
+    json_t *jn_pids = find_living_yuno_pids(gobj, yuno);
+    if(!jn_pids) {
+        return; // Error already logged
+    }
+
+    int idx; json_t *jn_pid;
+    json_array_foreach(jn_pids, idx, jn_pid) {
+        pid_t pid = (pid_t)json_integer_value(jn_pid);
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
+            "msg",          "%s", "yuno alive but not connected to the agent: killed with the node",
+            "yuno_id",      "%s", SDATA_GET_ID(yuno),
+            "yuno_role",    "%s", kw_get_str(gobj, yuno, "yuno_role", "", KW_REQUIRED),
+            "pid",          "%d", (int)pid,
+            NULL
+        );
+        if(kill(pid, SIGKILL) < 0 && errno != ESRCH) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot kill a yuno not connected to the agent",
+                "yuno_id",      "%s", SDATA_GET_ID(yuno),
+                "pid",          "%d", (int)pid,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
+    }
+    JSON_DECREF(jn_pids)
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int run_yuno(
@@ -9516,7 +9690,10 @@ PRIVATE int promote_highest_release_yunos(hgobj gobj)
  *  Try to run the activated yunos.
  *  This function is called once by timer at startup
  ***************************************************************************/
-PRIVATE int run_enabled_yunos(hgobj gobj)
+PRIVATE int run_enabled_yunos(
+    hgobj gobj,
+    BOOL spare_the_living   // FALSE only after restart_nodes() killed them all
+)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "yunos";
@@ -9554,6 +9731,9 @@ PRIVATE int run_enabled_yunos(hgobj gobj)
         if(!disabled) {
             BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
             if(!running && !is_launching(gobj, kw_get_str(gobj, yuno, "id", "", 0))) {
+                if(spare_the_living && yuno_lives_unregistered(gobj, yuno)) {
+                    continue;   // Warning already logged
+                }
                 run_yuno(gobj, yuno, 0);
                 // Volatil if you don't want historic data
                 // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
@@ -9612,6 +9792,9 @@ PRIVATE int run_util_yunos(hgobj gobj)
         if(!disabled) {
             BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
             if(!running && !is_launching(gobj, kw_get_str(gobj, yuno, "id", "", 0))) {
+                if(yuno_lives_unregistered(gobj, yuno)) {
+                    continue;   // Warning already logged
+                }
                 run_yuno(gobj, yuno, 0);
                 // Volatil if you don't want historic data
                 // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
@@ -10127,6 +10310,8 @@ PRIVATE int restart_nodes(hgobj gobj)
                 );
             }
             kill_yuno(gobj, yuno);
+        } else {
+            kill_yuno_unregistered(gobj, yuno);
         }
     }
     JSON_DECREF(iter)
@@ -10145,7 +10330,7 @@ PRIVATE int restart_nodes(hgobj gobj)
      *----------------------------*/
     gobj_stop(priv->resource);
     gobj_start(priv->resource);
-    run_enabled_yunos(gobj);
+    run_enabled_yunos(gobj, FALSE);    // all killed above: none is left alive to spare
 
     return ret;
 }
@@ -12456,7 +12641,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         set_timeout(priv->timer, priv->timerStBoot);
     } else if(!priv->enabled_yunos_running) {
         priv->enabled_yunos_running = 1;
-        run_enabled_yunos(gobj);
+        run_enabled_yunos(gobj, TRUE);
         exec_startup_command(gobj);
     }
 
