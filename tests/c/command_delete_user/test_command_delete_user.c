@@ -144,6 +144,15 @@ PRIVATE char variable_config[]= "\
                             'parent_role_id': '',                   \n\
                             'service': 'idp',                       \n\
                             'permission': 'register-idp-user'       \n\
+                        },                                          \n\
+                        {                                           \n\
+                            'id': 'creator',                        \n\
+                            'disabled': false,                      \n\
+                            'description': 'creates users only',    \n\
+                            'realm_id': '*',                        \n\
+                            'parent_role_id': '',                   \n\
+                            'service': 'treedb_authzs',             \n\
+                            'permission': 'create'                  \n\
                         }                                           \n\
                     ],                                              \n\
                     'users': [                                      \n\
@@ -154,6 +163,10 @@ PRIVATE char variable_config[]= "\
                         {                                           \n\
                             'id': 'registrar',                      \n\
                             'roles': ['roles^registrar^users']      \n\
+                        },                                          \n\
+                        {                                           \n\
+                            'id': 'creator',                        \n\
+                            'roles': ['roles^creator^users']        \n\
                         }                                           \n\
                     ]                                               \n\
                 }                                                   \n\
@@ -692,6 +705,28 @@ PRIVATE void run_checks(hgobj gobj)
         }
         check_int("external create-user without permission created nothing",
             user_exists("ext_by_nobody"), 0);
+
+        /*
+         *  `create` and not `update` on the users treedb: a user is created,
+         *  a user WITH a role is not (linking the role is an update)
+         */
+        {
+            json_t *r_c = gobj_command(authz, "create-user",
+                json_pack("{s:s, s:s}", "username", "by_creator", "__username__", "creator"), gobj);
+            check_int("create-user by a creator, no role: created",
+                (int)kw_get_int(0, r_c, "result", -999, 0), 0);
+            JSON_DECREF(r_c)
+            check_int("by_creator exists", user_exists("by_creator"), 1);
+
+            r_c = gobj_command(authz, "create-user",
+                json_pack("{s:s, s:s, s:s}",
+                    "username", "by_creator_role", "role", "testrole", "__username__", "creator"
+                ), gobj);
+            check_int("create-user by a creator, with a role: refused",
+                (int)kw_get_int(0, r_c, "result", -999, 0), -403);
+            JSON_DECREF(r_c)
+            check_int("by_creator_role was not created", user_exists("by_creator_role"), 0);
+        }
 
         /*
          *  A registrar of the IdP (register-idp-user, and nothing on the
