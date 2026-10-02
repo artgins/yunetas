@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Agents' units: `ExecStopPost` works on a v1 or hybrid cgroup host, and
+  says what it kills.** It read `/sys/fs/cgroup/system.slice/%n/cgroup.procs`,
+  a v2 path written by hand: a no-op, unsaid, elsewhere, and its kills left
+  nothing in the journal. It asks systemd for the unit's `ControlGroup`,
+  reads it under the v2, hybrid or v1 mount, `logger`s each pid it kills,
+  and says when no cgroup was found.
+
 - **Agent: a yuno still alive 10 s after a node bounce gets no second
   instance.** `restart_nodes()` waits for the yunos it killed, and after
   10 s relaunched them anyway, without asking whether they were alive: a
