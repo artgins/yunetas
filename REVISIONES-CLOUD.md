@@ -1,9 +1,10 @@
 # Cloud review of main
 
-Reviewed up to `dc416aa4f` (2026-10-02): the fixes to the review of TODO.md
-section 1 (`62e070ec5..dc416aa4f`). What is resolved is removed from this
-file. Last check: clean build with no warning; the full suite was still
-running when this was written (124/283 passed so far), its result follows.
+Reviewed up to `f35562dea` (2026-10-02): the fixes to the review of TODO.md
+section 1 (`62e070ec5..dc416aa4f`), and `f35562dea` (ytls: a session freed
+inside any callback). What is resolved is removed from this file. Last
+check, on `dc416aa4f`: clean build with no warning, suite 283/283 as user
+`yuneta` under `ulimit -Sn 1024`.
 
 ## Verdict
 
@@ -154,17 +155,20 @@ Preferred fix:
 
 **8. C_TCP: paths left after the -2222 fix** (item 7). Rare; found by
 reading.
+`f35562dea` closed the path of a session freed inside the encrypt callback
+(every ytls call that hands control to the owner keeps an alive marker and
+returns -2222). Two C_TCP paths are left, where C_TCP itself, not ytls,
+touches what a subscriber freed:
 
 - **`set_secure_connected()`** (`c_tcp.c:835-836`) calls
   `set_inactivity_timeout()` after `start_pending_writes()`, even when the
   write returned -2222 or after a stop. That can be freed priv.
-- **A drop on `EV_CONNECTED`** (:805-807) with no write in flight stops
-  synchronously. `set_disconnected()` clears `priv->sskt`, and the
-  `ytls_flush(priv->ytls, 0)` that follows dereferences it in both
-  backends.
-- **A failed `write_encrypted_data()`** inside the encrypt callback can run
-  `set_disconnected()` synchronously; `encrypt_data`/`write_data` then go on
-  with the freed sskt and gbuffer.
+- **A drop on `EV_CONNECTED`** (`set_secure_connected()`, after
+  `gobj_publish_event(EV_CONNECTED)`) with no write in flight stops
+  synchronously. `set_disconnected()` clears `priv->sskt` (or the host
+  destroys a volatile gobj), and the `ytls_flush(priv->ytls, priv->sskt)`
+  that follows gets a NULL session (or reads freed priv): the alive marker
+  of `f35562dea` cannot cover it, the call starts after the free.
 - **OpenSSL leak** (predates): `flush_encrypted_data()` does not release
   its gbuffer when `BIO_read` returns 0 or less (`openssl.c:1259-1281`).
 - **A stalled read** (predates): a subscriber answering -1 makes
