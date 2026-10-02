@@ -277,6 +277,14 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
 - **A frame before the session is limited** (`max_pre_session_frame` of
   `C_IEVENT_SRV`, 64 KB by default): a client that sends a bigger identity
   card needs it raised.
+- **`register-idp-user` with a `role` answers `-403`** to a caller without
+  the `update` permission of `treedb_authzs` (as `create-user` asks to link
+  one). An operator who registers people with a role needs that
+  permission; without a role it is answered as before.
+- **`kill-yuno` of a yuno alive but not connected answers at once**: the
+  yuno is signalled and not waited for. A `run-yuno` sent right after it
+  can find it still exiting and not launch it ("not launched again"):
+  wait for it to be gone (`list-yunos`, or its pid) before running it.
 
 - **Rebuild every project against the new headers.** `fs_event_t`
   (`fs_watcher.h`) gains ten fields, at its end.
