@@ -7,12 +7,7 @@ main (`6fab00d69`, `5867b1e20`, `6b53c8b17`; see `CHANGELOG.md`
 
 ## Open
 
-- **`timeout_stop_tx` on old kernels.** The stop of a `C_TCP` bounds a write
-  in flight with `TCP_USER_TIMEOUT`. A peer with a zero window is held by
-  zero-window probes, and older kernels may not end those at the user
-  timeout. It works on 6.x (this container, Debian 12); run
-  `c_tcp_s_stats` (`drain_port`) on a 4.18 node (RHEL 8) before relying on
-  it there.
+Nothing.
 
 ## Closed after the review
 
@@ -26,3 +21,9 @@ main (`6fab00d69`, `5867b1e20`, `6b53c8b17`; see `CHANGELOG.md`
 - **A positional secret that is not the last required parameter**: such a
   command table is refused by `gclass_create()`, with an ERROR (no command of
   the SDK or of the projects declares one). See `CHANGELOG.md` "Unreleased".
+- **`timeout_stop_tx` on old kernels**: moot. A 4.18 kernel (RHEL 8) has no
+  io_uring, which `yev_loop` needs for all its work, so no yuno runs there.
+  The kernels Yuneta runs on (5.6 and later in practice; RHEL/Rocky 9's
+  5.14 with io_uring backported) bound the zero-window wait with
+  `TCP_USER_TIMEOUT`: `c_tcp_s_stats` (`drain_port`) passes on 7.0 and on
+  wattyzer's 6.12.
