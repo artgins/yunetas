@@ -23,10 +23,10 @@
     #define TEST7_TLS_LIBRARY   TLS_LIBRARY_NAME
 #endif
 #ifndef TEST7_PORT_TLS
-    #define TEST7_PORT_TLS      "7790"
+    #define TEST7_PORT_TLS      "7748"
 #endif
 #ifndef TEST7_PORT_PLAIN
-    #define TEST7_PORT_PLAIN    "7791"
+    #define TEST7_PORT_PLAIN    "7749"
 #endif
 #ifndef TEST7_APP_NAME
     #define TEST7_APP_NAME      "test_tcps_test7"   // must be the executable's name
