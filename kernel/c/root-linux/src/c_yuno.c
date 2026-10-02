@@ -69,8 +69,6 @@
  ***************************************************************/
 PRIVATE json_t *get_cpus(void);
 PRIVATE void boost_process_performance(int priority, int cpu_core);
-PRIVATE unsigned int get_HZ(void);
-PRIVATE void read_uptime(unsigned long long *uptime);
 PRIVATE json_t *get_process_memory_info(void);
 PRIVATE json_t *get_machine_memory_info(void);
 
@@ -502,7 +500,7 @@ SDATA (DTP_INTEGER, "keep_alive",       SDF_RD,         "60",           "Set kee
 SDATA (DTP_INTEGER, "launch_id",        SDF_RD,         "0",            "Launch Id. Set by agent"),
 SDATA (DTP_STRING,  "start_date",       SDF_RD|SDF_STATS,"",            "Yuno starting date"),
 SDATA (DTP_INTEGER, "start_time",       SDF_RD,         "0",            "Yuno starting time"),
-SDATA (DTP_INTEGER, "uptime",           SDF_RD|SDF_STATS,"0",           "Yuno living time"),
+SDATA (DTP_INTEGER, "uptime",           SDF_RD|SDF_STATS,"0",           "Seconds since the yuno started (monotonic clock)"),
 SDATA (DTP_INTEGER, "cpu",              SDF_RD|SDF_STATS,"0",           "Cpu percent usage"),
 SDATA (DTP_INTEGER, "disk_size_in_gigas",SDF_RD|SDF_STATS,"0",          "Disk size of /yuneta"),
 SDATA (DTP_INTEGER, "disk_free_percent",SDF_RD|SDF_STATS, "0",          "Disk free of /yuneta"),
@@ -577,6 +575,7 @@ typedef struct _PRIVATE_DATA {
 
     uint64_t last_cpu_ticks;
     uint64_t last_ms;
+    uint64_t start_ms;      // monotonic, base of the uptime attr
 
     uint64_t t_flush;
     uint64_t t_stats;
@@ -857,6 +856,7 @@ PRIVATE void mt_create(hgobj gobj)
     time_t now;
     time(&now);
     gobj_write_integer_attr(gobj, "start_time", now);
+    priv->start_ms = time_in_milliseconds_monotonic();
 
     char bfdate[90];
     current_timestamp(bfdate, sizeof(bfdate));
@@ -4974,52 +4974,6 @@ PRIVATE void boost_process_performance(int priority, int cpu_core)
 }
 
 /***************************************************************************
- * Read machine uptime, independently of the number of processors.
- *
- * OUT:
- * @uptime  Uptime value in jiffies.
- ***************************************************************************/
-PRIVATE void read_uptime(unsigned long long *uptime)
-{
-    FILE *fp;
-    char line[128];
-    unsigned long up_sec, up_cent;
-
-    if ((fp = fopen("/proc/uptime", "r")) == NULL) {
-        return;
-    }
-
-    if (fgets(line, sizeof(line), fp) == NULL) {
-        fclose(fp);
-        return;
-    }
-
-    sscanf(line, "%lu.%lu", &up_sec, &up_cent);
-    unsigned int HZ = get_HZ();
-    *uptime = (unsigned long long) up_sec * HZ +
-              (unsigned long long) up_cent * HZ / 100;
-
-    fclose(fp);
-}
-
-/***************************************************************************
- * Get number of clock ticks per second.
- ***************************************************************************/
-PRIVATE unsigned int get_HZ(void)
-{
-    long ticks = 0;
-    unsigned int hz;
-
-#if defined(__linux__)
-    if ((ticks = sysconf(_SC_CLK_TCK)) == -1) {
-        ticks = 0;
-    }
-#endif
-    hz = (unsigned int) ticks;
-    return hz;
-}
-
-/***************************************************************************
  *  get_process_memory_info()
  *
  *  Returns json object:
@@ -5739,12 +5693,11 @@ PRIVATE void load_stats(hgobj gobj)
      *      uptime
      *---------------------------------------*/
     {
-        unsigned long long uptime=0;
-        read_uptime(&uptime);
+        json_int_t uptime = (json_int_t)((time_in_milliseconds_monotonic() - priv->start_ms) / 1000);
         gobj_write_integer_attr(
             gobj,
             "uptime",
-            (json_int_t)uptime
+            uptime
         );
     }
 

@@ -173,7 +173,7 @@ request came from -- the way the Terminal's PTY mirror sends `EV_TTY_DATA`
 {"yuno_id": "2120", "kind": "state", "missing": false,
  "yuno_running": true, "yuno_playing": true, "yuno_disabled": false}
 {"yuno_id": "2120", "kind": "cpu", "service": "", "result": 0, "comment": "",
- "data": {"cpu": 15, "start_date": "...", "uptime": 31022741, "...": "..."}}
+ "data": {"cpu": 15, "start_date": "...", "uptime": 86400, "...": "..."}}
 {"yuno_id": "2120", "kind": "app", "service": "", "result": 0, "comment": "",
  "data": {"txMsgs": 3966, "rxMsgs": 3966, "rxMsgsec": 500, "...": "..."}}
 ```

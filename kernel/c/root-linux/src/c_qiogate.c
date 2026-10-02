@@ -15,6 +15,7 @@
 #include <gobj.h>
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
+#include <stats_parser.h>
 #include <helpers.h>
 #include <timeranger2.h>
 #include <command_parser.h>
@@ -292,7 +293,12 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     json_t *jn_data = json_object();
 
-    json_object_update_new(jn_data, gobj_stats(priv->gobj_bottom_side, stats, 0, gobj));
+    json_t *jn_bottom = gobj_stats(priv->gobj_bottom_side, stats, 0, gobj);
+    json_t *jn_bottom_data = kw_get_dict(gobj, jn_bottom, "data", 0, 0);
+    if(jn_bottom_data) {
+        json_object_update(jn_data, jn_bottom_data);
+    }
+    JSON_DECREF(jn_bottom)
 
     json_object_set_new(jn_data, "msgs_in_queue",
         json_integer(priv->trq_msgs? (json_int_t)trq_size(priv->trq_msgs) : 0)
@@ -300,7 +306,13 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_object_set_new(jn_data, "pending_acks", json_integer((json_int_t)priv->pending_acks));
 
     KW_DECREF(kw)
-    return jn_data;
+    return build_stats_response(
+        gobj,
+        0,          // result
+        0,          // jn_comment
+        0,          // jn_schema
+        jn_data     // jn_data, owned
+    );
 }
 
 

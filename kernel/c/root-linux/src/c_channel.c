@@ -188,6 +188,11 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     }
 
     if(src == gobj_parent(gobj)) {
+        /*
+         *  The parent's view: the BARE data, not the envelope of an
+         *  mt_stats. Only the parent reaches it (a channel is no service),
+         *  and the gates of the projects read it that way
+         */
         return local_stats(gobj, stats, kw, src);
     } else {
         // HACK channel is a proxy
@@ -228,36 +233,34 @@ PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src
     json_t *jn_data = json_object();
 
     /*
-     *  Local stats
+     *  Local stats. Rates over a window of 1 s at least, in ms; a sooner
+     *  read answers the last rates and leaves the window where it is.
      */
     uint64_t ms = time_in_milliseconds_monotonic();
     if(!priv->last_ms) {
         priv->last_ms = ms;
+        priv->last_txMsgs = priv->txMsgs;
+        priv->last_rxMsgs = priv->rxMsgs;
     }
-    json_int_t t = (json_int_t)(ms - priv->last_ms)/1000;
-    if(t>0) {
-        json_int_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
-        json_int_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
+    uint64_t elapsed_ms = ms - priv->last_ms;
+    if(elapsed_ms >= 1000) {
+        json_int_t txMsgsec = (priv->txMsgs - priv->last_txMsgs) * 1000 / (json_int_t)elapsed_ms;
+        json_int_t rxMsgsec = (priv->rxMsgs - priv->last_rxMsgs) * 1000 / (json_int_t)elapsed_ms;
 
-        txMsgsec /= t;
-        rxMsgsec /= t;
-
-        json_int_t maxtxMsgsec = priv->maxtxMsgsec;
-        json_int_t maxrxMsgsec = priv->maxrxMsgsec;
-        if(txMsgsec > maxtxMsgsec) {
-            priv->maxtxMsgsec =  txMsgsec;
+        if(txMsgsec > priv->maxtxMsgsec) {
+            priv->maxtxMsgsec = txMsgsec;
         }
-        if(rxMsgsec > maxrxMsgsec) {
+        if(rxMsgsec > priv->maxrxMsgsec) {
             priv->maxrxMsgsec = rxMsgsec;
         }
 
         priv->txMsgsec = txMsgsec;
         priv->rxMsgsec = rxMsgsec;
-    }
 
-    priv->last_ms = ms;
-    priv->last_txMsgs = priv->txMsgs;
-    priv->last_rxMsgs = priv->rxMsgs;
+        priv->last_ms = ms;
+        priv->last_txMsgs = priv->txMsgs;
+        priv->last_rxMsgs = priv->rxMsgs;
+    }
 
     json_object_set_new(jn_data, "txMsgs", json_integer(priv->txMsgs));
     json_object_set_new(jn_data, "rxMsgs", json_integer(priv->rxMsgs));

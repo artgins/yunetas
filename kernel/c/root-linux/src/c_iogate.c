@@ -11,6 +11,7 @@
 #include <gobj.h>
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
+#include <stats_parser.h>
 #include <helpers.h>
 #include <command_parser.h>
 #include "msg_ievent.h"
@@ -209,36 +210,34 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_t *jn_data = json_object();
 
     /*
-     *  Local stats
+     *  Local stats. Rates over a window of 1 s at least, in ms; a sooner
+     *  read answers the last rates and leaves the window where it is.
      */
     uint64_t ms = time_in_milliseconds_monotonic();
     if(!priv->last_ms) {
         priv->last_ms = ms;
+        priv->last_txMsgs = priv->txMsgs;
+        priv->last_rxMsgs = priv->rxMsgs;
     }
-    json_int_t t = (json_int_t)(ms - priv->last_ms)/1000;
-    if(t>0) {
-        json_int_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
-        json_int_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
+    uint64_t elapsed_ms = ms - priv->last_ms;
+    if(elapsed_ms >= 1000) {
+        json_int_t txMsgsec = (priv->txMsgs - priv->last_txMsgs) * 1000 / (json_int_t)elapsed_ms;
+        json_int_t rxMsgsec = (priv->rxMsgs - priv->last_rxMsgs) * 1000 / (json_int_t)elapsed_ms;
 
-        txMsgsec /= t;
-        rxMsgsec /= t;
-
-        json_int_t maxtxMsgsec = priv->maxtxMsgsec;
-        json_int_t maxrxMsgsec = priv->maxrxMsgsec;
-        if(txMsgsec > maxtxMsgsec) {
-            priv->maxtxMsgsec =  txMsgsec;
+        if(txMsgsec > priv->maxtxMsgsec) {
+            priv->maxtxMsgsec = txMsgsec;
         }
-        if(rxMsgsec > maxrxMsgsec) {
+        if(rxMsgsec > priv->maxrxMsgsec) {
             priv->maxrxMsgsec = rxMsgsec;
         }
 
         priv->txMsgsec = txMsgsec;
         priv->rxMsgsec = rxMsgsec;
-    }
 
-    priv->last_ms = ms;
-    priv->last_txMsgs = priv->txMsgs;
-    priv->last_rxMsgs = priv->rxMsgs;
+        priv->last_ms = ms;
+        priv->last_txMsgs = priv->txMsgs;
+        priv->last_rxMsgs = priv->rxMsgs;
+    }
 
     json_object_set_new(jn_data, "txMsgs", json_integer(priv->txMsgs));
     json_object_set_new(jn_data, "rxMsgs", json_integer(priv->rxMsgs));
@@ -247,8 +246,18 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_object_set_new(jn_data, "maxtxMsgsec", json_integer(priv->maxtxMsgsec));
     json_object_set_new(jn_data, "maxrxMsgsec", json_integer(priv->maxrxMsgsec));
 
+    /*
+     *  The response envelope, as every mt_stats (gobj.h): up to 7.25.21 the
+     *  bare data, and `stats-yuno` on this service answered -1
+     */
     KW_DECREF(kw)
-    return jn_data;
+    return build_stats_response(
+        gobj,
+        0,          // result
+        0,          // jn_comment
+        0,          // jn_schema
+        jn_data     // jn_data, owned
+    );
 }
 
 /***************************************************************************

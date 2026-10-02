@@ -28,6 +28,21 @@ single open/closed abstraction with message-rate statistics.
 | `txMsgsec` / `rxMsgsec` | `integer` | Current message rate per second (stats). |
 | `maxtxMsgsec` / `maxrxMsgsec` | `integer` | Peak message rates (stats). |
 
+### Message rates
+
+The rates of `C_CHANNEL` and `C_IOGATE` are computed when their stats are
+read: the messages since the previous computation, divided by the time
+elapsed in milliseconds. A read less than a second after the previous one
+answers the last rates and does not move the window. So the rate is exact
+over any interval of a second or more, and two readers share one window
+(each sees the rate since the other's read). Up to 7.25.21 the time was taken
+in whole seconds (a read after 1.9 s divided by 1: +90 %), and every read
+moved the window, so the messages of a read under a second went into no
+rate.
+
+A `C_CHANNEL` read by its parent (a gate) answers its BARE counters, which
+the gate merges into its own stats.
+
 ---
 
 (gclass-c-iogate)=
@@ -84,6 +99,27 @@ gobj_send_event(gate, EV_SEND_MESSAGE,
 | `enable-channel` / `disable-channel` | Enable or disable a channel. |
 | `trace-on-channel` / `trace-off-channel` | Toggle tracing on a channel. |
 | `reset-stats-channel` | Reset channel statistics. |
+
+### Stats
+
+`stats-yuno` on a `C_IOGATE` service answers the usual envelope, with the
+gate's counters and rates under `data`. Up to 7.25.21 its `mt_stats` returned
+the bare counters and the command answered `-1` with no comment (the same
+for `C_QIOGATE`).
+
+```bash
+ycommand -c 'stats-yuno id=<id> service=__input_side__'
+# {"result": 0, "data": {"txMsgs": 1519, "rxMsgs": 1520, "txMsgsec": 12, "rxMsgsec": 12, ...}}
+```
+
+From C, a parent reads it the same way:
+
+```C
+json_t *jn_stats = gobj_stats(gobj_gate, NULL, 0, gobj);
+json_t *jn_data = kw_get_dict(gobj, jn_stats, "data", 0, 0);   // the counters
+json_int_t txMsgs = kw_get_int(gobj, jn_data, "txMsgs", 0, 0);
+JSON_DECREF(jn_stats)
+```
 
 ---
 

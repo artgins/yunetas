@@ -16,6 +16,10 @@
  *          - Send N_MSGS messages to the C_MQIOGATE: N_MSGS in each queue
  *          - The stats of the C_MQIOGATE say msgs_in_queue N_MSGS for each
  *            child, and pending_acks 0; so does each child's attr
+ *          - The stats of a C_QIOGATE, and of its C_IOGATE, asked directly
+ *            (what `stats-yuno service=<it>` does) are the response
+ *            envelope, result 0 and the data in `data`: up to 7.25.21 both
+ *            answered the bare data, and stats-yuno said -1
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -230,6 +234,27 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     );
                 }
                 check(gobj, "two C_QIOGATE children in the stats", children == 2);
+
+                json_t *jn_q = gobj_stats(gobj_find_service("output-q1", TRUE), "", 0, gobj);
+                check(gobj, "the stats of a C_QIOGATE are the envelope: result 0",
+                    json_object_get(jn_q, "result") && kw_get_int(gobj, jn_q, "result", -1, 0) == 0
+                );
+                check(gobj, "and their data say msgs_in_queue",
+                    kw_get_int(gobj, jn_q, "data`msgs_in_queue", -1, 0) == N_MSGS
+                );
+                check(gobj, "and the data of its C_IOGATE below",
+                    json_object_get(kw_get_dict(gobj, jn_q, "data", 0, 0), "txMsgs") != NULL
+                );
+                JSON_DECREF(jn_q)
+
+                json_t *jn_io = gobj_stats(gobj_find_service("output-iogate-q1", TRUE), "", 0, gobj);
+                check(gobj, "the stats of a C_IOGATE are the envelope: result 0",
+                    json_object_get(jn_io, "result") && kw_get_int(gobj, jn_io, "result", -1, 0) == 0
+                );
+                check(gobj, "and their data say txMsgs",
+                    json_object_get(kw_get_dict(gobj, jn_io, "data", 0, 0), "txMsgs") != NULL
+                );
+                JSON_DECREF(jn_io)
                 if(test_qiogate_stats_failed) {
                     gobj_trace_json(gobj, jn_stats, "the stats of __output_side__");
                 }

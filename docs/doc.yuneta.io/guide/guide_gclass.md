@@ -229,7 +229,7 @@ The `attrs_table` table serves multiple purposes in a GClass:
 #### 1. **Runtime Statistics**
 Attributes can store real-time statistical data, such as:
 - Messages transmitted (`txMsgs`) and received (`rxMsgs`).
-- CPU usage (`cpu`) and uptime (`uptime`).
+- CPU usage (`cpu`) and uptime (`uptime`, seconds since the yuno started).
 - Disk size and free space.
 
 These attributes often use flags like `SDF_RD` (read-only) and `SDF_RSTATS` (resettable statistics).

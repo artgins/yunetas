@@ -117,35 +117,9 @@ Severity in parentheses where one was assigned.
 
 ### Gates, queues and stats
 
-- **`stats-yuno` on a `C_IOGATE` or `C_QIOGATE` service answers `-1` with no
-  comment.** Their `mt_stats` return the BARE data dict (written for a parent
-  that reads its children), and `c_ievent_srv`'s `ac_mt_stats` sends that
-  dict back where the caller expects the `build_command_response()` envelope.
-  A silent error, and the only direct way to read a `C_QIOGATE`'s
-  `msgs_in_queue`. The contract is `gobj.h` ~689 (the envelope): fix the
-  gclasses, not `ac_mt_stats`. Simplest: once the counts are attrs (above),
-  delete both `mt_stats` and let `stats_parser` build the envelope. Readers of
-  the bare form: `C_QIOGATE` merging its bottom (~271) and **yunovatios'
-  `c_sim_controller.c` ~302**, which would read 0 silently (migrate it in the
-  same round). `C_CHANNEL`'s `mt_stats` breaks the same contract.
-- **`C_IOGATE`'s and `C_CHANNEL`'s msg/s depend on who reads them, and
-  when.** `txMsgsec` / `rxMsgsec` are computed INSIDE `mt_stats`: the counter
-  delta since the previous read divided by WHOLE seconds (truncated), and
-  `last_*` reset by the read. A read 1.9 s after the previous one divides by 1
-  (+90 %); two readers steal each other's window, and a read less than 1 s
-  after the previous one computes nothing yet moves the baseline: those
-  messages go into no rate. Compute the rate on a timer (as yunovatios'
-  `c_gate_central.c` and `C_YUNO`'s `cpu` do) -- ONE in `C_IOGATE` sampling
-  its channels, not one per `C_CHANNEL` (a gate has 600). The agent's
-  `watch-yuno-stats` sampling narrows it to one reader per agent; it does not
-  fix the gclasses.
-- **`C_YUNO`'s `uptime` is the MACHINE's uptime, in jiffies** (low). Described
-  as *"Yuno living time"*, but `read_uptime()` reads `/proc/uptime` × HZ (a
-  yuno started the day before answered `31007411`, 3.6 days of the host).
-  `read_uptime()` also fails in silence. Compute it (seconds since
-  `mt_create`, monotonic, not the wall-clock `start_time`), fix the doc
-  example (`yuneta_agent.md` ~176), CHANGELOG the unit change. The ESP32
-  yuno has no `read_uptime()`: its `uptime` is never written and reads 0.
+- **The ESP32 yuno never writes `uptime`** (low): it reads 0. C_YUNO computes
+  it since its `mt_create` on the monotonic clock; `c_esp_yuno.c` needs the
+  same (`esp_timer_get_time()`).
 
 ### Control center
 

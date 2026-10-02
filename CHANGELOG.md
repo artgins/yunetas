@@ -44,6 +44,15 @@ except the hook and the entries this list marks "(no red test)".
   for `child_tree_filter`.
 - **The agent's audit log redacts more names**: one that holds a part of a
   secret's name is redacted whatever else it holds (`token_endpoint` too).
+- **`gobj_stats()` of a `C_IOGATE` or a `C_QIOGATE` answers the envelope**
+  (`{"result", "comment", "schema", "data"}`) like every other `mt_stats`; the
+  counters are under `data`. A project that read them bare reads 0 now:
+  yunovatios' `c_sim_controller.c` was migrated (it reads the queue's
+  `msgs_in_queue` / `pending_acks` attrs). A `C_CHANNEL` read by its parent
+  still answers the bare data.
+- **C_YUNO's `uptime` is in seconds since the yuno started.** It was the
+  MACHINE's uptime in jiffies (`/proc/uptime` × HZ). A chart or an alarm on
+  it changes of unit.
 
 ### Fixes
 
@@ -152,6 +161,27 @@ except the hook and the entries this list marks "(no red test)".
   gauges now, read live (`mt_reading`). And `mt_stats` no longer reads a
   closed queue (`trq_size()` of NULL). Test `test_c_qiogate_stats` (red:
   the counts missing for both children).
+- **`stats-yuno` on a `C_IOGATE` or a `C_QIOGATE` service answered `-1`
+  with no comment.** Their `mt_stats` returned the bare data, written for a
+  parent that reads its children, and `C_IEVENT_SRV` sent it back where the
+  caller expects the envelope (`gobj.h`'s contract of `mt_stats`). Both build
+  it now (`build_stats_response()`), and a `C_QIOGATE` reads its bottom
+  gate's counters from the `data` of the envelope. Test
+  `test_c_qiogate_stats` (red: no envelope from either).
+- **The msg/s of `C_IOGATE` and `C_CHANNEL` no longer depend on who reads
+  them, and when.** The rate was the delta since the previous read divided by
+  WHOLE seconds (a read 1.9 s after the previous one divided by 1: +90 %),
+  and every read moved the window, a read under a second too, so the
+  messages of that second went into no rate. The window is now 1 s at least,
+  measured in milliseconds, and a sooner read answers the last rates without
+  moving it. Two readers still share one window (each one sees the rate
+  since the other's read); the agent's `watch-yuno-stats` is the one reader
+  of a node. (no red test)
+- **C_YUNO's `uptime` is the yuno's, in seconds.** Described as *"Yuno
+  living time"*, it was the machine's uptime in jiffies, read from
+  `/proc/uptime` with every failure silent. It is now the seconds since the
+  yuno's `mt_create`, on the monotonic clock. The ESP32 yuno does not write
+  it (it reads 0). (no red test)
 - **C_TCP_S: a full server says it once a minute, as a warning, and counts
   it.** With `child_tree_filter`, a connection that found no free channel
   logged an ERROR each time, and peers retry: 600 channels and 1000
