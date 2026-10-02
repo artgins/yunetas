@@ -23,11 +23,19 @@
  *          hard one, the yuno (limit_open_files 0, the default) raises it to
  *          the hard one. Up to 7.25.21 it left it as it came.
  *
+ *          And `info-uptime`, asked before the shutdown: the machine's
+ *          uptime and boot time agree with CLOCK_BOOTTIME and the wall
+ *          clock, and the yuno's uptime is the seconds since it started
+ *          (0 or 1 here). Up to 7.25.21 there was no such command, and the
+ *          `uptime` stat was the machine's, in jiffies.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <time.h>
 #include <sys/resource.h>
 #include <yunetas.h>
 
@@ -161,7 +169,31 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  SDF_AUTHZ_X gate does not fire: what is under test is the
          *  handler, not the authz plumbing.
          */
-        json_t *resp = gobj_command(gobj_yuno(), "shutdown", json_object(), gobj);
+        json_t *resp = gobj_command(gobj_yuno(), "info-uptime", json_object(), gobj);
+        check_int("info-uptime answers result=0",
+            (int)kw_get_int(gobj, resp, "result", -999, 0), 0
+        );
+        json_t *jn_up = kw_get_dict(gobj, resp, "data", 0, 0);
+        struct timespec ts;
+        clock_gettime(CLOCK_BOOTTIME, &ts);
+        json_int_t machine_uptime = kw_get_int(gobj, jn_up, "machine_uptime", -1, 0);
+        json_int_t boot_time = kw_get_int(gobj, jn_up, "machine_boot_time", -1, 0);
+        json_int_t yuno_uptime = kw_get_int(gobj, jn_up, "yuno_uptime", -1, 0);
+        check_true("info-uptime: machine_uptime is CLOCK_BOOTTIME's",
+            machine_uptime > 0 && llabs(machine_uptime - (json_int_t)ts.tv_sec) <= 2
+        );
+        check_true("info-uptime: boot time + uptime is now",
+            llabs(boot_time + machine_uptime - (json_int_t)time(NULL)) <= 2
+        );
+        check_true("info-uptime: a boot date",
+            !empty_string(kw_get_str(gobj, jn_up, "machine_boot_date", "", 0))
+        );
+        check_true("info-uptime: the yuno's uptime is since it started",
+            yuno_uptime >= 0 && yuno_uptime <= 1
+        );
+        JSON_DECREF(resp)
+
+        resp = gobj_command(gobj_yuno(), "shutdown", json_object(), gobj);
 
         check_int("shutdown answers result=0",
             (int)kw_get_int(gobj, resp, "result", -999, 0), 0

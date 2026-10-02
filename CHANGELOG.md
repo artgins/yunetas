@@ -52,7 +52,8 @@ except the hook and the entries this list marks "(no red test)".
   still answers the bare data.
 - **C_YUNO's `uptime` is in seconds since the yuno started.** It was the
   MACHINE's uptime in jiffies (`/proc/uptime` × HZ). A chart or an alarm on
-  it changes of unit.
+  it changes of unit; the machine's uptime is now asked with the new
+  command `info-uptime`.
 
 ### Fixes
 
@@ -182,6 +183,10 @@ except the hook and the entries this list marks "(no red test)".
   `/proc/uptime` with every failure silent. It is now the seconds since the
   yuno's `mt_create`, on the monotonic clock. The ESP32 yuno does not write
   it (it reads 0). (no red test)
+- **C_YUNO: `info-uptime`, the uptime of the machine.** Seconds since boot
+  (`CLOCK_BOOTTIME`, which counts a suspend, as `/proc/uptime`), the boot
+  time and date it gives, and the yuno's uptime and start date beside them.
+  Test `command_shutdown`.
 - **C_TCP_S: a full server says it once a minute, as a warning, and counts
   it.** With `child_tree_filter`, a connection that found no free channel
   logged an ERROR each time, and peers retry: 600 channels and 1000

@@ -70,6 +70,7 @@
 PRIVATE json_t *get_cpus(void);
 PRIVATE void boost_process_performance(int priority, int cpu_core);
 PRIVATE json_t *get_process_memory_info(void);
+PRIVATE json_int_t yuno_uptime(hgobj gobj);
 PRIVATE json_t *get_machine_memory_info(void);
 
 /*
@@ -165,6 +166,7 @@ PRIVATE json_t* cmd_list_log_handlers(hgobj gobj, const char* cmd, json_t* kw, h
 PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_ifs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_os(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_info_uptime(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_inotify(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t* cmd_list_allowed_ips(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_add_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
@@ -386,6 +388,7 @@ SDATACM2(DTP_SCHEMA,    "shutdown",                 SDF_AUTHZ_X, 0,      0,     
 SDATACM2(DTP_SCHEMA,    "info-cpus",                SDF_AUTHZ_X, 0,      0,          cmd_info_cpus,              "Info of cpus"),
 SDATACM2(DTP_SCHEMA,    "info-ifs",                 SDF_AUTHZ_X, 0,      0,          cmd_info_ifs,               "Info of ifs"),
 SDATACM2(DTP_SCHEMA,    "info-os",                  SDF_AUTHZ_X, 0,      0,          cmd_info_os,                "Info os"),
+SDATACM2(DTP_SCHEMA,    "info-uptime",              SDF_AUTHZ_X, 0,      0,          cmd_info_uptime,            "Uptime and boot date of the machine, and of this yuno"),
 SDATACM2(DTP_SCHEMA,    "info-inotify",             SDF_AUTHZ_X, 0,      0,          cmd_info_inotify,           "Info of inotify limits and this yuno's usage"),
 SDATACM2(DTP_SCHEMA,    "info-mem",                 SDF_AUTHZ_X, 0,      0,          cmd_info_mem,               "Info yuno memory and system"),
 SDATACM2(DTP_SCHEMA,    "reload-certs",             SDF_AUTHZ_X, 0,      0,          cmd_reload_certs,           "Reload TLS certificates on all TLS listeners (TCP/UDP) of this yuno. Active connections are preserved."),
@@ -4033,6 +4036,60 @@ PRIVATE json_t *cmd_info_os(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Uptime of the machine and of this yuno.
+ *  The machine's is CLOCK_BOOTTIME, which counts a suspend (as /proc/uptime
+ *  does); the yuno's is its `uptime` attr, seconds since its mt_create.
+ ***************************************************************************/
+PRIVATE json_t *cmd_info_uptime(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    struct timespec ts;
+    if(clock_gettime(CLOCK_BOOTTIME, &ts) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "clock_gettime(CLOCK_BOOTTIME) FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot read the machine's uptime: %s",
+                gobj_yuno_role_plus_name(), strerror(errno)
+            ),
+            0,
+            0
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    time_t boot_time = time(NULL) - ts.tv_sec;
+    char boot_date[90];
+    t2timestamp(boot_date, sizeof(boot_date), boot_time, TRUE);
+
+    json_t *jn_data = json_pack("{s:I, s:I, s:s, s:I, s:I, s:s}",
+        "machine_uptime",       (json_int_t)ts.tv_sec,
+        "machine_boot_time",    (json_int_t)boot_time,
+        "machine_boot_date",    boot_date,
+        "yuno_uptime",          yuno_uptime(gobj),
+        "yuno_start_time",      gobj_read_integer_attr(gobj, "start_time"),
+        "yuno_start_date",      gobj_read_str_attr(gobj, "start_date")
+    );
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        0,
+        0,
+        jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
  *  Read a single integer from a /proc/sys sysctl file.
  *  Returns the value, or -1 if the file cannot be read.
  ***************************************************************************/
@@ -4974,6 +5031,16 @@ PRIVATE void boost_process_performance(int priority, int cpu_core)
 }
 
 /***************************************************************************
+ *  Seconds since the yuno's mt_create, on the monotonic clock
+ ***************************************************************************/
+PRIVATE json_int_t yuno_uptime(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    return (json_int_t)((time_in_milliseconds_monotonic() - priv->start_ms) / 1000);
+}
+
+/***************************************************************************
  *  get_process_memory_info()
  *
  *  Returns json object:
@@ -5693,11 +5760,10 @@ PRIVATE void load_stats(hgobj gobj)
      *      uptime
      *---------------------------------------*/
     {
-        json_int_t uptime = (json_int_t)((time_in_milliseconds_monotonic() - priv->start_ms) / 1000);
         gobj_write_integer_attr(
             gobj,
             "uptime",
-            uptime
+            yuno_uptime(gobj)
         );
     }
 

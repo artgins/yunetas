@@ -34,6 +34,7 @@ system-wide commands.
 | `view-config` | Show yuno configuration. |
 | `info-mem` | Memory usage info. |
 | `info-cpus` / `info-ifs` / `info-os` | System information. |
+| `info-uptime` | Uptime and boot date of the machine, and uptime and start date of this yuno. |
 | `info-inotify` | inotify limits (`/proc/sys/fs/inotify/*`) plus this yuno's own usage (instances + watches). |
 | `list-allowed-ips` / `add-allowed-ip` | IP access control. |
 | `truncate-log-file` | Truncate the log file. |
@@ -81,6 +82,25 @@ What it got is in `limit_open_files_done`.
     }
 }
 ```
+
+### Uptime
+
+The `uptime` stat is the **yuno's**: seconds since its `mt_create`, on the
+monotonic clock (a change of the wall clock does not move it). The
+**machine's** is answered by `info-uptime`, from `CLOCK_BOOTTIME` (which, like
+`/proc/uptime`, counts the time the machine was suspended), with the boot
+time it gives:
+
+```bash
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=info-uptime'
+# "data": {"machine_uptime": 3142, "machine_boot_time": 1790924758,
+#          "machine_boot_date": "2026-10-02T09:05:58.0+0200",
+#          "yuno_uptime": 2803, "yuno_start_time": 1790925097,
+#          "yuno_start_date": "2026-10-02T09:11:37.123456789+0200"}
+```
+
+Up to 7.25.21 the `uptime` stat was the machine's uptime in jiffies
+(`/proc/uptime` × HZ), under a description that said it was the yuno's.
 
 See also the [Yuno API](../runtime/yuno.md) for C helper functions.
 
