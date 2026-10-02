@@ -78,6 +78,17 @@ PRIVATE int pad_check_callback(yev_event_h yev_event);
 PRIVATE void tell_owner_watcher_gone(fs_event_t *fs_event);
 PRIVATE void close_tracked_dir_fd(int dfd);
 PRIVATE void watch_unwatched_again(fs_event_t *fs_event);
+PRIVATE void announce_subdir_watched(fs_event_t *fs_event, const char *path, int wd);
+PRIVATE BOOL rewatch_subtree_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,
+    char *fullpath,
+    const char *directory,
+    char *name,
+    int level,
+    wd_option opt
+);
 
 /***************************************************************************
  *  Data
@@ -425,6 +436,14 @@ PRIVATE uint64_t kernel_queue_bound(fs_event_t *fs_event)
         unsigned long long n = 0;
         if(fscanf(file, "%llu", &n) == 1 && n > 0) {
             max_events = (uint64_t)n;
+        } else {
+            gobj_log_warning(fs_event->gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot parse max_queued_events of inotify: the default 16384 taken",
+                "path",         "%s", fs_event->path,
+                NULL
+            );
         }
         fclose(file);
     } else {
@@ -855,31 +874,91 @@ PRIVATE void watch_unwatched_again(fs_event_t *fs_event)
             json_object_del(fs_event->jn_unwatched, path);  // Error already logged
             continue;
         }
+        announce_subdir_watched(fs_event, path, wd);
 
-        char parent[PATH_MAX];
-        snprintf(parent, sizeof(parent), "%s", path);
-        char *slash = strrchr(parent, '/');
-        if(!slash) {
-            continue;   // a subdirectory always has a parent
+        if((fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS) && !fs_event->stop_requested) {
+            /*
+             *  And what was made under it while it was not watched: nothing
+             *  of it was heard. Up to 7.25.22 only the directory was
+             *  watched, and a subdirectory made meanwhile never was
+             */
+            walk_dir_tree(
+                0,
+                path,
+                0,
+                WD_RECURSIVE|WD_MATCH_DIRECTORY,
+                rewatch_subtree_cb,
+                fs_event
+            );
         }
-        *slash = 0;
-        int parent_wd = -1;
-        const char *s_wd; json_t *jn_p;
-        json_object_foreach(fs_event->jn_tracked_paths, s_wd, jn_p) {
-            if(strcmp(json_string_value(jn_p)? json_string_value(jn_p) : "", parent) == 0) {
-                parent_wd = atoi(s_wd);
-                break;
-            }
-        }
-        fs_event->fs_type = FS_SUBDIR_CREATED_TYPE;
-        fs_event->event_wd = parent_wd;
-        fs_event->subdir_wd = wd;
-        fs_event->directory = (volatile char *)parent;
-        fs_event->filename = slash + 1;
-        fs_event->callback(fs_event);
-        fs_event->subdir_wd = -1;
     }
     JSON_DECREF(paths)
+}
+
+/***************************************************************************
+ *  A directory watched now that was not: handed to the owner as created
+ *  (FS_SUBDIR_CREATED_TYPE, `subdir_wd` its watch), so it reads what was
+ *  made in it meanwhile
+ ***************************************************************************/
+PRIVATE void announce_subdir_watched(fs_event_t *fs_event, const char *path, int wd)
+{
+    char parent[PATH_MAX];
+    snprintf(parent, sizeof(parent), "%s", path);
+    char *slash = strrchr(parent, '/');
+    if(!slash) {
+        return;   // a subdirectory always has a parent
+    }
+    *slash = 0;
+    int parent_wd = -1;
+    const char *s_wd; json_t *jn_p;
+    json_object_foreach(fs_event->jn_tracked_paths, s_wd, jn_p) {
+        if(strcmp(json_string_value(jn_p)? json_string_value(jn_p) : "", parent) == 0) {
+            parent_wd = atoi(s_wd);
+            break;
+        }
+    }
+    fs_event->fs_type = FS_SUBDIR_CREATED_TYPE;
+    fs_event->event_wd = parent_wd;
+    fs_event->subdir_wd = wd;
+    fs_event->directory = (volatile char *)parent;
+    fs_event->filename = slash + 1;
+    fs_event->callback(fs_event);
+    fs_event->subdir_wd = -1;
+}
+
+/***************************************************************************
+ *  A subdirectory under one watched again (watch_unwatched_again()): one
+ *  not watched yet is watched and handed as created, parent first (the
+ *  walk enters a directory before its children). One already watched (the
+ *  first walk passed it) is left as it is.
+ ***************************************************************************/
+PRIVATE BOOL rewatch_subtree_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,     // type found
+    char *fullpath,         // directory+filename found
+    const char *directory,  // directory of found filename
+    char *name,             // dname[255]
+    int level,              // level of tree where file found
+    wd_option opt           // option parameter
+)
+{
+    fs_event_t *fs_event = user_data;
+    if(fs_event->stop_requested) {
+        return FALSE;   // its owner stopped it from a callback
+    }
+    const char *s_wd; json_t *jn_p;
+    json_object_foreach(fs_event->jn_tracked_paths, s_wd, jn_p) {
+        if(strcmp(json_string_value(jn_p)? json_string_value(jn_p) : "", fullpath) == 0) {
+            return TRUE;    // watched already
+        }
+    }
+    int wd = add_watch(fs_event, fullpath, TRUE);
+    if(wd < 0) {
+        return TRUE;    // Error already logged, or kept to be tried again
+    }
+    announce_subdir_watched(fs_event, fullpath, wd);
+    return TRUE;
 }
 
 /***************************************************************************
@@ -1105,7 +1184,9 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
  *  life of the watch: a follower's feed, one per key directory. Said when
  *  the ones held by all the watchers of the process reach half of the soft
  *  open-files limit, before the limit is what says it (every read failing
- *  with EMFILE), and said again only after they fell under the half. The
+ *  with EMFILE), and said again only after they fell under 40% of it (up
+ *  to 7.25.22 under the half: a count swinging around it said it on
+ *  every swing). The
  *  limit is the process's: up to 7.25.21 each watcher counted its own, and
  *  four followers of 400 directories each, under 1024, never said it.
  ***************************************************************************/
@@ -1132,8 +1213,11 @@ PRIVATE void warn_dir_fds_near_the_limit(fs_event_t *fs_event)
         );
         return;
     }
-    if(rl.rlim_cur == RLIM_INFINITY || n < rl.rlim_cur / 2) {
-        dir_fds_half_said = FALSE;
+    if(rl.rlim_cur == RLIM_INFINITY || n < rl.rlim_cur * 2 / 5) {
+        dir_fds_half_said = FALSE;  // said again only once under 40%
+        return;
+    }
+    if(n < rl.rlim_cur / 2) {
         return;
     }
     if(dir_fds_half_said) {

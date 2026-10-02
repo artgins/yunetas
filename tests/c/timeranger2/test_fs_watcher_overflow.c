@@ -89,7 +89,9 @@
  *  __wrap_inotify_add_watch) is tried again at the end of each batch
  *  (do_test_unwatched_retry): once there are watches again, it is handed
  *  as created with its watch, and what is made in it is heard. Up to
- *  7.25.21 it was never watched: nothing made in it was ever heard.
+ *  7.25.21 it was never watched: nothing made in it was ever heard. A
+ *  subdirectory made in it meanwhile is watched and handed as created too
+ *  (up to 7.25.22 it never was).
  *
  *  And the ROOT deleted and created again while the queue is full
  *  (do_test_root_reborn, recursive and not): after the pass the new root
@@ -815,6 +817,8 @@ PRIVATE int do_test_fionread_broken(void)
 PRIVATE int unw_created_unwatched = 0;
 PRIVATE int unw_created_watched = 0;
 PRIVATE int unw_files_in_a = 0;
+PRIVATE int unw_sub_created_watched = 0;    // "a/sub", made while "a" was not watched
+PRIVATE int unw_files_in_sub = 0;
 
 PRIVATE int fs_callback_unwatched(fs_event_t *fs_event)
 {
@@ -826,11 +830,18 @@ PRIVATE int fs_callback_unwatched(fs_event_t *fs_event)
             unw_created_watched++;
         }
     }
+    if(fs_event->fs_type == FS_SUBDIR_CREATED_TYPE &&
+            strcmp((const char *)fs_event->filename, "sub") == 0 && fs_event->subdir_wd >= 0) {
+        unw_sub_created_watched++;
+    }
     if(fs_event->fs_type == FS_FILE_CREATED_TYPE) {
         const char *dir = (const char *)fs_event->directory;
         size_t n = strlen(dir);
         if(n >= 2 && strcmp(dir + n - 2, "/a") == 0) {
             unw_files_in_a++;
+        }
+        if(n >= 4 && strcmp(dir + n - 4, "/sub") == 0) {
+            unw_files_in_sub++;
         }
     }
     return 0;
@@ -839,13 +850,15 @@ PRIVATE int fs_callback_unwatched(fs_event_t *fs_event)
 PRIVATE int do_test_unwatched_retry(void)
 {
     int result = 0;
-    char root9[PATH_MAX], dir_a[PATH_MAX], dir_b[PATH_MAX];
+    char root9[PATH_MAX], dir_a[PATH_MAX], dir_b[PATH_MAX], dir_sub[PATH_MAX];
     build_path(root9, sizeof(root9), getenv("HOME"), "tests_yuneta", "fs_watcher_unwatched", NULL);
     build_path(dir_a, sizeof(dir_a), root9, "a", NULL);
     build_path(dir_b, sizeof(dir_b), root9, "b", NULL);
+    build_path(dir_sub, sizeof(dir_sub), dir_a, "sub", NULL);
     rmrdir(root9);
     mkrdir(root9, 02770);
     unw_created_unwatched = unw_created_watched = unw_files_in_a = 0;
+    unw_sub_created_watched = unw_files_in_sub = 0;
 
     set_expected_results(
         "fs_watcher: a directory that could not be watched is watched later",
@@ -873,6 +886,7 @@ PRIVATE int do_test_unwatched_retry(void)
         yev_loop_run_once(yev_loop);
     }
     create_file_in(dir_a, "made_while_unwatched");
+    mkdir(dir_sub, 02770);      // nothing of it is heard: "a" is not watched
 
     /*
      *  Watches again: the next batch ("b") watches "a", hands it as created
@@ -884,13 +898,21 @@ PRIVATE int do_test_unwatched_retry(void)
         yev_loop_run_once(yev_loop);
     }
     create_file_in(dir_a, "made_once_watched");
-    for(int i = 0; i < 50 && unw_files_in_a == 0; i++) {
+    create_file_in(dir_sub, "made_in_sub_once_watched");
+    for(int i = 0; i < 50 && (unw_files_in_a == 0 || unw_files_in_sub == 0); i++) {
         yev_loop_run_once(yev_loop);
     }
+    /*
+     *  And "a/sub", made while "a" was not watched, is watched with it and
+     *  handed as created: a file in it is heard. Up to 7.25.22 only "a"
+     *  was watched again, and nothing in "a/sub" was ever heard
+     */
     if(unw_created_unwatched != 1 || unw_created_watched != 1 || unw_files_in_a != 1 ||
+            unw_sub_created_watched != 1 || unw_files_in_sub != 1 ||
             json_object_size(fs_event->jn_unwatched) != 0) {
-        printf("%sERROR%s --> unwatched retry: created unwatched %d (1), then watched %d (1), files heard in it %d (1), left unwatched %d (0)\n",
+        printf("%sERROR%s --> unwatched retry: created unwatched %d (1), then watched %d (1), files heard in it %d (1), its sub created %d (1), files heard in sub %d (1), left unwatched %d (0)\n",
             On_Red BWhite, Color_Off, unw_created_unwatched, unw_created_watched, unw_files_in_a,
+            unw_sub_created_watched, unw_files_in_sub,
             (int)json_object_size(fs_event->jn_unwatched));
         result += -1;
     }

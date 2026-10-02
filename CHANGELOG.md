@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **fs_watcher: a directory watched again brings its subtree.** Under
+  `FS_FLAG_RECURSIVE_PATHS`, a directory that could not be watched (out of
+  inotify watches) was watched alone when watches came back: a
+  subdirectory made in it meanwhile was never watched, and nothing made in
+  it was heard. Its subtree is walked now, and each subdirectory not
+  watched yet is watched and handed as created, parent first. The
+  half-of-the-open-files warning has a hysteresis (said again only after
+  the count fell under 40%, not on every swing around the half), and an
+  unparsable `max_queued_events` is said, as an unreadable one was.
+
 - **`C_TCP`: nothing of the gobj is touched after `EV_DISCONNECTED` if a
   host destroyed it there.** `set_disconnected()` published the event and
   then reset the gobj's volatile attrs: a host that destroyed a transport
