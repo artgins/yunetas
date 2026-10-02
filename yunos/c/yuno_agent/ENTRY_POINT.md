@@ -272,13 +272,20 @@ If you see `relaunch_times > 0` after a quiet day, something crashed.
 ### 4.5 `--stop` / [`daemon_shutdown()`](#daemon_shutdown)
 
 `daemon_shutdown()` scans `/proc/*/comm` for entries matching
-`process_name` and calls [`kill_proc()`](https://github.com/artgins/yunetas/blob/7.25.21/kernel/c/root-linux/src/ydaemon.c#L334) for each:
+`process_name`, sends SIGQUIT to every one of them, gives them 10 s to be
+gone (looked at every 100 ms), and kills with SIGKILL only the ones still
+alive then:
 
 ```c
-kill(pid, SIGQUIT);   // soft exit — let it delete pid file, flush logs
-sleep(1);
-kill(pid, SIGKILL);   // hard — guarantee it goes
+kill(pid, SIGQUIT);                         // to each: soft exit, let it delete pid file, flush logs
+wait_until = start_msectimer(STOP_WAIT_MS); // 10 s for all of them
+...                                         // every 100 ms: gone, or a zombie?
+kill(pid, SIGKILL);                         // only to the ones left: guarantee they go
 ```
+
+Up to 7.25.21 each process was killed 1 s after its own SIGQUIT, one after
+the other: the agent had one second for its orderly shutdown, and the
+watcher, deaf to SIGQUIT, always took its whole second.
 
 The scan matches **both** processes of the pair, because the watcher and the
 child share the process name. Each one answers differently:
@@ -292,10 +299,11 @@ child share the process name. Each one answers differently:
   `daemon_catch_signals()`, [`ydaemon.c:50`](https://github.com/artgins/yunetas/blob/7.25.21/kernel/c/root-linux/src/ydaemon.c#L50)). It is deaf to the soft signal
   by design.
 
-The second `kill()` is therefore not what breaks a relaunch loop: it is the
-guarantee for the case where one second was not enough — a child stuck in its
+The SIGKILL is therefore not what breaks a relaunch loop: it is the
+guarantee for the case where 10 s were not enough — a child stuck in its
 shutdown, and the watcher still sitting in `waitpid()`. SIGKILL is uncatchable
-and takes both.
+and takes both; `--stop` says so on stderr (*"still alive after 10000 ms:
+killed (SIGKILL)"*).
 
 That exit code is the whole protocol. The restart path uses the other value:
 `timeout_restart` sets `gobj_set_exit_code(-1)`, and the non-zero exit is
@@ -342,8 +350,9 @@ What each line keeps from this chapter:
   (§4.5), which ends every process of the name: systemd runs `ExecStop`
   also when the watcher ended on its own, and a second agent that met the
   first one running and left would take the first one with it.
-- **`SuccessExitStatus=SIGKILL`.** A hand-run `--stop` ends the watcher with
-  SIGKILL; without it the unit would read `failed`.
+- **`SuccessExitStatus=SIGKILL`.** A hand-run `--stop` whose agent is not
+  gone in 10 s ends the watcher with SIGKILL; without it the unit would read
+  `failed`. (Up to 7.25.21 every `--stop` did.)
 - **`ExecStopPost`.** The watcher ignores SIGTERM, so after
   `TimeoutStopSec` systemd SIGKILLs it -- it only, with `KillMode=process`.
   An agent hung in its shutdown, or relaunched by the watcher while the stop

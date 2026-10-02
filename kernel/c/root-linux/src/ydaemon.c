@@ -364,46 +364,97 @@ PUBLIC int daemon_run(
 }
 
 /***************************************************************************
- *  Kill daemon
+ *  Stop the daemon: every process of its name (the watcher and its child)
+ *  is asked to end (SIGQUIT: the child shuts down in order and exits 0,
+ *  and its watcher, which ignores the signal, exits with it), and is given
+ *  STOP_WAIT_MS to be gone. Only the ones left then are killed. Up to
+ *  7.25.21 each was killed 1 s after its SIGQUIT, one after the other: the
+ *  agent had 1 s for its orderly shutdown, and the watcher, which ignores
+ *  SIGQUIT, always took its whole second.
  ***************************************************************************/
-PRIVATE void kill_proc(void *self, const char *name, pid_t pid)
+#define STOP_WAIT_MS    (10*1000)
+#define MAX_STOP_PIDS   64
+
+typedef struct {
+    pid_t pids[MAX_STOP_PIDS];
+    int n;
+} stop_pids_t;
+
+PRIVATE void collect_proc(void *self, const char *name, pid_t pid)
 {
-    if(debug) {
-        gobj_log_debug(0,0,
-            "gobj",             "%s", __FILE__,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INFO,
-            "msg",              "%s", "kill proc",
-            "process",          "%s", name,
-            "pid",              "%d", (int)getpid(),
-            "relaunch_times",   "%d", relaunch_times,
-            NULL
-        );
+    stop_pids_t *stop = self;
+    if(pid == getpid() || pid <= 0) {
+        return; // I am the killer
     }
-    if(pid == getpid() || !pid) {
-        if(debug) {
-            gobj_log_debug(0,0,
-                "gobj",             "%s", __FILE__,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_INFO,
-                "msg",              "%s", "I am the killer",
-                "process",          "%s", name,
-                "pid",              "%d", (int)getpid(),
-                "relaunch_times",   "%d", relaunch_times,
-                NULL
-            );
-        }
+    if(stop->n >= MAX_STOP_PIDS) {
+        print_error(0, "--stop: more than %d processes named %s, pid %d left alone",
+            MAX_STOP_PIDS, name, (int)pid
+        );
         return;
     }
+    stop->pids[stop->n++] = pid;
+}
 
-    kill(pid, SIGQUIT);  // soft exit, let it delete pid file
-    sleep(1);
-    kill(pid, SIGKILL);  // hard exit, assure that exits
+/*
+ *  Gone: it does not exist, or it is a zombie (dead, its parent has not
+ *  reaped it yet)
+ */
+PRIVATE BOOL stop_pid_is_gone(pid_t pid)
+{
+    if(kill(pid, 0) < 0 && errno == ESRCH) {
+        return TRUE;
+    }
+    char path[PATH_MAX];
+    char bf[512];
+    snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
+    int fd = open(path, O_RDONLY|O_CLOEXEC);
+    if(fd < 0) {
+        return TRUE;
+    }
+    ssize_t n = read(fd, bf, sizeof(bf) - 1);
+    close(fd);
+    if(n <= 0) {
+        return TRUE;
+    }
+    bf[n] = 0;
+    const char *p = strrchr(bf, ')');
+    return (p && p[1] == ' ' && p[2] == 'Z')? TRUE : FALSE;
 }
 
 PUBLIC void daemon_shutdown(const char *process_name)
 {
-    search_process(process_name, kill_proc, 0);
+    stop_pids_t stop = {0};
+    search_process(process_name, collect_proc, &stop);
+
+    for(int i = 0; i < stop.n; i++) {
+        kill(stop.pids[i], SIGQUIT);  // soft exit, let it delete pid file
+    }
+
+    uint64_t wait_until = start_msectimer(STOP_WAIT_MS);
+    while(TRUE) {
+        int alive = 0;
+        for(int i = 0; i < stop.n; i++) {
+            if(stop.pids[i] && stop_pid_is_gone(stop.pids[i])) {
+                stop.pids[i] = 0;
+            }
+            if(stop.pids[i]) {
+                alive++;
+            }
+        }
+        if(!alive || test_msectimer(wait_until)) {
+            break;
+        }
+        usleep(100*1000);
+    }
+
+    for(int i = 0; i < stop.n; i++) {
+        if(stop.pids[i]) {
+            print_error(0, "--stop: %s pid %d still alive after %d ms: killed (SIGKILL)",
+                process_name, (int)stop.pids[i], STOP_WAIT_MS
+            );
+            kill(stop.pids[i], SIGKILL);  // hard exit, assure that exits
+        }
+    }
 }
 
 /***************************************************************************

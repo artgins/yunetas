@@ -273,6 +273,14 @@ except the hook and the entries this list marks "(no red test)".
     removed.** `.closing.<pid>-<start>.<seq>` carries the start time of the
     reader's process; the master removes one whose pid lives but started at
     another time. Up to 7.25.21 it stayed while the unrelated process lived.
+- **`--stop` gives a daemon 10 s for its orderly shutdown.** Every process of
+    the name gets SIGQUIT at once, and only the ones still alive after 10 s
+    are killed (said on stderr). Each was killed 1 s after its own SIGQUIT,
+    one after the other: the agent had one second to stop its yunos and
+    save, and a `--stop` always took two seconds (the watcher, deaf to
+    SIGQUIT, waited its whole second). The packages use `--stop` to move an
+    agent into its unit. (no red test: checked by hand, a watchfs `--stop`
+    takes 109 ms and leaves nothing)
 - **C_TCP: a subscriber's error no longer stops the reading, and nothing is
   touched after a publish that destroyed the gobj.** A subscriber of
   `EV_RX_DATA` that answered an error (`-1`, its own) stopped the reading:

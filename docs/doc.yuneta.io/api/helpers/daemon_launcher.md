@@ -104,8 +104,10 @@ Returns `0` on normal shutdown, or a non-zero value on error.
 ### [`daemon_shutdown()`](https://github.com/artgins/yunetas/blob/7.25.21/kernel/c/root-linux/src/ydaemon.c#L369)
 
 `daemon_shutdown()` requests an orderly shutdown of a running daemon
-by process name. The function locates the watcher process and signals
-it. The watcher in turn signals its child and terminates.
+by process name. Every process of that name (the watcher and its child)
+gets SIGQUIT: the child shuts down in order and exits 0, and its watcher,
+which ignores the signal, exits with it. They are given 10 s to be gone;
+only the ones left then are killed with SIGKILL, said on stderr.
 
 ```C
 void daemon_shutdown(const char *process_name);
@@ -123,7 +125,20 @@ This function does not return a value.
 
 **Notes**
 
-No-op if no process with the given name is found.
+No-op if no process with the given name is found. The calling process is
+never signaled. It returns once every process is gone (a zombie counts as
+gone), so a start that follows does not meet the old one. Up to 7.25.21 each
+process was killed 1 s after its own SIGQUIT, one after the other: an agent
+had one second for its orderly shutdown.
+
+**Example**
+
+```C
+if(arguments.stop) {
+    daemon_shutdown(APP_NAME);  // returns when the daemon is gone
+    return 0;
+}
+```
 
 ---
 
