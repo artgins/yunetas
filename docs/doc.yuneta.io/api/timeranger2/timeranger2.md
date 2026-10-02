@@ -839,7 +839,13 @@ The deletion is **propagated to subscribers**:
   the filesystem keeps no birth time (some NFS, ext4 with 128-byte inodes)
   a key directory is told from another by its inode alone, and an inode
   freed by a delete can be given to the key written again: said once, with a
-  warning (*"The filesystem keeps no birth time: ..."*). Up to 7.25.20 the directory was read
+  warning (*"No birth time of a directory ..."*). So is a container whose
+  seccomp profile refuses `statx()` (`EPERM`): the inode then comes from
+  `lstat()`. Any other failure to tell which directory a key directory is
+  (`EIO`, `EACCES`) is an ERROR, once per errno in a row: that directory's
+  scan is skipped, and its links wait for the key's next record. Up to
+  7.25.21 every failure of `statx()` took the directory for gone, in
+  silence. Up to 7.25.20 the directory was read
   early (`[R1 DEL]`, `[DEL R1 DEL]`, the live key out of the cache), and a
   key read before, deleted and written again in the same day file, was
   read through the old file's descriptor (short reads, records lost).

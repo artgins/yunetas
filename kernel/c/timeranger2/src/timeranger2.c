@@ -8135,21 +8135,57 @@ PRIVATE void forget_debts_passed(
 /***************************************************************************
  *  CLIENT: who a directory is (inode and birth), to tell it from another
  *  made under the same path. The birth is left -1 where the filesystem
- *  does not keep it.
+ *  does not keep it, and where statx() is refused (EPERM from a seccomp
+ *  profile, ENOSYS): the identity is then lstat()'s inode alone.
+ *
+ *  FALSE when the directory is gone (ENOENT, ENOTDIR: nothing to read in
+ *  it, in silence), or when it cannot be known: logged, once per errno in
+ *  a row, since the caller skips the scan of the directory.
  ***************************************************************************/
 PRIVATE BOOL no_btime_said = FALSE;   // the warning of a filesystem with no birth, once per process
+PRIVATE int dir_identity_errno_said = 0;
 
 PRIVATE BOOL dir_identity(const char *path, json_int_t *ino, json_int_t *bsec, json_int_t *bnsec)
 {
     struct statx stx;
-    if(statx(AT_FDCWD, path, AT_SYMLINK_NOFOLLOW, STATX_INO|STATX_BTIME, &stx) < 0) {
-        return FALSE;   // gone: nothing to read in it
-    }
-    *ino = (json_int_t)stx.stx_ino;
-    if(stx.stx_mask & STATX_BTIME) {
-        *bsec = (json_int_t)stx.stx_btime.tv_sec;
-        *bnsec = (json_int_t)stx.stx_btime.tv_nsec;
+    BOOL have_btime = FALSE;
+    if(statx(AT_FDCWD, path, AT_SYMLINK_NOFOLLOW, STATX_INO|STATX_BTIME, &stx) == 0) {
+        *ino = (json_int_t)stx.stx_ino;
+        if(stx.stx_mask & STATX_BTIME) {
+            have_btime = TRUE;
+            *bsec = (json_int_t)stx.stx_btime.tv_sec;
+            *bnsec = (json_int_t)stx.stx_btime.tv_nsec;
+        }
     } else {
+        struct stat st;
+        int err = errno;
+        if((err == EPERM || err == ENOSYS) && lstat(path, &st) == 0) {
+            *ino = (json_int_t)st.st_ino;
+        } else {
+            if(err == EPERM || err == ENOSYS) {
+                err = errno;    // of the lstat()
+            }
+            if(err == ENOENT || err == ENOTDIR) {
+                return FALSE;   // gone: nothing to read in it
+            }
+            if(err != dir_identity_errno_said) {
+                dir_identity_errno_said = err;
+                gobj_log_error(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot tell which directory a key directory is: its scan is skipped, its links wait for its next record (said once per errno in a row)",
+                    "path",         "%s", path,
+                    "errno",        "%d", err,
+                    "serrno",       "%s", strerror(err),
+                    NULL
+                );
+            }
+            return FALSE;
+        }
+    }
+    dir_identity_errno_said = 0;
+
+    if(!have_btime) {
         *bsec = -1;
         *bnsec = -1;
         if(!no_btime_said) {
@@ -8162,7 +8198,7 @@ PRIVATE BOOL dir_identity(const char *path, json_int_t *ino, json_int_t *bsec, j
             gobj_log_warning(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "The filesystem keeps no birth time: a key deleted and written again may not be told from the old one by a follower",
+                "msg",          "%s", "No birth time of a directory (the filesystem keeps none, or statx() is refused): a key deleted and written again may not be told from the old one by a follower",
                 "path",         "%s", path,
                 NULL
             );

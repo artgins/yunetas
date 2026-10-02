@@ -90,6 +90,7 @@ set(SRCS
     test_torn_tail_check_fails
     test_testing
     test_cmp_file_ids
+    test_dir_identity
     test_unlistable_dirs
     test_unlisted_relist_once
     test_tr2check
@@ -132,6 +133,14 @@ foreach(test ${SRCS})
         target_include_directories(${binary} PRIVATE
             ${YUNETAS_BASE}/kernel/c/timeranger2/src
         )
+    endif()
+    if(test STREQUAL "test_dir_identity")
+        # A unit test: it #includes timeranger2.c to reach a PRIVATE
+        # function, and fails statx() in its own __wrap_statx()
+        target_include_directories(${binary} PRIVATE
+            ${YUNETAS_BASE}/kernel/c/timeranger2/src
+        )
+        target_link_options(${binary} PRIVATE "-Wl,--wrap=statx")
     endif()
     if(test STREQUAL "test_unlisted_relist_once")
         # The test fails the readdir() of one key directory in its own

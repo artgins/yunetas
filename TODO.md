@@ -63,13 +63,6 @@ Severity in parentheses where one was assigned.
   path once would rescue only the links of that moment; the real answer is
   a retry of the watch at a point that comes anyway (the next overflow pass,
   or the next record of the key), not a timer.
-- **`dir_identity()` fails in silence** (medium, smaller reach since
-  `b2f972382`: used only on the no-descriptor fallback). It answers FALSE
-  with no log on any `statx` failure, not only ENOENT, and its callers
-  (`scan_key_dir`, the scan placement) skip the scan, so the key's pending
-  links wait for its next record. Log the non-ENOENT failures. In a
-  container the silent one is `EPERM` (a seccomp profile); `ENOSYS` is not,
-  glibc emulates `statx` then (inode, no birth time).
 - **A deferred scan can wait without limit on a quiet feed** (low).
   `fs_queued_events_end()` over-estimates by `READ_SIZE` on its fallbacks
   (FIONREAD failure, CQ ring overflow, completions still moving after 3 tries),

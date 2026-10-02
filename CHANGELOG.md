@@ -166,6 +166,15 @@ except the hook and the entries this list marks "(no red test)".
   *"Destroying a RUNNING gobj"* and *"No subscription found"* per counter. The
   agent's `mt_stop` stops and destroys them, without answering (their
   channels are closing). (no red test)
+- **timeranger2: a follower no longer takes a key directory for gone when it
+  cannot tell which one it is.** On the path without a descriptor per
+  directory, `dir_identity()` answered FALSE with no log on ANY failure of
+  `statx()`, and its callers skipped the directory's scan: its links waited
+  for the key's next record, in silence. Now only a directory gone (`ENOENT`,
+  `ENOTDIR`) is silent; a `statx()` refused (`EPERM` from a container's
+  seccomp profile, `ENOSYS`) takes the inode from `lstat()`, with the
+  warning of no birth time; any other errno is an ERROR, once per errno in a
+  row. Test `timeranger2/test_dir_identity` (red: 5 checks).
 - **C_TCP: the `disconnect_cause` of a TLS failure says the backend's reason
   on mbedTLS too.** mbedTLS never wrote the reason where `C_TCP` reads it
   (`ytls_get_last_error()`), so its causes were a bare *"TLS handshake
