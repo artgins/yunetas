@@ -423,6 +423,58 @@ PRIVATE int reserve_room(hgobj gobj, int fd, const char *filename, size_t len)
 }
 
 /***************************************************************************
+ *  pwrite()/pread() of all `len` bytes at `offset`, over short answers and
+ *  EINTR: -1 with errno at the first failure (EIO for a write of 0 bytes,
+ *  ENODATA for a file shorter than `len`). `*done` (if not NULL): the
+ *  bytes written, a failure included.
+ ***************************************************************************/
+PRIVATE int pwrite_all(int fd, const char *bf, size_t len, off_t offset, size_t *done_)
+{
+    size_t done = 0;
+    int ret = 0;
+    while(done < len) {
+        ssize_t n = pwrite(fd, bf + done, len - done, offset + (off_t)done);
+        if(n < 0) {
+            if(errno == EINTR) {
+                continue;
+            }
+            ret = -1;
+            break;
+        }
+        if(n == 0) {
+            errno = EIO;
+            ret = -1;
+            break;
+        }
+        done += (size_t)n;
+    }
+    if(done_) {
+        *done_ = done;
+    }
+    return ret;
+}
+
+PRIVATE int pread_all(int fd, char *bf, size_t len, off_t offset)
+{
+    size_t done = 0;
+    while(done < len) {
+        ssize_t n = pread(fd, bf + done, len - done, offset + (off_t)done);
+        if(n < 0) {
+            if(errno == EINTR) {
+                continue;
+            }
+            return -1;
+        }
+        if(n == 0) {
+            errno = ENODATA;
+            return -1;
+        }
+        done += (size_t)n;
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  The save of a file in a directory the yuno cannot write: in place, and
  *  only into a file of its own, regular and of one name (O_NOFOLLOW; made
  *  0600 before a byte is written). Anything else is refused, logged.
@@ -458,44 +510,66 @@ PRIVATE int save_json_in_place(hgobj gobj, const char *filename, json_t *jn)
     /*
      *  The new content is written over the old one before the file is cut:
      *  room is taken first without changing the size (reserve_room(): no
-     *  ENOSPC half way, and no NULs added to the old content), a shorter
-     *  content is padded with blanks (a json with blanks after it parses),
-     *  and the file is cut to it only once it is on disk. A crash from the
-     *  pwrite() until its fsync() returns can leave a file that cannot be
-     *  parsed -- which refuses the next saves, and says so.
+     *  NULs added to the old content), a shorter content is padded with
+     *  blanks (a json with blanks after it parses), and the file is cut to
+     *  it only once it is on disk. The room taken does not stop an ENOSPC
+     *  half way where the filesystem cannot reserve it (NFSv3, FUSE) or
+     *  writes elsewhere (copy-on-write: btrfs, reflinked XFS): the old
+     *  content, read first, is then written back. A crash from the first
+     *  pwrite() until its fsync() returns, or a write back that fails too,
+     *  can leave a file that cannot be parsed -- which refuses the next
+     *  saves, and says so.
      */
     const char *failed = NULL;
     int last_errno = 0;
+    BOOL written_over = FALSE;  // the old content may be partly gone
+    size_t old_len = (size_t)st.st_size;
+    char *old = old_len? gbmem_malloc(old_len) : NULL;
     char *content = json_dumps(jn, JSON_INDENT(4));
     size_t content_len = content? strlen(content) : 0;
-    size_t write_len = MAX(content_len, (size_t)st.st_size);
+    size_t write_len = MAX(content_len, old_len);
     char *bf = content? gbmem_malloc(write_len) : NULL;
-    if(!content || !bf) {
+    if(!content || !bf || (old_len && !old)) {
         failed = "Cannot dump the persistent attrs";
+        last_errno = errno;
+    } else if(old_len && pread_all(fd, old, old_len, 0) < 0) {
+        failed = "Cannot read the persistent attrs file before writing over it, the file is left as it was";
         last_errno = errno;
     } else {
         memcpy(bf, content, content_len);
         memset(bf + content_len, ' ', write_len - content_len);
-        ssize_t written = 0;
         if((st.st_mode & 07777) != 0600 && fchmod(fd, 0600) < 0) {
             failed = "Cannot make the persistent attrs file 0600";
             last_errno = errno;
         } else if(reserve_room(gobj, fd, filename, write_len) < 0) {
             failed = "No room for the persistent attrs, the file is left as it was";
             last_errno = errno;
-        } else if((written = pwrite(fd, bf, write_len, 0)) != (ssize_t)write_len) {
-            failed = written < 0?
-                "Cannot write the persistent attrs file" :
-                "Persistent attrs file written short";
-            last_errno = written < 0? errno : EIO;
-        } else if(fsync(fd) < 0) {
-            failed = "Cannot sync the persistent attrs file";
-            last_errno = errno;
-        } else if(ftruncate(fd, (off_t)content_len) < 0 || fsync(fd) < 0) {
-            failed = "Cannot cut the persistent attrs file (it is padded with blanks, and parses)";
-            last_errno = errno;
+        } else {
+            size_t done = 0;
+            if(pwrite_all(fd, bf, write_len, 0, &done) < 0) {
+                failed = "Cannot write the persistent attrs file";
+                last_errno = errno;
+                written_over = done > 0;
+            } else if(fsync(fd) < 0) {
+                failed = "Cannot sync the persistent attrs file";
+                last_errno = errno;
+                written_over = TRUE;
+            } else if(ftruncate(fd, (off_t)content_len) < 0 || fsync(fd) < 0) {
+                failed = "Cannot cut the persistent attrs file (it is padded with blanks, and parses)";
+                last_errno = errno;
+            }
         }
     }
+    const char *file_state = NULL;
+    if(failed && written_over) {
+        if((old_len == 0 || pwrite_all(fd, old, old_len, 0, NULL) == 0) &&
+                ftruncate(fd, (off_t)old_len) == 0 && fsync(fd) == 0) {
+            file_state = "written back as it was";
+        } else {
+            file_state = "UNPARSABLE: the old content could not be written back, the next start loads the defaults and refuses every save";
+        }
+    }
+    GBMEM_FREE(old)
     GBMEM_FREE(bf)
     GBMEM_FREE(content)     // jansson allocates through gbmem
     if(close(fd) < 0 && !failed) {
@@ -510,6 +584,7 @@ PRIVATE int save_json_in_place(hgobj gobj, const char *filename, json_t *jn)
             "path",         "%s", filename,
             "errno",        "%d", last_errno,
             "serrno",       "%s", strerror(last_errno),
+            "file",         "%s", file_state? file_state : "",
             NULL
         );
         return -1;

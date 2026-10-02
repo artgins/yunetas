@@ -82,11 +82,17 @@ In a directory the yuno cannot write, the save goes IN PLACE, and only into
 a file of the yuno's own, regular and of one name (logged *"Persistent attrs
 saved in place"*). Room is reserved first without growing the file
 (`fallocate(FALLOC_FL_KEEP_SIZE)`; a filesystem without it -- NFSv3, FUSE --
-goes on without the reservation, logged), so a full disk leaves the old file
-as it was; a shorter content is padded with blanks and the file is cut only
-once it is on disk. A crash from the write until its first `fsync()` returns
-can leave a file that cannot be parsed: "never truncated" holds for the
-rename, not for this path, and such a file refuses the next saves as above.
+goes on without the reservation, logged); a shorter content is padded with
+blanks and the file is cut only once it is on disk. The old content is read
+before the write: a write that stops half way -- an `ENOSPC` where the room
+could not be reserved, or on a copy-on-write filesystem (btrfs, reflinked
+XFS) whose reservation does not cover the rewrite -- writes it back, and the
+ERROR says *"written back as it was"*. A crash from the write until its
+first `fsync()` returns, or a write back that fails too (the ERROR then says
+*"UNPARSABLE"*), can leave a file that cannot be parsed: "never truncated"
+holds for the rename, not for this path, and such a file refuses the next
+saves as above. Up to 7.25.21 one `pwrite()` was made, and a short one left
+the new start over the old tail.
 
 **Example**
 

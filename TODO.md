@@ -69,16 +69,6 @@ Severity in parentheses where one was assigned.
   reachable from a deferral made in the overflow pass; the scan then waits for
   ~`READ_SIZE` more bytes of unrelated events.
 
-### dbsimple
-
-- **In-place save: a short write leaves an unparsable file** (low). On the
-  no-fallocate fallback (NFSv3, FUSE) and on copy-on-write filesystems (btrfs,
-  reflinked XFS), an ENOSPC part-way gives a short `pwrite()`: new prefix +
-  old tail, unparsable; the next start loads the defaults and every save is
-  refused. `dbsimple.md` ~85-88, `guide_sdata.md` ~202 and the CHANGELOG say a
-  full disk leaves the old file as it was and name only a crash; the in-place
-  path loses "never half-written", not "never truncated".
-
 ### Agent
 
 - **`kill-yuno` cannot reach a yuno alive but not connected** (low; left by

@@ -166,6 +166,18 @@ except the hook and the entries this list marks "(no red test)".
   *"Destroying a RUNNING gobj"* and *"No subscription found"* per counter. The
   agent's `mt_stop` stops and destroys them, without answering (their
   channels are closing). (no red test)
+- **dbsimple: an in-place save whose write stops half way writes the old
+  content back.** In a directory the yuno cannot write, the persistent attrs
+  are saved in place with ONE `pwrite()`: where the room cannot be reserved
+  (NFSv3, FUSE) or the reservation does not cover a rewrite (copy-on-write:
+  btrfs, reflinked XFS), an `ENOSPC` half way left the new start over the old
+  tail -- a file that does not parse, so the next start loads the defaults
+  and refuses every save. The old content is read first, the write is looped
+  over short answers (the real errno is said), and a write that fails after
+  some bytes writes the old content back, cut to its size and synced; the
+  ERROR says *"written back as it was"*, or *"UNPARSABLE"* when that fails
+  too. Test `secret_attrs/test_secret_attrs` (8, with a `__wrap_pwrite`
+  that writes 16 bytes and then fails; red: the old content not back).
 - **timeranger2: a follower no longer takes a key directory for gone when it
   cannot tell which one it is.** On the path without a descriptor per
   directory, `dir_identity()` answered FALSE with no log on ANY failure of

@@ -81,8 +81,9 @@ foreach(test ${SRCS})
     )
     target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
     if(test STREQUAL "test_secret_attrs")
-        # a file of another user, as its fstat() tells it (__wrap_fstat)
-        target_link_options(${binary} PRIVATE "-Wl,--wrap=fstat")
+        # a file of another user, as its fstat() tells it (__wrap_fstat), and
+        # a write that stops half way (__wrap_pwrite)
+        target_link_options(${binary} PRIVATE "-Wl,--wrap=fstat,--wrap=pwrite")
     endif()
 
     add_test("${current_directory_name}/${test}" ${binary})

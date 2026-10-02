@@ -51,6 +51,13 @@
  *               it as it was: a member of the group (the data dirs are
  *               02775) could plant it. Root's is loaded. Up to 7.25.21 it
  *               was loaded, with a warning.
+ *            8. an in-place save whose write stops half way (a short
+ *               pwrite(), then ENOSPC, as on NFSv3 or a copy-on-write
+ *               filesystem: __wrap_pwrite) writes the old content back: the
+ *               file is byte for byte what it was, and the ERROR says so.
+ *               When the write back fails too, the ERROR says the file is
+ *               left unparsable. Up to 7.25.21 one pwrite() was made and a
+ *               short one left the new start over the old tail.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -85,6 +92,32 @@ int __wrap_fstat(int fd, struct stat *st)
         st->st_uid = foreign_uid;
     }
     return ret;
+}
+
+/*
+ *  A pwrite() that stops half way: the first call writes 16 bytes, the next
+ *  ones fail with ENOSPC -- the next one only (pwrite_fail = 1, the write
+ *  back then works) or all of them (pwrite_fail = -1)
+ */
+ssize_t __real_pwrite(int fd, const void *bf, size_t count, off_t offset);
+ssize_t __wrap_pwrite(int fd, const void *bf, size_t count, off_t offset);
+static int pwrite_short = 0;    // armed: the next pwrite() is short
+static int pwrite_fail = 0;
+
+ssize_t __wrap_pwrite(int fd, const void *bf, size_t count, off_t offset)
+{
+    if(pwrite_short) {
+        pwrite_short = 0;
+        return __real_pwrite(fd, bf, count < 16? count : 16, offset);
+    }
+    if(pwrite_fail) {
+        if(pwrite_fail > 0) {
+            pwrite_fail--;
+        }
+        errno = ENOSPC;
+        return -1;
+    }
+    return __real_pwrite(fd, bf, count, offset);
 }
 
 #define APP             "test_secret_attrs"
@@ -320,6 +353,17 @@ PRIVATE BOOL file_contains(const char *path, const char *text)
         return FALSE;
     }
     return strstr(bf, text)?TRUE:FALSE;
+}
+
+PRIVATE int read_file(const char *path, char *bf, size_t size)
+{
+    int fd = open(path, O_RDONLY|O_NOFOLLOW);
+    if(fd < 0) {
+        return -1;
+    }
+    ssize_t n = read(fd, bf, size - 1);
+    close(fd);
+    return (int)n;
 }
 
 PRIVATE int write_file(const char *path, const char *content, mode_t mode)
@@ -1285,6 +1329,56 @@ PRIVATE void check_persistent_file(void)
         jn_disk = json_load_file(path, 0, &jerr);
         check_true("a write that fails: the file still parses", jn_disk? TRUE : FALSE);
         JSON_DECREF(jn_disk)
+
+        /*
+         *  The write stops half way (16 bytes, then ENOSPC): the old content
+         *  is written back, byte for byte
+         */
+        char before[4096];
+        int before_len = read_file(path, before, sizeof(before));
+        chmod(dir, 0555);
+        gobj_write_str_attr(holder, "note",
+            "a-note-written-short-a-note-written-short-a-note-written-short-"
+            "a-note-written-short-a-note-written-short-a-note-written-short"
+        );
+        s_watch_msg = "written back as it was";
+        s_watch_msg_seen = 0;
+        s_capturing = TRUE;
+        pwrite_short = 1;
+        pwrite_fail = 1;
+        int r_short = gobj_save_persistent_attrs(holder, json_string("note"));
+        pwrite_short = 0;
+        pwrite_fail = 0;
+        s_capturing = FALSE;
+        chmod(dir, st_dir.st_mode & 07777);
+        char after[4096];
+        int after_len = read_file(path, after, sizeof(after));
+        check_true("a write stopped half way: the save fails", r_short < 0);
+        check_true("a write stopped half way: the old content is written back",
+            before_len > 0 && after_len == before_len && memcmp(before, after, (size_t)before_len) == 0
+        );
+        check_true("a write stopped half way: the ERROR says it was written back", s_watch_msg_seen > 0);
+
+        /*
+         *  And the write back fails too: the ERROR says the file is left
+         *  unparsable (put back by the test)
+         */
+        chmod(dir, 0555);
+        s_watch_msg = "UNPARSABLE";
+        s_watch_msg_seen = 0;
+        s_capturing = TRUE;
+        pwrite_short = 1;
+        pwrite_fail = -1;
+        r_short = gobj_save_persistent_attrs(holder, json_string("note"));
+        pwrite_short = 0;
+        pwrite_fail = 0;
+        s_capturing = FALSE;
+        s_watch_msg = NULL;
+        chmod(dir, st_dir.st_mode & 07777);
+        check_true("a write back that fails: the save fails", r_short < 0);
+        check_true("a write back that fails: the ERROR says the file is unparsable", s_watch_msg_seen > 0);
+        before[before_len] = 0;
+        write_file(path, before, 0600);
 
         unlink(path);
         chmod(dir, 0555);

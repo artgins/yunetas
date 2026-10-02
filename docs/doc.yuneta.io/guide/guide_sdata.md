@@ -199,12 +199,13 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
 
     In a directory the yuno cannot write the save goes IN PLACE, into a
     file of the yuno's own, regular and of one name only: room is reserved
-    first without growing the file, so a full disk leaves the old file as
-    it was; a shorter content is padded with blanks and cut only after it
-    is on disk. A crash from the write until its sync returns can leave a
-    file that cannot be parsed -- the "never truncated" above holds for the
-    rename, not for this path -- and that file refuses the next saves as
-    above. `write-attr` answers a save that fails
+    first without growing the file, a shorter content is padded with blanks
+    and cut only after it is on disk, and a write that stops half way (a
+    full disk where the room could not be reserved, or on a copy-on-write
+    filesystem) writes the old content back. A crash from the write until
+    its sync returns, or a write back that fails too, can leave a file that
+    cannot be parsed -- the "never truncated" above holds for the rename,
+    not for this path -- and that file refuses the next saves as above. `write-attr` answers a save that fails
     (*"<gobj>: <attr> written, but NOT saved (see the log)"*, `result`
     -1); up to 7.25.20 it answered "done" with nothing on disk. A
     persistent attr of a gobj that is no service is written and NOT
