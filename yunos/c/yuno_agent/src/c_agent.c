@@ -96,7 +96,8 @@ PRIVATE BOOL is_launching(hgobj gobj, const char *yuno_id);
 PRIVATE json_t *find_living_yuno_pids(hgobj gobj, json_t *yuno);
 PRIVATE BOOL yuno_lives_unregistered(hgobj gobj, json_t *yuno);
 PRIVATE json_t *signal_unconnected_yunos(hgobj gobj, json_t *kw_filter, BOOL app, int signal2kill, hgobj src);
-PRIVATE void kill_yuno_unregistered(hgobj gobj, json_t *yuno);
+PRIVATE void kill_yuno_unregistered(hgobj gobj, json_t *yuno, json_t *jn_killed);
+PRIVATE void restart_wait_tick(hgobj gobj);
 PRIVATE int kill_yuno(
     hgobj gobj,
     json_t *yuno
@@ -1045,6 +1046,10 @@ typedef struct _PRIVATE_DATA {
     hgobj watch_timer;
     json_int_t watch_period; // period the watch timer runs at, 0 = stopped
 
+    hgobj restart_wait_timer;   // restart_nodes(): the yunos killed must be gone before the relaunch
+    json_t *restart_wait_pids;  // the pids killed, not seen gone yet
+    uint64_t restart_wait_until; // msectimer: the relaunch goes on anyway
+
     json_t *no_play_launches; // set of launch_id (string key) launched with run-yuno play=0
 
     /*
@@ -1145,6 +1150,12 @@ PRIVATE void mt_create(hgobj gobj)
      *---------------------------------------*/
     priv->watch_timer = gobj_create_pure_child("watch_stats", C_TIMER, 0, gobj);
     priv->watches = json_object();
+
+    /*---------------------------------------*
+     *      restart_nodes() waits for the
+     *      yunos it killed (child, by src)
+     *---------------------------------------*/
+    priv->restart_wait_timer = gobj_create_pure_child("restart_wait", C_TIMER, 0, gobj);
 
     /*---------------------------------------*
      *      Check if already running
@@ -1277,6 +1288,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     JSON_DECREF(priv->list_consoles);
     JSON_DECREF(priv->watches);
+    JSON_DECREF(priv->restart_wait_pids);
     JSON_DECREF(priv->no_play_launches);
     JSON_DECREF(priv->launching_yunos);
     JSON_DECREF(priv->cert_sync_state);
@@ -1370,6 +1382,7 @@ PRIVATE int mt_stop(hgobj gobj)
     if(priv->cert_sync_timer) {
         clear_timeout(priv->cert_sync_timer);
     }
+    clear_timeout(priv->restart_wait_timer);
     json_object_clear(priv->watches);
     watch_rearm_timer(gobj);
     gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
@@ -9137,7 +9150,11 @@ PRIVATE BOOL yuno_lives_unregistered(hgobj gobj, json_t *yuno)
  *  them again: also the ones alive that the agent does not know running,
  *  or they would outlive it beside their new instance
  ***************************************************************************/
-PRIVATE void kill_yuno_unregistered(hgobj gobj, json_t *yuno)
+PRIVATE void kill_yuno_unregistered(
+    hgobj gobj,
+    json_t *yuno,
+    json_t *jn_killed   // the pids killed are appended here
+)
 {
     json_t *jn_pids = find_living_yuno_pids(gobj, yuno);
     if(!jn_pids) {
@@ -9156,6 +9173,7 @@ PRIVATE void kill_yuno_unregistered(hgobj gobj, json_t *yuno)
             "pid",          "%d", (int)pid,
             NULL
         );
+        json_array_append_new(jn_killed, json_integer(pid));
         if(kill(pid, SIGKILL) < 0 && errno != ESRCH) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -10442,6 +10460,7 @@ PRIVATE int restart_nodes(hgobj gobj)
     int prev_signal2kill = (int)gobj_read_integer_attr(gobj, "signal2kill");
     gobj_write_integer_attr(gobj, "signal2kill", SIGKILL);
 
+    json_t *jn_killed = json_array();
     int idx; json_t *yuno;
     json_array_foreach(iter, idx, yuno) {
         /*
@@ -10449,6 +10468,15 @@ PRIVATE int restart_nodes(hgobj gobj)
          */
         BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
         if(running) {
+            pid_t pids[2] = {
+                (pid_t)kw_get_int(gobj, yuno, "yuno_pid", 0, KW_REQUIRED),
+                (pid_t)kw_get_int(gobj, yuno, "watcher_pid", 0, 0)
+            };
+            for(int i = 0; i < 2; i++) {
+                if(pids[i] > 0) {
+                    json_array_append_new(jn_killed, json_integer(pids[i]));
+                }
+            }
             hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, yuno, "_channel_gobj", 0, KW_REQUIRED);
             if(channel_gobj) {
                 gobj_write_user_data( // HACK release yuno info connection
@@ -10459,7 +10487,7 @@ PRIVATE int restart_nodes(hgobj gobj)
             }
             kill_yuno(gobj, yuno);
         } else {
-            kill_yuno_unregistered(gobj, yuno);
+            kill_yuno_unregistered(gobj, yuno, jn_killed);
         }
     }
     JSON_DECREF(iter)
@@ -10478,9 +10506,81 @@ PRIVATE int restart_nodes(hgobj gobj)
      *----------------------------*/
     gobj_stop(priv->resource);
     gobj_start(priv->resource);
-    run_enabled_yunos(gobj, FALSE);    // all killed above: none is left alive to spare
+
+    /*
+     *  The relaunch waits for the yunos killed above to be gone: a SIGKILL
+     *  is delivered, not done, and a process in an uninterruptible wait (a
+     *  disk) lives on a while. Run at once, a new instance met the old
+     *  one's exclusive resources, or the launch found it still alive and
+     *  did not launch it (up to 7.25.21). Looked at every 100 ms, for 10 s
+     *  at most: then the relaunch goes on, and says who was left.
+     */
+    if(!priv->restart_wait_pids) {
+        priv->restart_wait_pids = json_array();
+    }
+    json_array_extend(priv->restart_wait_pids, jn_killed);
+    JSON_DECREF(jn_killed)
+    priv->restart_wait_until = start_msectimer(10*1000);
+    restart_wait_tick(gobj);    // none to wait for: the relaunch at once
 
     return ret;
+}
+
+/***************************************************************************
+ *  A process is gone when it does not exist, or is a zombie (dead, only
+ *  waiting for its parent to reap it)
+ ***************************************************************************/
+PRIVATE BOOL process_is_gone(pid_t pid)
+{
+    if(kill(pid, 0) < 0 && errno == ESRCH) {
+        return TRUE;
+    }
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
+    FILE *f = fopen(path, "r");
+    if(!f) {
+        return TRUE;
+    }
+    char state = 0;
+    int x = fscanf(f, "%*d %*s %c", &state);
+    fclose(f);
+    return (x == 1 && state == 'Z')? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  restart_nodes(): the relaunch, once every yuno it killed is gone, or
+ *  when the wait is over
+ ***************************************************************************/
+PRIVATE void restart_wait_tick(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    for(int idx = (int)json_array_size(priv->restart_wait_pids) - 1; idx >= 0; idx--) {
+        pid_t pid = (pid_t)json_integer_value(json_array_get(priv->restart_wait_pids, (size_t)idx));
+        if(process_is_gone(pid)) {
+            json_array_remove(priv->restart_wait_pids, (size_t)idx);
+        }
+    }
+
+    if(json_array_size(priv->restart_wait_pids) > 0) {
+        if(!test_msectimer(priv->restart_wait_until)) {
+            if(!gobj_is_running(priv->restart_wait_timer)) {
+                set_timeout_periodic(priv->restart_wait_timer, 100);
+            }
+            return;
+        }
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
+            "msg",          "%s", "yunos killed for the restart still alive after 10 s: relaunched anyway",
+            "pids",         "%j", priv->restart_wait_pids,
+            NULL
+        );
+        json_array_clear(priv->restart_wait_pids);
+    }
+
+    clear_timeout(priv->restart_wait_timer);
+    run_enabled_yunos(gobj, FALSE);    // all killed: none is left alive to spare
 }
 
 /***************************************************************************
@@ -12806,6 +12906,8 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 
     if(src == priv->watch_timer) {
         watch_tick(gobj, NULL);
+    } else if(src == priv->restart_wait_timer) {
+        restart_wait_tick(gobj);
     } else if(src == priv->cert_sync_timer) {
         cert_sync_tick(gobj);
     } else {

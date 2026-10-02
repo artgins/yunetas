@@ -220,6 +220,14 @@ except the hook and the entries this list marks "(no red test)".
   so the username became the FORMAT of the log -- reached on every refused
   peer command since the always-on permission check, and a username is an
   email taken from a JWT. Test `command_delete_user` (red: SegFault).
+- **Agent: a node bounce relaunches the yunos once the killed ones are
+  gone.** `restart_nodes()` (`deactivate-snap`, `activate-snap`) sent SIGKILL
+  to every yuno and relaunched them at once; a SIGKILL is delivered, not
+  done, so a new instance could meet the old one's exclusive resources, or
+  the launch found the old one alive and skipped it. It waits now for the
+  pids it killed (every 100 ms, 10 s at most, then relaunches and names the
+  ones left). (no red test; on wattyzer the relaunch began 1 s after the
+  kills)
 - **Agent: `kill-yuno` reaches a yuno alive but not connected.** It
   selected only the yunos the agent saw running, so one that lost its
   channel or outlived a restart of the agent answered *"Yuno not found or

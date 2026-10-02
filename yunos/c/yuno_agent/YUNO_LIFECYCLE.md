@@ -879,7 +879,12 @@ running", grep the agent log for `does NOT move forward` before anything else.
 #### Caveats
 
   - **Node-wide restart.** `restart_nodes()` sends SIGKILL to every running
-  yuno on the node, not only to the one that you upgrade. This is
+  yuno on the node, not only to the one that you upgrade. It relaunches them
+  once every process it killed is gone (looked at every 100 ms, 10 s at
+  most, then *"yunos killed for the restart still alive after 10 s:
+  relaunched anyway"* with their pids): a SIGKILL is delivered, not done,
+  and up to 7.25.21 the relaunch ran at once -- a new instance could meet
+  the old one's exclusive resources, or find it alive and not launch. This is
   acceptable for kernel-yuno rotations (`auth_bff`, `emailsender`,
   `logcenter`). On a realm with many citizen yunos, tell the team before
   you do it during a busy window. (The version-promotion half of the old
