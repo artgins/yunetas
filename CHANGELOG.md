@@ -2,9 +2,28 @@
 
 ## Unreleased
 
-What changed after 7.25.21: the defects, the nits and the risks of a review
-of that release. Each fix has a test that fails on the code before it,
-except the hook and the entries this list marks "(no red test)".
+## v7.25.22 (2026-10-02)
+
+What changed after 7.25.21: the defects, the nits and the risks of two
+reviews -- of 7.25.21 itself, and of the fixes made for it -- and the open
+defects of TODO.md section 1. Each fix has a test that fails on the code
+before it, except the hook and the entries this list marks "(no red test)".
+Two items stay open, in TODO.md: the accounting of key deletes in rt_disk
+followers (its design is decided: a sequence in the master's signal, which
+changes the protocol between processes, so it gets a release of its own),
+and code of the projects, moved to their own TODO files.
+
+### Performance, against 7.25.21
+
+Measured against 7.25.21, each release built from its own tree, the two run
+alternately (8 rounds, 24 for the timeranger2 tests); the report is
+[`performance/reports/7.25.22.html`](performance/reports/7.25.22.html). A forced
+treedb delete takes **39% less time** (69.8 -> 42.5 us): a delete no longer
+walks every open key. Nothing is slower on a path this release changed. Four
+figures moved outside their spread on code that did not change, and are not
+claimed: appends -1.9% per second (-1.6% with a live reader) and a treedb
+update in memory +5.0% of time, slower; the appends to a store of many keys
+-8.5% of time, faster -- placement of the code in a whole-release build.
 
 ### Upgrade steps (operators, read first)
 

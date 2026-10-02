@@ -773,6 +773,51 @@ releases (`timeranger2.c` changed only in its rt-disk rescan): code
 placement, as far as this method can tell; `test_topic_pkey_integer`, 24 rounds,
 moved +0.3%.
 
+### Oct-2026: 7.25.22 against 7.25.21 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
+
+Each release built from its own tree (a git worktree of the 7.25.21 tag, the
+same `.config` and compiler; only the kernel libraries, `modules/c/test`,
+`performance/c/` and the three ctest binaries built there). `outputs_ext` was
+shared: linux-ext-libs did not change. The two binaries of each benchmark run
+alternately, the order flipped every round, with a `sync` and a 3 s pause
+before each run: 8 rounds, 24 for the three timeranger2 ctest binaries. Mean
++- standard deviation. The report:
+[`performance/reports/7.25.22.html`](../reports/7.25.22.html).
+
+| Case | 7.25.21 | 7.25.22 | Change |
+|------|---------|---------|--------|
+| `test_topic_pkey_integer`, appends/s | 228,532 +- 3,220 | 224,185 +- 3,339 | -1.9% (placement, see below) |
+| the same, with an rt list | 194,479 +- 2,672 | 191,447 +- 3,677 | -1.6% (placement, see below) |
+| `perf_timeranger2` `build_appends` (ms) | 1708.5 +- 32.5 | 1564.1 +- 25.4 | -8.5% (placement, see below) |
+| `perf_timeranger2` `tm_build_appends` (ms) | 1616.3 +- 40.2 | 1654.5 +- 29.3 | +2.4% (noise, t = 2.2) |
+| `perf_timeranger2` `open_master`, `open_replica` (ms) | 80.3, 107.1 | 79.6, 105.1 | noise |
+| `perf_timeranger2` `tm_query_migrated`, `unmigrated` (ms) | 7.53, 391.0 | 7.47, 392.8 | noise |
+| `perf_timeranger2` `create_topic`, `topic_version_change` (ms) | 143.3, 261.0 | 150.7, 262.8 | noise |
+| reads, iterator / pages (records/s) | 188,059 / 169,137 | 189,390 / 169,121 | noise |
+| `perf_tr_treedb` `update_memory` (us, CPU) | 2.297 +- 0.031 | 2.413 +- 0.025 | +5.0% (placement, see below) |
+| `perf_tr_treedb` `update_saved`, `link_unlink` | 7.65, 8.54 | 7.75, 8.63 | noise |
+| `perf_tr_treedb` `delete_force` (us) | 69.8 +- 1.0 | 42.5 +- 0.7 | -39.1% (GAIN, see below) |
+| `perf_tr_treedb` `create_link_half`, `reopen`, `delete_parent` | 63.9, 385.6, 2548 | 63.3, 391.5, 2507 | noise |
+| `perf_c_treedb` `same_literal`, `seed`, `newer_literal` (s) | 0.331, 10.04, 12.94 | 0.333, 10.12, 12.74 | noise |
+| `perf_rotatory` audit / flushed / log (ns) | 565 / 1239 / 371 | 568 / 1232 / 369 | noise |
+| `perf_yev_ping_pong` / `2` (K msg/s) | 152.1 / 84.0 | 150.5 / 84.8 | noise (t = -2.2 / 0.9) |
+| `perf_tcp_test4` / `5` (round trips/s) | 38,908 / 30,948 | 38,292 / 30,570 | noise |
+| `perf_tcps_test4` / `5` (round trips/s) | 29,441 / 24,156 | 29,663 / 24,528 | noise |
+| `perf_auth_bff` (logins/s) | 8,769 | 8,581 | noise |
+
+One gain, with its cause: a forced treedb delete takes 39% less time, because
+a delete no longer walks every key with an open file to close the descriptors
+of the one deleted (`tranger2_delete_key()` closes that key's own). Four
+figures moved outside their spread on code that did not change in this
+release, and none is claimed: the appends of `test_topic_pkey_integer` (-1.9%,
+t = -4.6; -1.6% with an rt list, t = -3.3) and `build_appends` (-8.5% of time,
+t = -9.9) run the same `tranger2_append_record()` and callees in both
+releases, one slower and one faster; `update_memory` (+5.0%, t = 8.2) runs
+`tr_treedb.c`, `kwid.c` and jansson, unchanged, and moved -5.2% the other way
+in the A/B of 7.25.21. Whole-release builds move where the code lands:
+placement. The C_TCP liveness markers (one stack marker per publish) did not
+move the TCP or TLS echoes beyond their noise.
+
 ### Oct-2026: 7.25.21 against 7.25.20 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
 Each release built from its own tree (a git worktree of the 7.25.20 tag, the

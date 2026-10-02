@@ -91,6 +91,12 @@ A release that moves a lot of code ships a performance report: charts of what
 the release does on one machine, the release before measured the same way, and every loss with its
 reason.
 
+- **7.25.22** (against 7.25.21): two reviews closed, the agents as systemd
+  units, and a forced treedb delete 39% faster; nothing slower on a path this
+  release changed.
+  [Report](performance/reports/7.25.22.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.22/performance/reports/7.25.22.html) ·
+  [raw figures](performance/reports/7.25.22.json)
 - **7.25.21** (against 7.25.20): secrets masked in every trace, dump and kw,
   secret gbuffers, a reworked TCP server lifecycle, and nothing slower beyond
   the spread of its rounds.
