@@ -124,7 +124,7 @@ PRIVATE void bound_the_write_in_flight(hgobj gobj);
 PRIVATE void log_closing_drops(hgobj gobj);
 PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE void set_inactivity_timeout(hgobj gobj);
-PRIVATE void start_pending_writes(hgobj gobj);
+PRIVATE int start_pending_writes(hgobj gobj);
 PRIVATE int start_write_event(hgobj gobj, yev_event_h yev_write_event);
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error);
@@ -205,6 +205,18 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 /*---------------------------------------------*
  *              Private data
  *---------------------------------------------*/
+/*
+ *  A publish of an event hands control to the subscribers, which may stop
+ *  the connection or, through its host, destroy the gobj (a volatile
+ *  clisrv): the call that published keeps a marker on its stack, the
+ *  markers are chained, and mt_destroy() clears them all. Read after the
+ *  publish: FALSE, the gobj is gone and nothing of it may be touched.
+ */
+typedef struct alive_s {
+    BOOL alive;
+    struct alive_s *prev;
+} alive_t;
+
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;               // Only used in pure tcp client
     BOOL __clisrv__;
@@ -240,6 +252,8 @@ typedef struct _PRIVATE_DATA {
 
     json_int_t closing_dropped_msgs;    // EV_TX_DATA while closing, said when the close ends
     json_int_t closing_dropped_bytes;
+
+    alive_t *alive;                 // the markers of the publishes in progress (see alive_t)
 } PRIVATE_DATA;
 
 
@@ -519,6 +533,10 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    for(alive_t *marker = priv->alive; marker; marker = marker->prev) {
+        marker->alive = FALSE;  // destroyed inside a publish: its caller must not go on
+    }
+
     // TODO someday review stopping
     // This would be in mt_stop, but by now not full control of stopping uring events
     // Other gclass's managing io_uring events with the same problem
@@ -598,6 +616,21 @@ PRIVATE int get_peer_and_sock_name(hgobj gobj, int fd)
     gobj_write_str_attr(gobj, "sockname", temp);
 
     return 0;
+}
+
+/***************************************************************************
+ *  The marker of a publish in progress (see alive_t)
+ ***************************************************************************/
+PRIVATE void alive_push(PRIVATE_DATA *priv, alive_t *marker)
+{
+    marker->alive = TRUE;
+    marker->prev = priv->alive;
+    priv->alive = marker;
+}
+
+PRIVATE void alive_pop(PRIVATE_DATA *priv, alive_t *marker)
+{
+    priv->alive = marker->prev;     // only while the gobj lives
 }
 
 /***************************************************************************
@@ -779,13 +812,24 @@ PRIVATE void set_connected(hgobj gobj, int fd)
             "sockname",     gobj_read_str_attr(gobj, "sockname")
         );
 
+        alive_t marker;
+        alive_push(priv, &marker);
         gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
+        if(!marker.alive) {
+            return;     // a subscriber ended the connection and its host destroyed the gobj
+        }
+        alive_pop(priv, &marker);
+        if(!gobj_in_this_state(gobj, ST_CONNECTED)) {
+            return;     // a subscriber dropped the connection: its end is done or under way
+        }
 
         /*
          *  Inactivity model: flush data queued while disconnected and arm the
          *  inactivity timer (both no-op unless timeout_inactivity > 0).
          */
-        start_pending_writes(gobj);
+        if(start_pending_writes(gobj) < 0) {
+            return;     // the connection ended, maybe the gobj: not touched
+        }
         set_inactivity_timeout(gobj);
     }
 }
@@ -812,7 +856,22 @@ PRIVATE void set_secure_connected(hgobj gobj)
         "sockname",     gobj_read_str_attr(gobj, "sockname")
     );
 
+    /*
+     *  A subscriber may drop the connection here, and inside the read that
+     *  ended the handshake nothing is in flight: the end is synchronous, it
+     *  frees the session and its host may destroy the gobj. Up to 7.25.21
+     *  the flush below went on with both
+     */
+    alive_t marker;
+    alive_push(priv, &marker);
     gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
+    if(!marker.alive) {
+        return;     // the gobj is gone
+    }
+    alive_pop(priv, &marker);
+    if(!priv->sskt || !gobj_in_this_state(gobj, ST_CONNECTED)) {
+        return;     // a subscriber dropped the connection: its end is done or under way
+    }
 
     int ret = ytls_flush(priv->ytls, priv->sskt);
     if(ret == -2222) {
@@ -842,7 +901,9 @@ PRIVATE void set_secure_connected(hgobj gobj)
      *  Inactivity model: flush data queued while disconnected and arm the
      *  inactivity timer (both no-op unless timeout_inactivity > 0).
      */
-    start_pending_writes(gobj);
+    if(start_pending_writes(gobj) < 0) {
+        return;     // the connection ended, maybe the gobj: not touched
+    }
     set_inactivity_timeout(gobj);
 }
 
@@ -1290,20 +1351,22 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
  *  was enqueued (ac_tx_data_disconnected/ac_tx_data_queued); start draining
  *  it now. No-op when the queue is empty (the normal, non-inactivity path).
  ***************************************************************************/
-PRIVATE void start_pending_writes(hgobj gobj)
+PRIVATE int start_pending_writes(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->gbuf_txing) {
-        return;
+        return 0;
     }
     gbuffer_t *gbuf_txing = dl_first(&priv->dl_tx);
     if(gbuf_txing) {
         priv->gbuf_txing = gbuf_txing;
         dl_delete(&priv->dl_tx, gbuf_txing, 0);
-        write_data(gobj);
+        return write_data(gobj);    // -1: the connection ended, maybe the gobj: not touched
     }
+    return 0;
 }
+
 
 /***************************************************************************
  *  The close of a connection ended: what was sent to it while it closed
@@ -1722,9 +1785,20 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
                     int ret = 0;
 
+                    /*
+                     *  The clear data is published (EV_RX_DATA): a
+                     *  subscriber may end the connection, or its host
+                     *  destroy the gobj (see alive_t)
+                     */
+                    alive_t marker;
+                    alive_push(priv, &marker);
                     if(priv->use_ssl) {
                         GBUFFER_INCREF(gbuf)
                         ret = ytls_decrypt_data(priv->ytls, priv->sskt, gbuf);
+                        if(!marker.alive) {
+                            break;  // the gobj is gone
+                        }
+                        alive_pop(priv, &marker);
                         if(ret == -2222) {
                             /*
                              *  The TLS session was freed inside the callback:
@@ -1745,8 +1819,9 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             if(ret < -1000) { // Mark as TLS error
                                 set_tls_disconnect_cause(gobj, "TLS: decrypt failed");
                                 try_to_stop_yevents(gobj);
+                                break;
                             }
-                            break;
+                            // a subscriber's own error: the reading goes on
                         }
 
                     } else {
@@ -1755,18 +1830,22 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             "gbuffer", (json_int_t)(uintptr_t)gbuf
                         );
                         ret = gobj_publish_event(gobj, EV_RX_DATA, kw);
+                        if(!marker.alive) {
+                            break;  // the gobj is gone
+                        }
+                        alive_pop(priv, &marker);
                     }
 
                     /*
-                     *  Clear buffer, re-arm read
-                     *  Check ret is 0 because the EV_RX_DATA could provoke
-                     *      stop or destroy of gobj
-                     *      or order to disconnect (EV_DROP)
-                     *  If try_to_stop_yevents() has been called (mt_stop, EV_DROP,...)
-                     *      this event will be in stopped state.
-                     *  If it's in idle then re-arm
+                     *  Clear buffer, re-arm read. The gobj lives (the
+                     *  marker): if try_to_stop_yevents() was called (mt_stop,
+                     *  EV_DROP,...) this event is not idle, and is not
+                     *  re-armed. A subscriber that answered an error does not
+                     *  stop the reading: up to 7.25.21 it did (ret was asked
+                     *  to be 0), and the connection hung in silence, neither
+                     *  read nor stopped.
                      */
-                    if(ret == 0 && yev_event_is_idle(yev_event)) {
+                    if(yev_event_is_idle(yev_event)) {
                         gbuffer_clear(gbuf);
                         yev_start_event(yev_event);
                     }

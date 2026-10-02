@@ -59,6 +59,7 @@ SET(SRCS
     test5
     test6
     test7
+    test8
 )
 
 ##############################################
@@ -94,6 +95,9 @@ target_sources(test_tcps_test6 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../emailsende
 
 # test7 poisons freed memory too (a use of the destroyed clisrv reads poison)
 target_sources(test_tcps_test7 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../emailsender/poison_alloc.c)
+
+# test8 too (a use of a clisrv destroyed inside its EV_CONNECTED reads poison)
+target_sources(test_tcps_test8 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../emailsender/poison_alloc.c)
 
 # test6 again on mbedTLS when both backends are compiled in (TLS_LIBRARY_NAME
 # prefers OpenSSL), on a port of its own

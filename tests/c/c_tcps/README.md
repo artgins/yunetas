@@ -28,6 +28,8 @@ restart reloads nothing (they did not change: no *"TLS certificates
 reloaded"*), `reload-certs` once, and, after the copy is touched, another
 stop and start of the server reloads it.
 
+`test8` (`main_test8.c` + `c_test8.c`) is about what a subscriber of a volatile clisrv does from inside its events, with freed memory poisoned. Over TLS its host drops the connection from `EV_CONNECTED` (published from the read that ended the handshake), and destroys the clisrv when it stops: nothing of it may be touched after the publish. In clear its host answers `-1` to each `EV_RX_DATA` (its own error), and the client sends two messages: both must arrive. Up to 7.25.21 a non-zero answer stopped the reading -- neither re-armed nor stopped, the connection hung in silence (red: the second message did not arrive). The TLS path has no red test: in the test the drop was asynchronous (the read was cancelled), and the liveness marker of `set_secure_connected()` covers the synchronous one.
+
 `test7` drops a connection from inside its own `EV_RX_DATA`, over TLS and in
 clear. The servers use the legacy method (`child_tree_filter`) with channels
 that have no `C_TCP` of their own (`C_CHANNEL` -> `C_WEBSOCKET`), so each

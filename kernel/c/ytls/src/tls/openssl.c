@@ -1325,6 +1325,22 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
                 );
                 return -1;
             }
+        } else {
+            /*
+             *  Pending bytes that cannot be read: said, and the loop ends
+             *  (up to 7.25.21 the gbuffer leaked, and the loop could spin)
+             */
+            GBUFFER_DECREF(gbuf)
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_OPENSSL,
+                "msg",              "%s", "BIO_read() of the pending encrypted bytes FAILED",
+                "pending",          "%d", pending,
+                "ret",              "%d", ret,
+                "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
+                NULL
+            );
+            return -1;
         }
     }
 

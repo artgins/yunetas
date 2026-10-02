@@ -196,6 +196,20 @@ except the hook and the entries this list marks "(no red test)".
   `default_role` to root for every user an IdP provisions. Both are
   `SDF_RD`, the config's. Test `command_delete_user` (red: the role was
   written).
+- **C_TCP: a subscriber's error no longer stops the reading, and nothing is
+  touched after a publish that destroyed the gobj.** A subscriber of
+  `EV_RX_DATA` that answered an error (`-1`, its own) stopped the reading:
+  the read was re-armed only on `0`, used as a sign the gobj lived, and
+  nothing stopped the connection either -- it hung in silence. The liveness
+  is a marker now (a stack variable chained in priv, cleared by
+  `mt_destroy`), around every publish that may end the connection or the
+  gobj: `EV_RX_DATA` (clear and TLS), and `EV_CONNECTED`, after which
+  `set_secure_connected()` flushed the session and `set_connected()` armed
+  the inactivity timer whatever the subscriber had done. `start_pending_writes()`
+  says when its write ended the connection. And OpenSSL's flush of the
+  encrypted bytes leaked its gbuffer (and could spin) when `BIO_read`
+  failed. Test `c_tcps/test8` (new; red: the second message never arrived;
+  the `EV_CONNECTED` drop has no red test).
 - **C_PROT_TCP4H no longer reserves the length a peer announces, and a
   websocket frame of exactly `max_payload_size` ends.** tcp4h reserved the
   whole length of a frame at its 4-byte header, before any payload, up to
