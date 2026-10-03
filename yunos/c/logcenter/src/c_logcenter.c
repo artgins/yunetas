@@ -975,7 +975,8 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
  *  succeed: restart-yuneta refuses (sudo does not allow the restart of the
  *  agent's unit) or fails (systemctl) with exit 1 and a line on its stderr,
  *  which goes nowhere a yuno reads; the shell answers 126/127 for a
- *  command it cannot run, 128+N for one killed by signal N. Up to 7.25.22 only a system() that
+ *  command it cannot run. Any other code is the command's own: the text
+ *  names no cause it cannot know. Up to 7.25.22 only a system() that
  *  could not run was said. It waits for the command, as always: under the
  *  units that is the agent's restart (its stop and start, bounded by their
  *  timeouts), and the refusal of sudo is said at once.
@@ -1024,7 +1025,7 @@ PRIVATE void run_restart_yuneta_command(hgobj gobj)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "The restart yuneta command failed: see its exit code (restart-yuneta says why on its stderr: 1 is sudo refused or the unit's restart failed; 126/127, not runnable or not found; above 128, its child killed)",
+            "msg",          "%s", "The restart yuneta command failed: see its exit code (the shell answers 126/127 for a command not runnable or not found; restart-yuneta answers 1, and says why on its stderr)",
             "command",      "%s", restart_yuneta_command,
             "exit_code",    "%d", WEXITSTATUS(ret),
             NULL

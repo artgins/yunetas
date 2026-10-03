@@ -1795,8 +1795,8 @@ PRIVATE json_t *refuse_without_authz(hgobj gobj, const char *permission, json_t 
 
 /***************************************************************************
  *  The question for the jwk commands. A yuno with no users treedb (local
- *  access only) validates no JWT: it answers list-jwk (empty) and refuses
- *  add-jwk/remove-jwk. With one, its `permission` is asked as for the rest
+ *  access only) validates no JWT: it answers list-jwk (the config's jwks,
+ *  which nothing here uses) and refuses add-jwk/remove-jwk. With one, its `permission` is asked as for the rest
  ***************************************************************************/
 PRIVATE json_t *refuse_jwk_without_authz(hgobj gobj, const char *permission, json_t *kw, hgobj src)
 {

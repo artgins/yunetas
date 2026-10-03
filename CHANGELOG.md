@@ -23,7 +23,12 @@
   again"* is said at the end of the batch where none is left, not while a
   subtree is still queued. A directory renamed during an overflow and
   watched again at its new path no longer leaves its old path in the
-  index, where a directory made later there was taken for one watched. The
+  index, where a directory made later there was taken for one watched. A
+  `readdir()` that fails half way (`EIO`, `ESTALE`) is said, in the re-watch
+  and in the pass after an overflow, not taken for the end. And the first
+  walk of a recursive watch takes hidden directories too, as `IN_CREATE`
+  and the pass always did: a `.name` there before the watch was never
+  heard. The
   half-of-the-open-files warning has a hysteresis (said again only after
   the count fell under 40%, not on every swing around the half), and an
   unparsable `max_queued_events` is said, as an unreadable one was.
@@ -84,12 +89,13 @@
   10 s relaunched them anyway, without asking whether they were alive: a
   yuno stuck in a disk wait got a second instance. Those are now skipped,
   each with the warning *"yuno alive but not connected to the agent: not
-  launched again"*, and each one is launched when its processes are gone:
-  looked at every second, for 5 minutes (by the yuno's role and
-  configuration, as the agent finds an unregistered yuno, so a reused pid
-  does not hold it down), after which the warning says to `run-yuno` them.
-  Only those: a yuno an operator stops meanwhile (`kill-yuno`,
-  `update-binary`, `run-yuno`) is not launched by that window.
+  launched again"*, and each one is launched when it is gone: looked at
+  every second, for 5 minutes, after which the warning says to `run-yuno`
+  them. Gone is every pid the restart killed gone (a task in D state is
+  alive) AND no process left running the yuno (its role and configuration:
+  a task that lost its command line while it still holds its files is not
+  taken for gone). Only those are launched, and a spared yuno the operator
+  stops (`kill-yuno`), disables or launches meanwhile leaves the window.
 - **Agent: `kill-yuno` of a yuno found only by the scan says it is not
   waited for.** Such a yuno is signalled and the answer comes at once; a
   `run-yuno` sent before it is gone finds it alive and does not launch it.
@@ -108,7 +114,7 @@
   `restart-yuneta -s` where it exists (logcenter is not stopped), and logs
   an ERROR when the command fails or is refused (exit code, or the signal
   that killed it), or when none is configured: only a `system()` that could
-  not run was said. It waits
+  not run was said. The text names no cause it cannot know. It waits
   for the command as before -- under the units, the agent's restart. agent22
   was never touched by `yshutdown`, and is not now.
 - **`/etc/init.d/yuneta_agent` answers what the units answered.** Under

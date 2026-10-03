@@ -108,7 +108,7 @@ by process name. Every process of that name started as it (the base name
 of `argv[0]` in `/proc/<pid>/cmdline`: a script of the same name has its
 interpreter there and is not one; a daemon whose binary was renamed still
 is, and so is another user's, which then fails with `EPERM`; a zombie of the
-name is dead and is not counted; the list has no fixed size, so look-alikes
+name is dead and is not counted, nor is an `EPERM` on one a failure; the list has no fixed size, so look-alikes
 of the name, which anybody can start, cannot push the real ones out of it)
 gets SIGQUIT, the
 watchers first: a watcher notes it and does not relaunch its child, whatever its end;

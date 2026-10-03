@@ -1094,6 +1094,65 @@ PRIVATE int do_test_unwatched_subtree_bound(void)
 }
 
 /***************************************************************************
+ *  A hidden directory there before the watch is watched, as one made after
+ *  it (IN_CREATE) and the ones the pass meets are
+ ***************************************************************************/
+PRIVATE int hidden_files = 0;
+
+PRIVATE int fs_callback_hidden(fs_event_t *fs_event)
+{
+    if(fs_event->fs_type == FS_FILE_CREATED_TYPE) {
+        const char *dir = (const char *)fs_event->directory;
+        size_t n = strlen(dir);
+        if(n >= 3 && strcmp(dir + n - 3, "/.h") == 0) {
+            hidden_files++;
+        }
+    }
+    return 0;
+}
+
+PRIVATE int do_test_hidden_at_start(void)
+{
+    int result = 0;
+    char root5[PATH_MAX], dir_h[PATH_MAX];
+    build_path(root5, sizeof(root5), getenv("HOME"), "tests_yuneta", "fs_watcher_hidden", NULL);
+    build_path(dir_h, sizeof(dir_h), root5, ".h", NULL);
+    rmrdir(root5);
+    mkrdir(root5, 02770);
+    mkdir(dir_h, 02770);
+    hidden_files = 0;
+
+    set_expected_results("fs_watcher: a hidden directory there before the watch", NULL, NULL, NULL, 1);
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop, root5, FS_FLAG_RECURSIVE_PATHS, fs_callback_hidden, 0, NULL, NULL
+    );
+    if(!fs_event || fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> the watcher could not be started\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    create_file_in(dir_h, "in_hidden");
+    for(int i = 0; i < 50 && hidden_files == 0; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    /*
+     *  Up to 7.25.22 the first walk left hidden directories out, while
+     *  IN_CREATE and the pass took them: this file was never heard
+     */
+    if(hidden_files != 1) {
+        printf("%sERROR%s --> a file in a hidden directory there before the watch: heard %d times, expected 1\n",
+            On_Red BWhite, Color_Off, hidden_files);
+        result += -1;
+    }
+    fs_stop_watcher_event(fs_event);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+    rmrdir(root5);
+    return result;
+}
+
+/***************************************************************************
  *  A directory renamed during an overflow: the pass watches it again at
  *  its new path (the same wd), and its old path names nothing any more
  ***************************************************************************/
@@ -1847,6 +1906,7 @@ int main(int argc, char *argv[])
     result += do_test_unwatched_retry();
     result += do_test_unwatched_subtree_bound();
     result += do_test_renamed_in_overflow();
+    result += do_test_hidden_at_start();
     result += do_test_root_unwatchable();
     result += do_test_dir_fds();
     result += do_test_dir_fds_limit();

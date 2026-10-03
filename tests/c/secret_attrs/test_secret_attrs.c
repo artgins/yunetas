@@ -1735,14 +1735,11 @@ PRIVATE void check_persistent_file(void)
     foreign_ino = 0;
 
     /*
-     *  Run as root for real, the yuno's user would be root, whose files are
-     *  trusted anyway: the cases of the chain would pass telling nothing
+     *  A yuno as root is played by __wrap_geteuid(): the test itself never
+     *  runs as root (the entry point refuses a user that is not yuneta or
+     *  of its group), so the yuno's user here is never root
      */
-    if(__real_geteuid() == 0) {
-        printf("SKIP the trust chain of a yuno run as root: the test runs as root, its cases tell nothing\n");
-    } else {
-        check_root_trust_chain(holder, path);
-    }
+    check_root_trust_chain(holder, path);
 
     /*
      *  An attr of the file that is not persistent (any more: the jwks that

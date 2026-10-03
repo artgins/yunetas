@@ -965,21 +965,54 @@ PRIVATE void queue_unwatched_subdirs(fs_event_t *fs_event, const char *path)
     }
 
     struct dirent *de;
-    while((de = readdir(dir)) != NULL) {
+    while(TRUE) {
+        errno = 0;
+        if((de = readdir(dir)) == NULL) {
+            if(errno != 0) {
+                /*
+                 *  The listing ended half way (EIO, ESTALE): the
+                 *  subdirectories not read are not watched
+                 */
+                gobj_log_error(fs_event->gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "readdir() FAILED: the subdirectories not read are not watched",
+                    "path",         "%s", path,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+            }
+            break;
+        }
         if(strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) {
             continue;
         }
         BOOL is_dir = (de->d_type == DT_DIR)? TRUE : FALSE;
         if(de->d_type == DT_UNKNOWN) {
             struct stat st;
-            is_dir = (fstatat(dirfd(dir), de->d_name, &st, AT_SYMLINK_NOFOLLOW) == 0 &&
-                S_ISDIR(st.st_mode))? TRUE : FALSE;
+            if(fstatat(dirfd(dir), de->d_name, &st, AT_SYMLINK_NOFOLLOW) == 0) {
+                is_dir = S_ISDIR(st.st_mode)? TRUE : FALSE;
+            } else if(errno != ENOENT) {
+                gobj_log_error(fs_event->gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "fstatat() FAILED: not known if it is a directory, not watched",
+                    "path",         "%s", path,
+                    "name",         "%s", de->d_name,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+            }   // ENOENT: gone meanwhile
         }
         if(!is_dir) {
             continue;
         }
         char fullpath[PATH_MAX];
-        build_path(fullpath, sizeof(fullpath), path, de->d_name, NULL);
+        if(!build_path(fullpath, sizeof(fullpath), path, de->d_name, NULL)) {
+            continue;   // Error already logged
+        }
         if(!json_object_get(fs_event->jn_paths_wd, fullpath)) {
             json_object_set_new(fs_event->jn_unwatched, fullpath, json_true());
         }
@@ -1673,11 +1706,18 @@ PRIVATE int add_watch_recursive(fs_event_t *fs_event, const char *path)
     if(wd < 0) {
         return -1;  // Error already logged
     }
+    /*
+     *  Hidden directories too (WD_HIDDENFILES): one made later is watched
+     *  at its IN_CREATE, and the pass after an overflow, and the re-watch
+     *  of an unwatched one, take them as well. Up to 7.25.22 only this
+     *  first walk left them out, so whether a ".x" was watched depended on
+     *  when it was made
+     */
     walk_dir_tree(
         0,
         path,
         0,
-        WD_RECURSIVE|WD_MATCH_DIRECTORY,
+        WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_HIDDENFILES,
         search_by_paths_cb,
         fs_event
     );
@@ -1860,7 +1900,22 @@ PRIVATE void push_subdirectories(fs_event_t *fs_event, const char *path, json_t 
         return; // ENOENT: gone meanwhile, nothing below it to visit
     }
     struct dirent *de;
-    while((de = readdir(dir)) != NULL) {
+    while(TRUE) {
+        errno = 0;
+        if((de = readdir(dir)) == NULL) {
+            if(errno != 0) {
+                gobj_log_error(fs_event->gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "readdir() FAILED: the subdirectories not read are not visited by the pass",
+                    "path",         "%s", path,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+            }
+            break;
+        }
         if(strcmp(de->d_name, ".")==0 || strcmp(de->d_name, "..")==0) {
             continue;
         }

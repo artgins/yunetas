@@ -60,6 +60,19 @@ watched through their descriptor again"*, `watched_by_path`). A yuno raises its
 own soft limit to its hard one at its start (C_YUNO `limit_open_files`, `0` by
 default).
 
+With `FS_FLAG_RECURSIVE_PATHS` every subdirectory is watched, hidden ones
+(`.name`) included, whenever it appears: there at the start, made later
+(`IN_CREATE`), met by the pass after an overflow, or by the re-watch of one
+that could not be watched. Up to 7.25.22 the first walk left the hidden ones
+out while the others took them, so a `.cache` there before the watch was
+deaf, and one made after it was heard.
+
+```C
+mkdir("/data/.h", 0770);            // before the watch: watched too
+fs_event_t *fs = fs_create_watcher_event(loop, "/data", FS_FLAG_RECURSIVE_PATHS, cb, gobj, 0, 0);
+fs_start_watcher_event(fs);         // a file made in /data/.h is heard
+```
+
 With `FS_FLAG_DIR_FDS` each SUBDIRECTORY watched is opened first and watched through that descriptor, so the watch and the descriptor are one inode: see [`fs_watcher_dir_fd()`](#fs_watcher_dir_fd). Every event carries `event_wd` (the watch of `directory`) and, for `FS_SUBDIR_CREATED_TYPE`, `subdir_wd` (the watch just set on the directory created, `-1` if it was gone).
 
 **Returns**
