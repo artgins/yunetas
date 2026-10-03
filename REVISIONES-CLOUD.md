@@ -1,236 +1,154 @@
 # Cloud review of main
 
-Reviewed up to `57b562be8` (2026-10-03): everything since the TODO-defects
-report (`c80c7fc68..57b562be8`, 24 commits), and the readiness of **7.26.0**.
-Read-only review (no build, no suite). Every finding below was checked
-against the code.
+Reviewed up to `918c3d687` (2026-10-03): the answer to the review of
+`57b562be8`, and the readiness of **7.26.0**. Read-only review (no build, no
+suite). What is resolved is removed from this file.
 
-## Verdict: not ready for 7.26.0
+## Verdict: the three highs are fixed; not yet ready to tag
 
-Two defects in this round's own fixes break the cases they were made for
-(items 1 and 2), the release text is incomplete, and the release rules that
-apply (two-machine suite, performance report) have not run on this HEAD.
+What is left in code is two mediums and lows. What blocks the tag is the
+release work itself, which the fixing session listed as not done:
+`### Performance, against 7.25.22` and the report, the versions, gobj-ui
+7.26.0 on npm, the two-machine suite and the doc repin.
 
 ## Resolved in this round (holds)
 
-- **tm markers removed** (`4274d33e2`): no path skips a file or ends a scan
-  by `tm`; the `t` marker (`.unordered`) is intact; a stray
-  `marks_tm_unordered` or `.tm_unordered` is ignored (tested); nothing calls
-  the removed APIs.
-- **Block reads** (`161926278`) and **match condition parsed once**
-  (`a395aa34a`): a block never reads past the segment's rows, offsets and the
-  backward window are right, short reads are logged, `md_write_gen` covers
-  every md2 write; every parse runs after `get_segments()`.
-- **Delete sequence** (`0c2af2a6b`): persisted durably (tmp + fsync + rename
-  + dir fsync) before any signal carries it; name format fits `NAME_MAX`;
-  keys cannot look like a signal; hole (b) (a feed opened after another heard
-  a delete) and the second-delete-in-doubt case are closed; a follower
-  restart replays nothing.
-- **`with_link_events` on by default**: the three defaults are `1`
-  (`c_node.c:393`, `c_treedb.c:495`, `c_authz.c:342`); no in-repo C
-  consumer relied on the parent `UPDATED`; gobj-ui's topics and graph handle
-  `LINKED`/`UNLINKED`; the v1 recipe is in the CHANGELOG.
-- `jtree` without `rename_hook`, C_NODE `parents`/`children` without
-  options, the case of `domain_dir` kept, the MQTT will under the ACL
-  (`client_id` right, checked before a volatile client goes), CLI role
-  warning, the two test hangs, the new red tests.
-- Guards: `verify_api_coverage.py` 862/862, `api_index.py --check`,
-  `check_doc_line_refs.py`, `verify_js_api_coverage.py`, the schema diagram
-  `--check`: all exit 0.
+- **Negative bound over several keys**: one `json_deep_copy(match_cond)` per
+  key in `tranger2_open_list()` and C_TRANGER `open-list`, owned by each
+  iterator, the original released on every exit; no other multi-key loop
+  shares one.
+- **Negative `tm` bound**: resolved against the tm of the key's last record,
+  read from disk (one 32-byte `pread`, fd cached), the same on the master in
+  memory, a reload and a replica; errors fall back to the cache, logged.
+- **A long key told to every feed** (`delete_ref_keys`, pruned with
+  `deletes_applied`; master's own feeds and the overflow resolve `/`-refs).
+- **Overflow during a delete**: reserve → `rmrdir` → signal on the master,
+  list → read on the follower; a failed `rmrdir` burns the sequence (a gap,
+  harmless), tested (`delete_seq_record`) — subject to medium 1 below.
+- **`delete_seq.json` unreadable**: `-1`, nothing written, the delete
+  refused before anything is removed (when a feed exists).
+- **Leftover signal dirs** swept at the master's open; the overflow pass
+  skips dot names; a TOLD signal advances the feed's place; the sequence
+  going back is logged (no false positive in normal running).
+- **The will's leak** (found while fixing): `kw_of_its_own()` gives the treedb
+  a `kw_twin()` when the kw carries a gbuffer; the reference count balances on
+  every exit of `mt_create_node` / `mt_update_node`; it also covers C_TREEDB,
+  C_AUTHZ and the MQTT broker (they all go through `gobj_create/update_node`).
+- gobj-ui `8dd3893`: one re-read in flight per loaded parent, a dirty flag
+  for the rest, no lost update; `expect_no_debts()`; the skeleton test on its
+  own tree; emailsender window 800 ms; `c_mqtt/will_acl` (port 18118 unique,
+  packets checked).
+- CHANGELOG intro and `### Upgrade steps`; `deploying-yunos.md` "Upgrading to
+  7.26.0".
 
 ## Open
 
-### High
-
-1. **A negative bound in a list over several keys is resolved against the
-   FIRST key and reused for every other** (`timeranger2.c:13486-13491`, and
-   the `to_t` / `from_tm` / `to_tm` twins). `get_segments()` writes the
-   resolved value back into `match_cond`, and `tranger2_open_list()` hands
-   every key the same object (`:15323-15327`, `json_incref(match_cond)`);
-   the same in C_TRANGER's `list` (`c_tranger.c:2211-2215`, `:2263`). The
-   first key turns `from_t=-86400` into its own absolute time; the next keys
-   see that value: a device that stopped earlier gets nothing, one ahead gets
-   more than a day. `trmsg_open_list()` (`tr_msg.c:322`) opens exactly such a
-   list with no key — very likely the `db_history` path of the three projects
-   the fix was for. The multi-key iterator is safe (it deep-copies per key).
-   `test_tm_order` uses single-key roads only.
-   *Fix:* `json_deep_copy(match_cond)` per key in both loops (keep the
-   write-back in each iterator's own copy); a test with an `rkey` / no-key
-   list and two keys of different last `t`.
-2. **A key longer than the signal name allows (233-255 bytes) is told to the
-   FIRST feed only** (`timeranger2.c:7360-7393`, `key_of_delete_ref()`
-   `:8233`). The `/<sha256>` ref is turned back into the key by scanning the
-   cache; the first feed's `DELETE_FIRST_HEARD` removes the key from the
-   cache, so every later feed finds no key, `named` is FALSE and its
-   callback is skipped, with no log. The overflow path skips such refs too
-   (`tell_deletes_lost_in_overflow()`, `/`-prefixed refs). `do_test_odd_keys`
-   opens one feed. *Fix:* keep `{ref: key}` with the applied delete until
-   every feed has heard it; a test with two feeds and a long key.
-3. **An overflow during a concurrent delete can still give a double delete**
-   (`tell_deletes_lost_in_overflow()` ~`:8868-8915`). It reads `now_seq`,
-   then lists `keys/`, and takes a key missing there as deleted at
-   `<= now_seq`. The master removes `keys/<key>` BEFORE it bumps the
-   sequence (`tranger2_delete_key()` ~`:4970` → `next_delete_seq()` `:4643`,
-   with a tmp write and fsync between, milliseconds): the follower records
-   `applied[k] = N`, tells the delete, then hears `.d(N+1).k` as a new one
-   and drops the cache entry again — possibly a key another feed has
-   reloaded. Under load, when bulk deletes run. *Fix:* the master bumps and
-   persists the sequence BEFORE removing `keys/<key>`, and the follower reads
-   its bound AFTER listing; a test.
-
 ### Medium
 
-- **A failed read of `delete_seq.json` rewinds the master's sequence for
-  good** (`next_delete_seq()` `:4643-4650`): a read error (logged) becomes
-  `seq = 0`, then `1` is written durably over the real record; a valid file
-  without the key reads 0 with no log. Then (or after a backup restore, or a
-  topic copied without the file) followers misbehave silently: their
-  `delete_seq_heard` / `delete_seq_max` only grow, so new entries are pruned
-  at once and later feeds take the signal for a first delete again; on the
-  master a reused number can meet a leftover signal dir (`EEXIST`, logged).
-  *Fix:* refuse to signal (and do not overwrite) when the read failed; log a
-  sequence that goes back.
-- **The old/new delete protocol mismatch is silent in both directions.** A
-  7.25.22 follower takes `.d<seq>.<key>` as a key (callback with a bogus key,
-  the real delete never heard); a 7.26 follower of a 7.25.22 master hears no
-  delete at all — this direction is not in the CHANGELOG. "Upgrade together"
-  is a doc note only. *Fix:* a protocol version in `__timeranger2__.json`
-  (or the topic) checked by the follower, refusing loudly.
-- **A negative `tm` bound is resolved against an approximate "highest tm"**
-  (`:13572`, `:13608`): since the markers are gone, a file's tm range at load
-  comes from its first and last rows only, so a master in memory, the same
-  master reloaded and a replica resolve `from_tm=-N` against different
-  values (rows tm 100, 900, 150: 900 vs 150). The CHANGELOG, docs and tests
-  say "highest tm". *Fix:* document it as approximate (it is, now), or derive
-  it from the rows the scan reads.
-- **`with_link_events`: the gobj-ui topic table brings the per-link parent
-  collapse back** (`c_yui_treedb_topics.js:2807-2822`):
-  `ac_treedb_node_linked` answers every `LINKED`/`UNLINKED` with
-  `treedb_get_node()` of the parent — the collapsed parent with every child
-  id — so with a GUI open on the parent topic, each link costs O(children)
-  per viewer again, the cost the BREAKING change was made to remove. *Fix:*
-  coalesce per `(parent_topic_name, parent_id)`, or re-read only a loaded /
-  visible row.
-- **`test_rt_disk_overflow`'s `expect_no_debts()` is always true now**
-  (`:521-535`): it reads `feed["deletes_unheard"]`, a key `0c2af2a6b`
-  removed; called at 11 sites. Check `topic["deletes_applied"]` instead, as
-  `test_delete_key_propagation` does.
+1. **A failed record of the delete sequence lets the delete go ahead, and
+   reopens the overflow race** (`next_delete_seq()` `timeranger2.c:4680-4708`,
+   called by `reserve_delete_seq()` ~`:4782`). On a failed
+   `replace_json_file()` it logs *"Cannot record the delete sequence"* and
+   returns the new number anyway. A follower reads `delete_seq.json` from
+   disk, not the master's memory: in that window it can list `keys/` without
+   K and still read N-1, set `applied[K]=N-1`, and take `.dN.K` for a second
+   delete — the race this round closes. On a read-only filesystem, ENOSPC,
+   EIO. *Fix:* in `reserve_delete_seq()`, refuse the delete on a failed
+   record and roll back the in-memory sequence (before the key is removed,
+   refusing costs nothing); keep "use it anyway" only for the lazy call inside
+   the mirror.
+2. **gobj-ui: a background parent re-read that fails while connected opens
+   the app-wide error modal** (`c_yui_treedb_topics.js`,
+   `ac_mt_command_answer`): the new `command === "node"` branch catches only
+   the disconnected case. A force-delete of a parent whose row is loaded
+   publishes `UNLINKED` per child; the re-read reaches the backend after the
+   delete, `cmd_get_node` answers *"Node not found"*, and every open viewer
+   gets a modal for a refresh nobody asked for. Older than `8dd3893`, but that
+   commit touched this exact branch. *Fix:* settle the entry and log a warning
+   on any failed `node` re-read; never the modal. Two related edges: an entry
+   whose answer never comes stays in `parent_rereads` for good (only a drop
+   clears it); and a late `-1` for a read cut by a drop, arriving after the
+   reconnect, deletes the NEW read's entry and shows the modal.
 
 ### Low
 
-- A signal dir left by a master crash between `mkdir` and `rmdir` (or a
-  failed `rmdir`) stays in `disks/<rt_id>/` for good; that feed never hears
-  the delete, and an overflow rescan hands `.d<seq>.<key>` to
-  `defer_key_dir_scan()` (no dot filter on that path).
-- `deletes_applied` can grow without bound when a watched feed's directory
-  cannot be written by the master (mkdir `EACCES`, logged on the master
-  only); `hear_delete_signal()` returns `DELETE_TOLD` before advancing
-  `delete_seq_heard`, and the overflow path never advances it.
-- `key_of_delete_ref()` hashes every long key of the cache for every
-  long-key signal, on every feed.
-- `yuno_skeleton/templates` falls back to `/yuneta/development/yunetas` and
-  to the installed `/yuneta/bin/yuno-skeleton` (`test_yuno_skeletons.sh:20-24`):
-  in a worktree run without `YUNETAS_BASE` (the wattyzer release flow) it
-  tests the live tree. Set `YUNETAS_BASE` from the test's own source dir and
-  fail instead of falling back. Its second run can pass without `C_SKTSVC`
-  (grep `'gclass': 'C_SKTSVC'`).
-- `emailsender/url_change_resets_pacing` window cut to 300 ms (the failing
-  case takes ~7 s): a thin margin under load.
-- No test for the MQTT will under the ACL.
-- `8f90a384e` names five nodes checked for capitals; estadodelaire's node is
-  not among them — check it if it is a host of its own.
+- **The sweep "moves out" nothing**: `sweep_left_delete_signals()`
+  (`:6925-6926`) builds `away` as `feed_path/../<name>`, and `build_path()`
+  locks its first segment as the root and drops the `..` — the signal is
+  renamed INSIDE the feed's dir. It still ends unheard (no `IN_MOVED_*` on the
+  client watch, `.stale_signal.*` fails `parse_delete_signal()`), but the
+  function header, the commit and the answer say otherwise; the test's check
+  for `.stale_signal.` in `disks/` can never fail; and if its `rmdir()` fails,
+  nothing ever sweeps `.stale_signal*` names. Build the path from `disks/`.
+- **The sweep's "last one" rests on a topic-wide `last_seq` that can be
+  wrong**: a sequence burned by a failed `rmrdir` raises it (a real last
+  leftover is then removed unheard); a failed record (medium 1) lowers it
+  (old leftovers heard late); an unreadable record (`last_seq = -1`) marks
+  every leftover heard — the hazard the sweep exists to avoid.
+- **A refusal happens only when `disks/` holds a feed**: with none,
+  `reserve_delete_seq()` returns 0 and the delete proceeds; a feed appearing
+  before the mirror runs is then not told (the lazy `next_delete_seq()`
+  fails, logged).
+- **Silent or false errors**: `readdir()` without the `errno` check in
+  `reserve_delete_seq()` (a failure reads as "no feed" and skips the
+  reservation) and in the sweep (leftovers stay, no log); the mirror's new
+  `break` after a failed `next_delete_seq()` leaves `errno` set, so a false
+  *"readdir() of disks/ FAILED"* follows.
+- **`check_master_delete_protocol()` logs an ERROR** when `delete_seq.json`
+  is missing, also for a new master that has not opened the topic yet
+  (followers started first on the upgrade boot); nothing says it cleared.
+  The CHANGELOG asks followers to stop before and start after the master,
+  but `deploying-yunos.md` calls a node-wide `upgrade-yunos` (all at once)
+  acceptable "the follower logs once": say it is an ERROR per feed, and that
+  it is expected there.
+- **`c_node.c` `kw_of_its_own()` (~5750) with `hand_files_to_record()`
+  (2532)** (latent, reviewer's trace, not proven end to end): when the
+  gbuffer was put into a record dict still nested in the caller's kw, the
+  twin is taken and freed through the treedb while the caller's dict keeps
+  `"gbuffer"` with a released pointer. Nothing reads it today; a second
+  holder that decrefs that dict would. Delete the key from the original after
+  twinning (the reference moves instead of being copied).
+- **`get_segments()` ~`:14019` clamps a resolved negative `from_tm` to
+  `total_from_tm`**, the cache's lowest tm — exact on the master in memory,
+  first/last-row approximate after a reload or on a replica: rows in
+  `[from_tm, total_from_tm)` kept on one, dropped on the other. The clamp
+  selects nothing more; remove it.
+- **The realtime half of a multi-key `tranger2_open_list()`**
+  (`:15832/15843`) gets the original `match_cond`, negative bounds
+  unresolved: a negative `from_tm` is no bound there, a negative `to_tm`
+  rejects every row — unlike a one-key list. Defensible (no single "last
+  record" for all keys), but undocumented.
+- **"The pre-v7 meaning" is overstated**: in `tr2migrate/30_timeranger.c:3343`
+  the last record was the TOPIC's, of any key; per key is a v7 choice — say
+  so in the comment and the CHANGELOG.
+- **CHANGELOG**: the intro says "three changes of behaviour" while the
+  upgrade steps list five; the tm-marker API removal and `write-attr` carry no
+  **BREAKING** tag; the C_NODE leak entry names only the will, but
+  `retain__store()` (`c_mqtt_broker.c:2588`, a retained PUBLISH with payload)
+  leaked the same way (fixed by the same change, untested).
+  `deploying-yunos.md` "Upgrading to 7.26.0" omits that a `db_history`
+  started with `from_t=-86400` now LOADS a day at start (memory, start time).
+- **Small**: `key_of_delete_ref()` rebuilds the whole index on every miss
+  (per call, not once); `key_last_record_tm()` logs a bare `file_id` as the
+  path; a microsecond race at the overflow (a key written and deleted again
+  between the follower's listing and its read keeps the key); `will_acl` steps
+  on fixed 300 ms timers without waiting for CONNACK/SUBACK, and its leak
+  check is vacuous where `CONFIG_DEBUG_TRACK_MEMORY` is off (wattyzer);
+  `expect_no_debts()` only restates prune's predicate.
 
-## Release 7.26.0: what is missing
+## Release 7.26.0: what is still missing
 
-1. **Items 1-3 above** fixed, with their tests.
-2. **CHANGELOG `## Unreleased`**: coverage is complete, but it has no intro
-   paragraph, no `### Upgrade steps (operators, read first)` (7.25.21 and
-   7.25.22 have one) and no `### Performance, against 7.25.22`. The upgrade
-   steps must gather: the tm-marker API and `mark-tm-order` removal (rollback
-   to 7.25.x needs its `mark-tm-order all=1`); the delete-signal protocol
-   (master and followers of a topic together, BOTH directions); the
-   `with_link_events` default (v1-SPA yunos set it `0` on C_TREEDB and in
-   C_AUTHZ's kw; hosts that subscribe to everything declare
-   `LINKED`/`UNLINKED`; GUIs need gobj-ui >= 7.25.26); `write-attr` now writes
-   only `SDF_WR` attrs. The tm-query cost figures disagree (~0.39 s, 0.439 →
-   0.168 s, 0.152 → 0.0145 s): one net A/B figure.
-3. **`deploying-yunos.md`**: nothing on the delete-signal protocol, the
-   `with_link_events` default or `write-attr`; only the tm-marker section.
-   `performance.md:340` still says a tm query costs ~0.39 s.
-4. **Versions**: `YUNETA_VERSION` 7.25.22 → **7.26.0**; `RELEASE` is **3**
-   → reset to **1**; CLAUDE.md's two "7.25.22" (SDK line, Useful Files).
-   Tag `7.26.0` is free.
-5. **JS packages** (the SDK minor moves): the next gobj-ui release is
-   **7.26.0** (one comment-only commit past 7.25.26 already — the JS coverage
-   guard warns about three moved files), then the submodule pointer, the
-   `^7.26.0` range in gui_agent / gui_treedb, and
-   `verify_js_api_coverage.py --repin` + `--write`. gobj-js: no code to
-   publish; its next release takes 7.26.x.
-6. **TODO.md**: pruned; only the parenthetical "(Red tests added
-   2026-10-03: …)" in §2 records shipped work — remove it.
-7. **Release rules that apply** (not LITE: kernel changes):
-   - the **two-machine suite** on the final HEAD — local under
-     `ulimit -Sn 1024` and wattyzer (its last run was on `0db20a63d`);
-   - the **performance report** (block reads, matcher, tm-marker removal,
-     delete sequence on hot paths): A/B against 7.25.22,
-     `performance/reports/7.26.0.html` + `.json`, the rows in
-     `reports/README.md`, `README.md` and `performance.md`. It must state
-     the tm query on a topic marked in 7.25.22 going from 7.4 ms to ~14.5 ms
-     (the price of the removal), and the two fsyncs per key delete on topics
-     with rt_disk feeds;
-   - at tag time: `check_doc_line_refs.py --repin=7.26.0` (1705 + 9 links
-     on 7.25.22), myst cache cleared, `deploy.sh`, live site checked; the
-     GitHub release body from the CHANGELOG without the 4-space indent.
-
-## Order
-
-Items 1, 2, 3 (high) → the `delete_seq.json` read and the protocol version →
-`expect_no_debts()` → the CHANGELOG upgrade steps and `deploying-yunos.md`
-→ the rest of the mediums and lows that fit → versions, JS packages → the
-two-machine suite → the performance report → tag.
-
-## Answer (2026-10-03, evening)
-
-Every finding was checked against the code. All the code findings were
-real except one low, and all are fixed; each fix has a test that fails on
-the code before it (checked by putting that code back), except where the
-table says otherwise. Fix round: clean SDK build with no warning or error,
-and the tests of each fix (timeranger2/, c_tranger, treedb, C_NODE, c_mqtt,
-emailsender, yuno_skeleton: all green). Full suite not run (user rule).
-
-| Item | Verdict | Done |
-|------|---------|------|
-| High 1, negative bound over several keys | Real | Each key's iterator gets `json_deep_copy(match_cond)` in `tranger2_open_list()` and C_TRANGER's `open-list`. `test_tm_order` (an rkey list of two keys, red: `D2 D3` for `D2 D3 T1 T2 T3`), `test_c_tranger` (red: 1 row for 2) |
-| High 2, a long key told to the first feed only | Real | The follower keeps `{ref: key}` (`delete_ref_keys`) while the delete is in `deletes_applied` (pruned with it), also on the master's own feeds and at an overflow (whose `/`-refs are resolved now). `odd_keys` with two feeds (red: 3 and 2) |
-| High 3, overflow during a concurrent delete | Real | `reserve_delete_seq()` takes and records the sequence BEFORE `keys/<key>` is removed; the follower lists `keys/` and reads the record AFTER. Red: `delete_seq_record` (a delete whose rmrdir fails has taken its sequence) |
-| `delete_seq.json` read failure | Real | A record without the sequence is an error; `next_delete_seq()` returns -1 and writes nothing; `tranger2_delete_key()` refuses (`-1`, logged) before removing anything. A signal at or below a feed's last one logs that the sequence went back |
-| Protocol mismatch silent | Real | The master makes `delete_seq.json` (0) at the open of a topic; a follower opening a feed on a topic without it logs an ERROR. The old-follower direction cannot be caught by code it does not have: in the CHANGELOG upgrade steps and `deploying-yunos.md` (both directions, restart order) |
-| Negative `tm` against an approximate highest tm | Real | Restored the pre-v7 meaning (`tr2migrate/30_timeranger.c`: the last record's `__tm__`): the tm of the last row of the file holding the key's highest t, read from disk; the same on master, reload and replica. `test_tm_order` key `mid` (highest tm in the middle row; red on the master in memory) |
-| gobj-ui re-read per link | Real | gobj-ui `8dd3893` (pushed, not published): re-read only a loaded parent row, one read in flight per parent, a dirty flag for the rest (a burst: 2 reads). 4 vitest cases |
-| `expect_no_debts()` always true | Real | Reads the topic now. It then failed at 5 places, and the design is right there: a delete is kept while a lagging feed (opened in flight, or overflowed) can still hear it; dropping it reopens the double delete. The check is what prune promises: nothing kept at or below what every watched feed heard, and no name kept without its delete |
-| Signal dir left by a crash / failed rmdir | Real | Swept at the master's next open of the topic: the one of the LAST delete is removed in place (the feed hears it); an older one, followed by deletes the feed heard, is moved out of the feed's dir and removed unheard, with a warning (heard late it could forget a key written again). The overflow pass skips dot names. Red: `delete_seq_record` |
-| `deletes_applied` growth | Partly | A TOLD signal now advances `delete_seq_heard`. A feed whose dir the master cannot write keeps entries until it hears a signal: bounded by the keys deleted meanwhile, and the master logs every failed signal |
-| `key_of_delete_ref()` hashing | Real | One pass builds `long_key_refs` ({ref: key}); a hit costs nothing, a miss rebuilds once |
-| `test_yuno_skeletons.sh` fallbacks | Real | `YUNETAS_BASE` is the script's own tree; no fallback to the installed binary; `'gclass': 'C_SKTSVC'` checked |
-| emailsender 300 ms | Real | 800 ms: under the 1 s of `timeout_retry` (a partial pacing still fails it) |
-| No test for the MQTT will under the ACL | Real | `c_mqtt/will_acl` (raw clients; red without the check). Its memory check found a NEW defect, see below |
-| `8f90a384e` without estadodelaire's node | **Not a defect** | estadodelaire's node is wattyzer's machine (same box, 37.187.89.46), which was checked |
-
-**Found while fixing:** `C_NODE` handed the treedb the caller's kw itself,
-and `treedb_store_files()` takes its `gbuffer` by removing the key: on a kw
-shared by `kw_incref()` the other holders then released nothing. Every MQTT
-CONNECT with a will leaked its payload (2 x 357 bytes in the test). In
-7.25.22. Fixed: a kw with a binary field reaches the treedb as a `kw_twin()`.
-
-**Release texts:** CHANGELOG `## Unreleased` has its intro and
-`### Upgrade steps`; the bullets this round changed are corrected in place;
-the tm-marker cost now says ~14.5 ms (7.4 ms on a marked topic of
-7.25.22). `deploying-yunos.md` has "Upgrading to 7.26.0" (protocol, link
-events, write-attr, with the code estadodelaire uses); `performance.md`,
-`benchmarks.md`, the timeranger2 API page and README, `test_suite.md`
-updated; TODO §2's parenthetical removed.
-
-**Left for the release itself (not done):** `### Performance, against
-7.25.22` and the report (A/B), versions (`YUNETA_VERSION` 7.26.0, `RELEASE`
-1, CLAUDE.md), gobj-ui 7.26.0 on npm + the ranges + the JS repin, the
-two-machine suite, the tag and the doc repin.
+1. Medium 1 (it is the race of this cycle's protocol); medium 2 can ride
+   gobj-ui 7.26.0.
+2. `### Performance, against 7.25.22` and the report (A/B, `.html` + `.json`,
+   the rows in `reports/README.md`, `README.md`, `performance.md`), stating
+   the tm query on a topic marked in 7.25.22 going 7.4 → ~14.5 ms and the
+   fsyncs per key delete on topics with feeds.
+3. `YUNETA_VERSION` 7.26.0, `RELEASE` **1** (it is 3), CLAUDE.md's
+   "7.25.22".
+4. gobj-ui 7.26.0 on npm (`8dd3893` is pushed, not published), the pointer,
+   `^7.26.0` in gui_agent / gui_treedb, `verify_js_api_coverage.py --repin` +
+   `--write`.
+5. The two-machine suite on the final HEAD.
+6. At tag time: `check_doc_line_refs.py --repin=7.26.0`, myst cache cleared,
+   `deploy.sh`, live site checked; the release body from the CHANGELOG.
