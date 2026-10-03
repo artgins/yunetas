@@ -3,7 +3,7 @@
  *              Yuneta
  *
  *              Copyright (c) 2014-2023 Niyamaka.
- *              Copyright (c) 2024, ArtGins.
+ *              Copyright (c) 2024-2026, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #include <unistd.h>
@@ -36,11 +36,18 @@ PUBLIC int register_yuneta_environment(
     __xpermission__ = xpermission;
     __rpermission__ = rpermission;
 
+    /*
+     *  Kept as given. The agent builds a yuno's directory as its realm and
+     *  its role are written (build_yuno_private_domain()), and keeps its
+     *  bin/ there; the yuno must use that same path. Up to 7.25.22 both
+     *  were lowercased here, silently: a capital in a realm's owner, name,
+     *  role or env, or in the yuno's role or id, gave the yuno a sibling
+     *  directory for its logs, data and temp/ that the agent never looked
+     *  in. (Checked 2026-10-03: no node had a capital under /yuneta/realms,
+     *  so no directory was split.)
+     */
     snprintf(__root_dir__, sizeof(__root_dir__), "%s", root_dir?root_dir:"");
     snprintf(__domain_dir__, sizeof(__domain_dir__), "%s", domain_dir?domain_dir:"");
-
-    strntolower(__root_dir__, strlen(__root_dir__));
-    strntolower(__domain_dir__, strlen(__domain_dir__));
 
     return 0;
 }

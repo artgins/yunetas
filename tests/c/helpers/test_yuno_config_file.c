@@ -481,6 +481,23 @@ int main(int argc, char *argv[])
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
     /*
+     *  The yuno's paths keep the case the agent built them with: up to
+     *  7.25.22 register_yuneta_environment() lowercased them, and a capital
+     *  in a realm or a role gave the yuno a sibling directory the agent
+     *  never looked in
+     */
+    register_yuneta_environment(
+        "/tmp/Yuneta", "realms/Artgins/CentralNorte.gate.prod/Gate^ID1", 02775, 0664
+    );
+    check(strcmp(yuneta_root_dir(), "/tmp/Yuneta") == 0, "the root dir keeps its case");
+    check(strcmp(yuneta_domain_dir(), "realms/Artgins/CentralNorte.gate.prod/Gate^ID1") == 0,
+        "the domain dir keeps its case");
+    char realm_logs[PATH_MAX];
+    yuneta_realm_dir(realm_logs, sizeof(realm_logs), "logs", FALSE);
+    check(strcmp(realm_logs, "/tmp/Yuneta/realms/Artgins/CentralNorte.gate.prod/Gate^ID1/logs") == 0,
+        "a realm dir keeps the case of its domain");
+
+    /*
      *  The environment of a yuno as entry_point.c registers it by default
      */
     register_yuneta_environment(BASE, "", 02775, 0664);

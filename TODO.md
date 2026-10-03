@@ -127,10 +127,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   control center, not even there). **Decide**: an agent-to-yuno "session
   ended" notification, and a rule for when several sessions of one user are
   one owner.
-- **`register_yuneta_environment()` lowercases `root_dir` and `domain_dir`**
-  and says nothing (`yunetas_environment.c` ~42): a `work_dir` with capitals
-  is written under another path. Dates from 2023 and looks deliberate.
-  **Decide** whether it stays; if it does, make it say so.
 - **C_NODE: every link collapses the WHOLE parent, O(children) per link.**
   Without `with_link_events` (the default), `_link_nodes()` publishes the
   parent's `EV_TREEDB_NODE_UPDATED`, and `treedb_callback()` answers it with

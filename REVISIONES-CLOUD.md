@@ -17,13 +17,13 @@ a round of fixes, user rule of 2026-10-03).
 | CLI role collision | `yunetas build` ends with a red WARNING per yuno role installed in `outputs/yunos` by more than one build (each tree's `install_manifest.txt`); yunetas CLI 0.20.4 on PyPI (tui_yunetas `b141926`), submodule bumped. A warning, NOT a refusal: on the dev machine it names six roles today (`db_history`, `db_tracks`, `gate_auraair`, `gate_enchufe`, `gate_mqtts`: estadodelaire AND hidraulia; `gate_caudal`: hidraulia AND yunovatios), and a refusal would stop every build there -- the user's call (TODO) | `tests/test_yuno_role_collisions.py` (3 cases), and the check run on the real registry |
 | MQTT will | `will__send()` asks `mqtt_acl_check(..., "write")` when it sends the will; a refused one is not published, with a warning | No test of its own (a client with a will, a subscriber of its topic and an unclean end are not staged); `c_mqtt/*` 9/9 relinked |
 | MQTT `client_id` <-> user | Checked: no binding (the `clients` topic has no user link, CONNECT compares nothing). Said in the `enable_acl` description, `mqtt_broker.md` (a warning with an example) and TODO, as part of the model decision. Not built: the binding is the next cycle's model | -- |
+| Lowercased `domain_dir` | The nodes checked first (`find /yuneta/realms -maxdepth 3 -name '*[A-Z]*'` on artgins, hidraulia, wattyzer and both yunovatios nodes: none; the agent's `dir-realms` could answer it too), then `register_yuneta_environment()` keeps `root_dir` / `domain_dir` as given | `test_yuno_config_file`: a mixed-case root and domain kept, and a realm dir built from them (red on `461719e38`: all three lowercased) |
 | `test_secret_attrs` no-fallocate | `deny_syscall()` exits 2 when the filter cannot be installed | The test passes |
 | `do_test_reborn_behind_overflow()` | The churn count computed without wrapping, none when the room was not made: fails instead of hanging | The test passes |
 
 Not done, and why: `with_link_events` on in yunovatios (that project's
 configuration and its nodes: for the user to decide and deploy); the
-lowercased `domain_dir` (its first step is a check of the nodes, before the
-next agent-facing change); the next-cycle items; section 2 (`tm` markers), a
+next-cycle items; section 2 (`tm` markers), a
 decision for the next cycle.
 
 ## 1. Open defects of TODO.md

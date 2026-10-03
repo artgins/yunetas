@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **A yuno keeps the case of its directory.** `register_yuneta_environment()`
+  lowercased the `root_dir` and `domain_dir` it was given, silently, while
+  the agent builds a yuno's directory as its realm and role are written and
+  keeps its `bin/` there: a capital in a realm's owner, name, role or env,
+  or in a yuno's role or id, gave the yuno a sibling directory for its
+  logs, data and `temp/` that the agent's commands never looked in. They
+  are kept as given. No node had a capital under `/yuneta/realms`
+  (checked 2026-10-03), so no directory was split.
+
 - **MQTT broker: the will message obeys the ACL.** `will__send()` published
   it with no check, so with `enable_acl` on a client could publish, as its
   will, to a topic its groups refused. It is asked like any publish when
