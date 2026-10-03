@@ -4727,25 +4727,6 @@ PRIVATE json_int_t next_delete_seq(hgobj gobj, json_t *tranger, json_t *topic, B
 }
 
 /***************************************************************************
- *  MASTER: a delete reserved `seq` (reserve_delete_seq()) and was not
- *  made: the number is given back, if no other was taken after it, so the
- *  record's number is always that of the last delete signalled -- which
- *  the sweep of the signals left at an open relies on
- *  (sweep_left_delete_signals()). A record that cannot be written leaves a
- *  gap (logged), harmless to the followers.
- ***************************************************************************/
-PRIVATE void give_back_delete_seq(hgobj gobj, json_t *tranger, json_t *topic, json_int_t seq)
-{
-    if(seq <= 0 || json_integer_value(json_object_get(topic, "delete_seq")) != seq) {
-        return;
-    }
-    if(record_delete_seq(gobj, tranger, topic, seq - 1) < 0) {
-        return; // Error already logged; the gap stays
-    }
-    json_object_set_new(topic, "delete_seq", json_integer(seq - 1));
-}
-
-/***************************************************************************
  *  MASTER, at the open of a topic: the record of the delete sequence made
  *  when there is none (a topic of 7.25.22 or older, or a new
  *  one). The record is what a follower takes as the sign that the master
@@ -5242,8 +5223,13 @@ PUBLIC int tranger2_delete_key(
                 JSON_DECREF(key_cache)
                 json_object_del(topic_cache, key);
             }
+            /*
+             *  The sequence taken stays taken: a gap the followers do not
+             *  mind. Given back, the next delete would reuse a number a
+             *  follower may have read at an overflow meanwhile, and take
+             *  that delete for one it was told
+             */
             retake_segments_of_key(gobj, tranger, topic, key);
-            give_back_delete_seq(gobj, tranger, topic, delete_seq);
             return -1;
         }
     } else {
@@ -6943,8 +6929,8 @@ PRIVATE BOOL find_rt_disk_cb(
  *  directory of a feed (the master died between their mkdir() and rmdir(),
  *  or the rmdir() failed).
  *
- *  The one of the LAST delete (its sequence is the record's, nothing was
- *  deleted after it) is removed in place: the feed hears it now, as it
+ *  The one of the LAST delete (its sequence is the record's, no number was
+ *  taken after it) is removed in place: the feed hears it now, as it
  *  would have. An older one was followed by other deletes the feed heard:
  *  told now, after them, it could take out of the cache a key written
  *  again since. It is moved out of the feed's directory (into disks/,
@@ -6999,11 +6985,12 @@ PRIVATE void sweep_left_delete_signals(hgobj gobj, json_t *topic, const char *fe
     closedir(dir);
 
     /*
-     *  The record names the last delete signalled: a sequence taken for a
-     *  delete that was not made is given back (give_back_delete_seq()), and
-     *  one that cannot be recorded refuses the delete. Unknown (the record
-     *  cannot be read): no leftover is told -- a delete missed is logged,
-     *  a delete told late can forget a key written again
+     *  The record names the last delete taken, mostly the last signalled:
+     *  a delete that could not remove its key leaves its number taken (a
+     *  gap), and then a leftover of the delete before it is taken for an
+     *  old one -- removed unheard, and said. Unknown (the record cannot be
+     *  read): no leftover is told -- a delete missed is logged, a delete
+     *  told late can forget a key written again
      */
     json_int_t last_seq = read_delete_seq(gobj, topic);    // -1: unknown, logged
     char disks_dir[PATH_MAX];
@@ -7020,7 +7007,8 @@ PRIVATE void sweep_left_delete_signals(hgobj gobj, json_t *topic, const char *fe
         if(!heard) {
             char away[PATH_MAX];
             char away_name[NAME_MAX];
-            snprintf(away_name, sizeof(away_name), ".stale_signal.%d.%d", (int)getpid(), idx);
+            static unsigned stale_seq = 0;
+            snprintf(away_name, sizeof(away_name), ".stale_signal.%d.%u", (int)getpid(), ++stale_seq);
             build_path(away, sizeof(away), disks_dir, away_name, NULL);  // out of the watched directory
             if(rename(path, away) < 0) {
                 gobj_log_error(gobj, 0,

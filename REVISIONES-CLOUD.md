@@ -111,3 +111,19 @@ two-machine suite, doc repin).
 5. The two-machine suite on the final HEAD.
 6. At tag time: `check_doc_line_refs.py --repin=7.26.0`, myst cache cleared,
    `deploy.sh`, live site checked; the release body from the CHANGELOG.
+
+## Answer (2026-10-03, late night)
+
+| Item | Done |
+|------|------|
+| Medium 1, a given-back number reused | **Real.** `give_back_delete_seq()` is gone: a delete whose `rmrdir()` fails keeps its number taken (a gap, harmless). The sweep's "last" is then the last number TAKEN: a leftover of the delete before a failed one is removed unheard, and said (a double failure: a master death in a mirror, then a failed remove before the next open). Red: `delete_seq_record` (record 0 after the failed delete and the next delete reusing 1, on 71ca430e6) |
+| `cmd_create_node` kw_incref/json_decref; `json_copy()` | `json_incref()` paired with `json_decref()`; `hand_files_to_record()` copies with `kw_twin()` (a binary field of the record is increfed), and drops that twin reference when the kw's door replaces it. No red test: with the sender releasing its own reference the counts end the same both ways (the stray +1 cancelled the missing one); it is the pairing that was wrong |
+| No root guard | `do_test_delete_seq_record` skips as root, as `rmrdir_fails_filtered` does |
+| Deletes refused when the record cannot be written | One paragraph in `deploying-yunos.md` ("Upgrading to 7.26.0"): the log line, and what to do |
+| `.stale_signal` names | A process-wide counter, not the index of one feed's walk |
+| `key_of_delete_ref()` miss walks the cache | Accepted: a `strlen()` per key, no hashing |
+| `will_acl` `parse_rx` | A packet longer than its buffer is logged as an error (fails the test) |
+
+Every test binary relinked; the tests of timeranger2, c_tranger, C_NODE,
+c_assets, c_mqtt, treedb and c_authz pass (80/80). SDK build clean. Full
+suite not run (fix round). Release work: unchanged.

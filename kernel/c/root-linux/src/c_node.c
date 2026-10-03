@@ -2523,7 +2523,8 @@ PRIVATE gbuffer_t *take_files_gbuffer(hgobj gobj, json_t *kw)
  *  record's write path (treedb_store_files) consumes them, so hand it the
  *  binary field and who uploads.
  *
- *  Return a record of its OWN (its top level copied, the values shared),
+ *  Return a record of its OWN (its top level copied, the values shared, a
+ *  binary field increfed: kw_twin()),
  *  to be handed owned to gobj_create_node()/gobj_update_node(): `record`
  *  is the kw's own "record" -- held by the kw too -- and the binary field
  *  must not be put where another holder keeps it after the treedb took it
@@ -2548,18 +2549,20 @@ PRIVATE json_t *hand_files_to_record(hgobj gobj, json_t *kw, json_t *record, gbu
         GBUFFER_DECREF(gbuf)
         return NULL;
     }
-    json_t *own = json_copy(record);
+    json_t *own = kw_twin(gobj, record);    // a binary field the record carries is increfed
     if(!own) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY,
-            "msg",          "%s", "json_copy() FAILED, the bytes are DROPPED",
-            NULL
-        );
-        GBUFFER_DECREF(gbuf)
+        GBUFFER_DECREF(gbuf)    // Error already logged, the bytes are DROPPED
         return NULL;
     }
     if(gbuf) {
+        /*
+         *  The kw's door wins over a binary field put in the record itself:
+         *  the twin's reference to that one is dropped as it is replaced
+         */
+        gbuffer_t *in_record = (gbuffer_t *)(uintptr_t)json_integer_value(
+            json_object_get(own, "gbuffer")
+        );
+        GBUFFER_DECREF(in_record)
         json_object_set_new(own, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));
     }
     if(json_object_get(own, "__files__")) {
@@ -2778,7 +2781,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     if(!jn_content) {
-        jn_content = kw_incref(kw_get_dict(gobj, kw, "record", 0, 0));
+        jn_content = json_incref(kw_get_dict(gobj, kw, "record", 0, 0));  // paired with json_decref()
     } else {
         // To authz
         json_object_set(kw, "record", jn_content);

@@ -362,6 +362,19 @@ PRIVATE void parse_rx(hgobj gobj, client_t cl)
         uint8_t first = p[0];
         uint8_t packet[256];
         uint32_t len = remaining < sizeof(packet)? remaining : (uint32_t)sizeof(packet);
+        if(len < remaining) {
+            /*
+             *  No packet of this test is that long: one that is breaks
+             *  what on_packet() reads, and is said
+             */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: a packet longer than the parse buffer, truncated",
+                "remaining",    "%d", (int)remaining,
+                NULL
+            );
+        }
         memcpy(packet, p + hdr, len);
         gbuffer_get(rx, hdr + remaining);
         on_packet(gobj, cl, first, packet, len);

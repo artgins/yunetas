@@ -117,8 +117,9 @@ before it unless the entry says otherwise.
   (logged) before anything is removed and is left as it is (written late,
   a follower that read it in between would bound the key one below its
   delete), and a sequence taken for a delete that could not remove its
-  key is given back, so the record always names the last delete
-  signalled. A follower that hears a signal below its last one logs that
+  key stays taken -- a gap, which the followers do not mind (given back,
+  a follower that read it at an overflow would take the next delete for
+  one it was told). A follower that hears a signal below its last one logs that
   the sequence went back; one that opens a feed on a topic with no record
   logs an ERROR, and an info when the feed hears its first signal after
   all. A signal the master made and could not remove (it died in between,
@@ -139,7 +140,13 @@ before it unless the entry says otherwise.
   `second_delete_in_doubt` (red on the previous code: `[DEL DEL]` after
   the overflow), `odd_keys` (a `#` key, a key too long for the name, and
   `#<its hash>`, heard by two feeds: each delete forgets its own key, and
-  each feed is told the three), `delete_seq_record` (the record made at the open, read from inside the `rmdir()` of the key to show it was written BEFORE the key left `keys/`, given back by a delete whose `rmrdir()` fails, a record that cannot be written or read refusing the delete, a left signal heard at the master's next open and an older one removed unheard, a follower with no record saying so); the white-box checks of the old debts became
+  each feed is told the three), `delete_seq_record` (the record made at
+  the open, read from inside the `rmdir()` of the key to show it was
+  written BEFORE the key left `keys/`, kept taken by a delete whose
+  `rmrdir()` fails (never given back), a record that cannot be written or
+  read refusing the delete, a left signal heard at the master's next open
+  and an older one removed unheard, a follower with no record saying so);
+  the white-box checks of the old debts became
   "nothing of the deletes kept once every feed heard them" (in
   `test_rt_disk_overflow`: nothing kept below what every feed heard), and
   `stale_debt_reborn` (a debt put there by hand) went with the debts.

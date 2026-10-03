@@ -450,6 +450,12 @@ that ERROR is expected there. When the feed hears its first delete after all,
 the follower says so (*"The master signals key deletes as this follower hears
 them"*). On another node, upgrade it right after the master's.
 
+A key delete on a topic with rt_disk followers writes `delete_seq.json` before
+it removes anything, and is refused when it cannot: on a full disk, a
+read-only filesystem or with no file descriptor left, a treedb `delete-node`
+answers `-1` with *"Cannot delete key: the delete sequence of the topic cannot
+be read or recorded"* in the log. Free the disk and repeat the delete.
+
 **2. `with_link_events` is on by default** (`C_NODE`, `C_TREEDB`, `C_AUTHZ`):
 a link or an unlink publishes `EV_TREEDB_NODE_LINKED` / `UNLINKED`, not the
 parent's `EV_TREEDB_NODE_UPDATED`. A yuno served by a v1 SPA (it reads the

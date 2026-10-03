@@ -60,8 +60,8 @@
  *      - do_test_delete_seq_record: the record of the master's delete
  *        sequence (`<topic>/delete_seq.json`): made at the open, the
  *        sequence taken before the key leaves keys/ (a delete whose rmrdir()
- *        fails has taken it), a signal the master could not remove heard at
- *        its next open (an older one, followed by other deletes, removed
+ *        fails has taken it, and keeps it: never given back), a signal the
+ *        master could not remove heard at its next open (an older one, followed by other deletes, removed
  *        unheard), an unreadable record refusing the delete and left as
  *        it is, a follower with no record saying that it hears no delete.
  *      - do_test_second_delete_in_doubt: a feed opened in flight that never
@@ -2941,7 +2941,9 @@ PRIVATE int do_test_second_delete_in_doubt(void)
  *      - the sequence is taken BEFORE the key leaves keys/: a delete whose
  *        rmrdir() fails has taken it (a follower that lists keys/ at an
  *        overflow and reads the sequence after bounds every missing key
- *        at or above its delete);
+ *        at or above its delete), and never gives it back (the next
+ *        delete would reuse a number a follower may hold);
+ *      - a record that cannot be written refuses the delete;
  *      - a signal the master made and could not remove is removed at its
  *        next open: the feed hears it if it was the last delete, and an
  *        older one is moved away unheard (deletes followed it);
@@ -3000,6 +3002,10 @@ PRIVATE int expect_seq_record(const char *what, const char *path_topic, json_int
 PRIVATE int do_test_delete_seq_record(void)
 {
     int result = 0;
+    if(geteuid() == 0) {
+        printf("  delete_seq_record: skipped as root (its refusals are made by modes root ignores)\n");
+        return 0;
+    }
     char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
     build_paths(path_root, sizeof(path_root),
                 path_database, sizeof(path_database),
@@ -3041,11 +3047,12 @@ PRIVATE int do_test_delete_seq_record(void)
     result += test_json(NULL);
 
     /*
-     *  A delete that cannot remove its key gives its sequence back: the
-     *  record names the last delete signalled
+     *  A delete that cannot remove its key keeps its sequence taken (a
+     *  gap): given back, the next delete would reuse a number a follower
+     *  may have read at an overflow meanwhile
      */
     set_expected_results_unordered(
-        "delete_seq: a delete whose rmrdir() fails gives its sequence back",
+        "delete_seq: a delete whose rmrdir() fails keeps its sequence taken",
         json_pack("[{s:s},{s:s}]",
             "msg", "remove() FAILED",
             "msg", "Cannot delete subdir key. rmrdir() FAILED"
@@ -3067,7 +3074,7 @@ PRIVATE int do_test_delete_seq_record(void)
         result += -1;
     }
     drain(30);
-    result += expect_seq_record("given back by a failed delete", path_topic, 0);
+    result += expect_seq_record("kept taken by a failed delete", path_topic, 1);
     if(deleted_callback_count != 0) {
         printf("%sERROR%s --> delete_seq: a failed delete was told\n", On_Red BWhite, Color_Off);
         result += -1;
@@ -3086,12 +3093,12 @@ PRIVATE int do_test_delete_seq_record(void)
     rmdir_hook = NULL;
     seq_watch_key_dir[0] = 0;
     drain(30);
-    if(seq_seen_at_remove != 1) {
-        printf("%sERROR%s --> delete_seq: the record read when the key left keys/: %lld, expected 1\n",
+    if(seq_seen_at_remove != 2) {
+        printf("%sERROR%s --> delete_seq: the record read when the key left keys/: %lld, expected 2 (1 is taken)\n",
             On_Red BWhite, Color_Off, (long long)seq_seen_at_remove);
         result += -1;
     }
-    result += expect_seq_record("the delete done", path_topic, 1);
+    result += expect_seq_record("the delete done, a number never reused", path_topic, 2);
     if(deleted_callback_count != 1) {
         printf("%sERROR%s --> delete_seq: the delete told %zu times, expected 1\n",
             On_Red BWhite, Color_Off, deleted_callback_count);
