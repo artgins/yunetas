@@ -1735,9 +1735,11 @@ PRIVATE void check_persistent_file(void)
     foreign_ino = 0;
 
     /*
-     *  A yuno as root is played by __wrap_geteuid(): the test itself never
-     *  runs as root (the entry point refuses a user that is not yuneta or
-     *  of its group), so the yuno's user here is never root
+     *  A yuno as root is played by __wrap_geteuid(). The test itself runs
+     *  as root only if root is in group yuneta (the entry point refuses any
+     *  other user that is not yuneta): then the yuno's user here is root,
+     *  whose files are trusted anyway, and the cases of the chain that
+     *  expect a file to be loaded tell nothing
      */
     check_root_trust_chain(holder, path);
 

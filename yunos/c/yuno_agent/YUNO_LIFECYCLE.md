@@ -882,14 +882,38 @@ running", grep the agent log for `does NOT move forward` before anything else.
 
   - **Node-wide restart.** `restart_nodes()` sends SIGKILL to every running
   yuno on the node, not only to the one that you upgrade. It relaunches them
-  once every process it killed is gone (looked at every 100 ms, 10 s at
-  most, then *"yunos killed for the restart still alive after 10 s: those
-  are not launched again"* with their pids, and each one said *"yuno alive
-  but not connected to the agent: not launched again"*): a SIGKILL is
-  delivered, not done, and up to 7.25.21 the relaunch ran at once -- a new
-  instance could meet the old one's exclusive resources, or find it alive
-  and not launch. In 7.25.22 the ones still alive at 10 s were relaunched
-  anyway: a yuno stuck in a disk wait got a second instance. This is
+  once every process it killed is gone, looked at every 100 ms for 10 s: a
+  SIGKILL is delivered, not done, and up to 7.25.21 the relaunch ran at once
+  -- a new instance could meet the old one's exclusive resources, or find it
+  alive and not launch. In 7.25.22 the ones still alive at 10 s were
+  relaunched anyway: a yuno stuck in a disk wait got a second instance.
+
+  Now the ones still alive at 10 s are **spared**: the rest are launched,
+  the agent says *"yunos killed for the restart still alive after 10 s:
+  each one launched when it is gone"* with `{yuno_id: [pids]}`, and for 5
+  minutes it looks at them every second. A spared yuno is launched when it
+  is gone -- every pid killed gone (a task in D state is alive) AND no
+  process running the yuno (its role and configuration). The window closes
+  with *"yunos spared by the restart: none left to wait for"*; at its end
+  the yunos are asked once more without their pids (a pid reused by another
+  process), and the ones still alive are said: *"still alive after 5
+  minutes: not launched, run-yuno once they are gone"*.
+
+  The operator outranks the restart. A yuno stopped with `kill-yuno` or
+  disabled while it runs is not launched by it: in the first 10 s it is
+  held apart (its pids are still waited for), in the window it leaves it.
+  `enable-yuno` gives it back to the restart; a `run-yuno` that launches a
+  spared yuno takes it out of the window.
+
+  ```bash
+  ycommand -c 'deactivate-snap'          # node bounce; one yuno stuck in a disk wait
+  # agent log: "... still alive after 10 s: each one launched when it is gone"
+  ycommand -c 'kill-yuno id=2120'        # the operator: leave it down
+  # 2120's old process dies: the window does not launch it
+  ycommand -c 'run-yuno id=2120'         # when wanted again
+  ```
+
+  This is
   acceptable for kernel-yuno rotations (`auth_bff`, `emailsender`,
   `logcenter`). On a realm with many citizen yunos, tell the team before
   you do it during a busy window. (The version-promotion half of the old

@@ -28,7 +28,11 @@
   and in the pass after an overflow, not taken for the end. And the first
   walk of a recursive watch takes hidden directories too, as `IN_CREATE`
   and the pass always did: a `.name` there before the watch was never
-  heard. The
+  heard. **For `C_FS` and the watch utilities with `recursive`**: a tree
+  that already holds a `.git` or a cache now takes inotify watches, and
+  events, for all of it at the start. The pass after an overflow no longer
+  follows a symlink to a directory (the first walk and the re-watch never
+  did), and a failed `fstatat()` there is said. The
   half-of-the-open-files warning has a hysteresis (said again only after
   the count fell under 40%, not on every swing around the half), and an
   unparsable `max_queued_events` is said, as an unreadable one was.
@@ -95,7 +99,10 @@
   alive) AND no process left running the yuno (its role and configuration:
   a task that lost its command line while it still holds its files is not
   taken for gone). Only those are launched, and a spared yuno the operator
-  stops (`kill-yuno`), disables or launches meanwhile leaves the window.
+  stops (`kill-yuno`), disables or launches meanwhile leaves the window; one
+  stopped or disabled in the first 10 s is held apart, not run by the
+  relaunch (`enable-yuno` gives it back). At the window's end the yunos are
+  asked once without their pids, so a reused pid does not keep one down.
 - **Agent: `kill-yuno` of a yuno found only by the scan says it is not
   waited for.** Such a yuno is signalled and the answer comes at once; a
   `run-yuno` sent before it is gone finds it alive and does not launch it.

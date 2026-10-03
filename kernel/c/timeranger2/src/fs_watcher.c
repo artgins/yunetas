@@ -1923,9 +1923,27 @@ PRIVATE void push_subdirectories(fs_event_t *fs_event, const char *path, json_t 
         if(!build_path(child, sizeof(child), path, de->d_name, NULL)) {
             continue;   // Error already logged
         }
+        /*
+         *  A symlink is not followed, as the first walk (lstat) and the
+         *  re-watch do not: up to 7.25.22 is_directory() (stat) followed it
+         *  here, and a failure was "not a directory" without a word
+         */
         BOOL is_dir = (de->d_type == DT_DIR)? TRUE: FALSE;
         if(de->d_type == DT_UNKNOWN) {
-            is_dir = is_directory(child);
+            struct stat st;
+            if(fstatat(dirfd(dir), de->d_name, &st, AT_SYMLINK_NOFOLLOW) == 0) {
+                is_dir = S_ISDIR(st.st_mode)? TRUE : FALSE;
+            } else if(errno != ENOENT) {
+                gobj_log_error(fs_event->gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "fstatat() FAILED: not known if it is a directory, not visited by the pass",
+                    "path",         "%s", child,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+            }   // ENOENT: gone meanwhile
         }
         if(!is_dir) {
             continue;
