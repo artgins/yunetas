@@ -432,8 +432,10 @@ When the master calls `tranger2_delete_key()`:
    BEFORE `keys/<key>/` is removed (when the topic has a feed): a follower
    that lists `keys/` at an overflow and reads the record after bounds each
    missing key at or above its delete. The master makes the record (0) when
-   it opens a topic that has none; a record it cannot read refuses the
-   delete (`-1`, logged) and is left as it is. A signal the master could
+   it opens a topic that has none; a record it cannot read or write refuses
+   the delete (`-1`, logged) before anything is removed, and is left as it
+   is; a sequence taken by a delete that could not remove its key is given
+   back, so the record names the last delete signalled. A signal the master could
    not remove (it died in between, or the `rmdir()` failed) is removed at
    its next open of the topic: the feed hears it if it was the last delete;
    an older one (deletes followed it) is moved out of the feed's directory

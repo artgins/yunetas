@@ -443,9 +443,12 @@ them: it is older than 7.26.0, or has not opened the topic since its upgrade.
 The followers are the readers of another yuno's store: replica yunos,
 `tr2list --follow`, the lists of a `C_TRANGER` that is not the master. Upgrade
 them in the same window as the master. On one node `yunetas upgrade-yunos`
-restarts every yuno at once; a follower that starts before its master opened
-the topic logs the line above ONCE (the master makes the record when it opens
-the topic, and it stays). On another node, upgrade it right after the master's.
+restarts every yuno at once, and a follower that starts before its master
+opened the topic logs the line above as an ERROR, once per feed, on that first
+boot only (the master makes the record when it opens the topic, and it stays):
+that ERROR is expected there. When the feed hears its first delete after all,
+the follower says so (*"The master signals key deletes as this follower hears
+them"*). On another node, upgrade it right after the master's.
 
 **2. `with_link_events` is on by default** (`C_NODE`, `C_TREEDB`, `C_AUTHZ`):
 a link or an unlink publishes `EV_TREEDB_NODE_LINKED` / `UNLINKED`, not the
@@ -483,7 +486,13 @@ A gobj that subscribes to EVERY event of a treedb service now gets the two
 events too: declare them in its FSM, or subscribe only the ones it handles. A
 GUI that shows the hooks of a parent needs gobj-ui 7.25.26 or later.
 
-**3. `write-attr` writes only `SDF_WR` attributes.** A persistent attribute
+**3. A negative `from_t` selects rows again.** Since v7 a negative bound
+matched nothing. A yuno that opens its history with `from_t=-86400` (the
+`db_history` yunos of hidraulia, estadodelaire and wattyzer) now LOADS the last
+day of each key at its start: expect that memory and that start time on the
+first boot.
+
+**4. `write-attr` writes only `SDF_WR` attributes.** A persistent attribute
 without `SDF_WR` answers *"attr not writable"*. A script that set one at run
 time puts it in the yuno's config (`yunos/batches/<host>/<yuno>.json`), or uses
 the attribute's own command (`set-max-sessions`, `set-email-user`, ...).

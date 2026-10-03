@@ -14,10 +14,19 @@ with a will to `forbidden/will` and goes away with no DISCONNECT: the broker
 must refuse the will (the WARNING *"Will message refused by the ACL: not
 published"*) and `will_sub` must get nothing. `will_ok` does the same with a
 will to `allowed/will`, which `will_sub` must get. Up to 7.25.22 the will
-bypassed the ACL (red: `will_sub` got the will to `forbidden/will`). The memory
-check at the end caught a second defect: each CONNECT with a will leaked its
+bypassed the ACL (red: `will_sub` got the will to `forbidden/will`). Then
+`will_ret` publishes a RETAINED message with a payload (QoS 1), and `will_late`
+subscribes it afterwards: it must get it flagged retained, with its payload.
+Each step waits for the packet it depends on (CONNACK, SUBACK, PUBACK, the
+PUBLISH the subscriber gets); the timer is only a guard that names the step
+that did not come. The memory check at the end caught a second defect: each
+CONNECT with a will, and each retained PUBLISH with a payload, leaked its
 payload (`C_NODE` handed the treedb the event's shared kw, whose `gbuffer` the
-treedb takes; red: 2 x 357 bytes not freed).
+treedb takes; red: 3 x 357 bytes not freed).
+
+The leak checks of these tests (*"system memory not free"* at the end) work
+only in a build with `CONFIG_DEBUG_TRACK_MEMORY`; where it is off (the nodes'
+builds, wattyzer's release run) they pass whatever leaks.
 
 `test_mqtt_queued_in` (`main_queued_in.c` + `c_queued_in.c`) uses a RAW client
 (a `C_TCP` that writes MQTT 3.1.1 packets by hand). Session 1 (clean session 0)

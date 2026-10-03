@@ -2,14 +2,15 @@
 
 ## Unreleased
 
-What changed after 7.25.22: three changes of behaviour -- a key delete
-signalled to the rt_disk followers with the master's sequence (a protocol
-change between master and followers), `with_link_events` on by default, and
-the tm markers of timeranger2 removed -- the md2 rows read in blocks and the
-match condition parsed once per scan, a negative t/tm bound relative to the
-key's last record again, `write-attr` limited to `SDF_WR` attributes, and the
-defects of four reviews and of TODO.md, each with a test that fails on the
-code before it unless the entry says otherwise.
+What changed after 7.25.22: five changes an operator or a developer has to
+know about (each in the upgrade steps below) -- a key delete signalled to the
+rt_disk followers with the master's sequence (a protocol change between
+master and followers), `with_link_events` on by default, the tm markers of
+timeranger2 removed (an API removal), `write-attr` limited to `SDF_WR`
+attributes, and a negative t/tm bound that selects rows again -- the md2 rows
+read in blocks and the match condition parsed once per scan, and the defects
+of five reviews and of TODO.md, each with a test that fails on the code
+before it unless the entry says otherwise.
 
 ### Upgrade steps (operators, read first)
 
@@ -112,13 +113,20 @@ code before it unless the entry says otherwise.
   heard) is told by its signal. What every feed heard is pruned, so the
   follower keeps no more than the deletes some feed may still hear. The
   master makes `delete_seq.json` (0) when it opens a topic that has none;
-  a record it cannot read refuses the key delete (logged) and is left as
-  it is, and a follower that hears a signal below its last one logs that
-  the sequence went back. A signal the master made and could not remove
-  (it died in between, or the `rmdir()` failed) is removed at its next
-  open of the topic: the feed hears it then if it was the last delete; an
-  older one, followed by deletes the feed heard, is moved away unheard and
-  said (told late, it could take a key written again out of the cache). **Upgrade master and
+  a record it cannot read, or cannot WRITE, refuses the key delete
+  (logged) before anything is removed and is left as it is (written late,
+  a follower that read it in between would bound the key one below its
+  delete), and a sequence taken for a delete that could not remove its
+  key is given back, so the record always names the last delete
+  signalled. A follower that hears a signal below its last one logs that
+  the sequence went back; one that opens a feed on a topic with no record
+  logs an ERROR, and an info when the feed hears its first signal after
+  all. A signal the master made and could not remove (it died in between,
+  or the `rmdir()` failed) is removed at its next open of the topic: the
+  feed hears it then if it was the last delete; an older one, followed by
+  deletes the feed heard, is moved out of the feed's directory and removed
+  unheard, said (told late, it could take a key written again out of the
+  cache), and so is every leftover while the record cannot be read. **Upgrade master and
   followers of a topic together** (see the upgrade steps). The delete of a
   topic with rt_disk feeds costs two disk flushes more (the record of the
   sequence); a topic with none, nothing.
@@ -131,10 +139,7 @@ code before it unless the entry says otherwise.
   `second_delete_in_doubt` (red on the previous code: `[DEL DEL]` after
   the overflow), `odd_keys` (a `#` key, a key too long for the name, and
   `#<its hash>`, heard by two feeds: each delete forgets its own key, and
-  each feed is told the three), `delete_seq_record` (the record made at the
-  open, the sequence taken before the remove, a left signal heard at the
-  master's next open, an unreadable record refusing the delete, a follower
-  with no record saying so); the white-box checks of the old debts became
+  each feed is told the three), `delete_seq_record` (the record made at the open, read from inside the `rmdir()` of the key to show it was written BEFORE the key left `keys/`, given back by a delete whose `rmrdir()` fails, a record that cannot be written or read refusing the delete, a left signal heard at the master's next open and an older one removed unheard, a follower with no record saying so); the white-box checks of the old debts became
   "nothing of the deletes kept once every feed heard them" (in
   `test_rt_disk_overflow`: nothing kept below what every feed heard), and
   `stale_debt_reborn` (a debt put there by hand) went with the debts.
@@ -169,7 +174,8 @@ code before it unless the entry says otherwise.
       already followed them): gui_agent 0.29.10, gui_treedb 0.17.76. The
       next gobj-ui re-reads a parent only when its row is loaded, one read
       at a time per parent: a burst of links to it costs two reads per
-      viewer, not one per link.
+      viewer, not one per link; and a re-read that fails (a parent deleted
+      meanwhile) is a warning, never the app's error modal.
   `set-link-events` still switches an open treedb at run time, and the
   configured value comes back at the next start. `test_c_node_link_events`
   creates its `C_NODE` without the attribute.
@@ -208,7 +214,7 @@ code before it unless the entry says otherwise.
   reads the topic (paged, capped) up to the first record holding a value
   and says so, or that it could not read them. Not refused: a decision.
 
-- **timeranger2: the tm markers are gone (API REMOVAL).** From 7.25.5 the
+- **BREAKING (API removal): timeranger2's tm markers are gone.** From 7.25.5 the
   master marked an md2 file whose `__tm__` went back
   (`<file>.tm_unordered`, and `"marks_tm_unordered": true` in a new
   topic's `topic_desc.json`), and a tm query trusted the tm range of the
@@ -249,10 +255,16 @@ code before it unless the entry says otherwise.
   by every layer that published it -- lost the key under the other
   holders, whose `kw_decref()` then released nothing: one gbuffer per
   holder. The MQTT broker writes its session from the `EV_ON_OPEN` of the
-  CONNECT, so every CONNECT with a will leaked its payload (~360 bytes). A
-  kw that carries a binary field now reaches the treedb as a twin of its
-  own (`kw_twin()`). In 7.25.22 (since the `file` columns).
-  `c_mqtt/will_acl` (its memory check: 2 x 357 bytes not freed before).
+  CONNECT, so every CONNECT with a will leaked its payload (~360 bytes),
+  and so did every retained PUBLISH with a payload (`retain__store()`). A
+  kw that carries a binary field and that others hold now reaches the
+  treedb as a twin of its own (`kw_twin()`); and the `create-node` /
+  `update-node` commands and `EV_TREEDB_UPDATE_NODE` put the bytes of the
+  `file` columns into a record of their own, not into the sender's
+  `record` (which kept a gbuffer the treedb had released). In 7.25.22
+  (since the `file` columns). `c_mqtt/will_acl` (its memory check: two
+  wills and a retained payload not freed before), `test_c_assets` (the
+  sender's record keeps no gbuffer).
 
 - **MQTT broker: the will message obeys the ACL.** `will__send()` published
   it with no check, so with `enable_acl` on a client could publish, as its
@@ -280,13 +292,17 @@ code before it unless the entry says otherwise.
   `from_t=-86400` (hidraulia, estadodelaire, wattyzer) never read what had
   arrived while it was stopped. `get_segments()` resolves it against the
   key's last record -- its `t`, and its `tm` (the last row of the file that
-  holds the key's highest `t`) -- as before v7: `from` after `last - N`,
-  that bound excluded; `to` up to `last - N`. It is written back into the
-  condition of that key alone: a list of several keys resolves it per key
-  (each iterator gets its own copy of the condition, in `tranger2_open_list()`
-  and C_TRANGER's `open-list`). The matcher compares signed, and on a key
-  with no record yet a negative `from` bounds nothing and a negative `to`
-  takes no row. `test_tm_order` (the three read roads, both ways, master in
+  holds the key's highest `t`): `from` after `last - N`, that bound
+  excluded; `to` up to `last - N`. (Before v7 it was the TOPIC's last
+  record, of any key; a v7 topic is read per key.) It is written back into
+  the condition of that key alone: a list of several keys resolves it per
+  key (each iterator gets its own copy of the condition, in
+  `tranger2_open_list()` and C_TRANGER's `open-list`); the realtime half of
+  such a list keeps the bound unresolved -- there is no one last record
+  for all its keys -- so a negative `from` bounds nothing there and a
+  negative `to` takes no new record. The matcher compares signed, and on a
+  key with no record yet a negative `from` bounds nothing and a negative
+  `to` takes no row. `test_tm_order` (the three read roads, both ways, master in
   memory, reloaded, replica; a `tm` against the last record's, not the
   highest one, which only the master in memory knew; a list of two keys
   with different last records) and `test_c_tranger` (`open-list` over two
@@ -505,7 +521,7 @@ code before it unless the entry says otherwise.
   it still has to fall back to `chcon`, and takes the three rules out of the
   policy on erase.
 
-- **`write-attr` writes only `SDF_WR` attributes.** `gobj_is_writable_attr()`
+- **BREAKING: `write-attr` writes only `SDF_WR` attributes.** `gobj_is_writable_attr()`
   answered TRUE for `SDF_WR` OR `SDF_PERSIST`, so every persistent attribute
   was writable at run time by `write-attr`, which only the per-command gate
   guards (off by default) -- around the checks of the attribute's own

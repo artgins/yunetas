@@ -152,3 +152,42 @@ release work itself, which the fixing session listed as not done:
 5. The two-machine suite on the final HEAD.
 6. At tag time: `check_doc_line_refs.py --repin=7.26.0`, myst cache cleared,
    `deploy.sh`, live site checked; the release body from the CHANGELOG.
+
+## Answer (2026-10-03, night)
+
+Every item checked against the code; all fixed except those the table says
+otherwise. Each fix has a test that fails on 918c3d687 (checked by putting
+its code back). Clean SDK build, no warning or error; the tests of each fix
+green (timeranger2/, c_tranger, treedb, C_NODE, c_assets, c_mqtt). Full
+suite not run (fix round).
+
+| Item | Done |
+|------|------|
+| Medium 1, a failed record lets the delete go | `next_delete_seq(..., must_record)`: from `reserve_delete_seq()` a record that cannot be written puts the memory back and refuses the delete before anything is removed; the lazy call in the mirror keeps "use it anyway" (the key is gone already). Red: `delete_seq_record` (topic dir 0500: the delete was done) |
+| Medium 2, gobj-ui modal on a failed re-read | gobj-ui `7e42bb7`: every `node` answer of a background re-read is handled before the generic error path (warning, entry settled); each re-read carries `reread_seq` and only its own answer settles it (a late `-1` after a reconnect touches nothing); a full read of the topic (or a page) settles its pending re-reads. 3 vitest cases, red on 8dd3893. Not published |
+| Sweep moved nothing out | `away` is built from `disks/` (the feed's parent), out of the watched dir; a `.stale_signal.*` left in `disks/` is removed at the master's next open |
+| Sweep's `last_seq` | A sequence taken by a delete whose `rmrdir()` fails is given back (`give_back_delete_seq()`), a failed record refuses (medium 1): the record names the last delete signalled. Unknown record: every leftover is removed unheard (a missed delete is logged; a late one can forget a key written again). Red: the record read 1 instead of 0 after the failed delete |
+| Refusal only with a feed in `disks/` | By design: no feed, nothing to tell, no record to write. `disks/` that cannot be opened or read now counts as "may hold feeds" and reserves |
+| Silent/false errors | `reserve_delete_seq()` and the sweep check `readdir()`'s errno (a failure reserves / is logged); the mirror's `break`s clear `errno`, no false *"readdir() FAILED"* |
+| `check_master_delete_protocol()` ERROR | Kept an ERROR per feed (the follower hears no delete), plus an info when the feed hears its first signal after all. `deploying-yunos.md` says it is expected on the first boot of a node-wide upgrade |
+| `kw_of_its_own()` + `hand_files_to_record()` | Proven and fixed: `hand_files_to_record()` returns a record of its own (a shallow copy) handed to `gobj_create/update_node()`; `kw_of_its_own()` twins only a kw others hold (`refcount > 1`). Red: `test_c_assets` (the sender's `record` kept the released gbuffer) |
+| `from_tm` clamp | Removed: a resolved bound below 0 is no bound (0) |
+| Realtime half of a multi-key list | Documented (CHANGELOG, timeranger2 API page): no one last record for all keys, the bound stays unresolved there |
+| "The pre-v7 meaning" | Comments, CHANGELOG and API page say it: before v7, the TOPIC's last record; per key is v7's |
+| CHANGELOG | Intro lists the five changes; tm-marker removal and `write-attr` tagged BREAKING; the leak entry names `retain__store()` too (tested now) and the record of its own; `deploying-yunos.md` says a `db_history` with `from_t=-86400` loads a day at start |
+| `key_of_delete_ref()` rebuild per miss | The rebuild hashes each long key once in its life (`long_key_hashes`, {key: ref}); a miss walks the cache, hashing only new keys |
+| `key_last_record_tm()` log | The md2 path is logged |
+| `will_acl` timers, vacuous leak check | Each step waits for the packet it depends on (CONNACK, SUBACK, PUBACK), a 15 s guard only; a retained PUBLISH case (red: 3 payloads leaked on the old C_NODE); README says the leak checks need `CONFIG_DEBUG_TRACK_MEMORY` |
+| Microsecond race at the overflow | Not changed: a key on disk when the follower lists `keys/` is not taken as gone at the overflow, so a delete of it made before the read is told by its own signal, queued behind the overflow, like any delete not told there. No case was found where the key is kept; if the reviewer has one, it needs its sequence of events |
+| `expect_no_debts()` restates prune | Accepted: it guards that prune runs on every path that changes `deletes_applied` |
+
+**Left for the release itself:** unchanged from the review's list (perf
+A/B and report, versions, gobj-ui 7.26.0 on npm + ranges + JS repin, the
+two-machine suite, the tag and the doc repin).
+
+**Found while fixing:** 918c3d687 kept the delete sequence in the topic's
+memory at the open (`open_delete_seq()`), and four tests that compare the
+topic's memory whole (`test_tranger_startup`, `test_topic_pkey_integer` and
+its iterators) failed -- unseen in that round, whose test binaries were
+relinked only for the tests it touched. The open no longer keeps it; the
+sweep reads the record. All test binaries relinked this time.

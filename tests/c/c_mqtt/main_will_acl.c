@@ -4,8 +4,9 @@
  *          Self-contained MQTT broker test: the will of a client that goes
  *          away with no DISCONNECT obeys the publish ACL of the client's
  *          group -- refused to a topic the group may not publish to (a
- *          WARNING, nothing delivered), delivered to one it may. See
- *          c_will_acl.c.
+ *          WARNING, nothing delivered), delivered to one it may; and a
+ *          retained message stored by the broker reaches a later
+ *          subscriber, with no leak of its payload. See c_will_acl.c.
  *
  *          Embedded C_AUTHZ + C_MQTT_BROKER (enable_acl on), an input gate
  *          on port 18118, and raw MQTT clients (C_TCPs of the driver) that

@@ -2523,13 +2523,20 @@ PRIVATE gbuffer_t *take_files_gbuffer(hgobj gobj, json_t *kw)
  *  record's write path (treedb_store_files) consumes them, so hand it the
  *  binary field and who uploads.
  *
+ *  Return a record of its OWN (its top level copied, the values shared),
+ *  to be handed owned to gobj_create_node()/gobj_update_node(): `record`
+ *  is the kw's own "record" -- held by the kw too -- and the binary field
+ *  must not be put where another holder keeps it after the treedb took it
+ *  (the treedb takes it from the record it is given, kw_of_its_own()).
+ *  NULL (logged, the bytes dropped) when `record` is not an object.
+ *
  *  `gbuf` is OWNED from here on, and released exactly once downstream: by
  *  treedb_store_files() when the write reaches it, and otherwise by the
  *  KW_DECREF(kw) that every exit of mt_create_node()/mt_update_node()
  *  ends in -- kw_decref drops the binary field it finds. Never add a
  *  second release beside those: that was the "BAD gbuf_decref()".
  ***************************************************************************/
-PRIVATE void hand_files_to_record(hgobj gobj, json_t *kw, json_t *record, gbuffer_t *gbuf)
+PRIVATE json_t *hand_files_to_record(hgobj gobj, json_t *kw, json_t *record, gbuffer_t *gbuf)
 {
     if(!json_is_object(record)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -2539,16 +2546,28 @@ PRIVATE void hand_files_to_record(hgobj gobj, json_t *kw, json_t *record, gbuffe
             NULL
         );
         GBUFFER_DECREF(gbuf)
-        return;
+        return NULL;
+    }
+    json_t *own = json_copy(record);
+    if(!own) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "json_copy() FAILED, the bytes are DROPPED",
+            NULL
+        );
+        GBUFFER_DECREF(gbuf)
+        return NULL;
     }
     if(gbuf) {
-        json_object_set_new(record, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));
+        json_object_set_new(own, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));
     }
-    if(json_object_get(record, "__files__")) {
-        json_object_set_new(record, "__username__",
+    if(json_object_get(own, "__files__")) {
+        json_object_set_new(own, "__username__",
             json_string(kw_get_str(gobj, kw, "__username__", "", 0))
         );
     }
+    return own;
 }
 
 /***************************************************************************
@@ -2794,12 +2813,23 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
-    hand_files_to_record(gobj, kw, jn_content, gbuf_files);
+    json_t *record = hand_files_to_record(gobj, kw, jn_content, gbuf_files);
+    json_decref(jn_content);
+    if(!record) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: What record?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     json_t *node = gobj_create_node(
         gobj,
         topic_name,
-        jn_content, // owned
+        record, // owned
         json_incref(_jn_options),
         src
     );
@@ -2960,7 +2990,18 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         }
     }
 
-    hand_files_to_record(gobj, kw, jn_content, gbuf_files);
+    json_t *own_record = hand_files_to_record(gobj, kw, jn_content, gbuf_files);
+    json_decref(jn_content);
+    if(!own_record) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: What record?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*
      *  A treedb event this update fires can bring ANOTHER update-node into
@@ -2973,7 +3014,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *node = gobj_update_node(
         gobj,
         topic_name,
-        jn_content, // owned
+        own_record, // owned
         json_incref(_jn_options),
         src
     );
@@ -5736,8 +5777,9 @@ PRIVATE const char *seed_hanging_from(
 
 /***************************************************************************
  *  The record kw that the treedb may change: a kw that carries a binary
- *  field becomes a twin of its own (its top level copied, the binary
- *  increfed, kw_twin()), and the kw received is released.
+ *  field and that others hold too becomes a twin of its own (its top
+ *  level copied, the binary increfed, kw_twin()), and the kw received is
+ *  released. One held by this call alone is changed in place, as always.
  *
  *  treedb_store_files() takes the record's `gbuffer` -- it removes the
  *  key and decrefs the gbuffer once -- because the treedb releases a
@@ -5749,8 +5791,8 @@ PRIVATE const char *seed_hanging_from(
  ***************************************************************************/
 PRIVATE json_t *kw_of_its_own(hgobj gobj, json_t *kw)
 {
-    if(!json_object_get(kw, "gbuffer")) {
-        return kw;
+    if(!json_object_get(kw, "gbuffer") || kw->refcount <= 1) {
+        return kw;  // no binary field, or nobody else holds the kw
     }
     json_t *twin = kw_twin(gobj, kw);
     if(!twin) {
@@ -6259,16 +6301,18 @@ PRIVATE int ac_treedb_update_node(hgobj gobj, gobj_event_t event, json_t *kw, hg
      *  that "carries no bytes".
      */
     gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw);
+    json_t *own_record = NULL;
     if(json_is_object(record)) {
-        hand_files_to_record(gobj, kw, record, gbuf_files);
+        own_record = hand_files_to_record(gobj, kw, record, gbuf_files);   // NULL: logged
     } else {
         GBUFFER_DECREF(gbuf_files)
+        own_record = json_incref(record);
     }
 
     json_t *node = gobj_update_node( // Return is YOURS
         gobj,
         topic_name,
-        json_incref(record),
+        own_record,
         json_incref(_jn_options),
         src
     );

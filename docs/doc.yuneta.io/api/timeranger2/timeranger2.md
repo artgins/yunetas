@@ -1869,8 +1869,11 @@ master do not know: they read the first and last rows of each file).
 `to_t = -N`, the ones up to `last_t - N`. The bound is resolved once, when the
 iterator opens, and written back into its `match_cond`; a list of several keys
 gives each key's iterator its own copy, so each key is bounded by its own last
-record. On a key with no record yet a negative `from` bounds nothing and a
-negative `to` takes no row. A `db_history` that starts with the last day of its key:
+record (before v7 the bound was relative to the TOPIC's last record, of any
+key). The realtime half of a list of several keys keeps the bound unresolved
+-- there is no one last record for all of them -- so a negative `from` bounds
+nothing there and a negative `to` takes no new record. On a key with no record
+yet a negative `from` bounds nothing and a negative `to` takes no row. A `db_history` that starts with the last day of its key:
 
 ```C
 json_t *match_cond = json_pack("{s:I}",

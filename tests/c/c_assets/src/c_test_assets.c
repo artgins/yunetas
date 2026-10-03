@@ -671,8 +671,7 @@ PRIVATE int run_tests(hgobj gobj)
         char jpg_sha[SHA256_HEX_LEN + 1];
         sha256_hex(JPG_FIXTURE, JPG_FIXTURE_LEN, jpg_sha, sizeof(jpg_sha));
 
-        resp = ask_node(gobj, "update-node",
-            json_pack("{s:s, s:I, s:{s:s, s:s, s:s, s:{s:{s:I, s:I, s:s}, s:{s:I, s:I, s:s}}}, s:{s:b, s:b}}",
+        json_t *kw_sent = json_pack("{s:s, s:I, s:{s:s, s:s, s:s, s:{s:{s:I, s:I, s:s}, s:{s:I, s:I, s:s}}}, s:{s:b, s:b}}",
                 "topic_name", "devices",
                 "gbuffer", (json_int_t)(uintptr_t)gbuf,
                 "record",
@@ -691,8 +690,18 @@ PRIVATE int run_tests(hgobj gobj)
                 "options",
                     "create", 1,
                     "autolink", 1
-            )
-        );
+            );
+        json_incref(kw_sent);   // to look at its record after the command
+        resp = ask_node(gobj, "update-node", kw_sent);
+        /*
+         *  The binary field goes to a record of the command's own: the
+         *  sender's "record" is left without it. Put there, it kept a
+         *  gbuffer the treedb had already released
+         */
+        if(json_object_get(kw_get_dict(0, kw_sent, "record", 0, 0), "gbuffer")) {
+            result += fail(gobj, "the sender's record kept a gbuffer the treedb released");
+        }
+        json_decref(kw_sent);
         if(resp_result(resp) != 0) {
             result += fail(gobj, "update-node with a gbuffer of two slices failed");
         } else {

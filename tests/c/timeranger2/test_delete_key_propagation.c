@@ -2962,6 +2962,18 @@ PRIVATE int hold_delete_signal(const char *path, int *ret)
     return TRUE;
 }
 
+PRIVATE json_int_t read_seq_record(const char *path_topic);
+PRIVATE char seq_watch_key_dir[PATH_MAX] = "";  // the key directory whose rmdir() reads the record
+PRIVATE char seq_watch_topic[PATH_MAX] = "";
+PRIVATE json_int_t seq_seen_at_remove = -100;
+PRIVATE int read_record_at_key_remove(const char *path, int *ret)
+{
+    if(seq_watch_key_dir[0] && strcmp(path, seq_watch_key_dir) == 0) {
+        seq_seen_at_remove = read_seq_record(seq_watch_topic);
+    }
+    return FALSE;   // the rmdir() is done as always
+}
+
 PRIVATE json_int_t read_seq_record(const char *path_topic)
 {
     json_t *jn = load_json_from_file(0, path_topic, "delete_seq.json", 0);
@@ -3022,17 +3034,18 @@ PRIVATE int do_test_delete_seq_record(void)
     tranger2_set_rt_key_deleted_callback(feed, my_key_deleted_callback, NULL);
     drain(10);
     if(append_to(tm, 1, 2) < 0 || append_to(tm, 2, 1) < 0 || append_to(tm, 3, 1) < 0 ||
-            append_to(tm, 4, 1) < 0 || append_to(tm, 5, 1) < 0) {
+            append_to(tm, 4, 1) < 0 || append_to(tm, 5, 1) < 0 || append_to(tm, 6, 1) < 0) {
         result += -1;
     }
     drain(30);
     result += test_json(NULL);
 
     /*
-     *  The sequence is taken before the key leaves keys/
+     *  A delete that cannot remove its key gives its sequence back: the
+     *  record names the last delete signalled
      */
     set_expected_results_unordered(
-        "delete_seq: a delete whose rmrdir() fails has taken its sequence",
+        "delete_seq: a delete whose rmrdir() fails gives its sequence back",
         json_pack("[{s:s},{s:s}]",
             "msg", "remove() FAILED",
             "msg", "Cannot delete subdir key. rmrdir() FAILED"
@@ -3054,17 +3067,31 @@ PRIVATE int do_test_delete_seq_record(void)
         result += -1;
     }
     drain(30);
-    result += expect_seq_record("taken before the remove", path_topic, 1);
+    result += expect_seq_record("given back by a failed delete", path_topic, 0);
     if(deleted_callback_count != 0) {
         printf("%sERROR%s --> delete_seq: a failed delete was told\n", On_Red BWhite, Color_Off);
         result += -1;
     }
+    /*
+     *  The sequence is recorded BEFORE the key leaves keys/: read from the
+     *  rmdir() of the key's directory
+     */
     chmod(blocker, 0700);
+    build_path(seq_watch_key_dir, sizeof(seq_watch_key_dir), path_topic, "keys", KEY_A, NULL);
+    snprintf(seq_watch_topic, sizeof(seq_watch_topic), "%s", path_topic);
+    rmdir_hook = read_record_at_key_remove;
     if(tranger2_delete_key(tm, TOPIC_NAME, KEY_A) < 0) {
         result += -1;
     }
+    rmdir_hook = NULL;
+    seq_watch_key_dir[0] = 0;
     drain(30);
-    result += expect_seq_record("the delete done", path_topic, 2);
+    if(seq_seen_at_remove != 1) {
+        printf("%sERROR%s --> delete_seq: the record read when the key left keys/: %lld, expected 1\n",
+            On_Red BWhite, Color_Off, (long long)seq_seen_at_remove);
+        result += -1;
+    }
+    result += expect_seq_record("the delete done", path_topic, 1);
     if(deleted_callback_count != 1) {
         printf("%sERROR%s --> delete_seq: the delete told %zu times, expected 1\n",
             On_Red BWhite, Color_Off, deleted_callback_count);
@@ -3201,14 +3228,57 @@ PRIVATE int do_test_delete_seq_record(void)
     result += test_json(NULL);
 
     /*
+     *  A record that cannot be WRITTEN refuses the delete too: a follower
+     *  reads the record, and one that listed keys/ meanwhile would bound
+     *  the key by the old number
+     */
+    set_expected_results_unordered(
+        "delete_seq: a record that cannot be written",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "Cannot replace delete_seq.json, cannot create the temporary file",
+            "msg", "Cannot record the delete sequence",
+            "msg", "Cannot delete key: the delete sequence of the topic cannot be read or recorded, and its rt_disk feeds could not be told"
+        ),
+        NULL, NULL, 1
+    );
+    {
+        char key6[32];
+        snprintf(key6, sizeof(key6), "%019d", 6);
+        struct stat st_topic;
+        stat(path_topic, &st_topic);
+        json_int_t before = read_seq_record(path_topic);
+        chmod(path_topic, 0500);
+        if(tranger2_delete_key(tm, TOPIC_NAME, key6) == 0) {
+            printf("%sERROR%s --> delete_seq: a delete whose sequence was not recorded was done\n",
+                On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        chmod(path_topic, st_topic.st_mode & 07777);
+        result += expect_seq_record("not written", path_topic, before);
+        if(!json_object_get(json_object_get(tranger2_topic(tm, TOPIC_NAME), "cache"), key6)) {
+            printf("%sERROR%s --> delete_seq: the refused delete forgot the key\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(tranger2_delete_key(tm, TOPIC_NAME, key6) < 0 ||
+                read_seq_record(path_topic) != before + 1) {
+            printf("%sERROR%s --> delete_seq: the delete once the record can be written\n",
+                On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        drain(30);
+    }
+    result += test_json(NULL);
+
+    /*
      *  A record that cannot be read refuses the delete, and stays
      */
     set_expected_results(
         "delete_seq: a record that cannot be read",
-        json_pack("[{s:s},{s:s},{s:s}]",
-            "msg", "delete_seq.json holds no delete sequence",
-            "msg", "delete_seq.json holds no delete sequence",
-            "msg", "Cannot delete key: the delete sequence of the topic cannot be read, and its rt_disk feeds could not be told"
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "delete_seq.json holds no delete sequence",     // the open
+            "msg", "delete_seq.json holds no delete sequence",     // the sweep of the feed's left signals
+            "msg", "delete_seq.json holds no delete sequence",     // the delete
+            "msg", "Cannot delete key: the delete sequence of the topic cannot be read or recorded, and its rt_disk feeds could not be told"
         ),
         NULL, NULL, 1
     );
