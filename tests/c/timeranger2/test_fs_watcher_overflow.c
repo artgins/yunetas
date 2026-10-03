@@ -21,8 +21,11 @@
  *      - the loop is never deaf for more than MAX_DEAF_MS, while the pass
  *        takes seconds (in one piece it would be deaf for all of them);
  *      - the watcher's own cost per directory (the pass less the owner's
- *        time) stays under MAX_OWN_US: a cost that grows with the tree, as
- *        an index rebuilt per slice did, makes a pass of minutes;
+ *        time) does not grow with the tree: on it, at most MAX_OWN_GROWTH
+ *        times the cost of the same pass over SMALL_DIRS directories (+
+ *        MAX_OWN_SLACK_US), measured first on the same machine. A cost that
+ *        grows with the tree, as an index rebuilt per slice did, makes a
+ *        pass of minutes;
  *      - a directory born in the overflow is watched after it: a file
  *        created in it is heard;
  *      - a directory watched BEFORE the overflow, deleted and created again
@@ -178,7 +181,9 @@ int __wrap_inotify_add_watch(int fd, const char *pathname, uint32_t mask)
 #define OWNER_US    100         // what the owner spends on each directory of the pass
 #define PROBE_MS    50
 #define MAX_DEAF_MS 1000
-#define MAX_OWN_US  200         // the watcher's own cost per directory of the pass
+#define SMALL_DIRS          4096    // the tree the big pass is held against
+#define MAX_OWN_GROWTH      2       // the watcher's cost per directory on the big tree: at most twice the small one's
+#define MAX_OWN_SLACK_US    20      // ... plus this, for the noise of a short pass
 #define REBORN_DIR  "reborn"    // watched before the flood, deleted and created again in it
 
 /***************************************************************
@@ -189,11 +194,14 @@ PRIVATE char root[PATH_MAX];
 PRIVATE int n_dirs = 0;
 
 PRIVATE json_t *told = NULL;        // directory name -> times told (created or rescanned)
+PRIVATE int tells = 0;              // every tell: the progress of a pass, at no cost per turn
 PRIVATE int overflows = 0;
 PRIVATE int rescan_dirs = 0;
 PRIVATE int files_created = 0;
 
 PRIVATE uint64_t owner_us = 0;     // time spent by the owner in the pass
+PRIVATE uint64_t rescan_first_t = 0; // the pass, from its first directory told to its last
+PRIVATE uint64_t rescan_last_t = 0;
 
 PRIVATE uint64_t probe_last = 0;
 PRIVATE uint64_t probe_max_gap = 0;
@@ -229,6 +237,7 @@ PRIVATE void tell(const char *directory, const char *filename)
         name = directory + strlen(root) + 1;
     }
     if(!empty_string(name)) {
+        tells++;
         json_object_set_new(told, name,
             json_integer(json_integer_value(json_object_get(told, name)) + 1)
         );
@@ -251,6 +260,10 @@ PRIVATE int fs_callback(fs_event_t *fs_event)
             {
                 uint64_t t = now_us();
                 rescan_dirs++;
+                if(rescan_dirs == 1) {
+                    rescan_first_t = t;
+                }
+                rescan_last_t = t;
                 tell(directory, "");
                 usleep(OWNER_US);   // a slow owner: it reads what the directory holds
                 owner_us += now_us() - t;
@@ -1675,6 +1688,97 @@ PRIVATE int do_test_dir_fds_limit_process(void)
 }
 
 /***************************************************************************
+ *  The watcher's own time per directory in the pass just made: from the
+ *  first directory told to the last, less the owner's time. (The time the
+ *  test waits after the pass, to be sure it ended, is not the watcher's.)
+ ***************************************************************************/
+PRIVATE uint64_t own_us_per_dir(void)
+{
+    if(rescan_dirs < 2 || rescan_last_t <= rescan_first_t) {
+        return 0;
+    }
+    uint64_t span = rescan_last_t - rescan_first_t;
+    return span > owner_us? (span - owner_us) / (uint64_t)(rescan_dirs - 1) : 0;
+}
+
+/***************************************************************************
+ *  The same pass over a SMALL tree (SMALL_DIRS directories), its overflow
+ *  made by one directory created and removed again and again: the
+ *  watcher's own time per directory there, to hold the big pass against.
+ *  0 when it could not be measured (said).
+ ***************************************************************************/
+PRIVATE uint64_t small_pass_own_us(void)
+{
+    char big_root[PATH_MAX];
+    snprintf(big_root, sizeof(big_root), "%s", root);
+    build_path(root, sizeof(root), getenv("HOME"), "tests_yuneta", "fs_watcher_overflow_small", NULL);
+    rmrdir(root);
+    mkrdir(root, 02770);
+    for(int i = 1; i <= SMALL_DIRS; i++) {
+        char name[32], path[PATH_MAX];
+        snprintf(name, sizeof(name), "s%06d", i);
+        build_path(path, sizeof(path), root, name, NULL);
+        mkdir(path, 02770);
+    }
+
+    uint64_t own = 0;
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop, root, FS_FLAG_RECURSIVE_PATHS, fs_callback, 0, NULL, NULL
+    );
+    if(!fs_event || fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> the small tree could not be watched\n", On_Red BWhite, Color_Off);
+        if(fs_event) {
+            fs_stop_watcher_event(fs_event);
+        }
+        snprintf(root, sizeof(root), "%s", big_root);
+        return 0;
+    }
+    for(int i = 0; i < 5; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    overflows = 0;
+    rescan_dirs = 0;
+    owner_us = 0;
+    char churn[PATH_MAX];
+    build_path(churn, sizeof(churn), root, "churn", NULL);
+    int events = max_queued_events() + EXTRA_DIRS;
+    for(int i = 0; i < events / 2 + 1; i++) {   // an IN_CREATE and an IN_DELETE each
+        mkdir(churn, 02770);
+        rmdir(churn);
+    }
+    uint64_t t0 = time_in_milliseconds_monotonic();
+    int quiet = 0;
+    int last = -1;
+    while(quiet < 50 && time_in_milliseconds_monotonic() - t0 < 60*1000) {
+        yev_loop_run_once(yev_loop);
+        if(rescan_dirs == last && !fs_event->rescan_dirs) {
+            quiet++;
+        } else {
+            quiet = 0;
+        }
+        last = rescan_dirs;
+    }
+    if(overflows < 1 || rescan_dirs < SMALL_DIRS) {
+        printf("%sERROR%s --> the small tree: %d overflow(s), %d rescanned of %d: not measured\n",
+            On_Red BWhite, Color_Off, overflows, rescan_dirs, SMALL_DIRS + 1);
+    } else {
+        own = own_us_per_dir();
+    }
+    fs_stop_watcher_event(fs_event);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    rmrdir(root);
+    snprintf(root, sizeof(root), "%s", big_root);
+    JSON_DECREF(told)
+    told = json_object();
+    overflows = 0;
+    rescan_dirs = 0;
+    owner_us = 0;
+    return own;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -1686,6 +1790,17 @@ PRIVATE int do_test(void)
 
     n_dirs = max_queued_events() + EXTRA_DIRS;
     told = json_object();
+
+    set_expected_results_unordered(
+        "fs_watcher overflow: the same pass on a small tree, to measure against",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
+            "msg", "watched tree rescanned after lost inotify events"
+        ),
+        NULL, NULL, 1
+    );
+    uint64_t small_us = small_pass_own_us();
+    result += test_json(NULL);
 
     set_expected_results("fs_watcher overflow: watch", NULL, NULL, NULL, 1);
     fs_event_t *fs_event = fs_create_watcher_event(
@@ -1765,7 +1880,7 @@ PRIVATE int do_test(void)
             break;
         }
         yev_loop_run_once(yev_loop);
-        int n = count_told() + rescan_dirs;
+        int n = tells + rescan_dirs;   // count_told() walks every name: O(N) a turn, it was billed to the watcher
         if(n == last && !fs_event->rescan_dirs) {
             quiet++;
         } else {
@@ -1781,11 +1896,12 @@ PRIVATE int do_test(void)
     yev_destroy_event(yev_probe);
 
     int n_told = count_told();
-    uint64_t pass_us = (t1 - t0) * 1000;
-    uint64_t own_us = pass_us > owner_us? (pass_us - owner_us) / (rescan_dirs? rescan_dirs: 1): 0;
-    printf("     %d directories: %d told, %d overflow(s), %d rescanned, %lu ms (%lu in the owner, %lu us per directory in the watcher), the loop deaf at most %lu ms\n",
+    uint64_t big_us = own_us_per_dir();
+    printf("     %d directories: %d told, %d overflow(s), %d rescanned, %lu ms (%lu in the owner), %lu us per directory in the watcher (%lu on a tree of %d), the loop deaf at most %lu ms\n",
         n_dirs, n_told, overflows, rescan_dirs, (unsigned long)(t1 - t0),
-        (unsigned long)(owner_us/1000), (unsigned long)own_us, (unsigned long)probe_max_gap);
+        (unsigned long)(owner_us/1000), (unsigned long)big_us,
+        (unsigned long)small_us, SMALL_DIRS,
+        (unsigned long)probe_max_gap);
     if(overflows < 1) {
         printf("%sERROR%s --> no overflow: the test did not test\n", On_Red BWhite, Color_Off);
         result += -1;
@@ -1795,13 +1911,19 @@ PRIVATE int do_test(void)
             On_Red BWhite, Color_Off, n_told, n_dirs + 1);
         result += -1;
     }
-    if(own_us > MAX_OWN_US) {
+    if(small_us == 0 || big_us > small_us * MAX_OWN_GROWTH + MAX_OWN_SLACK_US) {
         /*
-         *  7.25.10 indexed the watched paths once per SLICE: 254 us per
-         *  directory at 69632 (and growing with the tree), 73 once per pass
+         *  7.25.10 indexed the watched paths once per SLICE: the cost per
+         *  directory grew with the tree (here 437 us at 69632 against 31 at
+         *  4096; 20 against 14 with the index once per pass). Held against
+         *  the same watcher on a small tree of the same machine, not against
+         *  a number of microseconds: a slower machine (artgins' Xeon D-1521)
+         *  failed a fixed 200 us with the code right (224 -- most of it the
+         *  test's own count of the names told, O(N) a turn, now a counter)
          */
-        printf("%sERROR%s --> the watcher spent %lu us per directory (at most %d)\n",
-            On_Red BWhite, Color_Off, (unsigned long)own_us, MAX_OWN_US);
+        printf("%sERROR%s --> the watcher's cost per directory grows with the tree: %lu us on %d directories, %lu on %d (at most %d times + %d us)\n",
+            On_Red BWhite, Color_Off, (unsigned long)small_us, SMALL_DIRS,
+            (unsigned long)big_us, n_dirs, MAX_OWN_GROWTH, MAX_OWN_SLACK_US);
         result += -1;
     }
     if(probe_max_gap > MAX_DEAF_MS) {

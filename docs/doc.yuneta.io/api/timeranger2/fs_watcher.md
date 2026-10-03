@@ -390,10 +390,14 @@ that time. The slices keep it answering; the pass costs the same.
 What the pass costs is mostly the owner's: the watcher's own part is a
 `readdir()` per directory and a lookup in an index of the watched paths, built
 once per pass. 7.25.10 rebuilt that index in every slice -- 50000 paths every
-20 ms -- so its own cost grew with the tree (254 us per directory at 69632,
-73 us since 7.25.11), and on the central a pass over 50501 directories took
-7 minutes. `tests/c/timeranger2/test_fs_watcher_overflow` measures it (the
-pass less the owner's time, per directory) and fails above 200 us.
+20 ms -- so its own cost grew with the tree, and on the central a pass over
+50501 directories took 7 minutes. `tests/c/timeranger2/test_fs_watcher_overflow`
+measures it (the pass less the owner's time, per directory) on a tree of 4096
+directories and on one of 69632, on the same machine, and fails when the big
+one costs more than twice the small one plus 20 us: with the index once per
+pass, 14 and 20 us here; rebuilt per slice, 31 and 437. (Up to 7.25.22 it
+failed above a fixed 200 us, which a slower machine reached with the code
+right.)
 
 A pass closes with its own account (since 7.25.12), so a long one says why:
 

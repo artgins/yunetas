@@ -63,6 +63,16 @@ before it unless the entry says otherwise.
   itself, and the window is 800 ms -- under the 1 s of `timeout_retry`, with
   room for a loaded machine (red without `reset_pacing()`: 7 s).
 
+- **tests: `test_fs_watcher_overflow` measures the watcher against itself.**
+  It failed on artgins (a Xeon D-1521) with the code right: 224 us per
+  directory against a fixed 200. Most of it was the test's own: its loop
+  counted the names told by walking all 69632 of them on every turn, and
+  billed that to the watcher (73 us per directory here; 20 without it). The
+  watcher's cost on a tree of 69632 directories is now held against the
+  same pass over 4096 on the same machine: at most twice, plus 20 us (14
+  and 20 us here; with the index of 7.25.10 rebuilt per slice, 31 and 437:
+  red).
+
 - **tests: red tests for fixes that had none.** `deactivate-snap` answering
   `-1` when its save fails (`test_tr_treedb_failed_save`, the writes of the
   snap's key failed by `--wrap=write`); `save_json_to_file()` answering `-1`
