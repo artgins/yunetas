@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Schema editor (gobj-ui 7.25.25, gui_agent 0.29.9): a column with data
+  behind it is warned about before it is deleted.** The records keep the
+  values of a deleted column and no reader shows them any more; the editor
+  reads the topic (paged, capped) up to the first record holding a value
+  and says so, or that it could not read them. Not refused: a decision.
+
 - **timeranger2: the tm markers are gone (API REMOVAL).** From 7.25.5 the
   master marked an md2 file whose `__tm__` went back
   (`<file>.tm_unordered`, and `"marks_tm_unordered": true` in a new

@@ -158,12 +158,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   can take another client's `client_id` and its groups. So the ACL is not a
   boundary between users until the model binds them. (The will message
   obeys the ACL since 2026-10-03.)
-- **Schema editing: a removed column with data behind it is nobody's
-  problem.** Dropping a column that has values in the topic's records is a
-  legal schema and a data decision: the records keep the field, every reader
-  stops showing it, and nothing says so. **Decide** what the GUI does (warn,
-  refuse, offer to keep it hidden); it needs the record side, not the schema
-  side.
 - **Packaging: the sparse SDK in the `.deb` serves one glibc at a time.** The
   `.deb` installs a sparse SDK (`outputs/`, `outputs_ext/`, `tools/`,
   `.config`) so a node can compile a project against the published runtime.
