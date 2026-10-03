@@ -158,7 +158,14 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   can take another client's `client_id` and its groups. So the ACL is not a
   boundary between users until the model binds them. (The will message
   obeys the ACL since 2026-10-03.)
-- **Packaging: the sparse SDK in the `.deb` serves one glibc at a time.** The
+- **Packaging: the sparse SDK in the `.deb` serves one glibc at a time.**
+  **DECIDED** (user, 2026-10-03): the protection IS the chosen solution --
+  `libc_guard.cmake` refuses a build under another glibc, and what to do
+  then (build elsewhere and ship binaries, build the SDK from source on that
+  node) is the choice of whoever uses Yuneta for their projects, not ours.
+  A package per distro (the matrix below) is **FUTURE**, and only once
+  Yuneta is very stable. Not a pending decision; the analysis stays for
+  that day. The
   `.deb` installs a sparse SDK (`outputs/`, `outputs_ext/`, `tools/`,
   `.config`) so a node can compile a project against the published runtime.
   The `outputs/lib/*.a` are static archives tied to the glibc that built them
