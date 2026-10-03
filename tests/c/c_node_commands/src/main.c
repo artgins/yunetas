@@ -107,7 +107,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -119,6 +119,17 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Playing yuno",
             "msg", "loading snap_tag 1",                    // the treedb opened again with s1 active
+            "msg", "Node already exists",                   // import-db: each node that exists is tried
+            "msg", "Node already exists",
+            "msg", "Node already exists",
+            "msg", "Node already exists",
+            "msg", "Node already exists",
+            "msg", "Node already exists",
+            "msg", "Node already exists",
+            "msg", "Node already exists",
+            "msg", "Node already exists",
+            "msg", "Node already exists",
+            "msg", "Node already exists",
             "msg", "All c_node command tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",

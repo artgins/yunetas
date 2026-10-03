@@ -54,10 +54,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   `!gobj_is_running(udp_s)` of `ac_start_udp_server()` is reached only by a
   start that does not go through `mt_stop`, which no public call makes.
   What the phase proves is the outcome (the datagram after it is heard).
-- **C_NODE**: `import-db` / `export-db` are tested only for their error
-  count by cause, link failures and abort, the export's file name, and a
-  content that is not json (the read commands and the snaps on the data:
-  `test_c_node_commands`).
 - **gobj-ui**: the save kw as it leaves `publish_treedb_write()`
   (`c_yui_treedb_topic_with_form.js`) is untested. Not reachable by vitest:
   the document double does not render Tabulator rows (`element.after`) nor

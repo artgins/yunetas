@@ -463,6 +463,80 @@ PRIVATE int expect_ids(hgobj gobj, const char *what, json_t *resp, const char *p
 }
 
 /***************************************************************************
+ *  import-db of what export-db wrote, in each mode of if-resource-exists:
+ *  exported with dev named "Dev 2", dev renamed "Changed", then
+ *    - skip: nothing overwritten, dev stays "Changed", every node ignored;
+ *    - overwrite: dev is "Dev 2" again, every node overwritten;
+ *    - abort (the default): -1, ABORTED, at the first node that exists.
+ ***************************************************************************/
+PRIVATE int export_and_import(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    char root[PATH_MAX];
+    build_path(root, sizeof(root), getenv("HOME"), "tests_yuneta", NULL);
+    char realm[PATH_MAX];
+    build_path(realm, sizeof(realm), root, "c_node_commands_realm", NULL);
+    rmrdir(realm);
+    register_yuneta_environment(root, "c_node_commands_realm", 02770, 0660);
+
+    json_t *resp = ask(gobj, "export-db", json_pack("{s:s}", "filename", "roundtrip"));
+    result += expect_str(gobj, "export-db: its file", resp, "filename", "roundtrip.trdb.json");
+    JSON_DECREF(resp)
+
+    char path[PATH_MAX];
+    yuneta_realm_file(path, sizeof(path), "temp", "roundtrip.trdb.json", FALSE);
+    gbuffer_t *gbuf64 = gbuffer_file2base64(path);
+    if(!gbuf64) {
+        result += fail(gobj, "export-db: the file cannot be read", NULL);
+    } else {
+        char *content64 = gbuffer_cur_rd_pointer(gbuf64);
+        size_t len64 = gbuffer_leftbytes(gbuf64);
+
+        json_t *dev = treedb_get_node(priv->tranger, TREEDB, "departments", "dev");
+        json_object_set_new(dev, "name", json_string("Changed"));
+        treedb_save_node(priv->tranger, dev);
+
+        const char *modes[] = {"skip", "overwrite", "", NULL};
+        for(int i = 0; modes[i]; i++) {
+            json_t *kw = json_pack("{s:s#}", "content64", content64, (int)len64);
+            if(*modes[i]) {
+                json_object_set_new(kw, "if-resource-exists", json_string(modes[i]));
+            }
+            json_t *r = ask(gobj, "import-db", kw);
+            json_t *data = kw_get_dict(gobj, r, "data", 0, 0);
+            json_int_t ret = kw_get_int(gobj, r, "result", 0, 0);
+            const char *comment = kw_get_str(gobj, r, "comment", "", 0);
+            if(i == 0 && (ret != 0 || kw_get_int(gobj, data, "overwrite", -1, 0) != 0 ||
+                    kw_get_int(gobj, data, "ignored", 0, 0) <= 0)) {
+                result += fail(gobj, "import-db skip: all ignored, none overwritten", r);
+            }
+            if(i == 1 && (ret != 0 || kw_get_int(gobj, data, "overwrite", 0, 0) <= 0 ||
+                    kw_get_int(gobj, data, "added", -1, 0) != 0)) {
+                result += fail(gobj, "import-db overwrite: overwritten, none added", r);
+            }
+            if(i == 2 && (ret != -1 || !strstr(comment, "ABORTED") ||
+                    kw_get_int(gobj, data, "abort", 0, 0) != 1)) {
+                result += fail(gobj, "import-db abort: -1, ABORTED", r);
+            }
+            JSON_DECREF(r)
+
+            json_t *node = ask(gobj, "node",
+                json_pack("{s:s, s:s}", "topic_name", "departments", "node_id", "dev"));
+            const char *expected = (i == 0)? "Changed" : "Dev 2";
+            result += expect_str(gobj, modes[i][0]? modes[i] : "abort", node, "name", expected);
+            JSON_DECREF(node)
+        }
+        GBUFFER_DECREF(gbuf64)
+    }
+
+    register_yuneta_environment(NULL, NULL, 02775, 0664);
+    rmrdir(realm);
+    return result;
+}
+
+/***************************************************************************
  *  Run every check
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -649,6 +723,8 @@ PRIVATE int run_tests(hgobj gobj)
     reopen_treedb(gobj);
     CHECK(expect_str, "snap deactivated: the node as it is", "node",
         json_pack("{s:s, s:s}", "topic_name", "departments", "node_id", "dev"), "name", "Dev 2")
+
+    result += export_and_import(gobj);
 
     if(result == 0) {
         gobj_log_info(gobj, 0,

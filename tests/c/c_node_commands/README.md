@@ -35,6 +35,14 @@ hook `departments`), users under departments (`users`), items with a pkey2
   shows the node as it was (INFO *"loading snap_tag 1"*); `deactivate-snap`
   and opened again, the node as it is.
 
+- `export-db` (`filename: roundtrip`, written as `roundtrip.trdb.json`
+  under the realm's `temp/`) and `import-db` of that file, with `dev`
+  renamed meanwhile, in each mode of `if-resource-exists`: `skip` (nothing
+  overwritten, every node ignored, `dev` keeps its new name), `overwrite`
+  (every node overwritten, none added, `dev` back to what was exported) and
+  the default, abort (`-1`, *ABORTED*). Each node that exists is tried
+  first: one WARNING *"Node already exists"* each.
+
 Set `C_NODE_COMMANDS_PROBE=1` to print every answer.
 
 ## Run
