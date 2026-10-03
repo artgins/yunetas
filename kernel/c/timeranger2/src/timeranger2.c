@@ -4674,10 +4674,12 @@ PRIVATE json_int_t next_delete_seq(hgobj gobj, json_t *tranger, json_t *topic)
 
 /***************************************************************************
  *  What a delete is called in the accounting of the followers: the key,
- *  or `#<sha256 of the key>` for a key too long to go in the name of its
+ *  or `/<sha256 of the key>` for a key too long to go in the name of its
  *  signal (`.d<seq>.<key>` is NAME_MAX at most: 2 + 20 digits + 1 + the
- *  key). The choice depends on the key alone, so a key is always called
- *  the same.
+ *  key). The choice depends on the LENGTH of the key alone, so a key is
+ *  always called the same; and no key holds a '/', so no key is called
+ *  like the hash of another (a key may start with any other character: a
+ *  `#` prefix would let a short key `#<hash>` stand for a long one).
  ***************************************************************************/
 #define DELETE_SIGNAL_MAX_KEY   (NAME_MAX - 23)
 PRIVATE void key_delete_ref(const char *key, char *bf, size_t bfsize)
@@ -4688,12 +4690,13 @@ PRIVATE void key_delete_ref(const char *key, char *bf, size_t bfsize)
     }
     char hex[65];
     sha256_hex(key, strlen(key), hex, sizeof(hex));
-    snprintf(bf, bfsize, "#%s", hex);
+    snprintf(bf, bfsize, "/%s", hex);
 }
 
 /***************************************************************************
  *  CLIENT: `.d<seq>.<key>` or `.h<seq>.<sha256>` -> the sequence and the
- *  ref of the delete (key_delete_ref()). FALSE: no delete signal.
+ *  ref of the delete (key_delete_ref()). FALSE: no delete signal (the hash
+ *  of a `.h` is 64 hex digits, and nothing else).
  ***************************************************************************/
 PRIVATE BOOL parse_delete_signal(const char *name, json_int_t *seq, char *ref, size_t refsize)
 {
@@ -4709,9 +4712,13 @@ PRIVATE BOOL parse_delete_signal(const char *name, json_int_t *seq, char *ref, s
     *seq = (json_int_t)v;
     if(name[1] == 'd') {
         snprintf(ref, refsize, "%s", end + 1);
-    } else {
-        snprintf(ref, refsize, "#%s", end + 1);
+        return TRUE;
     }
+    const char *hex = end + 1;
+    if(strlen(hex) != 64 || strspn(hex, "0123456789abcdef") != 64) {
+        return FALSE;
+    }
+    snprintf(ref, refsize, "/%s", hex);
     return TRUE;
 }
 
@@ -4796,7 +4803,7 @@ PRIVATE json_int_t mirror_key_delete_to_disks(
         if(seq == 0) {
             seq = next_delete_seq(gobj, tranger, topic);
             int len = snprintf(signal_name, sizeof(signal_name), ".%c%lld.%s",
-                ref[0] == '#'? 'h' : 'd', (long long)seq, ref[0] == '#'? ref + 1 : ref
+                ref[0] == '/'? 'h' : 'd', (long long)seq, ref[0] == '/'? ref + 1 : ref
             );
             if(len < 0 || len > NAME_MAX) {
                 gobj_log_error(gobj, 0,
@@ -8219,13 +8226,13 @@ PRIVATE delete_heard_t hear_delete_signal(
 
 /***************************************************************************
  *  CLIENT: the key a delete ref names (key_delete_ref()): the ref itself,
- *  or, for `#<sha256>`, the key of the cache with that hash. FALSE: a key
+ *  or, for `/<sha256>`, the key of the cache with that hash. FALSE: a key
  *  too long for its signal's name that the follower does not hold (there
  *  is nothing of it to forget, nor to tell: no feed had its records).
  ***************************************************************************/
 PRIVATE BOOL key_of_delete_ref(json_t *topic, const char *ref, char *bf, size_t bfsize)
 {
-    if(ref[0] != '#') {
+    if(ref[0] != '/') {
         snprintf(bf, bfsize, "%s", ref);
         return TRUE;
     }
@@ -8916,7 +8923,7 @@ PRIVATE void tell_deletes_lost_in_overflow(
     }
     json_t *told_before = json_object_get(disk, "deletes_told");
     json_object_foreach(applied, key, v) {
-        if(json_integer_value(v) <= heard || key[0] == '#') {
+        if(json_integer_value(v) <= heard || key[0] == '/') {
             continue;   // heard, or a key too long that the follower does not hold
         }
         if(json_integer_value(json_object_get(told_before, key)) >= json_integer_value(v)) {

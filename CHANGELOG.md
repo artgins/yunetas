@@ -28,9 +28,13 @@
   of a topic together**: a follower of 7.25.22 takes `.d<seq>.<key>` for a
   key. The delete of a topic with rt_disk feeds costs two disk flushes
   more (the record of the sequence); a topic with none, nothing.
+  The hashed form is chosen by the key's LENGTH and kept apart from every
+  key (no key holds a `/`), so a key starting with `#` is a key, and
+  `#<sha256 of a long key>` never stands for that long key.
   `test_delete_key_propagation`: `opened_after_heard` and
   `second_delete_in_doubt` (red on the previous code: `[DEL DEL]` after
-  the overflow); the white-box checks of the old debts became "nothing of
+  the overflow), `odd_keys` (a `#` key, a key too long for the name, and
+  `#<its hash>`: each delete forgets its own key); the white-box checks of the old debts became "nothing of
   the deletes kept once every feed heard them", and `stale_debt_reborn`
   (a debt put there by hand) went with the debts.
 

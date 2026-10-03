@@ -51,6 +51,9 @@
  *        a delete, and signalled then: its signal is that delete, known by
  *        its sequence (up to the fix it was taken for a new one, and the
  *        first feed was told it again at its next overflow: [DEL DEL]).
+ *      - do_test_odd_keys: a key starting with '#', a key too long for the
+ *        signal's name (signalled by its sha256) and the key `#<that hash>`:
+ *        each delete forgets its own key, and only it.
  *      - do_test_second_delete_in_doubt: a feed opened in flight that never
  *        hears the first delete hears a SECOND delete of the key first: a
  *        new one, by its sequence (up to the fix it was taken for the first
@@ -2921,6 +2924,142 @@ PRIVATE int do_test_second_delete_in_doubt(void)
 }
 
 /***************************************************************************
+ *  do_test_odd_keys: the name of a delete signal for keys of any shape.
+ *  A key starting with '#', a key too long for `.d<seq>.<key>` (signalled
+ *  by its sha256, `.h<seq>.<hash>`), and the short key `#<that hash>`:
+ *  each delete forgets its own key, and only it. A ref chosen by its first
+ *  character instead of the key's length signalled `#short` as a hash
+ *  (never forgotten), and `#<hash>` stood for the long key.
+ ***************************************************************************/
+#define ODD_TOPIC   "topic_odd_keys"
+PRIVATE int odd_told = 0;
+PRIVATE int odd_key_deleted_callback(
+    json_t *tranger, json_t *topic, const char *key, json_t *list, void *user_data)
+{
+    odd_told++;
+    return 0;
+}
+PRIVATE int odd_record_callback(
+    json_t *tranger, json_t *topic, const char *key, json_t *list,
+    json_int_t rowid, md2_record_ex_t *md_record, json_t *record)
+{
+    JSON_DECREF(record)
+    return 0;
+}
+PRIVATE int odd_append(json_t *tm, const char *key)
+{
+    json_t *jn_record = json_pack("{s:s, s:I, s:s}", "id", key, "tm", (json_int_t)BASE_T, "content", "x");
+    md2_record_ex_t md = {0};
+    return tranger2_append_record(tm, ODD_TOPIC, BASE_T, 0, &md, jn_record);
+}
+PRIVATE int odd_expect_cache(json_t *tf, const char *key, BOOL in, const char *what)
+{
+    BOOL found = json_object_get(json_object_get(tranger2_topic(tf, ODD_TOPIC), "cache"), key)? TRUE : FALSE;
+    if(found == in) {
+        return 0;
+    }
+    printf("%sERROR%s --> odd keys, %s: %.20s... %s the follower's cache\n",
+        On_Red BWhite, Color_Off, what, key, in? "is not in" : "is still in");
+    return -1;
+}
+
+PRIVATE int do_test_odd_keys(void)
+{
+    int result = 0;
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+    odd_told = 0;
+
+    char long_key[241];
+    memset(long_key, 'k', 240);
+    long_key[240] = 0;
+    char hex[65];
+    sha256_hex(long_key, strlen(long_key), hex, sizeof(hex));
+    char hash_key[80];
+    snprintf(hash_key, sizeof(hash_key), "#%s", hex);
+    const char *short_key = "#short";
+
+    set_expected_results(
+        "odd keys: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_master(path_root, TRUE);
+    json_t *topic = tm? tranger2_create_topic(
+        tm, ODD_TOPIC, "id", "tm",
+        json_pack("{s:i, s:s, s:i, s:i}",
+            "on_critical_error", 4, "filename_mask", "%Y-%m-%d", "xpermission", 02700, "rpermission", 0600),
+        sf_string_key,
+        json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
+        0
+    ) : NULL;
+    json_t *tf = topic? startup_tranger(path_root, FALSE, TRUE) : NULL;
+    if(!tf || !tranger2_open_topic(tf, ODD_TOPIC, TRUE)) {
+        tranger2_shutdown(tf);
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    json_t *feed = tranger2_open_rt_disk(tf, ODD_TOPIC, "", NULL, odd_record_callback, "rtODD", "", NULL);
+    if(!feed) {
+        result += -1;
+    }
+    tranger2_set_rt_key_deleted_callback(feed, odd_key_deleted_callback, NULL);
+    drain(10);
+    if(odd_append(tm, short_key) < 0 || odd_append(tm, long_key) < 0 || odd_append(tm, hash_key) < 0) {
+        result += -1;
+    }
+    drain(30);
+    result += odd_expect_cache(tf, short_key, TRUE, "before");
+    result += odd_expect_cache(tf, long_key, TRUE, "before");
+    result += odd_expect_cache(tf, hash_key, TRUE, "before");
+    result += test_json(NULL);
+
+    set_expected_results("odd keys: each delete forgets its own key", NULL, NULL, NULL, 1);
+    if(tranger2_delete_key(tm, ODD_TOPIC, hash_key) < 0) {
+        result += -1;
+    }
+    drain(30);
+    result += odd_expect_cache(tf, hash_key, FALSE, "#<hash> deleted");
+    result += odd_expect_cache(tf, long_key, TRUE, "#<hash> deleted");
+    if(tranger2_delete_key(tm, ODD_TOPIC, short_key) < 0) {
+        result += -1;
+    }
+    drain(30);
+    result += odd_expect_cache(tf, short_key, FALSE, "#short deleted");
+    if(tranger2_delete_key(tm, ODD_TOPIC, long_key) < 0) {
+        result += -1;
+    }
+    drain(30);
+    result += odd_expect_cache(tf, long_key, FALSE, "the long key deleted");
+    if(odd_told != 3) {
+        printf("%sERROR%s --> odd keys: the feed was told %d deletes, expected 3\n",
+            On_Red BWhite, Color_Off, odd_told);
+        result += -1;
+    }
+    json_t *applied = json_object_get(tranger2_topic(tf, ODD_TOPIC), "deletes_applied");
+    if(json_object_size(applied) != 0) {
+        printf("%sERROR%s --> odd keys: deletes kept after the feed heard them\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    tranger2_close_rt_disk(tf, feed);
+    drain(10);
+    result += test_json(NULL);
+
+    set_expected_results("odd keys: shutdown", NULL, NULL, NULL, 1);
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    drain(10);
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  do_test_known_reborn_fd: a key the follower READ (its files open for
  *  reading), deleted and written again with three records, in the same
  *  day file (the usual case: one file a day) or in another one. Up to the
@@ -3167,6 +3306,7 @@ int main(int argc, char *argv[])
     result += do_test_inflight_open(TRUE);
     result += do_test_opened_after_heard();
     result += do_test_second_delete_in_doubt();
+    result += do_test_odd_keys();
     result += do_test_known_reborn_fd(FALSE);
     result += do_test_known_reborn_fd(TRUE);
     result += do_test_stale_link(FALSE);
