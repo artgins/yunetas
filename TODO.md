@@ -129,6 +129,15 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   ended" notification, and a rule for when several sessions of one user are
   one owner.
 - **C_NODE: every link collapses the WHOLE parent, O(children) per link.**
+  **DECIDED** (user, 2026-10-03): option (c), in a session of its own --
+  `with_link_events` defaults to TRUE in the SDK (C_NODE attr), and
+  estadodelaire and hidraulia (v1 SPAs, which read the parent's
+  `EV_TREEDB_NODE_UPDATED`) set `with_link_events: false` in their C_TREEDB
+  config. yunovatios already sets it TRUE in code (no change). To do then:
+  the default, every config/consumer that relies on the parent update
+  (check the gui_treedb / gobj-ui v2 views handle LINKED/UNLINKED), the two
+  projects' configs and their nodes, docs (YUNO_TREEDB.md, the C_NODE
+  attr), CHANGELOG as a BREAKING default change.
   Without `with_link_events` (the default), `_link_nodes()` publishes the
   parent's `EV_TREEDB_NODE_UPDATED`, and `treedb_callback()` answers it with
   `node_collapsed_view()` of that parent — every hook list, every child id —
