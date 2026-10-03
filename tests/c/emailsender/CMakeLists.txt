@@ -79,6 +79,9 @@ SET(SRCS
     foreign_from_refused
     default_from_refused
     skip_email
+    skip_paused
+    default_from_case
+    foreign_access_denied
     quota_foreign_from
     foreign_refused_batch
     refusal_then_sender

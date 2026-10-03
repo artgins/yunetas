@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **tests, emailsender: what the sender rules and skip-email do, and a
+  window that measured the test.** New `skip_paused` (skip-email works with
+  the service paused), `default_from_case` (a `from` that is the default in
+  other letters IS the default: a not-found refusal is the account's) and
+  `foreign_access_denied` (a 5.1.8 that is no not-found is the account's,
+  whatever the from). `url_change_resets_pacing` was widened to 1.8 s
+  without finding why the session connected 1 s late: it did not -- it
+  connects in 1-2 ms; the fake server told the test on its C_TIMER, which is
+  accurate to the second. With `notify_delay` 0 it tells at the connection
+  itself, and the window is 300 ms (red without `reset_pacing()`: 7 s).
+
 - **tests: red tests for fixes that had none.** `deactivate-snap` answering
   `-1` when its save fails (`test_tr_treedb_failed_save`, the writes of the
   snap's key failed by `--wrap=write`); `save_json_to_file()` answering `-1`

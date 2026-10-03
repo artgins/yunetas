@@ -64,6 +64,8 @@
  *                      it to the failed queue (the answer must say so), the
  *                      queues are checked (none pending, one failed) and the
  *                      yuno ends.
+ *          "skip_paused"  as "skip", with the `emailsender` service paused
+ *                      before skip-email: it works paused too.
  *          "skip_in_flight"  two emails at once; `action_delay` ms later,
  *                      the first in its mail transaction (the fake server
  *                      holds its end of DATA), skip-email moves it to the
@@ -73,6 +75,8 @@
  *                      BEFORE set-email-user, while the service has no
  *                      credentials, and none after: the queued one must be
  *                      delivered.
+ *          "own_from"  one email with the `from` `own_from`; `action_delay` ms
+ *                      later the queues are checked as in "send_check".
  *          "send_check"  `email_count` emails at once; `action_delay` ms
  *                      later the queues must hold `expect_queued` pending
  *                      and `expect_failed` failed (list-queues), and the
@@ -147,6 +151,7 @@ SDATA (DTP_INTEGER,     "expect_queued",    SDF_RD,             "0",        "sce
 SDATA (DTP_INTEGER,     "expect_failed",    SDF_RD,             "0",        "scenario send_check: failed emails expected"),
 SDATA (DTP_INTEGER,     "max_wait",         SDF_RD,             "0",        "scenario set_url_stash: ms the session may take to connect after the play. 0: no check"),
 SDATA (DTP_INTEGER,     "bad_count",        SDF_RD,             "0",        "scenario bad_burst: emails with no recipient queued behind the good one"),
+SDATA (DTP_STRING,      "own_from",         SDF_RD,             "",         "scenario own_from: the `from` of the email"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
@@ -281,7 +286,7 @@ PRIVATE int start_scenario(hgobj gobj)
         return send_one_email(gobj);
     }
 
-    if(strcmp(scenario, "skip") == 0) {
+    if(strcmp(scenario, "skip") == 0 || strcmp(scenario, "skip_paused") == 0) {
         set_timeout(priv->timer, gobj_read_integer_attr(gobj, "action_delay"));
         return send_one_email(gobj);
     }
@@ -295,6 +300,11 @@ PRIVATE int start_scenario(hgobj gobj)
     if(strcmp(scenario, "set_user_queued") == 0) {
         send_one_email(gobj);
         return set_email_user(gobj);
+    }
+
+    if(strcmp(scenario, "own_from") == 0) {
+        set_timeout(priv->timer, gobj_read_integer_attr(gobj, "action_delay"));
+        return send_email_from(gobj, gobj_read_str_attr(gobj, "own_from"));
     }
 
     if(strcmp(scenario, "send_check") == 0) {
@@ -583,6 +593,7 @@ PRIVATE int ac_fake_client_connected(hgobj gobj, gobj_event_t event, json_t *kw,
             gobj_log_info(gobj, 0,
                 "msgset",       "%s", MSGSET_INFO,
                 "msg",          "%s", "The session connected in time after the play",
+                "waited",       "%ld", (long)waited,
                 NULL
             );
         } else {
@@ -635,8 +646,20 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(strcmp(scenario, "refill") == 0) {
         send_one_email(gobj);
 
-    } else if(strcmp(scenario, "skip") == 0 || strcmp(scenario, "skip_in_flight") == 0) {
+    } else if(strcmp(scenario, "skip") == 0 || strcmp(scenario, "skip_in_flight") == 0 ||
+            strcmp(scenario, "skip_paused") == 0) {
         hgobj emailsender = gobj_find_service("emailsender", TRUE);
+        if(strcmp(scenario, "skip_paused") == 0) {
+            gobj_pause(emailsender);
+            if(gobj_is_playing(emailsender)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "the emailsender is still playing",
+                    NULL
+                );
+            }
+        }
         json_t *jn_resp = gobj_command(emailsender, "skip-email", json_object(), gobj);
         int result = (int)kw_get_int(gobj, jn_resp, "result", -1, 0);
         const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
@@ -657,12 +680,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
         }
         JSON_DECREF(jn_resp)
-        if(strcmp(scenario, "skip") == 0) {
+        if(strcmp(scenario, "skip") == 0 || strcmp(scenario, "skip_paused") == 0) {
             check_queues(gobj, 0, 1);
             set_yuno_must_die();
         }
 
-    } else if(strcmp(scenario, "send_check") == 0) {
+    } else if(strcmp(scenario, "send_check") == 0 || strcmp(scenario, "own_from") == 0) {
         check_queues(gobj,
             (int)gobj_read_integer_attr(gobj, "expect_queued"),
             (int)gobj_read_integer_attr(gobj, "expect_failed")

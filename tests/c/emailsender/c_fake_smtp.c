@@ -85,6 +85,7 @@ PRIVATE json_int_t nth_gap(hgobj gobj, const char *name, size_t count);
 PRIVATE void drop_client(hgobj gobj);
 PRIVATE int send_reply(hgobj gobj, const char *reply);
 PRIVATE int greet_client(hgobj gobj);
+PRIVATE int notify_and_greet(hgobj gobj);
 PRIVATE int process_line(hgobj gobj, const char *line);
 
 /***************************************************************************
@@ -99,7 +100,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description--*/
 SDATA (DTP_LIST,        "auth_replies",     SDF_RD,             "[\"235 2.7.0 Authentication successful\"]", "Answers to AUTH, one per AUTH, the last one repeated"),
 SDATA (DTP_INTEGER,     "banner_delay",     SDF_RD,             "0",        "ms to wait before greeting a client with 220"),
-SDATA (DTP_INTEGER,     "notify_delay",     SDF_RD,             "500",      "ms after a connection to tell notify_service"),
+SDATA (DTP_INTEGER,     "notify_delay",     SDF_RD,             "500",      "ms after a connection to tell notify_service; 0: at the connection itself. The timer is a C_TIMER, accurate to the second: a delay of 1 ms tells at the next tick of the yuno, up to 1 s later"),
 SDATA (DTP_STRING,      "notify_service",   SDF_RD,             "",         "service told of each client connected (EV_FAKE_CLIENT_CONNECTED)"),
 SDATA (DTP_LIST,        "auth_min_gaps",    SDF_RD,             "[]",       "ms that AUTH n must come after AUTH n-1 (entry 0 unused)"),
 SDATA (DTP_LIST,        "ehlo_replies",     SDF_RD,             "[\"250 fake.smtp\"]", "Answers to EHLO/HELO, one per EHLO, the last one repeated"),
@@ -285,6 +286,27 @@ PRIVATE int send_reply(hgobj gobj, const char *reply)
         drop_client(gobj);
     }
     return ret;
+}
+
+/***************************************************************************
+ *  Tell notify_service that a client connected, then greet it (after
+ *  banner_delay, if any)
+ ***************************************************************************/
+PRIVATE int notify_and_greet(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_send_event(
+        gobj_find_service(gobj_read_str_attr(gobj, "notify_service"), TRUE),
+        EV_FAKE_CLIENT_CONNECTED, 0, gobj
+    );
+    json_int_t banner_delay = gobj_read_integer_attr(gobj, "banner_delay");
+    if(banner_delay > 0) {
+        priv->banner_pending = TRUE;
+        set_timeout(priv->timer, banner_delay);
+        return 0;
+    }
+    return greet_client(gobj);
 }
 
 /***************************************************************************
@@ -560,8 +582,13 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->conn_count++;
 
     if(!empty_string(gobj_read_str_attr(gobj, "notify_service"))) {
-        priv->notify_pending = TRUE;
-        set_timeout(priv->timer, gobj_read_integer_attr(gobj, "notify_delay"));
+        json_int_t notify_delay = gobj_read_integer_attr(gobj, "notify_delay");
+        if(notify_delay <= 0) {
+            notify_and_greet(gobj);
+        } else {
+            priv->notify_pending = TRUE;
+            set_timeout(priv->timer, notify_delay);
+        }
         KW_DECREF(kw)
         return 0;
     }
@@ -649,17 +676,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(priv->notify_pending) {
         priv->notify_pending = FALSE;
-        gobj_send_event(
-            gobj_find_service(gobj_read_str_attr(gobj, "notify_service"), TRUE),
-            EV_FAKE_CLIENT_CONNECTED, 0, gobj
-        );
-        json_int_t banner_delay = gobj_read_integer_attr(gobj, "banner_delay");
-        if(banner_delay > 0) {
-            priv->banner_pending = TRUE;
-            set_timeout(priv->timer, banner_delay);
-        } else {
-            greet_client(gobj);
-        }
+        notify_and_greet(gobj);
         KW_DECREF(kw)
         return 0;
     }

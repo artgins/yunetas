@@ -46,16 +46,14 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 - **Each test binary has a fixed port**: two whole suites run at once on one
   machine collide (`ctest -j` within one run is safe since
   `scripts/check_test_ports.py`). Ports chosen at run time would end it.
-- **`c_gss_udp_s_self_stop` phase 10 does not prove its order** (nit): it
-  relies on the subscription order for its posted restart to come before the
-  posted start, and nothing checks the posted start really arrived stale; the
-  `!gobj_is_running(udp_s)` guard is not tested on its own (`mt_stop`
-  clearing `start_posted` already makes the stale start a no-op).
-- **emailsender**: `skip-email` "works while paused" is not exercised
-  (`main_skip_email.c` and `main_skip_in_flight.c` use autoplay);
-  `foreign_from_refused` does not test `from_is_default`, and no test has a
-  foreign `from` with an account-style reply; `url_change_resets_pacing` was
-  widened to 1.8 s without finding why a reset pacing connects ~1 s late.
+- **`c_gss_udp_s_self_stop` phase 11 does not prove its order** (nit): it
+  relies on the subscription order for its restart to come before the start
+  C_GSS_UDP_S would post. Looked at 2026-10-03: in that order the restart's
+  `mt_stop` clears `start_when_stopped`, so the start is never even posted --
+  the "stale start" is not observable from outside, and the guard
+  `!gobj_is_running(udp_s)` of `ac_start_udp_server()` is reached only by a
+  start that does not go through `mt_stop`, which no public call makes.
+  What the phase proves is the outcome (the datagram after it is heard).
 - **C_NODE**: `import-db` / `export-db` are tested only for their error
   count by cause, link failures and abort, the export's file name, and a
   content that is not json (the read commands and the snaps on the data:

@@ -1,15 +1,13 @@
 /****************************************************************************
- *          main_url_change_resets_pacing.c
+ *          main_foreign_access_denied.c
  *
- *          The email of the play waits on a dead url, the failures pacing it
- *          (timeout_retry 1 s: attempts at 0, 1, 3, 7 s). At 7.5 s
- *          set-url-from gives the fake server, and a pause and a play: the
- *          session must connect at once -- within 300 ms of the play --
- *          since the pacing and the streak were the dead server's. The fake
- *          server tells the test at the connection itself (notify_delay 0):
- *          with a delay it tells on its C_TIMER, accurate to the second, and
- *          the session seemed to connect 1 s late (the window was 1.8 s). Before, the new server waited the old
- *          one's backoff (about 7.5 s more here, up to timeout_retry_max).
+ *          The email has a `from` of its own (alarm@example.com) and the
+ *          server answers a 5.1.8 that does not say the address does not
+ *          exist (550 5.1.8 Access denied, bad outbound sender: an account
+ *          blocked): the account's trouble, whatever the from. Each attempt
+ *          paced (timeout_retry 1 s) and charged as a retry; with
+ *          max_retries 3 the email goes to the failed queue after its third
+ *          attempt. As the message's, it would have gone there at once.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -22,13 +20,12 @@
 #include <c_emailsender.h>
 #include "c_fake_smtp.h"
 #include "c_test_emailsender.h"
-#include "poison_alloc.h"
 
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_url_change_resets_pacing"
-#define APP_DOC         "A url changed resets the pacing of the session"
+#define APP_NAME        "test_emailsender_foreign_access_denied"
+#define APP_DOC         "A foreign from refused by a 5.1.8 that is no not-found is the account's"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -40,7 +37,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_url_change_resets_pacing"
+#define BASE    "/tmp/test_emailsender_foreign_access_denied"
 
 /***************************************************************************
  *                      Default config
@@ -76,49 +73,10 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'emailsender',                                  \n\
-            'gclass': 'C_EMAILSENDER',                              \n\
-            'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
-            'kw': {                                                 \n\
-                'username': 'user',                                 \n\
-                'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7860',                      \n\
-                'from': 'sender@example.com',                       \n\
-                'timeout_inactivity': 30000,                        \n\
-                'tranger_path': '"BASE"/store',                     \n\
-                'tranger_database': 'emailsender',                  \n\
-                'topic_emails_queue': 'emails_queue',               \n\
-                'topic_emails_failed': 'emails_failed',             \n\
-                'timeout_retry': 1000,                              \n\
-                'tkey': 'tm'                                        \n\
-            }                                                       \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': '__input_side__',                               \n\
-            'gclass': 'C_IOGATE',                                   \n\
-            'autostart': false,                                     \n\
-            'autoplay': false                                       \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': 'c_test',                                       \n\
-            'gclass': 'C_TEST_EMAILSENDER',                         \n\
-            'default_service': true,                                \n\
-            'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
-            'kw': {                                                 \n\
-                'scenario': 'set_url_stash',                        \n\
-                'server_service': 'fake_smtp_server',               \n\
-                'smtp_url': 'tcp://127.0.0.1:7855',                 \n\
-                'action_delay': 7500,                               \n\
-                'max_wait': 300                                     \n\
-            }                                                       \n\
-        },                                                          \n\
-        {                                                           \n\
             'name': 'fake_smtp_server',                             \n\
             'gclass': 'C_IOGATE',                                   \n\
-            'autostart': false,                                     \n\
-            'autoplay': false,                                      \n\
+            'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
             'kw': {                                                 \n\
             },                                                      \n\
             'children': [                                           \n\
@@ -126,7 +84,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7855',              \n\
+                        'url': 'tcp://127.0.0.1:7877',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -145,9 +103,9 @@ PRIVATE char variable_config[]= "\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
                                 'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'notify_service': 'c_test',         \n\
-                                'notify_delay': 0,                  \n\
-                                'die_on_delivery': true             \n\
+                                'mail_replies': ['550 5.1.8 Access denied, bad outbound sender'],\n\
+                                'connect_min_gaps': [0, 1000, 2000],\n\
+                                'die_on_delivery': false            \n\
                             },                                      \n\
                             'children': [                           \n\
                                 {                                   \n\
@@ -158,6 +116,47 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'emailsender',                                  \n\
+            'gclass': 'C_EMAILSENDER',                              \n\
+            'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+                'username': 'user',                                 \n\
+                'password': 'secret',                               \n\
+                'url': 'tcp://127.0.0.1:7877',                      \n\
+                'from': 'sender@example.com',                       \n\
+                'timeout_inactivity': 30000,                        \n\
+                'tranger_path': '"BASE"/store',                     \n\
+                'tranger_database': 'emailsender',                  \n\
+                'topic_emails_queue': 'emails_queue',               \n\
+                'topic_emails_failed': 'emails_failed',             \n\
+                'timeout_retry': 1000,                              \n\
+                'max_retries': 3,                                   \n\
+                'tkey': 'tm'                                        \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__input_side__',                               \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'c_test',                                       \n\
+            'gclass': 'C_TEST_EMAILSENDER',                         \n\
+            'default_service': true,                                \n\
+            'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+                'scenario': 'own_from',                             \n\
+                'smtp_url': 'tcp://127.0.0.1:7877',                 \n\
+                'own_from': 'alarm@example.com',                   \n\
+                'action_delay': 9000,                               \n\
+                'expect_queued': 0,                                 \n\
+                'expect_failed': 1                                  \n\
+            }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -239,22 +238,29 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
-        "msg", "Starting yuno",
-        "msg", "Playing yuno",
-        "msg", "Creating __timeranger2__.json",
-        "msg", "Creating topic",
-        "msg", "Creating topic",
-        "msg", "SMTP server failing: emails wait, the retries are paced",
-        "msg", "set-url-from says the url waits for a play",
-        "msg", "The session connected in time after the play",
-        "msg", "Fake smtp: AUTH answered",
-        "msg", "Fake smtp: message delivered",
-        "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
-        "msg", "Exit to die",
-        "msg", "Pausing yuno",
-        "msg", "Yuno stopped, gobj end"
-    );
+    json_t *errors_list = json_array();
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Starting yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Playing yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating __timeranger2__.json"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Creating topic"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: MAIL FROM refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "MAIL FROM rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "SMTP server failing: emails wait, the retries are paced", "cause", "550 5.1.8 Access denied, bad outbound sender"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "email NOT sent, will retry"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: MAIL FROM refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "MAIL FROM rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "email NOT sent, will retry"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: AUTH answered"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Fake smtp: MAIL FROM refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "MAIL FROM rejected"));
+    json_array_append_new(errors_list, json_pack("{s:s, s:s}", "msg", "email NOT sent, moved to failed queue", "to", "reader@example.com"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "The queues hold what is expected"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Exit to die"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Pausing yuno"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Yuno stopped, gobj end"));
 
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
@@ -282,7 +288,8 @@ static void cleaning(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
-    json_t *expected_errors = json_pack("[]");
+    json_t *expected_errors = json_array();
+    json_array_append_new(expected_errors, json_string("email NOT sent, moved to failed queue"));
     if(!json_equal(error_msgs, expected_errors) || errors_outside_the_test) {
         char *s_got = json2uglystr(error_msgs);
         char *s_expected = json2uglystr(expected_errors);
@@ -295,8 +302,6 @@ static void cleaning(void)
     }
     JSON_DECREF(expected_errors)
     JSON_DECREF(error_msgs)
-
-    release_quarantine();   // before the memory check of the entry point
 }
 
 /***************************************************************************
@@ -304,13 +309,6 @@ static void cleaning(void)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
-    /*
-     *  Freed memory is poisoned (poison_alloc.c): the dangling message this
-     *  test is about reads poison, every run, instead of the block the
-     *  queue reopened in its place.
-     */
-    install_poison_allocators();
-
     atexit(exit_guard);
 
     /*------------------------------*
@@ -376,7 +374,6 @@ int main(int argc, char *argv[])
         register_yuno_and_more,
         cleaning
     );
-    release_quarantine();   // an entry point that ended before cleaning()
 
     if(get_cur_system_memory()!=0) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
