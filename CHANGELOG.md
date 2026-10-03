@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- **BREAKING (protocol between master and followers): a key delete is
+  signalled with the master's delete sequence.** `tranger2_delete_key()`
+  removes the feed's `disks/<rt_id>/<key>/` as before, and then makes and
+  removes `disks/<rt_id>/.d<seq>.<key>` in the directory of every feed
+  (`.h<seq>.<sha256>` for a key longer than NAME_MAX - 23 bytes); `seq` is
+  the topic's delete sequence, recorded in `<topic>/delete_seq.json`
+  (durable, before the signal) and growing across restarts of the master.
+  A follower keeps, per key, the highest sequence it applied: a signal
+  above it is a new delete (the key is forgotten), one at or below it a
+  delete another feed heard first (the feed is told, nothing forgotten).
+  It replaces the matching of a delete by its place in each feed's queue
+  (debts, doubts, the place each feed was watched from), which left two
+  holes: a SECOND delete of a key heard first by a feed opened while the
+  first one was in flight was taken for the first, and a feed opened
+  AFTER another one heard a delete took its signal for a new one -- the
+  key forgotten again (a key written again meanwhile went with it) and,
+  in both, the delete told twice to a feed at its next overflow
+  (`[DEL DEL]`). Both existed in 7.25.22. At an overflow the master's
+  sequence is read before `keys/`: the keys told then are noted, and a
+  signal of theirs queued behind the overflow is not told again; a delete
+  not told there (of a key on disk again, or that no feed had heard) is
+  told by its signal. What every feed heard is pruned, so the follower
+  keeps no more than the deletes in flight. **Upgrade master and followers
+  of a topic together**: a follower of 7.25.22 takes `.d<seq>.<key>` for a
+  key. The delete of a topic with rt_disk feeds costs two disk flushes
+  more (the record of the sequence); a topic with none, nothing.
+  `test_delete_key_propagation`: `opened_after_heard` and
+  `second_delete_in_doubt` (red on the previous code: `[DEL DEL]` after
+  the overflow); the white-box checks of the old debts became "nothing of
+  the deletes kept once every feed heard them", and `stale_debt_reborn`
+  (a debt put there by hand) went with the debts.
+
 - **BREAKING (default): `with_link_events` is ON by default** -- in
   `C_NODE`, in `C_TREEDB` (copied to every treedb it opens) and in
   `C_AUTHZ`, which gets the attribute (new) and copies it to

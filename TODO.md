@@ -26,36 +26,8 @@ Severity in parentheses where one was assigned.
 
 ## 1. Defects to fix
 
-### timeranger2 and fs_watcher
+Nothing open in the SDK.
 
-- **rt_disk follower: two holes left in the accounting of key deletes**
-  (low; `count_key_delete_heard()`; the NULL body and the CRITICALs noted
-  with them were fixed 2026-10-02). (a) A doubt is matched by position: a
-  SECOND delete of the key queued below the mark is taken as the first one
-  (the mark is where the doubting feed's queue ended when the first feed
-  PROCESSED the delete, later than where it was emitted): the debt the
-  first feed then makes for the second is never paid, and the cache is
-  cleared late. (b) A feed opened after the first feed heard a delete is
-  not in that feed's walk of the disks: no debt, no doubt. If it then hears
-  the signal (its directory existed when the master signalled), it takes it
-  for a new delete and clears the cache -- taking out a key written again
-  meanwhile.
-  **Design chosen (2026-10-02), for the next cycle, not this release**: the
-  master's signal carries the master's own order. A per-topic delete
-  sequence, persisted by the master (monotonic across its restarts), goes in
-  the NAME of the signal: the master renames `disks/<rt>/<key>` to
-  `disks/<rt>/.delete.<seq>.<key>` before removing it, or makes and removes
-  `.delete.<seq>.<key>` where the feed has no directory of the key. Every
-  follower feed hears that name (an `IN_MOVED_TO` paired with the
-  `IN_MOVED_FROM` of `<key>` by its cookie, or an `IN_CREATE`), and the
-  follower keeps, per key, the last sequence it applied to the cache: a
-  delete at or below it is known (no clear), one above it is new. Debts and
-  doubts then match by sequence, not by queue position. **Compatibility**:
-  it changes the protocol between master and follower PROCESSES; a follower
-  of the old release does not understand the new signal, so the master and
-  the followers of a topic upgrade together (an upgrade note). Write the red
-  test first (`test_delete_key_propagation` has the hooks: `inflight_open`,
-  `__wrap_rmdir`).
 ### Projects (code outside this repo)
 
 Moved to the TODO of each project on 2026-10-02: `msg2db_id_incomplete()` in

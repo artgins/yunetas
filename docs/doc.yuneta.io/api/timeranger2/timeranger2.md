@@ -798,12 +798,20 @@ The deletion is **propagated to subscribers**:
 - The master removes the live `keys/<key>/` directory FIRST, and signals
   the delete only once it is done (up to 7.25.4 it signalled first, so a
   key whose directory could not be removed was heard deleted while it was
-  still on disk). It signals it in the directory of **every** rt_disk feed. Where
-  `topic/disks/<rt_id>/<key>/` exists (the feed received records of the
-  key), it is removed. Where it does not exist, it is created and removed
-  at once: a key directory that appears and vanishes means "deleted". A
-  feed that received no record of the key since it opened therefore hears
-  the delete too. When `disks/` cannot be listed (its `opendir()` fails
+  still on disk). It signals it in the directory of **every** rt_disk feed:
+  `topic/disks/<rt_id>/<key>/`, where it exists (the feed received records
+  of the key), is removed, and then a directory `.d<seq>.<key>` is created
+  and removed at once -- that is the signal. `seq` is the topic's delete
+  sequence (`<topic>/delete_seq.json`, recorded durable before the signal,
+  growing across restarts of the master), and it is what lets a follower
+  tell a delete it applied from a new one (see
+  [fs_watcher](fs_watcher.md), the rt_disk feed). A key longer than
+  NAME_MAX - 23 bytes is signalled as `.h<seq>.<sha256 of the key>`. A feed
+  that received no record of the key since it opened hears the delete too.
+  The sequence is taken only when `disks/` has a feed to tell; its record
+  costs two disk flushes per delete then. **Since 7.26.0**; up to 7.25.22
+  the signal was the key's own directory (removed, or created and removed),
+  so master and followers of a topic upgrade together. When `disks/` cannot be listed (its `opendir()` fails
   with anything but `ENOENT`, or a `readdir()` fails half way), the feeds
   not reached do not hear it, and that is logged: *"Cannot tell the rt_disk
   feeds that a key was deleted, opendir() of disks/ FAILED"* or *"Cannot tell

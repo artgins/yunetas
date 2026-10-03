@@ -14,15 +14,14 @@
  *        delete exactly once, with and without records since it opened, its
  *        cache loses the key, and a feed may close itself from the callback.
  *      - do_test_cache_cleared:       topic.cache rollup loses the entry.
- *      - do_test_signal_dir_seen:     the master signals a delete to a feed
- *        without the key's directory by creating it and removing it; a
- *        follower that reads the IN_CREATE in between finds the directory
- *        there. That is not the key alive again: the feed's debt of the
- *        delete stays (the test holds the rmdir() of the master's signal).
- *        Nor when the master writes the key AGAIN before the follower reads
- *        that IN_CREATE: the directory then holds the new key's link, read
- *        at the signal's place; the debt stays, the live key stays in the
- *        follower's cache, and nobody is left owing.
+ *      - do_test_signal_dir_seen:     the master signals a delete by making
+ *        a directory `.d<seq>.<key>` and removing it; a follower that reads
+ *        the IN_CREATE in between finds the directory there (the test holds
+ *        the rmdir() of the master's signal). The feed is told nothing
+ *        until the signal goes, then once. Nor when the master writes the
+ *        key AGAIN while the signal is held: the live key stays in the
+ *        follower's cache, and nothing of the delete is kept after every
+ *        feed heard it.
  *      - do_test_reborn_before_read: the master deletes a key and writes it
  *        again before the follower reads the signal (one feed, two feeds,
  *        one new record or five): the feed hears the delete, then every
@@ -45,9 +44,17 @@
  *        callback of the key before it): `deleted`, then the new records
  *        (up to the fix [R1 DEL], the key out of the cache).
  *      - do_test_inflight_open: a feed opened while a delete is in flight,
- *        signalled after it was watched, hears it owing nothing: the delete
- *        is not new, nobody is left owing it, and the first feed is not
- *        told it again at its next overflow (up to the fix [DEL DEL]).
+ *        signalled after it was watched: the delete is not new to it, and
+ *        the first feed is not told it again at its next overflow (up to
+ *        the fix [DEL DEL]).
+ *      - do_test_opened_after_heard: a feed opened AFTER another feed heard
+ *        a delete, and signalled then: its signal is that delete, known by
+ *        its sequence (up to the fix it was taken for a new one, and the
+ *        first feed was told it again at its next overflow: [DEL DEL]).
+ *      - do_test_second_delete_in_doubt: a feed opened in flight that never
+ *        hears the first delete hears a SECOND delete of the key first: a
+ *        new one, by its sequence (up to the fix it was taken for the first
+ *        one, and told again at the feed's next overflow: [DEL DEL]).
  *      - do_test_known_reborn_fd: a key the follower read, deleted and
  *        written again in the same day file: its new records are read from
  *        the new file (up to the fix through the old file's descriptor:
@@ -55,10 +62,6 @@
  *      - do_test_second_file_first: a second file of a new key linked
  *        while its directory waits to be read: read with it, in order (up
  *        to the fix [R1 R1], R2 lost).
- *      - do_test_stale_debt_reborn: a debt a feed will never pay (a delete
- *        signalled across its opening) is forgotten by the first record of
- *        the key born again, found by the scan of its new directory (its
- *        link made before the directory was watched).
  *      - do_test_close_races_master: the master writes a new key in the
  *        middle of the close of a follower's feed (from __wrap_rmdir(), in
  *        the removal of its directory). The directory goes, nothing is left
@@ -152,7 +155,7 @@ PRIVATE char held_signals[PATH_MAX] = "";      // the disks/ whose delete signal
 PRIVATE int held_rmdirs = 0;
 PRIVATE int count_x = 0, count_y = 0;           // key_deleted of the feeds rtX and rtY
 PRIVATE json_t *feed_x = NULL, *feed_y = NULL;
-PRIVATE int debt_kept_in_signal = -1;           // the second feed, its IN_CREATE read: still owes?
+PRIVATE int told_while_held = -1;               // the second feed, its signal only made: told?
 PRIVATE json_t *held_master = NULL;             // set: the key is written again in the hold
 PRIVATE int append_to(json_t *tranger, json_int_t id, int n);
 PRIVATE int (*rmdir_hook)(const char *path, int *ret) = NULL;   // TRUE: it did the rmdir()
@@ -199,10 +202,7 @@ int __wrap_rmdir(const char *path)
             for(int i = 0; i < 20; i++) {
                 yev_loop_run_once(yev_loop);
             }
-            json_t *feed = strstr(path, "/rtX/")? feed_x : feed_y;
-            debt_kept_in_signal = json_object_get(
-                json_object_get(feed, "deletes_unheard"), KEY_A
-            )? 1 : 0;
+            told_while_held = strstr(path, "/rtX/")? count_x : count_y;
             if(held_master) {
                 return ret;
             }
@@ -383,6 +383,23 @@ PRIVATE int append_to(json_t *tranger, json_int_t id, int n)
         }
     }
     return 0;
+}
+
+/*
+ *  Once every feed heard every delete signal, the follower keeps nothing
+ *  of them: `deletes_applied` is pruned below what every feed heard
+ */
+PRIVATE int expect_applied_pruned(const char *label, json_t *tf)
+{
+    json_t *applied = json_object_get(tranger2_topic(tf, TOPIC_NAME), "deletes_applied");
+    if(json_object_size(applied) == 0) {
+        return 0;
+    }
+    char *s_ = json_dumps(applied, JSON_COMPACT);
+    printf("%sERROR%s --> %s: deletes kept after every feed heard them: %s\n",
+        On_Red BWhite, Color_Off, label, s_? s_ : "");
+    gbmem_free(s_);
+    return -1;
 }
 
 /***************************************************************************
@@ -1336,7 +1353,7 @@ PRIVATE int do_test_signal_dir_seen(BOOL key_back)
     rmrdir(path_database);
     count_x = count_y = 0;
     held_rmdirs = 0;
-    debt_kept_in_signal = -1;
+    told_while_held = -1;
 
     snprintf(title, sizeof(title), "%s: setup", label);
     set_expected_results(
@@ -1376,7 +1393,7 @@ PRIVATE int do_test_signal_dir_seen(BOOL key_back)
     drain(10);
     result += test_json(NULL);
 
-    snprintf(title, sizeof(title), "%s: the debt stays", label);
+    snprintf(title, sizeof(title), "%s: told once, when the signal goes", label);
     set_expected_results(title, NULL, NULL, NULL, 1);
     build_path(held_signals, sizeof(held_signals), path_topic, "disks", NULL);
     held_master = key_back? tm : NULL;
@@ -1397,8 +1414,8 @@ PRIVATE int do_test_signal_dir_seen(BOOL key_back)
             On_Red BWhite, Color_Off, label, held_rmdirs);
         result += -1;
     }
-    if(!key_back && debt_kept_in_signal != 1) {     // with the key back the signal is read whole
-        printf("%sERROR%s --> %s: the directory of the signal, seen made, dropped the debt of the delete\n",
+    if(!key_back && told_while_held != 0) {     // with the key back the signal is removed first
+        printf("%sERROR%s --> %s: the feed was told the delete while its signal was only made\n",
             On_Red BWhite, Color_Off, label);
         result += -1;
     }
@@ -1407,12 +1424,7 @@ PRIVATE int do_test_signal_dir_seen(BOOL key_back)
             On_Red BWhite, Color_Off, label, count_x, count_y);
         result += -1;
     }
-    if(json_object_size(json_object_get(feed_x, "deletes_unheard")) != 0 ||
-       json_object_size(json_object_get(feed_y, "deletes_unheard")) != 0) {
-        printf("%sERROR%s --> %s: a feed owes deletes it will never hear\n",
-            On_Red BWhite, Color_Off, label);
-        result += -1;
-    }
+    result += expect_applied_pruned(label, tf);
     tranger2_close_rt_disk(tf, feed_x);
     tranger2_close_rt_disk(tf, feed_y);
     feed_x = feed_y = NULL;
@@ -1559,12 +1571,7 @@ PRIVATE int do_test_reborn_before_read(int new_rows, BOOL two_feeds)
             On_Red BWhite, Color_Off, label);
         result += -1;
     }
-    if(json_object_size(json_object_get(fx, "deletes_unheard")) != 0 ||
-       (fy && json_object_size(json_object_get(fy, "deletes_unheard")) != 0)) {
-        printf("%sERROR%s --> %s: a feed owes deletes it will never hear\n",
-            On_Red BWhite, Color_Off, label);
-        result += -1;
-    }
+    result += expect_applied_pruned(label, tf);
 
     /*
      *  The next record of the key: once, with the next rowid
@@ -1708,12 +1715,7 @@ PRIVATE int do_test_reborn_window(json_int_t key_id, int reborns, int rows_last,
             On_Red BWhite, Color_Off, label);
         result += -1;
     }
-    if(json_object_size(json_object_get(fx, "deletes_unheard")) != 0 ||
-       (fy && json_object_size(json_object_get(fy, "deletes_unheard")) != 0)) {
-        printf("%sERROR%s --> %s: a feed owes deletes it will never hear\n",
-            On_Red BWhite, Color_Off, label);
-        result += -1;
-    }
+    result += expect_applied_pruned(label, tf);
 
     seq_x[0] = 0;
     if(append_one_at(tm, key_id, BASE_T + 100) < 0) {
@@ -1736,97 +1738,6 @@ PRIVATE int do_test_reborn_window(json_int_t key_id, int reborns, int rows_last,
 
     snprintf(title, sizeof(title), "%s: shutdown", label);
     set_expected_results(title, NULL, NULL, NULL, 1);
-    tranger2_shutdown(tf);
-    tranger2_shutdown(tm);
-    drain(10);
-    result += test_json(NULL);
-    count_x = count_y = 0;
-    return result;
-}
-
-/***************************************************************************
- *  do_test_stale_debt_reborn
- ***************************************************************************/
-PRIVATE int do_test_stale_debt_reborn(void)
-{
-    int result = 0;
-    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
-    build_paths(path_root, sizeof(path_root),
-                path_database, sizeof(path_database),
-                path_topic, sizeof(path_topic));
-    rmrdir(path_database);
-    seq_x[0] = 0;
-    count_x = count_y = 0;
-
-    set_expected_results(
-        "stale debt reborn: setup",
-        json_pack("[{s:s},{s:s}]",
-            "msg", "Creating __timeranger2__.json",
-            "msg", "Creating topic"
-        ),
-        NULL, NULL, 1
-    );
-    json_t *tm = startup_master(path_root, TRUE);
-    if(!tm || create_topic(tm) < 0) {
-        if(tm) {
-            tranger2_shutdown(tm);
-        }
-        return -1;
-    }
-    if(append_to(tm, 1, 1) < 0) {
-        result += -1;
-    }
-    drain(5);
-    json_t *tf = startup_tranger(path_root, FALSE, TRUE);
-    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
-        if(tf) {
-            tranger2_shutdown(tf);
-        }
-        tranger2_shutdown(tm);
-        return -1;
-    }
-    json_t *fx = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, seq_record_callback, "rtX", "", NULL);
-    json_t *fy = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, my_record_callback, "rtY", "", NULL);
-    if(!fx || !fy) {
-        result += -1;
-    }
-    tranger2_set_rt_key_deleted_callback(fx, seq_key_deleted_callback, NULL);
-    tranger2_set_rt_key_deleted_callback(fy, follower_key_deleted_callback, NULL);
-    drain(10);
-    result += test_json(NULL);
-
-    set_expected_results("stale debt reborn: the first record forgets it", NULL, NULL, NULL, 1);
-    /*
-     *  A debt of the window of doubt (a delete signalled across rtX's
-     *  opening), put there by hand; then a record of the key: rtX's
-     *  directory of it is new, its first link found by the scan
-     */
-    json_object_set_new(fx, "deletes_unheard", json_pack("{s:[i]}", KEY_A, 0));
-    if(append_one_at(tm, 1, BASE_T + 10) < 0) {
-        result += -1;
-    }
-    drain(30);
-    if(json_object_size(json_object_get(fx, "deletes_unheard")) != 0) {
-        printf("%sERROR%s --> stale debt reborn: rtX still owes after the record of the key born again\n",
-            On_Red BWhite, Color_Off);
-        result += -1;
-    }
-    if(tranger2_delete_key(tm, TOPIC_NAME, KEY_A) < 0) {
-        result += -1;
-    }
-    drain(30);
-    if(json_object_size(json_object_get(fx, "deletes_unheard")) != 0 ||
-       json_object_size(json_object_get(fy, "deletes_unheard")) != 0) {
-        printf("%sERROR%s --> stale debt reborn: a feed owes deletes it will never hear\n",
-            On_Red BWhite, Color_Off);
-        result += -1;
-    }
-    tranger2_close_rt_disk(tf, fx);
-    tranger2_close_rt_disk(tf, fy);
-    drain(10);
-    result += test_json(NULL);
-
-    set_expected_results("stale debt reborn: shutdown", NULL, NULL, NULL, 1);
     tranger2_shutdown(tf);
     tranger2_shutdown(tm);
     drain(10);
@@ -1999,11 +1910,7 @@ PRIVATE int do_test_rkey_filter(void)
             On_Red BWhite, Color_Off, deleted_callback_count, count_rkey, count_all);
         result += -1;
     }
-    if(json_object_size(json_object_get(rt_rkey, "deletes_unheard")) != 0 ||
-       json_object_size(json_object_get(rt_all, "deletes_unheard")) != 0) {
-        printf("%sERROR%s --> rkey: a feed owes deletes it will never hear\n", On_Red BWhite, Color_Off);
-        result += -1;
-    }
+    result += expect_applied_pruned("rkey", tf);
     count_a = count_b = count_all = count_rkey = 0;
 
     tranger2_close_rt_mem(tm, rt_mem);
@@ -2458,19 +2365,9 @@ PRIVATE int p_expect_cache(const char *label, json_int_t k, BOOL in)
     return -1;
 }
 
-PRIVATE int p_expect_no_debts(const char *label)
+PRIVATE int p_expect_applied_pruned(const char *label)
 {
-    int result = 0;
-    for(int f = 0; f < P_FEEDS; f++) {
-        if(pfeed[f] && json_object_size(json_object_get(pfeed[f], "deletes_unheard")) != 0) {
-            char *s = json_dumps(json_object_get(pfeed[f], "deletes_unheard"), JSON_COMPACT);
-            printf("%sERROR%s --> %s: feed %d owes deletes it will never hear: %s\n",
-                On_Red BWhite, Color_Off, label, f, s? s : "");
-            gbmem_free(s);
-            result += -1;
-        }
-    }
-    return result;
+    return expect_applied_pruned(label, p_follower);
 }
 
 /*
@@ -2536,7 +2433,7 @@ PRIVATE int do_test_race_in_batch(int rows)
     result += p_expect(label, 0, 1, "R1 ", NULL);
     result += p_expect(label, 0, 2, exp1, exp2);
     result += p_expect_cache(label, 2, TRUE);
-    result += p_expect_no_debts(label);
+    result += p_expect_applied_pruned(label);
 
     memset(pseq, 0, sizeof(pseq));
     if(append_one_at(p_master, 2, BASE_T + 100) < 0) {
@@ -2636,7 +2533,7 @@ PRIVATE int inflight_attempt(BOOL overflow_after, const char *first_id, const ch
     drain(40);
     result += p_expect(label, 0, 1, "DEL ", NULL);
     result += p_expect(label, 1, 1, "DEL ", NULL);
-    result += p_expect_no_debts(label);
+    result += p_expect_applied_pruned(label);
     result += test_json(NULL);
 
     if(overflow_after) {
@@ -2699,6 +2596,325 @@ PRIVATE int do_test_inflight_open(BOOL overflow_after)
     }
     if(r == 1) {
         printf("%sERROR%s --> opened in flight: the test did not test\n", On_Red BWhite, Color_Off);
+        r = -1;
+    }
+    return r;
+}
+
+/***************************************************************************
+ *  Lose the events of feed `f`: fill its inotify queue past the kernel's
+ *  limit, and wait until the pass that follows the overflow is over.
+ ***************************************************************************/
+PRIVATE int p_overflow_feed(const char *label, const char *path_topic, int f, const char *id)
+{
+    char junk[PATH_MAX];
+    build_path(junk, sizeof(junk), path_topic, "disks", id, "junk", NULL);
+    mkdir(junk, 0770);
+    drain(10);
+    int pairs = max_queued_events_of_inotify()/2 + 1024;
+    for(int i = 0; i < pairs; i++) {
+        char d[PATH_MAX], nm[32];
+        snprintf(nm, sizeof(nm), "d%d", i);
+        build_path(d, sizeof(d), junk, nm, NULL);
+        mkdir(d, 0770);
+        __real_rmdir(d);
+    }
+    fs_event_t *fs = (fs_event_t *)(uintptr_t)json_integer_value(
+        json_object_get(pfeed[f], "fs_event_client")
+    );
+    uint64_t t0 = time_in_milliseconds_monotonic();
+    BOOL overflowed = FALSE;
+    while(time_in_milliseconds_monotonic() - t0 < 30*1000) {
+        yev_loop_run_once(yev_loop);
+        if(fs && fs->rescan_dirs) {
+            overflowed = TRUE;
+        } else if(overflowed) {
+            break;
+        }
+    }
+    drain(20);
+    if(!overflowed) {
+        printf("%sERROR%s --> %s: the test did not test: no overflow\n",
+            On_Red BWhite, Color_Off, label);
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ *  Is `path` a delete signal of KEY_A in disks/<id>/? The signal names the
+ *  key at its END: `<key>` up to 7.25.22, `.d<seq>.<key>` after. With the
+ *  sequence, a directory named the key itself is no signal (it is the
+ *  feed's directory of the key, removed before the signal).
+ */
+PRIVATE BOOL seq_signals = FALSE;   // a `.d<seq>.<key>` was seen
+PRIVATE BOOL is_signal_of(const char *path, const char *id)
+{
+    char dir[64];
+    snprintf(dir, sizeof(dir), "/disks/%s/", id);
+    const char *p = strstr(path, dir);
+    if(!p) {
+        return FALSE;
+    }
+    const char *base = p + strlen(dir);
+    size_t lb = strlen(base), lk = strlen(KEY_A);
+    if(strchr(base, '/') || lb < lk || strcmp(base + lb - lk, KEY_A) != 0) {
+        return FALSE;
+    }
+    if(base[0] == '.') {
+        seq_signals = TRUE;
+        return TRUE;
+    }
+    return seq_signals? FALSE : TRUE;
+}
+
+/***************************************************************************
+ *  do_test_opened_after_heard: a feed opened AFTER another feed heard a
+ *  delete, and signalled after it was watched. It hears the signal of a
+ *  delete the follower knows: not a new one. Up to the fix the feed opened
+ *  late owed nothing and was in no doubt (the first feed's walk of the
+ *  disks did not see it): it took the signal for a new delete, cleared the
+ *  cache again (a key written again meanwhile went with it), and made the
+ *  first feed owe it -- a debt never paid, told again at that feed's next
+ *  overflow ([DEL DEL]).
+ ***************************************************************************/
+PRIVATE const char *oah_first_id = "";
+PRIVATE const char *oah_second_id = "";
+PRIVATE int oah_reached = -1;   // -1 not yet, 1 the first feed signalled first, 0 the other
+PRIVATE BOOL oah_first_signalled = FALSE;
+PRIVATE int oah_hook(const char *path, int *ret)
+{
+    if(oah_reached >= 0) {
+        if(is_signal_of(path, oah_second_id)) {
+            oah_first_signalled = TRUE;     // the second feed, watched, is signalled
+        }
+        return 0;
+    }
+    if(is_signal_of(path, oah_second_id)) {
+        oah_reached = 0;    // the master lists the second one first: try them the other way
+        return 0;
+    }
+    if(!is_signal_of(path, oah_first_id)) {
+        return 0;
+    }
+    oah_reached = 1;
+    *ret = __real_rmdir(path);
+    for(int i = 0; i < 200 && pdels[0][1] == 0; i++) {
+        yev_loop_run_once(yev_loop);    // the first feed hears the delete
+    }
+    p_open_feed(1, oah_second_id);      // then the second one is watched, and signalled
+    return 1;
+}
+
+PRIVATE int opened_after_heard_attempt(const char *first_id, const char *second_id)
+{
+    int result = 0;
+    char label[96];
+    snprintf(label, sizeof(label), "opened after the delete was heard (%s, %s)", first_id, second_id);
+    char path_topic[PATH_MAX];
+    if(p_setup(label, path_topic, sizeof(path_topic)) < 0) {
+        p_shutdown(label);
+        return -1;
+    }
+    char title[160];
+    snprintf(title, sizeof(title), "%s: each feed told once", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    if(append_to(p_master, 1, 3) < 0) {
+        result += -1;
+    }
+    p_open_feed(0, first_id);
+    drain(10);
+    char second_dir[PATH_MAX];
+    build_path(second_dir, sizeof(second_dir), path_topic, "disks", second_id, NULL);
+    mkdir(second_dir, 0770);    // listed by the master's delete: signalled
+
+    oah_first_id = first_id;
+    oah_second_id = second_id;
+    oah_reached = -1;
+    oah_first_signalled = FALSE;
+    rmdir_hook = oah_hook;
+    if(tranger2_delete_key(p_master, TOPIC_NAME, KEY_A) < 0) {
+        result += -1;
+    }
+    rmdir_hook = NULL;
+    if(oah_reached != 1) {
+        p_shutdown(label);
+        return oah_reached == 0? 1 : -1;  // 1: not reached in this order
+    }
+    if(!oah_first_signalled) {
+        printf("%sERROR%s --> %s: the second feed was not signalled after it was watched\n",
+            On_Red BWhite, Color_Off, label);
+        result += -1;
+    }
+    drain(40);
+    result += p_expect(label, 0, 1, "DEL ", NULL);
+    result += p_expect(label, 1, 1, "DEL ", NULL);
+    result += p_expect_cache(label, 1, FALSE);
+    result += test_json(NULL);
+
+    snprintf(title, sizeof(title), "%s: the first feed, overflowed, is not told again", label);
+    set_expected_results_unordered(
+        title,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
+            "msg", "watched tree rescanned after lost inotify events"
+        ),
+        NULL, NULL, 1
+    );
+    result += p_overflow_feed(label, path_topic, 0, first_id);
+    result += p_expect(label, 0, 1, "DEL ", NULL);
+    result += test_json(NULL);
+    result += p_shutdown(label);
+    return result;
+}
+
+PRIVATE int do_test_opened_after_heard(void)
+{
+    int r = opened_after_heard_attempt("rtA", "rtB");
+    if(r == 1) {
+        r = opened_after_heard_attempt("rtB", "rtA");
+    }
+    if(r == 1) {
+        printf("%sERROR%s --> opened after heard: the test did not test\n", On_Red BWhite, Color_Off);
+        r = -1;
+    }
+    return r;
+}
+
+/***************************************************************************
+ *  do_test_second_delete_in_doubt: a feed opened while a delete is in
+ *  flight and signalled BEFORE it was watched never hears it. Before the
+ *  first feed reads that delete, the master writes the key again and
+ *  deletes it a second time, and the feed opened late hears the SECOND
+ *  delete -- a new one -- before the first feed does.
+ *
+ *  Up to the fix the delete was left in doubt for the late feed at where
+ *  its stream ended when the first feed READ the delete, past the second
+ *  signal: the second delete was taken for the first (not new, so the
+ *  cache was not cleared), and when the first feed heard it, it made the
+ *  late feed owe it -- a debt never paid, told again at its next overflow
+ *  ([DEL DEL]).
+ ***************************************************************************/
+PRIVATE const char *sdd_first_id = "";
+PRIVATE const char *sdd_second_id = "";
+PRIVATE int sdd_phase = 0;          // 1: the first delete, 2: the second
+PRIVATE int sdd_reached = -1;
+PRIVATE BOOL sdd_first_signalled = FALSE;
+PRIVATE char sdd_held[PATH_MAX] = "";   // the first feed's signal of the second delete, held
+PRIVATE int sdd_hook(const char *path, int *ret)
+{
+    if(sdd_phase == 1) {
+        if(is_signal_of(path, sdd_first_id)) {
+            sdd_first_signalled = TRUE;
+            return 0;
+        }
+        if(sdd_reached >= 0 || !is_signal_of(path, sdd_second_id)) {
+            return 0;
+        }
+        if(!sdd_first_signalled) {
+            sdd_reached = 0;    // the second listed first: try them the other way
+            return 0;
+        }
+        sdd_reached = 1;
+        *ret = __real_rmdir(path);  // signalled before it is watched: never heard
+        p_open_feed(1, sdd_second_id);
+        return 1;
+    }
+    if(sdd_phase == 2 && !sdd_held[0] && is_signal_of(path, sdd_first_id)) {
+        snprintf(sdd_held, sizeof(sdd_held), "%s", path);
+        *ret = 0;   // done later: the late feed hears this delete first
+        return 1;
+    }
+    return 0;
+}
+
+PRIVATE int second_delete_in_doubt_attempt(const char *first_id, const char *second_id)
+{
+    int result = 0;
+    char label[96];
+    snprintf(label, sizeof(label), "second delete in doubt (%s, %s)", first_id, second_id);
+    char path_topic[PATH_MAX];
+    if(p_setup(label, path_topic, sizeof(path_topic)) < 0) {
+        p_shutdown(label);
+        return -1;
+    }
+    char title[160];
+    snprintf(title, sizeof(title), "%s: two deletes, each one new once", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    if(append_to(p_master, 1, 3) < 0) {
+        result += -1;
+    }
+    p_open_feed(0, first_id);
+    drain(10);
+    char second_dir[PATH_MAX];
+    build_path(second_dir, sizeof(second_dir), path_topic, "disks", second_id, NULL);
+    mkdir(second_dir, 0770);
+
+    sdd_first_id = first_id;
+    sdd_second_id = second_id;
+    sdd_reached = -1;
+    sdd_first_signalled = FALSE;
+    sdd_held[0] = 0;
+    rmdir_hook = sdd_hook;
+
+    sdd_phase = 1;
+    if(tranger2_delete_key(p_master, TOPIC_NAME, KEY_A) < 0) {
+        result += -1;
+    }
+    if(sdd_reached != 1) {
+        rmdir_hook = NULL;
+        p_shutdown(label);
+        return sdd_reached == 0? 1 : -1;
+    }
+    sdd_phase = 2;
+    if(append_one_at(p_master, 1, BASE_T + 50) < 0 ||
+            tranger2_delete_key(p_master, TOPIC_NAME, KEY_A) < 0) {
+        result += -1;
+    }
+    rmdir_hook = NULL;
+    if(!sdd_held[0]) {
+        printf("%sERROR%s --> %s: the first feed's second signal was not held\n",
+            On_Red BWhite, Color_Off, label);
+        result += -1;
+    }
+
+    /*
+     *  The first feed reads the first delete, the late feed the second
+     */
+    drain(40);
+    result += p_expect_cache(label, 1, FALSE);
+    if(sdd_held[0]) {
+        __real_rmdir(sdd_held);
+    }
+    drain(40);
+    result += p_expect(label, 1, 1, "DEL ", "R1 DEL ");
+    result += p_expect_cache(label, 1, FALSE);
+    result += test_json(NULL);
+
+    snprintf(title, sizeof(title), "%s: the late feed, overflowed, is not told again", label);
+    set_expected_results_unordered(
+        title,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
+            "msg", "watched tree rescanned after lost inotify events"
+        ),
+        NULL, NULL, 1
+    );
+    result += p_overflow_feed(label, path_topic, 1, second_id);
+    result += p_expect(label, 1, 1, "DEL ", "R1 DEL ");
+    result += test_json(NULL);
+    result += p_shutdown(label);
+    return result;
+}
+
+PRIVATE int do_test_second_delete_in_doubt(void)
+{
+    int r = second_delete_in_doubt_attempt("rtA", "rtB");
+    if(r == 1) {
+        r = second_delete_in_doubt_attempt("rtB", "rtA");
+    }
+    if(r == 1) {
+        printf("%sERROR%s --> second delete in doubt: the test did not test\n", On_Red BWhite, Color_Off);
         r = -1;
     }
     return r;
@@ -2945,11 +3161,12 @@ int main(int argc, char *argv[])
     result += do_test_reborn_window(1, 2, 3, FALSE);
     result += do_test_reborn_window(1, 3, 1, FALSE);   // three times
     result += do_test_reborn_window(1, 2, 1, TRUE);
-    result += do_test_stale_debt_reborn();
     result += do_test_race_in_batch(1);
     result += do_test_race_in_batch(3);
     result += do_test_inflight_open(FALSE);
     result += do_test_inflight_open(TRUE);
+    result += do_test_opened_after_heard();
+    result += do_test_second_delete_in_doubt();
     result += do_test_known_reborn_fd(FALSE);
     result += do_test_known_reborn_fd(TRUE);
     result += do_test_stale_link(FALSE);

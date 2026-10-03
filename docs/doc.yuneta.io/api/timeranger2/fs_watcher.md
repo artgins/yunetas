@@ -441,83 +441,77 @@ PRIVATE int my_fs_callback(fs_event_t *fs_event)
 What the owners of the tree do:
 
 - **timeranger2, a follower's rt_disk feed** (the heavy one: an event per new
-  md2 of every key). At `FS_OVERFLOW_TYPE`: a deleted key leaves no trace in
-  `disks/<rt_id>/` (its signal is a directory created and removed), so the
-  follower's cache is compared with the topic's `keys/`, read once, and a key
-  gone from there is heard as deleted (its `key_deleted` callback fires; INFO
-  *"keys deleted while the inotify events were lost"*). The cache is shared by
-  every feed of the topic and forgets a key with the first feed that hears its
-  delete, so the first feed to hear one (the feed that owes it nothing and
-  holds no doubt about it, below; the key's being in the cache does not say
-  it, the key may never have been read by this follower) counts it as owed by every other watched feed (`deletes_unheard`, per feed), each
-  paying when it hears it: the deletes a feed owes and that are gone from
-  `keys/` are told at its overflow too. Up to 7.25.20 a feed that overflowed
-  while another feed of its topic heard a delete never heard of it.
+  md2 of every key). A delete reaches it as a SIGNAL that carries the
+  master's order: `tranger2_delete_key()` removes the feed's directory of
+  the key (`disks/<rt_id>/<key>/`, when it has one), then makes and removes
+  a directory `.d<seq>.<key>` in the directory of EVERY feed, where `seq` is
+  the topic's delete sequence (`<topic>/delete_seq.json`, recorded durable
+  before the signal, growing across the master's restarts). A key too long
+  for that name (more than NAME_MAX - 23 bytes) is signalled as
+  `.h<seq>.<sha256 of the key>`. No key starts with `.`, so no signal is
+  taken for a key, and the removal of `<key>/` alone is no signal.
 
-  Only the first feed to hear a delete FORGETS the key: out of the cache, its
-  segments and the watermark of every feed. A feed that pays leaves them
-  alone: the key may be back, loaded by a feed that heard its new record, and
-  a new record seeds the watermark of every feed that wants the key. Up to
-  7.25.20 every feed that heard a delete forgot the key: a slow one took the
-  live key out of the cache and dropped its own fresh watermark (and, with
-  the deletes owed counted, the delete was taken as new and owed by the
-  feeds that had heard it).
+  The cache is shared by every feed of the topic and forgets a key with the
+  FIRST feed that hears its delete: out of the cache, its segments and the
+  watermark of every feed. Which one is first is said by the sequence: the
+  follower keeps, per key, the highest sequence it applied
+  (`deletes_applied`, on the topic). A signal above it is a delete not
+  applied yet; one at or below it, a delete another feed heard first --
+  the feed is told (its `key_deleted` callback fires) and nothing is
+  forgotten: the key may be back, loaded by a feed that heard its new
+  record. However late a feed hears a signal, and whenever it was opened
+  (before the delete, while it was in flight, or after another feed heard
+  it), the sequence tells. Up to 7.25.22 the signal was the key's own
+  directory, with nothing to tell one delete from another, and the
+  follower matched them by their place in each feed's queue (debts, doubts,
+  the place each feed was watched from): a second delete of a key could be
+  taken for the first, and a feed opened after another one heard a delete
+  took its signal for a new one -- the key forgotten again (a key written
+  again meanwhile went with it) and a delete told twice at an overflow.
+  **The protocol changed with it: master and followers of a topic upgrade
+  together** (a follower of 7.25.22 takes `.d<seq>.<key>` for a key).
 
-  A feed is told the deletes of the keys it wants: its `key`, or the keys its
-  `rkey` matches, or every key (up to 7.25.20 only `key` was looked at, and a
-  feed opened with an `rkey` was told every key deleted).
+  Each feed hears the signals in the master's order (the master signals a
+  delete to every feed before the next one), so the last one a feed heard
+  (`delete_seq_heard`) says it will hear none below; a feed opened starts
+  one below the last any feed heard (the delete in flight may still reach
+  it). What was applied below every feed's mark reaches none of them and is
+  pruned, so `deletes_applied` stays as short as the deletes in flight.
+
+  At `FS_OVERFLOW_TYPE` the signals lost leave nothing behind. The master's
+  sequence of now is read FIRST (every delete up to it happened before
+  what is listed next), then the topic's `keys/`, once: a key in the cache
+  and not on disk was deleted and heard by no feed (forgotten here, and
+  applied up to that sequence, so its signal is known when another feed
+  hears it); a delete applied above what this feed heard was heard by
+  another feed (told to this one, unless the key is on disk again: deleted
+  and written again while the events were lost, it lives). INFO *"keys
+  deleted while the inotify events were lost"*. Up to 7.25.20 a feed that
+  overflowed while another feed of its topic heard a delete never heard of
+  it.
 
   What an overflow told is not told again. The kernel queues its overflow at
   the end of a full queue, and as the watcher reads down to it room is made
   behind it: the master's signal of a delete can be queued there, and comes
   after the overflow that already told the key. The feed keeps the keys it
-  told and where its stream ended once `keys/` was read
-  ([`fs_queued_events_end()`](#fs_queued_events_end)); a delete of one of
-  them queued before that is said already, and nothing is done (up to 7.25.20
-  it was told twice). The set is let go at the first key-delete the feed
-  hears from past that point, or at its next overflow. A delete the feed
-  OWED and whose key is on disk again at the overflow (deleted and written
-  again while the events were lost) is not told there; if its signal is
-  queued behind the overflow, it is that delete, paid (told, nothing
-  forgotten), not a new one. Up to the fix the debt went at the overflow and
-  the signal was taken for a new delete: the live key out of the cache, and
-  owed by the feed that had heard it.
+  told, each with the sequence of then (`deletes_told`): a signal of one of
+  them at or below it is said already, and nothing is done. The set goes
+  when the feed hears a signal above every one of them (it is past what was
+  queued behind that overflow). A delete NOT told at the overflow -- of a
+  key on disk again, or of a key in the cache and on disk that no feed had
+  heard deleted -- is told by its signal if it is still behind the
+  overflow, as any other.
 
-  A feed opened while a delete was in flight may hear it or not: not if its
-  directory was made after the master listed `disks/`, or if it was watched
-  after the master signalled it; yes if the master signalled it after it was
-  watched (the master signals the feeds one after another). When a feed
-  opens it notes where the stream of every other feed ends (`watched_from`);
-  a feed that hears a delete first, below that point of its own stream,
-  cannot tell which case the other one is in. It does not make it owe the
-  delete (it may never hear it, and the next delete of the key would pay
-  it): it leaves it IN DOUBT (`deletes_in_doubt`), at the place where the
-  other feed's stream ends then. If that feed hears the delete before that
-  place, the delete is not new: paid, told, nothing forgotten and no debt
-  made. Heard past that place, it is another delete, and the doubt goes.
-  Up to the fix it took the delete for a new one and made the first feed owe
-  it again: a debt never paid, and told again at that feed's next overflow
-  (`[DEL DEL]`). This happens when a follower restarts: the master lists the
-  old `disks/<rt_id>`, which the open removes and makes again. The doubt is
-  only for a feed watched when the first feed hears the delete; one opened
-  after that, and signalled after it was watched, still takes the delete
-  for new -- it needs the master to stop between two signals while the
-  follower reads, hears and opens.
-
-  A debt holds where the
-  stream of the debtor ended when it was made; when the debtor's stream, past
-  that point, hands it a record of the key in its place in the stream (a
-  link heard, at its own `IN_CREATE`, or a key directory read once the
-  stream is past what could still remove it, below: the key lives), the
-  debt is forgotten -- kept, the next delete of the key would pay it, and a
-  feed that overflowed then would miss that one.
+  A feed is told the deletes of the keys it wants: its `key`, or the keys its
+  `rkey` matches, or every key (up to 7.25.20 only `key` was looked at, and a
+  feed opened with an `rkey` was told every key deleted).
 
   A key directory is read when the stream is past every event queued when
-  its `IN_CREATE` was read, not at that `IN_CREATE`. The master signals a
-  delete to a feed without the key's directory by making it and removing
-  it; if it writes the key again before the follower reads that signal,
-  the directory is there again with the NEW key's links while the delete
-  is still queued. Read at the signal's place, the new key's file was taken
+  its `IN_CREATE` was read, not at that `IN_CREATE`. If the master deletes
+  a key and writes it again before the follower reads the signal, the
+  key's directory is there again with the NEW key's links while the delete
+  is still queued (up to 7.25.22 the signal itself was a directory named
+  after the key, made and removed, and it could be that directory). Read at the signal's place, the new key's file was taken
   against the OLD key's cell of the cache: one new record was never
   handed, five came as rowids 4 and 5 (and the next append handed R1..R6),
   and the delete heard after took the live key out of the cache. Up to
@@ -573,12 +567,10 @@ What the owners of the tree do:
   may have written it again before its own rt_disk feed (a configuration of
   tests) hears the echo. Up to 7.25.20 the echo took the live key out of the
   master's cache. And since the master's cache cannot say later that a
-  delete was lost, `tranger2_delete_key()` makes the debts itself (a feed
-  hearing it makes none: a key in the cache then is the key written
-  again): every
-  feed of the master watched then owes it, and one that overflowed is told
-  it (up to 7.25.20 it never heard it). The master is the only writer: it
-  knows which feeds were watched when it signalled. Such a feed is handed
+  delete was lost, `tranger2_delete_key()` applies the delete itself (in
+  `deletes_applied`, with its sequence) when the master has a watched feed:
+  no signal of it is a new delete, and a feed of the master that
+  overflowed is told it (up to 7.25.20 it never heard it). Such a feed is handed
   no RECORD, by design: the master's cache counts each one at its append,
   so the link the feed hears is nothing new (a master feeds its lists from
   memory, with `tranger2_open_rt_mem()`); only the deletes reach it.
