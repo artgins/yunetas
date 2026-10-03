@@ -100,11 +100,13 @@
   does not exist, is a zombie, or runs with another start time than the one
   recorded when it was killed -- a pid reused by another process; a task in
   D state is alive, whether or not it still has its command line (it loses
-  it while it still holds its files). Only those are launched. A spared yuno
-  the operator stops (`kill-yuno`), disables or launches meanwhile leaves
-  the window; one stopped, disabled or launched in the first 10 s is held
-  apart, not run by the relaunch nor spared (`enable-yuno` gives a disabled
-  one back, in those 10 s only).
+  it while it still holds its files), and so is one whose `/proc/<pid>/stat`
+  cannot be read (logged). A pid gone before it was recorded is not waited
+  for. Only those are launched. A spared yuno the operator stops
+  (`kill-yuno`), disables or launches meanwhile leaves the window; one
+  stopped, disabled or launched in the first 10 s is held apart, not run by
+  the relaunch nor spared (`enable-yuno`, in those 10 s only, takes back a
+  disable, not a stop or a launch of the same yuno).
 - **Agent: `kill-yuno` of a yuno found only by the scan says it is not
   waited for.** Such a yuno is signalled and the answer comes at once; a
   `run-yuno` sent before it is gone finds it alive and does not launch it.

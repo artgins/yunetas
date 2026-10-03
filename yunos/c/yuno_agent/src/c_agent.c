@@ -98,13 +98,13 @@ PRIVATE BOOL yuno_lives_unregistered(hgobj gobj, json_t *yuno);
 PRIVATE json_t *signal_unconnected_yunos(hgobj gobj, json_t *kw_filter, BOOL app, int signal2kill, hgobj src);
 PRIVATE void kill_yuno_unregistered(hgobj gobj, json_t *yuno, json_t *jn_killed);
 PRIVATE void restart_wait_tick(hgobj gobj);
-PRIVATE BOOL read_process_stat(pid_t pid, char *state, uint64_t *start_time);
-PRIVATE BOOL process_is_gone(pid_t pid, uint64_t start_time);
+PRIVATE int read_process_stat(hgobj gobj, pid_t pid, char *state, uint64_t *start_time);
+PRIVATE BOOL process_is_gone(hgobj gobj, pid_t pid, uint64_t start_time);
 PRIVATE void restart_spare_tick(hgobj gobj);
 PRIVATE BOOL launch_spared_yuno(hgobj gobj, const char *yuno_id, json_t *jn_pids);
 PRIVATE void forget_spared_yuno(hgobj gobj, const char *yuno_id);
-PRIVATE void hold_restarted_yuno(hgobj gobj, const char *yuno_id, BOOL only_waited);
-PRIVATE void unhold_restarted_yuno(hgobj gobj, const char *yuno_id);
+PRIVATE void hold_restarted_yuno(hgobj gobj, const char *yuno_id, BOOL only_waited, const char *why);
+PRIVATE void unhold_restarted_yuno(hgobj gobj, const char *yuno_id, const char *why);
 PRIVATE void launch_enabled_yuno(hgobj gobj, json_t *yuno, BOOL spare_the_living);
 PRIVATE int kill_yuno(
     hgobj gobj,
@@ -5397,7 +5397,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         if(app && atoi(id) < 1000) {
             continue;
         }
-        hold_restarted_yuno(gobj, id, FALSE);   // stopped by the operator: not for the restart to launch
+        hold_restarted_yuno(gobj, id, FALSE, "kill");   // stopped by the operator: not for the restart to launch
         if(yuno_running) {
             if(kill_yuno(gobj, yuno)==0) {
                 json_int_t channel_gobj = (json_int_t)(uintptr_t)kw_get_int(gobj, yuno, "_channel_gobj", 0, KW_REQUIRED);
@@ -5930,7 +5930,7 @@ PRIVATE json_t* cmd_enable_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj s
          *  Enable yuno
          */
         json_object_set_new(node, "yuno_disabled", json_false());
-        unhold_restarted_yuno(gobj, SDATA_GET_ID(node));
+        unhold_restarted_yuno(gobj, SDATA_GET_ID(node), "disable");
 
         json_array_append_new(
             jn_data,
@@ -6006,7 +6006,7 @@ PRIVATE json_t* cmd_disable_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj 
          *  Disable node
          */
         BOOL disabled = kw_get_bool(gobj, node, "yuno_disabled", 0, KW_REQUIRED);
-        hold_restarted_yuno(gobj, SDATA_GET_ID(node), FALSE);
+        hold_restarted_yuno(gobj, SDATA_GET_ID(node), FALSE, "disable");
         if(!disabled) {
             BOOL playing = kw_get_bool(gobj, node, "yuno_playing", 0, KW_REQUIRED);
             if(playing) {
@@ -9241,7 +9241,7 @@ PRIVATE json_t *signal_unconnected_yunos(
          *  A yuno spared by a restart is never "running" for the agent: its
          *  kill-yuno comes here, not to the loop of the running ones
          */
-        hold_restarted_yuno(gobj, id, FALSE);
+        hold_restarted_yuno(gobj, id, FALSE, "kill");
         json_t *jn_pids = find_living_yuno_pids(gobj, yuno);
         if(!jn_pids) {
             continue;   // Error already logged
@@ -9300,7 +9300,7 @@ PRIVATE int run_yuno(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    hold_restarted_yuno(gobj, SDATA_GET_ID(yuno), TRUE);  // launched: not for the restart to run
+    hold_restarted_yuno(gobj, SDATA_GET_ID(yuno), TRUE, "run");  // launched: not for the restart to run
 
     /*
      *  Launch id
@@ -10531,8 +10531,9 @@ PRIVATE int restart_nodes(hgobj gobj)
         }
         if(json_array_size(jn_pids) > 0) {
             /*
-             *  Each pid with its start time: a pid alive later with another
-             *  one is another process (a pid reused), and the yuno is gone
+             *  Each pid with its start time, read after the kill: a pid
+             *  alive later with another one is another process (a pid
+             *  reused), and the yuno is gone. One gone already is not kept
              */
             json_t *jn_entries = json_array();
             int idx2; json_t *jn_pid;
@@ -10540,8 +10541,12 @@ PRIVATE int restart_nodes(hgobj gobj)
                 pid_t pid = (pid_t)json_integer_value(jn_pid);
                 uint64_t start_time = 0;
                 char state;
-                if(!read_process_stat(pid, &state, &start_time)) {
-                    start_time = 0;     // gone already
+                int r = read_process_stat(gobj, pid, &state, &start_time);
+                if(r == -1) {
+                    continue;   // gone already: nothing to wait for
+                }
+                if(r < 0) {
+                    start_time = 0; // Error already logged: judged by its existence alone
                 }
                 json_array_append_new(jn_entries, json_pack("[I, I]",
                     (json_int_t)pid, (json_int_t)start_time
@@ -10549,7 +10554,9 @@ PRIVATE int restart_nodes(hgobj gobj)
             }
             const char *yuno_id = SDATA_GET_ID(yuno);
             json_t *jn_prev = json_object_get(jn_killed, yuno_id);
-            if(jn_prev) {
+            if(json_array_size(jn_entries) == 0) {
+                // all gone already
+            } else if(jn_prev) {
                 json_array_extend(jn_prev, jn_entries);   // another release of the same id
             } else {
                 json_object_set(jn_killed, yuno_id, jn_entries);
@@ -10609,21 +10616,45 @@ PRIVATE int restart_nodes(hgobj gobj)
 
 /***************************************************************************
  *  The state of a process and its start time (clock ticks since boot),
- *  from /proc/<pid>/stat. FALSE when it does not exist
+ *  from /proc/<pid>/stat. 0 read; -1 the process does not exist (ENOENT,
+ *  ESRCH); -2 it cannot be told (another errno -- EMFILE, a hidepid mount
+ *  -- or a content that does not parse), logged at the transition only:
+ *  the restart asks every 100 ms.
  ***************************************************************************/
-PRIVATE BOOL read_process_stat(pid_t pid, char *state, uint64_t *start_time)
+PRIVATE BOOL proc_stat_failing_said = FALSE;
+
+PRIVATE int read_process_stat(hgobj gobj, pid_t pid, char *state, uint64_t *start_time)
 {
     char path[PATH_MAX];
     char bf[1024];
     snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
     int fd = open(path, O_RDONLY|O_CLOEXEC);
-    if(fd < 0) {
-        return FALSE;
+    ssize_t n = -1;
+    int err = 0;
+    if(fd >= 0) {
+        n = read(fd, bf, sizeof(bf) - 1);
+        err = errno;
+        close(fd);
+    } else {
+        err = errno;
     }
-    ssize_t n = read(fd, bf, sizeof(bf) - 1);
-    close(fd);
-    if(n <= 0) {
-        return FALSE;
+    if(fd < 0 || n < 0) {
+        if(err == ENOENT || err == ESRCH) {
+            return -1;
+        }
+        if(!proc_stat_failing_said) {
+            proc_stat_failing_said = TRUE;
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot read the stat of a process: taken as alive (said once, until a read works)",
+                "path",         "%s", path,
+                "errno",        "%d", err,
+                "serrno",       "%s", strerror(err),
+                NULL
+            );
+        }
+        return -2;
     }
     bf[n] = 0;
     /*
@@ -10631,20 +10662,30 @@ PRIVATE BOOL read_process_stat(pid_t pid, char *state, uint64_t *start_time)
      *  3) and, 19 fields later, its start time (field 22)
      */
     char *p = strrchr(bf, ')');
-    if(!p) {
-        return FALSE;
-    }
-    char *save = NULL;
-    char *tok = strtok_r(p + 1, " ", &save);
-    for(int field = 3; tok; field++, tok = strtok_r(NULL, " ", &save)) {
-        if(field == 3) {
-            *state = tok[0];
-        } else if(field == 22) {
-            *start_time = strtoull(tok, NULL, 10);
-            return TRUE;
+    if(p) {
+        char *save = NULL;
+        char *tok = strtok_r(p + 1, " ", &save);
+        for(int field = 3; tok; field++, tok = strtok_r(NULL, " ", &save)) {
+            if(field == 3) {
+                *state = tok[0];
+            } else if(field == 22) {
+                *start_time = strtoull(tok, NULL, 10);
+                proc_stat_failing_said = FALSE;
+                return 0;
+            }
         }
     }
-    return FALSE;
+    if(!proc_stat_failing_said) {
+        proc_stat_failing_said = TRUE;
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "The stat of a process does not parse: taken as alive (said once, until a read works)",
+            "path",         "%s", path,
+            NULL
+        );
+    }
+    return -2;
 }
 
 /***************************************************************************
@@ -10652,16 +10693,22 @@ PRIVATE BOOL read_process_stat(pid_t pid, char *state, uint64_t *start_time)
  *  (dead, only waiting for its parent to reap it), or runs with another
  *  start time than the one recorded: another process that took the pid.
  *  Not gone: a task in D state, whatever its cmdline says (it loses it at
- *  exit_mm(), while it still holds its files). Up to cb3d6c70a a reused pid
- *  was told apart by the scan alone at the window's end -- which took that
- *  task for gone too, and launched a second instance beside it.
+ *  exit_mm(), while it still holds its files); nor one whose stat cannot be
+ *  read -- taken for gone in the first wait, it emptied the map, and the
+ *  relaunch without sparing gave it a second instance. Up to cb3d6c70a a
+ *  reused pid was told apart by the scan alone at the window's end, which
+ *  took that task for gone too.
  ***************************************************************************/
-PRIVATE BOOL process_is_gone(pid_t pid, uint64_t start_time)
+PRIVATE BOOL process_is_gone(hgobj gobj, pid_t pid, uint64_t start_time)
 {
     char state = 0;
     uint64_t now_start = 0;
-    if(!read_process_stat(pid, &state, &now_start)) {
+    int r = read_process_stat(gobj, pid, &state, &now_start);
+    if(r == -1) {
         return TRUE;
+    }
+    if(r < 0) {
+        return FALSE;   // cannot be told (Error already logged): alive
     }
     if(state == 'Z') {
         return TRUE;
@@ -10700,7 +10747,7 @@ PRIVATE void restart_wait_tick(hgobj gobj)
             json_t *jn_entry = json_array_get(jn_pids, (size_t)idx);
             pid_t pid = (pid_t)json_integer_value(json_array_get(jn_entry, 0));
             uint64_t start_time = (uint64_t)json_integer_value(json_array_get(jn_entry, 1));
-            if(process_is_gone(pid, start_time)) {
+            if(process_is_gone(gobj, pid, start_time)) {
                 json_array_remove(jn_pids, (size_t)idx);
             }
         }
@@ -10817,14 +10864,13 @@ PRIVATE void restart_spare_tick(hgobj gobj)
  *  and not running), FALSE while a process of it lives, or when /proc
  *  cannot tell (logged).
  *  Gone is both: every pid the restart killed is gone (process_is_gone(),
- *  /proc/<pid>/stat: a task in D state is alive), AND no process runs the
- *  yuno (find_living_yuno_pids(), its role and configuration). A pid
- *  reused by another process reads gone by its start time
- *  (process_is_gone());
- *  the scan alone by a task that lost its cmdline (exit_mm()) and still
- *  holds its files -- a SIGKILLed yuno stuck while closing, the one the
- *  window is for: a first form of this launched a second instance beside
- *  it. The scan, a read of every cmdline, runs only once the pids are gone.
+ *  /proc/<pid>/stat: a task in D state is alive; a pid reused by another
+ *  process reads gone by its start time), AND no process runs the yuno
+ *  (find_living_yuno_pids(), its role and configuration). The scan alone
+ *  is fooled by a task that lost its cmdline (exit_mm()) and still holds
+ *  its files -- a SIGKILLed yuno stuck while closing, the one the window is
+ *  for: a first form of this launched a second instance beside it. The
+ *  scan, a read of every cmdline, runs only once the pids are gone.
  ***************************************************************************/
 PRIVATE BOOL launch_spared_yuno(hgobj gobj, const char *yuno_id, json_t *jn_pids)
 {
@@ -10834,7 +10880,7 @@ PRIVATE BOOL launch_spared_yuno(hgobj gobj, const char *yuno_id, json_t *jn_pids
     json_array_foreach(jn_pids, idx, jn_entry) {
         pid_t pid = (pid_t)json_integer_value(json_array_get(jn_entry, 0));
         uint64_t start_time = (uint64_t)json_integer_value(json_array_get(jn_entry, 1));
-        if(!process_is_gone(pid, start_time)) {
+        if(!process_is_gone(gobj, pid, start_time)) {
             return FALSE;
         }
     }
@@ -10891,7 +10937,7 @@ PRIVATE void forget_spared_yuno(hgobj gobj, const char *yuno_id)
  *  relaunch nor spared. A launch holds only an id the wait still has
  *  (`only_waited`): the relaunch's own launches come after the wait.
  ***************************************************************************/
-PRIVATE void hold_restarted_yuno(hgobj gobj, const char *yuno_id, BOOL only_waited)
+PRIVATE void hold_restarted_yuno(hgobj gobj, const char *yuno_id, BOOL only_waited, const char *why)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -10911,17 +10957,35 @@ PRIVATE void hold_restarted_yuno(hgobj gobj, const char *yuno_id, BOOL only_wait
     if(!priv->restart_held) {
         priv->restart_held = json_object();
     }
-    json_object_set_new(priv->restart_held, yuno_id, json_true());
+    /*
+     *  Each act is kept: enable-yuno takes back a disable only, not a stop
+     *  or a launch of the same yuno
+     */
+    json_t *jn_why = json_object_get(priv->restart_held, yuno_id);
+    if(!jn_why) {
+        jn_why = json_object();
+        json_object_set_new(priv->restart_held, yuno_id, jn_why);
+    }
+    json_object_set_new(jn_why, why, json_true());
 }
 
 /***************************************************************************
- *  enable-yuno: a yuno held by hold_restarted_yuno() is the restart's again
+ *  enable-yuno takes back the `why` (a disable) of a held yuno: it is the
+ *  restart's again when no other act of the operator holds it
  ***************************************************************************/
-PRIVATE void unhold_restarted_yuno(hgobj gobj, const char *yuno_id)
+PRIVATE void unhold_restarted_yuno(hgobj gobj, const char *yuno_id, const char *why)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->restart_held && !empty_string(yuno_id)) {
+    if(!priv->restart_held || empty_string(yuno_id)) {
+        return;
+    }
+    json_t *jn_why = json_object_get(priv->restart_held, yuno_id);
+    if(!jn_why) {
+        return;
+    }
+    json_object_del(jn_why, why);
+    if(json_object_size(jn_why) == 0) {
         json_object_del(priv->restart_held, yuno_id);
     }
 }

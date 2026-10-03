@@ -896,7 +896,9 @@ running", grep the agent log for `does NOT move forward` before anything else.
   and configuration). A pid is gone when it does not exist, is a zombie, or
   runs with another start time than the one recorded at the kill (a pid
   reused by another process); a task in D state is alive, with or without
-  its command line. The window closes with *"yunos spared by the restart:
+  its command line, and so is one whose `/proc/<pid>/stat` cannot be read
+  (logged once). A pid already gone when the restart records it is not
+  waited for. The window closes with *"yunos spared by the restart:
   none left to wait for"*, or, at 5 minutes, says the ones still alive:
   *"still alive after 5 minutes: not launched, run-yuno once they are
   gone"*.
@@ -904,9 +906,10 @@ running", grep the agent log for `does NOT move forward` before anything else.
   The operator outranks the restart. A yuno stopped with `kill-yuno`,
   disabled, or launched (`run-yuno`) while it runs is not launched by it: in
   the first 10 s it is held apart (its pids are still waited for), in the
-  window it leaves it. In the first 10 s, `enable-yuno` gives a disabled one
-  back to the restart; in the window it gives nothing back -- run it with
-  `run-yuno` once it is gone.
+  window it leaves it. In the first 10 s, `enable-yuno` takes back a
+  disable -- the yuno is the restart's again unless it was also stopped or
+  launched; in the window it gives nothing back -- run it with `run-yuno`
+  once it is gone.
 
   ```bash
   ycommand -c 'deactivate-snap'          # node bounce; one yuno stuck in a disk wait

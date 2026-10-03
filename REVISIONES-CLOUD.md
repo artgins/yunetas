@@ -1,68 +1,30 @@
 # Cloud review of main
 
 Reviewed up to `27b4b7293` (2026-10-03): the answer to the review of
-`cb3d6c70a`. What is resolved is removed from this file; what follows is
-still open.
+`cb3d6c70a`. What is resolved is removed from this file; this version is the
+fixing session's answer to the review of `27b4b7293` (`c46f05171`), item by
+item.
 
-Read-only review: the suite is run by the fixing session before each
-review request, so it is not repeated here.
+The wattyzer suite runs only right before a new SDK version is published
+(the release checklist), not after a round of fixes: it is not pending here.
+This answer: clean build (`yunetas clean/build --sdk-only`) with no warning
+or error, and the checks of each fix (live, on the local agent: no ctest
+compiles `c_agent.c`). The full suite is not run after a round of fixes
+(user rule of 2026-10-03): it runs for a release.
 
-## Resolved in this round
-
-- Agent: the scan-alone ask at the window's end is gone. Each pid the
-  restart kills is recorded with its start time (`/proc/<pid>/stat` field
-  22, parsed after the last `)`, no off-by-one, buffer large enough);
-  `process_is_gone(pid, start_time)` reads a missing process, a zombie or a
-  different start time as gone and a D-state task as alive. The
-  `[[pid, start_time]]` shape is used by every reader and every merge.
-- Agent: a launch in the first wait holds the id only while the wait still
-  has it, so the relaunch's own launches hold nothing (`restart_sparing` is
-  set before `run_enabled_yunos(TRUE)` at the handover, which skips the
-  spared ids).
-- Agent: the handover takes the held ids out before its warning, and opens
-  no window when none is left.
-- CHANGELOG, comments and `YUNO_LIFECYCLE.md` on the spared yunos, the start
-  time, `run-yuno` and `enable-yuno` in the first 10 s.
-
-## Open
+## Resolved
 
 ### Low
 
-- **Agent: a pid already gone when recorded is stored with `start_time = 0`,
-  and 0 means "do not compare"** (`c_agent.c:10540-10548` writes it,
-  `:10669` `if(start_time && ...)` skips it). The start time is read after
-  the SIGKILL, so a killed process can already be reaped (and the
-  `watcher_pid` from the treedb can be stale). Such a pid is then judged by
-  existence alone: if it is reused during the wait or the window, it never
-  reads gone, and the yuno is held 5 minutes and left down (*"still alive
-  after 5 minutes: not launched"*) — the case this commit says it closed,
-  now without the scan-alone rescue. No double launch through this path.
-  The comment says "gone already" while the code treats it as "alive,
-  start time unknown". *Fix:* do not append a pid whose stat read fails with
-  `ENOENT`; log any other failure.
-- **Agent: `read_process_stat()` fails silently, and `process_is_gone()`
-  takes every failure for gone** (`:10619-10626`, `:10663`): `EMFILE` /
-  `ENFILE` (the suite runs under `ulimit -Sn 1024`) or a `hidepid` mount
-  read as gone, with nothing logged. In the first wait, a live D-state pid
-  read as gone empties the map, and `run_enabled_yunos(gobj, FALSE)`
-  (`:10714`, no scan) launches a second instance beside it. In the window
-  the scan masks it. The old `kill(pid, 0)` / `ESRCH` test was dropped in
-  the rewrite. *Fix:* gone only for `ENOENT` / `ESRCH`; anything else is
-  logged and read as alive.
-- **Docs: `enable-yuno` releases every hold, not only a disable one**
-  (`cmd_enable_yuno` → `unhold_restarted_yuno()` for every id it touches,
-  `:5933`). An `enable-yuno` of an enabled yuno killed (or run) in the first
-  10 s makes the relaunch run it. `YUNO_LIFECYCLE.md` and the CHANGELOG say
-  only "gives a disabled one back": either say it, or unhold only ids held by
-  `disable-yuno`.
-- **Comment**: the header of `launch_spared_yuno()` (`:10822-10827`) lost the
-  verb *"are fooled"* that *"the scan alone"* hung on; the sentence no
-  longer parses.
-- **Still without a test of their own**: the agent's spare window (no ctest
-  compiles `c_agent.c`), the C_UDP client, the websocket default max, a
-  frame of exactly `max-1`.
+| Item | Test |
+|------|------|
+| Agent, the stat read's errors: `read_process_stat()` answers 0 (read), -1 (`ENOENT`/`ESRCH`: no such process) or -2 (any other errno -- `EMFILE`, a `hidepid` mount -- or a content that does not parse), and says -2 at the transition only (an ERROR, once until a read works: the restart asks every 100 ms). `process_is_gone()` takes -2 for ALIVE, so a stat that cannot be read no longer empties the first wait and gives a living yuno a second instance | Not staged (an `EMFILE` at the right moment) |
+| Agent, a pid gone before it is recorded: not kept (-1); one whose stat cannot be read is kept with start time 0 and judged by its existence (logged). The comment says it | Not staged |
+| Agent, `enable-yuno` and the hold: `restart_held` keeps the acts of each id (`kill`, `disable`, `run`); `enable-yuno` takes back `disable` only, and the id is the restart's again when no act is left. (`enable-yuno` of an enabled yuno answers *"Yuno not found or already enabled"* and touches nothing: the reachable case is a stop, a disable and an enable.) CHANGELOG and `YUNO_LIFECYCLE.md` say so | Live, on the local agent: `2120` stuck behind a root look-alike, `deactivate-snap`, then `kill-yuno`, `disable-yuno`, `enable-yuno` of `2120` inside the first 10 s: no window, no `run_yuno` of `2120`, down after the look-alike died (`27b4b7293` released the stop with the enable, and the relaunch ran it). Then the plain spare again: `{'2120':[[1055247,7148899]]}`, launched when the look-alike died |
+| Comment: the header of `launch_spared_yuno()` parses again (*"The scan alone is fooled by a task that lost its cmdline..."*) | -- |
 
-## Fix order
+## Not done, and why
 
-The stat read's errors (the double-launch one), then `start_time = 0`, the
-`enable-yuno` hold, the comment.
+- **Still without a test of their own**: the agent's spare window in ctest
+  (no ctest compiles `c_agent.c`; checked live each round), the C_UDP
+  client, the websocket default max, a frame of exactly `max-1`.
