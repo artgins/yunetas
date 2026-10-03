@@ -143,24 +143,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   publish the parent without its child lists; collapse only when the event
   has subscribers; or default `with_link_events=1` once no v1 SPA depends on
   the parent's update (estadodelaire and hidraulia still do).
-- **CLI: two registered projects with a yuno of the same role overwrite each
-  other in `outputs/yunos`.** Found 2026-09-28 on hidraulia, in production:
-  hidraulia and yunovatios both build `gate_caudal`, both install it to
-  `$YUNETAS_BASE/outputs/yunos/gate_caudal` (`project.cmake`
-  `YUNOS_DEST_DIR`), the last build wins without a word, and the node's
-  reinstall script's `install-binary … content64=$$(gate_caudal)` gave
-  hidraulia's gate yunovatios' binary for three hours. CLI 0.20.2 made
-  `sync-binaries --yunos-dir` upload by path, and `yunetas build` now ends
-  with a red WARNING per role installed by more than one build (read from
-  each tree's `install_manifest.txt`; tui_yunetas `c965bfa`, unreleased).
-  On the dev machine it names six today: `db_history`, `db_tracks`,
-  `gate_auraair`, `gate_enchufe`, `gate_mqtts` (estadodelaire AND
-  hidraulia) and `gate_caudal` (hidraulia AND yunovatios). **Decide**: make
-  the warning a refusal (every build of that machine fails until a role is
-  renamed), or each project installs to its own `outputs/yunos/<project>/`
-  and `$$()` resolves against the project it is called from. Until then, a
-  node with two projects must not share a role name, or its scripts must
-  name the binary by path.
 - **MQTT broker ACL: model and default-deny** (Rosa). Model A (per-group
   `publish_acl` / `subscribe_acl` in the broker treedb, `enable_acl` default
   off) ships; see `mqtt_broker.md`. Open: A vs B (reuse `C_AUTHZ` via
