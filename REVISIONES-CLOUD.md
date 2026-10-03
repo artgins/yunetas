@@ -19,7 +19,7 @@ dev machine.
 
 | # | Item | Test |
 |---|------|------|
-| 1 | Agent spare window: `restart_wait` is `{yuno_id: [pids]}`. Until the 10 s the pids are watched as before; after them, ONLY the spared ids, each asked of the yuno itself (`find_living_yuno_pids()`: its role and configuration, so a reused pid does not hold it), and each launched alone (`launch_enabled_yuno()`, the body of `run_enabled_yunos()`, now shared) when no process of it is left. The window launches nothing else, and its end launches nothing | No ctest compiles `c_agent.c`. The live check on the local agent (a root look-alike of a stopped yuno, which `restart_nodes()` cannot kill, then `deactivate-snap`, a `kill-yuno` of another yuno inside the window, the look-alike killed) was refused by the session's permission classifier: left to the user |
+| 1 | Agent spare window: `restart_wait` is `{yuno_id: [pids]}`. Until the 10 s the pids are watched as before; after them, ONLY the spared ids, each asked of the yuno itself (`find_living_yuno_pids()`: its role and configuration, so a reused pid does not hold it), and each launched alone (`launch_enabled_yuno()`, the body of `run_enabled_yunos()`, now shared) when no process of it is left. The window launches nothing else, and its end launches nothing | No ctest compiles `c_agent.c`. Live, on the local agent at `bc7e036b0`: `gate_central^2120` stopped, a root look-alike of it started (its role as `argv[0]`, its bin dir in the arguments), `deactivate-snap`. The agent found it unregistered and could not kill it (`EPERM`); at 10 s *"still alive after 10 s"*, `{'2120':[833251]}`, and every other yuno up. Inside the window `db_tracks_ce^5120` stopped with `kill-yuno`, then the look-alike killed: `2120` up within the second (*"yunos left alive by the restart are gone: each one launched"*), `5120` left down (`0db20a63d` relaunched it at that death). `run-yuno id=5120` put it back |
 | 2 | `--stop`: the list has no fixed size (`gbmem_realloc`), so nobody's look-alikes can crowd the real daemon out of it, root caller or not; the own-uid-first passes of `0db20a63d` are gone. The docs no longer claim what held only for the daemon's uid | By hand, scratch daemon on `ydaemon.c`: 70 look-alikes of the user started first, the daemon started and stopped as root: stopped, exit 0 (a list of 64 never reached it). 70 root look-alikes, the daemon as the user: stopped, exit 1 (the `EPERM`s) |
 
 ### Low
@@ -41,6 +41,5 @@ dev machine.
   published (the release checklist), not after a round of fixes: it is not
   pending here, and need not be listed.
 
-- **The live check of item 1**: see the table.
 - **Still without a test of their own**: the C_UDP client, the websocket
   default max, a frame of exactly `max-1`.
