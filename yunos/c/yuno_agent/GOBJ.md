@@ -761,6 +761,29 @@ before you reproduce a real cascade.
 disconnect upstream, for example `EV_ON_MESSAGE` or `EV_ON_ID`, read the
 current state before you change it.
 
+**Every subscriber gets the same kw, and the same gbuffer.** A published kw
+with a `gbuffer` reaches every action it passes through: each one can see it
+and process it. What they share is the gbuffer itself, read cursor included
+(a subscription with `__local__` / `__global__` gets a twin of the kw's top
+level, and the twin holds the same gbuffer). So an action that CONSUMES moves
+the cursor for the ones after it, and one that only LOOKS leaves it where it
+was:
+
+```c
+gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+
+/*  look: the next subscriber reads the same bytes  */
+char *p = gbuffer_cur_rd_pointer(gbuf);
+size_t len = gbuffer_leftbytes(gbuf);
+
+/*  consume: the next subscriber finds the cursor past these bytes  */
+char *frame = gbuffer_get(gbuf, len);
+```
+
+An action that must consume and still leave the bytes to the others saves the
+position (`gbuffer_get_rd_offset()`) and puts it back
+(`gbuffer_set_rd_offset()`) before it returns.
+
 (post-message)=
 ### 8.14 `gobj_post_event`: leave the stack you are on
 

@@ -150,13 +150,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   control center, not even there). **Decide**: an agent-to-yuno "session
   ended" notification, and a rule for when several sessions of one user are
   one owner.
-- **A gbuffer in a published kw is shared by every subscriber.**
-  `gobj_publish_event()` hands one kw to all of them (a `kw_twin()` for
-  `__local__` / `__global__` still shares the gbuffer object), so the first
-  subscriber that reads the gbuffer empties it for the next. C_IOGATE's "send
-  to all" had the same shape and now copies per channel. Nearly every gbuffer
-  event has a single subscriber today. **Decide**: publishing copies the
-  gbuffer per subscriber, or the contract says a gbuffer event takes one.
 - **`register_yuneta_environment()` lowercases `root_dir` and `domain_dir`**
   and says nothing (`yunetas_environment.c` ~42): a `work_dir` with capitals
   is written under another path. Dates from 2023 and looks deliberate.
@@ -313,6 +306,14 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 - **`C_PROT_MQTT` is not migrated to `peername` attribution**: deprecated,
   still in hidraulia production, goes away with it. `C_PROT_MQTT2` is the
   target for protocol work.
+
+### Events
+
+- **A published kw's gbuffer is shared by every subscriber, read cursor
+  included** (the design, unchanged): every action the kw passes through sees
+  and can process it; one that consumes moves the cursor for the next, one
+  that only looks does not. Written in `GOBJ.md` §8.13. C_IOGATE's "send to
+  all" copies per channel because each channel's transport consumes.
 
 ---
 
