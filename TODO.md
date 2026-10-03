@@ -467,7 +467,12 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   rate tick (next release); `update-config` of the row in use, or
   `create-config` + `find-new-yunos create=1` + a restart of just those two.
 
-- **Per-command authz gate — production enablement.** `enable_command_authz`
+- **Per-command authz gate — production enablement.** **FUTURE** (user,
+  2026-10-03: not now; do not raise it as pending until asked). NOT by
+  flipping the default: a yuno with no C_AUTHZ (gates, db_history,
+  logcenter...) would refuse every external command, the agent's forwarded
+  ones included (`authz_checker()` answers FALSE with no C_AUTHZ). Only in
+  the five yunos that hold one, by config. `enable_command_authz`
   is default-off (YUNO_AUTH.md §4.5). Per node:
   - provision **every principal that sends commands TO each C_AUTHZ yuno**
     with `__execute_command__` / root — not only `yuneta` / admins but the
