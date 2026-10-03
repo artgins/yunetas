@@ -1848,7 +1848,9 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   cycle is CLOSED, or when it is strictly necessary -- a kernel change that
   every yuno links is the typical case.
 - **The release suite runs on TWO machines before the tag** (rule of
-  2026-09-25, kept on 2026-10-01): `yunetas test` on the dev machine under
+  2026-09-25, kept on 2026-10-01). The wattyzer half runs **only when a new
+  SDK version is about to be published** (2026-10-03): not after a round of
+  fixes or a review, which run the local suite only. `yunetas test` on the dev machine under
   `ulimit -Sn 1024`, and the full suite on **wattyzer** (build from source in a
   worktree of its own with `--sdk-only`; `. /etc/profile.d/yuneta.sh` first
   over ssh, or `yunetas` is not found and ctest runs stale binaries; never

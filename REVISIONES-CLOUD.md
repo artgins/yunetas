@@ -37,6 +37,10 @@ dev machine.
 
 ## Not done, and why
 
+- **The wattyzer suite** runs only right before a new SDK version is
+  published (the release checklist), not after a round of fixes: it is not
+  pending here, and need not be listed.
+
 - **The live check of item 1**: see the table.
 - **Still without a test of their own**: the C_UDP client, the websocket
   default max, a frame of exactly `max-1`.
