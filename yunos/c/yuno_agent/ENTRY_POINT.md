@@ -279,9 +279,9 @@ If you see `relaunch_times > 0` after a quiet day, something crashed.
 `process_name` that were started as it (the base name of `argv[0]` in
 `/proc/<pid>/cmdline`, readable whoever owns the process: the SysV script of
 the same name has its interpreter there, `/bin/sh`, and is not one of them;
-an agent whose binary was renamed or replaced on disk still is; the
-caller's own processes are collected first, so look-alikes of another user
-cannot crowd the real ones out of its list of 64), sends
+an agent whose binary was renamed or replaced on disk still is; the list
+has no fixed size, so look-alikes of the name, which anybody can start,
+cannot crowd the real ones out of it), sends
 SIGQUIT to every one of them -- the watchers first (a
 process whose parent is not of the name), so none relaunches its child --,
 gives them 10 s to be gone (looked at every 100 ms), then scans again and

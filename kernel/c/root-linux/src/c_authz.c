@@ -1804,7 +1804,7 @@ PRIVATE json_t *refuse_jwk_without_authz(hgobj gobj, const char *permission, jso
 
     if(!priv->gobj_treedb) {
         if(strcmp(permission, "read")==0) {
-            return NULL;    // the list: empty
+            return NULL;    // the list: the config's jwks, which nothing here uses
         }
         /*
          *  Local access only: no JWT is validated here (the validations are

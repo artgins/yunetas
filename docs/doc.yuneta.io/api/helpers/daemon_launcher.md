@@ -107,9 +107,10 @@ Returns `0` on normal shutdown, or a non-zero value on error.
 by process name. Every process of that name started as it (the base name
 of `argv[0]` in `/proc/<pid>/cmdline`: a script of the same name has its
 interpreter there and is not one; a daemon whose binary was renamed still
-is, and so is another user's, which then fails with `EPERM`; the caller's
-own are taken first, so another user's look-alikes cannot push them out of
-its list of 64, and one left out makes it fail) gets SIGQUIT, the
+is, and so is another user's, which then fails with `EPERM`; a zombie of the
+name is dead and is not counted; the list has no fixed size, so look-alikes
+of the name, which anybody can start, cannot push the real ones out of it)
+gets SIGQUIT, the
 watchers first: a watcher notes it and does not relaunch its child, whatever its end;
 the child shuts down in order and exits 0, and its watcher exits with it.
 They are given 10 s to be gone; then the name is scanned again and what is
@@ -128,8 +129,10 @@ int daemon_shutdown(const char *process_name);
 **Returns**
 
 `0` when every process of the name is gone or killed; `-1` when one could
-not be signalled (another user's process: `EPERM`), said on stderr and not
-waited for.
+not be signalled (another user's process: `EPERM`), when the `cmdline` of
+one could not be read for a reason other than its end (so it is not known
+whether it is the daemon), or when the list could not grow (no memory) --
+each one said on stderr, and not waited for.
 
 **Notes**
 

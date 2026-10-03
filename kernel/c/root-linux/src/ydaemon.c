@@ -398,20 +398,26 @@ PUBLIC int daemon_run(
  *  collected again, so a child relaunched meanwhile is not left an orphan.
  *  Each signal is checked and said when it fails (another user's process:
  *  EPERM). Return 0 when every process of the name is gone or killed, -1
- *  if one could not be signalled.
+ *  if one could not be signalled, or could not be told the daemon or not
+ *  (its cmdline unreadable), or the list could not grow (no memory).
+ *
+ *  comm and argv[0] are whatever a process's starter chose: anybody can
+ *  make processes that look like the daemon. So the list has no fixed
+ *  size: a fixed 64 (0db20a63d) let 64 look-alikes, listed first, push the
+ *  real daemon out of it, and it was left up.
+ *
  *  Up to 7.25.21 each was killed 1 s after its SIGQUIT, one after the
  *  other. Up to 7.25.22 kill() was not checked (EPERM waited 10 s, said
  *  "killed" and exited 0), and an agent that crashed in its stop was
  *  relaunched by its watcher and left alive.
  ***************************************************************************/
 #define STOP_WAIT_MS    (10*1000)
-#define MAX_STOP_PIDS   64
 
 typedef struct {
-    pid_t pids[MAX_STOP_PIDS];
+    pid_t *pids;    // gbmem, grown as needed
     int n;
-    BOOL others;    // FALSE: the pass of the caller's own processes; TRUE: the rest
-    BOOL overflow;  // a process of the name was left out (MAX_STOP_PIDS)
+    int size;
+    BOOL failed;    // a process not taken, that may be the daemon (said)
 } stop_pids_t;
 
 /*
@@ -420,86 +426,31 @@ typedef struct {
  *  argv[0] is its interpreter (/bin/sh), while its comm is the script's
  *  name; the daemon's is its own, and stays so when its binary is renamed
  *  or replaced on disk (the watcher and its child fork, they do not exec).
- *  FALSE when it cannot be read (gone meanwhile); an empty cmdline (a
- *  zombie) gives an empty name.
+ *  0 when read (an empty cmdline, a zombie's, gives an empty name), -1
+ *  when the process is gone (ENOENT, ESRCH), -2 when it cannot be read
+ *  for another reason (errno set).
  */
-PRIVATE BOOL stop_argv0_of(pid_t pid, char *bf, size_t bfsize)
+PRIVATE int stop_argv0_of(pid_t pid, char *bf, size_t bfsize)
 {
     char path[PATH_MAX];
     char cmdline[PATH_MAX];
     snprintf(path, sizeof(path), "/proc/%d/cmdline", (int)pid);
     int fd = open(path, O_RDONLY|O_CLOEXEC);
     if(fd < 0) {
-        return FALSE;
+        return (errno == ENOENT || errno == ESRCH)? -1 : -2;
     }
     ssize_t n = read(fd, cmdline, sizeof(cmdline) - 1);
+    int err = errno;
     close(fd);
     if(n < 0) {
-        return FALSE;
+        errno = err;
+        return (err == ENOENT || err == ESRCH)? -1 : -2;
     }
     cmdline[n] = 0;     // argv[0] ends at the first NUL
     const char *base = strrchr(cmdline, '/');
     base = base? base + 1 : cmdline;
     snprintf(bf, bfsize, "%s", base);
-    return TRUE;
-}
-
-PRIVATE void collect_proc(void *self, const char *name, pid_t pid)
-{
-    stop_pids_t *stop = self;
-    if(pid == getpid() || pid <= 0) {
-        return; // I am the killer
-    }
-    /*
-     *  Only a process started as the name: the SysV script
-     *  /etc/init.d/yuneta_agent (root's) has the comm of the daemon and is
-     *  not it. Up to 7.25.22 every process of the comm was signalled, and
-     *  the script that ran the --stop was one of them (EPERM). The comm is
-     *  cut at 15 bytes, so is the comparison of a name that long.
-     *  Not /proc/<pid>/exe (as in a8e6dd30d): another user's cannot be read,
-     *  so its agent was left alone and --stop said 0; and a daemon whose
-     *  binary was renamed (*.bak-pre-<version>) was taken for another one.
-     */
-    size_t namelen = strcspn(name, "\n");
-    char argv0[PATH_MAX];
-    if(!stop_argv0_of(pid, argv0, sizeof(argv0))) {
-        return; // gone meanwhile
-    }
-    /*
-     *  The caller's own processes first, the rest in a second pass: comm and
-     *  argv[0] are whatever a process's starter chose, so anybody can make
-     *  one that looks like the daemon. Collected in /proc order, a user who
-     *  made MAX_STOP_PIDS of them pushed the real ones out of the list, and
-     *  --stop left them up and said 0
-     */
-    char procdir[64];
-    snprintf(procdir, sizeof(procdir), "/proc/%d", (int)pid);
-    struct stat st;
-    if(stat(procdir, &st) < 0) {
-        return; // gone meanwhile
-    }
-    if((st.st_uid == geteuid()) == stop->others) {
-        return; // the other pass's
-    }
-    if(argv0[0]) {
-        BOOL same;
-        if(namelen < 15) {
-            same = (strlen(argv0) == namelen && strncmp(argv0, name, namelen) == 0);
-        } else {
-            same = (strncmp(argv0, name, 15) == 0);
-        }
-        if(!same) {
-            return; // another program with the same comm (a script)
-        }
-    }
-    if(stop->n >= MAX_STOP_PIDS) {
-        print_error(0, "--stop: more than %d processes named %.*s, pid %d left alone",
-            MAX_STOP_PIDS, (int)namelen, name, (int)pid
-        );
-        stop->overflow = TRUE;  // --stop fails: one of them may be the daemon
-        return;
-    }
-    stop->pids[stop->n++] = pid;
+    return 0;
 }
 
 /*
@@ -547,6 +498,67 @@ PRIVATE BOOL stop_pid_is_gone(pid_t pid)
     return (state == 'Z')? TRUE : FALSE;
 }
 
+PRIVATE void collect_proc(void *self, const char *name, pid_t pid)
+{
+    stop_pids_t *stop = self;
+    if(pid == getpid() || pid <= 0) {
+        return; // I am the killer
+    }
+    /*
+     *  Only a process started as the name: the SysV script
+     *  /etc/init.d/yuneta_agent (root's) has the comm of the daemon and is
+     *  not it. Up to 7.25.22 every process of the comm was signalled, and
+     *  the script that ran the --stop was one of them (EPERM). The comm is
+     *  cut at 15 bytes, so is the comparison of a name that long.
+     *  Not /proc/<pid>/exe (as in a8e6dd30d): another user's cannot be read,
+     *  so its agent was left alone and --stop said 0; and a daemon whose
+     *  binary was renamed (*.bak-pre-<version>) was taken for another one.
+     */
+    size_t namelen = strcspn(name, "\n");
+    char argv0[PATH_MAX];
+    int r = stop_argv0_of(pid, argv0, sizeof(argv0));
+    if(r == -1) {
+        return; // gone meanwhile
+    }
+    if(r < 0) {
+        print_error(0, "--stop: cannot read the cmdline of %.*s pid %d (errno %d %s): not known if it is the daemon",
+            (int)namelen, name, (int)pid, errno, strerror(errno)
+        );
+        stop->failed = TRUE;
+        return;
+    }
+    if(!argv0[0]) {
+        if(stop_pid_is_gone(pid)) {
+            return; // a zombie: dead already
+        }
+        // alive with no cmdline (in the middle of an exec): taken, as by its comm
+    } else {
+        BOOL same;
+        if(namelen < 15) {
+            same = (strlen(argv0) == namelen && strncmp(argv0, name, namelen) == 0);
+        } else {
+            same = (strncmp(argv0, name, 15) == 0);
+        }
+        if(!same) {
+            return; // another program with the same comm (a script)
+        }
+    }
+    if(stop->n >= stop->size) {
+        int size = stop->size? stop->size * 2 : 16;
+        pid_t *pids = gbmem_realloc(stop->pids, (size_t)size * sizeof(pid_t));
+        if(!pids) {
+            print_error(0, "--stop: no memory for the list of processes, %.*s pid %d left alone",
+                (int)namelen, name, (int)pid
+            );
+            stop->failed = TRUE;
+            return;
+        }
+        stop->pids = pids;
+        stop->size = size;
+    }
+    stop->pids[stop->n++] = pid;
+}
+
 /*
  *  A watcher: its parent is not a process of the name (a child's parent is
  *  its watcher)
@@ -572,9 +584,13 @@ PRIVATE int stop_signal(const char *process_name, pid_t pid, int sig)
         if(errno == ESRCH) {
             return 0;   // gone meanwhile
         }
+        int err = errno;
+        if(stop_pid_is_gone(pid)) {
+            return 0;   // a zombie of another user: refused, and dead already
+        }
         print_error(0, "--stop: cannot signal %s pid %d (%s): errno %d %s",
             process_name, (int)pid, sig == SIGKILL? "SIGKILL" : "SIGQUIT",
-            errno, strerror(errno)
+            err, strerror(err)
         );
         return -1;
     }
@@ -586,10 +602,8 @@ PUBLIC int daemon_shutdown(const char *process_name)
     int ret = 0;
     stop_pids_t stop = {0};
     search_process(process_name, collect_proc, &stop);
-    stop.others = TRUE;
-    search_process(process_name, collect_proc, &stop);
-    if(stop.overflow) {
-        ret = -1;
+    if(stop.failed) {
+        ret = -1;   // Error already printed
     }
 
     /*
@@ -597,10 +611,19 @@ PUBLIC int daemon_shutdown(const char *process_name)
      *  (soft exit, let them delete the pid file). One that cannot be
      *  signalled is not waited for.
      */
-    BOOL watcher[MAX_STOP_PIDS] = {0};
-    pid_t refused[MAX_STOP_PIDS] = {0};
+    size_t sz = (size_t)(stop.n + 1);
+    BOOL *watcher = gbmem_malloc(sz * sizeof(BOOL));
+    pid_t *refused = gbmem_malloc(sz * sizeof(pid_t));
+    if(!watcher || !refused) {
+        print_error(0, "--stop: no memory: %s not stopped", process_name);
+        GBMEM_FREE(watcher);
+        GBMEM_FREE(refused);
+        GBMEM_FREE(stop.pids);
+        return -1;
+    }
     for(int i = 0; i < stop.n; i++) {
         watcher[i] = stop_pid_is_watcher(&stop, stop.pids[i]);
+        refused[i] = 0;
     }
     for(int pass = 0; pass < 2; pass++) {
         for(int i = 0; i < stop.n; i++) {
@@ -638,10 +661,8 @@ PUBLIC int daemon_shutdown(const char *process_name)
      */
     stop_pids_t left = {0};
     search_process(process_name, collect_proc, &left);
-    left.others = TRUE;
-    search_process(process_name, collect_proc, &left);
-    if(left.overflow) {
-        ret = -1;
+    if(left.failed) {
+        ret = -1;   // Error already printed
     }
     for(int i = 0; i < left.n; i++) {
         if(stop_pid_is_gone(left.pids[i])) {
@@ -669,6 +690,10 @@ PUBLIC int daemon_shutdown(const char *process_name)
             first? "still alive after the wait" : "started while the stop ran"
         );
     }
+    GBMEM_FREE(watcher);
+    GBMEM_FREE(refused);
+    GBMEM_FREE(stop.pids);
+    GBMEM_FREE(left.pids);
     return ret;
 }
 

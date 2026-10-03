@@ -1028,6 +1028,11 @@ PRIVATE int do_test_unwatched_subtree_bound(void)
         build_path(path, sizeof(path), dir_a, name, NULL);
         mkdir(path, 02770);
     }
+    char deep[PATH_MAX];    // two levels more under the first: parent first, at each level
+    build_path(deep, sizeof(deep), dir_a, "s000", "sx1", NULL);
+    mkdir(deep, 02770);
+    build_path(deep, sizeof(deep), dir_a, "s000", "sx1", "sx2", NULL);
+    mkdir(deep, 02770);
 
     /*
      *  One watch more, for "a" only: the batch of "b" watches it, and the
@@ -1047,7 +1052,7 @@ PRIVATE int do_test_unwatched_subtree_bound(void)
      *  Watches again: each batch watches its share of the subtree
      */
     watch_enospc_under = NULL;
-    for(int i = 0; i < 50 && json_object_size(stb_handed) < SUBTREE_DIRS; i++) {
+    for(int i = 0; i < 50 && json_object_size(stb_handed) < SUBTREE_DIRS + 2; i++) {
         char name[32];
         snprintf(name, sizeof(name), "tick%d", i);
         create_file_in(root10, name);
@@ -1063,7 +1068,7 @@ PRIVATE int do_test_unwatched_subtree_bound(void)
 
     if(stb_a_unwatched != 1 || stb_a_watched != 1 ||
             calls_out_of_watches != 3 || handed_out_of_watches != 0 ||
-            json_object_size(stb_handed) != SUBTREE_DIRS || twice != 0 || stb_orphans != 0 ||
+            json_object_size(stb_handed) != SUBTREE_DIRS + 2 || twice != 0 || stb_orphans != 0 ||
             stb_max_in_batch > RETRIES_PER_BATCH ||
             json_object_size(fs_event->jn_unwatched) != 0) {
         printf("%sERROR%s --> unwatched subtree: \"a\" unwatched %d (1), watched %d (1); "
@@ -1072,7 +1077,7 @@ PRIVATE int do_test_unwatched_subtree_bound(void)
             "left unwatched %d (0)\n",
             On_Red BWhite, Color_Off, stb_a_unwatched, stb_a_watched,
             calls_out_of_watches, handed_out_of_watches,
-            (int)json_object_size(stb_handed), SUBTREE_DIRS, twice, stb_orphans,
+            (int)json_object_size(stb_handed), SUBTREE_DIRS + 2, twice, stb_orphans,
             stb_max_in_batch, RETRIES_PER_BATCH,
             (int)json_object_size(fs_event->jn_unwatched));
         result += -1;
@@ -1085,6 +1090,87 @@ PRIVATE int do_test_unwatched_subtree_bound(void)
     result += test_json(NULL);
     JSON_DECREF(stb_handed)
     rmrdir(root10);
+    return result;
+}
+
+/***************************************************************************
+ *  A directory renamed during an overflow: the pass watches it again at
+ *  its new path (the same wd), and its old path names nothing any more
+ ***************************************************************************/
+PRIVATE int do_test_renamed_in_overflow(void)
+{
+    int result = 0;
+    char root4[PATH_MAX], dir_m[PATH_MAX], dir_m2[PATH_MAX];
+    build_path(root4, sizeof(root4), getenv("HOME"), "tests_yuneta", "fs_watcher_renamed", NULL);
+    build_path(dir_m, sizeof(dir_m), root4, "m", NULL);
+    build_path(dir_m2, sizeof(dir_m2), root4, "m2", NULL);
+    rmrdir(root4);
+    mkrdir(root4, 02770);
+    mkdir(dir_m, 02770);
+    root_overflows = 0;
+    root_files = 0;
+
+    set_expected_results("fs_watcher renamed in overflow: watch", NULL, NULL, NULL, 1);
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop, root4, FS_FLAG_RECURSIVE_PATHS, fs_callback_root, 0, NULL, NULL
+    );
+    if(!fs_event || fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> the watcher could not be started\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    for(int i = 0; i < 5; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+    json_t *jn_wd = json_object_get(fs_event->jn_paths_wd, dir_m);
+    int wd_m = jn_wd? (int)json_integer_value(jn_wd) : -1;
+
+    set_expected_results_unordered(
+        "fs_watcher renamed in overflow: the old path is forgotten",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
+            "msg", "watched tree rescanned after lost inotify events"
+        ),
+        NULL, NULL, 1
+    );
+    char churn[PATH_MAX];
+    build_path(churn, sizeof(churn), root4, "c", NULL);
+    for(int i = 0; i < max_queued_events()/2 + 1024; i++) {
+        if(mkdir(churn, 0700) < 0 || rmdir(churn) < 0) {
+            printf("%sERROR%s --> cannot churn %s: %s\n", On_Red BWhite, Color_Off, churn, strerror(errno));
+            result += -1;
+            break;
+        }
+    }
+    if(rename(dir_m, dir_m2) < 0) {
+        printf("%sERROR%s --> cannot rename %s: %s\n", On_Red BWhite, Color_Off, dir_m, strerror(errno));
+        result += -1;
+    }
+    for(int i = 0; i < 200000 && (root_overflows == 0 || fs_event->rescan_dirs); i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    json_t *jn_old = json_object_get(fs_event->jn_paths_wd, dir_m);
+    json_t *jn_new = json_object_get(fs_event->jn_paths_wd, dir_m2);
+    if(root_overflows != 1 || wd_m < 0 || jn_old ||
+            !jn_new || (int)json_integer_value(jn_new) != wd_m) {
+        printf("%sERROR%s --> renamed in overflow: overflows %d (1), wd of m %d (>= 0), "
+            "old path still indexed %s (no), new path indexed to %d (%d)\n",
+            On_Red BWhite, Color_Off, root_overflows, wd_m, jn_old? "yes" : "no",
+            jn_new? (int)json_integer_value(jn_new) : -1, wd_m);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("fs_watcher renamed in overflow: stop", NULL, NULL, NULL, 1);
+    fs_stop_watcher_event(fs_event);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+    rmrdir(root4);
     return result;
 }
 
@@ -1760,6 +1846,7 @@ int main(int argc, char *argv[])
     result += do_test_fionread_broken();
     result += do_test_unwatched_retry();
     result += do_test_unwatched_subtree_bound();
+    result += do_test_renamed_in_overflow();
     result += do_test_root_unwatchable();
     result += do_test_dir_fds();
     result += do_test_dir_fds_limit();

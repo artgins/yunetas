@@ -101,7 +101,7 @@ typedef struct {
     uid_t uid;
     mode_t mode;
 } fake_dir_t;
-static fake_dir_t fake_dirs[4] = {{0}};
+static fake_dir_t fake_dirs[8] = {{0}};
 
 PRIVATE void tell_faked(struct stat *st)
 {
@@ -131,7 +131,9 @@ int __wrap_fstat(int fd, struct stat *st)
 /*
  *  And stat(), told the same: the chain walked by a release that used it
  *  (the walk up from the file, up to 7.25.22) is judged on the same
- *  directories, so the planted case fails on it
+ *  directories, so the planted case fails on it. Only with glibc 2.33 or
+ *  later: before, stat() was an inline over __xstat(), which --wrap=stat
+ *  does not reach (the code under test uses fstat() and is not affected)
  */
 int __real_stat(const char *path, struct stat *st);
 int __wrap_stat(const char *path, struct stat *st);
@@ -345,6 +347,14 @@ PRIVATE void check_int(const char *name, int got, int expected)
 PRIVATE void check_true(const char *name, BOOL got)
 {
     check_int(name, got?1:0, 1);
+}
+
+PRIVATE void make_link(const char *target, const char *path)
+{
+    if(symlink(target, path) < 0) {
+        printf("FAIL cannot make the link %s -> %s: %s\n", path, target, strerror(errno));
+        s_result += -1;
+    }
 }
 
 PRIVATE void check_str(const char *name, const char *got, const char *expected)
@@ -1194,6 +1204,174 @@ PRIVATE void check_log_dumps(hgobj gobj)
     );
 }
 
+/***************************************************************************
+ *  The persistent attrs file of a yuno run as root (__wrap_geteuid): whose
+ *  file is trusted, by the chain closed from "/" down
+ ***************************************************************************/
+PRIVATE void check_root_trust_chain(hgobj holder, const char *path)
+{
+    struct stat st_file;
+
+    /*
+     *  Run as root, the trust comes from the chain closed from "/" down:
+     *  here /tmp (told 0755) and the realm directory (told 0755, of the
+     *  yuno's user). A member of the group renames the data directory away
+     *  -- its parent is 02775 on a node -- and makes one of their own, 0755,
+     *  with their file in it. Up to 7.25.22 the walk went up from the file,
+     *  and that closed data directory named its maker as the yuno's user:
+     *  the file was loaded, and the next save given to them
+     */
+    char data_dir[PATH_MAX];
+    snprintf(data_dir, sizeof(data_dir), "%s", path);
+    *strrchr(data_dir, '/') = 0;
+    char realm_dir[PATH_MAX];
+    snprintf(realm_dir, sizeof(realm_dir), "%s", data_dir);
+    *strrchr(realm_dir, '/') = 0;
+    struct stat st_dir;
+    stat("/tmp", &st_dir);
+    fake_dirs[0] = (fake_dir_t){st_dir.st_ino, 0, 0755};
+    stat(realm_dir, &st_dir);
+    fake_dirs[1] = (fake_dir_t){st_dir.st_ino, geteuid(), 0755};
+    uid_t intruder = geteuid() + 4243;
+    stat(data_dir, &st_dir);
+    fake_dirs[2] = (fake_dir_t){st_dir.st_ino, intruder, 0755};
+
+    write_file(path, "{\"password\": \"planted-in-a-dir-of-mine\"}", 0600);
+    stat(path, &st_file);
+    foreign_ino = st_file.st_ino;
+    foreign_uid = intruder;
+    gobj_write_str_attr(holder, "password", "mine-as-root");
+    fake_root = TRUE;
+    gobj_load_persistent_attrs(holder, 0);
+    fake_root = FALSE;
+    check_str("run as root, a file in a planted closed directory is not loaded",
+        gobj_read_str_attr(holder, "password"), "mine-as-root"
+    );
+
+    /*
+     *  While the file of the yuno's user, there, is
+     */
+    foreign_ino = 0;
+    write_file(path, "{\"password\": \"of-the-yunos-user\"}", 0600);
+    fake_root = TRUE;
+    gobj_load_persistent_attrs(holder, 0);
+    fake_root = FALSE;
+    check_str("run as root, the file of the owner of the closed chain is loaded",
+        gobj_read_str_attr(holder, "password"), "of-the-yunos-user"
+    );
+
+    /*
+     *  And so it is when the realm is reached through a symlink inside the
+     *  closed chain (/yuneta -> /srv/yuneta on a node; here
+     *  /tmp/test_secret_attrs -> ../tmp/test_secret_attrs.real, a ".."
+     *  too): only root or the chain's user can have put it there, so it is
+     *  followed. Its first form stopped at the symlink and named root: a
+     *  root yuno refused its own files
+     */
+    char moved_realm[PATH_MAX];
+    build_path(moved_realm, sizeof(moved_realm), "/tmp", "test_secret_attrs.real", NULL);
+    if(rename(realm_dir, moved_realm) < 0 ||
+            symlink("../tmp/test_secret_attrs.real", realm_dir) < 0) {
+        printf("FAIL cannot put the realm behind a symlink: %s\n", strerror(errno));
+        s_result += -1;
+    }
+    write_file(path, "{\"password\": \"through-a-linked-realm\"}", 0600);
+    fake_root = TRUE;
+    gobj_load_persistent_attrs(holder, 0);
+    fake_root = FALSE;
+    check_str("run as root, a realm reached through a symlink of the closed chain is trusted",
+        gobj_read_str_attr(holder, "password"), "through-a-linked-realm"
+    );
+
+    /*
+     *  A ".." does not carry the user of the directory it leaves: the link
+     *  is test_secret_attrs.x/../test_secret_attrs.real, and .x is a closed
+     *  directory of the intruder. The path does not go through it, so the
+     *  intruder's file is refused. A first form carried the user across
+     *  the "..": the intruder was trusted, and their file loaded
+     */
+    char x_dir[PATH_MAX];
+    build_path(x_dir, sizeof(x_dir), "/tmp", "test_secret_attrs.x", NULL);
+    mkdir(x_dir, 0755);
+    stat(x_dir, &st_dir);
+    fake_dirs[3] = (fake_dir_t){st_dir.st_ino, intruder, 0755};
+    unlink(realm_dir);
+    if(symlink("test_secret_attrs.x/../test_secret_attrs.real", realm_dir) < 0) {
+        printf("FAIL cannot link the realm through a \"..\": %s\n", strerror(errno));
+        s_result += -1;
+    }
+    write_file(path, "{\"password\": \"through-a-dotdot\"}", 0600);
+    stat(path, &st_file);
+    foreign_ino = st_file.st_ino;
+    foreign_uid = intruder;
+    gobj_write_str_attr(holder, "password", "mine-dotdot");
+    fake_root = TRUE;
+    gobj_load_persistent_attrs(holder, 0);
+    fake_root = FALSE;
+    check_str("run as root, a \"..\" does not trust the owner of the directory it leaves",
+        gobj_read_str_attr(holder, "password"), "mine-dotdot"
+    );
+
+    /*
+     *  A third user's directory met through a link ends the chain: /tmp is
+     *  told the yuno user's here, the realm the link leads to the
+     *  intruder's. Their file is refused; the yuno user stays the one
+     *  trusted
+     */
+    unlink(realm_dir);
+    make_link("test_secret_attrs.real", realm_dir);
+    fake_dirs[0].uid = geteuid();
+    fake_dirs[1].uid = intruder;
+    gobj_write_str_attr(holder, "password", "mine-third");
+    fake_root = TRUE;
+    gobj_load_persistent_attrs(holder, 0);
+    fake_root = FALSE;
+    check_str("run as root, a third user's directory behind a link is not trusted",
+        gobj_read_str_attr(holder, "password"), "mine-third"
+    );
+    fake_dirs[0].uid = 0;
+    fake_dirs[1].uid = geteuid();
+    foreign_ino = 0;
+
+    /*
+     *  A chain of 40 links (the kernel's own limit, which open() enforces
+     *  first) is followed to its end
+     */
+    unlink(realm_dir);
+    char link_path[PATH_MAX], link_target[NAME_MAX + 1];
+    for(int i = 1; i < 40; i++) {
+        char name[NAME_MAX + 1];
+        snprintf(name, sizeof(name), "test_secret_attrs.l%d", i);
+        build_path(link_path, sizeof(link_path), "/tmp", name, NULL);
+        unlink(link_path);
+        if(i < 39) {
+            snprintf(link_target, sizeof(link_target), "test_secret_attrs.l%d", i + 1);
+        } else {
+            snprintf(link_target, sizeof(link_target), "test_secret_attrs.real");
+        }
+        make_link(link_target, link_path);
+    }
+    make_link("test_secret_attrs.l1", realm_dir);
+    write_file(path, "{\"password\": \"through-40-links\"}", 0600);
+    fake_root = TRUE;
+    gobj_load_persistent_attrs(holder, 0);
+    fake_root = FALSE;
+    check_str("run as root, a realm behind 40 links of the closed chain is trusted",
+        gobj_read_str_attr(holder, "password"), "through-40-links"
+    );
+    for(int i = 1; i < 40; i++) {
+        char name[NAME_MAX + 1];
+        snprintf(name, sizeof(name), "test_secret_attrs.l%d", i);
+        build_path(link_path, sizeof(link_path), "/tmp", name, NULL);
+        unlink(link_path);
+    }
+    rmdir(x_dir);
+
+    unlink(realm_dir);
+    rename(moved_realm, realm_dir);
+    memset(fake_dirs, 0, sizeof(fake_dirs));
+}
+
 PRIVATE void check_persistent_file(void)
 {
     hgobj holder = gobj_find_service("secret-holder", TRUE);
@@ -1557,78 +1735,14 @@ PRIVATE void check_persistent_file(void)
     foreign_ino = 0;
 
     /*
-     *  Run as root, the trust comes from the chain closed from "/" down:
-     *  here /tmp (told 0755) and the realm directory (told 0755, of the
-     *  yuno's user). A member of the group renames the data directory away
-     *  -- its parent is 02775 on a node -- and makes one of their own, 0755,
-     *  with their file in it. Up to 7.25.22 the walk went up from the file,
-     *  and that closed data directory named its maker as the yuno's user:
-     *  the file was loaded, and the next save given to them
+     *  Run as root for real, the yuno's user would be root, whose files are
+     *  trusted anyway: the cases of the chain would pass telling nothing
      */
-    char data_dir[PATH_MAX];
-    snprintf(data_dir, sizeof(data_dir), "%s", path);
-    *strrchr(data_dir, '/') = 0;
-    char realm_dir[PATH_MAX];
-    snprintf(realm_dir, sizeof(realm_dir), "%s", data_dir);
-    *strrchr(realm_dir, '/') = 0;
-    struct stat st_dir;
-    stat("/tmp", &st_dir);
-    fake_dirs[0] = (fake_dir_t){st_dir.st_ino, 0, 0755};
-    stat(realm_dir, &st_dir);
-    fake_dirs[1] = (fake_dir_t){st_dir.st_ino, geteuid(), 0755};
-    uid_t intruder = geteuid() + 4243;
-    stat(data_dir, &st_dir);
-    fake_dirs[2] = (fake_dir_t){st_dir.st_ino, intruder, 0755};
-
-    write_file(path, "{\"password\": \"planted-in-a-dir-of-mine\"}", 0600);
-    stat(path, &st_file);
-    foreign_ino = st_file.st_ino;
-    foreign_uid = intruder;
-    gobj_write_str_attr(holder, "password", "mine-as-root");
-    fake_root = TRUE;
-    gobj_load_persistent_attrs(holder, 0);
-    fake_root = FALSE;
-    check_str("run as root, a file in a planted closed directory is not loaded",
-        gobj_read_str_attr(holder, "password"), "mine-as-root"
-    );
-
-    /*
-     *  While the file of the yuno's user, there, is
-     */
-    foreign_ino = 0;
-    write_file(path, "{\"password\": \"of-the-yunos-user\"}", 0600);
-    fake_root = TRUE;
-    gobj_load_persistent_attrs(holder, 0);
-    fake_root = FALSE;
-    check_str("run as root, the file of the owner of the closed chain is loaded",
-        gobj_read_str_attr(holder, "password"), "of-the-yunos-user"
-    );
-
-    /*
-     *  And so it is when the realm is reached through a symlink inside the
-     *  closed chain (/yuneta -> /srv/yuneta on a node; here
-     *  /tmp/test_secret_attrs -> ../tmp/test_secret_attrs.real, a ".."
-     *  too): only root or the chain's user can have put it there, so it is
-     *  followed. Its first form stopped at the symlink and named root: a
-     *  root yuno refused its own files
-     */
-    char moved_realm[PATH_MAX];
-    build_path(moved_realm, sizeof(moved_realm), "/tmp", "test_secret_attrs.real", NULL);
-    if(rename(realm_dir, moved_realm) < 0 ||
-            symlink("../tmp/test_secret_attrs.real", realm_dir) < 0) {
-        printf("FAIL cannot put the realm behind a symlink: %s\n", strerror(errno));
-        s_result += -1;
+    if(__real_geteuid() == 0) {
+        printf("SKIP the trust chain of a yuno run as root: the test runs as root, its cases tell nothing\n");
+    } else {
+        check_root_trust_chain(holder, path);
     }
-    write_file(path, "{\"password\": \"through-a-linked-realm\"}", 0600);
-    fake_root = TRUE;
-    gobj_load_persistent_attrs(holder, 0);
-    fake_root = FALSE;
-    check_str("run as root, a realm reached through a symlink of the closed chain is trusted",
-        gobj_read_str_attr(holder, "password"), "through-a-linked-realm"
-    );
-    unlink(realm_dir);
-    rename(moved_realm, realm_dir);
-    memset(fake_dirs, 0, sizeof(fake_dirs));
 
     /*
      *  An attr of the file that is not persistent (any more: the jwks that

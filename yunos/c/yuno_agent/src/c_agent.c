@@ -98,6 +98,9 @@ PRIVATE BOOL yuno_lives_unregistered(hgobj gobj, json_t *yuno);
 PRIVATE json_t *signal_unconnected_yunos(hgobj gobj, json_t *kw_filter, BOOL app, int signal2kill, hgobj src);
 PRIVATE void kill_yuno_unregistered(hgobj gobj, json_t *yuno, json_t *jn_killed);
 PRIVATE void restart_wait_tick(hgobj gobj);
+PRIVATE void restart_spare_tick(hgobj gobj);
+PRIVATE BOOL launch_spared_yuno(hgobj gobj, const char *yuno_id);
+PRIVATE void launch_enabled_yuno(hgobj gobj, json_t *yuno, BOOL spare_the_living);
 PRIVATE int kill_yuno(
     hgobj gobj,
     json_t *yuno
@@ -1047,9 +1050,9 @@ typedef struct _PRIVATE_DATA {
     json_int_t watch_period; // period the watch timer runs at, 0 = stopped
 
     hgobj restart_wait_timer;   // restart_nodes(): the yunos killed must be gone before the relaunch
-    json_t *restart_wait_pids;  // the pids killed, not seen gone yet
+    json_t *restart_wait;       // restart_nodes(): {yuno_id: [pids killed, not seen gone yet]}
     uint64_t restart_wait_until; // msectimer: the relaunch goes on anyway
-    BOOL restart_sparing;       // after the wait: the pids left are watched, their yunos launched when gone
+    BOOL restart_sparing;       // after the wait: the yunos left alive are watched, each launched when gone
 
     json_t *no_play_launches; // set of launch_id (string key) launched with run-yuno play=0
 
@@ -1289,7 +1292,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     JSON_DECREF(priv->list_consoles);
     JSON_DECREF(priv->watches);
-    JSON_DECREF(priv->restart_wait_pids);
+    JSON_DECREF(priv->restart_wait);
     JSON_DECREF(priv->no_play_launches);
     JSON_DECREF(priv->launching_yunos);
     JSON_DECREF(priv->cert_sync_state);
@@ -9893,36 +9896,45 @@ PRIVATE int run_enabled_yunos(
 
     int idx; json_t *yuno;
     json_array_foreach(iter_yunos, idx, yuno) {
-        /*
-         *  Activate the yuno
-         */
-        BOOL disabled = kw_get_bool(gobj, yuno, "yuno_disabled", 0, KW_REQUIRED);
-        if(!disabled) {
-            BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
-            if(!running && !is_launching(gobj, kw_get_str(gobj, yuno, "id", "", 0))) {
-                if(spare_the_living && yuno_lives_unregistered(gobj, yuno)) {
-                    continue;   // Warning already logged
-                }
-                run_yuno(gobj, yuno, 0);
-                // Volatil if you don't want historic data
-                // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
-                // y falla el deactivate-snap
-                json_decref(
-                    gobj_update_node(
-                        priv->resource,
-                        resource,
-                        json_incref(yuno),
-                        json_pack("{s:b}", "volatil", 1),
-                        gobj
-                    )
-                );
-
-            }
-        }
+        launch_enabled_yuno(gobj, yuno, spare_the_living);
     }
     JSON_DECREF(iter_yunos);
 
     return 0;
+}
+
+/***************************************************************************
+ *  Launch a yuno if it is enabled, not running and not being launched;
+ *  with `spare_the_living`, not if a process of it lives unregistered
+ ***************************************************************************/
+PRIVATE void launch_enabled_yuno(hgobj gobj, json_t *yuno, BOOL spare_the_living)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    BOOL disabled = kw_get_bool(gobj, yuno, "yuno_disabled", 0, KW_REQUIRED);
+    if(disabled) {
+        return;
+    }
+    BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
+    if(running || is_launching(gobj, kw_get_str(gobj, yuno, "id", "", 0))) {
+        return;
+    }
+    if(spare_the_living && yuno_lives_unregistered(gobj, yuno)) {
+        return;   // Warning already logged
+    }
+    run_yuno(gobj, yuno, 0);
+    // Volatil if you don't want historic data
+    // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
+    // y falla el deactivate-snap
+    json_decref(
+        gobj_update_node(
+            priv->resource,
+            "yunos",
+            json_incref(yuno),
+            json_pack("{s:b}", "volatil", 1),
+            gobj
+        )
+    );
 }
 
 /***************************************************************************
@@ -10463,12 +10475,13 @@ PRIVATE int restart_nodes(hgobj gobj)
     int prev_signal2kill = (int)gobj_read_integer_attr(gobj, "signal2kill");
     gobj_write_integer_attr(gobj, "signal2kill", SIGKILL);
 
-    json_t *jn_killed = json_array();
+    json_t *jn_killed = json_object();  // {yuno_id: [pids]}
     int idx; json_t *yuno;
     json_array_foreach(iter, idx, yuno) {
         /*
          *  Kill yuno
          */
+        json_t *jn_pids = json_array();
         BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
         if(running) {
             pid_t pids[2] = {
@@ -10477,7 +10490,7 @@ PRIVATE int restart_nodes(hgobj gobj)
             };
             for(int i = 0; i < 2; i++) {
                 if(pids[i] > 0) {
-                    json_array_append_new(jn_killed, json_integer(pids[i]));
+                    json_array_append_new(jn_pids, json_integer(pids[i]));
                 }
             }
             hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, yuno, "_channel_gobj", 0, KW_REQUIRED);
@@ -10490,8 +10503,18 @@ PRIVATE int restart_nodes(hgobj gobj)
             }
             kill_yuno(gobj, yuno);
         } else {
-            kill_yuno_unregistered(gobj, yuno, jn_killed);
+            kill_yuno_unregistered(gobj, yuno, jn_pids);
         }
+        if(json_array_size(jn_pids) > 0) {
+            const char *yuno_id = SDATA_GET_ID(yuno);
+            json_t *jn_prev = json_object_get(jn_killed, yuno_id);
+            if(jn_prev) {
+                json_array_extend(jn_prev, jn_pids);   // another release of the same id
+            } else {
+                json_object_set(jn_killed, yuno_id, jn_pids);
+            }
+        }
+        JSON_DECREF(jn_pids)
     }
     JSON_DECREF(iter)
     // Restore kill
@@ -10518,10 +10541,18 @@ PRIVATE int restart_nodes(hgobj gobj)
      *  did not launch it (up to 7.25.21). Looked at every 100 ms, for 10 s
      *  at most: then the relaunch goes on, and says who was left.
      */
-    if(!priv->restart_wait_pids) {
-        priv->restart_wait_pids = json_array();
+    if(!priv->restart_wait) {
+        priv->restart_wait = json_object();
     }
-    json_array_extend(priv->restart_wait_pids, jn_killed);
+    const char *yuno_id; json_t *jn_pids;
+    json_object_foreach(jn_killed, yuno_id, jn_pids) {
+        json_t *jn_prev = json_object_get(priv->restart_wait, yuno_id);
+        if(jn_prev) {
+            json_array_extend(jn_prev, jn_pids);    // a restart while the previous one waits
+        } else {
+            json_object_set(priv->restart_wait, yuno_id, jn_pids);
+        }
+    }
     JSON_DECREF(jn_killed)
     priv->restart_wait_until = start_msectimer(10*1000);
     priv->restart_sparing = FALSE;
@@ -10556,12 +10587,12 @@ PRIVATE BOOL process_is_gone(pid_t pid)
  *  restart_nodes(): the relaunch, once every yuno it killed is gone, or
  *  when the wait is over.
  *  Those still alive after the wait (a SIGKILL waits for the end of an
- *  uninterruptible wait, a disk) are not launched beside themselves; their
- *  processes are looked at every second, for RESTART_SPARE_MS, and each
- *  yuno is launched when its process is gone. Up to 7.25.22 such a yuno
- *  was never launched again: certain to die, it was left down until a
- *  run-yuno. A deliberate poll: the death of a process that is not our
- *  child gives no event here.
+ *  uninterruptible wait, a disk) are not launched beside themselves: they
+ *  are SPARED, and each one is launched when its processes are gone,
+ *  looked at every second for RESTART_SPARE_MS (restart_spare_tick()). Up
+ *  to 7.25.22 such a yuno was never launched again: certain to die, it was
+ *  left down until a run-yuno. A deliberate poll: the death of a process
+ *  that is not our child gives no event here.
  ***************************************************************************/
 #define RESTART_SPARE_MS    (5*60*1000)
 
@@ -10569,76 +10600,135 @@ PRIVATE void restart_wait_tick(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int gone_now = 0;
-    for(int idx = (int)json_array_size(priv->restart_wait_pids) - 1; idx >= 0; idx--) {
-        pid_t pid = (pid_t)json_integer_value(json_array_get(priv->restart_wait_pids, (size_t)idx));
-        if(process_is_gone(pid)) {
-            json_array_remove(priv->restart_wait_pids, (size_t)idx);
-            gone_now++;
+    if(priv->restart_sparing) {
+        restart_spare_tick(gobj);
+        return;
+    }
+
+    const char *yuno_id; json_t *jn_pids; void *n;
+    json_object_foreach_safe(priv->restart_wait, n, yuno_id, jn_pids) {
+        for(int idx = (int)json_array_size(jn_pids) - 1; idx >= 0; idx--) {
+            pid_t pid = (pid_t)json_integer_value(json_array_get(jn_pids, (size_t)idx));
+            if(process_is_gone(pid)) {
+                json_array_remove(jn_pids, (size_t)idx);
+            }
+        }
+        if(json_array_size(jn_pids) == 0) {
+            json_object_del(priv->restart_wait, yuno_id);
         }
     }
-    BOOL some_left = (json_array_size(priv->restart_wait_pids) > 0)? TRUE : FALSE;
 
-    if(priv->restart_sparing) {
-        if(!some_left) {
-            priv->restart_sparing = FALSE;
-            clear_timeout(priv->restart_wait_timer);
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPERATIONAL,
-                "msg",          "%s", "yunos left alive by the restart are gone: launched now",
-                NULL
-            );
-            run_enabled_yunos(gobj, FALSE);
-            return;
-        }
-        if(gone_now > 0) {
-            run_enabled_yunos(gobj, TRUE);  // the ones gone; the others spared again (said)
-        }
-        if(test_msectimer(priv->restart_wait_until)) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPERATIONAL,
-                "msg",          "%s", "yunos killed for the restart still alive after 5 minutes: not launched, run-yuno once they are gone",
-                "pids",         "%j", priv->restart_wait_pids,
-                NULL
-            );
-            json_array_clear(priv->restart_wait_pids);
-            priv->restart_sparing = FALSE;
-            clear_timeout(priv->restart_wait_timer);
+    if(json_object_size(priv->restart_wait) == 0) {
+        clear_timeout(priv->restart_wait_timer);
+        run_enabled_yunos(gobj, FALSE);    // all gone: none is left alive to spare
+        return;
+    }
+
+    if(!test_msectimer(priv->restart_wait_until)) {
+        if(!gobj_is_running(priv->restart_wait_timer)) {
+            set_timeout_periodic(priv->restart_wait_timer, 100);
         }
         return;
     }
 
-    if(some_left) {
-        if(!test_msectimer(priv->restart_wait_until)) {
-            if(!gobj_is_running(priv->restart_wait_timer)) {
-                set_timeout_periodic(priv->restart_wait_timer, 100);
-            }
-            return;
+    /*
+     *  Not launched beside the one still alive (each one said by
+     *  run_enabled_yunos()): up to 7.25.22 they were relaunched anyway,
+     *  and a yuno stuck in a disk wait got a second instance
+     */
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_OPERATIONAL,
+        "msg",          "%s", "yunos killed for the restart still alive after 10 s: each one launched when it is gone (looked at every second, for 5 minutes)",
+        "yunos",        "%j", priv->restart_wait,
+        NULL
+    );
+    priv->restart_sparing = TRUE;
+    priv->restart_wait_until = start_msectimer(RESTART_SPARE_MS);
+    clear_timeout(priv->restart_wait_timer);
+    set_timeout_periodic(priv->restart_wait_timer, 1000);
+    run_enabled_yunos(gobj, TRUE);
+}
+
+/***************************************************************************
+ *  The yunos spared by the restart: ONLY those, each one launched when its
+ *  processes are gone. Asked of the yuno, not of the pids killed
+ *  (find_living_yuno_pids(): its role and its configuration): a pid reused
+ *  by another process does not hold it down. A yuno an operator stops
+ *  meanwhile (kill-yuno, update-binary, run-yuno) is not one of them, and
+ *  is not touched: a first form of this ran run_enabled_yunos() at each
+ *  death, which launched every enabled yuno not running.
+ ***************************************************************************/
+PRIVATE void restart_spare_tick(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *yuno_id; json_t *jn_pids; void *n;
+    json_object_foreach_safe(priv->restart_wait, n, yuno_id, jn_pids) {
+        if(launch_spared_yuno(gobj, yuno_id)) {
+            json_object_del(priv->restart_wait, yuno_id);
         }
-        /*
-         *  Not launched beside the one still alive (each one said by
-         *  run_enabled_yunos()): up to 7.25.22 they were relaunched anyway,
-         *  and a yuno stuck in a disk wait got a second instance
-         */
+    }
+
+    if(json_object_size(priv->restart_wait) == 0) {
+        priv->restart_sparing = FALSE;
+        clear_timeout(priv->restart_wait_timer);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL,
-            "msg",          "%s", "yunos killed for the restart still alive after 10 s: each one launched when it is gone (looked at every second, for 5 minutes)",
-            "pids",         "%j", priv->restart_wait_pids,
+            "msg",          "%s", "yunos left alive by the restart are gone: each one launched",
             NULL
         );
-        priv->restart_sparing = TRUE;
-        priv->restart_wait_until = start_msectimer(RESTART_SPARE_MS);
-        clear_timeout(priv->restart_wait_timer);
-        set_timeout_periodic(priv->restart_wait_timer, 1000);
-        run_enabled_yunos(gobj, TRUE);
         return;
     }
 
-    clear_timeout(priv->restart_wait_timer);
-    run_enabled_yunos(gobj, FALSE);    // all gone: none is left alive to spare
+    if(test_msectimer(priv->restart_wait_until)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
+            "msg",          "%s", "yunos killed for the restart still alive after 5 minutes: not launched, run-yuno once they are gone",
+            "yunos",        "%j", priv->restart_wait,
+            NULL
+        );
+        json_object_clear(priv->restart_wait);
+        priv->restart_sparing = FALSE;
+        clear_timeout(priv->restart_wait_timer);
+    }
+}
+
+/***************************************************************************
+ *  A spared yuno: TRUE when no process of it is left (and it is launched,
+ *  if it is enabled and not running already), FALSE while one lives, or
+ *  when /proc cannot tell (logged).
+ ***************************************************************************/
+PRIVATE BOOL launch_spared_yuno(hgobj gobj, const char *yuno_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *iter = gobj_list_nodes(
+        priv->resource,
+        "yunos",
+        json_pack("{s:s}", "id", yuno_id),
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+
+    BOOL gone = TRUE;
+    int idx; json_t *yuno;
+    json_array_foreach(iter, idx, yuno) {
+        json_t *jn_pids = find_living_yuno_pids(gobj, yuno);
+        if(!jn_pids || json_array_size(jn_pids) > 0) {
+            gone = FALSE;   // alive, or /proc cannot tell (Error already logged)
+        }
+        JSON_DECREF(jn_pids)
+    }
+    if(gone) {
+        json_array_foreach(iter, idx, yuno) {
+            launch_enabled_yuno(gobj, yuno, FALSE);   // just seen gone: none to spare
+        }
+    }
+    JSON_DECREF(iter)
+    return gone;
 }
 
 /***************************************************************************

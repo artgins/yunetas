@@ -594,8 +594,11 @@ said it). Under `FS_FLAG_RECURSIVE_PATHS` what was made under it was not
 heard either: its subdirectories not watched are queued behind it and tried
 in the same way, parent first, so each one is handed as created after its
 parent. Every try counts against the batch's 64, and an `ENOSPC`/`ENOMEM`
-ends the batch's tries: a large subtree is watched over several batches, and
-never blocks the loop. The first failure is an ERROR, *"Cannot watch a
+ends the batch's tries: a large subtree is watched over several batches.
+What is not bounded is the listing of one directory watched again: it is read
+whole in that turn (a `keys/` of 100 000 keys is one `readdir` of it). A
+directory gone between its watch and its listing says nothing (its parent's
+`IN_DELETE` does). The first failure is an ERROR, *"Cannot watch a
 directory, out of inotify watches or memory: tried again at each batch (and
 the next ones that fail, counted)"*; at the end of the batch where none is
 left, a warning, *"Directories watched again: every one that could not be is

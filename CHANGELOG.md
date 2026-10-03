@@ -21,7 +21,9 @@
   not in the whole table of watches (a tree of 100000 keys, at the moment
   watches ran out, would have blocked the loop). *"Directories watched
   again"* is said at the end of the batch where none is left, not while a
-  subtree is still queued. The
+  subtree is still queued. A directory renamed during an overflow and
+  watched again at its new path no longer leaves its old path in the
+  index, where a directory made later there was taken for one watched. The
   half-of-the-open-files warning has a hysteresis (said again only after
   the count fell under 40%, not on every swing around the half), and an
   unparsable `max_queued_events` is said, as an unreadable one was.
@@ -82,9 +84,12 @@
   10 s relaunched them anyway, without asking whether they were alive: a
   yuno stuck in a disk wait got a second instance. Those are now skipped,
   each with the warning *"yuno alive but not connected to the agent: not
-  launched again"*, and launched when their process is gone: it is looked
-  at every second, for 5 minutes, after which the warning says to
-  `run-yuno` them.
+  launched again"*, and each one is launched when its processes are gone:
+  looked at every second, for 5 minutes (by the yuno's role and
+  configuration, as the agent finds an unregistered yuno, so a reused pid
+  does not hold it down), after which the warning says to `run-yuno` them.
+  Only those: a yuno an operator stops meanwhile (`kill-yuno`,
+  `update-binary`, `run-yuno`) is not launched by that window.
 - **Agent: `kill-yuno` of a yuno found only by the scan says it is not
   waited for.** Such a yuno is signalled and the answer comes at once; a
   `run-yuno` sent before it is gone finds it alive and does not launch it.
@@ -102,7 +107,8 @@
   it. A node without the units keeps the old way. logcenter's default runs
   `restart-yuneta -s` where it exists (logcenter is not stopped), and logs
   an ERROR when the command fails or is refused (exit code, or the signal
-  that killed it): only a `system()` that could not run was said. It waits
+  that killed it), or when none is configured: only a `system()` that could
+  not run was said. It waits
   for the command as before -- under the units, the agent's restart. agent22
   was never touched by `yshutdown`, and is not now.
 - **`/etc/init.d/yuneta_agent` answers what the units answered.** Under
@@ -143,10 +149,12 @@
   compared `/proc/<pid>/exe`, which another user's process does not let
   read, and which follows a rename: both left the agent up and exited 0.)
   A name and an `argv[0]` are whatever a process's starter chose, so the
-  caller's own processes are collected first and the others after: 64
-  look-alikes of another user, made first, pushed the real agent out of the
-  list of 64, and it was left up. One left out of the list now makes
-  `--stop` exit 1. `daemon_shutdown()` returns `int` (was `void`).
+  list of processes has no fixed size: 64 look-alikes, made first, pushed
+  the real agent out of a list of 64, and it was left up -- run as root
+  too. A zombie of the name is dead and makes no `EPERM`; a `cmdline` that
+  cannot be read for another reason than the process's end is said, and
+  `--stop` exits 1 (it is not known whether it was the daemon).
+  `daemon_shutdown()` returns `int` (was `void`).
   The agents' units send SIGQUIT to the watcher (`$MAINPID`) before the
   agent, so a stop under systemd does not relaunch it either.
 
@@ -219,8 +227,10 @@
   (`/yuneta -> /srv/yuneta`) is followed -- only root or the chain's user
   can have put it there -- and its target is walked from `/` under the same
   rules, the user named so far still holding; a `..` is taken as the parent
-  of the directories walked. (A first form of this stopped at any symlink,
-  and a root yuno under a linked `/yuneta` refused its own files.)
+  of the directories walked, without what the directories it leaves had
+  named (`/a/X/../W` does not trust the owner of `X`). (A first form of this
+  stopped at any symlink, and a root yuno under a linked `/yuneta` refused
+  its own files.)
 
 ## v7.25.22-3 (2026-10-02)
 

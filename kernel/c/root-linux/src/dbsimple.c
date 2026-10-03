@@ -84,15 +84,17 @@ PRIVATE char *get_persist_filename(
  *  target is walked from "/" again, under the same rules, and the user the
  *  chain named so far still holds: the chain behind the link may be root's
  *  or theirs, nobody else's. Its first form stopped at any symlink, and a
- *  root yuno under a linked /yuneta refused its own files. A ".." is taken
- *  the same way, as the parent of the real directories walked.
+ *  root yuno under a linked /yuneta refused its own files. A ".." is the
+ *  parent of the real directories walked, and the path is walked again
+ *  without what the directories it leaves had named (a first form carried
+ *  it: /a/X/../W trusted X, whose directory the path does not go through).
  *  (uid_t)-1 if it cannot be known (logged).
  ***************************************************************************/
 #define TRUST_WALK_MAX_LINKS    40      // as the kernel's limit of symlinks in a path
 
 /*
  *  One walk of `dir` from "/" (see trusted_dir_owner()). 0 when the chain
- *  ends, `*trusted` its user; 1 when it met a symlink or a "..": `dir` is
+ *  ends, `*trusted` its user; 1 when it met a symlink, 2 a "..": `dir` is
  *  rewritten with what to walk instead; -1 on error (logged).
  */
 PRIVATE int walk_closed_chain(
@@ -130,6 +132,7 @@ PRIVATE int walk_closed_chain(
         close(fd);
         return -1;
     }
+    uid_t at_start = *trusted;  // carried by a symlink (its owner chose the target), or none
     if(*trusted == (uid_t)-1) {
         *trusted = st.st_uid;
     }
@@ -166,12 +169,20 @@ PRIVATE int walk_closed_chain(
 
         char again[PATH_MAX];
         int n = -1;
+        BOOL is_link = TRUE;
         if(strcmp(seg, "..") == 0) {
             char *slash = strrchr(walked, '/');
             if(slash) {
                 *slash = 0;     // the parent of a real directory ("/" stays "/")
             }
             n = snprintf(again, sizeof(again), "%s%s", walked, rest);
+            /*
+             *  What this walk took from the directories it leaves is not
+             *  carried: /a/X/../W names nobody X owns, the path does not go
+             *  through X. Only what a symlink carried in holds
+             */
+            *trusted = at_start;
+            is_link = FALSE;
         } else {
             int next = openat(fd, seg, O_PATH|O_NOFOLLOW|O_CLOEXEC);
             if(next < 0 || fstat(next, &st) < 0) {
@@ -249,7 +260,7 @@ PRIVATE int walk_closed_chain(
             return -1;
         }
         snprintf(dir, dirsize, "%s", again);
-        return 1;
+        return is_link? 1 : 2;
     }
     close(fd);
     return 0;
@@ -273,14 +284,22 @@ PRIVATE uid_t trusted_dir_owner(hgobj gobj, const char *filename)
     char *slash = strrchr(dir, '/');
     *slash = 0;     // the directory of the file
 
+    /*
+     *  Only the symlinks are counted: a ".." always walks a shorter path
+     *  again, a link can make it longer and loop
+     */
     uid_t trusted = (uid_t)-1;
-    for(int links = 0; links <= TRUST_WALK_MAX_LINKS; links++) {
+    int links = 0;
+    while(links <= TRUST_WALK_MAX_LINKS) {
         int ret = walk_closed_chain(gobj, filename, dir, sizeof(dir), &trusted);
         if(ret < 0) {
             return (uid_t)-1;   // Error already logged
         }
         if(ret == 0) {
             return trusted;
+        }
+        if(ret == 1) {
+            links++;
         }
     }
     gobj_log_error(gobj, 0,

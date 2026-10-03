@@ -80,16 +80,6 @@ PRIVATE void close_tracked_dir_fd(int dfd);
 PRIVATE void watch_unwatched_again(fs_event_t *fs_event);
 PRIVATE void announce_subdir_watched(fs_event_t *fs_event, const char *path, int wd);
 PRIVATE void queue_unwatched_subdirs(fs_event_t *fs_event, const char *path);
-PRIVATE BOOL queue_unwatched_subdir_cb(
-    hgobj gobj,
-    void *user_data,
-    wd_found_type type,
-    char *fullpath,
-    const char *directory,
-    char *name,
-    int level,
-    wd_option opt
-);
 
 /***************************************************************************
  *  Data
@@ -949,36 +939,52 @@ PRIVATE void announce_subdir_watched(fs_event_t *fs_event, const char *path, int
  *  The subdirectories of one watched again (watch_unwatched_again()) that
  *  are not watched: queued behind it, to be tried as the ones that could
  *  not be watched. Only its own level: theirs are queued when they are
- *  watched, so a parent is always handed before its children.
+ *  watched, so a parent is always handed before its children. One read of
+ *  the directory, in this turn (the tries are bounded, its listing is
+ *  not), with the type readdir() gives, lstat() only where it gives none.
+ *  A directory gone since its watch says nothing: its parent's IN_DELETE
+ *  does (the walk it replaces logged an ERROR with a stack for that race).
  ***************************************************************************/
 PRIVATE void queue_unwatched_subdirs(fs_event_t *fs_event, const char *path)
 {
-    walk_dir_tree(
-        0,
-        path,
-        0,
-        WD_MATCH_DIRECTORY,
-        queue_unwatched_subdir_cb,
-        fs_event
-    );
-}
-
-PRIVATE BOOL queue_unwatched_subdir_cb(
-    hgobj gobj,
-    void *user_data,
-    wd_found_type type,     // type found
-    char *fullpath,         // directory+filename found
-    const char *directory,  // directory of found filename
-    char *name,             // dname[255]
-    int level,              // level of tree where file found
-    wd_option opt           // option parameter
-)
-{
-    fs_event_t *fs_event = user_data;
-    if(!json_object_get(fs_event->jn_paths_wd, fullpath)) {
-        json_object_set_new(fs_event->jn_unwatched, fullpath, json_true());
+    DIR *dir = opendir(path);
+    if(!dir) {
+        if(errno == ENOENT || errno == ENOTDIR) {
+            return;     // gone since its watch: its parent says it
+        }
+        gobj_log_error(fs_event->gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot list a directory watched again: its subdirectories are not watched",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return;
     }
-    return TRUE;
+
+    struct dirent *de;
+    while((de = readdir(dir)) != NULL) {
+        if(strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) {
+            continue;
+        }
+        BOOL is_dir = (de->d_type == DT_DIR)? TRUE : FALSE;
+        if(de->d_type == DT_UNKNOWN) {
+            struct stat st;
+            is_dir = (fstatat(dirfd(dir), de->d_name, &st, AT_SYMLINK_NOFOLLOW) == 0 &&
+                S_ISDIR(st.st_mode))? TRUE : FALSE;
+        }
+        if(!is_dir) {
+            continue;
+        }
+        char fullpath[PATH_MAX];
+        build_path(fullpath, sizeof(fullpath), path, de->d_name, NULL);
+        if(!json_object_get(fs_event->jn_paths_wd, fullpath)) {
+            json_object_set_new(fs_event->jn_unwatched, fullpath, json_true());
+        }
+    }
+    closedir(dir);
 }
 
 /***************************************************************************
@@ -1420,6 +1426,19 @@ PRIVATE int add_watch(
 
     char s_wd[64];
     snprintf(s_wd, sizeof(s_wd), "%d", wd);
+    /*
+     *  The same wd at another path: the directory was renamed (or moved)
+     *  and watched again. Its old path names it no more; left in
+     *  jn_paths_wd, a directory made later at that path was taken for one
+     *  watched, and never watched
+     */
+    const char *old_path = json_string_value(json_object_get(fs_event->jn_tracked_paths, s_wd));
+    if(old_path && strcmp(old_path, path) != 0) {
+        json_t *jn_old_wd = json_object_get(fs_event->jn_paths_wd, old_path);
+        if(jn_old_wd && json_integer_value(jn_old_wd) == wd) {
+            json_object_del(fs_event->jn_paths_wd, old_path);
+        }
+    }
     json_object_set_new(fs_event->jn_tracked_paths, s_wd, json_string(path));
 
     if(fs_event->fs_flag & FS_FLAG_DIR_FDS) {

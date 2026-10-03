@@ -1,123 +1,42 @@
 # Cloud review of main
 
 Reviewed up to `0db20a63d` (2026-10-03): the answer to the review of
-`a8e6dd30d` (`bbff25b3b`, `0db20a63d`). What is resolved is removed from
-this file; what follows is still open.
+`a8e6dd30d`. What is resolved is removed from this file; this version is the
+fixing session's answer to the review of `0db20a63d` (`2f0b63238`), item by
+item. Every fix has a test that fails on the code before it, except where it
+says otherwise.
 
-The review's own check, on `0db20a63d`: clean build (`yunetas clean/build
---sdk-only`) with no compiler warning, suite 287/287 as user `yuneta`
-under `ulimit -Sn 1024` (240 and 241 first failed with the container's default `fs.inotify.max_user_instances=128`, *"INOTIFY INSTANCES"* reached; passed with the packaged 4096: environment, not code).
-On wattyzer (the second machine of the release rule), on `0db20a63d`: a
-worktree of its own, `init/build --sdk-only` with no warning, suite 287/287;
-the agent binaries the build installed put back, the worktree removed.
+The review's own check, on `0db20a63d`: suite 287/287 as user `yuneta`
+under `ulimit -Sn 1024`. On wattyzer, on `0db20a63d`: suite 287/287 (a
+worktree of its own, `init/build --sdk-only`, the agent binaries put back,
+the worktree removed). This answer: clean build (`yunetas clean/build
+--sdk-only`) with no warning, suite 287/287 under `ulimit -Sn 1024` on the
+dev machine.
 
-## Resolved in this round
-
-All four medium items and every low item of the previous report are fixed
-as described in `bbff25b3b`/`0db20a63d`: the C_TCP flush (`ret < -1000`),
-`--stop` by `argv[0]` (SysV script spared, EPERM said, renamed binary still
-stopped, overflow fails), the fs_watcher re-watch (bounded, ENOSPC ends it,
-looked up by path), the dbsimple symlinked parent, the C_PROT_MQTT header
-bound, OpenSSL `want_retries`, the logcenter restart failure, the spared
-yunos of `restart_nodes()`, ExecStopPost, `close_range` and the `list-jwk`
-doc. The findings below are new, most of them in the fixes themselves.
-
-## Open
+## Resolved
 
 ### Medium
 
-1. **Agent: the 5-minute spare window relaunches every enabled yuno that is
-   not running, not only the spared ones** (`c_agent.c:10592-10597`). Each
-   tick where a spared pid is gone calls `run_enabled_yunos(gobj, TRUE)`,
-   which launches any enabled, not running, not launching yuno.
-   `kill-yuno` does not disable a yuno, so a yuno an operator stops in those
-   5 minutes (the hot-patch flow: `kill-yuno` → `update-binary` →
-   `run-yuno`) is started again as soon as an unrelated stuck yuno dies —
-   possibly between the kill and the binary upload. Before, the window was
-   10 s; nothing in the CHANGELOG says it is now 5 minutes of
-   auto-relaunch. And the end of the window (`:10592`) calls
-   `run_enabled_yunos(gobj, FALSE)`, which skips `yuno_lives_unregistered()`:
-   minutes after the restart, a yuno launched by the window itself or by
-   `run-yuno` may be alive and not yet registered (its `launching_yunos`
-   entry expired), and gets a second instance.
-   *Fix:* keep `{yuno_id: [pids]}` and launch only the ids whose pids are
-   gone; pass `TRUE` at the end of the window.
-
-2. **`--stop` run as root: "own processes first" does not protect the real
-   agent** (`ydaemon.c:478-482`, `daemon_shutdown()`). The first pass takes
-   `st_uid == geteuid()`; the agent runs as `yuneta`, so for a root caller
-   (operator, the RPM scriptlet's first try) it lands in the second pass with
-   every local user's look-alikes. `/proc` is globbed in lexical order
-   (`/proc/1000` before `/proc/999`), so 64 look-alikes still push it out of
-   `MAX_STOP_PIDS`: the agent stays up. What `0db20a63d` fixed is the
-   silence (exit 1 now), not the crowding; `daemon_launcher.md` and
-   `ENTRY_POINT.md` claim the real ones cannot be crowded out, which holds
-   only when the caller has the daemon's uid.
-   *Fix:* a growable list (`gbmem_*`) instead of the fixed 64, or a
-   priority by the pid file's owner / the run-as user.
+| # | Item | Test |
+|---|------|------|
+| 1 | Agent spare window: `restart_wait` is `{yuno_id: [pids]}`. Until the 10 s the pids are watched as before; after them, ONLY the spared ids, each asked of the yuno itself (`find_living_yuno_pids()`: its role and configuration, so a reused pid does not hold it), and each launched alone (`launch_enabled_yuno()`, the body of `run_enabled_yunos()`, now shared) when no process of it is left. The window launches nothing else, and its end launches nothing | No ctest compiles `c_agent.c`. The live check on the local agent (a root look-alike of a stopped yuno, which `restart_nodes()` cannot kill, then `deactivate-snap`, a `kill-yuno` of another yuno inside the window, the look-alike killed) was refused by the session's permission classifier: left to the user |
+| 2 | `--stop`: the list has no fixed size (`gbmem_realloc`), so nobody's look-alikes can crowd the real daemon out of it, root caller or not; the own-uid-first passes of `0db20a63d` are gone. The docs no longer claim what held only for the daemon's uid | By hand, scratch daemon on `ydaemon.c`: 70 look-alikes of the user started first, the daemon started and stopped as root: stopped, exit 0 (a list of 64 never reached it). 70 root look-alikes, the daemon as the user: stopped, exit 1 (the `EPERM`s) |
 
 ### Low
 
-- **dbsimple: `..` carries the trusted user of a directory the resolved path
-  does not pass through** (`dbsimple.c:169-174` with `trusted` kept across
-  restarts in `trusted_dir_owner()`). `/a/Xdir/../W/f` (`/a` root's, `Xdir`
-  X's and closed, `W` root's 02775): the walk enters `Xdir` (trusted = X),
-  the `..` restarts on `/a/W/f` with X still trusted, `W` breaks the chain,
-  the answer is X; for `/a/W/f` it is root only. If X is in `W`'s group, X
-  can plant a file a root yuno loads and then hands back to X with the next
-  save. Carrying the user is right for a symlink (its owner chose the
-  target), not for `..`. Needs a configured path with such a `..`.
-  *Fix:* restart the trust (`trusted = -1`) on a `..` rewrite.
-- **fs_watcher: `jn_paths_wd` keeps the old path of a renamed and re-watched
-  directory** (`add_watch()` `fs_watcher.c:1438-1444`, `drop_tracked()`).
-  The same wd at a new path overwrites `jn_tracked_paths[wd]`, and the old
-  `jn_paths_wd[old] = wd` is never removed. Now that every watcher keeps it
-  and it is the "already watched?" test, a directory made later at the old
-  path under a re-watched parent is skipped by `queue_unwatched_subdir_cb`
-  and never watched; the entries also grow with each rename.
-  *Fix:* in `add_watch()`, drop the entry of the path `jn_tracked_paths[wd]`
-  named before, when it maps to this wd.
-- **fs_watcher: one level of a re-watched directory is listed whole in the
-  loop turn** (`queue_unwatched_subdirs()`): the tries are bounded at 64, the
-  readdir + lstat of each directory is not (a `keys/` of 100000 keys), and
-  the doc says it "never blocks the loop". A directory gone between
-  `add_watch()` and the walk logs *"Cannot open directory"* as an ERROR with
-  stack (benign race; `add_watch()` calls the same case a warning), and the
-  return value is dropped without `// Error already logged`.
-- **`--stop` details** (`ydaemon.c`):
-  - An empty `argv[0]` (a zombie, a process mid-exec) skips the name check
-    (`:484`), and the SIGQUIT pass signals without `stop_pid_is_gone()`: a
-    root zombie of the comm makes `--stop` as `yuneta` exit 1 with EPERM for
-    a process already dead.
-  - A failure to read `/proc/<pid>/cmdline` or to `stat` `/proc/<pid>` is
-    taken as "gone meanwhile" without a word, whatever the errno (`:466`,
-    `:479`). Only ENOENT/ESRCH mean gone.
-  - The comment above `daemon_shutdown()` and the **Returns** of
-    `daemon_launcher.md` still give -1 only for "could not be signalled",
-    not for the overflow.
-- **logcenter: the exit-code ERROR blames sudo for every code**
-  (`c_logcenter.c:1009`): 126/127 (command not found), the non-unit default
-  command, 128+N (child killed). The code is logged, so not silent; the text
-  should be generic. `system(NULL)` (the attr set to null) returns 1 and is
-  logged as *"killed by signal 1"*.
-- **Agent spare window: a reused pid holds its yuno down the full 5
-  minutes** (`process_is_gone()`): no double launch (the guard reads the real
-  process), only the delay.
-- **`c_authz.c:1807`** still comments `// the list: empty`; `list-jwk`
-  answers the config's `jwks` (as YUNO_AUTH.md now says).
-- **Tests:**
-  - none for the agent's spare window;
-  - none for the dbsimple `..` case, the 40-link limit, or a third user met
-    through a link target;
-  - `secret_attrs` proves nothing when the suite runs as real root (the
-    file is root's);
-  - its `__wrap_stat` red case needs glibc ≥ 2.33;
-  - `test_fs_watcher_overflow`'s subtree is one level deep, so the
-    breadth-first order is untested;
-  - still none for the C_UDP client, the websocket default max, or a frame
-    of exactly `max-1`.
+| Item | Test |
+|------|------|
+| dbsimple `..`: the walk returns to the user it started with (the one a symlink carried in, or none); what the directories it leaves had named is not carried. Only symlinks count toward the 40 (a `..` always walks a shorter path; counting it refused legitimate paths) | `secret_attrs`: the realm behind `test_secret_attrs.x/../test_secret_attrs.real`, `.x` the intruder's and closed: the intruder's file refused (red on `0db20a63d`: loaded); a third user's directory behind a link: refused; a chain of 40 links: trusted |
+| fs_watcher: `add_watch()` drops the old path of a wd watched again at another path from `jn_paths_wd` | `test_fs_watcher_overflow` `do_test_renamed_in_overflow`: `m` renamed to `m2` during an overflow, the pass watches it again: `m` no longer indexed, `m2` at the same wd (red on `0db20a63d`: `m` still indexed) |
+| fs_watcher: `queue_unwatched_subdirs()` reads the directory itself (`opendir`/`readdir`, the type `readdir` gives, `fstatat` only for `DT_UNKNOWN`): a directory gone since its watch says nothing (`ENOENT`), another failure is an ERROR without stack. The listing of one directory is still whole in its turn: the doc says so now instead of "never blocks the loop" | `test_fs_watcher_overflow`: the subtree now has two more levels under `s000`: each handed once, after its parent |
+| `--stop` details: an empty `argv[0]` is a zombie when `/proc/<pid>/stat` says so, and is not taken; an `EPERM` on a process already a zombie is not a failure; a `cmdline` that cannot be read for another reason than `ENOENT`/`ESRCH` is said and makes `--stop` exit 1 (not known whether it was the daemon). The comment of `daemon_shutdown()` and the **Returns** of `daemon_launcher.md` list every -1 | By hand: a root zombie named like the daemon, `--stop` as the user: exit 0 (was 1, its `EPERM`); a script of the same name survives; a renamed binary is stopped |
+| logcenter: the exit-code ERROR names no cause it cannot know (1, 126/127, 128+N are explained, not assumed); an empty `restart_yuneta_command` is an ERROR, not `system(NULL)` read as *"killed by signal 1"* | No test (no ctest runs logcenter) |
+| Agent spare window, a reused pid: the window asks the yuno (item 1), not the pid | As item 1 |
+| `c_authz.c`: the comment of `list-jwk` without a users treedb says it lists the config's `jwks` | -- |
+| Tests: `secret_attrs` skips the trust-chain cases, saying so, when the suite runs as real root (the yuno's user would be root, its files trusted anyway); its `__wrap_stat` notes it needs glibc 2.33 | -- |
 
-## Fix order
+## Not done, and why
 
-1, 2, then the dbsimple `..`, the `jn_paths_wd` rename, the `--stop`
-details, and the rest.
+- **The live check of item 1**: see the table.
+- **Still without a test of their own**: the C_UDP client, the websocket
+  default max, a frame of exactly `max-1`.

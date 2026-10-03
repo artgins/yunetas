@@ -78,8 +78,11 @@ realm's, 02775) or of a third user: what is below can be renamed away and
 replaced by a member of the group, so it names nobody. A symlink met inside
 the chain is followed, since only root or the chain's user can have put it
 there, and its target is walked from `/` under the same rules, the user named
-so far still holding (at most 40 links); a `..` is the parent of the
-directories walked. A node laid out as
+so far still holding (at most 40 links, the kernel's own limit); a `..` is
+the parent of the directories walked, and what the directories it leaves had
+named is not carried: `/a/X/../W` does not go through `X`, so the owner of
+`X` is not trusted for it (only what a symlink carried in holds). A node
+laid out as
 
 ```text
 /yuneta -> /srv/yuneta        root's link in root's "/"
