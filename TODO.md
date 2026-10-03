@@ -143,7 +143,8 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   `treedb_yunovatioscodb`) turn `with_link_events` on in code since its
   `f9f2a55` (db_history_ce 2.6.7 / db_history_co 2.6.6), on in both
   nodes (`set-link-events`, checked 2026-10-03).
-- **MQTT broker ACL: model and default-deny** (Rosa). Model A (per-group
+- **MQTT broker ACL: model and default-deny** (Rosa). **FUTURE** (user,
+  2026-10-03: not now; do not raise it as pending until asked). Model A (per-group
   `publish_acl` / `subscribe_acl` in the broker treedb, `enable_acl` default
   off) ships; see `mqtt_broker.md`. Open: A vs B (reuse `C_AUTHZ` via
   `gobj_user_has_authz` — one authz system, but its checker is per authz name,
