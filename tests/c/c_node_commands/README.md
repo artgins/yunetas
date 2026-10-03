@@ -25,6 +25,10 @@ hook `departments`), users under departments (`users`), items with a pkey2
 - `hooks` of `departments` (`departments`, `users`) and `links` of `users`
   (`departments`) and of `departments` (`department_id`).
 - `print-tranger` with `path: "topics"`: the subtree, `departments` in it.
+- A kw that carries a gbuffer through `treedbs`, `links`, `hooks` and
+  `node`: each keeps its reference to the kw with `kw_incref()`, which takes
+  one of the gbuffer too (red with `json_incref()`, as up to 7.25.4: eight
+  *"BAD gbuf_decref()"*).
 - The snaps, on the data: `shoot-snap s1`, the node changed and saved;
   `activate-snap s1` marks it active (`snaps` says so) and the treedb opened
   again (C_NODE stopped and started, as the agent's `restart_nodes()` does)

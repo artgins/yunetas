@@ -64,9 +64,7 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   `C_YUI_FORM`, and the form opens only from them (tried 2026-10-03). The way
   is a browser check on a deployed SPA (the QA drivers of gui_treedb /
   gui_agent), reading the frame the save sends.
-- **No red test** for fixes made after 7.25.4: the two yuno-skeleton fixes
-  (`MSGSET_INTERNAL`, the timer as a pure child — no ctest builds the
-  templates); the entry point closing the log files after the leak report;
+- **No red test** for fixes made after 7.25.4: the entry point closing the log files after the leak report;
   the relink of a test after an installed archive changed; the test harness
   not counting *"io_uring_queue_init_params() pinned-memory pressure,
   retrying"* as an unexpected log (it needs the machine short of locked
@@ -75,7 +73,8 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   skipping rows already registered (only the preview is tested,
   `c_agent_find_new_yunos`), `create-yuno` refusing a release name longer
   than `NAME_MAX`. Not exercised live: a form Save through a real websocket
-  drop. (Red tests added 2026-10-03: `deactivate-snap` -1 on a failed save,
+  drop. (Red tests added 2026-10-03: the two yuno-skeleton fixes
+  (`yuno_skeleton/templates` builds and runs the templates), `deactivate-snap` -1 on a failed save,
   `save_json_to_file()`'s `close()` failure, the `kw_incref()` of C_NODE's
   `treedbs` / `links` / `hooks` / `node` and of C_MQIOGATE's
   `view-channels`, and `kw_update_missing()` with a gbuffer -- the function

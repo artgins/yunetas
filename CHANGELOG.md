@@ -20,8 +20,11 @@
   a gbuffer through C_NODE's `treedbs` / `links` / `hooks` / `node`
   (`test_c_node_commands`) and C_MQIOGATE's `view-channels`
   (`test_c_qiogate_stats`); `kw_update_missing()` with a gbuffer
-  (`test_command_binary_kw`). Each one red on the code before its fix
-  (checked by putting that code back), green now.
+  (`test_command_binary_kw`); and the templates of `yuno-skeleton`, built
+  and run (`yuno_skeleton/templates`: a template timer that is a plain child
+  never reaches `ac_timeout`, `MSGSET_INTERNAL_ERROR` does not compile).
+  Each one red on the code before its fix (checked by putting that code
+  back), green now.
 
 - **fix: C_NODE `parents` / `children` with no `options` logged an ERROR per
   option.** The options are optional, and were read off a NULL: six ERRORs
