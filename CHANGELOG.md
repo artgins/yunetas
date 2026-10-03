@@ -142,7 +142,11 @@
   renamed (`*.bak-pre-<version>`) or replaced on disk. (A first form of this
   compared `/proc/<pid>/exe`, which another user's process does not let
   read, and which follows a rename: both left the agent up and exited 0.)
-  `daemon_shutdown()` returns `int` (was `void`).
+  A name and an `argv[0]` are whatever a process's starter chose, so the
+  caller's own processes are collected first and the others after: 64
+  look-alikes of another user, made first, pushed the real agent out of the
+  list of 64, and it was left up. One left out of the list now makes
+  `--stop` exit 1. `daemon_shutdown()` returns `int` (was `void`).
   The agents' units send SIGQUIT to the watcher (`$MAINPID`) before the
   agent, so a stop under systemd does not relaunch it either.
 

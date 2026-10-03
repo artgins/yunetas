@@ -410,6 +410,8 @@ PUBLIC int daemon_run(
 typedef struct {
     pid_t pids[MAX_STOP_PIDS];
     int n;
+    BOOL others;    // FALSE: the pass of the caller's own processes; TRUE: the rest
+    BOOL overflow;  // a process of the name was left out (MAX_STOP_PIDS)
 } stop_pids_t;
 
 /*
@@ -463,6 +465,22 @@ PRIVATE void collect_proc(void *self, const char *name, pid_t pid)
     if(!stop_argv0_of(pid, argv0, sizeof(argv0))) {
         return; // gone meanwhile
     }
+    /*
+     *  The caller's own processes first, the rest in a second pass: comm and
+     *  argv[0] are whatever a process's starter chose, so anybody can make
+     *  one that looks like the daemon. Collected in /proc order, a user who
+     *  made MAX_STOP_PIDS of them pushed the real ones out of the list, and
+     *  --stop left them up and said 0
+     */
+    char procdir[64];
+    snprintf(procdir, sizeof(procdir), "/proc/%d", (int)pid);
+    struct stat st;
+    if(stat(procdir, &st) < 0) {
+        return; // gone meanwhile
+    }
+    if((st.st_uid == geteuid()) == stop->others) {
+        return; // the other pass's
+    }
     if(argv0[0]) {
         BOOL same;
         if(namelen < 15) {
@@ -478,6 +496,7 @@ PRIVATE void collect_proc(void *self, const char *name, pid_t pid)
         print_error(0, "--stop: more than %d processes named %.*s, pid %d left alone",
             MAX_STOP_PIDS, (int)namelen, name, (int)pid
         );
+        stop->overflow = TRUE;  // --stop fails: one of them may be the daemon
         return;
     }
     stop->pids[stop->n++] = pid;
@@ -567,6 +586,11 @@ PUBLIC int daemon_shutdown(const char *process_name)
     int ret = 0;
     stop_pids_t stop = {0};
     search_process(process_name, collect_proc, &stop);
+    stop.others = TRUE;
+    search_process(process_name, collect_proc, &stop);
+    if(stop.overflow) {
+        ret = -1;
+    }
 
     /*
      *  The watchers first (they then do not relaunch), then their children
@@ -614,6 +638,11 @@ PUBLIC int daemon_shutdown(const char *process_name)
      */
     stop_pids_t left = {0};
     search_process(process_name, collect_proc, &left);
+    left.others = TRUE;
+    search_process(process_name, collect_proc, &left);
+    if(left.overflow) {
+        ret = -1;
+    }
     for(int i = 0; i < left.n; i++) {
         if(stop_pid_is_gone(left.pids[i])) {
             continue;

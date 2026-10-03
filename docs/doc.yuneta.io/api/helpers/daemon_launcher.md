@@ -107,7 +107,9 @@ Returns `0` on normal shutdown, or a non-zero value on error.
 by process name. Every process of that name started as it (the base name
 of `argv[0]` in `/proc/<pid>/cmdline`: a script of the same name has its
 interpreter there and is not one; a daemon whose binary was renamed still
-is, and so is another user's, which then fails with `EPERM`) gets SIGQUIT, the
+is, and so is another user's, which then fails with `EPERM`; the caller's
+own are taken first, so another user's look-alikes cannot push them out of
+its list of 64, and one left out makes it fail) gets SIGQUIT, the
 watchers first: a watcher notes it and does not relaunch its child, whatever its end;
 the child shuts down in order and exits 0, and its watcher exits with it.
 They are given 10 s to be gone; then the name is scanned again and what is
