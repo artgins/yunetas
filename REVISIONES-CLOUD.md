@@ -28,8 +28,25 @@ yunovatios `f9f2a55` (2.6.7 / 2.6.6; the nodes run 2.6.8 / 2.6.7), and
 and `treedb_yunovatioscodb` on the controller (checked 2026-10-03). Those are
 its only treedbs.
 
-Not done, and why: the next-cycle items; section 2 (`tm` markers), a
-decision for the next cycle.
+### Afterwards, the same day: the user's decisions and what was done
+
+| Item | Decision / done | Where |
+|------|-----------------|-------|
+| Section 2, `tm` markers | **Done**, option (a): markers removed, `from_tm`/`to_tm` a plain row filter (API removal: `tranger2_mark_tm_order()`, `mark-tm-order`). Then the md2 rows read in blocks (1024 per `pread()`), and the match condition parsed once per scan: the one-minute tm query on 1 key x 30 files x 20 000 rows went 0.39 s -> 0.168 s -> **0.0145 s** | `4274d33e2`, `161926278`, `a395aa34a` |
+| CLI role collision | **A warning, final** (no refusal, no renaming, no per-project dirs); published in the `yunetas` CLI 0.20.4 | `c965bfa` / `b141926` (tui_yunetas), TODO item closed |
+| Lowercased `domain_dir` | **Done**: nodes checked (no capitals), lowercasing removed | `8f90a384e` |
+| `with_link_events` in yunovatios | **Nothing to do**: already on in code (`f9f2a55` of yunovatios) and live on both nodes | `2c9a780b5` |
+| C_NODE, every link collapses the parent | **Decided: option (c)** -- `with_link_events` TRUE by default, estadodelaire and hidraulia set it `false` in their config; in a session of its own | TODO (C_NODE item) |
+| Schema editor, a removed column with data | **Warn**: done in gobj-ui 7.25.25 (npm) / gui_agent 0.29.9 (deployed) | `5613793` (gobj-ui), `a7557b453` |
+| Packaging, the sparse SDK and glibc | **Decided**: `libc_guard` is the solution; what to do when it fires is the SDK user's choice; a package per distro is FUTURE, only once Yuneta is very stable | TODO (item marked) |
+| MQTT ACL model, default-deny, `client_id` <-> user | **FUTURE** (the will under the ACL is done) | TODO |
+| `enable_command_authz` in production | **FUTURE**; and never by flipping the default (a yuno with no C_AUTHZ would refuse every external command) | TODO |
+| C_TRANGER handles opened through the agent | **FUTURE**, no stop-gap | TODO |
+
+Nothing of this report is pending a decision. Still to do: the C_NODE
+default (its own session) and the next-cycle items (rt_disk delete
+sequence, collapse with subscribers superseded by option (c), check-ports
+in the suite).
 
 ## 1. Open defects of TODO.md
 
