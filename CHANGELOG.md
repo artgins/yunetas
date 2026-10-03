@@ -91,18 +91,20 @@
 - **Agent: a yuno still alive 10 s after a node bounce gets no second
   instance.** `restart_nodes()` waits for the yunos it killed, and after
   10 s relaunched them anyway, without asking whether they were alive: a
-  yuno stuck in a disk wait got a second instance. Those are now skipped,
-  each with the warning *"yuno alive but not connected to the agent: not
-  launched again"*, and each one is launched when it is gone: looked at
-  every second, for 5 minutes, after which the warning says to `run-yuno`
-  them. Gone is every pid the restart killed gone (a task in D state is
-  alive) AND no process left running the yuno (its role and configuration:
-  a task that lost its command line while it still holds its files is not
-  taken for gone). Only those are launched, and a spared yuno the operator
-  stops (`kill-yuno`), disables or launches meanwhile leaves the window; one
-  stopped or disabled in the first 10 s is held apart, not run by the
-  relaunch (`enable-yuno` gives it back). At the window's end the yunos are
-  asked once without their pids, so a reused pid does not keep one down.
+  yuno stuck in a disk wait got a second instance. Those are now spared,
+  listed by *"yunos killed for the restart still alive after 10 s: each one
+  launched when it is gone"*, and each one is launched when it is gone:
+  looked at every second, for 5 minutes, after which the warning says to
+  `run-yuno` them. Gone is every pid the restart killed gone AND no process
+  left running the yuno (its role and configuration). A pid is gone when it
+  does not exist, is a zombie, or runs with another start time than the one
+  recorded when it was killed -- a pid reused by another process; a task in
+  D state is alive, whether or not it still has its command line (it loses
+  it while it still holds its files). Only those are launched. A spared yuno
+  the operator stops (`kill-yuno`), disables or launches meanwhile leaves
+  the window; one stopped, disabled or launched in the first 10 s is held
+  apart, not run by the relaunch nor spared (`enable-yuno` gives a disabled
+  one back, in those 10 s only).
 - **Agent: `kill-yuno` of a yuno found only by the scan says it is not
   waited for.** Such a yuno is signalled and the answer comes at once; a
   `run-yuno` sent before it is gone finds it alive and does not launch it.

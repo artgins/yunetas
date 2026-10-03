@@ -890,20 +890,23 @@ running", grep the agent log for `does NOT move forward` before anything else.
 
   Now the ones still alive at 10 s are **spared**: the rest are launched,
   the agent says *"yunos killed for the restart still alive after 10 s:
-  each one launched when it is gone"* with `{yuno_id: [pids]}`, and for 5
+  each one launched when it is gone"* with `{yuno_id: [[pid, start_time], ...]}`, and for 5
   minutes it looks at them every second. A spared yuno is launched when it
-  is gone -- every pid killed gone (a task in D state is alive) AND no
-  process running the yuno (its role and configuration). The window closes
-  with *"yunos spared by the restart: none left to wait for"*; at its end
-  the yunos are asked once more without their pids (a pid reused by another
-  process), and the ones still alive are said: *"still alive after 5
-  minutes: not launched, run-yuno once they are gone"*.
+  is gone -- every pid killed gone AND no process running the yuno (its role
+  and configuration). A pid is gone when it does not exist, is a zombie, or
+  runs with another start time than the one recorded at the kill (a pid
+  reused by another process); a task in D state is alive, with or without
+  its command line. The window closes with *"yunos spared by the restart:
+  none left to wait for"*, or, at 5 minutes, says the ones still alive:
+  *"still alive after 5 minutes: not launched, run-yuno once they are
+  gone"*.
 
-  The operator outranks the restart. A yuno stopped with `kill-yuno` or
-  disabled while it runs is not launched by it: in the first 10 s it is
-  held apart (its pids are still waited for), in the window it leaves it.
-  `enable-yuno` gives it back to the restart; a `run-yuno` that launches a
-  spared yuno takes it out of the window.
+  The operator outranks the restart. A yuno stopped with `kill-yuno`,
+  disabled, or launched (`run-yuno`) while it runs is not launched by it: in
+  the first 10 s it is held apart (its pids are still waited for), in the
+  window it leaves it. In the first 10 s, `enable-yuno` gives a disabled one
+  back to the restart; in the window it gives nothing back -- run it with
+  `run-yuno` once it is gone.
 
   ```bash
   ycommand -c 'deactivate-snap'          # node bounce; one yuno stuck in a disk wait
