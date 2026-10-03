@@ -215,11 +215,14 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   file's t range from its first and last rows. (`mark-tm-order`, which
   could write it again, went with the tm markers, 2026-10-03.)
 - **A tm query reads every row of the key's files** (a filter, no file left
-  out, no early end): ~0.39 s for 1 key × 30 files × 20 000 rows
-  (`perf_timeranger2`), one `lseek` + `read` per 32-byte row. Reading the
-  md2 rows in blocks in the iterator would cut it for every query, not only
-  tm (an inference: the old migration read the same rows in blocks in
-  ~16 ms).
+  out, no early end): ~0.17 s for 1 key × 30 files × 20 000 rows
+  (`perf_timeranger2`), with the md2 rows read in blocks of 1024 (it was
+  ~0.44 s, one `lseek` + `read` per row). What is left is per row and in
+  memory: `tranger2_match_metadata()` reads `match_cond` with ~15
+  `json_object_get()` per row, and `get_md_by_rowid()` 3 more from the
+  segment. A match condition parsed once per scan (a C struct) would cut it
+  for every query (an inference: the old migration walked the same rows in
+  ~16 ms with no json per row).
 - **A demoted master never takes its lock back** while the process lives; it
   needs a restart (documented).
 - **In a partial topic, operations on other ids are allowed** (creates,

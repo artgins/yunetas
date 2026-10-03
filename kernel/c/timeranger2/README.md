@@ -53,7 +53,8 @@ stopping at the first row past its range.
 `tm` is written by the producer, and the files are cut by `t`: nothing orders
 it. A `tm` condition is a FILTER on every row of the key's files: it leaves no
 file out and ends no scan. On one key of 30 files x 20000 rows, a `tm` query of
-one minute reads the 600000 rows: ~0.39 s (`performance/c/perf_timeranger2`).
+one minute reads the 600000 rows: ~0.17 s (`performance/c/perf_timeranger2`;
+the scans read the md2 rows in blocks of 1024, one `pread()` each).
 Who needs fast access by `tm` keeps it themselves -- a topic keyed by it, or an
 index in memory -- the store keeps the records as they came.
 

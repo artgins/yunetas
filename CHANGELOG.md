@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **timeranger2: the scans read md2 rows in blocks.** An iterator's load,
+  its index, its pages and a follower's new rows made an `lseek()` and a
+  `read()` per 32-byte md2 row; they read 1024 rows with one `pread()`
+  (a block never reaches past the rows the scan's segment counts, so a
+  file the master appends to is not read half way, and it is read again
+  after any write of md2 rows by the process, so a user_flag rewritten
+  from a callback is seen). A tm query of one minute on 1 key x 30 files x
+  20 000 rows (`perf_timeranger2`, 8 rounds alternated): 0.439 +- 0.071 s
+  -> 0.168 +- 0.047 s. The rest is the per-row json of the matcher. One
+  difference: a follower's scan sees a user_flag the master rewrote in
+  place DURING that scan up to a block later than it did (no ordering was
+  promised between the two processes either way).
+  `test_tm_order`: ranges across the block boundaries, both ways, on the
+  three read roads, and a key of 2600 rows read whole.
+
 - **Schema editor (gobj-ui 7.25.25, gui_agent 0.29.9): a column with data
   behind it is warned about before it is deleted.** The records keep the
   values of a deleted column and no reader shows them any more; the editor

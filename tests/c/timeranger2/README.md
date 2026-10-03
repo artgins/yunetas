@@ -48,7 +48,7 @@ ctest -R '^timeranger2/test_uncommitted_append$' --output-on-failure --test-dir 
 
 | Test | What it checks |
 |---|---|
-| `test_tm_order` | A `__tm__` that does not grow with `__t__`: a tm condition filters every row (no file left out, no early end), by the three read roads, both directions, master/replica/follower/reload; negative tm and t bounds; a store with the 7.25.5..7.25.22 tm markers answers the same, its markers ignored. |
+| `test_tm_order` | A `__tm__` that does not grow with `__t__`: a tm condition filters every row (no file left out, no early end), by the three read roads, both directions, master/replica/follower/reload; negative tm and t bounds; a store with the 7.25.5..7.25.22 tm markers answers the same, its markers ignored; the md2 rows read in blocks of 1024: ranges across the block boundaries (rows 1024/1025 forward, 1576/1577 backward) and a key of 2600 rows read whole, both ways. |
 | `test_lost_lock` | A master that lost its single-master lock while stopped writes nothing: every write path takes the lock again first, and the tranger goes on as a replica (`master_lost`). |
 | `test_topic_var_replace` | `topic_var.json` is written to `topic_var.json.new` and renamed: the file is the old one or the new one, never a truncated one. |
 | `test_key_reborn_pages` | An iterator open while its key is deleted and written again: the delete forgets the segments (and the index) of every iterator of that key. |

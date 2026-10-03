@@ -1,6 +1,10 @@
 /****************************************************************************
  *          test_tm_order.c
  *
+ *  The scans read md2 rows in blocks of 1024: a key of 2600 rows in one
+ *  file is asked across each block boundary, both ways, on every road, and
+ *  read whole (a row served past a block's end fails it).
+ *
  *  The __tm__ of a record is written by its producer, and nothing makes it
  *  grow with __t__, the time the md2 files are cut by. A tm condition
  *  (`from_tm` / `to_tm`) is therefore a FILTER on every row of the key's
@@ -239,6 +243,60 @@ PRIVATE int expect_file(const char *what, const char *key, const char *name, BOO
  *  The conditions every store answers the same, whatever it knows of the
  *  order of its files
  */
+/*
+ *  "B<from> ... B<to>" (or down from <to> to <from>)
+ */
+#define BLOCK_KEY_ROWS  2600    // past two md2 blocks of a scan (1024 rows a read)
+#define BLOCK_T0        (DAY1 + 20000)
+
+PRIVATE void block_contents(char *bf, size_t bfsize, int from, int to, BOOL down)
+{
+    bf[0] = 0;
+    for(int i = 0; i <= to - from; i++) {
+        char item[16];
+        snprintf(item, sizeof(item), "%sB%04d", bf[0]? " ": "", down? to - i : from + i);
+        strncat(bf, item, bfsize - strlen(bf) - 1);
+    }
+}
+
+/*
+ *  The key whose rows span md2 blocks, read whole: its count, and the rows
+ *  on each side of every block boundary of the scan, both ways
+ */
+PRIVATE int expect_block_key(json_t *tranger, const char *who)
+{
+    int result = 0;
+    for(int bwd = 0; bwd < 2; bwd++) {
+        json_t *cond = json_pack("{s:b}", "backward", bwd);
+        json_t *data = json_array();
+        json_t *it = tranger2_open_iterator(
+            tranger, TOPIC_NAME, "blocks", cond, NULL, "whole", "", data, NULL
+        );
+        int n = (int)json_array_size(data);
+        int bad = -1;
+        for(int i = 0; i < n; i++) {
+            char want[16];
+            snprintf(want, sizeof(want), "B%04d", bwd? BLOCK_KEY_ROWS - 1 - i : i);
+            json_t *record = json_array_get(data, (size_t)i);
+            if(strcmp(kw_get_str(0, record, "content", "", 0), want) != 0) {
+                bad = i;
+                break;
+            }
+        }
+        if(n != BLOCK_KEY_ROWS || bad >= 0) {
+            printf("%sERROR%s --> %s key blocks %s: %d rows (%d), first wrong at %d\n",
+                On_Red BWhite, Color_Off, who, bwd? "backward": "forward",
+                n, BLOCK_KEY_ROWS, bad);
+            result += -1;
+        }
+        if(it) {
+            tranger2_close_iterator(tranger, it);
+        }
+        JSON_DECREF(data)
+    }
+    return result;
+}
+
 PRIVATE int expect_the_answers(json_t *tranger, const char *who)
 {
     int result = 0;
@@ -303,6 +361,34 @@ PRIVATE int expect_the_answers(json_t *tranger, const char *who)
         json_pack("{s:I}", "to_tm", (json_int_t)-4900),
         "D1", "D1"
     );
+
+    /*
+     *  Rows read a block at a time (1024 a read): a forward scan reads
+     *  rows 1..1024, then 1025..; a backward one from the last row back,
+     *  2600..1577, then 1576.. -- ranges that straddle each boundary, on
+     *  the three roads, both ways, and the key read whole
+     */
+    char fwd[512];
+    char bwd[512];
+    block_contents(fwd, sizeof(fwd), 1020, 1030, FALSE);    // rows 1021..1031
+    block_contents(bwd, sizeof(bwd), 1020, 1030, TRUE);
+    result += expect_cond(tranger, who, "blocks",
+        json_pack("{s:I, s:I}",
+            "from_t", (json_int_t)(BLOCK_T0 + 1020),
+            "to_t", (json_int_t)(BLOCK_T0 + 1030)
+        ),
+        fwd, bwd
+    );
+    block_contents(fwd, sizeof(fwd), 1572, 1580, FALSE);    // rows 1573..1581
+    block_contents(bwd, sizeof(bwd), 1572, 1580, TRUE);
+    result += expect_cond(tranger, who, "blocks",
+        json_pack("{s:I, s:I}",
+            "from_tm", (json_int_t)1572,
+            "to_tm", (json_int_t)1580
+        ),
+        fwd, bwd
+    );
+    result += expect_block_key(tranger, who);
     return result;
 }
 
@@ -381,6 +467,13 @@ PRIVATE int do_test(void)
     append_tm(tm, "gap", DAY1 + 10, 100, "D1");
     append_tm(tm, "gap", DAY1 + DAY + 10, 5000, "D2");
     append_tm(tm, "gap", DAY1 + 2*DAY + 10, 150, "D3");
+
+    /*  rows past two md2 blocks of a scan, in one file  */
+    for(int i = 0; i < BLOCK_KEY_ROWS; i++) {
+        char content[16];
+        snprintf(content, sizeof(content), "B%04d", i);
+        append_tm(tm, "blocks", (uint64_t)(BLOCK_T0 + i), (uint64_t)i, content);
+    }
 
     /*  t in order (no .unordered), tm not  */
     append_tm(tm, "infile", DAY1 + 1000, 500, "T1");

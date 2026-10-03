@@ -92,6 +92,25 @@ typedef struct { // Size: 32 bytes — fields are big-endian on disk
 
 #pragma pack()
 
+/*
+ *  The md2 rows a scan reads, a block at a time: one pread() serves
+ *  MD_BLOCK_ROWS rows, where read_md() makes an lseek() and a read() per
+ *  32-byte row. A block holds only rows the scan's segment already counts
+ *  (a file a master appends to is not read past them), and is read again
+ *  after any write of md2 rows by this process (md_write_gen): a user_flag
+ *  rewritten from a callback of the scan is seen.
+ */
+#define MD_BLOCK_ROWS   1024    // 32 KB
+
+typedef struct {
+    char file_id[NAME_MAX];     // the md2 file of the rows held, "" none
+    uint64_t first;             // rowid (relative to 1) of rows[0]
+    uint64_t count;             // rows held
+    uint64_t gen;               // md_write_gen when they were read
+    BOOL backward;              // the direction of the scan: what to read ahead
+    md2_record_t rows[MD_BLOCK_ROWS];
+} md_block_t;
+
 #define TIME_FLAG_MASK  0x00000FFFFFFFFFFFULL  /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
 #define USER_FLAG_MASK  0x0FFFF00000000000ULL
 
@@ -414,6 +433,20 @@ PRIVATE int get_md_by_rowid( // Get record metadata by rowid
     const char *key,
     json_t *segment,
     uint64_t rowid, // relative to 1
+    md_block_t *blk, // NULL: one read per row
+    md2_record_ex_t *md_record_ex
+);
+PRIVATE void md_block_init(md_block_t *blk, BOOL backward);
+PRIVATE void md2_row_to_ex(md2_record_t md_record, uint64_t rowid, md2_record_ex_t *md_record_ex);
+PRIVATE int read_md_blocked(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *file_id,
+    uint64_t rowid,     // relative to 1
+    uint64_t max_rowid, // the last row the scan may read
+    md_block_t *blk,
     md2_record_ex_t *md_record_ex
 );
 PRIVATE int read_md(
@@ -635,6 +668,7 @@ PRIVATE int scan_disks_key_for_new_file(
 /***************************************************************
  *              Data
  ***************************************************************/
+PRIVATE uint64_t md_write_gen = 0;  // raised by every write of md2 rows: see md_block_t
 
 /***************************************************************************
  *  Startup TimeRanger database
@@ -4275,6 +4309,7 @@ PUBLIC int tranger2_append_record(
         big_endian.__offset__ = htonll(md_record.__offset__);
         big_endian.__size__ = htonll(md_record.__size__);
 
+        md_write_gen++;
         ssize_t ln = write( // write md
             md2_fd,
             &big_endian,
@@ -4996,6 +5031,7 @@ PRIVATE int rewrite_md_to_file(
     big_endian.__offset__ = htonll(md_record->__offset__);
     big_endian.__size__ = htonll(md_record->__size__);
 
+    md_write_gen++;
     ssize_t ln = write( // write md
         md2_fd,
         &big_endian,
@@ -9324,15 +9360,19 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
         }
     }
 
+    md_block_t blk;
+    md_block_init(&blk, FALSE);
     for(json_int_t rowid=first_rowid; rowid<=to_rowid; rowid++) {
         md2_record_ex_t md_record_ex;
-        if(read_md(
+        if(read_md_blocked(
             gobj,
             tranger,
             topic,
             key,
             file_id,
-            rowid,
+            (uint64_t)rowid,
+            (uint64_t)to_rowid,
+            &blk,
             &md_record_ex
         )<0) {
             // Error already logged; md_record_ex is uninitialized on failure, skip it
@@ -12300,6 +12340,8 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
 
         json_t *cache_total = get_cache_total(topic, key);
         BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
+        md_block_t blk;
+        md_block_init(&blk, backward);
         json_int_t cur_segment = first_segment_row(
             segments,
             cache_total,
@@ -12355,6 +12397,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 key,
                 segment,
                 rowid,
+                &blk,
                 &md_record_ex
             )<0) {
                 json_object_set_new(iterator, "load_failed", json_true());
@@ -12668,6 +12711,8 @@ PRIVATE json_t *build_iterator_index(
     json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
     json_t *index = json_array();
     md2_record_ex_t md_record_ex;
+    md_block_t blk;
+    md_block_init(&blk, FALSE);     // the index is built forward
     BOOL end = FALSE;
 
     int idx; json_t *segment;
@@ -12676,7 +12721,7 @@ PRIVATE json_t *build_iterator_index(
         json_int_t last_row = json_integer_value(json_object_get(segment, "last_row"));
 
         for(json_int_t rowid = first_row; rowid <= last_row; rowid++) {
-            if(get_md_by_rowid(gobj, tranger, topic, key, segment, rowid, &md_record_ex) < 0) {
+            if(get_md_by_rowid(gobj, tranger, topic, key, segment, rowid, &blk, &md_record_ex) < 0) {
                 // Error already logged
                 JSON_DECREF(forward_cond)
                 JSON_DECREF(index)
@@ -12830,6 +12875,8 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         json_t *data = json_array();
         if(from_rowid > 0 && from_rowid <= indexed_rows && limit > 0) {
             md2_record_ex_t md_record_ex;
+            md_block_t blk;
+            md_block_init(&blk, backward);
             for(size_t i = 0; i < limit; i++) {
                 json_int_t pos = backward
                     ? (indexed_rows - (from_rowid - 1) - 1 - (json_int_t)i)
@@ -12851,7 +12898,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
                     break;
                 }
                 if(get_md_by_rowid(
-                    gobj, tranger, topic, key, segment, rowid, &md_record_ex
+                    gobj, tranger, topic, key, segment, rowid, &blk, &md_record_ex
                 )<0) {
                     log_if_key_gone(gobj, topic, key);
                     break;      // Error already logged
@@ -12963,6 +13010,8 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
 
     json_t *data = json_array();
     md2_record_ex_t md_record_ex;
+    md_block_t blk;
+    md_block_init(&blk, backward);
 
     BOOL end = FALSE;
     while(!end && cur_segment >= 0) {
@@ -12977,6 +13026,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
             key,
             segment,
             rowid,
+            &blk,
             &md_record_ex
         )<0) {
             log_if_key_gone(gobj, topic, key);
@@ -14279,6 +14329,7 @@ PRIVATE int get_md_by_rowid(
     const char *key,
     json_t *segment,
     uint64_t rowid, // relative to 1
+    md_block_t *blk, // NULL: one read per row
     md2_record_ex_t *md_record_ex
 )
 {
@@ -14329,15 +14380,31 @@ PRIVATE int get_md_by_rowid(
      *  Get file handler
      */
     const char *file_id = json_string_value(json_object_get(segment, "id"));
-    if(read_md(
-        gobj,
-        tranger,
-        topic,
-        key,
-        file_id,
-        relative_rowid, // relative to 1
-        md_record_ex
-    )<0) {
+    int ret;
+    if(blk) {
+        ret = read_md_blocked(
+            gobj,
+            tranger,
+            topic,
+            key,
+            file_id,
+            (uint64_t)relative_rowid,
+            (uint64_t)(last_rowid - first_rowid + 1),
+            blk,
+            md_record_ex
+        );
+    } else {
+        ret = read_md(
+            gobj,
+            tranger,
+            topic,
+            key,
+            file_id,
+            relative_rowid, // relative to 1
+            md_record_ex
+        );
+    }
+    if(ret < 0) {
         // Error already logged
         return -1;
     }
@@ -14457,6 +14524,15 @@ PRIVATE int read_md(
         return -1;
     }
 
+    md2_row_to_ex(md_record, rowid, md_record_ex);
+    return 0;
+}
+
+/***************************************************************************
+ *  A row as read from disk (big-endian) to its md2_record_ex_t
+ ***************************************************************************/
+PRIVATE void md2_row_to_ex(md2_record_t md_record, uint64_t rowid, md2_record_ex_t *md_record_ex)
+{
     md_record.__t__ = ntohll(md_record.__t__);
     md_record.__tm__ = ntohll(md_record.__tm__);
     md_record.__offset__ = ntohll(md_record.__offset__);
@@ -14469,6 +14545,135 @@ PRIVATE int read_md(
     md_record_ex->system_flag = get_system_flag(&md_record);
     md_record_ex->user_flag = get_user_flag(&md_record);
     md_record_ex->rowid = rowid;
+}
+
+/***************************************************************************
+ *  An empty block for a scan in `backward` direction (see md_block_t)
+ ***************************************************************************/
+PRIVATE void md_block_init(md_block_t *blk, BOOL backward)
+{
+    blk->file_id[0] = 0;
+    blk->first = 0;
+    blk->count = 0;
+    blk->gen = 0;
+    blk->backward = backward;
+}
+
+/***************************************************************************
+ *  read_md() through the scan's block: a row the block holds is served
+ *  from memory; another one reads the block again with one pread(), the
+ *  next MD_BLOCK_ROWS rows in the scan's direction, never past `max_rowid`.
+ *  Same answers and same errors as read_md(): a row that is not on disk
+ *  whole is a short read.
+ ***************************************************************************/
+PRIVATE int read_md_blocked(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *file_id,
+    uint64_t rowid,     // relative to 1
+    uint64_t max_rowid, // the last row the scan may read
+    md_block_t *blk,
+    md2_record_ex_t *md_record_ex
+)
+{
+    if(rowid <= 0 || rowid > max_rowid) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "rowid out of the rows the scan may read",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "file_id",      "%s", file_id,
+            "rowid",        "%ld", (long)rowid,
+            "max_rowid",    "%ld", (long)max_rowid,
+            NULL
+        );
+        return -1;
+    }
+
+    BOOL held = (blk->count > 0 &&
+        blk->gen == md_write_gen &&
+        strcmp(blk->file_id, file_id) == 0 &&
+        rowid >= blk->first &&
+        rowid < blk->first + blk->count)? TRUE : FALSE;
+
+    if(!held) {
+        uint64_t first;
+        uint64_t n;
+        if(blk->backward) {
+            first = (rowid > MD_BLOCK_ROWS)? rowid - MD_BLOCK_ROWS + 1 : 1;
+            n = rowid - first + 1;
+        } else {
+            first = rowid;
+            n = max_rowid - rowid + 1;
+            if(n > MD_BLOCK_ROWS) {
+                n = MD_BLOCK_ROWS;
+            }
+        }
+
+        int fd = get_topic_rd_fd(
+            gobj,
+            tranger,
+            topic,
+            key,
+            file_id,
+            FALSE
+        );
+        if(fd<0) {
+            blk->count = 0;
+            return -1;  // Error already logged
+        }
+
+        blk->count = 0;
+        ssize_t ln = pread( // read direct md for segment, a block
+            fd,
+            blk->rows,
+            (size_t)n * sizeof(md2_record_t),
+            (off_t)((first - 1) * sizeof(md2_record_t))
+        );
+        if(ln < 0) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot read record metadata, read FAILED",
+                "topic",        "%s", tranger2_topic_name(topic),
+                "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+                "key",          "%s", key,
+                "rowid",        "%ld", (long)rowid,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            return -1;
+        }
+        snprintf(blk->file_id, sizeof(blk->file_id), "%s", file_id);
+        blk->first = first;
+        blk->count = (uint64_t)ln / sizeof(md2_record_t);
+        blk->gen = md_write_gen;
+
+        if(rowid >= blk->first + blk->count) {
+            /*
+             *  A short read returns a count and leaves errno as it was
+             */
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot read record metadata, short read",
+                "topic",        "%s", tranger2_topic_name(topic),
+                "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+                "key",          "%s", key,
+                "rowid",        "%ld", (long)rowid,
+                "read",         "%ld", (long)ln,
+                "expected",     "%ld", (long)((rowid - first + 1) * sizeof(md2_record_t)),
+                NULL
+            );
+            return -1;
+        }
+    }
+
+    md2_row_to_ex(blk->rows[rowid - blk->first], rowid, md_record_ex);
     return 0;
 }
 
