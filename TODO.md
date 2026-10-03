@@ -118,7 +118,8 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 ## 3. Decisions pending
 
-- **C_TRANGER handles opened through the agent are not reaped** when the
+- **C_TRANGER handles opened through the agent are not reaped** (**FUTURE**,
+  user 2026-10-03: not now, no stop-gap; do not raise it as pending) when the
   operator's session ends (documented in `api/gclass/data.md`). A
   `command-yuno` reaches the yuno over its one C_IEVENT_CLI link to the agent,
   which is what is stamped as `src_gobj`; the reaping paths
