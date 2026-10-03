@@ -56,15 +56,10 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   `foreign_from_refused` does not test `from_is_default`, and no test has a
   foreign `from` with an account-style reply; `url_change_resets_pacing` was
   widened to 1.8 s without finding why a reset pacing connects ~1 s late.
-- **C_NODE commands whose behaviour has no ctest** (their permissions are
-  tested in `test_c_node_authz`, some refusals elsewhere): `node`,
-  `instances` (only its *"What topic_name?"* refusal), `pkey2s`, `jtree`,
-  `parents`, `children`, `hooks` and `links` as commands (test 11 of
-  `c_node_link_events` covers the methods), `treedb-info`, `print-tranger`,
-  and what the snap commands do to the data (`shoot-snap`, `activate-snap`,
-  `deactivate-snap`: only their answers are tested). `import-db` /
-  `export-db` are tested only for their error count by cause, link failures
-  and abort, the export's file name, and a content that is not json.
+- **C_NODE**: `import-db` / `export-db` are tested only for their error
+  count by cause, link failures and abort, the export's file name, and a
+  content that is not json (the read commands and the snaps on the data:
+  `test_c_node_commands`).
 - **gobj-ui**: the save kw as it leaves `publish_treedb_write()`
   (`c_yui_treedb_topic_with_form.js`) is untested.
 - **No red test** for fixes made after 7.25.4: `deactivate-snap` -1 on a

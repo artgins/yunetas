@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **fix: C_NODE `parents` / `children` with no `options` logged an ERROR per
+  option.** The options are optional, and were read off a NULL: six ERRORs
+  with a stack (*"kw must be list or dict"*) for each `parents`, one for each
+  `children`. They are an empty dict now, as `nodes` already did. New
+  `test_c_node_commands`: what the read commands of C_NODE answer
+  (`treedb-info`, `node`, `instances`, `pkey2s`, `jtree`, `parents`,
+  `children`, `hooks`, `links`, `print-tranger`) and what the snaps do to the
+  data (red on the previous code: 18 unexpected ERRORs).
+
 - **BREAKING (protocol between master and followers): a key delete is
   signalled with the master's delete sequence.** `tranger2_delete_key()`
   removes the feed's `disks/<rt_id>/<key>/` as before, and then makes and

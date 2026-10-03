@@ -1974,6 +1974,9 @@ PRIVATE json_t *mt_node_parents(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!jn_options) {
+        jn_options = json_object();     // the options are optional: asked of no dict, every kw_get_bool() logs
+    }
 
     /*-----------------------------------*
      *      Check appropriate topic
@@ -2062,6 +2065,9 @@ PRIVATE json_t *mt_node_children(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!jn_options) {
+        jn_options = json_object();     // the options are optional: asked of no dict, every kw_get_bool() logs
+    }
 
     /*-----------------------------------*
      *      Check appropriate topic
