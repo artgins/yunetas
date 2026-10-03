@@ -62,6 +62,15 @@ Without it, a store that does not exist gives *"No authz db, authz only to
 local access"* and no treedb, and a store another yuno owns is opened as a
 READ-ONLY replica.
 
+`with_link_events` (`SDF_RD`, default `1`, new in 7.25.23) is copied to the
+`C_NODE` of `treedb_authzs`: a link of a user to a role publishes
+`EV_TREEDB_NODE_LINKED`, not the role's `EV_TREEDB_NODE_UPDATED`. A yuno
+whose **v1** SPA edits `treedb_authzs` turns it off in its config:
+
+```json
+{"name": "authz", "gclass": "C_AUTHZ", "kw": {"with_link_events": false}}
+```
+
 ---
 
 (gclass-c-auth-bff)=

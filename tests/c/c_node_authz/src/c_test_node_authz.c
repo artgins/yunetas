@@ -568,7 +568,8 @@ PRIVATE int run_tests(hgobj gobj)
     result += expect(gobj, "reader", "trace", json_pack("{s:b}", "set", 0), TRUE);
     result += expect(gobj, "editor", "trace", json_pack("{s:b}", "set", 0), FALSE);
     result += expect(gobj, "reader", "set-link-events", json_pack("{s:i}", "set", 0), TRUE);
-    result += expect(gobj, "editor", "set-link-events", json_pack("{s:i}", "set", 0), FALSE);
+    /*  set=1 is the default: a refusal-or-pass check that changes nothing  */
+    result += expect(gobj, "editor", "set-link-events", json_pack("{s:i}", "set", 1), FALSE);
 
     /*
      *  export-db writes a file: only its refusal is asked here

@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- **BREAKING (default): `with_link_events` is ON by default** -- in
+  `C_NODE`, in `C_TREEDB` (copied to every treedb it opens) and in
+  `C_AUTHZ`, which gets the attribute (new) and copies it to
+  `treedb_authzs`. A link or an unlink now publishes
+  `EV_TREEDB_NODE_LINKED` / `UNLINKED` (the relationship: `hook_name`,
+  `parent_topic_name`, `parent_id`, `child_topic_name`, `child_id`) and NOT
+  the parent's `EV_TREEDB_NODE_UPDATED`; the child's own update, from its
+  save, is published as before. Why: the parent's update is the parent
+  collapsed whole -- every hook list, every child id -- on every link,
+  whether anybody listens or not, so filing a child under a parent with
+  thousands of children cost O(children), and a fleet of N new devices
+  O(N²) at the moment it comes on line (measured in a stress test: ~70 ms of
+  cpu per link, 3000 -> ~13 new devices/s). What to do:
+    - A yuno served by a **v1** SPA (it reads the parent's update) sets it
+      off: `"with_link_events", 0` where it creates its `C_TREEDB`, and
+      `'kw': {'with_link_events': false}` in its `C_AUTHZ` when the SPA
+      edits `treedb_authzs` (estadodelaire and hidraulia do, in
+      `db_history`).
+    - A gobj that subscribes to EVERY event of a treedb service, or the
+      parent of a `C_NODE` hosted as a pure child (subscribed to everything),
+      now receives the two events, and an FSM that does not declare them
+      answers *"Event NOT DEFINED in state"*. Subscribe the events handled,
+      or declare the two. `C_MQTT_BROKER` now subscribes only
+      `EV_TREEDB_NODE_CREATED/UPDATED/DELETED` of its treedb (wattyzer's
+      `db_history_wz` the same).
+    - A GUI that shows the parent's hooks needs gobj-ui 7.25.26
+      (`C_YUI_TREEDB_TOPICS` re-reads the parent on a link event; the graph
+      already followed them): gui_agent 0.29.10, gui_treedb 0.17.76.
+  `set-link-events` still switches an open treedb at run time, and the
+  configured value comes back at the next start. `test_c_node_link_events`
+  creates its `C_NODE` without the attribute.
+
 - **timeranger2: a scan parses its match condition once, not per row.**
   The matcher read `match_cond` with ~15 `json_object_get()` per row, the
   scan 3 more from the segment and 1 for its direction, and it wrote its

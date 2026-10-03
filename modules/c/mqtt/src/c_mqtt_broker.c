@@ -1102,7 +1102,13 @@ PRIVATE int open_database(hgobj gobj)
     json_decref(jn_resp);
 
     priv->gobj_treedb_mqtt_broker = gobj_find_service(priv->treedb_mqtt_broker_name, TRUE);
-    gobj_subscribe_event(priv->gobj_treedb_mqtt_broker, 0, 0, gobj);
+    /*
+     *  Only the events handled: a subscription to all of them takes
+     *  EV_TREEDB_NODE_LINKED/UNLINKED too, which this FSM does not declare.
+     */
+    gobj_subscribe_event(priv->gobj_treedb_mqtt_broker, EV_TREEDB_NODE_CREATED, 0, gobj);
+    gobj_subscribe_event(priv->gobj_treedb_mqtt_broker, EV_TREEDB_NODE_UPDATED, 0, gobj);
+    gobj_subscribe_event(priv->gobj_treedb_mqtt_broker, EV_TREEDB_NODE_DELETED, 0, gobj);
 
     // Get timeranger of treedb_mqtt_broker, it'll be used for alarms too
     priv->tranger_treedb_mqtt_broker = gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger");

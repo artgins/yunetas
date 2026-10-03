@@ -339,6 +339,7 @@ SDATA (DTP_BOOLEAN, "allow_anonymous_in_localhost",SDF_RD,"0",  "Allow no user i
 SDATA (DTP_INTEGER, "max_sessions_per_user",SDF_PERSIST,    "0",        "Max sessions per user (0 no limit)"),
 SDATA (DTP_JSON,    "jwks",                 SDF_RD,         "[]",   "JWKS public keys, OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create. Set in the config only: add-jwk/remove-jwk change the running set, not the config"),
 SDATA (DTP_JSON,    "initial_load",         SDF_RD,         "{}",       "Initial data for treedb"),
+SDATA (DTP_BOOLEAN, "with_link_events", SDF_RD,     "1",        "Copied to the C_NODE of treedb_authzs: a link/unlink publishes EV_TREEDB_NODE_LINKED/UNLINKED, 0 the parent's EV_TREEDB_NODE_UPDATED (what the v1 SPAs read). Set in the config only"),
 
 SDATA (DTP_INTEGER, "hashIterations",   0,          "27500",    "Default To build a password"),
 SDATA (DTP_STRING,  "algorithm",        0,          "sha256",   "Default To build a password"),
@@ -548,13 +549,14 @@ PRIVATE void mt_create(hgobj gobj)
      *  Create Treedb
      *----------------------*/
     const char *treedb_name = "treedb_authzs"; // HACK hardcoded service name
-    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i, s:O, s:b}",
+    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i, s:O, s:b, s:b}",
         "tranger", (json_int_t)(uintptr_t)priv->tranger,
         "treedb_name", treedb_name,
         "treedb_schema", jn_treedb_schema,
         "exit_on_error", LOG_OPT_EXIT_ZERO,
         "initial_load", gobj_read_json_attr(gobj, "initial_load"),
-        "impose_c_schema", 1    // the binary imposes its schema over a newer one on disk
+        "impose_c_schema", 1,   // the binary imposes its schema over a newer one on disk
+        "with_link_events", gobj_read_bool_attr(gobj, "with_link_events")
     );
 
     priv->gobj_treedb = gobj_create_service(

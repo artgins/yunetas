@@ -981,8 +981,8 @@ Three consequences:
    skipping duplicate"* / *"Child already in parent hook, skipping duplicate
    link"*.
 
-The link EVENT (`EV_TREEDB_NODE_LINKED`, or `EV_TREEDB_NODE_UPDATED` for a
-host that did not ask for link events) follows either side: filling a hook
+The link EVENT (`EV_TREEDB_NODE_LINKED`, or `EV_TREEDB_NODE_UPDATED` of the
+parent for a host that turned link events off) follows either side: filling a hook
 is a new relationship in memory, even when nothing is written.
 
 If you write tooling that watches rowids, the parent's rowid is a **bad**
@@ -3479,13 +3479,14 @@ The pointer is valid for the life of the loaded tranger. After a
 you keep references across stops, the framework does not detect it. Your
 crash does.
 
-### 4.13 Link events are OFF by default — and turning them on REMOVES an event
+### 4.13 Link events are ON by default — and they REPLACE the parent's update
 
 `C_NODE` publishes `EV_TREEDB_NODE_LINKED` / `EV_TREEDB_NODE_UNLINKED`
-only when its `with_link_events` attr is set (default **false**).
-`C_TREEDB` copies its own `with_link_events` into each treedb it opens, and
-since 7.20.0 a running treedb can be switched with the `set-link-events`
-command of its service, at once and without a restart:
+when its `with_link_events` attr is set, and it is set by default since
+7.25.23 (it was **false** up to 7.25.22). `C_TREEDB` copies its own
+`with_link_events` into each treedb it opens, `C_AUTHZ` into
+`treedb_authzs`, and since 7.20.0 a running treedb can be switched with the
+`set-link-events` command of its service, at once and without a restart:
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=<treedb> command=set-link-events set=1'
@@ -3496,13 +3497,46 @@ It needs the `update` permission and is **not persistent**: the next start
 takes the configured value again. Writing the attribute while the treedb is
 not open (before its open, or after an open that failed) changes nothing at
 that moment and logs nothing: the open reads the attribute. Put `with_link_events` in the yuno's
-`C_TREEDB` config for a lasting default. Two things bite here:
+`C_TREEDB` config for a lasting value. A yuno served by a **v1** SPA, which
+reads the parent's update, turns it off where it creates its treedbs, and in
+its `C_AUTHZ` when the SPA edits `treedb_authzs` too:
 
+```c
+json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:b}",
+    "path", path,
+    "filename_mask", "%Y",
+    "master", 1,
+    "with_link_events", 0       // a v1 SPA reads the parent's EV_TREEDB_NODE_UPDATED
+);
+priv->gobj_treedbs = gobj_create_service("treedbs", C_TREEDB, kw_treedbs, gobj);
+```
+
+```json
+{"name": "authz", "gclass": "C_AUTHZ", "kw": {"with_link_events": false}}
+```
+
+Three things bite here:
+
+- **Why it is on.** The parent's update is the parent collapsed WHOLE —
+  every hook list, every child id — on every link, whether anybody listens
+  or not. Filing a child under a parent with thousands of children costs
+  O(children), and a fleet of N new devices O(N²): exactly the moment a whole
+  installation comes on line (measured in a stress test: ~70 ms of cpu per
+  link, 3000 → ~13 new devices/s). The link event costs the same whatever
+  the size of the parent.
 - **It is an either/or, not additive.** With the flag ON, a link/unlink
-  publishes the link event and **stops** publishing the
-  backward-compatible `EV_TREEDB_NODE_UPDATED` of the **parent**. So
-  enabling it on a treedb that also serves an older consumer changes
-  what that consumer receives. Check every subscriber before flipping it.
+  publishes the link event and **does not** publish the
+  backward-compatible `EV_TREEDB_NODE_UPDATED` of the **parent** (the
+  child's own update, from its save, is published either way). A consumer
+  that shows the parent's hooks re-reads the parent on the link event
+  (`C_YUI_TREEDB_TOPICS` does, since gobj-ui 7.25.26).
+- **A subscriber of EVERY event gets two more.** A gobj that subscribes to
+  all the events of a treedb service (`gobj_subscribe_event(treedb, 0, 0,
+  gobj)`), or hosts a `C_NODE` as a pure child (its parent is subscribed to
+  everything), now receives `EV_TREEDB_NODE_LINKED` / `UNLINKED`, and an FSM
+  that does not declare them answers *"Event NOT DEFINED in state"*.
+  Subscribe the events you handle (`c_mqtt_broker.c` does), or declare the
+  two.
 - **The compat event names the wrong node for edge tracking.** An edge
   *is* a fkey of the **child** (§4.2, link-saves-child), but the compat
   path announces the **parent** — whose fkeys did not change. A consumer

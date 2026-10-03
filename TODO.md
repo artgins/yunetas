@@ -128,31 +128,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   control center, not even there). **Decide**: an agent-to-yuno "session
   ended" notification, and a rule for when several sessions of one user are
   one owner.
-- **C_NODE: every link collapses the WHOLE parent, O(children) per link.**
-  **DECIDED** (user, 2026-10-03): option (c), in a session of its own --
-  `with_link_events` defaults to TRUE in the SDK (C_NODE attr), and
-  estadodelaire and hidraulia (v1 SPAs, which read the parent's
-  `EV_TREEDB_NODE_UPDATED`) set `with_link_events: false` in their C_TREEDB
-  config. yunovatios already sets it TRUE in code (no change). To do then:
-  the default, every config/consumer that relies on the parent update
-  (check the gui_treedb / gobj-ui v2 views handle LINKED/UNLINKED), the two
-  projects' configs and their nodes, docs (YUNO_TREEDB.md, the C_NODE
-  attr), CHANGELOG as a BREAKING default change.
-  Without `with_link_events` (the default), `_link_nodes()` publishes the
-  parent's `EV_TREEDB_NODE_UPDATED`, and `treedb_callback()` answers it with
-  `node_collapsed_view()` of that parent — every hook list, every child id —
-  whether or not anybody subscribes. Found 2026-09-26 in yunovatios' stress
-  test: filing a device under a parent with thousands of children took ~70 ms
-  of cpu, the history fell from 3000 to ~13 new devices/s, and a fleet of N
-  new devices costs O(N²) — only on the FIRST link of each child, which is
-  exactly when a whole installation comes on line. **Decide** between:
-  publish the parent without its child lists; collapse only when the event
-  has subscribers; or default `with_link_events=1` once no v1 SPA depends on
-  the parent's update (estadodelaire and hidraulia still do). yunovatios
-  needs none of it: its two treedbs (`treedb_yunovatioscedb`,
-  `treedb_yunovatioscodb`) turn `with_link_events` on in code since its
-  `f9f2a55` (db_history_ce 2.6.7 / db_history_co 2.6.6), on in both
-  nodes (`set-link-events`, checked 2026-10-03).
 - **MQTT broker ACL: model and default-deny** (Rosa). **FUTURE** (user,
   2026-10-03: not now; do not raise it as pending until asked). Model A (per-group
   `publish_acl` / `subscribe_acl` in the broker treedb, `enable_acl` default

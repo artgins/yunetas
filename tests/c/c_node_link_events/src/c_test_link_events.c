@@ -3,7 +3,8 @@
  *
  *          GClass to test EV_TREEDB_NODE_LINKED/UNLINKED at c_node level
  *
- *          Verifies that when C_NODE's `with_link_events` attribute is set,
+ *          Verifies that with C_NODE's `with_link_events` attribute (on by
+ *          default, the C_NODE here is created without it),
  *          link/unlink operations publish EV_TREEDB_NODE_LINKED and
  *          EV_TREEDB_NODE_UNLINKED events through the GObj event system,
  *          and that an update-node with autolink moves only the links
@@ -280,17 +281,16 @@ PRIVATE void mt_create(hgobj gobj)
     priv->tranger = tranger2_startup(0, jn_tranger, 0);
 
     /*
-     *  Create C_NODE child with with_link_events=true
+     *  Create C_NODE child WITHOUT with_link_events: it is on by default
      */
     helper_quote2doublequote(schema_link_test);
     json_t *jn_schema = legalstring2json(schema_link_test, TRUE);
 
-    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i, s:b}",
+    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i}",
         "tranger", (json_int_t)(uintptr_t)priv->tranger,
         "treedb_name", "treedb_link_test",
         "treedb_schema", jn_schema,
-        "exit_on_error", LOG_OPT_TRACE_STACK,
-        "with_link_events", 1
+        "exit_on_error", LOG_OPT_TRACE_STACK
     );
 
     priv->gobj_node = gobj_create_pure_child(

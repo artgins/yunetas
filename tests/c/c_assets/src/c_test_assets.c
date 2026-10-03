@@ -1085,6 +1085,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TREEDB_NODE_CREATED,    ac_treedb_event,        0},
         {EV_TREEDB_NODE_UPDATED,    ac_treedb_event,        0},
         {EV_TREEDB_NODE_DELETED,    ac_treedb_event,        0},
+        {EV_TREEDB_NODE_LINKED,     ac_treedb_event,        0},
+        {EV_TREEDB_NODE_UNLINKED,   ac_treedb_event,        0},
         {0,0,0}
     };
 
@@ -1101,6 +1103,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TREEDB_NODE_CREATED,    EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
         {EV_TREEDB_NODE_UPDATED,    EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
         {EV_TREEDB_NODE_DELETED,    EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
+        {EV_TREEDB_NODE_LINKED,     EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
+        {EV_TREEDB_NODE_UNLINKED,   EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
         {NULL, 0}
     };
 
