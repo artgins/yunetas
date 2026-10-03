@@ -138,7 +138,11 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   exactly when a whole installation comes on line. **Decide** between:
   publish the parent without its child lists; collapse only when the event
   has subscribers; or default `with_link_events=1` once no v1 SPA depends on
-  the parent's update (estadodelaire and hidraulia still do).
+  the parent's update (estadodelaire and hidraulia still do). yunovatios
+  needs none of it: its two treedbs (`treedb_yunovatioscedb`,
+  `treedb_yunovatioscodb`) turn `with_link_events` on in code since its
+  `f9f2a55` (db_history_ce 2.6.7 / db_history_co 2.6.6), on in both
+  nodes (`set-link-events`, checked 2026-10-03).
 - **MQTT broker ACL: model and default-deny** (Rosa). Model A (per-group
   `publish_acl` / `subscribe_acl` in the broker treedb, `enable_acl` default
   off) ships; see `mqtt_broker.md`. Open: A vs B (reuse `C_AUTHZ` via

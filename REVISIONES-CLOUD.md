@@ -21,9 +21,14 @@ a round of fixes, user rule of 2026-10-03).
 | `test_secret_attrs` no-fallocate | `deny_syscall()` exits 2 when the filter cannot be installed | The test passes |
 | `do_test_reborn_behind_overflow()` | The churn count computed without wrapping, none when the room was not made: fails instead of hanging | The test passes |
 
-Not done, and why: `with_link_events` on in yunovatios (that project's
-configuration and its nodes: for the user to decide and deploy); the
-next-cycle items; section 2 (`tm` markers), a
+`with_link_events` on in yunovatios: nothing to do -- it already is.
+`db_history_ce` / `db_history_co` write it on their treedb at start since
+yunovatios `f9f2a55` (2.6.7 / 2.6.6; the nodes run 2.6.8 / 2.6.7), and
+`set-link-events` answers *"is on"* for `treedb_yunovatioscedb` on central
+and `treedb_yunovatioscodb` on the controller (checked 2026-10-03). Those are
+its only treedbs.
+
+Not done, and why: the next-cycle items; section 2 (`tm` markers), a
 decision for the next cycle.
 
 ## 1. Open defects of TODO.md
