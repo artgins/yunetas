@@ -7,6 +7,9 @@ this file; what follows is still open.
 The review's own check, on `0db20a63d`: clean build (`yunetas clean/build
 --sdk-only`) with no compiler warning, suite 287/287 as user `yuneta`
 under `ulimit -Sn 1024` (240 and 241 first failed with the container's default `fs.inotify.max_user_instances=128`, *"INOTIFY INSTANCES"* reached; passed with the packaged 4096: environment, not code).
+On wattyzer (the second machine of the release rule), on `0db20a63d`: a
+worktree of its own, `init/build --sdk-only` with no warning, suite 287/287;
+the agent binaries the build installed put back, the worktree removed.
 
 ## Resolved in this round
 
@@ -113,7 +116,6 @@ doc. The findings below are new, most of them in the fixes themselves.
     breadth-first order is untested;
   - still none for the C_UDP client, the websocket default max, or a frame
     of exactly `max-1`.
-- **wattyzer run** (the second machine of the release rule): not done.
 
 ## Fix order
 
