@@ -9,7 +9,7 @@
   `enable_acl` description and `mqtt_broker.md` say what the ACL is not: it
   is keyed by the `client_id` a client chooses, and no client is bound to
   the user that authenticated it, so it separates topics, not users.
-- **CLI (tui_yunetas, unreleased): `yunetas build` warns when two builds
+- **CLI (yunetas 0.20.4 on PyPI): `yunetas build` warns when two builds
   install a yuno of the same role** in `outputs/yunos`, where the last one
   overwrites the other (yunovatios' `gate_caudal` reached hidraulia that
   way): a red WARNING per role, read from each tree's
