@@ -111,6 +111,40 @@ typedef struct {
     md2_record_t rows[MD_BLOCK_ROWS];
 } md_block_t;
 
+/*
+ *  A scan's match_cond, parsed once: the matcher runs on every row, and its
+ *  json gets were most of its cost. parse_match_cond() reads the match_cond
+ *  AS IT IS when the scan starts -- after get_segments(), which resolves a
+ *  negative t/tm bound and writes it back -- and a scan never keeps one
+ *  from the previous scan: the iterator's json match_cond stays the only
+ *  lasting form.
+ */
+typedef struct {
+    BOOL backward;
+    json_int_t from_rowid;
+    json_int_t to_rowid;
+    json_int_t from_t;
+    json_int_t to_t;
+    json_int_t from_tm;
+    json_int_t to_tm;
+    uint16_t user_flag;
+    uint16_t not_user_flag;
+    uint16_t user_flag_mask_set;
+    uint16_t user_flag_mask_notset;
+} match_cond_t;
+
+/*
+ *  The segment a scan is in, read once from its json: seg_view_of() reads
+ *  it again only when the scan moves to another segment
+ */
+typedef struct {
+    json_t *segment;            // the json it was read from, NULL none
+    json_int_t first_row;
+    json_int_t last_row;
+    const char *file_id;        // borrowed from the segment
+    BOOL t_ordered;
+} seg_view_t;
+
 #define TIME_FLAG_MASK  0x00000FFFFFFFFFFFULL  /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
 #define USER_FLAG_MASK  0x0FFFF00000000000ULL
 
@@ -431,11 +465,13 @@ PRIVATE int get_md_by_rowid( // Get record metadata by rowid
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *segment,
+    const seg_view_t *sv,
     uint64_t rowid, // relative to 1
     md_block_t *blk, // NULL: one read per row
     md2_record_ex_t *md_record_ex
 );
+PRIVATE void parse_match_cond(json_t *match_cond, match_cond_t *mc);
+PRIVATE void seg_view_of(seg_view_t *sv, json_t *segment);
 PRIVATE void md_block_init(md_block_t *blk, BOOL backward);
 PRIVATE void md2_row_to_ex(md2_record_t md_record, uint64_t rowid, md2_record_ex_t *md_record_ex);
 PRIVATE int read_md_blocked(
@@ -473,7 +509,8 @@ PRIVATE json_int_t first_segment_row(
 );
 PRIVATE json_int_t next_segment_row(
     json_t *segments,
-    json_t *match_cond,  // not owned
+    BOOL backward,
+    const seg_view_t *sv,   // the view of cur_segment
     json_int_t cur_segment,
     json_int_t *rowid
 );
@@ -487,7 +524,7 @@ PRIVATE void retake_segments_of_key(
     const char *key
 );
 PRIVATE BOOL tranger2_match_metadata(
-    json_t *match_cond,
+    const match_cond_t *mc,
     json_int_t total_rows,
     json_int_t rowid,
     md2_record_ex_t *md_record_ex,
@@ -12376,11 +12413,24 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         const char *last_unreadable = json_string_value(
             json_array_get(unreadable, json_array_size(unreadable) - 1)
         );
+        /*
+         *  Parsed here, once for the scan: get_segments() has already
+         *  resolved and written back its bounds. The scan's position goes to
+         *  the iterator once, when it ends (nothing reads it during it)
+         */
+        match_cond_t mc;
+        parse_match_cond(match_cond, &mc);
+        seg_view_t sv = {0};
+        json_int_t pos_segment = cur_segment;
+        json_int_t pos_rowid = rowid;
+        BOOL broken_by_callback = FALSE;
+
         BOOL end = FALSE;
         while(!end && cur_segment >= 0) {
             json_t *segment = json_array_get(segments, cur_segment);
+            seg_view_of(&sv, segment);
             if(unreadable) {
-                const char *seg_file_id = json_string_value(json_object_get(segment, "id"));
+                const char *seg_file_id = sv.file_id;
                 if(!seg_file_id ||
                         (!backward && cmp_file_ids(seg_file_id, first_unreadable) > 0) ||
                         (backward && cmp_file_ids(seg_file_id, last_unreadable) < 0)) {
@@ -12395,7 +12445,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 tranger,
                 topic,
                 key,
-                segment,
+                &sv,
                 rowid,
                 &blk,
                 &md_record_ex
@@ -12406,21 +12456,22 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             if(is_deleted_instance(&md_record_ex)) {
                 cur_segment = next_segment_row(
                     segments,
-                    match_cond,
+                    mc.backward,
+                    &sv,
                     cur_segment,
                     &rowid
                 );
                 if(cur_segment >= 0) {
-                    json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
-                    json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
+                    pos_segment = cur_segment;
+                    pos_rowid = rowid;
                 }
                 continue;
             }
             if(tranger2_match_metadata(
-                match_cond, total_rows, rowid, &md_record_ex,
-                segment_t_ordered(segment), &end
+                &mc, total_rows, rowid, &md_record_ex,
+                sv.t_ordered, &end
             )) {
-                const char *file_id = json_string_value(json_object_get(segment, "id"));
+                const char *file_id = sv.file_id;
                 json_t *record = NULL;
 
                 md_record_ex.system_flag |= sf_loading_from_disk;
@@ -12458,6 +12509,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                      */
                     if(ret < 0) {
                         JSON_DECREF(record)
+                        broken_by_callback = TRUE;  // the iterator is not touched again
                         break;
                     }
                 }
@@ -12469,14 +12521,19 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
 
             cur_segment = next_segment_row(
                 segments,
-                match_cond,
+                mc.backward,
+                &sv,
                 cur_segment,
                 &rowid
             );
             if(cur_segment >= 0) {
-                json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
-                json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
+                pos_segment = cur_segment;
+                pos_rowid = rowid;
             }
+        }
+        if(pos_segment >= 0 && !broken_by_callback) {
+            json_object_set_new(iterator, "cur_segment", json_integer(pos_segment));
+            json_object_set_new(iterator, "cur_rowid", json_integer(pos_rowid));
         }
     } else if(match_cond_selects_records(match_cond)) {
         /*-------------------------------------------------------------------*
@@ -12705,8 +12762,10 @@ PRIVATE json_t *build_iterator_index(
      *  invert the meaning of match_metadata's early-exit flag. Direction is
      *  a property of the PAGE READ, not of the index.
      */
-    json_t *forward_cond = json_deep_copy(match_cond);
-    json_object_set_new(forward_cond, "backward", json_false());
+    match_cond_t mc;
+    parse_match_cond(match_cond, &mc);  // after get_segments(): see match_cond_t
+    mc.backward = FALSE;
+    seg_view_t sv = {0};
 
     json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
     json_t *index = json_array();
@@ -12717,13 +12776,11 @@ PRIVATE json_t *build_iterator_index(
 
     int idx; json_t *segment;
     json_array_foreach(segments, idx, segment) {
-        json_int_t first_row = json_integer_value(json_object_get(segment, "first_row"));
-        json_int_t last_row = json_integer_value(json_object_get(segment, "last_row"));
+        seg_view_of(&sv, segment);
 
-        for(json_int_t rowid = first_row; rowid <= last_row; rowid++) {
-            if(get_md_by_rowid(gobj, tranger, topic, key, segment, rowid, &blk, &md_record_ex) < 0) {
+        for(json_int_t rowid = sv.first_row; rowid <= sv.last_row; rowid++) {
+            if(get_md_by_rowid(gobj, tranger, topic, key, &sv, rowid, &blk, &md_record_ex) < 0) {
                 // Error already logged
-                JSON_DECREF(forward_cond)
                 JSON_DECREF(index)
                 return NULL;
             }
@@ -12731,8 +12788,8 @@ PRIVATE json_t *build_iterator_index(
                 continue;
             }
             if(tranger2_match_metadata(
-                forward_cond, total_rows, rowid, &md_record_ex,
-                segment_t_ordered(segment), &end
+                &mc, total_rows, rowid, &md_record_ex,
+                sv.t_ordered, &end
             )) {
                 json_array_append_new(index, json_integer(rowid));
             }
@@ -12745,7 +12802,6 @@ PRIVATE json_t *build_iterator_index(
         }
     }
 
-    JSON_DECREF(forward_cond)
     return index;
 }
 
@@ -12877,6 +12933,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
             md2_record_ex_t md_record_ex;
             md_block_t blk;
             md_block_init(&blk, backward);
+            seg_view_t sv = {0};
             for(size_t i = 0; i < limit; i++) {
                 json_int_t pos = backward
                     ? (indexed_rows - (from_rowid - 1) - 1 - (json_int_t)i)
@@ -12885,7 +12942,10 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
                     break;
                 }
                 json_int_t rowid = json_integer_value(json_array_get(index, pos));
-                json_t *segment = segment_of_rowid(segments, rowid);
+                json_t *segment = sv.segment;
+                if(!segment || rowid < sv.first_row || rowid > sv.last_row) {
+                    segment = segment_of_rowid(segments, rowid);
+                }
                 if(!segment) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
@@ -12897,13 +12957,14 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
                     );
                     break;
                 }
+                seg_view_of(&sv, segment);
                 if(get_md_by_rowid(
-                    gobj, tranger, topic, key, segment, rowid, &blk, &md_record_ex
+                    gobj, tranger, topic, key, &sv, rowid, &blk, &md_record_ex
                 )<0) {
                     log_if_key_gone(gobj, topic, key);
                     break;      // Error already logged
                 }
-                const char *file_id = json_string_value(json_object_get(segment, "id"));
+                const char *file_id = sv.file_id;
                 json_t *record = read_record_content(
                     tranger, topic, key, file_id, &md_record_ex
                 );
@@ -13012,10 +13073,16 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
     md2_record_ex_t md_record_ex;
     md_block_t blk;
     md_block_init(&blk, backward);
+    match_cond_t mc;
+    parse_match_cond(match_cond, &mc);  // the page's own, built above
+    seg_view_t sv = {0};
+    json_int_t pos_segment = cur_segment;
+    json_int_t pos_rowid = rowid;
 
     BOOL end = FALSE;
     while(!end && cur_segment >= 0) {
         json_t *segment = json_array_get(segments, cur_segment);
+        seg_view_of(&sv, segment);
         /*
          *  Get the metadata
          */
@@ -13024,7 +13091,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
             tranger,
             topic,
             key,
-            segment,
+            &sv,
             rowid,
             &blk,
             &md_record_ex
@@ -13036,22 +13103,23 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         if(is_deleted_instance(&md_record_ex)) {
             cur_segment = next_segment_row(
                 segments,
-                match_cond,
+                mc.backward,
+                &sv,
                 cur_segment,
                 &rowid
             );
             if(cur_segment >= 0) {
-                json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
-                json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
+                pos_segment = cur_segment;
+                pos_rowid = rowid;
             }
             continue;
         }
 
         if(tranger2_match_metadata(
-            match_cond, total_rows, rowid, &md_record_ex,
-            segment_t_ordered(segment), &end
+            &mc, total_rows, rowid, &md_record_ex,
+            sv.t_ordered, &end
         )) {
-            const char *file_id = json_string_value(json_object_get(segment, "id"));
+            const char *file_id = sv.file_id;
             json_t *record = read_record_content(
                 tranger,
                 topic,
@@ -13069,15 +13137,18 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
 
         cur_segment = next_segment_row(
             segments,
-            match_cond,
+            mc.backward,
+            &sv,
             cur_segment,
             &rowid
         );
         if(cur_segment >= 0) {
-            json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
-            json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
+            pos_segment = cur_segment;
+            pos_rowid = rowid;
         }
     }
+    json_object_set_new(iterator, "cur_segment", json_integer(pos_segment));
+    json_object_set_new(iterator, "cur_rowid", json_integer(pos_rowid));
 
     JSON_DECREF(match_cond)
     return json_pack("{s:I, s:I, s:o}",
@@ -13611,7 +13682,7 @@ PRIVATE BOOL segment_t_ordered(json_t *segment)
  *  at the first row past the tm range.)
  ***************************************************************************/
 PRIVATE BOOL tranger2_match_metadata(
-    json_t *match_cond,
+    const match_cond_t *mc,
     json_int_t total_rows,
     json_int_t rowid,
     md2_record_ex_t *md_record_ex,
@@ -13619,14 +13690,14 @@ PRIVATE BOOL tranger2_match_metadata(
     BOOL *end
 )
 {
-    BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
+    BOOL backward = mc->backward;
     *end = FALSE;
 
     /*--------------------------*
      *      Rowid
      *--------------------------*/
-    json_int_t from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
-    json_int_t to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
+    json_int_t from_rowid = mc->from_rowid;
+    json_int_t to_rowid = mc->to_rowid;
 
     // WARNING adjust REPEATED
     if(from_rowid == 0) {
@@ -13688,8 +13759,8 @@ PRIVATE BOOL tranger2_match_metadata(
     /*--------------------------*
      *      t
      *--------------------------*/
-    json_int_t from_t = json_integer_value(json_object_get(match_cond, "from_t"));
-    json_int_t to_t = json_integer_value(json_object_get(match_cond, "to_t"));
+    json_int_t from_t = mc->from_t;
+    json_int_t to_t = mc->to_t;
 
     /*
      *  A negative bound is relative to the key's last record, and
@@ -13723,8 +13794,8 @@ PRIVATE BOOL tranger2_match_metadata(
     /*--------------------------*
      *      tm
      *--------------------------*/
-    json_int_t from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
-    json_int_t to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
+    json_int_t from_tm = mc->from_tm;
+    json_int_t to_tm = mc->to_tm;
 
     if(from_tm > 0) {   // negative: see the t bounds above
         if(md_record_ex->__tm__ < (uint64_t)from_tm) {
@@ -13746,36 +13817,28 @@ PRIVATE BOOL tranger2_match_metadata(
      *  user_flag_mask_set
      *  user_flag_mask_notset
      *--------------------------*/
-    uint16_t user_flag = (uint16_t)json_integer_value(
-        json_object_get(match_cond, "user_flag")
-    );
+    uint16_t user_flag = mc->user_flag;
     if(user_flag) {
         if((md_record_ex->user_flag != user_flag)) {
             return FALSE;
         }
     }
 
-    uint16_t not_user_flag = (uint16_t)json_integer_value(
-        json_object_get(match_cond, "not_user_flag")
-    );
+    uint16_t not_user_flag = mc->not_user_flag;
     if(not_user_flag) {
         if(md_record_ex->user_flag == not_user_flag) {
             return FALSE;
         }
     }
 
-    uint16_t user_flag_mask_set = (uint16_t)json_integer_value(
-        json_object_get(match_cond, "user_flag_mask_set")
-    );
+    uint16_t user_flag_mask_set = mc->user_flag_mask_set;
     if(user_flag_mask_set) {
         if((md_record_ex->user_flag & user_flag_mask_set) != user_flag_mask_set) {
             return FALSE;
         }
     }
 
-    uint16_t user_flag_mask_notset = (uint16_t)json_integer_value(
-        json_object_get(match_cond, "user_flag_mask_notset")
-    );
+    uint16_t user_flag_mask_notset = mc->user_flag_mask_notset;
     if(user_flag_mask_notset) {
         if((md_record_ex->user_flag | ~user_flag_mask_notset) != ~user_flag_mask_notset) {
             return FALSE;
@@ -13783,6 +13846,44 @@ PRIVATE BOOL tranger2_match_metadata(
     }
 
     return TRUE;
+}
+
+/***************************************************************************
+ *  A match_cond parsed for one scan (see match_cond_t). Read it again for
+ *  the next scan: get_segments() may have written a bound back since
+ ***************************************************************************/
+PRIVATE void parse_match_cond(json_t *match_cond, match_cond_t *mc)
+{
+    mc->backward = json_boolean_value(json_object_get(match_cond, "backward"));
+    mc->from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
+    mc->to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
+    mc->from_t = json_integer_value(json_object_get(match_cond, "from_t"));
+    mc->to_t = json_integer_value(json_object_get(match_cond, "to_t"));
+    mc->from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
+    mc->to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
+    mc->user_flag = (uint16_t)json_integer_value(json_object_get(match_cond, "user_flag"));
+    mc->not_user_flag = (uint16_t)json_integer_value(json_object_get(match_cond, "not_user_flag"));
+    mc->user_flag_mask_set = (uint16_t)json_integer_value(
+        json_object_get(match_cond, "user_flag_mask_set")
+    );
+    mc->user_flag_mask_notset = (uint16_t)json_integer_value(
+        json_object_get(match_cond, "user_flag_mask_notset")
+    );
+}
+
+/***************************************************************************
+ *  The view of `segment` (see seg_view_t), read only when it changes
+ ***************************************************************************/
+PRIVATE void seg_view_of(seg_view_t *sv, json_t *segment)
+{
+    if(sv->segment == segment) {
+        return;
+    }
+    sv->segment = segment;
+    sv->first_row = json_integer_value(json_object_get(segment, "first_row"));
+    sv->last_row = json_integer_value(json_object_get(segment, "last_row"));
+    sv->file_id = json_string_value(json_object_get(segment, "id"));
+    sv->t_ordered = segment_t_ordered(segment);
 }
 
 /***************************************************************************
@@ -13940,13 +14041,13 @@ PRIVATE json_int_t first_segment_row(
  ***************************************************************************/
 PRIVATE json_int_t next_segment_row(
     json_t *segments,
-    json_t *match_cond,  // not owned
+    BOOL backward,
+    const seg_view_t *sv,   // the view of cur_segment
     json_int_t cur_segment,
     json_int_t *rowid
 )
 {
     hgobj gobj = 0;
-    BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
     json_int_t cur_rowid = *rowid;
     *rowid = -1;
 
@@ -13956,7 +14057,7 @@ PRIVATE json_int_t next_segment_row(
         return -1;
     }
 
-    json_t *segment = json_array_get(segments, cur_segment);
+    json_t *segment;
 
     if(!backward) {
         /*
@@ -13967,7 +14068,7 @@ PRIVATE json_int_t next_segment_row(
         /*
          *  Check if is in the same segment, if not then go to the next segment
          */
-        json_int_t segment_last_row = json_integer_value(json_object_get(segment, "last_row"));
+        json_int_t segment_last_row = sv->last_row;
 
         if(cur_rowid > segment_last_row) {
             // Go to the next segment
@@ -14007,7 +14108,7 @@ PRIVATE json_int_t next_segment_row(
         /*
          *  Check if is in the same segment, if not then go to the previous segment
          */
-        json_int_t segment_first_row = json_integer_value(json_object_get(segment, "first_row"));
+        json_int_t segment_first_row = sv->first_row;
         if(cur_rowid < segment_first_row) {
             // Go to the previous segment
             cur_segment--;
@@ -14327,7 +14428,7 @@ PRIVATE int get_md_by_rowid(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *segment,
+    const seg_view_t *sv,
     uint64_t rowid, // relative to 1
     md_block_t *blk, // NULL: one read per row
     md2_record_ex_t *md_record_ex
@@ -14340,8 +14441,8 @@ PRIVATE int get_md_by_rowid(
     /*
      *  Check rowid is in range of segment
      */
-    json_int_t first_rowid = json_integer_value(json_object_get(segment, "first_row"));
-    json_int_t last_rowid = json_integer_value(json_object_get(segment, "last_row"));
+    json_int_t first_rowid = sv->first_row;
+    json_int_t last_rowid = sv->last_row;
     if(!(rowid >= first_rowid && rowid <= last_rowid)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -14372,14 +14473,14 @@ PRIVATE int get_md_by_rowid(
             "serrno",       "%s", strerror(errno),
             NULL
         );
-        gobj_trace_json(gobj, segment,  "Cannot read record metadata, relative_rowid negative");
+        gobj_trace_json(gobj, sv->segment,  "Cannot read record metadata, relative_rowid negative");
         return -1;
     }
 
     /*
      *  Get file handler
      */
-    const char *file_id = json_string_value(json_object_get(segment, "id"));
+    const char *file_id = sv->file_id;
     int ret;
     if(blk) {
         ret = read_md_blocked(

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **timeranger2: a scan parses its match condition once, not per row.**
+  The matcher read `match_cond` with ~15 `json_object_get()` per row, the
+  scan 3 more from the segment and 1 for its direction, and it wrote its
+  position into the iterator (two json integers) per row. A scan now
+  parses the condition into a C struct when it starts -- after
+  `get_segments()`, which resolves a negative t/tm bound and writes it
+  back, and never kept from one scan to the next -- reads a segment's
+  rows, file and t order once per segment, and writes its position once,
+  when it ends (nothing reads it during the scan). A tm query of one
+  minute on 1 key x 30 files x 20 000 rows (`perf_timeranger2`, 8 rounds
+  alternated): 0.152 +- 0.003 s -> 0.0145 +- 0.001 s. The open phase is
+  unchanged (it does not go through the matcher).
+
 - **timeranger2: the scans read md2 rows in blocks.** An iterator's load,
   its index, its pages and a follower's new rows made an `lseek()` and a
   `read()` per 32-byte md2 row; they read 1024 rows with one `pread()`

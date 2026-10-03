@@ -1880,8 +1880,10 @@ The two axes are not ordered the same way, and the scan knows it:
   sends what it buffered writes it out of order), and the files are cut by
   `t`. A `tm` condition leaves no file out and ends no scan: it skips rows,
   one by one. Correct, and it reads every md2 row of the key, so its cost
-  grows with the files of the key: ~0.17 s for a query of one minute on one
-  key of 30 day files x 20000 rows (`performance/c/perf_timeranger2`). Every
+  grows with the files of the key: ~15 ms for a query of one minute on one
+  key of 30 day files x 20000 rows (`performance/c/perf_timeranger2`; the
+  match condition is parsed once per scan, not per row -- it was ~0.15 s).
+  Every
   scan (an iterator's load, its index, its pages, a follower's new rows)
   reads the md2 rows in blocks of 1024, one `pread()` each, never past the
   rows its segment counts; up to 7.25.22 it made an `lseek()` and a
