@@ -553,7 +553,14 @@ PRIVATE void deny_syscall(int nr, int err)
     struct sock_fprog prog = {.len = sizeof(f)/sizeof(f[0]), .filter = f};
     prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
     if(prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) < 0) {
-        printf("FAIL cannot install the seccomp filter\n");
+        /*
+         *  Called in a child only: without the filter its case would run
+         *  untested and pass (the no-fallocate one does). Exit 2, which no
+         *  case takes for its answer
+         */
+        printf("FAIL cannot install the seccomp filter: errno %d %s\n", errno, strerror(errno));
+        fflush(stdout);
+        _exit(2);
     }
 }
 

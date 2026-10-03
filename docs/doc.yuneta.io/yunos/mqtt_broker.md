@@ -248,6 +248,24 @@ through the same `mqtt_acl_check()` helper:
   requested filter. A denied filter is **not** added and its SUBACK reason is
   `MQTT_RC_NOT_AUTHORIZED` (v5) / `0x80` (v3.x). The rest of the SUBSCRIBE
   succeeds (per-topic, as MQTT requires).
+- **WILL** -- the will is a publish the broker makes for the client, so it
+  goes through `mqtt_acl_check(..., "write")` when it is sent (at the
+  client's unclean end), with the ACL in force then. A refused will is not
+  published, with the warning *"Will message refused by the ACL: not
+  published"*. Up to 7.25.22 it bypassed the ACL: a client could publish, as
+  its will, to a topic its groups refused.
+
+```{warning}
+The ACL is keyed by the `client_id` the client chooses in its CONNECT, and
+no client is bound to the user that authenticated it: the `clients` topic
+has no user link, and CONNECT compares nothing. Any authenticated user can
+connect with another client's `client_id` and get its groups. Until the
+model binds clients to users, the ACL separates TOPICS, not USERS -- one
+tenant's devices on a broker of their own, not tenants sharing a broker.
+
+    # a device of tenant A, authenticated as user "a", CONNECTs as
+    # client_id "tenant-b-gw1": it gets tenant B's groups and ACL
+```
 
 ```{note}
 The A/B/C model choice and a future default-deny flip remain a deployment

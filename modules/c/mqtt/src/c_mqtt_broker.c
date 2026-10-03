@@ -38,6 +38,7 @@ PRIVATE int close_database(hgobj gobj);
 PRIVATE size_t sub__messages_queue(hgobj gobj, json_t *kw_mqtt_msg);
 PRIVATE int sub__remove_client(hgobj gobj, const char *client_id);
 PRIVATE int will__send(hgobj gobj, json_t *session);
+PRIVATE BOOL mqtt_acl_check(hgobj gobj, const char *client_id, const char *topic, const char *access);
 PRIVATE int will__clear(hgobj gobj, json_t *session);
 
 /***************************************************************************
@@ -125,7 +126,7 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag--------default-----description---------- */
 SDATA (DTP_BOOLEAN, "enable_new_clients",0,         "0",        "Set true if you want auto-create new clients if they don't exist"),
-SDATA (DTP_BOOLEAN, "enable_acl",        SDF_WR|SDF_PERSIST, "0", "Enforce per-group publish/subscribe ACLs (client_groups.publish_acl/subscribe_acl). Default off = no ACL enforcement (allow-all). A group with no patterns also allows all."),
+SDATA (DTP_BOOLEAN, "enable_acl",        SDF_WR|SDF_PERSIST, "0", "Enforce per-group publish/subscribe ACLs (client_groups.publish_acl/subscribe_acl), the will included. Default off = no ACL enforcement (allow-all). A group with no patterns also allows all. NOT a boundary between users: the ACL is keyed by the client_id the client chooses, and no client is bound to the user that authenticated it"),
 
 SDATA (DTP_BOOLEAN, "mqtt_persistent_db",0,         "1",        "Set true if you want persistent database for Clients, Topics, Inflight and Queued Messages in mqtt broker side"),
 SDATA (DTP_STRING,  "mqtt_service",     SDF_RD,     "",         "Mqtt service name, if it's empty then it'll be used the yuno_role"),
@@ -2791,6 +2792,24 @@ PRIVATE int will__send(hgobj gobj, json_t *session)
      *  No will topic means no will to send
      */
     if(empty_string(will_topic)) {
+        return 0;
+    }
+
+    /*
+     *  A will is a publish of the client, made by the broker for it: the
+     *  same ACL. Asked when it is sent, not at the CONNECT that carried it,
+     *  so it obeys the ACL in force. Up to 7.25.22 it bypassed the ACL: a
+     *  client could publish, as its will, to a topic it was refused
+     */
+    if(!mqtt_acl_check(gobj, client_id, will_topic, "write")) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT,
+            "msg",          "%s", "Will message refused by the ACL: not published",
+            "client_id",    "%s", client_id,
+            "will_topic",   "%s", will_topic,
+            NULL
+        );
         return 0;
     }
 

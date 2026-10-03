@@ -5,6 +5,27 @@ are closed: nothing pending from them. This report answers a new question:
 the defects still open in `TODO.md` — are they real, are they needed, and
 when. Read-only review (no build, no suite).
 
+## 0. The fixing session's answer (2026-10-03)
+
+Done, from the "now" items of the order below. Checks: a clean build with no
+warning or error, and the tests of each fix (the full suite is not run after
+a round of fixes, user rule of 2026-10-03).
+
+| Item | Done | Test |
+|------|------|------|
+| Negative `from_t` / `to_t` / `from_tm` / `to_tm` | `get_segments()` resolves a negative bound against the key's last `t` (or highest `tm`), the pre-v7 meaning (`from` after `last - N`, that bound excluded; `to` up to `last - N`), and writes it back; the matcher compares signed, and an unresolved negative (a key with no record yet) bounds nothing as `from` and takes no row as `to`. The TODO's "decide" is closed as the pre-v7 meaning (restore, don't redesign) | `test_tm_order`: six cases on the three read roads, both directions, for the master, a reload and a replica (red on `5f547c5eb`: every one answered nothing) |
+| CLI role collision | `yunetas build` ends with a red WARNING per yuno role installed in `outputs/yunos` by more than one build (each tree's `install_manifest.txt`); tui_yunetas `c965bfa`, unreleased, submodule bumped. A warning, NOT a refusal: on the dev machine it names six roles today (`db_history`, `db_tracks`, `gate_auraair`, `gate_enchufe`, `gate_mqtts`: estadodelaire AND hidraulia; `gate_caudal`: hidraulia AND yunovatios), and a refusal would stop every build there -- the user's call (TODO) | `tests/test_yuno_role_collisions.py` (3 cases), and the check run on the real registry |
+| MQTT will | `will__send()` asks `mqtt_acl_check(..., "write")` when it sends the will; a refused one is not published, with a warning | No test of its own (a client with a will, a subscriber of its topic and an unclean end are not staged); `c_mqtt/*` 9/9 relinked |
+| MQTT `client_id` <-> user | Checked: no binding (the `clients` topic has no user link, CONNECT compares nothing). Said in the `enable_acl` description, `mqtt_broker.md` (a warning with an example) and TODO, as part of the model decision. Not built: the binding is the next cycle's model | -- |
+| `test_secret_attrs` no-fallocate | `deny_syscall()` exits 2 when the filter cannot be installed | The test passes |
+| `do_test_reborn_behind_overflow()` | The churn count computed without wrapping, none when the room was not made: fails instead of hanging | The test passes |
+
+Not done, and why: `with_link_events` on in yunovatios (that project's
+configuration and its nodes: for the user to decide and deploy); the
+lowercased `domain_dir` (its first step is a check of the nodes, before the
+next agent-facing change); the next-cycle items; section 2 (`tm` markers), a
+decision for the next cycle.
+
 ## 1. Open defects of TODO.md
 
 Verdicts: **Real** (checked against the code), **Need** (impact today),

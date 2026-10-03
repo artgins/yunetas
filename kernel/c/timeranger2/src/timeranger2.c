@@ -13744,6 +13744,23 @@ PRIVATE json_t *get_segments(
         from_t = json_integer_value(json_object_get(match_cond, "from_t"));
     }
 
+    /*
+     *  A negative bound is relative to the key's last record, as before v7
+     *  (tr2migrate/30_timeranger.c): `from_t = -N` takes the records after
+     *  its t - N (that bound excluded), `to_t = -N` the ones up to its
+     *  t - N; the same for tm against its tm. Resolved here, once, and
+     *  written back: the matcher compares absolute values. Up to 7.25.22 it
+     *  got the negative raw and matched no row -- a db_history started
+     *  with from_t=-86400 never read what had come while it was stopped
+     */
+    if(from_t < 0) {
+        from_t = total_to_t + from_t + 1;
+        if(from_t < total_from_t) {
+            from_t = total_from_t;
+        }
+        json_object_set_new(match_cond, "from_t", json_integer(from_t));
+    }
+
     // WARNING adjust
     if(from_t == 0) {
         from_t = total_from_t;
@@ -13774,6 +13791,14 @@ PRIVATE json_t *get_segments(
         json_object_set_new(match_cond, "to_t", json_integer(to_t));
     } else {
         to_t = json_integer_value(json_object_get(match_cond, "to_t"));
+    }
+
+    if(to_t < 0) {
+        json_int_t resolved = total_to_t + to_t;
+        if(resolved > 0) {      // else before every row: left negative, the matcher takes none
+            to_t = resolved;
+            json_object_set_new(match_cond, "to_t", json_integer(to_t));
+        }
     }
 
     // WARNING adjust
@@ -13812,6 +13837,14 @@ PRIVATE json_t *get_segments(
         json_object_set_new(match_cond, "from_tm", json_integer(from_tm));
     } else {
         from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
+    }
+
+    if(from_tm < 0) {   // relative to the key's last tm (see from_t above)
+        from_tm = total_to_tm + from_tm + 1;
+        if(from_tm < total_from_tm) {
+            from_tm = total_from_tm;
+        }
+        json_object_set_new(match_cond, "from_tm", json_integer(from_tm));
     }
 
     /*
@@ -13853,6 +13886,14 @@ PRIVATE json_t *get_segments(
         json_object_set_new(match_cond, "to_tm", json_integer(to_tm));
     } else {
         to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
+    }
+
+    if(to_tm < 0) {
+        json_int_t resolved = total_to_tm + to_tm;
+        if(resolved > 0) {
+            to_tm = resolved;
+            json_object_set_new(match_cond, "to_tm", json_integer(to_tm));
+        }
     }
 
     // WARNING adjust
@@ -14115,8 +14156,17 @@ PRIVATE BOOL tranger2_match_metadata(
     json_int_t from_t = json_integer_value(json_object_get(match_cond, "from_t"));
     json_int_t to_t = json_integer_value(json_object_get(match_cond, "to_t"));
 
-    if(from_t != 0) {
-        if(md_record_ex->__t__ < from_t) {
+    /*
+     *  A negative bound is relative to the key's last record, and
+     *  get_segments() writes it back resolved. One still negative here was
+     *  given for a key with no record yet: relative to nothing, a negative
+     *  `from` bounds nothing and a negative `to` excludes every row (the
+     *  pre-v7 meaning, with a last t of 0). Up to 7.25.22 a negative bound
+     *  reached this comparison raw, against an unsigned __t__ (~1.8e19),
+     *  and no row matched, silently
+     */
+    if(from_t > 0) {
+        if(md_record_ex->__t__ < (uint64_t)from_t) {
             if(backward && t_ordered) {
                 *end = TRUE;
             }
@@ -14124,13 +14174,15 @@ PRIVATE BOOL tranger2_match_metadata(
         }
     }
 
-    if(to_t != 0) {
-        if(md_record_ex->__t__ > to_t) {
+    if(to_t > 0) {
+        if(md_record_ex->__t__ > (uint64_t)to_t) {
             if(!backward && t_ordered) {
                 *end = TRUE;
             }
             return FALSE;
         }
+    } else if(to_t < 0) {
+        return FALSE;   // relative to a key with no record: before every row
     }
 
     /*--------------------------*
@@ -14139,8 +14191,8 @@ PRIVATE BOOL tranger2_match_metadata(
     json_int_t from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
     json_int_t to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
 
-    if(from_tm != 0) {
-        if(md_record_ex->__tm__ < from_tm) {
+    if(from_tm > 0) {   // negative: see the t bounds above
+        if(md_record_ex->__tm__ < (uint64_t)from_tm) {
             if(backward && tm_ordered) {
                 *end_segment = TRUE;
             }
@@ -14148,13 +14200,15 @@ PRIVATE BOOL tranger2_match_metadata(
         }
     }
 
-    if(to_tm != 0) {
-        if(md_record_ex->__tm__ > to_tm) {
+    if(to_tm > 0) {
+        if(md_record_ex->__tm__ > (uint64_t)to_tm) {
             if(!backward && tm_ordered) {
                 *end_segment = TRUE;
             }
             return FALSE;
         }
+    } else if(to_tm < 0) {
+        return FALSE;
     }
 
     /*--------------------------*

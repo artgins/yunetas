@@ -1268,15 +1268,23 @@ PRIVATE int do_test_reborn_behind_overflow(BOOL new_key)
         }
         made += (size_t)n;
     }
+    /*
+     *  The churn fills what was made: made/32/2 - 512 rounds. Computed
+     *  without wrapping, and none when the room was not made -- the size_t
+     *  subtraction wrapped there, and the test hung to the ctest timeout
+     *  instead of failing (it goes on to fail and shut down cleanly)
+     */
+    size_t churns = (made/32/2 > 512)? made/32/2 - 512 : 0;
     if(made < room_bytes/2) {
         printf("%sERROR%s --> the test did not test: %lu bytes of room made behind the overflow\n",
             On_Red BWhite, Color_Off, (unsigned long)made);
         result += -1;
+        churns = 0;
     }
     char churn[PATH_MAX];
     build_path(churn, sizeof(churn), path_database, TOPIC_NAME, "disks", "rtALL",
         "0000000000000000001", "c", NULL);
-    for(size_t i = 0; i < made/32/2 - 512; i++) {
+    for(size_t i = 0; i < churns; i++) {
         if(mkdir(churn, 0700)<0 || rmdir(churn)<0) {
             result += -1;
             break;

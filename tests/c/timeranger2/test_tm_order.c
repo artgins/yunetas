@@ -289,6 +289,38 @@ PRIVATE int expect_the_answers(json_t *tranger, const char *who)
         json_pack("{s:I}", "from_tm", (json_int_t)250),
         "T1 T3", "T3 T1"
     );
+
+    /*
+     *  A negative bound is relative to the key's last record, as before v7:
+     *  `from` takes the rows after last - N (that bound excluded), `to` the
+     *  ones up to last - N; t against the last t, tm against the highest
+     *  tm. Up to 7.25.22 a negative reached the matcher raw, compared with
+     *  an unsigned __t__, and no row matched
+     */
+    result += expect_cond(tranger, who, "gap",
+        json_pack("{s:I}", "from_t", (json_int_t)-(DAY + 1)),
+        "D2 D3", "D3 D2"
+    );
+    result += expect_cond(tranger, who, "gap",
+        json_pack("{s:I}", "from_t", (json_int_t)-DAY),
+        "D3", "D3"
+    );
+    result += expect_cond(tranger, who, "gap",
+        json_pack("{s:I}", "to_t", (json_int_t)-DAY),
+        "D1 D2", "D2 D1"
+    );
+    result += expect_cond(tranger, who, "gap",
+        json_pack("{s:I}", "from_t", (json_int_t)-(10*DAY)),
+        "D1 D2 D3", "D3 D2 D1"
+    );
+    result += expect_cond(tranger, who, "gap",
+        json_pack("{s:I}", "from_tm", (json_int_t)-4900),
+        "D2 D3", "D3 D2"
+    );
+    result += expect_cond(tranger, who, "gap",
+        json_pack("{s:I}", "to_tm", (json_int_t)-4900),
+        "D1", "D1"
+    );
     return result;
 }
 

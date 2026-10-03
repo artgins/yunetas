@@ -1993,6 +1993,23 @@ user_flag / not_user_flag / user_flag_mask_set / user_flag_mask_notset
 are expressed in the **topic's** own unit: seconds, or milliseconds when the
 topic sets `sf_t_ms` / `sf_tm_ms`.
 
+A **negative** `t` / `tm` bound is relative to the key's last record: its `t`,
+or its highest `tm`. `from_t = -N` takes the records after `last_t - N` (that
+time excluded); `to_t = -N`, the ones up to `last_t - N`. The bound is resolved
+once, when the iterator or list opens, and written back into its `match_cond`;
+on a key with no record yet a negative `from` bounds nothing and a negative
+`to` takes no row. A `db_history` that starts with the last day of its key:
+
+```C
+json_t *match_cond = json_pack("{s:I}",
+    "from_t", (json_int_t)-86400        // the last 24 h before the last record
+);
+```
+
+Up to 7.25.22 a negative bound reached the comparison raw, against an unsigned
+`__t__`, and no record matched -- without a word. (Before v7 it already meant
+"relative to the last record"; that is the meaning restored.)
+
 The two axes are not ordered the same way, and the scan knows it:
 
 - **Rows are in `t` order**, except in a file that holds a late record (a

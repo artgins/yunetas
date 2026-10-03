@@ -74,14 +74,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 - **Each test binary has a fixed port**: two whole suites run at once on one
   machine collide (`ctest -j` within one run is safe since
   `scripts/check_test_ports.py`). Ports chosen at run time would end it.
-- **`test_secret_attrs`: the no-fallocate case can pass without testing.** If
-  `prctl(SECCOMP)` fails, `deny_syscall()` only prints "FAIL" in the child
-  (and `_exit()` drops the stdio buffer); the parent checks only the exit
-  code. The child must `_exit(2)` when the filter cannot be installed.
-- **`do_test_reborn_behind_overflow()` can hang instead of failing.**
-  `test_rt_disk_overflow.c` ~1271 loops `i < made/32/2 - 512` on `size_t`;
-  with `made` < 32768 it wraps. The "did not test" check above it now fails
-  the test but still falls into the loop: return, or guard the subtraction.
 - **`c_gss_udp_s_self_stop` phase 10 does not prove its order** (nit): it
   relies on the subscription order for its posted restart to come before the
   posted start, and nothing checks the posted start really arrived stale; the
@@ -126,21 +118,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 ## 3. Decisions pending
 
-- **timeranger2: a NEGATIVE `from_t` matches no record, silently** — a LIVE
-  defect in three projects. `get_segments()` adjusts a `from_t` below the
-  key's first `t` to "from the start", but `tranger2_match_metadata()`
-  compares the `uint64_t` `__t__` with the raw `json_int_t` (since
-  `0547bf2eb`, 2024-11-24): a negative `from_t` becomes a huge unsigned number
-  and every record is left out (`tr2list <topic> --key=K --from-t=-86400`
-  answers 0 records where `--from-t=0` answers 997); `from_tm` has the same
-  shape. FOUR `db_history` yunos open their realtime list with `"from_t",
-  -3600*24` (*"recupera desde el último día"*, the relative semantics of the
-  pre-v7 timeranger): yunovatios fixed its own caller; hidraulia,
-  estadodelaire and wattyzer still carry it, and their start-up load hands the
-  callback NOTHING, so whatever arrived while the yuno was stopped is never
-  processed into the history or its alarms. **Decide**: a negative `from_t` /
-  `from_tm` is relative (to now? to the key's last `t`?), or it is refused
-  with a log. Apply it in both places.
 - **C_TRANGER handles opened through the agent are not reaped** when the
   operator's session ends (documented in `api/gclass/data.md`). A
   `command-yuno` reaches the yuno over its one C_IEVENT_CLI link to the agent,
@@ -173,12 +150,17 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   `YUNOS_DEST_DIR`), the last build wins without a word, and the node's
   reinstall script's `install-binary … content64=$$(gate_caudal)` gave
   hidraulia's gate yunovatios' binary for three hours. CLI 0.20.2 made
-  `sync-binaries --yunos-dir` upload by path; the build side is unchanged.
-  **Decide**: `yunetas build` refuses (or warns) when a project installs a
-  role another registered project already installed; or each project installs
-  to its own `outputs/yunos/<project>/` and `$$()` resolves against the
-  project it is called from. Until then, a node with two projects must not
-  share a role name, or its scripts must name the binary by path.
+  `sync-binaries --yunos-dir` upload by path, and `yunetas build` now ends
+  with a red WARNING per role installed by more than one build (read from
+  each tree's `install_manifest.txt`; tui_yunetas `c965bfa`, unreleased).
+  On the dev machine it names six today: `db_history`, `db_tracks`,
+  `gate_auraair`, `gate_enchufe`, `gate_mqtts` (estadodelaire AND
+  hidraulia) and `gate_caudal` (hidraulia AND yunovatios). **Decide**: make
+  the warning a refusal (every build of that machine fails until a role is
+  renamed), or each project installs to its own `outputs/yunos/<project>/`
+  and `$$()` resolves against the project it is called from. Until then, a
+  node with two projects must not share a role name, or its scripts must
+  name the binary by path.
 - **MQTT broker ACL: model and default-deny** (Rosa). Model A (per-group
   `publish_acl` / `subscribe_acl` in the broker treedb, `enable_acl` default
   off) ships; see `mqtt_broker.md`. Open: A vs B (reuse `C_AUTHZ` via
@@ -186,6 +168,12 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   not per topic pattern, so it needs extending) vs C (a broker config attr
   holding the pattern map: no schema migration, off the treedb/UI); and
   whether to flip enforcement to default-deny (validate on staging first).
+  The ACL is keyed by the `client_id` the client chooses, and no client is
+  bound to the user that authenticated it (checked 2026-10-03: the `clients`
+  topic has no user link, CONNECT compares nothing): any authenticated user
+  can take another client's `client_id` and its groups. So the ACL is not a
+  boundary between users until the model binds them. (The will message
+  obeys the ACL since 2026-10-03.)
 - **Schema editing: a removed column with data behind it is nobody's
   problem.** Dropping a column that has values in the topic's records is a
   legal schema and a data decision: the records keep the field, every reader

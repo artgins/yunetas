@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- **MQTT broker: the will message obeys the ACL.** `will__send()` published
+  it with no check, so with `enable_acl` on a client could publish, as its
+  will, to a topic its groups refused. It is asked like any publish when
+  it is sent; a refused will is not published, with a warning. And the
+  `enable_acl` description and `mqtt_broker.md` say what the ACL is not: it
+  is keyed by the `client_id` a client chooses, and no client is bound to
+  the user that authenticated it, so it separates topics, not users.
+- **CLI (tui_yunetas, unreleased): `yunetas build` warns when two builds
+  install a yuno of the same role** in `outputs/yunos`, where the last one
+  overwrites the other (yunovatios' `gate_caudal` reached hidraulia that
+  way): a red WARNING per role, read from each tree's
+  `install_manifest.txt`.
+- **Tests:** `test_secret_attrs`' no-fallocate case no longer passes
+  untested when the seccomp filter cannot be installed (the child exits 2);
+  `test_rt_disk_overflow`'s reborn case no longer hangs to the ctest timeout
+  when its room was not made (a `size_t` subtraction wrapped).
+
+- **timeranger2: a negative `from_t` / `to_t` / `from_tm` / `to_tm` is
+  relative to the key's last record again.** Since v7 it reached the
+  matcher raw, compared with an unsigned `__t__` (-86400 became ~1.8e19),
+  and no record matched, silently: a `db_history` that starts with
+  `from_t=-86400` (hidraulia, estadodelaire, wattyzer) never read what had
+  arrived while it was stopped. `get_segments()` resolves it against the
+  key's last `t` (or highest `tm`), as before v7 -- `from` after `last - N`,
+  that bound excluded; `to` up to `last - N` -- and writes it back; the
+  matcher compares signed, and on a key with no record yet a negative
+  `from` bounds nothing and a negative `to` takes no row.
+
 - **Builds on a glibc older than 2.34.** The daemon start closed its
   inherited files with `close_range()`, whose glibc wrapper is 2.34's: a
   source build on an older glibc did not compile. It calls the system call
