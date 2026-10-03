@@ -115,7 +115,7 @@ struct fs_event_s {
     json_t *stale_wds;          // Internal: wds stopped by a pass, whose IN_IGNORED may never come
     uint64_t stale_mark;        // Internal: where the stream holds their IN_IGNORED, if it comes
     json_t *jn_tracked_fds;     // Internal: FS_FLAG_DIR_FDS, wd -> fd (-1: its directory is gone)
-    json_t *jn_paths_wd;        // Internal: FS_FLAG_DIR_FDS, path -> the last wd watched there
+    json_t *jn_paths_wd;        // Internal: path -> the last wd watched there
     int event_wd;               // Output: the watch of `directory` (the directory where the event
                                 // happened; the one visited, in FS_RESCAN_DIR_TYPE); -1 if none
     int subdir_wd;              // Output: FS_SUBDIR_CREATED_TYPE, the watch just set on the
@@ -129,6 +129,8 @@ struct fs_event_s {
     yev_event_h yev_pad;        // Internal: one-shot turn of the loop that closes pad_end
     json_t *jn_unwatched;       // Internal: subdirectories whose watch could not be made (ENOSPC,
                                 // ENOMEM), by path: tried again at the end of each batch
+    BOOL unwatched_said;        // Internal: a watch that could not be made was said, and the
+                                // end of it (every one watched) not yet
 } ;
 
 

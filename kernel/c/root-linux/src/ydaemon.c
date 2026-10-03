@@ -389,8 +389,9 @@ PUBLIC int daemon_run(
 }
 
 /***************************************************************************
- *  Stop the daemon: every process of its name running its binary (the
- *  watcher and its child) is asked to end (SIGQUIT), the watchers first: a watcher notes it and
+ *  Stop the daemon: every process of its name started as it (argv[0]: the
+ *  watcher and its child, not a script of the same name) is asked to end
+ *  (SIGQUIT), the watchers first: a watcher notes it and
  *  does not relaunch its child, whatever its end; the child shuts down in
  *  order and exits, and its watcher with it. They are given STOP_WAIT_MS to
  *  be gone. Then every process of the name still there is killed --
@@ -409,31 +410,35 @@ PUBLIC int daemon_run(
 typedef struct {
     pid_t pids[MAX_STOP_PIDS];
     int n;
-    BOOL quiet;     // the second scan: what the first said is not said again
 } stop_pids_t;
 
 /*
- *  The binary a process runs, without the " (deleted)" of one replaced on
- *  disk. FALSE when it cannot be read (gone, or another user's).
+ *  The program a process was started as: the base name of its argv[0]
+ *  (/proc/<pid>/cmdline, readable whoever owns the process). A script's
+ *  argv[0] is its interpreter (/bin/sh), while its comm is the script's
+ *  name; the daemon's is its own, and stays so when its binary is renamed
+ *  or replaced on disk (the watcher and its child fork, they do not exec).
+ *  FALSE when it cannot be read (gone meanwhile); an empty cmdline (a
+ *  zombie) gives an empty name.
  */
-PRIVATE BOOL stop_exe_of(pid_t pid, char *bf, size_t bfsize)
+PRIVATE BOOL stop_argv0_of(pid_t pid, char *bf, size_t bfsize)
 {
     char path[PATH_MAX];
-    if(pid) {
-        snprintf(path, sizeof(path), "/proc/%d/exe", (int)pid);
-    } else {
-        snprintf(path, sizeof(path), "/proc/self/exe");
-    }
-    ssize_t n = readlink(path, bf, bfsize - 1);
-    if(n <= 0) {
+    char cmdline[PATH_MAX];
+    snprintf(path, sizeof(path), "/proc/%d/cmdline", (int)pid);
+    int fd = open(path, O_RDONLY|O_CLOEXEC);
+    if(fd < 0) {
         return FALSE;
     }
-    bf[n] = 0;
-    const char *suffix = " (deleted)";
-    size_t sl = strlen(suffix);
-    if((size_t)n > sl && strcmp(bf + n - sl, suffix) == 0) {
-        bf[n - sl] = 0;
+    ssize_t n = read(fd, cmdline, sizeof(cmdline) - 1);
+    close(fd);
+    if(n < 0) {
+        return FALSE;
     }
+    cmdline[n] = 0;     // argv[0] ends at the first NUL
+    const char *base = strrchr(cmdline, '/');
+    base = base? base + 1 : cmdline;
+    snprintf(bf, bfsize, "%s", base);
     return TRUE;
 }
 
@@ -444,29 +449,34 @@ PRIVATE void collect_proc(void *self, const char *name, pid_t pid)
         return; // I am the killer
     }
     /*
-     *  Only a process of THIS binary: another one of the same name (the
-     *  SysV script /etc/init.d/yuneta_agent, root's) is not the daemon. Up
-     *  to 7.25.22 every process of the name was signalled, and the script
-     *  that ran the --stop was one of them (EPERM)
+     *  Only a process started as the name: the SysV script
+     *  /etc/init.d/yuneta_agent (root's) has the comm of the daemon and is
+     *  not it. Up to 7.25.22 every process of the comm was signalled, and
+     *  the script that ran the --stop was one of them (EPERM). The comm is
+     *  cut at 15 bytes, so is the comparison of a name that long.
+     *  Not /proc/<pid>/exe (as in a8e6dd30d): another user's cannot be read,
+     *  so its agent was left alone and --stop said 0; and a daemon whose
+     *  binary was renamed (*.bak-pre-<version>) was taken for another one.
      */
-    char mine[PATH_MAX];
-    char its[PATH_MAX];
-    if(stop_exe_of(0, mine, sizeof(mine))) {
-        if(!stop_exe_of(pid, its, sizeof(its))) {
-            if((errno == EACCES || errno == EPERM) && !stop->quiet) {
-                print_error(0, "--stop: %.*s pid %d of another user, its binary not readable: left alone",
-                    (int)strcspn(name, "\n"), name, (int)pid
-                );
-            }
-            return; // gone meanwhile, or not ours to see
+    size_t namelen = strcspn(name, "\n");
+    char argv0[PATH_MAX];
+    if(!stop_argv0_of(pid, argv0, sizeof(argv0))) {
+        return; // gone meanwhile
+    }
+    if(argv0[0]) {
+        BOOL same;
+        if(namelen < 15) {
+            same = (strlen(argv0) == namelen && strncmp(argv0, name, namelen) == 0);
+        } else {
+            same = (strncmp(argv0, name, 15) == 0);
         }
-        if(strcmp(mine, its) != 0) {
-            return; // another binary of the same name
+        if(!same) {
+            return; // another program with the same comm (a script)
         }
     }
     if(stop->n >= MAX_STOP_PIDS) {
-        print_error(0, "--stop: more than %d processes named %s, pid %d left alone",
-            MAX_STOP_PIDS, name, (int)pid
+        print_error(0, "--stop: more than %d processes named %.*s, pid %d left alone",
+            MAX_STOP_PIDS, (int)namelen, name, (int)pid
         );
         return;
     }
@@ -603,7 +613,6 @@ PUBLIC int daemon_shutdown(const char *process_name)
      *  while the stop ran is not in the first list
      */
     stop_pids_t left = {0};
-    left.quiet = TRUE;
     search_process(process_name, collect_proc, &left);
     for(int i = 0; i < left.n; i++) {
         if(stop_pid_is_gone(left.pids[i])) {

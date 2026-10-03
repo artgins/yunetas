@@ -12,7 +12,9 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <sys/statvfs.h>
 #include <limits.h>
 
@@ -45,6 +47,7 @@ PRIVATE int cb_newfile(void *user_data, const char *old_filename, const char *ne
 PRIVATE json_t *make_summary(hgobj gobj, BOOL show_internal_errors);
 PRIVATE int send_summary(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int do_log_stats(hgobj gobj, int priority, json_t* kw);
+PRIVATE void run_restart_yuneta_command(hgobj gobj);
 PRIVATE int reset_counters(hgobj gobj);
 PRIVATE int truncate_data_log_file(hgobj gobj);
 PRIVATE json_t *search_log_message(hgobj gobj, const char *text, uint32_t maxcount);
@@ -950,31 +953,14 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
     if(strcmp(msgset, MSGSET_QUEUE)==0) {
         json_int_t queue_size = kw_get_int(gobj, kw, "queue_size", 10000, 0);
         if(priv->restart_on_alarm && priv->queue_restart_limit > 0 && queue_size >= priv->queue_restart_limit) {
-            const char *restart_yuneta_command = gobj_read_str_attr(gobj, "restart_yuneta_command");
             if(priv->timeout_restart_yuneta) {
                 if(priv->t_restart == 0) {
                     priv->t_restart = start_sectimer(priv->timeout_restart_yuneta);
-                    int ret = system(restart_yuneta_command);
-                    if(ret < 0) {
-                        gobj_log_error(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_INTERNAL,
-                            "msg",          "%s", "system() FAILED",
-                            NULL
-                        );
-                    }
+                    run_restart_yuneta_command(gobj);
                 } else {
                     if(test_sectimer(priv->t_restart)) {
                         priv->t_restart = start_sectimer(priv->timeout_restart_yuneta);
-                        int ret = system(restart_yuneta_command);
-                        if(ret < 0) {
-                            gobj_log_error(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_INTERNAL,
-                                "msg",          "%s", "system() FAILED",
-                                NULL
-                            );
-                        }
+                        run_restart_yuneta_command(gobj);
                     }
                 }
             }
@@ -982,6 +968,54 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
     }
 
     return 0;
+}
+
+/***************************************************************************
+ *  Run restart_yuneta_command, and say how it ended when it did not
+ *  succeed: restart-yuneta refuses (sudo does not allow the restart of the
+ *  agent's unit) or fails (systemctl) with exit 1 and a line on its stderr,
+ *  which goes nowhere a yuno reads. Up to 7.25.22 only a system() that
+ *  could not run was said. It waits for the command, as always: under the
+ *  units that is the agent's restart (its stop and start, bounded by their
+ *  timeouts), and the refusal of sudo is said at once.
+ ***************************************************************************/
+PRIVATE void run_restart_yuneta_command(hgobj gobj)
+{
+    const char *restart_yuneta_command = gobj_read_str_attr(gobj, "restart_yuneta_command");
+    int ret = system(restart_yuneta_command);
+    if(ret < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "system() FAILED: yuneta not restarted",
+            "command",      "%s", restart_yuneta_command,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return;
+    }
+    if(WIFSIGNALED(ret)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "The restart yuneta command was killed by a signal",
+            "command",      "%s", restart_yuneta_command,
+            "signal",       "%d", WTERMSIG(ret),
+            NULL
+        );
+        return;
+    }
+    if(WIFEXITED(ret) && WEXITSTATUS(ret) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "The restart yuneta command failed (refused by sudo, or the restart of the agent's unit failed: see its journal)",
+            "command",      "%s", restart_yuneta_command,
+            "exit_code",    "%d", WEXITSTATUS(ret),
+            NULL
+        );
+    }
 }
 
 /***************************************************************************

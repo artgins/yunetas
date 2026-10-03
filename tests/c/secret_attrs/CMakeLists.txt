@@ -81,10 +81,10 @@ foreach(test ${SRCS})
     )
     target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
     if(test STREQUAL "test_secret_attrs")
-        # a file of another user, as its fstat() tells it (__wrap_fstat), a
-        # write that stops half way (__wrap_pwrite), and the yuno run as root
-        # (__wrap_geteuid)
-        target_link_options(${binary} PRIVATE "-Wl,--wrap=fstat,--wrap=pwrite,--wrap=geteuid")
+        # a file of another user, as its fstat() and stat() tell it
+        # (__wrap_fstat, __wrap_stat), a write that stops half way
+        # (__wrap_pwrite), and the yuno run as root (__wrap_geteuid)
+        target_link_options(${binary} PRIVATE "-Wl,--wrap=fstat,--wrap=stat,--wrap=pwrite,--wrap=geteuid")
     endif()
 
     add_test("${current_directory_name}/${test}" ${binary})

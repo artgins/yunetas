@@ -2295,6 +2295,28 @@ PRIVATE int framehead_consume(
 
     frame->header_complete = TRUE;
 
+    /*
+     *  What one gbuffer can hold: one byte less than the max block (its
+     *  NUL). A longer packet is refused here: the payload's istream could
+     *  not hold it. Up to 7.25.22 it was delivered cut; since
+     *  istream_consume() checks its append, it never completed, and every
+     *  later chunk logged an ERROR
+     */
+    size_t max_frame = gbmem_get_maximum_block() - 1;
+    if((size_t)frame->frame_length > max_frame) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT,
+            "msg",          "%s", "Mqtt packet too large",
+            "command",      "%d", (int)frame->command,
+            "frame_length", "%lu", (unsigned long)frame->frame_length,
+            "max",          "%lu", (unsigned long)max_frame,
+            "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
+            NULL
+        );
+        return -1;
+    }
+
     if(priv->iamServer) {
         switch(frame->command) {
             case CMD_CONNECT:

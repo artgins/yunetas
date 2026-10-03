@@ -6,14 +6,22 @@
   inherited files with `close_range()`, whose glibc wrapper is 2.34's: a
   source build on an older glibc did not compile. It calls the system call
   directly (`syscall(SYS_close_range)`), with the loop as before where the
-  headers or the kernel lack it.
+  kernel lacks it. Kernel headers older than 5.9 do not define its number:
+  it is given (436, the same on every architecture built), or such a build
+  would always take the loop.
 
 - **fs_watcher: a directory watched again brings its subtree.** Under
   `FS_FLAG_RECURSIVE_PATHS`, a directory that could not be watched (out of
   inotify watches) was watched alone when watches came back: a
   subdirectory made in it meanwhile was never watched, and nothing made in
-  it was heard. Its subtree is walked now, and each subdirectory not
-  watched yet is watched and handed as created, parent first. The
+  it was heard. Its subdirectories not watched are queued behind it now,
+  and each is watched and handed as created, parent first -- within the
+  batch's bound: every try of a batch counts against its 64, an
+  `ENOSPC`/`ENOMEM` ends them, and a directory is looked up by its path,
+  not in the whole table of watches (a tree of 100000 keys, at the moment
+  watches ran out, would have blocked the loop). *"Directories watched
+  again"* is said at the end of the batch where none is left, not while a
+  subtree is still queued. The
   half-of-the-open-files warning has a hysteresis (said again only after
   the count fell under 40%, not on every swing around the half), and an
   unparsable `max_queued_events` is said, as an unreadable one was.
@@ -31,8 +39,13 @@
   -1 in one read became a TLS error and closed the connection, and a sum
   of exactly -2222 left it hanging. It answers -1 now, however many.
   OpenSSL's `encrypt_data()` looped on `WANT_READ`/`WANT_WRITE` with no
-  bound; it stops after 5 tries with a warning, as mbedTLS does. OpenSSL's
-  `flush_clear_data()` checks `gbuffer_create()`.
+  bound; it stops after 5 tries in a row with a warning, as mbedTLS does (a
+  write that progresses starts the count again). OpenSSL's
+  `flush_clear_data()` checks `gbuffer_create()`. And `C_TCP` reads the -1
+  the same way on the flush that follows the handshake: a subscriber that
+  answered -1 to the first data, arrived with the handshake, closed the
+  connection as for a TLS error; only a TLS error (below -1000) does now, as
+  on the decrypt path.
 
 - **`gbuffer_printf()` writes a text that fits exactly.** `vsnprintf()` was
   given the free bytes only, not the byte every gbuffer keeps for the NUL:
@@ -46,7 +59,8 @@
   caller could change its keys: any valid JWT could add one. The key was
   never used, and leaked (4.4 KB per key, seen by the test). They are
   refused now, with *"no users treedb in this yuno: local access only, no
-  JWT is validated here"*; `list-jwk` answers.
+  JWT is validated here"*; `list-jwk` answers, with the keys of the config
+  (`jwks`), which such a yuno never uses.
 - **A persistent attr the gclass no longer persists is said at load.** The
   load wrote only the `SDF_PERSIST` attrs of the file and dropped the rest
   in silence, while every save kept them in the file: the `jwks` that
@@ -60,15 +74,17 @@
   says what it kills.** It read `/sys/fs/cgroup/system.slice/%n/cgroup.procs`,
   a v2 path written by hand: a no-op, unsaid, elsewhere, and its kills left
   nothing in the journal. It asks systemd for the unit's `ControlGroup`,
-  reads it under the v2, hybrid or v1 mount, `logger`s each pid it kills,
-  and says when no cgroup was found.
+  reads it under the v2, hybrid or v1 mount, `logger`s each pid it kills
+  (and each kill that fails), and says when no cgroup was found.
 
 - **Agent: a yuno still alive 10 s after a node bounce gets no second
   instance.** `restart_nodes()` waits for the yunos it killed, and after
   10 s relaunched them anyway, without asking whether they were alive: a
   yuno stuck in a disk wait got a second instance. Those are now skipped,
   each with the warning *"yuno alive but not connected to the agent: not
-  launched again"*.
+  launched again"*, and launched when their process is gone: it is looked
+  at every second, for 5 minutes, after which the warning says to
+  `run-yuno` them.
 - **Agent: `kill-yuno` of a yuno found only by the scan says it is not
   waited for.** Such a yuno is signalled and the answer comes at once; a
   `run-yuno` sent before it is gone finds it alive and does not launch it.
@@ -84,7 +100,10 @@
   its arguments) and restarts the unit with `sudo -n systemctl restart
   yuneta_agent.service`; it refuses, and says so, when sudo does not allow
   it. A node without the units keeps the old way. logcenter's default runs
-  `restart-yuneta -s` where it exists (logcenter is not stopped). agent22
+  `restart-yuneta -s` where it exists (logcenter is not stopped), and logs
+  an ERROR when the command fails or is refused (exit code, or the signal
+  that killed it): only a `system()` that could not run was said. It waits
+  for the command as before -- under the units, the agent's restart. agent22
   was never touched by `yshutdown`, and is not now.
 - **`/etc/init.d/yuneta_agent` answers what the units answered.** Under
   systemd, `start`, `stop` and `restart` exited 0 whatever the units did
@@ -115,10 +134,15 @@
   checks every `kill()` (a refusal is said, not waited for, and `--stop`
   exits 1), and before the SIGKILL scans the name again, so a child started
   meanwhile is killed too. And it takes only the processes of the name that
-  run ITS binary (`/proc/<pid>/exe`): the SysV script
-  `/etc/init.d/yuneta_agent`, root's and of the same name, was signalled by
-  the `--stop` it ran; another user's, whose binary cannot be read, is said
-  and left alone. `daemon_shutdown()` returns `int` (was `void`).
+  were STARTED as it (the base name of `argv[0]`, from
+  `/proc/<pid>/cmdline`): the SysV script `/etc/init.d/yuneta_agent`,
+  root's and of the same name, was signalled by the `--stop` it ran -- a
+  script's `argv[0]` is its interpreter. An agent of another user is taken,
+  so its `EPERM` makes `--stop` exit 1, and so is one whose binary was
+  renamed (`*.bak-pre-<version>`) or replaced on disk. (A first form of this
+  compared `/proc/<pid>/exe`, which another user's process does not let
+  read, and which follows a rename: both left the agent up and exited 0.)
+  `daemon_shutdown()` returns `int` (was `void`).
   The agents' units send SIGQUIT to the watcher (`$MAINPID`) before the
   agent, so a stop under systemd does not relaunch it either.
 
@@ -132,6 +156,13 @@
   it; such a frame is refused like any frame too big. `istream_consume()`
   checks what `gbuffer_append()` answers: a buffer that cannot hold the
   bytes asked for is an ERROR, and the frame is not completed cut.
+- **Deprecated `C_PROT_MQTT`: a packet longer than a gbuffer holds is
+  refused.** Its payload buffer is capped at the max block, and the
+  remaining length was not: such a PUBLISH, which a peer can send, was
+  delivered cut, and with the check above it never completed and logged an
+  ERROR with a stack per chunk. It is refused at its header now (*"Mqtt
+  packet too large"*, a warning) and the connection closed, as tcp4h and
+  the websocket do.
 - **Tests:** the memory check of `c_prot_tcp4h/test1` measured
   `get_cur_system_memory()`, which is 0 without
   `CONFIG_DEBUG_TRACK_MEMORY` -- empty on the nodes. It measures
@@ -180,8 +211,12 @@
   `openat(O_NOFOLLOW)`, and the yuno's user is the owner of the lowest
   directory of the chain closed to others, each one owned by root or by
   that user (`/yuneta/realms` on a node); it ends at the first directory
-  others can write, or at a symlink. A node whose `/yuneta` is a symlink no
-  longer trusts the yuno's user's file for a root yuno (refused, logged).
+  others can write, or of a third user. A symlink met inside that chain
+  (`/yuneta -> /srv/yuneta`) is followed -- only root or the chain's user
+  can have put it there -- and its target is walked from `/` under the same
+  rules, the user named so far still holding; a `..` is taken as the parent
+  of the directories walked. (A first form of this stopped at any symlink,
+  and a root yuno under a linked `/yuneta` refused its own files.)
 
 ## v7.25.22-3 (2026-10-02)
 

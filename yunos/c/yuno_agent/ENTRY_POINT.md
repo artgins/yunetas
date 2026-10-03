@@ -276,10 +276,11 @@ If you see `relaunch_times > 0` after a quiet day, something crashed.
 ### 4.5 `--stop` / [`daemon_shutdown()`](#daemon_shutdown)
 
 `daemon_shutdown()` scans `/proc/*/comm` for entries matching
-`process_name` that run its own binary (`/proc/<pid>/exe`, so the SysV
-script of the same name is not one of them; another user's process, whose
-binary cannot be read, is said and left alone), sends SIGQUIT to every one
-of them -- the watchers first (a
+`process_name` that were started as it (the base name of `argv[0]` in
+`/proc/<pid>/cmdline`, readable whoever owns the process: the SysV script of
+the same name has its interpreter there, `/bin/sh`, and is not one of them;
+an agent whose binary was renamed or replaced on disk still is), sends
+SIGQUIT to every one of them -- the watchers first (a
 process whose parent is not of the name), so none relaunches its child --,
 gives them 10 s to be gone (looked at every 100 ms), then scans again and
 kills with SIGKILL what is still there:

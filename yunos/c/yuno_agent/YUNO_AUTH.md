@@ -983,9 +983,11 @@ for the rest of the writes (`update-user`, `enable-user`, `disable-user`,
 `check-user-pwd`, a password oracle), `delete` for `delete-user`. Without it:
 `-403`, *"no permission to 'update' in service 'treedb_authzs'"*. Internal
 calls (no `__username__`) are not asked. A yuno with **no** users treedb
-(local access only: no JWT is validated there) answers `list-jwk` (empty)
-and refuses `add-jwk` / `remove-jwk` to everybody -- up to 7.25.22 any
-valid JWT could add a key there, and the key, never used, leaked. A role
+(local access only: no JWT is validated there) answers `list-jwk` with the
+keys of its config (`jwks`, empty unless the config sets it), which it never
+uses to validate anything, and refuses `add-jwk` / `remove-jwk` to everybody
+-- up to 7.25.22 any valid JWT could add a key there, and the key, never
+used, leaked. A role
 granting it:
 
 ```json

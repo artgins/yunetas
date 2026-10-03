@@ -902,11 +902,13 @@ PRIVATE void set_secure_connected(hgobj gobj)
          */
         return;
     }
-    if(ret < 0) {
+    if(ret < -1000) {
         /*
          *  TLS error (-1111): the gobj is still alive, so tear it down here,
          *  matching the decrypt-path discipline at the ytls_decrypt_data
          *  caller (which calls try_to_stop_yevents() on a TLS error).
+         *  -1 is a subscriber's own answer to the clear data: the
+         *  connection goes on, as on the decrypt path.
          *  Error already logged in flush_clear_data.
          */
         set_tls_disconnect_cause(gobj, "TLS: the flush of clear data failed");

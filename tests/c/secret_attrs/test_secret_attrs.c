@@ -54,8 +54,10 @@
  *               a warning. Run as root (__wrap_geteuid), the yuno's user is
  *               the owner of the chain closed from "/" down, so a closed
  *               data directory planted under the 02775 parent names nobody
- *               (directories told by __wrap_fstat). Up to 7.25.22 it named
- *               its maker, whose file was loaded.
+ *               (directories told by __wrap_fstat and __wrap_stat). Up to
+ *               7.25.22 it named its maker, whose file was loaded. A realm
+ *               reached through a symlink of the closed chain is trusted
+ *               (its first form stopped at the symlink: refused).
  *            8. an in-place save whose write stops half way (a short
  *               pwrite(), then ENOSPC, as on NFSv3 or a copy-on-write
  *               filesystem: __wrap_pwrite) writes the old content back: the
@@ -101,13 +103,12 @@ typedef struct {
 } fake_dir_t;
 static fake_dir_t fake_dirs[4] = {{0}};
 
-int __wrap_fstat(int fd, struct stat *st)
+PRIVATE void tell_faked(struct stat *st)
 {
-    int ret = __real_fstat(fd, st);
-    if(ret == 0 && foreign_ino && st->st_ino == foreign_ino) {
+    if(foreign_ino && st->st_ino == foreign_ino) {
         st->st_uid = foreign_uid;
     }
-    for(int i = 0; ret == 0 && i < (int)(sizeof(fake_dirs)/sizeof(fake_dirs[0])); i++) {
+    for(int i = 0; i < (int)(sizeof(fake_dirs)/sizeof(fake_dirs[0])); i++) {
         if(!fake_dirs[i].ino) {
             break;
         }
@@ -115,6 +116,31 @@ int __wrap_fstat(int fd, struct stat *st)
             st->st_uid = fake_dirs[i].uid;
             st->st_mode = (st->st_mode & S_IFMT) | fake_dirs[i].mode;
         }
+    }
+}
+
+int __wrap_fstat(int fd, struct stat *st)
+{
+    int ret = __real_fstat(fd, st);
+    if(ret == 0) {
+        tell_faked(st);
+    }
+    return ret;
+}
+
+/*
+ *  And stat(), told the same: the chain walked by a release that used it
+ *  (the walk up from the file, up to 7.25.22) is judged on the same
+ *  directories, so the planted case fails on it
+ */
+int __real_stat(const char *path, struct stat *st);
+int __wrap_stat(const char *path, struct stat *st);
+
+int __wrap_stat(const char *path, struct stat *st)
+{
+    int ret = __real_stat(path, st);
+    if(ret == 0) {
+        tell_faked(st);
     }
     return ret;
 }
@@ -1577,6 +1603,31 @@ PRIVATE void check_persistent_file(void)
     check_str("run as root, the file of the owner of the closed chain is loaded",
         gobj_read_str_attr(holder, "password"), "of-the-yunos-user"
     );
+
+    /*
+     *  And so it is when the realm is reached through a symlink inside the
+     *  closed chain (/yuneta -> /srv/yuneta on a node; here
+     *  /tmp/test_secret_attrs -> ../tmp/test_secret_attrs.real, a ".."
+     *  too): only root or the chain's user can have put it there, so it is
+     *  followed. Its first form stopped at the symlink and named root: a
+     *  root yuno refused its own files
+     */
+    char moved_realm[PATH_MAX];
+    build_path(moved_realm, sizeof(moved_realm), "/tmp", "test_secret_attrs.real", NULL);
+    if(rename(realm_dir, moved_realm) < 0 ||
+            symlink("../tmp/test_secret_attrs.real", realm_dir) < 0) {
+        printf("FAIL cannot put the realm behind a symlink: %s\n", strerror(errno));
+        s_result += -1;
+    }
+    write_file(path, "{\"password\": \"through-a-linked-realm\"}", 0600);
+    fake_root = TRUE;
+    gobj_load_persistent_attrs(holder, 0);
+    fake_root = FALSE;
+    check_str("run as root, a realm reached through a symlink of the closed chain is trusted",
+        gobj_read_str_attr(holder, "password"), "through-a-linked-realm"
+    );
+    unlink(realm_dir);
+    rename(moved_realm, realm_dir);
     memset(fake_dirs, 0, sizeof(fake_dirs));
 
     /*

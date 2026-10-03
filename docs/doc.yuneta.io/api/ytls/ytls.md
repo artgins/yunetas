@@ -328,12 +328,25 @@ int ytls_flush(
 **Returns**
 
 Returns `0` on success, `-2222` when the secure socket was freed inside a
-callback (touch neither the `sskt` nor its owner), or another negative value
-on failure.
+callback (touch neither the `sskt` nor its owner), `-1` when
+`on_clear_data_cb` answered an error, or a value below `-1000` on a TLS error.
 
 **Notes**
 
 This function makes sure that any pending clear or encrypted data is processed and sent.
+Only a TLS error (below `-1000`) ends the connection: a `-1` is the
+subscriber's own answer to the clear data it was handed.
+
+```c
+int ret = ytls_flush(priv->ytls, priv->sskt);
+if(ret == -2222) {
+    return;     // the session was freed inside a callback
+}
+if(ret < -1000) {
+    try_to_stop_yevents(gobj);  // a TLS error
+    return;
+}
+```
 
 ---
 

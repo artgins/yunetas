@@ -52,7 +52,7 @@ PIDFile=/run/yuneta_agent22/yuneta_agent22.pid
 ExecStart=/yuneta/agent/yuneta_agent22 --config-file=/yuneta/agent/yuneta_agent22.json --start --pid-file=/run/yuneta_agent22/yuneta_agent22.pid
 ExecStop=-/bin/kill -QUIT $MAINPID
 ExecStop=-/usr/bin/pkill -QUIT -P $MAINPID -x yuneta_agent22
-ExecStopPost=-/bin/sh -c 'cg=$$(systemctl show -p ControlGroup --value %n); for r in /sys/fs/cgroup /sys/fs/cgroup/unified /sys/fs/cgroup/systemd; do [ -n "$$cg" ] && [ -r "$$r$$cg/cgroup.procs" ] || continue; for p in $$(cat "$$r$$cg/cgroup.procs"); do if [ "$$(cat /proc/$$p/comm 2>/dev/null)" = "yuneta_agent22" ]; then kill -KILL $$p && logger -t yuneta_agent22 "ExecStopPost: pid $$p left in %n after its stop: killed"; fi; done; exit 0; done; logger -t yuneta_agent22 "ExecStopPost: no cgroup.procs of %n found: nothing checked"; exit 0'
+ExecStopPost=-/bin/sh -c 'cg=$$(systemctl show -p ControlGroup --value %n); for r in /sys/fs/cgroup /sys/fs/cgroup/unified /sys/fs/cgroup/systemd; do [ -n "$$cg" ] && [ -r "$$r$$cg/cgroup.procs" ] || continue; for p in $$(cat "$$r$$cg/cgroup.procs"); do if [ "$$(cat /proc/$$p/comm 2>/dev/null)" = "yuneta_agent22" ]; then if kill -KILL $$p; then logger -t yuneta_agent22 "ExecStopPost: pid $$p left in %n after its stop: killed"; else logger -t yuneta_agent22 "ExecStopPost: pid $$p left in %n after its stop: kill FAILED"; fi; fi; done; exit 0; done; logger -t yuneta_agent22 "ExecStopPost: no cgroup.procs of %n found: nothing checked"; exit 0'
 KillMode=process
 SuccessExitStatus=SIGKILL
 Restart=no

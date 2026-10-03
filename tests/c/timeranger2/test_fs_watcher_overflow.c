@@ -91,7 +91,12 @@
  *  as created with its watch, and what is made in it is heard. Up to
  *  7.25.21 it was never watched: nothing made in it was ever heard. A
  *  subdirectory made in it meanwhile is watched and handed as created too
- *  (up to 7.25.22 it never was).
+ *  (up to 7.25.22 it never was). And a subtree made meanwhile is watched
+ *  within the batch's bound (do_test_unwatched_subtree_bound): out of
+ *  watches again under it, the first failure ends the batch's tries, and
+ *  then it is watched UNWATCHED_RETRIES_PER_BATCH (64) per batch at most,
+ *  each directory handed once, parent first. Its first form tried every
+ *  directory of the subtree at once, each one failing.
  *
  *  And the ROOT deleted and created again while the queue is full
  *  (do_test_root_reborn, recursive and not): after the pass the new root
@@ -151,10 +156,18 @@ int __wrap_ioctl(int fd, unsigned long request, ...)
 int __real_inotify_add_watch(int fd, const char *pathname, uint32_t mask);
 int __wrap_inotify_add_watch(int fd, const char *pathname, uint32_t mask);
 static const char *watch_enospc_path = NULL;   // its watch fails, ENOSPC
+static const char *watch_enospc_under = NULL;  // the watch of everything under it fails, ENOSPC
+static int add_watch_calls = 0;
 
 int __wrap_inotify_add_watch(int fd, const char *pathname, uint32_t mask)
 {
+    add_watch_calls++;
     if(watch_enospc_path && strcmp(pathname, watch_enospc_path) == 0) {
+        errno = ENOSPC;
+        return -1;
+    }
+    if(watch_enospc_under && strncmp(pathname, watch_enospc_under, strlen(watch_enospc_under)) == 0 &&
+            pathname[strlen(watch_enospc_under)] == '/') {
         errno = ENOSPC;
         return -1;
     }
@@ -927,6 +940,155 @@ PRIVATE int do_test_unwatched_retry(void)
 }
 
 /***************************************************************************
+ *  A subtree made while its top was not watched: watched within the
+ *  batch's bound
+ ***************************************************************************/
+#define SUBTREE_DIRS        200
+#define RETRIES_PER_BATCH   64      // UNWATCHED_RETRIES_PER_BATCH of fs_watcher.c
+
+PRIVATE int stb_a_unwatched = 0;
+PRIVATE int stb_a_watched = 0;
+PRIVATE json_t *stb_handed = NULL;  // "sNNN" -> times handed as created with its watch
+PRIVATE int stb_in_batch = 0;       // handed in the batch being walked
+PRIVATE int stb_max_in_batch = 0;
+PRIVATE int stb_orphans = 0;        // handed before their parent was watched
+
+PRIVATE int fs_callback_subtree(fs_event_t *fs_event)
+{
+    const char *name = (const char *)fs_event->filename;
+    switch(fs_event->fs_type) {
+        case FS_SUBDIR_CREATED_TYPE:
+            if(strcmp(name, "a") == 0) {
+                if(fs_event->subdir_wd < 0) {
+                    stb_a_unwatched++;
+                } else {
+                    stb_a_watched++;
+                }
+            } else if(name[0] == 's' && fs_event->subdir_wd >= 0) {
+                json_int_t n = json_integer_value(json_object_get(stb_handed, name));
+                json_object_set_new(stb_handed, name, json_integer(n + 1));
+                stb_in_batch++;
+                if(fs_event->event_wd < 0) {
+                    stb_orphans++;
+                }
+            }
+            break;
+        case FS_BATCH_END_TYPE:
+            if(stb_in_batch > stb_max_in_batch) {
+                stb_max_in_batch = stb_in_batch;
+            }
+            stb_in_batch = 0;
+            break;
+        default:
+            break;
+    }
+    return 0;
+}
+
+PRIVATE int do_test_unwatched_subtree_bound(void)
+{
+    int result = 0;
+    char root10[PATH_MAX], dir_a[PATH_MAX], dir_b[PATH_MAX];
+    build_path(root10, sizeof(root10), getenv("HOME"), "tests_yuneta", "fs_watcher_subtree", NULL);
+    build_path(dir_a, sizeof(dir_a), root10, "a", NULL);
+    build_path(dir_b, sizeof(dir_b), root10, "b", NULL);
+    rmrdir(root10);
+    mkrdir(root10, 02770);
+    stb_a_unwatched = stb_a_watched = stb_in_batch = stb_max_in_batch = stb_orphans = 0;
+    stb_handed = json_object();
+
+    set_expected_results(
+        "fs_watcher: a subtree made while its top was not watched, watched within the batch's bound",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot watch a directory, out of inotify watches or memory: tried again at each batch (and the next ones that fail, counted)",
+            "msg", "Directories watched again: every one that could not be is watched now"
+        ),
+        NULL, NULL, 1
+    );
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop, root10, FS_FLAG_RECURSIVE_PATHS|FS_FLAG_BATCH_END, fs_callback_subtree, 0, NULL, NULL
+    );
+    if(!fs_event || fs_start_watcher_event(fs_event) < 0) {
+        printf("%sERROR%s --> the watcher could not be started\n", On_Red BWhite, Color_Off);
+        JSON_DECREF(stb_handed)
+        return -1;
+    }
+
+    /*
+     *  Out of watches: "a" is not watched, and its subtree is made unheard
+     */
+    watch_enospc_path = dir_a;
+    mkdir(dir_a, 02770);
+    for(int i = 0; i < 50 && stb_a_unwatched == 0; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    for(int i = 0; i < SUBTREE_DIRS; i++) {
+        char name[32], path[PATH_MAX];
+        snprintf(name, sizeof(name), "s%03d", i);
+        build_path(path, sizeof(path), dir_a, name, NULL);
+        mkdir(path, 02770);
+    }
+
+    /*
+     *  One watch more, for "a" only: the batch of "b" watches it, and the
+     *  first of its subdirectories that fails ends the tries
+     */
+    watch_enospc_path = NULL;
+    watch_enospc_under = dir_a;
+    add_watch_calls = 0;
+    mkdir(dir_b, 02770);
+    for(int i = 0; i < 50 && stb_a_watched == 0; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    int calls_out_of_watches = add_watch_calls;     // "b", "a", the first under "a"
+    int handed_out_of_watches = (int)json_object_size(stb_handed);
+
+    /*
+     *  Watches again: each batch watches its share of the subtree
+     */
+    watch_enospc_under = NULL;
+    for(int i = 0; i < 50 && json_object_size(stb_handed) < SUBTREE_DIRS; i++) {
+        char name[32];
+        snprintf(name, sizeof(name), "tick%d", i);
+        create_file_in(root10, name);
+        yev_loop_run_once(yev_loop);
+    }
+    int twice = 0;
+    const char *k; json_t *v;
+    json_object_foreach(stb_handed, k, v) {
+        if(json_integer_value(v) != 1) {
+            twice++;
+        }
+    }
+
+    if(stb_a_unwatched != 1 || stb_a_watched != 1 ||
+            calls_out_of_watches != 3 || handed_out_of_watches != 0 ||
+            json_object_size(stb_handed) != SUBTREE_DIRS || twice != 0 || stb_orphans != 0 ||
+            stb_max_in_batch > RETRIES_PER_BATCH ||
+            json_object_size(fs_event->jn_unwatched) != 0) {
+        printf("%sERROR%s --> unwatched subtree: \"a\" unwatched %d (1), watched %d (1); "
+            "out of watches: add_watch calls %d (3), handed %d (0); then handed %d (%d), "
+            "more than once %d (0), before their parent %d (0), most in a batch %d (<= %d), "
+            "left unwatched %d (0)\n",
+            On_Red BWhite, Color_Off, stb_a_unwatched, stb_a_watched,
+            calls_out_of_watches, handed_out_of_watches,
+            (int)json_object_size(stb_handed), SUBTREE_DIRS, twice, stb_orphans,
+            stb_max_in_batch, RETRIES_PER_BATCH,
+            (int)json_object_size(fs_event->jn_unwatched));
+        result += -1;
+    }
+
+    fs_stop_watcher_event(fs_event);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+    JSON_DECREF(stb_handed)
+    rmrdir(root10);
+    return result;
+}
+
+/***************************************************************************
  *  The root deleted and created again during an overflow
  ***************************************************************************/
 PRIVATE int do_test_root_reborn(BOOL recursive)
@@ -1597,6 +1759,7 @@ int main(int argc, char *argv[])
     result += do_test_padded_end_not_short();
     result += do_test_fionread_broken();
     result += do_test_unwatched_retry();
+    result += do_test_unwatched_subtree_bound();
     result += do_test_root_unwatchable();
     result += do_test_dir_fds();
     result += do_test_dir_fds_limit();

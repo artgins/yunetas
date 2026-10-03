@@ -294,7 +294,9 @@ PUBLIC void ytls_set_peer_name(hytls ytls, hsskt sskt, const char *peername, con
         0       success,
         -2222   the sskt was freed inside a callback: touch neither the
                 sskt nor its owner,
-        < 0     failure (< -1000: a TLS error).
+        -1      on_clear_data_cb answered an error (not a TLS error: the
+                connection goes on),
+        < -1000 a TLS error.
 **rst**/
 PUBLIC int ytls_flush(hytls ytls, hsskt sskt);
 

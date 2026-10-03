@@ -1049,6 +1049,7 @@ typedef struct _PRIVATE_DATA {
     hgobj restart_wait_timer;   // restart_nodes(): the yunos killed must be gone before the relaunch
     json_t *restart_wait_pids;  // the pids killed, not seen gone yet
     uint64_t restart_wait_until; // msectimer: the relaunch goes on anyway
+    BOOL restart_sparing;       // after the wait: the pids left are watched, their yunos launched when gone
 
     json_t *no_play_launches; // set of launch_id (string key) launched with run-yuno play=0
 
@@ -10523,6 +10524,8 @@ PRIVATE int restart_nodes(hgobj gobj)
     json_array_extend(priv->restart_wait_pids, jn_killed);
     JSON_DECREF(jn_killed)
     priv->restart_wait_until = start_msectimer(10*1000);
+    priv->restart_sparing = FALSE;
+    clear_timeout(priv->restart_wait_timer);    // a previous restart's, maybe at its slower pace
     restart_wait_tick(gobj);    // none to wait for: the relaunch at once
 
     return ret;
@@ -10551,21 +10554,63 @@ PRIVATE BOOL process_is_gone(pid_t pid)
 
 /***************************************************************************
  *  restart_nodes(): the relaunch, once every yuno it killed is gone, or
- *  when the wait is over
+ *  when the wait is over.
+ *  Those still alive after the wait (a SIGKILL waits for the end of an
+ *  uninterruptible wait, a disk) are not launched beside themselves; their
+ *  processes are looked at every second, for RESTART_SPARE_MS, and each
+ *  yuno is launched when its process is gone. Up to 7.25.22 such a yuno
+ *  was never launched again: certain to die, it was left down until a
+ *  run-yuno. A deliberate poll: the death of a process that is not our
+ *  child gives no event here.
  ***************************************************************************/
+#define RESTART_SPARE_MS    (5*60*1000)
+
 PRIVATE void restart_wait_tick(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    int gone_now = 0;
     for(int idx = (int)json_array_size(priv->restart_wait_pids) - 1; idx >= 0; idx--) {
         pid_t pid = (pid_t)json_integer_value(json_array_get(priv->restart_wait_pids, (size_t)idx));
         if(process_is_gone(pid)) {
             json_array_remove(priv->restart_wait_pids, (size_t)idx);
+            gone_now++;
         }
     }
+    BOOL some_left = (json_array_size(priv->restart_wait_pids) > 0)? TRUE : FALSE;
 
-    BOOL some_left = FALSE;
-    if(json_array_size(priv->restart_wait_pids) > 0) {
+    if(priv->restart_sparing) {
+        if(!some_left) {
+            priv->restart_sparing = FALSE;
+            clear_timeout(priv->restart_wait_timer);
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
+                "msg",          "%s", "yunos left alive by the restart are gone: launched now",
+                NULL
+            );
+            run_enabled_yunos(gobj, FALSE);
+            return;
+        }
+        if(gone_now > 0) {
+            run_enabled_yunos(gobj, TRUE);  // the ones gone; the others spared again (said)
+        }
+        if(test_msectimer(priv->restart_wait_until)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
+                "msg",          "%s", "yunos killed for the restart still alive after 5 minutes: not launched, run-yuno once they are gone",
+                "pids",         "%j", priv->restart_wait_pids,
+                NULL
+            );
+            json_array_clear(priv->restart_wait_pids);
+            priv->restart_sparing = FALSE;
+            clear_timeout(priv->restart_wait_timer);
+        }
+        return;
+    }
+
+    if(some_left) {
         if(!test_msectimer(priv->restart_wait_until)) {
             if(!gobj_is_running(priv->restart_wait_timer)) {
                 set_timeout_periodic(priv->restart_wait_timer, 100);
@@ -10580,16 +10625,20 @@ PRIVATE void restart_wait_tick(hgobj gobj)
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL,
-            "msg",          "%s", "yunos killed for the restart still alive after 10 s: those are not launched again",
+            "msg",          "%s", "yunos killed for the restart still alive after 10 s: each one launched when it is gone (looked at every second, for 5 minutes)",
             "pids",         "%j", priv->restart_wait_pids,
             NULL
         );
-        json_array_clear(priv->restart_wait_pids);
-        some_left = TRUE;
+        priv->restart_sparing = TRUE;
+        priv->restart_wait_until = start_msectimer(RESTART_SPARE_MS);
+        clear_timeout(priv->restart_wait_timer);
+        set_timeout_periodic(priv->restart_wait_timer, 1000);
+        run_enabled_yunos(gobj, TRUE);
+        return;
     }
 
     clear_timeout(priv->restart_wait_timer);
-    run_enabled_yunos(gobj, some_left);    // all gone: none is left alive to spare
+    run_enabled_yunos(gobj, FALSE);    // all gone: none is left alive to spare
 }
 
 /***************************************************************************

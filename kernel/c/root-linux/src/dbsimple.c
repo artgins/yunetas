@@ -72,14 +72,189 @@ PRIVATE char *get_persist_filename(
  *  "/" down to it nobody else can write, and each one owned by root or by
  *  that user (/yuneta/realms, 0755, on a node). The chain is walked down
  *  with openat(O_NOFOLLOW) and ends at the first directory others can write
- *  (the realm's, 02775) or at a symlink: what lies below it can be renamed
- *  away and replaced by a member of the group, so nothing found there says
+ *  (the realm's, 02775) or of a third user: what lies below it can be
+ *  renamed away and replaced by someone else, so nothing found there says
  *  who the yuno's user is. Up to 7.25.22 the walk went UP from the file and
  *  took the first closed directory: one planted under the 02775 parent, or
  *  a symlink to one, named its maker as the yuno's user -- the file was
  *  loaded, and the next save given to them with the yuno's secrets.
+ *
+ *  A symlink met INSIDE the closed chain (/yuneta -> /srv/yuneta) is
+ *  followed: only root or the chain's user can have put it there. Its
+ *  target is walked from "/" again, under the same rules, and the user the
+ *  chain named so far still holds: the chain behind the link may be root's
+ *  or theirs, nobody else's. Its first form stopped at any symlink, and a
+ *  root yuno under a linked /yuneta refused its own files. A ".." is taken
+ *  the same way, as the parent of the real directories walked.
  *  (uid_t)-1 if it cannot be known (logged).
  ***************************************************************************/
+#define TRUST_WALK_MAX_LINKS    40      // as the kernel's limit of symlinks in a path
+
+/*
+ *  One walk of `dir` from "/" (see trusted_dir_owner()). 0 when the chain
+ *  ends, `*trusted` its user; 1 when it met a symlink or a "..": `dir` is
+ *  rewritten with what to walk instead; -1 on error (logged).
+ */
+PRIVATE int walk_closed_chain(
+    hgobj gobj,
+    const char *filename,
+    char *dir,
+    size_t dirsize,
+    uid_t *trusted
+)
+{
+    int fd = open("/", O_PATH|O_DIRECTORY|O_CLOEXEC);
+    struct stat st;
+    if(fd < 0 || fstat(fd, &st) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot stat the root directory",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        if(fd >= 0) {
+            close(fd);
+        }
+        return -1;
+    }
+    if(st.st_mode & (S_IWGRP|S_IWOTH)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "The root directory is open to others: no owner can be trusted",
+            "path",         "%s", filename,
+            NULL
+        );
+        close(fd);
+        return -1;
+    }
+    if(*trusted == (uid_t)-1) {
+        *trusted = st.st_uid;
+    }
+
+    char walked[PATH_MAX];  // the real directories of the chain, from "/"
+    walked[0] = 0;
+    const char *p = dir;
+    while(*p) {
+        if(*p == '/') {
+            p++;
+            continue;
+        }
+        size_t len = strcspn(p, "/");
+        const char *rest = p + len;     // "" or "/..."
+        char seg[NAME_MAX + 1];
+        if(len > NAME_MAX) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "A name above the persistent attrs file is too long",
+                "path",         "%s", filename,
+                NULL
+            );
+            close(fd);
+            return -1;
+        }
+        memcpy(seg, p, len);
+        seg[len] = 0;
+
+        if(strcmp(seg, ".") == 0) {
+            p = rest;
+            continue;
+        }
+
+        char again[PATH_MAX];
+        int n = -1;
+        if(strcmp(seg, "..") == 0) {
+            char *slash = strrchr(walked, '/');
+            if(slash) {
+                *slash = 0;     // the parent of a real directory ("/" stays "/")
+            }
+            n = snprintf(again, sizeof(again), "%s%s", walked, rest);
+        } else {
+            int next = openat(fd, seg, O_PATH|O_NOFOLLOW|O_CLOEXEC);
+            if(next < 0 || fstat(next, &st) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot stat a directory above the persistent attrs file",
+                    "path",         "%s", filename,
+                    "segment",      "%s", seg,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+                if(next >= 0) {
+                    close(next);
+                }
+                close(fd);
+                return -1;
+            }
+            if(S_ISLNK(st.st_mode)) {
+                char target[PATH_MAX];
+                ssize_t tl = readlinkat(next, "", target, sizeof(target) - 1);
+                close(next);
+                if(tl <= 0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_SYSTEM,
+                        "msg",          "%s", "Cannot read a symlink above the persistent attrs file",
+                        "path",         "%s", filename,
+                        "segment",      "%s", seg,
+                        "errno",        "%d", errno,
+                        "serrno",       "%s", strerror(errno),
+                        NULL
+                    );
+                    close(fd);
+                    return -1;
+                }
+                target[tl] = 0;
+                if(target[0] == '/') {
+                    n = snprintf(again, sizeof(again), "%s%s", target, rest);
+                } else {
+                    n = snprintf(again, sizeof(again), "%s/%s%s", walked, target, rest);
+                }
+            } else {
+                close(fd);
+                fd = next;
+                if(!S_ISDIR(st.st_mode)) {
+                    break;  // not a directory: the open of the file says it
+                }
+                if(st.st_mode & (S_IWGRP|S_IWOTH)) {
+                    break;  // open to others: what is below can be replaced
+                }
+                if(*trusted == 0) {
+                    *trusted = st.st_uid;
+                } else if(st.st_uid != 0 && st.st_uid != *trusted) {
+                    break;  // a third user's: what is below can be replaced
+                }
+                size_t wl = strlen(walked);
+                snprintf(walked + wl, sizeof(walked) - wl, "/%s", seg);
+                p = rest;
+                continue;
+            }
+        }
+
+        close(fd);
+        if(n < 0 || (size_t)n >= sizeof(again) || (size_t)n >= dirsize) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "The path above the persistent attrs file, a symlink followed, is too long",
+                "path",         "%s", filename,
+                "segment",      "%s", seg,
+                NULL
+            );
+            return -1;
+        }
+        snprintf(dir, dirsize, "%s", again);
+        return 1;
+    }
+    close(fd);
+    return 0;
+}
+
 PRIVATE uid_t trusted_dir_owner(hgobj gobj, const char *filename)
 {
     if(filename[0] != '/') {
@@ -98,72 +273,25 @@ PRIVATE uid_t trusted_dir_owner(hgobj gobj, const char *filename)
     char *slash = strrchr(dir, '/');
     *slash = 0;     // the directory of the file
 
-    int fd = open("/", O_PATH|O_DIRECTORY|O_CLOEXEC);
-    struct stat st;
-    if(fd < 0 || fstat(fd, &st) < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot stat the root directory",
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-        if(fd >= 0) {
-            close(fd);
+    uid_t trusted = (uid_t)-1;
+    for(int links = 0; links <= TRUST_WALK_MAX_LINKS; links++) {
+        int ret = walk_closed_chain(gobj, filename, dir, sizeof(dir), &trusted);
+        if(ret < 0) {
+            return (uid_t)-1;   // Error already logged
         }
-        return (uid_t)-1;
-    }
-    if(st.st_mode & (S_IWGRP|S_IWOTH)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "The root directory is open to others: no owner can be trusted",
-            "path",         "%s", filename,
-            NULL
-        );
-        close(fd);
-        return (uid_t)-1;
-    }
-    uid_t trusted = st.st_uid;
-
-    char *saveptr = NULL;
-    for(char *seg = strtok_r(dir, "/", &saveptr); seg; seg = strtok_r(NULL, "/", &saveptr)) {
-        if(strcmp(seg, ".")==0 || strcmp(seg, "..")==0) {
-            break;  // not a name of the chain: stop, with what it said so far
-        }
-        int next = openat(fd, seg, O_PATH|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
-        if(next < 0 && (errno == ELOOP || errno == ENOTDIR)) {
-            break;  // a symlink: the chain below it is not this one
-        }
-        if(next < 0 || fstat(next, &st) < 0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot stat a directory above the persistent attrs file",
-                "path",         "%s", filename,
-                "segment",      "%s", seg,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
-            if(next >= 0) {
-                close(next);
-            }
-            close(fd);
-            return (uid_t)-1;
-        }
-        close(fd);
-        fd = next;
-        if(st.st_mode & (S_IWGRP|S_IWOTH)) {
-            break;  // open to others: what is below can be replaced
-        }
-        if(trusted == 0) {
-            trusted = st.st_uid;
+        if(ret == 0) {
+            return trusted;
         }
     }
-    close(fd);
-    return trusted;
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_SYSTEM,
+        "msg",          "%s", "Too many symlinks above the persistent attrs file: no owner can be trusted",
+        "path",         "%s", filename,
+        "max",          "%d", TRUST_WALK_MAX_LINKS,
+        NULL
+    );
+    return (uid_t)-1;
 }
 
 /***************************************************************************

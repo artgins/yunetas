@@ -1436,6 +1436,7 @@ PRIVATE int encrypt_data(
             }
             break;
         }
+        want_retries = 0;   // progress: the bound is for WANTs in a row, as in mbedTLS
         gbuffer_get(gbuf, written);    // Pop data
 
         if(sskt->ytls->trace_tls) {

@@ -1,152 +1,41 @@
 # Cloud review of main
 
 Reviewed up to `a8e6dd30d` (2026-10-02): the answer to the review of
-7.25.22 (`da85b7a9b..a8e6dd30d`). What is resolved is removed from this file.
-Last check, on `a8e6dd30d`: clean build with no warning, suite 287/287 as
-user `yuneta` under `ulimit -Sn 1024`.
+7.25.22 (`da85b7a9b..a8e6dd30d`). What is resolved is removed from this file;
+this version is the fixing session's answer, item by item. Every fix has a
+test that fails on the code before it, except where it says otherwise.
 
-## Verdict
+The review's own check, on `a8e6dd30d`: suite 287/287 as user `yuneta`
+under `ulimit -Sn 1024`. Last check of this answer: clean build (`yunetas clean/build --sdk-only`) with no warning,
+suite 287/287 under `ulimit -Sn 1024` on the dev machine.
 
-The eight open items are fixed in what they asked:
-
-- the dbsimple trust chain planted by a group member;
-- `write-attr` of `SDF_PERSIST`-only attrs;
-- the rpm SELinux requirement;
-- the UDP read stall;
-- the frame of exactly the default max;
-- `--stop`;
-- C_TIMER0 ending the loop;
-- the restarts outside the unit.
-
-So are the low items, except the ones below.
-
-Three fixes bring a defect of their own: `--stop` in `a8e6dd30d`, the
-fs_watcher re-watch in `1d2083dc3`, and the dbsimple walk in `da85b7a9b`.
-One path of the -1 contract was left in C_TCP.
-
-## Open
+## Resolved
 
 ### Medium
 
-**1. C_TCP: a subscriber's -1 still closes a TLS connection on the flush
-after the handshake** (`4f64eaaa8`).
-
-`set_secure_connected()` (`c_tcp.c:893-914`) takes any negative answer of
-`ytls_flush()` as a TLS error: *"TLS: the flush of clear data failed"*, then
-`try_to_stop_yevents()`.
-
-`ytls_flush` → `flush_clear_data` → `on_clear_data_cb` publishes
-`EV_RX_DATA`, and since `4f64eaaa8` a subscriber's -1 comes back as -1. So a
-subscriber that answers -1 to the first application data arriving with the
-handshake closes the connection. That is the contract `ytls.h` now says it
-does not do, and the decrypt path already handles the same case
-(`ret < -1000`).
-
-Preferred fix: `if(ret < -1000)` there too, as on the decrypt path.
-
-**2. `--stop` exits 0 again when it cannot stop the agent** (`a8e6dd30d`
-undoes part of `603fde26d`).
-
-`collect_proc()` (`ydaemon.c:440-465`) reads `/proc/<pid>/exe`. That fails
-with EACCES for another user's process, so the process is "left alone" with a
-line on stderr and nothing marks a failure: `--stop` exits 0 and the agent
-stays up. This is item 6a of the previous review in another form, and the
-EPERM path of `603fde26d` is now practically unreachable.
-
-Two more effects:
-
-- Run as `yuneta` from the root init script, `--stop` prints that line for
-  the script itself on every non-unit `stop` and in `_start_unit()`.
-- An agent whose binary was renamed (a `mv` to `*.bak-pre-<version>` before
-  the new one is put in place) has an `exe` that follows the rename. It reads
-  as "another binary of the same name" and is skipped, and `--stop` exits 0.
-
-Preferred fix:
-
-- Take a process whose exe cannot be read as a failure of `--stop` (exit 1,
-  said) unless its uid shows it is not a yuneta process. For the init script,
-  compare the `exe` with the shell's, or skip by uid 0 when the caller is not
-  root.
-- Match a renamed binary by inode (`stat` of `/proc/pid/exe` against the
-  file), not by path.
-
-**3. fs_watcher: the subtree re-watch has no bound** (`1d2083dc3`).
-
-`rewatch_subtree_cb()` (`fs_watcher.c:935-961`) has three problems:
-
-- It answers TRUE when `add_watch()` fails with ENOSPC/ENOMEM, so the walk
-  goes on trying every remaining directory, each one failing.
-- It runs synchronously at a batch end, bypassing the 64-per-batch cap of the
-  retries.
-- For each directory it scans all of `jn_tracked_paths` by value: O(subtree ×
-  tracked).
-
-With 100 000 key directories, at exactly the moment watches ran out, that
-blocks the loop for a long time.
-
-Preferred fix:
-
-- Stop the walk on ENOSPC/ENOMEM (FALSE) and leave the rest to the next
-  retry.
-- Count the walk against the per-batch cap.
-- Keep a path → wd index beside `jn_tracked_paths`.
-
-**4. dbsimple: a symlinked parent makes a root yuno lose its attrs**
-(`da85b7a9b`).
-
-The walk from `/` down uses `O_NOFOLLOW`, so it stops at a symlink, for
-example `/yuneta -> /srv/yuneta`, and trusts nobody. A root yuno then refuses
-its own yuneta-owned file and refuses every save. The old `stat()` walk
-followed the link. No layout of this repo symlinks `/yuneta`, so this is
-conditional.
-
-Also, *"each owned by root or by that user"* (in the comment, the commit and
-the answer) is not enforced (`dbsimple.c:160-163`). Once a non-root owner is
-taken, a lower closed directory of a third user continues the chain. The
-impact is low: that user can only move existing files.
-
-The committed test does not fail on the old code for the planted case. The
-old walk used `stat()`, which the test's `__wrap_fstat` does not cover; the
-red came from a temporary `__wrap_stat` that was not committed.
-
-Preferred fix:
-
-- Follow a symlink only when it and its target are owned by root (or resolve
-  the data directory once with `realpath()` and walk the result).
-- Enforce the owner rule as written.
-- Commit the red case for the plant.
+| # | Item | Test |
+|---|------|------|
+| 1 | C_TCP: `set_secure_connected()` closes only on a TLS error (`ret < -1000`), as the decrypt path; `ytls_flush()`'s contract says the -1 | No red test: the first data must arrive in the read that ends the handshake, a timing of the loopback (as test8's TLS path) |
+| 2 | `--stop` takes the processes of the name STARTED as it: the base name of `argv[0]` in `/proc/<pid>/cmdline`, readable whoever owns the process. A script's `argv[0]` is its interpreter (`/bin/sh`), so the SysV script is not taken; another user's agent is, and its `EPERM` exits 1; a renamed or replaced binary is still taken (the watcher and its child fork, they do not exec). Not the inode the review proposed: the `--stop` of a deploy is run by the NEW binary, whose inode is not the running one's either | By hand, a scratch daemon built on `ydaemon.c`: a shell script of the same name survives its `--stop` (exit 0, daemon gone); the binary renamed to `*.bak-pre-x` and a new one put in place, the new one's `--stop` stops the old daemon (exit 0); the daemon run as root, `--stop` as the user: `EPERM` said, exit 1 |
+| 3 | fs_watcher: the re-watch is breadth first through `jn_unwatched`: a directory watched again queues its subdirectories not watched, tried in the same batch while there is room, parent first. Every try counts against the batch's 64, an `ENOSPC`/`ENOMEM` ends them, and the lookup is `jn_paths_wd` (path → wd), now kept for every watcher. *"Directories watched again"* is said at the end of the batch where none is left (`unwatched_said`), not while a subtree is still queued; and a path watched meanwhile is not handed twice | `test_fs_watcher_overflow` `do_test_unwatched_subtree_bound`: 200 subdirectories made under an unwatched `a`; `a` watchable, its children not: 3 `inotify_add_watch` calls (red: 202, and the ERROR said twice); then each child handed once, parent first, at most 64 per batch |
+| 4 | dbsimple: a symlink met inside the closed chain is followed (only root or the chain's user can have put it there); its target is walked from `/` again under the same rules, the user named so far still holding; `..` is the parent of the directories walked; 40 links at most. A third user's closed directory ends the chain (enforced; with the user carried across links, it changes no answer, so no test of its own). The plant's red case is committed: `__wrap_stat` tells the directories as `__wrap_fstat` does | `secret_attrs`: the realm behind `test_secret_attrs -> ../tmp/test_secret_attrs.real` is trusted (red on `a8e6dd30d`: refused); the plant under the 02775 parent (red on `da85b7a9b~1` now: loaded) |
 
 ### Low
 
-- **Deprecated `C_PROT_MQTT`:** with `istream_consume()` now checking the
-  append (`769af7b41`), a PUBLISH at or above the max block never completes.
-  Before, it was delivered truncated. Every later chunk logs an ERROR with a
-  stack, and no payload timeout ends it. A peer can do it. Cap the remaining
-  length, as tcp4h and websocket now do.
-- **OpenSSL `encrypt_data`** never resets `want_retries` after a write that
-  made progress (mbedTLS does): six WANTs spread over a long write abort it.
-- **logcenter:** a refused or failed `restart-yuneta` (sudo refused, or
-  systemctl failed) is not logged (`c_logcenter.c:957-977` checks only
-  `ret < 0`). Its loop is now blocked in `system()` up to the units' stop and
-  start timeouts (60 s), where it used to be about 1 s.
-- **`restart_nodes()`:** a yuno spared after its 10 s (D state, SIGKILLed,
-  certain to die) is never launched again once it dies. Re-arm its launch
-  when it goes, or list it in the answer.
-- **ExecStopPost:** `kill -KILL $p && logger` logs nothing when the kill
-  fails.
-- **`close_range`:** `SYS_close_range` comes from the kernel headers; with
-  headers older than 5.9 it compiles but always takes the slow loop
-  (`#define __NR_close_range 436` as a fallback).
-- **No test** for the C_UDP client, the websocket default max, a frame of
-  exactly `max-1` completing, the ytls -1 and WANT-stall paths, `--stop`,
-  `restart-yuneta`, the init script and ExecStopPost.
-- **Docs:** `list-jwk` "(empty)" for a C_AUTHZ without a treedb is wrong when
-  the config sets `jwks`: it lists keys that are never validated.
+| Item | Test |
+|------|------|
+| Deprecated `C_PROT_MQTT`: a remaining length above the max block less one is refused at its header (*"Mqtt packet too large"*, a warning, the connection closed), as tcp4h and the websocket | No test (the deprecated gclass has none of its own) |
+| OpenSSL `encrypt_data()`: `want_retries` back to 0 after a write that progressed, as mbedTLS | No test (a WANT stall is not staged) |
+| logcenter: `restart_yuneta_command` through one helper that says its end: `system()` that could not run, killed by a signal, or an exit code other than 0 (sudo refused, systemctl failed), each an ERROR. It still waits for the command: under the units that is the agent's restart, bounded by the units' timeouts, and the refusal of sudo comes at once. Running it detached would lose the exit code the review asked to log | No test (no ctest runs logcenter) |
+| `restart_nodes()`: the pids left after the 10 s are looked at every second for 5 minutes; each yuno is launched when its process is gone, and the last warning says to `run-yuno` them. A new restart resets it | No test (no ctest compiles `c_agent.c`) |
+| ExecStopPost: `if kill; then logger killed; else logger kill FAILED; fi` | The shell of both units checked with `sh -n` |
+| `close_range`: `SYS_close_range` given as 436 when the headers lack it, on the architectures built (the number is the same on all of them since 5.9's unified table) | Compiles |
+| Docs: `list-jwk` of a C_AUTHZ without a users treedb answers the config's `jwks`, which it never uses (YUNO_AUTH.md, CHANGELOG) | -- |
 
-## Order I would fix them in
+## Not done, and why
 
-1. The C_TCP flush path (1): one line, the same rule as the decrypt path.
-2. `--stop` (2).
-3. The fs_watcher re-watch (3).
-4. The dbsimple symlinked parent (4), and its test.
-5. The low items as their area is touched.
+- **"No test for"** list: the ones above say why each has none. The C_UDP
+  client, the websocket default max and a frame of exactly `max-1`
+  completing are still without a test of their own.
+- **wattyzer run** (the second machine of the release rule): not done in
+  this session.

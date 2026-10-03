@@ -590,10 +590,17 @@ is heard. It is kept, and tried again at the end of each batch of the
 watcher (64 per batch); once its watch is made it is handed AGAIN as
 created, now with its `subdir_wd`, at the batch's end, so its owner reads
 what was made in it meanwhile. One gone by then is forgotten (its parent
-said it). The first failure is an ERROR, *"Cannot watch a directory, out of
-inotify watches or memory: tried again at each batch (and the next ones that
-fail, counted)"*; when the last one is watched, a warning, *"Directories
-watched again: every one that could not be is watched now"*. Up to 7.25.21
+said it). Under `FS_FLAG_RECURSIVE_PATHS` what was made under it was not
+heard either: its subdirectories not watched are queued behind it and tried
+in the same way, parent first, so each one is handed as created after its
+parent. Every try counts against the batch's 64, and an `ENOSPC`/`ENOMEM`
+ends the batch's tries: a large subtree is watched over several batches, and
+never blocks the loop. The first failure is an ERROR, *"Cannot watch a
+directory, out of inotify watches or memory: tried again at each batch (and
+the next ones that fail, counted)"*; at the end of the batch where none is
+left, a warning, *"Directories watched again: every one that could not be is
+watched now"*. Up to 7.25.22 a subdirectory made meanwhile was never
+watched. Up to 7.25.21
 it was an ERROR per directory, and the directory was never watched: a
 timeranger2 follower took a key directory for gone, and lost every record
 of the key.

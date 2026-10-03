@@ -438,9 +438,17 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
          *  agent's CLI sets (1048576) it was a million close() calls (up to
          *  7.25.21). The loop stays for a kernel without close_range (< 5.9).
          *  Called through syscall(): the glibc wrapper is 2.34's, and a build
-         *  on an older glibc did not compile (up to 7.25.22)
+         *  on an older glibc did not compile (up to 7.25.22). Its number
+         *  comes from the kernel headers; with headers older than 5.9 it is
+         *  given here (436 on every architecture since the syscall tables
+         *  were unified at 424), else that build always took the loop. A
+         *  kernel without it answers ENOSYS, and the loop runs.
          */
         long closed = -1;
+#if !defined(SYS_close_range) && (defined(__x86_64__) || defined(__i386__) || \
+        defined(__aarch64__) || defined(__arm__) || defined(__riscv))
+    #define SYS_close_range 436
+#endif
 #ifdef SYS_close_range
         closed = syscall(SYS_close_range, 0U, ~0U, 0U);
 #endif
