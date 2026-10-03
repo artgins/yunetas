@@ -72,12 +72,7 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   skipping rows already registered (only the preview is tested,
   `c_agent_find_new_yunos`), `create-yuno` refusing a release name longer
   than `NAME_MAX`. Not exercised live: a form Save through a real websocket
-  drop. (Red tests added 2026-10-03: the two yuno-skeleton fixes
-  (`yuno_skeleton/templates` builds and runs the templates), `deactivate-snap` -1 on a failed save,
-  `save_json_to_file()`'s `close()` failure, the `kw_incref()` of C_NODE's
-  `treedbs` / `links` / `hooks` / `node` and of C_MQIOGATE's
-  `view-channels`, and `kw_update_missing()` with a gbuffer -- the function
-  C_IEVENT_SRV's `EV_ON_CLOSE` uses, whose own kw carries none.)
+  drop.
 ---
 
 ## 3. Decisions pending

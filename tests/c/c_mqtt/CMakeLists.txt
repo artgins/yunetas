@@ -60,6 +60,7 @@ SET(SRCS
     wrong_ack
     legacy_prot
     client_pubrec
+    will_acl
 )
 
 ##############################################

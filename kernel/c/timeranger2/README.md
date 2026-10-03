@@ -429,7 +429,17 @@ When the master calls `tranger2_delete_key()`:
    `disks/<rt_id>/.d<seq>.<key>` is created and removed at once
    (`.h<seq>.<sha256>` for a key too long for the name). `seq` is the
    topic's delete sequence, recorded durable in `<topic>/delete_seq.json`
-   before the signal. `rt_by_disk` followers recursive-watching
+   BEFORE `keys/<key>/` is removed (when the topic has a feed): a follower
+   that lists `keys/` at an overflow and reads the record after bounds each
+   missing key at or above its delete. The master makes the record (0) when
+   it opens a topic that has none; a record it cannot read refuses the
+   delete (`-1`, logged) and is left as it is. A signal the master could
+   not remove (it died in between, or the `rmdir()` failed) is removed at
+   its next open of the topic: the feed hears it if it was the last delete;
+   an older one (deletes followed it) is moved out of the feed's directory
+   first and removed unheard, with a warning. A follower that opens a feed on a topic with no record logs that
+   it hears no delete (its master is older than 7.26.0, or has not opened
+   the topic since its upgrade). `rt_by_disk` followers recursive-watching
    `disks/<rt_id>/` hear the signal (`FS_SUBDIR_DELETED_TYPE` of the
    `.d` name), know by its sequence whether the delete is new or one
    another feed heard first, and run the same callback fan-out on their

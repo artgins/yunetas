@@ -188,3 +188,49 @@ Items 1, 2, 3 (high) → the `delete_seq.json` read and the protocol version →
 `expect_no_debts()` → the CHANGELOG upgrade steps and `deploying-yunos.md`
 → the rest of the mediums and lows that fit → versions, JS packages → the
 two-machine suite → the performance report → tag.
+
+## Answer (2026-10-03, evening)
+
+Every finding was checked against the code. All the code findings were
+real except one low, and all are fixed; each fix has a test that fails on
+the code before it (checked by putting that code back), except where the
+table says otherwise. Fix round: clean SDK build with no warning or error,
+and the tests of each fix (timeranger2/, c_tranger, treedb, C_NODE, c_mqtt,
+emailsender, yuno_skeleton: all green). Full suite not run (user rule).
+
+| Item | Verdict | Done |
+|------|---------|------|
+| High 1, negative bound over several keys | Real | Each key's iterator gets `json_deep_copy(match_cond)` in `tranger2_open_list()` and C_TRANGER's `open-list`. `test_tm_order` (an rkey list of two keys, red: `D2 D3` for `D2 D3 T1 T2 T3`), `test_c_tranger` (red: 1 row for 2) |
+| High 2, a long key told to the first feed only | Real | The follower keeps `{ref: key}` (`delete_ref_keys`) while the delete is in `deletes_applied` (pruned with it), also on the master's own feeds and at an overflow (whose `/`-refs are resolved now). `odd_keys` with two feeds (red: 3 and 2) |
+| High 3, overflow during a concurrent delete | Real | `reserve_delete_seq()` takes and records the sequence BEFORE `keys/<key>` is removed; the follower lists `keys/` and reads the record AFTER. Red: `delete_seq_record` (a delete whose rmrdir fails has taken its sequence) |
+| `delete_seq.json` read failure | Real | A record without the sequence is an error; `next_delete_seq()` returns -1 and writes nothing; `tranger2_delete_key()` refuses (`-1`, logged) before removing anything. A signal at or below a feed's last one logs that the sequence went back |
+| Protocol mismatch silent | Real | The master makes `delete_seq.json` (0) at the open of a topic; a follower opening a feed on a topic without it logs an ERROR. The old-follower direction cannot be caught by code it does not have: in the CHANGELOG upgrade steps and `deploying-yunos.md` (both directions, restart order) |
+| Negative `tm` against an approximate highest tm | Real | Restored the pre-v7 meaning (`tr2migrate/30_timeranger.c`: the last record's `__tm__`): the tm of the last row of the file holding the key's highest t, read from disk; the same on master, reload and replica. `test_tm_order` key `mid` (highest tm in the middle row; red on the master in memory) |
+| gobj-ui re-read per link | Real | gobj-ui `8dd3893` (pushed, not published): re-read only a loaded parent row, one read in flight per parent, a dirty flag for the rest (a burst: 2 reads). 4 vitest cases |
+| `expect_no_debts()` always true | Real | Reads the topic now. It then failed at 5 places, and the design is right there: a delete is kept while a lagging feed (opened in flight, or overflowed) can still hear it; dropping it reopens the double delete. The check is what prune promises: nothing kept at or below what every watched feed heard, and no name kept without its delete |
+| Signal dir left by a crash / failed rmdir | Real | Swept at the master's next open of the topic: the one of the LAST delete is removed in place (the feed hears it); an older one, followed by deletes the feed heard, is moved out of the feed's dir and removed unheard, with a warning (heard late it could forget a key written again). The overflow pass skips dot names. Red: `delete_seq_record` |
+| `deletes_applied` growth | Partly | A TOLD signal now advances `delete_seq_heard`. A feed whose dir the master cannot write keeps entries until it hears a signal: bounded by the keys deleted meanwhile, and the master logs every failed signal |
+| `key_of_delete_ref()` hashing | Real | One pass builds `long_key_refs` ({ref: key}); a hit costs nothing, a miss rebuilds once |
+| `test_yuno_skeletons.sh` fallbacks | Real | `YUNETAS_BASE` is the script's own tree; no fallback to the installed binary; `'gclass': 'C_SKTSVC'` checked |
+| emailsender 300 ms | Real | 800 ms: under the 1 s of `timeout_retry` (a partial pacing still fails it) |
+| No test for the MQTT will under the ACL | Real | `c_mqtt/will_acl` (raw clients; red without the check). Its memory check found a NEW defect, see below |
+| `8f90a384e` without estadodelaire's node | **Not a defect** | estadodelaire's node is wattyzer's machine (same box, 37.187.89.46), which was checked |
+
+**Found while fixing:** `C_NODE` handed the treedb the caller's kw itself,
+and `treedb_store_files()` takes its `gbuffer` by removing the key: on a kw
+shared by `kw_incref()` the other holders then released nothing. Every MQTT
+CONNECT with a will leaked its payload (2 x 357 bytes in the test). In
+7.25.22. Fixed: a kw with a binary field reaches the treedb as a `kw_twin()`.
+
+**Release texts:** CHANGELOG `## Unreleased` has its intro and
+`### Upgrade steps`; the bullets this round changed are corrected in place;
+the tm-marker cost now says ~14.5 ms (7.4 ms on a marked topic of
+7.25.22). `deploying-yunos.md` has "Upgrading to 7.26.0" (protocol, link
+events, write-attr, with the code estadodelaire uses); `performance.md`,
+`benchmarks.md`, the timeranger2 API page and README, `test_suite.md`
+updated; TODO §2's parenthetical removed.
+
+**Left for the release itself (not done):** `### Performance, against
+7.25.22` and the report (A/B), versions (`YUNETA_VERSION` 7.26.0, `RELEASE`
+1, CLAUDE.md), gobj-ui 7.26.0 on npm + the ranges + the JS repin, the
+two-machine suite, the tag and the doc repin.

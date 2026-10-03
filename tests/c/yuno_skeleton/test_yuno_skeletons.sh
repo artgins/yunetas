@@ -17,12 +17,15 @@
 #
 set -u
 
-YUNETAS_BASE="${YUNETAS_BASE:-/yuneta/development/yunetas}"
+#
+#   The tree is the one this script is in: a run in a worktree tests the
+#   worktree, whatever YUNETAS_BASE the shell carries (it fell back to
+#   /yuneta/development/yunetas and to the installed /yuneta/bin/yuno-skeleton,
+#   so a worktree run without YUNETAS_BASE tested the live tree)
+#
+YUNETAS_BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 export YUNETAS_BASE
-BIN="$YUNETAS_BASE/utils/c/yuno-skeleton/build/yuno-skeleton"   # as built; installed in /yuneta/bin
-if [ ! -x "$BIN" ]; then
-    BIN="/yuneta/bin/yuno-skeleton"
-fi
+BIN="$YUNETAS_BASE/utils/c/yuno-skeleton/build/yuno-skeleton"   # as built in this tree
 SKELETONS="$YUNETAS_BASE/utils/c/yuno-skeleton/skeletons"
 WORK=$(mktemp -d /tmp/test_yuno_skeletons.XXXXXX)
 [ -n "${KEEP_WORK:-}" ] || trap 'rm -rf "$WORK"' EXIT
@@ -108,7 +111,8 @@ s = s.replace("'autoplay': false",
 open(path, "w").write(s)
 PY
 sed -i 's|printf("Timeout\\n");|printf("Timeout child\\n");|' "$WORK/sktstd/src/c_sktchild.c"
-grep -q "register_c_sktsvc();" "$MAIN" && grep -q "C_SKTCHILD" "$MAIN" || fail "the service and the child were not put in the standalone yuno"
+grep -q "register_c_sktsvc();" "$MAIN" && grep -q "'gclass': 'C_SKTSVC'" "$MAIN" && grep -q "C_SKTCHILD" "$MAIN" \
+    || fail "the service and the child were not put in the standalone yuno"
 if build "$WORK/sktstd"; then
     timeout -s INT 3 "$WORK/sktstd/build/sktstd" -l 1 > "$WORK/run2.log" 2>&1
     grep -q "^Timeout$" "$WORK/run2.log" || { fail "the gclass_service's timer did not reach its ac_timeout"; head -20 "$WORK/run2.log"; }

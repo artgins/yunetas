@@ -2212,7 +2212,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 priv->tranger,
                 topic_name,
                 key_,
-                json_incref(match_cond),    // owned
+                json_deep_copy(match_cond), // owned; one per key: a negative bound is resolved per key
                 load_record_callback,       // collects into extra's `data`
                 "",         // iterator id (defaults to the key)
                 list_id,    // creator

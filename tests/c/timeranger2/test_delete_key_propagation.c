@@ -53,7 +53,17 @@
  *        first feed was told it again at its next overflow: [DEL DEL]).
  *      - do_test_odd_keys: a key starting with '#', a key too long for the
  *        signal's name (signalled by its sha256) and the key `#<that hash>`:
- *        each delete forgets its own key, and only it.
+ *        each delete forgets its own key, and only it, and EACH of two
+ *        feeds is told the three (the long key was told to the first feed
+ *        only: its name was looked up in the cache the first feed had
+ *        just made forget it).
+ *      - do_test_delete_seq_record: the record of the master's delete
+ *        sequence (`<topic>/delete_seq.json`): made at the open, the
+ *        sequence taken before the key leaves keys/ (a delete whose rmrdir()
+ *        fails has taken it), a signal the master could not remove heard at
+ *        its next open (an older one, followed by other deletes, removed
+ *        unheard), an unreadable record refusing the delete and left as
+ *        it is, a follower with no record saying that it hears no delete.
  *      - do_test_second_delete_in_doubt: a feed opened in flight that never
  *        hears the first delete hears a SECOND delete of the key first: a
  *        new one, by its sequence (up to the fix it was taken for the first
@@ -2146,7 +2156,7 @@ PRIVATE int do_test_mirror_fails(void)
     wrapped_failures = 0;
     int ret = tranger2_delete_key(tranger, TOPIC_NAME, KEY_A);
     failing_opendir[0] = 0;
-    if(wrapped_failures != 1) {
+    if(wrapped_failures != 2) {     // the sequence's look at disks/ (reserve_delete_seq()), then the mirror's
         printf("%sERROR%s --> mirror_fails: no opendir() failed, the test proves nothing\n",
             On_Red BWhite, Color_Off);
         result += -1;
@@ -2170,7 +2180,7 @@ PRIVATE int do_test_mirror_fails(void)
     ret = tranger2_delete_key(tranger, TOPIC_NAME, KEY_B);
     failing_readdir[0] = 0;
     failing_dirp = NULL;
-    if(wrapped_failures != 1) {
+    if(wrapped_failures != 2) {     // the sequence's look at disks/ (reserve_delete_seq()), then the mirror's
         printf("%sERROR%s --> mirror_fails: no readdir() failed, the test proves nothing\n",
             On_Red BWhite, Color_Off);
         result += -1;
@@ -2924,6 +2934,342 @@ PRIVATE int do_test_second_delete_in_doubt(void)
 }
 
 /***************************************************************************
+ *  do_test_delete_seq_record: the master's record of its delete sequence
+ *  (`<topic>/delete_seq.json`) and what the followers make of it.
+ *
+ *      - the master makes it at the open of the topic, with 0;
+ *      - the sequence is taken BEFORE the key leaves keys/: a delete whose
+ *        rmrdir() fails has taken it (a follower that lists keys/ at an
+ *        overflow and reads the sequence after bounds every missing key
+ *        at or above its delete);
+ *      - a signal the master made and could not remove is removed at its
+ *        next open: the feed hears it if it was the last delete, and an
+ *        older one is moved away unheard (deletes followed it);
+ *      - a record that cannot be read refuses the delete and is left as
+ *        it is (it counted from 0 and wrote 1 over the real record);
+ *      - a follower that opens a feed on a topic with no record says that
+ *        it hears no delete (its master is older, or has not opened it).
+ ***************************************************************************/
+PRIVATE int seq_hold_signals = 0;
+PRIVATE int hold_delete_signal(const char *path, int *ret)
+{
+    const char *name = strrchr(path, '/');
+    if(!seq_hold_signals || !name || strncmp(name, "/.d", 3) != 0) {
+        return FALSE;
+    }
+    errno = EIO;
+    *ret = -1;
+    return TRUE;
+}
+
+PRIVATE json_int_t read_seq_record(const char *path_topic)
+{
+    json_t *jn = load_json_from_file(0, path_topic, "delete_seq.json", 0);
+    if(!jn) {
+        return -1;
+    }
+    json_t *v = json_object_get(jn, "delete_seq");
+    json_int_t seq = json_is_integer(v)? json_integer_value(v) : -2;
+    JSON_DECREF(jn)
+    return seq;
+}
+
+PRIVATE int expect_seq_record(const char *what, const char *path_topic, json_int_t expected)
+{
+    json_int_t seq = read_seq_record(path_topic);
+    if(seq == expected) {
+        return 0;
+    }
+    printf("%sERROR%s --> delete_seq record, %s: %lld, expected %lld\n",
+        On_Red BWhite, Color_Off, what, (long long)seq, (long long)expected);
+    return -1;
+}
+
+PRIVATE int do_test_delete_seq_record(void)
+{
+    int result = 0;
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+    reset_callback_state();
+
+    set_expected_results(
+        "delete_seq: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_master(path_root, TRUE);
+    if(!tm || create_topic(tm) < 0) {
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    result += expect_seq_record("made at the open", path_topic, 0);
+    json_t *tf = startup_tranger(path_root, FALSE, TRUE);
+    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
+        tranger2_shutdown(tf);
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    json_t *feed = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, my_record_callback, "rtSEQ", "", NULL);
+    if(!feed) {
+        result += -1;
+    }
+    tranger2_set_rt_key_deleted_callback(feed, my_key_deleted_callback, NULL);
+    drain(10);
+    if(append_to(tm, 1, 2) < 0 || append_to(tm, 2, 1) < 0 || append_to(tm, 3, 1) < 0 ||
+            append_to(tm, 4, 1) < 0 || append_to(tm, 5, 1) < 0) {
+        result += -1;
+    }
+    drain(30);
+    result += test_json(NULL);
+
+    /*
+     *  The sequence is taken before the key leaves keys/
+     */
+    set_expected_results_unordered(
+        "delete_seq: a delete whose rmrdir() fails has taken its sequence",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "remove() FAILED",
+            "msg", "Cannot delete subdir key. rmrdir() FAILED"
+        ),
+        NULL, NULL, 1
+    );
+    char blocker[PATH_MAX];
+    char blocked[PATH_MAX];
+    build_path(blocker, sizeof(blocker), path_topic, "keys", KEY_A, "blocker", NULL);
+    build_path(blocked, sizeof(blocked), blocker, "file", NULL);
+    mkdir(blocker, 0700);
+    FILE *f = fopen(blocked, "w");
+    if(f) {
+        fclose(f);
+    }
+    chmod(blocker, 0500);
+    if(tranger2_delete_key(tm, TOPIC_NAME, KEY_A) == 0) {
+        printf("%sERROR%s --> delete_seq: the delete answered done\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    drain(30);
+    result += expect_seq_record("taken before the remove", path_topic, 1);
+    if(deleted_callback_count != 0) {
+        printf("%sERROR%s --> delete_seq: a failed delete was told\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    chmod(blocker, 0700);
+    if(tranger2_delete_key(tm, TOPIC_NAME, KEY_A) < 0) {
+        result += -1;
+    }
+    drain(30);
+    result += expect_seq_record("the delete done", path_topic, 2);
+    if(deleted_callback_count != 1) {
+        printf("%sERROR%s --> delete_seq: the delete told %zu times, expected 1\n",
+            On_Red BWhite, Color_Off, deleted_callback_count);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A signal left by the master: heard at its next open
+     */
+    set_expected_results(
+        "delete_seq: a signal left by the master",
+        json_pack("[{s:s}]",
+            "msg", "cannot signal the key delete in disks/<rt_id>/"
+        ),
+        NULL, NULL, 1
+    );
+    rmdir_hook = hold_delete_signal;
+    seq_hold_signals = 1;
+    if(tranger2_delete_key(tm, TOPIC_NAME, KEY_B) < 0) {
+        result += -1;
+    }
+    seq_hold_signals = 0;
+    rmdir_hook = NULL;
+    drain(30);
+    if(deleted_callback_count != 1) {
+        printf("%sERROR%s --> delete_seq: a signal not removed was heard\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results(
+        "delete_seq: removed at the master's next open",
+        json_pack("[{s:s}]",
+            "msg", "A delete signal left by the master was removed: the feed hears it now"
+        ),
+        NULL, NULL, 1
+    );
+    tranger2_shutdown(tm);
+    drain(10);
+    tm = startup_master(path_root, TRUE);
+    if(!tm || !tranger2_open_topic(tm, TOPIC_NAME, TRUE)) {
+        result += -1;
+    }
+    drain(30);
+    if(deleted_callback_count != 2 ||
+            json_object_get(json_object_get(tranger2_topic(tf, TOPIC_NAME), "cache"), KEY_B)) {
+        printf("%sERROR%s --> delete_seq: the left signal was not heard (told %zu)\n",
+            On_Red BWhite, Color_Off, deleted_callback_count);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  An OLD signal left by the master (deletes followed it): removed
+     *  unheard -- told after the later ones, it could take a key written
+     *  again out of the cache
+     */
+    set_expected_results(
+        "delete_seq: an old signal left by the master",
+        json_pack("[{s:s}]",
+            "msg", "cannot signal the key delete in disks/<rt_id>/"
+        ),
+        NULL, NULL, 1
+    );
+    char key4[32], key5[32];
+    snprintf(key4, sizeof(key4), "%019d", 4);
+    snprintf(key5, sizeof(key5), "%019d", 5);
+    rmdir_hook = hold_delete_signal;
+    seq_hold_signals = 1;
+    if(tranger2_delete_key(tm, TOPIC_NAME, key4) < 0) {
+        result += -1;
+    }
+    seq_hold_signals = 0;
+    rmdir_hook = NULL;
+    if(tranger2_delete_key(tm, TOPIC_NAME, key5) < 0) {
+        result += -1;
+    }
+    drain(30);
+    if(deleted_callback_count != 3) {
+        printf("%sERROR%s --> delete_seq: told %zu, expected 3 (key 5 only)\n",
+            On_Red BWhite, Color_Off, deleted_callback_count);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results(
+        "delete_seq: the old signal removed unheard at the master's next open",
+        json_pack("[{s:s}]",
+            "msg", "An old delete signal left by the master was removed unheard: the feed missed that delete"
+        ),
+        NULL, NULL, 1
+    );
+    tranger2_shutdown(tm);
+    drain(10);
+    tm = startup_master(path_root, TRUE);
+    if(!tm || !tranger2_open_topic(tm, TOPIC_NAME, TRUE)) {
+        result += -1;
+    }
+    drain(30);
+    if(deleted_callback_count != 3) {
+        printf("%sERROR%s --> delete_seq: the old left signal was heard (told %zu)\n",
+            On_Red BWhite, Color_Off, deleted_callback_count);
+        result += -1;
+    }
+    char feed_dir[PATH_MAX];
+    build_path(feed_dir, sizeof(feed_dir), path_topic, "disks", NULL);
+    int stale = 0;
+    DIR *d = opendir(feed_dir);
+    if(d) {
+        struct dirent *de;
+        while((de = readdir(d)) != NULL) {
+            if(strncmp(de->d_name, ".stale_signal.", 14) == 0) {
+                stale++;
+            }
+        }
+        closedir(d);
+    }
+    build_path(feed_dir, sizeof(feed_dir), path_topic, "disks", "rtSEQ", NULL);
+    d = opendir(feed_dir);
+    if(d) {
+        struct dirent *de;
+        while((de = readdir(d)) != NULL) {
+            if(de->d_name[0] == '.' && (de->d_name[1] == 'd' || de->d_name[1] == 'h')) {
+                stale++;
+            }
+        }
+        closedir(d);
+    }
+    if(stale != 0) {
+        printf("%sERROR%s --> delete_seq: %d signal directories left\n", On_Red BWhite, Color_Off, stale);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A record that cannot be read refuses the delete, and stays
+     */
+    set_expected_results(
+        "delete_seq: a record that cannot be read",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "delete_seq.json holds no delete sequence",
+            "msg", "delete_seq.json holds no delete sequence",
+            "msg", "Cannot delete key: the delete sequence of the topic cannot be read, and its rt_disk feeds could not be told"
+        ),
+        NULL, NULL, 1
+    );
+    tranger2_shutdown(tm);
+    drain(10);
+    char record[PATH_MAX];
+    build_path(record, sizeof(record), path_topic, "delete_seq.json", NULL);
+    chmod(record, 0600);
+    f = fopen(record, "w");
+    if(f) {
+        fputs("{\"not_a_sequence\": 7}", f);
+        fclose(f);
+    }
+    tm = startup_master(path_root, TRUE);
+    if(!tm || !tranger2_open_topic(tm, TOPIC_NAME, TRUE)) {
+        result += -1;
+    }
+    char key3[32];
+    snprintf(key3, sizeof(key3), "%019d", 3);
+    if(tranger2_delete_key(tm, TOPIC_NAME, key3) == 0) {
+        printf("%sERROR%s --> delete_seq: a delete with no sequence was done\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += expect_seq_record("left as it is", path_topic, -2);
+    if(!json_object_get(json_object_get(tranger2_topic(tm, TOPIC_NAME), "cache"), key3)) {
+        printf("%sERROR%s --> delete_seq: the refused delete forgot the key\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    drain(30);
+    result += test_json(NULL);
+
+    /*
+     *  A follower whose master keeps no record
+     */
+    set_expected_results(
+        "delete_seq: a feed on a topic with no record",
+        json_pack("[{s:s}]",
+            "msg", "The master of the topic does not signal key deletes as this follower hears them: it is older than 7.26.0, or has not opened the topic since its upgrade. This feed hears no key delete until it does"
+        ),
+        NULL, NULL, 1
+    );
+    tranger2_shutdown(tm);
+    drain(10);
+    unlink(record);
+    json_t *feed2 = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, my_record_callback, "rtSEQ2", "", NULL);
+    drain(10);
+    result += test_json(NULL);
+
+    set_expected_results("delete_seq: shutdown", NULL, NULL, NULL, 1);
+    if(feed2) {
+        tranger2_close_rt_disk(tf, feed2);
+    }
+    tranger2_close_rt_disk(tf, feed);
+    drain(10);
+    tranger2_shutdown(tf);
+    drain(10);
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  do_test_odd_keys: the name of a delete signal for keys of any shape.
  *  A key starting with '#', a key too long for `.d<seq>.<key>` (signalled
  *  by its sha256, `.h<seq>.<hash>`), and the short key `#<that hash>`:
@@ -2933,10 +3279,15 @@ PRIVATE int do_test_second_delete_in_doubt(void)
  ***************************************************************************/
 #define ODD_TOPIC   "topic_odd_keys"
 PRIVATE int odd_told = 0;
+PRIVATE int odd_told2 = 0;
 PRIVATE int odd_key_deleted_callback(
     json_t *tranger, json_t *topic, const char *key, json_t *list, void *user_data)
 {
-    odd_told++;
+    if(user_data) {
+        odd_told2++;
+    } else {
+        odd_told++;
+    }
     return 0;
 }
 PRIVATE int odd_record_callback(
@@ -2972,6 +3323,7 @@ PRIVATE int do_test_odd_keys(void)
                 path_topic, sizeof(path_topic));
     rmrdir(path_database);
     odd_told = 0;
+    odd_told2 = 0;
 
     char long_key[241];
     memset(long_key, 'k', 240);
@@ -3006,10 +3358,12 @@ PRIVATE int do_test_odd_keys(void)
         return -1;
     }
     json_t *feed = tranger2_open_rt_disk(tf, ODD_TOPIC, "", NULL, odd_record_callback, "rtODD", "", NULL);
-    if(!feed) {
+    json_t *feed2 = tranger2_open_rt_disk(tf, ODD_TOPIC, "", NULL, odd_record_callback, "rtODD2", "", NULL);
+    if(!feed || !feed2) {
         result += -1;
     }
     tranger2_set_rt_key_deleted_callback(feed, odd_key_deleted_callback, NULL);
+    tranger2_set_rt_key_deleted_callback(feed2, odd_key_deleted_callback, (void *)1);
     drain(10);
     if(odd_append(tm, short_key) < 0 || odd_append(tm, long_key) < 0 || odd_append(tm, hash_key) < 0) {
         result += -1;
@@ -3037,9 +3391,13 @@ PRIVATE int do_test_odd_keys(void)
     }
     drain(30);
     result += odd_expect_cache(tf, long_key, FALSE, "the long key deleted");
-    if(odd_told != 3) {
-        printf("%sERROR%s --> odd keys: the feed was told %d deletes, expected 3\n",
-            On_Red BWhite, Color_Off, odd_told);
+    if(odd_told != 3 || odd_told2 != 3) {
+        printf("%sERROR%s --> odd keys: the feeds were told %d and %d deletes, expected 3 each\n",
+            On_Red BWhite, Color_Off, odd_told, odd_told2);
+        result += -1;
+    }
+    if(json_object_size(json_object_get(tranger2_topic(tf, ODD_TOPIC), "delete_ref_keys")) != 0) {
+        printf("%sERROR%s --> odd keys: names of deletes kept after every feed heard them\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     json_t *applied = json_object_get(tranger2_topic(tf, ODD_TOPIC), "deletes_applied");
@@ -3048,6 +3406,7 @@ PRIVATE int do_test_odd_keys(void)
         result += -1;
     }
     tranger2_close_rt_disk(tf, feed);
+    tranger2_close_rt_disk(tf, feed2);
     drain(10);
     result += test_json(NULL);
 
@@ -3307,6 +3666,7 @@ int main(int argc, char *argv[])
     result += do_test_opened_after_heard();
     result += do_test_second_delete_in_doubt();
     result += do_test_odd_keys();
+    result += do_test_delete_seq_record();
     result += do_test_known_reborn_fd(FALSE);
     result += do_test_known_reborn_fd(TRUE);
     result += do_test_stale_link(FALSE);

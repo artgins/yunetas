@@ -239,7 +239,8 @@ ycommand -c 'list-yunos'      # the release column shows the new version, runnin
 
 A node coming from 7.25.5..7.25.22 keeps the tm markers it wrote; they are
 ignored, and there is nothing to migrate: see
-[The tm markers of 7.25.5..7.25.22](#dy-mark-tm-order).
+[The tm markers of 7.25.5..7.25.22](#dy-mark-tm-order). An upgrade to 7.26.0
+has three more things to check: see [Upgrading to 7.26.0](#dy-upgrade-726).
 
 ### Why step 3 is not optional
 
@@ -422,6 +423,70 @@ tm query can MISS rows. After such a rollback, run that release's own
 ```bash
 ycommand -c 'command-yuno id=<id> service=tranger_treedb_x command=mark-tm-order all=1'
 ```
+
+(dy-upgrade-726)=
+### Upgrading to 7.26.0: followers with their master, link events, write-attr
+
+**1. The rt_disk followers of a topic upgrade with its master.** 7.26.0 tells
+a key delete to the followers with the master's delete sequence (a signal
+`disks/<rt_id>/.d<seq>.<key>`, and the record `<topic>/delete_seq.json`). A
+follower of 7.25.22 under a 7.26.0 master takes each signal for a key: its
+`key_deleted` callback gets a key that does not exist, and the real delete is
+not heard. A 7.26.0 follower under a 7.25.22 master hears no delete, and logs
+it when it opens a feed:
+
+```text
+The master of the topic does not signal key deletes as this follower hears
+them: it is older than 7.26.0, or has not opened the topic since its upgrade.
+```
+
+The followers are the readers of another yuno's store: replica yunos,
+`tr2list --follow`, the lists of a `C_TRANGER` that is not the master. Upgrade
+them in the same window as the master. On one node `yunetas upgrade-yunos`
+restarts every yuno at once; a follower that starts before its master opened
+the topic logs the line above ONCE (the master makes the record when it opens
+the topic, and it stays). On another node, upgrade it right after the master's.
+
+**2. `with_link_events` is on by default** (`C_NODE`, `C_TREEDB`, `C_AUTHZ`):
+a link or an unlink publishes `EV_TREEDB_NODE_LINKED` / `UNLINKED`, not the
+parent's `EV_TREEDB_NODE_UPDATED`. A yuno served by a v1 SPA (it reads the
+parent's update) turns it off, in its `C_TREEDB` and in its `C_AUTHZ`:
+
+```C
+json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i, s:b}",
+    "path", path,
+    "filename_mask", "%Y",
+    "master", 1,
+    "xpermission", 02770,
+    "rpermission", 0660,
+    "exit_on_error", LOG_OPT_EXIT_ZERO,
+    "with_link_events", 0   // the v1 SPA reads the parent's EV_TREEDB_NODE_UPDATED
+);
+priv->gobj_treedbs = gobj_create_service("treedbs", C_TREEDB, kw_treedbs, gobj);
+```
+
+and in the services of its `main.c`:
+
+```text
+{
+    'name': 'authz',
+    'gclass': 'C_AUTHZ',
+    'kw': {
+        'with_link_events': false
+    }
+}
+```
+
+(estadodelaire's `db_history` does exactly this.)
+
+A gobj that subscribes to EVERY event of a treedb service now gets the two
+events too: declare them in its FSM, or subscribe only the ones it handles. A
+GUI that shows the hooks of a parent needs gobj-ui 7.25.26 or later.
+
+**3. `write-attr` writes only `SDF_WR` attributes.** A persistent attribute
+without `SDF_WR` answers *"attr not writable"*. A script that set one at run
+time puts it in the yuno's config (`yunos/batches/<host>/<yuno>.json`), or uses
+the attribute's own command (`set-max-sessions`, `set-email-user`, ...).
 
 (dy-recipe-config)=
 ## Recipe C — config-only change

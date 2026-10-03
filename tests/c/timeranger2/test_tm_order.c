@@ -17,7 +17,9 @@
  *        that match, and a rowid bound around it;
  *      - a file whose tm goes back inside it (its first and last rows do
  *        not bound it);
- *      - a negative bound, relative to the key's last record.
+ *      - a negative bound, relative to the key's last record -- its t,
+ *        its tm (not the highest tm, which only the master in memory
+ *        knows), and each key's own in a list of several keys.
  *
  *  From 7.25.5 to 7.25.22 the master marked a file whose tm went back
  *  (`<file>.tm_unordered`, and `marks_tm_unordered` in the topic_desc.json)
@@ -29,6 +31,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <stdlib.h>
 #include <signal.h>
 #include <limits.h>
 #include <fcntl.h>
@@ -217,6 +220,56 @@ PRIVATE int expect_cond(
     return result;
 }
 
+/*
+ *  What a list of several keys (no `key`) serves with `cond` (owned), its
+ *  contents sorted: the order of the keys is not the point
+ */
+PRIVATE int cmp_str(const void *a, const void *b)
+{
+    return strcmp(*(const char * const *)a, *(const char * const *)b);
+}
+
+PRIVATE int expect_keys_list(
+    json_t *tranger,
+    const char *who,
+    json_t *cond,   // owned
+    const char *expected
+)
+{
+    got_list[0] = 0;
+    char *s = json_dumps(cond, JSON_COMPACT);
+    char what[256];
+    snprintf(what, sizeof(what), "%s list of keys %s", who, s? s: "");
+    jsonp_free(s);
+
+    json_object_set_new(cond, "load_record_callback",
+        json_integer((json_int_t)(uintptr_t)on_list_record));
+    json_object_set_new(cond, "to_rowid", json_integer(1000000));   // no realtime
+    json_t *list = tranger2_open_list(
+        tranger, TOPIC_NAME, cond, json_object(), "", FALSE, ""
+    );
+    if(list) {
+        tranger2_close_list(tranger, list);
+    }
+
+    char *items[64];
+    int n = 0;
+    char *saveptr = NULL;
+    for(char *tok = strtok_r(got_list, " ", &saveptr); tok && n < 64;
+            tok = strtok_r(NULL, " ", &saveptr)) {
+        items[n++] = tok;
+    }
+    qsort(items, (size_t)n, sizeof(items[0]), cmp_str);
+    char bf[512] = "";
+    for(int i = 0; i < n; i++) {
+        if(i > 0) {
+            strncat(bf, " ", sizeof(bf) - strlen(bf) - 1);
+        }
+        strncat(bf, items[i], sizeof(bf) - strlen(bf) - 1);
+    }
+    return expect(what, bf, expected);
+}
+
 PRIVATE int expect(const char *what, const char *got, const char *expected)
 {
     if(strcmp(got, expected) != 0) {
@@ -333,9 +386,9 @@ PRIVATE int expect_the_answers(json_t *tranger, const char *who)
     /*
      *  A negative bound is relative to the key's last record, as before v7:
      *  `from` takes the rows after last - N (that bound excluded), `to` the
-     *  ones up to last - N; t against the last t, tm against the highest
-     *  tm. Up to 7.25.22 a negative reached the matcher raw, compared with
-     *  an unsigned __t__, and no row matched
+     *  ones up to last - N; t against its t, tm against ITS tm (D3's 150,
+     *  not the highest, D2's 5000). Up to 7.25.22 a negative reached the
+     *  matcher raw, compared with an unsigned __t__, and no row matched
      */
     result += expect_cond(tranger, who, "gap",
         json_pack("{s:I}", "from_t", (json_int_t)-(DAY + 1)),
@@ -354,12 +407,39 @@ PRIVATE int expect_the_answers(json_t *tranger, const char *who)
         "D1 D2 D3", "D3 D2 D1"
     );
     result += expect_cond(tranger, who, "gap",
-        json_pack("{s:I}", "from_tm", (json_int_t)-4900),
+        json_pack("{s:I}", "from_tm", (json_int_t)-50),
         "D2 D3", "D3 D2"
     );
     result += expect_cond(tranger, who, "gap",
-        json_pack("{s:I}", "to_tm", (json_int_t)-4900),
+        json_pack("{s:I}", "to_tm", (json_int_t)-50),
         "D1", "D1"
+    );
+    /*
+     *  The highest tm in the middle of a file: the master in memory knew it
+     *  (every row appended), a load does not (the first and last rows), so
+     *  a bound against the highest tm answered one thing on the master and
+     *  another reloaded or on a replica. Against the last record's tm (150)
+     *  every store answers the same
+     */
+    result += expect_cond(tranger, who, "mid",
+        json_pack("{s:I}", "from_tm", (json_int_t)-100),
+        "M1 M2 M3", "M3 M2 M1"
+    );
+    result += expect_cond(tranger, who, "mid",
+        json_pack("{s:I}", "to_tm", (json_int_t)-40),
+        "M1", "M1"
+    );
+
+    /*
+     *  ... and relative to EACH key's last record in a list of several
+     *  keys: "gap" ends at DAY1+2*DAY+10, "infile" at DAY1+1002. The keys
+     *  of a list shared one condition, and the first key's resolved bound
+     *  was every other's (gap's leaves infile nothing; infile's gives gap
+     *  all of it)
+     */
+    result += expect_keys_list(tranger, who,
+        json_pack("{s:s, s:I}", "rkey", "^(gap|infile)$", "from_t", (json_int_t)-(DAY + 1)),
+        "D2 D3 T1 T2 T3"
     );
 
     /*
@@ -474,6 +554,11 @@ PRIVATE int do_test(void)
         snprintf(content, sizeof(content), "B%04d", i);
         append_tm(tm, "blocks", (uint64_t)(BLOCK_T0 + i), (uint64_t)i, content);
     }
+
+    /*  one file, its highest tm in the middle row  */
+    append_tm(tm, "mid", DAY1 + 3000, 100, "M1");
+    append_tm(tm, "mid", DAY1 + 3001, 900, "M2");
+    append_tm(tm, "mid", DAY1 + 3002, 150, "M3");
 
     /*  t in order (no .unordered), tm not  */
     append_tm(tm, "infile", DAY1 + 1000, 500, "T1");

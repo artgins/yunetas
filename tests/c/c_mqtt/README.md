@@ -6,6 +6,19 @@ MQTT GClass test. Spins up an embedded MQTT broker and a client inside the same 
 
 `test_mqtt_malformed` sends malformed MQTT packets to the broker.
 
+`test_mqtt_will_acl` (`main_will_acl.c` + `c_will_acl.c`) uses RAW MQTT 3.1.1
+clients against the broker with `enable_acl` on. The group of `will_bad` and
+`will_ok` may publish only to `allowed/#`; `will_sub` (a group with no
+patterns) subscribes `forbidden/will` and `allowed/will`. `will_bad` connects
+with a will to `forbidden/will` and goes away with no DISCONNECT: the broker
+must refuse the will (the WARNING *"Will message refused by the ACL: not
+published"*) and `will_sub` must get nothing. `will_ok` does the same with a
+will to `allowed/will`, which `will_sub` must get. Up to 7.25.22 the will
+bypassed the ACL (red: `will_sub` got the will to `forbidden/will`). The memory
+check at the end caught a second defect: each CONNECT with a will leaked its
+payload (`C_NODE` handed the treedb the event's shared kw, whose `gbuffer` the
+treedb takes; red: 2 x 357 bytes not freed).
+
 `test_mqtt_queued_in` (`main_queued_in.c` + `c_queued_in.c`) uses a RAW client
 (a `C_TCP` that writes MQTT 3.1.1 packets by hand). Session 1 (clean session 0)
 sends four QoS 2 PUBLISH, ids 1..4, gets four PUBREC, and goes away without

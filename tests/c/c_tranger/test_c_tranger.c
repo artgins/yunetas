@@ -1151,6 +1151,26 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
 
     /*-------------------------------------------------*
+     *      A negative bound over several keys is relative to EACH key's
+     *      last record: A ends at BASE_T+2000, C at BASE_T+3, and
+     *      from_t=-1 takes the last row of each. The keys shared one
+     *      match_cond, and the first key's resolved bound was the other's:
+     *      1 row (A first) or 6 (C first).
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "open-list",
+        json_pack("{s:s, s:s, s:s, s:s, s:b}",
+            "list_id", "lstNeg",
+            "topic_name", TOPIC_NAME,
+            "rkey", "^(A|C)$",
+            "from_t", "-1",
+            "return_data", 1
+        ), yuno);
+    check_int("open-list negative from_t per key result", kw_get_int(0, r, "result", -999, 0), 0);
+    data = kw_get_list(0, r, "data", 0, 0);
+    check_int("open-list negative from_t: the last row of each key", json_array_size(data), 2);
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
      *      Negatives: open-rt without rt_id; close-rt unknown
      *-------------------------------------------------*/
     r = gobj_command(yuno, "open-rt",

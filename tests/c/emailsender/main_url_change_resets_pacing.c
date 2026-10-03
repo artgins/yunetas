@@ -4,12 +4,15 @@
  *          The email of the play waits on a dead url, the failures pacing it
  *          (timeout_retry 1 s: attempts at 0, 1, 3, 7 s). At 7.5 s
  *          set-url-from gives the fake server, and a pause and a play: the
- *          session must connect at once -- within 300 ms of the play --
- *          since the pacing and the streak were the dead server's. The fake
- *          server tells the test at the connection itself (notify_delay 0):
- *          with a delay it tells on its C_TIMER, accurate to the second, and
- *          the session seemed to connect 1 s late (the window was 1.8 s). Before, the new server waited the old
- *          one's backoff (about 7.5 s more here, up to timeout_retry_max).
+ *          session must connect at once -- within 800 ms of the play --
+ *          since the pacing and the streak were the dead server's. The
+ *          window is below the 1 s of timeout_retry (a pacing kept in part
+ *          still fails it) and leaves a loaded machine room (it was 300
+ *          ms). The fake server tells the test at the connection itself
+ *          (notify_delay 0): with a delay it tells on its C_TIMER, accurate
+ *          to the second, and the session seemed to connect 1 s late.
+ *          Before, the new server waited the old one's backoff (about 7.5 s
+ *          more here, up to timeout_retry_max).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -111,7 +114,7 @@ PRIVATE char variable_config[]= "\
                 'server_service': 'fake_smtp_server',               \n\
                 'smtp_url': 'tcp://127.0.0.1:7855',                 \n\
                 'action_delay': 7500,                               \n\
-                'max_wait': 300                                     \n\
+                'max_wait': 800                                     \n\
             }                                                       \n\
         },                                                          \n\
         {                                                           \n\

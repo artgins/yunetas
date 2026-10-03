@@ -518,18 +518,49 @@ PRIVATE int do_test_two_feeds(void)
 }
 
 /*
- *  The deletes a feed owes (its `deletes_unheard`): none once every feed
- *  has heard what it will ever hear
+ *  What the follower keeps of the deletes (`deletes_applied`, {ref: seq})
+ *  is only what a watched feed may still hear: nothing at or below the
+ *  last signal EVERY watched feed heard (prune_deletes_applied()). A feed
+ *  opened while a delete was in flight, or one that lost its events, may
+ *  still hear a signal it was owed, so a delete above its last one is
+ *  kept until it hears a later signal. (This read the feed's
+ *  `deletes_unheard`, a key that is gone, and passed whatever was kept.)
  */
-PRIVATE int expect_no_debts(const char *feed_name, json_t *feed)
+PRIVATE int expect_no_debts(json_t *tranger, const char *feed_name, json_t *feed)
 {
-    json_t *unheard = json_object_get(feed, "deletes_unheard");
-    if(json_object_size(unheard) > 0) {
-        char dump[1024] = {0};
-        json_dumpb(unheard, dump, sizeof(dump)-1, JSON_COMPACT);
-        printf("%sERROR%s --> the feed %s owes deletes it will never hear: %s\n",
-            On_Red BWhite, Color_Off, feed_name, dump);
-        return -1;
+    const char *topic_name = json_string_value(json_object_get(feed, "topic_name"));
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    json_t *applied = json_object_get(topic, "deletes_applied");
+    BOOL any = FALSE;
+    json_int_t lowest = 0;
+    int idx; json_t *disk;
+    json_array_foreach(json_object_get(topic, "disks"), idx, disk) {
+        if(!json_integer_value(json_object_get(disk, "fs_event_client"))) {
+            continue;
+        }
+        json_int_t heard = json_integer_value(json_object_get(disk, "delete_seq_heard"));
+        if(!any || heard < lowest) {
+            lowest = heard;
+        }
+        any = TRUE;
+    }
+    const char *ref; json_t *v;
+    json_object_foreach(applied, ref, v) {
+        if(!any || json_integer_value(v) <= lowest) {
+            char dump[1024] = {0};
+            json_dumpb(applied, dump, sizeof(dump)-1, JSON_COMPACT);
+            printf("%sERROR%s --> after the feed %s, deletes kept that no feed will hear again (every feed is past %lld): %s\n",
+                On_Red BWhite, Color_Off, feed_name, (long long)lowest, dump);
+            return -1;
+        }
+    }
+    json_t *names = json_object_get(topic, "delete_ref_keys");
+    json_object_foreach(names, ref, v) {
+        if(!json_object_get(applied, ref)) {
+            printf("%sERROR%s --> after the feed %s, the name of a delete no longer kept: %s\n",
+                On_Red BWhite, Color_Off, feed_name, ref);
+            return -1;
+        }
     }
     return 0;
 }
@@ -708,9 +739,9 @@ PRIVATE int do_test_signal_behind_overflow(BOOL with_keyed_feed, BOOL written_ag
             On_Red BWhite, Color_Off, seed_deleted);
         result += -1;
     }
-    result += expect_no_debts("rtALL", rt);
+    result += expect_no_debts(tf, "rtALL", rt);
     if(rt_seed) {
-        result += expect_no_debts("rtSEED", rt_seed);
+        result += expect_no_debts(tf, "rtSEED", rt_seed);
     }
     result += test_json(NULL);
 
@@ -830,7 +861,7 @@ PRIVATE int do_test_feed_opened_in_flight(void)
             On_Red BWhite, Color_Off, deleted_seed, late_deleted);
         result += -1;
     }
-    result += expect_no_debts("rtLATE", rt_late);   // watched after the signal was queued
+    result += expect_no_debts(tf, "rtLATE", rt_late);   // watched after the signal was queued
     result += test_json(NULL);
 
     /*
@@ -849,7 +880,7 @@ PRIVATE int do_test_feed_opened_in_flight(void)
             On_Red BWhite, Color_Off, received[SEED_KEY_ID], late_received);
         result += -1;
     }
-    result += expect_no_debts("rtLATE", rt_late);
+    result += expect_no_debts(tf, "rtLATE", rt_late);
     result += test_json(NULL);
 
     /*
@@ -876,8 +907,8 @@ PRIVATE int do_test_feed_opened_in_flight(void)
             On_Red BWhite, Color_Off, deleted_seed, deleted_other, late_deleted);
         result += -1;
     }
-    result += expect_no_debts("rtALL", rt);
-    result += expect_no_debts("rtLATE", rt_late);
+    result += expect_no_debts(tf, "rtALL", rt);
+    result += expect_no_debts(tf, "rtLATE", rt_late);
     result += test_json(NULL);
 
     set_expected_results("feed opened in flight: shutdown", NULL, NULL, NULL, 1);
@@ -1011,8 +1042,8 @@ PRIVATE int do_test_old_delete_after_reborn(void)
             On_Red BWhite, Color_Off);
         result += -1;
     }
-    result += expect_no_debts("rtALL", rt);
-    result += expect_no_debts("rtONE", rt_one);
+    result += expect_no_debts(tf, "rtALL", rt);
+    result += expect_no_debts(tf, "rtONE", rt_one);
 
     /*
      *  And the key lives for the feed: its next record reaches rtALL
@@ -1144,7 +1175,7 @@ PRIVATE int do_test_master_feed_overflow(void)
             On_Red BWhite, Color_Off, deleted_seed, deleted_other);
         result += -1;
     }
-    result += expect_no_debts("rtALL", rt);
+    result += expect_no_debts(tm, "rtALL", rt);
     result += test_json(NULL);
 
     set_expected_results("master feed overflow: shutdown", NULL, NULL, NULL, 1);
@@ -1439,8 +1470,8 @@ PRIVATE int do_test_master_echo_behind_overflow(void)
             On_Red BWhite, Color_Off, deleted_seed, seed_deleted);
         result += -1;
     }
-    result += expect_no_debts("rtALL", rt);
-    result += expect_no_debts("rtOTHER", rt_other);
+    result += expect_no_debts(tm, "rtALL", rt);
+    result += expect_no_debts(tm, "rtOTHER", rt_other);
     result += test_json(NULL);
 
     set_expected_results("master echo behind overflow: shutdown", NULL, NULL, NULL, 1);

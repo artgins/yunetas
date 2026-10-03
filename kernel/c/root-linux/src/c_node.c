@@ -56,6 +56,10 @@ PRIVATE json_t *fetch_node(  // WARNING Return is NOT YOURS, pure node
     const char *topic_name,
     json_t *kw  // NOT owned, 'id' and pkey2s fields are used to find the node
 );
+PRIVATE json_t *kw_of_its_own(
+    hgobj gobj,
+    json_t *kw  // owned
+);
 
 PRIVATE int export_treedb(
     hgobj gobj,
@@ -942,6 +946,8 @@ PRIVATE json_t *mt_create_node( // Return is YOURS
         return 0;
     }
 
+    kw = kw_of_its_own(gobj, kw);   // the treedb takes its binary field
+
     json_t *node = treedb_create_node( // Return is NOT YOURS
         priv->tranger,
         priv->treedb_name,
@@ -993,6 +999,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
     if(!jn_options) {
         jn_options = json_object();
     }
+    kw = kw_of_its_own(gobj, kw);   // the treedb takes its binary field
 
     BOOL volatil = kw_get_bool(gobj, jn_options, "volatil", 0, KW_WILD_NUMBER);
     BOOL create = kw_get_bool(gobj, jn_options, "create", 0, KW_WILD_NUMBER);
@@ -5725,6 +5732,32 @@ PRIVATE const char *seed_hanging_from(
         }
     }
     return NULL;
+}
+
+/***************************************************************************
+ *  The record kw that the treedb may change: a kw that carries a binary
+ *  field becomes a twin of its own (its top level copied, the binary
+ *  increfed, kw_twin()), and the kw received is released.
+ *
+ *  treedb_store_files() takes the record's `gbuffer` -- it removes the
+ *  key and decrefs the gbuffer once -- because the treedb releases a
+ *  record with json_decref(). On a kw shared by kw_incref() (an event's,
+ *  held by every layer that published it) the key went from under the
+ *  other holders, and their kw_decref() found no gbuffer to release: one
+ *  gbuffer leaked per holder. An MQTT CONNECT with a will lost its payload
+ *  that way, every time.
+ ***************************************************************************/
+PRIVATE json_t *kw_of_its_own(hgobj gobj, json_t *kw)
+{
+    if(!json_object_get(kw, "gbuffer")) {
+        return kw;
+    }
+    json_t *twin = kw_twin(gobj, kw);
+    if(!twin) {
+        return kw;  // Error already logged; the kw as it came
+    }
+    KW_DECREF(kw)
+    return twin;
 }
 
 /***************************************************************************

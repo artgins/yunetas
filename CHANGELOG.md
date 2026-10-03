@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+What changed after 7.25.22: three changes of behaviour -- a key delete
+signalled to the rt_disk followers with the master's sequence (a protocol
+change between master and followers), `with_link_events` on by default, and
+the tm markers of timeranger2 removed -- the md2 rows read in blocks and the
+match condition parsed once per scan, a negative t/tm bound relative to the
+key's last record again, `write-attr` limited to `SDF_WR` attributes, and the
+defects of four reviews and of TODO.md, each with a test that fails on the
+code before it unless the entry says otherwise.
+
+### Upgrade steps (operators, read first)
+
+- **Master and followers of a timeranger2 topic upgrade together** (key
+  delete signals, below). A follower of 7.25.22 under a 7.26 master takes
+  each `.d<seq>.<key>` signal for a key: its `key_deleted` callback gets a
+  key that does not exist, and the real delete is not heard. A 7.26
+  follower under a 7.25.22 master hears no delete at all, and says so when
+  it opens a feed (*"The master of the topic does not signal key deletes as
+  this follower hears them"*: there is no `<topic>/delete_seq.json`, which a
+  7.26 master makes when it opens the topic). Stop the followers (rt_disk
+  readers: replica yunos, `tr2list --follow`, C_TRANGER lists of a
+  non-master) before the master, and start them after it.
+- **`with_link_events` is on by default** (`C_NODE`, `C_TREEDB`,
+  `C_AUTHZ`): a link publishes `EV_TREEDB_NODE_LINKED` / `UNLINKED`, not the
+  parent's `EV_TREEDB_NODE_UPDATED`. A yuno served by a **v1** SPA sets it
+  `0` in its `C_TREEDB` and in its `C_AUTHZ`'s kw (estadodelaire and
+  hidraulia do, in `db_history`); a gobj that subscribes to every event of a
+  treedb service declares the two events or subscribes only what it
+  handles; a GUI that shows a parent's hooks needs gobj-ui 7.25.26 or later.
+- **`write-attr` writes only `SDF_WR` attributes.** A script that set a
+  persistent attribute without `SDF_WR` (`max_sessions_per_user`,
+  `allowed_ips`, emailsender's `url`, ...) uses the config or the
+  attribute's own command.
+- **`tranger2_mark_tm_order()` and C_TRANGER's `mark-tm-order` are
+  removed.** Nothing to run on upgrade. A **rollback** to 7.25.5..7.25.22
+  runs that release's `mark-tm-order all=1` on every topic it marks, or a
+  tm query can miss rows.
+- **A negative `from_t` / `to_t` / `from_tm` / `to_tm` selects rows
+  again** (it matched none since v7): a `db_history` started with
+  `from_t=-86400` now reads the last day at its start -- expect that load.
+
 - **fix: `jtree` without `rename_hook` gave every child twice.** The hook
   kept the refs of the collapsed view (`{id, topic_name}`) and the children
   were appended after them, whole: `[dev, ops, dev{...}, ops{...}]`. The
@@ -19,7 +59,8 @@
   without finding why the session connected 1 s late: it did not -- it
   connects in 1-2 ms; the fake server told the test on its C_TIMER, which is
   accurate to the second. With `notify_delay` 0 it tells at the connection
-  itself, and the window is 300 ms (red without `reset_pacing()`: 7 s).
+  itself, and the window is 800 ms -- under the 1 s of `timeout_retry`, with
+  room for a loaded machine (red without `reset_pacing()`: 7 s).
 
 - **tests: red tests for fixes that had none.** `deactivate-snap` answering
   `-1` when its save fails (`test_tr_treedb_failed_save`, the writes of the
@@ -30,7 +71,9 @@
   (`test_c_qiogate_stats`); `kw_update_missing()` with a gbuffer
   (`test_command_binary_kw`); and the templates of `yuno-skeleton`, built
   and run (`yuno_skeleton/templates`: a template timer that is a plain child
-  never reaches `ac_timeout`, `MSGSET_INTERNAL_ERROR` does not compile).
+  never reaches `ac_timeout`, `MSGSET_INTERNAL_ERROR` does not compile; it
+  tests the tree it is in, never `/yuneta/development/yunetas` or the
+  installed `yuno-skeleton`).
   Each one red on the code before its fix (checked by putting that code
   back), green now.
 
@@ -60,24 +103,41 @@
   AFTER another one heard a delete took its signal for a new one -- the
   key forgotten again (a key written again meanwhile went with it) and,
   in both, the delete told twice to a feed at its next overflow
-  (`[DEL DEL]`). Both existed in 7.25.22. At an overflow the master's
-  sequence is read before `keys/`: the keys told then are noted, and a
-  signal of theirs queued behind the overflow is not told again; a delete
-  not told there (of a key on disk again, or that no feed had heard) is
-  told by its signal. What every feed heard is pruned, so the follower
-  keeps no more than the deletes in flight. **Upgrade master and followers
-  of a topic together**: a follower of 7.25.22 takes `.d<seq>.<key>` for a
-  key. The delete of a topic with rt_disk feeds costs two disk flushes
-  more (the record of the sequence); a topic with none, nothing.
+  (`[DEL DEL]`). Both existed in 7.25.22. The master takes a delete's
+  sequence BEFORE the key leaves `keys/`, and a follower at an overflow
+  lists `keys/` and reads the sequence AFTER, so every key it finds
+  missing is bounded at or above its delete: the keys told then are noted,
+  and a signal of theirs queued behind the overflow is not told again; a
+  delete not told there (of a key on disk again, or that no feed had
+  heard) is told by its signal. What every feed heard is pruned, so the
+  follower keeps no more than the deletes some feed may still hear. The
+  master makes `delete_seq.json` (0) when it opens a topic that has none;
+  a record it cannot read refuses the key delete (logged) and is left as
+  it is, and a follower that hears a signal below its last one logs that
+  the sequence went back. A signal the master made and could not remove
+  (it died in between, or the `rmdir()` failed) is removed at its next
+  open of the topic: the feed hears it then if it was the last delete; an
+  older one, followed by deletes the feed heard, is moved away unheard and
+  said (told late, it could take a key written again out of the cache). **Upgrade master and
+  followers of a topic together** (see the upgrade steps). The delete of a
+  topic with rt_disk feeds costs two disk flushes more (the record of the
+  sequence); a topic with none, nothing.
   The hashed form is chosen by the key's LENGTH and kept apart from every
   key (no key holds a `/`), so a key starting with `#` is a key, and
-  `#<sha256 of a long key>` never stands for that long key.
+  `#<sha256 of a long key>` never stands for that long key; the follower
+  keeps the key a hash named while the delete is kept, so every feed is
+  told it, not only the first one.
   `test_delete_key_propagation`: `opened_after_heard` and
   `second_delete_in_doubt` (red on the previous code: `[DEL DEL]` after
   the overflow), `odd_keys` (a `#` key, a key too long for the name, and
-  `#<its hash>`: each delete forgets its own key); the white-box checks of the old debts became "nothing of
-  the deletes kept once every feed heard them", and `stale_debt_reborn`
-  (a debt put there by hand) went with the debts.
+  `#<its hash>`, heard by two feeds: each delete forgets its own key, and
+  each feed is told the three), `delete_seq_record` (the record made at the
+  open, the sequence taken before the remove, a left signal heard at the
+  master's next open, an unreadable record refusing the delete, a follower
+  with no record saying so); the white-box checks of the old debts became
+  "nothing of the deletes kept once every feed heard them" (in
+  `test_rt_disk_overflow`: nothing kept below what every feed heard), and
+  `stale_debt_reborn` (a debt put there by hand) went with the debts.
 
 - **BREAKING (default): `with_link_events` is ON by default** -- in
   `C_NODE`, in `C_TREEDB` (copied to every treedb it opens) and in
@@ -106,7 +166,10 @@
       `db_history_wz` the same).
     - A GUI that shows the parent's hooks needs gobj-ui 7.25.26
       (`C_YUI_TREEDB_TOPICS` re-reads the parent on a link event; the graph
-      already followed them): gui_agent 0.29.10, gui_treedb 0.17.76.
+      already followed them): gui_agent 0.29.10, gui_treedb 0.17.76. The
+      next gobj-ui re-reads a parent only when its row is loaded, one read
+      at a time per parent: a burst of links to it costs two reads per
+      viewer, not one per link.
   `set-link-events` still switches an open treedb at run time, and the
   configured value comes back at the next start. `test_c_node_link_events`
   creates its `C_NODE` without the attribute.
@@ -158,9 +221,11 @@
   command of `C_TRANGER`; nothing writes or reads `.tm_unordered` or
   `marks_tm_unordered`, and a store that has them keeps them, ignored (no
   migration). **Cost**: a tm query reads every md2 row of the key -- one
-  minute on 1 key x 30 files x 20 000 rows takes ~0.39 s, as on an unmarked
-  topic of 7.25.5..7.25.22 (7.4 ms on a marked one); who needs fast access
-  by tm keeps it themselves (a topic keyed by it, an index in memory). The
+  minute on 1 key x 30 files x 20 000 rows takes ~14.5 ms with this
+  release's block reads and once-parsed condition (below), where a topic
+  marked by 7.25.5..7.25.22 took 7.4 ms and an unmarked one ~0.39 s; who
+  needs fast access by tm keeps it themselves (a topic keyed by it, an index
+  in memory). The
   `fr_tm` / `to_tm` of a file in `list-keys` are its first and last rows
   unless the file was read whole: approximate when its tm goes back. The `t`
   marker (`<file>.unordered`, a late `__t__`) stays. **Upgrade**: nothing to
@@ -176,10 +241,25 @@
   are kept as given. No node had a capital under `/yuneta/realms`
   (checked 2026-10-03), so no directory was split.
 
+- **fix: `C_NODE` leaked the binary field of a record kw it shared with
+  others.** The treedb takes the `gbuffer` of the record it writes
+  (`treedb_store_files()` removes the key and decrefs it once, because the
+  treedb releases a record with `json_decref()`), and `C_NODE` handed it
+  the caller's kw itself. A kw shared by `kw_incref()` -- an event's, held
+  by every layer that published it -- lost the key under the other
+  holders, whose `kw_decref()` then released nothing: one gbuffer per
+  holder. The MQTT broker writes its session from the `EV_ON_OPEN` of the
+  CONNECT, so every CONNECT with a will leaked its payload (~360 bytes). A
+  kw that carries a binary field now reaches the treedb as a twin of its
+  own (`kw_twin()`). In 7.25.22 (since the `file` columns).
+  `c_mqtt/will_acl` (its memory check: 2 x 357 bytes not freed before).
+
 - **MQTT broker: the will message obeys the ACL.** `will__send()` published
   it with no check, so with `enable_acl` on a client could publish, as its
   will, to a topic its groups refused. It is asked like any publish when
-  it is sent; a refused will is not published, with a warning. And the
+  it is sent; a refused will is not published, with a warning
+  (`c_mqtt/will_acl`: raw MQTT clients, a will refused and one allowed;
+  red without the check: the refused will reached the subscriber). And the
   `enable_acl` description and `mqtt_broker.md` say what the ACL is not: it
   is keyed by the `client_id` a client chooses, and no client is bound to
   the user that authenticated it, so it separates topics, not users.
@@ -199,10 +279,18 @@
   and no record matched, silently: a `db_history` that starts with
   `from_t=-86400` (hidraulia, estadodelaire, wattyzer) never read what had
   arrived while it was stopped. `get_segments()` resolves it against the
-  key's last `t` (or highest `tm`), as before v7 -- `from` after `last - N`,
-  that bound excluded; `to` up to `last - N` -- and writes it back; the
-  matcher compares signed, and on a key with no record yet a negative
-  `from` bounds nothing and a negative `to` takes no row.
+  key's last record -- its `t`, and its `tm` (the last row of the file that
+  holds the key's highest `t`) -- as before v7: `from` after `last - N`,
+  that bound excluded; `to` up to `last - N`. It is written back into the
+  condition of that key alone: a list of several keys resolves it per key
+  (each iterator gets its own copy of the condition, in `tranger2_open_list()`
+  and C_TRANGER's `open-list`). The matcher compares signed, and on a key
+  with no record yet a negative `from` bounds nothing and a negative `to`
+  takes no row. `test_tm_order` (the three read roads, both ways, master in
+  memory, reloaded, replica; a `tm` against the last record's, not the
+  highest one, which only the master in memory knew; a list of two keys
+  with different last records) and `test_c_tranger` (`open-list` over two
+  keys).
 
 - **Builds on a glibc older than 2.34.** The daemon start closed its
   inherited files with `close_range()`, whose glibc wrapper is 2.34's: a

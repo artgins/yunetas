@@ -1862,11 +1862,15 @@ are expressed in the **topic's** own unit: seconds, or milliseconds when the
 topic sets `sf_t_ms` / `sf_tm_ms`.
 
 A **negative** `t` / `tm` bound is relative to the key's last record: its `t`,
-or its highest `tm`. `from_t = -N` takes the records after `last_t - N` (that
-time excluded); `to_t = -N`, the ones up to `last_t - N`. The bound is resolved
-once, when the iterator or list opens, and written back into its `match_cond`;
-on a key with no record yet a negative `from` bounds nothing and a negative
-`to` takes no row. A `db_history` that starts with the last day of its key:
+and its `tm` -- the `tm` of the last row of the file that holds the key's
+highest `t`, not the highest `tm` of the key (which a replica and a reloaded
+master do not know: they read the first and last rows of each file).
+`from_t = -N` takes the records after `last_t - N` (that time excluded);
+`to_t = -N`, the ones up to `last_t - N`. The bound is resolved once, when the
+iterator opens, and written back into its `match_cond`; a list of several keys
+gives each key's iterator its own copy, so each key is bounded by its own last
+record. On a key with no record yet a negative `from` bounds nothing and a
+negative `to` takes no row. A `db_history` that starts with the last day of its key:
 
 ```C
 json_t *match_cond = json_pack("{s:I}",

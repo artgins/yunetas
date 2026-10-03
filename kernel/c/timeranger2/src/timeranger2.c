@@ -631,6 +631,21 @@ PRIVATE void key_delete_ref(
     char *bf,
     size_t bfsize
 );
+PRIVATE void open_delete_seq(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic
+);
+PRIVATE void sweep_left_delete_signals(
+    hgobj gobj,
+    json_t *topic,
+    const char *feed_path
+);
+PRIVATE void name_delete_ref(
+    json_t *topic,
+    const char *ref,
+    const char *key
+);
 PRIVATE BOOL parse_delete_signal(
     const char *name,
     json_int_t *seq,
@@ -2180,6 +2195,10 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
         );
         json_object_del(json_object_get(tranger, "topics"), topic_name);
         return NULL;
+    }
+
+    if(json_is_true(json_object_get(tranger, "master"))) {
+        open_delete_seq(gobj, tranger, topic);  // Errors already logged
     }
 
     /*
@@ -4629,7 +4648,20 @@ PRIVATE json_int_t read_delete_seq(hgobj gobj, json_t *topic)
     if(!jn) {
         return -1;  // Error already logged
     }
-    json_int_t seq = json_integer_value(json_object_get(jn, "delete_seq"));
+    json_t *jn_v = json_object_get(jn, "delete_seq");
+    if(!json_is_integer(jn_v) || json_integer_value(jn_v) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "delete_seq.json holds no delete sequence",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "path",         "%s", path,
+            NULL
+        );
+        JSON_DECREF(jn)
+        return -1;
+    }
+    json_int_t seq = json_integer_value(jn_v);
     JSON_DECREF(jn)
     return seq;
 }
@@ -4639,12 +4671,17 @@ PRIVATE json_int_t read_delete_seq(hgobj gobj, json_t *topic)
  *  used. A record that fails is logged and the sequence is used anyway:
  *  the signals must go out, and it only grows in this process (a restart
  *  before the next record could give it again).
+ *
+ *  -1 when the sequence of now cannot be read (logged): no number is
+ *  given, and the record is left as it is. Up to 7.25.22 a failed read
+ *  counted from 0 and wrote 1 over the real record: every follower took
+ *  the next deletes for ones it had applied, or heard them twice.
  ***************************************************************************/
 PRIVATE json_int_t next_delete_seq(hgobj gobj, json_t *tranger, json_t *topic)
 {
     json_int_t seq = read_delete_seq(gobj, topic);
     if(seq < 0) {
-        seq = 0;    // Error already logged
+        return -1;  // Error already logged
     }
     seq++;
     json_object_set_new(topic, "delete_seq", json_integer(seq));
@@ -4670,6 +4707,110 @@ PRIVATE json_int_t next_delete_seq(hgobj gobj, json_t *tranger, json_t *topic)
     }
     JSON_DECREF(jn)
     return seq;
+}
+
+/***************************************************************************
+ *  MASTER, at the open of a topic: the delete sequence in memory, and its
+ *  record made when there is none (a topic of 7.25.22 or older, or a new
+ *  one). The record is what a follower takes as the sign that the master
+ *  signals deletes with their sequence (check_master_delete_protocol()).
+ *  A record that cannot be read is logged, and every delete of the topic
+ *  is refused until it can (next_delete_seq()).
+ ***************************************************************************/
+PRIVATE void open_delete_seq(hgobj gobj, json_t *tranger, json_t *topic)
+{
+    json_int_t seq = read_delete_seq(gobj, topic);
+    if(seq < 0) {
+        return; // Error already logged
+    }
+    const char *directory = json_string_value(json_object_get(topic, "directory"));
+    if(seq == 0 && !file_exists(directory, "delete_seq.json")) {
+        json_t *jn = json_pack("{s:I}", "delete_seq", (json_int_t)0);
+        if(replace_json_file(gobj, tranger, directory, "delete_seq.json", jn, TRUE, FALSE) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot create delete_seq.json: the followers of the topic take its master for one older than 7.26.0",
+                "topic_name",   "%s", tranger2_topic_name(topic),
+                NULL
+            );
+        }
+        JSON_DECREF(jn)
+    }
+    json_object_set_new(topic, "delete_seq", json_integer(seq));
+}
+
+/***************************************************************************
+ *  CLIENT, at the open of an rt_disk feed: a master that signals deletes
+ *  with their sequence (7.26.0 and up) keeps `delete_seq.json` in the
+ *  topic from its open on (open_delete_seq()). Without it the master is
+ *  older -- its signal is the key's directory, which this follower takes
+ *  for the end of that directory and nothing else -- or it has not opened
+ *  the topic since it was upgraded: the feed hears no delete, which is
+ *  said. Up to the release that changed the signal the mismatch was
+ *  silent: master and followers of a topic upgrade together.
+ ***************************************************************************/
+PRIVATE void check_master_delete_protocol(hgobj gobj, json_t *topic, const char *rt_id)
+{
+    const char *directory = json_string_value(json_object_get(topic, "directory"));
+    if(file_exists(directory, "delete_seq.json")) {
+        return;
+    }
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TRANGER,
+        "msg",          "%s", "The master of the topic does not signal key deletes as this follower hears them: it is older than 7.26.0, or has not opened the topic since its upgrade. This feed hears no key delete until it does",
+        "topic_name",   "%s", tranger2_topic_name(topic),
+        "rt_id",        "%s", rt_id,
+        "directory",    "%s", directory,
+        NULL
+    );
+}
+
+/***************************************************************************
+ *  MASTER: the sequence of a delete about to be made, taken BEFORE the
+ *  key leaves keys/ (tranger2_delete_key()), when the topic has a feed to
+ *  tell: a follower that lists keys/ at an overflow and reads the
+ *  sequence after (tell_deletes_lost_in_overflow()) bounds every key it
+ *  found missing with a sequence at or above its delete. 0: no feed to
+ *  tell; -1: the sequence cannot be read (logged).
+ *
+ *  Up to the release that brought the sequence it was taken after the
+ *  key was removed: a follower that read it in between applied that
+ *  delete one below its own, and took its signal for a second delete.
+ ***************************************************************************/
+PRIVATE json_int_t reserve_delete_seq(hgobj gobj, json_t *tranger, json_t *topic)
+{
+    const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
+    if(!topic_dir) {
+        return 0;
+    }
+    char disks_root[PATH_MAX];
+    if(!build_path(disks_root, sizeof(disks_root), topic_dir, "disks", NULL)) {
+        return 0;   // Error already logged
+    }
+    DIR *dir = opendir(disks_root);
+    if(!dir) {
+        return 0;   // no feed; any other failure is logged by mirror_key_delete_to_disks()
+    }
+    BOOL a_feed = FALSE;
+    struct dirent *entry;
+    while((entry = readdir(dir)) != NULL) {
+        if(entry->d_name[0] == '.') {
+            continue;
+        }
+        char rt_path[PATH_MAX];
+        build_path(rt_path, sizeof(rt_path), disks_root, entry->d_name, NULL);
+        if(is_directory(rt_path)) {
+            a_feed = TRUE;
+            break;
+        }
+    }
+    closedir(dir);
+    if(!a_feed) {
+        return 0;
+    }
+    return next_delete_seq(gobj, tranger, topic);
 }
 
 /***************************************************************************
@@ -4737,8 +4878,9 @@ PRIVATE BOOL parse_delete_signal(const char *name, json_int_t *seq, char *ref, s
  *      sequence (hear_delete_signal()). No key starts with '.', so no
  *      signal is taken for a key.
  *
- *  The sequence is taken only when there is a feed to tell. Return it, 0
- *  when no feed was told.
+ *  `seq` is the one reserved before the key was removed
+ *  (reserve_delete_seq()); 0 when there was no feed then: it is taken
+ *  here for a feed born meanwhile. Return it, 0 when no feed was told.
  *
  *  Up to 7.25.22 the signal was the key's own directory, removed, or made
  *  and removed, with nothing to tell one delete from another: a follower
@@ -4751,7 +4893,8 @@ PRIVATE json_int_t mirror_key_delete_to_disks(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
-    const char *key
+    const char *key,
+    json_int_t seq
 )
 {
     const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
@@ -4787,7 +4930,7 @@ PRIVATE json_int_t mirror_key_delete_to_disks(
 
     char ref[NAME_MAX+2];
     key_delete_ref(key, ref, sizeof(ref));
-    json_int_t seq = 0;
+    BOOL named = FALSE;
     char signal_name[NAME_MAX+32];
 
     struct dirent *entry;
@@ -4800,8 +4943,23 @@ PRIVATE json_int_t mirror_key_delete_to_disks(
         if(!is_directory(rt_path)) {
             continue;
         }
-        if(seq == 0) {
-            seq = next_delete_seq(gobj, tranger, topic);
+        if(!named) {
+            if(seq <= 0) {
+                seq = next_delete_seq(gobj, tranger, topic);
+            }
+            if(seq <= 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TRANGER,
+                    "msg",          "%s", "No delete sequence: the feeds are not told of the delete",
+                    "topic_name",   "%s", tranger2_topic_name(topic),
+                    "key",          "%s", key,
+                    NULL
+                );
+                seq = 0;
+                break;
+            }
+            named = TRUE;
             int len = snprintf(signal_name, sizeof(signal_name), ".%c%lld.%s",
                 ref[0] == '/'? 'h' : 'd', (long long)seq, ref[0] == '/'? ref + 1 : ref
             );
@@ -4814,6 +4972,7 @@ PRIVATE json_int_t mirror_key_delete_to_disks(
                     "delete_seq",   "%lld", (long long)seq,
                     NULL
                 );
+                seq = 0;
                 break;
             }
         }
@@ -4861,7 +5020,7 @@ PRIVATE json_int_t mirror_key_delete_to_disks(
         );
     }
     closedir(dir);
-    return seq;
+    return named? seq : 0;
 }
 
 /***************************************************************************
@@ -4986,6 +5145,19 @@ PUBLIC int tranger2_delete_key(
         return -1;
     }
 
+    json_int_t delete_seq = reserve_delete_seq(gobj, tranger, topic);
+    if(delete_seq < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Cannot delete key: the delete sequence of the topic cannot be read, and its rt_disk feeds could not be told",
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+
     if(key_on_disk) {
         if(rmrdir(path_key)<0) {
             gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
@@ -5043,7 +5215,7 @@ PUBLIC int tranger2_delete_key(
      *  topic/disks/<rt_id>/<key>/ — inotify fan-out on their side),
      *  then to local in-process subscribers.
      */
-    json_int_t seq = mirror_key_delete_to_disks(gobj, tranger, topic, key);
+    json_int_t seq = mirror_key_delete_to_disks(gobj, tranger, topic, key, delete_seq);
     if(seq > 0) {
         apply_delete_made_here(topic, key, seq);
     }
@@ -6200,6 +6372,10 @@ PUBLIC json_t *tranger2_open_rt_disk(
         return NULL;
     }
 
+    if(!json_is_true(json_object_get(tranger, "master"))) {
+        check_master_delete_protocol(gobj, topic, id);  // an error is logged
+    }
+
     json_t *disk = json_object();
 
     /*
@@ -6657,6 +6833,17 @@ PRIVATE BOOL find_rt_disk_cb(
         return TRUE; // continue
     }
 
+    /*
+     *  A delete signal the master made and did not remove (it died in
+     *  between, or the rmdir() failed) is removed now, before anything of
+     *  this topic is written
+     */
+    sweep_left_delete_signals(
+        gobj,
+        json_object_get(json_object_get(tranger, "topics"), topic_name),
+        full_path2
+    );
+
     json_t *rt = tranger2_open_rt_mem(
         tranger,
         topic_name,
@@ -6675,6 +6862,110 @@ PRIVATE BOOL find_rt_disk_cb(
 
     return TRUE; // to continue
 }
+/***************************************************************************
+ *  MASTER, at the open of a topic: remove the delete signals left in the
+ *  directory of a feed (the master died between their mkdir() and rmdir(),
+ *  or the rmdir() failed).
+ *
+ *  The one of the LAST delete (its sequence is the record's, nothing was
+ *  deleted after it) is removed in place: the feed hears it now, as it
+ *  would have. An older one was followed by other deletes the feed heard:
+ *  told now, after them, it could take out of the cache a key written
+ *  again since. It is moved out of the feed's directory before it is
+ *  removed, so the feed does not hear it, and that is said (its failure
+ *  was logged when it was made).
+ ***************************************************************************/
+PRIVATE void sweep_left_delete_signals(hgobj gobj, json_t *topic, const char *feed_path)
+{
+    DIR *dir = opendir(feed_path);
+    if(!dir) {
+        if(errno != ENOENT) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot list the directory of an rt_disk feed: a delete signal left in it is not removed",
+                "path",         "%s", feed_path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
+        return;
+    }
+    json_t *left = json_array();    // {seq, name}, by sequence
+    struct dirent *entry;
+    while((entry = readdir(dir)) != NULL) {
+        json_int_t seq;
+        char ref[NAME_MAX+2];
+        if(!parse_delete_signal(entry->d_name, &seq, ref, sizeof(ref))) {
+            continue;
+        }
+        size_t at = 0;
+        while(at < json_array_size(left) &&
+                json_integer_value(json_object_get(json_array_get(left, at), "seq")) < seq) {
+            at++;
+        }
+        json_array_insert_new(left, at, json_pack("{s:I, s:s}", "seq", seq, "name", entry->d_name));
+    }
+    closedir(dir);
+
+    json_t *jn_last = json_object_get(topic, "delete_seq");
+    json_int_t last_seq = jn_last? json_integer_value(jn_last) : -1;   // -1: unknown, every one is told
+
+    int idx; json_t *jn;
+    json_array_foreach(left, idx, jn) {
+        json_int_t seq = json_integer_value(json_object_get(jn, "seq"));
+        const char *name = json_string_value(json_object_get(jn, "name"));
+        char path[PATH_MAX];
+        build_path(path, sizeof(path), feed_path, name, NULL);
+        BOOL heard = (last_seq < 0 || seq >= last_seq)? TRUE : FALSE;
+        if(!heard) {
+            char away[PATH_MAX];
+            char away_name[NAME_MAX];
+            snprintf(away_name, sizeof(away_name), ".stale_signal.%d.%d", (int)getpid(), idx);
+            build_path(away, sizeof(away), feed_path, "..", away_name, NULL);
+            if(rename(path, away) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot move away an old delete signal left in the directory of an rt_disk feed: it stays",
+                    "path",         "%s", path,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+                continue;
+            }
+            snprintf(path, sizeof(path), "%s", away);
+        }
+        if(rmdir(path) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot remove a delete signal left by the master",
+                "path",         "%s", path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            continue;
+        }
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", heard?
+                "A delete signal left by the master was removed: the feed hears it now" :
+                "An old delete signal left by the master was removed unheard: the feed missed that delete",
+            "feed",         "%s", feed_path,
+            "signal",       "%s", name,
+            "delete_seq",   "%lld", (long long)seq,
+            "last_delete_seq", "%lld", (long long)last_seq,
+            NULL
+        );
+    }
+    JSON_DECREF(left)
+}
+
 PRIVATE void find_rt_disk(json_t *tranger, const char *path)
 {
     walk_dir_tree(
@@ -7362,6 +7653,27 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 }
                 delete_heard_t heard = DELETE_KNOWN;
                 if(disk) {
+                    json_int_t heard_before = json_integer_value(
+                        json_object_get(disk, "delete_seq_heard")
+                    );
+                    if(seq <= heard_before) {
+                        /*
+                         *  A feed hears the signals in the master's order:
+                         *  one at or below the last it heard is a sequence
+                         *  that went back (delete_seq.json lost, rewritten
+                         *  or restored). It is taken for what it says.
+                         */
+                        gobj_log_error(gobj, 0,
+                            "function",         "%s", __FUNCTION__,
+                            "msgset",           "%s", MSGSET_TRANGER,
+                            "msg",              "%s", "Delete signal below the last one this feed heard: the master's delete sequence went back, this follower may take deletes for ones it applied",
+                            "topic_name",       "%s", tranger2_topic_name(watched_topic),
+                            "path",             "%s", fs_event->path,
+                            "delete_seq",       "%lld", (long long)seq,
+                            "delete_seq_heard", "%lld", (long long)heard_before,
+                            NULL
+                        );
+                    }
                     heard = hear_delete_signal(watched_topic, disk, ref, seq);
                 }
                 char deleted_key[NAME_MAX+2];
@@ -7451,6 +7763,9 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 snprintf(key_dir, sizeof(key_dir), "%s", (const char *)fs_event->directory);
                 char *key = pop_last_segment(key_dir);
                 if(watched_topic && strcmp(key_dir, fs_event->path)==0) {
+                    if(key[0] == '.') {
+                        break;  // a delete signal left by the master: no key directory
+                    }
                     /*
                      *  The key may be born again while its delete waits
                      *  behind the overflow: read like a directory just made
@@ -8195,6 +8510,19 @@ PRIVATE delete_heard_t hear_delete_signal(
     json_int_t seq
 )
 {
+    /*
+     *  Where the feed is in the master's order moves with every signal it
+     *  hears, told ones included: a feed that heard only told signals would
+     *  hold every delete in `deletes_applied` for good
+     *  (prune_deletes_applied())
+     */
+    if(seq > json_integer_value(json_object_get(disk, "delete_seq_heard"))) {
+        json_object_set_new(disk, "delete_seq_heard", json_integer(seq));
+    }
+    if(seq > json_integer_value(json_object_get(topic, "delete_seq_max"))) {
+        json_object_set_new(topic, "delete_seq_max", json_integer(seq));
+    }
+
     json_t *told = json_object_get(disk, "deletes_told");
     if(told) {
         if(seq <= json_integer_value(json_object_get(told, ref))) {
@@ -8204,12 +8532,6 @@ PRIVATE delete_heard_t hear_delete_signal(
             json_object_del(disk, "deletes_told");
             json_object_del(disk, "deletes_told_upto");
         }
-    }
-    if(seq > json_integer_value(json_object_get(disk, "delete_seq_heard"))) {
-        json_object_set_new(disk, "delete_seq_heard", json_integer(seq));
-    }
-    if(seq > json_integer_value(json_object_get(topic, "delete_seq_max"))) {
-        json_object_set_new(topic, "delete_seq_max", json_integer(seq));
     }
 
     json_t *applied = json_object_get(topic, "deletes_applied");
@@ -8226,9 +8548,16 @@ PRIVATE delete_heard_t hear_delete_signal(
 
 /***************************************************************************
  *  CLIENT: the key a delete ref names (key_delete_ref()): the ref itself,
- *  or, for `/<sha256>`, the key of the cache with that hash. FALSE: a key
- *  too long for its signal's name that the follower does not hold (there
- *  is nothing of it to forget, nor to tell: no feed had its records).
+ *  or, for `/<sha256>`, the key it was named for when the delete was
+ *  applied (`delete_ref_keys`, name_delete_ref()), else the key of the
+ *  cache with that hash -- and then the name is kept, for the feeds that
+ *  hear the delete after the cache forgot the key. FALSE: a key too long
+ *  for its signal's name that the follower does not hold (there is nothing
+ *  of it to forget, nor to tell: no feed had its records).
+ *
+ *  Up to the release that brought the hash, only the cache was looked at:
+ *  the first feed forgot the key, and every other feed found no key and
+ *  was not told.
  ***************************************************************************/
 PRIVATE BOOL key_of_delete_ref(json_t *topic, const char *ref, char *bf, size_t bfsize)
 {
@@ -8236,19 +8565,59 @@ PRIVATE BOOL key_of_delete_ref(json_t *topic, const char *ref, char *bf, size_t 
         snprintf(bf, bfsize, "%s", ref);
         return TRUE;
     }
-    const char *key; json_t *v;
-    json_object_foreach(json_object_get(topic, "cache"), key, v) {
-        if(strlen(key) <= DELETE_SIGNAL_MAX_KEY) {
-            continue;
-        }
-        char ref_[NAME_MAX+2];
-        key_delete_ref(key, ref_, sizeof(ref_));
-        if(strcmp(ref_, ref) == 0) {
-            snprintf(bf, bfsize, "%s", key);
-            return TRUE;
-        }
+    const char *named = json_string_value(
+        json_object_get(json_object_get(topic, "delete_ref_keys"), ref)
+    );
+    if(named) {
+        snprintf(bf, bfsize, "%s", named);
+        return TRUE;
     }
-    return FALSE;
+    /*
+     *  The hashes of the long keys of the cache, made in one pass when a
+     *  ref is not among them, and kept (`long_key_refs`, {ref: key}): one
+     *  hash per long key per pass, not one per key per signal
+     */
+    json_t *cache = json_object_get(topic, "cache");
+    json_t *index = json_object_get(topic, "long_key_refs");
+    const char *key = json_string_value(json_object_get(index, ref));
+    if(!key || !json_object_get(cache, key)) {
+        index = json_object();
+        json_object_set_new(topic, "long_key_refs", index);
+        const char *key_; json_t *v;
+        json_object_foreach(cache, key_, v) {
+            if(strlen(key_) <= DELETE_SIGNAL_MAX_KEY) {
+                continue;
+            }
+            char ref_[NAME_MAX+2];
+            key_delete_ref(key_, ref_, sizeof(ref_));
+            json_object_set_new(index, ref_, json_string(key_));
+        }
+        key = json_string_value(json_object_get(index, ref));
+    }
+    if(!key) {
+        return FALSE;
+    }
+    snprintf(bf, bfsize, "%s", key);
+    name_delete_ref(topic, ref, key);
+    return TRUE;
+}
+
+/***************************************************************************
+ *  CLIENT: keep the key a `/<sha256>` ref names while its delete is in
+ *  `deletes_applied` (prune_deletes_applied() lets both go together).
+ *  A short key is its own ref: nothing to keep.
+ ***************************************************************************/
+PRIVATE void name_delete_ref(json_t *topic, const char *ref, const char *key)
+{
+    if(ref[0] != '/') {
+        return;
+    }
+    json_t *names = json_object_get(topic, "delete_ref_keys");
+    if(!names) {
+        names = json_object();
+        json_object_set_new(topic, "delete_ref_keys", names);
+    }
+    json_object_set_new(names, ref, json_string(key));
 }
 
 /***************************************************************************
@@ -8279,6 +8648,7 @@ PRIVATE void apply_delete_made_here(json_t *topic, const char *key, json_int_t s
         json_object_set_new(topic, "deletes_applied", applied);
     }
     json_object_set_new(applied, ref, json_integer(seq));
+    name_delete_ref(topic, ref, key);
 }
 
 /***************************************************************************
@@ -8306,6 +8676,7 @@ PRIVATE void prune_deletes_applied(json_t *topic)
 {
     json_t *applied = json_object_get(topic, "deletes_applied");
     if(json_object_size(applied) == 0) {
+        json_object_del(topic, "delete_ref_keys");
         return;
     }
     BOOL any = FALSE;
@@ -8329,6 +8700,11 @@ PRIVATE void prune_deletes_applied(json_t *topic)
     json_object_foreach_safe(applied, tmp, ref, v) {
         if(json_integer_value(v) <= lowest) {
             json_object_del(applied, ref);
+        }
+    }
+    json_object_foreach_safe(json_object_get(topic, "delete_ref_keys"), tmp, ref, v) {
+        if(!json_object_get(applied, ref)) {
+            json_object_del(json_object_get(topic, "delete_ref_keys"), ref);
         }
     }
 }
@@ -8865,11 +9241,6 @@ PRIVATE void tell_deletes_lost_in_overflow(
         );
         return;
     }
-    json_int_t now_seq = read_delete_seq(gobj, watched_topic);
-    if(now_seq < 0) {
-        return; // Error already logged
-    }
-
     const char *topic_dir = json_string_value(json_object_get(watched_topic, "directory"));
     char path_keys[PATH_MAX];
     if(!build_path(path_keys, sizeof(path_keys), topic_dir, "keys", NULL)) {
@@ -8897,6 +9268,19 @@ PRIVATE void tell_deletes_lost_in_overflow(
     }
     closedir(dir);
 
+    /*
+     *  The sequence AFTER the list: the master takes a delete's sequence
+     *  before the key leaves keys/ (reserve_delete_seq()), so every key
+     *  found missing was deleted at or below it. Read before, a key removed
+     *  in between was applied one below its delete, and its signal taken
+     *  for a second one
+     */
+    json_int_t now_seq = read_delete_seq(gobj, watched_topic);
+    if(now_seq < 0) {
+        JSON_DECREF(on_disk)
+        return; // Error already logged
+    }
+
     json_t *cache = json_object_get(watched_topic, "cache");
     json_t *applied = json_object_get(watched_topic, "deletes_applied");
     if(!applied) {
@@ -8920,17 +9304,22 @@ PRIVATE void tell_deletes_lost_in_overflow(
         if(json_integer_value(json_object_get(applied, ref)) < now_seq) {
             json_object_set_new(applied, ref, json_integer(now_seq));
         }
+        name_delete_ref(watched_topic, ref, json_string_value(jn_key));
     }
     json_t *told_before = json_object_get(disk, "deletes_told");
     json_object_foreach(applied, key, v) {
-        if(json_integer_value(v) <= heard || key[0] == '/') {
-            continue;   // heard, or a key too long that the follower does not hold
+        if(json_integer_value(v) <= heard) {
+            continue;   // heard
         }
         if(json_integer_value(json_object_get(told_before, key)) >= json_integer_value(v)) {
             continue;   // told at an overflow before, its signal not heard yet
         }
-        if(!json_object_get(on_disk, key) && !json_object_get(cache, key)) {
-            json_array_append_new(gone, json_string(key));
+        char named[NAME_MAX+2];
+        if(!key_of_delete_ref(watched_topic, key, named, sizeof(named))) {
+            continue;   // a key too long that the follower does not hold
+        }
+        if(!json_object_get(on_disk, named) && !json_object_get(cache, named)) {
+            json_array_append_new(gone, json_string(named));
         }
     }
     JSON_DECREF(on_disk)
@@ -13335,6 +13724,57 @@ PRIVATE json_t *get_cache_total(json_t *topic, const char *key)
 }
 
 /***************************************************************************
+ *  The tm of the key's last record -- the last row of the file that holds
+ *  its highest t -- which a negative `from_tm` / `to_tm` is relative to,
+ *  as before v7 (tr2migrate/30_timeranger.c: the __tm__ of the last
+ *  record). It is the same on the master in memory, the master reloaded
+ *  and a replica; the tm range of the files is not (every row appended in
+ *  memory, the first and last rows at a load). -1 when it cannot be read
+ *  (logged).
+ ***************************************************************************/
+PRIVATE json_int_t key_last_record_tm(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+)
+{
+    json_t *last_file = NULL;
+    json_int_t last_t = -1;
+    int idx; json_t *file;
+    json_array_foreach(get_cache_files(topic, key), idx, file) {
+        json_int_t to_t = json_integer_value(json_object_get(file, "to_t"));
+        if(json_integer_value(json_object_get(file, "rows")) > 0 && to_t >= last_t) {
+            last_file = file;
+            last_t = to_t;
+        }
+    }
+    if(!last_file) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "No file with rows for the key's last record",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+    const char *file_id = json_string_value(json_object_get(last_file, "id"));
+    json_int_t rows = json_integer_value(json_object_get(last_file, "rows"));
+    int fd = get_topic_rd_fd(gobj, tranger, topic, key, file_id, FALSE);
+    if(fd < 0) {
+        return -1;  // Error already logged
+    }
+    md2_record_t md_record;
+    if(read_md2_row(gobj, fd, file_id, (off_t)((rows - 1) * (json_int_t)sizeof(md2_record_t)),
+            &md_record, NULL, "last") < 0) {
+        return -1;  // Error already logged
+    }
+    return (json_int_t)md_record.__tm__;
+}
+
+/***************************************************************************
  *  Return a list of segments that match conditions
  *  match_cond can be modified in (times in string)
  ***************************************************************************/
@@ -13569,8 +14009,13 @@ PRIVATE json_t *get_segments(
         from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
     }
 
-    if(from_tm < 0) {   // relative to the key's last tm (see from_t above)
-        from_tm = total_to_tm + from_tm + 1;
+    json_int_t last_tm = -1;    // the tm of the key's last record, read once if asked
+    if(from_tm < 0) {   // relative to the key's last record (see from_t above)
+        last_tm = key_last_record_tm(gobj, tranger, topic, key);
+        if(last_tm < 0) {
+            last_tm = total_to_tm;  // Error already logged; the highest tm the cache knows
+        }
+        from_tm = last_tm + from_tm + 1;
         if(from_tm < total_from_tm) {
             from_tm = total_from_tm;
         }
@@ -13606,7 +14051,13 @@ PRIVATE json_t *get_segments(
     }
 
     if(to_tm < 0) {
-        json_int_t resolved = total_to_tm + to_tm;
+        if(last_tm < 0) {
+            last_tm = key_last_record_tm(gobj, tranger, topic, key);
+            if(last_tm < 0) {
+                last_tm = total_to_tm;  // Error already logged; the highest tm the cache knows
+            }
+        }
+        json_int_t resolved = last_tm + to_tm;
         if(resolved > 0) {
             to_tm = resolved;
             json_object_set_new(match_cond, "to_tm", json_integer(to_tm));
@@ -15320,11 +15771,17 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                     }
                 }
 
+                /*
+                 *  A copy per key: get_segments() writes a negative bound
+                 *  back resolved against ITS key's last record. Shared, the
+                 *  first key's bound was every other key's (up to 7.25.22
+                 *  invisible: a negative bound matched nothing at all)
+                 */
                 json_t *ll = tranger2_open_iterator(
                     tranger,
                     topic_name,
                     key_,
-                    json_incref(match_cond),  // match_cond, owned
+                    json_deep_copy(match_cond),  // match_cond, owned
                     load_record_callback, // called on LOADING and APPENDING
                     "",     // iterator id: the key
                     load_creator,
