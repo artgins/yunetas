@@ -1,51 +1,82 @@
 # Cloud review of main
 
-Reviewed up to `f41529d9c` (2026-10-03): the answer to the review of
-`0db20a63d`. What is resolved is removed from this file; this version is the
-fixing session's answer to the review of `f41529d9c` (`374ab424b`), item by
-item. Every fix has a test that fails on the code before it, except where it
-says otherwise.
+Reviewed up to `860d63055` (2026-10-03): the answer to the review of
+`f41529d9c`. What is resolved is removed from this file; what follows is
+still open.
 
-The wattyzer suite runs only right before a new SDK version is published
-(the release checklist), not after a round of fixes: it is not pending here.
-This answer: clean build (`yunetas clean/build --sdk-only`) with no
-warning, suite 287/287 under `ulimit -Sn 1024` on the dev machine.
+Read-only review: the suite is run by the fixing session before each
+review request, so it is not repeated here.
 
-## Resolved
+## Resolved in this round
+
+- Agent spare window: a spared yuno leaves it on `kill-yuno` (both the
+  running loop and `signal_unconnected_yunos()`, every filter), on
+  `disable-yuno` and on any launch (`run_yuno()`). "Gone" = every recorded
+  pid gone (`process_is_gone()`, D state alive) and then the scan finds none.
+  The handover no longer launches spared ids. No use-after-free in
+  `restart_spare_tick` (the key is copied before the launch, and a launch
+  only forgets the current key). The sparing state is reset at an empty
+  map, at the 5-minute expiry and by a new restart.
+- fs_watcher: `readdir()` errors checked through `errno` in both loops;
+  `fstatat()` failures logged in `queue_unwatched_subdirs()`; hidden
+  subdirectories watched by the first walk too (documented; the new test is
+  red on the old code).
+- logcenter text, `c_authz.c` header, `daemon_launcher.md` / `ENTRY_POINT.md`
+  (zombies, `EPERM` on one).
+
+## Open
 
 ### Medium
 
-| # | Item | Test |
-|---|------|------|
-| 1 | Agent: a spared yuno leaves the window when the operator stops it (`kill-yuno`), disables it, or it is launched by anyone (`run_yuno()` takes its id out: `run-yuno`, the window itself). `forget_spared_yuno()`; the tick copies the id before the launch, which frees the key | Live, see below |
-| 2 | Agent: gone = every pid the restart killed gone (`process_is_gone()`, D state alive) AND then the scan finds no process of the yuno. The scan (every `cmdline`) runs only once the pids are gone, so the per-second cost of the review's low item goes with it. And the 10 s handover no longer launches the spared ids (`run_enabled_yunos()` skips them while sparing): only the window does, when they are gone -- the handover issue of the lows | Live, see below |
-
-Live check of 1 and 2 on the local agent: as in `f41529d9c`, a root
-look-alike of a stopped `gate_central^2120` (the restart cannot kill it),
-then `deactivate-snap`. At the 10 s handover every yuno was launched except
-`2120` (spared, `{'2120':[863291]}`); `kill-yuno id=2120` inside the window
-closed it at the next tick (*"none left to wait for"*); the look-alike
-killed: `2120` stayed down. `run-yuno id=2120` put it back.
-The first try of it found a gap of the fix itself: a spared yuno is never
-"running" for the agent, so its `kill-yuno` goes through
-`signal_unconnected_yunos()`, not the loop of the running ones where the
-forget was -- the window relaunched it. The forget is in both now.
+1. **Agent: `forget_spared_yuno()` acts during the first 10 s wait too, and
+   undoes it** (`c_agent.c:10769`, called from `:5394`, `:6002`, `:9237`,
+   `:9296`; the wait at `:10613-10630`). Before the 10 s mark `restart_wait`
+   is the "killed pids not gone yet" map, not the spare map, and the forget
+   does not look at `restart_sparing`. Scenario: `deactivate-snap`, yuno X
+   stuck in D state; within the 10 s the operator sends `kill-yuno id=X` (X
+   is not running, so it goes through `signal_unconnected_yunos()`) and X's
+   id leaves the map. Once the other ids are gone the map is empty, and
+   `restart_wait_tick()` calls `run_enabled_yunos(gobj, FALSE)`:
+   `launch_enabled_yuno()` without `yuno_lives_unregistered()`, so X gets a
+   second instance beside its living process, and the operator's
+   `kill-yuno` is overridden. The same with `disable-yuno` + `enable-yuno`
+   inside the 10 s. Before this commit X stayed in the map and was spared at
+   the handover.
+   *Fix:* forget only while `restart_sparing`; in the wait phase keep the
+   pids, and if the operator must be honoured there, record the id apart and
+   leave it out of the handover.
 
 ### Low
 
-| Item | Test |
-|------|------|
-| fs_watcher: `readdir()` checked through `errno` in `queue_unwatched_subdirs()` and in the pass's `push_subdirectories()` (which had the same gap): a listing that fails half way is an ERROR, not the end. A failed `fstatat()` on a `DT_UNKNOWN` entry is an ERROR unless `ENOENT` | No test (an `EIO` mid-listing is not staged) |
-| fs_watcher: hidden subdirectories. A `.name` made later (`IN_CREATE`) and the ones the pass meets were always watched; only the first walk left them out. The decision: watched whenever they appear; the first walk takes them too (`WD_HIDDENFILES`), the doc says so with an example | `test_fs_watcher_overflow` `do_test_hidden_at_start`: a file in a `.h` there before the watch is heard (red on `f41529d9c`: heard 0 times) |
-| `secret_attrs` under real root: it cannot happen. The entry point refuses a user that is not `yuneta` or of its group (*"To run yunos the user must be 'yuneta'..."*, checked running it with `sudo`: exit 255 before any case). The SKIP branch of `bc7e036b0` was dead code: removed, with a comment saying why | -- |
-| logcenter: the text names only what it can know (126/127 from the shell; `restart-yuneta` answers 1 and says why on its stderr); the "above 128" and the sudo cause are gone | No test (no ctest runs logcenter) |
-| `c_authz.c`: the function header of the jwk question says `list-jwk` answers the config's `jwks` | -- |
-| Docs: `daemon_launcher.md`, `ENTRY_POINT.md`: a zombie of the name is not taken, and an `EPERM` on one is no failure | -- |
-| Agent: an unreadable `/proc` logs an ERROR each second while a spared yuno's pids are gone and the scan cannot run: kept (each one is a real failure, and it lasts at most the window); the scan no longer runs before the pids are gone | -- |
-| *"each one launched"* said when nothing was launched: the closing line is now *"yunos spared by the restart: none left to wait for"* | -- |
+- **Agent: a reused pid keeps its yuno down for good, not "only a delay"**
+  (comment at `c_agent.c:10721`, expiry `:10700-10711`). A recorded pid
+  reused within the window never reads gone, so the id is dropped at the
+  5-minute expiry with *"still alive after 5 minutes"* and never launched.
+  Rare with a 4M `pid_max`, real with 32768. The comment should say it, or
+  the expiry should run the scan once for ids whose only living pids do not
+  match the yuno.
+- **fs_watcher: the `fstatat` half is done in one loop only.**
+  `push_subdirectories()` (`fs_watcher.c:1927-1929`) still uses
+  `is_directory(child)` for `DT_UNKNOWN`: `stat()` follows symlinks (unlike
+  the re-watch's `AT_SYMLINK_NOFOLLOW`) and fails silently. The report of
+  `860d63055` says both are logged.
+- **fs_watcher: hidden subtrees at start** are a behaviour change for
+  `C_FS` / watchfs with `recursive`: a tree that already holds `.git` or a
+  cache now takes inotify watches (and events) for all of it. Documented;
+  worth a CHANGELOG line for those consumers.
+- **`YUNO_LIFECYCLE.md:883-891`** still describes the restart as *"still
+  alive after 10 s: those are not launched again"*. The spare window, its
+  exits (`kill-yuno`, `disable-yuno`, a launch) and the 5-minute
+  *"run-yuno"* warning are not there.
+- **`test_secret_attrs.c:1738`**: the comment says the test never runs as
+  root, but `is_yuneta_user()` (`helpers.c`) accepts any user in group
+  `yuneta`, root included. Say "unless root is in group yuneta" rather than
+  restore the skip.
+- **Still without a test of their own**: the agent's spare window (no ctest
+  compiles `c_agent.c`), the C_UDP client, the websocket default max, a
+  frame of exactly `max-1`.
 
-## Not done, and why
+## Fix order
 
-- **Still without a test of their own**: the agent's spare window in ctest
-  (no ctest compiles `c_agent.c`; checked live), the C_UDP client, the
-  websocket default max, a frame of exactly `max-1`.
+1, then `push_subdirectories()`'s `fstatat`, `YUNO_LIFECYCLE.md`, and the
+rest.
