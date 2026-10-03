@@ -40,7 +40,10 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 - **`test_c_node_link_events` fails now and then** — twice on 2026-09-15,
   both inside runs of several suites, never alone; no failure recorded since
-  2026-09-28. Its message was not kept. Next time it fails, keep
+  2026-09-28. Its message was not kept. On 2026-10-03 one test of a
+  serial run of the 25 c_node/tr_treedb/c_treedb tests failed and its log
+  was overwritten by the rerun (three reruns green): it may have been this
+  one. Next time it fails, keep
   `build/Testing/Temporary/LastTest.log` before running anything else (ctest
   overwrites it).
 - **Each test binary has a fixed port**: two whole suites run at once on one

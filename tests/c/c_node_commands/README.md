@@ -14,7 +14,8 @@ hook `departments`), users under departments (`users`), items with a pkey2
   (`["version"]`).
 - `jtree` of `top` by `departments` with `rename_hook: "data"`: the children
   whole in `data`, each with its `__path__` (`` top`dev ``), the hook itself
-  gone.
+  gone. And without `rename_hook`: the children whole in the hook itself,
+  each ONCE (up to 7.25.22 after the refs the hook held: `dev ops dev ops`).
 - `parents` of `dev` (`top`; `["top"]` with `options: {only_id: 1}`; `[]` for
   the root) and `children` (`dev ops` of `top`; `ana` by the `users` hook of
   `dev`; nothing by `users` of `top`, not recursive). **With no `options`**:

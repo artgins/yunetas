@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **fix: `jtree` without `rename_hook` gave every child twice.** The hook
+  kept the refs of the collapsed view (`{id, topic_name}`) and the children
+  were appended after them, whole: `[dev, ops, dev{...}, ops{...}]`. The
+  hook now starts empty and holds each child once, whole, as `rename_hook`
+  already did. Nothing in the SDK, the projects or the SPAs called it
+  without `rename_hook`. In 7.25.22 (from the port before v7).
+  `test_c_node_commands` (red on the previous code: `dev ops dev ops`).
+
 - **tests, emailsender: what the sender rules and skip-email do, and a
   window that measured the test.** New `skip_paused` (skip-email works with
   the service paused), `default_from_case` (a `from` that is the default in

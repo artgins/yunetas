@@ -14659,10 +14659,19 @@ PRIVATE json_t *create_jchild(
     json_t *jchild = json_deep_copy(jchild_);
     json_decref(jchild_);
 
+    /*
+     *  The tree is written in the hook (or in rename_hook, the hook gone):
+     *  it starts EMPTY, and add_jtree_children() puts each child there,
+     *  whole. Up to 7.25.22, without rename_hook, the hook kept the refs of
+     *  the collapsed view and the children were appended after them: every
+     *  child twice, once as a ref and once whole.
+     */
     if(!empty_string(rename_hook)) {
         json_t *jn_hook = kw_get_dict_value(gobj, jchild, hook, 0, KW_REQUIRED|KW_EXTRACT);
         json_decref(jn_hook);
         json_object_set_new(jchild, rename_hook, json_array());
+    } else {
+        json_object_set_new(jchild, hook, json_array());
     }
     return jchild;
 }

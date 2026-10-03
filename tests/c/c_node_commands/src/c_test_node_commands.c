@@ -619,6 +619,22 @@ PRIVATE int run_tests(hgobj gobj)
     }
 
     /*
+     *  jtree without rename_hook: the children whole in the hook itself,
+     *  each once. Up to 7.25.22 the hook kept its refs and the children were
+     *  appended after them: "dev ops dev ops".
+     */
+    {
+        json_t *resp = ask(gobj, "jtree", json_pack("{s:s, s:s, s:s}",
+            "topic_name", "departments", "node_id", "top", "hook", "departments"));
+        result += expect_ids(gobj, "jtree: the children of top, once", resp, "departments", "dev ops");
+        json_t *children = kw_get_list(gobj, kw_get_dict_value(gobj, resp, "data", 0, 0), "departments", 0, 0);
+        if(strcmp(kw_get_str(gobj, json_array_get(children, 0), "__path__", "", 0), "top`dev") != 0) {
+            result += fail(gobj, "jtree: a child whole, in the hook", resp);
+        }
+        JSON_DECREF(resp)
+    }
+
+    /*
      *  parents and children, with no options (list_dict) and with them
      */
     CHECK(expect_ids, "parents: of dev", "parents",

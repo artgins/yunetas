@@ -2066,7 +2066,20 @@ A JSON object representing the hierarchical tree of child nodes. The caller must
 
 **Notes**
 
-The function recursively traverses child nodes using the specified `hook`. The `rename_hook` parameter allows renaming the hook in the output tree.
+The function recursively traverses child nodes using the specified `hook`. Each node of the tree is its collapsed view, with its `__path__` (the ids from the root, joined by `` ` ``). The children of a node go, whole, in its `hook` -- or in `rename_hook` when given, the `hook` itself then left out. Each child appears ONCE: up to 7.25.22, without `rename_hook`, the hook kept the refs of the collapsed view and the children were appended after them, so every child was there twice.
+
+```C
+// departments: top -> dev, ops (the self hook "departments")
+json_t *top = treedb_get_node(tranger, "treedb_x", "departments", "top");
+json_t *tree = treedb_node_jtree(tranger, "departments", "", top, 0, 0);
+// tree: {"id": "top", ..., "__path__": "top",
+//        "departments": [{"id": "dev", ..., "__path__": "top`dev", "departments": []},
+//                        {"id": "ops", ..., "__path__": "top`ops", "departments": []}]}
+json_t *webix = treedb_node_jtree(tranger, "departments", "data", top, 0, 0);
+// webix: the same, the children in "data" and no "departments" key
+JSON_DECREF(tree)
+JSON_DECREF(webix)
+```
 
 ---
 
