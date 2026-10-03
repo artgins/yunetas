@@ -273,8 +273,8 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   is that echo, which is why a follower overflowed at ~3000 records/s and why
   one burst overflows it twice. An overflow no longer aborts (the feed is
   rescanned) but costs a rescan of every key. Watch the key directories
-  without `IN_DELETE` (the root keeps it: a key directory's deletion is the
-  key-delete signal); needs a per-level mask in `fs_watcher`, and `C_FS` still
+  without `IN_DELETE` (the root keeps it: the key-delete signal is a
+  `.d<seq>.<key>` directory made and removed there); needs a per-level mask in `fs_watcher`, and `C_FS` still
   wants file deletes.
 
 ### Schema editing

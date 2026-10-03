@@ -24,6 +24,7 @@ decision.
 
 | Release | Against | Report | Rendered | Raw figures |
 |---------|---------|--------|----------|-------------|
+| 7.26.0 | 7.25.22 | [7.26.0.html](https://github.com/artgins/yunetas/blob/7.26.0/performance/reports/7.26.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.26.0/performance/reports/7.26.0.html) | [7.26.0.json](https://github.com/artgins/yunetas/blob/7.26.0/performance/reports/7.26.0.json) |
 | 7.25.22 | 7.25.21 | [7.25.22.html](https://github.com/artgins/yunetas/blob/7.25.22/performance/reports/7.25.22.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.22/performance/reports/7.25.22.html) | [7.25.22.json](https://github.com/artgins/yunetas/blob/7.25.22/performance/reports/7.25.22.json) |
 | 7.25.21 | 7.25.20 | [7.25.21.html](https://github.com/artgins/yunetas/blob/7.25.22/performance/reports/7.25.21.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.21/performance/reports/7.25.21.html) | [7.25.21.json](https://github.com/artgins/yunetas/blob/7.25.22/performance/reports/7.25.21.json) |
 | 7.25.20 | 7.25.5 | [7.25.20.html](https://github.com/artgins/yunetas/blob/7.25.22/performance/reports/7.25.20.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.20/performance/reports/7.25.20.html) | [7.25.20.json](https://github.com/artgins/yunetas/blob/7.25.22/performance/reports/7.25.20.json) |
@@ -37,7 +38,7 @@ the schema of its `.json`, are in
 ## The trend
 
 ```{figure} ./_static/perf/perf_trend.svg
-:alt: Ten small charts, one per figure, each from 7.25.4 through 7.25.5, 7.25.20 and 7.25.21 to 7.25.22: appends per second 220,120, 221,588, 226,720, 225,883, 224,185; open of a store as master 92.5, 80.8, 78.2, 81.9, 79.6 ms; a tm query of one minute 12.7, 7.4, 7.35, 7.66, 7.47 ms; a treedb update in memory 3.92, 2.92, 2.32, 2.32, 2.41 us; a saved treedb update 11.75, 10.81, 7.66, 7.77, 7.75 us; link or unlink 11.27, 11.09, 8.65, 8.71, 8.63 us; the open of 40 treedbs with an unchanged schema 1.84, 0.649, 0.318, 0.340, 0.333 s; one agent audit record 6194, 554, 572, 593, 568 ns; the event loop echo 152.2, 150.5, 150.1, 147.1, 150.5 K messages per second; the gobj TCP echo 38,706, 39,344, 38,191, 39,715, 38,292 round trips per second.
+:alt: Ten small charts, one per figure, each from 7.25.4 through 7.25.5, 7.25.20, 7.25.21 and 7.25.22 to 7.26.0: appends per second 220,120, 221,588, 226,720, 225,883, 224,185, 223,864; open of a store as master 92.5, 80.8, 78.2, 81.9, 79.6, 81.9 ms; a tm query of one minute 12.7, 7.4, 7.35, 7.66, 7.47, 12.8 ms (from 7.26.0 every row is read: no tm markers); a treedb update in memory 3.92, 2.92, 2.32, 2.32, 2.41, 2.49 us; a saved treedb update 11.75, 10.81, 7.66, 7.77, 7.75, 7.80 us; link or unlink 11.27, 11.09, 8.65, 8.71, 8.63, 8.65 us; the open of 40 treedbs with an unchanged schema 1.84, 0.649, 0.318, 0.340, 0.333, 0.335 s; one agent audit record 6194, 554, 572, 593, 568, 570 ns; the event loop echo 152.2, 150.5, 150.1, 147.1, 150.5, 149.0 K messages per second; the gobj TCP echo 38,706, 39,344, 38,191, 39,715, 38,292, 39,511 round trips per second.
 :width: 100%
 
 The main A/B figures, one panel each, on their own scale from zero. The first
@@ -50,26 +51,28 @@ earlier run) and 7.25.5 as shipped (the tag-time run). Every other point of the
 table comes from one alternated A/B run. Each point is the figure its own
 report measured, so two neighbouring points come from two runs, days apart:
 the A/B of 7.25.20 measured 7.25.5 again, the A/B of 7.25.21 measured
-7.25.20 again, and the A/B of 7.25.22 measured 7.25.21 again; their figures are in the sections below. Between two such
+7.25.20 again, the A/B of 7.25.22 measured 7.25.21 again, and the A/B of 7.26.0 measured 7.25.22 again; their figures are in the sections below. Between two such
 reports a figure can move by a few percent with no change of the code (the
 master open of 7.25.20 measured 78.2 ms in its own report and 82.4 ms in the
 A/B of 7.25.21, another day): read a trend against the A/B of its report.
 
-| Figure | Unit | 7.25.4 | 7.25.5 | 7.25.20 | 7.25.21 | 7.25.22 |
-|--------|------|--------|--------|---------|---------|---------|
-| Appends per second (`test_topic_pkey_integer`, 4 link layouts) | appends/s | 220,120 | 221,588 | 226,720 | 225,883 | 224,185 |
-| Open a store as master, 20 000 md2 files (`perf_timeranger2`) | ms | 92.5 | 80.8 | 78.2 | 81.9 | 79.6 |
-| A tm query of one minute of a key | ms | 12.7 | 7.4 (migrated) | 7.35 | 7.66 | 7.47 |
-| treedb: update a node in memory (`perf_tr_treedb`) | us | 3.92 | 2.92 | 2.32 | 2.32 | 2.41 |
-| treedb: update a node and save it | us | 11.75 | 10.81 | 7.66 | 7.77 | 7.75 |
-| treedb: link or unlink two nodes | us | 11.27 | 11.09 | 8.65 | 8.71 | 8.63 |
-| C_TREEDB: open 40 treedbs whose schema did not change (`perf_c_treedb`) | s | 1.84 | 0.649 | 0.318 | 0.340 | 0.333 |
-| One agent audit record of 300 bytes (`perf_rotatory`) | ns | 6,194 | 554 | 572 | 593 | 568 |
-| Event loop echo, 1 KB messages (`perf_yev_ping_pong`) | K msg/s | 152.2 | 150.5 | 150.1 | 147.1 | 150.5 |
-| TCP echo through the gobj stack (`perf_tcp_test4`) | round trips/s | 38,706 | 39,344 | 38,191 | 39,715 | 38,292 |
+| Figure | Unit | 7.25.4 | 7.25.5 | 7.25.20 | 7.25.21 | 7.25.22 | 7.26.0 |
+|--------|------|--------|--------|---------|---------|---------|--------|
+| Appends per second (`test_topic_pkey_integer`, 4 link layouts) | appends/s | 220,120 | 221,588 | 226,720 | 225,883 | 224,185 | 223,864 |
+| Open a store as master, 20 000 md2 files (`perf_timeranger2`) | ms | 92.5 | 80.8 | 78.2 | 81.9 | 79.6 | 81.9 |
+| A tm query of one minute of a key | ms | 12.7 | 7.4 (migrated) | 7.35 | 7.66 | 7.47 | 12.8 (every row) |
+| treedb: update a node in memory (`perf_tr_treedb`) | us | 3.92 | 2.92 | 2.32 | 2.32 | 2.41 | 2.49 |
+| treedb: update a node and save it | us | 11.75 | 10.81 | 7.66 | 7.77 | 7.75 | 7.80 |
+| treedb: link or unlink two nodes | us | 11.27 | 11.09 | 8.65 | 8.71 | 8.63 | 8.65 |
+| C_TREEDB: open 40 treedbs whose schema did not change (`perf_c_treedb`) | s | 1.84 | 0.649 | 0.318 | 0.340 | 0.333 | 0.335 |
+| One agent audit record of 300 bytes (`perf_rotatory`) | ns | 6,194 | 554 | 572 | 593 | 568 | 570 |
+| Event loop echo, 1 KB messages (`perf_yev_ping_pong`) | K msg/s | 152.2 | 150.5 | 150.1 | 147.1 | 150.5 | 149.0 |
+| TCP echo through the gobj stack (`perf_tcp_test4`) | round trips/s | 38,706 | 39,344 | 38,191 | 39,715 | 38,292 | 39,511 |
 
-The appends of 7.25.20, 7.25.21 and 7.25.22 are measured on whole-release builds (see
-below), not on the four padded links of 7.25.5.
+The appends of 7.25.20, 7.25.21, 7.25.22 and 7.26.0 are measured on whole-release builds (see
+below), not on the four padded links of 7.25.5. The tm query of 7.25.5 to
+7.25.22 is the one of a topic its release had marked; 7.26.0 has no tm markers
+and reads every row of the key (a topic 7.25.22 had not marked took 402 ms).
 
 ## What each figure means
 
@@ -86,6 +89,94 @@ below), not on the four padded links of 7.25.5.
 | gobj TCP and TLS echo | Round trips of a JSON message through the whole stack (`C_IOGATE`, `C_TCP_S`, `C_PROT_TCP4H`, `C_CHANNEL`), plain and encrypted, with and without a timeranger2 append per message. |
 | Publish | `gobj_publish_event()`: one event delivered to N subscribers of one gobj, the in-process message bus. |
 | Binary size | Each yuno is one fully static executable. The size includes OpenSSL and the whole framework. |
+
+## 7.26.0 against 7.25.22
+
+7.26.0 changes how timeranger2 reads and how its followers hear deletes: the
+md2 rows of a scan are read 1024 at a time with one `pread()`, and the match
+condition is parsed once per scan; the tm markers of 7.25.5..7.25.22 are gone,
+so a tm condition filters every row of any topic; a key delete reaches the
+rt_disk followers with the master's delete sequence; and a link in a treedb
+publishes the relationship (`with_link_events` on by default), not the parent
+collapsed whole.
+
+```{figure} ./_static/perf/perf_change_7.26.0.svg
+:alt: The change of the time one operation takes, 7.26.0 against 7.25.22, one bar per figure. Faster and claimed: a tm query of a topic 7.25.22 had not marked, -96.8% of time (402 to 12.8 ms); reading a history, -14% of time (+16.7% records per second) and page by page (+16.1%); opening a treedb, -20.3%; opening a store as a replica, -12.6%. Prices: a tm query of a topic 7.25.22 had marked, +69.9% (7.55 to 12.8 ms); creating 10 topics, +96.7%; the first open of 40 treedbs, +55.4%. Every other figure within its noise.
+:width: 100%
+
+One bar per figure: the change of the time one operation takes, left of zero
+is faster. Blue is faster, red is a price paid on purpose, grey is within the
+noise of its rounds.
+```
+
+| Faster | 7.25.22 | 7.26.0 | Change | Why |
+|--------|---------|--------|--------|-----|
+| A tm query of one minute, a topic 7.25.22 had not marked (1 key, 30 files x 20 000 rows) | 401.6 ms | 12.8 ms | -96.8%, 31x (t = -45) | The md2 rows read 1024 at a time with one `pread()` (an `lseek()` and a `read()` each before), and the match condition parsed into a C struct once per scan (~15 json lookups per row before). |
+| Records read per second, every record of 2 keys (`test_topic_pkey_integer_iterator2`) | 184,338 | 215,157 | +16.7% (t = 17) | The same two changes. |
+| Records read per second, page by page (`test_topic_pkey_integer_iterator5`) | 166,017 | 192,697 | +16.1% (t = 19) | The same two changes, on the read of a GUI. |
+| treedb: open (per node loaded, `perf_tr_treedb` `reopen`) | 390.3 us | 311.2 us | -20.3% (t = -15) | A treedb loads its topics through the same scans. |
+| Open a store as a replica, 20 000 md2 files | 108.4 ms | 94.8 ms | -12.6% (t = -8.7) | The load no longer looks for a tm marker beside each md2 file: the markers are gone. The master's open did not move. |
+
+| Price | 7.25.22 | 7.26.0 | Change | What it buys |
+|-------|---------|--------|--------|--------------|
+| A tm query of one minute, a topic 7.25.22 had marked | 7.55 ms | 12.8 ms | +69.9% (t = 16) | The tm markers are gone (an API removal): a tm condition filters every row and no file is skipped by its tm range, correct on any topic and after any rollback. The block reads keep it at 1.7x the marked topic, not the 53x of an unmarked one. |
+
+Fixed before the tag: a master that opens a topic makes its `delete_seq.json`
+(the record of the delete sequence, which a follower takes as the sign that
+its master signals each delete in order). Written durably -- a file fsync, a
+rename and a directory fsync per topic -- it doubled the creation of 10
+topics (131.4 -> 258.5 ms) and made the first open of 40 treedbs (400 topics)
+55% longer (10.42 -> 16.19 s). It holds 0 and is made again if lost, so it is
+written NOT durably now: 134.0 ms and 10.33 s, within the noise of 7.25.22
+(the 7.26.0 side measured again after the fix, 8 rounds).
+
+Not measured: a key delete on a topic with an rt_disk feed. No benchmark
+deletes keys under a feed; by construction such a delete writes the record of
+its sequence first, two fsyncs and a rename more than 7.25.22 did. A topic
+without feeds pays nothing.
+
+Every other figure moved inside its spread (|t| < 3), on paths that changed
+or not. The binaries are 0.04-0.15% larger (stripped).
+
+The method: 7.25.22 and 7.26.0 each built from their own tree (a git worktree
+of the 7.25.22 tag with the same `.config` and compiler, where only the kernel
+libraries, the modules, `performance/c/` and the three ctest binaries were
+built), the two binaries of each benchmark run alternately, the order flipped
+every round, with a `sync` and a 3 s pause before each run: 8 rounds, 24 for
+the three timeranger2 ctest binaries. `outputs_ext` was shared: linux-ext-libs
+did not change. The treedb figures are CPU time of the process.
+
+## What one machine does with 7.26.0
+
+The 7.26.0 side of the same run: 8 rounds (24 for the ctest binaries), mean
+of the rounds, on the machine described below.
+
+```{figure} ./_static/perf/perf_throughput_7.26.0.svg
+:alt: Operations per second on one core with Yuneta 7.26.0. timeranger2 appends 224 K, appends with a live reader 190 K, timeranger2 reads 215 K, reads page by page 193 K, the io_uring event loop alone 149 K, the event loop with a timeranger2 append per message 86.1 K, the full gobj stack over TCP 39.5 K, TCP with an append 30.4 K, TLS 29.8 K, TLS with an append 23.9 K, OAuth2 BFF logins 8.6 K.
+:width: 100%
+
+Operations per second on one core, as each benchmark counts them.
+```
+
+| Figure | Benchmark | 7.26.0 |
+|--------|-----------|--------|
+| Records stored per second, one key-indexed topic | `test_topic_pkey_integer` | 223,864 +- 12,198 |
+| The same, with a live reader (an rt list) | `test_topic_pkey_integer` | 189,539 +- 7,784 |
+| Records stored per second, one key, 600 000 appends | `perf_timeranger2` `tm_build_appends` | 354,343 +- 10,491 |
+| Records read per second, every record of 2 keys, one callback each | `test_topic_pkey_integer_iterator2` | 215,157 +- 7,268 |
+| Records read per second, page by page | `test_topic_pkey_integer_iterator5` | 192,697 +- 4,480 |
+| Open a store as master, 20 000 md2 files | `perf_timeranger2` | 81.9 ms |
+| A tm query of one minute of a key (every row read) | `perf_timeranger2` | 12.8 ms |
+| treedb: update a node in memory / saved | `perf_tr_treedb` | 2.49 us / 7.80 us |
+| treedb: link or unlink / create / forced delete | `perf_tr_treedb` | 8.65 us / 65.6 us / 43.7 us |
+| C_TREEDB: open 40 treedbs, schema unchanged | `perf_c_treedb` | 0.335 s |
+| One log line of 300 bytes | `perf_rotatory` | 374 ns |
+| One agent audit record / flushed | `perf_rotatory` | 570 ns / 1,257 ns |
+| Event loop echo, 1 KB messages / with an append | `perf_yev_ping_pong`, `perf_yev_ping_pong2` | 149.0 K / 86.1 K msg/s |
+| gobj stack, TCP round trips / with an append | `perf_tcp_test4`, `perf_tcp_test5` | 39,511 / 30,378 per s |
+| gobj stack, TLS (OpenSSL 3.6.3) round trips / with an append | `perf_tcps_test4`, `perf_tcps_test5` | 29,762 / 23,907 per s |
+| OAuth2 BFF logins (HTTP, 5 clients, mock IdP) | `perf_auth_bff` | 8,622 per s |
+| Binary size of a yuno, fully static with OpenSSL | `outputs/yunos/*` | 10.2-10.6 MB stripped, +0.04% to +0.15% against 7.25.22 |
 
 ## 7.25.22 against 7.25.21
 
@@ -337,7 +428,7 @@ The prices of 7.25.5, and what each one buys:
 |--------|----|-----|
 | Create a topic (timeranger2) | 3.6 -> 118.9 ms for 10 | 2 fsyncs per topic: a power cut never leaves a topic whose files are not on disk. |
 | Change a `topic_version` | 1.7 -> 231.5 ms for 10 | 4 fsyncs per change: never a new `topic_version` over a `topic_cols.json` that is not on disk. |
-| A tm query on a topic of 7.25.4 or earlier | 12.7 -> 391.6 ms | Until `mark-tm-order` migrates the topic (19 ms, once): the old topic does not say that its tm order holds. After the migration the query takes 7.4 ms. (From 7.26.0 the tm markers and `mark-tm-order` are gone: a tm query is a filter on every row again; with 7.26.0's block reads and once-parsed condition it takes ~14.5 ms on the benchmark's store, where a topic marked by 7.25.5..7.25.22 took 7.4 ms.) |
+| A tm query on a topic of 7.25.4 or earlier | 12.7 -> 391.6 ms | Until `mark-tm-order` migrates the topic (19 ms, once): the old topic does not say that its tm order holds. After the migration the query takes 7.4 ms. (From 7.26.0 the tm markers and `mark-tm-order` are gone: a tm query is a filter on every row again; with 7.26.0's block reads and once-parsed condition it takes ~12.8 ms on the benchmark's store, where a topic marked by 7.25.5..7.25.22 took 7.5 ms.) |
 | Open a store as a replica | 89.7 -> 106.5 ms | One more `stat()` per md2 file: a replica looks for the order markers after reading each file, so it cannot miss one the master writes during the open. |
 | C_TREEDB: first open, newer schema | +10%, +9% | The record of the projection in progress, written whole with its fsyncs: a crash in the middle is finished at the next open. |
 | Publish with `__global__` or `__local__` | +0.23 us a delivery | Each such subscription gets its own `kw_twin()` of the event, so a peer's subscription cannot change the event of every later subscriber. Every remote (`C_IEVENT_SRV`) subscription carries `__global__`. |

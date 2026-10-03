@@ -12,6 +12,26 @@ read in blocks and the match condition parsed once per scan, and the defects
 of five reviews and of TODO.md, each with a test that fails on the code
 before it unless the entry says otherwise.
 
+### Performance, against 7.25.22
+
+Measured against 7.25.22, each release built from its own tree, the two run
+alternately (8 rounds, 24 for the timeranger2 tests); the report is
+[`performance/reports/7.26.0.html`](performance/reports/7.26.0.html). Reading
+a timeranger2 history is **16-17% faster** (184,338 -> 215,157 records/s;
+page by page 166,017 -> 192,697), opening a treedb **20% faster** (390 ->
+311 us per node), a replica opens 12.6% faster (108.4 -> 94.8 ms, no tm
+marker looked for), and a tm query of one minute of a key on a topic 7.25.22
+had NOT marked takes **12.8 ms instead of 402** (31x): the md2 rows read in
+blocks of 1024 and the match condition parsed once per scan. The prices, each
+with its reason: the same query on a topic 7.25.22 HAD marked takes 12.8 ms
+instead of 7.5 (+70%: no tm markers, every row read). Found by this A/B
+and fixed before the tag: a master that opened a topic wrote its
+`delete_seq.json` durably, which doubled the creation of topics and made the
+first open of 40 treedbs 55% longer; written not durably now (it holds 0),
+both are back within the noise of 7.25.22 (134 ms for 10 topics, 10.3 s for
+the 40 treedbs). Not measured: a key delete on a topic with an rt_disk feed, which by construction
+writes the record of its sequence first. Everything else within its noise.
+
 ### Upgrade steps (operators, read first)
 
 - **Master and followers of a timeranger2 topic upgrade together** (key
@@ -122,7 +142,10 @@ before it unless the entry says otherwise.
   delete not told there (of a key on disk again, or that no feed had
   heard) is told by its signal. What every feed heard is pruned, so the
   follower keeps no more than the deletes some feed may still hear. The
-  master makes `delete_seq.json` (0) when it opens a topic that has none;
+  master makes `delete_seq.json` (0) when it opens a topic that has none
+  -- not durably: it holds 0, and one lost to a power cut (or left empty
+  by it) is made again at the next open, while every number above 0 is
+  written durably;
   a record it cannot read, or cannot WRITE, refuses the key delete
   (logged) before anything is removed and is left as it is (written late,
   a follower that read it in between would bound the key one below its
@@ -244,9 +267,9 @@ before it unless the entry says otherwise.
   command of `C_TRANGER`; nothing writes or reads `.tm_unordered` or
   `marks_tm_unordered`, and a store that has them keeps them, ignored (no
   migration). **Cost**: a tm query reads every md2 row of the key -- one
-  minute on 1 key x 30 files x 20 000 rows takes ~14.5 ms with this
+  minute on 1 key x 30 files x 20 000 rows takes ~12.8 ms with this
   release's block reads and once-parsed condition (below), where a topic
-  marked by 7.25.5..7.25.22 took 7.4 ms and an unmarked one ~0.39 s; who
+  marked by 7.25.5..7.25.22 took 7.5 ms and an unmarked one ~0.40 s; who
   needs fast access by tm keeps it themselves (a topic keyed by it, an index
   in memory). The
   `fr_tm` / `to_tm` of a file in `list-keys` are its first and last rows

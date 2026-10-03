@@ -91,6 +91,13 @@ A release that moves a lot of code ships a performance report: charts of what
 the release does on one machine, the release before measured the same way, and every loss with its
 reason.
 
+- **7.26.0** (against 7.25.22): reading a timeranger2 history 16-17% faster,
+  opening a treedb 20% faster, a tm query of a topic 7.25.22 had not marked 31x
+  faster; one price said with its reason (a tm query of a topic 7.25.22 had
+  marked, 7.5 -> 12.8 ms: the tm markers are gone).
+  [Report](performance/reports/7.26.0.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.26.0/performance/reports/7.26.0.html) ·
+  [raw figures](performance/reports/7.26.0.json)
 - **7.25.22** (against 7.25.21): two reviews closed, the agents as systemd
   units, and a forced treedb delete 39% faster; nothing slower on a path this
   release changed.

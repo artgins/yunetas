@@ -3318,6 +3318,40 @@ PRIVATE int do_test_delete_seq_record(void)
     result += test_json(NULL);
 
     /*
+     *  A record left EMPTY (its creation, not durable, lost to a power
+     *  cut): made again with 0 at the next open, not taken for a damaged
+     *  record that refuses every delete. Only a creation can leave it
+     *  empty (every number above 0 is written durably); emptied here
+     *  AFTER deletes, the follower says that the sequence went back
+     */
+    set_expected_results_unordered(
+        "delete_seq: an empty record is made again",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "delete_seq.json is empty (its creation lost to a power cut): made again with 0",
+            "msg", "Delete signal below the last one this feed heard: the master's delete sequence went back, this follower may take deletes for ones it applied"
+        ),
+        NULL, NULL, 1
+    );
+    tranger2_shutdown(tm);
+    drain(10);
+    f = fopen(record, "w");
+    if(f) {
+        fclose(f);
+    }
+    tm = startup_master(path_root, TRUE);
+    if(!tm || !tranger2_open_topic(tm, TOPIC_NAME, TRUE)) {
+        result += -1;
+    }
+    result += expect_seq_record("made again", path_topic, 0);
+    if(tranger2_delete_key(tm, TOPIC_NAME, key3) < 0) {
+        printf("%sERROR%s --> delete_seq: a delete after the record was made again\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += expect_seq_record("after a delete", path_topic, 1);
+    drain(30);
+    result += test_json(NULL);
+
+    /*
      *  A follower whose master keeps no record
      */
     set_expected_results(

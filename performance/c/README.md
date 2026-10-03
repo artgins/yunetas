@@ -773,6 +773,52 @@ releases (`timeranger2.c` changed only in its rt-disk rescan): code
 placement, as far as this method can tell; `test_topic_pkey_integer`, 24 rounds,
 moved +0.3%.
 
+### Oct-2026: 7.26.0 against 7.25.22 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
+
+Each release built from its own tree (a git worktree of the 7.25.22 tag, the
+same `.config` and compiler; only the kernel libraries, the modules,
+`performance/c/` and the three ctest binaries built there). `outputs_ext` was
+shared: linux-ext-libs did not change. The two binaries of each benchmark run
+alternately, the order flipped every round, with a `sync` and a 3 s pause
+before each run: 8 rounds, 24 for the three timeranger2 ctest binaries. Mean
++- standard deviation; the treedb figures are CPU time. The report:
+[`performance/reports/7.26.0.html`](../reports/7.26.0.html).
+
+| Case | 7.25.22 | 7.26.0 | Change |
+|------|---------|--------|--------|
+| `test_topic_pkey_integer`, appends/s | 219,597 +- 8,043 | 223,864 +- 12,198 | +1.9% (noise, t = 1.4) |
+| the same, with an rt list | 186,150 +- 7,455 | 189,539 +- 7,784 | +1.8% (noise) |
+| `perf_timeranger2` `build_appends`, `tm_build_appends` (ms) | 1645.9, 1680.3 | 1615.2, 1693.3 | noise |
+| `perf_timeranger2` `open_master` (ms) | 80.5 +- 2.1 | 81.9 +- 1.9 | noise |
+| `perf_timeranger2` `open_replica` (ms) | 108.4 +- 3.6 | 94.8 +- 2.7 | -12.6% (GAIN: no tm marker looked for) |
+| `perf_timeranger2` tm query, a topic 7.25.22 did not mark (ms) | 401.6 +- 24.5 | 12.8 +- 0.9 | -96.8%, 31x (GAIN: block reads, condition parsed once) |
+| `perf_timeranger2` tm query, a topic 7.25.22 marked (ms) | 7.55 +- 0.31 | 12.8 +- 0.9 | +69.9% (PRICE: no tm markers, every row read) |
+| `perf_timeranger2` `create_topic` (ms, 10 topics) | 131.4 +- 18.0 | 134.0 +- 10.0 | +2.0% (noise; 258.5 +- 23.9 with `delete_seq.json` written durably, fixed before the tag) |
+| `perf_timeranger2` `topic_version_change` (ms) | 237.1 | 253.7 | +7.0% (noise, t = 1.5) |
+| reads, iterator (records/s) | 184,338 +- 5,063 | 215,157 +- 7,268 | +16.7% (GAIN) |
+| reads, pages (records/s) | 166,017 +- 5,199 | 192,697 +- 4,480 | +16.1% (GAIN) |
+| `perf_tr_treedb` `update_memory`, `update_saved`, `link_unlink` (us) | 2.424, 7.812, 8.686 | 2.489, 7.799, 8.649 | noise |
+| `perf_tr_treedb` `reopen` (us) | 390.3 +- 11.5 | 311.2 +- 10.2 | -20.3% (GAIN: the same scans) |
+| `perf_tr_treedb` `create_link_half`, `delete_force`, `delete_parent` | 67.0, 42.4, 2547 | 65.6, 43.7, 2563 | noise |
+| `perf_c_treedb` `same_literal`, `newer_literal` (s) | 0.341, 13.23 | 0.335, 13.22 | noise |
+| `perf_c_treedb` `seed` (s, 400 topics) | 10.42 +- 0.50 | 10.33 +- 0.48 | -0.9% (noise; 16.19 +- 0.58 durably, fixed before the tag) |
+| `perf_rotatory` audit / flushed / log (ns) | 555 / 1253 / 373 | 570 / 1257 / 374 | noise |
+| `perf_yev_ping_pong` / `2` (K msg/s) | 151.4 / 84.7 | 149.0 / 86.1 | noise (t = -2.0 / 1.9) |
+| `perf_tcp_test4` / `5` (round trips/s) | 39,014 / 30,441 | 39,511 / 30,378 | noise |
+| `perf_tcps_test4` / `5` (round trips/s) | 29,278 / 23,746 | 29,762 / 23,907 | noise |
+| `perf_auth_bff` (logins/s) | 8,572 | 8,622 | noise |
+
+The gains come from the scans of timeranger2: the md2 rows read 1024 at a time
+with one `pread()`, and the match condition parsed once per scan. The prices:
+the tm markers are gone (a tm query of a topic 7.25.22 had marked reads every
+row again). A master that opened a topic wrote its `delete_seq.json` durably
+(a file fsync, a rename, a directory fsync), once per topic, which doubled
+`create_topic` and made `seed` 55% longer: it holds 0 and is made again if
+lost, so it is written not durably since, and the two rows above are the 7.26.0
+side measured again after that fix (8 rounds, not alternated). Not measured: a
+key delete on a topic with an rt_disk feed (no benchmark covers it), which by
+construction writes the record of its sequence first.
+
 ### Oct-2026: 7.25.22 against 7.25.21 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
 Each release built from its own tree (a git worktree of the 7.25.21 tag, the

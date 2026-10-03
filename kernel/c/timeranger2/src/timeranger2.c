@@ -4733,17 +4733,39 @@ PRIVATE json_int_t next_delete_seq(hgobj gobj, json_t *tranger, json_t *topic, B
  *  signals deletes with their sequence (check_master_delete_protocol()).
  *  A record that cannot be read is logged, and every delete of the topic
  *  is refused until it can (next_delete_seq()).
+ *
+ *  Made NOT durable: it holds 0, and a record lost to a power cut is made
+ *  again at the next open -- every number above 0 is written durably
+ *  (record_delete_seq()). Durable, it cost two fsyncs per topic opened as
+ *  master for the first time: creating 10 topics took twice as long, a
+ *  treedb seed of 400 topics 55% longer. A record left EMPTY by that cut
+ *  (renamed, its content not flushed) is the same lost 0: removed and made
+ *  again, not read as a damaged record that refuses every delete.
  ***************************************************************************/
 PRIVATE void open_delete_seq(hgobj gobj, json_t *tranger, json_t *topic)
 {
+    const char *directory = json_string_value(json_object_get(topic, "directory"));
+    char path[PATH_MAX];
+    struct stat st;
+    if(build_path(path, sizeof(path), directory, "delete_seq.json", NULL) &&
+            stat(path, &st) == 0 && st.st_size == 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "delete_seq.json is empty (its creation lost to a power cut): made again with 0",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "path",         "%s", path,
+            NULL
+        );
+        unlink(path);
+    }
     json_int_t seq = read_delete_seq(gobj, topic);
     if(seq < 0) {
         return; // Error already logged
     }
-    const char *directory = json_string_value(json_object_get(topic, "directory"));
     if(seq == 0 && !file_exists(directory, "delete_seq.json")) {
         json_t *jn = json_pack("{s:I}", "delete_seq", (json_int_t)0);
-        if(replace_json_file(gobj, tranger, directory, "delete_seq.json", jn, TRUE, FALSE) < 0) {
+        if(replace_json_file(gobj, tranger, directory, "delete_seq.json", jn, FALSE, FALSE) < 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
