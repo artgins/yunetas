@@ -581,6 +581,30 @@ PRIVATE int run_tests(hgobj gobj)
         json_pack("{s:s}", "path", "topics"), "departments`topic_name", "departments")
 
     /*
+     *  A kw that carries a gbuffer: the commands that keep a reference to
+     *  their kw take it with kw_incref(), which takes one of the gbuffer
+     *  too. With json_incref() (up to 7.25.4) the kw's two decrefs each
+     *  dropped the gbuffer: "BAD gbuf_decref()".
+     */
+    {
+        const char *with_gbuffer[] = {"treedbs", "links", "hooks", "node", NULL};
+        for(int i = 0; with_gbuffer[i]; i++) {
+            gbuffer_t *gbuf = gbuffer_create(32, 32);
+            gbuffer_append_string(gbuf, "carried along");
+            json_t *kw = json_pack("{s:s, s:s, s:I}",
+                "topic_name", "departments",
+                "node_id", "dev",
+                "gbuffer", (json_int_t)(uintptr_t)gbuf
+            );
+            json_t *resp = ask(gobj, with_gbuffer[i], kw);
+            if(kw_get_int(gobj, resp, "result", -1, 0) < 0) {
+                result += fail(gobj, with_gbuffer[i], resp);
+            }
+            JSON_DECREF(resp)
+        }
+    }
+
+    /*
      *  The snaps: shot, the node changed; activated (a mark on disk), the
      *  treedb opened again shows the node as it was; deactivated and opened
      *  again, the node as it is. The activation takes effect at the next

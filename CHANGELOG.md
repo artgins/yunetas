@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **tests: red tests for fixes that had none.** `deactivate-snap` answering
+  `-1` when its save fails (`test_tr_treedb_failed_save`, the writes of the
+  snap's key failed by `--wrap=write`); `save_json_to_file()` answering `-1`
+  on a failed `close()` (`test_helpers`, `--wrap=close`); a kw that carries
+  a gbuffer through C_NODE's `treedbs` / `links` / `hooks` / `node`
+  (`test_c_node_commands`) and C_MQIOGATE's `view-channels`
+  (`test_c_qiogate_stats`); `kw_update_missing()` with a gbuffer
+  (`test_command_binary_kw`). Each one red on the code before its fix
+  (checked by putting that code back), green now.
+
 - **fix: C_NODE `parents` / `children` with no `options` logged an ERROR per
   option.** The options are optional, and were read off a NULL: six ERRORs
   with a stack (*"kw must be list or dict"*) for each `parents`, one for each

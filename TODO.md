@@ -61,26 +61,27 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   content that is not json (the read commands and the snaps on the data:
   `test_c_node_commands`).
 - **gobj-ui**: the save kw as it leaves `publish_treedb_write()`
-  (`c_yui_treedb_topic_with_form.js`) is untested.
-- **No red test** for fixes made after 7.25.4: `deactivate-snap` -1 on a
-  failed save (`tr_treedb_snap` tests only the success path);
-  `save_json_to_file()`'s `close()` failure; the crash window between a
-  marker and its md2 row; the `kw_incref()` of C_NODE `cmd_treedbs` /
-  `cmd_links` / `cmd_hooks` / `cmd_get_node`, of C_MQIOGATE's
-  `view-channels`, and the `kw_update_missing()` of C_IEVENT_SRV's
-  `EV_ON_CLOSE` (none of those kws carries a gbuffer today); the two
-  yuno-skeleton fixes (`MSGSET_INTERNAL`, the timer as a pure child — no ctest
-  builds the templates); the entry point closing the log files after the leak
-  report; the relink of a test after an installed archive changed; the test
-  harness not counting *"io_uring_queue_init_params() pinned-memory pressure,
+  (`c_yui_treedb_topic_with_form.js`) is untested. Not reachable by vitest:
+  the document double does not render Tabulator rows (`element.after`) nor
+  `C_YUI_FORM`, and the form opens only from them (tried 2026-10-03). The way
+  is a browser check on a deployed SPA (the QA drivers of gui_treedb /
+  gui_agent), reading the frame the save sends.
+- **No red test** for fixes made after 7.25.4: the two yuno-skeleton fixes
+  (`MSGSET_INTERNAL`, the timer as a pure child — no ctest builds the
+  templates); the entry point closing the log files after the leak report;
+  the relink of a test after an installed archive changed; the test harness
+  not counting *"io_uring_queue_init_params() pinned-memory pressure,
   retrying"* as an unexpected log (it needs the machine short of locked
   memory). And everything in `c_agent.c`, which no ctest compiles: the
   agent's exit 0 when its treedb does not open, `find-new-yunos create=1`
   skipping rows already registered (only the preview is tested,
   `c_agent_find_new_yunos`), `create-yuno` refusing a release name longer
   than `NAME_MAX`. Not exercised live: a form Save through a real websocket
-  drop.
-
+  drop. (Red tests added 2026-10-03: `deactivate-snap` -1 on a failed save,
+  `save_json_to_file()`'s `close()` failure, the `kw_incref()` of C_NODE's
+  `treedbs` / `links` / `hooks` / `node` and of C_MQIOGATE's
+  `view-channels`, and `kw_update_missing()` with a gbuffer -- the function
+  C_IEVENT_SRV's `EV_ON_CLOSE` uses, whose own kw carries none.)
 ---
 
 ## 3. Decisions pending

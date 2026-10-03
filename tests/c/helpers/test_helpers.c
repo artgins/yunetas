@@ -263,6 +263,33 @@ PRIVATE int count_errors(void *h, int priority, const char *bf, size_t len)
     return 0;
 }
 
+/*
+ *  __wrap_close(): the close() of the file `s_failing_close` (armed) fails
+ *  with EIO, after closing it (as a close that loses delayed writes does)
+ */
+int __real_close(int fd);
+int __wrap_close(int fd);
+PRIVATE char s_failing_close[PATH_MAX] = "";
+
+int __wrap_close(int fd)
+{
+    if(s_failing_close[0]) {
+        char link[64], target[PATH_MAX];
+        snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+        ssize_t ln = readlink(link, target, sizeof(target) - 1);
+        if(ln > 0) {
+            target[ln] = 0;
+            if(strcmp(target, s_failing_close) == 0) {
+                s_failing_close[0] = 0;
+                __real_close(fd);
+                errno = EIO;
+                return -1;
+            }
+        }
+    }
+    return __real_close(fd);
+}
+
 PRIVATE void test_save_json_to_file(void)
 {
     char dir[PATH_MAX];
@@ -300,6 +327,28 @@ PRIVATE void test_save_json_to_file(void)
         global_result += -1;
     }
     JSON_DECREF(back)
+
+    /*
+     *  A close() that fails loses what was written: -1, and said. Up to
+     *  7.25.4 its result was not looked at, and the save answered 0.
+     */
+    build_path(s_failing_close, sizeof(s_failing_close), dir, "x.json", NULL);
+    errors_before = s_errors;
+    ret = save_json_to_file(
+        0, dir, "x.json", 02770, 0660, 0,
+        TRUE,
+        FALSE,
+        json_pack("{s:i}", "a", 2)  // owned
+    );
+    if(ret == -1 && s_errors - errors_before == 1 &&
+            strstr(s_last_error, "Cannot close json file")) {
+        printf("ok   %-40s\n", "save_json_to_file: a failed close is -1");
+    } else {
+        printf("FAIL %-40s ret=%d errors=%d\n", "save_json_to_file: a failed close is -1",
+            ret, s_errors - errors_before);
+        global_result += -1;
+    }
+    s_failing_close[0] = 0;
     rmrdir("/tmp/test_helpers_no_such_dir");
 }
 

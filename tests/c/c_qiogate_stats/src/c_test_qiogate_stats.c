@@ -255,6 +255,23 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     json_object_get(kw_get_dict(gobj, jn_io, "data", 0, 0), "txMsgs") != NULL
                 );
                 JSON_DECREF(jn_io)
+
+                /*
+                 *  view-channels of the C_MQIOGATE asks each child with the
+                 *  same kw: kw_incref(), so a kw carrying a gbuffer keeps
+                 *  one reference of it per child (with json_incref, up to
+                 *  7.25.4, the second child's answer dropped it twice: "BAD
+                 *  gbuf_decref()")
+                 */
+                gbuffer_t *gbuf = gbuffer_create(32, 32);
+                gbuffer_append_string(gbuf, "carried along");
+                json_t *jn_vc = gobj_command(priv->gobj_output_side, "view-channels",
+                    json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf), gobj);
+                check(gobj, "view-channels of the C_MQIOGATE, a kw with a gbuffer",
+                    kw_get_int(gobj, jn_vc, "result", -1, 0) >= 0
+                );
+                JSON_DECREF(jn_vc)
+
                 if(test_qiogate_stats_failed) {
                     gobj_trace_json(gobj, jn_stats, "the stats of __output_side__");
                 }

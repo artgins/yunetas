@@ -1407,6 +1407,8 @@ PRIVATE int test_too_many_active_snaps(void)
     }
     char s1_id[NAME_MAX];
     snprintf(s1_id, sizeof(s1_id), "%s", kw_get_str(0, s1, "id", "", 0));
+    char loading_s2[64];    // the last one active stays: s2, by its id
+    snprintf(loading_s2, sizeof(loading_s2), "loading snap_tag %s", kw_get_str(0, s2, "id", "", 0));
     json_object_set_new(s1, "active", json_true());
     json_object_set_new(s2, "active", json_true());
     if(treedb_save_node(tranger, s1) < 0 || treedb_save_node(tranger, s2) < 0) {
@@ -1423,7 +1425,7 @@ PRIVATE int test_too_many_active_snaps(void)
         "msg", M_CREATE_JSON,
         "msg", M_OPEN_WRITE,
         "msg", "Cannot deactivate a snap of too many active ones, it stays active on disk",
-        "msg", "loading snap_tag 2"
+        "msg", loading_s2
     ));
     s1 = get_snap(tranger, "s1");
     if(!kw_get_bool(0, s1, "active", 0, 0)) {
@@ -1435,7 +1437,7 @@ PRIVATE int test_too_many_active_snaps(void)
     test = "snaps: a replica does not repair";
     tranger = open_all_as(test, json_pack("[{s:s}, {s:s}]",
         "msg", "Too much actives tags",
-        "msg", "loading snap_tag 2"
+        "msg", loading_s2
     ), FALSE);
     s1 = get_snap(tranger, "s1");
     if(!kw_get_bool(0, s1, "active", 0, 0)) {
@@ -1445,6 +1447,58 @@ PRIVATE int test_too_many_active_snaps(void)
     close_all(tranger);
 
     result += chmod_key("__snaps__", s1_id, 0660);
+    return result;
+}
+
+/***************************************************************************
+ *  deactivate-snap (treedb_activate_snap("__clear__")) whose save fails:
+ *  -1, and the snap still active in memory, as on disk; the same call
+ *  with the writes working deactivates it. Up to 7.25.3 it answered 0
+ *  with the snap inactive in memory and active on disk -- the next start
+ *  loaded it again.
+ ***************************************************************************/
+PRIVATE int test_deactivate_snap_failed_save(void)
+{
+    int result = 0;
+    const char *test = "snaps: a deactivation that cannot be saved answers -1";
+
+    json_t *tranger = open_all(test, NULL);
+    treedb_shoot_snap(tranger, TREEDB_NAME, "s9", "to deactivate");
+    if(treedb_activate_snap(tranger, TREEDB_NAME, "s9") < 0) {
+        result += fail(test, "the snap was not activated", NULL);
+    }
+    json_t *s9 = get_snap(tranger, "s9");
+    char s9_id[NAME_MAX];
+    snprintf(s9_id, sizeof(s9_id), "%s", kw_get_str(0, s9, "id", "", 0));
+    result += test_json(NULL);
+
+    set_expected_results(test, json_pack("[{s:s}, {s:s}]",
+        "msg", "Cannot append record, write FAILED",
+        "msg", "Cannot deactivate snap"
+    ), NULL, NULL, 1);
+    fail_writes_of_key("__snaps__", s9_id, 0);
+    int ret = treedb_activate_snap(tranger, TREEDB_NAME, "__clear__");
+    fail_writes_of_key(NULL, NULL, 0);
+    if(ret != -1) {
+        result += fail(test, "deactivate answered success over a save that failed", NULL);
+    }
+    s9 = get_snap(tranger, "s9");
+    if(!kw_get_bool(0, s9, "active", 0, 0)) {
+        result += fail(test, "memory says inactive, the disk says active", s9);
+    }
+    result += test_json(NULL);
+
+    test = "snaps: the same deactivation, the writes working";
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    if(treedb_activate_snap(tranger, TREEDB_NAME, "__clear__") < 0) {
+        result += fail(test, "deactivate failed", NULL);
+    }
+    s9 = get_snap(tranger, "s9");
+    if(kw_get_bool(0, s9, "active", 0, 0)) {
+        result += fail(test, "the snap is still active", s9);
+    }
+    result += test_json(NULL);
+    close_all(tranger);
     return result;
 }
 
@@ -1887,6 +1941,7 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
     close_all(tranger);
 
+    result += test_deactivate_snap_failed_save();
     result += test_too_many_active_snaps();
 
     result += test_take_back_into_its_instance();

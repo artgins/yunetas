@@ -194,6 +194,37 @@ PRIVATE void run_stats_case(hgobj yuno)
 }
 
 /***************************************************************************
+ *  kw_update_missing() with a kw that carries a gbuffer: the key copied
+ *  into the other kw takes a reference of the gbuffer, so each kw releases
+ *  its own. It is what C_IEVENT_SRV's EV_ON_CLOSE does with the kw of its
+ *  transport (whose kw carries no gbuffer today, so there is no red of it
+ *  there); json_object_update_missing() took none ("BAD gbuf_decref()").
+ ***************************************************************************/
+PRIVATE void run_update_missing_case(void)
+{
+    g_gbuf = gbuffer_create(16, 16);
+    gbuffer_incref(g_gbuf);         /* the test holds two references */
+
+    json_t *src = json_object();
+    gbuffer_incref(g_gbuf);         /* the source kw holds the third one */
+    json_object_set_new(src, "gbuffer", json_integer((json_int_t)(uintptr_t)g_gbuf));
+    json_t *dst = json_pack("{s:s}", "client_yuno_name", "x");
+
+    check_int("kw_update_missing: answers 0", kw_update_missing(0, dst, src), 0);
+    check_int("kw_update_missing: the copy holds a reference", (int)g_gbuf->refcount, 4);
+    KW_DECREF(src)
+    KW_DECREF(dst)
+    check_int("kw_update_missing: the test holds its two references", (int)g_gbuf->refcount, 2);
+
+    int refs = (int)g_gbuf->refcount;
+    while(refs > 0) {
+        refs--;
+        gbuffer_decref(g_gbuf);
+    }
+    g_gbuf = 0;
+}
+
+/***************************************************************************
  *              Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -236,6 +267,7 @@ int main(int argc, char *argv[])
     run_case(yuno, "withschema");
     run_case(yuno, "wild");
     run_stats_case(yuno);
+    run_update_missing_case();
 
     gobj_end();
 

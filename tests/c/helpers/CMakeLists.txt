@@ -94,7 +94,7 @@ foreach(test ${SRCS})
 endforeach()
 
 # test_helpers makes an entry disappear during a walk (see its test_rmrdir_entry_vanishes)
-target_link_options(test_helpers PUBLIC LINKER:--wrap=lstat)
+target_link_options(test_helpers PUBLIC LINKER:--wrap=lstat,--wrap=close)
 
 # test_rotatory fakes the free space of one directory, the clocks (wall and monotonic) and a failing rename (see its header)
 target_link_options(test_rotatory PUBLIC LINKER:--wrap=statvfs,--wrap=fstatvfs,--wrap=time,--wrap=clock_gettime,--wrap=rename)
