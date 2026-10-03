@@ -237,8 +237,9 @@ To make sure that the node runs the new release:
 ycommand -c 'list-yunos'      # the release column shows the new version, running=true
 ```
 
-If the node came from SDK 7.25.4 or earlier, migrate its topics next: see
-[After an upgrade from 7.25.4 or earlier](#dy-mark-tm-order).
+A node coming from 7.25.5..7.25.22 keeps the tm markers it wrote; they are
+ignored, and there is nothing to migrate: see
+[The tm markers of 7.25.5..7.25.22](#dy-mark-tm-order).
 
 ### Why step 3 is not optional
 
@@ -403,62 +404,24 @@ torn last row (the master cuts it back at the open, and the key loads) from
 the shapes that must be repaired by hand, and it gives the repair.
 
 (dy-mark-tm-order)=
-### After an upgrade from 7.25.4 or earlier: `mark-tm-order`
+### The tm markers of 7.25.5..7.25.22: nothing to do
 
-A topic created by SDK 7.25.4 or earlier does not mark the md2 files whose
-`__tm__` goes back, so a tm query (`from_tm` / `to_tm`) on it reads every md2
-row of the key. A topic created or migrated by 7.25.5 reads only the files
-whose tm range the query meets. So a tm query on an old topic is much slower
-until the topic is migrated, and nothing migrates it on its own.
+From 7.25.5 to 7.25.22 timeranger2 marked the md2 files whose `__tm__` went
+back (`<file>.tm_unordered`, and `"marks_tm_unordered": true` in a topic's
+`topic_desc.json`), and the `mark-tm-order` command of `C_TRANGER` migrated an
+older topic. They are gone: a tm query (`from_tm` / `to_tm`) is a filter on
+every row of the key, whatever the topic. A store written by those releases
+keeps its markers, ignored; nothing has to be run after the upgrade.
 
-After Recipe B has moved a node from 7.25.4 or earlier to 7.25.5, run
-`mark-tm-order all=1` on **each tranger service** of each yuno. It migrates
-every topic of that tranger, one row each:
+CAUTION: a **rollback to 7.25.5..7.25.22** meets topics whose
+`topic_desc.json` still says `"marks_tm_unordered": true`, and files the new
+binary appended to without tm markers. That binary trusts their tm ranges, so a
+tm query can MISS rows. After such a rollback, run that release's own
+`mark-tm-order all=1` on each tranger service, as its documentation says:
 
 ```bash
-# The tranger services of a yuno: the C_TRANGER rows of `services`
-ycommand -c 'command-yuno id=<id> service=__yuno__ command=services'
-
-# A treedb opened by C_TREEDB has the tranger `tranger_<treedb_name>`,
-# and C_TREEDB's __system__ has `tranger_system_schema`
 ycommand -c 'command-yuno id=<id> service=tranger_treedb_x command=mark-tm-order all=1'
-ycommand -c 'command-yuno id=<id> service=tranger_system_schema command=mark-tm-order all=1'
-
-# The agent's own treedb, and its __system__
-ycommand -c 'command-agent service=tranger_treedb_yuneta_agent command=mark-tm-order all=1'
-ycommand -c 'command-agent service=tranger_system_schema command=mark-tm-order all=1'
 ```
-
-Other trangers of the in-tree yunos have other names (`tranger_authz`,
-`tranger_queues` in the MQTT broker, `gobj_tranger_<name>` in emailsender and
-the queue gates, `tranger_<name>` in webstats): take them from the `services`
-answer above.
-
-The answer has one row per topic on disk, `{topic_name, result, comment,
-data}`, and says the totals: `0: <role^name>: mark-tm-order of every topic: 5
-topic(s), 5 marked now, 0 re-marked`. A topic that fails does not stop the
-others: its row says `-1`, it is left as it was (the markers written stay),
-and the answer is `-1`. A topic on disk that cannot be opened (its `keys/`
-cannot be listed) says *"cannot open topic '\<name>' (see the log)"*, not
-*"Topic not found"*, which is only for a topic that is not there. A store that
-cannot be listed answers `-1` *"cannot list the topics of the store, nothing
-marked"*. It runs on the master only; on a replica it answers
-*"READ-ONLY"*. It is idempotent: run it again when in doubt.
-
-CAUTION: `mark-tm-order` is **synchronous**. The yuno does nothing else until
-the last topic is marked: no events, no commands, no traffic. The cost is one
-sequential read of every md2 file (32 bytes a row), linear in rows and in
-files. The benchmark `perf_timeranger2` measures 19 ms for 600000 rows in 30
-files. A cold page cache adds the read of the md2 files from the disk. On a large store, run it per
-topic (`topic_name=<t>`) in a quiet window instead of `all=1`.
-
-CAUTION: **never roll back to 7.25.4 or earlier** on topics that 7.25.5
-created or migrated **without running `mark-tm-order all=1` again after you
-come forward**. A 7.25.4 binary appends without markers: a file whose
-`__tm__` goes back gets no marker, and when 7.25.5 reads that file again it
-trusts its tm range, so a tm query can MISS rows of it. Running it again
-writes the missing markers. See
-[`tranger2_mark_tm_order()`](#tranger2_mark_tm_order).
 
 (dy-recipe-config)=
 ## Recipe C — config-only change

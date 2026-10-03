@@ -30,10 +30,6 @@
  *                              "tkey"          Record's field with Time of message.
  *                              "directory"
  *                              'system_flag'
- *                              "marks_tm_unordered"  true in a topic created
- *                                              after 7.25.4: its md2 files
- *                                              whose __tm__ goes back are
- *                                              marked, see below
  *
  *          topic_cols.json     Optional, defines fields of the topic.
  *
@@ -48,15 +44,14 @@
  *          /{topic}/keys/{key}/fmt.json    Files containing the topic's records: {format-file}.json
  *          /{topic}/keys/{key}/fmt.md2     Files containing the topic's metadata: {format-file}.json
  *          /{topic}/keys/{key}/fmt.unordered     Marker: a __t__ went back in fmt.md2
- *          /{topic}/keys/{key}/fmt.tm_unordered  Marker: a __tm__ went back in fmt.md2
- *                                          (only a topic with marks_tm_unordered)
  *
- *          The first and the last row of an md2 file give its time range only
- *          while its rows are in order. The master leaves the marker when an
+ *          The first and the last row of an md2 file give its t range only
+ *          while its rows are in t order. The master leaves the marker when an
  *          append breaks that order, and a load reads a marked file whole.
- *          In a topic WITHOUT marks_tm_unordered (created by 7.25.4 or earlier) no
- *          file's tm range is trusted: a tm condition leaves no file out and
- *          ends no scan, it skips rows.
+ *          `tm` is the producer's time and nothing orders it: a tm condition
+ *          leaves no file out and ends no scan, it skips rows. (A
+ *          `marks_tm_unordered` in topic_desc.json and `fmt.tm_unordered`
+ *          files, written by 7.25.5..7.25.22, are ignored.)
  *
  *          {format-file}.json  Data files
  *                              It should never be modified externally.
@@ -293,7 +288,7 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
    Creation is MASTER-ONLY: on a non-master (or a master that lost its lock at a
    stop, see tranger2_stop), if the topic directory is absent the call fails,
    and an existing topic is opened read-only, nothing written. On the master it
-   writes topic_desc.json (with "marks_tm_unordered": true) / topic_cols.json /
+   writes topic_desc.json / topic_cols.json /
    topic_var.json plus the keys/ and disks/ subdirs. If `jn_var`'s topic_version
    is greater than the on-disk one, topic_cols.json is REPLACED and then
    topic_var.json (temporary file + rename each, both fsync'ed with their
@@ -566,102 +561,6 @@ PUBLIC int tranger2_write_topic_cols(
     json_t *tranger,
     const char *topic_name,
     json_t *jn_cols  // owned
-);
-
-/*
-   Mark the md2 files of a topic whose __t__ or __tm__ goes back, and make the
-   topic one that MARKS: the operator's migration of a topic written before the
-   markers existed. MASTER-ONLY, synchronous, on demand.
-
-   Why: a topic created by 7.25.4 or earlier has no "marks_tm_unordered" in its
-   topic_desc.json. Its files were never marked, so no file's tm range can be
-   trusted, and a tm query (`from_tm` / `to_tm`) leaves out no file and ends no
-   scan early: it reads every md2 row of the key, 32 bytes a row. The cost
-   grows with the files of the key -- about 400 ms on one key of 30 files x
-   20000 rows, against 13 ms in 7.25.4.
-   A marked topic reads only the files whose tm range meets the query.
-
-   What it does, for every key of the topic (the keys of its cache), every md2
-   file of the key on disk:
-       - reads the file whole, once;
-       - writes `<file>.tm_unordered` where a __tm__ goes back, and
-         `<file>.unordered` where a __t__ does, unless it is there;
-       - gives the cell in memory the file's whole ranges and those flags;
-   then, if the topic did not mark yet, sets "marks_tm_unordered": true in
-   topic_desc.json (a temporary file, fsync, rename, fsync of the directory)
-   and in memory. The next page of an open iterator takes its segments again.
-
-   Cost: a listing of each key's directory and ONE sequential read of every
-   md2 file, 32 bytes a row -- linear in the rows and in the files. It is
-   synchronous: the yuno's event loop is blocked while it runs. Measured with
-   performance/c/perf_timeranger2: 19 ms for 1 key of 30 files x 20000 rows
-   (600000 rows).
-
-   A file that needs a marker and whose name leaves no room for one
-   (`<file_id>.tm_unordered` longer than NAME_MAX) is skipped and logged:
-   every load reads such a file whole already, so it needs none.
-
-   Run it again on a topic that marks to re-mark it: after a rollback to a
-   binary that appends without markers (every release up to 7.25.4), or after
-   a crash that lost a marker. It is idempotent: a file already marked is left
-   as it is, and a marker is never removed (a marker on a file in order only
-   costs a whole read of that file).
-
-   Replicas: a replica that has the topic open keeps reading it as a legacy
-   topic (no file left out) until it opens it again; the markers it meets on
-   disk are right for either.
-
-   Return a dict, YOURS:
-       {
-           "topic_name": "...",
-           "was_marking": false,       // the topic marked before the call
-           "keys": 1, "files": 30, "rows": 600000,
-           "t_unordered_marked": 0,    // markers written by this call
-           "tm_unordered_marked": 2,
-           "marks_tm_unordered": true
-       }
-   NULL (logged, and in gobj_log_last_message()) when the handle is not the
-   master ("Only master can write"), the topic does not exist, a md2 file
-   cannot be read, a marker or topic_desc.json cannot be written. The keys
-   are walked in the order of the topic's cache, and the call stops at the
-   first failure. Then:
-       - the topic is NOT marked: "marks_tm_unordered" is unchanged, in
-         topic_desc.json and in memory, so no file's tm range is trusted,
-         exactly as before the call;
-       - the markers written before the failure stay on disk;
-       - the cells of the files read before the failure keep, in memory,
-         the flags and the whole-file ranges the call gave them, and the
-         totals of their keys follow (the key that failed too). Those ranges
-         are what the disk holds, so they only make the answers exact.
-   Run it again once the cause is fixed.
-
-   Example, the whole store of a yuno, key by key reported. A directory of
-   the store is a topic only when it holds its topic_desc.json (C_TREEDB
-   keeps `saved_schemas/` in the store of __system__): skip the others, as
-   C_TRANGER's `mark-tm-order all=1` does.
-       json_t *names = tranger2_list_topic_names(tranger);
-       if(!names) {
-           return -1;  // the store cannot be listed (logged)
-       }
-       const char *directory = json_string_value(json_object_get(tranger, "directory"));
-       size_t i; json_t *jn_name;
-       json_array_foreach(names, i, jn_name) {
-           char topic_dir[PATH_MAX];
-           build_path(topic_dir, sizeof(topic_dir), directory, json_string_value(jn_name), NULL);
-           if(!file_exists(topic_dir, "topic_desc.json")) {
-               continue;   // not a topic
-           }
-           json_t *report = tranger2_mark_tm_order(tranger, json_string_value(jn_name));
-           if(!report) {
-               break;  // logged; the topics already marked stay marked
-           }
-           JSON_DECREF(report)
-       }
-       JSON_DECREF(names)
-*/
-PUBLIC json_t *tranger2_mark_tm_order(
-    json_t *tranger,
-    const char *topic_name
 );
 
 /*
@@ -1026,11 +925,9 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     keyless list goes on with the other keys and names the failed ones in the
     handle it returns (see tranger2_open_list).
 
-    `tm` is written by the producer and the md2 files are cut by `t`, so the
-    segments of a tm condition can leave out a file in the middle: the scan
-    steps over the hole. A row past the tm range ends the scan of its FILE
-    (not of the key) only when the file is known to be in tm order: a topic
-    with "marks_tm_unordered" and a file without `.tm_unordered`.
+    `tm` is written by the producer and the md2 files are cut by `t`: a tm
+    condition is a filter on every row of the key's files; it leaves out no
+    file and ends no scan.
 
     A delete of the key (tranger2_delete_key(), or a replica's key-deleted
     notice) drops the segments of every iterator of the key: an unfiltered one

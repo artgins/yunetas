@@ -1,7 +1,7 @@
 # perf_timeranger2
 
 Benchmark of timeranger2 alone (no gclass, no yuno): the open of a store, the
-create of topics, and a tm query before and after `tranger2_mark_tm_order()`.
+create of topics, and a tm query.
 
 | Case | What it measures |
 |---|---|
@@ -10,9 +10,7 @@ create of topics, and a tm query before and after `tranger2_mark_tm_order()`.
 | `create_topic` | 10 topics created (each one writes its topic files with their fsyncs). |
 | `topic_version_change` | The `topic_version` of those 10 topics raised. |
 | `tm_build_appends` | The appends of a topic of 1 key x 30 daily files x 20 000 rows. |
-| `tm_query_unmigrated` | A tm query of one minute (`from_tm` / `to_tm`) in the middle file of that topic, made to look like a topic of 7.25.4 or earlier (no `marks_tm_unordered`). |
-| `mark_tm_order` | The migration of that topic (`tranger2_mark_tm_order()`). |
-| `tm_query_migrated` | The same query after the migration. |
+| `tm_query_unmigrated` | A tm query of one minute (`from_tm` / `to_tm`) in the middle file of that topic: a filter on its 600 000 rows. The name is the one it had while the tm markers existed (7.25.5..7.25.22), kept so the reports chart one trend; `mark_tm_order` and `tm_query_migrated` went with the markers. |
 
 ## Run
 
@@ -38,8 +36,8 @@ libraries in the link line of the benchmark (the one in
 `build/CMakeFiles/perf_timeranger2.dir/link.txt`). Run the two binaries
 alternated, 10 rounds or more, with a `sync` and a pause before each run (a
 run leaves much to write back, and it slows the next one), and compare mean
-+- standard deviation. Linked against 7.25.4,
-`tranger2_mark_tm_order()` does not exist (the benchmark declares it weak):
-the tm phase then prints `mark_tm_order_not_linked`, and
-`tm_query_unmigrated` is the tm query of 7.25.4. The figures are in
++- standard deviation. Linked against 7.25.5..7.25.22, the topic the tm phase
+creates marks its tm order, and `tm_query_unmigrated` is the query of a marked
+topic (~7 ms, the files out of range skipped); linked against 7.25.4 it is the
+query of 7.25.4 (~13 ms, wrong when a file's tm went back). The figures are in
 `../README.md`.

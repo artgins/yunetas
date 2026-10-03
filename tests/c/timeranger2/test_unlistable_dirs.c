@@ -5,12 +5,11 @@
  *  EACCES, ENOMEM) is a failure, never an empty directory. Up to 7.25.4 it
  *  was read as empty, and nothing said so:
  *
- *      1. tranger2_mark_tm_order() with a key directory that cannot be
- *         listed: the key counted as 0 files, the topic was MARKED, and a
- *         tm query then lost the rows of the file nobody scanned (a legacy
- *         file whose tm goes back: 100, 300, 200 -- its cell says
- *         [100,200], and a query of [250,350] skipped it). Now the
- *         migration fails and the topic is not marked.
+ *      1. A file whose tm goes back (100, 300, 200: its cell, from the
+ *         first and last rows, says [100,200]) answers a tm query of
+ *         [250,350] in memory and after a reload: a tm condition filters
+ *         the rows and leaves no file out. (Its first form tested the tm
+ *         migration, 7.25.5..7.25.22, with that key unlistable.)
  *
  *      2. A key directory that cannot be listed at the open: the key loaded
  *         EMPTY with load_failed false, so treedb's create guard did not
@@ -66,7 +65,6 @@
 #define MSG_LIST        "Cannot load the whole history of a key of the list: the records read before the failure were handed, the list goes on with the next key"
 #define MSG_APPEND      "Cannot append record, its key cannot be listed: its row would follow rows no cell counts"
 #define MSG_RELISTED    "key directory listed again: its files are counted, and the key is not flagged"
-#define MSG_MARK        "Cannot mark the topic: it is not marked; the markers written stay, and the cells read keep their whole ranges"
 #define MSG_KEYS        "Cannot list the keys of the topic"
 #define MSG_NO_TOPIC    "Cannot open topic: its keys cannot be listed"
 
@@ -184,44 +182,12 @@ PRIVATE int check_tm_query(json_t *tranger, const char *what)
     );
 }
 
-/*
- *  The topic looks like one of 7.25.4 or earlier: not marking
- */
-PRIVATE int unmark_topic_desc(void)
-{
-    char topic_dir[PATH_MAX];
-    build_path(topic_dir, sizeof(topic_dir), path_database, TOPIC_NAME, NULL);
-    json_t *desc = load_json_from_file(0, topic_dir, "topic_desc.json", 0);
-    if(!desc) {
-        return -1;
-    }
-    json_object_del(desc, "marks_tm_unordered");
-    char path[PATH_MAX];
-    build_path(path, sizeof(path), topic_dir, "topic_desc.json", NULL);
-    chmod(path, 0660);
-    int ret = json_dump_file(desc, path, JSON_INDENT(4));
-    JSON_DECREF(desc)
-    return ret;
-}
-
-PRIVATE BOOL topic_desc_marks(void)
-{
-    char topic_dir[PATH_MAX];
-    build_path(topic_dir, sizeof(topic_dir), path_database, TOPIC_NAME, NULL);
-    json_t *desc = load_json_from_file(0, topic_dir, "topic_desc.json", 0);
-    BOOL marks = json_is_true(json_object_get(desc, "marks_tm_unordered"));
-    JSON_DECREF(desc)
-    return marks;
-}
-
 /***************************************************************************
- *  1. mark_tm_order() with a key directory that cannot be listed
+ *  1. A file whose tm goes back answers the tm query
  ***************************************************************************/
-PRIVATE int test_mark_unlistable(void)
+PRIVATE int test_tm_back(void)
 {
     int result = 0;
-    char key_dir[PATH_MAX];
-    dir_of(key_dir, sizeof(key_dir), "A");
 
     rmrdir(path_database);
     set_expected_results("1. setup", NULL, NULL, NULL, 0);
@@ -230,65 +196,20 @@ PRIVATE int test_mark_unlistable(void)
         printf("%sERROR%s --> cannot create the store\n", On_Red BWhite, Color_Off);
         return -1;
     }
-    tranger2_shutdown(tranger);
-    if(unmark_topic_desc() < 0) {
-        printf("%sERROR%s --> cannot unmark the topic\n", On_Red BWhite, Color_Off);
-        return -1;
-    }
-    tranger = startup();
-    tranger2_open_topic(tranger, TOPIC_NAME, FALSE);
     append(tranger, "A", 0, 100, 1);
     append(tranger, "A", 0, 300, 2);
     append(tranger, "A", 0, 200, 3);
-    tranger2_shutdown(tranger);
     test_json(NULL);    // the setup logs are not what is tested
 
-    set_expected_results("1. the legacy topic answers the tm query", NULL, NULL, NULL, 1);
-    tranger = startup();
-    tranger2_open_topic(tranger, TOPIC_NAME, FALSE);
-    result += check_tm_query(tranger, "1. before the migration");
-    result += test_json(NULL);
-
-    set_expected_results("1. the migration fails", json_pack("[{s:s},{s:s}]",
-        "msg", MSG_OPENDIR,
-        "msg", MSG_MARK
-    ), NULL, NULL, 1);
-    chmod(key_dir, 0);
-    json_t *report = tranger2_mark_tm_order(tranger, TOPIC_NAME);
-    chmod(key_dir, 02770);
-    if(report) {
-        printf("%sERROR%s --> 1. mark_tm_order() succeeded with a key it could not list\n",
-            On_Red BWhite, Color_Off);
-        JSON_DECREF(report)
-        result += -1;
-    }
-    if(topic_desc_marks()) {
-        printf("%sERROR%s --> 1. the topic was marked\n", On_Red BWhite, Color_Off);
-        result += -1;
-    }
+    set_expected_results("1. the tm query, in memory", NULL, NULL, NULL, 1);
+    result += check_tm_query(tranger, "1. in memory");
     result += test_json(NULL);
     tranger2_shutdown(tranger);
 
-    set_expected_results("1. after the failed migration, the rows are all there", NULL, NULL, NULL, 1);
+    set_expected_results("1. the tm query, reloaded", NULL, NULL, NULL, 1);
     tranger = startup();
     tranger2_open_topic(tranger, TOPIC_NAME, FALSE);
-    result += check_tm_query(tranger, "1. after the failed migration");
-    result += test_json(NULL);
-
-    set_expected_results("1. the migration again, listable", json_pack("[{s:s}]",
-        "msg", "Topic marked: its md2 files out of order have their markers"
-    ), NULL, NULL, 1);
-    report = tranger2_mark_tm_order(tranger, TOPIC_NAME);
-    if(!report || !topic_desc_marks()) {
-        printf("%sERROR%s --> 1. the migration failed with the key listable\n",
-            On_Red BWhite, Color_Off);
-        result += -1;
-    }
-    JSON_DECREF(report)
-    tranger2_shutdown(tranger);
-    tranger = startup();
-    tranger2_open_topic(tranger, TOPIC_NAME, FALSE);
-    result += check_tm_query(tranger, "1. after the migration");
+    result += check_tm_query(tranger, "1. reloaded");
     tranger2_shutdown(tranger);
     result += test_json(NULL);
 
@@ -625,7 +546,7 @@ PRIVATE int do_test(void)
     mkrdir(path_root, 02770);
     build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
 
-    result += test_mark_unlistable();
+    result += test_tm_back();
     result += test_key_unlistable_at_open();
     result += test_keys_unlistable_at_open();
     result += test_replica_notification();

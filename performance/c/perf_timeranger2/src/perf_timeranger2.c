@@ -2,8 +2,7 @@
  *          perf_timeranger2.c
  *
  *          Benchmark of timeranger2 alone: the open of a store, the create
- *          of topics, and the cost of a tm query before and after
- *          tranger2_mark_tm_order().
+ *          of topics, and the cost of a tm query.
  *
  *          Usage:  perf_timeranger2 [--small] [phase ...]
  *
@@ -13,11 +12,10 @@
  *                     replica (mean time of one open)
  *            create   create 10 topics, then raise the topic_version of
  *                     each of them (10 version changes)
- *            tm       1 key x 30 daily files x 20000 rows; its topic_desc
- *                     is made to look like a topic of 7.25.4 or earlier (no
- *                     "marks_tm_unordered"); a tm query of one minute in the
- *                     middle file before the migration, the migration
- *                     (tranger2_mark_tm_order), the same query after it
+ *            tm       1 key x 30 daily files x 20000 rows; a tm query of one
+ *                     minute in the middle file ("tm_query_unmigrated": the
+ *                     name it had when the tm markers existed, 7.25.5 to
+ *                     7.25.22, kept so the reports chart one trend)
  *          --small divides every size by 10 (for ctest: it checks that the
  *          benchmark builds and runs, its figures are not the reference).
  *
@@ -30,9 +28,7 @@
  *
  *          The figures of a release are taken on the same machine with this
  *          benchmark linked against the timeranger2 of both releases, run
- *          alternated, and the medians compared (see README.md). Linked
- *          against 7.25.4, "tm_query_unmigrated" is the tm query of 7.25.4,
- *          and the migration is not run.
+ *          alternated, and the medians compared (see README.md).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -49,12 +45,6 @@
 #include <kwid.h>
 #include <helpers.h>
 #include <timeranger2.h>
-
-/*
- *  Weak: the benchmark also links against a timeranger2 without it (7.25.4
- *  and earlier), to compare the two. There the tm phase runs no migration.
- */
-#pragma weak tranger2_mark_tm_order
 
 /***************************************************************
  *              Constants
@@ -158,29 +148,6 @@ PRIVATE int count_record(
 {
     records_seen++;
     JSON_DECREF(jn_record)
-    return 0;
-}
-
-/***************************************************************************
- *  The topic as 7.25.4 or earlier wrote it: no "marks_tm_unordered"
- ***************************************************************************/
-PRIVATE int make_it_legacy(const char *topic_name)
-{
-    char path[PATH_MAX];
-    build_path(path, sizeof(path), path_database, topic_name, "topic_desc.json", NULL);
-    json_t *desc = load_json_from_file(0, path_database, "tm/topic_desc.json", 0);
-    if(!desc) {
-        printf("{\"bench\": \"%s\", \"error\": \"cannot read %s\"}\n", BENCH, path);
-        return -1;
-    }
-    json_object_del(desc, "marks_tm_unordered");
-    chmod(path, 0660);
-    int ret = json_dump_file(desc, path, JSON_INDENT(4));
-    JSON_DECREF(desc)
-    if(ret < 0) {
-        printf("{\"bench\": \"%s\", \"error\": \"cannot write %s\"}\n", BENCH, path);
-        return -1;
-    }
     return 0;
 }
 
@@ -305,10 +272,6 @@ PRIVATE int phase_tm(void)
     result_line("tm_build_appends", now_s() - t0, TM_FILES*TM_RECS, NULL);
     tranger2_shutdown(tranger);
 
-    if(make_it_legacy("tm") < 0) {
-        return -1;
-    }
-
     char extra[128];
     double seconds;
     tranger = start_tranger(TRUE);
@@ -317,28 +280,12 @@ PRIVATE int phase_tm(void)
         return -1;  // Error already logged
     }
     int n = tm_query(tranger, &seconds);
-    snprintf(extra, sizeof(extra), "\"records\": %d, \"md2_rows\": %d", n, TM_FILES*TM_RECS);
-    result_line("tm_query_unmigrated", seconds, 1, extra);
-
-    if(!tranger2_mark_tm_order) {
-        result_line("mark_tm_order_not_linked", 0, 0, NULL);
-        tranger2_shutdown(tranger);
-        return 0;
-    }
-    t0 = now_s();
-    json_t *report = tranger2_mark_tm_order(tranger, "tm");
-    seconds = now_s() - t0;
-    if(!report) {
+    if(n < 0) {
         tranger2_shutdown(tranger);
         return -1;  // Error already logged
     }
-    JSON_DECREF(report)
-    snprintf(extra, sizeof(extra), "\"md2_files\": %d, \"md2_rows\": %d", TM_FILES, TM_FILES*TM_RECS);
-    result_line("mark_tm_order", seconds, 1, extra);
-
-    n = tm_query(tranger, &seconds);
     snprintf(extra, sizeof(extra), "\"records\": %d, \"md2_rows\": %d", n, TM_FILES*TM_RECS);
-    result_line("tm_query_migrated", seconds, 1, extra);
+    result_line("tm_query_unmigrated", seconds, 1, extra);
 
     tranger2_shutdown(tranger);
     return 0;

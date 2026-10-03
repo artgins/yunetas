@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **timeranger2: the tm markers are gone (API REMOVAL).** From 7.25.5 the
+  master marked an md2 file whose `__tm__` went back
+  (`<file>.tm_unordered`, and `"marks_tm_unordered": true` in a new
+  topic's `topic_desc.json`), and a tm query trusted the tm range of the
+  files not marked: it skipped files out of the range and ended a file's
+  scan at its first row past it. `tm` is the producer's time and the store
+  keeps the records as they came, so ordering by it is not the store's job:
+  a `from_tm` / `to_tm` condition is now a FILTER on every row of the key,
+  leaving no file out and ending no scan -- correct always, rollback-proof.
+  **Removed**: `tranger2_mark_tm_order()` (public API) and the `mark-tm-order`
+  command of `C_TRANGER`; nothing writes or reads `.tm_unordered` or
+  `marks_tm_unordered`, and a store that has them keeps them, ignored (no
+  migration). **Cost**: a tm query reads every md2 row of the key -- one
+  minute on 1 key x 30 files x 20 000 rows takes ~0.39 s, as on an unmarked
+  topic of 7.25.5..7.25.22 (7.4 ms on a marked one); who needs fast access
+  by tm keeps it themselves (a topic keyed by it, an index in memory). The
+  `fr_tm` / `to_tm` of a file in `list-keys` are its first and last rows
+  unless the file was read whole: approximate when its tm goes back. The `t`
+  marker (`<file>.unordered`, a late `__t__`) stays. **Upgrade**: nothing to
+  run. **Rollback** to 7.25.5..7.25.22: run that release's `mark-tm-order
+  all=1`, or a topic that says it marks can miss rows in a tm query.
+
 - **A yuno keeps the case of its directory.** `register_yuneta_environment()`
   lowercased the `root_dir` and `domain_dir` it was given, silently, while
   the agent builds a yuno's directory as its realm and role are written and

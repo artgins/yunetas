@@ -1609,7 +1609,7 @@ it by hand, run the script.
 
 5. [**`fs_watcher_dir_fd`**](timeranger2/fs_watcher.md#fs_watcher_dir_fd) — `PUBLIC int fs_watcher_dir_fd( fs_event_t *fs_event, int wd )`
 
-### `timeranger2.h` — 53 functions
+### `timeranger2.h` — 52 functions
 
 **Source:** `kernel/c/timeranger2/src/timeranger2.h`
 
@@ -1655,69 +1655,67 @@ it by hand, run the script.
 
 21. [**`tranger2_write_topic_cols`**](timeranger2/timeranger2.md#tranger2_write_topic_cols) — `PUBLIC int tranger2_write_topic_cols( json_t *tranger, const char *topic_name, json_t *jn_cols )`
 
-22. [**`tranger2_mark_tm_order`**](timeranger2/timeranger2.md#tranger2_mark_tm_order) — `PUBLIC json_t *tranger2_mark_tm_order( json_t *tranger, const char *topic_name )`
+22. [**`tranger2_topic_desc`**](timeranger2/timeranger2.md#tranger2_topic_desc) — `PUBLIC json_t *tranger2_topic_desc( json_t *tranger, const char *topic_name )`
 
-23. [**`tranger2_topic_desc`**](timeranger2/timeranger2.md#tranger2_topic_desc) — `PUBLIC json_t *tranger2_topic_desc( json_t *tranger, const char *topic_name )`
+23. [**`tranger2_list_topic_desc_cols`**](timeranger2/timeranger2.md#tranger2_list_topic_desc_cols) — `PUBLIC json_t *tranger2_list_topic_desc_cols( json_t *tranger, const char *topic_name )`
 
-24. [**`tranger2_list_topic_desc_cols`**](timeranger2/timeranger2.md#tranger2_list_topic_desc_cols) — `PUBLIC json_t *tranger2_list_topic_desc_cols( json_t *tranger, const char *topic_name )`
+24. [**`tranger2_dict_topic_desc_cols`**](timeranger2/timeranger2.md#tranger2_dict_topic_desc_cols) — `PUBLIC json_t *tranger2_dict_topic_desc_cols( json_t *tranger, const char *topic_name )`
 
-25. [**`tranger2_dict_topic_desc_cols`**](timeranger2/timeranger2.md#tranger2_dict_topic_desc_cols) — `PUBLIC json_t *tranger2_dict_topic_desc_cols( json_t *tranger, const char *topic_name )`
+25. [**`tranger2_append_record`**](timeranger2/timeranger2.md#tranger2_append_record) — `PUBLIC int tranger2_append_record( json_t *tranger, const char *topic_name, uint64_t __t__, uint16_t user_flag, md2_record_ex_t *md_record_ex, json_t *jn_record )`
 
-26. [**`tranger2_append_record`**](timeranger2/timeranger2.md#tranger2_append_record) — `PUBLIC int tranger2_append_record( json_t *tranger, const char *topic_name, uint64_t __t__, uint16_t user_flag, md2_record_ex_t *md_record_ex, json_t *jn_record )`
+26. [**`tranger2_delete_key`**](timeranger2/timeranger2.md#tranger2_delete_key) — `PUBLIC int tranger2_delete_key( json_t *tranger, const char *topic_name, const char *key )`
 
-27. [**`tranger2_delete_key`**](timeranger2/timeranger2.md#tranger2_delete_key) — `PUBLIC int tranger2_delete_key( json_t *tranger, const char *topic_name, const char *key )`
+27. [**`tranger2_delete_instance`**](timeranger2/timeranger2.md#tranger2_delete_instance) — `PUBLIC int tranger2_delete_instance( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid, BOOL zero_payload )`
 
-28. [**`tranger2_delete_instance`**](timeranger2/timeranger2.md#tranger2_delete_instance) — `PUBLIC int tranger2_delete_instance( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid, BOOL zero_payload )`
+28. [**`tranger2_write_user_flag`**](timeranger2/timeranger2.md#tranger2_write_user_flag) — `PUBLIC int tranger2_write_user_flag( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid, uint16_t user_flag )`
 
-29. [**`tranger2_write_user_flag`**](timeranger2/timeranger2.md#tranger2_write_user_flag) — `PUBLIC int tranger2_write_user_flag( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid, uint16_t user_flag )`
+29. [**`tranger2_set_user_flag`**](timeranger2/timeranger2.md#tranger2_set_user_flag) — `PUBLIC int tranger2_set_user_flag( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid, uint16_t mask, BOOL set )`
 
-30. [**`tranger2_set_user_flag`**](timeranger2/timeranger2.md#tranger2_set_user_flag) — `PUBLIC int tranger2_set_user_flag( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid, uint16_t mask, BOOL set )`
+30. [**`tranger2_set_system_flag`**](timeranger2/timeranger2.md#tranger2_set_system_flag) — `PUBLIC int tranger2_set_system_flag( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid, uint16_t mask, BOOL set )`
 
-31. [**`tranger2_set_system_flag`**](timeranger2/timeranger2.md#tranger2_set_system_flag) — `PUBLIC int tranger2_set_system_flag( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid, uint16_t mask, BOOL set )`
+31. [**`tranger2_read_user_flag`**](timeranger2/timeranger2.md#tranger2_read_user_flag) — `PUBLIC uint16_t tranger2_read_user_flag( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid )`
 
-32. [**`tranger2_read_user_flag`**](timeranger2/timeranger2.md#tranger2_read_user_flag) — `PUBLIC uint16_t tranger2_read_user_flag( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid )`
+32. [**`tranger2_set_rt_key_deleted_callback`**](timeranger2/timeranger2.md#tranger2_set_rt_key_deleted_callback) — `PUBLIC int tranger2_set_rt_key_deleted_callback( json_t *list, tranger2_key_deleted_callback_t cb, void *user_data )`
 
-33. [**`tranger2_set_rt_key_deleted_callback`**](timeranger2/timeranger2.md#tranger2_set_rt_key_deleted_callback) — `PUBLIC int tranger2_set_rt_key_deleted_callback( json_t *list, tranger2_key_deleted_callback_t cb, void *user_data )`
+33. [**`tranger2_open_iterator`**](timeranger2/timeranger2.md#tranger2_open_iterator) — `PUBLIC json_t *tranger2_open_iterator( json_t *tranger, const char *topic_name, const char *key, json_t *match_cond, tranger2_load_record_callback_t load_record_callback, const char *iterator_id, const char *creator, json_t *data, json_t *extra )`
 
-34. [**`tranger2_open_iterator`**](timeranger2/timeranger2.md#tranger2_open_iterator) — `PUBLIC json_t *tranger2_open_iterator( json_t *tranger, const char *topic_name, const char *key, json_t *match_cond, tranger2_load_record_callback_t load_record_callback, const char *iterator_id, const char *creator, json_t *data, json_t *extra )`
+34. [**`tranger2_close_iterator`**](timeranger2/timeranger2.md#tranger2_close_iterator) — `PUBLIC int tranger2_close_iterator( json_t *tranger, json_t *iterator )`
 
-35. [**`tranger2_close_iterator`**](timeranger2/timeranger2.md#tranger2_close_iterator) — `PUBLIC int tranger2_close_iterator( json_t *tranger, json_t *iterator )`
+35. [**`tranger2_get_iterator_by_id`**](timeranger2/timeranger2.md#tranger2_get_iterator_by_id) — `PUBLIC json_t *tranger2_get_iterator_by_id( json_t *tranger, const char *topic_name, const char *iterator_id, const char *creator )`
 
-36. [**`tranger2_get_iterator_by_id`**](timeranger2/timeranger2.md#tranger2_get_iterator_by_id) — `PUBLIC json_t *tranger2_get_iterator_by_id( json_t *tranger, const char *topic_name, const char *iterator_id, const char *creator )`
+36. [**`tranger2_iterator_size`**](timeranger2/timeranger2.md#tranger2_iterator_size) — `PUBLIC size_t tranger2_iterator_size( json_t *iterator )`
 
-37. [**`tranger2_iterator_size`**](timeranger2/timeranger2.md#tranger2_iterator_size) — `PUBLIC size_t tranger2_iterator_size( json_t *iterator )`
+37. [**`tranger2_iterator_get_page`**](timeranger2/timeranger2.md#tranger2_iterator_get_page) — `PUBLIC json_t *tranger2_iterator_get_page( json_t *tranger, json_t *iterator, json_int_t from_rowid, size_t limit, BOOL backward )`
 
-38. [**`tranger2_iterator_get_page`**](timeranger2/timeranger2.md#tranger2_iterator_get_page) — `PUBLIC json_t *tranger2_iterator_get_page( json_t *tranger, json_t *iterator, json_int_t from_rowid, size_t limit, BOOL backward )`
+38. [**`tranger2_open_rt_mem`**](timeranger2/timeranger2.md#tranger2_open_rt_mem) — `PUBLIC json_t *tranger2_open_rt_mem( json_t *tranger, const char *topic_name, const char *key, json_t *match_cond, tranger2_load_record_callback_t load_record_callback, const char *list_id, const char *creator, json_t *extra )`
 
-39. [**`tranger2_open_rt_mem`**](timeranger2/timeranger2.md#tranger2_open_rt_mem) — `PUBLIC json_t *tranger2_open_rt_mem( json_t *tranger, const char *topic_name, const char *key, json_t *match_cond, tranger2_load_record_callback_t load_record_callback, const char *list_id, const char *creator, json_t *extra )`
+39. [**`tranger2_close_rt_mem`**](timeranger2/timeranger2.md#tranger2_close_rt_mem) — `PUBLIC int tranger2_close_rt_mem( json_t *tranger, json_t *mem )`
 
-40. [**`tranger2_close_rt_mem`**](timeranger2/timeranger2.md#tranger2_close_rt_mem) — `PUBLIC int tranger2_close_rt_mem( json_t *tranger, json_t *mem )`
+40. [**`tranger2_get_rt_mem_by_id`**](timeranger2/timeranger2.md#tranger2_get_rt_mem_by_id) — `PUBLIC json_t *tranger2_get_rt_mem_by_id( json_t *tranger, const char *topic_name, const char *rt_id, const char *creator )`
 
-41. [**`tranger2_get_rt_mem_by_id`**](timeranger2/timeranger2.md#tranger2_get_rt_mem_by_id) — `PUBLIC json_t *tranger2_get_rt_mem_by_id( json_t *tranger, const char *topic_name, const char *rt_id, const char *creator )`
+41. [**`tranger2_open_rt_disk`**](timeranger2/timeranger2.md#tranger2_open_rt_disk) — `PUBLIC json_t *tranger2_open_rt_disk( json_t *tranger, const char *topic_name, const char *key, json_t *match_cond, tranger2_load_record_callback_t load_record_callback, const char *rt_id, const char *creator, json_t *extra )`
 
-42. [**`tranger2_open_rt_disk`**](timeranger2/timeranger2.md#tranger2_open_rt_disk) — `PUBLIC json_t *tranger2_open_rt_disk( json_t *tranger, const char *topic_name, const char *key, json_t *match_cond, tranger2_load_record_callback_t load_record_callback, const char *rt_id, const char *creator, json_t *extra )`
+42. [**`tranger2_close_rt_disk`**](timeranger2/timeranger2.md#tranger2_close_rt_disk) — `PUBLIC int tranger2_close_rt_disk( json_t *tranger, json_t *disk )`
 
-43. [**`tranger2_close_rt_disk`**](timeranger2/timeranger2.md#tranger2_close_rt_disk) — `PUBLIC int tranger2_close_rt_disk( json_t *tranger, json_t *disk )`
+43. [**`tranger2_get_rt_disk_by_id`**](timeranger2/timeranger2.md#tranger2_get_rt_disk_by_id) — `PUBLIC json_t *tranger2_get_rt_disk_by_id( json_t *tranger, const char *topic_name, const char *rt_id, const char *creator )`
 
-44. [**`tranger2_get_rt_disk_by_id`**](timeranger2/timeranger2.md#tranger2_get_rt_disk_by_id) — `PUBLIC json_t *tranger2_get_rt_disk_by_id( json_t *tranger, const char *topic_name, const char *rt_id, const char *creator )`
+44. [**`tranger2_open_list`**](timeranger2/timeranger2.md#tranger2_open_list) — `PUBLIC json_t *tranger2_open_list( json_t *tranger, const char *topic_name, json_t *match_cond, json_t *extra, const char *rt_id, BOOL rt_by_disk, const char *creator )`
 
-45. [**`tranger2_open_list`**](timeranger2/timeranger2.md#tranger2_open_list) — `PUBLIC json_t *tranger2_open_list( json_t *tranger, const char *topic_name, json_t *match_cond, json_t *extra, const char *rt_id, BOOL rt_by_disk, const char *creator )`
+45. [**`tranger2_close_list`**](timeranger2/timeranger2.md#tranger2_close_list) — `PUBLIC int tranger2_close_list( json_t *tranger, json_t *list )`
 
-46. [**`tranger2_close_list`**](timeranger2/timeranger2.md#tranger2_close_list) — `PUBLIC int tranger2_close_list( json_t *tranger, json_t *list )`
+46. [**`tranger2_close_all_lists`**](timeranger2/timeranger2.md#tranger2_close_all_lists) — `PUBLIC int tranger2_close_all_lists( json_t *tranger, const char *topic_name, const char *creator, const char *rt_id )`
 
-47. [**`tranger2_close_all_lists`**](timeranger2/timeranger2.md#tranger2_close_all_lists) — `PUBLIC int tranger2_close_all_lists( json_t *tranger, const char *topic_name, const char *creator, const char *rt_id )`
+47. [**`tranger2_read_record_content`**](timeranger2/timeranger2.md#tranger2_read_record_content) — `PUBLIC json_t *tranger2_read_record_content( json_t *tranger, json_t *topic, const char *key, md2_record_ex_t *md_record_ex )`
 
-48. [**`tranger2_read_record_content`**](timeranger2/timeranger2.md#tranger2_read_record_content) — `PUBLIC json_t *tranger2_read_record_content( json_t *tranger, json_t *topic, const char *key, md2_record_ex_t *md_record_ex )`
+48. [**`tranger2_print_md0_record`**](timeranger2/timeranger2.md#tranger2_print_md0_record) — `PUBLIC void tranger2_print_md0_record( char *bf, int bfsize, const char *key, json_int_t rowid, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
 
-49. [**`tranger2_print_md0_record`**](timeranger2/timeranger2.md#tranger2_print_md0_record) — `PUBLIC void tranger2_print_md0_record( char *bf, int bfsize, const char *key, json_int_t rowid, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
+49. [**`tranger2_print_md1_record`**](timeranger2/timeranger2.md#tranger2_print_md1_record) — `PUBLIC void tranger2_print_md1_record( char *bf, int bfsize, const char *key, json_int_t rowid, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
 
-50. [**`tranger2_print_md1_record`**](timeranger2/timeranger2.md#tranger2_print_md1_record) — `PUBLIC void tranger2_print_md1_record( char *bf, int bfsize, const char *key, json_int_t rowid, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
+50. [**`tranger2_print_md2_record`**](timeranger2/timeranger2.md#tranger2_print_md2_record) — `PUBLIC void tranger2_print_md2_record( char *bf, int bfsize, json_t *tranger, json_t *topic, const char *key, json_int_t rowid, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
 
-51. [**`tranger2_print_md2_record`**](timeranger2/timeranger2.md#tranger2_print_md2_record) — `PUBLIC void tranger2_print_md2_record( char *bf, int bfsize, json_t *tranger, json_t *topic, const char *key, json_int_t rowid, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
+51. [**`tranger2_print_record_filename`**](timeranger2/timeranger2.md#tranger2_print_record_filename) — `PUBLIC void tranger2_print_record_filename( char *bf, int bfsize, json_t *tranger, json_t *topic, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
 
-52. [**`tranger2_print_record_filename`**](timeranger2/timeranger2.md#tranger2_print_record_filename) — `PUBLIC void tranger2_print_record_filename( char *bf, int bfsize, json_t *tranger, json_t *topic, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
-
-53. [**`tranger2_set_trace_level`**](timeranger2/timeranger2.md#tranger2_set_trace_level) — `PUBLIC void tranger2_set_trace_level( json_t *tranger, int trace_level )`
+52. [**`tranger2_set_trace_level`**](timeranger2/timeranger2.md#tranger2_set_trace_level) — `PUBLIC void tranger2_set_trace_level( json_t *tranger, int trace_level )`
 
 ### `tr_msg.h` — 16 functions
 
@@ -1941,7 +1939,7 @@ it by hand, run the script.
 
 63. [**`create_template_record`**](timeranger2/treedb.md#create_template_record) — `PUBLIC json_t *create_template_record( const char *template_name, json_t *cols, json_t *kw )`
 
-**Total: 161 functions**
+**Total: 160 functions**
 
 ## root-linux (Runtime GClasses)
 
@@ -2307,7 +2305,7 @@ it by hand, run the script.
 
 1. [**`get_watcher_pid`**](helpers/daemon_launcher.md#get_watcher_pid) — `PUBLIC int get_watcher_pid(void)`
 
-2. [**`daemon_shutdown`**](helpers/daemon_launcher.md#daemon_shutdown) — `PUBLIC void daemon_shutdown(const char *process_name)`
+2. [**`daemon_shutdown`**](helpers/daemon_launcher.md#daemon_shutdown) — `PUBLIC int daemon_shutdown(const char *process_name)`
 
 3. [**`daemon_set_pid_file`**](helpers/daemon_launcher.md#daemon_set_pid_file) — `PUBLIC void daemon_set_pid_file(const char *path)`
 
@@ -2364,7 +2362,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1026 functions** sorted alphabetically with their source header.
+All **1025 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -3200,7 +3198,6 @@ All **1026 functions** sorted alphabetically with their source header.
 | [**`tranger2_list_topic_desc_cols`**](timeranger2/timeranger2.md#tranger2_list_topic_desc_cols) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_list_topic_names`**](timeranger2/timeranger2.md#tranger2_list_topic_names) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_list_topics`**](timeranger2/timeranger2.md#tranger2_list_topics) | `timeranger2.h` | timeranger2 (Time-Series DB) |
-| [**`tranger2_mark_tm_order`**](timeranger2/timeranger2.md#tranger2_mark_tm_order) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_open_iterator`**](timeranger2/timeranger2.md#tranger2_open_iterator) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_open_list`**](timeranger2/timeranger2.md#tranger2_open_list) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_open_rt_disk`**](timeranger2/timeranger2.md#tranger2_open_rt_disk) | `timeranger2.h` | timeranger2 (Time-Series DB) |

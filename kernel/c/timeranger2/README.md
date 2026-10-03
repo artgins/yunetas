@@ -50,36 +50,31 @@ The rows of a key are in `t` order except in a file that holds a late record
 (marked `<file>.unordered`); a `t` scan reads such a file through instead of
 stopping at the first row past its range.
 
-`tm` is written by the producer, and the files are cut by `t`. A topic created
-after 7.25.4 carries `"marks_tm_unordered": true` in its `topic_desc.json`, and
-its master marks a file whose `tm` goes back (`<file>.tm_unordered`); a load
-reads a marked file whole, so every file's `[fr_tm, to_tm]` is exact. A `tm`
-condition then leaves out the files that do not meet it (the scan steps over
-the hole), and in an unmarked file the first row past the range ends the scan
-of that FILE, not of the key. In a marked file, and in every file of a topic
-created by 7.25.4 or earlier (no file's `tm` range can be trusted there), a
-`tm` condition skips rows and ends nothing.
-
-Such a topic reads every md2 row of the key on a `tm` query, so its cost grows
-with the files of the key: on one key of 30 files x 20000 rows, a `tm` query
-of one minute took 12.7 ms in 7.25.4, 392 ms now, and 7.4 ms once the topic is
-marked (`performance/c/perf_timeranger2`, figures in `performance/c/README.md`).
-Mark it, once, with `tranger2_mark_tm_order()` (the `mark-tm-order` command of
-`C_TRANGER`): it reads every md2 file once, writes the markers the files
-need, and sets `"marks_tm_unordered": true`. Its cost is linear in the rows
-and in the files, and it blocks the yuno while it runs: 19 ms for those 30
-files x 20000 rows. Run it again after a rollback to a binary that appends
-without markers.
+`tm` is written by the producer, and the files are cut by `t`: nothing orders
+it. A `tm` condition is a FILTER on every row of the key's files: it leaves no
+file out and ends no scan. On one key of 30 files x 20000 rows, a `tm` query of
+one minute reads the 600000 rows: ~0.39 s (`performance/c/perf_timeranger2`).
+Who needs fast access by `tm` keeps it themselves -- a topic keyed by it, or an
+index in memory -- the store keeps the records as they came.
 
 ```C
-json_t *report = tranger2_mark_tm_order(tranger, "readings");  // master only
-// {"files": 30, "rows": 600000, "tm_unordered_marked": 2, "marks_tm_unordered": true, ...}
-JSON_DECREF(report)
+/*  T1 tm=500, T2 tm=100, T3 tm=300 in one file: [50, 200] gives T2  */
+json_t *it = tranger2_open_iterator(tranger, "readings", key,
+    json_pack("{s:I, s:I}", "from_tm", (json_int_t)50, "to_tm", (json_int_t)200),
+    NULL, "tm", "", data, NULL);
 ```
 
-The master writes a marker BEFORE the md2 row of the record that needs it, so
-a crash leaves at worst a marker with no row (a whole read of that file), never
-a row with no marker. A marker that cannot be written is logged, the master
+From 7.25.5 to 7.25.22 the master also marked a file whose `tm` went back
+(`<file>.tm_unordered`, and `"marks_tm_unordered": true` in the
+`topic_desc.json`), and a scan trusted the `tm` range of the files not marked;
+`tranger2_mark_tm_order()` / `mark-tm-order` migrated an older topic. All of
+that is gone: a store written then keeps its markers, ignored. The `tm` range a
+file shows in `list-keys` (`fr_tm` / `to_tm`) is its first and last rows unless
+the file was read whole (a late `__t__`): approximate when its `tm` goes back.
+
+The master writes the `t` marker BEFORE the md2 row of the late record, so a
+crash leaves at worst a marker with no row (a whole read of that file), never a
+row with no marker. A marker that cannot be written is logged, the master
 still reads the file whole, and the next append to the file writes it.
 
 ```C

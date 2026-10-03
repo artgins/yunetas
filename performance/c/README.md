@@ -99,7 +99,7 @@ Source: `main_perf_auth_bff.c`, `c_perf_auth_bff.c`
 
 **Binary:** `perf_timeranger2`
 
-timeranger2 alone: the open of a store of 20 000 md2 files as a master and as a replica, the create of 10 topics and 10 `topic_version` changes, and a tm query of one minute before and after `tranger2_mark_tm_order()`. See [`perf_timeranger2/README.md`](perf_timeranger2/README.md).
+timeranger2 alone: the open of a store of 20 000 md2 files as a master and as a replica, the create of 10 topics and 10 `topic_version` changes, and a tm query of one minute. See [`perf_timeranger2/README.md`](perf_timeranger2/README.md).
 
 Source: `src/perf_timeranger2.c` (single file, no GClasses)
 

@@ -72,7 +72,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `command_delete_user` | `delete-user` of C_AUTHZ: immutability is the only boundary |
 | `command_shutdown` | `shutdown` answers first and stops after |
 | `command_binary_kw` | A command, and `build_stats()`, whose kw carries a `gbuffer`: the handler's kw holds a reference of its own, and the caller's references are intact after the command |
-| `c_tranger` | `C_TRANGER` commands: topics, keys, paged records; `add-record`; the `rt_id` of a live list's pushes; a handle refused to another session, and through the agent's link to another user; the permission `mark-tm-order` and `add-record` ask |
+| `c_tranger` | `C_TRANGER` commands: topics, keys, paged records; `add-record`; the `rt_id` of a live list's pushes; a handle refused to another session, and through the agent's link to another user; the permission `add-record` asks |
 | `libjwt` | JWT algorithm-confusion regression; the `jwks_*` keyring functions with a NULL set |
 | `c_node_link_events` | TreeDB `EV_TREEDB_NODE_LINKED/UNLINKED`, and `import-db` |
 | `c_node_failed_save` | `update-node` with `autolink` whose save fails: answered `NULL` / `-1`, taken back whole, no event (update and create) |
@@ -139,7 +139,7 @@ The single-binary directories that also register under `<directory>/`:
 | `c_tcp` | `test_tcp_test5`, `test_tcp_test6` |
 | `c_mqtt` | `test_mqtt_queued_in`, `test_mqtt_client_queues`, `test_mqtt_out_flight` |
 | `helpers` | `test_audit_record`, `test_rotatory`, `test_dir_array_nomem`, `test_dir_listing`, `test_dir_read_error` |
-| `timeranger2` | `test_tm_order`, `test_lost_lock`, `test_topic_var_replace`, `test_key_reborn_pages`, `test_open_list_history`, `test_unreadable_at_open`, `test_mark_tm_order`, `test_uncommitted_append`, `test_torn_md2_tail`, `test_md2_read_error`, `test_md2_short_write`, `test_nul_escape_record`, `test_torn_tail_check_fails`, `test_cmp_file_ids`, `test_unlistable_dirs`, `test_unlisted_relist_once` |
+| `timeranger2` | `test_tm_order`, `test_lost_lock`, `test_topic_var_replace`, `test_key_reborn_pages`, `test_open_list_history`, `test_unreadable_at_open`, `test_uncommitted_append`, `test_torn_md2_tail`, `test_md2_read_error`, `test_md2_short_write`, `test_nul_escape_record`, `test_torn_tail_check_fails`, `test_cmp_file_ids`, `test_unlistable_dirs`, `test_unlisted_relist_once` |
 | `tr_msg2db` | `test_msg2db_load_failed` |
 | `tr_queue` | `test_tr_queue_load_failed`, `test_tr_queue_backup_failed`, `test_tr2q_queued` |
 | `yev_loop/yev_events` | `test_yevent_sq_full`, `test_yevent_sq_nomem`, `test_yevent_sq_retry`, `test_yevent_stop_in_flight`, `test_yevent_udp_ipv6`, `test_yevent_udp_zerocopy`, `test_yevent_loop_end_drain`, `test_yevent_connect_src_url`, `test_yevent_stop_nomem`, `test_yevent_kept_after_post`, `test_yevent_close_fd_kept`, `test_yevent_stop_stale_sqe` |

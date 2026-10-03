@@ -155,7 +155,6 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_open_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_mark_tm_order(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -296,12 +295,6 @@ SDATAPM (DTP_STRING,    "key",          0,              0,          "Key (primar
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete: required when the key holds records"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_mark_tm_order[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic to migrate to tm marking"),
-SDATAPM (DTP_BOOLEAN,   "all",          0,              0,          "Migrate every topic of the tranger (on disk), one row each; topic_name is not read"),
-SDATA_END()
-};
 PRIVATE sdata_desc_t pm_add_record[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
@@ -424,7 +417,6 @@ SDATACM2 (DTP_SCHEMA,   "create-topic",     SDF_AUTHZ_X,    0,      pm_create_to
 SDATACM2 (DTP_SCHEMA,   "open-topic",       SDF_AUTHZ_X,    0,      pm_open_topic,    cmd_open_topic,   "Open topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic",     SDF_AUTHZ_X,    0,      pm_delete_topic,    cmd_delete_topic,   "Delete topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-key",       SDF_AUTHZ_X,    0,      pm_delete_key,      cmd_delete_key,     "Delete a whole key (primary key) and every record it holds. Irrecoverable, master-only; force=1 when the key is not empty"),
-SDATACM2 (DTP_SCHEMA,   "mark-tm-order",    SDF_AUTHZ_X,    0,      pm_mark_tm_order,   cmd_mark_tm_order,  "Migrate a topic written before the tm markers (7.25.4 or earlier): mark its md2 files whose __tm__ or __t__ goes back and make it a topic that marks, so a tm query reads only the files its range meets. all=1: every topic of the tranger, one row each. Master-only, SYNCHRONOUS (the yuno is blocked until it ends), idempotent; permission 'write'"),
 
 SDATACM2 (DTP_SCHEMA,   "open-list",        SDF_AUTHZ_X,    0,      pm_open_list,       cmd_open_list,      "Open list. With return_data=1 loads and returns the matching records, auto-closing (one-shot read); else the list stays open collecting appends until close-list"),
 SDATACM2 (DTP_SCHEMA,   "close-list",       SDF_AUTHZ_X,    0,      pm_close_list,      cmd_close_list,     "Close list"),
@@ -1868,224 +1860,6 @@ PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
- *  The migration of a topic written before the tm markers: see
- *  tranger2_mark_tm_order(). A topic created by 7.25.4 or earlier trusts no
- *  tm range of its files, so a tm query reads every md2 row of the key;
- *  marked, it reads only the files its range meets.
- *
- *  Permission `write`: it rewrites what the store says about the topic's
- *  files (markers, topic_desc.json), and adds or deletes no record.
- *  MASTER-ONLY, asked before the library: what the tranger IS (the
- *  `master` attribute answers it, see mt_reading).
- *
- *  This is one topic: the report of the library (YOURS) or NULL, with the
- *  result and the comment of its answer.
- ***************************************************************************/
-PRIVATE json_t *mark_tm_order_of_topic(
-    hgobj gobj,
-    const char *topic_name,
-    int *p_result,
-    json_t **p_comment  // YOURS
-)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!tranger2_topic(priv->tranger, topic_name)) {
-        /*
-         *  A topic on disk that cannot be opened (its keys/ cannot be
-         *  listed, its topic_desc.json does not load) is not a topic that
-         *  is not there: up to 7.25.4 both answered "Topic not found"
-         */
-        char topic_dir[PATH_MAX];
-        *p_result = -1;
-        if(tranger2_topic_path(topic_dir, sizeof(topic_dir), priv->tranger, topic_name) == 0 &&
-                is_directory(topic_dir)) {
-            *p_comment = json_sprintf("%s: cannot open topic '%s' (see the log)",
-                gobj_yuno_role_plus_name(), topic_name);
-        } else {
-            *p_comment = json_sprintf("%s: Topic not found: '%s'",
-                gobj_yuno_role_plus_name(), topic_name);
-        }
-        return NULL;
-    }
-
-    json_t *report = tranger2_mark_tm_order(priv->tranger, topic_name);
-    if(!report) {
-        *p_result = -1;
-        *p_comment = json_sprintf("%s: cannot mark the tm order of topic '%s', it is left as it "
-            "was (see the log)", gobj_yuno_role_plus_name(), topic_name);
-        return NULL;
-    }
-
-    *p_result = 0;
-    *p_comment = json_sprintf(
-        "%s: topic '%s' %s: %d key(s), %d file(s), %d tm and %d t marker(s) written",
-        gobj_yuno_role_plus_name(),
-        topic_name,
-        kw_get_bool(gobj, report, "was_marking", 0, 0)? "re-marked" : "marks tm order now",
-        (int)kw_get_int(gobj, report, "keys", 0, 0),
-        (int)kw_get_int(gobj, report, "files", 0, 0),
-        (int)kw_get_int(gobj, report, "tm_unordered_marked", 0, 0),
-        (int)kw_get_int(gobj, report, "t_unordered_marked", 0, 0)
-    );
-    return report;
-}
-
-/***************************************************************************
- *  mark-tm-order topic_name=<t>, or all=1: every topic of the tranger, the
- *  migration of a whole node after an upgrade from 7.25.4 or earlier.
- *
- *  SYNCHRONOUS: the yuno's loop is blocked until the last topic is marked.
- *  The cost is one sequential read of every md2 file, linear in rows and
- *  in files (performance/c/perf_timeranger2: 19 ms for 600000 rows in 30
- *  files).
- ***************************************************************************/
-PRIVATE json_t *cmd_mark_tm_order(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*----------------------------------------*
-     *  Check AUTHZS
-     *----------------------------------------*/
-    const char *permission = "write";
-    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        return msg_iev_build_response(
-            gobj,
-            -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-    BOOL all = kw_get_bool(gobj, kw, "all", 0, KW_WILD_NUMBER);
-    if(empty_string(topic_name) && !all) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("%s: What topic_name? (all=1 migrates every topic)", gobj_yuno_role_plus_name()),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    if(!gobj_read_bool_attr(gobj, "master")) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("%s: tranger '%s' is READ-ONLY, this yuno is not its master: "
-                "mark-tm-order runs on the master",
-                gobj_yuno_role_plus_name(), gobj_name(gobj)),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    if(!all) {
-        int result;
-        json_t *comment;
-        json_t *report = mark_tm_order_of_topic(gobj, topic_name, &result, &comment);
-        return msg_iev_build_response(
-            gobj,
-            result,
-            comment,
-            0,
-            report,
-            kw  // owned
-        );
-    }
-
-    /*
-     *  Every topic ON DISK, the ones this yuno never opened too (each is
-     *  opened to be marked). One row per topic, {topic_name, result,
-     *  comment, data}; a topic that fails does not stop the others, and
-     *  the answer is -1 when one did. Synchronous as a whole: the yuno is
-     *  blocked until the last topic is marked.
-     */
-    json_t *names = tranger2_list_topic_names(priv->tranger);
-    if(!names) {
-        // Error already logged
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("%s: mark-tm-order of every topic: cannot list the topics of the store, "
-                "nothing marked (%s)",
-                gobj_yuno_role_plus_name(), gobj_log_last_message()),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-    json_t *rows = json_array();
-    int marked = 0, already = 0, failed = 0, topics = 0;
-    int idx; json_t *jn_name;
-    json_array_foreach(names, idx, jn_name) {
-        const char *name = json_string_value(jn_name);
-
-        /*
-         *  A directory of the store is a topic only when it has its
-         *  topic_desc.json. C_TREEDB keeps `saved_schemas/` in the store
-         *  of __system__: listed as a topic it would fail, and the upgrade
-         *  step would answer -1 on every node that ran save-schema. Skipped,
-         *  and SAID: a topic whose topic_desc.json was lost is skipped the
-         *  same way.
-         */
-        char topic_dir[PATH_MAX];
-        build_path(topic_dir, sizeof(topic_dir),
-            kw_get_str(gobj, priv->tranger, "directory", "", KW_REQUIRED), name, NULL);
-        if(!file_exists(topic_dir, "topic_desc.json")) {
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Directory of the store is not a topic (no topic_desc.json): mark-tm-order skips it",
-                "directory",    "%s", topic_dir,
-                NULL
-            );
-            continue;
-        }
-        topics++;
-
-        int result;
-        json_t *comment;
-        json_t *report = mark_tm_order_of_topic(gobj, name, &result, &comment);
-        if(result < 0) {
-            failed++;
-        } else if(kw_get_bool(gobj, report, "was_marking", 0, 0)) {
-            already++;
-        } else {
-            marked++;
-        }
-        json_array_append_new(rows, json_pack("{s:s, s:i, s:o, s:o}",
-            "topic_name", name,
-            "result", result,
-            "comment", comment,
-            "data", report? report : json_null()
-        ));
-    }
-    int total = topics;
-    JSON_DECREF(names)
-
-    return msg_iev_build_response(
-        gobj,
-        failed? -1 : 0,
-        failed?
-            json_sprintf("%s: mark-tm-order of every topic: %d topic(s), %d marked now, "
-                "%d re-marked, %d FAILED, left as they were (see each row and the log)",
-                gobj_yuno_role_plus_name(), total, marked, already, failed) :
-            json_sprintf("%s: mark-tm-order of every topic: %d topic(s), %d marked now, "
-                "%d re-marked",
-                gobj_yuno_role_plus_name(), total, marked, already),
-        0,
-        rows,
-        kw  // owned
-    );
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -2607,8 +2381,7 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
 /***************************************************************************
  *  Append a record to a topic: tranger2_append_record(). Permission
- *  `write`, MASTER-ONLY (asked before the library, as mark-tm-order does:
- *  what the tranger IS). The record carries the topic's pkey (and its tkey,
+ *  `write`, MASTER-ONLY (asked before the library: what the tranger IS). The record carries the topic's pkey (and its tkey,
  *  when the topic has one); `__t__` 0 is now, `user_flag` 0 by default.
  *
  *  Forwarded by command-yuno the parameters arrive as strings, with no

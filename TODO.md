@@ -198,12 +198,17 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 ### timeranger2 and treedb
 
-- **A tm marker that cannot be written** is retried only by the next append
-  to the same FILE; a file never appended again keeps it missing (logged)
-  until `mark-tm-order` runs.
-- **`mark-tm-order` runs synchronously** and blocks the yuno (linear; ~19 ms
-  for 1 key × 30 files × 20 000 rows, `perf_timeranger2`). A one-shot
-  migration.
+- **A t marker that cannot be written** (`<file>.unordered`, a late
+  `__t__`) is retried only by the next append to the same FILE; a file
+  never appended again keeps it missing (logged), and a reload reads that
+  file's t range from its first and last rows. (`mark-tm-order`, which
+  could write it again, went with the tm markers, 2026-10-03.)
+- **A tm query reads every row of the key's files** (a filter, no file left
+  out, no early end): ~0.39 s for 1 key × 30 files × 20 000 rows
+  (`perf_timeranger2`), one `lseek` + `read` per 32-byte row. Reading the
+  md2 rows in blocks in the iterator would cut it for every query, not only
+  tm (an inference: the old migration read the same rows in blocks in
+  ~16 ms).
 - **A demoted master never takes its lock back** while the process lives; it
   needs a restart (documented).
 - **In a partial topic, operations on other ids are allowed** (creates,
@@ -292,18 +297,14 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 ### timeranger2 and C_TRANGER
 
-- **The tm marker after a rollback**: a 7.25.4-or-earlier binary appends
-  out-of-order tm without `.tm_unordered`; `mark-tm-order` re-marks the
-  topic, but nothing does it on its own. A per-writer stamp would make it
-  automatic.
 - **A follower re-reads the first row of the md2 on every notification.**
   Profiled 2026-09-27 on yunovatios' `db_history_ce`: 10.9 % of its work was
   `load_cache_cell_from_disk()` → `load_first_and_last_record_md()`.
   `b2f972382` removed the per-append open/close in the common case (a
   kept-open md2 descriptor, `fstat` instead of `open`+`lseek`), but
   `update_new_records_from_disk()` still reloads a KNOWN cell: the first row
-  and the last row on every append, plus two `file_exists()` for the
-  `.unordered` / `.tm_unordered` markers. For a known cell the first row
+  and the last row on every append, plus a `file_exists()` for the
+  `.unordered` marker. For a known cell the first row
   cannot change (md2 files are append-only, a torn tail is cut from the END):
   take the row count from the size, skip the first row, take the last row
   from what `publish_new_rt_disk_records()` reads anyway, keep `fr_t` /

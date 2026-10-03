@@ -19,7 +19,7 @@ binaries are registered as `ctest` targets and run automatically with
 | **`perf_yev_ping_pong`** | Raw io_uring ping-pong (no GObj overhead). ~173K msg/sec, 177 MB/sec. |
 | **`perf_yev_ping_pong2`** | Same as ping-pong but including timeranger2 persistence overhead. |
 | **`perf_auth_bff`** | Ping-pong-style live throughput over the OAuth2 BFF ([`C_AUTH_BFF`](#gclass-c-auth-bff)). Default 10 s runs, ~180,000 ops on the reference box. |
-| **`perf_timeranger2`** | timeranger2: the appends that build a store of 20 000 md2 files, its open as a master and as a replica, the create of topics and a `topic_version` change, a tm query before and after `tranger2_mark_tm_order()`. Open as a master: ~81 ms. |
+| **`perf_timeranger2`** | timeranger2: the appends that build a store of 20 000 md2 files, its open as a master and as a replica, the create of topics and a `topic_version` change, a tm query of one minute on 600 000 rows (~0.39 s, a filter). Open as a master: ~81 ms. |
 | **`perf_tr_treedb`** | treedb writes without the gclasses: updates in memory and saved, links and unlinks, creates, the reopen, forced deletes (of a child, and of a parent with 200 children). An update in memory: ~2.9 us. |
 | **`perf_c_treedb`** | The open of a dynamic-schema treedb by `C_TREEDB` in a store of 40 treedbs: the same literal, a newer literal, the first projection (seed). |
 | **`perf_rotatory`** | The rotatory (the file log of every yuno and the agent audit): one record of 300 bytes as the audit writes it, with the retention, with a flush after each record, and one log record with its header. An audit record: ~0.55 us. |

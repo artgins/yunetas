@@ -697,22 +697,18 @@ that lost its lock while it was stopped (see [`tranger2_stop()`](#tranger2_stop)
 an existing topic is opened read-only and nothing is written, and a new one is
 refused with *"Cannot open TimeRanger topic. Not found and no master"*.
 
-**A new topic marks the files whose `tm` goes back.** Its `topic_desc.json`
-carries `"marks_tm_unordered": true`, and the master leaves
-`<file>.tm_unordered` beside an md2 file when a record's `tm` is below the
-file's highest one. What a `tm` condition does with it is in
-[`tranger2_open_iterator()`](#tranger2_open_iterator). A topic created by
-7.25.4 or earlier has no such key; it gets it from
-[`tranger2_mark_tm_order()`](<#tranger2_mark_tm_order>), the operator's
-migration.
+**Nothing about `tm` order is written.** From 7.25.5 to 7.25.22 a new topic
+carried `"marks_tm_unordered": true` and the master marked a file whose `tm`
+went back (`<file>.tm_unordered`); both are gone, and a store that has them
+keeps them, ignored. A `tm` condition is a filter on every row: see
+[`tranger2_open_iterator()`](#tranger2_open_iterator).
 
 ```json
 {
     "topic_name": "readings",
     "pkey": "id",
     "tkey": "tm",
-    "system_flag": 1,
-    "marks_tm_unordered": true
+    "system_flag": 1
 }
 ```
 
@@ -1471,142 +1467,6 @@ disk — including ones not yet opened — use
 
 ---
 
-(tranger2_mark_tm_order)=
-## [`tranger2_mark_tm_order()`](https://github.com/artgins/yunetas/blob/7.25.22/kernel/c/timeranger2/src/timeranger2.c#L12302)
-
-Marks the md2 files of a topic whose `__t__` or `__tm__` goes back, and makes
-the topic one that marks (`"marks_tm_unordered": true`). The migration of a
-topic created by 7.25.4 or earlier, asked by an operator: see the cost of such
-a topic in [`tranger2_open_iterator()`](<#tranger2_open_iterator>).
-
-```C
-json_t *tranger2_mark_tm_order(
-    json_t *tranger,
-    const char *topic_name
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `tranger` | `json_t *` | The TimeRanger database instance. It must be the master. |
-| `topic_name` | `const char *` | The topic to mark. |
-
-**Returns**
-
-A dict, yours:
-
-```json
-{
-    "topic_name": "readings",
-    "was_marking": false,
-    "keys": 1,
-    "files": 30,
-    "rows": 600000,
-    "t_unordered_marked": 0,
-    "tm_unordered_marked": 2,
-    "marks_tm_unordered": true
-}
-```
-
-`t_unordered_marked` / `tm_unordered_marked` count the markers THIS call
-wrote. `NULL` (logged, and in `gobj_log_last_message()`) when the handle is
-not the master (*"Only master can write"*), the topic does not exist or
-cannot be opened (its `keys/` cannot be listed, see
-[`tranger2_open_topic()`](#tranger2_open_topic)), a key directory cannot be
-listed (*"Cannot open directory"*: `EMFILE`, `EACCES`, no memory for the
-listing), a md2 file cannot be read, or a marker or `topic_desc.json` cannot
-be written. A listing that fails never marks the topic: the tm ranges of
-the files nobody scanned would be trusted, and a tm query would lose rows (a
-legacy file of tm 100, 300, 200 has the range [100,200]; a query of
-[250,350] would skip it). The
-keys are walked in the order of the topic's cache and the call stops at the
-first failure. What it leaves:
-
-- the topic is NOT marked: `"marks_tm_unordered"` is unchanged, in
-  `topic_desc.json` and in memory, so no file's `tm` range is trusted, as
-  before the call;
-- the markers written before the failure stay on disk;
-- the cells of the files read before the failure keep, in memory, the flags
-  and the whole-file ranges the call gave them, and the totals of their keys
-  follow them (the key that failed too). Those ranges are what the disk
-  holds: they only make the answers exact.
-
-Run it again once the cause is fixed. A file that needs a marker and whose
-name leaves no room for one (`<file_id>.tm_unordered` longer than `NAME_MAX`)
-is not a failure: it is skipped and logged (*"Cannot mark a md2 file, its name
-leaves no room for a marker: skipped, every load reads it whole"*), since
-every load reads such a file whole already.
-
-**Notes**
-
-For every key of the topic and every md2 file of the key, it reads the file
-whole once, writes `<file>.tm_unordered` where a `__tm__` goes back and
-`<file>.unordered` where a `__t__` does (unless the marker is there), and gives
-the file's cell in memory its whole ranges and those flags. Then, if the topic
-did not mark, it sets `"marks_tm_unordered": true` in `topic_desc.json`
-(through a temporary file, fsync'ed, renamed, the directory fsync'ed; mode
-0440 as before) and in memory. The next page of an open iterator takes its
-segments again.
-
-It is synchronous -- the yuno's event loop is blocked while it runs -- and
-costs a listing of each key's directory and one sequential read of every md2
-file, 32 bytes a row: linear in the rows and in the files. Measured with
-`performance/c/perf_timeranger2` (case `mark_tm_order`, figures in
-`performance/c/README.md`):
-
-| Store | Time |
-|---|---|
-| 1 key, 30 files x 20000 rows (600000 rows) | 19 ms |
-
-Run it on a quiet node.
-
-Run it again on a topic that marks to re-mark it after a rollback to a binary
-that appends without markers (every release up to 7.25.4), or after a crash
-that lost one. It is idempotent, and it never removes a marker (a marker on a
-file in order costs a whole read of that file, nothing more).
-
-A replica that has the topic open reads it as before (no file's `tm` range
-trusted) until it opens the topic again.
-
-From a yuno, the `mark-tm-order` command of `C_TRANGER`:
-
-```bash
-ycommand -c 'command-yuno id=<id> service=<tranger service> command=mark-tm-order topic_name=readings'
-```
-
-From C, every topic of a store. [`tranger2_list_topic_names()`](#tranger2_list_topic_names)
-lists every DIRECTORY of the store, and not every directory is a topic:
-`C_TREEDB` keeps `saved_schemas/` in the store of `__system__`. Skip a
-directory without its `topic_desc.json`, as the command does, or the loop
-stops there, before the topics listed after it:
-
-```C
-const char *directory = json_string_value(json_object_get(tranger, "directory"));
-json_t *names = tranger2_list_topic_names(tranger);
-if(!names) {
-    return -1;  // logged: the store cannot be listed, nothing was marked
-}
-size_t i; json_t *jn_name;
-json_array_foreach(names, i, jn_name) {
-    const char *name = json_string_value(jn_name);
-    char topic_dir[PATH_MAX];
-    build_path(topic_dir, sizeof(topic_dir), directory, name, NULL);
-    if(!file_exists(topic_dir, "topic_desc.json")) {
-        continue;   // not a topic (saved_schemas/ in __system__)
-    }
-    json_t *report = tranger2_mark_tm_order(tranger, name);
-    if(!report) {
-        break;  // logged; the topics already marked stay marked
-    }
-    JSON_DECREF(report)
-}
-JSON_DECREF(names)
-```
-
----
-
 (tranger2_open_iterator)=
 ## [`tranger2_open_iterator()`](https://github.com/artgins/yunetas/blob/7.25.22/kernel/c/timeranger2/src/timeranger2.c#L12559)
 
@@ -2016,42 +1876,35 @@ The two axes are not ordered the same way, and the scan knows it:
   `__t__` below the times the file already had). The master marks that file
   `<file>.unordered`, and inside a marked file the scan reads every row of the
   selected files instead of stopping at the first row past the `t` range.
-- **Rows are in `tm` order only where the master says so.** `tm` is written
-  by the producer (a device that sends what it buffered writes it out of
-  order), and the files are cut by `t`. In a topic created after 7.25.4
-  (`"marks_tm_unordered": true` in its `topic_desc.json`) the master marks a
-  file whose `tm` goes back `<file>.tm_unordered`, and a load reads a marked
-  file whole, so the `[fr_tm, to_tm]` of every file is exact. There a file
-  that does not meet the `tm` condition is not read, and in an unmarked file
-  the first row past the range ends the scan of THAT FILE; the scan goes on in
-  the next file (a later file may hold a lower `tm`). In a marked file a `tm`
-  condition skips rows and ends nothing.
-- **A topic created by 7.25.4 or earlier** cannot tell which of its files are
-  in `tm` order, and no file's `tm` range is trusted: a `tm` condition leaves
-  no file out and ends no scan, it skips rows. Correct, and it reads every
-  md2 row of the key, so the cost grows with the files of the key. Measured on
-  one key of 30 day files x 20000 rows, a `from_tm`..`to_tm` query of one
-  minute (`performance/c/perf_timeranger2`): 12.7 ms in 7.25.4 (which trusted
-  the first and the last row of each file, and so could miss rows), 392 ms on
-  such a topic now, 7.4 ms once the topic is marked. Mark it with
-  [`tranger2_mark_tm_order()`](<#tranger2_mark_tm_order>) (the `mark-tm-order`
-  command of `C_TRANGER`): 19 ms for those 600000 rows in 30 files; its
-  cost is linear in the rows and in the files, and it blocks the yuno while
-  it runs.
+- **Nothing orders `tm`.** It is written by the producer (a device that
+  sends what it buffered writes it out of order), and the files are cut by
+  `t`. A `tm` condition leaves no file out and ends no scan: it skips rows,
+  one by one. Correct, and it reads every md2 row of the key, so its cost
+  grows with the files of the key: ~0.39 s for a query of one minute on one
+  key of 30 day files x 20000 rows (`performance/c/perf_timeranger2`). The
+  `fr_tm` / `to_tm` of a file in `list-keys` come from its first and last rows
+  unless the file was read whole (a late `__t__`): approximate when its `tm`
+  goes back. From 7.25.5 to 7.25.22 the master marked a file whose `tm` went
+  back and the scan trusted the others (7.4 ms there, after a migration
+  `mark-tm-order`); the markers and the command are gone, and the ones a store
+  has are ignored.
 - **The marker goes down before the row.** The master writes the marker of a
-  record whose `t` or `tm` goes back BEFORE its md2 row, so a process that dies
+  record whose `t` goes back BEFORE its md2 row, so a process that dies
   between the two leaves a marker with no row behind it (one whole read of the
   file at the next load), never a row with no marker. A marker that cannot be
   written is logged (*"Cannot mark md2 file, a reload will misread its time
   range"*); the master still reads that file whole, and writes the marker at
   the next append to the file (*"md2 file marked, the marker missed earlier is
   written"*). A file whose name leaves no room for a marker
-  (`<file_id>.tm_unordered` longer than `NAME_MAX`) is logged once
+  (`<file_id>.unordered` longer than `NAME_MAX`) is logged once
   (*"Cannot mark md2 file, file_id too long"*) and read whole at every load.
   Neither is fsync'ed, like the append itself. A marker lost all
-  the same (a crash, a power cut, a rollback to a binary that appends without
-  markers) is written again by `tranger2_mark_tm_order()`.
-- A file left out by `tm` is a **hole** in the rowids the scan walks: the
+  the same (a power cut, a rollback to a binary that appends without
+  markers) is not written again: that file's `t` range is read from its first
+  and last rows until it gets a marker. (`tranger2_mark_tm_order()`, which
+  could write it again, went with the tm markers after 7.25.22.)
+- A file left out by `t` (a `t` range around a file whose rows are out of it)
+  is a **hole** in the rowids the scan walks: the
   scan steps over it, and a `from_rowid` / `to_rowid` that falls in it begins
   at the next row the scan can read. A hole is not an error. The scan logs an
   ERROR only when the segments overlap the row it just read, a broken
@@ -3339,7 +3192,7 @@ json_t *tranger2_list_topic_names(
 
 A new JSON array of strings, each being a topic name found as a subdirectory in the tranger database directory. The caller owns the returned array and must call `json_decref()` on it. Hidden entries (names starting with `.`) are excluded.
 
-`NULL` when the directory cannot be listed (`opendir()` or `readdir()` fails): logged, *"Cannot list the topics of the store"* with `errno`, and the cause is left in `gobj_log_last_message()`. A store that cannot be listed is not a store with no topic: up to 7.25.4 it answered `[]` with no log, and `list-queues` and `clean-queues` of the MQTT broker answered an empty list with `0`. They answer `-1` now, and so does `mark-tm-order all=1` of `C_TRANGER`.
+`NULL` when the directory cannot be listed (`opendir()` or `readdir()` fails): logged, *"Cannot list the topics of the store"* with `errno`, and the cause is left in `gobj_log_last_message()`. A store that cannot be listed is not a store with no topic: up to 7.25.4 it answered `[]` with no log, and `list-queues` and `clean-queues` of the MQTT broker answered an empty list with `0`. They answer `-1` now.
 
 **Notes**
 

@@ -2,42 +2,24 @@
  *          test_tm_order.c
  *
  *  The __tm__ of a record is written by its producer, and nothing makes it
- *  grow with __t__, the time the md2 files are cut by. Four things went
- *  wrong with it in 7.25.4:
+ *  grow with __t__, the time the md2 files are cut by. A tm condition
+ *  (`from_tm` / `to_tm`) is therefore a FILTER on every row of the key's
+ *  files: it leaves no file out and ends no scan. Its answers are checked
+ *  by the three roads a history is read (an iterator, a paged iterator, a
+ *  list), both directions, on the master in memory, a replica, a follower
+ *  and the master reloaded:
  *
- *      - a file whose tm range does not meet the condition is left out
- *        of the segments, so the segments of a key can have HOLES. The scan
- *        stepped from one segment to the next only when their rowids were
- *        consecutive: it logged "next rowids not consecutive" (a false
- *        internal error) and ended, and every row after the hole was lost.
- *        A `from_rowid` / `to_rowid` that falls in the hole was read in a
- *        segment it does not belong to.
- *      - a reload (and a replica) took a file's tm range from its first
- *        and last rows only: with the tm out of order inside the file, a tm
- *        query skipped a file holding matching rows.
- *      - no tm condition ended a scan, not even in a file whose rows are
- *        in tm order: a query for the first seconds of a big file read it
- *        whole.
- *      - A topic written before files were marked cannot tell which of its
- *        files are in tm order: it must not trust any file's tm range.
+ *      - a file whose tm is out of every range of the query, between two
+ *        that match, and a rowid bound around it;
+ *      - a file whose tm goes back inside it (its first and last rows do
+ *        not bound it);
+ *      - a negative bound, relative to the key's last record.
  *
- *  The master marks a file whose tm goes back (`<file>.tm_unordered`), like
- *  it marks a late __t__ (`<file>.unordered`); a topic that marks says so in
- *  its topic_desc.json (`marks_tm_unordered`).
- *
- *  A marker that cannot be written must not let the master or a reload
- *  take the file for one in tm order, or its early end hides rows. The
- *  cell is flagged whatever the disk says, the marker is written BEFORE
- *  the md2 row, and the next append to the file writes a marker that is
- *  still missing.
- *
- *  A legacy topic (every topic created by 7.25.4 or earlier) trusts no tm
- *  range, so a tm query reads every file of the key: ~30x slower than
- *  7.25.4 on 30 files. tranger2_mark_tm_order() is the migration an
- *  operator asks for: it reads every md2 file once, writes the markers,
- *  and makes the topic one that marks. Run again, it re-marks a topic whose
- *  markers were lost (a crash, a rollback binary that appends without
- *  them).
+ *  From 7.25.5 to 7.25.22 the master marked a file whose tm went back
+ *  (`<file>.tm_unordered`, and `marks_tm_unordered` in the topic_desc.json)
+ *  and the scans trusted the tm ranges of the files not marked. The
+ *  markers are gone: a store written then answers the same, its markers
+ *  ignored.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -325,45 +307,36 @@ PRIVATE int expect_the_answers(json_t *tranger, const char *who)
 }
 
 /*
- *  Rewrite the topic_desc.json of the topic without `marks_tm_unordered`
- *  and remove the tm markers: what a topic written before them looks like.
+ *  What 7.25.5..7.25.22 left in a store: `marks_tm_unordered` in the
+ *  topic_desc.json, and a `.tm_unordered` marker -- here beside the file
+ *  of "gap" whose tm (5000) is out of every range asked
  */
-PRIVATE int make_it_legacy(void)
+PRIVATE int make_it_old_marking(void)
 {
-    char directory[PATH_MAX];
-    build_path(directory, sizeof(directory), path_database, TOPIC_NAME, NULL);
+    char topic_dir[PATH_MAX];
+    build_path(topic_dir, sizeof(topic_dir), path_database, TOPIC_NAME, NULL);
+    json_t *desc = load_json_from_file(0, topic_dir, "topic_desc.json", 0);
+    if(!desc) {
+        printf("%sERROR%s --> cannot read the topic_desc.json\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    json_object_set_new(desc, "marks_tm_unordered", json_true());
     char path[PATH_MAX];
-    build_path(path, sizeof(path), directory, "topic_desc.json", NULL);
-
-    json_t *desc = json_load_file(path, 0, 0);
-    if(!desc || !json_is_true(json_object_get(desc, "marks_tm_unordered"))) {
-        printf("%sERROR%s --> topic_desc.json does not say the topic marks tm\n",
-            On_Red BWhite, Color_Off);
-        JSON_DECREF(desc)
-        return -1;
-    }
-    json_object_del(desc, "marks_tm_unordered");
-    chmod(path, 0600);
-    if(json_dump_file(desc, path, JSON_INDENT(4)) < 0) {
-        printf("%sERROR%s --> cannot rewrite %s\n", On_Red BWhite, Color_Off, path);
-        JSON_DECREF(desc)
-        return -1;
-    }
+    build_path(path, sizeof(path), topic_dir, "topic_desc.json", NULL);
+    chmod(path, 0660);
+    int ret = json_dump_file(desc, path, JSON_INDENT(4));
     JSON_DECREF(desc)
-
-    char key_dir[PATH_MAX];
-    build_path(key_dir, sizeof(key_dir), directory, "keys", "infile", NULL);
-    dir_array_t da;
-    get_ordered_filename_array(0, key_dir, ".*\\.tm_unordered", WD_MATCH_REGULAR_FILE, &da);
-    int removed = da.count;
-    for(int i = 0; i < da.count; i++) {
-        unlink(da.items[i]);
-    }
-    dir_array_free(&da);
-    if(removed == 0) {
-        printf("%sERROR%s --> no tm marker to remove\n", On_Red BWhite, Color_Off);
+    if(ret < 0) {
+        printf("%sERROR%s --> cannot write the topic_desc.json\n", On_Red BWhite, Color_Off);
         return -1;
     }
+    build_path(path, sizeof(path), topic_dir, "keys", "gap", "2000-01-02.tm_unordered", NULL);
+    int fd = open(path, O_CREAT|O_WRONLY, 0660);
+    if(fd < 0) {
+        printf("%sERROR%s --> cannot write %s\n", On_Red BWhite, Color_Off, path);
+        return -1;
+    }
+    close(fd);
     return 0;
 }
 
@@ -373,7 +346,6 @@ PRIVATE int make_it_legacy(void)
 PRIVATE int do_test(void)
 {
     int result = 0;
-    char bf[512];
     build_path(path_database, sizeof(path_database),
         getenv("HOME"), "tests_yuneta", DATABASE, NULL);
     rmrdir(path_database);
@@ -415,12 +387,10 @@ PRIVATE int do_test(void)
     append_tm(tm, "infile", DAY1 + 1001, 100, "T2");
     append_tm(tm, "infile", DAY1 + 1002, 300, "T3");
 
-    result += expect_file("the file whose tm goes back is marked",
-        "infile", "2000-01-01.tm_unordered", TRUE);
+    result += expect_file("no tm marker is written",
+        "infile", "2000-01-01.tm_unordered", FALSE);
     result += expect_file("a file whose tm goes back is not a late t",
         "infile", "2000-01-01.unordered", FALSE);
-    result += expect_file("a file in tm order is not marked",
-        "gap", "2000-01-02.tm_unordered", FALSE);
     result += test_json(NULL);
 
     /*-------------------------------------*
@@ -428,44 +398,6 @@ PRIVATE int do_test(void)
      *-------------------------------------*/
     set_expected_results("tm order: the master in memory", NULL, NULL, NULL, 1);
     result += expect_the_answers(tm, "master");
-    result += test_json(NULL);
-
-    /*-------------------------------------*
-     *  A marker that cannot be written:
-     *  the key directory made read-only
-     *  when the tm goes back
-     *-------------------------------------*/
-    set_expected_results(
-        "tm order: a marker that cannot be written",
-        json_pack("[{s:s}]",
-            "msg", "Cannot mark md2 file, a reload will misread its time range"
-        ),
-        NULL, NULL, 1
-    );
-    append_tm(tm, "nomark", DAY1 + 1, 500, "N1");
-    char nomark_dir[PATH_MAX];
-    build_path(nomark_dir, sizeof(nomark_dir), path_database, TOPIC_NAME, "keys", "nomark", NULL);
-    chmod(nomark_dir, 0500);
-    append_tm(tm, "nomark", DAY1 + 2, 100, "N2");
-    chmod(nomark_dir, 02770);
-    result += expect_file("the marker could not be written",
-        "nomark", "2000-01-01.tm_unordered", FALSE);
-    result += expect_cond(tm, "master (marker not written)", "nomark",
-        json_pack("{s:I}", "to_tm", (json_int_t)200),
-        "N2", "N2"
-    );
-    result += test_json(NULL);
-
-    set_expected_results(
-        "tm order: the next append writes the missing marker",
-        json_pack("[{s:s}]",
-            "msg", "md2 file marked, the marker missed earlier is written"
-        ),
-        NULL, NULL, 1
-    );
-    append_tm(tm, "nomark", DAY1 + 3, 600, "N3");
-    result += expect_file("the next append to the file writes the marker",
-        "nomark", "2000-01-01.tm_unordered", TRUE);
     result += test_json(NULL);
 
     set_expected_results("tm order: a replica", NULL, NULL, NULL, 1);
@@ -526,258 +458,27 @@ PRIVATE int do_test(void)
         return -1;
     }
     result += expect_the_answers(tm, "reloaded");
-    result += expect_cond(tm, "reloaded (marker written late)", "nomark",
-        json_pack("{s:I}", "to_tm", (json_int_t)200),
-        "N2", "N2"
-    );
     result += test_json(NULL);
 
     /*-------------------------------------*
-     *  A file in tm order ends a tm
-     *  scan. To SEE it, the md2 is cut
-     *  behind the master's back after the
-     *  rows the query needs: a scan that
-     *  goes on reads a row that is not
-     *  there, and says so.
+     *  A store written by 7.25.5..7.25.22:
+     *  its topic_desc.json says it marks,
+     *  and a stray marker lies beside a
+     *  file. Both are ignored.
      *-------------------------------------*/
-    set_expected_results("tm order: a tm scan ends in a file in tm order", NULL, NULL, NULL, 1);
-    for(int i = 0; i < 40; i++) {
-        char content[16];
-        snprintf(content, sizeof(content), "E%d", i);
-        append_tm(tm, "early", DAY1 + (uint64_t)i, DAY1 + (uint64_t)i, content);
-    }
-    char path_md2[PATH_MAX];
-    build_path(path_md2, sizeof(path_md2),
-        path_database, TOPIC_NAME, "keys", "early", "2000-01-01.md2", NULL);
-    if(truncate(path_md2, 20 * 32) < 0) {
-        printf("%sERROR%s --> cannot cut %s\n", On_Red BWhite, Color_Off, path_md2);
-        result += -1;
-    }
-    for(int road = 0; road < 3; road++) {
-        served_cond(tm, "early",
-            json_pack("{s:I}", "to_tm", (json_int_t)(DAY1 + 3)),
-            road, bf, sizeof(bf)
-        );
-        result += expect("early end forward", bf, "E0 E1 E2 E3");
-    }
-    result += test_json(NULL);
-
-    /*-------------------------------------*
-     *  A topic written before the marks:
-     *  no file's tm range is trusted
-     *-------------------------------------*/
-    set_expected_results("tm order: a topic written before the marks", NULL, NULL, NULL, 1);
+    set_expected_results("tm order: a store with the old markers", NULL, NULL, NULL, 1);
     tranger2_shutdown(tm);
     drain(10);
-    result += make_it_legacy();
+    result += make_it_old_marking();
     tm = startup_tranger(TRUE);
     if(!tm || !tranger2_open_topic(tm, TOPIC_NAME, TRUE)) {
-        printf("%sERROR%s --> cannot reopen the legacy master\n", On_Red BWhite, Color_Off);
+        printf("%sERROR%s --> cannot reopen the master\n", On_Red BWhite, Color_Off);
         if(tm) {
             tranger2_shutdown(tm);
         }
         return -1;
     }
-    if(json_is_true(json_object_get(tranger2_topic(tm, TOPIC_NAME), "marks_tm_unordered"))) {
-        printf("%sERROR%s --> a legacy topic says it marks tm\n", On_Red BWhite, Color_Off);
-        result += -1;
-    }
-    result += expect_the_answers(tm, "legacy");
-    result += test_json(NULL);
-
-    /*-------------------------------------*
-     *  The migration: the legacy topic is
-     *  marked, and answers the same
-     *-------------------------------------*/
-    set_expected_results(
-        "tm order: a legacy topic marked",
-        json_pack("[{s:s}]",
-            "msg", "Topic marked: its md2 files out of order have their markers"
-        ),
-        NULL, NULL, 1
-    );
-    json_t *report = tranger2_mark_tm_order(tm, TOPIC_NAME);
-    char *s_report = json_dumps(report, JSON_COMPACT|JSON_SORT_KEYS);
-    printf("  mark_tm_order: %s\n", s_report? s_report: "NULL");
-    jsonp_free(s_report);
-    result += expect("the migration answers",
-        report && json_is_true(json_object_get(report, "marks_tm_unordered"))? "marked": "refused",
-        "marked"
-    );
-    /*  make_it_legacy() removed the one tm marker, of "infile"  */
-    result += expect("the migration writes the tm marker that was missing",
-        json_integer_value(json_object_get(report, "tm_unordered_marked")) == 1? "1": "other", "1"
-    );
-    JSON_DECREF(report)
-    result += expect_file("the legacy file whose tm goes back is marked",
-        "infile", "2000-01-01.tm_unordered", TRUE);
-    result += expect("the topic in memory marks",
-        json_is_true(json_object_get(tranger2_topic(tm, TOPIC_NAME), "marks_tm_unordered"))?
-            "marks": "legacy", "marks");
-    char path_desc[PATH_MAX];
-    build_path(path_desc, sizeof(path_desc), path_database, TOPIC_NAME, "topic_desc.json", NULL);
-    json_t *desc = json_load_file(path_desc, 0, 0);
-    result += expect("topic_desc.json says it marks",
-        json_is_true(json_object_get(desc, "marks_tm_unordered"))? "marks": "legacy", "marks");
-    JSON_DECREF(desc)
-    result += expect_the_answers(tm, "migrated");
-    result += expect_cond(tm, "migrated", "nomark",
-        json_pack("{s:I}", "to_tm", (json_int_t)200),
-        "N2", "N2"
-    );
-    result += expect_cond(tm, "migrated", "live",
-        json_pack("{s:I}", "to_tm", (json_int_t)200),
-        "L1 L3", "L3 L1"
-    );
-    result += test_json(NULL);
-
-    set_expected_results("tm order: a marked topic reloaded", NULL, NULL, NULL, 1);
-    tranger2_shutdown(tm);
-    drain(10);
-    tm = startup_tranger(TRUE);
-    if(!tm || !tranger2_open_topic(tm, TOPIC_NAME, TRUE)) {
-        printf("%sERROR%s --> cannot reopen the marked master\n", On_Red BWhite, Color_Off);
-        if(tm) {
-            tranger2_shutdown(tm);
-        }
-        return -1;
-    }
-    result += expect_the_answers(tm, "migrated, reloaded");
-    result += expect_cond(tm, "migrated, reloaded", "live",
-        json_pack("{s:I}", "to_tm", (json_int_t)200),
-        "L1 L3", "L3 L1"
-    );
-    result += test_json(NULL);
-
-    /*-------------------------------------*
-     *  Markers lost (a rollback binary, a
-     *  crash): marked again
-     *-------------------------------------*/
-    set_expected_results(
-        "tm order: markers lost, marked again",
-        json_pack("[{s:s}]",
-            "msg", "Topic marked: its md2 files out of order have their markers"
-        ),
-        NULL, NULL, 1
-    );
-    tranger2_shutdown(tm);
-    drain(10);
-    char key_dir[PATH_MAX];
-    build_path(key_dir, sizeof(key_dir), path_database, TOPIC_NAME, "keys", "live", NULL);
-    dir_array_t da;
-    get_ordered_filename_array(0, key_dir, ".*\\.tm_unordered", WD_MATCH_REGULAR_FILE, &da);
-    int lost = da.count;
-    for(int i = 0; i < da.count; i++) {
-        unlink(da.items[i]);
-    }
-    dir_array_free(&da);
-    result += expect("a marker of \"live\" to lose", lost == 1? "1": "other", "1");
-    tm = startup_tranger(TRUE);
-    tranger2_open_topic(tm, TOPIC_NAME, TRUE);
-    report = tranger2_mark_tm_order(tm, TOPIC_NAME);
-    result += expect("the lost marker is written again",
-        json_integer_value(json_object_get(report, "tm_unordered_marked")) == 1? "1": "other", "1"
-    );
-    JSON_DECREF(report)
-    result += expect_cond(tm, "re-marked", "live",
-        json_pack("{s:I}", "to_tm", (json_int_t)200),
-        "L1 L3", "L3 L1"
-    );
-    result += test_json(NULL);
-
-    set_expected_results(
-        "tm order: marking twice writes nothing",
-        json_pack("[{s:s}]",
-            "msg", "Topic marked: its md2 files out of order have their markers"
-        ),
-        NULL, NULL, 1
-    );
-    report = tranger2_mark_tm_order(tm, TOPIC_NAME);
-    result += expect("a second migration writes no marker",
-        json_integer_value(json_object_get(report, "tm_unordered_marked")) == 0 &&
-        json_integer_value(json_object_get(report, "t_unordered_marked")) == 0? "0": "other", "0"
-    );
-    JSON_DECREF(report)
-    result += test_json(NULL);
-
-    /*-------------------------------------*
-     *  A file name too long to take its
-     *  marker: the load checked no length,
-     *  looked for a truncated name, and
-     *  trusted the file's range
-     *-------------------------------------*/
-    set_expected_results_unordered(
-        "tm order: a file name too long for its marker",
-        json_pack("[{s:s},{s:s}]",
-            "msg", "Creating topic",
-            "msg", "Cannot mark md2 file, file_id too long"
-        ),
-        NULL, NULL, 1
-    );
-    char long_mask[256];
-    snprintf(long_mask, sizeof(long_mask), "%%Y-%%m-%%d");
-    size_t ln = strlen(long_mask);
-    memset(long_mask + ln, 'x', 244 - 10);
-    long_mask[ln + 244 - 10] = 0;       // file ids of 244 characters
-    json_t *long_topic = tranger2_create_topic(
-        tm, "topic_long_names", "id", "tm",
-        json_pack("{s:s}", "filename_mask", long_mask),
-        sf_string_key,
-        json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
-        0
-    );
-    md2_record_ex_t md_long = {0};
-    tranger2_append_record(tm, "topic_long_names", DAY1 + 1, 0, &md_long,
-        json_pack("{s:s, s:I, s:s}", "id", "k", "tm", (json_int_t)150, "content", "G1"));
-    tranger2_append_record(tm, "topic_long_names", DAY1 + 2, 0, &md_long,
-        json_pack("{s:s, s:I, s:s}", "id", "k", "tm", (json_int_t)900, "content", "G2"));
-    tranger2_append_record(tm, "topic_long_names", DAY1 + 3, 0, &md_long,
-        json_pack("{s:s, s:I, s:s}", "id", "k", "tm", (json_int_t)120, "content", "G3"));
-    result += test_json(NULL);
-
-    set_expected_results_unordered(
-        "tm order: a file name too long for its marker, reloaded",
-        json_pack("[{s:s}]",
-            "msg", "Cannot look for the markers of a md2 file, its name is too long: read whole"
-        ),
-        NULL, NULL, 1
-    );
-    tranger2_shutdown(tm);
-    drain(10);
-    tm = startup_tranger(TRUE);
-    tranger2_open_topic(tm, "topic_long_names", TRUE);
-    json_t *data_long = json_array();
-    json_t *it_long = tranger2_open_iterator(tm, "topic_long_names", "k",
-        json_pack("{s:I}", "to_tm", (json_int_t)200), NULL, "long", "", data_long, NULL);
-    char long_got[64] = "";
-    int idx_long; json_t *rec_long;
-    json_array_foreach(data_long, idx_long, rec_long) {
-        add_content(long_got, sizeof(long_got), rec_long);
-    }
-    if(it_long) {
-        tranger2_close_iterator(tm, it_long);
-    }
-    JSON_DECREF(data_long)
-    result += expect("a file whose marker cannot exist is read whole", long_got, "G1 G3");
-    result += expect("the topic of long names", long_topic? "created": "refused", "created");
-    tranger2_open_topic(tm, TOPIC_NAME, TRUE);
-    result += test_json(NULL);
-
-    set_expected_results(
-        "tm order: a replica cannot mark",
-        json_pack("[{s:s}]",
-            "msg", "Only master can write"
-        ),
-        NULL, NULL, 1
-    );
-    json_t *replica = startup_tranger(FALSE);
-    if(replica) {
-        tranger2_open_topic(replica, TOPIC_NAME, TRUE);
-        report = tranger2_mark_tm_order(replica, TOPIC_NAME);
-        result += expect("a replica cannot mark", report? "marked": "refused", "refused");
-        JSON_DECREF(report)
-        tranger2_shutdown(replica);
-    }
+    result += expect_the_answers(tm, "old markers");
     result += test_json(NULL);
 
     set_expected_results("tm order: shutdown", NULL, NULL, NULL, 1);

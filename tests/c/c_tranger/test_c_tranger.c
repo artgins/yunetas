@@ -23,8 +23,8 @@
  *        (any session could close or read another's by its id); through
  *        the agent's one link (a C_IEVENT_CLI) it is refused to another
  *        user (every relayed command was trusted)
- *      - mark-tm-order and add-record ask `write`, and answer -403 on a
- *        refusal (a counting authz checker, installed at the start up)
+ *      - add-record asks `write`, and answers -403 on a refusal (a
+ *        counting authz checker, installed at the start up)
  *
  *  The C_TRANGER gobj is created as a master yuno; its own tranger handle is
  *  borrowed to create a topic and append records, then the commands are
@@ -90,19 +90,6 @@
  *              Data
  ***************************************************************/
 PRIVATE int global_result = 0;
-
-/*
- *  mark-tm-order all=1 says each directory of the store it skips because
- *  it is not a topic (an INFO): counted here, for `saved_schemas`
- */
-PRIVATE int g_not_a_topic_said = 0;
-PRIVATE int count_not_a_topic(void *h, int priority, const char *bf, size_t len)
-{
-    if(strstr(bf, "Directory of the store is not a topic") && strstr(bf, "saved_schemas")) {
-        g_not_a_topic_said++;
-    }
-    return 0;
-}
 
 /*
  *  The authz checker of the test: every permission is granted, except the
@@ -2451,205 +2438,11 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
 
     /*-------------------------------------------------*
-     *      mark-tm-order: the migration of a topic written before the
-     *      tm markers (a "legacy" topic: no `marks_tm_unordered` in its
-     *      topic_desc.json), exposed as a command of the service. Made
-     *      legacy by hand, on disk and in memory, then migrated.
-     *-------------------------------------------------*/
-    {
-        char topic_dir[PATH_MAX];
-        build_path(topic_dir, sizeof(topic_dir), path_database, TOPIC_NAME, NULL);
-        json_t *desc = load_json_from_file(0, topic_dir, "topic_desc.json", 0);
-        json_object_del(desc, "marks_tm_unordered");
-        char desc_path[PATH_MAX];
-        build_path(desc_path, sizeof(desc_path), topic_dir, "topic_desc.json", NULL);
-        chmod(desc_path, 0660);     /*  written read-only by the tranger  */
-        check_int("the topic made legacy on disk",
-            save_json_to_file(0, topic_dir, "topic_desc.json", 02770, 0660, 0, TRUE, FALSE, desc), 0);
-        json_object_del(tranger2_topic(tranger, TOPIC_NAME), "marks_tm_unordered");
-
-        r = gobj_command(yuno, "mark-tm-order", json_object(), yuno);
-        check_int("mark-tm-order without topic_name", kw_get_int(0, r, "result", -999, 0), -1);
-        JSON_DECREF(r)
-        r = gobj_command(yuno, "mark-tm-order",
-            json_pack("{s:s}", "topic_name", "no_such_topic"), yuno);
-        check_int("mark-tm-order of a topic that is not there", kw_get_int(0, r, "result", -999, 0), -1);
-        check_bool("mark-tm-order of a topic that is not there: says not found",
-            strstr(kw_get_str(0, r, "comment", "", 0), "Topic not found") != NULL, TRUE);
-        JSON_DECREF(r)
-
-        /*
-         *  A topic on disk that cannot be OPENED (its keys/ cannot be
-         *  listed) is not a topic that is not there. (Up to 7.25.4 both
-         *  answered "Topic not found".) Mode 0 on keys/: skipped as root.
-         */
-        if(geteuid() != 0) {
-            const char *unopenable = "topic_unopenable";
-            tranger2_create_topic(tranger, unopenable, "id", "tm", NULL, sf_string_key,
-                json_pack("{s:s, s:I}", "id", "", "tm", (json_int_t)0), 0);
-            tranger2_close_topic(tranger, unopenable);
-            char keys_dir[PATH_MAX];
-            build_path(keys_dir, sizeof(keys_dir), path_database, unopenable, "keys", NULL);
-            set_expected_results_unordered(
-                "mark-tm-order of a topic that cannot be opened",
-                json_pack("[{s:s},{s:s},{s:s}]",
-                    "msg", "Cannot list the keys of the topic",
-                    "msg", "Cannot open topic: its keys cannot be listed",
-                    "msg", "Cannot open topic"
-                ),
-                NULL, NULL, 1
-            );
-            chmod(keys_dir, 0);
-            r = gobj_command(yuno, "mark-tm-order",
-                json_pack("{s:s}", "topic_name", unopenable), yuno);
-            chmod(keys_dir, 02770);
-            global_result += test_json(NULL);
-            check_int("mark-tm-order of a topic that cannot be opened",
-                kw_get_int(0, r, "result", -999, 0), -1);
-            check_bool("mark-tm-order of a topic that cannot be opened: says so, not \"not found\"",
-                strstr(kw_get_str(0, r, "comment", "", 0), "cannot open topic") != NULL, TRUE);
-            JSON_DECREF(r)
-            rmrdir(keys_dir);   // the topic of this case only: gone, so all=1 below skips it
-            char topic_dir[PATH_MAX];
-            build_path(topic_dir, sizeof(topic_dir), path_database, unopenable, NULL);
-            rmrdir(topic_dir);
-        }
-
-        r = gobj_command(yuno, "mark-tm-order",
-            json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
-        check_int("mark-tm-order result", kw_get_int(0, r, "result", -999, 0), 0);
-        check_bool("mark-tm-order: the topic did not mark",
-            kw_get_bool(0, r, "data`was_marking", 1, 0), FALSE);
-        check_bool("mark-tm-order: the topic marks now",
-            kw_get_bool(0, r, "data`marks_tm_unordered", 0, 0), TRUE);
-        json_t *keys = tranger2_list_keys(tranger, TOPIC_NAME);
-        check_int("mark-tm-order: every key of the topic",
-            kw_get_int(0, r, "data`keys", 0, 0), (json_int_t)json_array_size(keys));
-        JSON_DECREF(keys)
-        check_bool("mark-tm-order: the comment names the topic",
-            strstr(kw_get_str(0, r, "comment", "", 0), TOPIC_NAME) != NULL, TRUE);
-        JSON_DECREF(r)
-        check_bool("the topic in memory marks",
-            kw_get_bool(0, tranger2_topic(tranger, TOPIC_NAME), "marks_tm_unordered", 0, 0), TRUE);
-        desc = load_json_from_file(0, topic_dir, "topic_desc.json", 0);
-        check_bool("topic_desc.json marks",
-            kw_get_bool(0, desc, "marks_tm_unordered", 0, 0), TRUE);
-        JSON_DECREF(desc)
-
-        /*  Again: idempotent, and says the topic marked already  */
-        r = gobj_command(yuno, "mark-tm-order",
-            json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
-        check_int("mark-tm-order again", kw_get_int(0, r, "result", -999, 0), 0);
-        check_bool("mark-tm-order again: it marked already",
-            kw_get_bool(0, r, "data`was_marking", 0, 0), TRUE);
-        JSON_DECREF(r)
-
-        /*
-         *  all=1: every topic of the tranger, one row each (the
-         *  migration of a whole node after an upgrade; the upgrade
-         *  step). The topic made legacy
-         *  again is migrated, and its row says so.
-         */
-        desc = load_json_from_file(0, topic_dir, "topic_desc.json", 0);
-        json_object_del(desc, "marks_tm_unordered");
-        chmod(desc_path, 0660);
-        save_json_to_file(0, topic_dir, "topic_desc.json", 02770, 0660, 0, TRUE, FALSE, desc);
-        json_object_del(tranger2_topic(tranger, TOPIC_NAME), "marks_tm_unordered");
-
-        /*
-         *  A directory of the store that is not a topic -- C_TREEDB keeps
-         *  `saved_schemas/` in the store of __system__ -- is not a topic
-         *  to migrate. Listed as one it would fail, and the upgrade step
-         *  would answer -1 on every node that ran save-schema.
-         */
-        char not_a_topic[PATH_MAX];
-        build_path(not_a_topic, sizeof(not_a_topic), path_database, "saved_schemas", NULL);
-        mkrdir(not_a_topic, 02770);
-        save_json_to_file(0, not_a_topic, "treedb_x.treedb_schema.json", 02770, 0660, 0, TRUE, FALSE,
-            json_pack("{s:s, s:i}", "id", "treedb_x", "schema_version", 2));
-
-        gobj_log_register_handler("not_a_topic", 0, count_not_a_topic, 0);
-        gobj_log_add_handler("count_not_a_topic", "not_a_topic", LOG_OPT_UP_INFO, 0);
-        g_not_a_topic_said = 0;
-        r = gobj_command(yuno, "mark-tm-order", json_pack("{s:b}", "all", 1), yuno);
-        gobj_log_del_handler("count_not_a_topic");
-        check_int("mark-tm-order all=1: a directory skipped is said, once",
-            g_not_a_topic_said, 1);
-        check_int("mark-tm-order all=1 result", kw_get_int(0, r, "result", -999, 0), 0);
-        json_t *names = tranger2_list_topic_names(tranger);
-        json_int_t topics_on_disk = 0;
-        int idx; json_t *jn_name;
-        json_array_foreach(names, idx, jn_name) {
-            char dir[PATH_MAX];
-            build_path(dir, sizeof(dir), path_database, json_string_value(jn_name), NULL);
-            if(file_exists(dir, "topic_desc.json")) {
-                topics_on_disk++;
-            }
-        }
-        JSON_DECREF(names)
-        json_t *rows = kw_get_list(0, r, "data", 0, 0);
-        check_int("mark-tm-order all=1: one row per topic on disk",
-            (json_int_t)json_array_size(rows), topics_on_disk);
-        BOOL seen = FALSE;
-        BOOL not_a_topic_row = FALSE;
-        json_t *row;
-        json_array_foreach(rows, idx, row) {
-            if(strcmp(kw_get_str(0, row, "topic_name", "", 0), TOPIC_NAME)==0) {
-                seen = kw_get_int(0, row, "result", -1, 0) == 0 &&
-                    !kw_get_bool(0, row, "data`was_marking", 1, 0) &&
-                    kw_get_bool(0, row, "data`marks_tm_unordered", 0, 0);
-            }
-            if(strcmp(kw_get_str(0, row, "topic_name", "", 0), "saved_schemas")==0) {
-                not_a_topic_row = TRUE;
-            }
-        }
-        check_bool("mark-tm-order all=1: a directory that is not a topic has no row",
-            not_a_topic_row, FALSE);
-        rmrdir(not_a_topic);
-        check_bool("mark-tm-order all=1: the legacy topic's row says it marks now", seen, TRUE);
-        check_bool("mark-tm-order all=1: the comment says every topic",
-            strstr(kw_get_str(0, r, "comment", "", 0), "every topic") != NULL, TRUE);
-        JSON_DECREF(r)
-    }
-
-    /*-------------------------------------------------*
-     *      mark-tm-order all=1 on a store that cannot be LISTED: -1,
-     *      and nothing marked. (7.25.4: the listing failed with no log,
-     *      and the command answered "0 topic(s)" with result 0 -- the
-     *      upgrade step looked done while nothing was migrated.)
-     *      Mode 0300 keeps the open files and the paths working, and
-     *      refuses the listing; as root it is still listed: skipped.
-     *-------------------------------------------------*/
-    if(geteuid() != 0) {
-        set_expected_results(
-            "mark-tm-order all=1 on a store that cannot be listed",
-            json_pack("[{s:s}]",
-                "msg", "Cannot list the topics of the store"
-            ),
-            NULL, NULL, 1
-        );
-        chmod(path_database, 0300);
-        r = gobj_command(yuno, "mark-tm-order", json_pack("{s:b}", "all", 1), yuno);
-        chmod(path_database, 02770);
-        check_int("mark-tm-order all=1 on a store that cannot be listed",
-            kw_get_int(0, r, "result", -999, 0), -1);
-        check_bool("mark-tm-order all=1: the comment says the store cannot be listed",
-            strstr(kw_get_str(0, r, "comment", "", 0), "cannot list the topics") != NULL, TRUE);
-        JSON_DECREF(r)
-        global_result += test_json(NULL);
-    }
-
-    /*-------------------------------------------------*
-     *      Permission `write`: mark-tm-order and add-record ask it, and a
-     *      refusal answers -403 before anything is done.
+     *      Permission `write`: add-record asks it, and a refusal
+     *      answers -403 before anything is done.
      *-------------------------------------------------*/
     set_expected_results("write is asked", NULL, NULL, NULL, 1);
     g_deny_authz = "write";
-    g_last_authz[0] = 0;
-    r = gobj_command(yuno, "mark-tm-order", json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
-    check_int("mark-tm-order refused", kw_get_int(0, r, "result", -999, 0), -403);
-    check_str("mark-tm-order asks", g_last_authz, "write");
-    JSON_DECREF(r)
     g_last_authz[0] = 0;
     r = gobj_command(yuno, "add-record",
         json_pack("{s:s, s:{s:s, s:I}}", "topic_name", TOPIC_NAME,
@@ -2767,13 +2560,6 @@ PRIVATE int do_test(void)
             "record", "id", "K", "tm", (json_int_t)BASE_T), yuno);
     check_int("add-record on a replica", kw_get_int(0, r, "result", -999, 0), -1);
     check_bool("add-record on a replica says READ-ONLY",
-        strstr(kw_get_str(0, r, "comment", "", 0), "READ-ONLY") != NULL, TRUE);
-    JSON_DECREF(r)
-    /*  A replica does not migrate: master only, refused before the library  */
-    r = gobj_command(yuno, "mark-tm-order",
-        json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
-    check_int("mark-tm-order on a replica", kw_get_int(0, r, "result", -999, 0), -1);
-    check_bool("mark-tm-order on a replica says READ-ONLY",
         strstr(kw_get_str(0, r, "comment", "", 0), "READ-ONLY") != NULL, TRUE);
     JSON_DECREF(r)
     tranger2_shutdown(other_master);
