@@ -121,7 +121,7 @@ instances.
 
 | Granularity | API | What it does |
 |---|---|---|
-| Whole record (key + all instances) | **`tranger2_delete_key`** (was `tranger2_delete_record` before 2026-05-25; legacy alias kept in `timeranger2.h`) | `rmrdir` of `keys/<key>/` + drop from `topic_cache` + propagate to in-process subscribers + mirror to `disks/<rt_id>/<key>/` for `rt_by_disk` followers. Irrecoverable. |
+| Whole record (key + all instances) | **`tranger2_delete_key`** (was `tranger2_delete_record` before 2026-05-25; legacy alias kept in `timeranger2.h`) | `rmrdir` of `keys/<key>/` + drop from `topic_cache` + propagate to in-process subscribers + a delete signal `disks/<rt_id>/.d<seq>.<key>` (the topic's delete sequence) for `rt_by_disk` followers. Irrecoverable. |
 | One instance | **`tranger2_delete_instance`** (2026-05-26) | Mutates the `.md2` row in place with `sf_deleted_instance = 0x0400` (inherited side, followers see the same tombstone). Optional `zero_payload` overwrites the matching bytes in the data `.json` for sensitive-data wipes. Read paths skip dead rows; rowids do NOT renumber. Master-only, idempotent. |
 
 ### Path-traversal hardening (since 7.6.0)
@@ -424,11 +424,17 @@ When the master calls `tranger2_delete_key()`:
 1. The live `keys/<key>/` directory is removed FIRST; the delete is
    announced only once it is done. When it cannot be removed the call
    answers `-1`, announces nothing, and reads the key's cache again
-   from what is left on disk. Then every `topic/disks/<rt_id>/<key>/`
-   subdirectory is removed (or created and removed at once).
-   `rt_by_disk` followers recursive-watching `disks/<rt_id>/` pick
-   this up as `FS_SUBDIR_DELETED_TYPE` and run the same callback
-   fan-out on their side.
+   from what is left on disk. Then, in the directory of every feed,
+   `topic/disks/<rt_id>/<key>/` is removed if it exists, and the SIGNAL
+   `disks/<rt_id>/.d<seq>.<key>` is created and removed at once
+   (`.h<seq>.<sha256>` for a key too long for the name). `seq` is the
+   topic's delete sequence, recorded durable in `<topic>/delete_seq.json`
+   before the signal. `rt_by_disk` followers recursive-watching
+   `disks/<rt_id>/` hear the signal (`FS_SUBDIR_DELETED_TYPE` of the
+   `.d` name), know by its sequence whether the delete is new or one
+   another feed heard first, and run the same callback fan-out on their
+   side. **Since 7.26.0** (up to 7.25.22 the signal was the key's own
+   directory): master and followers of a topic upgrade together.
 2. In-process subscribers whose `key` filter matches receive the
    `key_deleted_callback`. Handles that own an inotify watcher
    (`fs_event_client` set) are skipped here — the inotify branch
