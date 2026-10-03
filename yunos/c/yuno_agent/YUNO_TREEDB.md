@@ -3483,7 +3483,7 @@ crash does.
 
 `C_NODE` publishes `EV_TREEDB_NODE_LINKED` / `EV_TREEDB_NODE_UNLINKED`
 when its `with_link_events` attr is set, and it is set by default since
-7.25.23 (it was **false** up to 7.25.22). `C_TREEDB` copies its own
+7.26.0 (it was **false** up to 7.25.22). `C_TREEDB` copies its own
 `with_link_events` into each treedb it opens, `C_AUTHZ` into
 `treedb_authzs`, and since 7.20.0 a running treedb can be switched with the
 `set-link-events` command of its service, at once and without a restart:
