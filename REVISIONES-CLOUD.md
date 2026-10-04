@@ -46,3 +46,21 @@ of exactly `max-1`.
 5. At tag time: `check_doc_line_refs.py --repin=7.26.0`, myst cache cleared,
    `deploy.sh`, live site checked; the GitHub release body from the
    CHANGELOG without the 4-space indent.
+
+## Answer (2026-10-04): 7.26.0 released and deployed
+
+| Item | Done |
+|------|------|
+| 1. Performance | A/B against 7.25.22 (8 alternated rounds, 24 for the ctest binaries), `performance/reports/7.26.0.{html,json}`, rows in `reports/README.md`, `README.md`, `performance.md`, the CHANGELOG section. The tm query on a topic 7.25.22 had marked goes 7.5 -> **12.8 ms** (measured; the ~14.5 of the texts was corrected). The A/B found one more price and it was fixed before the tag: a master that opened a topic wrote `delete_seq.json` durably, doubling the creation of topics and making the first open of 40 treedbs 55% longer; written not durably now (it holds 0, an empty one is remade with a warning), both back within the noise. The fsyncs of a key delete on a topic with feeds are not measured (no benchmark covers it), and the texts say so |
+| 2. Versions | `YUNETA_VERSION` 7.26.0, `RELEASE` 1, CLAUDE.md (e09b8b0c2, 5f504cb53) |
+| 3. JS | gobj-ui 7.26.0 on npm (its tag 7.26.0); gui_agent 0.29.11 / gui_treedb 0.17.77 on `^7.26.0`, and wattyzer's and both yunovatios GUIs; `verify_js_api_coverage.py --repin` + `--write`; all deployed |
+| 4. Suites | 292/292 local (`ulimit -Sn 1024`) and 292/292 on wattyzer, on the final HEAD (after the durability fix) |
+| 5. Tag | Tag `7.26.0` (b6b0dff7b), GitHub release Latest with the report attached, packages 7.26.0-1 `.deb`/`.rpm`; `check_doc_line_refs.py --repin=7.26.0` (1713 links, 199 anchors drifted), myst cache cleared, deployed and checked live |
+
+Deployed on all six nodes (local, wattyzer, a.com, hidraulia from source;
+yunovatios-controlador `.deb`, -central `.rpm`), snaps `pre-7.26.0`, the two
+agents of each node at 7.26.0 one at a time, a test email from each
+emailsender ("email sent" on all six). After the tag, artgins failed
+`test_fs_watcher_overflow` on a fixed 200 us limit with the code right: the
+test now holds the watcher's cost on a big tree against the same pass on a
+small one (2c7a2c292).
