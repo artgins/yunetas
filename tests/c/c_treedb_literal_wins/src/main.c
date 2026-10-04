@@ -113,8 +113,11 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
 
 /*
  *  Every log line from INFO up, in order: one per emission (strict FIFO).
+ *  Three lists: the start up and the end are logged by every group; the
+ *  scenarios between them only by the groups that run them (see
+ *  expected_log_list())
  */
-PRIVATE const char *expected_log_msgs[] = {
+PRIVATE const char *expected_start_msgs[] = {
     /*  start up: __system__ tranger + schema + its six topics  */
     "Starting yuno",
     "Creating __timeranger2__.json",
@@ -126,7 +129,14 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Playing yuno",
+    NULL
+};
 
+/*
+ *  The scenarios of run_tests() whose log is compared line by line (group
+ *  early)
+ */
+PRIVATE const char *expected_early_msgs[] = {
     /*  RM: v1 (users, departments), then v2 without departments, twice  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
@@ -1041,8 +1051,10 @@ PRIVATE const char *expected_log_msgs[] = {
     /*  CR (tw_crn_*, tw_crd_*): a projection killed at each of its
      *  writes. Its log is not compared line by line: the capture is off
      *  while it runs (see scenario_crash_at_every_write)  */
+    NULL
+};
 
-    /*  end  */
+PRIVATE const char *expected_end_msgs[] = {
     "All treedb literal wins tests PASSED",
     "Exit to die",
     "Exit to die",
@@ -1051,12 +1063,28 @@ PRIVATE const char *expected_log_msgs[] = {
     NULL
 };
 
+/*
+ *  The groups of scenarios, one ctest each (`--group=<name>`, the attribute
+ *  `group` of C_TEST_LITERAL_WINS); "all" runs every scenario
+ */
+PRIVATE const char *groups[] = {"all", "early", "late", "dc", "o4", NULL};
+PRIVATE const char *group = "all";
+
+PRIVATE void append_msgs(json_t *list, const char **msgs)
+{
+    for(int i = 0; msgs[i]; i++) {
+        json_array_append_new(list, json_pack("{s:s}", "msg", msgs[i]));
+    }
+}
+
 PRIVATE json_t *expected_log_list(void)
 {
     json_t *list = json_array();
-    for(int i = 0; expected_log_msgs[i]; i++) {
-        json_array_append_new(list, json_pack("{s:s}", "msg", expected_log_msgs[i]));
+    append_msgs(list, expected_start_msgs);
+    if(strcmp(group, "all")==0 || strcmp(group, "early")==0) {
+        append_msgs(list, expected_early_msgs);
     }
+    append_msgs(list, expected_end_msgs);
     return list;
 }
 
@@ -1077,7 +1105,9 @@ static int register_yuno_and_more(void)
      *--------------------------------------*/
     char root_dir[PATH_MAX];
     build_path(root_dir, sizeof(root_dir), getenv("HOME"), "tests_yuneta", NULL);
-    register_yuneta_environment(root_dir, "c_treedb_literal_wins", 02770, 0660);
+    char domain_dir[NAME_MAX];
+    snprintf(domain_dir, sizeof(domain_dir), "c_treedb_literal_wins_%s", group);
+    register_yuneta_environment(root_dir, domain_dir, 02770, 0660);
 
     /*--------------------*
      *  Register gclass
@@ -1117,6 +1147,35 @@ static void cleaning(void)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    /*------------------------------------------------*
+     *  --group=<name>: the scenarios to run. Taken out
+     *  of argv (yuneta_entry_point() does not know the
+     *  option) and given to the yuno as its json config
+     *------------------------------------------------*/
+    char group_config[NAME_MAX];
+    BOOL with_group = FALSE;
+    int n = 0;
+    for(int i = 0; i < argc; i++) {
+        if(strncmp(argv[i], "--group=", strlen("--group="))==0) {
+            group = argv[i] + strlen("--group=");
+            with_group = TRUE;
+            continue;
+        }
+        argv[n++] = argv[i];
+    }
+    if(!str_in_list(groups, group, FALSE)) {
+        printf("%sERROR --> %s%s: '%s', use --group=all|early|late|dc|o4\n",
+            On_Red BWhite, "unknown group", Color_Off, group);
+        return -1;
+    }
+    if(with_group) {
+        snprintf(group_config, sizeof(group_config),
+            "{\"global\": {\"C_TEST_LITERAL_WINS.group\": \"%s\"}}", group);
+        argv[n++] = group_config;
+    }
+    argv[n] = NULL;
+    argc = n;
+
     /*------------------------------*
      *  Captura salida logger
      *------------------------------*/

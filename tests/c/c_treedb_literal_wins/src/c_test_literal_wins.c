@@ -77,6 +77,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_STRING,      "group",            SDF_RD,             "all",      "Scenarios to run: all, early (run_tests(): the log compared line by line, and CR), late, dc (DC), o4 (O4C, O4A, O4X). ctest runs each group as a test of its own, in a store of its own"),
 SDATA_END()
 };
 
@@ -154,11 +155,26 @@ PRIVATE void mt_create(hgobj gobj)
     build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
     mkrdir(path_root, 02770);
 
+    const char *group = gobj_read_str_attr(gobj, "group");
+    const char *groups[] = {"all", "early", "late", "dc", "o4", NULL};
+    if(!str_in_list(groups, group, FALSE)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "TEST FAIL: unknown group of scenarios",
+            "group",        "%s", group,
+            NULL
+        );
+        priv->result += -1;
+    }
+
+    char database[NAME_MAX];
+    snprintf(database, sizeof(database), "c_treedb_literal_wins_%s", group);
     build_path(
         priv->path_database,
         sizeof(priv->path_database),
         path_root,
-        "c_treedb_literal_wins",
+        database,
         NULL
     );
     rmrdir(priv->path_database);
@@ -7807,11 +7823,26 @@ PRIVATE int scenario_public_events_not_implemented(hgobj gobj)
 }
 
 /***************************************************************************
- *  Run every scenario
+ *  Whether the group of scenarios given runs (the attribute `group`)
+ ***************************************************************************/
+PRIVATE BOOL group_runs(hgobj gobj, const char *group)
+{
+    const char *selected = gobj_read_str_attr(gobj, "group");
+    return (strcmp(selected, "all")==0 || strcmp(selected, group)==0)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  The scenarios whose log is compared line by line, then CR: the group
+ *  early
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
 {
     int result = 0;
+
+    if(!group_runs(gobj, "early")) {
+        gobj_log_del_handler("test_capture");
+        return 0;
+    }
 
     result += scenario_removed_topic(gobj);
     result += scenario_tie_and_hook(gobj);
@@ -7872,9 +7903,11 @@ PRIVATE int run_tests(hgobj gobj)
 }
 
 /***************************************************************************
- *  The late scenarios, one per timeout (see ac_timeout).
- *  They count the errors and warnings of each open instead of comparing
- *  the log line by line (open_counting): several of them fork, or kill.
+ *  The late scenarios, one per timeout (see ac_timeout), each with its
+ *  group (the attribute `group`): a step whose group does not run is
+ *  skipped. They count the errors and warnings of each open instead of
+ *  comparing the log line by line (open_counting): several of them fork,
+ *  or kill.
  ***************************************************************************/
 PRIVATE int scenario_orphaned_leftover_edited_0(hgobj gobj)
 {
@@ -7885,48 +7918,51 @@ PRIVATE int scenario_orphaned_leftover_edited_1(hgobj gobj)
     return scenario_orphaned_leftover_edited(gobj, 1);
 }
 
-PRIVATE int (*late_scenarios[])(hgobj gobj) = {
-    scenario_leftover_moved,
-    scenario_orphaned_leftover_edited_0,
-    scenario_orphaned_leftover_edited_1,
-    scenario_ambiguous_owner,
-    scenario_ambiguous_with_failure_record,
-    scenario_ambiguous_after_crash,
-    scenario_delete_treedb_every_node,
-    scenario_delete_treedb_killed,
-    scenario_record_unwritable,
-    scenario_record_lost,
-    scenario_colliding_ids,
-    scenario_gone_topic_col_undeletable,
-    scenario_stamped_before_its_topics,
-    scenario_stamped_before_its_columns,
-    scenario_imposed_stamped_before_its_columns,
-    scenario_imposed_stamped_before_its_topics,
-    scenario_imposed_draft_kept,
-    scenario_legacy_move_killed,
-    scenario_double_crash,
-    scenario_old_projection_died_changes,
-    scenario_old_projection_died_adds,
-    scenario_old_projection_died_twice,
-    scenario_first_projection_of_older_release_died,
-    scenario_left_by_older_release,
-    scenario_save_leaves_what_older_release_left,
-    scenario_dict_file_projected,
-    scenario_legacy_ids_before_the_upgrade_record,
-    scenario_legacy_move_that_fails,
-    scenario_same_version_other_content,
-    scenario_imposed_same_version_other_content,
-    scenario_draft_order_is_not_its_place,
-    scenario_moved_col_saved,
-    scenario_node_of_two_parents,
-    scenario_two_topics_of_one_name,
-    scenario_failed_open_keeps_the_save,
-    scenario_shifted_sibling_saved,
-    scenario_file_behind_what_runs,
-    scenario_saved_schema_written_whole,
-    scenario_kw_gbuffer_every_treedb,
-    scenario_public_events_not_implemented,
-    NULL
+PRIVATE const struct {
+    const char *group;
+    int (*scenario)(hgobj gobj);
+} late_scenarios[] = {
+    {"late",    scenario_leftover_moved},
+    {"late",   scenario_orphaned_leftover_edited_0},
+    {"late",   scenario_orphaned_leftover_edited_1},
+    {"late",   scenario_ambiguous_owner},
+    {"late",   scenario_ambiguous_with_failure_record},
+    {"late",   scenario_ambiguous_after_crash},
+    {"late",   scenario_delete_treedb_every_node},
+    {"late",   scenario_delete_treedb_killed},
+    {"late",   scenario_record_unwritable},
+    {"late",   scenario_record_lost},
+    {"late",   scenario_colliding_ids},
+    {"late",   scenario_gone_topic_col_undeletable},
+    {"late",   scenario_stamped_before_its_topics},
+    {"late",   scenario_stamped_before_its_columns},
+    {"late",   scenario_imposed_stamped_before_its_columns},
+    {"late",   scenario_imposed_stamped_before_its_topics},
+    {"late",   scenario_imposed_draft_kept},
+    {"late",   scenario_legacy_move_killed},
+    {"dc",     scenario_double_crash},
+    {"o4",     scenario_old_projection_died_changes},
+    {"o4",     scenario_old_projection_died_adds},
+    {"o4",     scenario_old_projection_died_twice},
+    {"late",   scenario_first_projection_of_older_release_died},
+    {"late",   scenario_left_by_older_release},
+    {"late",   scenario_save_leaves_what_older_release_left},
+    {"late",   scenario_dict_file_projected},
+    {"late",   scenario_legacy_ids_before_the_upgrade_record},
+    {"late",   scenario_legacy_move_that_fails},
+    {"late",   scenario_same_version_other_content},
+    {"late",   scenario_imposed_same_version_other_content},
+    {"late",   scenario_draft_order_is_not_its_place},
+    {"late",   scenario_moved_col_saved},
+    {"late",   scenario_node_of_two_parents},
+    {"late",   scenario_two_topics_of_one_name},
+    {"late",   scenario_failed_open_keeps_the_save},
+    {"late",   scenario_shifted_sibling_saved},
+    {"late",   scenario_file_behind_what_runs},
+    {"late",   scenario_saved_schema_written_whole},
+    {"late",   scenario_kw_gbuffer_every_treedb},
+    {"late",   scenario_public_events_not_implemented},
+    {0, 0}
 };
 
 
@@ -7989,12 +8025,16 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_log_register_handler("counting", 0, counting_log_write, 0);
         gobj_log_add_handler("test_counting", "counting", LOG_OPT_UP_WARNING, 0);
     } else {
-        priv->result += late_scenarios[priv->step - 1](gobj);
+        priv->result += late_scenarios[priv->step - 1].scenario(gobj);
     }
     if(!priv->repeat_step) {
         priv->step++;
+        while(late_scenarios[priv->step - 1].scenario &&
+                !group_runs(gobj, late_scenarios[priv->step - 1].group)) {
+            priv->step++;
+        }
     }
-    if(late_scenarios[priv->step - 1]) {
+    if(late_scenarios[priv->step - 1].scenario) {
         set_timeout(priv->timer, 10);
         KW_DECREF(kw)
         return 0;

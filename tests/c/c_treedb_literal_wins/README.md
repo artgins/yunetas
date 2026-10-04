@@ -16,6 +16,39 @@ file in use. The rule is the user's decision of 2026-09-23:
 - A literal that is **not** higher is not installed: the file runs, and
   `__system__` keeps what it holds.
 
+## Groups of scenarios
+
+The scenarios are in four groups. ctest runs each group as a test of its
+own, in a store of its own (`~/tests_yuneta/c_treedb_literal_wins_<group>`),
+so `ctest -j` runs them at the same time. In one binary, the whole run took
+~215 s and was the floor of a parallel suite; the longest group (DC) takes
+~75 s alone.
+
+| Group | ctest name | Scenarios |
+|---|---|---|
+| `early` | `test_c_treedb_literal_wins/early` | `run_tests()`: RM to MV/NP, whose log is compared line by line, then CR |
+| `late` | `test_c_treedb_literal_wins/late` | The late scenarios, except DC and O4C/O4A/O4X |
+| `dc` | `test_c_treedb_literal_wins/dc` | DC |
+| `o4` | `test_c_treedb_literal_wins/o4` | O4C, O4A, O4X |
+
+Select a group with `--group=<name>`. With no `--group` (or `--group=all`),
+the binary runs every scenario, as one test:
+
+```bash
+ctest -R '^test_c_treedb_literal_wins/dc$' --output-on-failure --test-dir build
+build/tests/c/c_treedb_literal_wins/test_c_treedb_literal_wins --group=o4
+```
+
+`main.c` takes `--group` out of argv and gives it to the yuno as its json
+config (`{"global": {"C_TEST_LITERAL_WINS.group": "<name>"}}`), the attribute
+`group` of `C_TEST_LITERAL_WINS`. `main.c` also picks the expected log from
+it: the start up and the end for every group, and the scenarios of
+`run_tests()` only for `early` and `all`. A late scenario names its group in
+the table `late_scenarios`, so a new scenario goes in the group where it is
+added.
+
+## Scenarios
+
 Each scenario opens its own treedb. At the end, it checks that the three
 places of the schema agree: what the store RUNS (the open topics, their
 `topic_version` and columns), the schema FILE in use, and `__system__`

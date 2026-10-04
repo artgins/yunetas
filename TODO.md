@@ -52,10 +52,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   the `RESOURCE_LOCK`s of 7.26.1). Ports and dirs chosen at run time would
   end it. A sibling of `check_test_ports.py` that fails when two binaries
   name the same `DATABASE` without a shared lock is not written yet.
-- **`test_c_treedb_literal_wins` is the floor of a parallel suite** (~215 s,
-  one binary running ~60 scenarios one after another). Register it several
-  times with an argument that picks a group of scenarios, each in its own
-  database subdirectory.
 - **The module build dirs and the root `build/` ping-pong on
   `outputs/lib`**: each tree builds its own copy of the kernel archives and
   installs it over the other's, so each `yunetas test` relinks every
