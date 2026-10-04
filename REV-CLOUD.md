@@ -8,8 +8,8 @@ Question: many ctest tests must run one after another (they depend on each
 other, or used to share ports), and `yunetas test` takes more than 30
 minutes. Can it be faster?
 
-Status: **analysis done, proposal at the end awaiting approval** — nothing
-changed in the code. Measured in a cloud container (4 cores), plus an audit
+Status: **analysis done; proposal with two ready-to-apply patches, validated,
+awaiting approval** (see *Patches* at the end) — nothing changed in the code. Measured in a cloud container (4 cores), plus an audit
 of what the tests share.
 
 ### Findings so far
@@ -265,3 +265,396 @@ further (the remaining floor is `test_yevent_reload_stress`, 53 s).
 Not proposed: shortening the waits of the slow tests (`c_tcp_inactivity`'s
 20 s window, the SMTP timeouts of `emailsender`). They are what the tests
 check, and under `-j` waiting costs almost nothing.
+
+### Patches for items 1-4 (ready to apply, validated)
+
+Both patches were tried and then removed: nothing of them is committed in
+any repository. Apply with `git apply` from the root of each repo.
+
+#### yunetas: what the tests share (items 3 and 4)
+
+ctest properties only, plus the database name of `perf_yev_ping_pong2` (and
+its line in `performance/c/README.md`). What each part does:
+
+- `timeranger2/test_topic_pkey_integer` is the `FIXTURES_SETUP` of
+  `tr_topic_pkey_integer`; the six iterators `FIXTURES_REQUIRED` it, all
+  seven hold `RESOURCE_LOCK tr_topic_pkey_integer` (each opens the
+  database as master), and `_iterator6`, which appends, `DEPENDS` on the
+  other five. ctest adds the setup itself when a single iterator is asked
+  for.
+- `RESOURCE_LOCK tr_msg` (both `tr_msg` binaries), `tr_delete_instance`
+  (`timeranger2/test_delete_instance`, `test_tr_treedb_delete_instance`),
+  `perf_topic_integer` (`perf_c_tcp/*`, `perf_c_tcps/*`), `inotify_flood`
+  (`test_fs_watcher_overflow`, `test_rt_disk_overflow`).
+- `RUN_SERIAL` on the 11 `perf_*` and the seven tests of the
+  `tr_topic_pkey_integer` chain (the times the release checklist reads).
+- `perf_yev_ping_pong2` writes `~/tests_yuneta/perf_yev_ping_pong2`
+  instead of wiping the chain's database.
+
+Validation (4 cores, `ulimit -Sn 1024`, inotify limits of
+`99-yuneta-core.conf`):
+
+| Check | Before | With the patch |
+|---|---|---|
+| `ctest -R 'iterator3$'` on a clean `~/tests_yuneta` | fails (no data) | passes: ctest runs `test_topic_pkey_integer` first, then `iterator3` |
+| `ctest -R 'iterator6$'` | fails | passes, the same way |
+| `ctest --show-only=json-v1` | no property | every property above, as written |
+| `ctest -j4`, full suite, run 1 | 287/292, 348 s | **292/292, 444 s** |
+| `ctest -j4`, full suite, run 2 | — | **292/292, 435 s** |
+
+The ~90 s more than the unpatched `-j4` is the price of `RUN_SERIAL` (the
+benchmarks add up to 81 s run one after another), as estimated. The log
+confirms `test_topic_pkey_integer` ran alone (nothing started between its
+start and its end). Its times across the runs of this session (2.70 s in the
+serial baseline, 2.88 / 3.08 / 3.17 s later) moved with the VM, which was
+restarted between the baseline and the patched runs: the trend of such a
+figure is to be read on one machine, as the release checklist already says.
+
+**Found on the way: `ctest -j` needs the inotify limits of
+`99-yuneta-core.conf`.** The container restarted during the session and came
+back with the Linux defaults (`max_user_instances` 128,
+`max_queued_events` 16384). The first patched `-j4` run then failed 20
+tests (*"inotify_init1() FAILED: The user limit on the total number of
+inotify instances has been reached"* in the treedb, timeranger2 and c_mqtt
+tests, then the time windows of `emailsender`, `c_timer`,
+`test_c_controlcenter_scenarios` on the loaded machine). The serial baseline
+had run with the raised limits; with several treedb tests at once, 128
+instances per user is not enough. A machine that runs
+`yunetas test` in parallel must carry those limits (nodes do, from the
+package; the cloud hook sets them only at session start).
+
+```diff
+diff --git a/performance/c/README.md b/performance/c/README.md
+index 0eb339c..7be776a 100644
+--- a/performance/c/README.md
++++ b/performance/c/README.md
+@@ -64,7 +64,7 @@ Source: `src/perf_yev_ping_pong.c` (single file, no GClasses)
+ 
+ Same as `perf_yev_ping_pong` with the addition of `tranger2_append_record()` on every received client message, measuring the persistence overhead on the raw event loop.
+ 
+-- **Timeranger2 DB:** `~/tests_yuneta/tr_topic_pkey_integer/topic_pkey_integer_ping_pong`
++- **Timeranger2 DB:** `~/tests_yuneta/perf_yev_ping_pong2/topic_pkey_integer_ping_pong`
+ - **Client message:** JSON `{"hello": "AAA..."}` (serialized via `json2gbuf`)
+ 
+ Source: `src/perf_yev_ping_pong2.c` (single file, no GClasses)
+diff --git a/performance/c/perf_auth_bff/CMakeLists.txt b/performance/c/perf_auth_bff/CMakeLists.txt
+index 431fd22..0bfe09f 100644
+--- a/performance/c/perf_auth_bff/CMakeLists.txt
++++ b/performance/c/perf_auth_bff/CMakeLists.txt
+@@ -86,6 +86,9 @@ install(
+ )
+ 
+ add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
++# A benchmark runs alone under ctest -j: its figures and the time windows
++# of the tests would skew each other
++set_tests_properties(${PROJECT_NAME} PROPERTIES RUN_SERIAL TRUE)
+ 
+ # compile in Release mode :
+ #
+diff --git a/performance/c/perf_c_tcp/CMakeLists.txt b/performance/c/perf_c_tcp/CMakeLists.txt
+index bc7aa4a..abc6f0c 100644
+--- a/performance/c/perf_c_tcp/CMakeLists.txt
++++ b/performance/c/perf_c_tcp/CMakeLists.txt
+@@ -81,6 +81,12 @@ foreach(test ${SRCS})
+         ${DEBUG_LIBS}
+     )
+     add_test("${current_directory_name}/${test}" ${binary})
++    # Alone under ctest -j (figures); test5 of perf_c_tcp and perf_c_tcps
++    # both open the database perf_topic_integer as master
++    set_tests_properties("${current_directory_name}/${test}" PROPERTIES
++        RUN_SERIAL TRUE
++        RESOURCE_LOCK perf_topic_integer
++    )
+ 
+     install(
+         TARGETS ${binary}
+diff --git a/performance/c/perf_c_tcps/CMakeLists.txt b/performance/c/perf_c_tcps/CMakeLists.txt
+index 0bfbc45..1e5004b 100644
+--- a/performance/c/perf_c_tcps/CMakeLists.txt
++++ b/performance/c/perf_c_tcps/CMakeLists.txt
+@@ -80,6 +80,12 @@ foreach(test ${SRCS})
+         ${DEBUG_LIBS}
+     )
+     add_test("${current_directory_name}/${test}" ${binary})
++    # Alone under ctest -j (figures); test5 of perf_c_tcp and perf_c_tcps
++    # both open the database perf_topic_integer as master
++    set_tests_properties("${current_directory_name}/${test}" PROPERTIES
++        RUN_SERIAL TRUE
++        RESOURCE_LOCK perf_topic_integer
++    )
+ 
+     install(
+         TARGETS ${binary}
+diff --git a/performance/c/perf_c_treedb/CMakeLists.txt b/performance/c/perf_c_treedb/CMakeLists.txt
+index daac8eb..c37c3a6 100644
+--- a/performance/c/perf_c_treedb/CMakeLists.txt
++++ b/performance/c/perf_c_treedb/CMakeLists.txt
+@@ -96,3 +96,6 @@ install(
+ # The figures of a release come from a run with the default sizes.
+ add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME}
+     --config-file=${CMAKE_CURRENT_SOURCE_DIR}/small.json)
++# A benchmark runs alone under ctest -j: its figures and the time windows
++# of the tests would skew each other
++set_tests_properties(${PROJECT_NAME} PROPERTIES RUN_SERIAL TRUE)
+diff --git a/performance/c/perf_rotatory/CMakeLists.txt b/performance/c/perf_rotatory/CMakeLists.txt
+index 3accde8..e564f6c 100644
+--- a/performance/c/perf_rotatory/CMakeLists.txt
++++ b/performance/c/perf_rotatory/CMakeLists.txt
+@@ -94,3 +94,6 @@ install(
+ # ctest runs it small: it checks that the benchmark builds and runs.
+ # The figures of a release come from a run with the default sizes.
+ add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME} --small)
++# A benchmark runs alone under ctest -j: its figures and the time windows
++# of the tests would skew each other
++set_tests_properties(${PROJECT_NAME} PROPERTIES RUN_SERIAL TRUE)
+diff --git a/performance/c/perf_timeranger2/CMakeLists.txt b/performance/c/perf_timeranger2/CMakeLists.txt
+index e095d47..f8a04a8 100644
+--- a/performance/c/perf_timeranger2/CMakeLists.txt
++++ b/performance/c/perf_timeranger2/CMakeLists.txt
+@@ -97,3 +97,6 @@ install(
+ # ctest runs it small: it checks that the benchmark builds and runs.
+ # The figures of a release come from a run with the default sizes.
+ add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME} --small)
++# A benchmark runs alone under ctest -j: its figures and the time windows
++# of the tests would skew each other
++set_tests_properties(${PROJECT_NAME} PROPERTIES RUN_SERIAL TRUE)
+diff --git a/performance/c/perf_tr_treedb/CMakeLists.txt b/performance/c/perf_tr_treedb/CMakeLists.txt
+index 5889fb5..4d74d8c 100644
+--- a/performance/c/perf_tr_treedb/CMakeLists.txt
++++ b/performance/c/perf_tr_treedb/CMakeLists.txt
+@@ -97,3 +97,6 @@ install(
+ # ctest runs it small: it checks that the benchmark builds and runs.
+ # The figures of a release come from a run with the default sizes.
+ add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME} --small)
++# A benchmark runs alone under ctest -j: its figures and the time windows
++# of the tests would skew each other
++set_tests_properties(${PROJECT_NAME} PROPERTIES RUN_SERIAL TRUE)
+diff --git a/performance/c/perf_yev_ping_pong/CMakeLists.txt b/performance/c/perf_yev_ping_pong/CMakeLists.txt
+index f283564..258c209 100644
+--- a/performance/c/perf_yev_ping_pong/CMakeLists.txt
++++ b/performance/c/perf_yev_ping_pong/CMakeLists.txt
+@@ -97,6 +97,9 @@ install(
+ )
+ 
+ add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
++# A benchmark runs alone under ctest -j: its figures and the time windows
++# of the tests would skew each other
++set_tests_properties(${PROJECT_NAME} PROPERTIES RUN_SERIAL TRUE)
+ 
+ # compile in Release mode :
+ #
+diff --git a/performance/c/perf_yev_ping_pong2/CMakeLists.txt b/performance/c/perf_yev_ping_pong2/CMakeLists.txt
+index 24cec4e..35a7f25 100644
+--- a/performance/c/perf_yev_ping_pong2/CMakeLists.txt
++++ b/performance/c/perf_yev_ping_pong2/CMakeLists.txt
+@@ -90,6 +90,9 @@ install(
+ )
+ 
+ add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
++# A benchmark runs alone under ctest -j: its figures and the time windows
++# of the tests would skew each other
++set_tests_properties(${PROJECT_NAME} PROPERTIES RUN_SERIAL TRUE)
+ 
+ # compile in Release mode :
+ #
+diff --git a/performance/c/perf_yev_ping_pong2/src/perf_yev_ping_pong2.c b/performance/c/perf_yev_ping_pong2/src/perf_yev_ping_pong2.c
+index c8052b2..7bda5f4 100644
+--- a/performance/c/perf_yev_ping_pong2/src/perf_yev_ping_pong2.c
++++ b/performance/c/perf_yev_ping_pong2/src/perf_yev_ping_pong2.c
+@@ -25,7 +25,7 @@
+ /***************************************************************
+  *              Constants
+  ***************************************************************/
+-#define DATABASE    "tr_topic_pkey_integer"
++#define DATABASE    "perf_yev_ping_pong2"
+ #define TOPIC_NAME  "topic_pkey_integer_ping_pong"
+ 
+ BOOL dump = FALSE;
+diff --git a/tests/c/timeranger2/CMakeLists.txt b/tests/c/timeranger2/CMakeLists.txt
+index 604966f..c02f8b3 100644
+--- a/tests/c/timeranger2/CMakeLists.txt
++++ b/tests/c/timeranger2/CMakeLists.txt
+@@ -182,3 +182,50 @@ foreach(test ${SRCS})
+     add_test("${current_directory_name}/${test}" ${binary})
+ 
+ endforeach()
++
++##############################################
++#   What the tests share, for ctest -j
++##############################################
++#   test_topic_pkey_integer fills tr_topic_pkey_integer, the iterators read
++#   it (each opens it as master: one at a time) and _iterator6 appends to
++#   it, so it goes last. RUN_SERIAL: their times are the trend the release
++#   checklist reads, which other tests running at once would skew.
++set_tests_properties("${current_directory_name}/test_topic_pkey_integer" PROPERTIES
++    FIXTURES_SETUP tr_topic_pkey_integer
++    RESOURCE_LOCK tr_topic_pkey_integer
++    RUN_SERIAL TRUE
++)
++set(PKEY_INTEGER_READERS
++    test_topic_pkey_integer_iterator
++    test_topic_pkey_integer_iterator2
++    test_topic_pkey_integer_iterator3
++    test_topic_pkey_integer_iterator4
++    test_topic_pkey_integer_iterator5
++)
++set(PKEY_INTEGER_READER_TESTS "")
++foreach(test ${PKEY_INTEGER_READERS})
++    set_tests_properties("${current_directory_name}/${test}" PROPERTIES
++        FIXTURES_REQUIRED tr_topic_pkey_integer
++        RESOURCE_LOCK tr_topic_pkey_integer
++        RUN_SERIAL TRUE
++    )
++    list(APPEND PKEY_INTEGER_READER_TESTS "${current_directory_name}/${test}")
++endforeach()
++set_tests_properties("${current_directory_name}/test_topic_pkey_integer_iterator6" PROPERTIES
++    FIXTURES_REQUIRED tr_topic_pkey_integer
++    RESOURCE_LOCK tr_topic_pkey_integer
++    DEPENDS "${PKEY_INTEGER_READER_TESTS}"
++    RUN_SERIAL TRUE
++)
++
++#   tr_delete_instance is tr_treedb_delete_instance's database too
++set_tests_properties("${current_directory_name}/test_delete_instance" PROPERTIES
++    RESOURCE_LOCK tr_delete_instance
++)
++
++#   Both flood the per-user inotify queue
++set_tests_properties(
++    "${current_directory_name}/test_fs_watcher_overflow"
++    "${current_directory_name}/test_rt_disk_overflow"
++    PROPERTIES RESOURCE_LOCK inotify_flood
++)
+diff --git a/tests/c/tr_msg/CMakeLists.txt b/tests/c/tr_msg/CMakeLists.txt
+index 901994f..8381f25 100644
+--- a/tests/c/tr_msg/CMakeLists.txt
++++ b/tests/c/tr_msg/CMakeLists.txt
+@@ -81,5 +81,9 @@ foreach(test ${SRCS})
+     target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
+ 
+     add_test("${current_directory_name}/${test}" ${binary})
++    # Both binaries wipe and use the database tr_msg
++    set_tests_properties("${current_directory_name}/${test}" PROPERTIES
++        RESOURCE_LOCK tr_msg
++    )
+ 
+ endforeach()
+diff --git a/tests/c/tr_treedb_delete_instance/CMakeLists.txt b/tests/c/tr_treedb_delete_instance/CMakeLists.txt
+index e44957b..0e64618 100644
+--- a/tests/c/tr_treedb_delete_instance/CMakeLists.txt
++++ b/tests/c/tr_treedb_delete_instance/CMakeLists.txt
+@@ -79,3 +79,5 @@ target_link_options(${PROJECT_NAME} PRIVATE "-Wl,--wrap=write")
+ #   Test
+ ##############################################
+ add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
++# tr_delete_instance is timeranger2/test_delete_instance's database too
++set_tests_properties(${PROJECT_NAME} PROPERTIES RESOURCE_LOCK tr_delete_instance)
+```
+
+#### tui_yunetas.py: `yunetas test` (items 1 and 2)
+
+- `make` with `-j<jobs>` (default: the number of cores) in the module dirs
+  and in `build/`.
+- `make clean` only with `--clean` (proved unneeded, see (a) above); the
+  pointless `make install` of `build/` before the clean is dropped.
+- `ctest -j<jobs>`, or `-j1` with `--serial`; and `-j1` when the SDK is
+  older than `CTEST_PARALLEL_SINCE` (the first SDK that carries the yunetas
+  patch, written as 7.26.1 here: set it to the real release), with a
+  message saying why. The CLI and the SDK ship apart, so a new CLI on an
+  older tree must not run its suite in parallel.
+- `sdk_version()` reads `YUNETA_VERSION=<x.y.z>` from `YUNETA_VERSION` and
+  says when it cannot.
+
+Validated: `yunetas test --help`; a harness with `process_build_command`
+replaced (the commands each combination builds:
+`make -j4 install` x2 and `ctest -j1` on SDK 7.26.0 with the message;
+`ctest -j4` when the SDK reaches the threshold; `make clean` and `ctest -j1`
+with `--clean --serial`; `sdk_version()` = `(7, 26, 0)` on this tree); the
+repo's own tests, 51 passed, as on `main`.
+
+Side finding in the CLI (not in the patch): when `YUNETAS_BASE` cannot be
+resolved, the error at `yunetas/main.py:64-66` is itself an error — `rich`
+reads `[/yunetas]` in *"ensure /yuneta/development[/yunetas] exists"* as a
+closing tag and raises `MarkupError`, so the user gets a traceback instead
+of the message (and `pytest tests` fails at collection on a machine without
+`/yuneta/development`). Escape it (`\[/yunetas]`) or print it with
+`markup=False`.
+
+```diff
+diff --git a/yunetas/main.py b/yunetas/main.py
+index 5d9cacd..a2034ff 100644
+--- a/yunetas/main.py
++++ b/yunetas/main.py
+@@ -893,18 +893,63 @@ def _create_new_yuno_rows(ycommand, url, dry_run, to_create, registered):
+             print(f"[green]{upgrade_rows_summary(len(to_create), len(registered))}.[/green]")
+ 
+ 
++# The first SDK whose tests declare what they share (RESOURCE_LOCK,
++# FIXTURES_*, RUN_SERIAL), so that ctest can run them at once. An older tree
++# runs them one after another: in parallel its timeranger2 iterators fail.
++CTEST_PARALLEL_SINCE = (7, 26, 1)
++
++
++def sdk_version():
++    """The (major, minor, patch) of YUNETA_VERSION, or None (said)."""
++    path = os.path.join(YUNETAS_BASE, "YUNETA_VERSION")
++    try:
++        with open(path) as f:
++            text = f.read()
++    except OSError as e:
++        print(f"[yellow]Cannot read {path}: {e.strerror}[/yellow]")
++        return None
++    m = re.search(r"^YUNETA_VERSION\s*=\s*(\d+)\.(\d+)\.(\d+)", text, re.M)
++    if not m:
++        print(f"[yellow]No YUNETA_VERSION=<x.y.z> line in {path}[/yellow]")
++        return None
++    return tuple(int(x) for x in m.groups())
++
++
+ @app.command()
+-def test():
++def test(
++    jobs: int = typer.Option(
++        os.cpu_count() or 1, "--jobs", "-j",
++        help="Jobs of make and ctest (default: the number of cores)."
++    ),
++    serial: bool = typer.Option(
++        False, "--serial", help="Run ctest one test after another."
++    ),
++    clean: bool = typer.Option(
++        False, "--clean",
++        help="make clean before building. Not needed: a test is relinked when "
++             "an installed library it links changes."
++    ),
++):
+     """
+-    Run ctest in yunetas
++    Build the SDK and run ctest in yunetas
+     """
+-    process_build_command(DIRECTORIES, ["make", "install"])
+-    process_build_command(["."], ["make", "install"])
+-    process_build_command(["."], ["make", "clean"])
+-    ret = process_build_command(["."], ["make", "install"])
++    make_jobs = f"-j{max(jobs, 1)}"
++    process_build_command(DIRECTORIES, ["make", make_jobs, "install"])
++    if clean:
++        process_build_command(["."], ["make", "clean"])
++    ret = process_build_command(["."], ["make", make_jobs, "install"])
+     if ret == 0:
++        ctest_jobs = 1 if serial else max(jobs, 1)
++        version = sdk_version()
++        if ctest_jobs > 1 and (version is None or version < CTEST_PARALLEL_SINCE):
++            since = ".".join(str(x) for x in CTEST_PARALLEL_SINCE)
++            print(f"[yellow]ctest runs serially: the tests of this SDK declare "
++                  f"what they share only since {since}.[/yellow]")
++            ctest_jobs = 1
+         filename = datetime.now().isoformat().replace(":", "-") + ".txt"
+-        process_build_command(["."], ["ctest", "--output-log", filename])
++        process_build_command(
++            ["."], ["ctest", f"-j{ctest_jobs}", "--output-log", filename]
++        )
+ 
+ 
+ def version_callback(value: bool):
+```
+
