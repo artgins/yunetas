@@ -1,1 +1,267 @@
 # Cloud review of main
+
+## Review (2026-10-04): the C suite takes more than half an hour
+
+Reviewed at `e589eb8` (2026-10-04).
+
+Question: many ctest tests must run one after another (they depend on each
+other, or used to share ports), and `yunetas test` takes more than 30
+minutes. Can it be faster?
+
+Status: **analysis done, proposal at the end awaiting approval** — nothing
+changed in the code. Measured in a cloud container (4 cores), plus an audit
+of what the tests share.
+
+### Findings so far
+
+1. **Ports are no longer the obstacle.** Since 7.25.20 every binary has its
+   own ports and `scripts/check_test_ports.py` passes (checked on
+   `95dadcf`). What stops `ctest -j` now is shared FILESYSTEM state and
+   ordering dependencies that ctest does not know about.
+2. **No test declares what it shares.** No `CMakeLists.txt` under
+   `tests/c` or `performance/c` uses `RESOURCE_LOCK`, `FIXTURES_SETUP` /
+   `FIXTURES_REQUIRED`, `DEPENDS` or `RUN_SERIAL`; the only property set is
+   `TIMEOUT` (`secret_attrs`, `yuno_skeleton/templates` 600 s,
+   `c_ievent_srv_identity_card`). So the suite is correct only when it runs
+   serially, in registration order.
+3. **Example of a hidden dependency:** `timeranger2/test_topic_pkey_integer`
+   and the six `test_topic_pkey_integer_iterator*` use the same store,
+   `$HOME/tests_yuneta/tr_topic_pkey_integer` (`#define DATABASE` in each
+   file; path built at `test_topic_pkey_integer.c:326-331`). Other shared
+   names: `tr_msg` (`tr_msg/test_tr_msg1.c`, `test_tr_msg2.c`),
+   `tr_delete_instance` (`timeranger2/test_delete_instance.c`,
+   `tr_treedb_delete_instance`), `perf_topic_integer` (`perf_c_tcp/c_test5.c`,
+   `perf_c_tcps/c_test5.c`, `perf_yev_ping_pong2`). The full audit is
+   pending.
+4. **Part of the half hour is probably not ctest, but `yunetas test`
+   itself** (CLI 0.20.4, `yunetas/main.py`, `def test()`):
+
+   ```python
+   process_build_command(DIRECTORIES, ["make", "install"])   # every module
+   process_build_command(["."], ["make", "install"])         # root build/
+   process_build_command(["."], ["make", "clean"])           # <- throws it away
+   ret = process_build_command(["."], ["make", "install"])   # <- full rebuild
+   ...
+   process_build_command(["."], ["ctest", "--output-log", filename])
+   ```
+
+   - Every run does a `make clean` + full rebuild of the root `build/` tree
+     (every library, util, yuno, test and benchmark compiled again), right
+     after a `make install` that had just brought it up to date.
+   - Every `make` runs **without `-j`** (`init` configures with the default
+     Unix Makefiles generator and the CLI passes no job count), so it uses
+     one core.
+   - `ctest` also runs **without `-j`**.
+
+   The `make clean` is presumably there because of the stale-binary trap
+   (*"A TEST BINARY LINKS THE INSTALLED LIBRARIES"*, CLAUDE.md): a test
+   relinks only when its own sources change. That trap has a cheaper cure —
+   make each test target depend on the library files it links — but even
+   without it, `make -j$(nproc) clean install` already removes most of the
+   cost.
+
+### Audit: what the tests share (read from the code)
+
+All paths are under `$HOME/tests_yuneta/` unless said otherwise.
+
+**Why two tests on one store collide even when each wipes its own part:** the
+first tranger opened as master takes an exclusive lock on
+`__timeranger2__.json`; a second master on the same database falls back to
+replica with *"Open as not master"* (`timeranger2.c:842`), which fails the
+`test_json(NULL)` log check, and a replica refuses `create_topic` / append.
+
+| Group | Shared path | Evidence | Order-dependent? |
+|---|---|---|---|
+| **G1** `timeranger2/test_topic_pkey_integer` → `_iterator`, `_iterator2`..`5` → `_iterator6`; and `perf_yev_ping_pong2` | `tr_topic_pkey_integer/` | `test_topic_pkey_integer` wipes and fills it (`:26,335,345`). The iterators never wipe; they reopen that data (`_iterator.c:21,55-57,89-97`); `_iterator2` asserts exactly 2x90000 rows (`:248`); `_iterator6` APPENDS 180000 more (`:308-320`) and asserts the start state left by `test_topic_pkey_integer` (`:298`). **`perf_yev_ping_pong2` wipes the same database** (`perf_yev_ping_pong2.c:28,486`). | **Yes.** Every iterator fails alone: on a clean `$HOME` (an INFO *"Creating __timeranger2__.json"*, then *"directory not found"*), and after a full run too (`perf_yev_ping_pong2`, registered later, removed the topic; or `_iterator6` doubled the rows). Works today only through the `SRCS` order under serial ctest. |
+| **G2** `tr_msg/test_tr_msg1`, `test_tr_msg2` | `tr_msg/` | both wipe it (`test_tr_msg1.c:43,901`; `test_tr_msg2.c:24,459`) | No — they only collide at once |
+| **G3** `timeranger2/test_delete_instance`, `tr_treedb_delete_instance` | `tr_delete_instance/` | `test_delete_instance.c:43` (wipes at 176, 313, ...); `test_tr_treedb_delete_instance.c:46,2753` | No |
+| **G4** `perf_c_tcp/test5`, `perf_c_tcps/test5` | `perf_topic_integer/` | both open it as master (`c_test5.c:16,232,249` in each) | No |
+
+Not shared (checked): every other `DATABASE` / env root under
+`tests_yuneta` belongs to one binary; every fixed `/tmp` name belongs to one
+binary; `c_mqtt` uses `$TMPDIR/<name>.<pid>.<n>`, `c_tcps/test6` `mkdtemp`;
+the MQTT stores `/tmp/store/<role>/` are per role (never wiped, so they carry
+over between runs); `/yuneta/agent/certs/localhost.*` and
+`/yuneta/bin/tr2check` are only read; no fixed UNIX socket or pid file.
+
+**Other things that matter under `-j`:**
+
+- **inotify limits** (per user): `test_fs_watcher_overflow` watches ~20k
+  directories and floods the queue, `test_rt_disk_overflow` floods it too,
+  and the `rt_disk_*` tests, `_iterator6`, `perf_yev_ping_pong2` and
+  `perf_*/test5` follow the disk. Together they risk `ENOSPC` →
+  one `RESOURCE_LOCK`.
+- **Timing assertions that CPU load can break:**
+  `yev_events/test_yevent_timer_once1.c:244` (0.9-1.1 s),
+  `test_yevent_timer_periodic1.c:210` (2.9-3.1 s),
+  `test_yevent_timer_once2.c:291` (2.4-2.6 s),
+  `test_yevent_kept_after_post.c:231` (<= 1 s),
+  `c_timer/src/c_test_timer.c:290` and `main.c:162`,
+  `c_timer0/src/c_test_timer0.c:345` and `main.c:176` (5000-5500 ms),
+  `test_fs_watcher_overflow.c:1914,1936` (the 6x ratio; the loop silent
+  <= 1000 ms), `static_resolv/test_static_resolv_numeric.c:79,103` (< 200 ms),
+  `c_controlcenter_scenarios/src/c_test_cc.c:1197` (one 1500 ms tick). Lower
+  risk: `gobj_post_event` (10 ticks of 1 ms in 200 ms), the 2-3 s connect
+  guards of `c_tcp`, `c_tcps`, `c_tcp_s_stats`, `c_auth_bff/test10`.
+- **The benchmarks** saturate cores, so they skew each other's figures and
+  the timing tests above.
+- **Two checkouts on one machine** share `~/tests_yuneta` and the `/tmp`
+  names, so two suites at once (e.g. the A/B worktree of the last tag from
+  the release checklist) break G1-G4 even without `-j`.
+
+**Long tests (from the code; to be confirmed by the measurement):**
+`c_tcp_inactivity/test1`, `test2` (>= 20 s each, `TIMEOUT_INACTIVITY
+20000`), `test3`, `test4` (~5 s); `yuno_skeleton/templates` (three cmake+make
+builds plus two 3 s runs); `perf_yev_ping_pong`, `perf_yev_ping_pong2`,
+`perf_auth_bff` (10 s each by `alarm`/`run_seconds`); `perf_c_tcp[s]/test4,5`
+(~5 s); `test_fs_watcher_overflow`, `test_rt_disk_overflow`,
+`test_delete_key_propagation` (floods, waits up to 30 s - 5 min);
+`test_topic_pkey_integer` + iterators (180000 appends/reads each);
+`c_llhttp_parser` (~7 s of `sleep`), `c_timer`, `c_timer0` (5 s),
+`c_controlcenter_scenarios`. Most of these are WAITING, not computing — which
+is exactly the time `ctest -j` gives back.
+
+### Measured: the suite, serial vs `ctest -j4`
+
+Cloud container, 4 cores, 15 GB, `CONFIG_FULLY_STATIC`, OpenSSL, no memory
+tracking (the hook's default `.config`); run as `yuneta` under
+`ulimit -Sn 1024`, HEAD `95dadcf`, 292 tests.
+
+| Run | Wall | Result |
+|---|---|---|
+| `ctest` (what `yunetas test` runs) | **1273 s** (21 min) | 292/292 |
+| `ctest -j4`, nothing changed | **348 s** (5.8 min), x3.7 | 287/292: `timeranger2/test_topic_pkey_integer_iterator` .. `_iterator5` fail (group G1) |
+
+The five failures are exactly G1, and for the reason the audit gave:
+`_iterator6` (started earlier by the parallel scheduler) had appended its
+180000 rows, so `_iterator` found `to_t` 946857599 where it expects
+946774799 (*"compare: value mismatch at
+'topics`topic_pkey_integer`cache`...`to_t'"*). G2-G4 did not collide in this
+run (luck of the schedule, not safety), and no timing-sensitive test failed
+at `-j4` on 4 cores.
+
+**Where the serial time goes** (per test, serial run):
+
+| Test | s | Note |
+|---|---|---|
+| `test_c_treedb_literal_wins` | **220** | 17% of the suite, ONE binary: ~60 scenarios run one after another, with the crash sweeps (CR, DC: 99 sequences, DTK, O4X, FP) forking a child per kill point. At `-j4` it took 238 s — it is the critical path: **the suite can never go below it** while it is one test |
+| `yev_events_tls/test_yevent_reload_stress` | 53 | |
+| `timeranger2/test_fs_watcher_overflow` | 40 | 71 s at `-j4` (inotify / CPU contention), still within its limits |
+| `timeranger2/test_rt_disk_overflow` | 34 | |
+| `test_c_tcp_s_stats` | 27 | |
+| `c_tcp_inactivity/test2`, `test1` | 24, 22 | waiting on `timeout_inactivity` |
+| `emailsender/*` (47 tests) | 245 in total | mostly waiting on SMTP timeouts / pacing |
+
+73 tests take >= 5 s and add up to 1019 s (80% of the suite); 114 take
+< 1 s. Most of the long ones WAIT (timeouts, pacing, `alarm`) rather than
+compute, which is why 4 jobs on 4 cores give x3.7.
+
+### Measured: the build phase of `yunetas test`
+
+The same four steps as the CLI (`make` with no `-j`, as it runs them), on a
+tree where nothing changed since the last `yunetas test`:
+
+| Step | `make` (today) | `make -j4` |
+|---|---|---|
+| 1. `make install` in every module build dir | 36 s | 36 s |
+| 2. `make install` in the root `build/` | 155 s | 50 s |
+| 3. `make clean` in `build/` | 12 s | 12 s |
+| 4. `make install` in `build/` (everything compiled again) | **397 s** | 106 s |
+| **Build phase** | **600 s** | 204 s |
+
+So today a `yunetas test` with no change in the sources costs, on this
+machine, **~600 s of build + 1273 s of ctest = ~31 min** — the "more than
+half an hour" of the question. **A third of it is compiling, and almost all
+of that compiling is useless:**
+
+**(a) The `make clean` is not needed.** Experiment: a global with a marker
+string appended to `kernel/c/gobj-c/src/gobj.c`, then ONLY steps 1 and 2
+(`-j4`, no clean). **287 of the 290 ELF test binaries carry the marker**;
+the other three do not contain `gobj.o` at all (`static_resolv/*` link only
+libc and `#include` `static_resolv.c`; `test_handshake_reject_mbedtls` was
+relinked but pulls no symbol of `gobj.c`), so for them the marker is not
+expected. The reason it works: the tests link the installed archives BY FULL
+PATH (`tools/cmake/project.cmake:229-241`), so the Makefiles generator writes
+each `.a` as a dependency of the link (`build.make`:
+`tests/c/c_timer/test_c_timer: .../outputs/lib/libyunetas-gobj.a`), and a
+changed installed library relinks every test that uses it. The stale-binary
+trap of CLAUDE.md (*"A TEST BINARY LINKS THE INSTALLED LIBRARIES"*) is real
+for `cmake --build build --target <test>` alone, but step 1 already installs
+the fresh libraries before step 2 links the tests. (gobj.c restored, tree
+rebuilt, marker gone.)
+
+**(b) Steps 1 and 2 relink everything on EVERY run, even with nothing
+changed: the two trees ping-pong on `outputs/lib`.** The module build dirs
+(step 1) and the root `build/` (step 2, which `add_subdirectory()`s the same
+kernel libraries) each build their OWN copy of `libyunetas-gobj.a`,
+`libtimeranger2.a`, ... and both install it into the same `outputs/lib`.
+CMake's install compares the files, so each tree's install finds the other
+tree's copy and replaces it (*"Installing:"*, not *"Up-to-date:"*), and the
+new mtime relinks every executable of the other tree. Measured: after step 1
+installs `kernel/c/gobj-c`'s copy, the root `make install` relinks 135+
+executables; a second root `make install` straight after relinks nothing.
+That is the 36 + 155 s of steps 1-2 with no change.
+
+### Proposal (for approval — nothing changed yet)
+
+Ordered by gain / risk. Items 1-2 live in the CLI repo
+(`artgins/tui_yunetas.py`, `yunetas/main.py`, `def test()`), which is NOT
+attached to this cloud session; items 3-6 are in yunetas.
+
+1. **`yunetas test`: drop the `make clean` (keep it behind `--clean`), and
+   build with `-j$(nproc)`.** Proven unneeded by (a). Saves ~400 s serial;
+   with `-j` the whole build phase goes 600 → ~90 s on this box. Zero risk
+   to the tests' correctness; the ctest log name/format stays as it is.
+2. **`yunetas test`: run `ctest -j$(nproc)`** (with a `--serial` / `-j 1`
+   option), **only after items 3-4 have landed**. Measured x3.7 on 4 cores
+   (1273 → 348 s). Do NOT go above the core count: a dozen tests assert
+   time windows (see the audit) and passed at `-j4` on 4 cores only because
+   nothing was oversubscribed.
+3. **Declare what the tests share, in their `CMakeLists.txt`** (ctest
+   properties only, no test code changed):
+   - G1: `test_topic_pkey_integer` `FIXTURES_SETUP tr_pkey_integer`;
+     `_iterator` .. `_iterator6` `FIXTURES_REQUIRED tr_pkey_integer` +
+     `RESOURCE_LOCK tr_topic_pkey_integer`; `_iterator6` (it appends)
+     `DEPENDS` on `_iterator` .. `_iterator5`. Side benefit: `ctest -R
+     iterator3` alone then runs its setup first and passes, which today it
+     cannot.
+   - `perf_yev_ping_pong2`: rename its `DATABASE`
+     (`perf_yev_ping_pong2.c:28`) — it only borrows the name and wipes the
+     G1 store (a one-line change in a benchmark; its figures do not change).
+   - G2 `RESOURCE_LOCK tr_msg`, G3 `RESOURCE_LOCK tr_delete_instance`,
+     G4 `RESOURCE_LOCK perf_topic_integer`.
+   - `RESOURCE_LOCK inotify` on `test_fs_watcher_overflow` and
+     `test_rt_disk_overflow` (the two that flood the per-user queue).
+   - `scripts/check_test_ports.py` gets a sibling check (or a mode) that
+     fails when two binaries name the same `DATABASE` under `tests_yuneta`
+     without a shared `RESOURCE_LOCK`, so the next collision is caught like a
+     port.
+4. **Keep the timing trend readable.** The release checklist reads test
+   times from `build/*.txt`; under `-j` those times include contention. Mark
+   `RUN_SERIAL` the tests whose time is tracked: the 11 `perf_*` (81 s in
+   total) and the G1 chain (7 s). Cost: ~90 s run alone; they also stop
+   skewing the time-window tests. (Alternative: release runs use
+   `--serial`.)
+5. **Split `test_c_treedb_literal_wins`** (220 s, one binary). At `-j4` it
+   is not yet the limit (238 s < 348 s), but at `-j8` and above it is the
+   floor of the whole suite. Register it several times with an argument
+   that picks a group of scenarios (e.g. the early ones / CR / DC / DTK+O4x+FP),
+   each group under its own database subdirectory. A change to the test's
+   code, so a separate step.
+6. **End the ping-pong (b), so a `yunetas test` with nothing changed
+   compiles nothing.** Two ways, to be decided: (i) `yunetas test` skips
+   step 1 (the root tree builds every module) and the tests link the
+   library TARGETS when they exist in the same tree (`if(TARGET
+   yunetas-gobj)` in `project.cmake`), so a test depends on the library it
+   links and not on the installed copy; or (ii) the root tree stops
+   installing the libraries the module dirs already install. Touches the
+   build of every consumer: needs its own review.
+
+**Expected result on this 4-core box:** with 1-4, `yunetas test` with nothing
+changed goes from ~31 min to **~90 s build + ~6 min ctest ≈ 7-8 min**; with 6
+the build phase is a few seconds; with 5, machines with 8+ cores scale
+further (the remaining floor is `test_yevent_reload_stress`, 53 s).
+
+Not proposed: shortening the waits of the slow tests (`c_tcp_inactivity`'s
+20 s window, the SMTP timeouts of `emailsender`). They are what the tests
+check, and under `-j` waiting costs almost nothing.
