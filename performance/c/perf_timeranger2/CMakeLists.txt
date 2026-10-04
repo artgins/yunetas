@@ -97,3 +97,6 @@ install(
 # ctest runs it small: it checks that the benchmark builds and runs.
 # The figures of a release come from a run with the default sizes.
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME} --small)
+# A benchmark runs alone under ctest -j: its figures and the time windows
+# of the tests would skew each other
+set_tests_properties(${PROJECT_NAME} PROPERTIES RUN_SERIAL TRUE)

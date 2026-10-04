@@ -79,3 +79,5 @@ target_link_options(${PROJECT_NAME} PRIVATE "-Wl,--wrap=write")
 #   Test
 ##############################################
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+# tr_delete_instance is timeranger2/test_delete_instance's database too
+set_tests_properties(${PROJECT_NAME} PROPERTIES RESOURCE_LOCK tr_delete_instance)

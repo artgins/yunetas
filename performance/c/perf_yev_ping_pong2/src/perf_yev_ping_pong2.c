@@ -25,7 +25,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-#define DATABASE    "tr_topic_pkey_integer"
+#define DATABASE    "perf_yev_ping_pong2"
 #define TOPIC_NAME  "topic_pkey_integer_ping_pong"
 
 BOOL dump = FALSE;

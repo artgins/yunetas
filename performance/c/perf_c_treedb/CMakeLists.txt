@@ -96,3 +96,6 @@ install(
 # The figures of a release come from a run with the default sizes.
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME}
     --config-file=${CMAKE_CURRENT_SOURCE_DIR}/small.json)
+# A benchmark runs alone under ctest -j: its figures and the time windows
+# of the tests would skew each other
+set_tests_properties(${PROJECT_NAME} PROPERTIES RUN_SERIAL TRUE)

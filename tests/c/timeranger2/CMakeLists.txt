@@ -182,3 +182,50 @@ foreach(test ${SRCS})
     add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()
+
+##############################################
+#   What the tests share, for ctest -j
+##############################################
+#   test_topic_pkey_integer fills tr_topic_pkey_integer, the iterators read
+#   it (each opens it as master: one at a time) and _iterator6 appends to
+#   it, so it goes last. RUN_SERIAL: their times are the trend the release
+#   checklist reads, which other tests running at once would skew.
+set_tests_properties("${current_directory_name}/test_topic_pkey_integer" PROPERTIES
+    FIXTURES_SETUP tr_topic_pkey_integer
+    RESOURCE_LOCK tr_topic_pkey_integer
+    RUN_SERIAL TRUE
+)
+set(PKEY_INTEGER_READERS
+    test_topic_pkey_integer_iterator
+    test_topic_pkey_integer_iterator2
+    test_topic_pkey_integer_iterator3
+    test_topic_pkey_integer_iterator4
+    test_topic_pkey_integer_iterator5
+)
+set(PKEY_INTEGER_READER_TESTS "")
+foreach(test ${PKEY_INTEGER_READERS})
+    set_tests_properties("${current_directory_name}/${test}" PROPERTIES
+        FIXTURES_REQUIRED tr_topic_pkey_integer
+        RESOURCE_LOCK tr_topic_pkey_integer
+        RUN_SERIAL TRUE
+    )
+    list(APPEND PKEY_INTEGER_READER_TESTS "${current_directory_name}/${test}")
+endforeach()
+set_tests_properties("${current_directory_name}/test_topic_pkey_integer_iterator6" PROPERTIES
+    FIXTURES_REQUIRED tr_topic_pkey_integer
+    RESOURCE_LOCK tr_topic_pkey_integer
+    DEPENDS "${PKEY_INTEGER_READER_TESTS}"
+    RUN_SERIAL TRUE
+)
+
+#   tr_delete_instance is tr_treedb_delete_instance's database too
+set_tests_properties("${current_directory_name}/test_delete_instance" PROPERTIES
+    RESOURCE_LOCK tr_delete_instance
+)
+
+#   Both flood the per-user inotify queue
+set_tests_properties(
+    "${current_directory_name}/test_fs_watcher_overflow"
+    "${current_directory_name}/test_rt_disk_overflow"
+    PROPERTIES RESOURCE_LOCK inotify_flood
+)

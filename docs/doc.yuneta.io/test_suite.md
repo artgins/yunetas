@@ -50,6 +50,37 @@ the `yev_events` tests on 3333, among others), and each `c_mqtt` test wiped a
 fixed `/tmp/test_mqtt_<name>` at its start. Two whole suites at once on one
 machine still share each binary's port.
 
+A directory under `~/tests_yuneta` that two binaries use is declared in their
+`CMakeLists.txt`, so ctest never runs them at once. Each binary that holds the
+directory takes a `RESOURCE_LOCK` named after it. When one binary fills the
+directory and others read it, the writer is the `FIXTURES_SETUP` and the
+readers are `FIXTURES_REQUIRED`, so ctest also runs the writer first when you
+ask for one reader alone:
+
+```cmake
+set_tests_properties("timeranger2/test_topic_pkey_integer" PROPERTIES
+    FIXTURES_SETUP tr_topic_pkey_integer
+    RESOURCE_LOCK tr_topic_pkey_integer
+)
+set_tests_properties("timeranger2/test_topic_pkey_integer_iterator3" PROPERTIES
+    FIXTURES_REQUIRED tr_topic_pkey_integer
+    RESOURCE_LOCK tr_topic_pkey_integer
+)
+```
+
+The locks in use are `tr_topic_pkey_integer` (with `DEPENDS`: `_iterator6`
+appends to the directory, so it runs after the other iterators), `tr_msg`,
+`tr_delete_instance`, `perf_topic_integer`, and `inotify_flood` (the two
+tests that flood the per-user inotify queue). The benchmarks and the
+`tr_topic_pkey_integer` chain are `RUN_SERIAL`: the release trend reads their
+times, and other tests that run at the same time change them. A new test that
+reuses a directory of another test must declare the same lock.
+
+`ctest -j` also needs the inotify limits of `99-yuneta-core.conf` (installed
+by the package). With the Linux defaults (128 instances per user), several
+treedb tests at once fail with *"inotify_init1() FAILED"*. Two checkouts on
+one machine share `~/tests_yuneta`, so do not run two suites at once.
+
 ## Asserting on the logs
 
 Most tests here assert on what was LOGGED, not on a returned value: they

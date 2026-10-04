@@ -90,6 +90,9 @@ install(
 )
 
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+# A benchmark runs alone under ctest -j: its figures and the time windows
+# of the tests would skew each other
+set_tests_properties(${PROJECT_NAME} PROPERTIES RUN_SERIAL TRUE)
 
 # compile in Release mode :
 #

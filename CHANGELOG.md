@@ -1,5 +1,20 @@
 # **Changelog**
 
+## Unreleased
+
+- **The tests declare what they share, so `ctest -j` runs the suite.** The
+  tests that use one directory under `~/tests_yuneta` take a ctest
+  `RESOURCE_LOCK` (`tr_topic_pkey_integer`, `tr_msg`, `tr_delete_instance`,
+  `perf_topic_integer`; `inotify_flood` for the two tests that flood the
+  inotify queue). `test_topic_pkey_integer` is the `FIXTURES_SETUP` of its
+  six iterators, so `ctest -R iterator3` alone passes now (before, it failed
+  without the data). The benchmarks and that chain are `RUN_SERIAL`, so the
+  times that the release trend reads stay alone. `perf_yev_ping_pong2` writes
+  `~/tests_yuneta/perf_yev_ping_pong2`; before, it wiped the iterators'
+  database. Before this change, `ctest -j4` failed five iterators; now the
+  suite passes 292/292. The `yunetas` CLI 0.21.0 runs ctest in parallel only
+  on an SDK that carries this change.
+
 ## v7.26.0 (2026-10-04)
 
 What changed after 7.25.22: five changes an operator or a developer has to

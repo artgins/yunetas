@@ -64,7 +64,7 @@ Source: `src/perf_yev_ping_pong.c` (single file, no GClasses)
 
 Same as `perf_yev_ping_pong` with the addition of `tranger2_append_record()` on every received client message, measuring the persistence overhead on the raw event loop.
 
-- **Timeranger2 DB:** `~/tests_yuneta/tr_topic_pkey_integer/topic_pkey_integer_ping_pong`
+- **Timeranger2 DB:** `~/tests_yuneta/perf_yev_ping_pong2/topic_pkey_integer_ping_pong`
 - **Client message:** JSON `{"hello": "AAA..."}` (serialized via `json2gbuf`)
 
 Source: `src/perf_yev_ping_pong2.c` (single file, no GClasses)

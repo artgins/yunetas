@@ -81,5 +81,9 @@ foreach(test ${SRCS})
     target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 
     add_test("${current_directory_name}/${test}" ${binary})
+    # Both binaries wipe and use the database tr_msg
+    set_tests_properties("${current_directory_name}/${test}" PROPERTIES
+        RESOURCE_LOCK tr_msg
+    )
 
 endforeach()
