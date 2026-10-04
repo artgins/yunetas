@@ -1,6 +1,12 @@
 # **Changelog**
 
-## Unreleased
+## v7.26.1 (2026-10-04)
+
+A release of the test suite and its tools: no change in the libraries or in
+the yunos, so a node running 7.26.0 needs no upgrade. `yunetas test` (CLI
+0.21.0) compiles with `make -j` and no `make clean`, and runs ctest in
+parallel from this SDK on. On the review's 4-core machine, a run with no
+change in the sources went from ~31 minutes to ~7-8.
 
 - **The tests declare what they share, so `ctest -j` runs the suite.** The
   tests that use one directory under `~/tests_yuneta` take a ctest
@@ -14,6 +20,15 @@
   database. Before this change, `ctest -j4` failed five iterators; now the
   suite passes 292/292. The `yunetas` CLI 0.21.0 runs ctest in parallel only
   on an SDK that carries this change.
+- **`test_fs_watcher_overflow` allows the big tree to cost six times the
+  small one per directory, not two.** On a machine with a small L3 cache
+  (artgins, 6 MiB), the 4096 directories of the small pass stay in the
+  cache and the 69632 of the big pass do not. The test failed one run in
+  three there, with correct code. The regression that the test guards
+  against (the index rebuilt per slice) was 14 times.
+- **gobj-ui and yunos-js submodules:** vite `^8.3.2` and maplibre-gl 6.12.0
+  (gobj-ui: devDependency only, no release; gui_agent 0.29.12, gui_treedb
+  0.17.78).
 
 ## v7.26.0 (2026-10-04)
 
