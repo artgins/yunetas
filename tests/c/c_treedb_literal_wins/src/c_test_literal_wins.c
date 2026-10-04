@@ -77,7 +77,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
-SDATA (DTP_STRING,      "group",            SDF_RD,             "all",      "Scenarios to run: all, early (run_tests(): the log compared line by line, and CR), late, dc (DC), o4 (O4C, O4A, O4X). ctest runs each group as a test of its own, in a store of its own"),
+SDATA (DTP_STRING,      "group",            SDF_RD,             "all",      "Scenarios to run: all, early (run_tests(): the log compared line by line, and CR), late, dcd and dcn (DC with drafts, and without), o4 (O4C, O4A, O4X). ctest runs each group as a test of its own, in a store of its own"),
 SDATA_END()
 };
 
@@ -126,7 +126,7 @@ typedef struct _PRIVATE_DATA {
     /*
      *  DC: where the sweep of the double crash is (scenario_double_crash)
      */
-    int dc_phase;               // 0: with drafts, 1: without, 2: done
+    BOOL dc_reports_registered; // the log handler type "dc_reports", registered once
     int dc_k1;                  // the write the first process dies at, 0: not started
     int dc_writes;              // the writes of the whole projection
     int dc_combos;
@@ -156,7 +156,7 @@ PRIVATE void mt_create(hgobj gobj)
     mkrdir(path_root, 02770);
 
     const char *group = gobj_read_str_attr(gobj, "group");
-    const char *groups[] = {"all", "early", "late", "dc", "o4", NULL};
+    const char *groups[] = {"all", "early", "late", "dcd", "dcn", "o4", NULL};
     if(!str_in_list(groups, group, FALSE)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -5533,19 +5533,21 @@ PRIVATE int dc_sequence(hgobj gobj, BOOL drafts, int k1, int k2, int *p_retry_wr
 }
 
 /*
- *  ONE k1 per step (see ac_timeout): the loop runs between two
+ *  ONE k1 per step (see ac_timeout): the loop runs between two. The sweep
+ *  with drafts and the one without are two late scenarios, each of its
+ *  own group (dcd, dcn)
  */
-PRIVATE int scenario_double_crash(hgobj gobj)
+PRIVATE int scenario_double_crash(hgobj gobj, BOOL drafts)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = 0;
-    BOOL drafts = (priv->dc_phase == 0)? TRUE : FALSE;
 
     if(priv->dc_k1 == 0) {
-        if(priv->dc_phase == 0) {
+        if(!priv->dc_reports_registered) {
             gobj_log_register_handler("dc_reports", 0, dc_report_log_write, 0);
-            gobj_log_add_handler("dc_reports", "dc_reports", LOG_OPT_UP_WARNING, 0);
+            priv->dc_reports_registered = TRUE;
         }
+        gobj_log_add_handler("dc_reports", "dc_reports", LOG_OPT_UP_WARNING, 0);
 
         /*
          *  How many writes the projection makes: an open nobody kills
@@ -5605,14 +5607,19 @@ PRIVATE int scenario_double_crash(hgobj gobj)
     priv->dc_combos = 0;
     priv->dc_completed = 0;
     priv->dc_k1 = 0;
-    priv->dc_phase++;
-    if(priv->dc_phase < 2) {
-        priv->repeat_step = TRUE;
-    } else {
-        gobj_log_del_handler("dc_reports");
-        dc_reports_path[0] = 0;
-    }
+    gobj_log_del_handler("dc_reports");
+    dc_reports_path[0] = 0;
     return result;
+}
+
+PRIVATE int scenario_double_crash_drafts(hgobj gobj)
+{
+    return scenario_double_crash(gobj, TRUE);
+}
+
+PRIVATE int scenario_double_crash_no_drafts(hgobj gobj)
+{
+    return scenario_double_crash(gobj, FALSE);
 }
 
 /***************************************************************************
@@ -7940,7 +7947,8 @@ PRIVATE const struct {
     {"late",   scenario_imposed_stamped_before_its_topics},
     {"late",   scenario_imposed_draft_kept},
     {"late",   scenario_legacy_move_killed},
-    {"dc",     scenario_double_crash},
+    {"dcd",    scenario_double_crash_drafts},
+    {"dcn",    scenario_double_crash_no_drafts},
     {"o4",     scenario_old_projection_died_changes},
     {"o4",     scenario_old_projection_died_adds},
     {"o4",     scenario_old_projection_died_twice},

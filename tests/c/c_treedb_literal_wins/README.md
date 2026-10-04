@@ -18,24 +18,25 @@ file in use. The rule is the user's decision of 2026-09-23:
 
 ## Groups of scenarios
 
-The scenarios are in four groups. ctest runs each group as a test of its
+The scenarios are in five groups. ctest runs each group as a test of its
 own, in a store of its own (`~/tests_yuneta/c_treedb_literal_wins_<group>`),
 so `ctest -j` runs them at the same time. In one binary, the whole run took
-~215 s and was the floor of a parallel suite; the longest group (DC) takes
-~75 s alone.
+~215 s and was the floor of a parallel suite; the longest group (`late`)
+takes ~57 s alone.
 
 | Group | ctest name | Scenarios |
 |---|---|---|
 | `early` | `test_c_treedb_literal_wins/early` | `run_tests()`: RM to MV/NP, whose log is compared line by line, then CR |
 | `late` | `test_c_treedb_literal_wins/late` | The late scenarios, except DC and O4C/O4A/O4X |
-| `dc` | `test_c_treedb_literal_wins/dc` | DC |
+| `dcd` | `test_c_treedb_literal_wins/dcd` | DC with drafts (`tw_dcd_*`, 76 sequences) |
+| `dcn` | `test_c_treedb_literal_wins/dcn` | DC without drafts (`tw_dcn_*`, 23 sequences) |
 | `o4` | `test_c_treedb_literal_wins/o4` | O4C, O4A, O4X |
 
 Select a group with `--group=<name>`. With no `--group` (or `--group=all`),
 the binary runs every scenario, as one test:
 
 ```bash
-ctest -R '^test_c_treedb_literal_wins/dc$' --output-on-failure --test-dir build
+ctest -R '^test_c_treedb_literal_wins/dcd$' --output-on-failure --test-dir build
 build/tests/c/c_treedb_literal_wins/test_c_treedb_literal_wins --group=o4
 ```
 
