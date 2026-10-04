@@ -2,12 +2,13 @@
 
 ## Unreleased
 
-- **`test_c_treedb_literal_wins` is five tests, one per group of
-  scenarios** (`test_c_treedb_literal_wins/early`, `/late`, `/dcd`, `/dcn`,
-  `/o4`; DC is split into its sweep with drafts and its sweep without),
+- **`test_c_treedb_literal_wins` is six tests, one per group of
+  scenarios** (`test_c_treedb_literal_wins/early`, `/late1`, `/late2`,
+  `/dcd`, `/dcn`, `/o4`; DC is split into its sweep with drafts and its
+  sweep without),
   each in a store of its own (`~/tests_yuneta/c_treedb_literal_wins_<group>`).
   In one binary, the whole run took ~215 s and was the floor of a parallel
-  suite. The five run at the same time in ~56 s (8 cores). The binary takes
+  suite. The six run at the same time in ~39 s (8 cores). The binary takes
   `--group=<name>`; with no `--group`, it runs every scenario as before.
 
 ## v7.26.1 (2026-10-04)
