@@ -18,11 +18,11 @@ file in use. The rule is the user's decision of 2026-09-23:
 
 ## Groups of scenarios
 
-The scenarios are in six groups. ctest runs each group as a test of its
+The scenarios are in seven groups. ctest runs each group as a test of its
 own, in a store of its own (`~/tests_yuneta/c_treedb_literal_wins_<group>`),
 so `ctest -j` runs them at the same time. In one binary, the whole run took
-~215 s and was the floor of a parallel suite; the longest group (`o4`)
-takes ~59 s alone, ~39 s when the six run at once on 8 cores.
+~215 s and was the floor of a parallel suite; the seven run at once in ~34 s
+on 8 cores, and the longest alone (`o4xa`) takes ~47 s.
 
 | Group | ctest name | Scenarios |
 |---|---|---|
@@ -31,7 +31,8 @@ takes ~59 s alone, ~39 s when the six run at once on 8 cores.
 | `late2` | `test_c_treedb_literal_wins/late2` | The late scenarios after O4C/O4A/O4X (FP, OL and the scenarios after them) |
 | `dcd` | `test_c_treedb_literal_wins/dcd` | DC with drafts (`tw_dcd_*`, 76 sequences) |
 | `dcn` | `test_c_treedb_literal_wins/dcn` | DC without drafts (`tw_dcn_*`, 23 sequences) |
-| `o4` | `test_c_treedb_literal_wins/o4` | O4C, O4A, O4X |
+| `o4` | `test_c_treedb_literal_wins/o4` | O4C, O4A, and O4X of the literal that changes (`tw_o4cr_*`) |
+| `o4xa` | `test_c_treedb_literal_wins/o4xa` | O4X of the literal that adds (`tw_o4ar_<n>_<k>`) |
 
 Select a group with `--group=<name>`. With no `--group` (or `--group=all`),
 the binary runs every scenario, as one test:

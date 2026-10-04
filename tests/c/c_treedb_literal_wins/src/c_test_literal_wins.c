@@ -77,7 +77,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
-SDATA (DTP_STRING,      "group",            SDF_RD,             "all",      "Scenarios to run: all, early (run_tests(): the log compared line by line, and CR), late1 and late2 (the late scenarios before DC and after O4), dcd and dcn (DC with drafts, and without), o4 (O4C, O4A, O4X). ctest runs each group as a test of its own, in a store of its own"),
+SDATA (DTP_STRING,      "group",            SDF_RD,             "all",      "Scenarios to run: all, early (run_tests(): the log compared line by line, and CR), late1 and late2 (the late scenarios before DC and after O4), dcd and dcn (DC with drafts, and without), o4 (O4C, O4A, and O4X of the literal that changes), o4xa (O4X of the literal that adds). ctest runs each group as a test of its own, in a store of its own"),
 SDATA_END()
 };
 
@@ -156,7 +156,7 @@ PRIVATE void mt_create(hgobj gobj)
     mkrdir(path_root, 02770);
 
     const char *group = gobj_read_str_attr(gobj, "group");
-    const char *groups[] = {"all", "early", "late1", "late2", "dcd", "dcn", "o4", NULL};
+    const char *groups[] = {"all", "early", "late1", "late2", "dcd", "dcn", "o4", "o4xa", NULL};
     if(!str_in_list(groups, group, FALSE)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -6039,9 +6039,18 @@ PRIVATE int scenario_old_projection_died_adds(hgobj gobj)
     return old_projection_died(gobj, TRUE, FALSE);
 }
 
-PRIVATE int scenario_old_projection_died_twice(hgobj gobj)
+/*
+ *  O4X: the literal that changes and the one that adds are two late
+ *  scenarios, the second of a group of its own (o4xa): it is the longest
+ */
+PRIVATE int scenario_old_projection_died_twice_changes(hgobj gobj)
 {
-    return old_projection_died(gobj, FALSE, TRUE) + old_projection_died(gobj, TRUE, TRUE);
+    return old_projection_died(gobj, FALSE, TRUE);
+}
+
+PRIVATE int scenario_old_projection_died_twice_adds(hgobj gobj)
+{
+    return old_projection_died(gobj, TRUE, TRUE);
 }
 
 /***************************************************************************
@@ -7951,7 +7960,8 @@ PRIVATE const struct {
     {"dcn",     scenario_double_crash_no_drafts},
     {"o4",      scenario_old_projection_died_changes},
     {"o4",      scenario_old_projection_died_adds},
-    {"o4",      scenario_old_projection_died_twice},
+    {"o4",      scenario_old_projection_died_twice_changes},
+    {"o4xa",    scenario_old_projection_died_twice_adds},
     {"late2",   scenario_first_projection_of_older_release_died},
     {"late2",   scenario_left_by_older_release},
     {"late2",   scenario_save_leaves_what_older_release_left},

@@ -128,10 +128,10 @@ The single-binary directories that also register under `<directory>/`:
 `command_shutdown`, `command_binary_kw`, `c_tranger` and `libjwt`
 (`libjwt/test_jwt_alg_confusion`).
 
-`c_treedb_literal_wins` registers its one binary six times, once per group
+`c_treedb_literal_wins` registers its one binary seven times, once per group
 of scenarios, so that `ctest -j` runs them at once:
-`test_c_treedb_literal_wins/early`, `/late1`, `/late2`, `/dcd`, `/dcn` and
-`/o4`
+`test_c_treedb_literal_wins/early`, `/late1`, `/late2`, `/dcd`, `/dcn`, `/o4`
+and `/o4xa`
 (`--group=<name>`, see its `README.md`).
 
 ### Added after 7.25.4

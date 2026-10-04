@@ -1067,7 +1067,7 @@ PRIVATE const char *expected_end_msgs[] = {
  *  The groups of scenarios, one ctest each (`--group=<name>`, the attribute
  *  `group` of C_TEST_LITERAL_WINS); "all" runs every scenario
  */
-PRIVATE const char *groups[] = {"all", "early", "late1", "late2", "dcd", "dcn", "o4", NULL};
+PRIVATE const char *groups[] = {"all", "early", "late1", "late2", "dcd", "dcn", "o4", "o4xa", NULL};
 PRIVATE const char *group = "all";
 
 PRIVATE void append_msgs(json_t *list, const char **msgs)
@@ -1164,7 +1164,7 @@ int main(int argc, char *argv[])
         argv[n++] = argv[i];
     }
     if(!str_in_list(groups, group, FALSE)) {
-        printf("%sERROR --> %s%s: '%s', use --group=all|early|late1|late2|dcd|dcn|o4\n",
+        printf("%sERROR --> %s%s: '%s', use --group=all|early|late1|late2|dcd|dcn|o4|o4xa\n",
             On_Red BWhite, "unknown group", Color_Off, group);
         return -1;
     }

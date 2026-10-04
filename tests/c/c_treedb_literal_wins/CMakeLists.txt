@@ -78,6 +78,6 @@ target_link_libraries(${PROJECT_NAME}
 #   One test per group of scenarios, each in a store of its own, so that
 #   ctest -j runs them at once (in one binary the whole took ~215 s, the
 #   floor of a parallel suite). The groups are in src/main.c (`groups`)
-foreach(group early late1 late2 dcd dcn o4)
+foreach(group early late1 late2 dcd dcn o4 o4xa)
     add_test(NAME ${PROJECT_NAME}/${group} COMMAND ${PROJECT_NAME} --group=${group})
 endforeach()
