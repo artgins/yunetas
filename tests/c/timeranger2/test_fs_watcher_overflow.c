@@ -182,7 +182,7 @@ int __wrap_inotify_add_watch(int fd, const char *pathname, uint32_t mask)
 #define PROBE_MS    50
 #define MAX_DEAF_MS 1000
 #define SMALL_DIRS          4096    // the tree the big pass is held against
-#define MAX_OWN_GROWTH      2       // the watcher's cost per directory on the big tree: at most twice the small one's
+#define MAX_OWN_GROWTH      6       // the watcher's cost per directory on the big tree: at most six times the small one's
 #define MAX_OWN_SLACK_US    20      // ... plus this, for the noise of a short pass
 #define REBORN_DIR  "reborn"    // watched before the flood, deleted and created again in it
 
@@ -1919,7 +1919,14 @@ PRIVATE int do_test(void)
          *  the same watcher on a small tree of the same machine, not against
          *  a number of microseconds: a slower machine (artgins' Xeon D-1521)
          *  failed a fixed 200 us with the code right (224 -- most of it the
-         *  test's own count of the names told, O(N) a turn, now a counter)
+         *  test's own count of the names told, O(N) a turn, now a counter).
+         *  Six times, not two: the cost per directory is constant, its
+         *  tables are not. On artgins (6 MiB of L3, schedutil, a loaded
+         *  server) the 4096 directories stay in the cache and the 69632 do
+         *  not, and the owner's usleep() hands the CPU away between two of
+         *  them: 31-43 us against 60-124, the same in the watcher's own
+         *  figure (ms_watcher of its INFO), so not the loop. Twice failed
+         *  one run in three there; the index per slice was 14 times
          */
         printf("%sERROR%s --> the watcher's cost per directory grows with the tree: %lu us on %d directories, %lu on %d (at most %d times + %d us)\n",
             On_Red BWhite, Color_Off, (unsigned long)small_us, SMALL_DIRS,
