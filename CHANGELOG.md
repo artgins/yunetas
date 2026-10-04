@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.26.0 (2026-10-04)
 
 What changed after 7.25.22: five changes an operator or a developer has to
 know about (each in the upgrade steps below) -- a key delete signalled to the
