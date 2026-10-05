@@ -49,8 +49,8 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 - **Each test binary has a fixed port and a fixed directory under
   `~/tests_yuneta`**: two whole suites run at once on one machine collide
   (`ctest -j` within one run is safe since `scripts/check_test_ports.py`,
-  `scripts/check_test_databases.py` and the `RESOURCE_LOCK`s of 7.26.1). Ports and dirs chosen at run time would
-  end it.
+  `scripts/check_test_databases.py` and the `RESOURCE_LOCK`s of 7.26.1).
+  Ports and dirs chosen at run time would end it.
 - **`dba_postgres` does not link when `CONFIG_DBA_POSTGRES` is on** (it is
   off everywhere, so nothing builds it): the static `libpq.a` needs
   `libpgcommon` and `libpgport` too (`undefined reference to
