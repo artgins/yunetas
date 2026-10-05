@@ -3424,13 +3424,34 @@ PRIVATE BOOL system_node_links(hgobj gobj, const char *system_topic, const char 
  *  into memory that is not the parent's. So the child takes a ring of its
  *  own before anything else: the parent's operations in flight stay the
  *  parent's. HACK the ring is the first member of the loop (yev_loop.c).
+ *
+ *  ENOMEM/EAGAIN is retried as yev_loop_create() retries it (5 attempts,
+ *  100 ms doubling): with the groups of this test running at once under
+ *  ctest -j, a child once got ENOMEM with memlock unlimited, a transient
+ *  failure of the kernel to allocate the ring, and the sweep failed for it.
  ***************************************************************************/
 PRIVATE void child_takes_its_own_ring(void)
 {
     struct io_uring *ring = (struct io_uring *)yuno_event_loop();
     unsigned entries = ring->sq.ring_entries;
     io_uring_queue_exit(ring);
-    int ret = io_uring_queue_init(entries, ring, 0);
+    int ret = 0;
+    int retry_delay_ms = 100;
+    for(int retry = 0; retry < 5; retry++) {
+        ret = io_uring_queue_init(entries, ring, 0);
+        if(ret >= 0 || (ret != -ENOMEM && ret != -EAGAIN)) {
+            break;
+        }
+        printf("child %d: io_uring_queue_init(%u): %s, retrying in %d ms (attempt %d)\n",
+            (int)getpid(), entries, strerror(-ret), retry_delay_ms, retry + 1);
+        fflush(stdout);
+        struct timespec ts = {
+            .tv_sec  = retry_delay_ms / 1000,
+            .tv_nsec = (retry_delay_ms % 1000) * 1000000L,
+        };
+        nanosleep(&ts, NULL);
+        retry_delay_ms *= 2;
+    }
     if(ret < 0) {
         printf("%sERROR%s --> child %d: io_uring_queue_init(%u) FAILED: %s\n",
             On_Red BWhite, Color_Off, (int)getpid(), entries, strerror(-ret));
