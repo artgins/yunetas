@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **The root `build/` tree builds the tests, not the SDK** (`ENABLE_SDK`,
+  OFF by default). The kernel, modules, utils and yunos are built and
+  installed by each module's own build dir (`yunetas build`, and the first
+  step of `yunetas test`). The root tree built them too, and installed a
+  second copy of every library into `outputs/lib` over the first. Each tree
+  replaced the other's copy, and the new mtime relinked every executable of
+  the other tree on every run, with nothing changed. Now a second
+  `yunetas test` with no change relinks nothing (its root build: 1 s), and a
+  changed library still relinks every test that links it.
+  `-DENABLE_SDK=ON` gives the old self-contained tree (the ASan recipe of
+  `test_suite.md` uses it).
 - **`test_c_treedb_literal_wins` is seven tests, one per group of
   scenarios** (`test_c_treedb_literal_wins/early`, `/late1`, `/late2`,
   `/dcd`, `/dcn`, `/o4`, `/o4xa`; DC is split into its sweep with drafts and

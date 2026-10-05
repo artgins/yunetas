@@ -52,13 +52,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   the `RESOURCE_LOCK`s of 7.26.1). Ports and dirs chosen at run time would
   end it. A sibling of `check_test_ports.py` that fails when two binaries
   name the same `DATABASE` without a shared lock is not written yet.
-- **The module build dirs and the root `build/` ping-pong on
-  `outputs/lib`**: each tree builds its own copy of the kernel archives and
-  installs it over the other's, so each `yunetas test` relinks every
-  executable even with nothing changed. Either the tests link the library
-  targets when they exist in the same tree, or the root tree stops
-  installing what the module dirs install. Touches the build of every
-  consumer: needs its own review.
 - **`c_gss_udp_s_self_stop` phase 11 does not prove its order** (nit): it
   relies on the subscription order for its restart to come before the start
   C_GSS_UDP_S would post. Looked at 2026-10-03: in that order the restart's

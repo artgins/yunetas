@@ -526,8 +526,9 @@ What actually works, and what it costs:
 # 1. a non-static build, because -static and -fsanitize=address are exclusive
 cp .config .config.bak && sed -i 's/^CONFIG_FULLY_STATIC=y/CONFIG_FULLY_STATIC=n/' .config
 
-# 2. configure a separate tree WITH the sanitiser
-cmake -S . -B build_asan -DCMAKE_BUILD_TYPE=Debug \
+# 2. configure a separate tree WITH the sanitiser, and with the SDK in it
+#    (ENABLE_SDK: the root tree builds only the tests by default)
+cmake -S . -B build_asan -DCMAKE_BUILD_TYPE=Debug -DENABLE_SDK=ON \
     -DCMAKE_C_FLAGS="-fsanitize=address -g -fno-omit-frame-pointer" \
     -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address"
 

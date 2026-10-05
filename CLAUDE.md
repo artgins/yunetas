@@ -720,15 +720,25 @@ kernel source does not reach a test until `yunetas build` **installs** it (so
 configuring a build with `-fsanitize=address` instruments the test's own `.c`
 files **and nothing else** — ASan then reports nothing while the plain build
 keeps aborting, which reads as "not a real bug" and is only "you did not look at
-it". To sanitise for real, build the libraries in the ASan tree and **relink the
-test by hand** against them; and if the corruption is around json, instrument
+it". To sanitise for real, build the libraries in the ASan tree (configured
+with `-DENABLE_SDK=ON`, see below) and **relink the test by hand** against them; and if the corruption is around json, instrument
 `jansson` too (with its own generated config headers, or it parses nothing). The
 recipe is written down in `docs/doc.yuneta.io/test_suite.md`.
 
 `ctest --test-dir build` only **runs** tests, it never rebuilds them — the
-unified root `build/` tree is built by `yunetas test` (or `cmake --build
-build`), not by `yunetas build`. A raw ctest after per-module builds executes
-stale binaries.
+root `build/` tree is built by `yunetas test` (or `cmake --build build`), not
+by `yunetas build`. A raw ctest after per-module builds executes stale
+binaries.
+
+**The root `build/` holds the tests, performance and stress, NOT the SDK**
+(`ENABLE_SDK` OFF by default, since 2026-10-05). The kernel, modules, utils and
+yunos are built and installed by each module's own build dir (`yunetas build`,
+and the first step of `yunetas test`). Until then the root tree built them too
+and installed a second copy of every library into `outputs/lib` over the first:
+each tree replaced the other's copy and its new mtime relinked every executable
+of the other tree, on every `yunetas build` and every `yunetas test`, with
+nothing changed. `-DENABLE_SDK=ON` makes the root tree self-contained again (an
+ASan tree; a checkout with no module build dirs).
 
 **`yunetas test` builds first and runs ctest second, so "is ctest running?" is
 not "is it finished?".** Never start a second run while the first is still in
