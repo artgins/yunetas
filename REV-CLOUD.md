@@ -85,6 +85,14 @@ cannot see either); `yev_loop_create()` still sleeps after its last attempt
 
 #### Second check (2026-10-05): `c785163` and CLI 0.21.1
 
+**Applied (2026-10-05): the five points below**, in `051fbba1a`: the release rule
+reads timings from `build/*.j1.txt`; the CHANGELOG counts 14; the link check
+reads every `CMakeLists.txt` of six roots, whole, fails on an unreadable
+directory, and found and fixed `pkey_to_jwks` and `dba_postgres` (whose
+static `libpq` link is a separate, older gap, in `TODO.md`); the pre-tag
+audit runs the three checks; `test_tr2check` fails as *"tr2check not
+found"*; the lines rewrapped.
+
 Checked at `daf0f7c`, CLI 0.21.1 installed from `32bf3c9`, in the cloud
 container (4 cores), as `yuneta`; the code of both commits read against each
 finding, the CLI's own tests run (60 passed).
