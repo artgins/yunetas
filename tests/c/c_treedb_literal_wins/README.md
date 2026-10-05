@@ -50,6 +50,19 @@ it: the start up and the end for every group, and the scenarios of
 the table `late_scenarios`, so a new scenario goes in the group where it is
 added.
 
+Each step of the test runs ONE scenario, or ONE iteration of a sweep (CR, DC,
+O4C/O4A/O4X, FP), and the steps are 10 ms apart (`C_TIMER0`). Between two
+steps the loop runs, and completes what the step closed: the watcher of a
+treedb that closes is stopped with a cancel, and its inotify instance is
+released only when the loop sees that cancel complete. A group that ran a
+whole sweep in one step held up to ~1900 inotify instances, and the groups
+running at once under `ctest -j` reached the per-user limit (4096), shared
+with every other test and every yuno of the user: on a node, tests that
+open a watcher failed with *"inotify_init1() FAILED"*. With one iteration per
+step the largest group holds ~290, and the whole suite peaks at ~700. Write a
+new sweep the same way: one iteration per call, `repeat_step` until it is
+done (see `sweep_n`).
+
 ## Scenarios
 
 Each scenario opens its own treedb. At the end, it checks that the three

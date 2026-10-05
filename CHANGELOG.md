@@ -1,5 +1,21 @@
 # **Changelog**
 
+## Unreleased
+
+- **`test_c_treedb_literal_wins` releases its inotify instances as it
+  goes.** A sweep (CR, O4C/O4A/O4X, FP) and the 41 scenarios of the group
+  `early` ran in ONE step of the loop. The watcher of a treedb that closes
+  releases its inotify instance only when the loop completes its cancel, so
+  a group held up to ~1900 instances. Since 7.26.2 runs the groups at once,
+  they reached the per-user limit of 4096: on hidraulia `ctest -j12` failed
+  `emailsender/late_server`, `test_fs_watcher_overflow` and the group
+  `early` with *"inotify_init1() FAILED: The user limit on the total number
+  of INOTIFY INSTANCES has been reached"*. Each step now runs one scenario
+  or one iteration, and the steps are 10 ms apart, as the test asked:
+  `C_TIMER0` instead of `C_TIMER`, whose steps ran on the yuno's 1 s tick.
+  The largest group now holds ~290 instances, and the whole suite peaks at
+  ~700 instead of ~3860. The groups at once still take ~34 s.
+
 ## v7.26.2 (2026-10-05)
 
 A second release of the test suite and its build: no change in the

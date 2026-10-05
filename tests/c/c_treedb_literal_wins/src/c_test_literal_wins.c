@@ -131,6 +131,20 @@ typedef struct _PRIVATE_DATA {
     int dc_writes;              // the writes of the whole projection
     int dc_combos;
     int dc_completed;           // combos where the second process completed the projection
+
+    /*
+     *  The sweeps run ONE iteration per step (see ac_timeout): run_tests(),
+     *  CR, O4C/O4A/O4X and FP. A step that closes many treedbs keeps the
+     *  inotify instance of each watcher until the loop runs (the stop is a
+     *  cancel that completes there), and a whole sweep in one step held
+     *  ~1900 of them, against a per-user limit of 4096 shared with every
+     *  other test and yuno of the user
+     */
+    int early_step;             // run_tests(): the next scenario of early_scenarios[]
+    int cr_phase;               // run_tests(): 0 the early scenarios, 1 CR without drafts, 2 with
+    int sweep_outer;            // the outer index of the sweep running (marker, mode)
+    int sweep_n;                // its iteration, 0: not started
+    int sweep_total;            // its iterations
 } PRIVATE_DATA;
 
 
@@ -179,7 +193,11 @@ PRIVATE void mt_create(hgobj gobj)
     );
     rmrdir(priv->path_database);
 
-    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    /*
+     *  C_TIMER0: the steps are 10 ms apart, as set_timeout0() asks. C_TIMER
+     *  runs on the yuno's periodic tick and made each step one second
+     */
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
 }
 
 /***************************************************************************
@@ -201,7 +219,10 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    clear_timeout(priv->timer);
+    clear_timeout0(priv->timer);
+    if(gobj_is_running(priv->timer)) {
+        gobj_stop(priv->timer);
+    }
 
     return 0;
 }
@@ -234,7 +255,7 @@ PRIVATE int mt_play(hgobj gobj)
     );
     gobj_start_tree(priv->gobj_treedbs);
 
-    set_timeout(priv->timer, 100);
+    set_timeout0(priv->timer, 100);
 
     return 0;
 }
@@ -3548,11 +3569,97 @@ PRIVATE int cr_open_killed(hgobj gobj, const char *db, int kill_at)
         json_integer(status));
 }
 
+/*
+ *  CR at one k: the child killed at the k-th write, then the open that
+ *  completes the projection and the one after it
+ */
+PRIVATE int cr_kill_at(hgobj gobj, BOOL drafts, int k)
+{
+    const char *prefix = drafts? "tw_crd" : "tw_crn";
+    int result = 0;
+    char db[NAME_MAX];
+
+    snprintf(db, sizeof(db), "%s_%d", prefix, k);
+    result += cr_prepare(gobj, db, drafts);
+
+    int killed = cr_open_killed(gobj, db, k);
+    if(killed != 1) {
+        result += test_fail(gobj, db, "TEST FAIL: CR, the child was not killed at its write",
+            json_integer(k));
+        return result;
+    }
+    restart_system(gobj);
+
+    json_t *record = unfinished_record(gobj, db);
+    if(!json_is_true(json_object_get(record, "in_progress"))) {
+        result += test_fail(gobj, db,
+            "TEST FAIL: CR, a projection that died left no record of being in progress",
+            record? json_incref(record) : json_integer(k));
+    }
+    JSON_DECREF(record)
+
+    json_t *logs_before = gobj_get_log_data();
+    if(open_db(gobj, db, cr_v2(db), FALSE) < 0) {
+        JSON_DECREF(logs_before)
+        result--;
+        return result;
+    }
+    json_t *logs_after = gobj_get_log_data();
+    json_int_t errors = kw_get_int(gobj, logs_after, "error", 0, 0) -
+        kw_get_int(gobj, logs_before, "error", 0, 0);
+    json_int_t warnings = kw_get_int(gobj, logs_after, "warning", 0, 0) -
+        kw_get_int(gobj, logs_before, "warning", 0, 0);
+    if(errors != 0 || warnings != (drafts? 1 : 0)) {
+        result += test_fail(gobj, db, "TEST FAIL: CR, the open after the crash logged errors or warnings",
+            json_pack("{s:i, s:I, s:I}", "k", k, "errors", errors, "warnings", warnings));
+    }
+    JSON_DECREF(logs_before)
+    JSON_DECREF(logs_after)
+
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: CR, the open after the crash invented work, or lost the operator's",
+        0, drafts? json_pack("{s:s, s:s}", "users", "unsaved", "groups", "unsaved") : json_object());
+    result += check_agree(gobj, db, "TEST FAIL: CR, the open after the crash did not complete");
+    record = unfinished_record(gobj, db);
+    if(record) {
+        result += test_fail(gobj, db, "TEST FAIL: CR, a completed projection left its record",
+            json_incref(record));
+    }
+    JSON_DECREF(record)
+    close_db(gobj, db);
+
+    if(open_db(gobj, db, cr_v2(db), FALSE) < 0) {
+        result--;
+        return result;
+    }
+    result += check_withdrawn(gobj, db, "TEST FAIL: CR, the work was said twice", 0, json_object());
+    close_db(gobj, db);
+    return result;
+}
+
+/*
+ *  ONE k per step (see ac_timeout): the loop runs between two. The first
+ *  step counts the writes of the projection
+ */
 PRIVATE int scenario_crash_at_every_write(hgobj gobj, BOOL drafts)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *prefix = drafts? "tw_crd" : "tw_crn";
     int result = 0;
+
+    if(priv->sweep_n > 0) {
+        result += cr_kill_at(gobj, drafts, priv->sweep_n);
+        priv->sweep_n++;
+        if(priv->sweep_n <= priv->sweep_total) {
+            priv->repeat_step = TRUE;
+            return result;
+        }
+        printf("CR (%s): a projection of %d writes killed at each one\n",
+            drafts? "with drafts" : "no drafts", priv->sweep_total);
+        priv->sweep_n = 0;
+        priv->sweep_total = 0;
+        return result;
+    }
 
     /*
      *  How many writes the projection makes: an open that nobody kills
@@ -3576,67 +3683,9 @@ PRIVATE int scenario_crash_at_every_write(hgobj gobj, BOOL drafts)
         return result + test_fail(gobj, db, "TEST FAIL: CR, too few writes seen",
             json_integer(writes));
     }
-
-    for(int k = 1; k <= writes; k++) {
-        snprintf(db, sizeof(db), "%s_%d", prefix, k);
-        result += cr_prepare(gobj, db, drafts);
-
-        int killed = cr_open_killed(gobj, db, k);
-        if(killed != 1) {
-            result += test_fail(gobj, db, "TEST FAIL: CR, the child was not killed at its write",
-                json_integer(k));
-            continue;
-        }
-        restart_system(gobj);
-
-        json_t *record = unfinished_record(gobj, db);
-        if(!json_is_true(json_object_get(record, "in_progress"))) {
-            result += test_fail(gobj, db,
-                "TEST FAIL: CR, a projection that died left no record of being in progress",
-                record? json_incref(record) : json_integer(k));
-        }
-        JSON_DECREF(record)
-
-        json_t *logs_before = gobj_get_log_data();
-        if(open_db(gobj, db, cr_v2(db), FALSE) < 0) {
-            JSON_DECREF(logs_before)
-            result--;
-            continue;
-        }
-        json_t *logs_after = gobj_get_log_data();
-        json_int_t errors = kw_get_int(gobj, logs_after, "error", 0, 0) -
-            kw_get_int(gobj, logs_before, "error", 0, 0);
-        json_int_t warnings = kw_get_int(gobj, logs_after, "warning", 0, 0) -
-            kw_get_int(gobj, logs_before, "warning", 0, 0);
-        if(errors != 0 || warnings != (drafts? 1 : 0)) {
-            result += test_fail(gobj, db, "TEST FAIL: CR, the open after the crash logged errors or warnings",
-                json_pack("{s:i, s:I, s:I}", "k", k, "errors", errors, "warnings", warnings));
-        }
-        JSON_DECREF(logs_before)
-        JSON_DECREF(logs_after)
-
-        result += check_withdrawn(gobj, db,
-            "TEST FAIL: CR, the open after the crash invented work, or lost the operator's",
-            0, drafts? json_pack("{s:s, s:s}", "users", "unsaved", "groups", "unsaved") : json_object());
-        result += check_agree(gobj, db, "TEST FAIL: CR, the open after the crash did not complete");
-        record = unfinished_record(gobj, db);
-        if(record) {
-            result += test_fail(gobj, db, "TEST FAIL: CR, a completed projection left its record",
-                json_incref(record));
-        }
-        JSON_DECREF(record)
-        close_db(gobj, db);
-
-        if(open_db(gobj, db, cr_v2(db), FALSE) < 0) {
-            result--;
-            continue;
-        }
-        result += check_withdrawn(gobj, db, "TEST FAIL: CR, the work was said twice", 0, json_object());
-        close_db(gobj, db);
-    }
-
-    printf("CR (%s): a projection of %d writes killed at each one\n",
-        drafts? "with drafts" : "no drafts", writes);
+    priv->sweep_total = writes;
+    priv->sweep_n = 1;
+    priv->repeat_step = TRUE;
     return result;
 }
 
@@ -6025,28 +6074,51 @@ PRIVATE int o4_sequence(hgobj gobj, BOOL adds, BOOL keep_marker, int n, int kill
     return result;
 }
 
+/*
+ *  ONE (marker, n) per step (see ac_timeout): the loop runs between two
+ */
 PRIVATE int old_projection_died(hgobj gobj, BOOL adds, BOOL double_crash)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = 0;
-    json_t *ops = o4_writes(gobj, "x", adds);
-    int total = (int)json_array_size(ops);
-    JSON_DECREF(ops)
-    for(int marker = 0; marker < (double_crash? 1 : 2); marker++) {
-        for(int n = 1; n <= total; n++) {
-            if(!double_crash) {
-                int killed;
-                result += o4_sequence(gobj, adds, marker? TRUE : FALSE, n, 0, &killed);
-                continue;
-            }
-            for(int k = 1; k <= 40; k++) {
-                int killed = 0;
-                result += o4_sequence(gobj, adds, marker? TRUE : FALSE, n, k, &killed);
-                if(!killed) {
-                    break;
-                }
+    if(priv->sweep_n == 0) {
+        json_t *ops = o4_writes(gobj, "x", adds);
+        priv->sweep_total = (int)json_array_size(ops);
+        JSON_DECREF(ops)
+        if(priv->sweep_total < 1) {
+            return test_fail(gobj, "tw_o4", "TEST FAIL: O4, the emulated projection has no write",
+                json_integer(priv->sweep_total));
+        }
+        priv->sweep_outer = 0;
+        priv->sweep_n = 1;
+    }
+    int marker = priv->sweep_outer;
+    int n = priv->sweep_n;
+    if(!double_crash) {
+        int killed;
+        result += o4_sequence(gobj, adds, marker? TRUE : FALSE, n, 0, &killed);
+    } else {
+        for(int k = 1; k <= 40; k++) {
+            int killed = 0;
+            result += o4_sequence(gobj, adds, marker? TRUE : FALSE, n, k, &killed);
+            if(!killed) {
+                break;
             }
         }
     }
+
+    priv->sweep_n++;
+    if(priv->sweep_n > priv->sweep_total) {
+        priv->sweep_n = 1;
+        priv->sweep_outer++;
+    }
+    if(priv->sweep_outer < (double_crash? 1 : 2)) {
+        priv->repeat_step = TRUE;
+        return result;
+    }
+    priv->sweep_outer = 0;
+    priv->sweep_n = 0;
+    priv->sweep_total = 0;
     return result;
 }
 
@@ -6211,15 +6283,34 @@ PRIVATE int fp_sequence(hgobj gobj, int mode, int n, int *p_total)
     return result;
 }
 
+/*
+ *  ONE (mode, n) per step (see ac_timeout): the loop runs between two. The
+ *  first sequence of a mode says how many writes it has
+ */
 PRIVATE int scenario_first_projection_of_older_release_died(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = 0;
-    for(int mode = 0; mode < 3; mode++) {
-        int total = 1;
-        for(int n = 1; n <= total; n++) {
-            result += fp_sequence(gobj, mode, n, &total);
-        }
+    if(priv->sweep_n == 0) {
+        priv->sweep_outer = 0;
+        priv->sweep_n = 1;
+        priv->sweep_total = 1;
     }
+    result += fp_sequence(gobj, priv->sweep_outer, priv->sweep_n, &priv->sweep_total);
+
+    priv->sweep_n++;
+    if(priv->sweep_n > priv->sweep_total) {
+        priv->sweep_n = 1;
+        priv->sweep_total = 1;
+        priv->sweep_outer++;
+    }
+    if(priv->sweep_outer < 3) {
+        priv->repeat_step = TRUE;
+        return result;
+    }
+    priv->sweep_outer = 0;
+    priv->sweep_n = 0;
+    priv->sweep_total = 0;
     return result;
 }
 
@@ -7870,10 +7961,56 @@ PRIVATE BOOL group_runs(hgobj gobj, const char *group)
 
 /***************************************************************************
  *  The scenarios whose log is compared line by line, then CR: the group
- *  early
+ *  early. ONE scenario per step, and CR one k per step (see ac_timeout)
  ***************************************************************************/
+PRIVATE int (*early_scenarios[])(hgobj gobj) = {
+    scenario_removed_topic,
+    scenario_tie_and_hook,
+    scenario_equal_topic_version,
+    scenario_drafts_withdrawn,
+    scenario_literal_not_newer,
+    scenario_renamed_topic,
+    scenario_topic_not_raised,
+    scenario_imposed_removed_topic,
+    scenario_missing_topic_dir_is_no_apply,
+    scenario_snapshot_holds_removed_topic,
+    scenario_second_open_refused,
+    scenario_apply_that_ran,
+    scenario_seed_from_dynamic_file,
+    scenario_client_store_locked,
+    scenario_apply_record_unwritable,
+    scenario_draft_while_unfinished,
+    scenario_leftovers_on_every_path,
+    scenario_seed_is_not_unfinished,
+    scenario_apply_after_a_crash,
+    scenario_failed_seed_is_retried,
+    scenario_open_that_fails,
+    scenario_draft_on_leftover_across_retries,
+    scenario_draft_where_the_projection_fails,
+    scenario_unreadable_unfinished_record,
+    scenario_first_projection_stamped_last,
+    scenario_failed_open_says_so,
+    scenario_deleted_topic_draft,
+    scenario_seed_that_died,
+    scenario_saved_draft_across_retries,
+    scenario_added_topic_draft,
+    scenario_edited_leftover,
+    scenario_failed_write_then_restart,
+    scenario_failed_write_retried_in_process,
+    scenario_unlinked_leftover_col,
+    scenario_orphan_col_adopted,
+    scenario_orphan_topic_adopted,
+    scenario_leftovers_under_older_meta_schema,
+    scenario_failed_link_of_new_topic,
+    scenario_failed_take_leaves_the_orphans,
+    scenario_dotted_treedb_names,
+    scenario_column_moved_by_the_operator,
+    NULL
+};
+
 PRIVATE int run_tests(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = 0;
 
     if(!group_runs(gobj, "early")) {
@@ -7881,56 +8018,27 @@ PRIVATE int run_tests(hgobj gobj)
         return 0;
     }
 
-    result += scenario_removed_topic(gobj);
-    result += scenario_tie_and_hook(gobj);
-    result += scenario_equal_topic_version(gobj);
-    result += scenario_drafts_withdrawn(gobj);
-    result += scenario_literal_not_newer(gobj);
-    result += scenario_renamed_topic(gobj);
-    result += scenario_topic_not_raised(gobj);
-    result += scenario_imposed_removed_topic(gobj);
-    result += scenario_missing_topic_dir_is_no_apply(gobj);
-    result += scenario_snapshot_holds_removed_topic(gobj);
-    result += scenario_second_open_refused(gobj);
-    result += scenario_apply_that_ran(gobj);
-    result += scenario_seed_from_dynamic_file(gobj);
-    result += scenario_client_store_locked(gobj);
-    result += scenario_apply_record_unwritable(gobj);
-    result += scenario_draft_while_unfinished(gobj);
-    result += scenario_leftovers_on_every_path(gobj);
-    result += scenario_seed_is_not_unfinished(gobj);
-    result += scenario_apply_after_a_crash(gobj);
-    result += scenario_failed_seed_is_retried(gobj);
-    result += scenario_open_that_fails(gobj);
-    result += scenario_draft_on_leftover_across_retries(gobj);
-    result += scenario_draft_where_the_projection_fails(gobj);
-    result += scenario_unreadable_unfinished_record(gobj);
-    result += scenario_first_projection_stamped_last(gobj);
-    result += scenario_failed_open_says_so(gobj);
-    result += scenario_deleted_topic_draft(gobj);
-    result += scenario_seed_that_died(gobj);
-    result += scenario_saved_draft_across_retries(gobj);
-    result += scenario_added_topic_draft(gobj);
-    result += scenario_edited_leftover(gobj);
-    result += scenario_failed_write_then_restart(gobj);
-    result += scenario_failed_write_retried_in_process(gobj);
-    result += scenario_unlinked_leftover_col(gobj);
-    result += scenario_orphan_col_adopted(gobj);
-    result += scenario_orphan_topic_adopted(gobj);
-    result += scenario_leftovers_under_older_meta_schema(gobj);
-    result += scenario_failed_link_of_new_topic(gobj);
-    result += scenario_failed_take_leaves_the_orphans(gobj);
-    result += scenario_dotted_treedb_names(gobj);
-    result += scenario_column_moved_by_the_operator(gobj);
+    if(early_scenarios[priv->early_step]) {
+        result += early_scenarios[priv->early_step](gobj);
+        priv->early_step++;
+        priv->repeat_step = TRUE;
+        return result;
+    }
 
     /*
      *  CR: where the process dies decides what the retry logs, so its log
      *  is not compared line by line; each retry counts its errors and
      *  warnings instead (see scenario_crash_at_every_write)
      */
-    gobj_log_del_handler("test_capture");
-    result += scenario_crash_at_every_write(gobj, FALSE);
-    result += scenario_crash_at_every_write(gobj, TRUE);
+    if(priv->cr_phase == 0) {
+        gobj_log_del_handler("test_capture");
+        priv->cr_phase = 1;
+    }
+    result += scenario_crash_at_every_write(gobj, priv->cr_phase == 2? TRUE : FALSE);
+    if(!priv->repeat_step && priv->cr_phase == 1) {
+        priv->cr_phase = 2;
+        priv->repeat_step = TRUE;
+    }
 
     /*
      *  The capture stays off: the late scenarios count what each open
@@ -8056,13 +8164,16 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  callback filled the completion queue of io_uring, and nothing more
      *  could be submitted (yev_loop keeps such submissions now, "Submission
      *  queue full and the kernel takes nothing", until the loop runs). A
-     *  late scenario that sets `repeat_step` runs again at the next step
+     *  scenario that sets `repeat_step` runs again at the next step: a
+     *  sweep runs one iteration per step so (see `sweep_n`)
      */
     priv->repeat_step = FALSE;
     if(priv->step == 0) {
         priv->result += run_tests(gobj);
-        gobj_log_register_handler("counting", 0, counting_log_write, 0);
-        gobj_log_add_handler("test_counting", "counting", LOG_OPT_UP_WARNING, 0);
+        if(!priv->repeat_step) {
+            gobj_log_register_handler("counting", 0, counting_log_write, 0);
+            gobj_log_add_handler("test_counting", "counting", LOG_OPT_UP_WARNING, 0);
+        }
     } else {
         priv->result += late_scenarios[priv->step - 1].scenario(gobj);
     }
@@ -8073,8 +8184,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             priv->step++;
         }
     }
-    if(late_scenarios[priv->step - 1].scenario) {
-        set_timeout(priv->timer, 10);
+    if(priv->repeat_step || late_scenarios[priv->step - 1].scenario) {
+        set_timeout0(priv->timer, 10);
         KW_DECREF(kw)
         return 0;
     }
@@ -8175,6 +8286,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_idle[] = {
         {EV_TIMEOUT,                ac_timeout,         0},
+        {EV_STOPPED,                0,                  0},
         {EV_TREEDB_NODE_CREATED,    ac_system_write,    0},
         {EV_TREEDB_NODE_UPDATED,    ac_system_write,    0},
         {EV_TREEDB_NODE_DELETED,    ac_system_write,    0},
@@ -8189,6 +8301,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_TIMEOUT,                0},
+        {EV_STOPPED,                0},
         {EV_TREEDB_NODE_CREATED,    0},
         {EV_TREEDB_NODE_UPDATED,    0},
         {EV_TREEDB_NODE_DELETED,    0},
