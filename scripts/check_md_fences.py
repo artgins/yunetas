@@ -57,13 +57,20 @@ def check_file(path, rel):
     return findings
 
 
-def markdown_files(base, paths):
+def markdown_files(base, paths, problems):
+    def walk_error(e):
+        # A directory not listed is a directory not checked: said, and a failure
+        problems.append(f'cannot list {os.path.relpath(e.filename, base)}: {e.strerror}')
+
     for p in paths:
         p = os.path.join(base, p) if not os.path.isabs(p) else p
         if os.path.isfile(p):
             yield p
             continue
-        for d, dirs, files in os.walk(p):
+        if not os.path.isdir(p):
+            problems.append(f'{os.path.relpath(p, base)} not found')
+            continue
+        for d, dirs, files in os.walk(p, onerror=walk_error):
             rel_d = os.path.relpath(d, base)
             dirs[:] = [x for x in dirs if x not in SKIP_DIRS
                        and os.path.normpath(os.path.join(rel_d, x)) not in SKIP_PATHS]
@@ -76,9 +83,10 @@ def main():
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     paths = sys.argv[1:] or ['.']
     findings = []
+    problems = []
     unreadable = 0
     checked = 0
-    for p in markdown_files(base, paths):
+    for p in markdown_files(base, paths, problems):
         rel = os.path.relpath(p, base)
         try:
             findings += check_file(p, rel)
@@ -87,6 +95,9 @@ def main():
             # A file not read is a file not checked: said, and a failure
             print(f'cannot read {rel}: {e.strerror}', file=sys.stderr)
             unreadable += 1
+    for problem in problems:
+        print(problem, file=sys.stderr)
+    unreadable += len(problems)
     for f in findings:
         print(f)
     if findings:
@@ -94,7 +105,7 @@ def main():
     elif not unreadable:
         print(f'{checked} Markdown file(s) checked: every fenced block closes')
     if unreadable:
-        print(f'{unreadable} file(s) could not be read: their fences are not checked')
+        print(f'{unreadable} file(s) or director(ies) could not be read: their fences are not checked')
     if findings or unreadable:
         return 1
     return 0

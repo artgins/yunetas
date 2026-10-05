@@ -102,7 +102,8 @@ Checked at `e50796f`, CLI 0.21.2 installed from `0188abf` (the
 Notes, not defects: `check_md_fences.py` ignores fences indented 4 spaces or
 more (opening and closing alike, so no false finding), and its `os.walk()`
 has no `onerror`, as the link check had before its fix: an unreadable
-directory is skipped without a word. `check_test_databases.py` keeps the two
+directory is skipped without a word. (Applied 2026-10-05: `os.walk()` has its
+`onerror` now, and a path not found is said too; both exit 1.) `check_test_databases.py` keeps the two
 logs in a `finally` and says when it cannot put one back.
 
 #### Third check (2026-10-05): `051fbba`
