@@ -9,9 +9,9 @@ other, or used to share ports), and `yunetas test` takes more than 30
 minutes. Can it be faster?
 
 Status: **done, released in 7.26.1, 7.26.2 and 7.26.3** (see *Result* just
-below). The analysis that follows the result is kept as it was written:
-measured in a cloud container (4 cores), plus an audit of what the tests
-share.
+below), **and verified** (see *Verification*: one bug and some gaps left).
+The analysis that follows them is kept as it was written: measured in a cloud
+container (4 cores), plus an audit of what the tests share.
 
 ### Result (2026-10-05)
 
@@ -48,6 +48,157 @@ change in the sources went from ~31 min (1250 s of ctest alone at 7.26.0) to
   budgets (inotify instances, memlock) with the yunos running there.** The
   hidraulia run that failed had exhausted them: a production yuno opening a
   watcher at that moment would have failed too.
+
+### Verification (2026-10-05): the work applied
+
+Checked at `344c6aa` (SDK 7.26.3 + `check_test_databases.py`, CLI 0.21.0
+`7ba50c9`): the code of every commit read (three independent read-only
+reviews, each finding below re-checked by hand), and the user's flow run for
+real in the cloud container (4 cores), as `yuneta`, with CLI 0.21.0 installed
+from `7ba50c9`.
+
+**Verdict: the work does what the proposal asked, and it is fast; one real
+bug (18 test binaries not relinked when a kernel library changes, item 1
+below) and a few gaps.**
+
+| Step (CLI 0.21.0, 4 cores) | Time | Result |
+|---|---|---|
+| `yunetas init` | 16 s | ok |
+| `yunetas build` (module objects already compiled) | 128 s | ok |
+| `yunetas test`, first after `init` | **456 s** | 298/298, `ctest -j4` 370 s; 291 executables relinked (the root tree configured anew) |
+| `yunetas test`, nothing changed | **368 s** | 298/298, `ctest -j4` 360 s; **0 relinks**, ~8 s of build |
+
+On this box a `yunetas test` with nothing changed went from ~31 min (7.26.0,
+CLI 0.20.4) to **~6 min**. The ping-pong on `outputs/lib` is gone (0
+relinks), and the version gate works (`Running 'ctest -j4 ...'` on 7.26.3).
+
+#### Findings, most severe first
+
+1. **Bug: 18 test binaries are not relinked when a kernel library changes,
+   and nothing says so.** They name four archives BARE in
+   `target_link_libraries` (`libtimeranger2.a`, `libyev_loop.a`,
+   `libytls.a`, `libyunetas-gobj.a`; e.g.
+   `tests/c/tr_treedb_rowid/CMakeLists.txt:62-65`), which CMake turns into a
+   `-l` search, not a file dependency: `build.make` of `test_tr_treedb_rowid`
+   lists `libjwt-y.a`, `libjansson.a`, ... by full path and none of the four.
+   Experiment on this tree: a marker string appended to `gobj.c`, then the
+   build phase of `yunetas test` (module installs + root `make -j4
+   install`): **268 binaries carry it; the 18 do not** — the 15
+   `tr_treedb_*` (`_rowid`, `_relink`, `_snap`, `_snap_clone`, `_files`,
+   `_immutable`, `_link_events`, `_load_failed`, `_failed_save`,
+   `_update_instance`, `_schema_parse`, `_hook_hygiene`, `_hook_rename`,
+   `_delete_instance`), `tr_dt_unknown`, and `perf_timeranger2`,
+   `perf_tr_treedb`, `perf_rotatory`. (The 3 others without it hold no
+   gobj code: `static_resolv/*`, `test_handshake_reject_mbedtls`.) So after
+   a change in timeranger2 or gobj — exactly what these tests are for — they
+   pass or fail on the OLD library. Until 0.21.0 the `make clean` hid it;
+   then, until 7.26.2, the ping-pong did (they depend on `libjwt-y.a` by full
+   path, reinstalled on every run). **This also corrects (a) below**, and
+   three texts that state the opposite: CHANGELOG v7.26.2 (*"a changed
+   library still relinks every test that links it"*), the message of
+   `5da4f6939`, and `test_suite.md:483-500`, whose worked example is
+   `test_tr_treedb_rowid` itself (*"the next build of the test relinks
+   it"*). Fix: link the four by full path (`${LIB_DEST_DIR}/libtimeranger2.a`
+   ..., or the sub-list of `YUNETAS_KERNEL_LIBS`) in those 18
+   `CMakeLists.txt`; a check that no `CMakeLists.txt` under
+   `tests`/`performance`/`stress` names a `lib*.a` bare keeps it fixed.
+2. **Gap: the CLI's parallel gate lets in 7.26.2**, whose suite the 7.26.3
+   CHANGELOG says failed in parallel on hidraulia and artgins
+   (`CTEST_PARALLEL_SINCE = (7, 26, 1)`, tui_yunetas `main.py:899`). 7.26.1
+   passed in parallel (validated in this review), 7.26.2 is the bad one.
+   Fix: exclude 7.26.2, or raise the floor to `(7, 26, 3)`.
+3. **Gap: `yunetas build` still runs `make` with no `-j`**
+   (tui_yunetas `main.py:281` for the SDK, `:289` for the projects); only
+   `test` got it. A full build is where it costs most (yesterday's figures:
+   397 s serial vs 106 s at `-j4` for the root tree). Fix: the same
+   `--jobs` option.
+4. **Gap: `test_tr2check` now tests whatever `tr2check` is installed.** With
+   `ENABLE_SDK` OFF the root tree has no `tr2check` target, so
+   `tests/c/timeranger2/CMakeLists.txt:174-179` always falls back to
+   `/yuneta/bin/tr2check`: a machine-wide path, so a worktree run (the A/B of
+   the last tag, the wattyzer release suite) tests the last one installed,
+   not its own. `yuno_skeleton` dropped the same fallback for this reason.
+   Fix: fall back to `${YUNETAS_BASE}/utils/c/tr2check/build/tr2check`.
+5. **Gap: `scripts/check_test_databases.py` does not see the most common
+   shape of the `C_NODE`/`C_TREEDB` tests**: `build_path(path_database, ...,
+   path_root, "<name>", NULL)` with `"database", "<name>"` (or a bare
+   `"<name>"` argument after `path_root`). About ten tests are invisible to
+   it — `c_subscription_authz`, `c_node_initial_load`, `c_node_paged_nodes`,
+   `c_node_authz`, `c_agent_find_new_yunos`, `c_treedb_system_schema`,
+   `treedb_schema_fidelity`, `c_controlcenter_scenarios`
+   (`register_yuneta_environment(root, "<name>")`) — 146 of the 298 tests have
+   a directory it sees. Their names are unique today, so there is no
+   collision now; a new one would pass unseen. Fix: two more patterns,
+   `"database"\s*,\s*"([^"%]+)"` and `register_yuneta_environment\([^,]+,\s*"([^"%]+)"`
+   (under `tests_yuneta/store/`). Also, the example in `test_suite.md`
+   (`tr_msg` vs `tr_msg2db/test_pkey2_empty`) is made up but names real tests
+   (`test_pkey2_empty` uses `tr_msg2db_test`): say it is an illustration, or
+   use invented names.
+6. **Gap: `build/*.txt` now mixes serial and parallel timings.** The release
+   checklist reads the trend of the timed tests from those logs; the name
+   (`<iso>.txt`) does not say the job count. The `RUN_SERIAL` tests are run
+   alone, but the rest are not comparable across `-j`. Fix: the jobs in the
+   name (`<iso>.j4.txt`, and widen `CTEST_LOG_NAME`), or document `--serial`
+   for comparisons.
+7. **The reason given for `C_TIMER0` in `test_c_treedb_literal_wins` is not
+   the real one** (`c_test_literal_wins.c:196-199`, and the message of
+   `afc4d27ed`: *"10 ms apart, as set_timeout0() asks"*), and it reads like
+   the deferral-by-timer CLAUDE.md forbids. The timer IS right, for another
+   reason: with a posted event pending, `yev_loop_run()` takes at most ONE
+   completion per cycle (`io_uring_peek_cqe`, `yev_loop.c:1829-1844`), while
+   a step leaves many watcher cancels to reap; chaining steps with
+   `gobj_post_event()` would release ~1 inotify instance per step and bring
+   the leak back. The timer's completion queues behind the step's cancels, so
+   it is a barrier ("after the ring has drained this step"), and 10 ms is a
+   margin. Fix: say that in the comment.
+8. **Nits.**
+    - CLI: `-j 0` / `-j -3` silently become `-j1` (`typer.Option(..., min=1)`);
+      the default `os.cpu_count()` ignores the container's affinity
+      (`len(os.sched_getaffinity(0))`); `sdk_version()` runs (and may warn)
+      with `--serial`; the CLI README still reads `yunetas test # ctest`; no
+      unit test of `test()` / `sdk_version()`.
+    - `test_c_treedb_literal_wins`: README:24-25 *"the longest alone (`o4xa`)
+      takes ~47 s"* (41dcc5a measured 28 s); README:182-185 still says only
+      the scenarios from LM on run one per step; with no `--group` the binary
+      runs `all` without a word; the group list is written in four places
+      (`main.c` `groups[]`, `mt_create`, the usage string, CMake); the
+      ENOMEM retry sleeps 1.6 s after its last attempt (as
+      `yev_loop_create()` does).
+    - Docs: `tests/c/README.md` and `performance/c/README.md` say nothing of
+      the locks / `RUN_SERIAL` (where a new test's author looks);
+      `tests/c/README.md:112` *"37 binaries"* (42); CHANGELOG v7.26.2:44 says
+      an old root `build/` stops building the SDK *"at its next `yunetas
+      init`"* — it is at its next `make` (the changed `CMakeLists.txt`
+      re-runs the configure); `CLAUDE.md:724` is a 129-character line;
+      `perf_c_tcp/test4` and `perf_c_tcps/test4` hold the
+      `perf_topic_integer` lock that only `test5` needs (harmless,
+      `RUN_SERIAL` anyway).
+
+#### Verified correct
+
+- The ctest properties: every name in `set_tests_properties` exists, the G1
+  fixture chain, the locks, `RUN_SERIAL` on the 11 benchmarks, the
+  `perf_yev_ping_pong2` rename; no other pair of tests shares a directory
+  without a lock (the seven `literal_wins` groups use
+  `c_treedb_literal_wins_<group>` each); `check_test_databases.py` exits 0.
+- The `literal_wins` split: the 41 early scenarios and the late ones each in
+  exactly one group, in the same order; DC and O4X split by sweep with the
+  same content; an unknown `--group` refused (`main.c:1166-1170` and
+  `mt_create`); the per-step bounds match the old loops; the ENOMEM retry is
+  bounded (5), says each retry, fails loud, and mirrors
+  `yev_loop_create()`.
+- `ENABLE_SDK`: correct; the hook (`yunetas build` before `cmake --build
+  build`), `yuno_skeleton` and the ASan recipe (`-DENABLE_SDK=ON`) still
+  work.
+- CLI 0.21.0: `make -jN` in the module dirs and in `build/`; `--clean`,
+  `--serial` (`make -j8`, `ctest -j1`), `-j abc` refused by typer; the gate
+  serial on 7.26.0 with its message, parallel on 7.26.3; the ctest log name
+  and the logs `init` keeps unchanged; the `MarkupError` fixed (a clean
+  message and exit 1 without `YUNETAS_BASE`); its 51 tests pass; published
+  as 0.21.0 on PyPI and the `utils/python/tui_yunetas` pointer of yunetas at
+  `7ba50c9`.
+- Releases: tags `7.26.1`, `7.26.2`, `7.26.3` on GitHub, `YUNETA_VERSION`
+  7.26.3, `RELEASE` 1, a CHANGELOG section each, CLAUDE.md at 7.26.3.
 
 ### Findings so far
 
@@ -211,7 +362,10 @@ machine, **~600 s of build + 1273 s of ctest = ~31 min** — the "more than
 half an hour" of the question. **A third of it is compiling, and almost all
 of that compiling is useless:**
 
-**(a) The `make clean` is not needed.** Experiment: a global with a marker
+**(a) The `make clean` is not needed.** (Corrected on 2026-10-05: not true
+for 18 binaries, which name the kernel archives bare and were relinked in
+this experiment only by the ping-pong of (b); see item 1 of
+*Verification*.) Experiment: a global with a marker
 string appended to `kernel/c/gobj-c/src/gobj.c`, then ONLY steps 1 and 2
 (`-j4`, no clean). **287 of the 290 ELF test binaries carry the marker**;
 the other three do not contain `gobj.o` at all (`static_resolv/*` link only
