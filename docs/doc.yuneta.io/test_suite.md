@@ -76,6 +76,32 @@ tests that flood the per-user inotify queue). The benchmarks and the
 times, and other tests that run at the same time change them. A new test that
 reuses a directory of another test must declare the same lock.
 
+`scripts/check_test_databases.py` checks it, as `check_test_ports.py` checks
+the ports. It reads the directories of each test from its sources (a
+`#define` of a `*DATABASE*` or `*STORE*` name, a `build_path()` segment after
+`"tests_yuneta"`, a literal `/tmp/<path>`) and the properties from ctest
+itself, so it needs a configured and built `build/`. Two tests that name one
+directory (or one under the other) collide unless ctest keeps them apart: a
+shared `RESOURCE_LOCK`, `RUN_SERIAL` on one of them, a `DEPENDS` between them,
+or one the `FIXTURES_SETUP` of what the other `FIXTURES_REQUIRED`:
+
+```bash
+python3 scripts/check_test_databases.py          # exit 1 on a collision, or a test not read
+python3 scripts/check_test_databases.py --list   # every directory and its tests
+```
+
+```text
+~/tests_yuneta/tr_msg COLLISION
+    tr_msg/test_tr_msg1: tests/c/tr_msg/test_tr_msg1.c  [tr_msg]
+    tr_msg/test_tr_msg2: tests/c/tr_msg/test_tr_msg2.c  [tr_msg]
+    tr_msg2db/test_pkey2_empty: tests/c/tr_msg2db/test_pkey2_empty.c
+    can run at once: tr_msg/test_tr_msg1 <-> tr_msg2db/test_pkey2_empty
+```
+
+Tests that run the same executable with other arguments (the groups of
+`test_c_treedb_literal_wins`) are not compared, and a directory built at run
+time from a format is not seen.
+
 `ctest -j` also needs the inotify limits of `99-yuneta-core.conf` (installed
 by the package). With the Linux defaults (128 instances per user), several
 treedb tests at once fail with *"inotify_init1() FAILED"*. Two checkouts on

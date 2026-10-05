@@ -48,10 +48,9 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   overwrites it).
 - **Each test binary has a fixed port and a fixed directory under
   `~/tests_yuneta`**: two whole suites run at once on one machine collide
-  (`ctest -j` within one run is safe since `scripts/check_test_ports.py` and
-  the `RESOURCE_LOCK`s of 7.26.1). Ports and dirs chosen at run time would
-  end it. A sibling of `check_test_ports.py` that fails when two binaries
-  name the same `DATABASE` without a shared lock is not written yet.
+  (`ctest -j` within one run is safe since `scripts/check_test_ports.py`,
+  `scripts/check_test_databases.py` and the `RESOURCE_LOCK`s of 7.26.1). Ports and dirs chosen at run time would
+  end it.
 - **`c_gss_udp_s_self_stop` phase 11 does not prove its order** (nit): it
   relies on the subscription order for its restart to come before the start
   C_GSS_UDP_S would post. Looked at 2026-10-03: in that order the restart's

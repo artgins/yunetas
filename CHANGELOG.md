@@ -1,5 +1,15 @@
 # **Changelog**
 
+## Unreleased
+
+- **`scripts/check_test_databases.py`: two tests that can use one directory
+  at the same time are found**, as `check_test_ports.py` finds two that use
+  one port. It reads the directories of each test from its sources and its
+  `RESOURCE_LOCK` / `RUN_SERIAL` / `DEPENDS` / fixtures from ctest, and exits 1
+  when two tests name one directory (or one under the other) and ctest can
+  run them at once. The tree passes it today: 173 directories, the four
+  shared ones each under a lock.
+
 ## v7.26.3 (2026-10-05)
 
 A fix of the test suite: 7.26.2's suite failed on two nodes running it in
