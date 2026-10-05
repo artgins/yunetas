@@ -24,7 +24,7 @@ change in the sources went from ~31 min (1250 s of ctest alone at 7.26.0) to
 |---|---|---|---|
 | 1. no `make clean`, `make -j` | CLI 0.21.0 | tui_yunetas `7ba50c9` | As proposed; `--clean` keeps the old behaviour. Also the `MarkupError` of `main.py:64-66`, fixed. |
 | 2. `ctest -j` | CLI 0.21.0 | tui_yunetas `7ba50c9` | As proposed, gated on SDK >= 7.26.1 (`CTEST_PARALLEL_SINCE`); `--jobs`, `--serial`. |
-| 3. declare what the tests share | 7.26.1 | `7c05be021` | The yunetas patch as written. The sibling of `check_test_ports.py` for shared `DATABASE`s is not written: it stays in `TODO.md`. |
+| 3. declare what the tests share | 7.26.1 | `7c05be021` | The yunetas patch as written. The sibling of `check_test_ports.py` for shared directories came after: `scripts/check_test_databases.py` (`13e55722a`). |
 | 4. `RUN_SERIAL` on the timed tests | 7.26.1 | `7c05be021` | As proposed. |
 | 5. split `test_c_treedb_literal_wins` | 7.26.2 | `5385260a5`, `8181b9a7a`, `a91bcdc35`, `41dcc5a36` | Seven groups instead of ~four (`early`, `late1`, `late2`, `dcd`, `dcn`, `o4`, `o4xa`; `--group=<name>`): DC and O4X split by sweep. The seven at once: ~34 s instead of 218 s. |
 | 6. end the ping-pong on `outputs/lib` | 7.26.2 | `5da4f6939` | Option (ii): the root `build/` builds the tests, performance and stress only (`ENABLE_SDK`, OFF by default; ON for the ASan tree). No CLI change. |
