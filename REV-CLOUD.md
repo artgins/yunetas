@@ -72,6 +72,17 @@ On this box a `yunetas test` with nothing changed went from ~31 min (7.26.0,
 CLI 0.20.4) to **~6 min**. The ping-pong on `outputs/lib` is gone (0
 relinks), and the version gate works (`Running 'ctest -j4 ...'` on 7.26.3).
 
+**Applied (2026-10-05): all eight findings**, in yunetas `c78516367` and
+the CLI 0.21.1 (tui_yunetas `32bf3c9`, on PyPI). Checked after them:
+`yunetas test` 298/298 with `ctest -j8` (log `<date>.j8.txt`), a marker in
+`gobj.c` reaches the 286 test binaries that hold gobj code, and the three
+checks (`check_test_ports.py`, `check_test_databases.py`, the new
+`check_test_links.py`) pass. Left as they were, on purpose: the group list
+of `literal_wins` is in three places, not one (`main.c` `groups[]`, the
+guard of `mt_create`, the CMake loop: a gclass cannot see `main.c`, and CMake
+cannot see either); `yev_loop_create()` still sleeps after its last attempt
+(a kernel change, not a test's).
+
 #### Findings, most severe first
 
 1. **Bug: 18 test binaries are not relinked when a kernel library changes,
