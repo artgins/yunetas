@@ -83,6 +83,36 @@ guard of `mt_create`, the CMake loop: a gclass cannot see `main.c`, and CMake
 cannot see either); `yev_loop_create()` still sleeps after its last attempt
 (a kernel change, not a test's).
 
+#### Fifth check (2026-10-05): `0d5baf7` and `4f3db35`
+
+Checked at `4f3db35`, CLI 0.21.2, cloud container (4 cores), as `yuneta`.
+
+**Verdict: both are right. One test of the same class is left.**
+
+- `check_md_fences.py` (`0d5baf7`): a locked directory (*"cannot list ...:
+  Permission denied"*) and a missing path (*"... not found"*) each exit 1;
+  the repo passes (392 files). The note of the fourth check is closed.
+- `test_fs_watcher_overflow` `RUN_SERIAL` (`4f3db35`): set (26 tests are
+  `RUN_SERIAL` now: the 11 benchmarks, the 7 of the `tr_topic_pkey_integer`
+  chain, the 7 wall-clock windows and this one). `yunetas test` 298/298 in
+  **417 s** (`ctest -j4` 407 s), the test 44 s alone; that is +26 s over the
+  fourth check (391 s), the price of running it alone on 4 cores.
+- **My miss in the fourth check.** Its *"nothing new to fix"* came from one
+  run on 4 cores, where this test passed; the first audit had listed it among
+  the tests that load can break (*"the six times check"*,
+  `test_fs_watcher_overflow.c:1914`), and the fourth check did not say it was
+  still running in parallel. wattyzer at `-j8` found it.
+- **Left of that list, with a real time condition, not serialized:**
+  `test_c_controlcenter_scenarios`. It asserts the rate of a burst over its
+  1.5 s tick, between `2N*1000/tick` and `2N*1000/(tick*3/2)`
+  (`c_test_cc.c:1191-1201`): a tick stretched more than 50% by the load
+  fails it. It passed in every run of this session (7.1 s), but it is the same
+  class; `RUN_SERIAL` costs its ~7 s. The others of the list are guards that
+  fail only when something is far late (`gobj_post_event`: 10 periodics of
+  ~200 in 200 ms; the 2-3 s connect guards of `c_tcp`, `c_tcps`,
+  `c_tcp_s_stats`; `idp_timeout_ms` 500 of `c_auth_bff/test10`), and need
+  nothing.
+
 #### Fourth check (2026-10-05): `179fc92` and CLI 0.21.2
 
 Checked at `e50796f`, CLI 0.21.2 installed from `0188abf` (the
