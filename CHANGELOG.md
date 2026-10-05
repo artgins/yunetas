@@ -7,6 +7,10 @@
   `_periodic1`, `_kept_after_post`, `test_c_timer`, `test_c_timer0`,
   `test_static_resolv_numeric`. `test_yevent_timer_once1` failed once in
   the cloud verification's parallel suite (1.80 s, window 0.9-1.1 s).
+  And `timeranger2/test_fs_watcher_overflow`, which asserts the watcher's
+  cost per directory on a big tree against a small one (at most 6 times):
+  wattyzer's parallel suite (`-j8`, load ~4) failed it with 48 us against
+  713; it passes alone in 31 s.
 - **`scripts/check_test_databases.py` no longer erases why a test failed.**
   ctest truncates `Testing/Temporary/LastTest.log` on every run, its
   `--show-only` too: the check keeps the file and puts it back. And the CLI

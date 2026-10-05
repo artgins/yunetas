@@ -234,3 +234,10 @@ set_tests_properties(
     "${current_directory_name}/test_rt_disk_overflow"
     PROPERTIES RESOURCE_LOCK inotify_flood
 )
+
+#   Alone under ctest -j: it asserts the watcher's cost per directory on a
+#   big tree against a small one (at most 6 times), and other tests loading
+#   the machine at the same time inflate the big pass only. On wattyzer at
+#   -j8 it measured 48 us against 713 (31 s alone, 86 s in the suite)
+set_tests_properties("${current_directory_name}/test_fs_watcher_overflow"
+    PROPERTIES RUN_SERIAL TRUE)
