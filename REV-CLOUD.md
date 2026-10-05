@@ -85,6 +85,13 @@ cannot see either); `yev_loop_create()` still sleeps after its last attempt
 
 #### Third check (2026-10-05): `051fbba`
 
+**Applied (2026-10-05): the four points below**, in `179fc92f9` and the CLI 0.21.2
+(on PyPI): the fence fixed and `scripts/check_md_fences.py` run by the doc
+`deploy.sh`; `RUN_SERIAL` on the seven wall-clock-window tests;
+`LastTest.log` kept across the database check, and `ctest
+--output-on-failure` in `yunetas test`; the link check reports by line.
+`yunetas test` 298/298 in 245 s after them.
+
 Checked at `57d7b38`, CLI 0.21.1, cloud container (4 cores), as `yuneta`:
 the commit read, `check_test_links.py` tried on a scratch tree, `yunetas
 build` (41 s) and `yunetas test` (504 s, `ctest -j4` 479 s) run.
