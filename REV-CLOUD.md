@@ -83,6 +83,73 @@ guard of `mt_create`, the CMake loop: a gclass cannot see `main.c`, and CMake
 cannot see either); `yev_loop_create()` still sleeps after its last attempt
 (a kernel change, not a test's).
 
+#### Second check (2026-10-05): `c785163` and CLI 0.21.1
+
+Checked at `daf0f7c`, CLI 0.21.1 installed from `32bf3c9`, in the cloud
+container (4 cores), as `yuneta`; the code of both commits read against each
+finding, the CLI's own tests run (60 passed).
+
+| Step (CLI 0.21.1, 4 cores) | Time | Result |
+|---|---|---|
+| `yunetas build` (now `make -j4`) | 54 s | ok |
+| `yunetas test`, first after the pull | 510 s | 298/298, `ctest -j4` 477 s, log `<iso>.j4.txt` |
+| marker in `gobj.c`, `yunetas test` | 448 s | 298/298; **the marker reaches the 286 binaries with gobj code, none left behind** (was 268 of 286) |
+| marker removed, `yunetas build` | 29 s | ok |
+| `yunetas test` after that change | 397 s | 298/298, `ctest -j4` 361 s (289 relinks: the reverted library, as it must) |
+| `check_test_ports.py`, `check_test_databases.py`, `check_test_links.py` | — | exit 0, all three |
+
+**Verdict: the eight findings are applied, seven completely; the bug of
+item 1 is fixed and verified.** What is left:
+
+1. **Item 6, half done.** The release rule in `CLAUDE.md:1904-1910` now says
+   to compare runs of one job count, but its own example still greps
+   `build/*.txt` (`CLAUDE.md:1906`), every job count mixed; and
+   `test_suite.md` says nothing of `.j<N>` or of `--serial` for timing.
+   Fix: `build/*.j1.txt` in the example (or `*.j<N>.txt` of one N), and one
+   line in `test_suite.md`.
+2. **A count of mine, carried into the CHANGELOG.** Item 1 below listed 14
+   `tr_treedb_*` and called them 15 (14 + `tr_dt_unknown` + 3 benchmarks =
+   18); the CHANGELOG's Unreleased entry repeats *"The 15"*. Fix: 14 there
+   (corrected below).
+3. **`scripts/check_test_links.py` is narrower than its job.** It matches a
+   `lib*.a` only at the start of a line (`BARE`, line 22), so it misses
+   `target_link_libraries(x libfoo.a)` on one line, `-lfoo`, a bare
+   `timeranger2` (CMake makes it `-l` too) and a variable holding a bare
+   name; `os.walk()` has no `onerror`, so an unreadable directory or a
+   missing root is skipped and the script exits 0 (a clean run prints
+   nothing, so nothing says what it looked at). And it covers `tests`,
+   `performance`, `stress` only: the same shape stands in
+   `yunos/c/dba_postgres/CMakeLists.txt:86` (`libyunetas-c_postgres.a`) and
+   `utils/c/pkey_to_jwks/CMakeLists.txt:71-72` (`libssl.a`, `libcrypto.a`) —
+   not new, and less likely to bite (a yuno is rebuilt by its own `make`),
+   but the same staleness after a change of those archives. Nothing runs the
+   three checks (neither `yunetas test` nor the release checklist).
+4. **`test_tr2check` hides a missing tool.** Each of its 12 calls appends
+   `2>/dev/null`, so a `tr2check` that is not there fails as *"did not answer
+   json"* with exit 127, not as *"not found"*; and `test_tr2check.c:56-58`
+   keeps `#define TR2CHECK_BIN "/yuneta/bin/tr2check"` as its `#ifndef`
+   default — dead (CMake always defines it) and naming the path the fix
+   moved away from. A plain `ctest` (not `yunetas test`) runs whatever
+   `utils/c/tr2check/build/` holds.
+5. Nits: `tests/c/c_treedb_literal_wins/README.md` ~186 and `CLAUDE.md:1906`
+   are longer than 80 characters; `CLAUDE.md:1910` is a short line.
+
+Verified correct: the 18 `CMakeLists.txt` link `${LIB_DEST_DIR}/lib*.a` in
+the same order (timeranger2, yev_loop, ytls, gobj, then the external ones),
+and no other bare form is left under `tests`/`performance`/`stress`; the CLI
+gate is `(7, 26, 3)` with a test that 7.26.0 and 7.26.2 run serially;
+`yunetas build --jobs/-j` (`min=1`) reaches the SDK and the projects loops;
+`default_jobs()` reads `sched_getaffinity`; `sdk_version()` only when ctest
+runs in parallel; the log name carries the jobs ctest really ran with and
+`CTEST_LOG_NAME` keeps old and new names; `test_tr2check` falls back to
+`utils/c/tr2check/build/tr2check`, built by `yunetas test` before the root
+tree; `check_test_databases.py` now sees the eight tests it missed (185
+directories); the `C_TIMER0` comment states the barrier; the ENOMEM retry no
+longer sleeps after its last attempt; a run without `--group` says so; the
+READMEs speak of the locks, `RUN_SERIAL` and the checks; the CHANGELOG
+v7.26.2 sentences, `CLAUDE.md:724`; the perf `test4` lock removed; the
+`utils/python/tui_yunetas` pointer at `32bf3c9`.
+
 #### Findings, most severe first
 
 1. **Bug: 18 test binaries are not relinked when a kernel library changes,
@@ -94,7 +161,7 @@ cannot see either); `yev_loop_create()` still sleeps after its last attempt
    lists `libjwt-y.a`, `libjansson.a`, ... by full path and none of the four.
    Experiment on this tree: a marker string appended to `gobj.c`, then the
    build phase of `yunetas test` (module installs + root `make -j4
-   install`): **268 binaries carry it; the 18 do not** — the 15
+   install`): **268 binaries carry it; the 18 do not** — the 14
    `tr_treedb_*` (`_rowid`, `_relink`, `_snap`, `_snap_clone`, `_files`,
    `_immutable`, `_link_events`, `_load_failed`, `_failed_save`,
    `_update_instance`, `_schema_parse`, `_hook_hygiene`, `_hook_rename`,
