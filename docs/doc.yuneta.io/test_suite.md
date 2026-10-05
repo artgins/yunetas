@@ -73,7 +73,17 @@ appends to the directory, so it runs after the other iterators), `tr_msg`,
 `tr_delete_instance`, `perf_topic_integer`, and `inotify_flood` (the two
 tests that flood the per-user inotify queue). The benchmarks and the
 `tr_topic_pkey_integer` chain are `RUN_SERIAL`: the release trend reads their
-times, and other tests that run at the same time change them. A new test that
+times, and other tests that run at the same time change them.
+
+To compare the TIMES of two runs, compare runs of one job count. `yunetas
+test` names its log after it (`build/<date>.j<N>.txt`, CLI 0.21.1+), and only
+the `RUN_SERIAL` tests run alone under `-j`; the times of the others come from
+a serial run:
+
+```bash
+yunetas test --serial     # build/<date>.j1.txt
+grep "timeranger2/test_topic_pkey_integer \.\.\." build/*.j1.txt
+``` A new test that
 reuses a directory of another test must declare the same lock.
 
 `scripts/check_test_databases.py` checks it, as `check_test_ports.py` checks

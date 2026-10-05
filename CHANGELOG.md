@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **18 tests are relinked again when a kernel library changes.** The 15
+- **18 tests are relinked again when a kernel library changes.** The 14
   `tr_treedb_*` tests, `tr_dt_unknown`, `perf_timeranger2`, `perf_tr_treedb`
   and `perf_rotatory` named `libtimeranger2.a`, `libyev_loop.a`,
   `libytls.a` and `libyunetas-gobj.a` bare in `target_link_libraries()`: a
@@ -27,6 +27,18 @@
   (`utils/c/tr2check/build/tr2check`), not `/yuneta/bin/tr2check`: that one
   is machine-wide, the last one installed, and a run from a worktree (the
   A/B against the last tag, a node's release suite) tested somebody else's.
+  A missing tool fails as *"tr2check not found at <path>"*, not as a tool
+  that answered no json.
+- **`scripts/check_test_links.py` reads every `CMakeLists.txt` of `tests`,
+  `performance`, `stress`, `yunos`, `utils` and `modules`**, comments left
+  out: a `lib*.a` without a directory anywhere (also in a `set()`), and
+  `-lfoo` or a bare `foo` in `target_link_libraries()` when `libfoo.a` is an
+  archive of `outputs/lib` or `outputs_ext/lib`. It fails when a directory
+  cannot be read, and says how many files it checked. It found two more:
+  `pkey_to_jwks` (`libssl.a`, `libcrypto.a`, now `${EXT_LIB_DIR}/...`) and
+  `dba_postgres` (`libyunetas-c_postgres.a`, a name no build makes, now
+  `${MODULE_POSTGRES}`). The release checklist runs the three checks of the
+  tests before a tag.
 - `perf_c_tcp/test4` and `perf_c_tcps/test4` no longer hold the
   `perf_topic_integer` lock, which only `test5` needs (both stay
   `RUN_SERIAL`). `tests/c/README.md` and `performance/c/README.md` say what

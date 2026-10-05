@@ -1896,21 +1896,25 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   4. `TODO.md` is pruned of items the commits resolved.
   5. READMEs/docs scanned for stale content (old versions, removed features,
      renamed APIs).
+  6. The three checks of the tests pass: `scripts/check_test_ports.py`,
+     `scripts/check_test_databases.py` (needs a built `build/`) and
+     `scripts/check_test_links.py` (an archive linked by a bare name is never
+     relinked when it changes).
   Surface gaps as a punch list before committing/tagging.
 - **Performance variations are studied, not assumed** (rule of 2026-09-23).
   Every round of changes that touches a hot path (timeranger2 append/read/open,
   tr_treedb writes, c_treedb, the event loop, protocols) compares speed
   against the last tag, and so does a release that carries such a round.
   `yunetas test` keeps each ctest run in `build/<timestamp>.j<N>.txt` (CLI
-  0.21.1+; older runs have no `.j<N>`): read the trend of the tests that time
-  something (`grep "timeranger2/test_topic_pkey_integer \.\.\.\.\." build/*.txt`)
-  and list every test whose time moved more than ~10%. Compare runs of ONE
-  job count: under `-j` only the `RUN_SERIAL` tests (the benchmarks, the
-  `test_topic_pkey_integer` chain) run alone; for the rest, use `--serial`.
-  A single run varies ±3-4%, so a
-  suspected loss gets a controlled A/B: build the last tag in a separate
-  `git worktree` with its own outputs, run both binaries ALTERNATED (8+
-  rounds), report mean and spread. A real loss is either the price of a named
+  0.21.1+; older runs have no `.j<N>`). Compare runs of ONE job count: under
+  `-j` only the `RUN_SERIAL` tests (the benchmarks, the
+  `test_topic_pkey_integer` chain) run alone, so the trend of the others is
+  read from serial runs (`yunetas test --serial`): grep the tests that time
+  something (`grep "timeranger2/test_topic_pkey_integer \.\.\." build/*.j1.txt`)
+  and list every test whose time moved more than ~10%. A single run varies
+  ±3-4%, so a suspected loss gets a controlled A/B: build the last tag in a
+  separate `git worktree` with its own outputs, run both binaries ALTERNATED
+  (8+ rounds), report mean and spread. A real loss is either the price of a named
   correctness fix, said in the CHANGELOG with its figure, or it is fixed before
   the tag. Why: the correctness fixes of 7.25.5 were made in many passes and
   nobody measured speed; `test_topic_pkey_integer` had drifted from 1.94 s to

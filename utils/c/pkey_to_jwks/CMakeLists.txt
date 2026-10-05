@@ -67,9 +67,9 @@ if(CONFIG_FULLY_STATIC)
 endif()
 
 target_link_libraries(${PROJECT_NAME}
-    # force use of openssl
-    libssl.a
-    libcrypto.a
+    # force use of openssl (by full path: a bare name is not a dependency of the link)
+    ${EXT_LIB_DIR}/libssl.a
+    ${EXT_LIB_DIR}/libcrypto.a
     pthread
     dl
 )

@@ -39,6 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <errno.h>
 #include <unistd.h>
 #include <sys/wait.h>
 
@@ -53,8 +54,12 @@
 #define DATABASE    "tr_tr2check"
 #define TOPIC_NAME  "tracks"
 
+/*
+ *  The tr2check of this checkout, given by CMakeLists.txt (the target of
+ *  this tree, or the one of utils/c/tr2check/build/)
+ */
 #ifndef TR2CHECK_BIN
-#define TR2CHECK_BIN "/yuneta/bin/tr2check"
+#error "TR2CHECK_BIN is not defined: CMakeLists.txt defines it"
 #endif
 
 #define T0_MS       1790000000000LL
@@ -207,6 +212,16 @@ PRIVATE json_t *run_tr2check(const char *topic_path, const char *options, int *e
  ***************************************************************************/
 PRIVATE int do_test(void)
 {
+    /*
+     *  The tool first: every call below sends its stderr to /dev/null, and a
+     *  tr2check that is not there would fail as "did not answer json"
+     */
+    if(access(TR2CHECK_BIN, X_OK) != 0) {
+        printf("%sERROR%s --> tr2check not found at %s: %s (built by `yunetas build`)\n",
+            On_Red BWhite, Color_Off, TR2CHECK_BIN, strerror(errno));
+        return -1;
+    }
+
     int result = 0;
     char path_root[PATH_MAX];
     char path_database[PATH_MAX];

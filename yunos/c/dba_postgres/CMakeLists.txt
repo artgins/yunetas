@@ -83,7 +83,7 @@ target_link_libraries(${PROJECT_NAME}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
-    libyunetas-c_postgres.a
+    ${MODULE_POSTGRES}  # libyunetas-module-postgres.a, by full path (it was a bare libyunetas-c_postgres.a, a name no build makes)
     pq          # postgres, WARNING this library use openssl of distribution
 )
 

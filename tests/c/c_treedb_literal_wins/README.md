@@ -184,9 +184,10 @@ The expected log list in `src/main.c` is strict FIFO: every line from INFO
 up, in order. It covers the scenarios of `run_tests()` (RM to MV/NP). CR and
 the scenarios from LM on are not in it: they count the errors and warnings of
 each open instead. Every scenario, and every iteration of a sweep, runs in a
-step of its own (see *Groups of scenarios*). A forked child takes an io_uring ring of its own before it does
-anything: the rings of the parent are mapped shared, and a child that
-submits on them breaks every later submission of the parent.
+step of its own (see *Groups of scenarios*). A forked child takes an io_uring
+ring of its own before it does anything: the rings of the parent are mapped
+shared, and a child that submits on them breaks every later submission of
+the parent.
 
 ## Run
 

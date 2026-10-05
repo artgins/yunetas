@@ -51,6 +51,11 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   (`ctest -j` within one run is safe since `scripts/check_test_ports.py`,
   `scripts/check_test_databases.py` and the `RESOURCE_LOCK`s of 7.26.1). Ports and dirs chosen at run time would
   end it.
+- **`dba_postgres` does not link when `CONFIG_DBA_POSTGRES` is on** (it is
+  off everywhere, so nothing builds it): the static `libpq.a` needs
+  `libpgcommon` and `libpgport` too (`undefined reference to
+  pg_strcasecmp`). Found 2026-10-05 while its `libyunetas-c_postgres.a`, a
+  name no build makes, became `${MODULE_POSTGRES}`.
 - **`c_gss_udp_s_self_stop` phase 11 does not prove its order** (nit): it
   relies on the subscription order for its restart to come before the start
   C_GSS_UDP_S would post. Looked at 2026-10-03: in that order the restart's
