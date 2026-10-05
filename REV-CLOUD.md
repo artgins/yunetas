@@ -83,6 +83,66 @@ guard of `mt_create`, the CMake loop: a gclass cannot see `main.c`, and CMake
 cannot see either); `yev_loop_create()` still sleeps after its last attempt
 (a kernel change, not a test's).
 
+#### Third check (2026-10-05): `051fbba`
+
+Checked at `57d7b38`, CLI 0.21.1, cloud container (4 cores), as `yuneta`:
+the commit read, `check_test_links.py` tried on a scratch tree, `yunetas
+build` (41 s) and `yunetas test` (504 s, `ctest -j4` 479 s) run.
+
+**Verdict: the five points are applied and work; one new defect in the docs,
+one flaky time window, and the record of a failure is erased by a check.**
+
+1. **New: a code block that does not close, in `test_suite.md:86`.** The
+   paragraph after the new `--serial` example starts on the closing fence's
+   line (`` ``` A new test that ``). A closing fence may carry nothing but
+   spaces, so it does not close: parsed with CommonMark (`markdown-it`), the
+   block runs from line 83 to 103 (before `051fbba`: 90-93), and the
+   paragraph on `check_test_databases.py` and its own command block render
+   as code. Fix: put *"A new test that ..."* on the line after the fence.
+   (No other `.md` of `051fbba` or `c785163` has a fence with text after
+   it.)
+2. **`yev_events/test_yevent_timer_once1` failed once** in the parallel suite:
+   1.80 s in all, where every other run of this session took 1.00 s (it
+   measures 1.0005 s alone, 10 runs; and 20 of 20 passed while
+   `literal_wins`, `test_fs_watcher_overflow`, `test_rt_disk_overflow`,
+   `test_yevent_reload_stress` and `test_c_tcp_s_stats` ran at `-j4`). Its
+   window is 0.9-1.1 s (`test_yevent_timer_once1.c:244`); a stall of ~0.8 s
+   on a VM a minute after boot pushed it out. Nothing of `051fbba` touches
+   it. It is the class the first audit listed (time windows that CPU load
+   can break); 1 failure in the ~9 parallel full runs of this session. Fix,
+   to choose: `RUN_SERIAL` on the strict time-window tests
+   (`test_yevent_timer_once1`, `_once2`, `_periodic1`, `_kept_after_post`,
+   `test_c_timer`, `test_c_timer0`, `test_static_resolv_numeric`: ~18 s run
+   alone), or windows that measure the timer against the loop's own clock
+   rather than against the wall.
+3. **The output of a failed test is lost by the check that the pre-tag audit
+   runs after the suite.** `check_test_databases.py` runs `ctest
+   --show-only=json-v1`, and ctest truncates `Testing/Temporary/LastTest.log`
+   on any run (measured: 17239 lines → 3). `LastTestsFailed.log` survives, so
+   `--rerun-failed` still works, but nothing keeps WHY it failed: `yunetas
+   test` passes no `--output-on-failure`, so its `build/<iso>.j<N>.txt` holds
+   only `[ERROR_MESSAGE]`. That is how the output of item 2 was lost here.
+   Fix: `ctest --output-on-failure` in `yunetas test` (the failed test's
+   output then lands in the kept log), and/or the check reading ctest with
+   `--test-dir` of a copy, or saying it overwrites `LastTest.log`.
+4. Nit: `check_test_links.py` reports in the order it scans (bare tokens
+   first, then `target_link_libraries()`), not by line (`:2`, `:3`, `:5`,
+   `:4` on the scratch tree).
+
+Verified correct: `check_test_links.py` on a scratch tree with each form —
+`set(LIBS libtimeranger2.a)`, `-lyunetas-gobj`, a bare `jansson` in
+`target_link_libraries()`, a `libfoo.a` — reports the four, leaves `pthread`,
+`dl`, a comment, the full paths and `${YUNETAS_KERNEL_LIBS}` alone, says
+*"cannot list tests/c/locked"* for an unreadable directory, and exits 1; on
+the tree: *"145 CMakeLists.txt checked: no archive named bare"*, exit 0.
+`pkey_to_jwks` links `${EXT_LIB_DIR}/libssl.a`, `libcrypto.a`;
+`dba_postgres` `${MODULE_POSTGRES}` (`project.cmake:307-308`; the `libpq`
+gap noted in `TODO.md`); `test_tr2check` checks `access(TR2CHECK_BIN, X_OK)`
+first, the `/yuneta/bin` default replaced by an `#error`, and passed (2.24 s);
+the release rule reads `build/*.j1.txt` and points to `--serial`;
+`test_suite.md` says how to compare times; the CHANGELOG says 14; the
+pre-tag audit runs the three checks; the three checks pass.
+
 #### Second check (2026-10-05): `c785163` and CLI 0.21.1
 
 **Applied (2026-10-05): the five points below**, in `051fbba1a`: the release rule
