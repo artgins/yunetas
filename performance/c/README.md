@@ -2,7 +2,7 @@
 
 Benchmark programs for measuring throughput and latency of Yuneta's core communication and I/O subsystems.
 
-All benchmarks run as self-contained programs. The network ones start an internal server and client, echo messages back and forth, and report throughput metrics; the persistence ones (`perf_timeranger2`, `perf_tr_treedb`, `perf_c_treedb`) build a store, measure, print one line of JSON per result, and remove the store; `perf_rotatory` does the same with the log files. Each benchmark is also registered as a `ctest` target, so `yunetas test` runs them alongside the rest of the test suite (the persistence ones with smaller sizes: ctest checks that they build and run; their reference figures come from a run with the default sizes).
+All benchmarks run as self-contained programs. The network ones start an internal server and client, echo messages back and forth, and report throughput metrics; the persistence ones (`perf_timeranger2`, `perf_tr_treedb`, `perf_c_treedb`) build a store, measure, print one line of JSON per result, and remove the store; `perf_rotatory` does the same with the log files. Each benchmark is also registered as a `ctest` target, so `yunetas test` runs them alongside the rest of the test suite (the persistence ones with smaller sizes: ctest checks that they build and run; their reference figures come from a run with the default sizes). Each one is `RUN_SERIAL`: under `ctest -j` it runs alone, so its figures are not skewed by the tests running at once, nor theirs by it. A new benchmark declares it too, and follows the rules of `tests/c/README.md` (its own ports and directory, archives linked by full path).
 
 ## Benchmarks
 

@@ -22,7 +22,8 @@ The scenarios are in seven groups. ctest runs each group as a test of its
 own, in a store of its own (`~/tests_yuneta/c_treedb_literal_wins_<group>`),
 so `ctest -j` runs them at the same time. In one binary, the whole run took
 ~215 s and was the floor of a parallel suite; the seven run at once in ~34 s
-on 8 cores, and the longest alone (`o4xa`) takes ~47 s.
+on 8 cores, and none takes more than ~30 s alone (`o4xa`: 18 s, measured
+2026-10-05).
 
 | Group | ctest name | Scenarios |
 |---|---|---|
@@ -180,10 +181,10 @@ projection writes it, is the projection's: only a node that is neither can
 be the operator's work (scenario CR).
 
 The expected log list in `src/main.c` is strict FIFO: every line from INFO
-up, in order. The scenarios from LM on are not in it: each runs in its own
-timeout (the event loop runs between two, and completes what the treedbs
-a step closed cancelled), and counts the errors and warnings of each open
-instead. A forked child takes an io_uring ring of its own before it does
+up, in order. It covers the scenarios of `run_tests()` (RM to MV/NP). CR and
+the scenarios from LM on are not in it: they count the errors and warnings of
+each open instead. Every scenario, and every iteration of a sweep, runs in a
+step of its own (see *Groups of scenarios*). A forked child takes an io_uring ring of its own before it does
 anything: the rings of the parent are mapped shared, and a child that
 submits on them breaks every later submission of the parent.
 

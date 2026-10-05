@@ -1164,9 +1164,17 @@ int main(int argc, char *argv[])
         argv[n++] = argv[i];
     }
     if(!str_in_list(groups, group, FALSE)) {
-        printf("%sERROR --> %s%s: '%s', use --group=all|early|late1|late2|dcd|dcn|o4|o4xa\n",
+        printf("%sERROR --> %s%s: '%s', use --group=<name>, one of:",
             On_Red BWhite, "unknown group", Color_Off, group);
+        for(int i = 0; groups[i]; i++) {
+            printf(" %s", groups[i]);
+        }
+        printf("\n");
         return -1;
+    }
+    if(!with_group) {
+        printf("%s: no --group, every scenario runs in this process "
+            "(ctest runs them in groups)\n", argv[0]);
     }
     if(with_group) {
         snprintf(group_config, sizeof(group_config),

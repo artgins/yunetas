@@ -80,12 +80,17 @@ foreach(test ${SRCS})
         ${DEBUG_LIBS}
     )
     add_test("${current_directory_name}/${test}" ${binary})
-    # Alone under ctest -j (figures); test5 of perf_c_tcp and perf_c_tcps
-    # both open the database perf_topic_integer as master
+    # Alone under ctest -j (figures)
     set_tests_properties("${current_directory_name}/${test}" PROPERTIES
         RUN_SERIAL TRUE
-        RESOURCE_LOCK perf_topic_integer
     )
+    if(test STREQUAL "test5")
+        # test5 of perf_c_tcp and perf_c_tcps both open the database
+        # perf_topic_integer as master
+        set_tests_properties("${current_directory_name}/${test}" PROPERTIES
+            RESOURCE_LOCK perf_topic_integer
+        )
+    endif()
 
     install(
         TARGETS ${binary}

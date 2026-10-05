@@ -2,6 +2,14 @@
 
 Unit and integration tests for the C kernel. Each sub-directory tests a specific GClass or subsystem and is built as a standalone CTest target.
 
+**A new test is run in parallel with the others** (`yunetas test` runs `ctest -j<cores>`). It takes ports no other test uses, and a directory under `~/tests_yuneta` (or `/tmp`) of its own; when it shares one with another test, both declare the same `RESOURCE_LOCK` in their `CMakeLists.txt`. It links the SDK archives by full path (`${YUNETAS_KERNEL_LIBS}`, or `${LIB_DEST_DIR}/libfoo.a`), never a bare `libfoo.a`, or it is not relinked when the library changes. Three scripts check it:
+
+```bash
+python3 scripts/check_test_ports.py       # two tests on one port
+python3 scripts/check_test_databases.py   # two tests that can use one directory at once (needs a built build/)
+python3 scripts/check_test_links.py       # an archive named bare
+```
+
 ## Running
 
 ```bash
@@ -109,7 +117,7 @@ binaries carry a prefix: `c_mqtt/acl` runs `test_mqtt_acl`, `c_tcp/test5` runs
 | `yev_loop/yev_events_tls` | `test_yevent_traffic_secure1`, `test_yevent_reload_live`, `test_yevent_reload_stress` |
 | `yev_loop/static_resolv` | `test_static_resolv_spoof`, `test_static_resolv_numeric` (ctest name `static_resolv/...`) |
 | `ytls` | `test_cert_reload`, `test_cert_info`, `test_cert_reload_mem`, `test_handshake_reject_openssl`, `test_handshake_reject_mbedtls`, `test_tls_floor_openssl`, `test_tls_verify_openssl` |
-| `timeranger2` | 37 binaries, each one described in `tests/c/timeranger2/README.md` |
+| `timeranger2` | 42 binaries, each one described in `tests/c/timeranger2/README.md` |
 | `tr_msg` | `test_tr_msg1`, `test_tr_msg2` |
 | `tr_msg2db` | `test_pkey2_empty`, `test_msg2db_load_failed` |
 | `tr_queue` | `test_tr_queue1`, `test_tr_queue_load_failed`, `test_tr_queue_backup_failed`, `test_tr2q_queued` |

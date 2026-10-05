@@ -2,13 +2,38 @@
 
 ## Unreleased
 
+- **18 tests are relinked again when a kernel library changes.** The 15
+  `tr_treedb_*` tests, `tr_dt_unknown`, `perf_timeranger2`, `perf_tr_treedb`
+  and `perf_rotatory` named `libtimeranger2.a`, `libyev_loop.a`,
+  `libytls.a` and `libyunetas-gobj.a` bare in `target_link_libraries()`: a
+  `-l` search, not a dependency of the link. After a change in timeranger2
+  or gobj -- what they test -- they ran on the OLD library, silently. The
+  `make clean` of `yunetas test` hid it, and then (7.26.1-7.26.2) the
+  reinstall of the root tree. They name them `${LIB_DEST_DIR}/lib*.a` now:
+  a marker appended to `gobj.c` reaches every test binary that holds gobj
+  code (286), where it reached 268. Found by the cloud verification of
+  `REV-CLOUD.md`. **`scripts/check_test_links.py`** fails on an archive named
+  bare in a `CMakeLists.txt` of `tests/c`, `performance/c` or `stress/c`.
 - **`scripts/check_test_databases.py`: two tests that can use one directory
   at the same time are found**, as `check_test_ports.py` finds two that use
-  one port. It reads the directories of each test from its sources and its
+  one port. It reads the directories of each test from its sources (also the
+  `"database"` key of a `C_NODE`/`C_TREEDB` kw, a `build_path()` segment after
+  `path_root`, and the domain of `register_yuneta_environment()`) and its
   `RESOURCE_LOCK` / `RUN_SERIAL` / `DEPENDS` / fixtures from ctest, and exits 1
   when two tests name one directory (or one under the other) and ctest can
-  run them at once. The tree passes it today: 173 directories, the four
+  run them at once. The tree passes it today: 185 directories, the four
   shared ones each under a lock.
+- **`timeranger2/test_tr2check` runs the `tr2check` of its own checkout**
+  (`utils/c/tr2check/build/tr2check`), not `/yuneta/bin/tr2check`: that one
+  is machine-wide, the last one installed, and a run from a worktree (the
+  A/B against the last tag, a node's release suite) tested somebody else's.
+- `perf_c_tcp/test4` and `perf_c_tcps/test4` no longer hold the
+  `perf_topic_integer` lock, which only `test5` needs (both stay
+  `RUN_SERIAL`). `tests/c/README.md` and `performance/c/README.md` say what
+  a new test must declare to run in parallel, and the three checks.
+- The `yunetas` CLI 0.21.1: `yunetas test` runs ctest in parallel from SDK
+  7.26.3 on (not 7.26.1), `yunetas build` takes `--jobs`, and the ctest log
+  is `build/<date>.j<N>.txt`, so serial and parallel timings are not mixed.
 
 ## v7.26.3 (2026-10-05)
 
@@ -41,8 +66,8 @@ libraries or in the yunos, so a node running 7.26.0 or 7.26.1 needs no
 upgrade. On the dev machine (8 cores), `yunetas test` with no change in the
 sources takes 226 s in all, against 470 s at 7.26.1 and ~31 minutes before
 7.26.1. A machine with a root `build/` from an earlier release stops
-building the SDK in it at its next `yunetas init` (or `cmake .` in
-`build/`).
+building the SDK in it at its next build of that tree (the changed
+`CMakeLists.txt` re-runs its configure).
 
 - **The root `build/` tree builds the tests, not the SDK** (`ENABLE_SDK`,
   OFF by default). The kernel, modules, utils and yunos are built and
@@ -52,7 +77,9 @@ building the SDK in it at its next `yunetas init` (or `cmake .` in
   replaced the other's copy, and the new mtime relinked every executable of
   the other tree on every run, with nothing changed. Now a second
   `yunetas test` with no change relinks nothing (its root build: 1 s), and a
-  changed library still relinks every test that links it.
+  changed library still relinks every test that links it by its full path.
+  (Corrected after 7.26.3: 18 tests named the kernel archives bare and were
+  not relinked; the reinstall of the root tree had hidden it.)
   `-DENABLE_SDK=ON` gives the old self-contained tree (the ASan recipe of
   `test_suite.md` uses it).
 - **`test_c_treedb_literal_wins` is seven tests, one per group of

@@ -79,8 +79,10 @@ reuses a directory of another test must declare the same lock.
 `scripts/check_test_databases.py` checks it, as `check_test_ports.py` checks
 the ports. It reads the directories of each test from its sources (a
 `#define` of a `*DATABASE*` or `*STORE*` name, a `build_path()` segment after
-`"tests_yuneta"`, a literal `/tmp/<path>`) and the properties from ctest
-itself, so it needs a configured and built `build/`. Two tests that name one
+`"tests_yuneta"` or after `path_root`, the `"database"` key of a
+`C_TRANGER`/`C_NODE`/`C_TREEDB` kw, the domain of
+`register_yuneta_environment()`, a literal `/tmp/<path>`) and the properties
+from ctest itself, so it needs a configured and built `build/`. Two tests that name one
 directory (or one under the other) collide unless ctest keeps them apart: a
 shared `RESOURCE_LOCK`, `RUN_SERIAL` on one of them, a `DEPENDS` between them,
 or one the `FIXTURES_SETUP` of what the other `FIXTURES_REQUIRED`:
@@ -89,6 +91,9 @@ or one the `FIXTURES_SETUP` of what the other `FIXTURES_REQUIRED`:
 python3 scripts/check_test_databases.py          # exit 1 on a collision, or a test not read
 python3 scripts/check_test_databases.py --list   # every directory and its tests
 ```
+
+An illustration (the report a third test naming `tr_msg` without the lock
+would get; `test_pkey2_empty` uses `tr_msg2db_test` in fact):
 
 ```text
 ~/tests_yuneta/tr_msg COLLISION
@@ -101,6 +106,12 @@ python3 scripts/check_test_databases.py --list   # every directory and its tests
 Tests that run the same executable with other arguments (the groups of
 `test_c_treedb_literal_wins`) are not compared, and a directory built at run
 time from a format is not seen.
+
+`scripts/check_test_links.py` fails when a test's `CMakeLists.txt` names an
+SDK archive bare (`libtimeranger2.a` instead of
+`${LIB_DEST_DIR}/libtimeranger2.a` or `${YUNETAS_KERNEL_LIBS}`): a bare name
+is a `-l` search, not a dependency of the link, and the test keeps the old
+library when that one changes.
 
 `ctest -j` also needs the inotify limits of `99-yuneta-core.conf` (installed
 by the package). With the Linux defaults (128 instances per user), several
@@ -496,8 +507,13 @@ cmake --build build --target test_tr_treedb_rowid
 #   [  0%] Linking C executable test_tr_treedb_rowid
 ```
 
-`cmake --build build --target <test>` alone, without step 1, rebuilds the
-library in `build/` but links the test against the OLD installed copy.
+`cmake --build build --target <test>` alone, without step 1, links the test
+against the OLD installed copy: the root `build/` does not build the library
+(unless it was configured with `-DENABLE_SDK=ON`). Step 2 holds only because
+the test names the archive by its full path (`${YUNETAS_KERNEL_LIBS}`, or
+`${LIB_DEST_DIR}/libfoo.a`): a bare `libfoo.a` is a `-l` search, and the test
+is not relinked at all. Up to 7.26.3 this very test, and 17 others, named
+them bare; `scripts/check_test_links.py` fails on one.
 
 Before 7.25.5 step 2 could also print only *"Built target"* and keep the old
 library. `install()` keeps the mtime of the file it copies, in whole seconds,

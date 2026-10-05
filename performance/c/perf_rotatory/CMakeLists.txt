@@ -70,7 +70,7 @@ endif()
 
 # Only gobj-c (the rotatory) and what it needs
 target_link_libraries(${PROJECT_NAME}
-    libyunetas-gobj.a
+    ${LIB_DEST_DIR}/libyunetas-gobj.a
     ${YUNETAS_EXTERNAL_LIBS}
     ${YUNETAS_PCRE_LIBS}
     ${JWT_LIBS}

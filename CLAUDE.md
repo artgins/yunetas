@@ -721,9 +721,10 @@ configuring a build with `-fsanitize=address` instruments the test's own `.c`
 files **and nothing else** — ASan then reports nothing while the plain build
 keeps aborting, which reads as "not a real bug" and is only "you did not look at
 it". To sanitise for real, build the libraries in the ASan tree (configured
-with `-DENABLE_SDK=ON`, see below) and **relink the test by hand** against them; and if the corruption is around json, instrument
-`jansson` too (with its own generated config headers, or it parses nothing). The
-recipe is written down in `docs/doc.yuneta.io/test_suite.md`.
+with `-DENABLE_SDK=ON`, see below) and **relink the test by hand** against
+them; and if the corruption is around json, instrument `jansson` too (with
+its own generated config headers, or it parses nothing). The recipe is
+written down in `docs/doc.yuneta.io/test_suite.md`.
 
 `ctest --test-dir build` only **runs** tests, it never rebuilds them — the
 root `build/` tree is built by `yunetas test` (or `cmake --build build`), not
@@ -1899,10 +1900,14 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 - **Performance variations are studied, not assumed** (rule of 2026-09-23).
   Every round of changes that touches a hot path (timeranger2 append/read/open,
   tr_treedb writes, c_treedb, the event loop, protocols) compares speed
-  against the last tag, and so does a release that carries such a round. `yunetas test` keeps each ctest run in
-  `build/<timestamp>.txt`: read the trend of the tests that time something
-  (`grep "timeranger2/test_topic_pkey_integer \.\.\.\.\." build/*.txt`) and list
-  every test whose time moved more than ~10%. A single run varies ±3-4%, so a
+  against the last tag, and so does a release that carries such a round.
+  `yunetas test` keeps each ctest run in `build/<timestamp>.j<N>.txt` (CLI
+  0.21.1+; older runs have no `.j<N>`): read the trend of the tests that time
+  something (`grep "timeranger2/test_topic_pkey_integer \.\.\.\.\." build/*.txt`)
+  and list every test whose time moved more than ~10%. Compare runs of ONE
+  job count: under `-j` only the `RUN_SERIAL` tests (the benchmarks, the
+  `test_topic_pkey_integer` chain) run alone; for the rest, use `--serial`.
+  A single run varies ±3-4%, so a
   suspected loss gets a controlled A/B: build the last tag in a separate
   `git worktree` with its own outputs, run both binaries ALTERNATED (8+
   rounds), report mean and spread. A real loss is either the price of a named

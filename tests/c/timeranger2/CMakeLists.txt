@@ -169,13 +169,18 @@ foreach(test ${SRCS})
     endif()
 
     if(test STREQUAL "test_tr2check")
-        # The test runs the tr2check tool: the one built in this tree when
-        # there is one, else the installed one
+        # The test runs the tr2check tool of THIS checkout: the one built in
+        # this tree when there is one (ENABLE_SDK), else the one of its module
+        # build dir, which `yunetas build` and the first step of `yunetas test`
+        # build. Not /yuneta/bin/tr2check: that is machine-wide, the last one
+        # installed, and a worktree run (an A/B against the last tag, the
+        # release suite of a node) would test somebody else's
         if(TARGET tr2check)
             add_dependencies(${binary} tr2check)
             target_compile_definitions(${binary} PRIVATE TR2CHECK_BIN="$<TARGET_FILE:tr2check>")
         else()
-            target_compile_definitions(${binary} PRIVATE TR2CHECK_BIN="/yuneta/bin/tr2check")
+            target_compile_definitions(${binary} PRIVATE
+                TR2CHECK_BIN="${YUNETAS_BASE}/utils/c/tr2check/build/tr2check")
         endif()
     endif()
 

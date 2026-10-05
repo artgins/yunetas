@@ -15,9 +15,14 @@ CMakeLists.txt. They are apart when:
 
 The directories of a test are read from the sources it is built from (and
 the headers of tests/c or performance/c they include): a #define of a
-*DATABASE* or *STORE* name, a build_path() segment after "tests_yuneta", a
-literal tests_yuneta/<dir>, a literal /tmp/<path>; a directory and the ones
-under it are one place. The properties are
+*DATABASE* or *STORE* name, a build_path() segment after "tests_yuneta" or
+after `path_root`, the "database" key of a C_TRANGER/C_NODE/C_TREEDB kw, the
+domain of register_yuneta_environment(), a literal tests_yuneta/<dir>, a
+literal /tmp/<path>; a directory and the ones under it are one place. The
+"database" key is taken as under ~/tests_yuneta, where these tests put it: a
+test that puts it under a directory of its own run (c_mqtt's work dir) is
+listed there too, and two such tests would be reported although they do not
+meet -- give them distinct names. The properties are
 ctest's own (--show-only=json-v1), so a configured and built tree is needed.
 
 Tests that run the SAME executable with other arguments (the groups of
@@ -46,6 +51,9 @@ PATTERNS = [
     (re.compile(r'"tests_yuneta"\s*,\s*"([^"%]+)"'), '~/tests_yuneta/'),
     (re.compile(r'tests_yuneta/([A-Za-z0-9_.-]+)'), '~/tests_yuneta/'),
     (re.compile(r'"(/tmp/[^"%]+)"'), ''),
+    (re.compile(r'"database"\s*,\s*"([^"%]+)"'), '~/tests_yuneta/'),
+    (re.compile(r'build_path\([^;]*?\bpath_root\s*,\s*"([^"%]+)"'), '~/tests_yuneta/'),
+    (re.compile(r'register_yuneta_environment\(\s*\w+\s*,\s*"([^"%]+)"'), '~/tests_yuneta/'),
 ]
 
 

@@ -70,10 +70,10 @@ endif()
 
 # tr_treedb is in timeranger2: no root-linux
 target_link_libraries(${PROJECT_NAME}
-    libtimeranger2.a
-    libyev_loop.a
-    libytls.a
-    libyunetas-gobj.a
+    ${LIB_DEST_DIR}/libtimeranger2.a
+    ${LIB_DEST_DIR}/libyev_loop.a
+    ${LIB_DEST_DIR}/libytls.a
+    ${LIB_DEST_DIR}/libyunetas-gobj.a
     ${YUNETAS_EXTERNAL_LIBS}
     ${YUNETAS_PCRE_LIBS}
     ${JWT_LIBS}

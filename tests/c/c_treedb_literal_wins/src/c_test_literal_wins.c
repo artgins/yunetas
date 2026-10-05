@@ -194,8 +194,14 @@ PRIVATE void mt_create(hgobj gobj)
     rmrdir(priv->path_database);
 
     /*
-     *  C_TIMER0: the steps are 10 ms apart, as set_timeout0() asks. C_TIMER
-     *  runs on the yuno's periodic tick and made each step one second
+     *  The timer between two steps is a BARRIER, not a deferral: a step
+     *  leaves many watcher cancels to reap (one per treedb it closed), and
+     *  while a posted event is pending yev_loop_run() takes at most ONE
+     *  completion per cycle (io_uring_peek_cqe), so steps chained with
+     *  gobj_post_event() would release ~1 inotify instance per step. The
+     *  timer's completion comes after the step's cancels: the next step runs
+     *  once the ring has drained this one, and 10 ms is a margin. C_TIMER0
+     *  because C_TIMER runs on the yuno's periodic tick, a second per step
      */
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
 }
@@ -3460,7 +3466,7 @@ PRIVATE void child_takes_its_own_ring(void)
     int retry_delay_ms = 100;
     for(int retry = 0; retry < 5; retry++) {
         ret = io_uring_queue_init(entries, ring, 0);
-        if(ret >= 0 || (ret != -ENOMEM && ret != -EAGAIN)) {
+        if(ret >= 0 || (ret != -ENOMEM && ret != -EAGAIN) || retry == 4) {
             break;
         }
         printf("child %d: io_uring_queue_init(%u): %s, retrying in %d ms (attempt %d)\n",
