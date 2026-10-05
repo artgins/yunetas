@@ -84,6 +84,9 @@ target_link_libraries(${PROJECT_NAME}
 #   Test
 ##############################################
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+# Alone under ctest -j: it asserts a time window of the wall clock, and a
+# stall of the machine under the load of the tests running at once breaks it
+set_tests_properties(${PROJECT_NAME} PROPERTIES RUN_SERIAL TRUE)
 
 ##############################################
 #   Installation

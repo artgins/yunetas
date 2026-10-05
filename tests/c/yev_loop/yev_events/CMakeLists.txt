@@ -115,3 +115,13 @@ endforeach()
 target_link_options(test_yevent_sq_retry PRIVATE "-Wl,--wrap=io_uring_submit")
 target_link_options(test_yevent_sq_nomem PRIVATE "-Wl,--wrap=io_uring_submit")
 target_link_options(test_yevent_stop_nomem PRIVATE "-Wl,--wrap=io_uring_submit")
+
+# Alone under ctest -j: it asserts a time window of the wall clock, and a
+# stall of the machine under the load of the tests running at once breaks it
+set_tests_properties(
+    "${current_directory_name}/test_yevent_timer_once1"
+    "${current_directory_name}/test_yevent_timer_once2"
+    "${current_directory_name}/test_yevent_timer_periodic1"
+    "${current_directory_name}/test_yevent_kept_after_post"
+    PROPERTIES RUN_SERIAL TRUE
+)

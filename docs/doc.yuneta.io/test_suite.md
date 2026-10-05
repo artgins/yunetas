@@ -73,7 +73,11 @@ appends to the directory, so it runs after the other iterators), `tr_msg`,
 `tr_delete_instance`, `perf_topic_integer`, and `inotify_flood` (the two
 tests that flood the per-user inotify queue). The benchmarks and the
 `tr_topic_pkey_integer` chain are `RUN_SERIAL`: the release trend reads their
-times, and other tests that run at the same time change them.
+times, and other tests that run at the same time change them. So are the
+tests that assert a time window of the wall clock (`test_yevent_timer_once1`,
+`_once2`, `_periodic1`, `_kept_after_post`, `test_c_timer`, `test_c_timer0`,
+`test_static_resolv_numeric`): a stall of a loaded machine moved
+`test_yevent_timer_once1` from 1.0 s to 1.8 s, out of its 0.9-1.1 s window.
 
 To compare the TIMES of two runs, compare runs of one job count. `yunetas
 test` names its log after it (`build/<date>.j<N>.txt`, CLI 0.21.1+), and only
@@ -83,8 +87,10 @@ a serial run:
 ```bash
 yunetas test --serial     # build/<date>.j1.txt
 grep "timeranger2/test_topic_pkey_integer \.\.\." build/*.j1.txt
-``` A new test that
-reuses a directory of another test must declare the same lock.
+```
+
+A new test that reuses a directory of another test must declare the same
+lock.
 
 `scripts/check_test_databases.py` checks it, as `check_test_ports.py` checks
 the ports. It reads the directories of each test from its sources (a

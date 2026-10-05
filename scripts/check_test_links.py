@@ -94,11 +94,11 @@ def main():
                 continue
             checked += 1
 
+            reports = []
+
             def report(pos, what, fix):
-                nonlocal found
                 line = text.count('\n', 0, pos) + 1
-                print(f'{rel}:{line}: {what}: write {fix}')
-                found += 1
+                reports.append((line, f'{rel}:{line}: {what}: write {fix}'))
 
             for pos, tok in tokens(text):
                 if BARE_ARCHIVE.fullmatch(tok):
@@ -117,6 +117,9 @@ def main():
                     if tok in archives:
                         report(block.start(1) + pos, f'{tok} is a bare name of an SDK archive',
                                f'{archives[tok]}/lib{tok}.a')
+            for line, msg in sorted(reports):
+                print(msg)
+            found += len(reports)
 
     for p in problems:
         print(p, file=sys.stderr)

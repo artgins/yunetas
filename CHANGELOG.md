@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **The tests that assert a time window of the wall clock run alone under
+  `ctest -j`** (`RUN_SERIAL`): `test_yevent_timer_once1`, `_once2`,
+  `_periodic1`, `_kept_after_post`, `test_c_timer`, `test_c_timer0`,
+  `test_static_resolv_numeric`. `test_yevent_timer_once1` failed once in
+  the cloud verification's parallel suite (1.80 s, window 0.9-1.1 s).
+- **`scripts/check_test_databases.py` no longer erases why a test failed.**
+  ctest truncates `Testing/Temporary/LastTest.log` on every run, its
+  `--show-only` too: the check keeps the file and puts it back. And the CLI
+  0.21.2 runs ctest with `--output-on-failure`, so the output of a failed
+  test is in the kept `build/<date>.j<N>.txt` as well.
+- **`scripts/check_md_fences.py`**: a fenced block whose closing fence has
+  text glued after it does not close, and the rest of the page renders as
+  code; `docs/doc.yuneta.io/deploy.sh` refuses to build such a page. It
+  happened in `test_suite.md` (fixed). `check_test_links.py` reports by line.
+
 - **18 tests are relinked again when a kernel library changes.** The 14
   `tr_treedb_*` tests, `tr_dt_unknown`, `perf_timeranger2`, `perf_tr_treedb`
   and `perf_rotatory` named `libtimeranger2.a`, `libyev_loop.a`,

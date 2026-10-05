@@ -17,6 +17,10 @@ sed -i "s|\*Documentation updated: .*\*|\*Documentation updated: ${TODAY}\*|" ge
 CLI_VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$REPO_ROOT/utils/python/tui_yunetas/yunetas/__version__.py")
 sed -i "s|management/build CLI (currently [^)]*)|management/build CLI (currently ${CLI_VERSION})|" installation.md
 
+# A fenced block that does not close (text glued to its closing fence) turns
+# the rest of the page into code, and myst builds it without a word
+python3 "$REPO_ROOT/scripts/check_md_fences.py" "$PWD"
+
 # Build static HTML with empty BASE_URL so the site works at the domain root
 # myst build --html spawns a temporary node server that doesn't always exit;
 # snapshot node PIDs before and kill only the new ones after the build.

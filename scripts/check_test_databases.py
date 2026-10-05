@@ -58,7 +58,20 @@ PATTERNS = [
 
 
 def ctest_view(base, build_dir):
-    """The tests as ctest sees them, or None (said)."""
+    """
+    The tests as ctest sees them, or None (said). ctest truncates
+    Testing/Temporary/LastTest.log on every run, --show-only too, and that file
+    holds the output of the last failed test: it is kept and put back, or this
+    check, run after a suite, erases why a test failed.
+    """
+    kept = {}
+    tmp = os.path.join(base, build_dir, 'Testing', 'Temporary')
+    for name in ('LastTest.log', 'LastTestsFailed.log'):
+        try:
+            with open(os.path.join(tmp, name), 'rb') as fh:
+                kept[name] = fh.read()
+        except OSError:
+            pass
     try:
         out = subprocess.run(
             ['ctest', '--test-dir', build_dir, '--show-only=json-v1'],
@@ -68,6 +81,13 @@ def ctest_view(base, build_dir):
     except (OSError, subprocess.CalledProcessError, ValueError) as e:
         print(f'cannot read the tests of {build_dir} from ctest: {e}', file=sys.stderr)
         return None
+    finally:
+        for name, data in kept.items():
+            try:
+                with open(os.path.join(tmp, name), 'wb') as fh:
+                    fh.write(data)
+            except OSError as e:
+                print(f'cannot put back {name} of {build_dir}: {e.strerror}', file=sys.stderr)
 
 
 def properties_of(test):

@@ -63,4 +63,8 @@ if(CONFIG_FULLY_STATIC)
     target_compile_definitions(test_static_resolv_numeric PRIVATE YUNETA_DNS_PORT=15354)
 
     add_test("${current_directory_name}/test_static_resolv_numeric" test_static_resolv_numeric)
+    # Alone under ctest -j: it asserts a time window of the wall clock, and a
+    # stall of the machine under the load of the tests running at once breaks it
+    set_tests_properties("${current_directory_name}/test_static_resolv_numeric"
+        PROPERTIES RUN_SERIAL TRUE)
 endif()
