@@ -8,9 +8,46 @@ Question: many ctest tests must run one after another (they depend on each
 other, or used to share ports), and `yunetas test` takes more than 30
 minutes. Can it be faster?
 
-Status: **analysis done; proposal with two ready-to-apply patches, validated,
-awaiting approval** (see *Patches* at the end) — nothing changed in the code. Measured in a cloud container (4 cores), plus an audit
-of what the tests share.
+Status: **done, released in 7.26.1, 7.26.2 and 7.26.3** (see *Result* just
+below). The analysis that follows the result is kept as it was written:
+measured in a cloud container (4 cores), plus an audit of what the tests
+share.
+
+### Result (2026-10-05)
+
+Every item of the proposal was applied, item 5 further than proposed, and
+item 6 with option (ii). On the dev machine (8 cores), `yunetas test` with no
+change in the sources went from ~31 min (1250 s of ctest alone at 7.26.0) to
+**~4 min** (226-278 s in all, ~6 s of it building).
+
+| Item | Done in | Commit | What changed from the proposal |
+|---|---|---|---|
+| 1. no `make clean`, `make -j` | CLI 0.21.0 | tui_yunetas `7ba50c9` | As proposed; `--clean` keeps the old behaviour. Also the `MarkupError` of `main.py:64-66`, fixed. |
+| 2. `ctest -j` | CLI 0.21.0 | tui_yunetas `7ba50c9` | As proposed, gated on SDK >= 7.26.1 (`CTEST_PARALLEL_SINCE`); `--jobs`, `--serial`. |
+| 3. declare what the tests share | 7.26.1 | `7c05be021` | The yunetas patch as written. The sibling of `check_test_ports.py` for shared `DATABASE`s is not written: it stays in `TODO.md`. |
+| 4. `RUN_SERIAL` on the timed tests | 7.26.1 | `7c05be021` | As proposed. |
+| 5. split `test_c_treedb_literal_wins` | 7.26.2 | `5385260a5`, `8181b9a7a`, `a91bcdc35`, `41dcc5a36` | Seven groups instead of ~four (`early`, `late1`, `late2`, `dcd`, `dcn`, `o4`, `o4xa`; `--group=<name>`): DC and O4X split by sweep. The seven at once: ~34 s instead of 218 s. |
+| 6. end the ping-pong on `outputs/lib` | 7.26.2 | `5da4f6939` | Option (ii): the root `build/` builds the tests, performance and stress only (`ENABLE_SDK`, OFF by default; ON for the ASan tree). No CLI change. |
+
+**What the proposal did not foresee, found after it was applied:**
+
+- **Running the `literal_wins` groups at once exhausted the per-user inotify
+  instances (4096).** The test ran whole sweeps in one step of the loop, and a
+  closed treedb releases its watcher's instance only when the loop completes
+  the cancel: one group held up to ~1900, the suite peaked at ~3860. 7.26.2's
+  parallel suite failed on hidraulia (`ctest -j12`) and artgins (`-j8`) while
+  it passed on wattyzer and locally. Fixed in 7.26.3 (`afc4d27ed`): one
+  iteration per step, 10 ms apart (`C_TIMER0`; the `C_TIMER` it had ran on
+  the 1 s tick). The suite peaks at ~700 now, and passed in parallel on
+  hidraulia (164 s) and artgins (534 s).
+- **A forked child of the same test could get a transient ENOMEM from
+  `io_uring_queue_init()`** with memlock unlimited, under the load of a
+  parallel run. It retries now as `yev_loop_create()` does (`dca8c5f79`,
+  7.26.2).
+- **A suite run as `yuneta` on a production node shares the per-user kernel
+  budgets (inotify instances, memlock) with the yunos running there.** The
+  hidraulia run that failed had exhausted them: a production yuno opening a
+  watcher at that moment would have failed too.
 
 ### Findings so far
 
@@ -202,7 +239,7 @@ installs `kernel/c/gobj-c`'s copy, the root `make install` relinks 135+
 executables; a second root `make install` straight after relinks nothing.
 That is the 36 + 155 s of steps 1-2 with no change.
 
-### Proposal (for approval — nothing changed yet)
+### Proposal (as written for approval; applied, see *Result*)
 
 Ordered by gain / risk. Items 1-2 live in the CLI repo
 (`artgins/tui_yunetas.py`, `yunetas/main.py`, `def test()`), which is NOT
@@ -266,7 +303,7 @@ Not proposed: shortening the waits of the slow tests (`c_tcp_inactivity`'s
 20 s window, the SMTP timeouts of `emailsender`). They are what the tests
 check, and under `-j` waiting costs almost nothing.
 
-### Patches for items 1-4 (ready to apply, validated)
+### Patches for items 1-4 (applied in 7.26.1 and CLI 0.21.0)
 
 Both patches were tried and then removed: nothing of them is committed in
 any repository. Apply with `git apply` from the root of each repo.
