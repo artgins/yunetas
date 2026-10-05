@@ -1,6 +1,14 @@
 # **Changelog**
 
-## Unreleased
+## v7.26.2 (2026-10-05)
+
+A second release of the test suite and its build: no change in the
+libraries or in the yunos, so a node running 7.26.0 or 7.26.1 needs no
+upgrade. On the dev machine (8 cores), `yunetas test` with no change in the
+sources takes 226 s in all, against 470 s at 7.26.1 and ~31 minutes before
+7.26.1. A machine with a root `build/` from an earlier release stops
+building the SDK in it at its next `yunetas init` (or `cmake .` in
+`build/`).
 
 - **The root `build/` tree builds the tests, not the SDK** (`ENABLE_SDK`,
   OFF by default). The kernel, modules, utils and yunos are built and
@@ -17,11 +25,17 @@
   scenarios** (`test_c_treedb_literal_wins/early`, `/late1`, `/late2`,
   `/dcd`, `/dcn`, `/o4`, `/o4xa`; DC is split into its sweep with drafts and
   its sweep without, O4X into the literal that changes and the one that
-  adds),
-  each in a store of its own (`~/tests_yuneta/c_treedb_literal_wins_<group>`).
+  adds), each in a store of its own (`~/tests_yuneta/c_treedb_literal_wins_<group>`).
   In one binary, the whole run took ~215 s and was the floor of a parallel
   suite. The seven run at the same time in ~34 s (8 cores). The binary takes
   `--group=<name>`; with no `--group`, it runs every scenario as before.
+- **A child of `test_c_treedb_literal_wins` retries its io_uring ring on
+  ENOMEM/EAGAIN**, as `yev_loop_create()` does (5 attempts, 100 ms
+  doubling). With its groups running at once under `ctest -j`, a child of
+  the DC sweep got `io_uring_queue_init(4096) FAILED: Cannot allocate
+  memory` with memlock unlimited (a transient failure of the kernel to
+  allocate the ring), and the sweep failed. In three rounds of the
+  treedb/timeranger2 tests at `-j8` afterwards, 4 retries, all recovered.
 
 ## v7.26.1 (2026-10-04)
 
