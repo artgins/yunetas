@@ -1,6 +1,12 @@
 # **Changelog**
 
-## Unreleased
+## v7.26.3 (2026-10-05)
+
+A fix of the test suite: 7.26.2's suite failed on two nodes running it in
+parallel (hidraulia, artgins), because the groups of
+`test_c_treedb_literal_wins` exhausted the per-user inotify instances. No
+change in the libraries or in the yunos, so a node running 7.26.0 to 7.26.2
+needs no upgrade.
 
 - **`test_c_treedb_literal_wins` releases its inotify instances as it
   goes.** A sweep (CR, O4C/O4A/O4X, FP) and the 41 scenarios of the group
@@ -14,7 +20,9 @@
   or one iteration, and the steps are 10 ms apart, as the test asked:
   `C_TIMER0` instead of `C_TIMER`, whose steps ran on the yuno's 1 s tick.
   The largest group now holds ~290 instances, and the whole suite peaks at
-  ~700 instead of ~3860. The groups at once still take ~34 s.
+  ~700 instead of ~3860. The groups at once still take ~34 s. The whole
+  suite in parallel then passed on hidraulia (298/298, 164 s) and artgins
+  (298/298, 534 s).
 
 ## v7.26.2 (2026-10-05)
 
