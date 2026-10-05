@@ -83,6 +83,28 @@ guard of `mt_create`, the CMake loop: a gclass cannot see `main.c`, and CMake
 cannot see either); `yev_loop_create()` still sleeps after its last attempt
 (a kernel change, not a test's).
 
+#### Fourth check (2026-10-05): `179fc92` and CLI 0.21.2
+
+Checked at `e50796f`, CLI 0.21.2 installed from `0188abf` (the
+`utils/python/tui_yunetas` pointer), cloud container (4 cores), as `yuneta`.
+
+**Verdict: the four points are applied and work. Nothing new to fix.**
+
+| Check | Result |
+|---|---|
+| `yunetas build` / `yunetas test` | 11 s / **391 s**, 298/298, `ctest -j4 --output-on-failure` 381 s |
+| The 7 wall-clock-window tests | `RUN_SERIAL`, and each ran alone (no other test started or ended between its start and its end); `test_yevent_timer_once1` 1.02 s |
+| `LastTest.log` across the four checks | 154819 lines before, 154819 after (was truncated to 3) |
+| `--output-on-failure` | on a minimal CTest project, the output of the failed test lands in the `--output-log` file (without the flag it does not), the output of a test that passes does not |
+| `check_md_fences.py` | finds the broken `test_suite.md` of `051fbba` (line 86, then 100 as its consequence), exit 1; the repo: 392 files, exit 0; `deploy.sh` runs it under `set -euo pipefail`, so a broken fence stops the deploy |
+| `check_test_ports.py`, `check_test_databases.py`, `check_test_links.py` | exit 0 (links: 145 `CMakeLists.txt`, reported by line now) |
+
+Notes, not defects: `check_md_fences.py` ignores fences indented 4 spaces or
+more (opening and closing alike, so no false finding), and its `os.walk()`
+has no `onerror`, as the link check had before its fix: an unreadable
+directory is skipped without a word. `check_test_databases.py` keeps the two
+logs in a `finally` and says when it cannot put one back.
+
 #### Third check (2026-10-05): `051fbba`
 
 **Applied (2026-10-05): the four points below**, in `179fc92f9` and the CLI 0.21.2
