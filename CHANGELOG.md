@@ -1,6 +1,14 @@
 # **Changelog**
 
-## Unreleased
+## v7.26.4 (2026-10-05)
+
+The tests and their tooling, after four rounds of cloud verification of the
+suite's speed work (`REV-CLOUD.md`). One real defect fixed: 18 tests linked
+the kernel archives by a bare name and ran on the old library after a
+change of the one they test. No change in the libraries or in the yunos, so
+a node running 7.26.x needs no upgrade. The suite passes in parallel on the
+dev machine (298/298, `ctest -j8`) and on wattyzer (298/298, `-j8`). The
+`yunetas` CLI goes with it: 0.21.2.
 
 - **The tests that assert a time window of the wall clock run alone under
   `ctest -j`** (`RUN_SERIAL`): `test_yevent_timer_once1`, `_once2`,
@@ -10,7 +18,10 @@
   And `timeranger2/test_fs_watcher_overflow`, which asserts the watcher's
   cost per directory on a big tree against a small one (at most 6 times):
   wattyzer's parallel suite (`-j8`, load ~4) failed it with 48 us against
-  713; it passes alone in 31 s.
+  713; it passes alone in 31 s. And `test_c_controlcenter_scenarios`, whose
+  rate of a burst over its 1.5 s tick fails when the load stretches the
+  tick over 50% (the last test of that class, by the fifth check of
+  `REV-CLOUD.md`).
 - **`scripts/check_test_databases.py` no longer erases why a test failed.**
   ctest truncates `Testing/Temporary/LastTest.log` on every run, its
   `--show-only` too: the check keeps the file and puts it back. And the CLI
