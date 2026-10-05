@@ -80,7 +80,8 @@ tests that assert a time window of the wall clock (`test_yevent_timer_once1`,
 `test_yevent_timer_once1` from 1.0 s to 1.8 s, out of its 0.9-1.1 s window. And
 `test_fs_watcher_overflow`, which asserts the watcher's cost per directory on
 a big tree against a small one: under `-j8` on a loaded node it measured 713
-us against 48, where 6 times is the bound.
+us against 48, where 6 times is the bound. And `test_c_controlcenter_scenarios`,
+which asserts the rate of a burst over its 1.5 s tick.
 
 To compare the TIMES of two runs, compare runs of one job count. `yunetas
 test` names its log after it (`build/<date>.j<N>.txt`, CLI 0.21.1+), and only

@@ -85,6 +85,9 @@ cannot see either); `yev_loop_create()` still sleeps after its last attempt
 
 #### Fifth check (2026-10-05): `0d5baf7` and `4f3db35`
 
+**Applied (2026-10-05):** `test_c_controlcenter_scenarios` is `RUN_SERIAL`
+(27 tests are now), in 7.26.4.
+
 Checked at `4f3db35`, CLI 0.21.2, cloud container (4 cores), as `yuneta`.
 
 **Verdict: both are right. One test of the same class is left.**

@@ -84,3 +84,7 @@ target_link_libraries(${PROJECT_NAME}
 #   Test
 ##############################################
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+# Alone under ctest -j: it asserts the rate of a burst over its 1.5 s tick
+# (test_rates_read), and a tick stretched over 50% by the load of the tests
+# running at once fails it
+set_tests_properties(${PROJECT_NAME} PROPERTIES RUN_SERIAL TRUE)
