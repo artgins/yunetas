@@ -4,11 +4,11 @@ Read and write gobj attributes. Attributes are typed fields declared through the
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c)
 
 (gobj_attr_desc)=
-## [`gobj_attr_desc()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3539)
+## [`gobj_attr_desc()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3539)
 
 Retrieves the attribute description of a given gobj. If the attribute name is NULL, it returns the full attribute table of the gobj.
 
@@ -39,7 +39,7 @@ If `verbose` is set to TRUE and the attribute is not found, an error message is 
 ---
 
 (gobj_attr_type)=
-## [`gobj_attr_type()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3564)
+## [`gobj_attr_type()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3564)
 
 Returns the data type of a given attribute in the specified `hgobj`.
 
@@ -68,7 +68,7 @@ If the attribute does not exist, the function returns `0` without logging an err
 ---
 
 (gobj_has_attr)=
-## [`gobj_has_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3577)
+## [`gobj_has_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3577)
 
 Checks if the given `hgobj` has an attribute with the specified name.
 
@@ -97,7 +97,7 @@ This function performs a case-sensitive check for the attribute name.
 ---
 
 (gobj_has_bottom_attr)=
-## [`gobj_has_bottom_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4225)
+## [`gobj_has_bottom_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4225)
 
 Checks if the given `hgobj` or any of its bottom objects has the specified attribute.
 
@@ -126,7 +126,7 @@ This function traverses the bottom hierarchy of the given `hgobj` to check for t
 ---
 
 (gobj_is_readable_attr)=
-## [`gobj_is_readable_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3592)
+## [`gobj_is_readable_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3592)
 
 Checks if a given attribute of a `hgobj` is readable. This means it has the `SDF_RD` flag set.
 
@@ -155,7 +155,7 @@ If the attribute does not exist, the function returns `FALSE` and logs an error.
 ---
 
 (gobj_is_writable_attr)=
-## [`gobj_is_writable_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3605)
+## [`gobj_is_writable_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3605)
 
 Checks if a given attribute of a `hgobj` is writable based on its flags.
 
@@ -196,7 +196,7 @@ gobj_is_writable_attr(gobj, "max_sessions_per_user");   // FALSE
 ---
 
 (gobj_list_persistent_attrs)=
-## [`gobj_list_persistent_attrs()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3137)
+## [`gobj_list_persistent_attrs()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3137)
 
 Retrieves a list of persistent attributes for a given `hgobj` or all services if `gobj` is `NULL`.
 It is what `list-persistent-attrs` shows, so the [`SDF_SECRET`](#SDF_SECRET)
@@ -228,7 +228,7 @@ If [`__global_list_persistent_attrs_fn__`](#__global_list_persistent_attrs_fn__)
 ---
 
 (gobj_read_attr)=
-## [`gobj_read_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3644)
+## [`gobj_read_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3644)
 
 Retrieves the value of a specified attribute from the given `hgobj`. The function returns a JSON object representing the attribute value.
 
@@ -259,7 +259,7 @@ If the attribute exists, the function returns a reference to the JSON object sto
 ---
 
 (gobj_mask_secret_attrs)=
-## [`gobj_mask_secret_attrs()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3731)
+## [`gobj_mask_secret_attrs()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3731)
 
 Replaces, in a dict of attributes of `gobj` (what
 [`gobj_read_attrs()`](#gobj_read_attrs) or
@@ -301,7 +301,7 @@ return build_command_response(gobj, 0, 0, 0, jn_attrs);
 ---
 
 (gobj_mask_secret_config)=
-## [`gobj_mask_secret_config()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3753)
+## [`gobj_mask_secret_config()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3753)
 
 The same masking for a whole yuno configuration, what `view-config` shows:
 the [`SDF_SECRET`](#SDF_SECRET) attributes of the yuno
@@ -365,7 +365,7 @@ return build_command_response(gobj, 0, 0, 0, jn_data);
 ---
 
 (gobj_read_attrs)=
-## [`gobj_read_attrs()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3708)
+## [`gobj_read_attrs()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3708)
 
 Retrieves a JSON object containing attributes of the given `hgobj` that match the specified flag criteria.
 
@@ -396,7 +396,7 @@ This function filters attributes based on the provided `include_flag`. If `inclu
 ---
 
 (gobj_read_bool_attr)=
-## [`gobj_read_bool_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4294)
+## [`gobj_read_bool_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4294)
 
 The function `gobj_read_bool_attr()` retrieves the boolean value of a specified attribute from a given `hgobj`. It traverses the object's hierarchy to find the attribute if it is not directly present in the object.
 
@@ -425,7 +425,7 @@ If the attribute is not found, a warning is logged, and `FALSE` is returned. If 
 ---
 
 (gobj_read_integer_attr)=
-## [`gobj_read_integer_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4338)
+## [`gobj_read_integer_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4338)
 
 Retrieves the integer value of a specified attribute from the given `hgobj`. The function supports attribute inheritance from bottom objects.
 
@@ -454,7 +454,7 @@ If the attribute is inherited from a bottom object, the function will traverse t
 ---
 
 (gobj_read_json_attr)=
-## [`gobj_read_json_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4406)
+## [`gobj_read_json_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4406)
 
 `gobj_read_json_attr()` retrieves the JSON attribute of a given GObj, including inherited attributes from bottom GObjs.
 
@@ -483,7 +483,7 @@ If the attribute is not found in `gobj`, the function searches in its bottom GOb
 ---
 
 (gobj_read_pointer_attr)=
-## [`gobj_read_pointer_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4438)
+## [`gobj_read_pointer_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4438)
 
 Retrieves the value of a pointer-type attribute from the given `hgobj`. The function searches for the attribute in the object's hierarchy, following inherited attributes if necessary.
 
@@ -512,7 +512,7 @@ If the attribute is inherited from a bottom object, [`gobj_read_pointer_attr()`]
 ---
 
 (gobj_read_real_attr)=
-## [`gobj_read_real_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4374)
+## [`gobj_read_real_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4374)
 
 Retrieves the value of a real (floating-point) attribute from the given `hgobj`. The function searches for the attribute in the object's hierarchy, including inherited attributes from bottom objects.
 
@@ -541,7 +541,7 @@ If the attribute is found and the `hgobj` has a `mt_reading` method, that method
 ---
 
 (gobj_read_str_attr)=
-## [`gobj_read_str_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4258)
+## [`gobj_read_str_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4258)
 
 Retrieves the string value of a specified attribute from the given `hgobj`, considering inherited attributes if applicable.
 
@@ -570,7 +570,7 @@ If the attribute is inherited from a bottom `hgobj`, the function retrieves the 
 ---
 
 (gobj_read_user_data)=
-## [`gobj_read_user_data()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4090)
+## [`gobj_read_user_data()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4090)
 
 Retrieves user-defined data associated with the given `hgobj`. If a specific key is provided, it returns the corresponding value. Otherwise, it returns the entire user data dictionary.
 
@@ -599,7 +599,7 @@ The returned JSON object is not owned by the caller and must not be modified or 
 ---
 
 (gobj_remove_persistent_attrs)=
-## [`gobj_remove_persistent_attrs()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3123)
+## [`gobj_remove_persistent_attrs()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3123)
 
 Removes persistent and writable attributes from a `hgobj`. If `jn_attrs` is empty, all attributes are removed.
 
@@ -628,7 +628,7 @@ This function requires a global persistent attribute removal function to be set.
 ---
 
 (gobj_reset_rstats_attrs)=
-## [`gobj_reset_rstats_attrs()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3632)
+## [`gobj_reset_rstats_attrs()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3632)
 
 Resets all attributes of the given `hgobj` that are marked with `SDF_RSTATS` to their default values.
 
@@ -655,7 +655,7 @@ This function resets only attributes marked with `SDF_RSTATS`. This leaves other
 ---
 
 (gobj_reset_volatil_attrs)=
-## [`gobj_reset_volatil_attrs()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3619)
+## [`gobj_reset_volatil_attrs()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3619)
 
 Resets all attributes of the given `hgobj` that are marked as `SDF_VOLATIL` to their default values.
 
@@ -682,7 +682,7 @@ This function resets only attributes marked with `SDF_VOLATIL`. This leaves othe
 ---
 
 (gobj_save_persistent_attrs)=
-## [`gobj_save_persistent_attrs()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3094)
+## [`gobj_save_persistent_attrs()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3094)
 
 The function `gobj_save_persistent_attrs()` saves the persistent attributes of a given `hgobj` object. It makes sure that only named gobjs (services) can store persistent attributes.
 
@@ -711,7 +711,7 @@ This function requires that the `hgobj` is a named gobj (service). If the global
 ---
 
 (gobj_write_attr)=
-## [`gobj_write_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4115)
+## [`gobj_write_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4115)
 
 The `gobj_write_attr` function writes a new value to a specified attribute of a given `hgobj`.
 
@@ -744,7 +744,7 @@ If the attribute does not exist, an error is logged. The function makes sure tha
 ---
 
 (gobj_write_attrs)=
-## [`gobj_write_attrs()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4143)
+## [`gobj_write_attrs()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4143)
 
 Writes multiple attributes of a `hgobj` object based on the provided JSON dictionary, applying the specified flag filter.
 
@@ -777,7 +777,7 @@ This function makes sure that only attributes matching the specified flag are up
 ---
 
 (gobj_write_bool_attr)=
-## [`gobj_write_bool_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4548)
+## [`gobj_write_bool_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4548)
 
 Sets the boolean attribute of a `hgobj` instance to the specified value.
 
@@ -808,7 +808,7 @@ If the attribute is found, it is updated with the new boolean value. If the `hgo
 ---
 
 (gobj_write_integer_attr)=
-## [`gobj_write_integer_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4578)
+## [`gobj_write_integer_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4578)
 
 The function `gobj_write_integer_attr()` sets the value of an integer attribute in the given `hgobj` object. It updates the attribute if it exists and triggers the `mt_writing` method if defined.
 
@@ -839,7 +839,7 @@ If the `mt_writing` method is defined in the object's gclass, it is called after
 ---
 
 (gobj_write_json_attr)=
-## [`gobj_write_json_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4638)
+## [`gobj_write_json_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4638)
 
 Writes a JSON value to the specified attribute of a `hgobj`. The function makes sure that the attribute exists and is of the correct type before updating its value.
 
@@ -870,7 +870,7 @@ If the attribute does not exist, a warning is logged. The function does not chec
 ---
 
 (gobj_write_new_json_attr)=
-## [`gobj_write_new_json_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4669)
+## [`gobj_write_new_json_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4669)
 
 Writes a new JSON value to the specified attribute of a `hgobj`. The provided JSON value is owned and will not be incremented in reference count.
 
@@ -901,7 +901,7 @@ This function does not increment the reference count of `jn_value`. Make sure th
 ---
 
 (gobj_write_pointer_attr)=
-## [`gobj_write_pointer_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4700)
+## [`gobj_write_pointer_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4700)
 
 Sets the value of a pointer attribute in the given `hgobj` object.
 
@@ -932,7 +932,7 @@ If the attribute does not exist, an error is logged and -1 is returned.
 ---
 
 (gobj_write_real_attr)=
-## [`gobj_write_real_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4608)
+## [`gobj_write_real_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4608)
 
 The function `gobj_write_real_attr()` sets the value of a real (floating-point) attribute in the given `hgobj` object. The attribute must exist and be of type `DTP_REAL`.
 
@@ -963,7 +963,7 @@ If the attribute exists and is writable, its value is updated. If the `hgobj` ha
 ---
 
 (gobj_write_str_attr)=
-## [`gobj_write_str_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4470)
+## [`gobj_write_str_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4470)
 
 Sets the value of a string attribute in the given `hgobj` object. If the attribute does not exist, a warning is logged.
 
@@ -994,7 +994,7 @@ If the attribute does not exist in the `hgobj`, a warning is logged. If the `hgo
 ---
 
 (gobj_write_strn_attr)=
-## [`gobj_write_strn_attr()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4501)
+## [`gobj_write_strn_attr()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4501)
 
 Writes a string attribute to a `hgobj` object. This makes sure of the string is properly truncated to the specified length.
 
@@ -1027,7 +1027,7 @@ If `value` is longer than `len`, it is truncated before being written. If `value
 ---
 
 (gobj_write_user_data)=
-## [`gobj_write_user_data()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L4172)
+## [`gobj_write_user_data()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L4172)
 
 Stores a JSON value in the user data dictionary of the given `hgobj` instance under the specified key.
 
@@ -1058,7 +1058,7 @@ If `name` is empty, the entire user data dictionary is replaced with `value`.
 ---
 
 (gobj_load_persistent_attrs)=
-## [`gobj_load_persistent_attrs()`](https://github.com/artgins/yunetas/blob/7.26.4/kernel/c/gobj-c/src/gobj.c#L3065)
+## [`gobj_load_persistent_attrs()`](https://github.com/artgins/yunetas/blob/7.26.5/kernel/c/gobj-c/src/gobj.c#L3065)
 
 Loads persistent attributes from storage into the given gobj. This function is automatically called during gobj creation, so manual invocation is typically unnecessary. Only service gobjs (those with `gobj_flag_service` or `gobj_flag_top_service`) are allowed to load persistent attributes. Persistent attributes have higher precedence than values provided via JSON configuration.
 

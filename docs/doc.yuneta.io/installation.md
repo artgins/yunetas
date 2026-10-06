@@ -99,7 +99,7 @@ resolves the archives with no message. The binary then corrupts its heap at run
 time. You get a SIGABRT inside `malloc` some seconds after the start. There is
 no framework error before it, and the stack shows unrelated code. This is the
 same fault that
-[`libc_guard.cmake`](https://github.com/artgins/yunetas/blob/7.26.4/tools/cmake/libc_guard.cmake)
+[`libc_guard.cmake`](https://github.com/artgins/yunetas/blob/7.26.5/tools/cmake/libc_guard.cmake)
 catches at configure time.
 
 You can install the package on such a node. But it must be a decision:
@@ -239,7 +239,7 @@ sudo dnf -y install ./yuneta-agent-<version>-<release>.x86_64.rpm
 You can also build the package yourself, for a different architecture or with
 different options. First [build from source](#build-from-source). Then run
 `packages/deb/<ARCH>.sh` or `packages/rpm/<arch>.sh`. See
-[`packages/README.md`](https://github.com/artgins/yunetas/tree/7.26.4/packages).
+[`packages/README.md`](https://github.com/artgins/yunetas/tree/7.26.5/packages).
 
 The package installs the agent, the CLI tools and the bundled openresty under
 `/yuneta/`. It creates the `yuneta` system user. It applies the kernel tuning
@@ -251,7 +251,7 @@ and the build `.config` (`outputs/`, `outputs_ext/`, `tools/` and `.config`,
 with no sources). This base path is the SAME path as a full source checkout.
 Your projects thus compile against the published runtime with no source tree
 and with no difference of layout. The full inventory is in
-[`packages/README.md`](https://github.com/artgins/yunetas/tree/7.26.4/packages).
+[`packages/README.md`](https://github.com/artgins/yunetas/tree/7.26.5/packages).
 
 > 🔴 **The sparse SDK compiles only on the glibc that built the package.** The
 > `outputs/lib/*.a` files of the package are static archives. They reference
@@ -342,7 +342,7 @@ and with no difference of layout. The full inventory is in
 > ℹ️ **You can build the `.deb` yourself** and not use the published asset.
 > See `packages/README.md` for the four wrapper scripts, one for each
 > architecture
-> ([`AMD64.sh`](https://github.com/artgins/yunetas/blob/7.26.4/packages/deb/AMD64.sh), [`ARM32.sh`](https://github.com/artgins/yunetas/blob/7.26.4/packages/deb/ARM32.sh), [`ARMhf.sh`](https://github.com/artgins/yunetas/blob/7.26.4/packages/deb/ARMhf.sh), [`RISCV64.sh`](https://github.com/artgins/yunetas/blob/7.26.4/packages/deb/RISCV64.sh)). The SDK must be built
+> ([`AMD64.sh`](https://github.com/artgins/yunetas/blob/7.26.5/packages/deb/AMD64.sh), [`ARM32.sh`](https://github.com/artgins/yunetas/blob/7.26.5/packages/deb/ARM32.sh), [`ARMhf.sh`](https://github.com/artgins/yunetas/blob/7.26.5/packages/deb/ARMhf.sh), [`RISCV64.sh`](https://github.com/artgins/yunetas/blob/7.26.5/packages/deb/RISCV64.sh)). The SDK must be built
 > first (next section).
 
 ### Tests after a fresh install
@@ -427,7 +427,7 @@ sudo nft list table inet f2b-table     # or: sudo iptables -L f2b-yuneta-nginx-p
 > `restorecon -R /yuneta/bin/nginx/logs`.
 
 The full detail is in
-[`packages/deb/README.md`](https://github.com/artgins/yunetas/blob/7.26.4/packages/deb/README.md).
+[`packages/deb/README.md`](https://github.com/artgins/yunetas/blob/7.26.5/packages/deb/README.md).
 
 ---
 
@@ -670,7 +670,7 @@ cd /yuneta/development/yunetas
 source yunetas-env.sh
 ```
 
-[`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.26.4/yunetas-env.sh) exports four variables. It also puts `/yuneta/bin` and
+[`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.26.5/yunetas-env.sh) exports four variables. It also puts `/yuneta/bin` and
 `$YUNETAS_BASE/scripts` at the start of `PATH`:
 
 | Variable              | Value                                       |
@@ -689,7 +689,7 @@ source yunetas-env.sh
 > Register them with `yunetas register-project` (below).
 
 > ⚠️ **Source the file again in each shell.** A new SSH session, a cron job
-> and CI must source [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.26.4/yunetas-env.sh) again. Without it, [`ybatch`](#util-ybatch), [`ycommand`](#util-ycommand)
+> and CI must source [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.26.5/yunetas-env.sh) again. Without it, [`ybatch`](#util-ybatch), [`ycommand`](#util-ycommand)
 > and [`yshutdown`](#util-yshutdown) are not on `PATH`. The deploy scripts then
 > fail with "command not found".
 
@@ -747,7 +747,7 @@ writes `.config`, and the build needs that file.
 ```
 ~~~~
 
-> ⚠️ **Save `.config`, or the build fails.** If you change the compiler, run [`./set_compiler.sh`](https://github.com/artgins/yunetas/blob/7.26.4/set_compiler.sh) again. It builds the external
+> ⚠️ **Save `.config`, or the build fails.** If you change the compiler, run [`./set_compiler.sh`](https://github.com/artgins/yunetas/blob/7.26.5/set_compiler.sh) again. It builds the external
 > libraries with the correct toolchain.
 
 ### 7. Build and test
