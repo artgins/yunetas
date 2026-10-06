@@ -45,7 +45,7 @@ its nginx side and how to test the offline behaviour.
 ## API coverage verifier
 
 [`scripts/verify_api_coverage.py`](https://github.com/artgins/yunetas/blob/7.26.4/scripts/verify_api_coverage.py) compares every `PUBLIC`
-function declared in the kernel C headers against the `(funcname)=`
+function declared in the kernel and module C headers it maps against the `(funcname)=`
 anchors present in the documentation landing pages. It reports
 per-header MISSING (exported but not documented) and EXTRA (documented
 but not exported) symbols.

@@ -47,3 +47,53 @@ session handling, and persistent storage using TreeDB on timeranger2.
 
 Driven by the [`mqtt_broker`](../yunos/mqtt_broker.md) yuno — see that page for
 the protocol/persistence/configuration details.
+
+## C API
+
+The helpers the three gclasses share have pages of their own:
+
+- [MQTT utilities](#module-mqtt-util) (`mqtt_util.h`) -- names of the
+  protocol's codes, validation of topics and UTF-8, the record of a message.
+- [tr2q](#module-mqtt-tr2q) (`tr2q_mqtt.h`) -- the persistent queues of a
+  session, on timeranger2.
+
+## Registration
+
+Register the gclasses a yuno uses once, in `register_yuno_and_more()`, before
+creating them; a second call of the same one fails with *"GClass ALREADY
+created"*. Each one returns `0`, or `-1` (logged) when the gclass cannot be
+created.
+
+```C
+int register_c_prot_mqtt(void);
+int register_c_prot_mqtt2(void);
+int register_c_mqtt_broker(void);
+```
+
+The `mqtt_broker` yuno registers the protocol and the broker:
+
+```C
+static int register_yuno_and_more(void)
+{
+    register_c_prot_mqtt2();
+    register_c_mqtt_broker();
+    return 0;
+}
+```
+
+(register_c_prot_mqtt)=
+### `register_c_prot_mqtt()` — `C_PROT_MQTT`
+
+The deprecated protocol, kept until the remaining gates migrate to
+`C_PROT_MQTT2`.
+
+(register_c_prot_mqtt2)=
+### `register_c_prot_mqtt2()` — `C_PROT_MQTT2`
+
+The MQTT protocol, broker side and client side (`mqtt_tui` registers it with
+its own client gclass and `C_EDITLINE`, without the broker).
+
+(register_c_mqtt_broker)=
+### `register_c_mqtt_broker()` — `C_MQTT_BROKER`
+
+The broker.

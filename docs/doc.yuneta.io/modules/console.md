@@ -23,9 +23,36 @@ layer for the `ycli`, `ycommand` and `mqtt_tui` clients.
 
 | Function | Purpose |
 |----------|---------|
-| `editline_set_completion_callback(gobj, cb, user_data)` | Register a TAB-completion callback. `cb` fills an `editline_completions_t` with candidates + optional descriptions via `editline_add_completion(lc, str, desc)`. |
-| `editline_set_hints_callback(gobj, cb, free_cb, user_data)` | Register an inline-hint callback. `cb` returns a heap-allocated string (plus optional ANSI color/bold) rendered to the right of the cursor in gray. `free_cb` releases the string after draw. |
-| `editline_history_count(gobj)` / `editline_history_get(gobj, idx)` | Read-only access to the in-memory history (1-based) for bang expansion (`!N`), `!history`-style listings, or custom search UIs. |
+| [`editline_set_completion_callback(gobj, cb, user_data)`](#editline_set_completion_callback) | Register a TAB-completion callback. `cb` fills an `editline_completions_t` with candidates + optional descriptions via `editline_add_completion(lc, str, desc)`. |
+| [`editline_set_hints_callback(gobj, cb, free_cb, user_data)`](#editline_set_hints_callback) | Register an inline-hint callback. `cb` returns a heap-allocated string (plus optional ANSI color/bold) rendered to the right of the cursor in gray. `free_cb` releases the string after draw. |
+| [`editline_history_count(gobj)`](#editline_history_count) / [`editline_history_get(gobj, idx)`](#editline_history_get) | Read-only access to the in-memory history (1-based) for bang expansion (`!N`), `!history`-style listings, or custom search UIs. |
 
 History entries are de-duplicated on insert (bash `HISTCONTROL=erasedups` style)
 and the file is overwritten from memory on `EV_EDITLINE_ENTER`.
+
+Every function, with its parameters and an example, is in the
+[Console C API](#module-console-api): these helpers, the keyboard
+([`tty_keyboard_init()`](#tty_keyboard_init)) and the ncurses helpers of
+`help_ncurses.h`.
+
+## Registration
+
+(register_c_editline)=
+### `register_c_editline()`
+
+Registers `C_EDITLINE`. Call it once, in `register_yuno_and_more()`, before
+creating an editline; a second call fails with *"GClass ALREADY created"*.
+
+```C
+int register_c_editline(void);
+```
+
+**Returns** — `0`, or `-1` (logged) when the gclass cannot be created.
+
+```C
+static int register_yuno_and_more(void)
+{
+    register_c_editline();
+    return 0;
+}
+```

@@ -32,6 +32,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 DOCS = REPO / "docs" / "doc.yuneta.io"
 KERNEL = REPO / "kernel" / "c"
+MODULES = REPO / "modules" / "c"
 
 
 # Each entry: header → list of landing pages that collectively should
@@ -169,6 +170,18 @@ HEADER_TO_LANDINGS: dict[Path, list[str]] = {
     KERNEL / "root-linux/src/c_udp_s.h":             ["api/runtime/registration.md"],
     KERNEL / "root-linux/src/c_websocket.h":         ["api/runtime/registration.md"],
 
+    # ---- modules (modules/c): console and mqtt ----
+    # Each module page documents its gclasses and their register_c_*; the C
+    # API of a module has pages of its own under modules/.
+    MODULES / "console/src/c_editline.h":   ["modules/console.md",
+                                             "modules/console_api.md"],
+    MODULES / "console/src/help_ncurses.h": ["modules/console_api.md"],
+    MODULES / "mqtt/src/c_prot_mqtt.h":     ["modules/mqtt.md"],
+    MODULES / "mqtt/src/c_prot_mqtt2.h":    ["modules/mqtt.md"],
+    MODULES / "mqtt/src/c_mqtt_broker.h":   ["modules/mqtt.md"],
+    MODULES / "mqtt/src/mqtt_util.h":       ["modules/mqtt_util.md"],
+    MODULES / "mqtt/src/tr2q_mqtt.h":       ["modules/tr2q_mqtt.md"],
+
     # ---- event loop & TLS ----
     KERNEL / "yev_loop/src/yev_loop.h":  ["api/yev_loop/yev_loop.md"],
     # ytls.h is the backend-agnostic API; the two backend selectors
@@ -181,7 +194,7 @@ HEADER_TO_LANDINGS: dict[Path, list[str]] = {
 
 
 # Functions documented on a landing page but declared in a header that is NOT
-# part of the verified surface (e.g. a module header outside kernel/c). These
+# part of the verified surface (a header missing from the map above). These
 # are intentional cross-references, not stale symbols, so they must not be
 # flagged as EXTRA. They are still reported (see GLOBAL SUMMARY) so the list
 # stays auditable. Empty since every root-linux header joined the map: the

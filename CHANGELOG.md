@@ -12,6 +12,18 @@
   anchor on a page shared by several headers is reported once, not once per
   header.
 
+- **Docs: the C API of the console and mqtt modules.** Three new pages under
+  Built-in Modules, every function with its parameters, what it returns and
+  an example: *Console C API* (the `C_EDITLINE` helpers, `tty_keyboard_init()`
+  and the ncurses helpers of `help_ncurses.h`), *MQTT utilities*
+  (`mqtt_util.h`) and *tr2q* (`tr2q_mqtt.h`, the session queues: how the
+  inflight and queued lists, `first_rowid` and the backup work, and the bits
+  of a message's `user_flag`). The module pages carry their `register_c_*`.
+  `verify_api_coverage.py` guards the seven headers (73 headers, 981
+  functions). Written down on the way: `mosquitto_time()` is the WALL clock
+  on Linux (its monotonic branch is never compiled), and
+  `new_mqtt_message()` does not write its `dup` argument.
+
 - **gobj-js, gobj-ui and yunos-js submodules:** vite `^8.3.3` (gobj-js and
   gobj-ui: devDependency only, no release; gui_agent 0.29.13, gui_treedb
   0.17.79). vite 8.3.3 fixes the dev server (`fs.serve` is checked for

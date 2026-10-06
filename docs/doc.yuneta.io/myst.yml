@@ -296,8 +296,13 @@ project:
       file: modules.md
       children:
         - file: modules/console.md
+          children:
+            - file: modules/console_api.md
         - file: modules/modbus.md
         - file: modules/mqtt.md
+          children:
+            - file: modules/mqtt_util.md
+            - file: modules/tr2q_mqtt.md
         - file: modules/postgres.md
         - file: modules/test.md
 
