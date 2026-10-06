@@ -110,15 +110,64 @@ HEADER_TO_LANDINGS: dict[Path, list[str]] = {
     KERNEL / "timeranger2/src/tr_queue.h":    ["api/timeranger2/tr_queue.md"],
     KERNEL / "timeranger2/src/tr_treedb.h":   ["api/timeranger2/treedb.md"],
 
-    # ---- gclass headers whose landing covers their WHOLE public surface ----
-    # Most gclass headers are out of this map on purpose (see the note on
-    # ALLOWED_EXTRAS below): their register_c_* is documented on the shared
-    # registration page, so adding them would drag in unrelated anchors. These
-    # three are different -- they have a landing of their own that documents
-    # every function they export, so the map catches drift in both directions.
+    # ---- runtime (root-linux): entry point, services, environment ----
+    # manage_services.h and yunetas_register.h share the entry-point landing:
+    # run_services/stop_services/yuno_shutdown and yunetas_register_c_core are
+    # what main() calls around yuneta_entry_point().
+    KERNEL / "root-linux/src/entry_point.h":         ["api/runtime/runtime_entry_point.md"],
+    KERNEL / "root-linux/src/manage_services.h":     ["api/runtime/runtime_entry_point.md"],
+    KERNEL / "root-linux/src/yunetas_register.h":    ["api/runtime/runtime_entry_point.md"],
+    KERNEL / "root-linux/src/yunetas_environment.h": ["api/runtime/environment.md"],
+    KERNEL / "root-linux/src/msg_ievent.h":          ["api/runtime/msg_ievent.md"],
+    KERNEL / "root-linux/src/run_command.h":         ["api/runtime/run_command.md"],
+    KERNEL / "root-linux/src/dbsimple.h":            ["api/runtime/dbsimple.md"],
+
+    # ---- gclass headers (root-linux) ----
+    # A gclass header exports its register_c_* and, as a rule, nothing else.
+    # Those live together on the shared registration page, so every root-linux
+    # gclass header maps to it: the sibling check in main() lets each header
+    # claim its own register_c_* and ignore the others', and a gclass added to
+    # root-linux without its entry here or on that page is caught.
+    #
+    # Three have a landing of their own that documents every function they
+    # export (their register_c_* included):
     KERNEL / "root-linux/src/c_yuno.h":   ["api/runtime/yuno.md"],
     KERNEL / "root-linux/src/c_timer.h":  ["api/runtime/timer.md"],
     KERNEL / "root-linux/src/c_timer0.h": ["api/runtime/timer.md"],
+    # c_authz.h also exports authz_checker/authentication_parser, surfaced on
+    # the gobj Authorization page next to the gobj_authz* API.
+    KERNEL / "root-linux/src/c_authz.h":             ["api/runtime/registration.md",
+                                                      "api/gobj/authz.md"],
+    KERNEL / "root-linux/src/c_assets.h":            ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_auth_bff.h":          ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_channel.h":           ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_counter.h":           ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_fs.h":                ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_gss_udp_s.h":         ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_idp_keycloak.h":      ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_ievent_cli.h":        ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_ievent_srv.h":        ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_iogate.h":            ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_mqiogate.h":          ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_node.h":              ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_ota.h":               ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_prot_http_cl.h":      ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_prot_http_sr.h":      ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_prot_raw.h":          ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_prot_tcp4h.h":        ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_pty.h":               ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_qiogate.h":           ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_resource2.h":         ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_task.h":              ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_task_authenticate.h": ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_tcp.h":               ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_tcp_s.h":             ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_tranger.h":           ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_treedb.h":            ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_uart.h":              ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_udp.h":               ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_udp_s.h":             ["api/runtime/registration.md"],
+    KERNEL / "root-linux/src/c_websocket.h":         ["api/runtime/registration.md"],
 
     # ---- event loop & TLS ----
     KERNEL / "yev_loop/src/yev_loop.h":  ["api/yev_loop/yev_loop.md"],
@@ -132,21 +181,15 @@ HEADER_TO_LANDINGS: dict[Path, list[str]] = {
 
 
 # Functions documented on a landing page but declared in a header that is NOT
-# part of the verified surface (typically a gclass header whose register_c_*
-# lives on the shared registration page, so the header cannot be added to
-# HEADER_TO_LANDINGS without dragging in dozens of unrelated anchors). These
+# part of the verified surface (e.g. a module header outside kernel/c). These
 # are intentional cross-references, not stale symbols, so they must not be
 # flagged as EXTRA. They are still reported (see GLOBAL SUMMARY) so the list
-# stays auditable.
+# stays auditable. Empty since every root-linux header joined the map: the
+# two entries it held (authz_checker, authentication_parser) are now matched
+# against c_authz.h itself. Prefer mapping the header over adding an entry.
 #
 # Key: function name. Value: the header that actually declares it.
 ALLOWED_EXTRAS: dict[str, str] = {
-    # Both declared in root-linux/src/c_authz.h (a gclass header whose
-    # register_c_authz lives on the shared registration page, so it can't be
-    # added to HEADER_TO_LANDINGS without dragging in unrelated anchors), and
-    # surfaced on the gobj Authorization page next to the gobj_authz* API.
-    "authz_checker": "kernel/c/root-linux/src/c_authz.h",
-    "authentication_parser": "kernel/c/root-linux/src/c_authz.h",
 }
 
 
@@ -227,9 +270,14 @@ def main() -> int:
 
     # ---- reverse map: landing → set of headers that claim it ----------
     landing_headers: dict[str, set[Path]] = defaultdict(set)
+    # The first header that claims a landing owns its unclaimed anchors, so a
+    # stale anchor on a shared page (the registration page is claimed by
+    # every gclass header) is reported once, not once per sibling.
+    landing_owner: dict[str, Path] = {}
     for header, landings in HEADER_TO_LANDINGS.items():
         for rel in landings:
             landing_headers[rel].add(header)
+            landing_owner.setdefault(rel, header)
 
     reports: list[HeaderReport] = []
     allowed_hits: dict[str, str] = {}  # name -> landing it was documented on
@@ -270,6 +318,8 @@ def main() -> int:
                     # required to be documented -- so it is neither MISSING
                     # nor EXTRA.
                     if name in header_inlines[header]:
+                        continue
+                    if header != landing_owner[rel]:
                         continue
                     # Otherwise it's a genuine EXTRA (stale/removed symbol),
                     # attributed to the first landing that documents it.

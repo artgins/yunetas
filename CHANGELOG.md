@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **`scripts/verify_api_coverage.py` covers every root-linux header** (28 ->
+  66 headers, 862 -> 940 functions, all documented). `entry_point.h`,
+  `manage_services.h`, `yunetas_register.h`, `yunetas_environment.h`,
+  `msg_ievent.h`, `run_command.h` and `dbsimple.h` were documented but
+  unguarded, so a function added or removed there went unnoticed; every
+  gclass header now maps to the shared registration page, and `c_authz.h`
+  also to the Authorization page, which empties `ALLOWED_EXTRAS`. A stale
+  anchor on a page shared by several headers is reported once, not once per
+  header.
+
 - **gobj-js, gobj-ui and yunos-js submodules:** vite `^8.3.3` (gobj-js and
   gobj-ui: devDependency only, no release; gui_agent 0.29.13, gui_treedb
   0.17.79). vite 8.3.3 fixes the dev server (`fs.serve` is checked for
