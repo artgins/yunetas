@@ -301,7 +301,7 @@ json_t *new_mqtt_message(
 | `qos` | `uint8_t` | `0`, `1` or `2`. |
 | `mid` | `uint16_t` | The packet identifier (`0` for QoS 0). |
 | `retain` | `BOOL` | The retain flag. |
-| `dup` | `BOOL` | Accepted and NOT written: the record's `dup` keeps its default, `false`. The DUP of a message sent again lives in the flags of its queue entry ([`msg_flag_get_dup()`](#module-mqtt-tr2q)), not in the record. |
+| `dup` | `BOOL` | The DUP flag of the PUBLISH, written as `dup`. It informs whoever reads the record; what goes on the wire when a message is sent again is the dup bit of its queue entry ([`msg_flag_get_dup()`](#module-mqtt-tr2q)), and the broker builds each subscriber's copy with `FALSE`, since the DUP of an incoming PUBLISH is not propagated [MQTT-3.3.1-3]. Up to 7.26.4 it was not written, and `dup` was always `false`. |
 | `properties` | `json_t *` | The MQTT 5 properties as a dict (owned), or `NULL`. |
 | `expiry_interval` | `uint32_t` | The message expiry interval, in seconds. |
 | `t` | `json_int_t` | The time of the message, written as `tm`; the protocol passes [`mosquitto_time()`](#mosquitto_time). |
@@ -330,8 +330,8 @@ A new json, yours:
 then on: decref the record with `KW_DECREF()`, which releases the gbuffer
 with it (see *"`kw["gbuffer"]` is auto-decref'd"* in the framework rules).
 `NULL` when the record cannot be created, logged as *"Mqtt publish: cannot
-create the message"*; the payload and the properties are not released on that
-path.
+create the message"*; the payload and the properties are released then, as
+anything owned is (up to 7.26.4 they leaked on that path).
 
 **Example** — a client that publishes a reading:
 
@@ -373,13 +373,18 @@ time_t mosquitto_time(void);
 
 **Returns**
 
-On Linux, `time(NULL)`: the seconds of the WALL clock, which jumps when the
-clock is set. The function carries a monotonic branch
-(`clock_gettime()`) from Mosquitto, but it is not compiled: it is guarded by
-`_POSIX_TIMERS`, which comes from `<unistd.h>`, and `mqtt_util.c` does not
-include it (nor is the `time_clock` that branch uses defined anywhere). A
-message's `tm` is therefore comparable with any other wall-clock time of the
-yuno.
+`time(NULL)`: the seconds of the WALL clock, on purpose. What it returns is
+persisted and compared after a restart -- the `tm` of a message, which is
+also the `__t__` of its [tr2q](#module-mqtt-tr2q) record, the `tm` of a
+retained message, the `will_delay_time` of a disconnected session -- and a
+monotonic clock starts again at every boot. The price is that a clock set
+back or forward moves the expiries computed with it by the same amount.
+
+Up to 7.26.4 the function carried Mosquitto's monotonic branch
+(`clock_gettime()`), and branches for Windows and macOS, under a guard that
+was never true here (`_POSIX_TIMERS` comes from `<unistd.h>`, which the file
+does not include, and the `time_clock` it used was defined nowhere): it
+looked monotonic and was not. The value it returns has not changed.
 
 **Example** — a queued message whose expiry passed while it waited is
 dropped, as `C_PROT_MQTT2` does before sending it [MQTT-3.3.2-18]:

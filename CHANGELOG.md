@@ -20,9 +20,23 @@
   inflight and queued lists, `first_rowid` and the backup work, and the bits
   of a message's `user_flag`). The module pages carry their `register_c_*`.
   `verify_api_coverage.py` guards the seven headers (73 headers, 981
-  functions). Written down on the way: `mosquitto_time()` is the WALL clock
-  on Linux (its monotonic branch is never compiled), and
-  `new_mqtt_message()` does not write its `dup` argument.
+  functions).
+
+- **mqtt: `new_mqtt_message()` writes its `dup` argument, and releases what it
+  owns when it fails.** The `dup` of a message record was always `false`
+  whatever the PUBLISH said; it is now the packet's DUP flag (the broker
+  still builds each subscriber's copy with `FALSE`, [MQTT-3.3.1-3], and what
+  goes on the wire stays the dup bit of the queue entry). When the record
+  cannot be created, the payload and the properties it was given are
+  released instead of leaking.
+- **mqtt: `mosquitto_time()` says what it is: the wall clock.** It carried
+  Mosquitto's monotonic, Windows and macOS branches under a guard never true
+  here (`_POSIX_TIMERS` is not defined without `<unistd.h>`, and the
+  `time_clock` of that branch existed nowhere), so it looked monotonic and
+  returned `time(NULL)`. It is now `time(NULL)` alone, with the reason it has
+  to stay so: its values are persisted (`tm` of messages and of retained
+  messages, the `__t__` of the tr2q records, a session's `will_delay_time`)
+  and compared after a restart. No change in the value it returns.
 
 - **gobj-js, gobj-ui and yunos-js submodules:** vite `^8.3.3` (gobj-js and
   gobj-ui: devDependency only, no release; gui_agent 0.29.13, gui_treedb

@@ -475,6 +475,8 @@ PUBLIC json_t *new_mqtt_message(
             "topic",        "%s", topic,
             NULL
         );
+        GBUFFER_DECREF(gbuf_payload)
+        json_decref(properties);
         return NULL;
     }
 
@@ -485,6 +487,7 @@ PUBLIC json_t *new_mqtt_message(
     json_object_set_new(kw_mqtt_msg, "mid", json_integer(mid));
     json_object_set_new(kw_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
     json_object_set_new(kw_mqtt_msg, "retain", json_boolean(retain));
+    json_object_set_new(kw_mqtt_msg, "dup", json_boolean(dup));
     if(properties) {
         json_object_set_new(kw_mqtt_msg, "properties", properties);
     }
@@ -500,33 +503,15 @@ PUBLIC json_t *new_mqtt_message(
 }
 
 /***************************************************************************
- *
+ *  Seconds of the WALL clock, and not of a monotonic one, on purpose:
+ *  what it returns is persisted and compared after a restart (the `tm` of a
+ *  message, which is the __t__ of its tr2q record; the `tm` of a retained
+ *  message; a session's `will_delay_time`), and a monotonic clock starts
+ *  again at every boot. Mosquitto's monotonic branch was never compiled here:
+ *  `_POSIX_TIMERS` comes from <unistd.h>, not included, and its `time_clock`
+ *  was defined nowhere.
  ***************************************************************************/
 PUBLIC time_t mosquitto_time(void)
 {
-#ifdef WIN32
-    return GetTickCount64()/1000;
-#elif _POSIX_TIMERS>0 && defined(_POSIX_MONOTONIC_CLOCK)
-    struct timespec tp;
-
-    if (clock_gettime(time_clock, &tp) == 0)
-        return tp.tv_sec;
-
-    return (time_t) -1;
-#elif defined(__APPLE__)
-    static mach_timebase_info_data_t tb;
-    uint64_t ticks;
-    uint64_t sec;
-
-    ticks = mach_absolute_time();
-
-    if(tb.denom == 0) {
-        mach_timebase_info(&tb);
-    }
-    sec = ticks*tb.numer/tb.denom/1000000000;
-
-    return (time_t)sec;
-#else
     return time(NULL);
-#endif
 }
