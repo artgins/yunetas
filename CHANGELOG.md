@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v7.26.5 (2026-10-06)
+
+Three fixes in the mqtt module and the C API of the console and mqtt modules
+in the docs. The one that matters at run time is a double free of the MQTT 5
+properties of a publish sent by a CLIENT (`C_PROT_MQTT2` with `iamServer`
+false), which only `mqtt_tui` does: the gates of the projects and the broker
+run the server side, so a node running 7.26.x needs no upgrade, and its
+yunos take the fixes at their next build. The API coverage check now guards
+every root-linux header and the console and mqtt modules (73 headers, 981
+functions, all documented).
+
 - **`scripts/verify_api_coverage.py` covers every root-linux header** (28 ->
   66 headers, 862 -> 940 functions, all documented). `entry_point.h`,
   `manage_services.h`, `yunetas_register.h`, `yunetas_environment.h`,
