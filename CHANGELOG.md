@@ -29,6 +29,14 @@
   goes on the wire stays the dup bit of the queue entry). When the record
   cannot be created, the payload and the properties it was given are
   released instead of leaking.
+- **mqtt: a client that publishes with MQTT 5 properties no longer frees them
+  twice.** `C_PROT_MQTT2`'s `EV_MQTT_PUBLISH` (client side) took the
+  `properties` dict BORROWED from its kw and handed it to
+  `new_mqtt_message()`, which keeps what it is given: releasing the message
+  and then the kw released the dict twice -- a *"BAD json_decref()"* for a
+  QoS 0 publish, and a queued QoS 1/2 message left pointing at a freed dict.
+  Reached by `mqtt_tui`'s `publish ... properties={...}`; a publish without
+  properties was not affected. It is now increfed for the message.
 - **mqtt: `mosquitto_time()` says what it is: the wall clock.** It carried
   Mosquitto's monotonic, Windows and macOS branches under a guard never true
   here (`_POSIX_TIMERS` is not defined without `<unistd.h>`, and the

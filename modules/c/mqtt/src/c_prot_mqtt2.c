@@ -9240,7 +9240,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, gobj_event_t event, json_t *
         0,
         retain,
         FALSE,      // dup,
-        properties, // not owned
+        json_incref(properties), // owned: borrowed from kw
         expiry_interval,
         mosquitto_time()
     );
