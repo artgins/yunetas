@@ -1,5 +1,13 @@
 # **Changelog**
 
+## Unreleased
+
+- **gobj-js, gobj-ui and yunos-js submodules:** vite `^8.3.3` (gobj-js and
+  gobj-ui: devDependency only, no release; gui_agent 0.29.13, gui_treedb
+  0.17.79). vite 8.3.3 fixes the dev server (`fs.serve` is checked for
+  `?vite-wasm-instance`, `safeModulePaths` holds ids); the bundles do not
+  change in behaviour.
+
 ## v7.26.4 (2026-10-05)
 
 The tests and their tooling, after four rounds of cloud verification of the
