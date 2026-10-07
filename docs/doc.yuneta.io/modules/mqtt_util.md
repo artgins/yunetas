@@ -10,8 +10,8 @@ top of `C_PROT_MQTT2`) gets them by including `c_prot_mqtt2.h`, which includes
 
 Source code:
 
-- [`mqtt_util.h`](https://github.com/artgins/yunetas/blob/7.26.5/modules/c/mqtt/src/mqtt_util.h)
-- [`mqtt_util.c`](https://github.com/artgins/yunetas/blob/7.26.5/modules/c/mqtt/src/mqtt_util.c)
+- [`mqtt_util.h`](https://github.com/artgins/yunetas/blob/7.26.6/modules/c/mqtt/src/mqtt_util.h)
+- [`mqtt_util.c`](https://github.com/artgins/yunetas/blob/7.26.6/modules/c/mqtt/src/mqtt_util.c)
 
 Part of the code comes from the [Mosquitto](https://mosquitto.org/) project
 (EPL-2.0 OR BSD-3-Clause), which is why some names keep its prefix.
