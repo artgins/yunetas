@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **gobj-ui and yunos-js submodules:** maplibre-gl 6.13.0 (gobj-ui: lockfile
+  and test-app only, no release; gui_treedb 0.17.80). Its worker is now
+  self-contained and `maplibre-gl-shared.mjs` ships empty, so the test-app's
+  worker plugin emits the shared chunk only when the worker imports it.
+
 ## v7.26.5 (2026-10-06)
 
 Three fixes in the mqtt module and the C API of the console and mqtt modules
