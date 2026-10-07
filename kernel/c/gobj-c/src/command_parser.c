@@ -14,6 +14,11 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+/*
+ *  A longer parameter value is shown as "<N bytes>" by the masked line of a
+ *  trace: the content64 of an install-binary is tens of MB of base64
+ */
+#define MAX_SHOWN_VALUE 1024
 
 /***************************************************************
  *              Structures
@@ -298,7 +303,8 @@ PRIVATE BOOL secret_is_set(json_t *value)
 
 /***************************************************************************
  *  Append to gbuf the key=value parameters of `line`, as a trace shows
- *  them: " key=value", the value of a secret key as "********". In a
+ *  them: " key=value", the value of a secret key as "********", a value
+ *  longer than MAX_SHOWN_VALUE as "<N bytes>". In a
  *  SDF_WILD_CMD command a value with a '=' is a command line going on (the
  *  `command` of command-yuno): it is shown key='...', masked by names
  *  (mask_secrets_inline()).
@@ -339,6 +345,8 @@ PRIVATE void append_masked_parameters(
             gbuffer_append_string(gbuf, " <...>");
         } else if(is_secret_parameter(cnf_cmd, key)) {
             gbuffer_printf(gbuf, " %s=%s", key, empty_string(value)? "" : "********");
+        } else if(strlen(value) > MAX_SHOWN_VALUE) {
+            gbuffer_printf(gbuf, " %s=<%zu bytes>", key, strlen(value));
         } else if(wild && strchr(value, '=')) {
             char *shown = mask_secrets_inline(value);
             gbuffer_printf(gbuf, " %s='%s'", key, shown? shown : value);
@@ -410,7 +418,8 @@ PUBLIC json_t *command_mask_secret_kw(
 /***************************************************************************
  *  The command line as a trace shows it: the value of every secret
  *  parameter masked, positional (the leading required ones) or key=value.
- *  What cannot be parsed as a parameter is not shown.
+ *  What cannot be parsed as a parameter is not shown; a value longer than
+ *  MAX_SHOWN_VALUE (1 KB) is shown as "<N bytes>".
  ***************************************************************************/
 PUBLIC char *command_mask_secret_line(
     hgobj gobj,
@@ -474,10 +483,13 @@ PUBLIC char *command_mask_secret_line(
             *eq = '=';
         }
         if(!is_key_value) {
-            gbuffer_printf(gbuf, " %s",
-                ((ip->flag & SDF_SECRET) || is_secret_name(ip->name, strlen(ip->name)))?
-                    "********" : param
-            );
+            if((ip->flag & SDF_SECRET) || is_secret_name(ip->name, strlen(ip->name))) {
+                gbuffer_append_string(gbuf, " ********");
+            } else if(strlen(param) > MAX_SHOWN_VALUE) {
+                gbuffer_printf(gbuf, " <%zu bytes>", strlen(param));
+            } else {
+                gbuffer_printf(gbuf, " %s", param);
+            }
         }
         if(p) {
             *(p-1) = command[(p-1) - str];  // put back what get_parameter() cut

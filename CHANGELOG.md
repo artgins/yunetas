@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **`command_mask_secret_line()` shows a value longer than 1 KB as
+  `<N bytes>`**, keyed or positional. Since 7.25.21 the `ievents2` trace
+  masks the command line of an inter-event, and it builds that line in a
+  64 KB buffer: the `content64` of an `install-binary` (tens of MB of base64)
+  overflowed it, so every `install-binary` of a `ybatch -l1` batch logged
+  *"MAXIMUM SPACE REACHED"* with a stack trace. The command was sent and
+  applied all the same; only the trace failed. Up to 7.25.20 the trace
+  dumped the whole base64 to the log instead.
+
 - **gobj-ui and yunos-js submodules:** maplibre-gl 6.13.0 (gobj-ui: lockfile
   and test-app only, no release; gui_treedb 0.17.80). Its worker is now
   self-contained and `maplibre-gl-shared.mjs` ships empty, so the test-app's

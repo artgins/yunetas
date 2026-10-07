@@ -944,6 +944,41 @@ PRIVATE void check_log_dumps(hgobj gobj)
     GBMEM_FREE(line)
 
     /*
+     *  A value too long to show is shown as its size, keyed or positional.
+     *  Up to 7.26.5 the content64 of an install-binary (tens of MB) overflowed
+     *  the 64 KB buffer of the line: "MAXIMUM SPACE REACHED", with its stack.
+     */
+    {
+        size_t big_len = 100*1024;
+        char *big = GBMEM_MALLOC(big_len + 1);
+        memset(big, 'A', big_len);
+        big[big_len] = 0;
+        gbuffer_t *gbuf_cmd = gbuffer_create(big_len + 256, big_len + 256);
+        gbuffer_printf(gbuf_cmd, "set-password note=%s password=hunter2", big);
+        line = command_mask_secret_line(holder, gbuffer_cur_rd_pointer(gbuf_cmd));
+        check_str("a keyed value over 1 KB is shown as its size", line,
+            "set-password note=<102400 bytes> password=********"
+        );
+        GBMEM_FREE(line)
+        gbuffer_clear(gbuf_cmd);
+        gbuffer_printf(gbuf_cmd, "set-password-pos %s note=x", big);
+        line = command_mask_secret_line(holder, gbuffer_cur_rd_pointer(gbuf_cmd));
+        check_str("a positional secret over 1 KB is still masked", line,
+            "set-password-pos ******** note=x"
+        );
+        GBMEM_FREE(line)
+        gbuffer_clear(gbuf_cmd);
+        gbuffer_printf(gbuf_cmd, "set-note-pos %s", big);
+        line = command_mask_secret_line(holder, gbuffer_cur_rd_pointer(gbuf_cmd));
+        check_str("a positional value over 1 KB is shown as its size", line,
+            "set-note-pos <102400 bytes>"
+        );
+        GBMEM_FREE(line)
+        gbuffer_decref(gbuf_cmd);
+        GBMEM_FREE(big)
+    }
+
+    /*
      *  An extra word that is not a secret is shown
      */
     resp = gobj_command(holder, "set-password note=x stray-word", 0, holder);
@@ -1858,11 +1893,16 @@ PRIVATE sdata_desc_t pm_set_password_pos[] = {
 SDATAPM (DTP_STRING,    "password",     SDF_REQUIRED|SDF_SECRET, 0,     "The new password"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_set_note_pos[] = {
+SDATAPM (DTP_STRING,    "note",         SDF_REQUIRED,           0,      "Not a secret, positional"),
+SDATA_END()
+};
 
 PRIVATE sdata_desc_t holder_command_table[] = {
 /*-CMD---type-----------name----------------alias---items-------------------json_fn-------------description--*/
 SDATACM (DTP_SCHEMA,    "set-password",     0,      pm_set_password,        cmd_set_password,   "Set the password"),
 SDATACM (DTP_SCHEMA,    "set-password-pos", 0,      pm_set_password_pos,    cmd_set_password,   "Set the password, positional"),
+SDATACM (DTP_SCHEMA,    "set-note-pos",     0,      pm_set_note_pos,        cmd_set_password,   "Set nothing, a positional plain value"),
 SDATACM2 (DTP_SCHEMA,   "command-yuno",     SDF_WILD_CMD,   0,      pm_command_yuno,    cmd_command_yuno,   "Command to yuno, free keys"),
 SDATA_END()
 };

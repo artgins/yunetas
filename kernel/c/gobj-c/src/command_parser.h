@@ -54,7 +54,8 @@ PUBLIC const sdata_desc_t *command_get_cmd_desc(
  *  command_mask_secret_kw() answers a NEW reference (a masked copy, or kw
  *  itself when nothing is secret; NULL for a NULL kw): decref it.
  *  command_mask_secret_line() answers a gbmem string ("name key=value..."
- *  with the secret values masked): GBMEM_FREE it.
+ *  with the secret values masked, a value longer than 1 KB shown as
+ *  "<N bytes>"): GBMEM_FREE it.
  */
 PUBLIC json_t *command_mask_secret_kw(
     hgobj gobj,

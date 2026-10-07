@@ -244,7 +244,10 @@ with a `=` is a command line going on, shown `key='...'` masked by names. The
 whole line then goes through [`mask_secrets_inline()`](#mask_secrets_inline):
 `write-attr attribute=password value=X` shows `value=********`. What
 cannot be parsed as a parameter is shown as `<...>`, never dropped silently.
-The `commands` (and `machine`) trace of `gobj_command()` prints the command
+A value longer than 1 KB, keyed or positional, is shown as `<N bytes>`: the
+`content64` of an `install-binary` is tens of MB of base64, nothing a trace
+can show (up to 7.26.5 it overflowed the 64 KB buffer of the line and logged
+*"MAXIMUM SPACE REACHED"*). The `commands` (and `machine`) trace of `gobj_command()` prints the command
 this way.
 
 ```C
@@ -276,6 +279,10 @@ GBMEM_FREE(line)
 line = command_mask_secret_line(gobj,   // "password" is SDF_REQUIRED|SDF_SECRET
     "set-password-pos 'q=hunter2' note=visible"
 );                                      // "set-password-pos ******** note=visible"
+
+line = command_mask_secret_line(agent,  // a value of 46 MB of base64
+    "install-binary id=emailsender content64=f0VMRgIBAQAAAA..."
+);                                      // "install-binary id=emailsender content64=<45984395 bytes>"
 
 line = command_mask_secret_line(agent,  // command-yuno is SDF_WILD_CMD
     "command-yuno id=x command=\"set-user-pwd password=hunter2\""
