@@ -116,7 +116,12 @@ def _exported_names(text: str) -> set[str]:
     """Every name that a module exports, whatever the export form."""
     names = set()
     for m in EXPORT_BLOCK.finditer(text):
-        for raw in m.group(1).split(","):
+        #   Comments go first: a name after a `/* ... */` inside the list was
+        #   read as the comment AND the name, and dropped (yui_dev.js lost
+        #   `object_preview` that way, and `entry_shown_lines` after it).
+        block = re.sub(r"/\*.*?\*/", "", m.group(1), flags=re.S)
+        block = re.sub(r"//[^\n]*", "", block)
+        for raw in block.split(","):
             raw = raw.strip()
             if not raw or raw.startswith("//"):
                 continue
