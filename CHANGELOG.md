@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **gobj-ui submodule on 7.26.1: the Developer window copies what it
+  shows, and its TRACES row scrolls on its own.** In the Collapsed view
+  "Copy" put every payload laid out on the clipboard (1.4 MB for one
+  `list-map` answer that the window showed in four folded lines); it now
+  copies each entry as painted, a closed branch as its one-line summary. The
+  TRACES row no longer pushes the whole window into scrolling sideways. JS API
+  docs repinned to gobj-ui 7.26.1, index regenerated (two new exports of
+  `yui_dev.js`, `entry_shown_lines` and `render_detailed`, for its test).
+
 ## v7.26.6 (2026-10-07)
 
 One fix in what a trace shows of a command line. Since 7.25.21 the `ievents2`
