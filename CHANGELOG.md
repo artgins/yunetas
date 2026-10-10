@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v7.26.8 (2026-10-10)
+
 - **treedb: a replica opens a store whose master has not created
   `__icons__` yet.** 7.26.7 made every open create the topic, and a replica
   cannot create one: a follower whose master still ran an older binary (a
