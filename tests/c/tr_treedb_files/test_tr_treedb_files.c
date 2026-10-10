@@ -1918,6 +1918,104 @@ PRIVATE int test_replica_writes_nothing(const char *path_root)
 }
 
 /***************************************************************************
+ *  20b. A replica opens a store whose master has not created __icons__
+ *
+ *  A replica cannot create a topic, and its master can be older than
+ *  __icons__ (7.26.7): a node upgraded follower first, or a follower that
+ *  starts before its master. The replica used to fail its open with
+ *  "Cannot create __icons__ topic" (critical) and the yuno never started;
+ *  it now opens without the topic, says so, and finds it on its next open
+ *  once the master has created it.
+ ***************************************************************************/
+PRIVATE BOOL treedb_has_topic(json_t *tranger, const char *topic_name)
+{
+    json_t *topics = treedb_topics(tranger, TREEDB_NAME, 0);
+    BOOL has = json_str_in_list(0, topics, topic_name, 0);
+    JSON_DECREF(topics)
+    return has;
+}
+
+PRIVATE int test_replica_before_its_master_has_icons(const char *path_root)
+{
+    int result = 0;
+    const char *test = "20b. a replica opens a store without __icons__";
+    set_expected_results(
+        test,
+        json_pack("[{s:s},{s:s},{s:s},{s:s, s:s},{s:s}]",
+            "msg", "a 'file' column without 'writable' cannot be filled by a person",
+            "msg", "__icons__ not created by the master yet, the replica opens without it",
+            "msg", "a 'file' column without 'writable' cannot be filled by a person",
+            "msg", "Creating topic", "topic", TREEDB_ICONS_TOPIC,
+            "msg", "a 'file' column without 'writable' cannot be filled by a person"
+        ),
+        NULL, NULL, 1
+    );
+
+    /*  The store as an older master left it: no __icons__ on disk  */
+    char path_icons[PATH_MAX];
+    build_path(path_icons, sizeof(path_icons), path_root, DATABASE, TREEDB_ICONS_TOPIC, NULL);
+    rmrdir(path_icons);
+
+    /*-------------------------------------------*
+     *  The replica opens, without the topic
+     *-------------------------------------------*/
+    /*  A critical error must not end the test (it exits with 0, which
+     *  ctest reads as a pass): it has to show as an unexpected log.  */
+    json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root, "database", DATABASE, "master", 0,
+        "on_critical_error", LOG_OPT_TRACE_STACK), 0);
+    helper_quote2doublequote(schema_sample);
+    json_t *treedb = treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
+    if(!treedb) {
+        printf("%s  FAIL: the replica did not open the treedb%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-replica")) {
+        printf("%s  FAIL: the replica does not see the records of the store%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_has_topic(tranger, TREEDB_ICONS_TOPIC)) {
+        printf("%s  FAIL: the replica has a __icons__ topic nobody created%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(is_directory(path_icons)) {
+        printf("%s  FAIL: a replica created __icons__ on disk%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+
+    /*-------------------------------------------*
+     *  The master creates it
+     *-------------------------------------------*/
+    tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b}",
+        "path", path_root, "database", DATABASE, "master", 1), 0);
+    treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+
+    /*-------------------------------------------*
+     *  The next open of the replica has it
+     *-------------------------------------------*/
+    tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root, "database", DATABASE, "master", 0,
+        "on_critical_error", LOG_OPT_TRACE_STACK), 0);
+    treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
+    if(!treedb_has_topic(tranger, TREEDB_ICONS_TOPIC)) {
+        printf("%s  FAIL: the replica does not open __icons__ once the master made it%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  21. The snapshot guard of the assets fails CLOSED
  *
  *  assets_held_by_snaps() walks the tagged instances of every topic with a
@@ -2709,6 +2807,7 @@ PRIVATE int do_test(void)
     }
 
     result += test_replica_writes_nothing(path_root);
+    result += test_replica_before_its_master_has_icons(path_root);
     result += test_gc_guard_that_cannot_read_refuses(path_root);
     result += test_gc_guard_reads_a_partial_walk(path_root);
     result += test_gc_with_a_node_that_did_not_load(path_root);

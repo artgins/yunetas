@@ -271,7 +271,7 @@ PRIVATE int instance_held_by_a_snap(
 PRIVATE json_t *assets_held_by_snaps(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE const char *asset_linked_by_other_treedb(hgobj gobj, json_t *tranger, const char *treedb_name, const char *id);
 PRIVATE json_t *create_assets_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
-PRIVATE json_t *create_icons_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
+PRIVATE int create_icons_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int derive_file_hooks(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int check_file_columns(hgobj gobj, const char *treedb_name, const char *topic_name, json_t *cols);
 PRIVATE BOOL col_is_hook_and_fkey(hgobj gobj, const char *topic_name, const char *col_name, json_t *col);
@@ -1573,7 +1573,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     /*-------------------------------------------*
      *  Create "system" topic __icons__
      *-------------------------------------------*/
-    if(!create_icons_topic(gobj, tranger, treedb_name)) {
+    if(create_icons_topic(gobj, tranger, treedb_name) < 0) {
         gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -16254,13 +16254,41 @@ PRIVATE json_t *create_assets_topic(
  *  Never tagged, like __assets__: an activated snap keeps every icon, so a
  *  record frozen by the snap still finds the icon it names. An icon is how
  *  a record LOOKS, not part of what the store held.
+ *
+ *  A REPLICA cannot create a topic, and its master can be older than
+ *  __icons__: a node upgraded follower first, or a follower that starts
+ *  before its master. The replica then opens without the topic and says
+ *  so, instead of failing its whole open -- it is the one system topic a
+ *  store written by an older SDK lacks. It finds the icons on its next
+ *  open, after the master has created the topic.
+ *  Return 0, or -1 (error logged).
  ***************************************************************************/
-PRIVATE json_t *create_icons_topic(
+PRIVATE int create_icons_topic(
     hgobj gobj,
     json_t *tranger,
     const char *treedb_name
 )
 {
+    if(!kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED)) {
+        char directory[PATH_MAX];
+        build_path(directory, sizeof(directory),
+            kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+            TREEDB_ICONS_TOPIC,
+            NULL
+        );
+        if(!is_directory(directory)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "__icons__ not created by the master yet, the replica opens without it",
+                "treedb_name",  "%s", treedb_name,
+                "directory",    "%s", directory,
+                NULL
+            );
+            return 0;
+        }
+    }
+
     json_t *cols = json_pack(
         "{s:{s:s, s:s, s:i, s:s, s:[s,s]},"     /* id */
         " s:{s:s, s:s, s:i, s:s, s:[s,s,s]},"   /* svg */
@@ -16292,10 +16320,10 @@ PRIVATE json_t *create_icons_topic(
             "treedb_name",  "%s", treedb_name,
             NULL
         );
-        return NULL;
+        return -1;
     }
 
-    return treedb_create_topic(
+    json_t *topic = treedb_create_topic(
         tranger,
         treedb_name,
         TREEDB_ICONS_TOPIC,
@@ -16307,6 +16335,11 @@ PRIVATE json_t *create_icons_topic(
         TRUE,       // system_topic
         FALSE       // create_schema
     );
+    if(!topic) {
+        // Error already logged
+        return -1;
+    }
+    return 0;
 }
 
 /***************************************************************************

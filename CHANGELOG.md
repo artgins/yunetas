@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **treedb: a replica opens a store whose master has not created
+  `__icons__` yet.** 7.26.7 made every open create the topic, and a replica
+  cannot create one: a follower whose master still ran an older binary (a
+  node upgraded follower first, or a follower starting before its master)
+  failed its open with *"Cannot create __icons__ topic"* (critical) and the
+  yuno never started -- seen on the local central, `gate_central` and
+  `db_tracks_ce` against `db_history_ce` 2.9.3. The replica now opens without
+  the topic, logs *"__icons__ not created by the master yet, the replica opens
+  without it"* (warning), and finds it on its next open. Test 20b of
+  `tr_treedb_files`; it runs the replica with `on_critical_error` set, because
+  the default exits with 0 and ctest read the dead test as a pass.
+  **Do not deploy 7.26.7.**
+
 ## v7.26.7 (2026-10-10)
 
 - **treedb: a system topic `__icons__` in every treedb, for the icons a user
