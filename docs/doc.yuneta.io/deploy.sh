@@ -172,14 +172,17 @@ PYEOF
 # The docroot is shared with yuneta.io, yuneta.com, yuneta.es and yunetas.com,
 # where "/" is the landing, not these pages -- if the file sat at the root of
 # the docroot, all five domains would offer to install a different app under
-# the same name.  On those four the link 404s and no install is offered, which
-# is the intent.
+# the same name.
+#
+# So the <link rel="manifest"> is NOT written here: register-sw.js adds it, on
+# doc.yuneta.io alone, as it registers the service worker there alone.  Written
+# into every page it 404'd on the four product domains once per page view, and
+# was the top of their webstats 404s (2026-10-10).
 python3 - "$ORIGIN" <<'PYEOF'
 import sys, pathlib
 root = pathlib.Path(sys.argv[1])
-marker = 'rel="manifest"'
-links = ('<link rel="manifest" href="/manifest.webmanifest">'
-         '<link rel="apple-touch-icon" href="/pwa/icon-192.png">'
+marker = 'register-sw.js'
+links = ('<link rel="apple-touch-icon" href="/pwa/icon-192.png">'
          '<script src="/pwa/register-sw.js" defer></script>')
 count = 0
 for f in root.rglob('index.html'):
@@ -188,7 +191,7 @@ for f in root.rglob('index.html'):
         continue
     f.write_text(html.replace('</head>', links + '</head>', 1), encoding='utf-8')
     count += 1
-print(f"pwa manifest link injected into {count} pages")
+print(f"pwa icon and register-sw.js injected into {count} pages")
 PYEOF
 
 # Landing page: a standalone HTML document (its own inlined fonts and CSS, no

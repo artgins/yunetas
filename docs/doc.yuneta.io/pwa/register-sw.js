@@ -2,7 +2,7 @@
  *          register-sw.js
  *
  *  Register the service worker that gives the documentation offline
- *  reading.  Loaded by <script src> from every page: deploy.sh injects
+ *  reading, and link the manifest that makes it installable.  Loaded by <script src> from every page: deploy.sh injects
  *  the tag into the mystmd pages, and the standalone pages carry it in
  *  their own head.
  *
@@ -23,6 +23,23 @@
     if(location.hostname !== "doc.yuneta.io") {
         return;
     }
+
+    /*
+     *  The manifest link too, and for the same reason: it is added HERE,
+     *  on doc.yuneta.io alone, and not written into the pages.  Written
+     *  into them, every page of the four product domains asked for
+     *  /manifest.webmanifest and got the 404 nginx gives it there on
+     *  purpose -- a 404 per page view, the top of every webstats report
+     *  (2026-10-10).  A link added before the browser looks for one is
+     *  read the same as a static one.
+     */
+    if(!document.querySelector('link[rel="manifest"]')) {
+        var link = document.createElement("link");
+        link.rel = "manifest";
+        link.href = "/manifest.webmanifest";
+        document.head.appendChild(link);
+    }
+
     if(!("serviceWorker" in navigator)) {
         return;
     }

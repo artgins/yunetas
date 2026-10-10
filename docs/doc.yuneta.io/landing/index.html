@@ -68,13 +68,13 @@
     the myst pages, and this page is copied into the build after that, so it
     carries them itself.
 
-    The manifest resolves on doc.yuneta.io alone, where this page is /landing.
-    On yuneta.io, yuneta.com, yuneta.es and yunetas.com -- where this page IS
-    the front door -- it answers 404 and no install is offered. That is the
-    intent: all five share one docroot, so a manifest they could all reach
-    would offer five installs of a different app under the same name.
+    The manifest link is added by register-sw.js on doc.yuneta.io alone, where
+    this page is /landing. On yuneta.io, yuneta.com, yuneta.es and yunetas.com
+    -- where this page IS the front door -- there is no link and no install is
+    offered: all five share one docroot, so a manifest they could all reach
+    would offer five installs of a different app under the same name. A static
+    link here was a 404 on every visit to those front doors.
 -->
-<link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/pwa/icon-192.png">
 <script src="/pwa/register-sw.js" defer></script>
 

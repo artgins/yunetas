@@ -59,12 +59,12 @@
 <link rel="icon" href="/favicon.ico">
 
 <!--
-    Installable as the documentation PWA. deploy.sh injects these two tags into
-    the myst pages, and this page is copied into the build after that, so it
-    carries them itself. The manifest resolves on doc.yuneta.io alone; the four
-    product domains sharing the docroot answer 404 and offer no install.
+    Installable as the documentation PWA. deploy.sh injects these tags into the
+    myst pages, and this page is copied into the build after that, so it carries
+    them itself. register-sw.js adds the manifest link on doc.yuneta.io alone:
+    the four product domains sharing the docroot offer no install, and a static
+    link there was a 404 on every page view.
 -->
-<link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/pwa/icon-192.png">
 <script src="/pwa/register-sw.js" defer></script>
 </head>
