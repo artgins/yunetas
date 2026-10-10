@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v7.26.7 (2026-10-10)
+
 - **treedb: a system topic `__icons__` in every treedb, for the icons a user
   adds.** Created at open like `__assets__` (`TREEDB_ICONS_TOPIC`,
   `create_icons_topic()` in `tr_treedb.c`): one node per icon, `id` the name,
@@ -37,8 +39,8 @@
   are labelled "Back". `yui_shell_last_route_outside()` (7.26.2) stays as the
   "where did the reader come from, outside this subtree" helper. JS API docs
   (`shell_api.md`) carry both, with examples; repinned to gobj-ui 7.26.5.
-- **yunos-js submodule: gui_agent 0.29.14 → 0.29.17, gui_treedb 0.17.81 →
-  0.17.84**, each a move to the gobj-ui release above. gui_agent's QA driver
+- **yunos-js submodule: gui_agent 0.29.14 → 0.29.18, gui_treedb 0.17.81 →
+  0.17.85**, each a move to the gobj-ui release above. gui_agent's QA driver
   gains `--check schemaback` (the schema editor's back returns to the topic it
   came from, and a reload keeps it).
 - **`scripts/verify_js_api_coverage.py`: a name after a comment in an export
