@@ -10,6 +10,27 @@
   TRACES row no longer pushes the whole window into scrolling sideways. JS API
   docs repinned to gobj-ui 7.26.1, index regenerated (two new exports of
   `yui_dev.js`, `entry_shown_lines` and `render_detailed`, for its test).
+- **gobj-ui submodule on 7.26.5: every "←" goes where the browser's Back
+  goes.** New `yui_shell_previous_route()` (7.26.4), the most recent route of
+  the shell's MRU other than the current one; the treedb topics "←", the
+  treedb graph's "← Topics" and the schema editor's back (7.26.5) use it, and
+  fall back to their fixed route only when there is no previous one. All three
+  are labelled "Back". `yui_shell_last_route_outside()` (7.26.2) stays as the
+  "where did the reader come from, outside this subtree" helper. JS API docs
+  (`shell_api.md`) carry both, with examples; repinned to gobj-ui 7.26.5.
+- **yunos-js submodule: gui_agent 0.29.14 → 0.29.17, gui_treedb 0.17.81 →
+  0.17.84**, each a move to the gobj-ui release above. gui_agent's QA driver
+  gains `--check schemaback` (the schema editor's back returns to the topic it
+  came from, and a reload keeps it).
+- **`scripts/verify_js_api_coverage.py`: a name after a comment in an export
+  list was dropped.** Comments are stripped before the list is split; the
+  index gains the three names it was missing.
+- **doc.yuneta.io: the PWA manifest link is added by `pwa/register-sw.js`,
+  on doc.yuneta.io alone**, behind the same hostname guard as the service
+  worker. The other hosts of the shared docroot (yuneta.io, www.yuneta.io,
+  yuneta.com, yunetas.com) linked a manifest that nginx serves only on
+  doc.yuneta.io, and every page view there was a 404 in webstats.
+  `deploy.sh` and the standalone pages no longer write the link.
 
 ## v7.26.6 (2026-10-07)
 
