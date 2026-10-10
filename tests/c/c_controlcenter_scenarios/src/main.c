@@ -210,9 +210,9 @@ PRIVATE void release_quarantine(void)
 
 /***************************************************************************
  *  Strict FIFO: every log of info level and above the run emits, in order.
- *  The control center opens two treedbs: __system__ (six topics) and its
- *  own treedb_controlcenter (its two, and the treedb's three: __snaps__,
- *  __graphs__, __assets__).
+ *  The control center opens two treedbs: __system__ (seven topics) and its
+ *  own treedb_controlcenter (its two, and the treedb's four: __snaps__,
+ *  __graphs__, __assets__, __icons__).
  ***************************************************************************/
 PRIVATE const char *expected_msgs[] = {
     "Starting yuno",
@@ -225,9 +225,11 @@ PRIVATE const char *expected_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Creating __timeranger2__.json",
     "Opening TreeDB with the schema from C, __system__ not read",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",

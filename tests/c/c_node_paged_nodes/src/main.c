@@ -108,13 +108,14 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        /*  Strict FIFO: every gobj_log_info the run emits, in order. Four
+        /*  Strict FIFO: every gobj_log_info the run emits, in order. Five
          *  "Creating topic": the schema declares `items` and the treedb adds
-         *  its own three (__snaps__, __graphs__, __assets__). */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+         *  its own four (__snaps__, __graphs__, __assets__, __icons__). */
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",

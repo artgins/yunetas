@@ -132,17 +132,18 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        /*  Strict FIFO: every gobj_log_info the run emits, in order. Four
+        /*  Strict FIFO: every gobj_log_info the run emits, in order. Five
          *  "Creating topic": the schema declares `items` and the treedb adds
-         *  its own three (__snaps__, __graphs__, __assets__). A refusal logs
-         *  nothing: it is the -403 of the answer. The two errors are asked
-         *  for: the link the nested-update check refuses, the autolink
-         *  update refused on the replica, and its link, unlink and forced
-         *  delete refused before anything moves. */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+         *  its own four (__snaps__, __graphs__, __assets__, __icons__). A
+         *  refusal logs nothing: it is the -403 of the answer. The two
+         *  errors are asked for: the link the nested-update check refuses,
+         *  the autolink update refused on the replica, and its link, unlink
+         *  and forced delete refused before anything moves. */
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",

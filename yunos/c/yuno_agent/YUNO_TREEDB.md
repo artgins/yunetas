@@ -343,7 +343,7 @@ ycommand -c 'command-yuno id=<yuno> service=<treedb> command=treedb-info'
     "treedb_name": "treedb_authzs",
     "master": false,
     "schema_version": 19,
-    "topics": ["__snaps__", "__graphs__", "__assets__", "roles", "users", "users_accesses"]
+    "topics": ["__snaps__", "__graphs__", "__assets__", "__icons__", "roles", "users", "users_accesses"]
 }
 ```
 
@@ -755,6 +755,35 @@ The separator is a dot, and it cannot be `^`. That is the character an fkey
 reference is split on, so an id that carries one makes every reference to that
 node undecodable (§3.11).
 
+**`icon` names an icon, and the user's own icons are data: `__icons__`.** An
+`icon` column holds the class name of an icon of the GUI's set (`yi-bolt`).
+Since 7.26.7 every treedb also has the system topic `__icons__`, created at
+open like `__assets__`: one node per icon a user adds, its `id` the name and
+`svg` the drawing. An `icon` column names one of them as `yi-u-<id>`, a
+namespace no icon of the library uses, so a user icon never replaces one.
+
+```c
+/*  The column, in the schema of the topic that shows an icon  */
+'icon': {
+    'header': 'Icon',
+    'type': 'string',
+    'flag': ['icon', 'writable', 'persistent']
+}
+```
+
+```bash
+# transformer.json:
+#   {"id": "transformer", "svg": "<svg viewBox='0 0 24 24'><path d='M4 4h16v16H4z'/></svg>"}
+ycommand -c 'command-yuno id=<yuno> service=<treedb> command=create-node topic_name=__icons__ content64=$$(transformer.json)'
+# then a node of the topic with the column names it: "icon": "yi-u-transformer"
+```
+
+The treedb stores the svg and checks nothing in it. The GUI rebuilds it from
+its shapes before it draws it (gobj-ui `yui_svg_sanitize()`), because any
+writer with the right to write a node can write one. `__icons__` is never
+tagged by a snap: an activated snap keeps every icon, so a record it froze
+still finds the icon it names.
+
 ### 3.4 The `__md_treedb__` metadata block
 
 Every loaded node carries a metadata sidecar ([`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.26.6/kernel/c/timeranger2/src/tr_treedb.c),
@@ -1039,9 +1068,10 @@ handed out by the `rowid` flag. `shoot-snap` stamps that number on the md2
 - the meta-topics are skipped — **except `__graphs__`**, which holds how the
   treedb was ARRANGED and is as much what the store looked like as the
   records are, so the photo carries it (see the table below). `__snaps__`
-  cannot tag itself, and `__assets__` is held by a snap another way:
-  `assets_held_by_snaps()` walks the links of the records the snap froze,
-  because its blobs are shared by every treedb of the tranger;
+  cannot tag itself, `__assets__` is held by a snap another way
+  (`assets_held_by_snaps()` walks the links of the records the snap froze,
+  because its blobs are shared by every treedb of the tranger), and
+  `__icons__` is not part of the photo: an icon is how a record looks;
 - a record an earlier snap already tagged cannot take a second tag
   (`user_flag` is one `uint16_t`), so that one is **cloned**: the clone is
   appended with the new tag and becomes the newest record of the node. When
@@ -1415,7 +1445,7 @@ activate-snap name=S        # and back, as many times as you want
 Some records must never be deleted by CRUD (the seed `root` role and
 `yuneta` user — see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.2), and some topics
 must never be dropped (the `__system__` treedb's structural topics, and
-every treedb's `__snaps__` / `__graphs__` / `__assets__`). The protection is **metadata,
+every treedb's `__snaps__` / `__graphs__` / `__assets__` / `__icons__`). The protection is **metadata,
 never a data column** — it does not touch the user schema and never bumps
 `topic_version`. Design write-up:
 [`DESIGN-immutable-topics-records.md`](https://github.com/artgins/yunetas/blob/7.26.6/kernel/c/timeranger2/DESIGN-immutable-topics-records.md).

@@ -118,10 +118,11 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
  *  expected_log_list())
  */
 PRIVATE const char *expected_start_msgs[] = {
-    /*  start up: __system__ tranger + schema + its six topics  */
+    /*  start up: __system__ tranger + schema + its seven topics  */
     "Starting yuno",
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -145,6 +146,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Updating TreeDB schema in __system__",
     M_REMOVED,
     "Re-Creating TreeDB schema file",
@@ -155,6 +157,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  adds `groups`: the apply is withdrawn, said once  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -176,6 +179,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Schema saved",
     "Schema applied",
     "Updating TreeDB schema in __system__",
@@ -187,6 +191,7 @@ PRIVATE const char *expected_early_msgs[] = {
     /*  SAVED: a saved draft and an unsaved one, withdrawn by v2  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -207,6 +212,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Schema saved",
     "Schema applied",
     M_TIE,
@@ -217,6 +223,7 @@ PRIVATE const char *expected_early_msgs[] = {
     /*  REN: departments renamed to sections, the hook and fkey with it  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -236,6 +243,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Updating TreeDB schema in __system__",
     M_NOT_RAISED,
     "Re-Creating TreeDB schema file",
@@ -246,6 +254,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "impose_c_schema forced by the code of the yuno, over the attribute",
     "Opening TreeDB with the schema from C, __system__ not read",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -268,6 +277,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Updating TreeDB schema in __system__",
     "Re-Creating TreeDB schema file",
     "Creating topic",
@@ -278,6 +288,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  the snapshot is deleted the third open completes it  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -305,12 +316,14 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Schema saved",
 
     /*  RAN: users applied, run by the next open (v1, behind), then v3
      *  withdraws the running dynamic schema, said once  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -337,6 +350,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Schema saved",
     "Schema applied",
     M_TIE,
@@ -348,6 +362,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  then free: the literal is installed and projected  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -370,6 +385,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Schema saved",
     "Cannot write a record of saved_schemas/",
     "Schema applied",
@@ -380,6 +396,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  projection completes and says departments  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -413,6 +430,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "impose_c_schema forced by the code of the yuno, over the attribute",
     "Opening TreeDB with the schema from C, __system__ not read",
     "Updating TreeDB schema in __system__",
@@ -430,6 +448,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  gone: groups goes, not reported  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -455,6 +474,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Schema saved",
     "Schema applied",
     M_BEHIND,
@@ -465,6 +485,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  v4: users "in_use", departments "applied"  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -491,6 +512,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  recorded, retried at the next open; the file fixed, completed  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -527,6 +549,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     M_TIE,      /*  the file ties with the literal and has another content (none)  */
     "No topics found",
 
@@ -535,6 +558,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  it a draft and says nothing; the open that removes it says it  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -563,6 +587,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Updating TreeDB schema in __system__",
     M_SNAP_HOLDS,
     M_IN_PART,
@@ -580,6 +605,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  both refused; users is said once, by the open that removes it  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -611,6 +637,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Updating TreeDB schema in __system__",
     M_SNAP_HOLDS,
     M_IN_PART,
@@ -636,12 +663,14 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
 
     /*  FAIL2 + YUNO: a schema file with no topics: the open fails, the
      *  second one is refused up front, delete-treedb is refused, and
      *  close-treedb logs nothing  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -658,6 +687,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Updating TreeDB schema in __system__",
     M_WITHDREW,
     "Re-Creating TreeDB schema file",
@@ -665,6 +695,7 @@ PRIVATE const char *expected_early_msgs[] = {
     /*  DEL saved (tw_n7s): the same, with the deletion saved  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -684,6 +715,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     M_COMPLETING,
     M_NO_TOPICS_SAVE,
     M_NO_TOPICS_APPLY,
@@ -693,6 +725,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  draft, "saved"  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -719,6 +752,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Schema saved",
     "Updating TreeDB schema in __system__",
     M_REMOVED,
@@ -728,6 +762,7 @@ PRIVATE const char *expected_early_msgs[] = {
     /*  AD (tw_adl): the same, v3 declares groups: the store creates it  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -743,6 +778,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  then completed, groups said "unsaved"  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -770,6 +806,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Schema saved",
     "Updating TreeDB schema in __system__",
     M_WITHDREW,
@@ -778,6 +815,7 @@ PRIVATE const char *expected_early_msgs[] = {
     /*  AD (tw_ads): an added topic that was saved  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -794,6 +832,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  nothing; the open that removes it says it  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -820,6 +859,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Updating TreeDB schema in __system__",
     M_SNAP_HOLDS,
     M_IN_PART,
@@ -835,6 +875,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  it says nothing  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -858,6 +899,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Updating TreeDB schema in __system__",
     "Cannot create json file",
     "Cannot open file to write",
@@ -873,6 +915,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  the column again creates it  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -901,6 +944,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Updating TreeDB schema in __system__",
     M_WITHDREW,
     "Re-Creating TreeDB schema file",
@@ -916,6 +960,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Updating TreeDB schema in __system__",
     M_WITHDREW,
     "Re-Creating TreeDB schema file",
@@ -924,6 +969,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  every leftover is taken as left, and that is said  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -947,6 +993,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Updating TreeDB schema in __system__",
     "Cannot append record, write FAILED",
     M_IN_PART,
@@ -958,6 +1005,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  nothing said; the open that takes it says it once  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -976,6 +1024,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  creates the topic takes it and says it once  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -1001,8 +1050,10 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -1031,6 +1082,7 @@ PRIVATE const char *expected_early_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",
     "Updating TreeDB schema in __system__",
     M_WITHDREW,
     "Re-Creating TreeDB schema file",
@@ -1039,6 +1091,7 @@ PRIVATE const char *expected_early_msgs[] = {
      *  unlinked from it, in one open, said once  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",

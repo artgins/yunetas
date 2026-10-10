@@ -1529,6 +1529,9 @@ char foto_final4[]= "\
         }, \n\
         '__assets__': { \n\
             'id': {} \n\
+        }, \n\
+        '__icons__': { \n\
+            'id': {} \n\
         } \n\
     } \n\
 } \n\

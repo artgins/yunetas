@@ -2647,20 +2647,23 @@ PRIVATE int do_test(void)
 
     {
         const char *test = "open treedb";
-        /*  __snaps__ + __graphs__ + devices + places + __assets__ = 5 topics */
+        /*  __snaps__ + __graphs__ + devices + places + __assets__ + __icons__ = 6 topics */
         /*  `places.plano` is left WITHOUT `writable` on purpose: a `file`
          *  column nobody can fill is drawn like a full one and cannot be
          *  used, so the open says so. The two of `devices` do carry it,
          *  which is the ordinary case.  */
         set_expected_results(
             test,
-            json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
-                "msg", "a 'file' column without 'writable' cannot be filled by a person"
+                /*  Fired by the hook pass that closes the creation of
+                 *  __assets__, so it comes before __icons__  */
+                "msg", "a 'file' column without 'writable' cannot be filled by a person",
+                "msg", "Creating topic"
             ),
             NULL, NULL, 1
         );

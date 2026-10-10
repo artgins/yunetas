@@ -444,11 +444,12 @@ PRIVATE int do_test(void)
     }
 
     /*
-     *  yunos + __snaps__ + __graphs__ + __assets__
+     *  yunos + __snaps__ + __graphs__ + __assets__ + __icons__
      */
     set_expected_results(
         "open treedb",
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",

@@ -1517,9 +1517,10 @@ PRIVATE int test_take_back_into_its_instance(void)
     build_path(path_database_v, sizeof(path_database_v), path_root, DATABASE_V, NULL);
     rmrdir(path_database_v);
 
-    set_expected_results(test, json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    set_expected_results(test, json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Creating __timeranger2__.json",
         "msg", "Creating TreeDB schema file",
+        "msg", "Creating topic",
         "msg", "Creating topic",
         "msg", "Creating topic",
         "msg", "Creating topic",
@@ -1651,9 +1652,10 @@ PRIVATE int test_take_back_into_every_instance(void)
      *  P/v2. It logs nothing (up to 7.25.4: "Parent ref already in child
      *  fkey, skipping duplicate").
      */
-    set_expected_results(test, json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    set_expected_results(test, json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Creating __timeranger2__.json",
         "msg", "Creating TreeDB schema file",
+        "msg", "Creating topic",
         "msg", "Creating topic",
         "msg", "Creating topic",
         "msg", "Creating topic",
@@ -1789,9 +1791,10 @@ PRIVATE int do_test(void)
     /*
      *  The nodes: alice with no department, admin under direction
      */
-    json_t *tranger = open_all("create", json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *tranger = open_all("create", json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Creating __timeranger2__.json",
         "msg", "Creating TreeDB schema file",
+        "msg", "Creating topic",
         "msg", "Creating topic",
         "msg", "Creating topic",
         "msg", "Creating topic",

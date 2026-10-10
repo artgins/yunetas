@@ -102,9 +102,10 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
 PRIVATE const char *expected_log_msgs[] = {
     /*  start up  */
     "Starting yuno",
-    /*  __system__ tranger + schema + its six topics  */
+    /*  __system__ tranger + schema + its seven topics  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -113,8 +114,9 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Playing yuno",
     "Creating __timeranger2__.json",
-    /*  client tranger + schema + __snaps__ __graphs__ users departments fidelity __assets__  */
+    /*  client tranger + schema + __snaps__ __graphs__ users departments fidelity __assets__ __icons__  */
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -156,11 +158,12 @@ PRIVATE const char *expected_log_msgs[] = {
     "Schema topic pkey must be 'id'",
     "Node already exists",
     "Topic already has a column with this name",
-    /*  Test 8: legacy ids move; the treedb opens (+ __assets__); its
+    /*  Test 8: legacy ids move; the treedb opens (+ __assets__ __icons__); its
      *  tranger is created before the schema is decided  */
     "Creating __timeranger2__.json",
     "TreeDB schema ids moved to qualified names",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -204,6 +207,7 @@ PRIVATE const char *expected_log_msgs[] = {
     /*  Test 12: the treedb opened to be deleted  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",
@@ -339,6 +343,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Schema saved",
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
+    "Creating topic",
     "Creating topic",
     "Creating topic",
     "Creating topic",

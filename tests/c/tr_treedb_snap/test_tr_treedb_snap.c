@@ -733,10 +733,11 @@ PRIVATE int do_test(void)
      *------------------------------------*/
     {
         const char *test = "open treedb";
-        /*  Creates __snaps__ + __graphs__ + binaries + yunos + __assets__ = 5 topics */
+        /*  Creates __snaps__ + __graphs__ + binaries + yunos + __assets__ + __icons__ = 6 topics */
         set_expected_results(
             test,
-            json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+                "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",

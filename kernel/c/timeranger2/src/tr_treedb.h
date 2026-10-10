@@ -702,6 +702,19 @@ PUBLIC json_t *treedb_get_topic_hooks(
  */
 #define TREEDB_ASSETS_TOPIC     "__assets__"
 
+/*----------------------------*
+ *          Icons
+ *----------------------------*/
+/*
+ *  The icons a user adds to the GUI, as DATA: one node per icon, its id
+ *  the icon's name and `svg` its drawing. A system topic created at open
+ *  in every treedb, like __assets__. The treedb stores the svg and nothing
+ *  else: a GUI draws it as a CSS mask under the class `yi-u-<id>`, and
+ *  that reader -- not this store -- is where the svg is sanitized, because
+ *  any writer with the right to write a node can write one.
+ */
+#define TREEDB_ICONS_TOPIC      "__icons__"
+
 /*
  *  The write path: consume the `__files__` manifest (and the kw's `gbuffer`)
  *  of a record, store the bytes, create/refresh the __assets__ node and

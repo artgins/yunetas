@@ -342,9 +342,10 @@ PRIVATE int do_test(void)
      */
     set_expected_results(
         "open with the first schema",
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",

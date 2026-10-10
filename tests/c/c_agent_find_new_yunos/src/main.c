@@ -107,18 +107,19 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        /*  Strict FIFO: every gobj_log_info the run emits, in order. Eight
-         *  "Creating topic": the five of the agent's schema and the three the
-         *  treedb adds (__snaps__, __graphs__, __assets__). One "new release
-         *  found" per yuno with a newer binary: yuno_a, yuno_b, yuno_m1,
-         *  yuno_m2 (yuno_c has none). ONE "Parent ref already in child
-         *  fkey": the real duplicate link of yuno_c; the new releases of
-         *  yuno_a and yuno_m1 link children whose fkey already names them,
-         *  and that is not one (it warned up to 7.25.4). */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        /*  Strict FIFO: every gobj_log_info the run emits, in order. Nine
+         *  "Creating topic": the five of the agent's schema and the four the
+         *  treedb adds (__snaps__, __graphs__, __assets__, __icons__). One
+         *  "new release found" per yuno with a newer binary: yuno_a, yuno_b,
+         *  yuno_m1, yuno_m2 (yuno_c has none). ONE "Parent ref already in
+         *  child fkey": the real duplicate link of yuno_c; the new releases
+         *  of yuno_a and yuno_m1 link children whose fkey already names
+         *  them, and that is not one (it warned up to 7.25.4). */
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",

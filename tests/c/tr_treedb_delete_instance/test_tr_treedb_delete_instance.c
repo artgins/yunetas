@@ -454,8 +454,9 @@ PRIVATE int test_durable_delete_across_reopen(void)
     json_t *tranger;
     {
         set_expected_results(test,
-            json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
                 "msg", "Creating __timeranger2__.json",
+                "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
@@ -624,8 +625,9 @@ PRIVATE int test_delete_that_cannot_read_refuses(void)
     helper_quote2doublequote(schema_sample);
 
     set_expected_results(test,
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
@@ -779,8 +781,9 @@ PRIVATE int test_tombstone_that_fails_part_way(void)
     helper_quote2doublequote(schema_sample);
 
     set_expected_results(test,
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
@@ -898,8 +901,9 @@ PRIVATE json_t *new_links_db(const char *test, const char *db, char *path_root, 
     helper_quote2doublequote(schema_links);
 
     set_expected_results(test,
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
@@ -2242,8 +2246,9 @@ PRIVATE int test_save_keeps_the_primary_in_its_slot(void)
     helper_quote2doublequote(schema_multi);
 
     set_expected_results(test,
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
@@ -2371,8 +2376,9 @@ PRIVATE int test_gc_holds_the_asset_of_an_instance(void)
     helper_quote2doublequote(schema_docs);
 
     set_expected_results(test,
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
@@ -2780,10 +2786,11 @@ PRIVATE int do_test(void)
     const char *treedb_name = "treedb_delete_instance";
     {
         const char *test = "open treedb";
-        /*  treedb_open_db creates __snaps__ + __graphs__ + items + __assets__  */
+        /*  treedb_open_db creates __snaps__ + __graphs__ + items + __assets__ + __icons__  */
         set_expected_results(
             test,
-            json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
+            json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+                "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",

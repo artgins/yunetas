@@ -200,6 +200,9 @@ char foto_final_departments[]= "\
         }, \n\
         '__assets__': { \n\
             'id': {} \n\
+        }, \n\
+        '__icons__': { \n\
+            'id': {} \n\
         } \n\
     } \n\
 } \n\

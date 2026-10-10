@@ -271,6 +271,7 @@ PRIVATE int instance_held_by_a_snap(
 PRIVATE json_t *assets_held_by_snaps(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE const char *asset_linked_by_other_treedb(hgobj gobj, json_t *tranger, const char *treedb_name, const char *id);
 PRIVATE json_t *create_assets_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
+PRIVATE json_t *create_icons_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int derive_file_hooks(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int check_file_columns(hgobj gobj, const char *treedb_name, const char *topic_name, json_t *cols);
 PRIVATE BOOL col_is_hook_and_fkey(hgobj gobj, const char *topic_name, const char *col_name, json_t *col);
@@ -1569,6 +1570,19 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             NULL
         );
     }
+    /*-------------------------------------------*
+     *  Create "system" topic __icons__
+     *-------------------------------------------*/
+    if(!create_icons_topic(gobj, tranger, treedb_name)) {
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot create __icons__ topic",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+    }
+
     if(derive_file_hooks(gobj, tranger, treedb_name) < 0) {
         gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
             "function",     "%s", __FUNCTION__,
@@ -14968,6 +14982,7 @@ PUBLIC json_t *treedb_get_topic_hooks(
  *  every write since 7.25.0).
  */
 #define TREEDB_ASSETS_TOPIC_VERSION     2
+#define TREEDB_ICONS_TOPIC_VERSION      1
 #define TREEDB_BLOBS_DIR                ".blobs"
 
 PRIVATE const char *files_default_types[] = {
@@ -16227,6 +16242,68 @@ PRIVATE json_t *create_assets_topic(
         0,          // pkey2s
         cols,       // owned
         0,          // snap_tag: __assets__ is never tagged (see assets_held_by_snaps)
+        TRUE,       // system_topic
+        FALSE       // create_schema
+    );
+}
+
+/***************************************************************************
+ *  Create the __icons__ system topic of a treedb: the icons a user adds to
+ *  the GUI. The id is the icon's name, `svg` its drawing.
+ *
+ *  Never tagged, like __assets__: an activated snap keeps every icon, so a
+ *  record frozen by the snap still finds the icon it names. An icon is how
+ *  a record LOOKS, not part of what the store held.
+ ***************************************************************************/
+PRIVATE json_t *create_icons_topic(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    json_t *cols = json_pack(
+        "{s:{s:s, s:s, s:i, s:s, s:[s,s]},"     /* id */
+        " s:{s:s, s:s, s:i, s:s, s:[s,s,s]},"   /* svg */
+        " s:{s:s, s:s, s:i, s:s, s:[s,s]}}",    /* description */
+        "id",
+            "id", "id",
+            "header", "Name",
+            "fillspace", 20,
+            "type", "string",
+            "flag", "persistent", "required",
+        "svg",
+            "id", "svg",
+            "header", "Svg",
+            "fillspace", 10,
+            "type", "string",
+            "flag", "writable", "persistent", "required",
+        "description",
+            "id", "description",
+            "header", "Description",
+            "fillspace", 30,
+            "type", "string",
+            "flag", "writable", "persistent"
+    );
+    if(!cols) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON,
+            "msg",          "%s", "json_pack() FAILED",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+        return NULL;
+    }
+
+    return treedb_create_topic(
+        tranger,
+        treedb_name,
+        TREEDB_ICONS_TOPIC,
+        TREEDB_ICONS_TOPIC_VERSION,
+        "",         // tkey
+        0,          // pkey2s
+        cols,       // owned
+        0,          // snap_tag: __icons__ is never tagged
         TRUE,       // system_topic
         FALSE       // create_schema
     );

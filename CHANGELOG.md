@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **treedb: a system topic `__icons__` in every treedb, for the icons a user
+  adds.** Created at open like `__assets__` (`TREEDB_ICONS_TOPIC`,
+  `create_icons_topic()` in `tr_treedb.c`): one node per icon, `id` the name,
+  `svg` the drawing, `description`. A column flagged `icon` names one as
+  `yi-u-<id>`, a namespace no icon of the gobj-ui set uses, so a user icon
+  never replaces one of the library. The treedb stores the svg and checks
+  nothing; the GUI rebuilds it from its shapes before drawing it. Never tagged
+  by a snap (an activated snap keeps every icon). Every treedb opened by this
+  SDK gets the topic; the tests that count the system topics at open count
+  one more. YUNO_TREEDB.md §3.3.
+- **gobj-ui submodule on 7.26.6: the GUI half of `__icons__`.** The nodes of
+  `__icons__` become `.yi-u-<id>::before` masks (`lib_icons.js`:
+  `yui_icons_set_user` / `_put_user` / `_remove_user` / `_list`, the svg
+  rebuilt from its shapes by `yui_svg_sanitize`); the shell publishes
+  `EV_ICONS_CHANGED` (`yui_shell_icons_changed`); the treedb topics view shows
+  `__icons__` as a tab and feeds the registry; the form's `icon` column is a
+  picker that draws each icon, and the `svg` of `__icons__` a text area with a
+  live preview. JS API docs (`dom.md`, `shell_api.md`) carry the ten new
+  exports with examples; repinned to gobj-ui 7.26.6, index regenerated.
 - **gobj-ui submodule on 7.26.1: the Developer window copies what it
   shows, and its TRACES row scrolls on its own.** In the Collapsed view
   "Copy" put every payload laid out on the clipboard (1.4 MB for one
