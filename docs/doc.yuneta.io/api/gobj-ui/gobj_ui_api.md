@@ -15,8 +15,8 @@ It sits on top of [`@yuneta/gobj-js`](../js/js_api.md), and it holds the same
 rules: a DOM callback translates a notification of the browser into an event,
 and the work happens in an action of a state machine.
 
-**Source code:** [github.com/artgins/gobj-ui.js](https://github.com/artgins/gobj-ui.js/tree/7.26.6) —
-**version:** `7.26.6`
+**Source code:** [github.com/artgins/gobj-ui.js](https://github.com/artgins/gobj-ui.js/tree/7.26.7) —
+**version:** `7.26.7`
 
 ---
 
@@ -57,8 +57,8 @@ The repository carries two lines, and each one has its own consumers.
 
 | Line | Tag | npm | State |
 |---|---|---|---|
-| `main` | `2.0.0` and later | `5.x` | The v2 line, with the declarative shell. Every new work lands here. |
-| `v1` | `1.0.1` | `legacy` | The old GUI stack. Maintenance only. |
+| `main` | `2.0.0` and later | `latest` (`7.x`, the first two numbers are the SDK's) | The v2 line, with the declarative shell. Every new work lands here. |
+| `v1` | `1.0.4` | `legacy` | The old GUI stack. Maintenance only. |
 
 This reference covers the **v2** line.
 

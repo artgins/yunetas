@@ -37,12 +37,15 @@ Reusable GUI components for Yuneta-based web applications.
 Published as [`@yuneta/gobj-ui`](https://www.npmjs.com/package/@yuneta/gobj-ui).
 
 Provides:
-- App shell, floating windows, tabs, forms, routing
+- The declarative shell (`C_YUI_SHELL`, `C_YUI_NAV`, `C_YUI_PAGER`,
+  `C_YUI_WIZARD`), floating windows, forms, dialogs
 - MapLibre GL map wrapper, uPlot charts, JSON graph visualization
 - TreeDB topic management and graph editing components
 - Theme management, toolbar, developer tools
 - Vite plugin for CSP generation and HTML templating
-- Project skeleton for bootstrapping new GUIs
+
+The scaffold for a new declarative-shell GUI lives in `wattyzer/templates/js_gui/`
+(a private repository), not here.
 
 See [`gobj-ui/README.md`](gobj-ui/README.md) for the component guide and setup instructions.
 
@@ -71,12 +74,12 @@ kernel/js/
 │   ├── vite.config.js
 │   └── src/
 │       ├── index.js       ← public API entry point
-│       ├── gobj.js        ← GObject/FSM runtime      (~4 500 LOC)
-│       ├── helpers.js     ← utilities, JSON, logging  (~3 300 LOC)
-│       ├── c_ievent_cli.js← remote service proxy      (~1 350 LOC)
-│       ├── lib_treedb.js  ← TreeDB helpers            (~  540 LOC)
-│       ├── c_timer.js     ← Timer GClass              (~  330 LOC)
-│       ├── c_yuno.js      ← Yuno GClass               (~  290 LOC)
+│       ├── gobj.js        ← GObject/FSM runtime      (~5 600 LOC)
+│       ├── helpers.js     ← utilities, JSON, logging  (~4 700 LOC)
+│       ├── c_ievent_cli.js← remote service proxy      (~1 600 LOC)
+│       ├── lib_treedb.js  ← TreeDB helpers            (~  580 LOC)
+│       ├── c_timer.js     ← Timer GClass              (~  390 LOC)
+│       ├── c_yuno.js      ← Yuno GClass               (~  530 LOC)
 │       ├── dbsimple.js    ← localStorage persistence  (~  140 LOC)
 │       ├── sprintf.js     ← printf-style formatting   (~  210 LOC)
 │       ├── command_parser.js
@@ -87,6 +90,7 @@ kernel/js/
     ├── index.js           ← barrel re-exports
     ├── vite.config.js
     ├── vite-plugin-yuneta-html.js
-    ├── skeleton/          ← templates for new projects
-    └── src/               ← UI components (27 files)
+    ├── test-app/          ← a small SPA that mounts the components
+    ├── test/              ← vitest suite
+    └── src/               ← UI components (~90 modules)
 ```
