@@ -7,10 +7,10 @@ the ncurses helpers the `ycli` windows draw with.
 
 Source code:
 
-- [`c_editline.h`](https://github.com/artgins/yunetas/blob/7.26.6/modules/c/console/src/c_editline.h)
-- [`c_editline.c`](https://github.com/artgins/yunetas/blob/7.26.6/modules/c/console/src/c_editline.c)
-- [`help_ncurses.h`](https://github.com/artgins/yunetas/blob/7.26.6/modules/c/console/src/help_ncurses.h)
-- [`help_ncurses.c`](https://github.com/artgins/yunetas/blob/7.26.6/modules/c/console/src/help_ncurses.c)
+- [`c_editline.h`](https://github.com/artgins/yunetas/blob/7.26.7/modules/c/console/src/c_editline.h)
+- [`c_editline.c`](https://github.com/artgins/yunetas/blob/7.26.7/modules/c/console/src/c_editline.c)
+- [`help_ncurses.h`](https://github.com/artgins/yunetas/blob/7.26.7/modules/c/console/src/help_ncurses.h)
+- [`help_ncurses.c`](https://github.com/artgins/yunetas/blob/7.26.7/modules/c/console/src/help_ncurses.c)
 
 Every `editline_*` function takes the `C_EDITLINE` gobj as its first argument
 and reads its private data with no check of the gclass: pass it the gobj
