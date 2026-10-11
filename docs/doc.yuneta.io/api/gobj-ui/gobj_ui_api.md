@@ -15,8 +15,8 @@ It sits on top of [`@yuneta/gobj-js`](../js/js_api.md), and it holds the same
 rules: a DOM callback translates a notification of the browser into an event,
 and the work happens in an action of a state machine.
 
-**Source code:** [github.com/artgins/gobj-ui.js](https://github.com/artgins/gobj-ui.js/tree/7.26.9) —
-**version:** `7.26.9`
+**Source code:** [github.com/artgins/gobj-ui.js](https://github.com/artgins/gobj-ui.js/tree/7.26.10) —
+**version:** `7.26.10`
 
 ---
 
@@ -97,6 +97,25 @@ life happens in one state gives a `machine` trace that shows nothing.
 
 **A `kw` is plain JSON.** Never put a gobj, a widget or a DOM node in it. Pass
 an identity, and find the object inside the action.
+
+**Data is text, and markup is said out loud.** A value from a backend, or a
+value that a user typed, goes into the DOM as text: a Text node in the third
+slot of a description, or a string in a list of children. Markup that you mean
+(an icon, an svg) goes in [`html_markup()`](../js/helpers_dom.md#js_html_markup).
+gobj-ui passes all its markup that way since 7.26.10. So an app can start with
+[`set_strings_are_text(true)`](../js/helpers_dom.md#js_set_strings_are_text),
+and then a plain string is never markup. Run the check of gobj-ui on the app
+in its `prebuild`; it finds a literal markup or markup that is built with
+values:
+
+```javascript
+['span', {class: 'icon'}, html_markup('<i class="yi-copy"></i>')]  // markup
+['span', {class: 'HOST'}, document.createTextNode(host)]          // data
+```
+
+```bash
+node scripts/check-markup-strings.mjs src    # copy it from gobj-ui/scripts
+```
 
 **Give a logical name to each block of the DOM.** The root of a view carries the
 name of its gclass and a name of its own, such as

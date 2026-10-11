@@ -71,7 +71,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.9`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.10`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -208,7 +208,7 @@ for an app with no map — 1.5 MB).
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.26.8`, package **`7.26.2`** on npm since 2026-10-11)
+versioned to track `YUNETA_VERSION` (SDK `7.26.8`, package **`7.26.3`** on npm since 2026-10-11)
 and **published to npm**. It had drifted to 7.13.x while the SDK was at 7.16.2
 — a number that told a consumer nothing about which SDK it was built against —
 and jumped to `7.16.0` on 2026-08-28 to say it again; 7.14 and 7.15 were skipped
@@ -236,7 +236,7 @@ caught up at the `7.6.7` release.) **Every** consumer takes it from the
 registry — estadodelaire, hidraulia, wattyzer, yunomusica, the three yunovatios
 GUIs and the in-repo `yunos/js/*` yunos — but they do **not** all declare the
 same floor, and assuming they do has been wrong since the in-repo yunos moved
-ahead: `yunos/js/*` and the yunovatios GUIs are on `^7.26.2` (2026-10-11),
+ahead: `yunos/js/*` and the yunovatios GUIs are on `^7.26.3` (2026-10-11),
 wattyzer's gui on `^7.22.2` (2026-09-24). Check the consumer's own
 `package.json` rather than this line. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
@@ -1166,6 +1166,13 @@ Examples: `c_yui_main.js` (`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
 - `createElement2(["tag", attrs, children])`: the 2nd slot MUST be an attrs
   object; text/children go in slot 3 (`["p", {}, "msg"]`,
   `["ul", {}, [li1, li2]]`).
+- **A string in slot 3 of `createElement2` that starts with `<` is MARKUP**
+  (it runs), unless the app called `set_strings_are_text(true)` (gobj-js
+  7.26.3+). Data goes in as a Text node (`text_node()` in gobj-ui); markup
+  you mean goes in `html_markup('<i class="yi-…"></i>')`. gobj-ui (7.26.10+),
+  `yunos/js/*` and the yunovatios GUIs run in that mode and their `prebuild`
+  runs `check-markup-strings.mjs`; estadodelaire and hidraulia do not, so the
+  default cannot flip until they are migrated.
 - `gobj_create_default_service()` DOES register in `__jn_services__`, so
   `gobj_find_service("app")` finds it — this line used to say the opposite, and
   it was checked and found wrong on 2026-08-28. `gobj_create2()` adds
