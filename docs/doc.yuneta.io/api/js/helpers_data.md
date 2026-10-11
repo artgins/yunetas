@@ -7,7 +7,7 @@ description: >-
 
 # Local database, transport and token helpers
 
-**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.26.8/src/helpers.js)
+**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.26.9/src/helpers.js)
 
 ---
 
@@ -26,8 +26,25 @@ holds the records of a view while the page is open. It is not
 }
 ```
 
+A record is written under another one by the path of ids that leads to it, and
+it goes in the hook list of its parent. Writing an `id` that is already there
+updates it:
+
+```javascript
+const jdb = jdb_init({schema: {menu: []}});      // topics: {menu: []}, hook "data"
+jdb_update(jdb, "menu", "", {id: "home", label: "Home"});
+jdb_update(jdb, "menu", "home", {id: "users", label: "Users"});
+jdb_update(jdb, "menu", "home", {id: "users", label: "People"});   // updated
+// jdb.topics.menu:
+//     [{id: "home", label: "Home", data: [{id: "users", label: "People"}]}]
+jdb_delete(jdb, "menu", "home", {id: "users"});
+jdb_get(jdb, "menu", "home");    // {id: "home", label: "Home", data: []}
+```
+
+Before gobj-js 7.26.9, `jdb_init()` created no topic and no hook.
+
 (js_jdb_init)=
-### [`jdb_init(jdb, prefix, duplicate)`](https://github.com/artgins/gobj-js/blob/7.26.8/src/helpers.js#L3328)
+### [`jdb_init(jdb, prefix, duplicate)`](https://github.com/artgins/gobj-js/blob/7.26.9/src/helpers.js#L3358)
 
 Prepares a `jdb`, and builds one topic for each entry of the schema. With
 `duplicate` set to `true` the function works on a deep copy, and the caller
@@ -37,31 +54,31 @@ A key of the schema that begins with two underscores is metadata, and the
 function builds no topic for it.
 
 (js_jdb_update)=
-### [`jdb_update(jdb, topic_name, path, kw)`](https://github.com/artgins/gobj-js/blob/7.26.8/src/helpers.js#L3353)
+### [`jdb_update(jdb, topic_name, path, kw)`](https://github.com/artgins/gobj-js/blob/7.26.9/src/helpers.js#L3386)
 
 Writes a record in a topic. The function returns `null` and writes a log error
 when the topic does not exist, when the record has no `id`, or when `path` is
 not a string (since gobj-js 7.26.8; it threw before).
 
 (js_jdb_delete)=
-### [`jdb_delete(jdb, topic_name, path, kw)`](https://github.com/artgins/gobj-js/blob/7.26.8/src/helpers.js#L3411)
+### [`jdb_delete(jdb, topic_name, path, kw)`](https://github.com/artgins/gobj-js/blob/7.26.9/src/helpers.js#L3444)
 
 Deletes a record from a topic. It returns `null` with a log error in the same
 cases as `jdb_update()`.
 
 (js_jdb_get)=
-### [`jdb_get(jdb, topic_name, id, recursive)`](https://github.com/artgins/gobj-js/blob/7.26.8/src/helpers.js#L3486)
+### [`jdb_get(jdb, topic_name, id, recursive)`](https://github.com/artgins/gobj-js/blob/7.26.9/src/helpers.js#L3519)
 
 Gives the record with an identifier. The search goes down into the children
 through the hook. With `recursive` not given the function goes down.
 
 (js_jdb_get_by_idx)=
-### [`jdb_get_by_idx(jdb, topic_name, idx)`](https://github.com/artgins/gobj-js/blob/7.26.8/src/helpers.js#L3503)
+### [`jdb_get_by_idx(jdb, topic_name, idx)`](https://github.com/artgins/gobj-js/blob/7.26.9/src/helpers.js#L3536)
 
 Gives the record at an index of a topic.
 
 (js_jdb_get_topic)=
-### [`jdb_get_topic(jdb, topic_name)`](https://github.com/artgins/gobj-js/blob/7.26.8/src/helpers.js#L3466)
+### [`jdb_get_topic(jdb, topic_name)`](https://github.com/artgins/gobj-js/blob/7.26.9/src/helpers.js#L3499)
 
 Gives a whole topic. Returns `null` and writes a log error when the topic does
 not exist.
@@ -79,13 +96,13 @@ the events, the subscriptions and the identity. See
 :::
 
 (js_load_json_file)=
-### [`load_json_file(url, on_success, on_error)`](https://github.com/artgins/gobj-js/blob/7.26.8/src/helpers.js#L3196)
+### [`load_json_file(url, on_success, on_error)`](https://github.com/artgins/gobj-js/blob/7.26.9/src/helpers.js#L3226)
 
 Reads a JSON file from a URL, and calls `on_success` with the object. It calls
 `on_error` when the read fails.
 
 (js_send_http_json_post)=
-### [`send_http_json_post(url, data, on_response)`](https://github.com/artgins/gobj-js/blob/7.26.8/src/helpers.js#L3229)
+### [`send_http_json_post(url, data, on_response)`](https://github.com/artgins/gobj-js/blob/7.26.9/src/helpers.js#L3259)
 
 Sends a POST request with a JSON body. It calls `on_response(status,
 response_data)`.
@@ -95,12 +112,12 @@ response_data)`.
 ## Tokens
 
 (js_jwtDecode)=
-### [`jwtDecode(jwt)`](https://github.com/artgins/gobj-js/blob/7.26.8/src/helpers.js#L3575)
+### [`jwtDecode(jwt)`](https://github.com/artgins/gobj-js/blob/7.26.9/src/helpers.js#L3608)
 
 Reads a JWT, and gives its three parts back.
 
 (js_jwt2json)=
-### [`jwt2json(jwt, what)`](https://github.com/artgins/gobj-js/blob/7.26.8/src/helpers.js#L3623)
+### [`jwt2json(jwt, what)`](https://github.com/artgins/gobj-js/blob/7.26.9/src/helpers.js#L3656)
 
 Reads one part of a JWT as JSON. `what` accepts `"header"`, `"payload"` and
 `"signature"`, and the default is `"payload"`.
