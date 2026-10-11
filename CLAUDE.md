@@ -485,6 +485,11 @@ Corollaries:
   `json_t *v = kw_get_dict(gobj, kw, key, 0, 0); if(!v) { v = fallback; }`.
   Real bug: a gate handing its own compiled-in model config as the fallback for
   a per-device one, one bad decref per frame received.
+  **With `KW_CREATE` a write that fails returns NULL** (7.26.9+): an empty path
+  or a scalar on the path makes `kw_set_dict_value()` log and spend the default,
+  and the readers (`kw_get_dict/list/dict_value`, `kw_get_subdict_value`) used
+  to hand that FREED pointer back. Check the answer of a create whose path
+  comes from data.
 
 - **An absent `DTP_JSON` is `json_null()`, not C NULL — so `if(!jn)` is dead
   code.** `set_default()` materialises a `DTP_JSON` with an empty default as

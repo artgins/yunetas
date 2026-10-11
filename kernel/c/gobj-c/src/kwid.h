@@ -281,6 +281,10 @@ PUBLIC BOOL kwid_compare_lists(
    Return the ``path` dict value from the ``kw`` dict.
    If it's ``KW_REQUIRED`` and ``path`` not exist then log an error.
    If ``path`` doesn't exist then return the ``default_value``.
+   With ``KW_CREATE`` the ``default_value`` is written at ``path`` and
+   returned; when it cannot be written (an empty path, a scalar on the
+   path) the error is logged, the ``default_value`` is spent and NULL is
+   returned.
 **rst**/
 PUBLIC json_t *kw_get_dict(
     hgobj gobj,
@@ -294,6 +298,10 @@ PUBLIC json_t *kw_get_dict(
    Return the ``path` list value from the ``kw`` dict.
    If it's ``KW_REQUIRED`` and ``path`` not exist then log an error.
    If ``path`` doesn't exist then return the ``default_value``.
+   With ``KW_CREATE`` the ``default_value`` is written at ``path`` and
+   returned; when it cannot be written (an empty path, a scalar on the
+   path) the error is logged, the ``default_value`` is spent and NULL is
+   returned.
 **rst**/
 PUBLIC json_t *kw_get_list(
     hgobj gobj,
@@ -372,6 +380,10 @@ PUBLIC const char *kw_get_str(
    Return the ``path` json value from the ``kw`` dict.
    If it's ``KW_REQUIRED`` and ``path`` not exist then log an error.
    If ``path`` doesn't exist then return the ``default_value``.
+   With ``KW_CREATE`` the ``default_value`` is written at ``path`` and
+   returned; when it cannot be written the error is logged, the
+   ``default_value`` is spent and NULL is returned (as
+   ``kw_get_subdict_value()`` does when the subdict cannot be created).
 **rst**/
 PUBLIC json_t *kw_get_dict_value(
     hgobj gobj,

@@ -1747,7 +1747,11 @@ PUBLIC json_t *kw_get_dict(
     json_t *jn_dict = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_dict) {
         if((flag & KW_CREATE) && default_value && kw) {
-            kw_set_dict_value(gobj, kw, path, default_value);
+            if(kw_set_dict_value(gobj, kw, path, default_value) < 0) {
+                /*  It spent default_value: returning it handed the
+                 *  caller freed memory.  */
+                return NULL;    // Error already logged
+            }
             return default_value;
         }
         if(flag & KW_REQUIRED) {
@@ -1798,7 +1802,11 @@ PUBLIC json_t *kw_get_list(
     json_t *jn_list = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_list) {
         if((flag & KW_CREATE) && default_value && kw) {
-            kw_set_dict_value(gobj, kw, path, default_value);
+            if(kw_set_dict_value(gobj, kw, path, default_value) < 0) {
+                /*  It spent default_value: returning it handed the
+                 *  caller freed memory.  */
+                return NULL;    // Error already logged
+            }
             return default_value;
         }
         if(flag & KW_REQUIRED) {
@@ -2179,7 +2187,11 @@ PUBLIC json_t *kw_get_dict_value(
     json_t *jn_value = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_value) {
         if((flag & KW_CREATE) && default_value && kw) {
-            kw_set_dict_value(gobj, kw, path, default_value);
+            if(kw_set_dict_value(gobj, kw, path, default_value) < 0) {
+                /*  It spent default_value: returning it handed the
+                 *  caller freed memory.  */
+                return NULL;    // Error already logged
+            }
             return default_value;
         }
         if(flag & KW_REQUIRED) {
@@ -2218,7 +2230,11 @@ PUBLIC json_t *kw_get_subdict_value(
     if(!jn_subdict) {
         if((flag & KW_CREATE) && kw) {
             jn_subdict = json_object();
-            kw_set_dict_value(gobj, kw, path, jn_subdict);
+            if(kw_set_dict_value(gobj, kw, path, jn_subdict) < 0) {
+                /*  It spent jn_subdict: going on read freed memory.  */
+                JSON_DECREF(default_value)
+                return NULL;    // Error already logged
+            }
         } else {
             if(flag & KW_REQUIRED) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,

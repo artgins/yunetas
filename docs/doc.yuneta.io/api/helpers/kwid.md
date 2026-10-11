@@ -650,6 +650,23 @@ Returns the dictionary value at `path` if found. If `KW_CREATE` is set, it creat
 
 If `KW_EXTRACT` is set, the retrieved value is removed from `kw`. The function logs an error if `path` does not exist and `KW_REQUIRED` is set.
 
+`default_value` is **owned**: the function spends it on every path. With
+`KW_CREATE` it is written at `path` and returned, held by `kw`; when it cannot
+be written -- an empty path, a scalar on the path, an index outside its list --
+[`kw_set_dict_value()`](#kw_set_dict_value) logs the error and frees it, and
+the function returns **NULL** (since 7.26.9; it returned the freed pointer
+before). Check the answer of a create whose path comes from data.
+
+```C
+json_t *md = kw_get_dict(gobj, kw, "__md_iev__", json_object(), KW_CREATE);
+if(!md) {
+    return -1;  // Error already logged: kw could not hold it
+}
+
+/*  kw = {"a": 5}: "a" is a scalar, nothing can be created inside it  */
+json_t *d = kw_get_dict(gobj, kw, "a`b", json_object(), KW_CREATE);  // NULL, logged
+```
+
 ---
 
 (kw_get_dict_value)=
@@ -683,7 +700,7 @@ Returns the JSON value found at `path`. If the key does not exist, it returns `d
 
 **Notes**
 
-If `KW_REQUIRED` is set and the key is not found, an error is logged. If `KW_CREATE` is set, `default_value` is inserted into `kw` if the key does not exist.
+If `KW_REQUIRED` is set and the key is not found, an error is logged. If `KW_CREATE` is set, `default_value` is inserted into `kw` if the key does not exist; when it cannot be inserted the function returns **NULL**, as [`kw_get_dict()`](#kw_get_dict) does (since 7.26.9).
 
 ---
 
@@ -753,7 +770,7 @@ Returns a JSON list if found. If `KW_CREATE` is set and the key does not exist, 
 
 **Notes**
 
-If `KW_EXTRACT` is set in `flag`, the retrieved list is removed from `kw` and returned with an increased reference count. If the key exists but is not a list, an error is logged and `default_value` is returned.
+If `KW_EXTRACT` is set in `flag`, the retrieved list is removed from `kw` and returned with an increased reference count. If the key exists but is not a list, an error is logged and `default_value` is returned. With `KW_CREATE`, a `default_value` that cannot be written returns **NULL**, as [`kw_get_dict()`](#kw_get_dict) does (since 7.26.9).
 
 ---
 
@@ -893,7 +910,7 @@ Returns the JSON value associated with the specified key in the subdictionary. I
 
 **Notes**
 
-If `KW_REQUIRED` is set and the key is not found, an error is logged. If `KW_EXTRACT` is set, the value is removed from the dictionary before returning.
+If `KW_REQUIRED` is set and the key is not found, an error is logged. If `KW_EXTRACT` is set, the value is removed from the dictionary before returning. With `KW_CREATE`, a subdictionary that cannot be created (a scalar on `path`) returns **NULL**, logged, and `jn_default_value` is spent (since 7.26.9; it went on reading the freed subdictionary).
 
 ---
 

@@ -175,6 +175,59 @@ static void test_ownership(void)
     JSON_DECREF(value)
 }
 
+/*
+ *  A reader with KW_CREATE whose write fails: kw_set_dict_value() spends
+ *  the default, so the reader must not hand it back. It did, freed --
+ *  with CONFIG_DEBUG_TRACK_MEMORY the default's memory is checked below.
+ */
+static void check_create_refused(const char *title, json_t *got)
+{
+    if(got != NULL) {
+        printf("FAIL %-48s returned %p, wanted NULL\n", title, (void *)got);
+        failed++;
+    } else {
+        printf("  ok  %s\n", title);
+    }
+}
+
+static void test_readers_create_refused(void)
+{
+    printf("\n--- a reader whose KW_CREATE cannot write returns NULL ---\n");
+
+    json_t *kw = json_pack("{s:i}", "a", 5);
+
+    check_create_refused("kw_get_dict, a scalar on the path",
+        kw_get_dict(0, kw, "a`b", json_object(), KW_CREATE));
+    check_create_refused("kw_get_dict, an empty path",
+        kw_get_dict(0, kw, "", json_object(), KW_CREATE));
+    check_create_refused("kw_get_list, a scalar on the path",
+        kw_get_list(0, kw, "a`b", json_array(), KW_CREATE));
+    check_create_refused("kw_get_dict_value, a scalar on the path",
+        kw_get_dict_value(0, kw, "a`b", json_string("x"), KW_CREATE));
+    check_create_refused("kw_get_subdict_value, a scalar on the path",
+        kw_get_subdict_value(0, kw, "a`b", "k", json_string("x"), KW_CREATE));
+
+    /*  The kw is as it was.  */
+    json_t *want = json_pack("{s:i}", "a", 5);
+    if(!json_equal(kw, want)) {
+        printf("FAIL %-48s\n", "the kw is left as it was");
+        failed++;
+    } else {
+        printf("  ok  %s\n", "the kw is left as it was");
+    }
+    JSON_DECREF(want)
+
+    /*  And a write that can be done still answers the default, held by the kw.  */
+    json_t *d = kw_get_dict(0, kw, "c`d", json_object(), KW_CREATE);
+    if(!d || kw_find_path(0, kw, "c`d", FALSE) != d) {
+        printf("FAIL %-48s\n", "a create that can write returns what it wrote");
+        failed++;
+    } else {
+        printf("  ok  %s\n", "a create that can write returns what it wrote");
+    }
+    JSON_DECREF(kw)
+}
+
 /***************************************************************************
  *              Main
  ***************************************************************************/
@@ -193,6 +246,7 @@ int main(int argc, char *argv[])
     test_create();
     test_refusals();
     test_ownership();
+    test_readers_create_refused();
 
     gobj_end();
 

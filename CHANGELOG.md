@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **fix: `kw_get_dict()`, `kw_get_list()`, `kw_get_dict_value()` and
+  `kw_get_subdict_value()` with `KW_CREATE` returned FREED memory when the
+  write failed.** `kw_set_dict_value()` owns the value in every case and frees
+  it when it cannot write it (an empty path, a scalar on the path, an index
+  outside its list); the readers ignored its answer and returned the default
+  anyway, and `kw_get_subdict_value()` went on reading the subdict it had just
+  lost. All 46 callers in the tree pass a fresh default, so each would have got
+  a dangling pointer. They return NULL now (the error is already logged).
+  `tests/c/kw/test_kw_set_dict_value` has a case per reader; on the old library
+  all five returned the freed pointer. Found by the cloud review of the JS
+  layer (yunovatios `REV-CLOUD.md` §V9.2), comparing an empty path in JS and C.
+
 - **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
   (2026-10-10/11, yunovatios `REV-CLOUD.md`, ten rounds).** Submodules
   `kernel/js/gobj-js` 7.26.0 → **7.26.11**, `kernel/js/gobj-ui` 7.26.7 →
