@@ -57,9 +57,9 @@
   the ten new ones fail, the UTF-8 one with a segfault.
 
 - **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
-  (2026-10-10/11, yunovatios `REV-CLOUD.md`, eleven rounds).** Submodules
-  `kernel/js/gobj-js` 7.26.0 → **7.26.13**, `kernel/js/gobj-ui` 7.26.7 →
-  **7.26.19**, and `yunos/js` (gui_agent 0.29.31, gui_treedb 0.17.98); every
+  (2026-10-10/11, yunovatios `REV-CLOUD.md`, twelve rounds).** Submodules
+  `kernel/js/gobj-js` 7.26.0 → **7.26.14**, `kernel/js/gobj-ui` 7.26.7 →
+  **7.26.20**, and `yunos/js` (gui_agent 0.29.33, gui_treedb 0.17.100); every
   release is in the CHANGELOG of its own repository. What a consumer has to
   know:
     - `createElement2()` takes a string that starts with `<` as markup unless
