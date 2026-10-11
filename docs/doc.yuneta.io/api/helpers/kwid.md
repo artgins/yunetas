@@ -1930,7 +1930,55 @@ The `json_t *` value at the specified path, not owned by the caller. Returns NUL
 
 **Notes**
 
-The path supports dotted notation to navigate nested objects. The `flag` parameter controls behaviors such as whether to create missing intermediate nodes.
+The path is split at `` ` `` **and** at `.` -- unlike the `kw_get_*()` readers, which split at `` ` `` only. A list on the path is walked by the `"id"` of its records. So a name that comes from data (a topic, a hook, a key a user chose) must not go into the path: one with a `.` addresses another place. Use [`kwid_get_by_keys()`](#kwid_get_by_keys) for those. `KW_VERBOSE` logs a path that is too short; `KW_BACKWARD` walks a list from its end.
+
+```C
+json_t *flag = kwid_get(gobj, tranger, 0, "topics`users`cols`id`flag");  // a path written in code
+```
+
+---
+
+(kwid_get_by_keys)=
+## `kwid_get_by_keys()`
+
+[`kwid_get()`](#kwid_get) by KEYS: `nkeys` segments, each one a key of a dict or the `"id"` of a record of a list, never split. Since SDK 7.26.9.
+
+```C
+json_t *kwid_get_by_keys( // Return is NOT YOURS
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    kw_flag_t flag,
+    int nkeys,
+    ...         // const char *key1, ..., const char *keyN
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | GObj handle, used for logging. |
+| `kw` | `json_t *` | The JSON to walk, not owned. |
+| `flag` | `kw_flag_t` | `KW_VERBOSE` logs the segment that is not found (*"key not found"*). |
+| `nkeys` | `int` | How many segments follow. |
+| `...` | `const char *` | The segments. A NULL segment is not found: it is no terminator, because a name read from data can be NULL. |
+
+**Returns**
+
+The value, not owned by the caller, or NULL when a segment is not found.
+
+**Notes**
+
+The treedb looks its topics, hooks and fkeys up with it: they are names a schema (or a peer) chooses, and a `.` in one of them sent a `kwid_get()` path to another place.
+
+Call it through the macro `KWID_GET_BY_KEYS(gobj, kw, flag, key1, ..., keyN)`, which counts the keys at compile time: a count written by hand that does not match the keys walks the wrong number of segments, and nothing says so.
+
+```C
+/*  The hook mapping of the column `kids.all` of the topic `par.v1`  */
+json_t *hook = KWID_GET_BY_KEYS(gobj, tranger, 0,
+    "topics", "par.v1", "cols", "kids.all", "hook"
+);
+```
 
 ---
 

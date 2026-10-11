@@ -3486,6 +3486,60 @@ PUBLIC json_t *kwid_get( // Return is NOT YOURS
 }
 
 /***************************************************************************
+    kwid_get() by KEYS: each segment is a key of a dict or the "id" of a
+    record of a list, never split (kwid_get() splits at '`' AND '.').
+ ***************************************************************************/
+PUBLIC json_t *kwid_get_by_keys( // Return is NOT YOURS
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    kw_flag_t flag,
+    int nkeys,
+    ...         // const char *key1, ..., const char *keyN
+)
+{
+    va_list ap;
+    va_start(ap, nkeys);
+
+    json_t *v = kw;
+    for(int k = 0; k < nkeys; k++) {
+        const char *key = va_arg(ap, const char *);
+        json_t *next = NULL;
+        if(!key) {
+            next = NULL;
+        } else if(json_is_object(v)) {
+            next = json_object_get(v, key);
+        } else if(json_is_array(v)) {
+            size_t idx;
+            json_t *v_;
+            json_array_foreach(v, idx, v_) {
+                const char *id = json_string_value(json_object_get(v_, "id"));
+                if(id && strcmp(id, key)==0) {
+                    next = v_;
+                    break;
+                }
+            }
+        }
+        if(!next) {
+            if(flag & KW_VERBOSE) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "key not found",
+                    "key",          "%.64s", key? key : "(null)",
+                    NULL
+                );
+            }
+            v = NULL;
+            break;
+        }
+        v = next;
+    }
+
+    va_end(ap);
+    return v;
+}
+
+/***************************************************************************
     Utility for databases.
     Return a new list from a "dict of records" or "list of records"
     WARNING the "id" of a dict's record is hardcorded to his key.

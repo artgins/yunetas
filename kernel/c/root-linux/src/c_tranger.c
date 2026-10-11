@@ -1963,7 +1963,9 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
-    json_t *desc = kwid_new_dict(gobj, priv->tranger, 0, "topics`%s`cols", topic_name);
+    // By keys: a timeranger2 topic name may hold a '.', and kwid paths split at it
+    json_t *cols_ = KWID_GET_BY_KEYS(gobj, priv->tranger, 0, "topics", topic_name, "cols");
+    json_t *desc = cols_? kwid_new_dict(gobj, cols_, 0, "%s", "") : NULL;   // "" = cols_ itself
 
     return msg_iev_build_response(gobj,
         desc?0:-1,

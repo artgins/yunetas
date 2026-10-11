@@ -415,12 +415,12 @@ PRIVATE int check_comments_name_their_yuno(hgobj gobj)
     result += expect_comment(gobj, "shoot-snap",
         json_pack("{s:s}", "name", "snap-msg"), -1, "cannot shoot snap");
     result += expect_comment(gobj, "desc",
-        json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "no desc of topic");
+        json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "Topic not found");
     result += expect_comment(gobj, "nodes",
-        json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "cannot list the nodes");
+        json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "Topic not found");
     result += expect_comment(gobj, "instances",
         json_pack("{s:s, s:s}", "topic_name", "no_such_topic", "node_id", "x"), -1,
-        "cannot list the instances");
+        "Topic not found");
     result += expect_comment(gobj, "parents",
         json_pack("{s:s, s:s}", "topic_name", "items", "node_id", "no_such_node"), -1,
         "cannot list the parents");
@@ -431,9 +431,9 @@ PRIVATE int check_comments_name_their_yuno(hgobj gobj)
         json_pack("{s:s, s:s}", "topic_name", "items", "hook", "no_such_hook"), -1,
         "cannot build the tree");
     result += expect_comment(gobj, "links",
-        json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "cannot list the links");
+        json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "Topic not found");
     result += expect_comment(gobj, "hooks",
-        json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "cannot list the hooks");
+        json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "Topic not found");
 
     /*
      *  instances with a `filter` and no topic_name must not take a

@@ -7,8 +7,8 @@ description: >-
 
 # Logging and String Formatting
 
-**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js),
-[`src/sprintf.js`](https://github.com/artgins/gobj-js/blob/7.26.17/src/sprintf.js)
+**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js),
+[`src/sprintf.js`](https://github.com/artgins/gobj-js/blob/7.26.18/src/sprintf.js)
 
 Every writer takes a format and its arguments, in the style of `printf`. There
 is no `gobj` parameter and no error code, which the C API has. The JS runtime is
@@ -30,22 +30,22 @@ touched. Arguments left over are appended, a json one as its JSON. Up to gobj-js
 ## Write a log
 
 (js_log_error)=
-### [`log_error(format, ...args)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L313)
+### [`log_error(format, ...args)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L326)
 
 Writes an error. It goes to the remote handler too.
 
 (js_log_warning)=
-### [`log_warning(format, ...args)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L333)
+### [`log_warning(format, ...args)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L346)
 
 Writes a warning. It goes to the remote handler too.
 
 (js_log_info)=
-### [`log_info(format, ...args)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L353)
+### [`log_info(format, ...args)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L366)
 
 Writes an information message. It stays in the console.
 
 (js_log_debug)=
-### [`log_debug(format, ...args)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L366)
+### [`log_debug(format, ...args)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L379)
 
 Writes a debug message. It stays in the console.
 
@@ -56,20 +56,23 @@ arguments, the log functions read these conversions; extra arguments go at the
 end, separated by a space. No value makes a log line throw (since gobj-js
 7.26.17): what has no string form is printed as json, or as `<type: not
 printable>`, and a log function that throws (a remote one over a socket that
-is gone) does not take the caller with it.
+is gone) does not take the caller with it; one that logs in turn is not
+called again from inside itself (since 7.26.18).
 
 | Conversion | Prints |
 |---|---|
 | `%s` | The value as text. |
 | `%d`, `%i` | An integer. A BigInt keeps all its digits. |
 | `%f` | A real number. |
-| `%o`, `%O`, `%j` | The JSON form. |
+| `%o`, `%O` | An object as JSON; any other value as text (`"abc"` prints `abc`). |
+| `%j` | Any value as JSON (`"abc"` prints `"abc"`; a BigInt, its digits as a string). |
 | `%%` | A `%`. It takes no argument. |
 
 ```js
 log_error("node %s not found", id);              // node 42 not found
 log_error("100%% of %d nodes", 3);               // 100% of 3 nodes
 log_error("record %j", {id: "a"});               // record {"id":"a"}
+log_error("name %o, json %j", "abc", "abc");     // name abc, json "abc"
 log_error("rowid %d", 12345678901234567890n);    // rowid 12345678901234567890
 log_error(`already composed: 50%s`);             // already composed: 50%s
 ```
@@ -79,12 +82,12 @@ log_error(`already composed: 50%s`);             // already composed: 50%s
 ## Write a trace
 
 (js_trace_msg)=
-### [`trace_msg(format, ...args)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L379)
+### [`trace_msg(format, ...args)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L392)
 
 Writes one line of trace.
 
 (js_trace_json)=
-### [`trace_json(json, msg)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L392)
+### [`trace_json(json, msg)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L405)
 
 Writes a JSON value.
 
@@ -97,7 +100,7 @@ identity in the `kw`, and find the object inside the action.
 Turn the levels on and off with the functions in [Traces](traces.md).
 
 (js_trace_json_masked)=
-### [`trace_json_masked(json, msg)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L752)
+### [`trace_json_masked(json, msg)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L765)
 
 [`trace_json()`](#js_trace_json) of a value that can hold a credential: it
 writes [`json_mask_secrets(json)`](#js_json_mask_secrets). The framework
@@ -112,7 +115,7 @@ trace_json_masked({username: "bob", password: "hunter2"}, "login");
 ```
 
 (js_json_mask_secrets)=
-### [`json_mask_secrets(json)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L739)
+### [`json_mask_secrets(json)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L752)
 
 A JSON value as a log or a trace may show it, with the rule and the lists of
 the C kernel's `json_mask_secrets()`. At any depth, the value of a key whose
@@ -142,7 +145,7 @@ json_mask_secrets({password: 1234, auth: {access_token: "eyJ..."}, window: gobj}
 ```
 
 (js_mask_secrets_inline)=
-### [`mask_secrets_inline(text)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L526)
+### [`mask_secrets_inline(text)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L539)
 
 A text (a command line) with the value of every `name=value` whose name is a
 secret's written as `********`, quoted or not, and the `value=` of a
@@ -158,7 +161,7 @@ mask_secrets_inline("list-yunos");      // null
 ```
 
 (js_is_secret_name)=
-### [`is_secret_name(name)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L434)
+### [`is_secret_name(name)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L447)
 
 `true` if `name` is the name of a secret, by the C kernel's lists: it holds
 `passw`, `pwd`, `passphrase`, `secret`, `token`, `jwt`, `bearer`,
@@ -181,7 +184,7 @@ is_secret_name("token_endpoint");   // false
 ## Where the logs go
 
 (js_set_remote_log_functions)=
-### [`set_remote_log_functions(remote_log_fn)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L186)
+### [`set_remote_log_functions(remote_log_fn)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L186)
 
 Sends the errors and the warnings to one handler, such as a websocket that
 carries them to a log centre. The information and the debug messages stay in the
@@ -196,17 +199,17 @@ ends in *"too much recursion"*, and it hides the first fault.
 :::
 
 (js_set_log_callback)=
-### [`set_log_callback(callback)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L81)
+### [`set_log_callback(callback)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L81)
 
 Sends every log to one function of the application.
 
 (js_set_console_log_enabled)=
-### [`set_console_log_enabled(enabled)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L114)
+### [`set_console_log_enabled(enabled)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L114)
 
 Turns the write to the console on or off.
 
 (js_set_console_log_filter)=
-### [`set_console_log_filter(fn)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L135)
+### [`set_console_log_filter(fn)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/helpers.js#L135)
 
 Gives one function the say over each console line, on top of the switch above.
 `fn(level, msg)` gives `true` to write the line. `null` writes them all, which
@@ -224,12 +227,12 @@ filter that throws is ignored: a broken filter must not silence the log.
 ## Format a string
 
 (js_sprintf)=
-### [`sprintf(format, ...args)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/sprintf.js#L24)
+### [`sprintf(format, ...args)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/sprintf.js#L24)
 
 Builds a string in the style of `printf`.
 
 (js_vsprintf)=
-### [`vsprintf(fmt, argv)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/sprintf.js#L29)
+### [`vsprintf(fmt, argv)`](https://github.com/artgins/gobj-js/blob/7.26.18/src/sprintf.js#L29)
 
 The same, and it takes the arguments in an array.
 

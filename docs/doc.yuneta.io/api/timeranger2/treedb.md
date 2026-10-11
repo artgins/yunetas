@@ -1622,7 +1622,7 @@ A column is a key of the records and a segment of the kw paths the treedb builds
 ```C
 treedb_col_name_is_identifier("departments");   // TRUE
 treedb_col_name_is_identifier("kids/all");      // TRUE: a column is not a directory
-treedb_col_name_is_identifier("..");            // TRUE
+treedb_col_name_is_identifier("..");            // TRUE: a hook ".." links (looked up by key)
 treedb_col_name_is_identifier("a`b");           // FALSE: the path delimiter
 treedb_col_name_is_identifier("");              // FALSE
 ```
@@ -2242,20 +2242,30 @@ static char treedb_schema_names[]= "\
 ```
 
 To check a store before an upgrade, ask its persisted schemas (the KEYS, not
-the values: a description may hold a `/`). Each command prints the names that
-break a rule, and nothing on a clean store:
+the values: a description may hold a `/`). They are `<treedb>.treedb_schema.json`
+(a `topics` list) and, for a topic created at run time,
+`<treedb>-<topic>.treedb_schema.json` (one topic); the recipe reads both. Each
+command prints the names that break a rule, and nothing on a clean store. A
+treedb opened without `"persistent"` writes no schema file (`C_NODE` always
+opens with it):
 
 ```bash
 # topic names: empty, ".", "..", or holding "/" or "`"
 find <store> -name '*.treedb_schema.json' -exec \
-    jq -r '.topics[] | (.id // .topic_name) | select(. == "" or test("^[.]{1,2}$|[/`]"))' {} +
+    jq -r '(.topics[]? // .) | (.id // .topic_name)
+           | select(. == "" or test("^[.]{1,2}$|[/`]"))' {} +
 
 # column names: empty or holding "`"
 find <store> -name '*.treedb_schema.json' -exec \
-    jq -r '.topics[] | (.id // .topic_name) as $t | .cols
+    jq -r '(.topics[]? // .) | (.id // .topic_name) as $t | (.cols // {})
            | (if type == "object" then keys[] else .[].id end)
            | select(. == "" or test("`")) | "\($t).\(.)"' {} +
 ```
+
+A `.` in a name is fine for both rules: the treedb looks its topics, hooks and
+fkeys up by key ([`kwid_get_by_keys()`](<#kwid_get_by_keys>)), never through a
+`kwid_get()` path, which splits at `.` too (since SDK 7.26.9; before it a link
+by a hook `kids.all`, or to a topic `par.v1`, answered -1).
 
 A non-master open reads the mark from the persisted schema file, like the rest
 of the schema, so a reader that is not the master sees it too. A tool that

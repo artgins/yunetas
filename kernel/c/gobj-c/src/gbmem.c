@@ -473,8 +473,8 @@ PRIVATE void check_failed_list(track_mem_t *track_mem)
             gobj_log_debug(0, LOG_OPT_TRACE_STACK,
                 "msgset",       "%s", MSGSET_STATISTICS,
                 "msg",          "%s", "mem-not-free by ref",
-                "ref",          "%ul", (unsigned long)track_mem->ref,
-                "p",            "%ul", (unsigned long)track_mem->p,
+                "ref",          "%lu", (unsigned long)track_mem->ref,
+                "p",            "%lu", (unsigned long)track_mem->p,
                 NULL
             );
         } else if(memory_check_list[xx] == track_mem->size) {

@@ -1095,7 +1095,7 @@ it by hand, run the script.
 
 178. [**`sha256_hex`**](helpers/misc.md#sha256_hex) — `PUBLIC int sha256_hex(const void *data, size_t len, char *bf, size_t bflen)`
 
-### `kwid.h` — 60 functions
+### `kwid.h` — 61 functions
 
 **Source:** `kernel/c/gobj-c/src/kwid.h`
 
@@ -1183,41 +1183,43 @@ it by hand, run the script.
 
 42. [**`kwid_get`**](helpers/kwid.md#kwid_get) — `PUBLIC json_t *kwid_get( hgobj gobj, json_t *kw, kw_flag_t flag, const char *path, ... ) JANSSON_ATTRS((format(printf, 4, 5)))`
 
-43. [**`kwid_new_list`**](helpers/kwid.md#kwid_new_list) — `PUBLIC json_t *kwid_new_list( hgobj gobj, json_t *kw, kw_flag_t flag, const char *path, ... ) JANSSON_ATTRS((format(printf, 4, 5)))`
+43. [**`kwid_get_by_keys`**](helpers/kwid.md#kwid_get_by_keys) — `PUBLIC json_t *kwid_get_by_keys( hgobj gobj, json_t *kw, kw_flag_t flag, int nkeys, ... )`
 
-44. [**`kwid_new_dict`**](helpers/kwid.md#kwid_new_dict) — `PUBLIC json_t *kwid_new_dict( hgobj gobj, json_t *kw, kw_flag_t flag, const char *path, ... ) JANSSON_ATTRS((format(printf, 4, 5)))`
+44. [**`kwid_new_list`**](helpers/kwid.md#kwid_new_list) — `PUBLIC json_t *kwid_new_list( hgobj gobj, json_t *kw, kw_flag_t flag, const char *path, ... ) JANSSON_ATTRS((format(printf, 4, 5)))`
 
-45. [**`kw_filter_private`**](helpers/kwid.md#kw_filter_private) — `PUBLIC json_t *kw_filter_private( hgobj gobj, json_t *kw )`
+45. [**`kwid_new_dict`**](helpers/kwid.md#kwid_new_dict) — `PUBLIC json_t *kwid_new_dict( hgobj gobj, json_t *kw, kw_flag_t flag, const char *path, ... ) JANSSON_ATTRS((format(printf, 4, 5)))`
 
-46. [**`kw_filter_metadata`**](helpers/kwid.md#kw_filter_metadata) — `PUBLIC json_t *kw_filter_metadata( hgobj gobj, json_t *kw )`
+46. [**`kw_filter_private`**](helpers/kwid.md#kw_filter_private) — `PUBLIC json_t *kw_filter_private( hgobj gobj, json_t *kw )`
 
-47. [**`kw_size`**](helpers/kwid.md#kw_size) — `PUBLIC size_t kw_size(json_t *kw)`
+47. [**`kw_filter_metadata`**](helpers/kwid.md#kw_filter_metadata) — `PUBLIC json_t *kw_filter_metadata( hgobj gobj, json_t *kw )`
 
-48. [**`kwjr_get`**](helpers/kwid.md#kwjr_get) — `PUBLIC json_t *kwjr_get( hgobj gobj, json_t *kw, const char *id, json_t *new_record, const json_desc_t *json_desc, size_t *idx_, kw_flag_t flag )`
+48. [**`kw_size`**](helpers/kwid.md#kw_size) — `PUBLIC size_t kw_size(json_t *kw)`
 
-49. [**`kwid_get_ids`**](helpers/kwid.md#kwid_get_ids) — `PUBLIC json_t *kwid_get_ids( json_t *ids )`
+49. [**`kwjr_get`**](helpers/kwid.md#kwjr_get) — `PUBLIC json_t *kwjr_get( hgobj gobj, json_t *kw, const char *id, json_t *new_record, const json_desc_t *json_desc, size_t *idx_, kw_flag_t flag )`
 
-50. [**`kw_has_word`**](helpers/kwid.md#kw_has_word) — `PUBLIC BOOL kw_has_word( hgobj gobj, json_t *kw, const char *word, kw_flag_t kw_flag )`
+50. [**`kwid_get_ids`**](helpers/kwid.md#kwid_get_ids) — `PUBLIC json_t *kwid_get_ids( json_t *ids )`
 
-51. [**`kwid_match_id`**](helpers/kwid.md#kwid_match_id) — `PUBLIC BOOL kwid_match_id( hgobj gobj, json_t *ids, const char *id )`
+51. [**`kw_has_word`**](helpers/kwid.md#kw_has_word) — `PUBLIC BOOL kw_has_word( hgobj gobj, json_t *kw, const char *word, kw_flag_t kw_flag )`
 
-52. [**`kwid_match_nid`**](helpers/kwid.md#kwid_match_nid) — `PUBLIC BOOL kwid_match_nid( hgobj gobj, json_t *ids, const char *id, int max_id_size )`
+52. [**`kwid_match_id`**](helpers/kwid.md#kwid_match_id) — `PUBLIC BOOL kwid_match_id( hgobj gobj, json_t *ids, const char *id )`
 
-53. [**`json2flat`**](helpers/kwid.md#json2flat) — `PUBLIC json_t *json2flat(json_t *jn_nested)`
+53. [**`kwid_match_nid`**](helpers/kwid.md#kwid_match_nid) — `PUBLIC BOOL kwid_match_nid( hgobj gobj, json_t *ids, const char *id, int max_id_size )`
 
-54. [**`flat2json`**](helpers/kwid.md#flat2json) — `PUBLIC json_t *flat2json(json_t *jn_flat, char *error, int error_size)`
+54. [**`json2flat`**](helpers/kwid.md#json2flat) — `PUBLIC json_t *json2flat(json_t *jn_nested)`
 
-55. [**`flat_key_join`**](helpers/kwid.md#flat_key_join) — `PUBLIC char *flat_key_join(json_t *jn_segments)`
+55. [**`flat2json`**](helpers/kwid.md#flat2json) — `PUBLIC json_t *flat2json(json_t *jn_flat, char *error, int error_size)`
 
-56. [**`flat_key_split`**](helpers/kwid.md#flat_key_split) — `PUBLIC json_t *flat_key_split(const char *key)`
+56. [**`flat_key_join`**](helpers/kwid.md#flat_key_join) — `PUBLIC char *flat_key_join(json_t *jn_segments)`
 
-57. [**`flat_diff`**](helpers/kwid.md#flat_diff) — `PUBLIC json_t *flat_diff(json_t *jn_flat1, json_t *jn_flat2)`
+57. [**`flat_key_split`**](helpers/kwid.md#flat_key_split) — `PUBLIC json_t *flat_key_split(const char *key)`
 
-58. [**`flat_apply`**](helpers/kwid.md#flat_apply) — `PUBLIC int flat_apply(json_t *jn_flat, json_t *jn_diff, char *error, int error_size)`
+58. [**`flat_diff`**](helpers/kwid.md#flat_diff) — `PUBLIC json_t *flat_diff(json_t *jn_flat1, json_t *jn_flat2)`
 
-59. [**`json_flatten_dict`**](helpers/kwid.md#json_flatten_dict) — `PUBLIC json_t *json_flatten_dict(json_t *jn_nested)`
+59. [**`flat_apply`**](helpers/kwid.md#flat_apply) — `PUBLIC int flat_apply(json_t *jn_flat, json_t *jn_diff, char *error, int error_size)`
 
-60. [**`json_unflatten_dict`**](helpers/kwid.md#json_unflatten_dict) — `PUBLIC json_t *json_unflatten_dict(json_t *jn_flat)`
+60. [**`json_flatten_dict`**](helpers/kwid.md#json_flatten_dict) — `PUBLIC json_t *json_flatten_dict(json_t *jn_nested)`
+
+61. [**`json_unflatten_dict`**](helpers/kwid.md#json_unflatten_dict) — `PUBLIC json_t *json_unflatten_dict(json_t *jn_flat)`
 
 ### `log_udp_handler.h` — 6 functions
 
@@ -1299,7 +1301,7 @@ it by hand, run the script.
 
 11. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 616 functions**
+**Total: 617 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2366,7 +2368,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1027 functions** sorted alphabetically with their source header.
+All **1028 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2996,6 +2998,7 @@ All **1027 functions** sorted alphabetically with their source header.
 | [**`kwid_compare_lists`**](helpers/kwid.md#kwid_compare_lists) | `kwid.h` | gobj-c (Core Framework) |
 | [**`kwid_compare_records`**](helpers/kwid.md#kwid_compare_records) | `kwid.h` | gobj-c (Core Framework) |
 | [**`kwid_get`**](helpers/kwid.md#kwid_get) | `kwid.h` | gobj-c (Core Framework) |
+| [**`kwid_get_by_keys`**](helpers/kwid.md#kwid_get_by_keys) | `kwid.h` | gobj-c (Core Framework) |
 | [**`kwid_get_ids`**](helpers/kwid.md#kwid_get_ids) | `kwid.h` | gobj-c (Core Framework) |
 | [**`kwid_match_id`**](helpers/kwid.md#kwid_match_id) | `kwid.h` | gobj-c (Core Framework) |
 | [**`kwid_match_nid`**](helpers/kwid.md#kwid_match_nid) | `kwid.h` | gobj-c (Core Framework) |

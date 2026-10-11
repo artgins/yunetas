@@ -1142,7 +1142,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     /*
      *  The tree is built in tranger, check if already exits
      */
-    json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
+    json_t *treedb = KWID_GET_BY_KEYS(gobj, tranger, 0, "treedbs", treedb_name);
     if(treedb) {
         gobj_log_error(gobj,0,
             "function",     "%s", __FUNCTION__,
@@ -3036,12 +3036,7 @@ PUBLIC int parse_hooks(
                     /*------------------------------*
                      *  Check link: who child node
                      *------------------------------*/
-                    json_t *link_topic = kwid_get(gobj,
-                        schema,
-                        0,
-                        "topics`%s",
-                            link_topic_name
-                    );
+                    json_t *link_topic = KWID_GET_BY_KEYS(gobj, schema, 0, "topics", link_topic_name);
                     if(!link_topic) {
                         gobj_log_error(gobj, 0,
                             "function",         "%s", __FUNCTION__,
@@ -3056,12 +3051,7 @@ PUBLIC int parse_hooks(
                         continue;
                     }
                     const char *s_link_field = json_string_value(link_field);
-                    json_t *field = kwid_get(gobj,
-                        link_topic,
-                        0,
-                        "cols`%s",
-                            s_link_field
-                    );
+                    json_t *field = KWID_GET_BY_KEYS(gobj, link_topic, 0, "cols", s_link_field);
                     if(!field) {
                         gobj_log_error(gobj, 0,
                             "function",         "%s", __FUNCTION__,
@@ -4066,7 +4056,7 @@ PUBLIC int set_volatil_values(
         /*-------------------------------*
          *  Get callback
          *-------------------------------*/
-        json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
+        json_t *treedb = KWID_GET_BY_KEYS(gobj, tranger, 0, "treedbs", treedb_name);
         treedb_callback_t treedb_callback =
             (treedb_callback_t)(size_t)kw_get_int(gobj,
             treedb,
@@ -4910,7 +4900,7 @@ PRIVATE BOOL copy_ref_part(const char *ref, const char *part, char *bf, int bfsi
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Wrong reference: a part of it is too long",
-            "ref",          "%s", ref,
+            "ref",          "%.128s", ref,
             "part",         "%s", part,
             "max",          "%d", bfsize - 1,
             NULL
@@ -4953,7 +4943,7 @@ PUBLIC BOOL decode_parent_ref(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Wrong fkey (parent) reference: must be \"parent_topic_name^parent_id^hook_name\"",
-            "pref",         "%s", pref,
+            "pref",         "%.128s", pref,
             NULL
         );
         split_free2(ss);
@@ -4978,7 +4968,7 @@ PUBLIC BOOL decode_parent_ref(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Wrong fkey (parent) reference: a name breaks the name rule",
-            "pref",         "%s", pref,
+            "pref",         "%.128s", pref,
             NULL
         );
         fits = FALSE;
@@ -5012,7 +5002,7 @@ PUBLIC BOOL decode_child_ref(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Wrong hook (child) reference: must be \"child_topic_name^child_id\"",
-            "pref",         "%s", pref,
+            "pref",         "%.128s", pref,
             NULL
         );
         split_free2(ss);
@@ -6563,12 +6553,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *-------------------------------*/
     const char *id = kw_get_str(gobj, kw, "id", 0, 0);
     if(empty_string(id)) {
-        json_t *id_col_flag = kwid_get(gobj,
-            tranger,
-            KW_VERBOSE,
-            "topics`%s`cols`id`flag",
-                topic_name
-        );
+        json_t *id_col_flag = KWID_GET_BY_KEYS(gobj, tranger, KW_VERBOSE, "topics", topic_name, "cols", "id", "flag");
         if(kw_has_word(gobj, id_col_flag, "uuid", 0)) {
             char uuid[RECORD_KEY_VALUE_MAX];
             create_random_uuid(uuid, sizeof(uuid));
@@ -6880,7 +6865,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*-------------------------------*
      *  Get callback
      *-------------------------------*/
-    json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
+    json_t *treedb = KWID_GET_BY_KEYS(gobj, tranger, 0, "treedbs", treedb_name);
     treedb_callback_t treedb_callback =
         (treedb_callback_t)(size_t)kw_get_int(gobj,
         treedb,
@@ -7873,12 +7858,7 @@ PRIVATE int restore_node_fkey(
         )) {
             continue;   /*  get_fkey_refs() takes only refs of three parts  */
         }
-        json_t *hook_links = kwid_get(gobj,
-            tranger,
-            0,
-            "topics`%s`cols`%s`hook",
-                parent_topic_name, hook_name
-        );
+        json_t *hook_links = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", parent_topic_name, "cols", hook_name, "hook");
         const char *child_field = json_string_value(json_object_get(hook_links, topic_name));
         if(!child_field || strcmp(child_field, col_name)!=0) {
             continue;   /*  a stale ref, not a link: the field below keeps it  */
@@ -8456,12 +8436,7 @@ PRIVATE void hand_children_to_primary(
         const char *hook_name = json_string_value(jn_hook);
         json_t *children = get_hook_list(gobj, json_object_get(instance, hook_name));
         json_t *primary_hook = json_object_get(primary, hook_name);
-        json_t *hook_links = kwid_get(gobj,
-            tranger,
-            0,
-            "topics`%s`cols`%s`hook",
-                topic_name, hook_name
-        );
+        json_t *hook_links = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", topic_name, "cols", hook_name, "hook");
         char pref[TREEDB_REF_MAX];
         if(json_array_size(children) == 0 ||
                 build_ref(gobj, pref, sizeof(pref), topic_name, id, hook_name)<0) {
@@ -9480,24 +9455,14 @@ PRIVATE json_t *unref_other_child_instances(
         return NULL;
     }
 
-    json_t *hook_links = kwid_get(gobj,
-        tranger,
-        0,
-        "topics`%s`cols`%s`hook",
-            parent_topic_name, hook_name
-    );
+    json_t *hook_links = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", parent_topic_name, "cols", hook_name, "hook");
     const char *child_field = json_string_value(json_object_get(hook_links, child_topic_name));
     char pref[TREEDB_REF_MAX];
     if(!child_field ||
             build_ref(gobj, pref, sizeof(pref), parent_topic_name, parent_id, hook_name)<0) {
         return NULL;    // _unlink_nodes() refused it, logged
     }
-    json_t *child_col_flag = kwid_get(gobj,
-        tranger,
-        0,
-        "topics`%s`cols`%s`flag",
-            child_topic_name, child_field
-    );
+    json_t *child_col_flag = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", child_topic_name, "cols", child_field, "flag");
     if(kw_has_word(gobj, child_col_flag, "hook", 0)) {
         return NULL;    // a hook of the child holds the parent: no fkey names it
     }
@@ -9579,12 +9544,7 @@ PRIVATE json_t *key_named_by_unheld_instances(
     int idx; json_t *jn_hook;
     json_array_foreach(hooks, idx, jn_hook) {
         const char *hook_name = json_string_value(jn_hook);
-        json_t *hook_links = kwid_get(gobj,
-            tranger,
-            0,
-            "topics`%s`cols`%s`hook",
-                topic_name, hook_name
-        );
+        json_t *hook_links = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", topic_name, "cols", hook_name, "hook");
         char pref[TREEDB_REF_MAX];
         BOOL pref_built = FALSE;
         const char *child_topic_name; json_t *jn_child_field;
@@ -9598,12 +9558,7 @@ PRIVATE json_t *key_named_by_unheld_instances(
                 JSON_DECREF(pkey2s)
                 continue;
             }
-            json_t *child_col_flag = kwid_get(gobj,
-                tranger,
-                0,
-                "topics`%s`cols`%s`flag",
-                    child_topic_name, child_field
-            );
+            json_t *child_col_flag = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", child_topic_name, "cols", child_field, "flag");
             if(kw_has_word(gobj, child_col_flag, "hook", 0)) {
                 JSON_DECREF(pkey2s)
                 continue;   // a hook of the child holds the parent: no fkey to name it
@@ -10790,7 +10745,7 @@ PUBLIC int treedb_delete_instance(
     /*-------------------------------*
      *  Fire EV_TREEDB_NODE_DELETED
      *-------------------------------*/
-    json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
+    json_t *treedb = KWID_GET_BY_KEYS(gobj, tranger, 0, "treedbs", treedb_name);
 
     treedb_callback_t treedb_callback =
         (treedb_callback_t)(size_t)kw_get_int(gobj,
@@ -11141,12 +11096,7 @@ PRIVATE int _link_nodes(
      *  Get info of parent/child from their metadata
      *--------------------------------------------------*/
     const char *parent_topic_name = node_md_str(parent_node, "topic_name");
-    json_t *hook_col_desc = kwid_get(gobj,
-        tranger,
-        KW_VERBOSE,
-        "topics`%s`%s`%s",
-            parent_topic_name, "cols", hook_name
-    );
+    json_t *hook_col_desc = KWID_GET_BY_KEYS(gobj, tranger, KW_VERBOSE, "topics", parent_topic_name, "cols", hook_name);
 
     const char *child_topic_name = node_md_str(child_node, "topic_name");
 
@@ -11218,12 +11168,7 @@ PRIVATE int _link_nodes(
     /*--------------------------------------------------*
      *  Reverse - child container with info of parent
      *--------------------------------------------------*/
-    json_t *child_col_flag = kwid_get(gobj,
-        tranger,
-        KW_VERBOSE,
-        "topics`%s`%s`%s`flag",
-            child_topic_name, "cols", child_field
-    );
+    json_t *child_col_flag = KWID_GET_BY_KEYS(gobj, tranger, KW_VERBOSE, "topics", child_topic_name, "cols", child_field, "flag");
     if(!child_col_flag) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -11824,12 +11769,7 @@ PRIVATE int _unlink_nodes(
      *  Get info of parent/child from their metadata
      *--------------------------------------------------*/
     const char *parent_topic_name = node_md_str(parent_node, "topic_name");
-    json_t *hook_col_desc = kwid_get(gobj,
-        tranger,
-        KW_VERBOSE,
-        "topics`%s`%s`%s",
-            parent_topic_name, "cols", hook_name
-    );
+    json_t *hook_col_desc = KWID_GET_BY_KEYS(gobj, tranger, KW_VERBOSE, "topics", parent_topic_name, "cols", hook_name);
 
     const char *child_topic_name = node_md_str(child_node, "topic_name");
 
@@ -11901,12 +11841,7 @@ PRIVATE int _unlink_nodes(
     /*--------------------------------------------------*
      *  Reverse - child container with info of parent
      *--------------------------------------------------*/
-    json_t *child_col_flag = kwid_get(gobj,
-        tranger,
-        KW_VERBOSE,
-        "topics`%s`%s`%s`flag",
-            child_topic_name, "cols", child_field
-    );
+    json_t *child_col_flag = KWID_GET_BY_KEYS(gobj, tranger, KW_VERBOSE, "topics", child_topic_name, "cols", child_field, "flag");
     if(!child_col_flag) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -12286,12 +12221,7 @@ PRIVATE int unlink_child_from_parent_ref(
      *  3fea635f3 made the unlink refuse where it used to go through). Such
      *  a ref is stale: it is removed from the child, with a warning.
      */
-    json_t *hook_links = kwid_get(gobj,
-        tranger,
-        0,
-        "topics`%s`cols`%s`hook",
-            parent_topic_name, hook_name
-    );
+    json_t *hook_links = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", parent_topic_name, "cols", hook_name, "hook");
     if(!json_object_get(hook_links, topic_name)) {
         gobj_log_warning(gobj, 0,
             "function",             "%s", __FUNCTION__,
@@ -12731,12 +12661,7 @@ PRIVATE int link_child_to_parent_ref(
         return -1;
     }
 
-    json_t *hook_desc = kwid_get(gobj,
-        tranger,
-        0,
-        "topics`%s`cols`%s`hook",
-            parent_topic_name, hook_name
-    );
+    json_t *hook_desc = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", parent_topic_name, "cols", hook_name, "hook");
     const char *child_field = NULL;
     if(hook_desc) {
         child_field = kw_get_str(gobj, hook_desc, topic_name, 0, 0);
@@ -12827,12 +12752,7 @@ PRIVATE BOOL link_can_be_made(
         return FALSE;
     }
 
-    json_t *hook_desc = kwid_get(gobj,
-        tranger,
-        0,
-        "topics`%s`cols`%s`hook",
-            parent_topic_name, hook_name
-    );
+    json_t *hook_desc = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", parent_topic_name, "cols", hook_name, "hook");
     const char *child_field = hook_desc? kw_get_str(gobj, hook_desc, topic_name, 0, 0) : NULL;
     if(!child_field || strcmp(child_field, col_name)!=0) {
         gobj_log_error(gobj, 0,

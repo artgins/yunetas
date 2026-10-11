@@ -436,6 +436,131 @@ PRIVATE int test_names_doc_example(json_t *tranger)
 }
 
 /***************************************************************************
+ *  A '.' in a topic, a hook or an fkey (REV-CLOUD V15.1): kwid_get() splits
+ *  its path at '`' AND '.', so the treedb, which built its paths from these
+ *  names, looked in another place -- a link to `par.v1` answered -1, a hook
+ *  `kids.all` was "link field not found" at the open, a hook `..` never
+ *  linked. The names are looked up by KEY now (kwid_get_by_keys()).
+ ***************************************************************************/
+static char schema_dots[]= "\
+{                                                                   \n\
+    'id': 'treedb_dots',                                            \n\
+    'schema_version': '1',                                          \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'par.v1',                                         \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'kids.all': {                                       \n\
+                    'header': 'Kids',                               \n\
+                    'type': 'array',                                \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'kid.s': 'par.ent'                          \n\
+                    }                                               \n\
+                },                                                  \n\
+                '..': {                                             \n\
+                    'header': 'Up',                                 \n\
+                    'type': 'array',                                \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'kid.s': 'up'                               \n\
+                    }                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'id': 'kid.s',                                          \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'par.ent': {                                        \n\
+                    'header': 'Parent',                             \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'up': {                                             \n\
+                    'header': 'Up',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
+PRIVATE int test_dots_in_names(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "a '.' in a topic, a hook or an fkey";
+    set_expected_results(test,
+        json_pack("[{s:s, s:s},{s:s, s:s}]",
+            "msg", "Creating topic", "topic", "par.v1",
+            "msg", "Creating topic", "topic", "kid.s"
+        ),
+        NULL, NULL, 1
+    );
+
+    helper_quote2doublequote(schema_dots);
+    if(!treedb_open_db(tranger, "treedb_dots", legalstring2json(schema_dots, TRUE), 0)) {
+        printf("%s  FAIL: treedb_dots did not open%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *p = treedb_create_node(tranger, "treedb_dots", "par.v1", json_pack("{s:s}", "id", "P"));
+    json_t *k1 = treedb_create_node(tranger, "treedb_dots", "kid.s", json_pack("{s:s}", "id", "K1"));
+    json_t *k2 = treedb_create_node(tranger, "treedb_dots", "kid.s", json_pack("{s:s}", "id", "K2"));
+    if(!p || !k1 || !k2) {
+        printf("%s  FAIL: nodes not created%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    } else {
+        if(treedb_link_nodes(tranger, "kids.all", p, k1) != 0) {
+            printf("%s  FAIL: link by kids.all%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(treedb_link_nodes(tranger, "..", p, k2) != 0) {
+            printf("%s  FAIL: link by ..%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        json_t *children = treedb_node_children(tranger, "kids.all", p, NULL, json_object());
+        if(json_array_size(children) != 1) {
+            printf("%s  FAIL: children of kids.all: %d%s\n",
+                On_Red BWhite, (int)json_array_size(children), Color_Off);
+            result += -1;
+        }
+        JSON_DECREF(children)
+        json_t *parents = treedb_parent_refs(tranger, "par.ent", k1, json_object());
+        if(json_array_size(parents) != 1) {
+            printf("%s  FAIL: parent refs of par.ent: %d%s\n",
+                On_Red BWhite, (int)json_array_size(parents), Color_Off);
+            result += -1;
+        }
+        JSON_DECREF(parents)
+        if(treedb_unlink_nodes(tranger, "..", p, k2) != 0) {
+            printf("%s  FAIL: unlink by ..%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+    }
+    treedb_close_db(tranger, "treedb_dots");
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  An instance a SNAPSHOT froze is not deleted, updated or not.
  *
  *  A delete-instance tombstones every md2 row of (id, pkey2 value), the
@@ -3063,6 +3188,7 @@ PRIVATE int do_test(void)
     result += test_pkey2_index_keyed_by_id(tranger, treedb_name);
     result += test_delete_node_by_key_and_names(tranger, treedb_name);
     result += test_names_doc_example(tranger);
+    result += test_dots_in_names(tranger);
     result += test_instance_held_by_a_snap(tranger, treedb_name);
     result += test_guard_that_cannot_read_refuses(tranger, treedb_name);
     result += test_delete_node_clears_everything(tranger, treedb_name);

@@ -456,6 +456,18 @@ PRIVATE int expect_ids(hgobj gobj, const char *what, json_t *resp, const char *p
 /***************************************************************************
  *  A command that asks and checks, the answer dropped
  ***************************************************************************/
+/***************************************************************************
+ *  The answer is a refusal (`result` -1) whose comment holds `needle`
+ ***************************************************************************/
+PRIVATE int expect_refused(hgobj gobj, const char *what, json_t *resp, const char *needle)
+{
+    const char *comment = kw_get_str(gobj, resp, "comment", "", 0);
+    if(kw_get_int(gobj, resp, "result", 0, 0) != -1 || !strstr(comment, needle)) {
+        return fail(gobj, what, resp);
+    }
+    return 0;
+}
+
 #define CHECK(check, what, command, kw, ...) {              \
     json_t *resp_ = ask(gobj, command, kw);                 \
     result += check(gobj, what, resp_, __VA_ARGS__);        \
@@ -542,6 +554,32 @@ PRIVATE int export_and_import(hgobj gobj)
 PRIVATE int run_tests(hgobj gobj)
 {
     int result = create_data(gobj);
+
+    /*
+     *  What a command names is the PEER's data: a name that is unknown or
+     *  breaks the name rule is a WARNING and a refusal, the same for every
+     *  command (REV-CLOUD V15.3). main.c lists the warnings, in order.
+     */
+    CHECK(expect_refused, "refused: node of an unknown topic", "node",
+        json_pack("{s:s, s:s}", "topic_name", "nosuch", "node_id", "x"), "Topic not found")
+    CHECK(expect_refused, "refused: pkey2s of a topic with the delimiter", "pkey2s",
+        json_pack("{s:s}", "topic_name", "a`b"), "Topic not found")
+    {
+        json_t *resp = ask(gobj, "parents", json_pack("{s:s, s:s, s:s}",
+            "topic_name", "departments", "node_id", "dev", "link", "nolink"));
+        if(kw_get_int(gobj, resp, "result", 0, 0) != -1) {
+            result += fail(gobj, "refused: parents by an unknown link", resp);
+        }
+        JSON_DECREF(resp)
+    }
+    CHECK(expect_refused, "refused: children by a hook with the delimiter", "children",
+        json_pack("{s:s, s:s, s:s}", "topic_name", "departments", "node_id", "top", "hook", "a`b"), "")
+    CHECK(expect_refused, "refused: a parent ref of two parts", "link-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "departments^top", "child_ref", "departments^dev"),
+        "Wrong parent ref")
+    CHECK(expect_refused, "refused: a child ref of an unknown topic", "link-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "departments^top^departments", "child_ref", "us`ers^ana"),
+        "Topic not found")
 
     /*
      *  treedb-info: its name, master, the schema version and the topics

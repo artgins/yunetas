@@ -380,7 +380,7 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "__md_iev__ is not a dict, replaced by an empty one",
             "type",         "%s", json_kind(md_iev),
-            "size",         "%d", (int)json_size(md_iev),
+            "size",         "%zu", json_is_string(md_iev)? json_string_length(md_iev) : json_size(md_iev),
             "value",        "%.64s", json_is_string(md_iev)? json_string_value(md_iev) : "",
             NULL
         );
@@ -399,7 +399,7 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
             "msg",          "%s", "a stack of __md_iev__ is not a list, replaced by an empty one",
             "stack",        "%s", stack,
             "type",         "%s", json_kind(jn_stack),
-            "size",         "%d", (int)json_size(jn_stack),
+            "size",         "%zu", json_is_string(jn_stack)? json_string_length(jn_stack) : json_size(jn_stack),
             "value",        "%.64s", json_is_string(jn_stack)? json_string_value(jn_stack) : "",
             NULL
         );

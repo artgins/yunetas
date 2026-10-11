@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
+#include <stdint.h>
 #include <locale.h>
 #include <signal.h>
 #include <time.h>
@@ -386,6 +387,49 @@ static int test_log_precision_caps_the_value(void)
         "value",    "%.5s", "abcdefghij",
         "star",     "%.*s", 3, "abcdefghij",
         "after",    "%d", 7,
+        NULL
+    );
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
+    return result;
+}
+
+/***************************************************************************
+ *  REV-CLOUD V15.2: the length modifiers, and a '%' that is no conversion.
+ *  "%zu" of 5000000000 logged 705032704, "%llu" of ULLONG_MAX logged -1,
+ *  "%jd" took the json conversion (and crashed), and "100%" consumed an
+ *  argument that was not there, losing the keys after it (a '%' that ends
+ *  the format; "50% done" is no example: "% d" IS a conversion, for printf too).
+ ***************************************************************************/
+static int test_log_length_modifiers(void)
+{
+    int result = 0;
+    set_expected_results(
+        "log_length_modifiers",
+        json_pack("[{s:s, s:I, s:s, s:I, s:I, s:s, s:s, s:i}]",
+            "msg", "lengths",
+            "zu", (json_int_t)5000000000LL,
+            "llu", "18446744073709551615",
+            "jd", (json_int_t)-7,
+            "hhd", (json_int_t)-1,
+            "text", "100%",
+            "pct", "%",
+            "after", 9
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+
+    gobj_log_warning(0, 0,
+        "msg",      "%s", "lengths",
+        "zu",       "%zu", (size_t)5000000000ULL,
+        "llu",      "%llu", ULLONG_MAX,
+        "jd",       "%jd", (intmax_t)-7,
+        "hhd",      "%hhd", 255,
+        "text",     "100%",
+        "pct",      "%%",
+        "after",    "%d", 9,
         NULL
     );
 
@@ -811,6 +855,7 @@ PRIVATE int do_test(void)
 
     result += test_null_leaf_required_logs_as_missing();
     result += test_log_precision_caps_the_value();
+    result += test_log_length_modifiers();
     result += test_match_simple_long_path_said_once();
     result += test_reg_f001_gbuffer_deserialize_null_data();
     result += test_reg_f001_gbuffer_deserialize_bad_base64();

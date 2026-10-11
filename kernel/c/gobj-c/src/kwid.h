@@ -591,13 +591,47 @@ PUBLIC json_t *kw_collapse(
     int collapse_dicts_limit
 );
 
-PUBLIC json_t *kwid_get(
+/**rst**
+    Utility for databases.
+    Get a json item walking by the tree (routed by path).
+    Convention:
+        - all arrays are list of records (dicts) with "id" field as primary key
+        - delimiters are '`' AND '.': unlike the kw_get_*() readers, which split
+          at '`' only. A name that comes from data (a topic, a hook, a key) must
+          not be put in its path: use kwid_get_by_keys().
+**rst**/
+PUBLIC json_t *kwid_get( // Return is NOT YOURS
     hgobj gobj,
     json_t *kw,  // NOT owned
     kw_flag_t flag,
     const char *path,
     ...
 ) JANSSON_ATTRS((format(printf, 4, 5)));
+
+/**rst**
+    kwid_get() by KEYS: `nkeys` segments, each one a key of a dict or the "id"
+    of a record of a list, never split. For a path built from names that come
+    from data: kwid_get() splits at '`' and '.', so a topic or a hook named
+    with a '.' addressed another place (since SDK 7.26.9). A NULL key is not
+    found (it is no terminator: a name read from data can be NULL).
+    flag: KW_VERBOSE logs the segment not found.
+**rst**/
+PUBLIC json_t *kwid_get_by_keys( // Return is NOT YOURS
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    kw_flag_t flag,
+    int nkeys,
+    ...         // const char *key1, ..., const char *keyN
+);
+/*
+ *  The same, with the keys COUNTED by the compiler: a hand-written count that
+ *  does not match the keys walks the wrong number of segments, and nothing says
+ *  so. KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", topic_name, "cols", col)
+ */
+#define KWID_GET_BY_KEYS(gobj, kw, flag, ...)                                   \
+    kwid_get_by_keys((gobj), (kw), (flag),                                      \
+        (int)(sizeof((const char *[]){__VA_ARGS__}) / sizeof(const char *)),    \
+        __VA_ARGS__)
 
 /**rst**
     Utility for databases.

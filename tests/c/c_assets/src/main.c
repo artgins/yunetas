@@ -126,9 +126,9 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Assets service ready",
             "msg", "Playing yuno",
-            /*  the unknown topic of case 4bis: the write (a refused
-             *  update-node answers no desc of it since after 7.25.3)  */
-            "msg", "Topic name not found in treedbs",
+            /*  the unknown topic of case 4bis: refused at the command door,
+             *  a warning (a name a command hands is the peer's data)  */
+            "msg", "topic not found, refused",
             "msg", "Cannot delete node: has down links",
             "msg", "import refused: source_dir carries '..'",
             "msg", "import refused: not a directory",

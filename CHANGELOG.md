@@ -114,7 +114,7 @@
       upgrading, ask the KEYS of its persisted schemas with `jq` (the recipe
       is under `treedb_open_db()` on doc.yuneta.io).
     - `msg2db_open_db()` refuses a msg2db name that breaks the rule, and
-      leaves out a topic that does.
+      leaves out a topic that does -- before the topic is created, said once.
     - `c_node`: every name a command hands it -- the hook of `node_children` /
       `jtree` (and `rename_hook`), the `link` of `node_parents`, the hook of
       `link_nodes` / `unlink_nodes`, and the topic and hook of the
@@ -124,6 +124,37 @@
       first version of this line said so wrongly).
     - gobj-ui 7.26.22: the schema editor, its import and its validation apply
       the same two rules.
+- **A name with a `.` works: the treedb looks its names up by KEY**
+  (yunovatios `REV-CLOUD.md` §V15.1). `kwid_get()` splits its path at
+  `` ` `` AND at `.` -- unlike the `kw_get_*()` readers -- and `tr_treedb`,
+  `tr_msg2db`, `c_node` and `c_tranger` built its paths from topic, hook and
+  fkey names: a link to a topic `par.v1` answered -1, a hook `kids.all` was
+  "link field not found" at the open, a hook `..` never linked, and a msg2db
+  topic `.hid` was "NOT FOUND". New `kwid_get_by_keys()` (`kwid.h`): the
+  segments are given one by one and never split; a NULL segment is "not
+  found", not a terminator; call it as `KWID_GET_BY_KEYS(gobj, kw, flag,
+  key, ...)`, which counts the keys at compile time (a count written by hand
+  that missed one returned the column instead of its `hook`, and the seeds
+  of `c_node` stopped linking). Every such path (28) goes through it; the
+  `kwid_get()` doc says it splits at `.`. `tests/c/tr_treedb_delete_instance`
+  links, lists and unlinks through a topic `par.v1`, a hook `kids.all`, an
+  fkey `par.ent` and a hook `..`.
+- **`c_node`: a name a command hands it is the peer's data, ONE criterion**
+  (§V15.3): an unknown topic (node, nodes, create/update/delete-node, hooks,
+  links, desc(s), instances, pkey2s, parents, children, jtree, and both topics
+  of link/unlink-nodes), a `link` that is no column of the topic, a parent
+  ref that is not `topic^id^hook` (three parts, none empty, each fitting), and
+  a wrong child ref are a WARNING with the name capped and a refusal, before
+  any method logs its ERROR. `pkey2s` of an unknown topic answered 0 pkey2s
+  with no log. `tests/c/c_node_commands` pins six refusals.
+- **fix: the logger read every integer as an `int`**: `json_vappend()` reads
+  the length modifiers (`hh h l ll j z t L`) now -- a `%zu` of 5000000000
+  logged 705032704, a `%llu` of ULLONG_MAX logged -1 (one above LLONG_MAX is
+  logged as text), and `%jd` was read as this logger's json conversion and
+  crashed. A `%` with no conversion (`"100%"`) consumes nothing and logs its
+  text: it consumed an argument that was not there and lost every key after
+  it. A value is ONE conversion: the doc of `gobj_log_error()` says so, with
+  the table. `gbmem.c` said `"%ul"` for `"%lu"`. §V15.2.
 - **fix: the logger ignored the precision of `%s`**: `json_vappend()` read
   `"%.64s"` as `"%s"`, so every "capped" value of the tree (29 sites, a
   peer's data among them) was logged whole, up to 4 KiB. It reads flags,
@@ -146,16 +177,17 @@
   `msg_iev_push_stack()` replaces a peer's `__md_iev__` (or a stack in it) of
   the wrong type with an empty one, with a warning that names its type and
   size and a prefix of a string (not a dump of the whole value: a peer's
-  megabytes, per message), so the entry is pushed and the next push of the
+  megabytes, per message; a string's size is its length), so the entry is
+  pushed and the next push of the
   same message does not warn again (`c_ievent_srv` warned twice per message);
   `kw_get_dict()` / `kw_get_list()` with `KW_CREATE|KW_REQUIRED` over a `null`
   and no default say "path NOT FOUND", as for a missing key (gobj-js 7.26.16
   does the same). §V13.4, §V14.1.
 
 - **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
-  (2026-10-10/11, yunovatios `REV-CLOUD.md`, fourteen rounds).** Submodules
-  `kernel/js/gobj-js` 7.26.0 → **7.26.17**, `kernel/js/gobj-ui` 7.26.7 →
-  **7.26.22**, and `yunos/js` (gui_agent 0.29.36, gui_treedb 0.17.103); every
+  (2026-10-10/11, yunovatios `REV-CLOUD.md`, fifteen rounds).** Submodules
+  `kernel/js/gobj-js` 7.26.0 → **7.26.18**, `kernel/js/gobj-ui` 7.26.7 →
+  **7.26.23**, and `yunos/js` (gui_agent 0.29.37, gui_treedb 0.17.104); every
   release is in the CHANGELOG of its own repository. What a consumer has to
   know:
     - `createElement2()` takes a string that starts with `<` as markup unless

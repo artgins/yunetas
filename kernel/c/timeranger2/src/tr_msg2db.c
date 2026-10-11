@@ -274,7 +274,7 @@ PUBLIC json_t *msg2db_open_db(
     /*
      *  The tree is built in tranger, check if already exits
      */
-    json_t *msg2db = kwid_get(gobj, tranger, 0, "msg2dbs`%s", msg2db_name);
+    json_t *msg2db = KWID_GET_BY_KEYS(gobj, tranger, 0, "msg2dbs", msg2db_name);
     if(msg2db) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -302,6 +302,18 @@ PUBLIC json_t *msg2db_open_db(
                 "msg",          "%s", "Schema topic without topic_name",
                 "msg2db_name",  "%s", msg2db_name,
                 "schema_topic", "%j", schema_topic,
+                NULL
+            );
+            continue;
+        }
+        /*  Before the topic is created: a bad name is left out here, once  */
+        if(!tranger2_name_is_identifier(topic_name)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MSG2DB,
+                "msg",          "%s", "Topic of the msg2db left out: its name breaks the name rule (empty, '.', '..', '/' or '`')",
+                "msg2db_name",  "%s", msg2db_name,
+                "topic_name",   "%.64s", topic_name,
                 NULL
             );
             continue;
@@ -383,15 +395,7 @@ PUBLIC json_t *msg2db_open_db(
             continue;
         }
         if(!tranger2_name_is_identifier(topic_name)) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB,
-                "msg",          "%s", "Topic of the msg2db left out: its name breaks the name rule (empty, '.', '..', '/' or '`')",
-                "msg2db_name",  "%s", msg2db_name,
-                "topic_name",   "%.64s", topic_name,
-                NULL
-            );
-            continue;
+            continue;   // Error already logged (left out in the first loop)
         }
 
         build_msg2db_index_path(path, sizeof(path), msg2db_name, topic_name, "id");
@@ -1241,12 +1245,7 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
     char uuid[RECORD_KEY_VALUE_MAX+1];
     const char *id = kw_get_str(gobj, kw, "id", 0, 0);
     if(empty_string(id)) {
-        json_t *id_col_flag = kwid_get(gobj,
-            tranger,
-            KW_VERBOSE,
-            "topics`%s`cols`id`flag",
-                topic_name
-        );
+        json_t *id_col_flag = KWID_GET_BY_KEYS(gobj, tranger, KW_VERBOSE, "topics", topic_name, "cols", "id", "flag");
         if(kw_has_word(gobj, id_col_flag, "uuid", 0)) {
             create_random_uuid(uuid, sizeof(uuid));
             id = uuid;
@@ -1538,7 +1537,7 @@ PUBLIC BOOL msg2db_id_incomplete(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    json_t *topic = kwid_get(gobj, tranger, 0, "msg2dbs`%s`%s", msg2db_name, topic_name);
+    json_t *topic = KWID_GET_BY_KEYS(gobj, tranger, 0, "msg2dbs", msg2db_name, topic_name);
     if(!topic) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

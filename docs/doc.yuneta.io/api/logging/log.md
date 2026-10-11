@@ -364,6 +364,32 @@ This function does not return a value.
 
 The function increments the global error count and formats the log message before passing it to the logging system. It supports optional stack tracing and process termination based on the `opt` parameter.
 
+**The arguments: key, format, value.** After `opt` come triples ended by `NULL`: a key, a format, and the argument(s) of the format. Each format is read for its **conversion**, and a value is meant to be ONE conversion: text around it is not logged (`"prefix %s"` logs only the string). The same rules apply to every `gobj_log_*()` function:
+
+| Format | Logs | Since |
+|---|---|---|
+| `%s`, `%.64s`, `%.*s` | a string; the precision caps it (a peer's value, a dump) | precision: SDK 7.26.9 |
+| `%d`, `%ld`, `%lld`, `%zd`, `%jd`, `%hd`, `%hhd` | a signed integer of that size | `z`, `j`, `t`, `h`, `hh`: SDK 7.26.9 |
+| `%u`, `%lu`, `%llu`, `%zu`, `%x` | an unsigned integer of that size; one above `LLONG_MAX` is logged as text | SDK 7.26.9 |
+| `%f`, `%g`, `%Lf` | a real number | |
+| `%p` | a pointer | |
+| `%j` | a `json_t *`, as compact json | |
+| no conversion (`"100%"`, `"%%"`) | the text itself, `%%` as `%`; nothing is consumed | SDK 7.26.9 |
+
+Before SDK 7.26.9 the precision was ignored (every capped value was logged whole), a `size_t` or an `unsigned long long` was read as an `int` (`5000000000` logged `705032704`), `%jd` was read as the json conversion, and a `%` with no conversion consumed an argument that was not there, losing every key after it.
+
+```C
+gobj_log_error(gobj, 0,
+    "function",     "%s", __FUNCTION__,
+    "msgset",       "%s", MSGSET_PROTOCOL,
+    "msg",          "%s", "frame too long",
+    "len",          "%zu", len,             // a size_t
+    "head",         "%.64s", peer_bytes,    // at most 64 bytes of the peer's data
+    "frame",        "%j", jn_frame,         // a json_t *
+    NULL
+);
+```
+
 ---
 
 (gobj_log_exist_handler)=

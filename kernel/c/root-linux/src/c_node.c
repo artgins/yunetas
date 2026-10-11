@@ -83,6 +83,10 @@ PRIVATE BOOL refuse_peer_parent_ref(
     hgobj gobj,
     const char *parent_ref
 );
+PRIVATE BOOL refuse_peer_topic_name(
+    hgobj gobj,
+    const char *topic_name
+);
 
 PRIVATE int apply_initial_load(hgobj gobj);
 PRIVATE BOOL seed_declares_link(
@@ -2052,6 +2056,21 @@ PRIVATE json_t *mt_node_parents(
             JSON_DECREF(kw)
             return 0;
         }
+        if(!KWID_GET_BY_KEYS(gobj, priv->tranger, 0, "topics", topic_name, "cols", link)) {
+            /*  A link a command names: the peer's data (REV-CLOUD V15.3)  */
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "link (fkey) not found in the topic, refused",
+                "treedb_name",  "%s", priv->treedb_name,
+                "topic_name",   "%s", topic_name,
+                "link",         "%.64s", link,
+                NULL
+            );
+            JSON_DECREF(jn_options)
+            JSON_DECREF(kw)
+            return 0;
+        }
         JSON_DECREF(kw)
         return treedb_parent_refs( // Return MUST be decref
             priv->tranger,
@@ -2782,6 +2801,17 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             kw  // owned
         );
     }
+    if(refuse_peer_topic_name(gobj, topic_name)) {
+        GBUFFER_DECREF(gbuf_files)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*----------------------------------------*
      *  Get content
@@ -2924,6 +2954,17 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             gobj,
             -1,
             json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_topic_name(gobj, topic_name)) {
+        GBUFFER_DECREF(gbuf_files)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
             0,
             0,
             kw  // owned
@@ -3130,6 +3171,16 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             kw  // owned
         );
     }
+    if(refuse_peer_topic_name(gobj, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     if(!kw_has_key(_jn_record, "id")) {
         return msg_iev_build_response(
@@ -3318,6 +3369,17 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             kw  // owned
         );
     }
+    if(refuse_peer_topic_name(gobj, parent_topic_name) ||
+            refuse_peer_topic_name(gobj, child_topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     json_t *parent_node = gobj_get_node(
         gobj,
@@ -3484,6 +3546,17 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             gobj,
             -1,
             json_sprintf("%s: Wrong child ref", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_topic_name(gobj, parent_topic_name) ||
+            refuse_peer_topic_name(gobj, child_topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3720,6 +3793,16 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
+    if(refuse_peer_topic_name(gobj, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     if(empty_string(hook)) {
         return msg_iev_build_response(
             gobj,
@@ -3791,7 +3874,7 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     return msg_iev_build_response(gobj,
         jtree?0:-1,
-        jtree?0:json_sprintf("%s: cannot build the tree of '%s^%s' by hook '%s' (see the log)",
+        jtree?0:json_sprintf("%s: cannot build the tree of '%.64s^%.64s' by hook '%.64s' (see the log)",
             gobj_yuno_role_plus_name(), topic_name, node_id, hook),
         0,
         jtree,
@@ -3821,6 +3904,27 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                 kw  // owned
             );
         }
+        if(refuse_peer_topic_name(gobj, topic_name)) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
+
+    if(strcmp(cmd, "desc")!=0 && !empty_string(topic_name) && refuse_peer_topic_name(gobj, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
     }
 
     json_t *desc = gobj_topic_desc(gobj, topic_name); // Empty topic_name -> return all
@@ -4051,6 +4155,16 @@ PRIVATE json_t *cmd_links(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
 
+    if(!empty_string(topic_name) && refuse_peer_topic_name(gobj, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     kw_incref(kw);
     json_t *links = gobj_topic_links(gobj, priv->treedb_name, topic_name, kw, src);
 
@@ -4078,6 +4192,16 @@ PRIVATE json_t *cmd_hooks(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
 
+    if(!empty_string(topic_name) && refuse_peer_topic_name(gobj, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     kw_incref(kw);
     json_t *hooks = gobj_topic_hooks(gobj, priv->treedb_name, topic_name, kw, src);
 
@@ -4112,6 +4236,16 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             gobj,
             -1,
             json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_topic_name(gobj, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
             0,
             0,
             kw  // owned
@@ -4174,6 +4308,16 @@ PRIVATE json_t *cmd_children(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
+    if(refuse_peer_topic_name(gobj, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     if(empty_string(hook)) {
         return msg_iev_build_response(
             gobj,
@@ -4208,7 +4352,7 @@ PRIVATE json_t *cmd_children(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return msg_iev_build_response(
         gobj,
         children?0:-1,
-        children?0:json_sprintf("%s: cannot list the children of '%s^%s' by hook '%s' (see the log)",
+        children?0:json_sprintf("%s: cannot list the children of '%.64s^%.64s' by hook '%.64s' (see the log)",
             gobj_yuno_role_plus_name(), topic_name, node_id, hook),
         0,
         children,
@@ -4231,6 +4375,16 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             gobj,
             -1,
             json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_topic_name(gobj, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
             0,
             0,
             kw  // owned
@@ -4357,6 +4511,16 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
+    if(refuse_peer_topic_name(gobj, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     if(empty_string(id)) {
         return msg_iev_build_response(
             gobj,
@@ -4408,6 +4572,16 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
             gobj,
             -1,
             json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_topic_name(gobj, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
             0,
             0,
             kw  // owned
@@ -4467,6 +4641,16 @@ PRIVATE json_t *cmd_node_pkey2s(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             gobj,
             -1,
             json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_topic_name(gobj, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
             0,
             0,
             kw  // owned
@@ -5597,10 +5781,10 @@ PRIVATE BOOL is_file_col(hgobj gobj, const char *topic_name, const char *col)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *flag = kwid_get(gobj,
+    json_t *flag = KWID_GET_BY_KEYS(gobj,
         priv->tranger,
         0,
-        "topics`%s`%s`%s`flag", topic_name, "cols", col
+        "topics", topic_name, "cols", col, "flag"
     );
     if(!flag || !kw_has_word(gobj, flag, "file", 0)) {
         return FALSE;
@@ -5612,10 +5796,10 @@ PRIVATE BOOL is_fkey_col(hgobj gobj, const char *topic_name, const char *col)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *flag = kwid_get(gobj,
+    json_t *flag = KWID_GET_BY_KEYS(gobj,
         priv->tranger,
         0,
-        "topics`%s`%s`%s`flag", topic_name, "cols", col
+        "topics", topic_name, "cols", col, "flag"
     );
     if(!flag || !kw_has_word(gobj, flag, "fkey", 0)) {
         return FALSE;
@@ -5762,10 +5946,10 @@ PRIVATE const char *seed_link_overwritten_by(
     /*
      *  The child's fkey column, resolved the way _link_nodes() resolves it.
      */
-    json_t *hook_desc = kwid_get(gobj,
+    json_t *hook_desc = KWID_GET_BY_KEYS(gobj,
         priv->tranger,
         0,
-        "topics`%s`%s`%s`hook", parent_topic, "cols", hook
+        "topics", parent_topic, "cols", hook, "hook"
     );
     if(!hook_desc) {
         return NULL; // Reported by treedb_link_nodes
@@ -6261,9 +6445,37 @@ PRIVATE BOOL refuse_peer_col_name(
 }
 
 /***************************************************************************
+ *  A topic named by a command that is not one of this treedb (unknown, or a
+ *  name that breaks the topic rule) is the peer's data: a warning and a
+ *  refusal, the same for every command (REV-CLOUD V15.3). The methods below
+ *  log an ERROR for it: for a C caller it is a broken contract. TRUE =
+ *  refused.
+ ***************************************************************************/
+PRIVATE BOOL refuse_peer_topic_name(
+    hgobj gobj,
+    const char *topic_name
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(tranger2_name_is_identifier(topic_name) &&
+            treedb_is_treedbs_topic(priv->tranger, priv->treedb_name, topic_name)) {
+        return FALSE;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "topic not found, refused",
+        "treedb_name",  "%s", priv->treedb_name,
+        "topic_name",   "%.64s", topic_name?topic_name:"",
+        NULL
+    );
+    return TRUE;
+}
+
+/***************************************************************************
  *  "topic^id^hook": the topic follows the topic rule and the hook the
- *  column rule. The id is data and may hold anything. A ref without two
- *  '^' is left to decode_parent_ref().
+ *  column rule; the id is data (up to the last '^'). TRUE = refused.
  ***************************************************************************/
 PRIVATE BOOL refuse_peer_parent_ref(
     hgobj gobj,
@@ -6274,25 +6486,33 @@ PRIVATE BOOL refuse_peer_parent_ref(
 
     const char *first = strchr(parent_ref, '^');
     const char *last = strrchr(parent_ref, '^');
-    if(!first || first == last) {
-        return FALSE;
-    }
+    BOOL ok = (first && first != last && strchr(first + 1, '^') == last);   // exactly two
 
     char topic_name[NAME_MAX];
-    size_t ln = (size_t)(first - parent_ref);
-    BOOL topic_ok = ln < sizeof(topic_name);
-    if(topic_ok) {
-        memcpy(topic_name, parent_ref, ln);
-        topic_name[ln] = 0;
-        topic_ok = tranger2_name_is_identifier(topic_name);
+    if(ok) {
+        /*  Three parts, none empty, each one fitting what decode_parent_ref()
+         *  copies it into (NAME_MAX): else it logs an ERROR with the whole
+         *  ref, a peer's data.  */
+        size_t ln_topic = (size_t)(first - parent_ref);
+        size_t ln_id = (size_t)(last - first - 1);
+        size_t ln_hook = strlen(last + 1);
+        ok = ln_topic > 0 && ln_topic < NAME_MAX &&
+             ln_id > 0 && ln_id < NAME_MAX &&
+             ln_hook > 0 && ln_hook < NAME_MAX;
+        if(ok) {
+            memcpy(topic_name, parent_ref, ln_topic);
+            topic_name[ln_topic] = 0;
+            ok = tranger2_name_is_identifier(topic_name) &&
+                 treedb_col_name_is_identifier(last + 1);
+        }
     }
-    if(topic_ok && treedb_col_name_is_identifier(last + 1)) {
+    if(ok) {
         return FALSE;
     }
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_PARAMETER,
-        "msg",          "%s", "parent ref breaks the name rule, refused",
+        "msg",          "%s", "parent ref must be topic^id^hook, with names of the name rule; refused",
         "treedb_name",  "%s", priv->treedb_name,
         "parent_ref",   "%.128s", parent_ref,
         NULL
@@ -6327,11 +6547,12 @@ PRIVATE BOOL split_child_ref(
     const char *child_id = sep? sep + 1 : "";
     if(!sep || topic_len == 0 || topic_len >= topic_name_size ||
             empty_string(child_id) || strlen(child_id) >= id_size) {
-        gobj_log_error(gobj, 0,
+        /*  A command's child_ref is the peer's data: a warning, capped.  */
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Wrong child reference: must be \"child_topic_name^child_id\", neither empty, the id of RECORD_KEY_VALUE_MAX - 1 bytes at most",
-            "child_ref",    "%s", child_ref? child_ref : "",
+            "child_ref",    "%.128s", child_ref? child_ref : "",
             NULL
         );
         return FALSE;
