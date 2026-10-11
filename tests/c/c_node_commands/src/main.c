@@ -121,7 +121,7 @@ static int register_yuno_and_more(void)
             "msg", "Playing yuno",
             "msg", "topic not found, refused",               // the refusals of a command (V15.3)
             "msg", "topic not found, refused",
-            "msg", "link (fkey) not found in the topic, refused",
+            "msg", "not a column of the topic with that flag, refused",
             "msg", "column name breaks the name rule (empty or '`'), refused",
             "msg", "parent ref must be topic^id^hook, with names of the name rule; refused",
             "msg", "topic not found, refused",

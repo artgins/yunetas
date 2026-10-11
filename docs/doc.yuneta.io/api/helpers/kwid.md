@@ -1930,7 +1930,7 @@ The `json_t *` value at the specified path, not owned by the caller. Returns NUL
 
 **Notes**
 
-The path is split at `` ` `` **and** at `.` -- unlike the `kw_get_*()` readers, which split at `` ` `` only. A list on the path is walked by the `"id"` of its records. So a name that comes from data (a topic, a hook, a key a user chose) must not go into the path: one with a `.` addresses another place. Use [`kwid_get_by_keys()`](#kwid_get_by_keys) for those. `KW_VERBOSE` logs a path that is too short; `KW_BACKWARD` walks a list from its end.
+The path is split at `` ` `` **and** at `.` -- unlike the `kw_get_*()` readers, which split at `` ` `` only. A list on the path is walked by the `"id"` of its records. So a name that comes from data (a topic, a hook, a key a user chose) must not go into the path: one with a `.` addresses another place. Use [`kwid_get_by_keys()`](#kwid_get_by_keys) for those. `KW_VERBOSE` logs only when `kw` is NULL (a missing key is silent); `KW_BACKWARD` walks a list from its end.
 
 ```C
 json_t *flag = kwid_get(gobj, tranger, 0, "topics`users`cols`id`flag");  // a path written in code
@@ -1959,7 +1959,7 @@ json_t *kwid_get_by_keys( // Return is NOT YOURS
 |---|---|---|
 | `gobj` | `hgobj` | GObj handle, used for logging. |
 | `kw` | `json_t *` | The JSON to walk, not owned. |
-| `flag` | `kw_flag_t` | `KW_VERBOSE` logs the segment that is not found (*"key not found"*). |
+| `flag` | `kw_flag_t` | Only `KW_VERBOSE` is read: it logs the segment that is not found, as an ERROR (*"key not found"*) -- leave it out where the caller says it itself. The other flags are ignored. |
 | `nkeys` | `int` | How many segments follow. |
 | `...` | `const char *` | The segments. A NULL segment is not found: it is no terminator, because a name read from data can be NULL. |
 

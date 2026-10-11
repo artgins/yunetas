@@ -779,7 +779,7 @@ PRIVATE int run_tests(hgobj gobj)
         char id_ev[SHA256_HEX_LEN + 1];
         sha256_hex(gbuffer_cur_rd_pointer(gbuf), JPG_FIXTURE_LEN + 6, id_ev, sizeof(id_ev));
 
-        gobj_send_event(priv->gobj_node, "EV_TREEDB_UPDATE_NODE",
+        gobj_send_event(priv->gobj_node, EV_TREEDB_UPDATE_NODE,
             json_pack("{s:s, s:I, s:{s:s, s:s, s:{s:{s:I, s:I, s:s}}}, s:{s:b}}",
                 "topic_name", "devices",
                 "gbuffer", (json_int_t)(uintptr_t)gbuf,

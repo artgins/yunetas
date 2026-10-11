@@ -567,13 +567,15 @@ PRIVATE int run_tests(hgobj gobj)
     {
         json_t *resp = ask(gobj, "parents", json_pack("{s:s, s:s, s:s}",
             "topic_name", "departments", "node_id", "dev", "link", "nolink"));
-        if(kw_get_int(gobj, resp, "result", 0, 0) != -1) {
+        if(kw_get_int(gobj, resp, "result", 0, 0) != -1 ||
+                !strstr(kw_get_str(gobj, resp, "comment", "", 0), "cannot list the parents")) {
             result += fail(gobj, "refused: parents by an unknown link", resp);
         }
         JSON_DECREF(resp)
     }
     CHECK(expect_refused, "refused: children by a hook with the delimiter", "children",
-        json_pack("{s:s, s:s, s:s}", "topic_name", "departments", "node_id", "top", "hook", "a`b"), "")
+        json_pack("{s:s, s:s, s:s}", "topic_name", "departments", "node_id", "top", "hook", "a`b"),
+        "cannot list the children")
     CHECK(expect_refused, "refused: a parent ref of two parts", "link-nodes",
         json_pack("{s:s, s:s}", "parent_ref", "departments^top", "child_ref", "departments^dev"),
         "Wrong parent ref")

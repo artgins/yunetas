@@ -614,7 +614,9 @@ PUBLIC json_t *kwid_get( // Return is NOT YOURS
     from data: kwid_get() splits at '`' and '.', so a topic or a hook named
     with a '.' addressed another place (since SDK 7.26.9). A NULL key is not
     found (it is no terminator: a name read from data can be NULL).
-    flag: KW_VERBOSE logs the segment not found.
+    flag: only KW_VERBOSE is read -- it logs the segment not found (an ERROR,
+    so leave it out where the caller says it itself); KW_REQUIRED, KW_EXTRACT,
+    KW_LOWER and the rest are ignored.
 **rst**/
 PUBLIC json_t *kwid_get_by_keys( // Return is NOT YOURS
     hgobj gobj,

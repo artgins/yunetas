@@ -6553,7 +6553,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *-------------------------------*/
     const char *id = kw_get_str(gobj, kw, "id", 0, 0);
     if(empty_string(id)) {
-        json_t *id_col_flag = KWID_GET_BY_KEYS(gobj, tranger, KW_VERBOSE, "topics", topic_name, "cols", "id", "flag");
+        json_t *id_col_flag = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", topic_name, "cols", "id", "flag");
         if(kw_has_word(gobj, id_col_flag, "uuid", 0)) {
             char uuid[RECORD_KEY_VALUE_MAX];
             create_random_uuid(uuid, sizeof(uuid));
@@ -11096,7 +11096,7 @@ PRIVATE int _link_nodes(
      *  Get info of parent/child from their metadata
      *--------------------------------------------------*/
     const char *parent_topic_name = node_md_str(parent_node, "topic_name");
-    json_t *hook_col_desc = KWID_GET_BY_KEYS(gobj, tranger, KW_VERBOSE, "topics", parent_topic_name, "cols", hook_name);
+    json_t *hook_col_desc = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", parent_topic_name, "cols", hook_name);
 
     const char *child_topic_name = node_md_str(child_node, "topic_name");
 
@@ -11168,7 +11168,7 @@ PRIVATE int _link_nodes(
     /*--------------------------------------------------*
      *  Reverse - child container with info of parent
      *--------------------------------------------------*/
-    json_t *child_col_flag = KWID_GET_BY_KEYS(gobj, tranger, KW_VERBOSE, "topics", child_topic_name, "cols", child_field, "flag");
+    json_t *child_col_flag = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", child_topic_name, "cols", child_field, "flag");
     if(!child_col_flag) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -11769,7 +11769,7 @@ PRIVATE int _unlink_nodes(
      *  Get info of parent/child from their metadata
      *--------------------------------------------------*/
     const char *parent_topic_name = node_md_str(parent_node, "topic_name");
-    json_t *hook_col_desc = KWID_GET_BY_KEYS(gobj, tranger, KW_VERBOSE, "topics", parent_topic_name, "cols", hook_name);
+    json_t *hook_col_desc = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", parent_topic_name, "cols", hook_name);
 
     const char *child_topic_name = node_md_str(child_node, "topic_name");
 
@@ -11841,7 +11841,7 @@ PRIVATE int _unlink_nodes(
     /*--------------------------------------------------*
      *  Reverse - child container with info of parent
      *--------------------------------------------------*/
-    json_t *child_col_flag = KWID_GET_BY_KEYS(gobj, tranger, KW_VERBOSE, "topics", child_topic_name, "cols", child_field, "flag");
+    json_t *child_col_flag = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", child_topic_name, "cols", child_field, "flag");
     if(!child_col_flag) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

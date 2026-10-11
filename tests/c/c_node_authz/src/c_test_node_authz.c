@@ -403,13 +403,13 @@ PRIVATE int check_comments_name_their_yuno(hgobj gobj)
         0, "Nodes linked");
     result += expect_comment(gobj, "link-nodes",
         json_pack("{s:s, s:s}", "parent_ref", "items^item00^no_such_hook", "child_ref", "items^item-cmt"),
-        -1, "cannot link");
+        -1, "Hook not found");
     result += expect_comment(gobj, "unlink-nodes",
         json_pack("{s:s, s:s}", "parent_ref", "items^item00^children", "child_ref", "items^item-cmt"),
         0, "Nodes unlinked");
     result += expect_comment(gobj, "unlink-nodes",
         json_pack("{s:s, s:s}", "parent_ref", "items^item00^no_such_hook", "child_ref", "items^item-cmt"),
-        -1, "cannot unlink");
+        -1, "Hook not found");
     result += expect_comment(gobj, "shoot-snap",
         json_pack("{s:s}", "name", "snap-msg"), 0, "shot");
     result += expect_comment(gobj, "shoot-snap",
@@ -575,6 +575,20 @@ PRIVATE int run_tests(hgobj gobj)
      *  export-db writes a file: only its refusal is asked here
      */
     result += expect(gobj, "nobody", "export-db", json_object(), TRUE);
+
+    /*
+     *  The permission BEFORE the topic (REV-CLOUD V16.1): a user without it
+     *  is refused -403 for a topic that does not exist too, not told
+     *  "Topic not found" (which said which topics exist).
+     */
+    result += expect(gobj, "nobody", "nodes",
+        json_pack("{s:s}", "topic_name", "no_such_topic"), TRUE);
+    result += expect(gobj, "nobody", "create-node",
+        json_pack("{s:s, s:{s:s}}", "topic_name", "no_such_topic", "record", "id", "x"), TRUE);
+    result += expect(gobj, "nobody", "update-node",
+        json_pack("{s:s, s:{s:s}}", "topic_name", "no_such_topic", "record", "id", "x"), TRUE);
+    result += expect(gobj, "nobody", "delete-node",
+        json_pack("{s:s, s:{s:s}}", "topic_name", "no_such_topic", "record", "id", "x"), TRUE);
 
     /*-----------------------------------------------*
      *  link / unlink: an update of the child's fkey

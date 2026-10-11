@@ -2257,7 +2257,7 @@ find <store> -name '*.treedb_schema.json' -exec \
 
 # column names: empty or holding "`"
 find <store> -name '*.treedb_schema.json' -exec \
-    jq -r '(.topics[]? // .) | (.id // .topic_name) as $t | (.cols // {})
+    jq -r '(.topics[]? // .) | (.id // .topic_name) as $t | (.cols // empty)
            | (if type == "object" then keys[] else .[].id end)
            | select(. == "" or test("`")) | "\($t).\(.)"' {} +
 ```

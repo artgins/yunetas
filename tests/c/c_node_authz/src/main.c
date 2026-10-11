@@ -152,15 +152,15 @@ static int register_yuno_and_more(void)
             "msg", "fkey reference: parent node not found",
             /*  the failing commands of check_comments_name_their_yuno  */
             "msg", "Node already exists",
-            "msg", "hook field not found",
-            "msg", "hook field not found",
+            "msg", "not a column of the topic with that flag, refused",
+            "msg", "not a column of the topic with that flag, refused",
             "msg", "Snap already exists: 'snap-msg'",
             "msg", "topic not found, refused",
             "msg", "topic not found, refused",
             "msg", "topic not found, refused",
             "msg", "Node not found",
             "msg", "Node not found",
-            "msg", "hook not found",
+            "msg", "not a column of the topic with that flag, refused",
             "msg", "topic not found, refused",
             "msg", "topic not found, refused",
             /*  an update-create with a bad id: the library's cause, then

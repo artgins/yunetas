@@ -394,8 +394,12 @@ PUBLIC json_t *msg2db_open_db(
         if(empty_string(topic_name)) {
             continue;
         }
-        if(!tranger2_name_is_identifier(topic_name)) {
-            continue;   // Error already logged (left out in the first loop)
+        if(!tranger2_name_is_identifier(topic_name) ||
+                !json_object_get(json_object_get(tranger, "topics"), topic_name)) {
+            /*  Left out by the first loop (a bad name, no pkey=id, no
+             *  pkey2, a topic not created): opening its list here said it
+             *  three times more (REV-CLOUD V16.4).  */
+            continue;   // Error already logged
         }
 
         build_msg2db_index_path(path, sizeof(path), msg2db_name, topic_name, "id");
@@ -1245,7 +1249,7 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
     char uuid[RECORD_KEY_VALUE_MAX+1];
     const char *id = kw_get_str(gobj, kw, "id", 0, 0);
     if(empty_string(id)) {
-        json_t *id_col_flag = KWID_GET_BY_KEYS(gobj, tranger, KW_VERBOSE, "topics", topic_name, "cols", "id", "flag");
+        json_t *id_col_flag = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", topic_name, "cols", "id", "flag");
         if(kw_has_word(gobj, id_col_flag, "uuid", 0)) {
             create_random_uuid(uuid, sizeof(uuid));
             id = uuid;

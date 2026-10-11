@@ -89,6 +89,9 @@
   of a topic (`disks`, `iterators`, `iterators_by_id`, `cache`) out of a
   `topic_var`; `gobj_full_name()` allocates with `gbmem_*`;
   `tests/c/kw/test_json_flat` frees what it flattens. §V11.3.
+- `tests/c/c_assets` sends `EV_TREEDB_UPDATE_NODE` by its symbol: a literal
+  string passed only because the linker merged equal strings (events are
+  compared by pointer), and failed under ASan.
 - `tests/c/kw/test_kw_set_dict_value`: a case for each; on the 7.26.8 library
   the ten new ones fail, the UTF-8 one with a segfault (and the four of the
   null-at-the-leaf rule fail on the code before it).
@@ -114,7 +117,9 @@
       upgrading, ask the KEYS of its persisted schemas with `jq` (the recipe
       is under `treedb_open_db()` on doc.yuneta.io).
     - `msg2db_open_db()` refuses a msg2db name that breaks the rule, and
-      leaves out a topic that does -- before the topic is created, said once.
+      leaves out a topic that does -- before the topic is created, said once;
+      a topic the first loop left out for any reason is not opened by the
+      second (three more errors, §V16.4).
     - `c_node`: every name a command hands it -- the hook of `node_children` /
       `jtree` (and `rename_hook`), the `link` of `node_parents`, the hook of
       `link_nodes` / `unlink_nodes`, and the topic and hook of the
@@ -136,7 +141,9 @@
   key, ...)`, which counts the keys at compile time (a count written by hand
   that missed one returned the column instead of its `hook`, and the seeds
   of `c_node` stopped linking). Every such path (28) goes through it; the
-  `kwid_get()` doc says it splits at `.`. `tests/c/tr_treedb_delete_instance`
+  `kwid_get()` doc says it splits at `.`. Only `KW_VERBOSE` is read by it, and
+  the treedb does not pass it where it says the error itself (it was said
+  twice, §V16.2). `tests/c/tr_treedb_delete_instance`
   links, lists and unlinks through a topic `par.v1`, a hook `kids.all`, an
   fkey `par.ent` and a hook `..`.
 - **`c_node`: a name a command hands it is the peer's data, ONE criterion**
@@ -147,14 +154,28 @@
   a wrong child ref are a WARNING with the name capped and a refusal, before
   any method logs its ERROR. `pkey2s` of an unknown topic answered 0 pkey2s
   with no log. `tests/c/c_node_commands` pins six refusals.
+- **fix: `c_node` checks the PERMISSION before the topic** (yunovatios
+  `REV-CLOUD.md` §V16.1): in create-node, update-node, delete-node and nodes
+  the topic check of this cycle ran first, so a peer without the permission
+  was told "Topic not found" -- which topics exist -- and could raise
+  warnings at will. It gets -403 now, as before the check existed
+  (`tests/c/c_node_authz` pins the four). And the same criterion reaches the
+  rest of what a command names: a `link` that is a column but no fkey, a hook
+  that is a column but no hook (children, jtree, and the hook of a parent ref
+  in link/unlink-nodes), a node that is not there (children, jtree: a warning
+  with the id, no longer an ERROR with the whole kw); a malformed parent ref
+  says which part is wrong.
 - **fix: the logger read every integer as an `int`**: `json_vappend()` reads
   the length modifiers (`hh h l ll j z t L`) now -- a `%zu` of 5000000000
   logged 705032704, a `%llu` of ULLONG_MAX logged -1 (one above LLONG_MAX is
   logged as text), and `%jd` was read as this logger's json conversion and
   crashed. A `%` with no conversion (`"100%"`) consumes nothing and logs its
   text: it consumed an argument that was not there and lost every key after
-  it. A value is ONE conversion: the doc of `gobj_log_error()` says so, with
-  the table. `gbmem.c` said `"%ul"` for `"%lu"`. §V15.2.
+  it; a conversion the logger does not know (`%C`, `%b`, `%n`, `%1$s`, `%qd`)
+  still consumes one, as it always did, and `'` is a flag (`%'d` crashed);
+  a `"msg"` with no conversion is the last message too. A value is ONE
+  conversion: the doc of `gobj_log_error()` says so, with the table. `gbmem.c`
+  said `"%ul"` for `"%lu"`. §V15.2, §V16.3.
 - **fix: the logger ignored the precision of `%s`**: `json_vappend()` read
   `"%.64s"` as `"%s"`, so every "capped" value of the tree (29 sites, a
   peer's data among them) was logged whole, up to 4 KiB. It reads flags,
@@ -185,9 +206,9 @@
   does the same). §V13.4, §V14.1.
 
 - **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
-  (2026-10-10/11, yunovatios `REV-CLOUD.md`, fifteen rounds).** Submodules
-  `kernel/js/gobj-js` 7.26.0 → **7.26.18**, `kernel/js/gobj-ui` 7.26.7 →
-  **7.26.23**, and `yunos/js` (gui_agent 0.29.37, gui_treedb 0.17.104); every
+  (2026-10-10/11, yunovatios `REV-CLOUD.md`, sixteen rounds).** Submodules
+  `kernel/js/gobj-js` 7.26.0 → **7.26.19**, `kernel/js/gobj-ui` 7.26.7 →
+  **7.26.24**, and `yunos/js` (gui_agent 0.29.38, gui_treedb 0.17.105); every
   release is in the CHANGELOG of its own repository. What a consumer has to
   know:
     - `createElement2()` takes a string that starts with `<` as markup unless

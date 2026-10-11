@@ -1409,8 +1409,11 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
      *  CONVERSIONS only, and a value is meant to be ONE conversion ("%s",
      *  "%.64s", "%zu", "%j"). Text around it is not logged; with several,
      *  every argument is still consumed (the next key must stay aligned) and
-     *  the last one is the value. A format with no conversion ("50% done",
-     *  "%%") logs its text and consumes nothing.
+     *  the last one is the value. A format with no conversion ("100%",
+     *  "%%") logs its text and consumes nothing -- but "50% done" HAS one:
+     *  "% d", a ' ' flag and a 'd', as for printf. A conversion this logger
+     *  does not know ("%C", "%b", "%n", "%1$s") consumes one argument, as it
+     *  always did, so the keys after it stay aligned.
      */
     while((key = (char *)va_arg(ap, char *)) != NULL) {
         fmt = (char *)va_arg(ap, char *);
@@ -1434,7 +1437,7 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
              *  va_list, or every argument after it is read shifted.
              */
             int precision = -1;
-            while(i < fmt_len && strchr("-+ #0", fmt[i])) {
+            while(i < fmt_len && strchr("-+ #0'", fmt[i])) {
                 i++;
             }
             if(i < fmt_len && fmt[i] == '*') {
@@ -1647,7 +1650,13 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                     }
                     break;
                 default:
-                    /*  Not a conversion this logger knows: nothing consumed  */
+                    /*  Not a conversion this logger knows: its argument is
+                     *  consumed (a pointer-sized slot), or every key after it
+                     *  is read shifted -- and a string read from an int is a
+                     *  crash. The value is the format's text.  */
+                    (void)va_arg(ap, void *);
+                    xjson_add_string(hgen, key, fmt);
+                    converted = TRUE;
                     break;
             }
         }
@@ -1662,6 +1671,9 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                 value[o++] = fmt[k];
             }
             value[o] = 0;
+            if(strcmp(key, "msg")==0 && priority <= LOG_ERR) {
+                gobj_log_set_last_message("%s", value);
+            }
             xjson_add_string(hgen, key, value);
         }
     }
