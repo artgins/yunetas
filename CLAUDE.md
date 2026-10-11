@@ -208,7 +208,7 @@ for an app with no map — 1.5 MB).
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.26.8`, package **`7.26.12`** on npm since 2026-10-11)
+versioned to track `YUNETA_VERSION` (SDK `7.26.8`, package **`7.26.13`** on npm since 2026-10-11)
 and **published to npm**. It had drifted to 7.13.x while the SDK was at 7.16.2
 — a number that told a consumer nothing about which SDK it was built against —
 and jumped to `7.16.0` on 2026-08-28 to say it again; 7.14 and 7.15 were skipped
@@ -236,8 +236,8 @@ caught up at the `7.6.7` release.) **Every** consumer takes it from the
 registry — estadodelaire, hidraulia, wattyzer, yunomusica, the three yunovatios
 GUIs and the in-repo `yunos/js/*` yunos — but they do **not** all declare the
 same floor, and assuming they do has been wrong since the in-repo yunos moved
-ahead: `yunos/js/*` and the yunovatios GUIs are on `^7.26.12` (2026-10-11),
-wattyzer's gui on `^7.26.12` (2026-10-11). Check the consumer's own
+ahead: `yunos/js/*` and the yunovatios GUIs are on `^7.26.13` (2026-10-11),
+wattyzer's gui on `^7.26.13` (2026-10-11). Check the consumer's own
 `package.json` rather than this line. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
 `src/`.
