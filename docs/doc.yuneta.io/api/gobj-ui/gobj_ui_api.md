@@ -15,8 +15,8 @@ It sits on top of [`@yuneta/gobj-js`](../js/js_api.md), and it holds the same
 rules: a DOM callback translates a notification of the browser into an event,
 and the work happens in an action of a state machine.
 
-**Source code:** [github.com/artgins/gobj-ui.js](https://github.com/artgins/gobj-ui.js/tree/7.26.10) —
-**version:** `7.26.10`
+**Source code:** [github.com/artgins/gobj-ui.js](https://github.com/artgins/gobj-ui.js/tree/7.26.11) —
+**version:** `7.26.11`
 
 ---
 
@@ -114,7 +114,8 @@ values:
 ```
 
 ```bash
-node scripts/check-markup-strings.mjs src    # copy it from gobj-ui/scripts
+# gobj-ui publishes the check (7.26.11+); the app declares acorn as a devDependency
+node node_modules/@yuneta/gobj-ui/scripts/check-markup-strings.mjs src
 ```
 
 **Give a logical name to each block of the DOM.** The root of a view carries the

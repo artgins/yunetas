@@ -391,9 +391,10 @@ def repin_pages(packages: list[Package]) -> tuple[int, int, list[str]]:
     notes: list[str] = []
 
     for pkg in packages:
-        root = DOCS / pkg.docdir
-        if not root.exists():
-            continue
+        #   Every page of the site, not only the package's own: a C page can
+        #   link a gobj-js definition too (api/gobj/op.md did, and it stayed
+        #   behind on an old tag when only pkg.docdir was walked).
+        root = DOCS
         #   /blob/<ref>/<path>[#L<n>] and /tree/<ref>[/<path>]
         blob = re.compile(
             re.escape(pkg.repo) + r"/blob/(?P<ref>[^/]+)/(?P<path>[^)#\s]+)"
@@ -402,6 +403,8 @@ def repin_pages(packages: list[Package]) -> tuple[int, int, list[str]]:
         tree = re.compile(re.escape(pkg.repo) + r"/tree/(?P<ref>[^/)\s]+)")
 
         for path in sorted(root.rglob("*.md")):
+            if "_build" in path.parts or "node_modules" in path.parts:
+                continue
             text = path.read_text()
             original = text
             #   line number -> the symbol that the nearest anchor above claims
