@@ -8,16 +8,16 @@
   it when it cannot write it (an empty path, a scalar on the path, an index
   outside its list); the readers ignored its answer and returned the default
   anyway, and `kw_get_subdict_value()` went on reading the subdict it had just
-  lost. All 46 callers in the tree pass a fresh default, so each would have got
-  a dangling pointer. They return NULL now (the error is already logged).
+  lost. All 52 callers in the tree (utils/c/tr2migrate included) pass a fresh
+  default, so each would have got a dangling pointer. They return NULL now (the error is already logged).
   `tests/c/kw/test_kw_set_dict_value` has a case per reader; on the old library
   all five returned the freed pointer. Found by the cloud review of the JS
   layer (yunovatios `REV-CLOUD.md` §V9.2), comparing an empty path in JS and C.
 
 - **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
-  (2026-10-10/11, yunovatios `REV-CLOUD.md`, ten rounds).** Submodules
-  `kernel/js/gobj-js` 7.26.0 → **7.26.11**, `kernel/js/gobj-ui` 7.26.7 →
-  **7.26.18**, and `yunos/js` (gui_agent 0.29.30, gui_treedb 0.17.97); every
+  (2026-10-10/11, yunovatios `REV-CLOUD.md`, eleven rounds).** Submodules
+  `kernel/js/gobj-js` 7.26.0 → **7.26.12**, `kernel/js/gobj-ui` 7.26.7 →
+  **7.26.19**, and `yunos/js` (gui_agent 0.29.31, gui_treedb 0.17.98); every
   release is in the CHANGELOG of its own repository. What a consumer has to
   know:
     - `createElement2()` takes a string that starts with `<` as markup unless
@@ -26,9 +26,12 @@
       `scripts/check-markup-strings.mjs` for a consumer's `prebuild`. The
       default does not flip in 7.x (estadodelaire and hidraulia would break).
     - Path writers walk a list by index only and never grow it; `kw_delete()`
-      and an empty or non-string path behave as in C (an empty SEGMENT does
-      not: JS keeps ``"a`"`` as the key `""`, while the C writer drops it and
-      the C reader keeps it); own keys everywhere a parsed json is copied (no
+      and an empty or non-string path behave as in C. Where they still differ,
+      said in the docs: an empty SEGMENT (JS keeps ``"a`"`` as the key `""`,
+      the C writer drops it and the C reader keeps it), a list index (C reads
+      it with `atoi()`, so ``l`1x`` is `l[1]`; JS refuses it), and a json
+      reader with `KW_CREATE` that cannot write (C returns NULL, JS its
+      default, unwritten). Own keys everywhere a parsed json is copied (no
       prototype pollution).
     - The window manager takes `{window: gobj_full_name(window)}` from the
       window itself (BREAKING in gobj-ui 7.26.14).
