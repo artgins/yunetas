@@ -605,7 +605,31 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     BOOL without_private = kw_get_bool(gobj, priv->hs, "without_private", 0, 0);
 
     if(jn_filter) {
-        json_t *new_kw = kw_clone_by_keys(gobj, json_incref(kw), json_incref(jn_filter), TRUE);
+        // A test's filter names PATHS ("a`b" = field b inside a): string, list or dict keys
+        size_t nkeys = json_is_object(jn_filter)? json_object_size(jn_filter) :
+            json_is_array(jn_filter)? json_array_size(jn_filter) : 1;
+        const char **paths = GBMEM_MALLOC((nkeys + 1) * sizeof(char *));
+        size_t np = 0;
+        if(json_is_string(jn_filter)) {
+            paths[np++] = json_string_value(jn_filter);
+        } else if(json_is_array(jn_filter)) {
+            size_t i;
+            json_t *jn_p;
+            json_array_foreach(jn_filter, i, jn_p) {
+                if(json_is_string(jn_p)) {
+                    paths[np++] = json_string_value(jn_p);
+                }
+            }
+        } else if(json_is_object(jn_filter)) {
+            const char *fkey;
+        json_t *fval;
+            json_object_foreach(jn_filter, fkey, fval) {
+                paths[np++] = fkey;
+            }
+        }
+        paths[np] = NULL;
+        json_t *new_kw = kw_clone_by_path(gobj, json_incref(kw), paths);
+        GBMEM_FREE(paths);
         KW_DECREF(kw);
         kw = new_kw;
     }

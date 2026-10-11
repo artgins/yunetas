@@ -1218,6 +1218,17 @@ PRIVATE BOOL name_escapes_its_directory(const char *name)
     return FALSE;
 }
 
+/***************************************************************************
+ *  THE name rule (see timeranger2.h): treedb applies the same one.
+ ***************************************************************************/
+PUBLIC BOOL tranger2_name_is_identifier(const char *name)
+{
+    if(name_escapes_its_directory(name) || strchr(name, '`') != NULL) {
+        return FALSE;
+    }
+    return TRUE;
+}
+
 PRIVATE BOOL topic_name_is_confined(
     hgobj gobj,
     json_t *tranger,
@@ -1225,7 +1236,7 @@ PRIVATE BOOL topic_name_is_confined(
     const char *caller
 )
 {
-    if(name_escapes_its_directory(topic_name) || strchr(topic_name, '`') != NULL) {
+    if(!tranger2_name_is_identifier(topic_name)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", caller,
             "msgset",       "%s", MSGSET_PARAMETER,

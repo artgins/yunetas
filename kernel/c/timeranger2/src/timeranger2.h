@@ -448,6 +448,18 @@ PUBLIC json_t *tranger2_topic_key_range( // return is yours
 );
 
 /*
+   TRUE if `name` can name a topic, a treedb, a column, a hook: THE name rule
+   of timeranger2 and treedb, kept in one place. A name is a directory (a
+   topic is `<database>/<topic>/`), a key of the in-memory json and a
+   segment of the kw paths built from it, so it must not be empty, "." or
+   "..", nor hold '/' or the path delimiter '`'. A leading '.' is allowed.
+   Silent: the caller says what the name was for.
+*/
+PUBLIC BOOL tranger2_name_is_identifier(
+    const char *name
+);
+
+/*
    TRUE if the topic is currently OPEN in this tranger. Silent (a closed topic
    is a legitimate answer, not an error).
 

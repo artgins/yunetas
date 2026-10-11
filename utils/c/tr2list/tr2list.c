@@ -429,7 +429,18 @@ PRIVATE int load_record_callback(
 
     if(kw_has_key(match_cond, "filter")) {
         json_t *fields2match = kw_get_dict(gobj, match_cond, "filter", 0, KW_REQUIRED);
-        json_t *record1 = kw_clone_by_keys(gobj, json_incref(jn_record), json_incref(fields2match), FALSE);
+        // A filter written by hand names PATHS ("a`b" = field b inside a)
+        size_t nkeys = json_object_size(fields2match);
+        const char **paths = GBMEM_MALLOC((nkeys + 1) * sizeof(char *));
+        size_t np = 0;
+        const char *fkey;
+        json_t *fval;
+        json_object_foreach(fields2match, fkey, fval) {
+            paths[np++] = fkey;
+        }
+        paths[np] = NULL;
+        json_t *record1 = kw_clone_by_path(gobj, json_incref(jn_record), paths);
+        GBMEM_FREE(paths);
         if(!json_equal(
             record1,        // NOT owned
             fields2match    // NOT owned

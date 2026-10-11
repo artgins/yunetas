@@ -561,12 +561,12 @@ PUBLIC BOOL treedb_is_treedbs_topic(
 }
 
 /***************************************************************************
- *  A treedb, topic, column or hook NAME is an identifier: it is a key of
- *  the in-memory treedb and a segment of the kw paths built from it, so it
- *  must not hold the path delimiter -- nor a path separator, nor begin
- *  with '.', as a topic name. Unchecked, `a`b` was created as a path
+ *  A treedb, topic, column or hook NAME follows THE name rule of
+ *  timeranger2 (tranger2_name_is_identifier(): not empty, "." or "..", no
+ *  '/', no '`'): it is a key of the in-memory treedb and a segment of the
+ *  kw paths built from it. Unchecked, `a`b` was created as a path
  *  (treedbs.a.b) and looked up as a key (never found), and a topic name
- *  `users`id` reached the id index of `users` (REV-CLOUD V12.1).
+ *  `users`id` reached the id index of `users` (REV-CLOUD V12.1, V13.1).
  ***************************************************************************/
 PRIVATE BOOL name_is_identifier(
     hgobj gobj,
@@ -575,11 +575,11 @@ PRIVATE BOOL name_is_identifier(
     const char *caller
 )
 {
-    if(empty_string(name) || strchr(name, '`') || strchr(name, '/') || name[0] == '.') {
+    if(!tranger2_name_is_identifier(name)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", caller,
             "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Invalid name: '`', '/' or a leading '.' not allowed",
+            "msg",          "%s", "Invalid name: empty, '.', '..', '/' or '`' not allowed",
             "what",         "%s", what,
             "name",         "%s", name?name:"",
             NULL
@@ -1527,6 +1527,38 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
          *  strip_fkey_marks), and these cols are what topic_cols.json is
          *  written from.  */
         json_t *schema_cols = kwid_new_dict(gobj, schema_topic, KW_VERBOSE, "cols");
+
+        /*
+         *  A topic (or a column) of a schema written before the name rule
+         *  reached treedb (SDK 7.26.9) can break it. It is left out with an
+         *  error, not the CRITICAL below: that one is exit(0) of the yuno by
+         *  default, and a name is not a broken store. Its data stays on disk,
+         *  unreachable until the topic is renamed.
+         */
+        BOOL names_ok = tranger2_name_is_identifier(topic_name);
+        const char *bad_col = NULL;
+        const char *col_id_; json_t *col_v_;
+        json_object_foreach(schema_cols, col_id_, col_v_) {
+            if(!tranger2_name_is_identifier(col_id_)) {
+                names_ok = FALSE;
+                bad_col = col_id_;
+                break;
+            }
+        }
+        if(!names_ok) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Topic of the schema left out: a name breaks the name rule (empty, '.', '..', '/' or '`')",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "column",       "%s", bad_col? bad_col : "",
+                NULL
+            );
+            JSON_DECREF(schema_cols)
+            continue;
+        }
+
         json_t *topic_cols = json_deep_copy(schema_cols);
         JSON_DECREF(schema_cols)
         strip_fkey_marks_of_cols(topic_cols);
@@ -1843,16 +1875,16 @@ PRIVATE int check_cols_of_new_topic(
         if(json_is_object(cols)) {
             const char *col_id; json_t *col_;
             json_object_foreach(cols, col_id, col_) {
-                if(strchr(col_id, '`')) {
-                    why = "a column id holds the path delimiter '`'";
+                if(!tranger2_name_is_identifier(col_id)) {
+                    why = "a column id breaks the name rule (empty, '.', '..', '/' or '`')";
                 }
             }
         } else if(json_is_array(cols)) {
             int idx_; json_t *col_;
             json_array_foreach(cols, idx_, col_) {
                 const char *col_id = json_string_value(json_object_get(col_, "id"));
-                if(col_id && strchr(col_id, '`')) {
-                    why = "a column id holds the path delimiter '`'";
+                if(col_id && !tranger2_name_is_identifier(col_id)) {
+                    why = "a column id breaks the name rule (empty, '.', '..', '/' or '`')";
                 }
             }
         }
@@ -4894,14 +4926,14 @@ PUBLIC BOOL decode_parent_ref(
     if(hook_name && !copy_ref_part(pref, ss[2], hook_name, hook_name_size)) {
         fits = FALSE;
     }
-    if(fits && (strchr(ss[0], '`') || strchr(ss[2], '`'))) {
+    if(fits && (!tranger2_name_is_identifier(ss[0]) || !tranger2_name_is_identifier(ss[2]))) {
         /*  The topic and the hook of a ref are names, and they go into kw
          *  paths ("topics`<topic>`cols`<hook>`hook"): a ref is data, and one
          *  holding the delimiter addressed another column.  */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Wrong fkey (parent) reference: a name holds '`'",
+            "msg",          "%s", "Wrong fkey (parent) reference: a name breaks the name rule",
             "pref",         "%s", pref,
             NULL
         );

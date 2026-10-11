@@ -37,17 +37,6 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-/***************************************************************************
- *  The record of a resource. Its name is a KEY, not a path: it is named
- *  by the peer (an MQTT client id, a username), and read as a path one
- *  holding the delimiter addressed a field of another record.
- ***************************************************************************/
-PRIVATE json_t *get_resource_record(json_t *db_resources, const char *resource)
-{
-    json_t *record = json_object_get(db_resources, resource);
-    return json_is_object(record)? record : NULL;
-}
-
 PRIVATE int save_record(
     hgobj gobj,
     const char *resource,
@@ -597,6 +586,17 @@ PRIVATE int load_persistent_resources(hgobj gobj)
         load_resource_cb,
         gobj
     );
+}
+
+/***************************************************************************
+ *  The record of a resource. Its name is a KEY, not a path: it is named
+ *  by the peer (an MQTT client id, a username), and read as a path one
+ *  holding the delimiter addressed a field of another record.
+ ***************************************************************************/
+PRIVATE json_t *get_resource_record(json_t *db_resources, const char *resource)
+{
+    json_t *record = json_object_get(db_resources, resource);
+    return json_is_object(record)? record : NULL;
 }
 
 /***************************************************************************

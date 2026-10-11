@@ -42,8 +42,10 @@
   contract** (a `__md_iev__` that is not a dict made `kw_get_dict()` return
   NULL, the stack went to `json_object_set_new(NULL)`, which frees it, and was
   then used), and leaked `jn_data` on its two refusals. A `__md_iev__`, or a
-  stack in it, of the wrong type is a peer's: a warning, and the message is
-  not pushed (a stack of the wrong type was replaced in silence). And a `null`
+  stack in it, of the wrong type is a peer's: a warning with a capped dump of
+  the value, and it is replaced by an empty one, so the entry is pushed and the
+  next push of the same message warns no more (a stack of the wrong type was
+  replaced in silence). And a `null`
   at the leaf is "no value" for `KW_CREATE`: `kw_get_dict()` / `kw_get_list()`
   replace it, as a missing key -- only a value of another type is refused. (No
   release ever replaced it: up to 7.26.8 a null there handed back an orphan.)
@@ -56,8 +58,8 @@
     - `tr_treedb`: `delete_node()` (deleting `q`b` took the instance `b` out of
       `q`); the id and pkey2 indexes looked up by key; `treedb_close_topic()`
       (a `delete-topic` of `users`id` extracted the id index of `users`); a
-      filter's keys in `match_node_simple()`. And the NAMES are refused with
-      the delimiter (or `/`, or a leading `.`) where they come in: a treedb
+      filter's keys in `match_node_simple()`. And the NAMES that break the name
+      rule (below) are refused where they come in: a treedb
       (`treedb_open_db`), a topic (`treedb_create_topic`), a column id, a hook
       or fkey given to `treedb_link_nodes` / `unlink_nodes` / `parent_refs` /
       `node_children` / `node_jtree`, and the topic and hook of a parent ref.
@@ -90,11 +92,45 @@
 - `tests/c/kw/test_kw_set_dict_value`: a case for each; on the 7.26.8 library
   the ten new ones fail, the UTF-8 one with a segfault (and the four of the
   null-at-the-leaf rule fail on the code before it).
+- **ONE name rule for timeranger2 and treedb: `tranger2_name_is_identifier()`**
+  (new, `timeranger2.h`): a name is not empty, not `.` or `..`, and holds no
+  `/` and no `` ` `` -- the rule timeranger2 already applied to a topic name.
+  A leading `.` is allowed again (the V12 checks of treedb refused it, and
+  timeranger2 did not). treedb uses it for every name it is handed
+  (yunovatios `REV-CLOUD.md` §V13.1):
+    - **compatibility: a treedb opened with an old name that breaks it is
+      not killed.** `treedb_open_db()` logs an ERROR and leaves THAT topic
+      out ("Topic of the schema left out: a name breaks the name rule"); the
+      rest of the treedb opens. A topic or column id with `/` or `` ` `` was
+      never usable by path anyway. To check a store before upgrading:
+      `grep -l '[/`]' <store>/<treedb>/*/topic_cols.json` and the topic
+      directory names.
+    - `c_node`: a hook (or `rename_hook`) given by a peer to `node_children` /
+      `jtree` is a WARNING and a refusal (`MSGSET_PARAMETER`), not an error
+      with stack: it is the peer's data.
+    - gobj-ui 7.26.21: the schema editor refuses the same names at once.
+- **fix: use after free in `delete_consoles_on_disconnection()`** of
+  `yuno_agent` and `yuno_agent22`: the name read from the console record was
+  used after `delete_console()` freed that record. It is copied first.
+  §V13.3.
+- **`tr2list --filter` and the filter of a `ytests` step read their keys as
+  PATHS**, through `kw_clone_by_path()` (``{"device`model": "T-100"}`` matches
+  the field `model` inside `device`). Since `kw_clone_by_keys()` reads keys as
+  keys they had silently stopped matching a nested field. §V13.2.
+- `kw_match_simple()` says "filter path too long" ONCE per process (it ran per
+  publication and per record, so a peer's long filter flooded the log);
+  `msg_iev_push_stack()` replaces a peer's `__md_iev__` (or a stack in it) of
+  the wrong type with an empty one, with a warning and a capped dump of the
+  value, so the entry is pushed and the next push of the same message does
+  not warn again (`c_ievent_srv` warned twice per message); `kw_get_dict()` /
+  `kw_get_list()` with `KW_CREATE|KW_REQUIRED` over a `null` and no default say
+  "path NOT FOUND", as for a missing key (gobj-js 7.26.16 does the same).
+  §V13.4.
 
 - **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
   (2026-10-10/11, yunovatios `REV-CLOUD.md`, thirteen rounds).** Submodules
-  `kernel/js/gobj-js` 7.26.0 → **7.26.15**, `kernel/js/gobj-ui` 7.26.7 →
-  **7.26.20**, and `yunos/js` (gui_agent 0.29.34, gui_treedb 0.17.101); every
+  `kernel/js/gobj-js` 7.26.0 → **7.26.16**, `kernel/js/gobj-ui` 7.26.7 →
+  **7.26.21**, and `yunos/js` (gui_agent 0.29.35, gui_treedb 0.17.102); every
   release is in the CHANGELOG of its own repository. What a consumer has to
   know:
     - `createElement2()` takes a string that starts with `<` as markup unless

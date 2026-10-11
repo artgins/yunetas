@@ -2947,6 +2947,44 @@ from the topic desc).
 
 ---
 
+(tranger2_name_is_identifier)=
+## [`tranger2_name_is_identifier()`](https://github.com/artgins/yunetas/blob/7.26.8/kernel/c/timeranger2/src/timeranger2.c#L1225)
+
+`TRUE` if `name` can name a topic, a treedb, a column or a hook. It is **the**
+name rule of timeranger2 and treedb, kept in one place (since SDK 7.26.9). A
+name is a directory (`<database>/<topic>/`), a key of the in-memory json and a
+segment of the kw paths built from it, so it must not be empty, `"."` or
+`".."`, nor hold `/` or the path delimiter `` ` ``. A leading `.` is allowed.
+Silent: the caller says what the name was for.
+
+```C
+BOOL tranger2_name_is_identifier(
+    const char *name
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `name` | `const char *` | The name to check. |
+
+**Returns**
+
+`TRUE` if the name is usable, `FALSE` otherwise.
+
+**Example**
+
+```C
+tranger2_name_is_identifier("users");       // TRUE
+tranger2_name_is_identifier(".hidden");     // TRUE: a leading '.' is allowed
+tranger2_name_is_identifier("users`id");    // FALSE: the path delimiter
+tranger2_name_is_identifier("kids/all");    // FALSE: a path separator
+tranger2_name_is_identifier("..");          // FALSE
+```
+
+---
+
 (tranger2_topic_is_open)=
 ## [`tranger2_topic_is_open()`](https://github.com/artgins/yunetas/blob/7.26.8/kernel/c/timeranger2/src/timeranger2.c#L2490)
 

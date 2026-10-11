@@ -362,6 +362,38 @@ static int test2_false(void)
 }
 
 /***************************************************************************
+ *  REV-CLOUD V13.4: KW_CREATE|KW_REQUIRED over a null leaf with no default
+ *  answers NULL as a missing key does, and says it as a missing key does
+ *  (it answered NULL in silence while the missing key logged).
+ ***************************************************************************/
+static int test_null_leaf_required_logs_as_missing(void)
+{
+    int result = 0;
+    set_expected_results(
+        "null_leaf_required_logs_as_missing",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "path NOT FOUND, default value returned",
+            "msg", "path NOT FOUND, default value returned"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+
+    json_t *kw = json_pack("{s:n, s:n}", "d", "l");
+    if(kw_get_dict(0, kw, "d", NULL, KW_CREATE|KW_REQUIRED) != NULL) {
+        result += -1;
+    }
+    if(kw_get_list(0, kw, "l", NULL, KW_CREATE|KW_REQUIRED) != NULL) {
+        result += -1;
+    }
+    json_decref(kw);
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
+    return result;
+}
+
+/***************************************************************************
  *  Regression f001: gbuffer_deserialize() must reject a serialized blob whose
  *  "data" field is missing/non-string instead of crashing on strlen(NULL).
  ***************************************************************************/
@@ -713,6 +745,7 @@ PRIVATE int do_test(void)
     result += test2_false();
     result += test_json_unflatten_dict();
 
+    result += test_null_leaf_required_logs_as_missing();
     result += test_reg_f001_gbuffer_deserialize_null_data();
     result += test_reg_f001_gbuffer_deserialize_bad_base64();
     result += test_reg_f002_find_record_not_found();

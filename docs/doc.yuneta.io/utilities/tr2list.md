@@ -26,7 +26,7 @@ tr2list /yuneta/store/.../topic --follow                    # tail -f
 | `--from-tm` / `--to-tm` | Message-time range |
 | `--from-rowid` / `--to-rowid` | Rowid range (negative = from the end) |
 | `--user-flag-set` / `--system-flag-set` (+ `…-not-set`) | Flag filters |
-| `--filter` | JSON dict of field matches |
+| `--filter` | JSON dict of field matches; each key is a PATH (see below) |
 | `--fields` | Select output fields |
 | `--mode form\|table` | Output layout |
 | `--show_md2` | Include `__md2__` metadata |
@@ -36,6 +36,25 @@ tr2list /yuneta/store/.../topic --follow                    # tail -f
 | `--dry-run` / `-n` | Resolve and print the plan only |
 | `--list-databases` | List databases under the path |
 | `--verbose` / `-l` | Verbosity level |
+
+## Filtering by field
+
+`--filter` takes a JSON dict. A record is listed when every key of the dict,
+read as a **path** into the record (segments joined by `` ` ``), holds exactly
+the value given. A key without `` ` `` is a top-level field:
+
+```bash
+# records whose top-level field "state" is "on"
+tr2list /yuneta/store/x/topic1 --filter='{"state": "on"}'
+
+# records whose nested field device.model is "T-100", AND state is "on"
+tr2list /yuneta/store/x/topic1 --filter='{"device`model": "T-100", "state": "on"}'
+```
+
+For the record `{"state": "on", "device": {"model": "T-100", "fw": 3}}` both
+filters match. The value is compared whole: `{"device": {"model": "T-100"}}`
+does NOT match it, because `device` also holds `fw` — name the leaf with a
+path instead.
 
 ## See also
 

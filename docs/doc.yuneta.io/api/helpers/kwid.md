@@ -47,7 +47,7 @@ The function maintains an internal table of registered binary types. If the tabl
 (kw_clone_by_keys)=
 ## [`kw_clone_by_keys()`](https://github.com/artgins/yunetas/blob/7.26.8/kernel/c/gobj-c/src/kwid.c#L2557)
 
-The function `kw_clone_by_keys()` returns a new JSON object containing only the keys specified in `keys`. The keys can be provided as a string, a list of strings, or a dictionary where the keys are the desired fields. If `keys` is empty, the original JSON object is returned. A key is a KEY, not a path: one holding the delimiter is that key (since SDK 7.26.9; it was read as a path and written as a key, so it never came out). Use [`kw_clone_by_path()`](#kw_clone_by_path) for paths.
+The function `kw_clone_by_keys()` returns a new JSON object containing only the keys specified in `keys`. The keys can be provided as a string, a list of strings, or a dictionary where the keys are the desired fields. If `keys` is empty, the original JSON object is returned. A key is a KEY, not a path: one holding the delimiter is that key (since SDK 7.26.9; until then it was READ as a path and WRITTEN as a key, so the field `b` of `a` came out under one flat key ``a`b``). Use [`kw_clone_by_path()`](#kw_clone_by_path) for paths.
 
 ```C
 json_t *kw_clone_by_keys(

@@ -1526,7 +1526,9 @@ PUBLIC BOOL msg2db_id_incomplete(
         return FALSE;
     }
     return json_is_true(json_object_get(json_object_get(topic, "incomplete"), id));
-}/***************************************************************************
+}
+
+/***************************************************************************
  *  Index a record under (id, pkey2 value). Both are KEYS, not a path: an
  *  id is data, and one holding the delimiter was stored nested inside
  *  another id's entry, while the "newest first" check read it as a key
@@ -1578,5 +1580,3 @@ PRIVATE int index_record(
     }
     return 0;
 }
-
-

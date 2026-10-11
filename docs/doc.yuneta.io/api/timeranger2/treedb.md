@@ -2143,6 +2143,38 @@ kept in the topic files of the store: the function sets it in memory on each
 open. [`tranger2_topic_desc()`](<#tranger2_topic_desc>) sends the mark to
 clients, together with `system_topic`.
 
+**Names.** Every topic name and column id of the schema follows the name rule
+of [`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>): not
+empty, not `.` or `..`, and no `/` or `` ` `` (a leading `.` is fine). A topic
+that breaks it is **left out**, not fatal (since SDK 7.26.9): the function
+logs *"Topic of the schema left out: a name breaks the name rule"* and opens
+the rest of the treedb. A schema like this one opens `users` and leaves out
+`a/b`:
+
+```C
+static char treedb_schema_sample[]= "\
+{                                                                   \n\
+    'id': 'treedb_sample',                                          \n\
+    'schema_version': '1',                                          \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'topic_name': 'users',                                  \n\
+            'pkey': 'id',                                           \n\
+            'cols': { 'id': { 'id': 'id', 'type': 'string', 'flag': ['persistent', 'required'] } } \n\
+        },                                                          \n\
+        {                                                           \n\
+            'topic_name': 'a/b',                                    \n\
+            'pkey': 'id',                                           \n\
+            'cols': { 'id': { 'id': 'id', 'type': 'string', 'flag': ['persistent', 'required'] } } \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+```
+
+To check a store before an upgrade, look for such names in the topic
+directories and in their `topic_cols.json`.
+
 A non-master open reads the mark from the persisted schema file, like the rest
 of the schema, so a reader that is not the master sees it too. A tool that
 opens the topics with timeranger2 only (`tr2list`) does not see it: the mark is

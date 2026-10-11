@@ -349,21 +349,22 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
     }
     /*
      *  `__md_iev__` and its stacks can come in what a PEER sent: one of the
-     *  wrong type is a warning (protocol data), not an internal error. With
-     *  no check, the stack went to json_object_set_new(NULL), which frees it,
-     *  and was then used; and a stack of the wrong type was replaced by a
-     *  new one in silence.
+     *  wrong type is a warning (protocol data), not an internal error, and
+     *  it is REPLACED, said once, so the entry is pushed and the next push
+     *  of the same message finds a good one (no warning per push).
      */
     json_t *md_iev = json_object_get(kw, "__md_iev__");
     if(md_iev && !json_is_object(md_iev) && !json_is_null(md_iev)) {
+        char *dump = json_dumps(md_iev, JSON_COMPACT|JSON_ENCODE_ANY);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "__md_iev__ is not a dict, the message is not pushed",
+            "msg",          "%s", "__md_iev__ is not a dict, replaced by an empty one",
+            "value",        "%.64s", dump?dump:"",
             NULL
         );
-        JSON_DECREF(jn_data)
-        return -1;
+        GBMEM_FREE(dump);
+        json_object_del(kw, "__md_iev__");
     }
     md_iev = kw_get_dict(gobj, kw, "__md_iev__", json_object(), KW_CREATE);
     if(!md_iev) {
@@ -372,15 +373,16 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
     }
     json_t *jn_stack = json_object_get(md_iev, stack);
     if(jn_stack && !json_is_array(jn_stack) && !json_is_null(jn_stack)) {
+        char *dump = json_dumps(jn_stack, JSON_COMPACT|JSON_ENCODE_ANY);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "the stack in __md_iev__ is not a list, the message is not pushed",
+            "msg",          "%s", "a stack of __md_iev__ is not a list, replaced by an empty one",
             "stack",        "%s", stack,
+            "value",        "%.64s", dump?dump:"",
             NULL
         );
-        JSON_DECREF(jn_data)
-        return -1;
+        GBMEM_FREE(dump);
     }
     if(!json_is_array(jn_stack)) {
         jn_stack = json_array();

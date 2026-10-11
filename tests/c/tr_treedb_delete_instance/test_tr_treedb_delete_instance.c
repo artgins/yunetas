@@ -261,8 +261,8 @@ PRIVATE int test_delete_node_by_key_and_names(
     time_measure_t time_measure;
     set_expected_results(test,
         json_pack("[{s:s},{s:s}]",
-            "msg", "Invalid name: '`', '/' or a leading '.' not allowed",
-            "msg", "Invalid name: '`', '/' or a leading '.' not allowed"
+            "msg", "Invalid name: empty, '.', '..', '/' or '`' not allowed",
+            "msg", "Invalid name: empty, '.', '..', '/' or '`' not allowed"
         ),
         NULL, NULL, 1
     );

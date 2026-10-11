@@ -1809,7 +1809,19 @@ PUBLIC json_t *kw_get_dict(
     }
     if(!json_is_object(jn_dict)) {
         if((flag & KW_CREATE) && json_is_null(jn_dict) && !default_value) {
-            return NULL;    // a null with no default: as a missing key, NULL
+            /*  A null with no default: as a missing key, NULL (and said
+             *  as a missing key when it is required).  */
+            if(flag & KW_REQUIRED) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "path NOT FOUND, default value returned",
+                    "path",         "%s", path,
+                    NULL
+                );
+                gobj_trace_json_masked(gobj, kw, "path NOT FOUND, default value returned of '%s'", path);
+            }
+            return NULL;
         }
         if((flag & KW_CREATE) && json_is_null(jn_dict) && default_value) {
             /*  A null is "no value" (empty_json()): the create replaces
@@ -1894,7 +1906,19 @@ PUBLIC json_t *kw_get_list(
     }
     if(!json_is_array(jn_list)) {
         if((flag & KW_CREATE) && json_is_null(jn_list) && !default_value) {
-            return NULL;    // a null with no default: as a missing key, NULL
+            /*  A null with no default: as a missing key, NULL (and said
+             *  as a missing key when it is required).  */
+            if(flag & KW_REQUIRED) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "path NOT FOUND, default value returned",
+                    "path",         "%s", path,
+                    NULL
+                );
+                gobj_trace_json_masked(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
+            }
+            return NULL;
         }
         if((flag & KW_CREATE) && json_is_null(jn_list) && default_value) {
             /*  A null is "no value" (empty_json()): the create replaces
@@ -2901,6 +2925,26 @@ PUBLIC int kw_pop(
 }
 
 /***************************************************************************
+    Said ONCE per process: the matchers run per publication and per record,
+    so a peer's long filter would flood the log with the same line.
+ ***************************************************************************/
+PRIVATE void warn_filter_path_too_long(const char *key)
+{
+    static BOOL warned = FALSE;
+    if(warned) {
+        return;
+    }
+    warned = TRUE;
+    gobj_log_warning(0, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "filter path too long, not matched (said once per process)",
+        "key",          "%.64s", key,
+        NULL
+    );
+}
+
+/***************************************************************************
     Match a json dict with a json filter (only compare str/number)
  ***************************************************************************/
 PRIVATE BOOL _kw_match_simple(
@@ -2928,12 +2972,7 @@ PRIVATE BOOL _kw_match_simple(
                 ln = snprintf(path, sizeof(path), "%s`%d", prefix_path, (int)idx);
             }
             if(ln < 0 || (size_t)ln >= sizeof(path)) {
-                gobj_log_warning(0, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER,
-                    "msg",          "%s", "filter path too long, not matched",
-                    NULL
-                );
+                warn_filter_path_too_long(prefix_path);
                 continue;
             }
 
@@ -2962,13 +3001,7 @@ PRIVATE BOOL _kw_match_simple(
             if(ln < 0 || (size_t)ln >= sizeof(path)) {
                 /*  A filter (often a peer's) whose path does not fit: a
                  *  truncated path would compare another field.  */
-                gobj_log_warning(0, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER,
-                    "msg",          "%s", "filter path too long, not matched",
-                    "key",          "%s", key,
-                    NULL
-                );
+                warn_filter_path_too_long(key);
                 matched = FALSE;
                 break;
             }

@@ -333,16 +333,33 @@ static void test_null_leaf_is_absent(void)
     }
     JSON_DECREF(kw)
 
-    /*  A peer's __md_iev__ of the wrong type: refused, nothing used freed.  */
+    /*
+     *  A peer's __md_iev__ (or a stack in it) of the wrong type: replaced
+     *  with a warning, nothing used freed, and the entry lands (REV-CLOUD
+     *  V13.4: refusing it warned again on every push of the same message).
+     */
     json_t *kw2 = json_pack("{s:i}", "__md_iev__", 5);
     int ret = msg_iev_push_stack(0, kw2, "ievent_gate_stack", json_pack("{s:s}", "x", "y"));
-    if(ret != -1) {
-        printf("FAIL %-48s ret %d\n", "msg_iev_push_stack over a scalar __md_iev__", ret);
+    int ret2 = msg_iev_push_stack(0, kw2, "ievent_gate_stack", json_pack("{s:s}", "x", "z"));
+    json_t *stack2 = kw_find_path(0, kw2, "__md_iev__`ievent_gate_stack", FALSE);
+    if(ret != 0 || ret2 != 0 || json_array_size(stack2) != 2) {
+        printf("FAIL %-48s ret %d %d\n", "msg_iev_push_stack over a scalar __md_iev__", ret, ret2);
         failed++;
     } else {
         printf("  ok  %s\n", "msg_iev_push_stack over a scalar __md_iev__");
     }
     JSON_DECREF(kw2)
+
+    json_t *kw4 = json_pack("{s:{s:s}}", "__md_iev__", "ievent_gate_stack", "bad");
+    ret = msg_iev_push_stack(0, kw4, "ievent_gate_stack", json_pack("{s:s}", "x", "y"));
+    json_t *stack4 = kw_find_path(0, kw4, "__md_iev__`ievent_gate_stack", FALSE);
+    if(ret != 0 || json_array_size(stack4) != 1) {
+        printf("FAIL %-48s ret %d\n", "msg_iev_push_stack over a scalar stack", ret);
+        failed++;
+    } else {
+        printf("  ok  %s\n", "msg_iev_push_stack over a scalar stack");
+    }
+    JSON_DECREF(kw4)
 
     /*  And a null one is replaced: the push lands.  */
     json_t *kw3 = json_pack("{s:n}", "__md_iev__");

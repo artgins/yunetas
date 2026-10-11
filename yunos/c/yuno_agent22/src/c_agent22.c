@@ -979,9 +979,17 @@ PRIVATE int delete_consoles_on_disconnection(hgobj gobj, json_t *kw, hgobj src_)
         return 0;
     }
 
+    /*
+     *  Copy the key: `name` IS the key of `consoles`, and delete_console()
+     *  deletes it from there (the route of this very channel) while it
+     *  goes on reading it -- with two or more routes, freed memory. As the
+     *  stop of the agent does it.
+     */
     const char *name; json_t *jn_; void *n;
     json_object_foreach_safe(consoles, n, name, jn_) {
-        delete_console(gobj, name);
+        char name_[NAME_MAX];
+        snprintf(name_, sizeof(name_), "%s", name);
+        delete_console(gobj, name_);
     }
 
     return 0;

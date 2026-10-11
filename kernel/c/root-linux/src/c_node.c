@@ -2116,6 +2116,27 @@ PRIVATE json_t *mt_node_children(
     }
 
     /*
+     *  The hook name comes from the command (a peer): a name that breaks
+     *  the name rule is data from outside, a warning here, not the error
+     *  with which treedb refuses it.
+     */
+    if(!tranger2_name_is_identifier(hook)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "hook name breaks the name rule, refused",
+            "treedb_name",  "%s", priv->treedb_name,
+            "topic_name",   "%s", topic_name,
+            "hook",         "%.64s", hook?hook:"",
+            NULL
+        );
+        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw)
+        return 0;
+    }
+
+    /*
      *  Return a list of child nodes of the hook
      */
     json_t *iter = treedb_node_children( // Return MUST be decref
@@ -2205,6 +2226,26 @@ PRIVATE json_t *mt_topic_jtree(
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
             "kw",           "%j", kw,
+            NULL
+        );
+        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw)
+        return 0;
+    }
+
+    /*
+     *  A hook name from a peer: a warning (see mt_node_children)
+     */
+    if(!tranger2_name_is_identifier(hook) ||
+            (!empty_string(rename_hook) && !tranger2_name_is_identifier(rename_hook))) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "hook name breaks the name rule, refused",
+            "treedb_name",  "%s", priv->treedb_name,
+            "topic_name",   "%s", topic_name,
+            "hook",         "%.64s", hook?hook:"",
             NULL
         );
         JSON_DECREF(jn_filter);
