@@ -477,10 +477,17 @@ def repin_pages(packages: list[Package]) -> tuple[int, int, list[str]]:
             #   wrote its version on everybody's line.
             own_page = (DOCS / pkg.docdir) in path.parents
 
+            other_repos = [o.repo for o in packages if o.repo != pkg.repo]
+
             def fix_version_line(line):
                 if "**version:**" not in line:
                     return line
-                if not (own_page or pkg.repo in line):
+                #   The repo the line links decides; with no link, the page.
+                #   A line that links both, or the other package's, is not
+                #   this package's.
+                links_own = pkg.repo in line
+                links_other = any(r in line for r in other_repos)
+                if links_other or not (links_own or own_page):
                     return line
                 return re.sub(
                     r"(\*\*version:\*\* `)[0-9][^`]*(`)",
