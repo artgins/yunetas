@@ -680,14 +680,13 @@ PRIVATE json_t *exist_secondary_node(
     char key_[RECORD_KEY_VALUE_MAX];
     snprintf(key_, sizeof(key_), "%s", key);
 
-    return kw_get_subdict_value(
-        0,
-        indexy,
-        key_,
-        key2,
-        0,
-        0
-    );
+    /*  Keys, not paths: an id or a pkey2 value may hold the path
+     *  delimiter, and read as a path `k`b` looked inside the entry of `k`.  */
+    json_t *instances = json_object_get(indexy, key_);
+    if(!json_is_object(instances)) {
+        return NULL;
+    }
+    return json_object_get(instances, key2);
 }
 
 /***************************************************************************
@@ -704,14 +703,43 @@ PRIVATE int add_secondary_node(
     char key_[RECORD_KEY_VALUE_MAX];
     snprintf(key_, sizeof(key_), "%s", key);
 
-    JSON_INCREF(node)
-    return kw_set_subdict_value(
-        0,
-        indexy,
-        key_,
-        key2,
-        node
-    );
+    /*  Keys, not paths (see exist_secondary_node()): written as a path,
+     *  the instances of `k`b` went INSIDE the index entry of `k`.  */
+    json_t *instances = json_object_get(indexy, key_);
+    if(!instances) {
+        instances = json_object();
+        if(json_object_set_new(indexy, key_, instances) < 0) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "cannot add the pkey2 index entry of a node",
+                "id",           "%s", key_,
+                NULL
+            );
+            return -1;
+        }
+    } else if(!json_is_object(instances)) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "the pkey2 index entry of a node is not a dict",
+            "id",           "%s", key_,
+            NULL
+        );
+        return -1;
+    }
+    if(json_object_set(instances, key2, node) < 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "cannot add an instance to the pkey2 index",
+            "id",           "%s", key_,
+            "key2",         "%s", key2,
+            NULL
+        );
+        return -1;
+    }
+    return 0;
 }
 
 /***************************************************************************
@@ -727,18 +755,12 @@ PRIVATE int delete_secondary_node(
     char key_[RECORD_KEY_VALUE_MAX];
     snprintf(key_, sizeof(key_), "%s", key);
 
-    json_t *node = kw_get_subdict_value(
-        0,
-        indexy,
-        key_,
-        key2,
-        0,
-        KW_EXTRACT
-    );
-    if(!node) {
-        return -1;
+    /*  Keys, not paths (see exist_secondary_node()).  */
+    json_t *instances = json_object_get(indexy, key_);
+    if(!json_is_object(instances) || !json_object_get(instances, key2)) {
+        return -1;  // The caller logs (it knows what it was deleting)
     }
-    json_decref(node);
+    json_object_del(instances, key2);
     return 0;
 }
 

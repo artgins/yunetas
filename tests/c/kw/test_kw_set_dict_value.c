@@ -306,6 +306,57 @@ static void test_invalid_utf8_segment(void)
     JSON_DECREF(kw)
 }
 
+/*
+ *  REV-CLOUD V11.1. A null at the leaf is "no value": a create replaces it,
+ *  as a missing key (it answered NULL since the V10.1 contract). And the
+ *  caller that did not check that NULL: msg_iev_push_stack() went on with
+ *  json_object_set_new(NULL), which frees the stack, and then used it.
+ */
+static void test_null_leaf_is_absent(void)
+{
+    printf("\n--- a null at the leaf is replaced by a create ---\n");
+
+    json_t *kw = json_pack("{s:n, s:n}", "d", "l");
+    json_t *d = kw_get_dict(0, kw, "d", json_object(), KW_CREATE);
+    json_t *l = kw_get_list(0, kw, "l", json_array(), KW_CREATE);
+    if(!d || !json_is_object(json_object_get(kw, "d")) || d != json_object_get(kw, "d")) {
+        printf("FAIL %-48s\n", "kw_get_dict replaces a null");
+        failed++;
+    } else {
+        printf("  ok  %s\n", "kw_get_dict replaces a null");
+    }
+    if(!l || !json_is_array(json_object_get(kw, "l")) || l != json_object_get(kw, "l")) {
+        printf("FAIL %-48s\n", "kw_get_list replaces a null");
+        failed++;
+    } else {
+        printf("  ok  %s\n", "kw_get_list replaces a null");
+    }
+    JSON_DECREF(kw)
+
+    /*  A peer's __md_iev__ of the wrong type: refused, nothing used freed.  */
+    json_t *kw2 = json_pack("{s:i}", "__md_iev__", 5);
+    int ret = msg_iev_push_stack(0, kw2, "ievent_gate_stack", json_pack("{s:s}", "x", "y"));
+    if(ret != -1) {
+        printf("FAIL %-48s ret %d\n", "msg_iev_push_stack over a scalar __md_iev__", ret);
+        failed++;
+    } else {
+        printf("  ok  %s\n", "msg_iev_push_stack over a scalar __md_iev__");
+    }
+    JSON_DECREF(kw2)
+
+    /*  And a null one is replaced: the push lands.  */
+    json_t *kw3 = json_pack("{s:n}", "__md_iev__");
+    ret = msg_iev_push_stack(0, kw3, "ievent_gate_stack", json_pack("{s:s}", "x", "y"));
+    json_t *stack = kw_find_path(0, kw3, "__md_iev__`ievent_gate_stack", FALSE);
+    if(ret != 0 || json_array_size(stack) != 1) {
+        printf("FAIL %-48s ret %d\n", "msg_iev_push_stack over a null __md_iev__", ret);
+        failed++;
+    } else {
+        printf("  ok  %s\n", "msg_iev_push_stack over a null __md_iev__");
+    }
+    JSON_DECREF(kw3)
+}
+
 /***************************************************************************
  *              Main
  ***************************************************************************/
@@ -328,6 +379,7 @@ int main(int argc, char *argv[])
     test_create_wrong_type();
     test_empty_segment();
     test_invalid_utf8_segment();
+    test_null_leaf_is_absent();
 
     gobj_end();
 

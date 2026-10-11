@@ -6615,8 +6615,11 @@ PUBLIC const char * gobj_full_name(hgobj gobj_)
     if(!gobj->full_name) {
         #define SIZEBUFTEMP (8*1024)
         gobj_t *parent = gobj;
-        char *bf = malloc(SIZEBUFTEMP);
-        if(bf) {
+        char *bf = GBMEM_MALLOC(SIZEBUFTEMP);
+        if(!bf) {
+            return "???";   // Error already logged (gbmem)
+        }
+        {
             size_t ln;
             memset(bf, 0, SIZEBUFTEMP);
             while(parent) {
@@ -6641,7 +6644,7 @@ PUBLIC const char * gobj_full_name(hgobj gobj_)
                 parent = parent->parent;
             }
             gobj->full_name = gbmem_strdup(bf);
-            free(bf);
+            GBMEM_FREE(bf);
         }
 
     }

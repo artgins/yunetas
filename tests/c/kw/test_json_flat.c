@@ -121,7 +121,7 @@ static void must_refuse(const char *title, json_t *flat)
  ***************************************************************************/
 static int test_round_trips(void)
 {
-    printf("\n--- ida y vuelta ---\n");
+    printf("\n--- round trips ---\n");
 
     round_trip("nested object", "{\"a\":{\"b\":1},\"c\":\"x\"}",
         "{\"a`b\":1,\"c\":\"x\"}");
@@ -169,7 +169,7 @@ static int test_round_trips(void)
 
 static int test_refusals(void)
 {
-    printf("\n--- lo que tiene que rechazar ---\n");
+    printf("\n--- what it must refuse ---\n");
 
     /*  The same id as a leaf and as a container: the nested result would
      *  depend on which key jansson hands over first. */
@@ -211,7 +211,7 @@ static int test_refusals(void)
 
 static int test_holes(void)
 {
-    printf("\n--- huecos y limites ---\n");
+    printf("\n--- holes and limits ---\n");
 
     /*  A hole inside an array is a null, and it stays a null. */
     char err[256];
@@ -239,7 +239,7 @@ static int test_holes(void)
 
 static int test_key_join_split(void)
 {
-    printf("\n--- componer y partir un id ---\n");
+    printf("\n--- joining and splitting an id ---\n");
 
     /*  A string is a key and an integer is an index: "[0]" as a KEY and
      *  index 0 are different things, and that is why they are typed. */
@@ -280,16 +280,21 @@ static int test_key_join_split(void)
 
 static int test_diff_apply(void)
 {
-    printf("\n--- diff y aplicar ---\n");
+    printf("\n--- diff and apply ---\n");
 
-    json_t *a = json2flat(json_pack("{s:{s:i, s:s}, s:[i,i]}",
+    /*  json2flat() does not own its argument: the sources are ours.  */
+    json_t *src_a = json_pack("{s:{s:i, s:s}, s:[i,i]}",
         "cfg", "port", 2020, "host", "old",
         "list", 1, 2
-    ));
-    json_t *b = json2flat(json_pack("{s:{s:i, s:s}, s:[i,i,i]}",
+    );
+    json_t *src_b = json_pack("{s:{s:i, s:s}, s:[i,i,i]}",
         "cfg", "port", 2020, "host", "new",
         "list", 1, 2, 3
-    ));
+    );
+    json_t *a = json2flat(src_a);
+    json_t *b = json2flat(src_b);
+    JSON_DECREF(src_a)
+    JSON_DECREF(src_b)
 
     json_t *diff = flat_diff(a, b);
     json_t *changed = json_object_get(diff, "changed");
@@ -329,8 +334,12 @@ static int test_diff_apply(void)
     JSON_DECREF(a) JSON_DECREF(b) JSON_DECREF(diff)
 
     /*  A removal has to remove. */
-    json_t *c = json2flat(json_pack("{s:i, s:i}", "x", 1, "y", 2));
-    json_t *d = json2flat(json_pack("{s:i}", "x", 1));
+    json_t *src_c = json_pack("{s:i, s:i}", "x", 1, "y", 2);
+    json_t *src_d = json_pack("{s:i}", "x", 1);
+    json_t *c = json2flat(src_c);
+    json_t *d = json2flat(src_d);
+    JSON_DECREF(src_c)
+    JSON_DECREF(src_d)
     json_t *diff2 = flat_diff(c, d);
     if(flat_apply(c, diff2, err, sizeof(err)) < 0 || !json_equal(c, d)) {
         char *s = json_dumps(c, JSON_COMPACT|JSON_SORT_KEYS);

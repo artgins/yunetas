@@ -48,6 +48,10 @@ PRIVATE const char *topic_fields[] = {
     "rd_fd_files",
     "rd_fd_life",
     "lists",
+    "disks",            /*  the volatile keys of an open topic: a topic_var  */
+    "iterators",        /*  that carried them replaced them, and with lists  */
+    "iterators_by_id",  /*  now asked as lists a wrong type is an error      */
+    "cache",
     "filename_mask",
     "xpermission",
     "rpermission",

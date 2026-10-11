@@ -691,7 +691,9 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
  *  Return 0, or -1 (logged) when nothing could be written: `kw` is not a
  *  dict, the path is empty or has an empty segment, a segment is a scalar,
  *  an index is not in its list, or a key cannot be added (not UTF-8). The
- *  value is owned in every case.
+ *  value is owned in every case. A key that cannot be added in the middle
+ *  of the path stops the walk where it is: the dicts created before it
+ *  stay.
  ***************************************************************************/
 PUBLIC int kw_set_dict_value(
     hgobj gobj,
@@ -727,7 +729,7 @@ PUBLIC int kw_set_dict_value(
      *  An empty segment ("a`", "`a", "a``b") names no key: split2() drops
      *  it, and "a`" wrote over `a` itself. The JS writer refuses it too.
      */
-    if(!empty_string(path)) {
+    if(!empty_string(path) && delimiter[0]) {
         size_t len = strlen(path);
         char dd[3] = {delimiter[0], delimiter[0], 0};
         if(path[0] == delimiter[0] || path[len-1] == delimiter[0] || strstr(path, dd)) {
@@ -1806,6 +1808,14 @@ PUBLIC json_t *kw_get_dict(
         return default_value;
     }
     if(!json_is_object(jn_dict)) {
+        if((flag & KW_CREATE) && json_is_null(jn_dict) && default_value) {
+            /*  A null is "no value" (empty_json()): the create replaces
+             *  it, as a missing key.  */
+            if(kw_set_dict_value(gobj, kw, path, default_value) < 0) {
+                return NULL;    // Error already logged
+            }
+            return default_value;
+        }
         if(flag & KW_CREATE) {
             /*  The caller means to write inside it: the default handed
              *  back was an orphan it wrote into, and nobody freed.  */
@@ -1880,6 +1890,14 @@ PUBLIC json_t *kw_get_list(
         return default_value;
     }
     if(!json_is_array(jn_list)) {
+        if((flag & KW_CREATE) && json_is_null(jn_list) && default_value) {
+            /*  A null is "no value" (empty_json()): the create replaces
+             *  it, as a missing key.  */
+            if(kw_set_dict_value(gobj, kw, path, default_value) < 0) {
+                return NULL;    // Error already logged
+            }
+            return default_value;
+        }
         if(flag & KW_CREATE) {
             /*  The caller means to write inside it: the default handed
              *  back was an orphan it wrote into, and nobody freed.  */

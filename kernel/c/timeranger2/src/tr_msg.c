@@ -156,12 +156,12 @@ PRIVATE int load_record_callback(
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "cannot add the message of a key",
+                "msg",          "%s", "cannot add the message of a key, record skipped",
                 "key",          "%s", key,
                 NULL
             );
             JSON_DECREF(jn_record)
-            return -1;
+            return 0;   // skip this record: -1 would stop the whole load
         }
     }
     json_t *instances = kw_get_list(gobj, message, "instances", json_array(), KW_CREATE);

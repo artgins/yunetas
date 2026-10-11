@@ -192,6 +192,60 @@ PRIVATE int test_delete_instance_drops_secondary_keeps_primary(
 }
 
 /***************************************************************************
+ *  The pkey2 index is keyed by the node id as a KEY, not as a path
+ *  (REV-CLOUD V11.2): an id may hold the path delimiter, and read as a
+ *  path `k`b` put its instances INSIDE the index entry of `k`.
+ ***************************************************************************/
+PRIVATE int test_pkey2_index_keyed_by_id(
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    int result = 0;
+    const char *test = "pkey2 index keyed by the id as a key";
+    time_measure_t time_measure;
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    MT_START_TIME(time_measure)
+
+    treedb_create_node(
+        tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "k", "version", "v1", "payload", "k")
+    );
+    treedb_create_node(
+        tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "k`b", "version", "v1", "payload", "kb")
+    );
+
+    json_t *k = treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "k", "v1");
+    json_t *kb = treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "k`b", "v1");
+    if(!k || strcmp(kw_get_str(0, k, "id", "", 0), "k") != 0) {
+        printf("%s  FAIL: instance (k, v1) not found%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!kb || strcmp(kw_get_str(0, kb, "id", "", 0), "k`b") != 0) {
+        printf("%s  FAIL: instance (k`b, v1) not found%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  The index entry of `k` holds its own instance and nothing else.  */
+    json_t *instances = treedb_list_instances(
+        tranger, treedb_name, TOPIC_NAME, PKEY2_NAME,
+        json_pack("{s:s}", "id", "k"), NULL
+    );
+    if(json_array_size(instances) != 1) {
+        printf("%s  FAIL: k has %d instances, wanted 1%s\n",
+            On_Red BWhite, (int)json_array_size(instances), Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(instances)
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  An instance a SNAPSHOT froze is not deleted, updated or not.
  *
  *  A delete-instance tombstones every md2 row of (id, pkey2 value), the
@@ -2816,6 +2870,7 @@ PRIVATE int do_test(void)
      *  Execute scenarios
      *------------------------------------*/
     result += test_delete_instance_drops_secondary_keeps_primary(tranger, treedb_name);
+    result += test_pkey2_index_keyed_by_id(tranger, treedb_name);
     result += test_instance_held_by_a_snap(tranger, treedb_name);
     result += test_guard_that_cannot_read_refuses(tranger, treedb_name);
     result += test_delete_node_clears_everything(tranger, treedb_name);

@@ -9,7 +9,8 @@
   outside its list); the readers ignored its answer and returned the default
   anyway, and `kw_get_subdict_value()` went on reading the subdict it had just
   lost. All 52 callers in the tree (utils/c/tr2migrate included) pass a fresh
-  default, so each would have got a dangling pointer. They return NULL now (the error is already logged).
+  default, so each would have got a dangling pointer. They return NULL now
+  (the error is already logged).
   `tests/c/kw/test_kw_set_dict_value` has a case per reader; on the old library
   all five returned the freed pointer. Found by the cloud review of the JS
   layer (yunovatios `REV-CLOUD.md` §V9.2), comparing an empty path in JS and C.
@@ -23,15 +24,35 @@
     - `tr_msg` reads the message of a key as a KEY, not as a path: a pkey that
       holds the delimiter named a message that was not there.
     - `logcenter` keeps its stats by KEY (`msgset`, `msg`, the path / attr /
-      event of the record): an empty `msgset` or one with the delimiter left
-      an orphan per record, and the counters were read by path and written
-      by key. The stats look the same; a name with the delimiter now counts.
+      event of the record): an empty `msgset` was dropped and one with the
+      delimiter went to nested garbage, and the counters were read by path
+      and written by key (a name with the delimiter never passed 1). The
+      stats look the same for ordinary names; an empty `msgset` is counted
+      under `""`. And the same `msg` with and without a detail no longer
+      wipes its counters per detail: the count without one is their `""`.
 - **fix: an empty segment of a path is refused by `kw_set_dict_value()`**
   (``"a`"``, ``"`a"``, ``"a``b"``): it was dropped, so ``"a`"`` wrote over
   `a`. gobj-js 7.26.13 refuses it too, so the two writers agree.
 - **fix: `kw_set_dict_value()` walked a freed dict** when a key in the middle
   of the path could not be added (not valid UTF-8): `json_object_set_new()`
   frees what it is given when it fails, and its answer was not checked.
+- **fix: `msg_iev_push_stack()` used freed memory with the readers' new
+  contract** (a `__md_iev__` that is not a dict made `kw_get_dict()` return
+  NULL, the stack went to `json_object_set_new(NULL)`, which frees it, and was
+  then used), and leaked `jn_data` on its two refusals. And a `null` at the
+  leaf is "no value" for `KW_CREATE` again: `kw_get_dict()` / `kw_get_list()`
+  replace it, as a missing key -- only a value of another type is refused.
+  yunovatios `REV-CLOUD.md` §V11.1.
+- **fix: the pkey2 index of a treedb is keyed by the node id as a KEY**
+  (`add/exist/delete_secondary_node`): an id holding the path delimiter put
+  its instances INSIDE the index entry of another node. §V11.2.
+- `c_prot_mqtt`: a client id is a key (one with the delimiter logged an error
+  with stack per message); `tr_msg`: a key that cannot be added skips its
+  record instead of stopping the load; `kw_set_path_delimiter(0)` no longer
+  makes every path an "empty segment"; `timeranger2` keeps the volatile keys
+  of a topic (`disks`, `iterators`, `iterators_by_id`, `cache`) out of a
+  `topic_var`; `gobj_full_name()` allocates with `gbmem_*`;
+  `tests/c/kw/test_json_flat` frees what it flattens. §V11.3.
 - `tests/c/kw/test_kw_set_dict_value`: a case for each; on the 7.26.8 library
   the ten new ones fail, the UTF-8 one with a segfault.
 
@@ -51,8 +72,8 @@
       said in the docs: a list index (C reads it with `atoi()`, so ``l`1x``
       is `l[1]`; JS refuses it), and a json reader with `KW_CREATE` that
       cannot answer what the kw holds (C returns NULL, JS its default,
-      unwritten). An empty SEGMENT is refused by both writers now. Own keys everywhere a parsed json is copied (no
-      prototype pollution).
+      unwritten). An empty SEGMENT is refused by both writers now. Own keys
+      everywhere a parsed json is copied (no prototype pollution).
     - The window manager takes `{window: gobj_full_name(window)}` from the
       window itself (BREAKING in gobj-ui 7.26.14).
     - The shell's history: Back closes an overlay only off its own marker

@@ -956,12 +956,26 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
         detail = kw_get_str(gobj, kw, "event", 0, 0); // from parameter, not a gobj_event_t
     }
 
-    if(!empty_string(detail)) {
+    /*
+     *  A msg counted with a detail is a dict of details; one counted
+     *  without, an integer. The same msg can come both ways: the integer
+     *  becomes the "" entry of the dict, and a msg with no detail counts
+     *  under "" once it is a dict. Before, each way overwrote the other,
+     *  and the counters per detail were lost.
+     */
+    json_t *jn_msg = json_object_get(jn_set, msg);
+    if(!empty_string(detail) || json_is_object(jn_msg)) {
+        if(jn_msg && !json_is_object(jn_msg)) {
+            json_int_t without_detail = json_integer_value(jn_msg);
+            json_t *jn_details = json_object();
+            json_object_set_new(jn_details, "", json_integer(without_detail));
+            json_object_set_new(jn_set, msg, jn_details);
+        }
         json_t *jn_level1 = stats_subdict(gobj, jn_set, msg);
         if(!jn_level1) {
             return -1;  // Error already logged
         }
-        stats_count(jn_level1, detail);
+        stats_count(jn_level1, empty_string(detail)? "" : detail);
     } else {
         stats_count(jn_set, msg);
     }

@@ -344,13 +344,31 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
             "msg",          "%s", "kw is not a dict",
             NULL
         );
+        JSON_DECREF(jn_data)
         return -1;
     }
     json_t *md_iev = kw_get_dict(gobj, kw, "__md_iev__", json_object(), KW_CREATE);
+    if(!md_iev) {
+        /*  `__md_iev__` holds something that is not a dict (a peer's): with
+         *  no check, the stack below went to json_object_set_new(NULL),
+         *  which frees it, and was then used.  */
+        JSON_DECREF(jn_data)
+        return -1;  // Error already logged
+    }
     json_t *jn_stack = kw_get_list(gobj, md_iev, stack, 0, 0);
     if(!jn_stack) {
         jn_stack = json_array();
-        json_object_set_new(md_iev, stack, jn_stack);
+        if(json_object_set_new(md_iev, stack, jn_stack) < 0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "cannot add the stack",
+                "stack",        "%s", stack,
+                NULL
+            );
+            JSON_DECREF(jn_data)
+            return -1;
+        }
     }
     if(json_is_array(jn_stack)) {
         return json_array_insert_new(jn_stack, 0, jn_data);
@@ -363,6 +381,7 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
             NULL
         );
         gobj_trace_json(gobj, kw, "jn_stack is not a list");
+        JSON_DECREF(jn_data)
         return -1;
     }
 }

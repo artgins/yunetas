@@ -4491,9 +4491,26 @@ PRIVATE json_t *sub_get_subscribers(
             int qos = kw_get_int(gobj, subscription, "qos", 0, KW_REQUIRED);
             if(isConnected || (!isConnected && qos > 0)) {
                 if(strcmp(topic_name, topic_name_)==0) { // TODO change strcmp() by match_topic()
-                    json_t *client_with_subscriptions = kw_get_dict(gobj,
-                        jn_subscribers, client_id, json_object(), KW_CREATE
+                    /*  The client id is the peer's: a KEY, not a path. Read
+                     *  as a path, one with the delimiter logged an error with
+                     *  stack for every message.  */
+                    json_t *client_with_subscriptions = json_object_get(
+                        jn_subscribers, client_id
                     );
+                    if(!client_with_subscriptions) {
+                        client_with_subscriptions = json_object();
+                        if(json_object_set_new(
+                                jn_subscribers, client_id, client_with_subscriptions)<0) {
+                            gobj_log_warning(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_MQTT,
+                                "msg",          "%s", "client id not usable as a key",
+                                "client_id",    "%s", client_id,
+                                NULL
+                            );
+                            continue;
+                        }
+                    }
                     json_t *subscriptions = kw_get_dict(gobj,
                         client_with_subscriptions, "subscriptions", json_object(), KW_CREATE
                     );

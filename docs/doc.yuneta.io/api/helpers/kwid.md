@@ -663,6 +663,8 @@ answers the dict held by `kw`, or **NULL** -- never an orphan (since SDK
   by `kw`; when it cannot be written (an empty path or segment, a scalar on the
   path, an index outside its list) [`kw_set_dict_value()`](#kw_set_dict_value)
   logs and frees it, and NULL is returned (it returned the freed pointer);
+- the path holds a `null`: it is "no value", and the create replaces it, as a
+  missing key (since SDK 7.26.9);
 - the path holds a value of another type: logged, the default freed, NULL
   (the default came back unwritten, and what the caller wrote into it was
   lost and leaked);
@@ -670,7 +672,8 @@ answers the dict held by `kw`, or **NULL** -- never an orphan (since SDK
 
 Check the answer of a create whose path comes from data.
 gobj-js does not return null there: its reader logs and gives the default back
-unwritten (see [`kw_set_dict_value()` in JS](../js/helpers_kw.md)).
+unwritten (since gobj-js 7.26.14, which also replaces a `null` as C does; see
+[`kw_set_dict_value()` in JS](../js/helpers_kw.md)).
 
 ```C
 json_t *md = kw_get_dict(gobj, kw, "__md_iev__", json_object(), KW_CREATE);
@@ -1168,7 +1171,7 @@ int kw_set_dict_value(
 
 **Returns**
 
-Returns `0` when the value is written, or `-1` (logged) when nothing is: `kw` is not a dictionary, the path is empty or has an EMPTY SEGMENT (``"a`"``, ``"`a"``, ``"a``b"``; since SDK 7.26.9 -- the segment was dropped, so ``"a`"`` wrote over `a`), a segment in the middle of the path is a scalar or a `null`, an index is not in its list, or a key of the path cannot be added (not valid UTF-8). The `kw` is then left as it was. gobj-js refuses an empty segment the same way.
+Returns `0` when the value is written, or `-1` (logged) when nothing is: `kw` is not a dictionary, the path is empty or has an EMPTY SEGMENT (``"a`"``, ``"`a"``, ``"a``b"``; since SDK 7.26.9 -- the segment was dropped, so ``"a`"`` wrote over `a`), a segment in the middle of the path is a scalar or a `null`, an index is not in its list, or a key of the path cannot be added (not valid UTF-8). The `kw` is then left as it was -- except for that last case, where the walk stops at the bad key and the dicts it created before it stay (``"a`\xff`b"`` over `{}` leaves `{"a": {}}`). gobj-js refuses an empty segment the same way.
 
 ```C
 json_t *kw = json_pack("{s:i}", "a", 5);
