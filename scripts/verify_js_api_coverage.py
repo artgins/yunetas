@@ -487,6 +487,14 @@ def repin_pages(packages: list[Package]) -> tuple[int, int, list[str]]:
                 #   this package's.
                 links_own = pkg.repo in line
                 links_other = any(r in line for r in other_repos)
+                if links_own and links_other:
+                    #   Neither package can say which version it carries:
+                    #   left alone, and said, so it is not left stale.
+                    note = (f"{path.relative_to(DOCS)}: a version line links both "
+                            f"packages and is not repinned: {line.strip()}")
+                    if note not in notes:
+                        notes.append(note)
+                    return line
                 if links_other or not (links_own or own_page):
                     return line
                 return re.sub(
