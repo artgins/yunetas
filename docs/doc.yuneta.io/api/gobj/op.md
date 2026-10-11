@@ -35,7 +35,7 @@ This function is typically used in hierarchical `gobj` structures where attribut
 ---
 
 (gobj_change_parent)=
-## [`gobj_change_parent()`](https://github.com/artgins/yunetas/blob/7.26.8/kernel/js/gobj-js/src/gobj.js#L3764)
+## [`gobj_change_parent()`](https://github.com/artgins/yunetas/blob/7.26.8/kernel/c/gobj-c/src/gobj.h#L1194)
 
 Changes the parent of the given `hgobj` instance to a new parent `hgobj`. The function updates the internal hierarchy of the object tree.
 
@@ -60,6 +60,10 @@ Returns `0` on success, or `-1` if an error occurs (for example if `gobj` or `go
 **Notes**
 
 This function makes sure that the object hierarchy remains consistent when changing parents. It is useful for dynamically restructuring the object tree.
+
+:::{warning}
+In C it is only **declared** in `gobj.h`: there is no definition in `gobj.c`, so a C caller does not link. It is implemented in gobj-js ([`gobj_change_parent()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L3785)).
+:::
 
 ---
 

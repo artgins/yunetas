@@ -286,6 +286,7 @@ GH_BLOB = GH_ROOT + "/blob"
 # The ref in a blob URL (`/blob/<ref>/...`). A PINNED ref is an immutable
 # release tag (`7.5.1`, `7.6`); anything else (`main`, `master`, a branch) moves
 # under the link and is flagged by the audit. Re-pin with `--repin=<tag>`.
+PERF_REPORT = re.compile(r"performance/reports/(?P<ver>[0-9]+\.[0-9]+\.[0-9]+)\.(html|json)$")
 BLOB_REF = re.compile(re.escape(GH_BLOB) + r"/(?P<ref>[^/]+)/")
 PINNED_REF = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
 
@@ -985,10 +986,16 @@ def repin_line(line, newtag, missing):
                         n_drift += 1
         else:
             anchor = ""
-        if tag != newtag:
+        # A release's performance report is a fixed document of THAT release:
+        # it stays pinned to its own tag, as its htmlpreview "view" link does.
+        link_tag = newtag
+        rm = PERF_REPORT.match(rel or "")
+        if rm:
+            link_tag = rm.group("ver")
+        if tag != link_tag:
             n_tag += 1
         tail = f"/{rel}" if rel else ""
-        out.append(f"[{new_txt}]({GH_ROOT}/{kind}/{newtag}{tail}{anchor})")
+        out.append(f"[{new_txt}]({GH_ROOT}/{kind}/{link_tag}{tail}{anchor})")
         pos = m.end()
     out.append(line[pos:])
     return "".join(out), n_tag, n_anchor, n_drift

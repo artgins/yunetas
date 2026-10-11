@@ -10,7 +10,7 @@ description: >-
 The browser is an operating system, and its DOM is where a GUI gclass draws.
 These helpers build the elements and keep the untrusted values safe.
 
-**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.26.1/src/helpers.js)
+**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.26.2/src/helpers.js)
 
 :::{important}
 A DOM callback does the work of a translator, and nothing more. A click, an
@@ -25,7 +25,7 @@ inside the callback is invisible to the `machine` trace.
 ## Build an element
 
 (js_createElement2)=
-## [`createElement2()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/helpers.js#L3788)
+## [`createElement2()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/helpers.js#L3803)
 
 Builds an HTML element from a description that is a plain array. It is the
 function that a GUI gclass uses to draw.
@@ -60,6 +60,24 @@ The second slot must be the attributes object. Text and children go in the
 list. Write `["p", {}, "message"]`.
 :::
 
+:::{danger}
+A string in the third slot is **markup** when it starts with `<`: it is parsed
+as HTML. Never pass data there (a value from a backend, a name that a user
+typed) as a bare string, or `<img src=x onerror=...>` runs. Pass a Text node,
+which is always text. In a **list** of children, a node (element, svg, Text) is
+appended as it is, and a string is always text (since gobj-js 7.26.2; before, a
+Text node or a string in a list was dropped). A list whose first item is a
+string is read as one description, so put the text in a Text node there.
+:::
+
+```javascript
+// Data in the third slot: a Text node
+['span', {class: 'HOST_NAME'}, document.createTextNode(host)]
+
+// Data in a list of children (gobj-js 7.26.2+): a string is text
+['p', {}, [['b', {}, 'Host: '], host]]
+```
+
 ```javascript
 ['div', { class: 'window-top', style: 'border-bottom: 1px solid black;' },
     [
@@ -88,17 +106,17 @@ the CSS and not to the text.
 ---
 
 (js_createOneHtml)=
-### [`createOneHtml(htmlString)`](https://github.com/artgins/gobj-js/blob/7.26.1/src/helpers.js#L3593)
+### [`createOneHtml(htmlString)`](https://github.com/artgins/gobj-js/blob/7.26.2/src/helpers.js#L3604)
 
 Builds one element from a string of HTML.
 
 (js_parseSVG)=
-### [`parseSVG(string)`](https://github.com/artgins/gobj-js/blob/7.26.1/src/helpers.js#L3924)
+### [`parseSVG(string)`](https://github.com/artgins/gobj-js/blob/7.26.2/src/helpers.js#L3950)
 
 Builds an SVG element from a string of SVG code.
 
 (js_getPositionRelativeToBody)=
-### [`getPositionRelativeToBody(element)`](https://github.com/artgins/gobj-js/blob/7.26.1/src/helpers.js#L3896)
+### [`getPositionRelativeToBody(element)`](https://github.com/artgins/gobj-js/blob/7.26.2/src/helpers.js#L3922)
 
 Gives the position of an element against the body of the document. A popover or
 a menu that must stay next to its button uses it.
@@ -108,13 +126,13 @@ a menu that must stay next to its button uses it.
 ## Untrusted values
 
 (js_escapeHtml)=
-### [`escapeHtml(str)`](https://github.com/artgins/gobj-js/blob/7.26.1/src/helpers.js#L3560)
+### [`escapeHtml(str)`](https://github.com/artgins/gobj-js/blob/7.26.2/src/helpers.js#L3571)
 
 Escapes a value for an HTML context. Use it every time that a string from a
 user or from a server goes into a template that becomes `innerHTML`.
 
 (js_safeSrc)=
-### [`safeSrc(url)`](https://github.com/artgins/gobj-js/blob/7.26.1/src/helpers.js#L3578)
+### [`safeSrc(url)`](https://github.com/artgins/gobj-js/blob/7.26.2/src/helpers.js#L3589)
 
 Validates a URL for the `src` attribute of an image or a media element. It
 refuses the `javascript:` and `data:` schemes, which carry a cross-site script.
@@ -125,7 +143,7 @@ It gives an empty string back for every scheme that it refuses.
 ## Language
 
 (js_refresh_language)=
-## [`refresh_language()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/helpers.js#L3932)
+## [`refresh_language()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/helpers.js#L3958)
 
 Translates a DOM tree again, after the application changes its language.
 

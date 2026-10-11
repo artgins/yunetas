@@ -11,14 +11,14 @@ GObjects communicate only with events that carry a JSON key-value payload
 (`kw`). There is no direct method call. Every interaction goes through the
 event dispatcher of the finite state machine.
 
-**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js),
-[`src/command_parser.js`](https://github.com/artgins/gobj-js/blob/7.26.1/src/command_parser.js),
-[`src/stats_parser.js`](https://github.com/artgins/gobj-js/blob/7.26.1/src/stats_parser.js)
+**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js),
+[`src/command_parser.js`](https://github.com/artgins/gobj-js/blob/7.26.2/src/command_parser.js),
+[`src/stats_parser.js`](https://github.com/artgins/gobj-js/blob/7.26.2/src/stats_parser.js)
 
 ---
 
 (js_gobj_send_event)=
-## [`gobj_send_event()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js#L4053)
+## [`gobj_send_event()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L4053)
 
 Sends an event to `dst` and runs the action of the current state immediately.
 
@@ -53,7 +53,7 @@ a bad state machine, or a sender that emits in the wrong situation.
 ---
 
 (js_gobj_post_event)=
-## [`gobj_post_event()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js#L3923)
+## [`gobj_post_event()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L3923)
 
 Puts an event in a queue for delivery on the next turn of the browser task
 queue. It is [`gobj_send_event()`](#js_gobj_send_event) with the delivery
@@ -123,7 +123,7 @@ destination and the source are independent.
 ---
 
 (js_gobj_posted_events_size)=
-## [`gobj_posted_events_size()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js#L3981)
+## [`gobj_posted_events_size()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L3981)
 
 Gives the quantity of posted events that wait for delivery.
 
@@ -144,7 +144,7 @@ every turn of the browser task queue.
 ---
 
 (js_gobj_deliver_posted_events)=
-## [`gobj_deliver_posted_events()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js#L3989)
+## [`gobj_deliver_posted_events()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L3989)
 
 Delivers the messages that are in the queue. One turn, one snapshot.
 
@@ -171,7 +171,7 @@ function schedules one more turn.
 ---
 
 (js_gobj_publish_event)=
-## [`gobj_publish_event()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js#L5022)
+## [`gobj_publish_event()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L5023)
 
 Sends an event to every gobj that has a subscription to it.
 
@@ -207,7 +207,7 @@ subscribers"* on every call.
 ---
 
 (js_gobj_subscribe_event)=
-## [`gobj_subscribe_event()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js#L4663)
+## [`gobj_subscribe_event()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L4664)
 
 Makes a subscription of `subscriber` to an event of `publisher`.
 
@@ -244,7 +244,7 @@ a gobj.
 ---
 
 (js_gobj_unsubscribe_event)=
-## [`gobj_unsubscribe_event()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js#L4806)
+## [`gobj_unsubscribe_event()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L4807)
 
 Deletes a subscription.
 
@@ -268,7 +268,7 @@ Returns `0` on success, or `-1` when there is no subscription that matches.
 ---
 
 (js_gobj_unsubscribe_list)=
-## [`gobj_unsubscribe_list()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js#L4897)
+## [`gobj_unsubscribe_list()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L4898)
 
 Deletes every subscription of a list.
 
@@ -291,7 +291,7 @@ Returns `0`.
 ---
 
 (js_gobj_find_subscriptions)=
-## [`gobj_find_subscriptions()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js#L4929)
+## [`gobj_find_subscriptions()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L4930)
 
 Finds the subscriptions that a publisher holds.
 
@@ -315,7 +315,7 @@ A list of the subscriptions that match.
 ---
 
 (js_gobj_find_subscribings)=
-## [`gobj_find_subscribings()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js#L5002)
+## [`gobj_find_subscribings()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L5003)
 
 Finds the subscriptions that a subscriber holds. It is the opposite direction of
 [`gobj_find_subscriptions()`](#js_gobj_find_subscriptions).
@@ -340,7 +340,7 @@ A list of the subscriptions that match.
 ---
 
 (js_gobj_list_subscriptions)=
-## [`gobj_list_subscriptions()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js#L4951)
+## [`gobj_list_subscriptions()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L4952)
 
 Gives the subscriptions of a gobj in a form that a human reads.
 
@@ -410,7 +410,7 @@ gobj_publish_event(publisher, "EV_X", {v: 1, secret: "s"});
 ## Commands and stats
 
 (js_gobj_command)=
-## [`gobj_command()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js#L5345)
+## [`gobj_command()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L5346)
 
 Runs a command of a gobj.
 
@@ -441,7 +441,7 @@ See [Commands and statistics](commands.md).
 ---
 
 (js_gobj_stats)=
-## [`gobj_stats()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/gobj.js#L5409)
+## [`gobj_stats()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/gobj.js#L5410)
 
 Reads the statistics of a gobj.
 
@@ -466,7 +466,7 @@ The response, as a JSON object. Build it with
 ---
 
 (js_command_parser)=
-## [`command_parser()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/command_parser.js#L12)
+## [`command_parser()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/command_parser.js#L12)
 
 The default parser of commands. A GClass gives it as its `mt_command_parser`
 method.
@@ -482,7 +482,7 @@ The response of the command, as a JSON object.
 ---
 
 (js_stats_parser)=
-## [`stats_parser()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/stats_parser.js#L12)
+## [`stats_parser()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/stats_parser.js#L12)
 
 The default parser of statistics. A GClass gives it as its `mt_stats` method.
 
@@ -497,7 +497,7 @@ The response, as a JSON object.
 ---
 
 (js_build_command_response)=
-## [`build_command_response()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/command_parser.js#L24)
+## [`build_command_response()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/command_parser.js#L24)
 
 Builds the JSON response of a command.
 
@@ -522,7 +522,7 @@ A JSON object with the four keys.
 ---
 
 (js_build_stats_response)=
-## [`build_stats_response()`](https://github.com/artgins/gobj-js/blob/7.26.1/src/stats_parser.js#L24)
+## [`build_stats_response()`](https://github.com/artgins/gobj-js/blob/7.26.2/src/stats_parser.js#L24)
 
 Builds the JSON response of a statistics request. It takes the same parameters
 as [`build_command_response()`](#js_build_command_response).
