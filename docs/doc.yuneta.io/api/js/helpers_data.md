@@ -7,7 +7,7 @@ description: >-
 
 # Local database, transport and token helpers
 
-**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.26.10/src/helpers.js)
+**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.26.11/src/helpers.js)
 
 ---
 
@@ -44,11 +44,12 @@ jdb_get(jdb, "menu", "home");    // {id: "home", label: "Home", data: []}
 Before gobj-js 7.26.9, `jdb_init()` created no topic and no hook.
 
 (js_jdb_init)=
-### [`jdb_init(jdb, prefix, duplicate)`](https://github.com/artgins/gobj-js/blob/7.26.10/src/helpers.js#L3364)
+### [`jdb_init(jdb, prefix, duplicate)`](https://github.com/artgins/gobj-js/blob/7.26.11/src/helpers.js#L3364)
 
 Prepares a `jdb`, and builds one topic for each LEAF of the schema: a key whose
 value is a dict groups topics, it is not one (`{a: {b: [], c: []}}` gives the
-topics ``a`b`` and ``a`c``; since 7.26.10). With
+topics ``a`b`` and ``a`c``; since 7.26.10). An empty dict is an empty group:
+`{a: {}}` gives no topic at all. With
 `duplicate` set to `true` the function works on a deep copy, and the caller
 keeps its own object. It gives the `jdb` back.
 
@@ -56,20 +57,23 @@ A key of the schema that begins with two underscores is metadata, and the
 function builds no topic for it.
 
 (js_jdb_update)=
-### [`jdb_update(jdb, topic_name, path, kw)`](https://github.com/artgins/gobj-js/blob/7.26.10/src/helpers.js#L3396)
+### [`jdb_update(jdb, topic_name, path, kw)`](https://github.com/artgins/gobj-js/blob/7.26.11/src/helpers.js#L3396)
 
-Writes a record in a topic, and gives the topic back. The function returns
-`null` and writes a log error when the topic does not exist, when the record
-has no `id`, when `path` is not a string (since gobj-js 7.26.8; it threw
-before), or when a record of `path` is not there (since 7.26.10; it gave the
-topic back as if it had written).
+Writes a record in a topic, and gives the topic back. A record whose `id` is
+already in the list it goes in is updated, at the root too (since gobj-js
+7.26.11; at the root it was added a second time). The function returns `null`
+and writes a log error when the topic does not exist, when the record has no
+`id`, when `path` is not a string (since 7.26.8; it threw before), when a
+record of `path` is not there (since 7.26.10; it gave the topic back as if it
+had written), or when the hook of the record `path` ends on is not a list
+(since 7.26.11; it threw). An update that fails leaves the jdb as it was.
 
 ```javascript
 jdb_update(jdb, "menu", "home`nope", {id: "x"});   // null, logged: no "nope" under "home"
 ```
 
 (js_jdb_delete)=
-### [`jdb_delete(jdb, topic_name, path, kw)`](https://github.com/artgins/gobj-js/blob/7.26.10/src/helpers.js#L3458)
+### [`jdb_delete(jdb, topic_name, path, kw)`](https://github.com/artgins/gobj-js/blob/7.26.11/src/helpers.js#L3471)
 
 Deletes a record from a topic, and gives the topic back. It returns `null` with
 a log error in the same cases as `jdb_update()`, and when the record to delete
@@ -80,18 +84,18 @@ jdb_delete(jdb, "menu", "home", {id: "nope"});     // null, logged: nothing to d
 ```
 
 (js_jdb_get)=
-### [`jdb_get(jdb, topic_name, id, recursive)`](https://github.com/artgins/gobj-js/blob/7.26.10/src/helpers.js#L3531)
+### [`jdb_get(jdb, topic_name, id, recursive)`](https://github.com/artgins/gobj-js/blob/7.26.11/src/helpers.js#L3544)
 
 Gives the record with an identifier. The search goes down into the children
 through the hook. With `recursive` not given the function goes down.
 
 (js_jdb_get_by_idx)=
-### [`jdb_get_by_idx(jdb, topic_name, idx)`](https://github.com/artgins/gobj-js/blob/7.26.10/src/helpers.js#L3548)
+### [`jdb_get_by_idx(jdb, topic_name, idx)`](https://github.com/artgins/gobj-js/blob/7.26.11/src/helpers.js#L3561)
 
 Gives the record at an index of a topic.
 
 (js_jdb_get_topic)=
-### [`jdb_get_topic(jdb, topic_name)`](https://github.com/artgins/gobj-js/blob/7.26.10/src/helpers.js#L3511)
+### [`jdb_get_topic(jdb, topic_name)`](https://github.com/artgins/gobj-js/blob/7.26.11/src/helpers.js#L3524)
 
 Gives a whole topic. Returns `null` and writes a log error when the topic does
 not exist.
@@ -109,13 +113,13 @@ the events, the subscriptions and the identity. See
 :::
 
 (js_load_json_file)=
-### [`load_json_file(url, on_success, on_error)`](https://github.com/artgins/gobj-js/blob/7.26.10/src/helpers.js#L3232)
+### [`load_json_file(url, on_success, on_error)`](https://github.com/artgins/gobj-js/blob/7.26.11/src/helpers.js#L3232)
 
 Reads a JSON file from a URL, and calls `on_success` with the object. It calls
 `on_error` when the read fails.
 
 (js_send_http_json_post)=
-### [`send_http_json_post(url, data, on_response)`](https://github.com/artgins/gobj-js/blob/7.26.10/src/helpers.js#L3265)
+### [`send_http_json_post(url, data, on_response)`](https://github.com/artgins/gobj-js/blob/7.26.11/src/helpers.js#L3265)
 
 Sends a POST request with a JSON body. It calls `on_response(status,
 response_data)`.
@@ -125,12 +129,12 @@ response_data)`.
 ## Tokens
 
 (js_jwtDecode)=
-### [`jwtDecode(jwt)`](https://github.com/artgins/gobj-js/blob/7.26.10/src/helpers.js#L3620)
+### [`jwtDecode(jwt)`](https://github.com/artgins/gobj-js/blob/7.26.11/src/helpers.js#L3633)
 
 Reads a JWT, and gives its three parts back.
 
 (js_jwt2json)=
-### [`jwt2json(jwt, what)`](https://github.com/artgins/gobj-js/blob/7.26.10/src/helpers.js#L3668)
+### [`jwt2json(jwt, what)`](https://github.com/artgins/gobj-js/blob/7.26.11/src/helpers.js#L3681)
 
 Reads one part of a JWT as JSON. `what` accepts `"header"`, `"payload"` and
 `"signature"`, and the default is `"payload"`.

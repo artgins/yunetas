@@ -3,9 +3,9 @@
 ## Unreleased
 
 - **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
-  (2026-10-10/11, yunovatios `REV-CLOUD.md`, nine rounds).** Submodules
-  `kernel/js/gobj-js` 7.26.0 → **7.26.10**, `kernel/js/gobj-ui` 7.26.7 →
-  **7.26.17**, and `yunos/js` (gui_agent 0.29.29, gui_treedb 0.17.96); every
+  (2026-10-10/11, yunovatios `REV-CLOUD.md`, ten rounds).** Submodules
+  `kernel/js/gobj-js` 7.26.0 → **7.26.11**, `kernel/js/gobj-ui` 7.26.7 →
+  **7.26.18**, and `yunos/js` (gui_agent 0.29.30, gui_treedb 0.17.97); every
   release is in the CHANGELOG of its own repository. What a consumer has to
   know:
     - `createElement2()` takes a string that starts with `<` as markup unless
@@ -14,8 +14,10 @@
       `scripts/check-markup-strings.mjs` for a consumer's `prebuild`. The
       default does not flip in 7.x (estadodelaire and hidraulia would break).
     - Path writers walk a list by index only and never grow it; `kw_delete()`
-      and an empty or non-string path behave as in C; own keys everywhere a
-      parsed json is copied (no prototype pollution).
+      and an empty or non-string path behave as in C (an empty SEGMENT does
+      not: JS keeps ``"a`"`` as the key `""`, while the C writer drops it and
+      the C reader keeps it); own keys everywhere a parsed json is copied (no
+      prototype pollution).
     - The window manager takes `{window: gobj_full_name(window)}` from the
       window itself (BREAKING in gobj-ui 7.26.14).
     - The shell's history: Back closes an overlay only off its own marker
