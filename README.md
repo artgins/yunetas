@@ -91,6 +91,13 @@ A release that moves a lot of code ships a performance report: charts of what
 the release does on one machine, the release before measured the same way, and every loss with its
 reason.
 
+- **7.26.9** (against 7.26.8): a hardening release that made the treedb
+  faster -- a link or unlink 12% faster, deleting a parent 8.7%, a reopen
+  6.2%; one price said with its number (the event loop echo that appends
+  every message, 3.9% fewer messages per second; not traced to a change).
+  [Report](performance/reports/7.26.9.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.26.9/performance/reports/7.26.9.html) ·
+  [raw figures](performance/reports/7.26.9.json)
 - **7.26.0** (against 7.25.22): reading a timeranger2 history 16-17% faster,
   opening a treedb 20% faster, a tm query of a topic 7.25.22 had not marked 31x
   faster; one price said with its reason (a tm query of a topic 7.25.22 had

@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+## v7.26.9 (2026-10-11)
+
+A hardening release, out of sixteen rounds of review (yunovatios
+`REV-CLOUD.md`, V1..V16) of the JS layer first and of the C kernel after.
+What a user of the SDK has to know:
+
+- **The `kw_*` readers with `KW_CREATE` answer what the kw holds, or NULL**,
+  never a freed or orphan default; a `null` at the leaf is "no value".
+- **A name that comes from data is a KEY, never a path**: 76 call sites
+  fixed in one sweep (treedb indexes, `tr_msg`, `tr_msg2db`, MQTT, logcenter,
+  agents...), and the treedb looks its topic, hook and fkey names up by key
+  (`KWID_GET_BY_KEYS()`), so a `.` in a name works.
+- **Two name rules** (`tranger2_name_is_identifier()`,
+  `treedb_col_name_is_identifier()`); a treedb with an old name that breaks
+  them opens and leaves that topic out, it is not killed.
+- **The logger** honours the precision and the length modifiers of its
+  formats (every "capped" value was logged whole, every `%zu` as an `int`).
+- **`c_node`**: what a command names is the peer's data -- a warning and a
+  refusal, after the permission check, never before it.
+- A use after free in the consoles of both agents.
+
+Performance against 7.26.8 (`performance/reports/7.26.9.html`; each release
+built from its own tree, run alternately, 8 rounds, 24 for the timeranger2
+tests): a treedb link or unlink -12.0% of time (8.72 -> 7.67 us), deleting a
+parent -8.7%, a reopen -6.2%, a forced delete -3.9% -- the names looked up by
+key. One price: the event loop echo that appends every message
+(`perf_yev_ping_pong2`) -3.9% (87.6 -> 84.2 K msg/s, t = 3.6); the appends
+alone -1.5% (t = 2.3), at the edge of their noise. No code of that path
+changed and the perf profiles of the two binaries agree: not traced to a
+change, said as measured. Every other figure within its noise.
+
 - **fix: `kw_get_dict()`, `kw_get_list()`, `kw_get_dict_value()` and
   `kw_get_subdict_value()` with `KW_CREATE` returned FREED memory when the
   write failed.** `kw_set_dict_value()` owns the value in every case and frees

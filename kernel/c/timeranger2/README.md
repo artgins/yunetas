@@ -143,6 +143,14 @@ directory but not a topic (`..`, `<topic>/keys`, any stray directory) reached
 `tranger2_write_topic_var()` / `_cols()` now refuse an empty name, `.`, `..`,
 and any name holding `/` or `` ` ``. A leading `.` stays legal (MQTT queues
 are `<client_id>-IN/-OUT`, and the broker accepts `.foo` as a client id).
+The rule has a name since 7.26.9, `tranger2_name_is_identifier()`, and
+treedb applies it to every treedb and topic name (and msg2db to its own);
+a COLUMN name -- a column id, a hook, an fkey -- is only a key and follows
+the looser `treedb_col_name_is_identifier()` (not empty, no `` ` ``). A
+treedb opened with an old name that breaks a rule leaves that topic out
+with an error, and opens the rest. Names are looked up by key
+(`KWID_GET_BY_KEYS()`), never through a `kwid_get()` path, which splits at
+`.` too: a topic `par.v1` or a hook `kids.all` works.
 `tranger2_open_topic()` answers `NULL` for a directory without
 `topic_desc.json`. `tranger2_delete_topic()` and `tranger2_backup_topic()` are
 master-only, like every other destructive call. The **rt id** of a disk feed

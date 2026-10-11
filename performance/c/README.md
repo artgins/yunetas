@@ -773,6 +773,57 @@ releases (`timeranger2.c` changed only in its rt-disk rescan): code
 placement, as far as this method can tell; `test_topic_pkey_integer`, 24 rounds,
 moved +0.3%.
 
+### Oct-2026: 7.26.9 against 7.26.8 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
+
+Each release built from its own tree (a git worktree of the 7.26.8 tag, the
+same `.config` and compiler; only the kernel libraries, the modules,
+`performance/c/` and the three ctest binaries built there). `outputs_ext` was
+shared: linux-ext-libs did not change. The two binaries of each benchmark run
+alternately, the order flipped every round, with a `sync` and a 3 s pause
+before each run: 8 rounds; the three timeranger2 ctest binaries 24 rounds, a
+1 s pause. Mean +- standard deviation; the treedb figures are CPU time; |t| < 3
+is noise. The report: [`performance/reports/7.26.9.html`](../reports/7.26.9.html).
+
+| Case | 7.26.8 | 7.26.9 | Change |
+|------|--------|--------|--------|
+| tr2.append_rate (appends/s) | 226,389 +- 4,723 | 222,940 +- 5,759 | -1.5% (t = -2.3) |
+| tr2.append_rate_rt (appends/s) | 192,019 +- 4,392 | 188,883 +- 4,218 | -1.6% (t = -2.5) |
+| tr2.build_appends (ms) | 1,569 +- 48 | 1,591 +- 35 | +1.4% (t = +1.0) |
+| tr2.tm_build_appends (ms) | 1,643 +- 43 | 1,629 +- 46 | -0.8% (t = -0.6) |
+| tr2.read_rate_iterator (records/s) | 213,626 +- 5,437 | 213,033 +- 4,854 | -0.3% (t = -0.4) |
+| tr2.read_rate_pages (records/s) | 189,200 +- 5,343 | 189,440 +- 4,964 | +0.1% (t = +0.2) |
+| tr2.open_master (ms) | 80.4 +- 1.5 | 80.9 +- 1.1 | +0.6% (t = +0.8) |
+| tr2.tm_query (ms) | 12.5 +- 0.6 | 12.6 +- 0.5 | +0.9% (t = +0.4) |
+| tr2.open_replica (ms) | 93.4 +- 1.9 | 93.6 +- 1.8 | +0.3% (t = +0.3) |
+| tr2.create_topic (ms) | 137.3 +- 10.1 | 147.6 +- 18.0 | +7.5% (t = +1.4) |
+| tr2.topic_version_change (ms) | 253.8 +- 31.5 | 261.6 +- 23.0 | +3.1% (t = +0.6) |
+| treedb.update_memory (us) | 2.434 +- 0.051 | 2.370 +- 0.064 | -2.6% (t = -2.2) |
+| treedb.update_saved (us) | 7.738 +- 0.220 | 7.734 +- 0.295 | -0.1% (t = -0.0) |
+| treedb.link_unlink (us) | 8.717 +- 0.200 | 7.673 +- 0.267 | -12.0% (t = -8.8) **gain** |
+| treedb.create_link_half (us) | 65.6 +- 2.2 | 64.9 +- 1.2 | -1.1% (t = -0.8) |
+| treedb.reopen (us) | 312.1 +- 10.9 | 292.8 +- 11.9 | -6.2% (t = -3.4) **gain** |
+| treedb.delete_force (us) | 44.2 +- 0.6 | 42.4 +- 0.4 | -3.9% (t = -6.8) **gain** |
+| treedb.delete_parent (us) | 2,554 +- 62 | 2,331 +- 67 | -8.7% (t = -6.9) **gain** |
+| ctreedb.same_literal_release (s) | 0.355 +- 0.012 | 0.348 +- 0.012 | -2.0% (t = -1.2) |
+| ctreedb.seed (s) | 11.1 +- 0.3 | 11.1 +- 0.3 | +0.8% (t = +0.6) |
+| ctreedb.newer_literal (s) | 13.4 +- 0.5 | 13.4 +- 0.5 | -0.1% (t = -0.0) |
+| rotatory.audit_record (ns) | 569.6 +- 21.0 | 565.4 +- 19.6 | -0.7% (t = -0.4) |
+| rotatory.audit_record_flush (ns) | 1,252 +- 18 | 1,242 +- 20 | -0.8% (t = -1.1) |
+| rotatory.log_record (ns) | 374.6 +- 7.8 | 374.0 +- 5.8 | -0.2% (t = -0.2) |
+| net.yev_ping_pong (K msg/s) | 150.0 +- 2.6 | 148.4 +- 3.5 | -1.1% (t = -1.0) |
+| net.yev_ping_pong_persist (K msg/s) | 87.6 +- 1.7 | 84.2 +- 2.1 | -3.9% (t = -3.6) **price** |
+| net.tcp_echo (round trips/s) | 39,366 +- 935 | 39,057 +- 856 | -0.8% (t = -0.7) |
+| net.tcp_echo_persist (round trips/s) | 31,322 +- 686 | 30,060 +- 2,657 | -4.0% (t = -1.3) |
+| net.tls_echo (round trips/s) | 29,764 +- 2,418 | 29,318 +- 708 | -1.5% (t = -0.5) |
+| net.tls_echo_persist (round trips/s) | 23,628 +- 1,043 | 24,192 +- 692 | +2.4% (t = +1.3) |
+| net.auth_bff_login (logins/s) | 8,622 +- 163 | 8,484 +- 163 | -1.6% (t = -1.7) |
+
+The gains are the treedb names looked up by key (`KWID_GET_BY_KEYS()`). The
+price, `net.yev_ping_pong_persist`, and the appends at the edge of their noise,
+are not traced to a change: no code of the append path or of the event loop
+changed, and the perf profiles of `test_topic_pkey_integer` built from the two
+trees show the same functions with the same weight.
+
 ### Oct-2026: 7.26.0 against 7.25.22 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
 Each release built from its own tree (a git worktree of the 7.25.22 tag, the
