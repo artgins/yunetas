@@ -689,8 +689,9 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
  *  that the treedb clears from a string column, which stayed for ever.
  *
  *  Return 0, or -1 (logged) when nothing could be written: `kw` is not a
- *  dict, the path is empty, a segment is a scalar, or an index is not in
- *  its list. The value is owned in every case.
+ *  dict, the path is empty or has an empty segment, a segment is a scalar,
+ *  an index is not in its list, or a key cannot be added (not UTF-8). The
+ *  value is owned in every case.
  ***************************************************************************/
 PUBLIC int kw_set_dict_value(
     hgobj gobj,
@@ -720,6 +721,26 @@ PUBLIC int kw_set_dict_value(
         );
         JSON_DECREF(value)
         return -1;
+    }
+
+    /*
+     *  An empty segment ("a`", "`a", "a``b") names no key: split2() drops
+     *  it, and "a`" wrote over `a` itself. The JS writer refuses it too.
+     */
+    if(!empty_string(path)) {
+        size_t len = strlen(path);
+        char dd[3] = {delimiter[0], delimiter[0], 0};
+        if(path[0] == delimiter[0] || path[len-1] == delimiter[0] || strstr(path, dd)) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "empty segment in path",
+                "path",         "%s", path,
+                NULL
+            );
+            JSON_DECREF(value)
+            return -1;
+        }
     }
 
     int list_size = 0;
@@ -762,7 +783,19 @@ PUBLIC int kw_set_dict_value(
             json_t *next = json_object_get(v, segment);
             if(!next) {
                 next = json_object();
-                json_object_set_new(v, segment, next);
+                if(json_object_set_new(v, segment, next) < 0) {
+                    /*  It freed `next` (a key that is not valid UTF-8):
+                     *  walking on read freed memory.  */
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER,
+                        "msg",          "%s", "json_object_set_new() FAILED",
+                        "path",         "%s", path,
+                        "segment",      "%s", segment,
+                        NULL
+                    );
+                    break;
+                }
             }
             v = next;
 
@@ -1746,6 +1779,12 @@ PUBLIC json_t *kw_get_dict(
 {
     json_t *jn_dict = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_dict) {
+        if((flag & KW_CREATE) && !kw) {
+            /*  Nowhere to create it: handed back, the default was an
+             *  orphan the caller wrote into and nobody freed.  */
+            JSON_DECREF(default_value)
+            return NULL;    // Error already logged (kw_find_path)
+        }
         if((flag & KW_CREATE) && default_value && kw) {
             if(kw_set_dict_value(gobj, kw, path, default_value) < 0) {
                 /*  It spent default_value: returning it handed the
@@ -1767,6 +1806,19 @@ PUBLIC json_t *kw_get_dict(
         return default_value;
     }
     if(!json_is_object(jn_dict)) {
+        if(flag & KW_CREATE) {
+            /*  The caller means to write inside it: the default handed
+             *  back was an orphan it wrote into, and nobody freed.  */
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "path holds a value that is not a json dict, cannot create",
+                "path",         "%s", path,
+                NULL
+            );
+            JSON_DECREF(default_value)
+            return NULL;
+        }
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -1801,6 +1853,12 @@ PUBLIC json_t *kw_get_list(
 {
     json_t *jn_list = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_list) {
+        if((flag & KW_CREATE) && !kw) {
+            /*  Nowhere to create it: handed back, the default was an
+             *  orphan the caller wrote into and nobody freed.  */
+            JSON_DECREF(default_value)
+            return NULL;    // Error already logged (kw_find_path)
+        }
         if((flag & KW_CREATE) && default_value && kw) {
             if(kw_set_dict_value(gobj, kw, path, default_value) < 0) {
                 /*  It spent default_value: returning it handed the
@@ -1822,6 +1880,19 @@ PUBLIC json_t *kw_get_list(
         return default_value;
     }
     if(!json_is_array(jn_list)) {
+        if(flag & KW_CREATE) {
+            /*  The caller means to write inside it: the default handed
+             *  back was an orphan it wrote into, and nobody freed.  */
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "path holds a value that is not a json list, cannot create",
+                "path",         "%s", path,
+                NULL
+            );
+            JSON_DECREF(default_value)
+            return NULL;
+        }
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -2186,6 +2257,10 @@ PUBLIC json_t *kw_get_dict_value(
 {
     json_t *jn_value = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_value) {
+        if((flag & KW_CREATE) && !kw) {
+            JSON_DECREF(default_value)
+            return NULL;    // Error already logged (kw_find_path)
+        }
         if((flag & KW_CREATE) && default_value && kw) {
             if(kw_set_dict_value(gobj, kw, path, default_value) < 0) {
                 /*  It spent default_value: returning it handed the

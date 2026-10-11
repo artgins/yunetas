@@ -13,10 +13,31 @@
   `tests/c/kw/test_kw_set_dict_value` has a case per reader; on the old library
   all five returned the freed pointer. Found by the cloud review of the JS
   layer (yunovatios `REV-CLOUD.md` §V9.2), comparing an empty path in JS and C.
+- **fix: the other half -- with `KW_CREATE`, `kw_get_dict()` / `kw_get_list()`
+  handed back an orphan default when the path held a value of another type,
+  or `kw` was NULL** (and `kw_get_dict_value()` with a NULL `kw`): unwritten,
+  unfreed, unlogged, so what the caller wrote into it was lost and leaked.
+  Logged, spent, NULL now. With that rule:
+    - `timeranger2` asks its `lists`/`disks`/`iterators` with `kw_get_list()`
+      (it used `kw_get_dict()` with a list default).
+    - `tr_msg` reads the message of a key as a KEY, not as a path: a pkey that
+      holds the delimiter named a message that was not there.
+    - `logcenter` keeps its stats by KEY (`msgset`, `msg`, the path / attr /
+      event of the record): an empty `msgset` or one with the delimiter left
+      an orphan per record, and the counters were read by path and written
+      by key. The stats look the same; a name with the delimiter now counts.
+- **fix: an empty segment of a path is refused by `kw_set_dict_value()`**
+  (``"a`"``, ``"`a"``, ``"a``b"``): it was dropped, so ``"a`"`` wrote over
+  `a`. gobj-js 7.26.13 refuses it too, so the two writers agree.
+- **fix: `kw_set_dict_value()` walked a freed dict** when a key in the middle
+  of the path could not be added (not valid UTF-8): `json_object_set_new()`
+  frees what it is given when it fails, and its answer was not checked.
+- `tests/c/kw/test_kw_set_dict_value`: a case for each; on the 7.26.8 library
+  the ten new ones fail, the UTF-8 one with a segfault.
 
 - **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
   (2026-10-10/11, yunovatios `REV-CLOUD.md`, eleven rounds).** Submodules
-  `kernel/js/gobj-js` 7.26.0 → **7.26.12**, `kernel/js/gobj-ui` 7.26.7 →
+  `kernel/js/gobj-js` 7.26.0 → **7.26.13**, `kernel/js/gobj-ui` 7.26.7 →
   **7.26.19**, and `yunos/js` (gui_agent 0.29.31, gui_treedb 0.17.98); every
   release is in the CHANGELOG of its own repository. What a consumer has to
   know:
@@ -27,11 +48,10 @@
       default does not flip in 7.x (estadodelaire and hidraulia would break).
     - Path writers walk a list by index only and never grow it; `kw_delete()`
       and an empty or non-string path behave as in C. Where they still differ,
-      said in the docs: an empty SEGMENT (JS keeps ``"a`"`` as the key `""`,
-      the C writer drops it and the C reader keeps it), a list index (C reads
-      it with `atoi()`, so ``l`1x`` is `l[1]`; JS refuses it), and a json
-      reader with `KW_CREATE` that cannot write (C returns NULL, JS its
-      default, unwritten). Own keys everywhere a parsed json is copied (no
+      said in the docs: a list index (C reads it with `atoi()`, so ``l`1x``
+      is `l[1]`; JS refuses it), and a json reader with `KW_CREATE` that
+      cannot answer what the kw holds (C returns NULL, JS its default,
+      unwritten). An empty SEGMENT is refused by both writers now. Own keys everywhere a parsed json is copied (no
       prototype pollution).
     - The window manager takes `{window: gobj_full_name(window)}` from the
       window itself (BREAKING in gobj-ui 7.26.14).

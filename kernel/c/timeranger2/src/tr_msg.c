@@ -118,6 +118,17 @@ PUBLIC int trmsg_add_instance(
 }
 
 /***************************************************************************
+ *  The message of `key`. A key is a KEY, not a path: a pkey can hold
+ *  the path delimiter, and read as a path it named a message that is not
+ *  there (and, created that way, went into a dict nobody holds).
+ ***************************************************************************/
+PRIVATE json_t *get_message(json_t *messages, const char *key)
+{
+    json_t *message = json_object_get(messages, key);
+    return json_is_object(message)? message : NULL;
+}
+
+/***************************************************************************
  *  Load messages in a dict() of keys,
  *  and each key with a instances of value
  ***************************************************************************/
@@ -138,7 +149,21 @@ PRIVATE int load_record_callback(
     /*
      *  Search the message for this key
      */
-    json_t *message = kw_get_dict_value(gobj, jn_messages, key, json_object(), KW_CREATE);
+    json_t *message = get_message(jn_messages, key);
+    if(!message) {
+        message = json_object();
+        if(json_object_set_new(jn_messages, key, message) < 0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "cannot add the message of a key",
+                "key",          "%s", key,
+                NULL
+            );
+            JSON_DECREF(jn_record)
+            return -1;
+        }
+    }
     json_t *instances = kw_get_list(gobj, message, "instances", json_array(), KW_CREATE);
     json_t *active = kw_get_dict(gobj, message, "active", json_object(), KW_CREATE);
 
@@ -374,7 +399,7 @@ PUBLIC json_t *trmsg_get_message(
 {
     hgobj gobj = 0;
     json_t *messages = kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
-    json_t *message = kw_get_dict(gobj, messages, key, 0, 0);
+    json_t *message = get_message(messages, key);
 
     return message;
 }
@@ -389,7 +414,7 @@ PUBLIC json_t *trmsg_get_active_message(
 {
     hgobj gobj = 0;
     json_t *messages = kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
-    json_t *message = kw_get_dict(gobj, messages, key, 0, 0);
+    json_t *message = get_message(messages, key);
     if(!message) {
         return 0;
     }
@@ -407,7 +432,7 @@ PUBLIC json_t *trmsg_get_active_md(
 {
     hgobj gobj = 0;
     json_t *messages = kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
-    json_t *message = kw_get_dict(gobj, messages, key, 0, 0);
+    json_t *message = get_message(messages, key);
     if(!message) {
         return 0;
     }
@@ -426,7 +451,7 @@ PUBLIC json_t *trmsg_get_instances(
 {
     hgobj gobj = 0;
     json_t *messages = kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
-    json_t *message = kw_get_dict(gobj, messages, key, 0, 0);
+    json_t *message = get_message(messages, key);
     if(!message) {
         return 0;
     }

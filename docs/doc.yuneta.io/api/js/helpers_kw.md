@@ -113,8 +113,9 @@ object, when the path is empty (as C; since gobj-js 7.26.10 it no longer writes
 created inside one, so the kw is left as it was (C logs and stops there too). A
 typed reader with `KW_CREATE` over such a path answers its default, logged and
 NOT written -- `kw_get_dict()`, `kw_get_list()` and `kw_get_dict_value()` too.
-**C differs here**: since SDK 7.26.9 its json readers return NULL, because
-the C default has been freed by then (see
+**C differs here**: since SDK 7.26.9 its json readers with `KW_CREATE` return
+NULL when they cannot answer what `kw` holds (a write that fails, a path of
+another type, no kw), because the C default is freed by then (see
 [`kw_get_dict()` in C](../helpers/kwid.md)); in JS nothing is freed, and the
 default comes back.
 
@@ -126,13 +127,12 @@ kw_set_dict_value(gobj, kw, "", 1);            // -1, logged: path empty
 kw_get_int(gobj, {a: 5}, "a`b", 7, kw_flag_t.KW_CREATE); // 7, logged
 ```
 
-An empty SEGMENT is another matter, and the two runtimes do not agree on it:
-in JS ``"a`"`` is the key `""` inside `a` (`{a: {"": 1}}`), while the C writer
-drops empty segments and the C reader keeps them. Do not write a path with an
-empty segment.
+An empty SEGMENT is refused too, by both writers (gobj-js 7.26.13, SDK 7.26.9):
+``"a`"``, ``"`a"`` and ``"a``b"`` name no key. Before, JS wrote the key `""`
+(`{a: {"": 1}}`) and C dropped the segment and wrote over `a`.
 
 ```js
-kw_set_dict_value(gobj, {}, "a`", 1);          // JS: {a: {"": 1}} -- avoid
+kw_set_dict_value(gobj, {a: 5}, "a`", 1);      // -1, logged; a is still 5
 ```
 
 A list on the path is walked, never grown: its segment is an index inside the

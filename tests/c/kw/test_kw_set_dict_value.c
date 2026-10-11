@@ -228,6 +228,84 @@ static void test_readers_create_refused(void)
     JSON_DECREF(kw)
 }
 
+/*
+ *  The other half (REV-CLOUD V10.1): with KW_CREATE, a path that holds a
+ *  value of another type, or no kw at all, handed the default back -- an
+ *  orphan the caller wrote into and nobody freed (the leak check at the
+ *  end catches it). And an empty segment, which the writer dropped, so
+ *  "a`" wrote over `a`.
+ */
+static void test_create_wrong_type(void)
+{
+    printf("\n--- KW_CREATE over another type, or no kw: NULL, the default spent ---\n");
+
+    json_t *kw = json_pack("{s:s, s:{}}", "s", "text", "d");
+
+    check_create_refused("kw_get_dict, the path holds a string",
+        kw_get_dict(0, kw, "s", json_object(), KW_CREATE));
+    check_create_refused("kw_get_list, the path holds a dict",
+        kw_get_list(0, kw, "d", json_array(), KW_CREATE));
+    check_create_refused("kw_get_dict, no kw",
+        kw_get_dict(0, NULL, "x", json_object(), KW_CREATE));
+    check_create_refused("kw_get_list, no kw",
+        kw_get_list(0, NULL, "x", json_array(), KW_CREATE));
+    check_create_refused("kw_get_dict_value, no kw",
+        kw_get_dict_value(0, NULL, "x", json_string("v"), KW_CREATE));
+
+    json_t *want = json_pack("{s:s, s:{}}", "s", "text", "d");
+    if(!json_equal(kw, want)) {
+        printf("FAIL %-48s\n", "the kw is left as it was");
+        failed++;
+    } else {
+        printf("  ok  %s\n", "the kw is left as it was");
+    }
+    JSON_DECREF(want)
+    JSON_DECREF(kw)
+}
+
+static void test_empty_segment(void)
+{
+    printf("\n--- an empty segment is refused ---\n");
+
+    check_set("'a`' does not write over a",
+        "{\"a\": 5}", "a`", json_integer(1), -1, "{\"a\": 5}");
+    check_set("'`a' is refused",
+        "{\"a\": 5}", "`a", json_integer(1), -1, "{\"a\": 5}");
+    check_set("'b``c' is refused",
+        "{\"a\": 5}", "b``c", json_integer(1), -1, "{\"a\": 5}");
+
+    json_t *kw = json_pack("{s:i}", "a", 5);
+    check_create_refused("kw_get_dict 'a`' does not write over a",
+        kw_get_dict(0, kw, "a`", json_object(), KW_CREATE));
+    if(json_integer_value(json_object_get(kw, "a")) != 5) {
+        printf("FAIL %-48s\n", "a is still 5");
+        failed++;
+    } else {
+        printf("  ok  %s\n", "a is still 5");
+    }
+    JSON_DECREF(kw)
+}
+
+/*
+ *  A key that is not valid UTF-8 in the middle of the path: the
+ *  intermediate dict was freed by json_object_set_new() and then walked.
+ */
+static void test_invalid_utf8_segment(void)
+{
+    printf("\n--- an intermediate key that is not UTF-8 ---\n");
+
+    json_t *kw = json_object();
+    int ret = kw_set_dict_value(0, kw, "\xff\xfe`b", json_integer(1));
+    if(ret != -1 || json_object_size(kw) != 0) {
+        printf("FAIL %-48s ret %d, size %d\n", "refused, nothing written",
+            ret, (int)json_object_size(kw));
+        failed++;
+    } else {
+        printf("  ok  %s\n", "refused, nothing written");
+    }
+    JSON_DECREF(kw)
+}
+
 /***************************************************************************
  *              Main
  ***************************************************************************/
@@ -247,6 +325,9 @@ int main(int argc, char *argv[])
     test_refusals();
     test_ownership();
     test_readers_create_refused();
+    test_create_wrong_type();
+    test_empty_segment();
+    test_invalid_utf8_segment();
 
     gobj_end();
 

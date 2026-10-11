@@ -651,14 +651,24 @@ Returns the dictionary value at `path` if found. If `KW_CREATE` is set, it creat
 If `KW_EXTRACT` is set, the retrieved value is removed from `kw`. The function logs an error if `path` does not exist and `KW_REQUIRED` is set.
 
 `default_value` is **owned**, but not spent on every path. When the dict is
-found, the default is freed and the dict is returned. When it is not found and
-there is no `KW_CREATE` (or `kw` is NULL), and when `path` holds a value of
-another type, the default is handed back to the caller, who owns it again.
-With `KW_CREATE` it is written at `path` and returned, held by `kw`; when it
-cannot be written -- an empty path, a scalar on the path, an index outside its
-list -- [`kw_set_dict_value()`](#kw_set_dict_value) logs the error and frees
-it, and the function returns **NULL** (since SDK 7.26.9; it returned the freed
-pointer before). Check the answer of a create whose path comes from data.
+found, the default is freed and the dict is returned. WITHOUT `KW_CREATE`, a
+path that is not there or that holds a value of another type hands the default
+back to the caller, who owns it again.
+
+With `KW_CREATE` the caller means to write inside what it gets, so the function
+answers the dict held by `kw`, or **NULL** -- never an orphan (since SDK
+7.26.9):
+
+- the path is not there: the default is written at `path` and returned, held
+  by `kw`; when it cannot be written (an empty path or segment, a scalar on the
+  path, an index outside its list) [`kw_set_dict_value()`](#kw_set_dict_value)
+  logs and frees it, and NULL is returned (it returned the freed pointer);
+- the path holds a value of another type: logged, the default freed, NULL
+  (the default came back unwritten, and what the caller wrote into it was
+  lost and leaked);
+- `kw` is NULL: logged, the default freed, NULL.
+
+Check the answer of a create whose path comes from data.
 gobj-js does not return null there: its reader logs and gives the default back
 unwritten (see [`kw_set_dict_value()` in JS](../js/helpers_kw.md)).
 
@@ -705,7 +715,7 @@ Returns the JSON value found at `path`. If the key does not exist, it returns `d
 
 **Notes**
 
-If `KW_REQUIRED` is set and the key is not found, an error is logged. If `KW_CREATE` is set, `default_value` is inserted into `kw` if the key does not exist; when it cannot be inserted the function returns **NULL**, as [`kw_get_dict()`](#kw_get_dict) does (since SDK 7.26.9).
+If `KW_REQUIRED` is set and the key is not found, an error is logged. If `KW_CREATE` is set, `default_value` is inserted into `kw` if the key does not exist; when it cannot be inserted, or `kw` is NULL, the function returns **NULL**, as [`kw_get_dict()`](#kw_get_dict) does (since SDK 7.26.9).
 
 ---
 
@@ -775,7 +785,7 @@ Returns a JSON list if found. If `KW_CREATE` is set and the key does not exist, 
 
 **Notes**
 
-If `KW_EXTRACT` is set in `flag`, the retrieved list is removed from `kw` and returned with an increased reference count. If the key exists but is not a list, an error is logged and `default_value` is returned. With `KW_CREATE`, a `default_value` that cannot be written returns **NULL**, as [`kw_get_dict()`](#kw_get_dict) does (since SDK 7.26.9).
+If `KW_EXTRACT` is set in `flag`, the retrieved list is removed from `kw` and returned with an increased reference count. If the key exists but is not a list, an error is logged (with `KW_REQUIRED`) and `default_value` is returned. With `KW_CREATE` the answer is the list held by `kw` or **NULL** -- a `default_value` that cannot be written, a key that holds another type, or a NULL `kw` -- as [`kw_get_dict()`](#kw_get_dict) does (since SDK 7.26.9).
 
 ---
 
@@ -1158,7 +1168,12 @@ int kw_set_dict_value(
 
 **Returns**
 
-Returns `0` when the value is written, or `-1` (logged) when nothing is: `kw` is not a dictionary, the path is empty, a segment in the middle of the path is a scalar or a `null`, or an index is not in its list. The `kw` is then left as it was.
+Returns `0` when the value is written, or `-1` (logged) when nothing is: `kw` is not a dictionary, the path is empty or has an EMPTY SEGMENT (``"a`"``, ``"`a"``, ``"a``b"``; since SDK 7.26.9 -- the segment was dropped, so ``"a`"`` wrote over `a`), a segment in the middle of the path is a scalar or a `null`, an index is not in its list, or a key of the path cannot be added (not valid UTF-8). The `kw` is then left as it was. gobj-js refuses an empty segment the same way.
+
+```C
+json_t *kw = json_pack("{s:i}", "a", 5);
+kw_set_dict_value(gobj, kw, "a`", json_integer(1));    // -1, logged; a is still 5
+```
 
 **Example**
 

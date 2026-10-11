@@ -857,6 +857,39 @@ PRIVATE int write2logs(hgobj gobj, int priority, gbuffer_t *gbuf)
 }
 
 /***************************************************************************
+ *  The stats dict of `key` inside `dict`, created when missing. A key, not
+ *  a path: the names come from the log records peers send.
+ ***************************************************************************/
+PRIVATE json_t *stats_subdict(hgobj gobj, json_t *dict, const char *key)
+{
+    json_t *sub = json_object_get(dict, key);
+    if(json_is_object(sub)) {
+        return sub;
+    }
+    sub = json_object();
+    if(json_object_set_new(dict, key, sub) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "cannot add a stats dict",
+            "key",          "%s", key,
+            NULL
+        );
+        return NULL;
+    }
+    return sub;
+}
+
+/***************************************************************************
+ *  One more of `key` in `dict`.
+ ***************************************************************************/
+PRIVATE void stats_count(json_t *dict, const char *key)
+{
+    json_int_t counter = json_integer_value(json_object_get(dict, key));
+    json_object_set_new(dict, key, json_integer(counter + 1));
+}
+
+/***************************************************************************
  *  Save log
  ***************************************************************************/
 PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
@@ -889,7 +922,16 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
         return -1;
     }
 
-    json_t *jn_set = kw_get_dict(gobj, jn_dict, msgset, json_object(), KW_CREATE);
+    /*
+     *  Every name below comes from the log record a peer sent: each is a
+     *  KEY of the stats, never a path. Read as paths, an empty msgset or one
+     *  holding the path delimiter left the stats dict NULL (an orphan per
+     *  record), and the counters were read by path but written by key.
+     */
+    json_t *jn_set = stats_subdict(gobj, jn_dict, msgset);
+    if(!jn_set) {
+        return -1;  // Error already logged
+    }
 
 /*
  *  TODO en vez estar hardcoded que esté en config.
@@ -903,51 +945,25 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
     "msg",          "%s", "Publish event WITHOUT subscribers",
     "event",        "%s", event,
  */
+    const char *detail = 0;
     if(strncmp(msg, "path NOT FOUND", strlen("path NOT FOUND"))==0 ||
         strncmp(msg, "path MUST BE", strlen("path MUST BE"))==0
     ) {
-        const char *path = kw_get_str(gobj, kw, "path", 0, 0);
-        if(!empty_string(path)) {
-            json_t *jn_level1 = kw_get_dict(gobj, jn_set, msg, json_object(), KW_CREATE);
-            json_int_t counter = kw_get_int(gobj, jn_level1, path, 0, KW_CREATE);
-            counter++;
-            json_object_set_new(jn_level1, path, json_integer(counter));
-        } else {
-            json_int_t counter = kw_get_int(gobj, jn_set, msg, 0, KW_CREATE);
-            counter++;
-            json_object_set_new(jn_set, msg, json_integer(counter));
-        }
-
+        detail = kw_get_str(gobj, kw, "path", 0, 0);
     } else if(strcmp(msg, "GClass Attribute NOT FOUND")==0) {
-        const char *attr = kw_get_str(gobj, kw, "attr", 0, 0);
-        if(!empty_string(attr)) {
-            json_t *jn_level1 = kw_get_dict(gobj, jn_set, msg, json_object(), KW_CREATE);
-            json_int_t counter = kw_get_int(gobj, jn_level1, attr, 0, KW_CREATE);
-            counter++;
-            json_object_set_new(jn_level1, attr, json_integer(counter));
-        } else {
-            json_int_t counter = kw_get_int(gobj, jn_set, msg, 0, KW_CREATE);
-            counter++;
-            json_object_set_new(jn_set, msg, json_integer(counter));
-        }
-
+        detail = kw_get_str(gobj, kw, "attr", 0, 0);
     } else if(strcmp(msg, "Publish event WITHOUT subscribers")==0) {
-        const char *event = kw_get_str(gobj, kw, "event", 0, 0); // from parameter, not a gobj_event_t
-        if(!empty_string(event)) {
-            json_t *jn_level1 = kw_get_dict(gobj, jn_set, msg, json_object(), KW_CREATE);
-            json_int_t counter = kw_get_int(gobj, jn_level1, event, 0, KW_CREATE);
-            counter++;
-            json_object_set_new(jn_level1, event, json_integer(counter));
-        } else {
-            json_int_t counter = kw_get_int(gobj, jn_set, msg, 0, KW_CREATE);
-            counter++;
-            json_object_set_new(jn_set, msg, json_integer(counter));
-        }
+        detail = kw_get_str(gobj, kw, "event", 0, 0); // from parameter, not a gobj_event_t
+    }
 
+    if(!empty_string(detail)) {
+        json_t *jn_level1 = stats_subdict(gobj, jn_set, msg);
+        if(!jn_level1) {
+            return -1;  // Error already logged
+        }
+        stats_count(jn_level1, detail);
     } else {
-        json_int_t counter = kw_get_int(gobj, jn_set, msg, 0, KW_CREATE);
-        counter++;
-        json_object_set_new(jn_set, msg, json_integer(counter));
+        stats_count(jn_set, msg);
     }
 
     if(strcmp(msgset, MSGSET_QUEUE)==0) {
