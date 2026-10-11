@@ -37,6 +37,17 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+/***************************************************************************
+ *  The record of a resource. Its name is a KEY, not a path: it is named
+ *  by the peer (an MQTT client id, a username), and read as a path one
+ *  holding the delimiter addressed a field of another record.
+ ***************************************************************************/
+PRIVATE json_t *get_resource_record(json_t *db_resources, const char *resource)
+{
+    json_t *record = json_object_get(db_resources, resource);
+    return json_is_object(record)? record : NULL;
+}
+
 PRIVATE int save_record(
     hgobj gobj,
     const char *resource,
@@ -47,6 +58,7 @@ PRIVATE int delete_record(
     hgobj gobj,
     const char *resource
 );
+PRIVATE json_t *get_resource_record(json_t *db_resources, const char *resource);
 
 PRIVATE int load_persistent_resources(hgobj gobj);
 PRIVATE int build_resource_path(hgobj gobj, char *bf, int bflen, const char *resource);
@@ -227,7 +239,7 @@ PRIVATE json_t *mt_create_resource(hgobj gobj, const char *resource, json_t *kw,
         return 0;
     }
 
-    json_t *jn_resource = kw_get_dict(gobj, priv->db_resources, resource, 0, 0);
+    json_t *jn_resource = get_resource_record(priv->db_resources, resource);
     if(jn_resource) {
         char path[PATH_MAX];
         build_resource_path(gobj, path, sizeof(path), resource);
@@ -261,7 +273,7 @@ PRIVATE json_t *mt_create_resource(hgobj gobj, const char *resource, json_t *kw,
                 JSON_DECREF(jn_options)
                 return 0;
             }
-            JSON_INCREF(jn_resource) // Will be decref in kw_set_dict_value(gobj, )->json_object_set_new()
+            JSON_INCREF(jn_resource) // Will be decref by json_object_set_new() below
         }
     }
 
@@ -289,7 +301,20 @@ PRIVATE json_t *mt_create_resource(hgobj gobj, const char *resource, json_t *kw,
     /*------------------------------------------*
      *      Create resource
      *------------------------------------------*/
-    kw_set_dict_value(gobj, priv->db_resources, resource, record);
+    if(json_object_set_new(priv->db_resources, resource, record) < 0) {
+        /*  A key, not a path: a resource is named by the peer (a client
+         *  id, a username). json_object_set_new() freed `record`.  */
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "cannot add the resource",
+            "service",      "%s", priv->service,
+            "resource",     "%s", resource,
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        return 0;
+    }
 
     /*------------------------------------------*
      *      Save if persistent
@@ -329,7 +354,7 @@ PRIVATE int mt_save_resource(
         return -1;
     }
 
-    json_t *jn_resource = kw_get_dict(gobj, priv->db_resources, resource, 0, 0);
+    json_t *jn_resource = get_resource_record(priv->db_resources, resource);
     if(jn_resource != record) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -379,7 +404,7 @@ PRIVATE int mt_delete_resource(
         return -1;
     }
 
-    json_t *jn_resource = kw_get_dict(gobj, priv->db_resources, resource, 0, 0);
+    json_t *jn_resource = get_resource_record(priv->db_resources, resource);
     if(!jn_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -435,7 +460,7 @@ PRIVATE void *mt_list_resource(
 
     if(!empty_string(resource_)) {
         // Like get_resource
-        json_t *record = kw_get_dict(gobj, priv->db_resources, resource_, 0, 0);
+        json_t *record = get_resource_record(priv->db_resources, resource_);
         if(record) {
             json_array_append(list, record);
         }
@@ -506,7 +531,7 @@ PRIVATE json_t *mt_get_resource(
         return 0;
     }
 
-    json_t *record = kw_get_dict(gobj, priv->db_resources, resource, 0, 0);
+    json_t *record = get_resource_record(priv->db_resources, resource);
 
     JSON_DECREF(jn_filter)
     JSON_DECREF(jn_options)

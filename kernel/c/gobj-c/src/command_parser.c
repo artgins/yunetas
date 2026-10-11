@@ -806,7 +806,7 @@ PRIVATE json_t *build_cmd_kw(
             /*
              *  Required: si no está en pxxx buscalo en kw
              */
-            json_t *jn_param = kw_get_dict_value(0, kw, ip->name, 0, 0);
+            json_t *jn_param = json_object_get(kw, ip->name);  // a key, as written below
             if(jn_param) {
                 json_object_set(kw_cmd, ip->name, jn_param);
                 ip++;
@@ -865,7 +865,7 @@ PRIVATE json_t *build_cmd_kw(
         }
 
         if(kw_has_key(kw, ip->name)) {
-            json_t *value = kw_get_dict_value(0, kw, ip->name, 0, 0);
+            json_t *value = json_object_get(kw, ip->name);  // a key: kw_has_key() found it
             if(!DTP_IS_STRING(ip->type) && json_is_string(value)) {
                 const char *s = json_string_value(value);
                 json_t *new_value = anystring2json(s, strlen(s), FALSE);

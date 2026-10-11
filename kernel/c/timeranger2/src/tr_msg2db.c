@@ -42,6 +42,13 @@ PRIVATE json_t *md2json(
     const char *topic_name,
     md2_record_ex_t *md_record
 );
+PRIVATE int index_record(
+    hgobj gobj,
+    json_t *indexx,
+    const char *id,
+    const char *key2,
+    json_t *record  // owned
+);
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
@@ -1153,13 +1160,7 @@ PRIVATE int load_record_callback(
          *  Write node
          *-------------------------------*/
         JSON_INCREF(jn_record)
-        kw_set_subdict_value(
-            gobj,
-            indexx,
-            key,
-            pkey2_value,
-            jn_record
-        );
+        index_record(gobj, indexx, key, pkey2_value, jn_record);  // Error logged
     } else {
         /*---------------------------------*
          *      Working in memory
@@ -1346,13 +1347,10 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
     /*-------------------------------*
      *  Write node
      *-------------------------------*/
-    kw_set_subdict_value(
-        gobj,
-        indexx,
-        id,
-        pkey2_value,
-        record
-    );
+    if(index_record(gobj, indexx, id, pkey2_value, record) < 0) {
+        JSON_DECREF(kw)
+        return 0;   // Error already logged, record spent
+    }
 
     JSON_DECREF(kw)
     return record;
@@ -1482,9 +1480,9 @@ PUBLIC json_t *msg2db_get_message( // Return is NOT YOURS
     if(json_is_object(indexx)) {
         json_t *record;
         if(!empty_string(id2)) {
-            record = kw_get_subdict_value(gobj, indexx, id, id2, 0, 0);
+            record = json_object_get(json_object_get(indexx, id), id2);   // keys
         } else {
-            record = kw_get_dict_value(gobj, indexx, id, 0, 0);
+            record = json_object_get(indexx, id);
         }
         return record;
     } else  {
@@ -1528,4 +1526,57 @@ PUBLIC BOOL msg2db_id_incomplete(
         return FALSE;
     }
     return json_is_true(json_object_get(json_object_get(topic, "incomplete"), id));
+}/***************************************************************************
+ *  Index a record under (id, pkey2 value). Both are KEYS, not a path: an
+ *  id is data, and one holding the delimiter was stored nested inside
+ *  another id's entry, while the "newest first" check read it as a key
+ *  (REV-CLOUD V12.1). `record` is owned.
+ ***************************************************************************/
+PRIVATE int index_record(
+    hgobj gobj,
+    json_t *indexx,
+    const char *id,
+    const char *key2,
+    json_t *record  // owned
+)
+{
+    json_t *by_id = json_object_get(indexx, id);
+    if(!by_id) {
+        by_id = json_object();
+        if(json_object_set_new(indexx, id, by_id) < 0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "cannot add the index entry of an id",
+                "id",           "%s", id,
+                NULL
+            );
+            JSON_DECREF(record)
+            return -1;
+        }
+    } else if(!json_is_object(by_id)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "the index entry of an id is not a dict",
+            "id",           "%s", id,
+            NULL
+        );
+        JSON_DECREF(record)
+        return -1;
+    }
+    if(json_object_set_new(by_id, key2, record) < 0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "cannot index a record",
+            "id",           "%s", id,
+            "key2",         "%s", key2,
+            NULL
+        );
+        return -1;  // record spent by json_object_set_new()
+    }
+    return 0;
 }
+
+

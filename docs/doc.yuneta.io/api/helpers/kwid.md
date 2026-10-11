@@ -47,7 +47,7 @@ The function maintains an internal table of registered binary types. If the tabl
 (kw_clone_by_keys)=
 ## [`kw_clone_by_keys()`](https://github.com/artgins/yunetas/blob/7.26.8/kernel/c/gobj-c/src/kwid.c#L2557)
 
-The function `kw_clone_by_keys()` returns a new JSON object containing only the keys specified in `keys`. The keys can be provided as a string, a list of strings, or a dictionary where the keys are the desired fields. If `keys` is empty, the original JSON object is returned.
+The function `kw_clone_by_keys()` returns a new JSON object containing only the keys specified in `keys`. The keys can be provided as a string, a list of strings, or a dictionary where the keys are the desired fields. If `keys` is empty, the original JSON object is returned. A key is a KEY, not a path: one holding the delimiter is that key (since SDK 7.26.9; it was read as a path and written as a key, so it never came out). Use [`kw_clone_by_path()`](#kw_clone_by_path) for paths.
 
 ```C
 json_t *kw_clone_by_keys(
@@ -80,7 +80,7 @@ If `keys` is a dictionary or list, only the keys present in `keys` will be retai
 (kw_clone_by_not_keys)=
 ## [`kw_clone_by_not_keys()`](https://github.com/artgins/yunetas/blob/7.26.8/kernel/c/gobj-c/src/kwid.c#L2641)
 
-Return a new JSON object excluding the specified keys from the input `json_t *`. The keys can be provided as a string, dictionary, or list. If no keys are specified, an empty JSON object is returned.
+Return a new JSON object excluding the specified keys from the input `json_t *`. The keys can be provided as a string, dictionary, or list. If no keys are specified, an empty JSON object is returned. A key is a KEY, not a path (since SDK 7.26.9; a key holding the delimiter was never excluded).
 
 ```C
 json_t *kw_clone_by_not_keys(
@@ -663,8 +663,9 @@ answers the dict held by `kw`, or **NULL** -- never an orphan (since SDK
   by `kw`; when it cannot be written (an empty path or segment, a scalar on the
   path, an index outside its list) [`kw_set_dict_value()`](#kw_set_dict_value)
   logs and frees it, and NULL is returned (it returned the freed pointer);
-- the path holds a `null`: it is "no value", and the create replaces it, as a
-  missing key (since SDK 7.26.9);
+- the path holds a `null`: it is "no value", and a non-NULL default replaces
+  it, as for a missing key (since SDK 7.26.9); with a NULL default the answer
+  is NULL, unlogged, as for a missing key;
 - the path holds a value of another type: logged, the default freed, NULL
   (the default came back unwritten, and what the caller wrote into it was
   lost and leaked);
@@ -930,6 +931,15 @@ Returns the JSON value associated with the specified key in the subdictionary. I
 
 If `KW_REQUIRED` is set and the key is not found, an error is logged. If `KW_EXTRACT` is set, the value is removed from the dictionary before returning. With `KW_CREATE`, a subdictionary that cannot be created (a scalar on `path`) returns **NULL**, logged, and `jn_default_value` is spent (since SDK 7.26.9; it went on reading the freed subdictionary).
 
+
+`path` is a path to the subdictionary; `key` is a KEY inside it, never split
+at the delimiter (since SDK 7.26.9): an id or a name used as `key` that holds a
+backtick is that key. (A subdictionary that is a list is still indexed by
+`atoi(key)`.)
+
+```C
+json_t *v = kw_get_subdict_value(gobj, kw, "index", "q`b", 0, 0);  // kw.index["q`b"]
+```
 ---
 
 (kw_has_key)=

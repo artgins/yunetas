@@ -5172,13 +5172,22 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         if(fin) {
             break;
         }
-        json_t *list_records = kw_get_dict_value(
-            gobj,
-            jn_loaded,
-            topic_name,
-            json_array(),
-            KW_CREATE
-        );
+        /*  The topic name is a key of the user's content: a KEY here, as
+         *  it is read back below, not a path.  */
+        json_t *list_records = json_object_get(jn_loaded, topic_name);
+        if(!list_records) {
+            list_records = json_array();
+            if(json_object_set_new(jn_loaded, topic_name, list_records) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "cannot hold the loaded records of a topic",
+                    "topic_name",   "%s", topic_name,
+                    NULL
+                );
+                list_records = NULL;    // the appends below do nothing
+            }
+        }
 
         int idx; json_t *record;
         json_array_foreach(topic_records, idx, record) {

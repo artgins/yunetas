@@ -347,16 +347,42 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
         JSON_DECREF(jn_data)
         return -1;
     }
-    json_t *md_iev = kw_get_dict(gobj, kw, "__md_iev__", json_object(), KW_CREATE);
+    /*
+     *  `__md_iev__` and its stacks can come in what a PEER sent: one of the
+     *  wrong type is a warning (protocol data), not an internal error. With
+     *  no check, the stack went to json_object_set_new(NULL), which frees it,
+     *  and was then used; and a stack of the wrong type was replaced by a
+     *  new one in silence.
+     */
+    json_t *md_iev = json_object_get(kw, "__md_iev__");
+    if(md_iev && !json_is_object(md_iev) && !json_is_null(md_iev)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "__md_iev__ is not a dict, the message is not pushed",
+            NULL
+        );
+        JSON_DECREF(jn_data)
+        return -1;
+    }
+    md_iev = kw_get_dict(gobj, kw, "__md_iev__", json_object(), KW_CREATE);
     if(!md_iev) {
-        /*  `__md_iev__` holds something that is not a dict (a peer's): with
-         *  no check, the stack below went to json_object_set_new(NULL),
-         *  which frees it, and was then used.  */
         JSON_DECREF(jn_data)
         return -1;  // Error already logged
     }
-    json_t *jn_stack = kw_get_list(gobj, md_iev, stack, 0, 0);
-    if(!jn_stack) {
+    json_t *jn_stack = json_object_get(md_iev, stack);
+    if(jn_stack && !json_is_array(jn_stack) && !json_is_null(jn_stack)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "the stack in __md_iev__ is not a list, the message is not pushed",
+            "stack",        "%s", stack,
+            NULL
+        );
+        JSON_DECREF(jn_data)
+        return -1;
+    }
+    if(!json_is_array(jn_stack)) {
         jn_stack = json_array();
         if(json_object_set_new(md_iev, stack, jn_stack) < 0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -370,20 +396,7 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
             return -1;
         }
     }
-    if(json_is_array(jn_stack)) {
-        return json_array_insert_new(jn_stack, 0, jn_data);
-    } else {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "jn_stack is not a list",
-            "stack",        "%s", stack,
-            NULL
-        );
-        gobj_trace_json(gobj, kw, "jn_stack is not a list");
-        JSON_DECREF(jn_data)
-        return -1;
-    }
+    return json_array_insert_new(jn_stack, 0, jn_data);
 }
 
 /***************************************************************************

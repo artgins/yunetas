@@ -5208,8 +5208,10 @@ PRIVATE int add_subscription(
         return -1;
     }
 
-    json_t *subscription_record = kw_get_dict(gobj, subscriptions, sub, 0, 0);
-    if(subscription_record) {
+    /*  The topic filter is the peer's: a KEY, as it is written below. Read
+     *  as a path, `a`b` was never found as a duplicate.  */
+    json_t *subscription_record = json_object_get(subscriptions, sub);
+    if(json_is_object(subscription_record)) {
         /*
          *  Client making a second subscription to same topic.
          *  Only need to update QoS and identifier (TODO sure?)
@@ -5316,11 +5318,16 @@ PRIVATE int remove_subscription(
         return -1;
     }
 
-    json_t *subs = kw_get_dict(gobj, subscriptions, sub, 0, KW_EXTRACT);
-    if(!subs) {
+    /*  A KEY, as add_subscription() writes it: read as a path, an
+     *  UNSUBSCRIBE of `a`b` answered "no subscription" and the client stayed
+     *  subscribed (and `a`<field>` could pull a field out of the record of
+     *  `a`).  */
+    json_t *subs = json_object_get(subscriptions, sub);
+    if(!json_is_object(subs)) {
         *reason = MQTT_RC_NO_SUBSCRIPTION_EXISTED;
+    } else {
+        json_object_del(subscriptions, sub);
     }
-    JSON_DECREF(subs);
 
     return 0;
 }

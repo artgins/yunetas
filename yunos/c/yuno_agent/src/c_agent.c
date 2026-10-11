@@ -7045,6 +7045,44 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
 }
 
 /***************************************************************************
+ *  The dict named `key` in `dict`. A console (or a route) is named by the
+ *  user: the name is a KEY, as it is written (json_object_set), never a
+ *  path -- read as one, a name holding the delimiter was not found, or
+ *  found a field of another console (REV-CLOUD V12.1).
+ ***************************************************************************/
+PRIVATE json_t *named_dict(hgobj gobj, json_t *dict, const char *key, BOOL required)
+{
+    json_t *jn = json_object_get(dict, key);
+    if(json_is_object(jn)) {
+        return jn;
+    }
+    if(required) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "named dict not found",
+            "key",          "%s", key,
+            NULL
+        );
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Take the dict named `key` out of `dict`: yours, NULL if not there.
+ ***************************************************************************/
+PRIVATE json_t *named_dict_take(json_t *dict, const char *key)
+{
+    json_t *jn = json_object_get(dict, key);
+    if(!json_is_object(jn)) {
+        return NULL;
+    }
+    json_incref(jn);
+    json_object_del(dict, key);
+    return jn;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -7161,7 +7199,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         /*
          *  Console already exists
          */
-        json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, name, 0, KW_REQUIRED);
+        json_t *jn_console = named_dict(gobj, priv->list_consoles, name, TRUE);
         gobj_console = gobj_find_service(name, FALSE);
         if(!gobj_console) {
             return msg_iev_build_response(
@@ -7197,7 +7235,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             gobj_name(src)
         );
         json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
-        json_t *jn_route = kw_get_dict(gobj, jn_routes, route_name, 0, KW_REQUIRED);
+        json_t *jn_route = named_dict(gobj, jn_routes, route_name, TRUE);
         if(jn_route) {
             // Same shape as C_PTY's EV_TTY_OPEN publish (minus fd/slave_name)
             json_t *jn_data = json_pack("{s:s, s:s, s:s, s:s, s:i, s:i}",
@@ -7276,7 +7314,7 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, name, 0, 0);
+    json_t *jn_console = named_dict(gobj, priv->list_consoles, name, FALSE);
     if(!jn_console) {
         return msg_iev_build_response(
             gobj,
@@ -7499,14 +7537,24 @@ PRIVATE int add_console_route(
  ***************************************************************************/
 PRIVATE int add_console_in_input_gate(hgobj gobj, const char *name, hgobj src)
 {
-    char name_[NAME_MAX];
-    snprintf(name_, sizeof(name_), "consoles`%s", name);
-    gobj_kw_get_user_data( // save in input gate
+    /*  The console name is the user's: a KEY of "consoles", as the close
+     *  removes it, not a segment of a path.  */
+    json_t *consoles = gobj_kw_get_user_data( // save in input gate
         src,
-        name_,
-        json_true(), // owned
+        "consoles",
+        json_object(), // owned
         KW_CREATE
     );
+    if(!json_is_object(consoles) || json_object_set_new(consoles, name, json_true()) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "cannot save the console in the input gate",
+            "console",      "%s", name,
+            NULL
+        );
+        return -1;
+    }
 
     return 0;
 }
@@ -7521,7 +7569,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
     /*
      *  delete in local list
      */
-    json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, name, 0, KW_EXTRACT);
+    json_t *jn_console = named_dict_take(priv->list_consoles, name);
 
     hgobj gobj_console = gobj_find_service(name, FALSE);
 
@@ -13040,7 +13088,7 @@ PRIVATE int ac_tty_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, gobj_name(src), 0, KW_REQUIRED);
+    json_t *jn_console = named_dict(gobj, priv->list_consoles, gobj_name(src), TRUE);
     if(jn_console) {
         json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
 
@@ -13096,7 +13144,7 @@ PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return 0;
     }
 
-    json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, gobj_name(src), 0, KW_EXTRACT);
+    json_t *jn_console = named_dict_take(priv->list_consoles, gobj_name(src));
     if(jn_console) {
         json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
 
@@ -13155,7 +13203,7 @@ PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, gobj_name(src), 0, KW_REQUIRED);
+    json_t *jn_console = named_dict(gobj, priv->list_consoles, gobj_name(src), TRUE);
     if(jn_console) {
         json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
 

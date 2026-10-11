@@ -561,6 +561,35 @@ PUBLIC BOOL treedb_is_treedbs_topic(
 }
 
 /***************************************************************************
+ *  A treedb, topic, column or hook NAME is an identifier: it is a key of
+ *  the in-memory treedb and a segment of the kw paths built from it, so it
+ *  must not hold the path delimiter -- nor a path separator, nor begin
+ *  with '.', as a topic name. Unchecked, `a`b` was created as a path
+ *  (treedbs.a.b) and looked up as a key (never found), and a topic name
+ *  `users`id` reached the id index of `users` (REV-CLOUD V12.1).
+ ***************************************************************************/
+PRIVATE BOOL name_is_identifier(
+    hgobj gobj,
+    const char *name,
+    const char *what,
+    const char *caller
+)
+{
+    if(empty_string(name) || strchr(name, '`') || strchr(name, '/') || name[0] == '.') {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", caller,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Invalid name: '`', '/' or a leading '.' not allowed",
+            "what",         "%s", what,
+            "name",         "%s", name?name:"",
+            NULL
+        );
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
  * PUBLIC to use in tests
  ***************************************************************************/
 PUBLIC json_t *treedb_get_id_index( // WARNING Return is NOT YOURS
@@ -569,18 +598,16 @@ PUBLIC json_t *treedb_get_id_index( // WARNING Return is NOT YOURS
     const char *topic_name
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
-    char path[NAME_MAX*2];
-    build_id_index_path(path, sizeof(path), treedb_name, topic_name);
-    json_t *indexx = kw_get_dict(
-        gobj,
-        tranger,
-        path,
-        0,
-        0
+    /*  By keys: the names come from the callers (a delete-topic, a
+     *  lookup), and as a path a topic `users`id` reached another index.  */
+    json_t *indexx = json_object_get(
+        json_object_get(
+            json_object_get(json_object_get(tranger, "treedbs"), treedb_name),
+            topic_name
+        ),
+        "id"
     );
-    return indexx;
+    return json_is_object(indexx)? indexx : NULL;
 }
 
 /***************************************************************************
@@ -593,19 +620,16 @@ PRIVATE json_t *treedb_get_pkey2_index( // Return is NOT YOURS
     const char *pkey2_name
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
     // De momento sin claves combinadas, el nombre de la pkey es el nombre del field
-    char path[NAME_MAX];
-    build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
-    json_t *indexy = kw_get_dict(
-        gobj,
-        tranger,
-        path,
-        0,
-        0
+    /*  By keys, as treedb_get_id_index().  */
+    json_t *indexy = json_object_get(
+        json_object_get(
+            json_object_get(json_object_get(tranger, "treedbs"), treedb_name),
+            topic_name
+        ),
+        pkey2_name
     );
-    return indexy;
+    return json_is_object(indexy)? indexy : NULL;
 }
 
 /***************************************************************************
@@ -922,6 +946,10 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         );
         JSON_DECREF(jn_schema)
         return 0;
+    }
+    if(!name_is_identifier(gobj, treedb_name, "treedb_name", __FUNCTION__)) {
+        JSON_DECREF(jn_schema)
+        return 0;   // Error already logged
     }
 
     char schema_filename[NAME_MAX + sizeof(".treedb_schema.json")];
@@ -1810,6 +1838,24 @@ PRIVATE int check_cols_of_new_topic(
         why = "no columns";
     } else {
         BOOL has_id = FALSE;
+        /*  A column id is a key of every record and a segment of the kw
+         *  paths built from it: no '`' (REV-CLOUD V12.1).  */
+        if(json_is_object(cols)) {
+            const char *col_id; json_t *col_;
+            json_object_foreach(cols, col_id, col_) {
+                if(strchr(col_id, '`')) {
+                    why = "a column id holds the path delimiter '`'";
+                }
+            }
+        } else if(json_is_array(cols)) {
+            int idx_; json_t *col_;
+            json_array_foreach(cols, idx_, col_) {
+                const char *col_id = json_string_value(json_object_get(col_, "id"));
+                if(col_id && strchr(col_id, '`')) {
+                    why = "a column id holds the path delimiter '`'";
+                }
+            }
+        }
         if(json_is_object(cols)) {
             has_id = json_object_get(cols, "id")? TRUE : FALSE;
         } else {
@@ -1822,7 +1868,9 @@ PRIVATE int check_cols_of_new_topic(
                 }
             }
         }
-        if(!has_id) {
+        if(why) {
+            // a column id was refused above
+        } else if(!has_id) {
             why = "no 'id' column (the pkey is 'id')";
         } else {
             json_t *wrapper = json_pack("{s:O}", "cols", cols);
@@ -1894,6 +1942,13 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         JSON_DECREF(pkey2s)
         JSON_DECREF(cols)
         return 0;
+    }
+    if(!name_is_identifier(gobj, topic_name, "topic_name", __FUNCTION__)) {
+        /*  Before the "already exists" lookup: `a`id` found the id index
+         *  of `a` and answered it as the topic.  */
+        JSON_DECREF(pkey2s)
+        JSON_DECREF(cols)
+        return 0;   // Error already logged
     }
 
     /*------------------------------*
@@ -2275,16 +2330,21 @@ PUBLIC int treedb_close_topic(
     /*----------------------*
      *  Remove topic data
      *----------------------*/
-    char path[NAME_MAX];
-    snprintf(path, sizeof(path), "treedbs`%s`%s", treedb_name, topic_name);
-    json_t *data = kw_get_dict(
-        gobj,
-        tranger,
-        path,
-        0,
-        KW_REQUIRED|KW_EXTRACT
-    );
-    json_decref(data);
+    /*  By key: the topic name is the caller's (delete-topic), and as a
+     *  path `users`id` extracted the id index of `users`.  */
+    json_t *data = json_object_get(treedb, topic_name);
+    if(json_is_object(data)) {
+        json_object_del(treedb, topic_name);
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "topic data not found",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+    }
 
     return 0;
 }
@@ -4832,6 +4892,19 @@ PUBLIC BOOL decode_parent_ref(
         fits = FALSE;
     }
     if(hook_name && !copy_ref_part(pref, ss[2], hook_name, hook_name_size)) {
+        fits = FALSE;
+    }
+    if(fits && (strchr(ss[0], '`') || strchr(ss[2], '`'))) {
+        /*  The topic and the hook of a ref are names, and they go into kw
+         *  paths ("topics`<topic>`cols`<hook>`hook"): a ref is data, and one
+         *  holding the delimiter addressed another column.  */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Wrong fkey (parent) reference: a name holds '`'",
+            "pref",         "%s", pref,
+            NULL
+        );
         fits = FALSE;
     }
 
@@ -10125,7 +10198,8 @@ PRIVATE int delete_node(
                 continue;
             }
             json_t *other_indexx = treedb_get_id_index(tranger, other_name, topic_name);
-            if(other_indexx && json_object_get(other_indexx, id)) {
+            if(other_indexx && exist_primary_node(other_indexx, id)) {
+                /*  exist_ as delete_: both truncate the id the same way  */
                 delete_primary_node(other_indexx, id);
             }
         }
@@ -10167,15 +10241,15 @@ PRIVATE int delete_node(
          *  Every instance goes: their links were undone above, the
          *  children and the parents of each one
          */
-        json_t * key2v = kw_get_dict_value(
-            gobj,
-            indexy,
-            id,
-            0,
-            KW_EXTRACT
-        );
-        if(key2v) {
-            json_decref(key2v);
+        /*
+         *  By key, and truncated as add_secondary_node() keys it: read as a
+         *  path, deleting `q`b` took the instance `b` out of `q` and left
+         *  its own entry behind (REV-CLOUD V12.1).
+         */
+        char key_[RECORD_KEY_VALUE_MAX];
+        snprintf(key_, sizeof(key_), "%s", id);
+        if(json_is_object(json_object_get(indexy, key_))) {
+            json_object_del(indexy, key_);
         } else {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -13062,6 +13136,11 @@ PUBLIC int treedb_link_nodes(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    /*  The hook name is the caller's (a link-nodes command): a name, read
+     *  as a path in the node, before the schema says whether it is one.  */
+    if(!name_is_identifier(gobj, hook_name, "hook_name", __FUNCTION__)) {
+        return -1;  // Error already logged
+    }
 
     /*
      *  A column joins a topic here, and a topic joins a treedb, so this is
@@ -13157,6 +13236,9 @@ PUBLIC int treedb_unlink_nodes(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    if(!name_is_identifier(gobj, hook_name, "hook_name", __FUNCTION__)) {
+        return -1;  // Error already logged
+    }
 
     /*----------------------------*
      *  As a link: a save that fails takes the unlink back in memory
@@ -13425,8 +13507,10 @@ PRIVATE BOOL match_node_simple(
     const char *col_name;
     json_t *jn_filter_value;
     json_object_foreach(jn_filter, col_name, jn_filter_value) {
-        json_t *col = kw_get_dict(gobj, cols, col_name, 0, KW_REQUIRED);
-        if(!col) {
+        /*  The filter's keys are the caller's (a peer's list-nodes): read
+         *  as KEYS, a `hook`<child id>` reached into a child node.  */
+        json_t *col = json_object_get(cols, col_name);
+        if(!json_is_object(col)) {
             const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -13438,7 +13522,7 @@ PRIVATE BOOL match_node_simple(
             );
             continue; // Never must occur
         }
-        json_t *jn_record_value = kw_get_dict_value(gobj, node, col_name, 0, KW_REQUIRED);
+        json_t *jn_record_value = json_object_get(node, col_name);
         if(!jn_record_value) {
             const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
             gobj_log_error(gobj, 0,
@@ -14265,6 +14349,10 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    if(!name_is_identifier(gobj, fkey, "fkey", __FUNCTION__)) {
+        JSON_DECREF(jn_options)
+        return 0;   // Error already logged
+    }
 
     /*------------------------------*
      *      Check original node
@@ -14605,6 +14693,11 @@ PUBLIC json_t *treedb_node_children(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    if(!name_is_identifier(gobj, hook, "hook", __FUNCTION__)) {
+        JSON_DECREF(jn_filter)
+        JSON_DECREF(jn_options)
+        return 0;   // Error already logged
+    }
 
     /*------------------------------*
      *      Check original node
@@ -14787,6 +14880,13 @@ PUBLIC json_t *treedb_node_jtree(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    if(!name_is_identifier(gobj, hook, "hook", __FUNCTION__) ||
+            (rename_hook && *rename_hook &&
+             !name_is_identifier(gobj, rename_hook, "rename_hook", __FUNCTION__))) {
+        JSON_DECREF(jn_filter)
+        JSON_DECREF(jn_options)
+        return 0;   // Error already logged
+    }
 
     /*------------------------------*
      *      Check original node

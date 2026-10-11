@@ -52,6 +52,13 @@ PRIVATE const char *topic_fields[] = {
     "iterators",        /*  that carried them replaced them, and with lists  */
     "iterators_by_id",  /*  now asked as lists a wrong type is an error      */
     "cache",
+    "delete_seq",       /*  and the run-time state of deletes and long keys  */
+    "delete_seq_max",
+    "deletes_applied",
+    "delete_ref_keys",
+    "long_key_refs",
+    "long_key_hashes",
+    "fs_event_master",
     "filename_mask",
     "xpermission",
     "rpermission",
@@ -965,7 +972,9 @@ PUBLIC int tranger2_stop(json_t *tranger)
      */
     json_t *opened_files = kw_get_dict(gobj, tranger, "fd_opened_files", 0, KW_REQUIRED);
     json_object_foreach(opened_files, key, jn_value) {
-        int fd = (int)kw_get_int(gobj, opened_files, key, 0, KW_REQUIRED);
+        /*  The value of the iteration, not the key read again as a path: a
+         *  file name with '`' answered the default 0, and close(0).  */
+        int fd = json_is_integer(jn_value)? (int)json_integer_value(jn_value) : -1;
         if(fd >= 0) {
             close(fd);
         }
@@ -3709,7 +3718,8 @@ PRIVATE void close_key_fd_files(
         const char *key2;
         void *tmp2;
         json_object_foreach_safe(jn_value, tmp2, key2, jn_value2) {
-            int fd = (int)kw_get_int(gobj, jn_value, key2, -1, KW_REQUIRED);
+            /*  The value of the iteration (a file name is a key, not a path)  */
+            int fd = json_is_integer(jn_value2)? (int)json_integer_value(jn_value2) : -1;
             if(fd >= 0) {
                 close(fd);
             }

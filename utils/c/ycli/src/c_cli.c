@@ -3493,7 +3493,8 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     hgobj wn_disp = get_display_window(gobj, agent_name);
     if(wn_disp) {
-        int n = (int)kw_get_int(gobj, priv->jn_window_counters, agent_name, 0, KW_CREATE);
+        /*  The peer's yuno name: a key, as it is written two lines below  */
+        int n = (int)json_integer_value(json_object_get(priv->jn_window_counters, agent_name));
         n++;
         snprintf(temp, sizeof(temp), "%s-%d", agent_name, n);
         json_object_set_new(priv->jn_window_counters, agent_name, json_integer(n));

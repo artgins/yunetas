@@ -1808,6 +1808,9 @@ PUBLIC json_t *kw_get_dict(
         return default_value;
     }
     if(!json_is_object(jn_dict)) {
+        if((flag & KW_CREATE) && json_is_null(jn_dict) && !default_value) {
+            return NULL;    // a null with no default: as a missing key, NULL
+        }
         if((flag & KW_CREATE) && json_is_null(jn_dict) && default_value) {
             /*  A null is "no value" (empty_json()): the create replaces
              *  it, as a missing key.  */
@@ -1890,6 +1893,9 @@ PUBLIC json_t *kw_get_list(
         return default_value;
     }
     if(!json_is_array(jn_list)) {
+        if((flag & KW_CREATE) && json_is_null(jn_list) && !default_value) {
+            return NULL;    // a null with no default: as a missing key, NULL
+        }
         if((flag & KW_CREATE) && json_is_null(jn_list) && default_value) {
             /*  A null is "no value" (empty_json()): the create replaces
              *  it, as a missing key.  */
@@ -2357,7 +2363,49 @@ PUBLIC json_t *kw_get_subdict_value(
         JSON_DECREF(default_value)
         return NULL;
     }
-    return kw_get_dict_value(gobj, jn_subdict, key, default_value, flag);
+    if(!json_is_object(jn_subdict)) {
+        /*  A list is indexed by `key` (atoi), as it always was.  */
+        return kw_get_dict_value(gobj, jn_subdict, key, default_value, flag);
+    }
+
+    /*
+     *  `key` is a KEY (an id, a name -- data), never split as a path: read
+     *  as a path, one holding the delimiter addressed a nested entry.
+     */
+    json_t *jn_value = json_object_get(jn_subdict, key);
+    if(!jn_value) {
+        if((flag & KW_CREATE) && default_value) {
+            if(json_object_set_new(jn_subdict, key, default_value) < 0) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "json_object_set_new() FAILED",
+                    "path",         "%s", path,
+                    "key",          "%s", key,
+                    NULL
+                );
+                return NULL;    // default_value spent by json_object_set_new()
+            }
+            return default_value;
+        }
+        if(flag & KW_REQUIRED) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "key NOT FOUND, default value returned",
+                "path",         "%s", path,
+                "key",          "%s", key,
+                NULL
+            );
+        }
+        return default_value;
+    }
+    JSON_DECREF(default_value)
+    if(flag & KW_EXTRACT) {
+        json_incref(jn_value);
+        json_object_del(jn_subdict, key);
+    }
+    return jn_value;
 }
 
 /***************************************************************************
@@ -2660,7 +2708,8 @@ PUBLIC json_t *kw_clone_by_path(
         ["$key1", "$key2", ...]
         {"$key1":*, "$key2":*, ...}
 
-    It's not a deep copy, new keys are the paths.
+    It's not a deep copy. A key is a KEY, not a path: one holding the
+    delimiter is that key, not a nested one (since 7.26.9).
     If paths are empty return kw
  ***************************************************************************/
 PUBLIC json_t *kw_clone_by_keys(
@@ -2673,7 +2722,7 @@ PUBLIC json_t *kw_clone_by_keys(
     json_t *kw_clone = json_object();
     if(json_is_string(keys) && !empty_string(json_string_value(keys))) {
         const char *key = json_string_value(keys);
-        json_t *jn_value = kw_get_dict_value(gobj, kw, key, 0, 0);
+        json_t *jn_value = json_object_get(kw, key);
         if(jn_value) {
             json_object_set(kw_clone, key, jn_value);
         } else {
@@ -2691,7 +2740,7 @@ PUBLIC json_t *kw_clone_by_keys(
         const char *key;
         json_t *jn_v;
         json_object_foreach(keys, key, jn_v) {
-            json_t *jn_value = kw_get_dict_value(gobj, kw, key, 0, 0);
+            json_t *jn_value = json_object_get(kw, key);
             if(jn_value) {
                 json_object_set(kw_clone, key, jn_value);
             } else {
@@ -2711,7 +2760,7 @@ PUBLIC json_t *kw_clone_by_keys(
         json_t *jn_v;
         json_array_foreach(keys, idx, jn_v) {
             const char *key = json_string_value(jn_v);
-            json_t *jn_value = kw_get_dict_value(gobj, kw, key, 0, 0);
+            json_t *jn_value = json_object_get(kw, key);
             if(jn_value) {
                 json_object_set(kw_clone, key, jn_value);
             } else {
@@ -2744,7 +2793,7 @@ PUBLIC json_t *kw_clone_by_keys(
         ["$key1", "$key2", ...]
         {"$key1":*, "$key2":*, ...}
 
-    It's not a deep copy, new keys are the paths.
+    It's not a deep copy. A key is a KEY, not a path (since 7.26.9).
     If paths are empty return empty
  ***************************************************************************/
 PUBLIC json_t *kw_clone_by_not_keys(
@@ -2759,7 +2808,7 @@ PUBLIC json_t *kw_clone_by_not_keys(
 
     if(json_is_string(keys) && !empty_string(json_string_value(keys))) {
         const char *key = json_string_value(keys);
-        json_t *jn_value = kw_get_dict_value(gobj, kw, key, 0, 0);
+        json_t *jn_value = json_object_get(kw, key);
         if(jn_value) {
             json_object_del(kw_clone, key);
         } else {
@@ -2777,7 +2826,7 @@ PUBLIC json_t *kw_clone_by_not_keys(
         const char *key;
         json_t *jn_v;
         json_object_foreach(keys, key, jn_v) {
-            json_t *jn_value = kw_get_dict_value(gobj, kw, key, 0, 0);
+            json_t *jn_value = json_object_get(kw, key);
             if(jn_value) {
                 json_object_del(kw_clone, key);
             } else {
@@ -2797,7 +2846,7 @@ PUBLIC json_t *kw_clone_by_not_keys(
         json_t *jn_v;
         json_array_foreach(keys, idx, jn_v) {
             const char *key = json_string_value(jn_v);
-            json_t *jn_value = kw_get_dict_value(gobj, kw, key, 0, 0);
+            json_t *jn_value = json_object_get(kw, key);
             if(jn_value) {
                 json_object_del(kw_clone, key);
             } else {
@@ -2872,10 +2921,20 @@ PRIVATE BOOL _kw_match_simple(
             /*
              *  Complex variable, recursive
              */
+            int ln;
             if(empty_string(prefix_path)) {
-                snprintf(path, sizeof(path), "%s", prefix_path);
+                ln = snprintf(path, sizeof(path), "%s", prefix_path);
             } else {
-                snprintf(path, sizeof(path), "%s`%d", prefix_path, (int)idx);
+                ln = snprintf(path, sizeof(path), "%s`%d", prefix_path, (int)idx);
+            }
+            if(ln < 0 || (size_t)ln >= sizeof(path)) {
+                gobj_log_warning(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "filter path too long, not matched",
+                    NULL
+                );
+                continue;
             }
 
             matched = _kw_match_simple(
@@ -2894,10 +2953,24 @@ PRIVATE BOOL _kw_match_simple(
         const char *key;
         json_t *jn_filter_value;
         json_object_foreach(jn_filter, key, jn_filter_value) {
+            int ln;
             if(empty_string(prefix_path)) {
-                snprintf(path, sizeof(path), "%s", key);
+                ln = snprintf(path, sizeof(path), "%s", key);
             } else {
-                snprintf(path, sizeof(path), "%s`%s", prefix_path, key);
+                ln = snprintf(path, sizeof(path), "%s`%s", prefix_path, key);
+            }
+            if(ln < 0 || (size_t)ln >= sizeof(path)) {
+                /*  A filter (often a peer's) whose path does not fit: a
+                 *  truncated path would compare another field.  */
+                gobj_log_warning(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "filter path too long, not matched",
+                    "key",          "%s", key,
+                    NULL
+                );
+                matched = FALSE;
+                break;
             }
 
             if(json_is_array(jn_filter_value) || json_is_object(jn_filter_value)) {

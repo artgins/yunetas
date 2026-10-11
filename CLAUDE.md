@@ -208,7 +208,7 @@ for an app with no map — 1.5 MB).
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.26.8`, package **`7.26.14`** on npm since 2026-10-11)
+versioned to track `YUNETA_VERSION` (SDK `7.26.8`, package **`7.26.15`** on npm since 2026-10-11)
 and **published to npm**. It had drifted to 7.13.x while the SDK was at 7.16.2
 — a number that told a consumer nothing about which SDK it was built against —
 and jumped to `7.16.0` on 2026-08-28 to say it again; 7.14 and 7.15 were skipped
@@ -236,8 +236,8 @@ caught up at the `7.6.7` release.) **Every** consumer takes it from the
 registry — estadodelaire, hidraulia, wattyzer, yunomusica, the three yunovatios
 GUIs and the in-repo `yunos/js/*` yunos — but they do **not** all declare the
 same floor, and assuming they do has been wrong since the in-repo yunos moved
-ahead: `yunos/js/*` and the yunovatios GUIs are on `^7.26.14` (2026-10-11),
-wattyzer's gui on `^7.26.14` (2026-10-11). Check the consumer's own
+ahead: `yunos/js/*` and the yunovatios GUIs are on `^7.26.15` (2026-10-11),
+wattyzer's gui on `^7.26.15` (2026-10-11). Check the consumer's own
 `package.json` rather than this line. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
 `src/`.
@@ -494,6 +494,19 @@ Corollaries:
   and a name that comes from data is a KEY: `json_object_get/set`, not a path
   reader (a backtick in it splits it).
 
+- **A name that comes from data is a KEY, never a path.** The `kw_*` readers
+  and writers split their path at the delimiter (`` ` ``), so an id, a pkey or
+  pkey2 value, a message key, a client id, a topic filter, a username -- any
+  value a user or a peer chooses -- read as a path addresses the wrong place
+  the day it holds a backtick: a treedb id ``k`b`` put its instances INSIDE
+  the index entry of `k`, an MQTT unsubscribe of ``a`b`` left the client
+  subscribed. Such a value goes to `json_object_get/set(_new)/del`. A kw path
+  is for a literal, a schema/attribute name defined in code, or a path the
+  code assembles on purpose; when a variable path is a path on purpose, say so
+  in a comment. Real bugs found in one sweep (2026-10-11): `tr_msg`,
+  `tr_treedb` (pkey2 index, `delete_node`), `tr_msg2db`, `c_prot_mqtt`,
+  `logcenter`.
+
 - **An absent `DTP_JSON` is `json_null()`, not C NULL — so `if(!jn)` is dead
   code.** `set_default()` materialises a `DTP_JSON` with an empty default as
   a json null, a valid pointer, and that covers every attr declared that way
@@ -510,7 +523,8 @@ Corollaries:
   list-shaped `__filter__` returns NULL and drops the filter.
   The three readers disagree and that is why the error never lands on the
   cause: `kw_get_dict()`/`kw_get_list()` reject a null by type (and log with
-  `KW_REQUIRED`), `kw_get_dict_value()` **returns the null** and stays quiet
+  `KW_REQUIRED`) -- WITHOUT `KW_CREATE`; with it (7.26.9+) a null is "no value"
+  and the create replaces it --, `kw_get_dict_value()` **returns the null** and stays quiet
   even with `KW_REQUIRED`, and a path read treats a null segment as
   not-found. **In `gobj-js` there is no trap** — a null default is
   javascript `null`, falsy — so a port across the two runtimes gets this

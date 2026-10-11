@@ -282,11 +282,12 @@ PUBLIC BOOL kwid_compare_lists(
    If it's ``KW_REQUIRED`` and ``path`` not exist then log an error.
    If ``path`` doesn't exist then return the ``default_value``.
    With ``KW_CREATE`` the answer is what ``kw`` holds at ``path``, or NULL:
-   the ``default_value`` is written at ``path`` and returned; when it
-   cannot be written (an empty path or segment, a scalar on the path),
-   when ``path`` holds a value of another type, or when ``kw`` is NULL,
-   the error is logged, the ``default_value`` is spent and NULL is
-   returned.
+   the ``default_value`` is written at ``path`` and returned -- also over a
+   json null, which is "no value", as a missing key (a NULL default gives
+   NULL, as for a missing key); when it cannot be written (an empty path or
+   segment, a scalar on the path), when ``path`` holds a value of another
+   type, or when ``kw`` is NULL, the error is logged, the
+   ``default_value`` is spent and NULL is returned.
 **rst**/
 PUBLIC json_t *kw_get_dict(
     hgobj gobj,
@@ -301,11 +302,12 @@ PUBLIC json_t *kw_get_dict(
    If it's ``KW_REQUIRED`` and ``path`` not exist then log an error.
    If ``path`` doesn't exist then return the ``default_value``.
    With ``KW_CREATE`` the answer is what ``kw`` holds at ``path``, or NULL:
-   the ``default_value`` is written at ``path`` and returned; when it
-   cannot be written (an empty path or segment, a scalar on the path),
-   when ``path`` holds a value of another type, or when ``kw`` is NULL,
-   the error is logged, the ``default_value`` is spent and NULL is
-   returned.
+   the ``default_value`` is written at ``path`` and returned -- also over a
+   json null, which is "no value", as a missing key (a NULL default gives
+   NULL, as for a missing key); when it cannot be written (an empty path or
+   segment, a scalar on the path), when ``path`` holds a value of another
+   type, or when ``kw`` is NULL, the error is logged, the
+   ``default_value`` is spent and NULL is returned.
 **rst**/
 PUBLIC json_t *kw_get_list(
     hgobj gobj,
@@ -485,7 +487,7 @@ PUBLIC json_t *kw_clone_by_path(
         ["$key1", "$key2", ...]
         {"$key1":*, "$key2":*, ...}
 
-    It's not a deep copy, new keys are the paths.
+    It's not a deep copy. A key is a KEY, not a path (since 7.26.9).
     If paths are empty return kw
 **rst**/
 PUBLIC json_t *kw_clone_by_keys(
@@ -502,7 +504,7 @@ PUBLIC json_t *kw_clone_by_keys(
         ["$key1", "$key2", ...]
         {"$key1":*, "$key2":*, ...}
 
-    It's not a deep copy, new keys are the paths.
+    It's not a deep copy. A key is a KEY, not a path (since 7.26.9).
     If paths are empty return kw
 **rst**/
 PUBLIC json_t *kw_clone_by_not_keys(

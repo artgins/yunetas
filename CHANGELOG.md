@@ -29,7 +29,9 @@
       and written by key (a name with the delimiter never passed 1). The
       stats look the same for ordinary names; an empty `msgset` is counted
       under `""`. And the same `msg` with and without a detail no longer
-      wipes its counters per detail: the count without one is their `""`.
+      wipes its counters per detail: the count without one is their `""`, so
+      a `msg` counted both ways goes from an integer to `{"": n, ...}` --
+      the one change of shape a reader of the stats will see.
 - **fix: an empty segment of a path is refused by `kw_set_dict_value()`**
   (``"a`"``, ``"`a"``, ``"a``b"``): it was dropped, so ``"a`"`` wrote over
   `a`. gobj-js 7.26.13 refuses it too, so the two writers agree.
@@ -39,27 +41,60 @@
 - **fix: `msg_iev_push_stack()` used freed memory with the readers' new
   contract** (a `__md_iev__` that is not a dict made `kw_get_dict()` return
   NULL, the stack went to `json_object_set_new(NULL)`, which frees it, and was
-  then used), and leaked `jn_data` on its two refusals. And a `null` at the
-  leaf is "no value" for `KW_CREATE` again: `kw_get_dict()` / `kw_get_list()`
-  replace it, as a missing key -- only a value of another type is refused.
+  then used), and leaked `jn_data` on its two refusals. A `__md_iev__`, or a
+  stack in it, of the wrong type is a peer's: a warning, and the message is
+  not pushed (a stack of the wrong type was replaced in silence). And a `null`
+  at the leaf is "no value" for `KW_CREATE`: `kw_get_dict()` / `kw_get_list()`
+  replace it, as a missing key -- only a value of another type is refused. (No
+  release ever replaced it: up to 7.26.8 a null there handed back an orphan.)
   yunovatios `REV-CLOUD.md` §V11.1.
+- **A name that comes from data is a KEY, never a path: one sweep over every
+  `kw_*` call with a variable path** (264 calls, yunovatios `REV-CLOUD.md`
+  §V12.1). The readers and writers split a path at `` ` ``, so an id, a pkey2
+  value, a client id or a name a user or a peer chooses addressed the wrong
+  place the day it held one. Fixed, by key (`json_object_*`):
+    - `tr_treedb`: `delete_node()` (deleting `q`b` took the instance `b` out of
+      `q`); the id and pkey2 indexes looked up by key; `treedb_close_topic()`
+      (a `delete-topic` of `users`id` extracted the id index of `users`); a
+      filter's keys in `match_node_simple()`. And the NAMES are refused with
+      the delimiter (or `/`, or a leading `.`) where they come in: a treedb
+      (`treedb_open_db`), a topic (`treedb_create_topic`), a column id, a hook
+      or fkey given to `treedb_link_nodes` / `unlink_nodes` / `parent_refs` /
+      `node_children` / `node_jtree`, and the topic and hook of a parent ref.
+    - `tr_msg2db`: its index is written and read by (id, pkey2 value) as keys.
+    - `c_prot_mqtt`: a SUBSCRIBE filter was written as a key and read as a
+      path, so an UNSUBSCRIBE of `a`b` answered "no subscription" and the
+      client stayed subscribed.
+    - `c_resource2` (a resource is named by an MQTT client id or a username),
+      `c_authz` (the service of an identity card; a session id),
+      `c_node` (the topics of an imported content), the consoles and routes of
+      `yuno_agent` / `yuno_agent22`, `ycli`'s window counters, `command_parser`
+      (a parameter name), the trace filters of a gclass, and the fds that
+      `timeranger2` closes (read from the iteration, not the key as a path).
+    - `kwid`: `kw_get_subdict_value()` reads its `key` as a key;
+      `kw_clone_by_keys()` / `kw_clone_by_not_keys()` read the keys as keys
+      (they wrote them as keys already); `kw_match_simple()` refuses a filter
+      path that does not fit its buffer instead of comparing a truncated one.
+  The rule is written in `CLAUDE.md`. `utils/c/tr2migrate/30_timeranger.c` is
+  the frozen copy of the old timeranger and is left as it is.
 - **fix: the pkey2 index of a treedb is keyed by the node id as a KEY**
   (`add/exist/delete_secondary_node`): an id holding the path delimiter put
   its instances INSIDE the index entry of another node. §V11.2.
-- `c_prot_mqtt`: a client id is a key (one with the delimiter logged an error
-  with stack per message); `tr_msg`: a key that cannot be added skips its
+- `c_prot_mqtt`: a client id is a key (a subscriber whose id held the
+  delimiter received NO message, and each one logged an error with stack); `tr_msg`: a key that cannot be added skips its
   record instead of stopping the load; `kw_set_path_delimiter(0)` no longer
   makes every path an "empty segment"; `timeranger2` keeps the volatile keys
   of a topic (`disks`, `iterators`, `iterators_by_id`, `cache`) out of a
   `topic_var`; `gobj_full_name()` allocates with `gbmem_*`;
   `tests/c/kw/test_json_flat` frees what it flattens. §V11.3.
 - `tests/c/kw/test_kw_set_dict_value`: a case for each; on the 7.26.8 library
-  the ten new ones fail, the UTF-8 one with a segfault.
+  the ten new ones fail, the UTF-8 one with a segfault (and the four of the
+  null-at-the-leaf rule fail on the code before it).
 
 - **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
-  (2026-10-10/11, yunovatios `REV-CLOUD.md`, twelve rounds).** Submodules
-  `kernel/js/gobj-js` 7.26.0 → **7.26.14**, `kernel/js/gobj-ui` 7.26.7 →
-  **7.26.20**, and `yunos/js` (gui_agent 0.29.33, gui_treedb 0.17.100); every
+  (2026-10-10/11, yunovatios `REV-CLOUD.md`, thirteen rounds).** Submodules
+  `kernel/js/gobj-js` 7.26.0 → **7.26.15**, `kernel/js/gobj-ui` 7.26.7 →
+  **7.26.20**, and `yunos/js` (gui_agent 0.29.34, gui_treedb 0.17.101); every
   release is in the CHANGELOG of its own repository. What a consumer has to
   know:
     - `createElement2()` takes a string that starts with `<` as markup unless

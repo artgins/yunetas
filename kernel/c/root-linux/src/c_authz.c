@@ -653,6 +653,33 @@ PRIVATE int mt_stop(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The list of roles of `dst_service` in `services_roles`, created when
+ *  missing. The service name comes from the peer's identity card: a KEY,
+ *  as C_IEVENT_SRV and kw_has_key() read it, not a path.
+ ***************************************************************************/
+PRIVATE json_t *service_roles_of(hgobj gobj, json_t *services_roles, const char *dst_service)
+{
+    json_t *roles = json_object_get(services_roles, dst_service);
+    if(!roles) {
+        roles = json_array();
+        if(json_object_set_new(services_roles, dst_service, roles) < 0) {
+            roles = NULL;
+        }
+    }
+    if(!json_is_array(roles)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "cannot hold the roles of a service",
+            "dst_service",  "%s", dst_service,
+            NULL
+        );
+        return NULL;
+    }
+    return roles;
+}
+
+/***************************************************************************
  *      Framework Method mt_authenticate
     Ejemplo keycloak:  {
             "acr": "1",
@@ -1039,7 +1066,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             kw,
             &superuser
         );
-        kw_get_list(gobj, services_roles, dst_service, json_array(), KW_CREATE);
+        service_roles_of(gobj, services_roles, dst_service);  // Error logged
 
         json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:s, s:O, s:b}",
             "result", 0,
@@ -3818,13 +3845,7 @@ PRIVATE json_t *append_role(
         if((strcmp(realm_id, dst_realm_id)==0 || strcmp(realm_id, "*")==0)) {
             if(strcmp(service, dst_service)==0 || strcmp(service, "*")==0
             ) {
-                json_t *srv_roles = kw_get_list(
-                    gobj,
-                    services_roles,
-                    dst_service,
-                    json_array(),
-                    KW_CREATE
-                );
+                json_t *srv_roles = service_roles_of(gobj, services_roles, dst_service);
                 json_array_append_new(
                     srv_roles,
                     json_string(kw_get_str(gobj, role, "id", "", KW_REQUIRED))
@@ -4324,7 +4345,15 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
         } else {
             json_t *sessions = kw_get_dict(gobj, user, "__sessions", 0, KW_REQUIRED);
-            json_t *session = kw_get_dict(gobj, sessions, session_id, 0, KW_EXTRACT); // Remove session
+            /*  Remove the session: its id (a claim of the token) is a KEY,
+             *  as it was written (json_object_set), not a path.  */
+            json_t *session = json_object_get(sessions, session_id);
+            if(json_is_object(session)) {
+                json_incref(session);
+                json_object_del(sessions, session_id);
+            } else {
+                session = NULL;
+            }
 
             add_user_logout(gobj, username);
 

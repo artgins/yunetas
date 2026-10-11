@@ -12550,8 +12550,15 @@ PUBLIC int gobj_add_trace_filter(hgclass gclass_, const char *attr, const char *
         gclass->jn_trace_filter = json_object();
     }
 
-    json_t *jn_list = kw_get_list(0, gclass->jn_trace_filter, attr, json_array(), KW_CREATE);
+    /*  The filter is keyed by the attribute NAME: a key, not a path.  */
+    json_t *jn_list = json_object_get(gclass->jn_trace_filter, attr);
     if(!jn_list) {
+        jn_list = json_array();
+        if(json_object_set_new(gclass->jn_trace_filter, attr, jn_list) < 0) {
+            jn_list = NULL; // logged below
+        }
+    }
+    if(!json_is_array(jn_list)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY,
@@ -12588,8 +12595,8 @@ PUBLIC int gobj_remove_trace_filter(hgclass gclass_, const char *attr, const cha
         return 0;
     }
 
-    json_t *jn_list = kw_get_list(0, gclass->jn_trace_filter, attr, 0, 0);
-    if(!jn_list) {
+    json_t *jn_list = json_object_get(gclass->jn_trace_filter, attr);   // a key
+    if(!json_is_array(jn_list)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
@@ -12603,7 +12610,7 @@ PUBLIC int gobj_remove_trace_filter(hgclass gclass_, const char *attr, const cha
 
     if(empty_string(value)) {
         json_array_clear(jn_list);
-        kw_delete(0, gclass->jn_trace_filter, attr);
+        json_object_del(gclass->jn_trace_filter, attr);
         if(json_object_size(gclass->jn_trace_filter)==0) {
             JSON_DECREF(gclass->jn_trace_filter)
         }
@@ -12626,7 +12633,7 @@ PUBLIC int gobj_remove_trace_filter(hgclass gclass_, const char *attr, const cha
     json_array_remove(jn_list, (size_t)idx);
 
     if(json_array_size(jn_list) == 0) {
-        kw_delete(0, gclass->jn_trace_filter, attr);
+        json_object_del(gclass->jn_trace_filter, attr);
         if(json_object_size(gclass->jn_trace_filter)==0) {
             JSON_DECREF(gclass->jn_trace_filter)
         }

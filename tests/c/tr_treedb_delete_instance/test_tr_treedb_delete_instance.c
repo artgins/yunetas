@@ -246,6 +246,70 @@ PRIVATE int test_pkey2_index_keyed_by_id(
 }
 
 /***************************************************************************
+ *  delete_node() takes the node out of the pkey2 index by KEY (REV-CLOUD
+ *  V12.1): read as a path, deleting `q`b` took the instance `b` out of
+ *  `q` and left its own entry behind. And names are identifiers: a
+ *  treedb or a topic named with the delimiter is refused.
+ ***************************************************************************/
+PRIVATE int test_delete_node_by_key_and_names(
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    int result = 0;
+    const char *test = "delete_node by key, names without the delimiter";
+    time_measure_t time_measure;
+    set_expected_results(test,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Invalid name: '`', '/' or a leading '.' not allowed",
+            "msg", "Invalid name: '`', '/' or a leading '.' not allowed"
+        ),
+        NULL, NULL, 1
+    );
+    MT_START_TIME(time_measure)
+
+    treedb_create_node(
+        tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "q", "version", "b", "payload", "q")
+    );
+    treedb_create_node(
+        tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "q`b", "version", "v1", "payload", "qb")
+    );
+    json_t *qb = treedb_get_node(tranger, treedb_name, TOPIC_NAME, "q`b");
+    if(!qb || treedb_delete_node(tranger, qb, json_pack("{s:b}", "force", 1)) != 0) {
+        printf("%s  FAIL: delete of q`b%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "q", "b")) {
+        printf("%s  FAIL: deleting q`b took the instance b of q%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "q`b", "v1")) {
+        printf("%s  FAIL: q`b is still in the pkey2 index%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  A treedb and a topic named with the delimiter are refused.  */
+    if(treedb_open_db(tranger, "bad`name", NULL, "persistent")) {
+        printf("%s  FAIL: a treedb named bad`name was opened%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_create_topic(
+            tranger, treedb_name, "items`id", 1, "", json_string("version"),
+            json_pack("{s:{s:s, s:s, s:[s]}}", "id", "id", "id", "type", "string", "flag", "persistent"),
+            0, FALSE, FALSE)) {
+        printf("%s  FAIL: a topic named items`id was created%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  An instance a SNAPSHOT froze is not deleted, updated or not.
  *
  *  A delete-instance tombstones every md2 row of (id, pkey2 value), the
@@ -2871,6 +2935,7 @@ PRIVATE int do_test(void)
      *------------------------------------*/
     result += test_delete_instance_drops_secondary_keeps_primary(tranger, treedb_name);
     result += test_pkey2_index_keyed_by_id(tranger, treedb_name);
+    result += test_delete_node_by_key_and_names(tranger, treedb_name);
     result += test_instance_held_by_a_snap(tranger, treedb_name);
     result += test_guard_that_cannot_read_refuses(tranger, treedb_name);
     result += test_delete_node_clears_everything(tranger, treedb_name);
