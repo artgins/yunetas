@@ -71,7 +71,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.13`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.14`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -237,7 +237,7 @@ registry — estadodelaire, hidraulia, wattyzer, yunomusica, the three yunovatio
 GUIs and the in-repo `yunos/js/*` yunos — but they do **not** all declare the
 same floor, and assuming they do has been wrong since the in-repo yunos moved
 ahead: `yunos/js/*` and the yunovatios GUIs are on `^7.26.7` (2026-10-11),
-wattyzer's gui on `^7.22.2` (2026-09-24). Check the consumer's own
+wattyzer's gui on `^7.26.7` (2026-10-11). Check the consumer's own
 `package.json` rather than this line. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
 `src/`.
@@ -1173,8 +1173,12 @@ Examples: `c_yui_main.js` (`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
   `yunos/js/*` and the yunovatios GUIs run in that mode, and their `prebuild`
   runs the check gobj-ui publishes
   (`node_modules/@yuneta/gobj-ui/scripts/check-markup-strings.mjs`, with
-  `acorn` declared by the app). estadodelaire and hidraulia do not, so the
-  default cannot flip until they are migrated.
+  `acorn` declared by the app). So do wattyzer, yunomusica and the
+  `js_gui` scaffold. **The default does not flip in 7.x, by decision
+  (2026-10-11):** estadodelaire and hidraulia are frozen on gobj-ui v1, whose
+  markup is plain strings, and take gobj-js through `^7.22.2` -- a flipped
+  default would reach them by their range and break them. Every v2 app opts
+  in at startup instead.
 - `gobj_create_default_service()` DOES register in `__jn_services__`, so
   `gobj_find_service("app")` finds it — this line used to say the opposite, and
   it was checked and found wrong on 2026-08-28. `gobj_create2()` adds
