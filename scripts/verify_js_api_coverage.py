@@ -494,7 +494,8 @@ def repin_pages(packages: list[Package]) -> tuple[int, int, list[str]]:
                     #   so the line is told by its text with the refs out.
                     bare = re.sub(r"/(blob|tree)/[^/)\s]+", r"/\1/…", line.strip())
                     note = (f"{path.relative_to(DOCS)}: a version line links both "
-                            f"packages and is not repinned: {bare}")
+                            f"packages; its links are retagged, its version text "
+                            f"is left as it is: {bare}")
                     if note not in notes:
                         notes.append(note)
                     return line

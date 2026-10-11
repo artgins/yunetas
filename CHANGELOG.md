@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
+  (2026-10-10/11, yunovatios `REV-CLOUD.md`, nine rounds).** Submodules
+  `kernel/js/gobj-js` 7.26.0 → **7.26.10**, `kernel/js/gobj-ui` 7.26.7 →
+  **7.26.17**, and `yunos/js` (gui_agent 0.29.29, gui_treedb 0.17.96); every
+  release is in the CHANGELOG of its own repository. What a consumer has to
+  know:
+    - `createElement2()` takes a string that starts with `<` as markup unless
+      the app calls `set_strings_are_text(true)` (gobj-js 7.26.3+), which every
+      v2 app here does; markup is said with `html_markup()`. gobj-ui publishes
+      `scripts/check-markup-strings.mjs` for a consumer's `prebuild`. The
+      default does not flip in 7.x (estadodelaire and hidraulia would break).
+    - Path writers walk a list by index only and never grow it; `kw_delete()`
+      and an empty or non-string path behave as in C; own keys everywhere a
+      parsed json is copied (no prototype pollution).
+    - The window manager takes `{window: gobj_full_name(window)}` from the
+      window itself (BREAKING in gobj-ui 7.26.14).
+    - The shell's history: Back closes an overlay only off its own marker
+      (the entry under it is stamped with the overlay's id), a link is not a
+      Back, a navigation made while the shell retires a marker waits for it
+      (bounded, through the FSM), and overlay ids are unique across page
+      loads. `npm run qa-history` (gobj-ui) checks it in Chromium and
+      Firefox.
+- **docs tooling:** `scripts/verify_js_api_coverage.py --repin` walks every
+  page of the site (a C page links gobj-js too), decides whose version a
+  `**version:**` line carries by the repository it links, and notes a line
+  that links both instead of leaving it stale in silence;
+  `scripts/check_doc_line_refs.py --repin` keeps each performance report
+  linked to its own release tag.
+
+
 ## v7.26.8 (2026-10-10)
 
 - **treedb: a replica opens a store whose master has not created
