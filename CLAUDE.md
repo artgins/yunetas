@@ -1178,7 +1178,11 @@ Examples: `c_yui_main.js` (`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
   (2026-10-11):** estadodelaire and hidraulia are frozen on gobj-ui v1, whose
   markup is plain strings, and take gobj-js through `^7.22.2` -- a flipped
   default would reach them by their range and break them. Every v2 app opts
-  in at startup instead.
+  in at startup instead. **The static check is not enough to turn the mode
+  on:** it cannot see markup a helper RETURNS (`svg(path, size)` in
+  yunomusica drew every icon as text under the mode and failed 11 of 30
+  e2e tests); load the app with the mode on and read the console for the
+  `html_markup()` warnings before deploying it.
 - `gobj_create_default_service()` DOES register in `__jn_services__`, so
   `gobj_find_service("app")` finds it — this line used to say the opposite, and
   it was checked and found wrong on 2026-08-28. `gobj_create2()` adds
