@@ -282,6 +282,14 @@ PUBLIC int current_snap_tag(
     const char *treedb_name
 );
 
+/*
+ *  The name rule of a COLUMN (an id of a column, a hook, an fkey): not empty
+ *  and no path delimiter '`'. A column is a key, not a directory, so '/',
+ *  "." and ".." are allowed; a treedb or topic name follows the stricter
+ *  tranger2_name_is_identifier().
+ */
+PUBLIC BOOL treedb_col_name_is_identifier(const char *name);
+
 PUBLIC BOOL treedb_is_treedbs_topic(
     json_t *tranger,
     const char *treedb_name,

@@ -1594,6 +1594,41 @@ JSON_DECREF(result)
 
 ---
 
+(treedb_col_name_is_identifier)=
+## [`treedb_col_name_is_identifier()`](https://github.com/artgins/yunetas/blob/7.26.8/kernel/c/timeranger2/src/tr_treedb.c#L627)
+
+`treedb_col_name_is_identifier()` tells whether a name follows the name rule of a **column**: a column id, a hook or an fkey. Since SDK 7.26.9.
+
+```C
+BOOL treedb_col_name_is_identifier(
+    const char *name
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `name` | `const char *` | The name to check. `NULL` is refused. |
+
+**Returns**
+
+`TRUE` when `name` is not empty and holds no path delimiter `` ` ``. `FALSE` otherwise.
+
+**Notes**
+
+A column is a key of the records and a segment of the kw paths the treedb builds (`topics`<topic>`cols`<col>`), never a directory: so `/`, `.` and `..` are allowed in it. A treedb or topic name is a directory too, and follows the stricter [`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>). [`treedb_open_db()`](<#treedb_open_db>) leaves out a topic with a column that breaks this rule; [`treedb_link_nodes()`](<#treedb_link_nodes>) and the other functions that take a hook or an fkey refuse it with *"Invalid column name: empty or '`' not allowed"*.
+
+```C
+treedb_col_name_is_identifier("departments");   // TRUE
+treedb_col_name_is_identifier("kids/all");      // TRUE: a column is not a directory
+treedb_col_name_is_identifier("..");            // TRUE
+treedb_col_name_is_identifier("a`b");           // FALSE: the path delimiter
+treedb_col_name_is_identifier("");              // FALSE
+```
+
+---
+
 (treedb_is_treedbs_topic)=
 ## [`treedb_is_treedbs_topic()`](https://github.com/artgins/yunetas/blob/7.26.8/kernel/c/timeranger2/src/tr_treedb.c#L551)
 
@@ -2143,37 +2178,84 @@ kept in the topic files of the store: the function sets it in memory on each
 open. [`tranger2_topic_desc()`](<#tranger2_topic_desc>) sends the mark to
 clients, together with `system_topic`.
 
-**Names.** Every topic name and column id of the schema follows the name rule
-of [`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>): not
-empty, not `.` or `..`, and no `/` or `` ` `` (a leading `.` is fine). A topic
-that breaks it is **left out**, not fatal (since SDK 7.26.9): the function
-logs *"Topic of the schema left out: a name breaks the name rule"* and opens
-the rest of the treedb. A schema like this one opens `users` and leaves out
-`a/b`:
+**Names.** A schema has TWO name rules (since SDK 7.26.9):
+
+- a **topic** name is a directory and a key, and follows
+  [`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>): not
+  empty, not `.` or `..`, no `/` and no `` ` `` (a leading `.` is fine);
+- a **column** name (a column id, a hook, an fkey) is only a key, and follows
+  [`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>): not
+  empty and no `` ` ``. A `/`, `.` or `..` in a column is fine.
+
+A topic that breaks its rule, or holds a column that breaks the column rule,
+is **left out**, not fatal: the function logs *"Topic of the schema left out:
+a name breaks the name rule"* and opens the rest of the treedb. Its records
+stay on disk, unreachable until it is renamed. Renaming a topic or a hook is
+not only the schema: every child keeps a ref `topic^id^hook` in its fkey, and
+those refs must be rewritten too. This schema opens `users`, whose column
+`home/dir` is legal, and leaves out `a/b`
+(`tests/c/tr_treedb_delete_instance` runs it):
 
 ```C
-static char treedb_schema_sample[]= "\
+static char treedb_schema_names[]= "\
 {                                                                   \n\
-    'id': 'treedb_sample',                                          \n\
+    'id': 'treedb_names',                                           \n\
     'schema_version': '1',                                          \n\
     'topics': [                                                     \n\
         {                                                           \n\
-            'topic_name': 'users',                                  \n\
+            'id': 'users',                                          \n\
             'pkey': 'id',                                           \n\
-            'cols': { 'id': { 'id': 'id', 'type': 'string', 'flag': ['persistent', 'required'] } } \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'required']              \n\
+                },                                                  \n\
+                'home/dir': {                                       \n\
+                    'header': 'Home',                               \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'writable']              \n\
+                }                                                   \n\
+            }                                                       \n\
         },                                                          \n\
         {                                                           \n\
-            'topic_name': 'a/b',                                    \n\
+            'id': 'a/b',                                            \n\
             'pkey': 'id',                                           \n\
-            'cols': { 'id': { 'id': 'id', 'type': 'string', 'flag': ['persistent', 'required'] } } \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'required']              \n\
+                }                                                   \n\
+            }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
 ";
 ```
 
-To check a store before an upgrade, look for such names in the topic
-directories and in their `topic_cols.json`.
+To check a store before an upgrade, ask its persisted schemas (the KEYS, not
+the values: a description may hold a `/`). Each command prints the names that
+break a rule, and nothing on a clean store:
+
+```bash
+# topic names: empty, ".", "..", or holding "/" or "`"
+find <store> -name '*.treedb_schema.json' -exec \
+    jq -r '.topics[] | (.id // .topic_name) | select(. == "" or test("^[.]{1,2}$|[/`]"))' {} +
+
+# column names: empty or holding "`"
+find <store> -name '*.treedb_schema.json' -exec \
+    jq -r '.topics[] | (.id // .topic_name) as $t | .cols
+           | (if type == "object" then keys[] else .[].id end)
+           | select(. == "" or test("`")) | "\($t).\(.)"' {} +
+```
 
 A non-master open reads the mark from the persisted schema file, like the rest
 of the schema, so a reader that is not the master sees it too. A tool that

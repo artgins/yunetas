@@ -2950,12 +2950,14 @@ from the topic desc).
 (tranger2_name_is_identifier)=
 ## [`tranger2_name_is_identifier()`](https://github.com/artgins/yunetas/blob/7.26.8/kernel/c/timeranger2/src/timeranger2.c#L1225)
 
-`TRUE` if `name` can name a topic, a treedb, a column or a hook. It is **the**
-name rule of timeranger2 and treedb, kept in one place (since SDK 7.26.9). A
+`TRUE` if `name` can name a topic, a treedb or a msg2db. It is the name rule
+of everything that is a DIRECTORY, kept in one place (since SDK 7.26.9). Such a
 name is a directory (`<database>/<topic>/`), a key of the in-memory json and a
 segment of the kw paths built from it, so it must not be empty, `"."` or
 `".."`, nor hold `/` or the path delimiter `` ` ``. A leading `.` is allowed.
-Silent: the caller says what the name was for.
+Silent: the caller says what the name was for. A column, a hook or an fkey is
+only a key, and follows the looser
+[`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>).
 
 ```C
 BOOL tranger2_name_is_identifier(

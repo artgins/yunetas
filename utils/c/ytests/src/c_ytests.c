@@ -616,19 +616,38 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
             size_t i;
             json_t *jn_p;
             json_array_foreach(jn_filter, i, jn_p) {
-                if(json_is_string(jn_p)) {
-                    paths[np++] = json_string_value(jn_p);
+                if(!json_is_string(jn_p)) {
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER,
+                        "msg",          "%s", "filter item is not a string, ignored",
+                        "index",        "%d", (int)i,
+                        NULL
+                    );
+                    continue;
                 }
+                paths[np++] = json_string_value(jn_p);
             }
         } else if(json_is_object(jn_filter)) {
             const char *fkey;
-        json_t *fval;
+            json_t *fval;
             json_object_foreach(jn_filter, fkey, fval) {
                 paths[np++] = fkey;
             }
         }
         paths[np] = NULL;
-        json_t *new_kw = kw_clone_by_path(gobj, json_incref(kw), paths);
+        for(size_t k = 0; k < np; k++) {
+            if(!kw_find_path(gobj, kw, paths[k], FALSE)) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "filter path not found in the response",
+                    "path",         "%s", paths[k],
+                    NULL
+                );
+            }
+        }
+        json_t *new_kw = kw_clone_by_path(gobj, kw_incref(kw), paths);
         GBMEM_FREE(paths);
         KW_DECREF(kw);
         kw = new_kw;

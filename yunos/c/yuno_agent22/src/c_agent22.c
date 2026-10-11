@@ -334,9 +334,9 @@ PRIVATE int mt_stop(hgobj gobj)
      */
     const char *name; json_t *jn_console; void *n;
     json_object_foreach_safe(priv->list_consoles, n, name, jn_console) {
-        char name_[NAME_MAX];
-        snprintf(name_, sizeof(name_), "%s", name);
+        char *name_ = gbmem_strdup(name);   // any length: a gobj name can exceed NAME_MAX - 1
         delete_console(gobj, name_);
+        GBMEM_FREE(name_);
     }
 
     return 0;
@@ -987,9 +987,9 @@ PRIVATE int delete_consoles_on_disconnection(hgobj gobj, json_t *kw, hgobj src_)
      */
     const char *name; json_t *jn_; void *n;
     json_object_foreach_safe(consoles, n, name, jn_) {
-        char name_[NAME_MAX];
-        snprintf(name_, sizeof(name_), "%s", name);
+        char *name_ = gbmem_strdup(name);   // any length: a gobj name can exceed NAME_MAX - 1
         delete_console(gobj, name_);
+        GBMEM_FREE(name_);
     }
 
     return 0;

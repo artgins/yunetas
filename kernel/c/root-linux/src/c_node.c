@@ -74,6 +74,15 @@ PRIVATE BOOL split_child_ref(
     char *topic_name, size_t topic_name_size,
     char *id, size_t id_size
 );
+PRIVATE BOOL refuse_peer_col_name(
+    hgobj gobj,
+    const char *what,
+    const char *name
+);
+PRIVATE BOOL refuse_peer_parent_ref(
+    hgobj gobj,
+    const char *parent_ref
+);
 
 PRIVATE int apply_initial_load(hgobj gobj);
 PRIVATE BOOL seed_declares_link(
@@ -1481,6 +1490,12 @@ PRIVATE int mt_link_nodes(
         return -1;
     }
 
+    if(refuse_peer_col_name(gobj, "hook", hook)) {
+        JSON_DECREF(parent_record)
+        JSON_DECREF(child_record)
+        return -1;
+    }
+
     /*-----------------------------------*
      *      Check appropriate topic
      *-----------------------------------*/
@@ -1648,6 +1663,12 @@ PRIVATE int mt_unlink_nodes(
             "treedb_name",  "%s", priv->treedb_name,
             NULL
         );
+        JSON_DECREF(parent_record)
+        JSON_DECREF(child_record)
+        return -1;
+    }
+
+    if(refuse_peer_col_name(gobj, "hook", hook)) {
         JSON_DECREF(parent_record)
         JSON_DECREF(child_record)
         return -1;
@@ -2026,6 +2047,11 @@ PRIVATE json_t *mt_node_parents(
      *  Return a list of parent nodes pointed by the link (fkey)
      */
     if(!empty_string(link)) {
+        if(refuse_peer_col_name(gobj, "link", link)) {
+            JSON_DECREF(jn_options)
+            JSON_DECREF(kw)
+            return 0;
+        }
         JSON_DECREF(kw)
         return treedb_parent_refs( // Return MUST be decref
             priv->tranger,
@@ -2115,21 +2141,7 @@ PRIVATE json_t *mt_node_children(
         return 0;
     }
 
-    /*
-     *  The hook name comes from the command (a peer): a name that breaks
-     *  the name rule is data from outside, a warning here, not the error
-     *  with which treedb refuses it.
-     */
-    if(!tranger2_name_is_identifier(hook)) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "hook name breaks the name rule, refused",
-            "treedb_name",  "%s", priv->treedb_name,
-            "topic_name",   "%s", topic_name,
-            "hook",         "%.64s", hook?hook:"",
-            NULL
-        );
+    if(refuse_peer_col_name(gobj, "hook", hook)) {
         JSON_DECREF(jn_filter);
         JSON_DECREF(jn_options)
         JSON_DECREF(kw)
@@ -2234,20 +2246,8 @@ PRIVATE json_t *mt_topic_jtree(
         return 0;
     }
 
-    /*
-     *  A hook name from a peer: a warning (see mt_node_children)
-     */
-    if(!tranger2_name_is_identifier(hook) ||
-            (!empty_string(rename_hook) && !tranger2_name_is_identifier(rename_hook))) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "hook name breaks the name rule, refused",
-            "treedb_name",  "%s", priv->treedb_name,
-            "topic_name",   "%s", topic_name,
-            "hook",         "%.64s", hook?hook:"",
-            NULL
-        );
+    if(refuse_peer_col_name(gobj, "hook", hook) ||
+            (!empty_string(rename_hook) && refuse_peer_col_name(gobj, "rename_hook", rename_hook))) {
         JSON_DECREF(jn_filter);
         JSON_DECREF(jn_options)
         JSON_DECREF(kw)
@@ -3265,6 +3265,17 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
+    if(refuse_peer_parent_ref(gobj, parent_ref)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Wrong parent ref: a name breaks the name rule", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     char parent_topic_name[NAME_MAX];
     char parent_id[NAME_MAX];
     char hook_name[NAME_MAX];
@@ -3419,6 +3430,17 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             gobj,
             -1,
             json_sprintf("%s: What child ref?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(refuse_peer_parent_ref(gobj, parent_ref)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Wrong parent ref: a name breaks the name rule", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -6208,6 +6230,74 @@ PRIVATE void mark_copy_not_pure(json_t *jn)
             mark_copy_not_pure(value);
         }
     }
+}
+
+/***************************************************************************
+ *  A hook, an fkey or a parent ref named by a command is a PEER's data: one
+ *  that breaks the name rule is a warning and a refusal here, not the error
+ *  with which treedb refuses it (REV-CLOUD V13.1, V14.2). TRUE = refused.
+ ***************************************************************************/
+PRIVATE BOOL refuse_peer_col_name(
+    hgobj gobj,
+    const char *what,
+    const char *name
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(treedb_col_name_is_identifier(name)) {
+        return FALSE;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "column name breaks the name rule (empty or '`'), refused",
+        "treedb_name",  "%s", priv->treedb_name,
+        "what",         "%s", what,
+        "name",         "%.64s", name?name:"",
+        NULL
+    );
+    return TRUE;
+}
+
+/***************************************************************************
+ *  "topic^id^hook": the topic follows the topic rule and the hook the
+ *  column rule. The id is data and may hold anything. A ref without two
+ *  '^' is left to decode_parent_ref().
+ ***************************************************************************/
+PRIVATE BOOL refuse_peer_parent_ref(
+    hgobj gobj,
+    const char *parent_ref
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *first = strchr(parent_ref, '^');
+    const char *last = strrchr(parent_ref, '^');
+    if(!first || first == last) {
+        return FALSE;
+    }
+
+    char topic_name[NAME_MAX];
+    size_t ln = (size_t)(first - parent_ref);
+    BOOL topic_ok = ln < sizeof(topic_name);
+    if(topic_ok) {
+        memcpy(topic_name, parent_ref, ln);
+        topic_name[ln] = 0;
+        topic_ok = tranger2_name_is_identifier(topic_name);
+    }
+    if(topic_ok && treedb_col_name_is_identifier(last + 1)) {
+        return FALSE;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "parent ref breaks the name rule, refused",
+        "treedb_name",  "%s", priv->treedb_name,
+        "parent_ref",   "%.128s", parent_ref,
+        NULL
+    );
+    return TRUE;
 }
 
 /***************************************************************************

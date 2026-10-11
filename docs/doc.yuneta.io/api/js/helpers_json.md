@@ -11,7 +11,7 @@ The C side builds every payload with jansson. The JS side gives the same
 function names on top of plain objects and arrays, so a gclass reads the same
 in both languages.
 
-**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js)
+**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js)
 
 :::{note}
 The names that end in `_new` are names of jansson, where the function takes
@@ -25,17 +25,17 @@ JS gclass close to each other, line by line.
 ## Copy and compare
 
 (js_json_deep_copy)=
-### [`json_deep_copy(obj)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L735)
+### [`json_deep_copy(obj)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L761)
 
 Gives a deep copy of one value, with `structuredClone()`.
 
 (js_duplicate_objects)=
-### [`duplicate_objects(obj)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L744)
+### [`duplicate_objects(obj)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L770)
 
 Gives a new object in which every value is a deep copy.
 
 (js_json_is_identical)=
-### [`json_is_identical(a, b)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L757)
+### [`json_is_identical(a, b)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L783)
 
 Tells if two JSON values hold the same data. It compares the content, and not
 the reference.
@@ -48,17 +48,17 @@ The three update functions are **not recursive**. They change the destination in
 place, and they go one level deep.
 
 (js_json_object_update)=
-### [`json_object_update(dst, src)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L805)
+### [`json_object_update(dst, src)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L831)
 
 Adds the new keys of `src` and writes over the keys that `dst` holds already.
 
 (js_json_object_update_existing)=
-### [`json_object_update_existing(dst, src)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L820)
+### [`json_object_update_existing(dst, src)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L846)
 
 Writes only the keys that `dst` holds already. It adds nothing.
 
 (js_json_object_update_missing)=
-### [`json_object_update_missing(dst, src)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L837)
+### [`json_object_update_missing(dst, src)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L863)
 
 Adds only the keys that `dst` does not hold. It writes over nothing.
 
@@ -67,44 +67,44 @@ Adds only the keys that `dst` does not hold. It writes over nothing.
 ## Read and write
 
 (js_json_object_get)=
-### [`json_object_get(o, k)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L853)
+### [`json_object_get(o, k)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L879)
 
 Gives the value of a key.
 
 (js_json_object_set)=
-### [`json_object_set(o, k, v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L874)
+### [`json_object_set(o, k, v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L900)
 
 Writes a key.
 
 (js_json_object_set_new)=
-### [`json_object_set_new(o, k, v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L882)
+### [`json_object_set_new(o, k, v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L908)
 
 Writes a key. In JavaScript it is the same as
 [`json_object_set()`](#js_json_object_set).
 
 (js_json_object_del)=
-### [`json_object_del(o, k)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L864)
+### [`json_object_del(o, k)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L890)
 
 Deletes a key.
 
 (js_json_array_append)=
-### [`json_array_append(a, v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L901)
+### [`json_array_append(a, v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L927)
 
 Puts a value at the end of an array.
 
 (js_json_array_append_new)=
-### [`json_array_append_new(a, v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L909)
+### [`json_array_append_new(a, v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L935)
 
 Puts a value at the end of an array. In JavaScript it is the same as
 [`json_array_append()`](#js_json_array_append).
 
 (js_json_array_remove)=
-### [`json_array_remove(a, idx)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L917)
+### [`json_array_remove(a, idx)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L943)
 
 Takes the element at an index out of an array.
 
 (js_json_array_extend)=
-### [`json_array_extend(destination, source)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L925)
+### [`json_array_extend(destination, source)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L951)
 
 Puts every element of `source` at the end of `destination`, and gives
 `destination` back. An empty source changes nothing.
@@ -114,23 +114,23 @@ Puts every element of `source` at the end of `destination`, and gives
 ## Size
 
 (js_json_object_size)=
-### [`json_object_size(a)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L937)
+### [`json_object_size(a)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L963)
 
 Gives the quantity of keys of an object. It gives `0` for every other type.
 
 (js_json_array_size)=
-### [`json_array_size(a)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L948)
+### [`json_array_size(a)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L974)
 
 Gives the length of an array. It gives `0` for every other type.
 
 (js_json_size)=
-### [`json_size(a)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L961)
+### [`json_size(a)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L987)
 
 Gives the size of any JSON value: the quantity of keys of an object, the length
 of an array, `1` for a string that is not empty, and `0` for everything else.
 
 (js_empty_json)=
-### [`empty_json(a)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L987)
+### [`empty_json(a)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L1013)
 
 Tells if there is nothing usable in the value: `null` or `undefined`, an empty
 object or array, an empty string, or any scalar. It is `json_size(a) === 0`.
@@ -151,64 +151,64 @@ JavaScript has no second null to tell apart.
 Each one gives a boolean.
 
 (js_is_object)=
-### [`is_object(v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L1116)
+### [`is_object(v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L1142)
 
 Tells if the value is an object. An array is not an object here, and `null` is
 not an object.
 
 (js_is_array)=
-### [`is_array(v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L1123)
+### [`is_array(v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L1149)
 
 Tells if the value is an array.
 
 (js_is_string)=
-### [`is_string(v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L1130)
+### [`is_string(v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L1156)
 
 Tells if the value is a string.
 
 (js_is_number)=
-### [`is_number(v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L1137)
+### [`is_number(v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L1163)
 
 Tells if the value is a number. `NaN` and `Infinity` are not numbers here.
 
 (js_is_boolean)=
-### [`is_boolean(v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L1144)
+### [`is_boolean(v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L1170)
 
 Tells if the value is a boolean.
 
 (js_is_null)=
-### [`is_null(v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L1151)
+### [`is_null(v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L1177)
 
 Tells if the value is `null` or `undefined`.
 
 (js_is_date)=
-### [`is_date(v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L1188)
+### [`is_date(v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L1214)
 
 Tells if the value is a `Date`.
 
 (js_is_function)=
-### [`is_function(v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L1195)
+### [`is_function(v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L1221)
 
 Tells if the value is a function.
 
 (js_is_gobj)=
-### [`is_gobj(v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L1202)
+### [`is_gobj(v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L1228)
 
 Tells if the value is a gobj.
 
 (js_is_pure_number)=
-### [`is_pure_number(v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L1163)
+### [`is_pure_number(v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L1189)
 
 Tells if a **string** holds a number. It accepts an integer, a real number, the
 scientific form such as `"1.2e3"`, and a sign.
 
 (js_empty_string)=
-### [`empty_string(s)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L1209)
+### [`empty_string(s)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L1235)
 
 Tells if a value is an empty string. A value that is not a string is empty too.
 
 (js_parseBoolean)=
-### [`parseBoolean(v)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L1225)
+### [`parseBoolean(v)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L1251)
 
 Changes a string into a boolean. It accepts `true`, `on` and `1` as true. It
 ignores the spaces around the value, and it ignores the case.
@@ -232,38 +232,38 @@ own. The C side is documented in
 [`kwid.h`](../helpers/kwid.md#json2flat).
 
 (js_json2flat)=
-### [`json2flat(jn)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L4731)
+### [`json2flat(jn)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L4757)
 
 Gives the flat form of a json: an object whose keys are the paths of the leaves
 and whose values are the leaves.
 
 (js_flat2json)=
-### [`flat2json(flat)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L4776)
+### [`flat2json(flat)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L4802)
 
 Rebuilds the nested json of a flat object. It **refuses instead of guessing**
 when an id is a leaf and a container at once: the answer would depend on the
 order the ids are read in.
 
 (js_flat_key_join)=
-### [`flat_key_join(segments)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L4675)
+### [`flat_key_join(segments)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L4701)
 
 Builds a flat id from its segments, escaping each one. A segment is a string
 for a key and a number for an array index.
 
 (js_flat_key_split)=
-### [`flat_key_split(key)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L4690)
+### [`flat_key_split(key)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L4716)
 
 The inverse: the segments of a flat id. An index comes back as a **number** and
 a key as a **string** — they are two types and not two spellings, which is what
 keeps the key `"[0]"` apart from the index `0`.
 
 (js_flat_diff)=
-### [`flat_diff(flat1, flat2)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L4900)
+### [`flat_diff(flat1, flat2)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L4926)
 
 What changed between two flat objects: `{added, removed, changed}`.
 
 (js_flat_apply)=
-### [`flat_apply(flat, diff)`](https://github.com/artgins/gobj-js/blob/7.26.16/src/helpers.js#L4929)
+### [`flat_apply(flat, diff)`](https://github.com/artgins/gobj-js/blob/7.26.17/src/helpers.js#L4955)
 
 Applies to a flat object what `flat_diff()` reported. It works on the **flat**
 form on purpose: there an id addresses one value, so applying is setting and

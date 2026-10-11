@@ -92,45 +92,70 @@
 - `tests/c/kw/test_kw_set_dict_value`: a case for each; on the 7.26.8 library
   the ten new ones fail, the UTF-8 one with a segfault (and the four of the
   null-at-the-leaf rule fail on the code before it).
-- **ONE name rule for timeranger2 and treedb: `tranger2_name_is_identifier()`**
-  (new, `timeranger2.h`): a name is not empty, not `.` or `..`, and holds no
-  `/` and no `` ` `` -- the rule timeranger2 already applied to a topic name.
-  A leading `.` is allowed again (the V12 checks of treedb refused it, and
-  timeranger2 did not). treedb uses it for every name it is handed
-  (yunovatios `REV-CLOUD.md` §V13.1):
-    - **compatibility: a treedb opened with an old name that breaks it is
-      not killed.** `treedb_open_db()` logs an ERROR and leaves THAT topic
+- **TWO name rules for timeranger2 and treedb** (yunovatios `REV-CLOUD.md`
+  §V13.1, §V14.2), each a new public function:
+    - a name that is a DIRECTORY -- a treedb, a topic, a msg2db and its
+      topics -- follows `tranger2_name_is_identifier()` (`timeranger2.h`):
+      not empty, not `.` or `..`, no `/` and no `` ` ``; the rule timeranger2
+      already applied to a topic. A leading `.` is allowed (the V12 checks of
+      treedb refused it, and timeranger2 did not).
+    - a COLUMN name -- a column id, a hook, an fkey -- is only a key, and
+      follows `treedb_col_name_is_identifier()` (`tr_treedb.h`): not empty
+      and no `` ` ``. A `/`, `.` or `..` in a column is fine: it never broke
+      anything, and a hook `kids/all` linked before the rule links after it.
+    - **compatibility: a treedb opened with an old name that breaks a rule
+      is not killed.** `treedb_open_db()` logs an ERROR and leaves THAT topic
       out ("Topic of the schema left out: a name breaks the name rule"); the
-      rest of the treedb opens. A topic or column id with `/` or `` ` `` was
-      never usable by path anyway. To check a store before upgrading:
-      `grep -l '[/`]' <store>/<treedb>/*/topic_cols.json` and the topic
-      directory names.
-    - `c_node`: a hook (or `rename_hook`) given by a peer to `node_children` /
-      `jtree` is a WARNING and a refusal (`MSGSET_PARAMETER`), not an error
-      with stack: it is the peer's data.
-    - gobj-ui 7.26.21: the schema editor refuses the same names at once.
+      rest of the treedb opens, and nothing done on the topics left in reaches
+      the left-out one with an error (`treedb_topic_pkey2s()` of a topic that
+      is not open answers NULL, it logged "kw must be list or dict" with no
+      context). Renaming a topic or a hook also means rewriting the
+      `topic^id^hook` refs its children keep. To check a store before
+      upgrading, ask the KEYS of its persisted schemas with `jq` (the recipe
+      is under `treedb_open_db()` on doc.yuneta.io).
+    - `msg2db_open_db()` refuses a msg2db name that breaks the rule, and
+      leaves out a topic that does.
+    - `c_node`: every name a command hands it -- the hook of `node_children` /
+      `jtree` (and `rename_hook`), the `link` of `node_parents`, the hook of
+      `link_nodes` / `unlink_nodes`, and the topic and hook of the
+      `parent_ref` of the `link-nodes` / `unlink-nodes` commands -- is checked
+      first: one that breaks a rule is a WARNING and a refusal
+      (`MSGSET_PARAMETER`), not the treedb's error (with no stack either; the
+      first version of this line said so wrongly).
+    - gobj-ui 7.26.22: the schema editor, its import and its validation apply
+      the same two rules.
+- **fix: the logger ignored the precision of `%s`**: `json_vappend()` read
+  `"%.64s"` as `"%s"`, so every "capped" value of the tree (29 sites, a
+  peer's data among them) was logged whole, up to 4 KiB. It reads flags,
+  width and precision now, `*` included -- a `"%.*s"` would have read its
+  `int` as the string pointer. `tests/c/kw/test_kw1` pins it. §V14.1.
 - **fix: use after free in `delete_consoles_on_disconnection()`** of
   `yuno_agent` and `yuno_agent22`: the name read from the console record was
-  used after `delete_console()` freed that record. It is copied first.
-  §V13.3.
+  used after `delete_console()` freed that record. It is copied first, with
+  `gbmem_strdup()` (a fixed `NAME_MAX` buffer truncated a gobj name of 255
+  bytes, and that console was never deleted); so is the copy in `mt_stop`.
+  §V13.3, §V14.4.
 - **`tr2list --filter` and the filter of a `ytests` step read their keys as
   PATHS**, through `kw_clone_by_path()` (``{"device`model": "T-100"}`` matches
   the field `model` inside `device`). Since `kw_clone_by_keys()` reads keys as
-  keys they had silently stopped matching a nested field. §V13.2.
+  keys they had silently stopped matching a nested field. `ytests` says a
+  filter path not found in the response, and a filter item that is not a
+  string. §V13.2, §V14.4.
 - `kw_match_simple()` says "filter path too long" ONCE per process (it ran per
   publication and per record, so a peer's long filter flooded the log);
   `msg_iev_push_stack()` replaces a peer's `__md_iev__` (or a stack in it) of
-  the wrong type with an empty one, with a warning and a capped dump of the
-  value, so the entry is pushed and the next push of the same message does
-  not warn again (`c_ievent_srv` warned twice per message); `kw_get_dict()` /
-  `kw_get_list()` with `KW_CREATE|KW_REQUIRED` over a `null` and no default say
-  "path NOT FOUND", as for a missing key (gobj-js 7.26.16 does the same).
-  §V13.4.
+  the wrong type with an empty one, with a warning that names its type and
+  size and a prefix of a string (not a dump of the whole value: a peer's
+  megabytes, per message), so the entry is pushed and the next push of the
+  same message does not warn again (`c_ievent_srv` warned twice per message);
+  `kw_get_dict()` / `kw_get_list()` with `KW_CREATE|KW_REQUIRED` over a `null`
+  and no default say "path NOT FOUND", as for a missing key (gobj-js 7.26.16
+  does the same). §V13.4, §V14.1.
 
 - **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
-  (2026-10-10/11, yunovatios `REV-CLOUD.md`, thirteen rounds).** Submodules
-  `kernel/js/gobj-js` 7.26.0 → **7.26.16**, `kernel/js/gobj-ui` 7.26.7 →
-  **7.26.21**, and `yunos/js` (gui_agent 0.29.35, gui_treedb 0.17.102); every
+  (2026-10-10/11, yunovatios `REV-CLOUD.md`, fourteen rounds).** Submodules
+  `kernel/js/gobj-js` 7.26.0 → **7.26.17**, `kernel/js/gobj-ui` 7.26.7 →
+  **7.26.22**, and `yunos/js` (gui_agent 0.29.36, gui_treedb 0.17.103); every
   release is in the CHANGELOG of its own repository. What a consumer has to
   know:
     - `createElement2()` takes a string that starts with `<` as markup unless

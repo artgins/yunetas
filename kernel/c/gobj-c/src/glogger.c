@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <wchar.h>
+#include <ctype.h>
 
 #ifdef __linux__
     #include <syslog.h>
@@ -1406,12 +1407,52 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
         if(fmt == NULL) {
             break;
         }
-        for (i = 0; i < strlen (fmt); i++) {
+        size_t fmt_len = strlen(fmt);
+        for (i = 0; i < fmt_len; i++) {
             int eof = 0;
 
             if (fmt[i] != '%')
                 continue;
             i++;
+
+            /*
+             *  Flags, width and precision. The precision of "%.64s" caps
+             *  what is logged (a peer's value, a dump): it was skipped, so
+             *  every "%.Ns" logged the whole string. A '*' takes its int from
+             *  the va_list, or every argument after it is read shifted.
+             */
+            int precision = -1;
+            while(i < fmt_len && strchr("-+ #0", fmt[i])) {
+                i++;
+            }
+            if(i < fmt_len && fmt[i] == '*') {
+                (void)va_arg(ap, int);
+                i++;
+            } else {
+                while(i < fmt_len && isdigit((unsigned char)fmt[i])) {
+                    i++;
+                }
+            }
+            if(i < fmt_len && fmt[i] == '.') {
+                i++;
+                precision = 0;
+                if(i < fmt_len && fmt[i] == '*') {
+                    int p_ = va_arg(ap, int);
+                    precision = p_ < 0? -1 : p_;
+                    i++;
+                } else {
+                    while(i < fmt_len && isdigit((unsigned char)fmt[i])) {
+                        if(precision < (int)sizeof(value)) {
+                            precision = precision*10 + (fmt[i] - '0');
+                        }
+                        i++;
+                    }
+                }
+            }
+            if(precision < 0 || precision > (int)sizeof(value)) {
+                precision = (int)sizeof(value);
+            }
+
             while (eof != 1) {
                 switch (fmt[i]) {
                     case 'd':
@@ -1473,7 +1514,7 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                             int len;
 
                             p = va_arg (ap, wchar_t *);
-                            if(p && (len = snprintf(value, sizeof(value), "%ls", p))>=0) {
+                            if(p && (len = snprintf(value, sizeof(value), "%.*ls", precision, p))>=0) {
                                 if(strcmp(key, "msg")==0) {
                                     if(priority <= LOG_ERR) {
                                         gobj_log_set_last_message("%s", value);
@@ -1489,7 +1530,7 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                             int len;
 
                             p = va_arg (ap, char *);
-                            if(p && (len = snprintf(value, sizeof(value), "%s", p))>=0) {
+                            if(p && (len = snprintf(value, sizeof(value), "%.*s", precision, p))>=0) {
                                 if(strcmp(key, "msg")==0) {
                                     if(priority <= LOG_ERR) {
                                         gobj_log_set_last_message("%s", value);
@@ -1545,7 +1586,7 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                         break;
                     default:
                         i++;
-                        if(i >= strlen (fmt)) {
+                        if(i >= fmt_len) {
                             (void)va_arg (ap, char *);
                             eof = 1;
                         }

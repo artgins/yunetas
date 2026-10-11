@@ -123,6 +123,22 @@ PUBLIC json_t *msg2db_open_db(
         JSON_DECREF(jn_schema)
         return 0;
     }
+    /*
+     *  The msg2db and its topics are names of the topic rule
+     *  (tranger2_name_is_identifier()): they are directories, and segments
+     *  of the kw paths built from them ("msg2dbs`<msg2db>`<topic>`id").
+     */
+    if(!tranger2_name_is_identifier(msg2db_name)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MSG2DB,
+            "msg",          "%s", "Invalid msg2db name: empty, '.', '..', '/' or '`' not allowed",
+            "msg2db_name",  "%.64s", msg2db_name,
+            NULL
+        );
+        JSON_DECREF(jn_schema)
+        return 0;
+    }
 
     char schema_filename[NAME_MAX + sizeof(".msg2db_schema.json")];
     if(strstr(msg2db_name, ".msg2db_schema.json")) {
@@ -366,9 +382,21 @@ PUBLIC json_t *msg2db_open_db(
         if(empty_string(topic_name)) {
             continue;
         }
+        if(!tranger2_name_is_identifier(topic_name)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MSG2DB,
+                "msg",          "%s", "Topic of the msg2db left out: its name breaks the name rule (empty, '.', '..', '/' or '`')",
+                "msg2db_name",  "%s", msg2db_name,
+                "topic_name",   "%.64s", topic_name,
+                NULL
+            );
+            continue;
+        }
 
         build_msg2db_index_path(path, sizeof(path), msg2db_name, topic_name, "id");
 
+        // A path on purpose: the topic name was checked above, it holds no '`'
         kw_get_subdict_value(gobj, msg2db, topic_name, "id", json_object(), KW_CREATE);
 
         char rt_id[2*NAME_MAX];

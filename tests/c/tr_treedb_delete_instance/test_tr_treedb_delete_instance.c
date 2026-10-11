@@ -260,9 +260,13 @@ PRIVATE int test_delete_node_by_key_and_names(
     const char *test = "delete_node by key, names without the delimiter";
     time_measure_t time_measure;
     set_expected_results(test,
-        json_pack("[{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s, s:s},{s:s, s:s}]",
             "msg", "Invalid name: empty, '.', '..', '/' or '`' not allowed",
-            "msg", "Invalid name: empty, '.', '..', '/' or '`' not allowed"
+            "msg", "Invalid name: empty, '.', '..', '/' or '`' not allowed",
+            "msg", "Creating topic",
+            "topic", "slashcols",
+            "msg", "Topic refused: bad columns",
+            "why", "a column id breaks the name rule (empty or '`')"
         ),
         NULL, NULL, 1
     );
@@ -303,8 +307,130 @@ PRIVATE int test_delete_node_by_key_and_names(
         result += -1;
     }
 
+    /*
+     *  TWO rules (REV-CLOUD V14.2): a column is a key, not a directory, so a
+     *  '/' in its id is fine; the delimiter is not.
+     */
+    if(!treedb_create_topic(
+            tranger, treedb_name, "slashcols", 1, "", json_string("version"),
+            json_pack("{s:{s:s, s:s, s:s, s:[s]}, s:{s:s, s:s, s:s, s:[s]}}",
+                "id", "id", "id", "header", "Id", "type", "string", "flag", "persistent",
+                "kids/all", "id", "kids/all", "header", "Kids", "type", "string", "flag", "persistent"
+            ),
+            0, FALSE, FALSE)) {
+        printf("%s  FAIL: a column kids/all was refused%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_create_topic(
+            tranger, treedb_name, "tickcols", 1, "", json_string("version"),
+            json_pack("{s:{s:s, s:s, s:s, s:[s]}, s:{s:s, s:s, s:s, s:[s]}}",
+                "id", "id", "id", "header", "Id", "type", "string", "flag", "persistent",
+                "x`y", "id", "x`y", "header", "XY", "type", "string", "flag", "persistent"
+            ),
+            0, FALSE, FALSE)) {
+        printf("%s  FAIL: a column x`y was accepted%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_col_name_is_identifier("x`y") || treedb_col_name_is_identifier("") ||
+            !treedb_col_name_is_identifier("kids/all") || !treedb_col_name_is_identifier("..")) {
+        printf("%s  FAIL: treedb_col_name_is_identifier()%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
     MT_INCREMENT_COUNT(time_measure, 1)
     MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  The example of treedb.md ("Names", treedb_open_db): a topic whose name
+ *  breaks the topic rule is LEFT OUT, the rest opens, and a '/' in a column
+ *  is fine (REV-CLOUD V14.4: the first version of that example did not even
+ *  open, it lacked 'system_flag' and 'header').
+ ***************************************************************************/
+static char schema_names_doc[]= "\
+{                                                                   \n\
+    'id': 'treedb_names',                                           \n\
+    'schema_version': '1',                                          \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'users',                                          \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'required']              \n\
+                },                                                  \n\
+                'home/dir': {                                       \n\
+                    'header': 'Home',                               \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'writable']              \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'id': 'a/b',                                            \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'required']              \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
+PRIVATE int test_names_doc_example(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "the Names example of treedb.md";
+    set_expected_results(test,
+        json_pack("[{s:s, s:s},{s:s, s:s}]",
+            "msg", "Creating topic",
+            "topic", "users",
+            "msg", "Topic of the schema left out: a name breaks the name rule (topic: empty, '.', '..', '/' or '`'; column: empty or '`')",
+            "topic_name", "a/b"
+        ),
+        NULL, NULL, 1
+    );
+
+    helper_quote2doublequote(schema_names_doc);
+    json_t *treedb = treedb_open_db(
+        tranger, "treedb_names", legalstring2json(schema_names_doc, TRUE), 0
+    );
+    if(!treedb) {
+        printf("%s  FAIL: the example did not open%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!treedb_is_treedbs_topic(tranger, "treedb_names", "users")) {
+        printf("%s  FAIL: users is not open%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_is_treedbs_topic(tranger, "treedb_names", "a/b")) {
+        printf("%s  FAIL: a/b was opened%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *node = treedb_create_node(tranger, "treedb_names", "users",
+        json_pack("{s:s, s:s}", "id", "ann", "home/dir", "/home/ann")
+    );
+    if(!node || strcmp(kw_get_str(0, node, "home/dir", "", 0), "/home/ann") != 0) {
+        printf("%s  FAIL: the column home/dir did not hold its value%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    treedb_close_db(tranger, "treedb_names");
+
     result += test_json(NULL);
     return result;
 }
@@ -2936,6 +3062,7 @@ PRIVATE int do_test(void)
     result += test_delete_instance_drops_secondary_keeps_primary(tranger, treedb_name);
     result += test_pkey2_index_keyed_by_id(tranger, treedb_name);
     result += test_delete_node_by_key_and_names(tranger, treedb_name);
+    result += test_names_doc_example(tranger);
     result += test_instance_held_by_a_snap(tranger, treedb_name);
     result += test_guard_that_cannot_read_refuses(tranger, treedb_name);
     result += test_delete_node_clears_everything(tranger, treedb_name);

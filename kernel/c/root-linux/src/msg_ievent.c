@@ -220,6 +220,24 @@ PUBLIC json_t *iev_create_from_gbuffer(
 }
 
 /***************************************************************************
+ *  The json type, as a word for a log line
+ ***************************************************************************/
+PRIVATE const char *json_kind(json_t *jn)
+{
+    switch(json_typeof(jn)) {
+        case JSON_OBJECT:   return "dict";
+        case JSON_ARRAY:    return "list";
+        case JSON_STRING:   return "string";
+        case JSON_INTEGER:  return "integer";
+        case JSON_REAL:     return "real";
+        case JSON_TRUE:     return "true";
+        case JSON_FALSE:    return "false";
+        case JSON_NULL:     return "null";
+        default:            return "?";
+    }
+}
+
+/***************************************************************************
  *
     Examples:
 
@@ -351,19 +369,21 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
      *  `__md_iev__` and its stacks can come in what a PEER sent: one of the
      *  wrong type is a warning (protocol data), not an internal error, and
      *  it is REPLACED, said once, so the entry is pushed and the next push
-     *  of the same message finds a good one (no warning per push).
+     *  of the same message finds a good one (no warning per push). What is
+     *  logged is its type and size, and a prefix of a string: a dump of the
+     *  whole value cost a peer's megabytes per message (REV-CLOUD V14.1).
      */
     json_t *md_iev = json_object_get(kw, "__md_iev__");
     if(md_iev && !json_is_object(md_iev) && !json_is_null(md_iev)) {
-        char *dump = json_dumps(md_iev, JSON_COMPACT|JSON_ENCODE_ANY);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "__md_iev__ is not a dict, replaced by an empty one",
-            "value",        "%.64s", dump?dump:"",
+            "type",         "%s", json_kind(md_iev),
+            "size",         "%d", (int)json_size(md_iev),
+            "value",        "%.64s", json_is_string(md_iev)? json_string_value(md_iev) : "",
             NULL
         );
-        GBMEM_FREE(dump);
         json_object_del(kw, "__md_iev__");
     }
     md_iev = kw_get_dict(gobj, kw, "__md_iev__", json_object(), KW_CREATE);
@@ -373,16 +393,16 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
     }
     json_t *jn_stack = json_object_get(md_iev, stack);
     if(jn_stack && !json_is_array(jn_stack) && !json_is_null(jn_stack)) {
-        char *dump = json_dumps(jn_stack, JSON_COMPACT|JSON_ENCODE_ANY);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "a stack of __md_iev__ is not a list, replaced by an empty one",
             "stack",        "%s", stack,
-            "value",        "%.64s", dump?dump:"",
+            "type",         "%s", json_kind(jn_stack),
+            "size",         "%d", (int)json_size(jn_stack),
+            "value",        "%.64s", json_is_string(jn_stack)? json_string_value(jn_stack) : "",
             NULL
         );
-        GBMEM_FREE(dump);
     }
     if(!json_is_array(jn_stack)) {
         jn_stack = json_array();

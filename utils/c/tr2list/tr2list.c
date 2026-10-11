@@ -439,7 +439,7 @@ PRIVATE int load_record_callback(
             paths[np++] = fkey;
         }
         paths[np] = NULL;
-        json_t *record1 = kw_clone_by_path(gobj, json_incref(jn_record), paths);
+        json_t *record1 = kw_clone_by_path(gobj, kw_incref(jn_record), paths);
         GBMEM_FREE(paths);
         if(!json_equal(
             record1,        // NOT owned

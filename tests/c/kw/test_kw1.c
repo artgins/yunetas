@@ -362,6 +362,70 @@ static int test2_false(void)
 }
 
 /***************************************************************************
+ *  REV-CLOUD V14.1: the logger honours the precision of "%.Ns" and "%.*s".
+ *  It skipped it, so every capped value of the tree was logged whole.
+ ***************************************************************************/
+static int test_log_precision_caps_the_value(void)
+{
+    int result = 0;
+    set_expected_results(
+        "log_precision_caps_the_value",
+        json_pack("[{s:s, s:s, s:s, s:i}]",
+            "msg", "precision",
+            "value", "abcde",
+            "star", "abc",
+            "after", 7
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+
+    gobj_log_warning(0, 0,
+        "msg",      "%s", "precision",
+        "value",    "%.5s", "abcdefghij",
+        "star",     "%.*s", 3, "abcdefghij",
+        "after",    "%d", 7,
+        NULL
+    );
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
+    return result;
+}
+
+/***************************************************************************
+ *  REV-CLOUD V14.4: a filter path too long for kw_match_simple() is said
+ *  ONCE per process (the matchers run per publication and per record).
+ ***************************************************************************/
+static int test_match_simple_long_path_said_once(void)
+{
+    int result = 0;
+    set_expected_results(
+        "match_simple_long_path_said_once",
+        json_pack("[{s:s}]",
+            "msg", "filter path too long, not matched (said once per process)"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+
+    char long_key[NAME_MAX + 32];
+    memset(long_key, 'k', sizeof(long_key) - 1);
+    long_key[sizeof(long_key) - 1] = 0;
+    json_t *kw = json_object();
+    for(int i = 0; i < 3; i++) {
+        if(kw_match_simple(kw, json_pack("{s:s}", long_key, "v"))) {
+            result += -1;   // a path that does not fit never matches
+        }
+    }
+    json_decref(kw);
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
+    return result;
+}
+
+/***************************************************************************
  *  REV-CLOUD V13.4: KW_CREATE|KW_REQUIRED over a null leaf with no default
  *  answers NULL as a missing key does, and says it as a missing key does
  *  (it answered NULL in silence while the missing key logged).
@@ -746,6 +810,8 @@ PRIVATE int do_test(void)
     result += test_json_unflatten_dict();
 
     result += test_null_leaf_required_logs_as_missing();
+    result += test_log_precision_caps_the_value();
+    result += test_match_simple_long_path_said_once();
     result += test_reg_f001_gbuffer_deserialize_null_data();
     result += test_reg_f001_gbuffer_deserialize_bad_base64();
     result += test_reg_f002_find_record_not_found();

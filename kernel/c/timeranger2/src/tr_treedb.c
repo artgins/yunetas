@@ -457,6 +457,13 @@ PUBLIC json_t *treedb_topic_pkey2s( // Return list with pkey2s
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     json_t *topic_desc = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
+    if(!json_is_object(topic_desc)) {
+        /*  A topic that is not open has no instances: one a hook names and
+         *  treedb_open_db() left out (logged there). Asked of NULL, the
+         *  reader logged "kw must be list or dict" with no context, on every
+         *  delete that walked the hook (REV-CLOUD V14.2).  */
+        return NULL;
+    }
     json_t *list = kw_get_list(gobj, topic_desc, "pkey2s", 0, 0);
     return json_incref(list);
 }
@@ -561,12 +568,16 @@ PUBLIC BOOL treedb_is_treedbs_topic(
 }
 
 /***************************************************************************
- *  A treedb, topic, column or hook NAME follows THE name rule of
- *  timeranger2 (tranger2_name_is_identifier(): not empty, "." or "..", no
- *  '/', no '`'): it is a key of the in-memory treedb and a segment of the
- *  kw paths built from it. Unchecked, `a`b` was created as a path
- *  (treedbs.a.b) and looked up as a key (never found), and a topic name
- *  `users`id` reached the id index of `users` (REV-CLOUD V12.1, V13.1).
+ *  TWO name rules (REV-CLOUD V12.1, V13.1, V14.2):
+ *  - a treedb or topic NAME is a directory and a key: THE name rule of
+ *    timeranger2 (tranger2_name_is_identifier(): not empty, not "." or "..",
+ *    no '/', no '`');
+ *  - a COLUMN name (a column id, a hook, an fkey) is only a key, and a
+ *    segment of the kw paths built from it: not empty, no '`'
+ *    (treedb_col_name_is_identifier()). '/' never broke a column.
+ *  Unchecked, `a`b` was created as a path (treedbs.a.b) and looked up as a
+ *  key (never found), and a topic name `users`id` reached the id index of
+ *  `users`.
  ***************************************************************************/
 PRIVATE BOOL name_is_identifier(
     hgobj gobj,
@@ -581,9 +592,41 @@ PRIVATE BOOL name_is_identifier(
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Invalid name: empty, '.', '..', '/' or '`' not allowed",
             "what",         "%s", what,
-            "name",         "%s", name?name:"",
+            "name",         "%.64s", name?name:"",
             NULL
         );
+        return FALSE;
+    }
+    return TRUE;
+}
+
+PRIVATE BOOL col_name_is_identifier(
+    hgobj gobj,
+    const char *name,
+    const char *what,
+    const char *caller
+)
+{
+    if(!treedb_col_name_is_identifier(name)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", caller,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Invalid column name: empty or '`' not allowed",
+            "what",         "%s", what,
+            "name",         "%.64s", name?name:"",
+            NULL
+        );
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The name rule of a column, a hook or an fkey
+ ***************************************************************************/
+PUBLIC BOOL treedb_col_name_is_identifier(const char *name)
+{
+    if(empty_string(name) || strchr(name, '`') != NULL) {
         return FALSE;
     }
     return TRUE;
@@ -1537,9 +1580,10 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
          */
         BOOL names_ok = tranger2_name_is_identifier(topic_name);
         const char *bad_col = NULL;
-        const char *col_id_; json_t *col_v_;
+        const char *col_id_;
+        json_t *col_v_;
         json_object_foreach(schema_cols, col_id_, col_v_) {
-            if(!tranger2_name_is_identifier(col_id_)) {
+            if(!treedb_col_name_is_identifier(col_id_)) {
                 names_ok = FALSE;
                 bad_col = col_id_;
                 break;
@@ -1549,7 +1593,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
-                "msg",          "%s", "Topic of the schema left out: a name breaks the name rule (empty, '.', '..', '/' or '`')",
+                "msg",          "%s", "Topic of the schema left out: a name breaks the name rule (topic: empty, '.', '..', '/' or '`'; column: empty or '`')",
                 "treedb_name",  "%s", treedb_name,
                 "topic_name",   "%s", topic_name,
                 "column",       "%s", bad_col? bad_col : "",
@@ -1871,20 +1915,20 @@ PRIVATE int check_cols_of_new_topic(
     } else {
         BOOL has_id = FALSE;
         /*  A column id is a key of every record and a segment of the kw
-         *  paths built from it: no '`' (REV-CLOUD V12.1).  */
+         *  paths built from it: the column name rule.  */
         if(json_is_object(cols)) {
             const char *col_id; json_t *col_;
             json_object_foreach(cols, col_id, col_) {
-                if(!tranger2_name_is_identifier(col_id)) {
-                    why = "a column id breaks the name rule (empty, '.', '..', '/' or '`')";
+                if(!treedb_col_name_is_identifier(col_id)) {
+                    why = "a column id breaks the name rule (empty or '`')";
                 }
             }
         } else if(json_is_array(cols)) {
             int idx_; json_t *col_;
             json_array_foreach(cols, idx_, col_) {
                 const char *col_id = json_string_value(json_object_get(col_, "id"));
-                if(col_id && !tranger2_name_is_identifier(col_id)) {
-                    why = "a column id breaks the name rule (empty, '.', '..', '/' or '`')";
+                if(col_id && !treedb_col_name_is_identifier(col_id)) {
+                    why = "a column id breaks the name rule (empty or '`')";
                 }
             }
         }
@@ -4926,7 +4970,7 @@ PUBLIC BOOL decode_parent_ref(
     if(hook_name && !copy_ref_part(pref, ss[2], hook_name, hook_name_size)) {
         fits = FALSE;
     }
-    if(fits && (!tranger2_name_is_identifier(ss[0]) || !tranger2_name_is_identifier(ss[2]))) {
+    if(fits && (!tranger2_name_is_identifier(ss[0]) || !treedb_col_name_is_identifier(ss[2]))) {
         /*  The topic and the hook of a ref are names, and they go into kw
          *  paths ("topics`<topic>`cols`<hook>`hook"): a ref is data, and one
          *  holding the delimiter addressed another column.  */
@@ -13170,7 +13214,7 @@ PUBLIC int treedb_link_nodes(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     /*  The hook name is the caller's (a link-nodes command): a name, read
      *  as a path in the node, before the schema says whether it is one.  */
-    if(!name_is_identifier(gobj, hook_name, "hook_name", __FUNCTION__)) {
+    if(!col_name_is_identifier(gobj, hook_name, "hook_name", __FUNCTION__)) {
         return -1;  // Error already logged
     }
 
@@ -13268,7 +13312,7 @@ PUBLIC int treedb_unlink_nodes(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    if(!name_is_identifier(gobj, hook_name, "hook_name", __FUNCTION__)) {
+    if(!col_name_is_identifier(gobj, hook_name, "hook_name", __FUNCTION__)) {
         return -1;  // Error already logged
     }
 
@@ -14381,7 +14425,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    if(!name_is_identifier(gobj, fkey, "fkey", __FUNCTION__)) {
+    if(!col_name_is_identifier(gobj, fkey, "fkey", __FUNCTION__)) {
         JSON_DECREF(jn_options)
         return 0;   // Error already logged
     }
@@ -14725,7 +14769,7 @@ PUBLIC json_t *treedb_node_children(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    if(!name_is_identifier(gobj, hook, "hook", __FUNCTION__)) {
+    if(!col_name_is_identifier(gobj, hook, "hook", __FUNCTION__)) {
         JSON_DECREF(jn_filter)
         JSON_DECREF(jn_options)
         return 0;   // Error already logged
@@ -14912,9 +14956,9 @@ PUBLIC json_t *treedb_node_jtree(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    if(!name_is_identifier(gobj, hook, "hook", __FUNCTION__) ||
+    if(!col_name_is_identifier(gobj, hook, "hook", __FUNCTION__) ||
             (rename_hook && *rename_hook &&
-             !name_is_identifier(gobj, rename_hook, "rename_hook", __FUNCTION__))) {
+             !col_name_is_identifier(gobj, rename_hook, "rename_hook", __FUNCTION__))) {
         JSON_DECREF(jn_filter)
         JSON_DECREF(jn_options)
         return 0;   // Error already logged
