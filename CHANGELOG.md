@@ -83,6 +83,15 @@ Out of the eighteenth review (V18):
   (the forms with `*` and `%j…` were the crashing ones); `%m` ignores a
   precision.
 - `c_node`'s seed-link check reads the hook map by key, as `_link_nodes()`.
+- **JS layer: gobj-ui 7.26.26.** `validate-locales` compares plurals per
+  language (`Intl.PluralRules`), takes endonyms as literals, reads the app's
+  `attr_keys` / `array_keys` from its `package.json` (the names of the
+  yunovatios orchestrator were written in the published script), reads the
+  source recursively and follows a dynamic import. yunomusica runs it now
+  (10 languages; 17 keys added). It saw three keys that reached `t()` by
+  variable or `setAttribute`: `apply`, `node id required` (it was
+  `t('node id') + ' required'`), and `not saved yet` (written WITHOUT `t()`
+  by `yui_file_field.js`). gui_agent 0.29.40, gui_treedb 0.17.107.
 
 ## v7.26.9 (2026-10-11)
 

@@ -71,7 +71,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.25`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.26`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -1356,7 +1356,10 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   caught by the `validate-locales` gobj-ui publishes (7.26.25+): every SPA's
   `prebuild` runs `node node_modules/@yuneta/gobj-ui/scripts/validate-locales.mjs`
   and keeps NO copy (the copies had drifted into three families with different
-  rules). It also scans the gobj-ui modules the app mounts, because **the
+  rules; only gobj-ui's `test-app`, whose catalog has English as the source,
+  keeps its own). What is particular to an app goes in its `package.json`
+  (`"validate-locales": {"attr_keys", "array_keys"}`), and plurals are
+  compared per language (7.26.26+). It also scans the gobj-ui modules the app mounts, because **the
   library translates through the APP's i18next**. Details: gobj-ui's README
   ("Conventions → i18n").
 - **Indentation is always FOUR spaces.** Anywhere structure is shown as
