@@ -1828,12 +1828,12 @@ PRIVATE int check_step_command(const char *command, char *bad, size_t badsz)
     int ret = 0;
     const char *name = words[0];
     if(!islower((unsigned char)name[0])) {
-        snprintf(bad, badsz, "a command name first: '%.40s'", name);
+        snprintf(bad, badsz, "a command name first: '%.*s'", utf8_prefix_len(name, 40), name);
         ret = -1;
     }
     for(const char *p = name; ret == 0 && *p; p++) {
         if(!isalnum((unsigned char)*p) && *p != '_' && *p != '-') {
-            snprintf(bad, badsz, "a command name first: '%.40s'", name);
+            snprintf(bad, badsz, "a command name first: '%.*s'", utf8_prefix_len(name, 40), name);
             ret = -1;
         }
     }
@@ -1841,29 +1841,31 @@ PRIVATE int check_step_command(const char *command, char *bad, size_t badsz)
         const char *eq = strchr(words[i], '=');
         size_t klen = eq? (size_t)(eq - words[i]) : 0;
         if(!eq || klen == 0 || klen >= NAME_MAX) {
-            snprintf(bad, badsz, "key=value parameters, without blanks: '%.40s'", words[i]);
+            snprintf(bad, badsz, "key=value parameters, without blanks: '%.*s'",
+                utf8_prefix_len(words[i], 40), words[i]);
             ret = -1;
             break;
         }
         char key[NAME_MAX];
         snprintf(key, sizeof(key), "%.*s", (int)klen, words[i]);
         if(!is_plain_name(key)) {
-            snprintf(bad, badsz, "a parameter name of letters, digits and _ . ^ -: '%.40s'", key);
+            snprintf(bad, badsz, "a parameter name of letters, digits and _ . ^ -: '%.*s'",
+                utf8_prefix_len(key, 40), key);
             ret = -1;
             break;
         }
         if(strncmp(key, "__", 2)==0) {
             snprintf(bad, badsz,
-                "the parameter '%.40s' is a framework key: it would replace what the control center sets",
-                key);
+                "the parameter '%.*s' is a framework key: it would replace what the control center sets",
+                utf8_prefix_len(key, 40), key);
             ret = -1;
             break;
         }
         for(int j=0; reserved_step_params[j]; j++) {
             if(strcmp(key, reserved_step_params[j])==0) {
                 snprintf(bad, badsz,
-                    "the parameter '%.40s' is command-yuno's or a yuno's field: it would select the yuno",
-                    key);
+                    "the parameter '%.*s' is command-yuno's or a yuno's field: it would select the yuno",
+                    utf8_prefix_len(key, 40), key);
                 ret = -1;
                 break;
             }

@@ -631,6 +631,34 @@ PRIVATE int run_tests(hgobj gobj)
     CHECK(expect_refused, "refused: an unlink of a child that does not hang there", "unlink-nodes",
         json_pack("{s:s, s:s}", "parent_ref", "departments^dev^departments", "child_ref", "departments^ops"),
         "cannot unlink")
+    CHECK(expect_refused, "refused: an id with a path metacharacter", "create-node",
+        json_pack("{s:s, s:{s:s, s:s}}", "topic_name", "departments", "record", "id", "a/b", "name", "AB"),
+        "cannot create the node")
+    {
+        /*  V19.3.3: import-db refuses what the upload gets wrong, counted  */
+        const char *db = "{\"departments\": [1, \"x\", {\"id\": 5}], \"nosuch\": [{\"id\": \"q\"}]}";
+        gbuffer_t *gbuf = gbuffer_create(256, 256);
+        gbuffer_append_string(gbuf, db);
+        gbuffer_t *gbuf64 = gbuffer_binary_to_base64(gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf));
+        json_t *resp = ask(gobj, "import-db", json_pack("{s:s, s:s}",
+            "content64", gbuffer_cur_rd_pointer(gbuf64), "if-resource-exists", "skip"));
+        json_t *data = kw_get_dict(gobj, resp, "data", 0, 0);
+        if(kw_get_int(gobj, data, "failure", -1, 0) != 4 || kw_get_int(gobj, data, "added", -1, 0) != 0) {
+            result += fail(gobj, "import-db: 3 wrong records and an unknown topic, 4 failures", resp);
+        }
+        JSON_DECREF(resp)
+        GBUFFER_DECREF(gbuf64)
+        GBUFFER_DECREF(gbuf)
+    }
+    {
+        /*  V19.3.3: no node_id and no filter, all the instances of the topic  */
+        json_t *resp = ask(gobj, "instances", json_pack("{s:s}", "topic_name", "items"));
+        if(kw_get_int(gobj, resp, "result", -1, 0) != 0 ||
+                json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 2) {
+            result += fail(gobj, "instances with no node_id and no filter", resp);
+        }
+        JSON_DECREF(resp)
+    }
     CHECK(expect_refused, "refused: instances by the primary index", "instances",
         json_pack("{s:s, s:s}", "topic_name", "items", "pkey2", "id"),
         "Not a pkey2 of topic 'items'")
@@ -640,6 +668,14 @@ PRIVATE int run_tests(hgobj gobj)
     CHECK(expect_refused, "refused: a create without a required field", "create-node",
         json_pack("{s:s, s:{s:s}}", "topic_name", "departments", "record", "id", "noname"),
         "cannot create the node")
+    {
+        json_t *resp = ask(gobj, "create-node", json_pack("{s:s, s:{s:s, s:s}}",
+            "topic_name", "departments", "record", "id", "probe", "name", "Probe"));
+        if(kw_get_int(gobj, resp, "result", -1, 0) != 0 || treedb_peer_data()) {
+            result += fail(gobj, "create-node of probe, and the window closed after it", resp);
+        }
+        JSON_DECREF(resp)
+    }
 
     /*
      *  treedb-info: its name, master, the schema version and the topics
@@ -865,6 +901,25 @@ PRIVATE int run_tests(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_treedb_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  REV-CLOUD V19.2: a subscriber runs OUTSIDE the peer's window. The
+     *  create of `probe` comes from a command; what this subscriber writes
+     *  in its handler is its own C, and its fault is an ERROR, not the
+     *  WARNING of the peer's data (main.c asks for the priority).
+     */
+    if(event == EV_TREEDB_NODE_CREATED &&
+            strcmp(kw_get_str(gobj, kw, "node`id", "", 0), "probe")==0) {
+        if(treedb_peer_data()) {
+            fail(gobj, "a subscriber runs inside the peer's window", kw);
+        }
+        json_t *node = treedb_create_node(priv->tranger, TREEDB, "departments",
+            json_pack("{s:s}", "id", "probe_child"));   // no `name`: required
+        if(node) {
+            fail(gobj, "a create without a required field was made", NULL);
+        }
+    }
     KW_DECREF(kw)
     return 0;
 }

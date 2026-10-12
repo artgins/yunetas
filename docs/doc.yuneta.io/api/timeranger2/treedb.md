@@ -3021,7 +3021,7 @@ This function is useful for debugging and monitoring TreeDB operations.
 ---
 
 (treedb_set_peer_data)=
-## [`treedb_set_peer_data()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/tr_treedb.c#L6139)
+## [`treedb_set_peer_data()`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_treedb.c#L6164)
 
 Say that the data of the calls that follow comes from a PEER. A fault of the
 DATA is then logged as a WARNING without a stack trace, not as an ERROR with
@@ -3053,9 +3053,14 @@ For a C caller a bad record is a broken contract, and the ERROR with its stack
 says where. For a peer -- a GUI, a remote command -- it is the peer's mistake,
 and an ERROR per mistake is noise that any user with the permission can make.
 `C_NODE` sets it around the treedb calls of its commands (create, update,
-delete, link, unlink, import-db), since SDK 7.26.10. The flag is
-process-wide; restore it, do not reset it, because the calls nest (a treedb
-event can bring another command in):
+delete, link, unlink, import-db), since SDK 7.26.10 -- see
+[what a command names is the peer's data](#c-node-peer-data).
+
+The flag is process-wide, so the treedb turns it OFF while it publishes a
+change: a subscriber runs as a C caller, and what it writes keeps its ERRORs.
+`db_history_ce` writes `treedb_authzs` from its `EV_TREEDB_NODE_CREATED`
+handler, inside the create of a peer; a fault of that write is its own, not
+the peer's. Restore the flag, do not reset it, because the calls nest:
 
 ```C
 BOOL peer_data = treedb_set_peer_data(TRUE);    // the record is a peer's
@@ -3066,7 +3071,7 @@ treedb_set_peer_data(peer_data);
 ---
 
 (treedb_peer_data)=
-## [`treedb_peer_data()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/tr_treedb.c#L6149)
+## [`treedb_peer_data()`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_treedb.c#L6174)
 
 `TRUE` while the data in course is a peer's ([`treedb_set_peer_data()`](<#treedb_set_peer_data>)).
 

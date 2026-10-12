@@ -107,7 +107,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -119,28 +119,36 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Playing yuno",
-            "msg", "topic not found, refused",               // the refusals of a command (V15.3)
-            "msg", "topic not found, refused",
-            "msg", "not a column of the topic with that flag, refused",
-            "msg", "column name breaks the name rule (empty or '`'), refused",
-            "msg", "parent ref must be topic^id^hook, with names of the name rule; refused",
-            "msg", "topic not found, refused",
-            "msg", "not a column of the topic with that flag, refused",
-            "msg", "the hook does not link that topic, refused",     // V17.3.1
-            "msg", "the hook does not link that topic, refused",
-            "msg", "node not found, update refused (no 'create' option)",
-            "msg", "record of a wrong shape, refused",                // V18.2-V18.3
-            "msg", "record of a wrong shape, refused",
-            "msg", "record of a wrong shape, refused",
-            "msg", "node already exists, create_only refused",
-            "msg", "Cannot link, the link would close a cycle in the hook",
-            "msg", "Cannot link self node",
-            "msg", "Cannot unlink, the child does not hang from that parent",
-            "msg", "not a pkey2 of the topic, refused",
-            "msg", "not a pkey2 of the topic, refused",
-            "msg", "Field required: 'name'",
+            "msg", "topic not found, refused", "__priority__", "WARNING",               // the refusals of a command (V15.3)
+            "msg", "topic not found, refused", "__priority__", "WARNING",
+            "msg", "not a column of the topic with that flag, refused", "__priority__", "WARNING",
+            "msg", "column name breaks the name rule (empty or '`'), refused", "__priority__", "WARNING",
+            "msg", "parent ref must be topic^id^hook, with names of the name rule; refused", "__priority__", "WARNING",
+            "msg", "topic not found, refused", "__priority__", "WARNING",
+            "msg", "not a column of the topic with that flag, refused", "__priority__", "WARNING",
+            "msg", "the hook does not link that topic, refused", "__priority__", "WARNING",     // V17.3.1
+            "msg", "the hook does not link that topic, refused", "__priority__", "WARNING",
+            "msg", "node not found, update refused (no 'create' option)", "__priority__", "WARNING",
+            "msg", "record of a wrong shape, refused", "__priority__", "WARNING",                // V18.2-V18.3
+            "msg", "record of a wrong shape, refused", "__priority__", "WARNING",
+            "msg", "record of a wrong shape, refused", "__priority__", "WARNING",
+            "msg", "node already exists, create_only refused", "__priority__", "WARNING",
+            "msg", "Cannot link, the link would close a cycle in the hook", "__priority__", "WARNING",
+            "msg", "Cannot link self node", "__priority__", "WARNING",
+            "msg", "Cannot unlink, the child does not hang from that parent", "__priority__", "WARNING",
+            "msg", "Invalid 'id': contains path metacharacters", "__priority__", "WARNING",   // V19.3.3
+            "msg", "record of a wrong shape, refused", "__priority__", "WARNING",       // import-db
+            "msg", "record of a wrong shape, refused", "__priority__", "WARNING",
+            "msg", "record of a wrong shape, refused", "__priority__", "WARNING",
+            "msg", "topic not found, refused", "__priority__", "WARNING",
+            "msg", "not a pkey2 of the topic, refused", "__priority__", "WARNING",
+            "msg", "not a pkey2 of the topic, refused", "__priority__", "WARNING",
+            "msg", "Field required: 'name'", "__priority__", "WARNING",
+            "msg", "Field required: 'name'", "__priority__", "ERROR",       // V19.2: a subscriber's own
             "msg", "loading snap_tag 1",                    // the treedb opened again with s1 active
             "msg", "Node already exists",                   // import-db: each node that exists is tried
+            "msg", "Node already exists",                   // ...and probe (V19.2), in two modes
+            "msg", "Node already exists",
             "msg", "Node already exists",
             "msg", "Node already exists",
             "msg", "Node already exists",

@@ -5563,6 +5563,9 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
  ***************************************************************************/
 #define IMPORT_NODE_EXISTS      "node exists"
 #define IMPORT_CANNOT_CREATE    "cannot create the node (see the log)"
+#define IMPORT_UNKNOWN_TOPIC    "topic not found"
+#define IMPORT_WRONG_RECORDS    "the records of a topic are not a list"
+#define IMPORT_WRONG_RECORD     "wrong record: a json object, with a string id"
 
 PRIVATE void count_import_error(json_t *jn_errores, const char *cause)
 {
@@ -5683,6 +5686,37 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         if(fin) {
             break;
         }
+        /*
+         *  What the upload names is the peer's data, as in create-node: an
+         *  unknown topic, records that are not a list, a record of a wrong
+         *  shape are refused with a WARNING and counted, not read on into
+         *  ERRORs of the treedb (REV-CLOUD V19.3.3). In the default mode
+         *  (abort) the first one ends the import, as any other failure.
+         */
+        const char *refused = NULL;
+        if(refuse_peer_topic_name(gobj, topic_name)) {
+            refused = IMPORT_UNKNOWN_TOPIC;
+        } else if(!json_is_array(topic_records)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "import-db: the records of a topic are not a list, refused",
+                "treedb_name",  "%s", priv->treedb_name,
+                "topic_name",   "%s", topic_name,
+                NULL
+            );
+            refused = IMPORT_WRONG_RECORDS;
+        }
+        if(refused) {
+            count_import_error(jn_errores, refused);
+            failure++;
+            if(if_resource_exists == 0) {
+                abort++;
+                fin = TRUE;
+            }
+            continue;
+        }
+
         /*  The topic name is a key of the user's content: a KEY here, as
          *  it is read back below, not a path.  */
         json_t *list_records = json_object_get(jn_loaded, topic_name);
@@ -5704,6 +5738,16 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         json_array_foreach(topic_records, idx, record) {
             if(fin) {
                 break;
+            }
+            if(refuse_peer_record(gobj, topic_name, record)) {
+                count_import_error(jn_errores, IMPORT_WRONG_RECORD);
+                failure++;
+                if(if_resource_exists == 0) {
+                    abort++;
+                    fin = TRUE;
+                    break;
+                }
+                continue;
             }
             json_t *node = gobj_create_node( // Return is YOURS
                 gobj,
@@ -6811,9 +6855,9 @@ PRIVATE BOOL refuse_peer_hook_without_child_topic(
  *  The record a create, an update or a delete hands over is the peer's: a
  *  dict, and its `id`, when it has one, a string. Anything else was read
  *  further down as a path holding the wrong type -- an ERROR with a stack
- *  and the kw dumped, per read (REV-CLOUD V18.2.2, V18.3). An absent id is
- *  left to the treedb: a uuid, rowid or qualified id is made there.
- *  TRUE = refused.
+ *  and the kw dumped, per read (REV-CLOUD V18.2.2, V18.3). An absent id --
+ *  or a null one, which the readers take as absent -- is left to the treedb:
+ *  a uuid, rowid or qualified id is made there (V19.3.1). TRUE = refused.
  ***************************************************************************/
 PRIVATE BOOL refuse_peer_record(
     hgobj gobj,
@@ -6828,7 +6872,7 @@ PRIVATE BOOL refuse_peer_record(
         why = "the record is not a json object";
     } else {
         json_t *jn_id = json_object_get(record, "id");
-        if(jn_id && !json_is_string(jn_id)) {
+        if(jn_id && !json_is_string(jn_id) && !json_is_null(jn_id)) {
             why = "the record id is not a string";
         }
     }

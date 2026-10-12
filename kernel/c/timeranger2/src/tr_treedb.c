@@ -320,6 +320,29 @@ PRIVATE BOOL __peer_data__ = FALSE;
     } while(0)
 
 /*
+ *  The publication of a change: its subscribers run as a C caller, not
+ *  inside the peer's window -- a subscriber that writes another treedb
+ *  (db_history_ce -> C_AUTHZ) kept the ERRORs of its own contract
+ *  (REV-CLOUD V19.2).
+ */
+static inline int run_treedb_callback(
+    treedb_callback_t treedb_callback,
+    void *user_data,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *operation,
+    json_t *node    // owned
+)
+{
+    BOOL peer_data = __peer_data__;
+    __peer_data__ = FALSE;
+    int ret = treedb_callback(user_data, tranger, treedb_name, topic_name, operation, node);
+    __peer_data__ = peer_data;
+    return ret;
+}
+
+/*
  *  The nodes whose delete tells its events: a save of them is refused
  *  (mark_node_deleting()). NOT owned: each delete removes its own.
  */
@@ -3293,9 +3316,11 @@ PRIVATE json_t *filtra_fkeys(
                     }
                 } else if(json_typeof(v)==JSON_OBJECT) {
                     char temp[TREEDB_REF_MAX];
-                    const char *id = kw_get_str(gobj, v, "id", 0, 0);
-                    const char *topic_name_ = kw_get_str(gobj, v, "topic_name", 0, 0);
-                    const char *hook_name = kw_get_str(gobj, v, "hook_name", 0, 0);
+                    /*  A peer's ref: a field that is not a string is said
+                     *  below, once, not by the reader with a stack  */
+                    const char *id = json_string_value(json_object_get(v, "id"));
+                    const char *topic_name_ = json_string_value(json_object_get(v, "topic_name"));
+                    const char *hook_name = json_string_value(json_object_get(v, "hook_name"));
                     if(!id || !topic_name_ || !hook_name ||
                             strchr(id, '^') || strchr(topic_name_, '^') || strchr(hook_name, '^')) {
                         log_data_fault(gobj, 0,
@@ -3479,7 +3504,7 @@ PRIVATE int check_enum_value(
             continue;
         }
         if(!json_str_in_list(gobj, desc_enum, json_string_value(v), TRUE)) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Value not in enum",
@@ -4098,7 +4123,7 @@ PUBLIC int set_volatil_values(
              *  Inform user in real time
              */
             JSON_INCREF(node)
-            treedb_callback(
+            run_treedb_callback(treedb_callback,
                 user_data,
                 tranger,
                 treedb_name,
@@ -6636,12 +6661,12 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  traverse out of the topic's keys/ directory.
      *-----------------------------------------------*/
     if(!is_valid_key_name(id)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        log_data_fault(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Invalid 'id': contains path metacharacters",
             "topic_name",   "%s", topic_name,
-            "id",           "%s", id,
+            "id",           "%.128s", id,
             NULL
         );
         JSON_DECREF(kw)
@@ -6657,14 +6682,14 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  undecodable or cut.
      *-----------------------------------------------*/
     if((strchr(id, '^') || strlen(id) >= NAME_MAX) && topic_has_hooks(gobj, tranger, topic_name)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        log_data_fault(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", strchr(id, '^')?
                 "Invalid 'id': it holds a '^', the separator of a reference" :
                 "Invalid 'id': too long to be part of a reference",
             "topic_name",   "%s", topic_name,
-            "id",           "%s", id,
+            "id",           "%.128s", id,
             "max",          "%d", NAME_MAX - 1,
             NULL
         );
@@ -6945,7 +6970,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             /*
              *  Inform user in real time
              */
-            treedb_callback(
+            run_treedb_callback(treedb_callback,
                 user_data,
                 tranger,
                 treedb_name,
@@ -7009,7 +7034,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                 /*
                  *  Inform user in real time
                  */
-                treedb_callback(
+                run_treedb_callback(treedb_callback,
                     user_data,
                     tranger,
                     treedb_name,
@@ -7293,7 +7318,7 @@ PRIVATE void publish_treedb_event(
     void *user_data = (void *)(uintptr_t)json_integer_value(
         json_object_get(treedb, "__treedb_callback_user_data__")
     );
-    treedb_callback(
+    run_treedb_callback(treedb_callback,
         user_data,
         tranger,
         treedb_name,
@@ -7389,7 +7414,7 @@ PRIVATE void release_treedb_events(json_t *tranger, events_hold_t *hold, BOOL te
         );
         json_incref(deferred);
         for(size_t i = hold->mark; i + 2 < size && treedb_callback; i += 3) {
-            treedb_callback(
+            run_treedb_callback(treedb_callback,
                 user_data,
                 tranger,
                 treedb_name,
@@ -9070,11 +9095,11 @@ PRIVATE BOOL tell_child_unlink(
     void *user_data = (void *)(uintptr_t)json_integer_value(
         json_object_get(treedb, "__treedb_callback_user_data__")
     );
-    treedb_callback(user_data, tranger, treedb_name, parent_topic_name, operation, kw);
+    run_treedb_callback(treedb_callback, user_data, tranger, treedb_name, parent_topic_name, operation, kw);
     if(get_treedb(tranger, treedb_name) != treedb) {
         return FALSE;   // a callback closed the treedb: nobody left to tell
     }
-    treedb_callback(
+    run_treedb_callback(treedb_callback,
         user_data, tranger, treedb_name, child_topic_name, EV_TREEDB_NODE_UPDATED, json_incref(child)
     );
     return (get_treedb(tranger, treedb_name) == treedb)? TRUE : FALSE;
@@ -9757,12 +9782,24 @@ PRIVATE int delete_node(
      */
     int held = ignore_snaps? 0 : node_held_by_a_snap(gobj, tranger, treedb_name, node);
     if(held != 0) {
+        /*  Held: the peer's to know (ignore_snaps); not known: our own fault  */
+        if(held > 0) {
+            log_data_fault(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "cannot delete node, a snapshot still holds it",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", id,
+                NULL
+            );
+            JSON_DECREF(jn_options)
+            return -1;
+        }
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", held < 0?
-                "cannot delete node, cannot tell whether a snapshot holds it (see the log)" :
-                "cannot delete node, a snapshot still holds it",
+            "msg",          "%s", "cannot delete node, cannot tell whether a snapshot holds it (see the log)",
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
             "id",           "%s", id,
@@ -10375,7 +10412,7 @@ PRIVATE int delete_node(
             json_object_get(treedb, "__treedb_callback_user_data__")
         );
         JSON_INCREF(node)
-        treedb_callback(
+        run_treedb_callback(treedb_callback,
             user_data,
             tranger,
             treedb_name,
@@ -10565,12 +10602,25 @@ PUBLIC int treedb_delete_instance(
      */
     int held = ignore_snaps? 0 : instance_held_by_a_snap(gobj, tranger, treedb_name, node, pkey2_name);
     if(held != 0) {
+        /*  Held: the peer's to know (ignore_snaps); not known: our own fault  */
+        if(held > 0) {
+            log_data_fault(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "cannot delete instance, a snapshot still holds it",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", id,
+                "pkey2_name",   "%s", pkey2_name,
+                NULL
+            );
+            JSON_DECREF(jn_options)
+            return -1;
+        }
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", held < 0?
-                "cannot delete instance, cannot tell whether a snapshot holds it (see the log)" :
-                "cannot delete instance, a snapshot still holds it",
+            "msg",          "%s", "cannot delete instance, cannot tell whether a snapshot holds it (see the log)",
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
             "id",           "%s", id,
@@ -10802,7 +10852,7 @@ PUBLIC int treedb_delete_instance(
             0
         );
         JSON_INCREF(node)
-        treedb_callback(
+        run_treedb_callback(treedb_callback,
             user_data,
             tranger,
             treedb_name,
@@ -13897,7 +13947,9 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
      *  Extrae ids
      */
     json_t *ids_list = 0;
-    json_t *jn_id = kw_get_dict_value(gobj, jn_filter, "id", 0, KW_EXTRACT);
+    /*  No filter is a legitimate ask (all of them): read of NULL, it logged
+     *  "kw must be list or dict" (REV-CLOUD V19.3.3)  */
+    json_t *jn_id = jn_filter? kw_get_dict_value(gobj, jn_filter, "id", 0, KW_EXTRACT) : NULL;
     if(jn_id) {
         ids_list = kwid_get_ids(jn_id);
         JSON_DECREF(jn_id)
@@ -14033,7 +14085,9 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
      *  Extrae ids
      */
     json_t *ids_list = 0;
-    json_t *jn_id = kw_get_dict_value(gobj, jn_filter, "id", 0, KW_EXTRACT);
+    /*  No filter is a legitimate ask (all of them): read of NULL, it logged
+     *  "kw must be list or dict" (REV-CLOUD V19.3.3)  */
+    json_t *jn_id = jn_filter? kw_get_dict_value(gobj, jn_filter, "id", 0, KW_EXTRACT) : NULL;
     if(jn_id) {
         ids_list = kwid_get_ids(jn_id);
         JSON_DECREF(jn_id)

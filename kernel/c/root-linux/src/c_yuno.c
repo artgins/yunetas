@@ -6236,7 +6236,7 @@ PRIVATE int canonical_ip(
 {
     char addr[INET6_ADDRSTRLEN + IF_NAMESIZE + 2];
     if(strlen(text) >= sizeof(addr)) {
-        snprintf(cause, cause_size, "ip '%.60s...' is too long", text);
+        snprintf(cause, cause_size, "ip '%.*s...' is too long", utf8_prefix_len(text, 60), text);
         return -1;
     }
     snprintf(addr, sizeof(addr), "%s", text);

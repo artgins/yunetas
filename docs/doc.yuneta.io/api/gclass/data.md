@@ -475,7 +475,9 @@ permission learns nothing about which topics exist) with a WARNING
 (`msgset: MSGSET_PARAMETER`; a name that is not yet known to be valid is
 capped at 64 bytes, never in the middle of a character) and answers `-1`.
 The `gobj_*_node()` methods and the treedb keep their ERROR for the same
-mistakes: for a C caller it is a broken contract.
+mistakes when the caller is C code -- including a subscriber that writes from
+its `EV_TREEDB_NODE_*` handler during the command: the treedb publishes
+outside the peer's window -- because for a C caller it is a broken contract.
 
 | The command names | WARNING | Answer |
 |---|---|---|
@@ -484,15 +486,18 @@ mistakes: for a C caller it is a broken contract.
 | a hook whose map does not take the child's topic (`link-nodes`, `unlink-nodes`) | *"the hook does not link that topic, refused"* | `Hook '<hook>' does not link topic '<topic>'` |
 | a column name that breaks the rule ([`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>)) | `` column name breaks the name rule (empty or '`'), refused `` | as the row above |
 | a parent ref that is not `topic^id^hook` | *"parent ref must be topic^id^hook, with names of the name rule; refused"* (with a `why`) | `Wrong parent ref (see the log)` |
-| a record that is not a json object, or whose `id` is not a string (`create-node`, `update-node`, `delete-node`; also a `content64` that decodes to something else) | *"record of a wrong shape, refused"* (with a `why`) | `Wrong record: a json object, with a string id` |
+| a record that is not a json object, or whose `id` is not a string (`create-node`, `update-node`, `delete-node`; also a `content64` that decodes to something else). A `null` id is absent: the treedb makes one (uuid, rowid, qualified) or says it is required | *"record of a wrong shape, refused"* (with a `why`) | `Wrong record: a json object, with a string id` |
 | an `update-node` of a node that does not exist, without `create` | *"node not found, update refused (no 'create' option)"* | `Node not found: '<id>' of topic '<topic>'` |
 | an `update-node` with `create_only` of a node that exists | *"node already exists, create_only refused"* | `Node already exists: '<id>' of topic '<topic>'` |
 | `instances` by a `pkey2` that is not a secondary index of the topic (`id` names the primary one) | *"not a pkey2 of the topic, refused"* | `Not a pkey2 of topic '<topic>': '<pkey2>'` |
+| `import-db` of a topic the treedb does not have, records that are not a list, or a record of a wrong shape | the same WARNINGs, one per topic or record | `-1` in abort mode, counted in `data.failure` and `data.errores` (`topic not found`, `wrong record: ...`) in the others |
 
 What only the treedb can judge -- a field required or of the wrong type, an
 fkey that cannot be linked, a link that would close a cycle or links a node
 to itself, an unlink of a child that does not hang from that parent, a create
-of an id that exists, a seed link the command would cut -- is logged by the
+of an id that exists or holds a path metacharacter, a value not in its enum,
+a delete of a node a snapshot holds, a seed link the command would cut -- is
+logged by the
 treedb (or by the method) with its own message, as a WARNING without a stack:
 the command marks the record as a peer's around the call
 ([`treedb_set_peer_data()`](<#treedb_set_peer_data>), since SDK 7.26.10), and

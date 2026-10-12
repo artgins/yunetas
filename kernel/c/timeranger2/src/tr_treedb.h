@@ -319,7 +319,9 @@ PUBLIC int treedb_set_trace(BOOL set);
  *  wrong type, an fkey, a link that would close a cycle or an unlink of a
  *  child that does not hang there, a create of an id that exists -- is logged
  *  as a WARNING without a stack, not as an ERROR with one. A schema fault is
- *  an ERROR always. Return the previous value: put it back after the calls.
+ *  an ERROR always. The subscribers the treedb publishes to run OUTSIDE it:
+ *  their own calls are a C caller's. Return the previous value: put it back
+ *  after the calls.
  */
 PUBLIC BOOL treedb_set_peer_data(BOOL peer_data);
 PUBLIC BOOL treedb_peer_data(void);  // TRUE while the data in course is a peer's

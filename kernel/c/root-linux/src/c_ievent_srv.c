@@ -2303,7 +2303,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
         char comment[120];
         snprintf(comment, sizeof(comment),
-            "Service not authorized for this channel: '%.60s'", iev_dst_service);
+            "Service not authorized for this channel: '%.*s'",
+                utf8_prefix_len(iev_dst_service, 60), iev_dst_service);
         return reject_unrouted_iev(gobj, iev_event, iev_kw, kw, comment, src);
     }
     if(!gobj_service) {
@@ -2321,7 +2322,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
         }
         char comment[120];
-        snprintf(comment, sizeof(comment), "Service not found: '%.60s'", iev_dst_service);
+        snprintf(comment, sizeof(comment), "Service not found: '%.*s'",
+            utf8_prefix_len(iev_dst_service, 60), iev_dst_service);
         return reject_unrouted_iev(gobj, iev_event, iev_kw, kw, comment, src);
     }
 

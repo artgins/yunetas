@@ -125,6 +125,12 @@ The function resets previously stored expected results before setting new ones.
 If `verbose` is enabled, the function prints the test name to the console.
 The function initializes `expected_log_messages`, `unexpected_log_messages`, and `expected` as JSON arrays if they are not provided.
 
+An entry matches the keys it names. The captured log also carries its
+priority as `"__priority__"` (`"ERROR"`, `"WARNING"`, ...; since SDK 7.26.10),
+so an entry can assert the severity: `{"msg": "Cannot link self node",
+"__priority__": "WARNING"}` fails on the same message logged as an ERROR. An
+entry without it matches any priority.
+
 **The list is a SCRIPT, and that is the point**
 
 Every captured log must match the **head** of `errors_list`, so the list states

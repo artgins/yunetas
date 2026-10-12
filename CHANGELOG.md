@@ -52,8 +52,8 @@ Out of the seventeenth review (yunovatios `REV-CLOUD.md`, V17), read while
 
 Out of the eighteenth review (V18):
 
-- **What a peer gets wrong in a treedb command is a WARNING, all of it**
-  (V18.3). `C_NODE` refuses before calling the treedb, after the permission:
+- **What a peer gets wrong in a treedb command is a WARNING** (V18.3; the
+  leftovers in V19 below). `C_NODE` refuses before calling the treedb, after the permission:
   a record that is not a json object or whose `id` is not a string
   (create, update, delete; also a `content64` that decodes to something
   else -- it was read on as a path of the wrong type, two ERRORs with a stack
@@ -66,7 +66,8 @@ Out of the eighteenth review (V18):
   there, a create of an id that exists, and the seed-link refusals of
   `C_NODE` are WARNINGs without a stack. `C_NODE` sets it around the calls of
   create, update, delete, link, unlink and import-db. A C caller still gets
-  the ERROR; a schema fault is an ERROR always.
+  the ERROR -- and so does a subscriber the treedb publishes to during the
+  call (V19.2) --; a schema fault is an ERROR always.
 - **fix: `instances` by `pkey2: "id"` walked the PRIMARY index as instances**
   -- 9 errors per node, for every node of the topic without a `node_id`, by
   anyone with `read`. `treedb_list_instances()` refuses a `pkey2` that is not
@@ -83,6 +84,36 @@ Out of the eighteenth review (V18):
   (the forms with `*` and `%j…` were the crashing ones); `%m` ignores a
   precision.
 - `c_node`'s seed-link check reads the hook map by key, as `_link_nodes()`.
+
+Out of the nineteenth review (V19):
+
+- **fix: the peer's window reached the subscribers** (V19.2). The mark of
+  `treedb_set_peer_data()` is process-wide and the treedb publishes its
+  `EV_TREEDB_NODE_*` synchronously, so a subscriber that wrote from its
+  handler (`db_history_ce` -> `C_AUTHZ` -> `treedb_authzs`) had its own
+  faults lowered to WARNINGs. The treedb turns the mark off around every call
+  of its publication callback. **The tests now assert the priority**:
+  `capture_log_write()` adds `"__priority__"` to the captured log, and an
+  expected entry may ask for it (`"__priority__", "WARNING"`); an entry that
+  does not name it matches any priority, as before. `c_node_commands` asks
+  it of every refusal, and of the ERROR of a subscriber writing during a
+  peer's create.
+- **fix: `instances` with no `node_id` and no `filter` logged an ERROR**
+  (`kw must be list or dict`): `treedb_list_instances()` and
+  `treedb_list_nodes()` read the id of a NULL filter. A legitimate ask.
+- **The rest of what a peer gets wrong, as WARNINGs:** an id with a path
+  metacharacter, a '^' or too long; a value not in its enum; a delete of a
+  node or instance a snapshot holds (the "cannot tell" stays an ERROR);
+  a dict fkey ref whose fields are not strings (read by key, said once);
+  `import-db` of an unknown topic, records that are not a list, or a record
+  of a wrong shape (refused before the treedb, counted in `errores`).
+- A `null` record id is absent again, as before R20: the treedb makes it
+  (uuid, rowid, qualified) or says it is required.
+- The last byte caps a peer or an operator can reach -- `C_IEVENT_SRV`'s
+  service refusals, `C_YUNO`'s ip, the control center's command checks --
+  use `utf8_prefix_len()`.
+- docs: the three new functions link to `main` until the next release
+  repins them (they are not in 7.26.9).
 - **JS layer: gobj-ui 7.26.26.** `validate-locales` compares plurals per
   language (`Intl.PluralRules`), takes endonyms as literals, reads the app's
   `attr_keys` / `array_keys` from its `package.json` (the names of the
