@@ -107,7 +107,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -129,6 +129,16 @@ static int register_yuno_and_more(void)
             "msg", "the hook does not link that topic, refused",     // V17.3.1
             "msg", "the hook does not link that topic, refused",
             "msg", "node not found, update refused (no 'create' option)",
+            "msg", "record of a wrong shape, refused",                // V18.2-V18.3
+            "msg", "record of a wrong shape, refused",
+            "msg", "record of a wrong shape, refused",
+            "msg", "node already exists, create_only refused",
+            "msg", "Cannot link, the link would close a cycle in the hook",
+            "msg", "Cannot link self node",
+            "msg", "Cannot unlink, the child does not hang from that parent",
+            "msg", "not a pkey2 of the topic, refused",
+            "msg", "not a pkey2 of the topic, refused",
+            "msg", "Field required: 'name'",
             "msg", "loading snap_tag 1",                    // the treedb opened again with s1 active
             "msg", "Node already exists",                   // import-db: each node that exists is tried
             "msg", "Node already exists",

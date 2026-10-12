@@ -29,6 +29,19 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+/*
+ *  A fault of the DATA of a node: an ERROR with its stack for a C caller, a
+ *  WARNING without it when a command of this gclass handed a peer's data to
+ *  the treedb (treedb_set_peer_data(), REV-CLOUD V18.3)
+ */
+#define log_data_fault(gobj_, opt_, ...)                    \
+    do {                                                    \
+        if(treedb_peer_data()) {                            \
+            gobj_log_warning((gobj_), 0, __VA_ARGS__);      \
+        } else {                                            \
+            gobj_log_error((gobj_), (opt_), __VA_ARGS__);   \
+        }                                                   \
+    } while(0)
 
 /***************************************************************************
  *              Structures
@@ -99,6 +112,11 @@ PRIVATE BOOL refuse_peer_hook_without_child_topic(
     const char *parent_topic_name,
     const char *hook_name,
     const char *child_topic_name
+);
+PRIVATE BOOL refuse_peer_record(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *record
 );
 
 PRIVATE int apply_initial_load(hgobj gobj);
@@ -1114,7 +1132,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             const char *msg = create?
                 "Cannot update node: it does not exist and it cannot be created (see the previous log)" :
                 "Cannot update node: it does not exist";
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", msg,
@@ -1123,7 +1141,9 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
                 "id",           "%s", kw_get_str(gobj, kw, "id", "", 0),
                 NULL
             );
-            gobj_trace_json(gobj, kw, "%s", msg);
+            if(!treedb_peer_data()) {
+                gobj_trace_json(gobj, kw, "%s", msg);
+            }
             JSON_DECREF(jn_options)
             KW_DECREF(kw)
             return 0;
@@ -1137,7 +1157,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
          *  (up to 7.24.1).
          */
         if(create_only) {
-            gobj_log_error(gobj, 0,
+            log_data_fault(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Node already exists",
@@ -1170,7 +1190,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             autolink? FALSE: TRUE,
             ref, sizeof(ref)
         )) {
-            gobj_log_error(gobj, 0,
+            log_data_fault(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "initial_load: update would drop a seed link",
@@ -1219,7 +1239,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
                  *  The create itself is on disk: said, because the answer
                  *  is a failure all the same.
                  */
-                gobj_log_error(gobj, 0,
+                log_data_fault(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "Node created, but its links cannot be saved (autolink): the node stays without them",
@@ -1379,7 +1399,7 @@ PRIVATE int mt_delete_node(
      */
     char seed[NAME_MAX*2];
     if(seed_hanging_from(gobj, topic_name, id, seed, sizeof(seed))) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "initial_load: cannot delete the parent of a seed link",
@@ -1611,7 +1631,7 @@ PRIVATE int mt_link_nodes(
     if(seed_link_overwritten_by(
         gobj, parent_topic_name, hook, child_topic_name, child_node, ref, lost, sizeof(lost)
     )) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "initial_load: link would overwrite a seed link",
@@ -1784,7 +1804,7 @@ PRIVATE int mt_unlink_nodes(
     );
     const char *child_id = kw_get_str(gobj, child_node, "id", "", 0);
     if(seed_declares_link(gobj, child_topic_name, child_id, ref)) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "initial_load: cannot unlink a seed link",
@@ -2891,7 +2911,22 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(refuse_peer_record(gobj, topic_name, jn_content)) {
+        json_decref(jn_content);
+        GBUFFER_DECREF(gbuf_files)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Wrong record: a json object, with a string id",
+                gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2911,6 +2946,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
+    BOOL peer_data_ = treedb_set_peer_data(TRUE);   // the record is a peer's
     json_t *node = gobj_create_node(
         gobj,
         topic_name,
@@ -2918,6 +2954,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_incref(_jn_options),
         src
     );
+    treedb_set_peer_data(peer_data_);
 
     /*
      *  The cause of a refusal is in the log, where the treedb wrote it: the
@@ -3054,7 +3091,8 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -3072,6 +3110,19 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         kw_get_bool(gobj, _jn_options, "create", 0, KW_WILD_NUMBER) ||
         kw_get_bool(gobj, _jn_options, "create_only", 0, KW_WILD_NUMBER)
     );
+    if(refuse_peer_record(gobj, topic_name, jn_content)) {
+        json_decref(jn_content);
+        GBUFFER_DECREF(gbuf_files)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Wrong record: a json object, with a string id",
+                gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     BOOL is_new = !fetch_node(gobj, topic_name, jn_content);
 
     /*
@@ -3095,8 +3146,39 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_t *resp = msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Node not found: '%.64s' of topic '%s'",
-                gobj_yuno_role_plus_name(), id, topic_name),
+            json_sprintf("%s: Node not found: '%.*s' of topic '%s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(id, 64), id, topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+        json_decref(jn_content);    // after the comment: `id` is its string
+        return resp;
+    }
+
+    /*
+     *  `create_only` on a node that exists: the peer's mistake too, the
+     *  ERROR "Node already exists" of mt_update_node is for a C caller.
+     */
+    if(!is_new && _jn_options &&
+            kw_get_bool(gobj, _jn_options, "create_only", 0, KW_WILD_NUMBER)) {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        const char *id = kw_get_str(gobj, jn_content, "id", "", 0);
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "node already exists, create_only refused",
+            "treedb_name",  "%s", priv->treedb_name,
+            "topic_name",   "%s", topic_name,
+            "id",           "%.64s", id,
+            NULL
+        );
+        GBUFFER_DECREF(gbuf_files)
+        json_t *resp = msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Node already exists: '%.*s' of topic '%s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(id, 64), id, topic_name),
             0,
             0,
             kw  // owned
@@ -3141,6 +3223,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL links_refused_outer = priv->links_refused;
     priv->links_refused = FALSE;
+    BOOL peer_data_ = treedb_set_peer_data(TRUE);   // the record is a peer's
     json_t *node = gobj_update_node(
         gobj,
         topic_name,
@@ -3148,6 +3231,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_incref(_jn_options),
         src
     );
+    treedb_set_peer_data(peer_data_);
     BOOL links_refused = priv->links_refused;
     priv->links_refused = links_refused_outer;
 
@@ -3251,7 +3335,20 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(refuse_peer_record(gobj, topic_name, _jn_record)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Wrong record: a json object, with a string id",
+                gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3291,13 +3388,16 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     JSON_INCREF(node);
-    if(gobj_delete_node(
-            gobj,
-            topic_name,
-            node,
-            json_incref(_jn_options),
-            src
-    )<0) {
+    BOOL peer_data_ = treedb_set_peer_data(TRUE);   // the record is a peer's
+    int deleted = gobj_delete_node(
+        gobj,
+        topic_name,
+        node,
+        json_incref(_jn_options),
+        src
+    );
+    treedb_set_peer_data(peer_data_);
+    if(deleted < 0) {
         JSON_DECREF(node);
         return msg_iev_build_response(
             gobj,
@@ -3434,7 +3534,8 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Hook not found: '%.64s'", gobj_yuno_role_plus_name(), hook_name),
+            json_sprintf("%s: Hook not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(hook_name, 64), hook_name),
             0,
             0,
             kw  // owned
@@ -3444,8 +3545,9 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Hook '%.64s' does not link topic '%s'",
-                gobj_yuno_role_plus_name(), hook_name, child_topic_name),
+            json_sprintf("%s: Hook '%.*s' does not link topic '%s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(hook_name, 64), hook_name,
+                child_topic_name),
             0,
             0,
             kw  // owned
@@ -3491,6 +3593,7 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
+    BOOL peer_data_ = treedb_set_peer_data(TRUE);   // the refs are a peer's
     int result = gobj_link_nodes(
         gobj,
         hook_name,
@@ -3500,6 +3603,7 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         child_node,
         src
     );
+    treedb_set_peer_data(peer_data_);
 
     child_node = gobj_get_node(
         gobj,
@@ -3637,7 +3741,8 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Hook not found: '%.64s'", gobj_yuno_role_plus_name(), hook_name),
+            json_sprintf("%s: Hook not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(hook_name, 64), hook_name),
             0,
             0,
             kw  // owned
@@ -3647,8 +3752,9 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Hook '%.64s' does not link topic '%s'",
-                gobj_yuno_role_plus_name(), hook_name, child_topic_name),
+            json_sprintf("%s: Hook '%.*s' does not link topic '%s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(hook_name, 64), hook_name,
+                child_topic_name),
             0,
             0,
             kw  // owned
@@ -3694,6 +3800,7 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
+    BOOL peer_data_ = treedb_set_peer_data(TRUE);   // the refs are a peer's
     int result = gobj_unlink_nodes(
         gobj,
         hook_name,
@@ -3703,6 +3810,7 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         child_node,
         src
     );
+    treedb_set_peer_data(peer_data_);
 
     child_node = gobj_get_node(
         gobj,
@@ -3889,7 +3997,8 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -3966,8 +4075,11 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     return msg_iev_build_response(gobj,
         jtree?0:-1,
-        jtree?0:json_sprintf("%s: cannot build the tree of '%.64s^%.64s' by hook '%.64s' (see the log)",
-            gobj_yuno_role_plus_name(), topic_name, node_id, hook),
+        jtree?0:json_sprintf("%s: cannot build the tree of '%.*s^%.*s' by hook '%.*s' (see the log)",
+            gobj_yuno_role_plus_name(),
+            utf8_prefix_len(topic_name, 64), topic_name,
+            utf8_prefix_len(node_id, 64), node_id,
+            utf8_prefix_len(hook, 64), hook),
         0,
         jtree,
         kw  // owned
@@ -4000,7 +4112,8 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+                json_sprintf("%s: Topic not found: '%.*s'",
+                    gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
                 0,
                 0,
                 kw  // owned
@@ -4012,7 +4125,8 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -4251,7 +4365,8 @@ PRIVATE json_t *cmd_links(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -4288,7 +4403,8 @@ PRIVATE json_t *cmd_hooks(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -4337,7 +4453,8 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -4366,8 +4483,10 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return msg_iev_build_response(
         gobj,
         parents?0:-1,
-        parents?0:json_sprintf("%s: cannot list the parents of '%.64s^%.64s' (see the log)",
-            gobj_yuno_role_plus_name(), topic_name, node_id),
+        parents?0:json_sprintf("%s: cannot list the parents of '%.*s^%.*s' (see the log)",
+            gobj_yuno_role_plus_name(),
+            utf8_prefix_len(topic_name, 64), topic_name,
+            utf8_prefix_len(node_id, 64), node_id),
         0,
         parents,
         kw  // owned
@@ -4404,7 +4523,8 @@ PRIVATE json_t *cmd_children(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -4444,8 +4564,11 @@ PRIVATE json_t *cmd_children(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return msg_iev_build_response(
         gobj,
         children?0:-1,
-        children?0:json_sprintf("%s: cannot list the children of '%.64s^%.64s' by hook '%.64s' (see the log)",
-            gobj_yuno_role_plus_name(), topic_name, node_id, hook),
+        children?0:json_sprintf("%s: cannot list the children of '%.*s^%.*s' by hook '%.*s' (see the log)",
+            gobj_yuno_role_plus_name(),
+            utf8_prefix_len(topic_name, 64), topic_name,
+            utf8_prefix_len(node_id, 64), node_id,
+            utf8_prefix_len(hook, 64), hook),
         0,
         children,
         kw  // owned
@@ -4496,7 +4619,8 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -4612,7 +4736,8 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -4678,11 +4803,51 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
         );
+    }
+
+    /*
+     *  A pkey2 that is not a SECONDARY index of the topic: "id" named the
+     *  primary one, and every field of every node was walked as an
+     *  instance, 9 errors per node (REV-CLOUD V18.3).
+     */
+    if(!empty_string(pkey2)) {
+        BOOL is_pkey2 = FALSE;
+        json_t *topic_pkey2s = treedb_topic_pkey2s(priv->tranger, topic_name);
+        int i; json_t *jn_name;
+        json_array_foreach(topic_pkey2s, i, jn_name) {
+            const char *name = json_string_value(jn_name);
+            if(name && strcmp(name, pkey2)==0) {
+                is_pkey2 = TRUE;
+                break;
+            }
+        }
+        JSON_DECREF(topic_pkey2s)
+        if(!is_pkey2) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "not a pkey2 of the topic, refused",
+                "treedb_name",  "%s", priv->treedb_name,
+                "topic_name",   "%s", topic_name,
+                "pkey2",        "%.64s", pkey2,
+                NULL
+            );
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: Not a pkey2 of topic '%s': '%.*s'",
+                    gobj_yuno_role_plus_name(), topic_name, utf8_prefix_len(pkey2, 64), pkey2),
+                0,
+                0,
+                kw  // owned
+            );
+        }
     }
 
     /*
@@ -4747,7 +4912,8 @@ PRIVATE json_t *cmd_node_pkey2s(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%.64s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -5509,6 +5675,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     // TODO Chequear permisos
 
+    BOOL peer_data_ = treedb_set_peer_data(TRUE);   // the records are a peer's
     BOOL fin = FALSE;
     const char *topic_name;
     json_t *topic_records;
@@ -5628,6 +5795,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             }
         }
     }
+    treedb_set_peer_data(peer_data_);
 
     json_decref(jn_db);
     json_decref(jn_loaded);
@@ -6051,7 +6219,7 @@ PRIVATE const char *seed_link_overwritten_by(
     if(!hook_desc) {
         return NULL; // Reported by treedb_link_nodes
     }
-    const char *col = kw_get_str(gobj, hook_desc, child_topic, 0, 0);
+    const char *col = json_string_value(json_object_get(hook_desc, child_topic));
     if(empty_string(col) || !is_fkey_col(gobj, child_topic, col)) {
         return NULL; // Reported by treedb_link_nodes
     }
@@ -6634,6 +6802,46 @@ PRIVATE BOOL refuse_peer_hook_without_child_topic(
         "topic_name",   "%s", parent_topic_name,
         "hook",         "%.64s", hook_name,
         "child_topic",  "%s", child_topic_name,
+        NULL
+    );
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The record a create, an update or a delete hands over is the peer's: a
+ *  dict, and its `id`, when it has one, a string. Anything else was read
+ *  further down as a path holding the wrong type -- an ERROR with a stack
+ *  and the kw dumped, per read (REV-CLOUD V18.2.2, V18.3). An absent id is
+ *  left to the treedb: a uuid, rowid or qualified id is made there.
+ *  TRUE = refused.
+ ***************************************************************************/
+PRIVATE BOOL refuse_peer_record(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *record
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *why = NULL;
+    if(!json_is_object(record)) {
+        why = "the record is not a json object";
+    } else {
+        json_t *jn_id = json_object_get(record, "id");
+        if(jn_id && !json_is_string(jn_id)) {
+            why = "the record id is not a string";
+        }
+    }
+    if(!why) {
+        return FALSE;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "record of a wrong shape, refused",
+        "why",          "%s", why,
+        "treedb_name",  "%s", priv->treedb_name,
+        "topic_name",   "%s", topic_name,
         NULL
     );
     return TRUE;

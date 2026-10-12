@@ -1211,6 +1211,26 @@ PUBLIC char *strntolower(char* s, size_t n)
 }
 
 /****************************************************************************
+ *  The bytes of `s` that fit in `max_bytes` without cutting a UTF-8
+ *  character: a cut before a continuation byte (10xxxxxx) goes back to the
+ *  first byte of its character, which is left out.
+ ****************************************************************************/
+PUBLIC int utf8_prefix_len(const char *s, int max_bytes)
+{
+    if(!s || max_bytes <= 0) {
+        return 0;
+    }
+    size_t n = strnlen(s, (size_t)max_bytes);
+    if(n < (size_t)max_bytes) {
+        return (int)n;  // the whole string fits
+    }
+    while(n > 0 && (((unsigned char)s[n]) & 0xC0) == 0x80) {
+        n--;
+    }
+    return (int)n;
+}
+
+/****************************************************************************
  *  Translate characters from the string 'from' to the string 'to'.
  *  Usage:
  *        char * translate_string(char *to,

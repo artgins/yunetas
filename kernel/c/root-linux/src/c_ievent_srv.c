@@ -2772,7 +2772,8 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("Service not found: '%.60s'", service),   // jn_comment
+                json_sprintf("Service not found: '%.*s'",
+                    utf8_prefix_len(service, 60), service),   // jn_comment
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -2816,7 +2817,8 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("Not authorized to request stats of service: '%.60s'", service),   // jn_comment
+            json_sprintf("Not authorized to request stats of service: '%.*s'",
+                utf8_prefix_len(service, 60), service),   // jn_comment
             0,      // jn_schema
             0       // jn_data
         );
@@ -2961,7 +2963,8 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("Service not found: '%.60s'", service),   // jn_comment
+                json_sprintf("Service not found: '%.*s'",
+                    utf8_prefix_len(service, 60), service),   // jn_comment
                 0,      // jn_schema
                 0       // jn_data
             );

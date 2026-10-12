@@ -3020,6 +3020,80 @@ This function is useful for debugging and monitoring TreeDB operations.
 
 ---
 
+(treedb_set_peer_data)=
+## [`treedb_set_peer_data()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/tr_treedb.c#L6139)
+
+Say that the data of the calls that follow comes from a PEER. A fault of the
+DATA is then logged as a WARNING without a stack trace, not as an ERROR with
+one: a field required or of the wrong type, an fkey reference that cannot be
+linked, a link that would close a cycle or links a node to itself, an unlink
+of a child that does not hang from that parent, a create of an id that
+exists, a `pkey2` that is not a secondary index. A fault of the SCHEMA stays
+an ERROR.
+
+```C
+BOOL treedb_set_peer_data(
+    BOOL peer_data
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `peer_data` | `BOOL` | `TRUE`: the data in course is a peer's. |
+
+**Returns**
+
+The previous value: put it back after the calls.
+
+**Notes**
+
+For a C caller a bad record is a broken contract, and the ERROR with its stack
+says where. For a peer -- a GUI, a remote command -- it is the peer's mistake,
+and an ERROR per mistake is noise that any user with the permission can make.
+`C_NODE` sets it around the treedb calls of its commands (create, update,
+delete, link, unlink, import-db), since SDK 7.26.10. The flag is
+process-wide; restore it, do not reset it, because the calls nest (a treedb
+event can bring another command in):
+
+```C
+BOOL peer_data = treedb_set_peer_data(TRUE);    // the record is a peer's
+json_t *node = treedb_create_node(tranger, treedb_name, topic_name, record);
+treedb_set_peer_data(peer_data);
+```
+
+---
+
+(treedb_peer_data)=
+## [`treedb_peer_data()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/tr_treedb.c#L6149)
+
+`TRUE` while the data in course is a peer's ([`treedb_set_peer_data()`](<#treedb_set_peer_data>)).
+
+```C
+BOOL treedb_peer_data(void);
+```
+
+**Returns**
+
+`TRUE` inside a [`treedb_set_peer_data(TRUE)`](<#treedb_set_peer_data>) span.
+
+**Notes**
+
+For a layer above the treedb that logs a failure of the same call: `C_NODE`
+logs *"Cannot update node: ... (see the previous log)"* as a WARNING when the
+treedb's own log was one.
+
+```C
+if(treedb_peer_data()) {
+    gobj_log_warning(gobj, 0, "msg", "%s", "cannot update the node", NULL);
+} else {
+    gobj_log_error(gobj, LOG_OPT_TRACE_STACK, "msg", "%s", "cannot update the node", NULL);
+}
+```
+
+---
+
 (treedb_shoot_snap)=
 ## [`treedb_shoot_snap()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/tr_treedb.c#L18437)
 

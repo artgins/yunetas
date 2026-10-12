@@ -302,6 +302,24 @@ PRIVATE json_t *topic_cols_desc = 0; // HACK incref/decref by each treedb_open_d
 PRIVATE BOOL treedb_trace = 0;
 
 /*
+ *  The data of the calls in course comes from a PEER (treedb_set_peer_data(),
+ *  set by C_NODE around the calls of a command): a fault of the DATA -- a
+ *  field, an fkey, a link that cannot be made -- is then the peer's, a
+ *  WARNING without a stack; for a C caller it is a broken contract, an
+ *  ERROR with one (REV-CLOUD V18.3).
+ */
+PRIVATE BOOL __peer_data__ = FALSE;
+
+#define log_data_fault(gobj_, opt_, ...)                    \
+    do {                                                    \
+        if(__peer_data__) {                                 \
+            gobj_log_warning((gobj_), 0, __VA_ARGS__);      \
+        } else {                                            \
+            gobj_log_error((gobj_), (opt_), __VA_ARGS__);   \
+        }                                                   \
+    } while(0)
+
+/*
  *  The nodes whose delete tells its events: a save of them is refused
  *  (mark_node_deleting()). NOT owned: each delete removes its own.
  */
@@ -3258,7 +3276,7 @@ PRIVATE json_t *filtra_fkeys(
                     if(count_char(id, '^')==2) {
                         json_array_append_new(jn_list, json_string(id));
                     } else {
-                        gobj_log_error(gobj, 0,
+                        log_data_fault(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_PARAMETER,
                             "msg",          "%s", "Wrong fkey reference: must be \"topic_name^id^hook_name\"",
@@ -3280,7 +3298,7 @@ PRIVATE json_t *filtra_fkeys(
                     const char *hook_name = kw_get_str(gobj, v, "hook_name", 0, 0);
                     if(!id || !topic_name_ || !hook_name ||
                             strchr(id, '^') || strchr(topic_name_, '^') || strchr(hook_name, '^')) {
-                        gobj_log_error(gobj, 0,
+                        log_data_fault(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_PARAMETER,
                             "msg",          "%s", "Wrong fkey reference: must be {topic_name,id,hook_name}",
@@ -3315,7 +3333,7 @@ PRIVATE json_t *filtra_fkeys(
                 if(count_char(id, '^')==2) {
                     json_array_append_new(jn_list, json_string(id));
                 } else {
-                    gobj_log_error(gobj, 0,
+                    log_data_fault(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "Wrong fkey reference: must be \"topic_name^id^hook_name\"",
@@ -3343,7 +3361,7 @@ PRIVATE json_t *filtra_fkeys(
             if(count_char(id, '^')==2) {
                 json_array_append_new(jn_list, json_string(id));
             } else {
-                gobj_log_error(gobj, 0,
+                log_data_fault(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Wrong fkey reference: must be \"topic_name^id^hook_name\"",
@@ -3365,7 +3383,7 @@ PRIVATE json_t *filtra_fkeys(
         return NULL;
 
     default:
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        log_data_fault(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Wrong fkey reference: type unknown",
@@ -3395,7 +3413,7 @@ PRIVATE json_t *filtra_fkeys(
 
         CASES("string")
             if(json_array_size(jn_list) > 1) {
-                gobj_log_error(gobj, 0,
+                log_data_fault(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Wrong fkey reference: must be one string",
@@ -3516,7 +3534,7 @@ PRIVATE int normalize_node_field_value(
         if(!value) {
             char temp[NAME_MAX];
             snprintf(temp, sizeof(temp), "Field required: '%s'", field);
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", temp,
@@ -3550,7 +3568,7 @@ PRIVATE int normalize_node_field_value(
     if(json_is_null(value)) {
         if(!(is_hook || is_fkey || is_enum)) {
             if(kw_has_word(gobj, desc_flag, "notnull", 0)) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "Field cannot be null",
@@ -3656,7 +3674,7 @@ PRIVATE int normalize_node_field_value(
                         json_object_set_new(record, field, json_string(v));
                         GBMEM_FREE(v)
                     } else {
-                        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_TREEDB,
                             "msg",          "%s", "Value must be string",
@@ -3780,7 +3798,7 @@ PRIVATE int normalize_node_field_value(
                 json_object_set_new(record, field, json_string(v));
                 GBMEM_FREE(v)
             } else {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "Value must be string",
@@ -3815,7 +3833,7 @@ PRIVATE int normalize_node_field_value(
             } else {
                 json_int_t v = jn2integer(value);
                 json_object_set_new(record, field, json_integer(v));
-                gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+                gobj_log_warning(gobj, __peer_data__? 0 : LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "Value must be integer",
@@ -3840,7 +3858,7 @@ PRIVATE int normalize_node_field_value(
             } else {
                 double v = jn2real(value);
                 json_object_set_new(record, field, json_real(v));
-                gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+                gobj_log_warning(gobj, __peer_data__? 0 : LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "Value must be real",
@@ -6115,6 +6133,25 @@ PUBLIC int treedb_set_trace(BOOL set)
 }
 
 /***************************************************************************
+ *  The data of the calls that follow comes from a peer: its faults are
+ *  WARNINGs. Return the previous value.
+ ***************************************************************************/
+PUBLIC BOOL treedb_set_peer_data(BOOL peer_data)
+{
+    BOOL old = __peer_data__;
+    __peer_data__ = peer_data? TRUE : FALSE;
+    return old;
+}
+
+/***************************************************************************
+ *  TRUE while the data in course is a peer's
+ ***************************************************************************/
+PUBLIC BOOL treedb_peer_data(void)
+{
+    return __peer_data__;
+}
+
+/***************************************************************************
     If path is empty then use kw
  ***************************************************************************/
 PUBLIC json_t *get_hook_list(
@@ -6577,14 +6614,16 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             json_object_set_new(kw, "id", json_string(qualified_id));
             id = kw_get_str(gobj, kw, "id", 0, 0);
         } else {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Field 'id' required",
                 "topic_name",   "%s", topic_name,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "Field 'id' required");
+            if(!__peer_data__) {
+                gobj_trace_json(gobj, kw, "Field 'id' required");
+            }
             JSON_DECREF(kw)
             return 0;
         }
@@ -6729,7 +6768,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     JSON_DECREF(iter_pkey2s)
 
     if(!save_id && !save_pkey2) {
-        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, __peer_data__? 0 : LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Node already exists",
@@ -11048,7 +11087,7 @@ PRIVATE int _link_nodes(
      *  Check self link
      *---------------------------------------*/
     if(parent_node == child_node) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Cannot link self node",
@@ -11251,7 +11290,7 @@ PRIVATE int _link_nodes(
     if(link_would_close_cycle(
         gobj, tranger, treedb_name, hook_name, hook_desc, parent_node, child_node
     )) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_TREEDB,
             "msg",                  "%s", "Cannot link, the link would close a cycle in the hook",
@@ -11928,7 +11967,7 @@ PRIVATE int _unlink_nodes(
         return -1;  // Error already logged
     }
     if(!child_data_names_parent(child_data, pref)) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_TREEDB,
             "msg",                  "%s", "Cannot unlink, the child does not hang from that parent",
@@ -12739,7 +12778,7 @@ PRIVATE BOOL link_can_be_made(
         parent_id, sizeof(parent_id),
         hook_name, sizeof(hook_name)
     )) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Wrong parent reference: must be \"parent_topic_name^parent_id^hook_name\"",
@@ -12755,7 +12794,7 @@ PRIVATE BOOL link_can_be_made(
     json_t *hook_desc = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", parent_topic_name, "cols", hook_name, "hook");
     const char *child_field = hook_desc? json_string_value(json_object_get(hook_desc, topic_name)) : NULL;
     if(!child_field || strcmp(child_field, col_name)!=0) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "fkey reference: its hook does not link into this column",
@@ -12775,7 +12814,7 @@ PRIVATE BOOL link_can_be_made(
         parent_id
     );
     if(!parent_node) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "fkey reference: parent node not found",
@@ -12788,7 +12827,7 @@ PRIVATE BOOL link_can_be_made(
         return FALSE;
     }
     if(parent_node == node) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Cannot link self node",
@@ -12803,7 +12842,7 @@ PRIVATE BOOL link_can_be_made(
     if(link_would_close_cycle(
         gobj, tranger, treedb_name, hook_name, hook_desc, parent_node, node
     )) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Cannot link, the link would close a cycle in the hook",
@@ -14032,6 +14071,39 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
     if(empty_string(pkey2_name)) {
         iter_pkey2s = treedb_topic_pkey2s(tranger, topic_name);
     } else {
+        /*
+         *  Only a SECONDARY index of the topic: under its name the treedb
+         *  also keeps the primary one ("id"), whose fields were walked as
+         *  instances -- 9 errors per node, for every node of the topic
+         *  when no id was given (REV-CLOUD V18.3).
+         */
+        BOOL is_pkey2 = FALSE;
+        json_t *topic_pkey2s = treedb_topic_pkey2s(tranger, topic_name);
+        int i; json_t *jn_name;
+        json_array_foreach(topic_pkey2s, i, jn_name) {
+            const char *name = json_string_value(jn_name);
+            if(name && strcmp(name, pkey2_name)==0) {
+                is_pkey2 = TRUE;
+                break;
+            }
+        }
+        JSON_DECREF(topic_pkey2s)
+        if(!is_pkey2) {
+            log_data_fault(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "not a pkey2 of the topic",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "pkey2_name",   "%.64s", pkey2_name,
+                NULL
+            );
+            JSON_DECREF(jn_filter)
+            JSON_DECREF(ids_list)
+            JSON_DECREF(list)
+            JSON_DECREF(topic_desc)
+            return 0;
+        }
         iter_pkey2s = json_array();
         json_array_append_new(iter_pkey2s, json_string(pkey2_name));
     }

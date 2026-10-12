@@ -1611,7 +1611,11 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                         }
                     } else {
                         char *p = va_arg(ap, char *);
-                        if(p && snprintf(value, sizeof(value), "%.*s", precision, p) >= 0) {
+                        /*  A cap that ends in the middle of a UTF-8
+                         *  character goes back to its start  */
+                        int cap = utf8_prefix_len(p,
+                            precision < (int)sizeof(value) - 1? precision : (int)sizeof(value) - 1);
+                        if(p && snprintf(value, sizeof(value), "%.*s", cap, p) >= 0) {
                             if(strcmp(key, "msg")==0 && priority <= LOG_ERR) {
                                 gobj_log_set_last_message("%s", value);
                             }

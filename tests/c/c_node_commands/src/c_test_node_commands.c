@@ -604,6 +604,44 @@ PRIVATE int run_tests(hgobj gobj)
         "Node not found: 'nosuch'")
 
     /*
+     *  REV-CLOUD V18.2-V18.3: the rest of what a peer can get wrong is a
+     *  WARNING too -- refused by C_NODE before the treedb is asked, or said
+     *  by the treedb as the peer's (treedb_set_peer_data()). Each one was an
+     *  ERROR, most with a stack.
+     */
+    CHECK(expect_refused, "refused: a record id that is not a string (update)", "update-node",
+        json_pack("{s:s, s:{s:i}}", "topic_name", "departments", "record", "id", 5),
+        "Wrong record")
+    CHECK(expect_refused, "refused: a record id that is not a string (delete)", "delete-node",
+        json_pack("{s:s, s:{s:i}}", "topic_name", "departments", "record", "id", 5),
+        "Wrong record")
+    CHECK(expect_refused, "refused: a content64 that is not an object", "update-node",
+        json_pack("{s:s, s:s}", "topic_name", "departments", "content64", "WzFd"),   // [1]
+        "Wrong record")
+    CHECK(expect_refused, "refused: create_only of a node that exists", "update-node",
+        json_pack("{s:s, s:{s:s, s:s}, s:{s:b}}", "topic_name", "departments",
+            "record", "id", "top", "name", "Top", "options", "create_only", 1),
+        "Node already exists: 'top'")
+    CHECK(expect_refused, "refused: a link that would close a cycle", "link-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "departments^dev^departments", "child_ref", "departments^top"),
+        "cannot link")
+    CHECK(expect_refused, "refused: a node linked to itself", "link-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "departments^top^departments", "child_ref", "departments^top"),
+        "cannot link")
+    CHECK(expect_refused, "refused: an unlink of a child that does not hang there", "unlink-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "departments^dev^departments", "child_ref", "departments^ops"),
+        "cannot unlink")
+    CHECK(expect_refused, "refused: instances by the primary index", "instances",
+        json_pack("{s:s, s:s}", "topic_name", "items", "pkey2", "id"),
+        "Not a pkey2 of topic 'items'")
+    CHECK(expect_refused, "refused: instances by an unknown pkey2", "instances",
+        json_pack("{s:s, s:s, s:s}", "topic_name", "items", "node_id", "item1", "pkey2", "nosuchpk"),
+        "Not a pkey2 of topic 'items'")
+    CHECK(expect_refused, "refused: a create without a required field", "create-node",
+        json_pack("{s:s, s:{s:s}}", "topic_name", "departments", "record", "id", "noname"),
+        "cannot create the node")
+
+    /*
      *  treedb-info: its name, master, the schema version and the topics
      */
     {

@@ -50,6 +50,40 @@ Out of the seventeenth review (yunovatios `REV-CLOUD.md`, V17), read while
 - **docs:** the 7.26.9 release body nests its sub-bullets again (the 4 spaces
   stripped from every line had flattened them).
 
+Out of the eighteenth review (V18):
+
+- **What a peer gets wrong in a treedb command is a WARNING, all of it**
+  (V18.3). `C_NODE` refuses before calling the treedb, after the permission:
+  a record that is not a json object or whose `id` is not a string
+  (create, update, delete; also a `content64` that decodes to something
+  else -- it was read on as a path of the wrong type, two ERRORs with a stack
+  and the kw dumped); `create_only` of a node that exists; `instances` by a
+  `pkey2` that is not a secondary index. What only the treedb can judge is
+  said by the treedb: **new `treedb_set_peer_data()` / `treedb_peer_data()`**
+  mark the data in course as a peer's, and then a field required or of the
+  wrong type, an fkey that cannot be linked, a link that would close a
+  cycle, a node linked to itself, an unlink of a child that does not hang
+  there, a create of an id that exists, and the seed-link refusals of
+  `C_NODE` are WARNINGs without a stack. `C_NODE` sets it around the calls of
+  create, update, delete, link, unlink and import-db. A C caller still gets
+  the ERROR; a schema fault is an ERROR always.
+- **fix: `instances` by `pkey2: "id"` walked the PRIMARY index as instances**
+  -- 9 errors per node, for every node of the topic without a `node_id`, by
+  anyone with `read`. `treedb_list_instances()` refuses a `pkey2` that is not
+  a secondary index of the topic, once.
+- **fix: a cap by bytes cut a UTF-8 character** (V18.2.3): a `json_sprintf()`
+  comment with `'%.64s'` of a name with a non-ASCII byte at the edge was
+  refused whole (the answer fell back to a generic one), and the log wrote a
+  broken byte. **New `utf8_prefix_len()`** (helpers): the logger's `%.Ns`
+  backs up to the character's start, and the 26 capped comments of
+  `C_NODE`, `C_IEVENT_SRV` and the agent's watch request use it.
+- `data.md`: the MyST label `treedb-file-columns` had moved to the new
+  section of R19 (two links led to it); C_NODE's refusal table says what each
+  command answers. `log.md`: SDK 7.26.8 logged `%1$s`/`%qd`/`%I64d`
+  (the forms with `*` and `%j…` were the crashing ones); `%m` ignores a
+  precision.
+- `c_node`'s seed-link check reads the hook map by key, as `_link_nodes()`.
+
 ## v7.26.9 (2026-10-11)
 
 A hardening release, out of sixteen rounds of review (yunovatios

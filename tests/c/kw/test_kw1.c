@@ -470,6 +470,67 @@ static int test_log_percent_m_takes_no_argument(void)
 }
 
 /***************************************************************************
+ *  REV-CLOUD V18.2.3: a cap by bytes ended in the middle of a UTF-8
+ *  character: json_sprintf() refused the comment it was in, and the log
+ *  wrote a broken byte. utf8_prefix_len() backs up to the character's start,
+ *  and the logger's "%.Ns" uses it.
+ ***************************************************************************/
+static int test_utf8_cap(void)
+{
+    int result = 0;
+    const char *s = "abc\xc3\xb1z";   // abc, n-tilde (2 bytes), z
+    struct {int max; int expected;} cases[] = {
+        {0, 0}, {3, 3}, {4, 3}, {5, 5}, {6, 6}, {64, 6}
+    };
+    for(size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
+        int got = utf8_prefix_len(s, cases[i].max);
+        if(got != cases[i].expected) {
+            printf("%sERROR --> %s utf8_prefix_len(max %d) = %d, expected %d\n",
+                On_Red BWhite, Color_Off, cases[i].max, got, cases[i].expected);
+            result += -1;
+        }
+    }
+    if(utf8_prefix_len(NULL, 10) != 0) {
+        result += -1;
+    }
+    /*  A 3-byte character cut after its first and its second byte  */
+    const char *e = "x\xe2\x82\xacy";      // x, euro sign (3 bytes), y
+    if(utf8_prefix_len(e, 2) != 1 || utf8_prefix_len(e, 3) != 1 || utf8_prefix_len(e, 4) != 4) {
+        printf("%sERROR --> %s utf8_prefix_len() cuts a 3-byte character\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  The comment is built, not refused  */
+    json_t *comment = json_sprintf("'%.*s'", utf8_prefix_len(s, 4), s);
+    if(!comment || strcmp(json_string_value(comment), "'abc'") != 0) {
+        printf("%sERROR --> %s json_sprintf() of a UTF-8 cap\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(comment)
+
+    /*  And the logger's precision backs up the same way  */
+    set_expected_results(
+        "utf8_cap",
+        json_pack("[{s:s, s:s, s:s}]",
+            "msg", "utf8 cap",
+            "value", "abc",
+            "whole", "abc\xc3\xb1"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+    gobj_log_warning(0, 0,
+        "msg",      "%s", "utf8 cap",
+        "value",    "%.4s", s,
+        "whole",    "%.5s", s,
+        NULL
+    );
+    result += test_json(NULL);  // NULL: we want to check only the logs
+    return result;
+}
+
+/***************************************************************************
  *  REV-CLOUD V14.4: a filter path too long for kw_match_simple() is said
  *  ONCE per process (the matchers run per publication and per record).
  ***************************************************************************/
@@ -889,6 +950,7 @@ PRIVATE int do_test(void)
     result += test_log_precision_caps_the_value();
     result += test_log_length_modifiers();
     result += test_log_percent_m_takes_no_argument();
+    result += test_utf8_cap();
     result += test_match_simple_long_path_said_once();
     result += test_reg_f001_gbuffer_deserialize_null_data();
     result += test_reg_f001_gbuffer_deserialize_bad_base64();

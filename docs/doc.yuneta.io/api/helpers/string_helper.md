@@ -1254,6 +1254,55 @@ If `s` is NULL or `n` is zero, the function returns NULL without modifying the s
 
 ---
 
+(utf8_prefix_len)=
+## [`utf8_prefix_len()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/gobj-c/src/helpers.c#L1218)
+
+The bytes of `s` that fit in `max_bytes` WITHOUT cutting a UTF-8 character:
+the precision to cap a string with, as `"%.*s"`.
+
+```C
+int utf8_prefix_len(
+    const char *s,
+    int max_bytes
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `s` | `const char *` | The string to cap. `NULL` is 0. |
+| `max_bytes` | `int` | The most bytes the cap may hold. |
+
+**Returns**
+
+The length of the cap: the whole string when it fits, else at most
+`max_bytes`, ending before the character that would be cut.
+
+**Notes**
+
+A cap by bytes (`"%.64s"`) can end in the middle of a character. The json
+built with it is refused -- `json_sprintf()` checks UTF-8, and a command's
+answer falls back to a generic comment -- or logged broken. The logger's own
+`"%.Ns"` uses this function (since SDK 7.26.10), so a log needs nothing; a
+comment built with `json_sprintf()` does:
+
+```C
+return msg_iev_build_response(gobj,
+    -1,
+    json_sprintf("%s: Topic not found: '%.*s'",
+        gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
+    0,
+    0,
+    kw  // owned
+);
+```
+
+`utf8_prefix_len("abc\xc3\xb1z", 4)` is 3: the 4th byte is the first of
+`ñ`, which does not fit whole.
+
+---
+
 (translate_string)=
 ## [`translate_string()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/gobj-c/src/helpers.c#L1225)
 

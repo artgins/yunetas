@@ -142,8 +142,8 @@ PUBLIC json_t *watch_ids(
     for(int i=0; i<list_size; i++) {
         char id[NAME_MAX];
         if(snprintf(id, sizeof(id), "%s", list[i]) >= (int)sizeof(id)) {
-            *jn_comment = json_sprintf("%s: yuno id too long: '%.40s...'",
-                gobj_yuno_role_plus_name(), list[i]);
+            *jn_comment = json_sprintf("%s: yuno id too long: '%.*s...'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(list[i], 40), list[i]);
             split_free2(list);
             JSON_DECREF(jn_yunos)
             return NULL;

@@ -235,6 +235,14 @@ PUBLIC void delete_left_blanks(char *s);
 PUBLIC void left_justify(char *s);
 PUBLIC char *strntoupper(char* s, size_t n);
 PUBLIC char *strntolower(char* s, size_t n);
+
+/**rst**
+    The bytes of `s` that fit in `max_bytes` WITHOUT cutting a UTF-8
+    character: the precision to cap a string with, as `"%.*s"`. A cap by
+    bytes (`"%.64s"`) can end in the middle of a character, and the json
+    built with it is refused (json_sprintf() checks UTF-8) or logged broken.
+**rst**/
+PUBLIC int utf8_prefix_len(const char *s, int max_bytes);
 PUBLIC char *translate_string(
     char *to,
     int tolen,

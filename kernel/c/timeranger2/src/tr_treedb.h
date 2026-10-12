@@ -313,6 +313,17 @@ PUBLIC json_t *treedb_topic_pkey2s_filter(
 
 PUBLIC int treedb_set_trace(BOOL set);
 
+/*
+ *  The data of the calls that follow comes from a PEER (C_NODE sets it around
+ *  the calls of a command): a fault of the DATA -- a field required or of the
+ *  wrong type, an fkey, a link that would close a cycle or an unlink of a
+ *  child that does not hang there, a create of an id that exists -- is logged
+ *  as a WARNING without a stack, not as an ERROR with one. A schema fault is
+ *  an ERROR always. Return the previous value: put it back after the calls.
+ */
+PUBLIC BOOL treedb_set_peer_data(BOOL peer_data);
+PUBLIC BOOL treedb_peer_data(void);  // TRUE while the data in course is a peer's
+
 PUBLIC BOOL decode_parent_ref( // parent_topic_name^parent_id^hook_name
     const char *pref,
     char *topic_name, int topic_name_size,

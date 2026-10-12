@@ -465,25 +465,38 @@ ycommand -c 'command-yuno id=<yuno> service=treedb_devices command=link-nodes pa
 # -403 No permission to 'update' in service 'treedb_devices'
 ```
 
-(treedb-file-columns)=
+(c-node-peer-data)=
 ### What a command names is the peer's data
 
-A topic, a hook, a link or a parent ref that a command names comes from the
-peer, and a mistake in it is the peer's, not a broken contract of the yuno.
-`C_NODE` refuses it **after** the permission check (a peer without the
+A topic, a hook, a link, a parent ref or a record that a command names comes
+from the peer, and a mistake in it is the peer's, not a broken contract of the
+yuno. `C_NODE` refuses it **after** the permission check (a peer without the
 permission learns nothing about which topics exist) with a WARNING
-(`msgset: MSGSET_PARAMETER`, each name capped at 64 bytes) and answers `-1`.
+(`msgset: MSGSET_PARAMETER`; a name that is not yet known to be valid is
+capped at 64 bytes, never in the middle of a character) and answers `-1`.
 The `gobj_*_node()` methods and the treedb keep their ERROR for the same
 mistakes: for a C caller it is a broken contract.
 
 | The command names | WARNING | Answer |
 |---|---|---|
-| a topic the treedb does not have, or one that breaks the name rule ([`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>)) | *"topic not found, refused"* | `Topic not found: '<topic>'` |
-| a hook / link that is not a column of the topic with that flag | *"not a column of the topic with that flag, refused"* | `Hook not found: '<hook>'` |
+| a topic the treedb does not have, or one that breaks the name rule ([`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>)) | *"topic not found, refused"* | `Topic not found: '<topic>'` (`link-nodes` / `unlink-nodes`: `Topic not found`, without the name) |
+| a hook / link that is not a column of the topic with that flag | *"not a column of the topic with that flag, refused"* | `link-nodes` / `unlink-nodes`: `Hook not found: '<hook>'`; `parents`, `children`, `jtree`: `cannot list the ... (see the log)` |
 | a hook whose map does not take the child's topic (`link-nodes`, `unlink-nodes`) | *"the hook does not link that topic, refused"* | `Hook '<hook>' does not link topic '<topic>'` |
-| a column name that breaks the rule ([`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>)) | `` column name breaks the name rule (empty or '`'), refused `` | |
+| a column name that breaks the rule ([`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>)) | `` column name breaks the name rule (empty or '`'), refused `` | as the row above |
 | a parent ref that is not `topic^id^hook` | *"parent ref must be topic^id^hook, with names of the name rule; refused"* (with a `why`) | `Wrong parent ref (see the log)` |
+| a record that is not a json object, or whose `id` is not a string (`create-node`, `update-node`, `delete-node`; also a `content64` that decodes to something else) | *"record of a wrong shape, refused"* (with a `why`) | `Wrong record: a json object, with a string id` |
 | an `update-node` of a node that does not exist, without `create` | *"node not found, update refused (no 'create' option)"* | `Node not found: '<id>' of topic '<topic>'` |
+| an `update-node` with `create_only` of a node that exists | *"node already exists, create_only refused"* | `Node already exists: '<id>' of topic '<topic>'` |
+| `instances` by a `pkey2` that is not a secondary index of the topic (`id` names the primary one) | *"not a pkey2 of the topic, refused"* | `Not a pkey2 of topic '<topic>': '<pkey2>'` |
+
+What only the treedb can judge -- a field required or of the wrong type, an
+fkey that cannot be linked, a link that would close a cycle or links a node
+to itself, an unlink of a child that does not hang from that parent, a create
+of an id that exists, a seed link the command would cut -- is logged by the
+treedb (or by the method) with its own message, as a WARNING without a stack:
+the command marks the record as a peer's around the call
+([`treedb_set_peer_data()`](<#treedb_set_peer_data>), since SDK 7.26.10), and
+answers `-1` with *"cannot ... (see the log)"*.
 
 ```
 # `users` links users, not departments (SDK 7.26.10+; before it an ERROR of the treedb)
@@ -493,8 +506,13 @@ command-yuno id=<id> service=<treedb> command=link-nodes parent_ref=departments^
 # an update of a node that is not there: add options='{"create":1}' to make it
 command-yuno id=<id> service=<treedb> command=update-node topic_name=departments record='{"id":"nosuch","name":"Nobody"}'
 # -> -1 <role^name>: Node not found: 'nosuch' of topic 'departments'
+
+# a link that closes a cycle: dev hangs from top (a WARNING of the treedb, no stack)
+command-yuno id=<id> service=<treedb> command=link-nodes parent_ref=departments^dev^departments child_ref=departments^top
+# -> -1 <role^name>: cannot link 'departments^top' to 'departments^dev^departments' (see the log)
 ```
 
+(treedb-file-columns)=
 ### File columns: `__assets__`
 
 A treedb node often owns something that is not JSON — a photo, a plan, a
