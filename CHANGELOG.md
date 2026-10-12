@@ -112,8 +112,11 @@ Out of the nineteenth review (V19):
 - The last byte caps a peer or an operator can reach -- `C_IEVENT_SRV`'s
   service refusals, `C_YUNO`'s ip, the control center's command checks --
   use `utf8_prefix_len()`.
-- docs: the three new functions link to `main` until the next release
-  repins them (they are not in 7.26.9).
+- docs: the three new functions link their FILE at 7.26.9, with no line
+  (they are not in that tag, and an anchor there led to other code; a link to
+  `main` makes the guard fail). `check_doc_line_refs.py --repin` now gives an
+  anchorless symbol link its definition line, so the next release anchors
+  them (and `version_cmp()`'s, anchorless too).
 - **JS layer: gobj-ui 7.26.27.** A module publishes the keys it hands to
   `t()` as data in an exported `<NAME>_I18N_KEYS` array, and
   `validate-locales` asks for them wherever the module is mounted

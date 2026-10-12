@@ -3021,7 +3021,7 @@ This function is useful for debugging and monitoring TreeDB operations.
 ---
 
 (treedb_set_peer_data)=
-## [`treedb_set_peer_data()`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_treedb.c#L6164)
+## [`treedb_set_peer_data()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/tr_treedb.c)
 
 Say that the data of the calls that follow comes from a PEER. A fault of the
 DATA is then logged as a WARNING without a stack trace, not as an ERROR with
@@ -3071,7 +3071,7 @@ treedb_set_peer_data(peer_data);
 ---
 
 (treedb_peer_data)=
-## [`treedb_peer_data()`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_treedb.c#L6174)
+## [`treedb_peer_data()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/tr_treedb.c)
 
 `TRUE` while the data in course is a peer's ([`treedb_set_peer_data()`](<#treedb_set_peer_data>)).
 

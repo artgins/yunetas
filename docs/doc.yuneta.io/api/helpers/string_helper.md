@@ -1255,7 +1255,7 @@ If `s` is NULL or `n` is zero, the function returns NULL without modifying the s
 ---
 
 (utf8_prefix_len)=
-## [`utf8_prefix_len()`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c#L1218)
+## [`utf8_prefix_len()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/gobj-c/src/helpers.c)
 
 The bytes of `s` that fit in `max_bytes` WITHOUT cutting a UTF-8 character:
 the precision to cap a string with, as `"%.*s"`.

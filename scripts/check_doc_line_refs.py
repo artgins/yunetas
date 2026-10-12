@@ -986,6 +986,16 @@ def repin_line(line, newtag, missing):
                         n_drift += 1
         else:
             anchor = ""
+            # A symbol link with NO anchor -- an API entry written before its
+            # function was in any tag (it linked the file, so as not to point
+            # at another line) -- gets its definition line now
+            sym = symbol_of_text(txt) if kind == "blob" and rel else None
+            if sym:
+                path = REPO / rel
+                nl = def_line_of(sym, path) if path.exists() else None
+                if nl is not None:
+                    anchor = f"#L{nl}"
+                    n_anchor += 1
         # A release's performance report is a fixed document of THAT release:
         # it stays pinned to its own tag, as its htmlpreview "view" link does.
         link_tag = newtag
