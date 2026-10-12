@@ -582,6 +582,26 @@ PRIVATE int run_tests(hgobj gobj)
     CHECK(expect_refused, "refused: a child ref of an unknown topic", "link-nodes",
         json_pack("{s:s, s:s}", "parent_ref", "departments^top^departments", "child_ref", "us`ers^ana"),
         "Topic not found")
+    CHECK(expect_refused, "refused: link by a column that is not a hook", "link-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "departments^top^name", "child_ref", "departments^dev"),
+        "Hook not found")
+
+    /*
+     *  REV-CLOUD V17.3.1: a hook that does not take the child's topic, and
+     *  an update of a node that does not exist, are the peer's data too:
+     *  they were an ERROR of the treedb, the second with a stack and the
+     *  whole kw dumped.
+     */
+    CHECK(expect_refused, "refused: link by a hook that does not link the child's topic", "link-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "departments^top^users", "child_ref", "departments^dev"),
+        "does not link topic")
+    CHECK(expect_refused, "refused: unlink by a hook that does not link the child's topic", "unlink-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "departments^top^users", "child_ref", "departments^dev"),
+        "does not link topic")
+    CHECK(expect_refused, "refused: update of a node that does not exist, no create", "update-node",
+        json_pack("{s:s, s:{s:s, s:s}}", "topic_name", "departments",
+            "record", "id", "nosuch", "name", "Nobody"),
+        "Node not found: 'nosuch'")
 
     /*
      *  treedb-info: its name, master, the schema version and the topics

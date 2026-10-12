@@ -107,7 +107,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -125,6 +125,10 @@ static int register_yuno_and_more(void)
             "msg", "column name breaks the name rule (empty or '`'), refused",
             "msg", "parent ref must be topic^id^hook, with names of the name rule; refused",
             "msg", "topic not found, refused",
+            "msg", "not a column of the topic with that flag, refused",
+            "msg", "the hook does not link that topic, refused",     // V17.3.1
+            "msg", "the hook does not link that topic, refused",
+            "msg", "node not found, update refused (no 'create' option)",
             "msg", "loading snap_tag 1",                    // the treedb opened again with s1 active
             "msg", "Node already exists",                   // import-db: each node that exists is tried
             "msg", "Node already exists",

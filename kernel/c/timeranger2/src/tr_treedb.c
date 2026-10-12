@@ -10945,7 +10945,7 @@ PRIVATE BOOL link_would_close_cycle(
     if(strcmp(parent_topic, child_topic) != 0) {
         return FALSE;
     }
-    const char *up_field = kw_get_str(gobj, hook_desc, parent_topic, 0, 0);
+    const char *up_field = json_string_value(json_object_get(hook_desc, parent_topic));
     if(empty_string(up_field)) {
         return FALSE;
     }
@@ -11122,7 +11122,7 @@ PRIVATE int _link_nodes(
      *  Child topic name must be defined in hook links
      *  with his child_field (fkey or hook)
      *--------------------------------------------------*/
-    const char *child_field = kw_get_str(gobj, hook_desc, child_topic_name, 0, 0);
+    const char *child_field = json_string_value(json_object_get(hook_desc, child_topic_name));
     if(!child_field) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -11795,7 +11795,7 @@ PRIVATE int _unlink_nodes(
      *  Child topic name must be defined in hook links
      *  with his child_field (fkey or hook)
      *--------------------------------------------------*/
-    const char *child_field = kw_get_str(gobj, hook_desc, child_topic_name, 0, 0);
+    const char *child_field = json_string_value(json_object_get(hook_desc, child_topic_name));
     if(!child_field) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -12664,7 +12664,7 @@ PRIVATE int link_child_to_parent_ref(
     json_t *hook_desc = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", parent_topic_name, "cols", hook_name, "hook");
     const char *child_field = NULL;
     if(hook_desc) {
-        child_field = kw_get_str(gobj, hook_desc, topic_name, 0, 0);
+        child_field = json_string_value(json_object_get(hook_desc, topic_name));
     }
     if(!child_field || strcmp(child_field, col_name)!=0) {
         gobj_log_error(gobj, 0,
@@ -12753,7 +12753,7 @@ PRIVATE BOOL link_can_be_made(
     }
 
     json_t *hook_desc = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", parent_topic_name, "cols", hook_name, "hook");
-    const char *child_field = hook_desc? kw_get_str(gobj, hook_desc, topic_name, 0, 0) : NULL;
+    const char *child_field = hook_desc? json_string_value(json_object_get(hook_desc, topic_name)) : NULL;
     if(!child_field || strcmp(child_field, col_name)!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

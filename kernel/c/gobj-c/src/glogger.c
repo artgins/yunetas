@@ -1097,6 +1097,8 @@ PRIVATE void write_json_log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
     }
     __inside_log__ = 1;
 
+    int errno_ = errno;     // the caller's, for "%m": each handler below can change it
+
     log_handler_t *lh = dl_first(&dl_log_handlers);
     while(lh) {
         if(must_ignore(lh, priority)) {
@@ -1126,6 +1128,7 @@ PRIVATE void write_json_log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
             va_list ap_;
             va_copy(ap_, ap);
             // with this json the keys can be repeated!!!
+            errno = errno_;
             json_vappend(0, priority, ap_);
             va_end(ap_);
             if(opt & LOG_OPT_EXIT_NEGATIVE) {
@@ -1403,6 +1406,7 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
     char *key;
     char *fmt;
     char value[4*1024];
+    int errno_ = errno;     // for "%m", before anything below can change it
 
     /*
      *  Each value is "key", "format", args...: the format is read for its
@@ -1413,7 +1417,8 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
      *  "%%") logs its text and consumes nothing -- but "50% done" HAS one:
      *  "% d", a ' ' flag and a 'd', as for printf. A conversion this logger
      *  does not know ("%C", "%b", "%n", "%1$s") consumes one argument, as it
-     *  always did, so the keys after it stay aligned.
+     *  always did, so the keys after it stay aligned. "%m" is glibc's: no
+     *  argument, the value is strerror(errno).
      */
     while((key = (char *)va_arg(ap, char *)) != NULL) {
         fmt = (char *)va_arg(ap, char *);
@@ -1648,6 +1653,12 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                         }
                         converted = TRUE;
                     }
+                    break;
+                case 'm':
+                    /*  glibc's "%m" takes NO argument: consuming one shifted
+                     *  every key after it  */
+                    xjson_add_string(hgen, key, strerror(errno_));
+                    converted = TRUE;
                     break;
                 default:
                     /*  Not a conversion this logger knows: its argument is

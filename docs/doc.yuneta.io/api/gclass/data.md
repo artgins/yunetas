@@ -466,6 +466,35 @@ ycommand -c 'command-yuno id=<yuno> service=treedb_devices command=link-nodes pa
 ```
 
 (treedb-file-columns)=
+### What a command names is the peer's data
+
+A topic, a hook, a link or a parent ref that a command names comes from the
+peer, and a mistake in it is the peer's, not a broken contract of the yuno.
+`C_NODE` refuses it **after** the permission check (a peer without the
+permission learns nothing about which topics exist) with a WARNING
+(`msgset: MSGSET_PARAMETER`, each name capped at 64 bytes) and answers `-1`.
+The `gobj_*_node()` methods and the treedb keep their ERROR for the same
+mistakes: for a C caller it is a broken contract.
+
+| The command names | WARNING | Answer |
+|---|---|---|
+| a topic the treedb does not have, or one that breaks the name rule ([`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>)) | *"topic not found, refused"* | `Topic not found: '<topic>'` |
+| a hook / link that is not a column of the topic with that flag | *"not a column of the topic with that flag, refused"* | `Hook not found: '<hook>'` |
+| a hook whose map does not take the child's topic (`link-nodes`, `unlink-nodes`) | *"the hook does not link that topic, refused"* | `Hook '<hook>' does not link topic '<topic>'` |
+| a column name that breaks the rule ([`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>)) | *"column name breaks the name rule (empty or '`'), refused"* | |
+| a parent ref that is not `topic^id^hook` | *"parent ref must be topic^id^hook, with names of the name rule; refused"* (with a `why`) | `Wrong parent ref (see the log)` |
+| an `update-node` of a node that does not exist, without `create` | *"node not found, update refused (no 'create' option)"* | `Node not found: '<id>' of topic '<topic>'` |
+
+```
+# `users` links users, not departments (SDK 7.26.10+; before it an ERROR of the treedb)
+command-yuno id=<id> service=<treedb> command=link-nodes parent_ref=departments^top^users child_ref=departments^dev
+# -> -1 <role^name>: Hook 'users' does not link topic 'departments'
+
+# an update of a node that is not there: add options='{"create":1}' to make it
+command-yuno id=<id> service=<treedb> command=update-node topic_name=departments record='{"id":"nosuch","name":"Nobody"}'
+# -> -1 <role^name>: Node not found: 'nosuch' of topic 'departments'
+```
+
 ### File columns: `__assets__`
 
 A treedb node often owns something that is not JSON — a photo, a plan, a

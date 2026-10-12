@@ -40,7 +40,15 @@ message of each `pkey2`:
    and served, also after a restart. On 7.25.4 the file was left out of
    `dev1` with a CRITICAL, and the OLD message was served.
 
-Cases 2, 3 and 4 use a md2 of mode 000. As root they are SKIPPED, and each
+`test_msg2db_topics_left_out` pins that a topic `msg2db_open_db()` leaves
+out gets nothing of the msg2db. The schema has three topics: `good`, taken;
+`a/b`, whose name breaks the name rule; and `pre`, which has no `pkey2` and is
+opened in the tranger before the msg2db. Each one left out is said ONCE, and
+only `good` gets an index. Up to 7.26.9 the loop that opens the lists asked
+whether the topic was in the tranger, not whether it had been taken, so `pre`
+got a list and an index without a word.
+
+Cases 2, 3 and 4 of `test_msg2db_load_failed` use a md2 of mode 000. As root they are SKIPPED, and each
 prints that it is, because root can read such a file.
 
 On 7.25.4 case 2 serves the OLD message as current (it had no backward

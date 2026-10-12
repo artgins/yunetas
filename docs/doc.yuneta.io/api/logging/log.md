@@ -375,7 +375,9 @@ The function increments the global error count and formats the log message befor
 | `%p` | a pointer | |
 | `%j` | a `json_t *`, as compact json | |
 | no conversion (`"100%"`, `"%%"`) | the text itself, `%%` as `%`; nothing is consumed. `"50% done"` is NOT one: `"% d"` is a conversion, for `printf` too | SDK 7.26.9 |
-| a conversion the logger does not know (`%C`, `%b`, `%n`, `%1$s`) | the format's text; one argument is consumed, so the keys after it stay aligned | |
+| `%m` | `strerror(errno)`, as glibc's `%m`: no argument is consumed. `errno` is the one the caller had when it called the log function | SDK 7.26.10 |
+| a conversion the logger does not know (`%C`, `%b`, `%n`) | the format's text; one argument is consumed, so the keys after it stay aligned | |
+| a positional argument or a non-standard size (`%1$s`, `%qd`, `%I64d`) | the format's text, and one argument consumed, like a conversion the logger does not know. SDK 7.26.8 logged the value of some of them, and crashed on others: write `%s`, `%lld` | SDK 7.26.9 |
 
 Before SDK 7.26.9 the precision was ignored (every capped value was logged whole), a `size_t` was read as an `int` (`5000000000` logged `705032704`) and an `unsigned long long` as a `long long` (`ULLONG_MAX` logged `-1`), `%jd` was read as the json conversion, and a `%` with no conversion consumed an argument that was not there, losing every key after it.
 
@@ -387,6 +389,7 @@ gobj_log_error(gobj, 0,
     "len",          "%zu", len,             // a size_t
     "head",         "%.64s", peer_bytes,    // at most 64 bytes of the peer's data
     "frame",        "%j", jn_frame,         // a json_t *
+    "errno",        "%m",                   // strerror(errno), no argument
     NULL
 );
 ```

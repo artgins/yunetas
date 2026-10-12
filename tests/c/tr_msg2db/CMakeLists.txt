@@ -53,6 +53,7 @@ endif()
 set(SRCS
     test_pkey2_empty
     test_msg2db_load_failed
+    test_msg2db_topics_left_out
 )
 
 ##############################################

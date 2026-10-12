@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+Out of the seventeenth review (yunovatios `REV-CLOUD.md`, V17), read while
+7.26.9 was being deployed.
+
+- **fix: `c_node` refuses two more peer mistakes with a WARNING, not the
+  treedb's ERROR** (V17.3.1). An `update-node` of a node that does not exist,
+  without `create`, logged an ERROR with a stack and dumped the whole kw: it
+  is now *"node not found, update refused (no 'create' option)"*, the id capped
+  at 64, and the answer *"Node not found: '<id>' of topic '<topic>'"*. A
+  `link-nodes` / `unlink-nodes` by a hook whose map does not take the child's
+  topic logged *"Topic child not defined in hook desc links"* (ERROR, the hook
+  map dumped): it is now *"the hook does not link that topic, refused"*.
+  Both after the permission check, like every other refusal of a command;
+  `mt_update_node` and the treedb keep their ERROR for a C caller, whose
+  contract it is.
+- **fix: `msg2db_open_db()` opened a list and an index for a topic it had
+  left out** (V17.3.2) when the tranger had that topic open already: the
+  loop that opens the lists asked whether the topic was in the tranger, not
+  whether the first loop had taken it. It reads what the first loop took now
+  (a topic `tranger2_create_topic()` refuses is not taken either). Test
+  `tr_msg2db/test_msg2db_topics_left_out`.
+- **fix: the logger's `%m` took an argument** (V17.3.3). glibc's `%m` takes
+  none -- it is `strerror(errno)` -- so every key after it was read shifted,
+  and on 7.26.9 the next string read crashed the process
+  (`kw/test_kw1`). `%m` logs `strerror(errno)` now, with the caller's
+  `errno`, which the logger hands to every handler. `log.md` says what
+  `%1$s`, `%qd` and `%I64d` log (the format's text).
+- `tr_treedb` reads the hook map of a link by KEY (`json_object_get`): the
+  child's topic is a name, not a path (five sites).
+- `tests/c/c_node_commands`: a link by a column that is not a hook, a hook
+  that does not link the child's topic (link and unlink), an update of a node
+  that does not exist.
+- **docs:** the recipe that checks a store for names that break the rule
+  (`treedb.md`) names a topic by `topic_name` first, as the treedb does
+  (`{"id": "ok", "topic_name": "a`b"}` went through), does not stop at a topic
+  with no name, prints the file of each line, and has a Python twin for the
+  nodes without `jq` (three of six). Run on all six nodes after the 7.26.9
+  upgrade: clean.
+
 ## v7.26.9 (2026-10-11)
 
 A hardening release, out of sixteen rounds of review (yunovatios

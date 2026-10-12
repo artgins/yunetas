@@ -94,6 +94,12 @@ PRIVATE BOOL refuse_peer_col_without_flag(
     const char *name,
     const char *flag
 );
+PRIVATE BOOL refuse_peer_hook_without_child_topic(
+    hgobj gobj,
+    const char *parent_topic_name,
+    const char *hook_name,
+    const char *child_topic_name
+);
 
 PRIVATE int apply_initial_load(hgobj gobj);
 PRIVATE BOOL seed_declares_link(
@@ -3060,18 +3066,46 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  node that does not exist yet also asks for `create`: it used to be
      *  created under `update` alone. A node that exists does not.
      *  `create_only` creates too (mt_update_node turns it into `create`).
+     *  The same lookup the update makes, and a silent one.
      */
-    if(_jn_options && (
+    BOOL create = _jn_options && (
         kw_get_bool(gobj, _jn_options, "create", 0, KW_WILD_NUMBER) ||
         kw_get_bool(gobj, _jn_options, "create_only", 0, KW_WILD_NUMBER)
-    )) {
-        /*
-         *  The same lookup the update makes, and a silent one: an unknown
-         *  topic is refused by the update itself, with its own error.
-         */
+    );
+    BOOL is_new = !fetch_node(gobj, topic_name, jn_content);
+
+    /*
+     *  A node that does not exist, and no `create`: the peer's data, a
+     *  warning and a refusal. mt_update_node logs an ERROR with a stack for
+     *  it: for a C caller it is a broken contract (REV-CLOUD V17.3.1).
+     */
+    if(is_new && !create) {
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
-        BOOL is_new = treedb_is_treedbs_topic(priv->tranger, priv->treedb_name, topic_name) &&
-            !fetch_node(gobj, topic_name, jn_content);
+        const char *id = kw_get_str(gobj, jn_content, "id", "", 0);
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "node not found, update refused (no 'create' option)",
+            "treedb_name",  "%s", priv->treedb_name,
+            "topic_name",   "%s", topic_name,
+            "id",           "%.64s", id,
+            NULL
+        );
+        GBUFFER_DECREF(gbuf_files)
+        json_t *resp = msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Node not found: '%.64s' of topic '%s'",
+                gobj_yuno_role_plus_name(), id, topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+        json_decref(jn_content);    // after the comment: `id` is its string
+        return resp;
+    }
+
+    if(create) {
         if(is_new && !gobj_user_has_authz(gobj, "create", kw_incref(kw), src)) {
             json_decref(jn_content);
             GBUFFER_DECREF(gbuf_files)
@@ -3406,6 +3440,17 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             kw  // owned
         );
     }
+    if(refuse_peer_hook_without_child_topic(gobj, parent_topic_name, hook_name, child_topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Hook '%.64s' does not link topic '%s'",
+                gobj_yuno_role_plus_name(), hook_name, child_topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     json_t *parent_node = gobj_get_node(
         gobj,
@@ -3593,6 +3638,17 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             gobj,
             -1,
             json_sprintf("%s: Hook not found: '%.64s'", gobj_yuno_role_plus_name(), hook_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_hook_without_child_topic(gobj, parent_topic_name, hook_name, child_topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Hook '%.64s' does not link topic '%s'",
+                gobj_yuno_role_plus_name(), hook_name, child_topic_name),
             0,
             0,
             kw  // owned
@@ -6544,6 +6600,40 @@ PRIVATE BOOL refuse_peer_col_without_flag(
         "what",         "%s", what,
         "name",         "%.64s", name? name : "",
         "flag",         "%s", flag,
+        NULL
+    );
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The hook a link or an unlink names must take the CHILD's topic in its
+ *  map ('hook': {'<child topic>': '<child field>'}): the peer's data, a
+ *  warning and a refusal before the treedb logs its ERROR ("Topic child not
+ *  defined in hook desc links", REV-CLOUD V17.3.1). TRUE = refused.
+ ***************************************************************************/
+PRIVATE BOOL refuse_peer_hook_without_child_topic(
+    hgobj gobj,
+    const char *parent_topic_name,
+    const char *hook_name,
+    const char *child_topic_name
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *child_field = KWID_GET_BY_KEYS(gobj, priv->tranger, 0,
+        "topics", parent_topic_name, "cols", hook_name, "hook", child_topic_name
+    );
+    if(json_is_string(child_field)) {
+        return FALSE;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "the hook does not link that topic, refused",
+        "treedb_name",  "%s", priv->treedb_name,
+        "topic_name",   "%s", parent_topic_name,
+        "hook",         "%.64s", hook_name,
+        "child_topic",  "%s", child_topic_name,
         NULL
     );
     return TRUE;

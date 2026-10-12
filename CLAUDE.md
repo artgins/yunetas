@@ -1353,9 +1353,12 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   ITSELF, so it renders in lower-case English and never changes language (that is
   how 46 strings of the treedb editor shipped untranslated); a **duplicate** key
   in a locale file is silent too (an object literal keeps the last one). Both are
-  caught by `scripts/validate-locales.mjs` — copy it into any new SPA; it also
-  scans the gobj-ui modules the app mounts, because **the library translates
-  through the APP's i18next**. Details: gobj-ui's README ("Conventions → i18n").
+  caught by the `validate-locales` gobj-ui publishes (7.26.25+): every SPA's
+  `prebuild` runs `node node_modules/@yuneta/gobj-ui/scripts/validate-locales.mjs`
+  and keeps NO copy (the copies had drifted into three families with different
+  rules). It also scans the gobj-ui modules the app mounts, because **the
+  library translates through the APP's i18next**. Details: gobj-ui's README
+  ("Conventions → i18n").
 - **Indentation is always FOUR spaces.** Anywhere structure is shown as
   indentation — a rendered tree (site map, JSON viewer), a `<pre>` dump, any
   `JSON.stringify` that reaches the screen — one level is four characters:
@@ -2016,9 +2019,12 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   EOF), and leave "since X" prose alone. Then clear the myst cache (a repin is
   a bulk edit); run `docs/doc.yuneta.io/deploy.sh` and curl-verify the live
   site. The release is not done until the live site reflects it.
-- **GitHub release body from the CHANGELOG:** strip the 4-space bullet indent
-  from the `## vX.Y.Z` section first (otherwise GitHub renders it as one code
-  block). When backfilling an older release, restore
+- **GitHub release body from the CHANGELOG:** the section goes in as it is.
+  Its bullets are at column 0 and its sub-bullets at 4 spaces, and GitHub nests
+  them; stripping 4 spaces from every line (the old recipe) flattened every
+  sub-bullet of 7.26.9 into a bullet of the first level. Strip ONE level only
+  from an old section whose first-level bullets are indented (otherwise GitHub
+  renders it as one code block). When backfilling an older release, restore
   `gh release edit <newest-tag> --latest` afterwards.
 
 ## Environment Variables

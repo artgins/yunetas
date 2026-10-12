@@ -290,7 +290,13 @@ PUBLIC json_t *msg2db_open_db(
 
     /*------------------------------*
      *  Open/Create "user" topics
+     *
+     *  What this loop takes is what the second one opens lists for: a topic
+     *  it leaves out can still be in the tranger (opened before, by somebody
+     *  else), and the second loop gave it a list and an index all the same,
+     *  without a word (REV-CLOUD V17.3.2).
      *------------------------------*/
+    json_t *accepted_topics = json_object();
     int idx;
     json_t *schema_topic;
     json_array_foreach(jn_schema_topics, idx, schema_topic) {
@@ -356,11 +362,15 @@ PUBLIC json_t *msg2db_open_db(
             kwid_new_dict(gobj, schema_topic, 0, "cols"),
             jn_topic_var
         );
+        if(!topic) {
+            continue;   // Error already logged
+        }
 
         parse_schema_cols(
             topic_cols_desc,
             kwid_new_list(gobj, topic, 0, "cols")
         );
+        json_object_set_new(accepted_topics, topic_name, json_true());
     }
 
     /*
@@ -394,8 +404,7 @@ PUBLIC json_t *msg2db_open_db(
         if(empty_string(topic_name)) {
             continue;
         }
-        if(!tranger2_name_is_identifier(topic_name) ||
-                !json_object_get(json_object_get(tranger, "topics"), topic_name)) {
+        if(!json_object_get(accepted_topics, topic_name)) {
             /*  Left out by the first loop (a bad name, no pkey=id, no
              *  pkey2, a topic not created): opening its list here said it
              *  three times more (REV-CLOUD V16.4).  */
@@ -584,6 +593,7 @@ PUBLIC json_t *msg2db_open_db(
         }
     }
 
+    JSON_DECREF(accepted_topics)
     JSON_DECREF(jn_schema)
     return msg2db;
 }

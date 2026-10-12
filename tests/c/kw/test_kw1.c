@@ -7,6 +7,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <locale.h>
@@ -438,6 +439,37 @@ static int test_log_length_modifiers(void)
 }
 
 /***************************************************************************
+ *  REV-CLOUD V17.3.3: "%m" is glibc's, strerror(errno) and NO argument. It
+ *  consumed one, so the key after it was read shifted.
+ ***************************************************************************/
+static int test_log_percent_m_takes_no_argument(void)
+{
+    int result = 0;
+    set_expected_results(
+        "log_percent_m_takes_no_argument",
+        json_pack("[{s:s, s:s, s:i}]",
+            "msg", "percent m",
+            "errno", strerror(ENOENT),
+            "after", 11
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+
+    errno = ENOENT;
+    gobj_log_warning(0, 0,
+        "msg",      "%s", "percent m",
+        "errno",    "%m",
+        "after",    "%d", 11,
+        NULL
+    );
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
+    return result;
+}
+
+/***************************************************************************
  *  REV-CLOUD V14.4: a filter path too long for kw_match_simple() is said
  *  ONCE per process (the matchers run per publication and per record).
  ***************************************************************************/
@@ -856,6 +888,7 @@ PRIVATE int do_test(void)
     result += test_null_leaf_required_logs_as_missing();
     result += test_log_precision_caps_the_value();
     result += test_log_length_modifiers();
+    result += test_log_percent_m_takes_no_argument();
     result += test_match_simple_long_path_said_once();
     result += test_reg_f001_gbuffer_deserialize_null_data();
     result += test_reg_f001_gbuffer_deserialize_bad_base64();

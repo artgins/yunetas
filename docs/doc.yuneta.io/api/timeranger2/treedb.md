@@ -2243,24 +2243,71 @@ static char treedb_schema_names[]= "\
 
 To check a store before an upgrade, ask its persisted schemas (the KEYS, not
 the values: a description may hold a `/`). They are `<treedb>.treedb_schema.json`
-(a `topics` list) and, for a topic created at run time,
-`<treedb>-<topic>.treedb_schema.json` (one topic); the recipe reads both. Each
-command prints the names that break a rule, and nothing on a clean store. A
-treedb opened without `"persistent"` writes no schema file (`C_NODE` always
-opens with it):
+(a `topics` list or dict) and, for a topic created at run time,
+`<treedb>-<topic>.treedb_schema.json` (one topic); the recipe reads both, and
+its `cols` as a dict or as a list. It prints one line per name that breaks a
+rule, with the file it comes from, and nothing on a clean store. A treedb
+opened without `"persistent"` writes no schema file (`C_NODE` always opens with
+it):
 
 ```bash
-# topic names: empty, ".", "..", or holding "/" or "`"
-find <store> -name '*.treedb_schema.json' -exec \
-    jq -r '(.topics[]? // .) | (.id // .topic_name)
-           | select(. == "" or test("^[.]{1,2}$|[/`]"))' {} +
-
-# column names: empty or holding "`"
-find <store> -name '*.treedb_schema.json' -exec \
-    jq -r '(.topics[]? // .) | (.id // .topic_name) as $t | (.cols // empty)
-           | (if type == "object" then keys[] else .[].id end)
-           | select(. == "" or test("`")) | "\($t).\(.)"' {} +
+find /yuneta/store -name '*.treedb_schema.json' -exec jq -r '
+  def bt: type!="string" or .=="" or test("^[.]{1,2}$|[/`]");
+  def bc: type!="string" or .=="" or test("`");
+  input_filename as $f
+  | ((.topics|objects,arrays|.[]) // .) | objects
+  | (if (.topic_name|type)=="string" and .topic_name!="" then .topic_name else (.id // "") end) as $t
+  | (if ($t|bt) then "\($f): TOPIC \($t|@json)" else empty end),
+    (.cols | if type=="object" then keys[] elif type=="array" then (.[] | objects | (.id // "")) else empty end
+     | select(bc) | "\($f): COLUMN \($t).\(.|@json)")' {} +
 ```
+
+Three things in it are on purpose:
+
+- the topic is named by `topic_name` first and `id` second, as the treedb
+  names it ([`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/tr_treedb.c)):
+  a recipe that read `.id // .topic_name` let `{"id": "ok", "topic_name": "a`b"}`
+  through;
+- a topic with no name at all is a line (`TOPIC ""`), not a jq error that stops
+  the reading of the rest of its file;
+- the program has no `{}` in it: `find -exec ... {} +` replaces every one.
+
+`jq` is not installed by default on Debian. The same check in Python, which
+every node has:
+
+```bash
+python3 - <<'PY'
+import json, os, re
+bad_topic = lambda v: not isinstance(v, str) or v == "" or re.search(r"^[.]{1,2}$|[/`]", v)
+bad_col = lambda v: not isinstance(v, str) or v == "" or "`" in v
+for root, _, files in os.walk("/yuneta/store"):
+    for fn in files:
+        if not fn.endswith(".treedb_schema.json"):
+            continue
+        f = os.path.join(root, fn)
+        d = json.load(open(f))
+        topics = d.get("topics") if isinstance(d, dict) else None
+        topics = list(topics.values()) if isinstance(topics, dict) else topics or [d]
+        for t in topics:
+            if not isinstance(t, dict):
+                continue
+            tn = t.get("topic_name")
+            name = tn if isinstance(tn, str) and tn else t.get("id", "")
+            if bad_topic(name):
+                print(f"{f}: TOPIC {json.dumps(name)}")
+            cols = t.get("cols")
+            ids = list(cols) if isinstance(cols, dict) else \
+                [c.get("id", "") for c in cols if isinstance(c, dict)] if isinstance(cols, list) else []
+            for c in ids:
+                if bad_col(c):
+                    print(f"{f}: COLUMN {name}.{json.dumps(c)}")
+PY
+```
+
+After an upgrade, the logs say what was left out. An ERROR *"Topic of the
+schema left out: a name breaks the name rule"* (or *"Topic of the msg2db left
+out"*) names the topic, and the hooks of other topics that point at it log
+*"link topic not found"*.
 
 A `.` in a name is fine for both rules: the treedb looks its topics, hooks and
 fkeys up by key ([`kwid_get_by_keys()`](<#kwid_get_by_keys>)), never through a
