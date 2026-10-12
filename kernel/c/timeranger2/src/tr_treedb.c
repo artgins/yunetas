@@ -343,6 +343,34 @@ static inline int run_treedb_callback(
 }
 
 /*
+ *  The append of a node: tranger2_append_record() feeds the topic's rt
+ *  lists in the same call, and their callbacks (C_TRANGER's open-rt, which
+ *  publishes EV_TRANGER_RECORD_ADDED) are subscribers like those of the
+ *  publication: they run as a C caller too (REV-CLOUD V20.3).
+ */
+static inline int append_outside_peer_window(
+    json_t *tranger,
+    const char *topic_name,
+    uint16_t user_flag,
+    md2_record_ex_t *md_record,
+    json_t *record  // owned
+)
+{
+    BOOL peer_data = __peer_data__;
+    __peer_data__ = FALSE;
+    int ret = tranger2_append_record(
+        tranger,
+        topic_name,
+        0,  // __t__: if 0 then the time will be set by TimeRanger with now time
+        user_flag,
+        md_record,
+        record
+    );
+    __peer_data__ = peer_data;
+    return ret;
+}
+
+/*
  *  The nodes whose delete tells its events: a save of them is refused
  *  (mark_node_deleting()). NOT owned: each delete removes its own.
  */
@@ -519,8 +547,6 @@ PUBLIC json_t *treedb_topic_pkey2s_filter(
     const char *id
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
     json_t *jn_filter = json_object();
     json_object_set_new(jn_filter, "id", json_string(id));
 
@@ -531,7 +557,7 @@ PUBLIC json_t *treedb_topic_pkey2s_filter(
         if(empty_string(pkey2_name)) {
             continue;
         }
-        json_t *jn_value = kw_get_dict_value(gobj, node, pkey2_name, 0, 0);
+        json_t *jn_value = json_object_get(node, pkey2_name);  // a name of the schema: a key
         if(jn_value) {
             const char *value = json_string_value(jn_value);
             if(!empty_string(value)) {
@@ -579,18 +605,110 @@ PRIVATE char *build_id_index_path(
 }
 
 /***************************************************************************
- *
+ *  The index `index_name` of a topic (its "id" index, or the index of a
+ *  pkey2, named after it), made when it is not there:
+ *  tranger.treedbs.<treedb_name>.<topic_name>.<index_name>, walked by KEYS.
+ *  A pkey2 name comes from the schema, and as a segment of a kw path a
+ *  backtick in it made the index somewhere else than where it is read
+ *  (treedb_get_pkey2_index(), by keys) (REV-CLOUD V20.5).
+ *  Return the index, or NULL (logged) if a level is not a dict.
  ***************************************************************************/
-PRIVATE char *build_pkey_index_path(
-    char *bf,
-    int bfsize,
+PRIVATE json_t *create_topic_index(
+    hgobj gobj,
+    json_t *tranger,
     const char *treedb_name,
     const char *topic_name,
-    const char *pkey2_name
+    const char *index_name
 )
 {
-    snprintf(bf, bfsize, "treedbs`%s`%s`%s", treedb_name, topic_name, pkey2_name);
-    return bf;
+    const char *keys[] = {"treedbs", treedb_name, topic_name, index_name, NULL};
+    json_t *level = tranger;
+    for(int i = 0; keys[i]; i++) {
+        json_t *next = json_object_get(level, keys[i]);
+        if(!next) {
+            next = json_object();
+            json_object_set_new(level, keys[i], next);
+        } else if(!json_is_object(next)) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "A level of the index of a topic is not a dict",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "index",        "%s", index_name,
+                "level",        "%s", keys[i],
+                NULL
+            );
+            return NULL;
+        }
+        level = next;
+    }
+    return level;
+}
+
+/***************************************************************************
+ *  The id of the list that loads an index of a topic (the "id" index is
+ *  named by the topic's tkey, a pkey2 index by the pkey2), as
+ *  snprintf() writes it: the length it needs, without its NUL, is
+ *  returned. It goes in a char[NAME_MAX], and a replica names a directory
+ *  after it: an id that does not fit is refused at the create of the
+ *  topic (check_list_ids_of_new_topic()), it was cut, and two lists of
+ *  the topic shared one id.
+ ***************************************************************************/
+PRIVATE int build_topic_list_id(
+    char *bf,
+    size_t bfsize,
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *index_key   // the tkey, or the pkey2
+)
+{
+    if(gobj) {
+        return snprintf(bf, bfsize, "treedb-%s-%s-%s-%s-%s",
+            gobj_gclass_name(gobj),
+            gobj_name(gobj),
+            treedb_name,
+            topic_name,
+            index_key
+        );
+    }
+    return snprintf(bf, bfsize, "treedb-%s-%s-%s",
+        treedb_name,
+        topic_name,
+        index_key
+    );
+}
+
+/***************************************************************************
+ *  The string a record holds in the field `field`, a name that comes from
+ *  the schema (a pkey2): read as a KEY, never as a kw path -- a backtick in
+ *  the name split it, and the value was read from somewhere else. As
+ *  kw_get_str(): an absent or null field is the default, and a value that
+ *  is not a string is said (the record's data: a WARNING inside the peer
+ *  window).
+ ***************************************************************************/
+PRIVATE const char *field_str_by_key(
+    hgobj gobj,
+    json_t *record,
+    const char *field,
+    const char *default_value
+)
+{
+    json_t *jn_value = json_object_get(record, field);
+    if(json_is_string(jn_value)) {
+        return json_string_value(jn_value);
+    }
+    if(!json_absent(jn_value)) {
+        log_data_fault(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "A secondary key field must be a string",
+            "field",        "%s", field,
+            NULL
+        );
+    }
+    return default_value;
 }
 
 /***************************************************************************
@@ -728,8 +846,7 @@ PRIVATE const char *get_key2_value(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     // combined no, de momento solo claves simples
-    const char *pkey2_value = kw_get_str(gobj, kw, pkey2_name, "", 0);
-    return pkey2_value;
+    return field_str_by_key(gobj, kw, pkey2_name, "");
 }
 
 /***************************************************************************
@@ -1047,10 +1164,15 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         schema_filename
     );
 
-    int schema_new_version = jn_schema?
-        (int)kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER) :
+    /*
+     *  Versions are json_int_t end to end: cut to an int, 2147483648 read
+     *  as a NEGATIVE version, older than any file, and the literal C_TREEDB
+     *  had decided to install never was (REV-CLOUD V20 K)
+     */
+    json_int_t schema_new_version = jn_schema?
+        kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER) :
         0;
-    int schema_version = schema_new_version;
+    json_int_t schema_version = schema_new_version;
 
     /*
      *  "impose": the schema passed wins over a NEWER one on disk too, and so
@@ -1070,7 +1192,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                     "",
                     kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED)
                 );
-                int schema_old_version = (int)kw_get_int(
+                json_int_t schema_old_version = kw_get_int(
                     gobj,
                     old_jn_schema,
                     "schema_version",
@@ -1091,8 +1213,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                             "msgset",           "%s", MSGSET_INFO,
                             "msg",              "%s", "Imposing TreeDB schema from C over a newer one",
                             "treedb_name",      "%s", treedb_name,
-                            "schema_version",   "%d", schema_new_version,
-                            "stored_version",   "%d", schema_old_version,
+                            "schema_version",   "%lld", (long long)schema_new_version,
+                            "stored_version",   "%lld", (long long)schema_old_version,
                             NULL
                         );
                     }
@@ -1106,7 +1228,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                 "msgset",           "%s", MSGSET_INFO,
                 "msg",              "%s", recreating?"Re-Creating TreeDB schema file":"Creating TreeDB schema file",
                 "treedb_name",      "%s", treedb_name,
-                "schema_version",   "%d", schema_new_version,
+                "schema_version",   "%lld", (long long)schema_new_version,
                 "schema_file",      "%s", schema_full_path,
                 NULL
             );
@@ -1602,7 +1724,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             );
             continue;
         }
-        int topic_version = (int)kw_get_int(gobj, schema_topic, "topic_version", 0, KW_WILD_NUMBER);
+        json_int_t topic_version = kw_get_int(gobj, schema_topic, "topic_version", 0, KW_WILD_NUMBER);
         const char *topic_tkey = kw_get_str(gobj, schema_topic, "tkey", "", 0);
         json_t *pkey2s = kw_get_dict_value(gobj, schema_topic, "pkey2s", 0, 0);
         BOOL system_topic = kw_get_bool(gobj, schema_topic, "system_topic", 0, 0);
@@ -1940,14 +2062,17 @@ PRIVATE void clear_treedb_hooks(
 }
 
 /***************************************************************************
- *  The columns a NEW topic is created with: some, an `id` among them (the
- *  pkey is fixed to "id"), and every one what parse_schema_cols() accepts.
+ *  The columns a NEW topic is created with: some, each one a json object,
+ *  an `id` among them (the pkey is fixed to "id"), and every one what
+ *  parse_schema_cols() accepts. A schema fault: an ERROR, a WARNING inside
+ *  the window of a peer's data (REV-CLOUD V20 D1).
  ***************************************************************************/
 PRIVATE int check_cols_of_new_topic(
     hgobj gobj,
     const char *treedb_name,
     const char *topic_name,
-    json_t *cols    // NOT owned
+    json_t *cols,   // NOT owned
+    const char **p_why
 )
 {
     const char *why = NULL;
@@ -1956,64 +2081,633 @@ PRIVATE int check_cols_of_new_topic(
     } else {
         BOOL has_id = FALSE;
         /*  A column id is a key of every record and a segment of the kw
-         *  paths built from it: the column name rule.  */
+         *  paths built from it: the column name rule. And a column is a
+         *  json object: the readers below take one.  */
         if(json_is_object(cols)) {
             const char *col_id; json_t *col_;
             json_object_foreach(cols, col_id, col_) {
-                if(!treedb_col_name_is_identifier(col_id)) {
+                if(!json_is_object(col_)) {
+                    why = "a column is not a json object";
+                } else if(!treedb_col_name_is_identifier(col_id)) {
                     why = "a column id breaks the name rule (empty or '`')";
                 }
             }
         } else if(json_is_array(cols)) {
             int idx_; json_t *col_;
             json_array_foreach(cols, idx_, col_) {
-                const char *col_id = json_string_value(json_object_get(col_, "id"));
-                if(col_id && !treedb_col_name_is_identifier(col_id)) {
+                if(!json_is_object(col_)) {
+                    why = "a column is not a json object";
+                    continue;
+                }
+                json_t *jn_col_id = json_object_get(col_, "id");
+                if(jn_col_id && !json_is_string(jn_col_id)) {
+                    why = "a column id is not a string";
+                } else if(jn_col_id && !treedb_col_name_is_identifier(json_string_value(jn_col_id))) {
                     why = "a column id breaks the name rule (empty or '`')";
                 }
             }
         }
-        if(json_is_object(cols)) {
-            has_id = json_object_get(cols, "id")? TRUE : FALSE;
-        } else {
-            int idx; json_t *col;
-            json_array_foreach(cols, idx, col) {
-                const char *id = json_string_value(json_object_get(col, "id"));
-                if(id && strcmp(id, "id")==0) {
-                    has_id = TRUE;
-                    break;
+        if(!why) {
+            if(json_is_object(cols)) {
+                has_id = json_object_get(cols, "id")? TRUE : FALSE;
+            } else {
+                int idx; json_t *col;
+                json_array_foreach(cols, idx, col) {
+                    const char *id = json_string_value(json_object_get(col, "id"));
+                    if(id && strcmp(id, "id")==0) {
+                        has_id = TRUE;
+                        break;
+                    }
                 }
             }
         }
         if(why) {
-            // a column id was refused above
+            // a column was refused above
         } else if(!has_id) {
             why = "no 'id' column (the pkey is 'id')";
         } else {
+            /*  kwid_new_list() writes the key of a dict of columns into each
+             *  one as its `id`: the columns of treedb_create_topic() are
+             *  written so to topic_cols.json  */
             json_t *wrapper = json_pack("{s:O}", "cols", cols);
+            json_t *cols_desc = topic_cols_desc?
+                json_incref(topic_cols_desc) : _treedb_create_topic_cols_desc();
             if(parse_schema_cols(
-                topic_cols_desc,
+                cols_desc,
                 kwid_new_list(gobj, wrapper, KW_VERBOSE, "cols")
             )<0) {
                 why = "a column is not valid (see the log)";
             }
+            JSON_DECREF(cols_desc)
             JSON_DECREF(wrapper)
         }
     }
+    if(p_why) {
+        *p_why = why;
+    }
     if(why) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic refused: bad columns",
             "treedb_name",  "%s", treedb_name,
-            "topic_name",   "%s", topic_name,
+            "topic_name",   "%.64s", topic_name,
             "why",          "%s", why,
             NULL
         );
-        gobj_log_set_last_message("topic '%s' refused: %s", topic_name, why);
+        gobj_log_set_last_message("topic '%.64s' refused: %s", topic_name, why);
         return -1;
     }
     return 0;
+}
+
+/***************************************************************************
+ *  The secondary keys a NEW topic is created with (a name, a list of
+ *  names or a dict of them, as kwid_get_ids() reads them; an empty name is
+ *  no key). Each one names a field of the records and an index of the
+ *  topic, and the list that loads that index is named after it:
+ *  - a name of the column rule (not empty, no '`'): it was a kw path, the
+ *    index made in one place and read in another ("TreeDb Topic indexy
+ *    NOT FOUND" on every create);
+ *  - not the pkey "id": its index IS the id index, and a node was stored
+ *    inside itself;
+ *  - not the tkey: the list of the id index is named by the tkey, and the
+ *    two lists shared one id ("tranger2_open_list() failed");
+ *  - once: the same, twice.
+ *  A schema fault: an ERROR, a WARNING inside the window of a peer's data
+ *  (REV-CLOUD V20.5).
+ ***************************************************************************/
+PRIVATE const char *pkey2s_fault(
+    const char *topic_tkey,
+    json_t *pkey2s, // NOT owned
+    char *bad_name, // the pkey2 at fault, written here
+    size_t bad_name_size
+)
+{
+    *bad_name = 0;
+    if(json_absent(pkey2s)) {
+        return NULL;
+    }
+
+    const char *why = NULL;
+    json_t *names = NULL;
+    if(!(json_is_string(pkey2s) || json_is_array(pkey2s) || json_is_object(pkey2s))) {
+        why = "pkey2s must be a name, a list of names or a dict of them";
+    } else {
+        names = kwid_get_ids(pkey2s);
+    }
+
+    json_t *seen = json_object();
+    int idx; json_t *jn_name;
+    json_array_foreach(names, idx, jn_name) {
+        const char *name = json_string_value(jn_name);
+        if(empty_string(name)) {
+            continue;   // no key
+        }
+        if(!treedb_col_name_is_identifier(name)) {
+            why = "a pkey2 name breaks the column name rule (empty or '`')";
+        } else if(strcmp(name, "id")==0) {
+            why = "a pkey2 cannot be the pkey 'id'";
+        } else if(!empty_string(topic_tkey) && strcmp(name, topic_tkey)==0) {
+            why = "a pkey2 cannot be the tkey: the lists of their indexes would share one id";
+        } else if(json_object_get(seen, name)) {
+            why = "a pkey2 named twice";
+        }
+        if(why) {
+            snprintf(bad_name, bad_name_size, "%s", name);
+            break;
+        }
+        json_object_set_new(seen, name, json_true());
+    }
+    JSON_DECREF(seen)
+    JSON_DECREF(names)
+    return why;
+}
+
+PRIVATE int check_pkey2s_of_new_topic(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *topic_tkey,
+    json_t *pkey2s, // NOT owned
+    const char **p_why
+)
+{
+    char bad_name[NAME_MAX];
+    const char *why = pkey2s_fault(topic_tkey, pkey2s, bad_name, sizeof(bad_name));
+    if(why) {
+        log_data_fault(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Topic refused: bad pkey2s",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "why",          "%s", why,
+            "pkey2",        "%.64s", bad_name,
+            NULL
+        );
+        gobj_log_set_last_message("topic '%s' refused: %s", topic_name, why);
+    }
+    if(p_why) {
+        *p_why = why;
+    }
+    return why? -1 : 0;
+}
+
+/***************************************************************************
+ *  The ids of the lists that load the indexes of a NEW topic, its "id"
+ *  index (named by the tkey) and the index of each pkey2: each one must
+ *  fit the char[NAME_MAX] it is written in (build_topic_list_id()). Cut,
+ *  two lists of the topic shared one id. It holds the name of the
+ *  tranger's gobj and the names of the treedb and of the topic, so it is
+ *  asked of each create: a C caller's broken contract, an ERROR.
+ ***************************************************************************/
+PRIVATE int list_id_too_long(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *topic_tkey,
+    json_t *pkey2s,     // NOT owned
+    char *bad_key,      // the key of the list at fault, written here
+    size_t bad_key_size
+)
+{
+    *bad_key = 0;
+    json_t *keys = (json_is_string(pkey2s) || json_is_array(pkey2s) || json_is_object(pkey2s))?
+        kwid_get_ids(pkey2s) : json_array();
+    json_array_insert_new(keys, 0, json_string(topic_tkey? topic_tkey : ""));
+
+    int ret = 0;
+    int idx; json_t *jn_key;
+    json_array_foreach(keys, idx, jn_key) {
+        const char *key = json_string_value(jn_key);
+        if(idx > 0 && empty_string(key)) {
+            continue;   // no pkey2
+        }
+        int len = build_topic_list_id(NULL, 0, gobj, treedb_name, topic_name, key? key : "");
+        if(len < 0 || len >= NAME_MAX) {
+            snprintf(bad_key, bad_key_size, "%s", key? key : "");
+            ret = (len < 0)? NAME_MAX : len;
+            break;
+        }
+    }
+    JSON_DECREF(keys)
+    return ret;
+}
+
+PRIVATE int check_list_ids_of_new_topic(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *topic_tkey,
+    json_t *pkey2s  // NOT owned, already checked by check_pkey2s_of_new_topic()
+)
+{
+    char key[NAME_MAX];
+    int len = list_id_too_long(gobj, treedb_name, topic_name, topic_tkey, pkey2s, key, sizeof(key));
+    if(len == 0) {
+        return 0;
+    }
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TREEDB,
+        "msg",          "%s", "Topic refused: the id of a list of its indexes is longer than NAME_MAX",
+        "treedb_name",  "%s", treedb_name,
+        "topic_name",   "%.64s", topic_name,
+        "index_key",    "%.64s", key,
+        "length",       "%d", len,
+        "max",          "%d", NAME_MAX - 1,
+        NULL
+    );
+    gobj_log_set_last_message(
+        "topic '%.64s' refused: the names of the treedb, the topic and its keys are too long",
+        topic_name
+    );
+    return -1;
+}
+
+/***************************************************************************
+ *  A topic that is ON DISK already (its directory holds its
+ *  topic_desc.json), created outside the window of a peer's data: a C
+ *  caller's open of an existing store. Its pkey2s and the ids of the
+ *  lists of its indexes are opened AS THEY ALWAYS WERE (REV-CLOUD V20 c4
+ *  #2): refused, the topic was gone from the treedb at the next restart --
+ *  the CRITICAL "Cannot create topic of the schema", an exit of a yuno
+ *  whose on_critical_error exits (C_AUTHZ) -- for a fault its store has
+ *  lived with:
+ *  - a pkey2 "id": each instance it indexes is refused by the id index it
+ *    is (an ERROR per node, "cannot add an instance to the pkey2 index"),
+ *    and the topic works as a topic of no other pkey2;
+ *  - a pkey2 that is the tkey, or named twice: the second list with one id
+ *    fails to open ("tranger2_open_list() failed"), and its index holds
+ *    only what is written after the open;
+ *  - a list id past NAME_MAX: it is cut, as it always was, and only a cut
+ *    that meets another list's id fails to open.
+ *  Opening it without the faulty pkey2 was the other way: it changes what
+ *  the topic's commands answer (an instance a create made, the name of a
+ *  qualified id, which is its first pkey2), so a store that ran with it
+ *  would run differently. Each fault is said, an ERROR naming it: the
+ *  schema should be fixed, and a NEW topic with it is refused.
+ ***************************************************************************/
+PRIVATE void say_faults_of_topic_on_disk(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *topic_tkey,
+    json_t *pkey2s  // NOT owned
+)
+{
+    char bad[NAME_MAX];
+    const char *why = pkey2s_fault(topic_tkey, pkey2s, bad, sizeof(bad));
+    if(why) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Topic on disk opened as it was, with bad pkey2s: fix its schema, a new topic with them is refused",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "why",          "%s", why,
+            "pkey2",        "%.64s", bad,
+            NULL
+        );
+    }
+    int len = list_id_too_long(gobj, treedb_name, topic_name, topic_tkey, pkey2s, bad, sizeof(bad));
+    if(len > 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Topic on disk opened as it was, the id of a list of its indexes cut to NAME_MAX: shorten its names, a new topic with them is refused",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%.64s", topic_name,
+            "index_key",    "%.64s", bad,
+            "length",       "%d", len,
+            "max",          "%d", NAME_MAX - 1,
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
+ *  What a NEW topic must be, in the order treedb_create_topic() has always
+ *  asked it:
+ *  - a name of the topic rule, NAME_MAX at most (its directory);
+ *  - columns: a dict or a list of them, each one a json object (the readers
+ *    below take one);
+ *  - a `file` column flagged `fkey` too, on a string (check_file_columns());
+ *  - no column both `hook` and `fkey` (check_hook_fkey_columns());
+ *  - an `id` column among them, each one of the column rule and what
+ *    parse_schema_cols() accepts (check_cols_of_new_topic());
+ *  - its pkey2s (check_pkey2s_of_new_topic()).
+ *  A schema fault: an ERROR, a WARNING inside the window of a peer's data
+ *  (treedb_set_peer_data()). Return 0, or -1 with the cause in *p_why
+ *  (static) and the last message set.
+ ***************************************************************************/
+PRIVATE int check_new_topic(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *topic_tkey,
+    json_t *pkey2s, // NOT owned
+    json_t *cols,   // NOT owned, MUTATED: a dict of columns gets each key as `id`
+    const char **p_why
+)
+{
+    const char *why = NULL;
+    const char *msg = NULL;
+    if(!tranger2_name_is_identifier(topic_name) || strlen(topic_name) > NAME_MAX) {
+        why = "the topic name breaks the name rule (empty, '.', '..', '/', '`', or longer than NAME_MAX)";
+        msg = "Topic refused: bad name";
+    } else if(json_size(cols) == 0 || !(json_is_object(cols) || json_is_array(cols))) {
+        why = "no columns";
+        msg = "Topic refused: bad columns";
+    } else {
+        int idx; json_t *col;
+        const char *col_id;
+        if(json_is_object(cols)) {
+            json_object_foreach(cols, col_id, col) {
+                if(!json_is_object(col)) {
+                    why = "a column is not a json object";
+                }
+            }
+        } else {
+            json_array_foreach(cols, idx, col) {
+                if(!json_is_object(col)) {
+                    why = "a column is not a json object";
+                } else if(!json_is_string(json_object_get(col, "id"))) {
+                    why = "a column without an id, or an id that is not a string";
+                }
+            }
+        }
+        if(why) {
+            msg = "Topic refused: bad columns";
+        }
+    }
+    if(why) {
+        log_data_fault(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", msg,
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%.64s", topic_name? topic_name : "",
+            "why",          "%s", why,
+            NULL
+        );
+        gobj_log_set_last_message("topic '%.64s' refused: %s", topic_name? topic_name : "", why);
+    } else if(check_file_columns(gobj, treedb_name, topic_name, cols)<0) {
+        why = "a 'file' column must be ['fkey','file'] on a string";
+        log_data_fault(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Topic refused: bad 'file' column",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        gobj_log_set_last_message("topic '%.64s' refused: %s", topic_name, why);
+    } else if(check_hook_fkey_columns(gobj, topic_name, cols)<0) {
+        why = "a column cannot be both 'hook' and 'fkey'";
+        log_data_fault(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Topic refused: a column is both 'hook' and 'fkey'",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        gobj_log_set_last_message("topic '%.64s' refused: %s", topic_name, why);
+    } else if(check_cols_of_new_topic(gobj, treedb_name, topic_name, cols, &why)<0) {
+        // Error already logged, and the last message set
+    } else if(check_pkey2s_of_new_topic(gobj, treedb_name, topic_name, topic_tkey, pkey2s, &why)<0) {
+        // Error already logged, and the last message set
+    }
+
+    if(p_why) {
+        *p_why = why;
+    }
+    return why? -1 : 0;
+}
+
+/***************************************************************************
+ *  The type of each hook and fkey column of a NEW topic: what
+ *  normalize_node_field_value() can build its value in
+ *  (link_col_type_is_valid(), which logs). Asked up front only
+ *  (treedb_check_new_topic()): treedb_create_topic() takes such a column,
+ *  as it always did -- a store whose schema has one keeps its topic at the
+ *  open, and the projection into __system__ refuses the column. Return 0,
+ *  or -1 with the cause in *p_why.
+ ***************************************************************************/
+PRIVATE int check_link_col_types_of_new_topic(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *cols,   // NOT owned, a dict or a list of json objects (check_new_topic())
+    const char **p_why
+)
+{
+    BOOL valid = TRUE;
+    if(json_is_object(cols)) {
+        const char *col_id; json_t *col;
+        json_object_foreach(cols, col_id, col) {
+            if(!link_col_type_is_valid(gobj, col_id, col)) {
+                valid = FALSE;  // Error already logged
+                break;
+            }
+        }
+    } else {
+        int idx; json_t *col;
+        json_array_foreach(cols, idx, col) {
+            const char *col_id = json_string_value(json_object_get(col, "id"));
+            if(!link_col_type_is_valid(gobj, col_id? col_id : "", col)) {
+                valid = FALSE;  // Error already logged
+                break;
+            }
+        }
+    }
+    if(valid) {
+        return 0;
+    }
+    if(p_why) {
+        *p_why = "a hook column must be of type dict or list, an fkey one of type dict, list or string";
+    }
+    log_data_fault(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TREEDB,
+        "msg",          "%s", "Topic refused: a link column of a wrong type",
+        "treedb_name",  "%s", treedb_name,
+        "topic_name",   "%.64s", topic_name,
+        NULL
+    );
+    gobj_log_set_last_message("topic '%.64s' refused: a link column of a wrong type", topic_name);
+    return -1;
+}
+
+/***************************************************************************
+ *  What treedb_create_topic() refuses of a NEW topic (check_new_topic()),
+ *  asked before anything is created: of a topic of a schema a peer hands,
+ *  of a topic about to be created, of a schema about to be applied. And
+ *  the type of its link columns (check_link_col_types_of_new_topic()),
+ *  which only this asks. The columns are read from a copy.
+ ***************************************************************************/
+PUBLIC int treedb_check_new_topic(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *topic_tkey,
+    json_t *pkey2s, // NOT owned
+    json_t *cols,   // NOT owned
+    const char **why
+)
+{
+    json_t *cols_copy = json_deep_copy(cols);
+    int ret = check_new_topic(
+        gobj,
+        treedb_name? treedb_name : "",
+        topic_name,
+        topic_tkey? topic_tkey : "",
+        pkey2s,
+        cols_copy,
+        why
+    );
+    if(ret == 0) {
+        ret = check_link_col_types_of_new_topic(
+            gobj, treedb_name? treedb_name : "", topic_name, cols_copy, why
+        );
+    }
+    JSON_DECREF(cols_copy)
+    return ret;
+}
+
+/***************************************************************************
+ *  The __assets__ hook of a `file` column, `as_<topic>_<col>`
+ *  (derive_file_hooks()), in bf: FALSE when it does not fit a char[NAME_MAX]
+ *  (snprintf() cut it, and two columns shared what was left).
+ ***************************************************************************/
+PRIVATE BOOL file_hook_name(
+    char *bf,
+    size_t bfsize,
+    const char *topic_name,
+    const char *col_name
+)
+{
+    int ln = snprintf(bf, bfsize, "as_%s_%s", topic_name, col_name);
+    return (ln >= 0 && (size_t)ln < bfsize)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  The __assets__ hooks the `file` columns of `topics` derive (see
+ *  treedb_check_file_hooks() in tr_treedb.h). Return 0 or -1.
+ ***************************************************************************/
+PUBLIC int treedb_check_file_hooks(
+    hgobj gobj,
+    json_t *tranger,        // NOT owned, may be NULL
+    const char *treedb_name,
+    json_t *topics,         // NOT owned, [{"topic_name": name, "cols": {} or []}]
+    const char **why
+)
+{
+    if(why) {
+        *why = NULL;
+    }
+    /*  {hook: "topic`col"}: who derives each hook  */
+    json_t *derived = json_object();
+
+    /*
+     *  The hooks __assets__ holds already, each one mapped {topic: col}
+     */
+    json_t *assets_cols = tranger?
+        json_object_get(
+            json_object_get(json_object_get(tranger, "topics"), TREEDB_ASSETS_TOPIC), "cols"
+        ) : NULL;
+    const char *hook_name; json_t *hook_col;
+    json_object_foreach(assets_cols, hook_name, hook_col) {
+        json_t *mapping = json_object_get(hook_col, "hook");
+        if(strncmp(hook_name, "as_", 3)!=0 || !json_is_object(mapping) ||
+                json_object_size(mapping) != 1) {
+            continue;
+        }
+        const char *mapped_topic = json_object_iter_key(json_object_iter(mapping));
+        const char *mapped_col = json_string_value(json_object_iter_value(json_object_iter(mapping)));
+        if(mapped_col) {
+            json_object_set_new(derived, hook_name,
+                json_sprintf("%s`%s", mapped_topic, mapped_col));
+        }
+    }
+
+    const char *fault = NULL;
+    const char *bad_topic = "";
+    const char *bad_col = "";
+    char hook[NAME_MAX];
+    int idx; json_t *jn_topic;
+    json_array_foreach(topics, idx, jn_topic) {
+        const char *topic_name = json_string_value(json_object_get(jn_topic, "topic_name"));
+        json_t *cols = json_object_get(jn_topic, "cols");
+        if(empty_string(topic_name)) {
+            continue;   // a topic without a name is said by its own check
+        }
+        void *iter = json_is_object(cols)? json_object_iter(cols) : NULL;
+        size_t n = json_is_array(cols)? json_array_size(cols) : 0;
+        for(size_t i = 0; ; i++) {
+            const char *col_name;
+            json_t *col;
+            if(json_is_object(cols)) {
+                if(!iter) {
+                    break;
+                }
+                col_name = json_object_iter_key(iter);
+                col = json_object_iter_value(iter);
+                iter = json_object_iter_next(cols, iter);
+            } else {
+                if(i >= n) {
+                    break;
+                }
+                col = json_array_get(cols, i);
+                col_name = json_string_value(json_object_get(col, "id"));
+            }
+            if(empty_string(col_name) ||
+                    !kw_has_word(gobj, json_object_get(col, "flag"), "file", 0)) {
+                continue;
+            }
+            bad_topic = topic_name;
+            bad_col = col_name;
+            if(!file_hook_name(hook, sizeof(hook), topic_name, col_name)) {
+                fault = "the names of the topic and of its 'file' column are too long for the "
+                    "name of their __assets__ hook";
+                break;
+            }
+            json_t *who = json_sprintf("%s`%s", topic_name, col_name);
+            json_t *other = json_object_get(derived, hook);
+            if(other && strcmp(json_string_value(other), json_string_value(who))!=0) {
+                JSON_DECREF(who)
+                fault = "two 'file' columns derive the same __assets__ hook "
+                    "(as_<topic>_<col>): rename one of them";
+                break;
+            }
+            json_object_set_new(derived, hook, who);
+        }
+        if(fault) {
+            break;
+        }
+    }
+    JSON_DECREF(derived)
+
+    if(!fault) {
+        return 0;
+    }
+    if(why) {
+        *why = fault;
+    }
+    log_data_fault(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TREEDB,
+        "msg",          "%s", "Topic refused: its 'file' column has no __assets__ hook of its own",
+        "why",          "%s", fault,
+        "treedb_name",  "%s", treedb_name? treedb_name : "",
+        "topic_name",   "%.64s", bad_topic,
+        "col",          "%.64s", bad_col,
+        NULL
+    );
+    gobj_log_set_last_message("topic '%.64s' refused: %s", bad_topic, fault);
+    return -1;
 }
 
 /***************************************************************************
@@ -2025,7 +2719,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     json_t *tranger,
     const char *treedb_name,
     const char *topic_name,
-    int topic_version,
+    json_int_t topic_version,
     const char *topic_tkey,
     json_t *pkey2s, // owned, string or dict of string | [strings]
     json_t *cols, // owned
@@ -2097,58 +2791,33 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     }
 
     /*------------------------------*
-     *  A `file` column that is not what a `file` column must be is
-     *  refused HERE, before the topic exists: at open the same check is
-     *  fatal in derive_file_hooks(), but `create-topic` is a live command
-     *  and a topic created with the yuno running had nobody to stop it.
+     *  What a new topic must be, refused BEFORE the topic exists
+     *  (check_new_topic()): `create-topic` is a live command, and the
+     *  columns were validated AFTER tranger2_create_topic() and a failure
+     *  only logged (up to 7.24.1). Then the ids of the lists of its
+     *  indexes, which hold the name of the tranger's gobj.
+     *  A topic already ON DISK opened by C (an existing store) keeps its
+     *  pkey2s and list ids as they were, each fault said
+     *  (say_faults_of_topic_on_disk()): refused, it was lost.
      *------------------------------*/
-    if(check_file_columns(gobj, treedb_name, topic_name, cols)<0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "Topic refused: bad 'file' column",
-            "treedb_name",  "%s", treedb_name,
-            "topic_name",   "%s", topic_name,
-            NULL
-        );
-        gobj_log_set_last_message("topic '%s' refused: a 'file' column must be ['fkey','file'] on a string", topic_name);
-        JSON_DECREF(pkey2s)
-        JSON_DECREF(cols)
-        return 0;
+    BOOL on_disk = FALSE;
+    if(!__peer_data__ && strlen(topic_name) <= NAME_MAX) {
+        char topic_dir[PATH_MAX];
+        if(build_path(topic_dir, sizeof(topic_dir),
+                kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED), topic_name, NULL)) {
+            on_disk = file_exists(topic_dir, "topic_desc.json")? TRUE : FALSE;
+        }
     }
-
-    /*------------------------------*
-     *  A column that is both `hook` and `fkey` is refused here too,
-     *  before the topic exists, and for the same reason: `create-topic`
-     *  is a live command, and parse_schema_cols() below only logs.
-     *------------------------------*/
-    if(check_hook_fkey_columns(gobj, topic_name, cols)<0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "Topic refused: a column is both 'hook' and 'fkey'",
-            "treedb_name",  "%s", treedb_name,
-            "topic_name",   "%s", topic_name,
-            NULL
-        );
-        gobj_log_set_last_message("topic '%s' refused: a column cannot be both 'hook' and 'fkey'", topic_name);
-        JSON_DECREF(pkey2s)
-        JSON_DECREF(cols)
-        return 0;
-    }
-
-    /*------------------------------*
-     *  The columns themselves, before the topic exists too. They were
-     *  validated AFTER tranger2_create_topic() and a failure only logged:
-     *  a topic with no `id` column (the pkey is fixed to "id"), no columns,
-     *  or columns parse_schema_cols() refuses was persisted and answered
-     *  "Topic created!" (up to 7.24.1).
-     *------------------------------*/
-    if(check_cols_of_new_topic(gobj, treedb_name, topic_name, cols)<0) {
+    if(check_new_topic(gobj, treedb_name, topic_name, topic_tkey, on_disk? NULL : pkey2s, cols, NULL)<0 ||
+            (!on_disk &&
+                check_list_ids_of_new_topic(gobj, treedb_name, topic_name, topic_tkey, pkey2s)<0)) {
         // Error already logged, and the last message set
         JSON_DECREF(pkey2s)
         JSON_DECREF(cols)
         return 0;
+    }
+    if(on_disk) {
+        say_faults_of_topic_on_disk(gobj, treedb_name, topic_name, topic_tkey, pkey2s);
     }
 
     /*------------------------------*
@@ -2252,30 +2921,13 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     /*------------------------------------*
      *      Open "user" lists
      *------------------------------------*/
-    char path[NAME_MAX*2];
-
     /*----------------------*
      *   Main index: "id"
      *----------------------*/
-    build_id_index_path(path, sizeof(path), treedb_name, topic_name);
-    kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
+    create_topic_index(gobj, tranger, treedb_name, topic_name, "id");  // Error already logged
 
-    char rt_id[NAME_MAX];
-    if(gobj) {
-        snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s-%s-%s-%s",
-            gobj_gclass_name(gobj),
-            gobj_name(gobj),
-            treedb_name,
-            topic_name,
-            topic_tkey
-        );
-    } else {
-        snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s-%s",
-            treedb_name,
-            topic_name,
-            topic_tkey
-        );
-    }
+    char rt_id[NAME_MAX];   // fits: check_list_ids_of_new_topic(), or cut as it was (on disk)
+    build_topic_list_id(rt_id, sizeof(rt_id), gobj, treedb_name, topic_name, topic_tkey);
 
     json_t *match_cond = json_pack("{s:s, s:b, s:s, s:I}",
         "id", rt_id,
@@ -2333,24 +2985,8 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         /*------------------------------*
          *  Open pkey2 list
          *------------------------------*/
-        build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
-        kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
-
-        if(gobj) {
-            snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s-%s-%s-%s",
-                gobj_gclass_name(gobj),
-                gobj_name(gobj),
-                treedb_name,
-                topic_name,
-                pkey2_name
-            );
-        } else {
-            snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s-%s",
-                treedb_name,
-                topic_name,
-                pkey2_name
-            );
-        }
+        create_topic_index(gobj, tranger, treedb_name, topic_name, pkey2_name);  // Error already logged
+        build_topic_list_id(rt_id, sizeof(rt_id), gobj, treedb_name, topic_name, pkey2_name);
 
         json_t *match_cond2 = json_pack("{s:b, s:s, s:I}",
             "backward", 1,
@@ -2691,7 +3327,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
     json_t *desc_flag = kw_get_dict_value(gobj, desc, "flag", 0, 0);
 
     if(empty_string(desc_id)) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Field 'id' required",
@@ -2702,7 +3338,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
         return -1;
     }
     if(strcmp(desc_id, "gbuffer")==0) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "key 'gbuffer' forbidden, is a reserved key",
@@ -2713,7 +3349,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
         return -1;
     }
     if(!desc_type) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Field 'type' required",
@@ -2736,7 +3372,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
         if(!value) {
             char temp[NAME_MAX];
             snprintf(temp, sizeof(temp), "Field required: '%s'", desc_id);
-            gobj_log_error(gobj, 0,
+            log_data_fault(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", temp,
@@ -2774,7 +3410,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
                         switch(json_typeof(v)) {
                         case JSON_STRING:
                             if(!json_str_in_list(gobj, desc_enum, json_string_value(v), TRUE)) {
-                                gobj_log_error(gobj, 0,
+                                log_data_fault(gobj, 0,
                                     "function",     "%s", __FUNCTION__,
                                     "msgset",       "%s", MSGSET_TREEDB,
                                     "msg",          "%s", "Wrong enum type",
@@ -2790,7 +3426,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
                             }
                             break;
                         default:
-                            gobj_log_error(gobj, 0,
+                            log_data_fault(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
                                 "msgset",       "%s", MSGSET_TREEDB,
                                 "msg",          "%s", "Case not implemented",
@@ -2811,7 +3447,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
                 break;
             case JSON_STRING:
                 if(!json_str_in_list(gobj, desc_enum, json_string_value(value), TRUE)) {
-                    gobj_log_error(gobj, 0,
+                    log_data_fault(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_TREEDB,
                         "msg",          "%s", "Wrong enum type",
@@ -2826,7 +3462,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
                 }
                 break;
             default:
-                gobj_log_error(gobj, 0,
+                log_data_fault(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "Enum value must be string or string's array",
@@ -2855,7 +3491,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
             if(value) {
                 const char *value_type = my_json_type(value);
                 if(!kw_has_word(gobj, desc_type, value_type, 0)) {
-                    gobj_log_error(gobj, 0,
+                    log_data_fault(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_TREEDB,
                         "msg",          "%s", "Wrong basic type",
@@ -2922,7 +3558,7 @@ PUBLIC int parse_schema_cols(
     int ret = 0;
 
     if(!(json_is_object(dato) || json_is_array(dato))) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Data must be an {} or [{}]",
@@ -3033,7 +3669,7 @@ PUBLIC int parse_hooks(
     json_object_foreach(topics, topic_name, topic) {
         json_t *cols = kwid_new_list(gobj, topic, KW_VERBOSE, "cols");
         if(!cols) {
-            gobj_log_error(gobj, 0,
+            log_data_fault(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "topic without cols",
@@ -3056,7 +3692,7 @@ PUBLIC int parse_hooks(
                  *---------------------------------*/
                 json_t *hook = kw_get_dict(gobj, col, "hook", 0, 0);
                 if(!hook) {
-                    gobj_log_error(gobj, 0,
+                    log_data_fault(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_TREEDB,
                         "msg",          "%s", "column def with hook field not found",
@@ -3079,7 +3715,7 @@ PUBLIC int parse_hooks(
                      *------------------------------*/
                     json_t *link_topic = KWID_GET_BY_KEYS(gobj, schema, 0, "topics", link_topic_name);
                     if(!link_topic) {
-                        gobj_log_error(gobj, 0,
+                        log_data_fault(gobj, 0,
                             "function",         "%s", __FUNCTION__,
                             "msgset",           "%s", MSGSET_TREEDB,
                             "msg",              "%s", "link topic not found",
@@ -3094,7 +3730,7 @@ PUBLIC int parse_hooks(
                     const char *s_link_field = json_string_value(link_field);
                     json_t *field = KWID_GET_BY_KEYS(gobj, link_topic, 0, "cols", s_link_field);
                     if(!field) {
-                        gobj_log_error(gobj, 0,
+                        log_data_fault(gobj, 0,
                             "function",         "%s", __FUNCTION__,
                             "msgset",           "%s", MSGSET_TREEDB,
                             "msg",              "%s", "link field not found",
@@ -3111,7 +3747,7 @@ PUBLIC int parse_hooks(
                     // CHEQUEA que tiene el flag fkey
                     json_t *jn_flag = kwid_get(gobj, field, 0, "flag");
                     if(!kw_has_word(gobj, jn_flag, "fkey", 0)) {
-                        gobj_log_error(gobj, 0,
+                        log_data_fault(gobj, 0,
                             "function",         "%s", __FUNCTION__,
                             "msgset",           "%s", MSGSET_TREEDB,
                             "msg",              "%s", "link field must be a fkey",
@@ -3141,7 +3777,7 @@ PUBLIC int parse_hooks(
                         );
                         if(json_object_size(prev_fkey) != 1 || !prev_hook ||
                                 strcmp(prev_hook, id) != 0) {
-                            gobj_log_error(gobj, 0,
+                            log_data_fault(gobj, 0,
                                 "function",         "%s", __FUNCTION__,
                                 "msgset",           "%s", MSGSET_TREEDB,
                                 "msg",              "%s", "Only can be one fkey",
@@ -3172,7 +3808,7 @@ PUBLIC int parse_hooks(
                  *  check it hasn't link/reverse
                  *---------------------------------*/
                 if(kw_has_key(col, "link")) {
-                    gobj_log_error(gobj, 0,
+                    log_data_fault(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_TREEDB,
                         "msg",          "%s", "Not hook with a link",
@@ -3183,7 +3819,7 @@ PUBLIC int parse_hooks(
                     ret += -1;
                 }
                 if(kw_has_key(col, "reverse")) {
-                    gobj_log_error(gobj, 0,
+                    log_data_fault(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_TREEDB,
                         "msg",          "%s", "Not hook with a reverse",
@@ -4176,6 +4812,57 @@ PRIVATE const char *fkey_ref_id(json_t *fkeys, char *bf, int bfsize)
 }
 
 /***************************************************************************
+ *  The time of the tkey of a node about to be written must fit the md2 row
+ *  of its record: `values` is the record a create appends, or the values
+ *  an update writes (a tkey it does not write keeps the time the node
+ *  had). The time is the one tranger2_append_record() computes
+ *  (tranger2_record_tkey_time(): an integer, or a string read as a date,
+ *  x1000 on an sf_tm_ms topic), and past TRANGER2_MAX_TIME the append
+ *  keeps it CUT, the flags over its high bits. A topic made by a peer can
+ *  have a string tkey, and "@99999999999999 +0000" in it was a node whose
+ *  __tm__ was not its date, without a word (REV-CLOUD V20 c5 #4). Refused
+ *  before anything is written: a WARNING in a peer's window, an ERROR for
+ *  a C caller (log_data_fault()). -1 refused, 0 it fits.
+ ***************************************************************************/
+PRIVATE int refuse_tkey_time_past_max(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *id,
+    json_t *values  // NOT owned
+)
+{
+    json_t *topic = json_object_get(json_object_get(tranger, "topics"), topic_name);
+    BOOL fits = TRUE;
+    uint64_t tm = tranger2_record_tkey_time(topic, values, &fits);
+    if(fits) {
+        return 0;
+    }
+    const char *tkey = json_string_value(json_object_get(topic, "tkey"));
+    json_t *jn_value = tkey? json_object_get(values, tkey) : NULL;
+    const char *svalue = json_is_string(jn_value)? json_string_value(jn_value) : "";
+    log_data_fault(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TREEDB,
+        "msg",          "%s", "Node refused: the time of its tkey does not fit a record (negative, or past 44 bits)",
+        "treedb_name",  "%s", treedb_name,
+        "topic_name",   "%s", topic_name,
+        "id",           "%s", id? id : "",
+        "tkey",         "%s", tkey? tkey : "",
+        "value",        "%.*s", utf8_prefix_len(svalue, 64), svalue,
+        "int_value",    "%" JSON_INTEGER_FORMAT, json_integer_value(jn_value),
+        "tm",           "%" PRIu64, tm,
+        NULL
+    );
+    gobj_log_set_last_message(
+        "'%s': the time of its tkey '%s' does not fit a record (negative, or past 44 bits)",
+        topic_name, tkey? tkey : ""
+    );
+    return -1;
+}
+
+/***************************************************************************
  *  Guard a write that defines a schema.
  *
  *  The __system__ treedb stores treedb schemas as data (topics `treedbs` ->
@@ -4212,7 +4899,7 @@ PRIVATE int check_system_schema_write(
     if(strcmp(topic_name, "topics")==0) {
         const char *pkey = kw_get_str(gobj, node, "pkey", "", 0);
         if(!empty_string(pkey) && strcmp(pkey, "id")!=0) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Schema topic pkey must be 'id'",
@@ -4225,7 +4912,7 @@ PRIVATE int check_system_schema_write(
 
         const char *system_flag = kw_get_str(gobj, node, "system_flag", "", 0);
         if(!empty_string(system_flag) && strcmp(system_flag, "sf_string_key")!=0) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Schema topic system_flag must be 'sf_string_key'",
@@ -4242,7 +4929,7 @@ PRIVATE int check_system_schema_write(
                 const char *was = kw_get_str(gobj, previous, frozen[i], "", 0);
                 const char *now = kw_get_str(gobj, node, frozen[i], "", 0);
                 if(strcmp(was, now)!=0) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_TREEDB,
                         "msg",          "%s", "Cannot change this field of an existing topic",
@@ -4285,7 +4972,7 @@ PRIVATE int check_system_schema_write(
                 !link_col_type_is_valid(gobj, col_name, user_col)) {
             // Error already logged
             JSON_DECREF(user_col)
-            gobj_log_error(gobj, 0,
+            log_data_fault(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Column definition refused",
@@ -4296,7 +4983,7 @@ PRIVATE int check_system_schema_write(
         }
 
         if(parse_schema_cols(topic_cols_desc, user_col)<0) {   // user_col owned
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Column definition refused",
@@ -4338,7 +5025,7 @@ PRIVATE BOOL link_col_type_is_valid(hgobj gobj, const char *col_name, json_t *co
             return TRUE;
         }
     }
-    gobj_log_error(gobj, 0,
+    log_data_fault(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_TREEDB,
         "msg",          "%s", is_hook?
@@ -6436,7 +7123,7 @@ PRIVATE const char *build_qualified_id(
      */
     json_t *pkey2s = treedb_topic_pkey2s(tranger, topic_name);
     const char *pkey2_name = json_string_value(json_array_get(pkey2s, 0));
-    const char *name = empty_string(pkey2_name)? "": kw_get_str(gobj, kw, pkey2_name, "", 0);
+    const char *name = empty_string(pkey2_name)? "": field_str_by_key(gobj, kw, pkey2_name, "");
     if(empty_string(name)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -6619,8 +7306,8 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         if(kw_has_word(gobj, id_col_flag, "uuid", 0)) {
             char uuid[RECORD_KEY_VALUE_MAX];
             create_random_uuid(uuid, sizeof(uuid));
-            id = uuid;
-            json_object_set_new(kw, "id", json_string(id));
+            json_object_set_new(kw, "id", json_string(uuid));
+            id = kw_get_str(gobj, kw, "id", 0, 0);  // uuid[] ends with this block
         } else if(kw_has_word(gobj, id_col_flag, "rowid", 0)) {
             json_int_t rowid = get_next_rowid_id(gobj, tranger, topic_name);
             if(rowid <= 0) {
@@ -6871,18 +7558,25 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         JSON_DECREF(node)
         return NULL;
     }
+    if(refuse_tkey_time_past_max(gobj, tranger, treedb_name, topic_name, id, record)<0) {
+        // Error already logged
+        JSON_DECREF(record)
+        JSON_DECREF(pkey2_list)
+        JSON_DECREF(kw)
+        JSON_DECREF(node)
+        return NULL;
+    }
 
     /*-------------------------------*
      *  Write to tranger (Creating)
      *  Untagged, snap active or not (see treedb_save_node)
      *-------------------------------*/
     md2_record_ex_t md_record;
-    int ret = tranger2_append_record(
+    int ret = append_outside_peer_window(
         tranger,
         topic_name,
-        0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
         0, // user_flag: only shoot-snap tags a record
-        &md_record, // md_record,
+        &md_record,
         record // owned
     );
     if(ret < 0) {
@@ -7149,12 +7843,11 @@ PRIVATE int append_node_record(
     }
 
     md2_record_ex_t md_record;
-    int ret = tranger2_append_record(
+    int ret = append_outside_peer_window(
         tranger,
         topic_name,
-        0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
-        tag, // user_flag,
-        &md_record, // md_record,
+        tag, // user_flag
+        &md_record,
         record // owned
     );
     if(ret < 0) {
@@ -8949,6 +9642,13 @@ PRIVATE json_t *prepare_node_update(
         JSON_DECREF(pkey2s)
     }
 
+    if(ret == 0 && save) {
+        /*  What reaches an append; a memory-only update follows a write made  */
+        ret = refuse_tkey_time_past_max(
+            gobj, tranger, treedb_name, topic_name, kw_get_str(gobj, node, "id", "", 0), updates
+        );  // Error already logged
+    }
+
     /*
      *  Only the system schema has rules on what a write stores, and only
      *  it pays for the copy they are asked on: a deep copy of a node takes
@@ -10479,7 +11179,9 @@ PRIVATE int collect_instance_md_cb(
         return -1;  // the delete refuses
     }
 
-    const char *v = kw_get_str(0, jn_record, pkey2_name, "", 0);
+    const char *v = field_str_by_key(
+        (hgobj)json_integer_value(json_object_get(tranger, "gobj")), jn_record, pkey2_name, ""
+    );
     if(!empty_string(v) && strcmp(v, pkey2_value)==0) {
         json_array_append_new(hits,
             json_pack("[I, I]",
@@ -12987,16 +13689,26 @@ PRIVATE int replace_links_in_memory(
         json_t *new_value = json_object_get(kw, col_name);
         json_t *new_refs;
         if(json_absent(new_value)) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "fkey empty",
-                "topic_name",   "%s", topic_name,
-                "treedb_name",  "%s", treedb_name,
-                "col",          "%s", col_name,
-                "record",       "%j", kw,
-                NULL
-            );
+            /*
+             *  A record with no value for the fkey has no parent there. Said
+             *  only when that drops links the node has: a record of a node
+             *  that never had any is a valid record (REV-CLOUD V20.4.4).
+             */
+            json_t *had_refs = get_fkey_refs(cur_value);
+            if(json_array_size(had_refs) > 0) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "fkey absent in the record: the links it had are dropped",
+                    "topic_name",   "%s", topic_name,
+                    "treedb_name",  "%s", treedb_name,
+                    "col",          "%s", col_name,
+                    "id",           "%s", kw_get_str(gobj, node, "id", "", 0),
+                    "links",        "%j", had_refs,
+                    NULL
+                );
+            }
+            JSON_DECREF(had_refs)
             new_refs = json_array();
         } else {
             new_refs = filtra_fkeys(topic_name, col_name, "list", new_value, FALSE);
@@ -14471,6 +15183,9 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    if(!jn_options) {
+        jn_options = json_object();
+    }
     if(!col_name_is_identifier(gobj, fkey, "fkey", __FUNCTION__)) {
         JSON_DECREF(jn_options)
         return 0;   // Error already logged
@@ -14815,6 +15530,9 @@ PUBLIC json_t *treedb_node_children(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    if(!jn_options) {
+        jn_options = json_object();
+    }
     if(!col_name_is_identifier(gobj, hook, "hook", __FUNCTION__)) {
         JSON_DECREF(jn_filter)
         JSON_DECREF(jn_options)
@@ -14842,7 +15560,7 @@ PUBLIC json_t *treedb_node_children(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "hook not found",
-            "topic_name",   "%s", kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0),
+            "topic_name",   "%s", kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0),
             "hook",         "%s", hook,
             NULL
         );
@@ -15031,7 +15749,7 @@ PUBLIC json_t *treedb_node_jtree(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "hook not found",
-            "topic_name",   "%s", kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0),
+            "topic_name",   "%s", kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0),
             "hook",         "%s", hook,
             NULL
         );
@@ -16611,7 +17329,7 @@ PRIVATE int check_file_column(
         return 0;
     }
     if(!kw_has_word(gobj, desc_flag, "fkey", 0)) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "a 'file' column must be flagged 'fkey' too",
@@ -16622,9 +17340,12 @@ PRIVATE int check_file_column(
         );
         return -1;
     }
-    const char *type = kw_get_str(gobj, col, "type", "", 0);
+    const char *type = json_string_value(json_object_get(col, "type"));   // a key
+    if(!type) {
+        type = "";
+    }
     if(strcmp(type, "string")!=0) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "a 'file' column must be of type 'string': one file per column",
@@ -16662,8 +17383,8 @@ PRIVATE int check_file_columns(
     } else if(json_is_array(cols)) {
         int idx; json_t *col;
         json_array_foreach(cols, idx, col) {
-            const char *col_name = kw_get_str(gobj, col, "id", "", 0);
-            if(check_file_column(gobj, treedb_name, topic_name, col_name, col)<0) {
+            const char *col_name = json_string_value(json_object_get(col, "id"));  // a key
+            if(check_file_column(gobj, treedb_name, topic_name, col_name? col_name : "", col)<0) {
                 ret += -1;
             }
         }
@@ -16689,7 +17410,7 @@ PRIVATE BOOL col_is_hook_and_fkey(
 {
     json_t *flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
     if(kw_has_word(gobj, flag, "hook", 0) && kw_has_word(gobj, flag, "fkey", 0)) {
-        gobj_log_error(gobj, 0,
+        log_data_fault(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "A column cannot be both 'hook' and 'fkey'",
@@ -17398,7 +18119,7 @@ PRIVATE int held_instance_scan_callback(
         return -1;  // Error already logged by the read
     }
 
-    if(strcmp(kw_get_str(gobj, jn_record, pkey2_name, "", 0), pkey2_value)!=0) {
+    if(strcmp(field_str_by_key(gobj, jn_record, pkey2_name, ""), pkey2_value)!=0) {
         JSON_DECREF(jn_record)
         return 0;   // Another instance of the key: not ours to keep
     }

@@ -212,13 +212,59 @@ PUBLIC json_t *treedb_create_topic( // WARNING Return is NOT YOURS
     json_t *tranger,
     const char *treedb_name,
     const char *topic_name,
-    int topic_version,
+    json_int_t topic_version,
     const char *topic_tkey,
     json_t *pkey2s, // owned, string or dict of string | [strings]
     json_t *jn_cols, // owned
     uint32_t snap_tag,
     BOOL system_topic, // TRUE: topic cannot be deleted (persisted in topic_var)
     BOOL create_schema
+);
+
+/*
+ *  What treedb_create_topic() refuses of a NEW topic, asked BEFORE anything
+ *  is created: a name of the topic rule (NAME_MAX at most); columns, a dict
+ *  or a list of json objects, an `id` among them, each one of the column
+ *  rule and what parse_schema_cols() accepts, a `file` column an `fkey` on a
+ *  string, no column both `hook` and `fkey`; pkey2s of the column rule, not
+ *  the pkey `id` nor the tkey, each one once. Not the ids of the lists of
+ *  its indexes, which hold the name of the tranger's gobj. And what only
+ *  this asks, not treedb_create_topic(): a hook column of type dict or
+ *  list, an fkey one of type dict, list or string (a store whose schema has
+ *  another keeps its topic at the open). A fault is logged as
+ *  treedb_create_topic() logs it: a WARNING inside the window of a peer's
+ *  data (treedb_set_peer_data()), an ERROR outside. The columns are read
+ *  from a copy. Return 0, or -1 with the cause in *why (static, may be NULL).
+ */
+PUBLIC int treedb_check_new_topic(
+    hgobj gobj,             // the gobj that logs
+    const char *treedb_name,
+    const char *topic_name,
+    const char *topic_tkey,
+    json_t *pkey2s,         // NOT owned, string or dict of string | [strings]
+    json_t *jn_cols,        // NOT owned, dict or list
+    const char **why
+);
+
+/*
+ *  The __assets__ hook every `file` column of `topics` derives,
+ *  `as_<topic>_<col>`, asked BEFORE the topics are created: one that does
+ *  not fit NAME_MAX (it was cut), or one that another `file` column derives
+ *  too -- of `topics`, or already a hook of the __assets__ of `tranger`
+ *  (NULL: none; a topic created into an open treedb is asked against the
+ *  ones there). The name is ambiguous (topic `a` col `b_c` and topic `a_b`
+ *  col `c` are both `as_a_b_c`), and the second column linked through the
+ *  first one's hook, onto another topic's column. `topics` is a list of
+ *  {"topic_name": name, "cols": dict or list}. A fault is logged as
+ *  treedb_check_new_topic() logs it. Return 0, or -1 with the cause in
+ *  *why (static, may be NULL).
+ */
+PUBLIC int treedb_check_file_hooks(
+    hgobj gobj,             // the gobj that logs
+    json_t *tranger,        // NOT owned, may be NULL
+    const char *treedb_name,
+    json_t *topics,         // NOT owned
+    const char **why
 );
 
 PUBLIC int treedb_close_topic(
@@ -318,10 +364,12 @@ PUBLIC int treedb_set_trace(BOOL set);
  *  the calls of a command): a fault of the DATA -- a field required or of the
  *  wrong type, an fkey, a link that would close a cycle or an unlink of a
  *  child that does not hang there, a create of an id that exists -- is logged
- *  as a WARNING without a stack, not as an ERROR with one. A schema fault is
- *  an ERROR always. The subscribers the treedb publishes to run OUTSIDE it:
- *  their own calls are a C caller's. Return the previous value: put it back
- *  after the calls.
+ *  as a WARNING without a stack, not as an ERROR with one. So is a fault of
+ *  the schema of a NEW topic, or of the schema a peer hands (the columns,
+ *  the pkey2s, the hooks: treedb_check_new_topic(), parse_schema()); a store
+ *  that does not open is an ERROR always. The subscribers the treedb publishes to, and the rt lists
+ *  its appends feed, run OUTSIDE it: their own calls are a C caller's. Return
+ *  the previous value: put it back after the calls.
  */
 PUBLIC BOOL treedb_set_peer_data(BOOL peer_data);
 PUBLIC BOOL treedb_peer_data(void);  // TRUE while the data in course is a peer's
@@ -346,6 +394,10 @@ PUBLIC BOOL decode_child_ref( // child_topic_name^child_id
 
 /**rst**
     Create a new node
+    A node whose tkey holds a time an md2 row cannot keep (negative, or past
+    TRANGER2_MAX_TIME, as tranger2_record_tkey_time() computes it) is
+    refused before anything is appended: a WARNING in a peer's window, an
+    ERROR for a C caller (return NULL).
 **rst**/
 PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     json_t *tranger,
@@ -384,6 +436,8 @@ PUBLIC int treedb_set_node_immutable(
     HACK fkeys and hook fields are not updated!
     A pkey2 value names an instance: a kw that changes it is refused
     (return 0, nothing touched). A new instance is a treedb_create_node().
+    A saved update that writes a tkey time an md2 row cannot keep is refused
+    the same way as in treedb_create_node() (return 0, nothing touched).
     A save that fails takes the update back in memory, and tells no event
     (return 0).
 **rst**/

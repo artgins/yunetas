@@ -43,6 +43,13 @@
         }                                                   \
     } while(0)
 
+/*
+ *  The limits kw_find_path() logs an ERROR for (kwid.c), asked of the path
+ *  of print-tranger before it (find_peer_path())
+ */
+#define PEER_PATH_SEGMENT_MAX   255     // kw_find_path_depth(): char segment[256]
+#define PEER_PATH_DEPTH_MAX     64      // KW_MAX_PATH_DEPTH
+
 /***************************************************************************
  *              Structures
  ***************************************************************************/
@@ -118,8 +125,10 @@ PRIVATE BOOL refuse_peer_record(
     const char *topic_name,
     json_t *record
 );
+PRIVATE json_t *find_peer_path(hgobj gobj, json_t *kw, const char *path);
 
 PRIVATE int apply_initial_load(hgobj gobj);
+PRIVATE const char *seed_ref_fault(hgobj gobj, const char *ref, const char *child_topic);
 PRIVATE BOOL seed_declares_link(
     hgobj gobj,
     const char *topic_name,
@@ -251,7 +260,7 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_set_link_events[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "set",          0,              "",         "1: a link/unlink publishes EV_TREEDB_NODE_LINKED/UNLINKED; 0: it publishes the parent's EV_TREEDB_NODE_UPDATED. Empty: show the current value"),
+SDATAPM (DTP_JSON,      "set",          0,              "",         "1: a link/unlink publishes EV_TREEDB_NODE_LINKED/UNLINKED; 0: it publishes the parent's EV_TREEDB_NODE_UPDATED. Empty: show the current value"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_topics[] = {
@@ -437,6 +446,7 @@ SDATA (DTP_POINTER,     "tranger",          0,                  0,              
 SDATA (DTP_STRING,      "treedb_name",      SDF_RD|SDF_REQUIRED,"",             "Treedb name"),
 SDATA (DTP_JSON,        "treedb_schema",    SDF_RD|SDF_REQUIRED,0,              "Treedb schema"),
 SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",           "Seed records, created if missing and marked immutable; the links they declare cannot be cut"),
+SDATA (DTP_BOOLEAN,     "peer_initial_load",SDF_RD,             0,              "initial_load is a peer's data (an external open-treedb, set by C_TREEDB): what its seeds get wrong is a WARNING at every start, not an ERROR"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
 SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             "1",            "Publish EV_TREEDB_NODE_LINKED/UNLINKED events instead of the parent's EV_TREEDB_NODE_UPDATED (on by default since 7.26.0: the parent's update collapses the whole parent, every child id, on every link). Set it 0 for a client that reads the parent's update (the v1 SPAs). Changed at run time with set-link-events"),
 SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD,             0,              "Open with treedb_schema over a NEWER schema on disk too (treedb_open_db option 'impose'). Set by C_TREEDB's impose_c_schema"),
@@ -635,12 +645,20 @@ PRIVATE int mt_start(hgobj gobj)
         return -1;
     }
 
+    /*
+     *  The store and the schema are not a peer's data, whoever starts this
+     *  treedb: its open is a C caller's, outside the window a command of a
+     *  peer may have open (C_TREEDB open-treedb, around the seeds of
+     *  initial_load below).
+     */
+    BOOL peer_data = treedb_set_peer_data(FALSE);
     json_t *treedb = treedb_open_db( // Return IS NOT YOURS!
         priv->tranger,
         priv->treedb_name,
         json_incref(priv->treedb_schema),  // owned
         gobj_read_bool_attr(gobj, "impose_c_schema")? "persistent,impose": "persistent"
     );
+    treedb_set_peer_data(peer_data);
 
     /*
      *  The ceiling of the 'file' columns: what one write may cost this
@@ -694,7 +712,18 @@ PRIVATE int mt_start(hgobj gobj)
      *  seeded store is left alone.
      *--------------------------------------------------------------*/
     if(treedb && master) {
+        /*
+         *  The seeds of a peer are its data at every start, not only at the
+         *  one inside its open-treedb: a pause-yuno + play-yuno applies them
+         *  again with no window of anybody's around, and what they get wrong
+         *  came back as ERRORs (REV-CLOUD V20 D7).
+         */
+        BOOL peer_seeds = gobj_read_bool_attr(gobj, "peer_initial_load");
+        BOOL peer_data_ = peer_seeds? treedb_set_peer_data(TRUE) : FALSE;
         apply_initial_load(gobj);
+        if(peer_seeds) {
+            treedb_set_peer_data(peer_data_);
+        }
     }
 
     return treedb?0:-1;
@@ -5418,11 +5447,12 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *value = priv->tranger;
 
     if(!empty_string(path)) {
-        value = kw_find_path(gobj, value, path, FALSE);
+        value = find_peer_path(gobj, value, path);
         if(!value) {
             return msg_iev_build_response(gobj,
                 -1,
-                json_sprintf("%s: path not found: '%s'", gobj_yuno_role_plus_name(), path),
+                json_sprintf("%s: path not found: '%.*s'",
+                    gobj_yuno_role_plus_name(), utf8_prefix_len(path, 64), path),
                 0,
                 0,
                 kw  // owned
@@ -5430,7 +5460,9 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
         }
     }
 
-    if(expanded) {
+    if(!json_is_object(value) && !json_is_array(value)) {
+        value = json_incref(value); // a scalar has nothing to collapse: kw_collapse() logged an ERROR
+    } else if(expanded) {
         if(!lists_limit && !dicts_limit) {
             value = json_incref(value); // All, no collapse
         } else {
@@ -5441,10 +5473,10 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     }
 
     /*
-     *  kw_collapse() handles dict and array; a primitive at `path` returns 0
-     *  (nothing to expand). Surface it instead of a silent null response.
+     *  A primitive at `path` is answered as it is (above); a collapse that
+     *  failed is surfaced instead of a silent null response.
      */
-    if(!value) {
+    if(!value) {    // Error already logged
         return msg_iev_build_response(gobj,
             -1,
             json_sprintf("%s: cannot collapse tranger at path '%s'",
@@ -6130,7 +6162,11 @@ PRIVATE json_t *find_seed_record( // Return is NOT YOURS
 
     int idx; json_t *record;
     json_array_foreach(records, idx, record) {
-        if(strcmp(kw_get_str(gobj, record, "id", "", 0), id)==0) {
+        /*  Read as a key, with no log: a seed whose id is not a string was
+         *  reported by apply_initial_load(), and this runs on every write
+         *  of the topic  */
+        const char *seed_id = json_string_value(json_object_get(record, "id"));
+        if(seed_id && id && strcmp(seed_id, id)==0) {
             return record;
         }
     }
@@ -6320,17 +6356,19 @@ PRIVATE const char *seed_hanging_from(
                 json_array_foreach(refs, i, v) {
                     char ref_topic[NAME_MAX];
                     char ref_id[NAME_MAX];
-                    if(!decode_parent_ref(
-                        json_string_value(v),
-                        ref_topic, sizeof(ref_topic),
-                        ref_id, sizeof(ref_id),
-                        0, 0
-                    )) {
-                        continue; // Reported by apply_initial_load
+                    if(seed_ref_fault(gobj, json_string_value(v), NULL) ||
+                        !decode_parent_ref(
+                            json_string_value(v),
+                            ref_topic, sizeof(ref_topic),
+                            ref_id, sizeof(ref_id),
+                            0, 0
+                        )) {
+                        continue; // Reported by apply_initial_load, with no log here
                     }
                     if(strcmp(ref_topic, parent_topic)==0 && strcmp(ref_id, parent_id)==0) {
+                        const char *seed_id = json_string_value(json_object_get(record, "id"));
                         snprintf(bf, bfsize, "%s^%s",
-                            topic_name, kw_get_str(gobj, record, "id", "", 0)
+                            topic_name, seed_id? seed_id : ""
                         );
                         JSON_DECREF(refs)
                         return bf;
@@ -6392,6 +6430,60 @@ PRIVATE json_t *seed_record_without_links( // Return MUST be decref
 }
 
 /***************************************************************************
+ *  What a parent ref a seed declares must be before anything reads it, a
+ *  check that logs nothing: "topic^id^hook", three parts none empty, each
+ *  one shorter than NAME_MAX (what decode_parent_ref() copies it into), the
+ *  topic a topic of this treedb, and the hook a hook of that topic that
+ *  takes `child_topic` (NULL: not asked). NULL when it can be linked, else
+ *  why.
+ ***************************************************************************/
+PRIVATE const char *seed_ref_fault(
+    hgobj gobj,
+    const char *ref,
+    const char *child_topic
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(empty_string(ref)) {
+        return "an empty ref";
+    }
+    const char *first = strchr(ref, '^');
+    const char *last = strrchr(ref, '^');
+    if(!first || first == last || strchr(first + 1, '^') != last) {
+        return "not three parts (topic^id^hook)";
+    }
+    size_t ln_topic = (size_t)(first - ref);
+    size_t ln_id = (size_t)(last - first - 1);
+    size_t ln_hook = strlen(last + 1);
+    if(ln_topic == 0 || ln_topic >= NAME_MAX || ln_id == 0 || ln_id >= NAME_MAX ||
+            ln_hook == 0 || ln_hook >= NAME_MAX) {
+        return "a part empty or too long";
+    }
+    char topic_name[NAME_MAX];
+    memcpy(topic_name, ref, ln_topic);
+    topic_name[ln_topic] = 0;
+    const char *hook = last + 1;
+    if(!tranger2_name_is_identifier(topic_name) || !treedb_col_name_is_identifier(hook)) {
+        return "a name breaks the name rule";
+    }
+    if(!treedb_is_treedbs_topic(priv->tranger, priv->treedb_name, topic_name)) {
+        return "its topic is not a topic of the treedb";
+    }
+    if(child_topic) {
+        /*  As refuse_peer_hook_without_child_topic() reads it: the cols of
+         *  a topic are a dict or a list of them  */
+        json_t *child_field = KWID_GET_BY_KEYS(gobj, priv->tranger, 0,
+            "topics", topic_name, "cols", hook, "hook", child_topic
+        );
+        if(!json_is_string(child_field)) {
+            return "its hook is not a hook of that topic that links the seed's topic";
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
  *  Write the links a seed declares and does not have.
  *
  *  Serves both a seed just created, which has none of them yet, and a seed
@@ -6428,23 +6520,31 @@ PRIVATE int write_seed_links(
                 continue;
             }
 
+            /*
+             *  The ref is asked first, with no log of its own: the ref of a
+             *  peer's seed went to decode_parent_ref(), treedb_get_node()
+             *  and treedb_link_nodes(), each one an ERROR for what it did
+             *  not like, inside the peer's window too (REV-CLOUD V20 D7)
+             */
             char parent_topic[NAME_MAX];
             char parent_id[NAME_MAX];
             char hook_name[NAME_MAX];
-            if(!decode_parent_ref(
+            const char *why = seed_ref_fault(gobj, ref, topic_name);
+            if(why || !decode_parent_ref(
                 ref,
                 parent_topic, sizeof(parent_topic),
                 parent_id, sizeof(parent_id),
                 hook_name, sizeof(hook_name)
             )) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "initial_load: bad parent ref",
+                    "why",          "%s", why? why : "",
                     "treedb_name",  "%s", priv->treedb_name,
                     "topic_name",   "%s", topic_name,
                     "col",          "%s", col,
-                    "ref",          "%s", ref,
+                    "ref",          "%.128s", ref,
                     NULL
                 );
                 continue;
@@ -6457,7 +6557,7 @@ PRIVATE int write_seed_links(
                 parent_id
             );
             if(!parent) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "initial_load: parent of a seed link not found",
@@ -6510,6 +6610,12 @@ PRIVATE int write_seed_links(
  *
  *  Idempotent by construction: a record already present is never rewritten,
  *  only its declared links are checked and its immutable mark re-asserted.
+ *
+ *  The seeds are the data of whoever opened the treedb: what they get wrong
+ *  (a topic the treedb has not, a record without id, a ref that names no
+ *  parent) is a WARNING inside the window of a peer's data -- C_TREEDB
+ *  opens it around an external open-treedb (REV-CLOUD V20.8) -- and an
+ *  ERROR for a C caller.
  ***************************************************************************/
 PRIVATE int apply_initial_load(hgobj gobj)
 {
@@ -6527,7 +6633,7 @@ PRIVATE int apply_initial_load(hgobj gobj)
     json_t *topic_records;
     json_object_foreach(initial_load, topic_name, topic_records) {
         if(!treedb_is_treedbs_topic(priv->tranger, priv->treedb_name, topic_name)) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "initial_load: topic not found in treedb",
@@ -6537,12 +6643,23 @@ PRIVATE int apply_initial_load(hgobj gobj)
             );
             continue;
         }
+        if(!json_is_array(topic_records)) {
+            log_data_fault(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "initial_load: the seeds of a topic must be a list of records",
+                "treedb_name",  "%s", priv->treedb_name,
+                "topic_name",   "%s", topic_name,
+                NULL
+            );
+            continue;
+        }
 
         int idx; json_t *record;
         json_array_foreach(topic_records, idx, record) {
-            const char *id = kw_get_str(gobj, record, "id", "", 0);
+            const char *id = json_string_value(json_object_get(record, "id"));
             if(empty_string(id)) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "initial_load: record without id",
@@ -6601,7 +6718,7 @@ PRIVATE int apply_initial_load(hgobj gobj)
 
         int idx; json_t *record;
         json_array_foreach(topic_records, idx, record) {
-            const char *id = kw_get_str(gobj, record, "id", "", 0);
+            const char *id = json_string_value(json_object_get(record, "id"));
             if(empty_string(id)) {
                 continue; // Error already logged, first pass
             }
@@ -6849,6 +6966,63 @@ PRIVATE BOOL refuse_peer_hook_without_child_topic(
         NULL
     );
     return TRUE;
+}
+
+/***************************************************************************
+ *  The value at `path` of the tranger json, the path a peer hands
+ *  print-tranger: kw_find_path() style, segments joined by '`', a list
+ *  indexed by the number of the segment. Walked HERE, a segment at a time,
+ *  and refused with a WARNING where kw_find_path() logs an ERROR with a
+ *  stack (kwid.c): a segment longer than its buffer, char[256] ("buffer
+ *  too small"), more segments than KW_MAX_PATH_DEPTH, 64 ("max nesting
+ *  depth exceeded"), and a segment under something that is not a dict or
+ *  a list ("kw must be list or dict"). NULL when the path names nothing (a
+ *  key that is not there is said by the answer only, as kw_find_path()
+ *  with verbose FALSE did). The twin of C_TRANGER's.
+ ***************************************************************************/
+PRIVATE json_t *find_peer_path(hgobj gobj, json_t *kw, const char *path)
+{
+    const char *why = NULL;
+    json_t *value = kw;
+    int depth = 0;
+    const char *p = path;
+    while(value) {
+        const char *d = strchr(p, '`');
+        size_t len = d? (size_t)(d - p) : strlen(p);
+        if(len > PEER_PATH_SEGMENT_MAX) {
+            why = "a segment of the path longer than 255 bytes";
+            break;
+        }
+        if(++depth > PEER_PATH_DEPTH_MAX) {
+            why = "a path of more than 64 segments";
+            break;
+        }
+        if(!json_is_object(value) && !json_is_array(value)) {
+            why = "a segment of the path under a value that is not a dict or a list";
+            break;
+        }
+        char segment[PEER_PATH_SEGMENT_MAX + 1];
+        snprintf(segment, sizeof(segment), "%.*s", (int)len, p);
+        json_t *next = json_is_object(value)?
+            json_object_get(value, segment) :
+            json_array_get(value, (size_t)atoi(segment));
+        if(!d) {
+            return next;    // NULL: not there
+        }
+        value = json_absent(next)? NULL : next;
+        p = d + 1;
+    }
+    if(why) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "print-tranger path refused",
+            "why",          "%s", why,
+            "path",         "%.64s", path,
+            NULL
+        );
+    }
+    return NULL;
 }
 
 /***************************************************************************

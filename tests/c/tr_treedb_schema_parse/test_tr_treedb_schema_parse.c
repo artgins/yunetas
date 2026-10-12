@@ -490,6 +490,81 @@ PRIVATE int test_open(void)
     }
     result += test_json(NULL);
 
+    /*
+     *  The secondary keys, before the topic exists too (REV-CLOUD V20.5):
+     *  named twice, the pkey "id", with a backtick, or the tkey, the index
+     *  of a pkey2 collided with another (a node stored inside itself, two
+     *  lists on one id) or was made where it is not read. A schema fault:
+     *  an ERROR for a C caller, a WARNING inside the window of a peer's
+     *  data. And the ids of the lists of its indexes must fit a
+     *  char[NAME_MAX]: cut, two of them were one (an ERROR always).
+     */
+    set_expected_results(
+        "create-topic refuses bad pkey2s, and names too long for its lists",
+        json_pack("[{s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}]",
+            "msg", "Topic refused: bad pkey2s", "__priority__", "ERROR",
+            "msg", "Topic refused: bad pkey2s", "__priority__", "ERROR",
+            "msg", "Topic refused: bad pkey2s", "__priority__", "ERROR",
+            "msg", "Topic refused: bad pkey2s", "__priority__", "ERROR",
+            "msg", "Topic refused: bad pkey2s", "__priority__", "WARNING",
+            "msg", "Topic refused: the id of a list of its indexes is longer than NAME_MAX",
+                "__priority__", "ERROR"
+        ),
+        NULL, NULL, 1
+    );
+    struct {
+        const char *tkey;
+        json_t *pkey2s;
+        BOOL peer;
+    } bad_pkey2s[] = {
+        {"", json_pack("[s,s]", "v", "v"), FALSE},
+        {"", json_string("id"), FALSE},
+        {"", json_string("a`b"), FALSE},
+        {"t", json_string("t"), FALSE},
+        {"", json_pack("{s:{}, s:{}}", "w", "id"), TRUE},
+        {NULL, NULL, FALSE}
+    };
+    for(int i = 0; bad_pkey2s[i].tkey; i++) {
+        BOOL peer_data = bad_pkey2s[i].peer? treedb_set_peer_data(TRUE) : FALSE;
+        topic = treedb_create_topic(
+            tranger, TREEDB_NAME, "pk2_notes", 1, bad_pkey2s[i].tkey,
+            bad_pkey2s[i].pkey2s,   // owned
+            json_pack("{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s]}}",
+                "id", "header", "Id", "type", "string", "flag", "persistent",
+                "v", "header", "V", "type", "string", "flag", "persistent"
+            ),
+            0, FALSE, FALSE
+        );
+        if(bad_pkey2s[i].peer) {
+            treedb_set_peer_data(peer_data);
+        }
+        if(topic || treedb_is_treedbs_topic(tranger, TREEDB_NAME, "pk2_notes")) {
+            printf("%sERROR%s --> treedb_create_topic() accepted bad pkey2s (case %d)\n",
+                On_Red BWhite, Color_Off, i);
+            result += -1;
+        }
+    }
+    {
+        char long_topic[250 + 1];   // a name of the rule, and its list id does not fit
+        memset(long_topic, 'n', sizeof(long_topic) - 1);
+        long_topic[sizeof(long_topic) - 1] = 0;
+        topic = treedb_create_topic(
+            tranger, TREEDB_NAME, long_topic, 1, "", 0,
+            json_pack("{s:{s:s, s:s, s:[s]}}",
+                "id", "header", "Id", "type", "string", "flag", "persistent"
+            ),
+            0, FALSE, FALSE
+        );
+        char path[PATH_MAX];
+        tranger2_topic_path(path, sizeof(path), tranger, long_topic);
+        if(topic || is_directory(path)) {
+            printf("%sERROR%s --> treedb_create_topic() accepted a topic its lists cannot name\n",
+                On_Red BWhite, Color_Off);
+            result += -1;
+        }
+    }
+    result += test_json(NULL);
+
     set_expected_results("close and shutdown", NULL, NULL, NULL, 1);
     treedb_close_db(tranger, TREEDB_NAME);
     tranger2_shutdown(tranger);

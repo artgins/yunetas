@@ -693,6 +693,37 @@ PRIVATE int run_tests(hgobj gobj)
     gobj_start(node);
     result += check_seed_state(gobj, "after second start");
 
+    /*-----------------------------------------------*
+     *  11. The path a peer hands print-tranger is
+     *      walked by C_NODE: refused with a WARNING
+     *      where kw_find_path() logged an ERROR (a
+     *      segment longer than its buffer, a segment
+     *      under a string), and a string at the end
+     *      is answered as it is (kw_collapse() logged
+     *      an ERROR) (REV-CLOUD V20.15)
+     *-----------------------------------------------*/
+    {
+        char long_path[300 + sizeof("`y")];
+        memset(long_path, 'x', 300);
+        snprintf(long_path + 300, sizeof(long_path) - 300, "`y");
+        const char *bad_paths[] = {long_path, "directory`x", NULL};
+        for(int i = 0; bad_paths[i]; i++) {
+            json_t *jn_resp = gobj_command(node, "print-tranger",
+                json_pack("{s:s}", "path", bad_paths[i]), gobj);
+            if(kw_get_int(gobj, jn_resp, "result", 0, 0) != -1) {
+                result += fail(gobj, "print-tranger of a bad path was not refused");
+            }
+            JSON_DECREF(jn_resp)
+        }
+        json_t *jn_resp = gobj_command(node, "print-tranger",
+            json_pack("{s:s}", "path", "directory"), gobj);
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) != 0 ||
+                !json_is_string(json_object_get(jn_resp, "data"))) {
+            result += fail(gobj, "print-tranger of a string did not answer it");
+        }
+        JSON_DECREF(jn_resp)
+    }
+
     if(result == 0) {
         gobj_log_info(gobj, 0,
             "msgset", "%s", MSGSET_INFO,

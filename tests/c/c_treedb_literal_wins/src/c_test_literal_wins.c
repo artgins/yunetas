@@ -6482,7 +6482,9 @@ PRIVATE json_t *answered_topic(hgobj gobj, json_t *jn_resp, const char *topic_na
  *    - after an edit of `users.username` publishes `users` WITHOUT
  *      `users.email`, and no `departments`: the apply puts neither back;
  *    - after an edit of the left topic `departments` (tw_ose) publishes
- *      it: the edit made it the operator's.
+ *      it WHOLE: the edit made it the operator's, its left columns too.
+ *      It was published without its left `id` column, a topic the treedb
+ *      refuses at its next open (REV-CLOUD V20 #18).
  *
  *  Red before: the save with no edit answered "saved ... schema_version 3"
  *  with `departments` and `users.email` in the schema, and the apply put
@@ -6565,6 +6567,7 @@ PRIVATE int scenario_save_leaves_what_older_release_left(hgobj gobj)
     users = answered_topic(gobj, jn_resp, "users");
     if(kw_get_int(gobj, jn_resp, "result", -1, 0) != 0 || !departments ||
             strcmp(kw_get_str(gobj, departments, "cols`name`header", "", 0), "Operator name")!=0 ||
+            !kw_get_dict_value(gobj, departments, "cols`id", 0, 0) ||
             !users || kw_get_dict_value(gobj, users, "cols`email", 0, 0)) {
         result += test_fail(gobj, db,
             "TEST FAIL: OS, a save did not publish the edit of what 7.25.4 left, or published the rest",

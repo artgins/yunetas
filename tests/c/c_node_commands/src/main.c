@@ -107,7 +107,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -120,6 +120,7 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Playing yuno",
             "msg", "topic not found, refused", "__priority__", "WARNING",               // the refusals of a command (V15.3)
+            "msg", "Command parameter of the wrong type", "__priority__", "WARNING",    // V20.4.1
             "msg", "topic not found, refused", "__priority__", "WARNING",
             "msg", "not a column of the topic with that flag, refused", "__priority__", "WARNING",
             "msg", "column name breaks the name rule (empty or '`'), refused", "__priority__", "WARNING",
@@ -148,6 +149,8 @@ static int register_yuno_and_more(void)
             "msg", "loading snap_tag 1",                    // the treedb opened again with s1 active
             "msg", "Node already exists",                   // import-db: each node that exists is tried
             "msg", "Node already exists",                   // ...and probe (V19.2), in two modes
+            "msg", "Node already exists",                   // ...and plain (V20.4.4), in two modes
+            "msg", "Node already exists",
             "msg", "Node already exists",
             "msg", "Node already exists",
             "msg", "Node already exists",

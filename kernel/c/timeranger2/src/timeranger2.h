@@ -135,6 +135,21 @@ extern "C"{
 #define RECORD_KEY_VALUE_MAX   (NAME_MAX+1)
 #define tranger2_max_key_size() (RECORD_KEY_VALUE_MAX-1)
 
+/*
+ *  The largest time an md2 row holds, as __t__ and as __tm__: 44 bits (the
+ *  16 bits above them hold the user flag and the system flag). A larger time
+ *  is cut: tranger2_append_record() writes the flags over its high bits.
+ */
+#define TRANGER2_MAX_TIME   0x00000FFFFFFFFFFFULL   /* UTC 559444-03-08T09:40:15+0000 in seconds */
+
+/*
+ *  The largest topic_version or schema_version taken from OUTSIDE (a
+ *  command): a version is raised one at a time, and save-schema raises
+ *  past it (+1), so a version near the end of a json_int_t overflowed
+ *  there. The code compares them as json_int_t, whatever their size.
+ */
+#define TRANGER2_VERSION_MAX    0x7FFFFFFFLL
+
 /***************************************************************
  *              Structures  timeranger2
  ***************************************************************/
@@ -460,6 +475,42 @@ PUBLIC BOOL tranger2_name_is_identifier(
 );
 
 /*
+   Why `name` cannot name a NEW topic handed from OUTSIDE (a command), or
+   NULL. The directory of a store holds, beside its topics, what the
+   libraries keep there, and a topic of that name is a directory over it,
+   now or when the file is written later (a store that does not exist yet):
+   - a leading '.': hidden names (`.blobs` of a treedb, the temporary
+     `.<treedb>.treedb_schema.json.tmp` of apply-schema);
+   - a leading "__": the namespace of the system (`__timeranger2__.json`,
+     the system topics of a treedb `__snaps__`, `__graphs__`, `__assets__`,
+     `__icons__`);
+   - a ".json" suffix: the files of a store (`__timeranger2__.json`,
+     `<treedb>.treedb_schema.json`, `<msg2db>.msg2db_schema.json`);
+   - a ".bak" suffix: the backup of a topic (tranger2_backup_topic()).
+   The name rule (tranger2_name_is_identifier()) is not asked here.
+   Silent: the caller says what the name was for.
+*/
+PUBLIC const char *tranger2_reserved_name_fault(
+    const char *name
+);
+
+/*
+   Why `jn_var` cannot be the topic_var.json of a topic handed from OUTSIDE
+   (a command), or NULL. NULL or a json null is no var. Else a dict, which
+   the tranger merges into the topic it opens:
+   - none of the fields the tranger keeps itself (the topic's desc and its
+     run-time state: `topic_name`, `pkey`, `system_flag`, `directory`,
+     `cache`, `lists`...), which an open does not read from the var;
+   - no `system_topic`: it marks a topic nothing deletes, the system's;
+   - `topic_version` an integer, 0 to TRANGER2_VERSION_MAX;
+   - `last_rowid_id` an integer, 0 or more (the counter of a rowid key).
+   Silent: the caller says it.
+*/
+PUBLIC const char *tranger2_topic_var_fault(
+    json_t *jn_var
+);
+
+/*
    TRUE if the topic is currently OPEN in this tranger. Silent (a closed topic
    is a legitimate answer, not an error).
 
@@ -604,6 +655,23 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
 );
 
 /*
+    The time tranger2_append_record() keeps as the __tm__ of `record` in the
+    topic `topic` (the json of an open topic): the value of its tkey -- an
+    integer as it is, a string read as a date by approxidate() and multiplied
+    by 1000 on an sf_tm_ms topic --, 0 when the topic has no tkey or the
+    record no value of it. `*fits` is FALSE when an md2 row cannot keep that
+    time: negative, or past TRANGER2_MAX_TIME (a date of the ms topic is
+    asked before the multiplication, which wraps). The append keeps such a
+    time cut (and logs it): a caller that takes the tkey from a peer refuses
+    the record on `*fits` FALSE, before the append.
+*/
+PUBLIC uint64_t tranger2_record_tkey_time(
+    json_t *topic,      // NOT owned
+    json_t *record,     // NOT owned
+    BOOL *fits
+);
+
+/*
     Append a new record to a topic. The primary key (`pkey`) and time key (`tkey`)
     are extracted from `jn_record` per the topic schema. MASTER-ONLY.
     If `__t__` is 0 the time is set to now (milliseconds if the topic is sf_t_ms,
@@ -629,6 +697,10 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
     again first: listed now, its cache is built again from the disk and the
     append goes on; still unlisted, the append is refused (-1, nothing
     written).
+    An md2 row keeps 44 bits of each time (TRANGER2_MAX_TIME): a `__t__`, or
+    a time of the tkey (tranger2_record_tkey_time()), that does not fit is
+    appended CUT, as it always was, and logged as an ERROR. A caller that
+    takes times from a peer asks tranger2_record_tkey_time() first.
     Return: 0 on success, -1 on error (record NULL, not master, topic not found,
     missing/oversized pkey, an unsafe key that would escape keys/, a file of
     the key flagged unreadable, a key flagged unlisted that still cannot be

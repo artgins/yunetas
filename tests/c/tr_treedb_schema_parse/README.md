@@ -18,6 +18,39 @@ The test checks:
    (*"A column cannot be both 'hook' and 'fkey'"*).
 5. `treedb_create_topic()` refuses a topic with such a column, instead of only
    logging it (*"Topic refused: a column is both 'hook' and 'fkey'"*).
+6. A schema with one hook on an fkey parses clean twice (`parse_hooks()`
+   writes its `fkey` mark into the schema, and the second pass meets it); two
+   hooks on one fkey are refused (*"Only can be one fkey"*).
+7. `treedb_create_topic()` refuses a topic with no `id` column, or with no
+   columns, before anything is on disk (*"Topic refused: bad columns"*).
+8. `treedb_create_topic()` refuses bad pkey2s before the topic exists
+   (*"Topic refused: bad pkey2s"*): a pkey2 named twice, the pkey `id`, a name
+   with a backtick, the tkey. Their index was built wrong: a node stored
+   inside itself, two lists on one id. Each one is an ERROR for a C caller,
+   and a WARNING inside the window of a peer's data
+   (`treedb_set_peer_data(TRUE)`, the last case).
+9. `treedb_create_topic()` refuses a topic whose list id, the id of the list
+   that loads an index (`treedb-<gclass>-<gobj>-<treedb>-<topic>-<key>`), does
+   not fit `NAME_MAX` (a topic name of 250 bytes): an ERROR always (*"Topic
+   refused: the id of a list of its indexes is longer than NAME_MAX"*), and no
+   directory on disk. Cut, two lists of the topic shared one id.
+
+Items 8 and 9 are the rules of a NEW topic. A topic already ON DISK (its
+`topic_desc.json` is there), opened by a C caller, keeps its pkey2s and its
+list ids as they are, each fault an ERROR (*"Topic on disk opened as it was,
+..."*): refusing them would take the topic from a store that has lived with
+them.
+That case is tested in
+[`c_treedb_system_schema`](../c_treedb_system_schema/README.md) (13d6).
+
+The pkey2s a topic may take, in a C schema literal:
+
+```c
+'topic_name': 'notes',
+'pkey': 'id',
+'tkey': 't',
+'pkey2s': ['serial', 'email'],      // not 'id', not the tkey 't', each once
+```
 
 A node that is both a child and a parent carries two columns, the hook and the
 fkey, never one with both flags:

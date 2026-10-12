@@ -22,6 +22,7 @@
 #include <string.h>
 #include <limits.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "c_test_system_schema.h"
 
@@ -98,6 +99,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_treedbs;
     hgobj timer;
     char path_database[PATH_MAX];
+    BOOL pause_keeps_treedbs;   // a pause of the test keeps C_TREEDB and its treedbs, as mqtt_broker does
 } PRIVATE_DATA;
 
 /***************************************************************************
@@ -395,6 +397,12 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(priv->pause_keeps_treedbs) {
+        /*  The play after a pause that kept them (check_peer_close_of_code_treedb())  */
+        priv->pause_keeps_treedbs = FALSE;
+        return 0;
+    }
+
     /*
      *  Opened from __system__: the projection is what this test is about
      */
@@ -426,6 +434,11 @@ PRIVATE int mt_play(hgobj gobj)
 PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->pause_keeps_treedbs) {
+        /*  mqtt_broker's way: its treedb lives from mt_start to mt_stop  */
+        return 0;
+    }
 
     if(gobj_find_service(TREEDB_NAME, FALSE)) {
         json_t *jn_resp = gobj_command(
@@ -5155,6 +5168,2108 @@ PRIVATE int check_every_command_refuses_nobody(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A command that refuses the data of a peer answers -1 and says why; the
+ *  WARNING it logs is in the expected list of main.c. Return 0 or -1.
+ ***************************************************************************/
+PRIVATE int check_refused(
+    hgobj gobj,
+    const char *what,
+    json_t *jn_resp     // owned
+)
+{
+    int ret = (int)kw_get_int(gobj, jn_resp, "result", 0, 0);
+    const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
+    int result = 0;
+    if(ret != -1 || empty_string(comment)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a peer's data was not refused",
+            "what",         "%s", what,
+            "result",       "%d", ret,
+            "comment",      "%s", comment,
+            NULL
+        );
+        result = -1;
+    }
+    JSON_DECREF(jn_resp)
+    return result;
+}
+
+/***************************************************************************
+ *  The kw of a command as C_IEVENT_SRV delivers it from a peer: with the
+ *  `__username__` it stamps (the test checker lets PEER_USER do anything).
+ *  Its refusals are WARNINGs; without it the caller is C code, and they are
+ *  ERRORs with a stack. Return kw.
+ ***************************************************************************/
+#define PEER_USER   "peer@test"
+
+PRIVATE json_t *as_peer(json_t *kw)  // kw owned, returned
+{
+    json_object_set_new(kw, "__username__", json_string(PEER_USER));
+    return kw;
+}
+
+/***************************************************************************
+ *  Test 13d2: the data of a peer is refused -- a WARNING, no stack, and -1
+ *  that says why -- before the library logs its ERROR (REV-CLOUD V20.4):
+ *  a treedb_name of the wrong type (which made save-schema save EVERY
+ *  treedb), a treedb that is not open here ("Treedb not open here"), an
+ *  unknown or a system topic to delete ("Topic name not found in
+ *  treedbs", "Cannot delete topic: system topic"), a topic without
+ *  columns, with a name of '/' or longer than NAME_MAX (a CRITICAL of the
+ *  tranger), and an open-treedb with a name that is a path, no schema, or
+ *  an attribute of the wrong type, which made directories and services
+ *  before the treedb refused it. Each one sent as a peer's (as_peer()).
+ ***************************************************************************/
+PRIVATE int check_peer_data_refused(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    /*
+     *  A wrong type does not widen a write to every treedb: refused by the
+     *  command parser (V20.4.1), with no answer per treedb
+     */
+    const char *scoped_cmds[] = {"save-schema", "apply-schema", NULL};
+    for(int i = 0; scoped_cmds[i]; i++) {
+        json_t *jn_resp = gobj_command(priv->gobj_treedbs, scoped_cmds[i],
+            as_peer(json_pack("{s:i}", "treedb_name", 5)), gobj);
+        if(json_is_array(json_object_get(jn_resp, "data")) ||
+                !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "treedb_name")) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a numeric treedb_name acted on every treedb",
+                "command",      "%s", scoped_cmds[i],
+                "comment",      "%s", kw_get_str(gobj, jn_resp, "comment", "", 0),
+                NULL
+            );
+            result += -1;
+        }
+        result += check_refused(gobj, scoped_cmds[i], jn_resp);
+    }
+
+    /*
+     *  A treedb that is not open here, the __system__ one included: it is
+     *  not one that open-treedb opened
+     */
+    const char *schema_cmds[] = {"save-schema", "saved-schema", "apply-schema", NULL};
+    for(int i = 0; schema_cmds[i]; i++) {
+        result += check_refused(gobj, schema_cmds[i],
+            gobj_command(priv->gobj_treedbs, schema_cmds[i],
+                as_peer(json_pack("{s:s}", "treedb_name", "treedb_not_open")), gobj)
+        );
+    }
+    result += check_refused(gobj, "save-schema of __system__",
+        gobj_command(priv->gobj_treedbs, "save-schema",
+            as_peer(json_pack("{s:s}", "treedb_name", SYSTEM_TREEDB)), gobj)
+    );
+
+    /*
+     *  delete-topic of a topic the treedb does not have, and of a system one
+     */
+    result += check_refused(gobj, "delete-topic of an unknown topic",
+        gobj_command(priv->gobj_treedbs, "delete-topic",
+            as_peer(json_pack("{s:s, s:s}", "treedb_name", TREEDB_NAME, "topic_name", "no_such_topic")), gobj)
+    );
+    result += check_refused(gobj, "delete-topic of a system topic",
+        gobj_command(priv->gobj_treedbs, "delete-topic",
+            as_peer(json_pack("{s:s, s:s}", "treedb_name", TREEDB_NAME, "topic_name", "__snaps__")), gobj)
+    );
+
+    /*
+     *  create-topic of a name with '/', and of a new topic with no columns:
+     *  the treedb's own checks, inside the window of a peer's data
+     */
+    result += check_refused(gobj, "create-topic of a name with '/'",
+        gobj_command(priv->gobj_treedbs, "create-topic",
+            as_peer(json_pack("{s:s, s:s, s:{s:{s:s, s:s}}}", "treedb_name", TREEDB_NAME,
+                "topic_name", "a/b", "cols", "id", "header", "Id", "type", "string")), gobj)
+    );
+    result += check_refused(gobj, "create-topic with no columns",
+        gobj_command(priv->gobj_treedbs, "create-topic",
+            as_peer(json_pack("{s:s, s:s}", "treedb_name", TREEDB_NAME, "topic_name", "no_cols")), gobj)
+    );
+    {
+        /*  Its directory cannot be made: a CRITICAL of the tranger  */
+        char long_name[NAME_MAX + 2];
+        memset(long_name, 'x', sizeof(long_name) - 1);
+        long_name[sizeof(long_name) - 1] = 0;
+        result += check_refused(gobj, "create-topic of a name longer than NAME_MAX",
+            gobj_command(priv->gobj_treedbs, "create-topic",
+                as_peer(json_pack("{s:s, s:s, s:{s:{s:s, s:s}}}", "treedb_name", TREEDB_NAME,
+                    "topic_name", long_name, "cols", "id", "header", "Id", "type", "string")), gobj)
+        );
+    }
+
+    /*
+     *  open-treedb: nothing is made for a name that is a path, a missing
+     *  schema, or an attribute of the wrong type -- a text for an integer
+     *  is the parser's, a real is the command's
+     */
+    json_t *jn_schema = json_pack("{s:s, s:i, s:[{s:s, s:s, s:s, s:i, s:{s:{s:s, s:s}}}]}",
+        "id", "treedb_refused",
+        "schema_version", 1,
+        "topics",
+            "id", "items", "pkey", "id", "system_flag", "sf_string_key", "topic_version", 1,
+            "cols", "id", "header", "Id", "type", "string"
+    );
+    result += check_refused(gobj, "open-treedb of a name with '..'",
+        gobj_command(priv->gobj_treedbs, "open-treedb",
+            as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", "../treedb_refused",
+                "filename_mask", "%Y", "treedb_schema", jn_schema)), gobj)
+    );
+    result += check_refused(gobj, "open-treedb with no schema",
+        gobj_command(priv->gobj_treedbs, "open-treedb",
+            as_peer(json_pack("{s:s, s:s}", "treedb_name", "treedb_refused", "filename_mask", "%Y")), gobj)
+    );
+    result += check_refused(gobj, "open-treedb with files_max_size a text",
+        gobj_command(priv->gobj_treedbs, "open-treedb",
+            as_peer(json_pack("{s:s, s:s, s:O, s:s}", "treedb_name", "treedb_refused",
+                "filename_mask", "%Y", "treedb_schema", jn_schema, "files_max_size", "big")), gobj)
+    );
+    result += check_refused(gobj, "open-treedb with files_max_size a real",
+        gobj_command(priv->gobj_treedbs, "open-treedb",
+            as_peer(json_pack("{s:s, s:s, s:O, s:f}", "treedb_name", "treedb_refused",
+                "filename_mask", "%Y", "treedb_schema", jn_schema, "files_max_size", 1.5)), gobj)
+    );
+    JSON_DECREF(jn_schema)
+    if(gobj_find_service("../treedb_refused", FALSE) ||
+            gobj_find_service("tranger_../treedb_refused", FALSE) ||
+            gobj_find_service("tranger_treedb_refused", FALSE)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a refused open-treedb left its services",
+            NULL
+        );
+        result += -1;
+    }
+
+    return result;
+}
+
+/***************************************************************************
+ *  The schema of the treedbs open-treedb is handed below: one topic,
+ *  `items`, with the pkey2s given (NULL: none). Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *items_schema(const char *treedb_name, json_t *pkey2s) // pkey2s owned
+{
+    json_t *jn_schema = json_pack("{s:s, s:i, s:[{s:s, s:s, s:s, s:i, s:{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s]}}}]}",
+        "id", treedb_name,
+        "schema_version", 1,
+        "topics",
+            "id", "items", "pkey", "id", "system_flag", "sf_string_key", "topic_version", 1,
+            "cols",
+                "id", "header", "Id", "type", "string", "flag", "persistent",
+                "name", "header", "Name", "type", "string", "flag", "persistent"
+    );
+    if(pkey2s) {
+        json_object_set_new(json_array_get(json_object_get(jn_schema, "topics"), 0),
+            "pkey2s", pkey2s);
+    }
+    return jn_schema;
+}
+
+/***************************************************************************
+ *  The schema of a seeded treedb: `groups` hooks `items` by their
+ *  `group_id`. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *seeded_schema(const char *treedb_name)
+{
+    return json_pack(
+        "{s:s, s:i, s:["
+            "{s:s, s:s, s:s, s:i, s:{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s], s:{s:s}}}},"
+            "{s:s, s:s, s:s, s:i, s:{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s]}}}"
+        "]}",
+        "id", treedb_name,
+        "schema_version", 1,
+        "topics",
+            "id", "groups", "pkey", "id", "system_flag", "sf_string_key", "topic_version", 1,
+            "cols",
+                "id", "header", "Id", "type", "string", "flag", "persistent",
+                "items", "header", "Items", "type", "array", "flag", "hook",
+                    "hook", "items", "group_id",
+            "id", "items", "pkey", "id", "system_flag", "sf_string_key", "topic_version", 1,
+            "cols",
+                "id", "header", "Id", "type", "string", "flag", "persistent",
+                "group_id", "header", "Group", "type", "string", "flag", "fkey"
+    );
+}
+
+/***************************************************************************
+ *  Test 13d3: more of a peer's data is refused, a WARNING each (REV-CLOUD
+ *  V20): a topic named as a FILE of the database (its mkrdir() was a
+ *  CRITICAL), pkey2s that collide or break the column rule (an index
+ *  corrupted, an ERROR per create), names too long for the lists of the
+ *  indexes (an id cut, two lists on one), a filename_mask that is a path
+ *  (the records written out of the store) or more than one file name, a
+ *  treedb of the system's namespace (`__system__`, a CRITICAL on its lock),
+ *  initial_load of a wrong shape; a value of a wrong type from a user with
+ *  no permission is the parser's, refused before the command's authz (no
+ *  value of a wrong type reaches the command any more, so its "authz
+ *  before any value is read" cannot be shown by one); and the seeds of
+ *  initial_load are a peer's data in an EXTERNAL open-treedb (WARNINGs, at
+ *  every start of the treedb) and a C caller's in an internal one (ERRORs).
+ ***************************************************************************/
+PRIVATE int check_more_peer_data_refused(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    /*
+     *  create-topic in an open treedb: a file of the database, pkey2s,
+     *  names too long for the lists of its indexes
+     */
+    json_t *cols = json_pack("{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s]}}",
+        "id", "header", "Id", "type", "string", "flag", "persistent",
+        "t", "header", "T", "type", "string", "flag", "persistent"
+    );
+    const char *file_names[] = {"__timeranger2__.json", TREEDB_NAME ".treedb_schema.json", NULL};
+    for(int i = 0; file_names[i]; i++) {
+        result += check_refused(gobj, file_names[i],
+            gobj_command(priv->gobj_treedbs, "create-topic",
+                as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", TREEDB_NAME,
+                    "topic_name", file_names[i], "cols", cols)), gobj)
+        );
+        char treedb_dir[PATH_MAX];
+        build_path(treedb_dir, sizeof(treedb_dir), priv->path_database, TREEDB_NAME, NULL);
+        if(!file_exists(treedb_dir, file_names[i])) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a file of the database is not a file any more",
+                "file",         "%s", file_names[i],
+                NULL
+            );
+            result += -1;
+        }
+    }
+    struct {
+        const char *what;
+        const char *tkey;
+        json_t *pkey2s;
+    } bad_pkey2s[] = {
+        {"pkey2s named twice", "", json_pack("[s,s]", "v", "v")},
+        {"a pkey2 that is the pkey", "", json_string("id")},
+        {"a pkey2 with a backtick", "", json_string("a`b")},
+        {"a pkey2 that is the tkey", "t", json_string("t")},
+        {NULL, NULL, NULL}
+    };
+    for(int i = 0; bad_pkey2s[i].what; i++) {
+        result += check_refused(gobj, bad_pkey2s[i].what,
+            gobj_command(priv->gobj_treedbs, "create-topic",
+                as_peer(json_pack("{s:s, s:s, s:s, s:O, s:o}", "treedb_name", TREEDB_NAME,
+                    "topic_name", "pk2_refused", "topic_tkey", bad_pkey2s[i].tkey,
+                    "cols", cols, "pkey2s", bad_pkey2s[i].pkey2s)), gobj)
+        );
+    }
+    {
+        /*  "treedb-C_TRANGER-tranger_<treedb>-<treedb>-<topic>-" in a
+         *  char[NAME_MAX]: a topic of 220 bytes does not fit  */
+        char long_topic[220 + 1];
+        memset(long_topic, 'x', sizeof(long_topic) - 1);
+        long_topic[sizeof(long_topic) - 1] = 0;
+        result += check_refused(gobj, "a topic too long for the lists of its indexes",
+            gobj_command(priv->gobj_treedbs, "create-topic",
+                as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", TREEDB_NAME,
+                    "topic_name", long_topic, "cols", cols)), gobj)
+        );
+    }
+    JSON_DECREF(cols)
+    if(treedb_is_treedbs_topic(gobj_read_pointer_attr(gobj_find_service(TREEDB_NAME, FALSE), "tranger"),
+            TREEDB_NAME, "pk2_refused")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a topic with bad pkey2s was created",
+            NULL
+        );
+        result += -1;
+    }
+
+    /*
+     *  open-treedb: nothing is made for a filename_mask that is a path or
+     *  more than one file name, a name of the system or that a service
+     *  cannot have, a name too long for the names made from it, a topic of
+     *  the schema with bad pkey2s, or seeds of a wrong shape
+     */
+    json_t *jn_schema = items_schema("treedb_refused", NULL);
+    const char *bad_masks[] = {"../../../tmp/treedb_evil", "%Y/%m", "%Y%%", NULL};
+    for(int i = 0; bad_masks[i]; i++) {
+        result += check_refused(gobj, bad_masks[i],
+            gobj_command(priv->gobj_treedbs, "open-treedb",
+                as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", "treedb_refused",
+                    "filename_mask", bad_masks[i], "treedb_schema", jn_schema)), gobj)
+        );
+    }
+    char too_long[109 + 1];     // the limit is 108 bytes (refuse_peer_treedb_name)
+    memset(too_long, 't', sizeof(too_long) - 1);
+    too_long[sizeof(too_long) - 1] = 0;
+    const char *bad_names[] = {"__system__", "__other", "a^b", too_long, NULL};
+    for(int i = 0; bad_names[i]; i++) {
+        result += check_refused(gobj, bad_names[i],
+            gobj_command(priv->gobj_treedbs, "open-treedb",
+                as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", bad_names[i],
+                    "filename_mask", "%Y", "treedb_schema", jn_schema)), gobj)
+        );
+    }
+    {
+        json_t *jn_bad_schema = items_schema("treedb_refused", json_pack("[s,s]", "v", "v"));
+        result += check_refused(gobj, "open-treedb of a topic with bad pkey2s",
+            gobj_command(priv->gobj_treedbs, "open-treedb",
+                as_peer(json_pack("{s:s, s:s, s:o}", "treedb_name", "treedb_refused",
+                    "filename_mask", "%Y", "treedb_schema", jn_bad_schema)), gobj)
+        );
+    }
+    result += check_refused(gobj, "open-treedb with seeds that are not a list",
+        gobj_command(priv->gobj_treedbs, "open-treedb",
+            as_peer(json_pack("{s:s, s:s, s:O, s:{s:i}}", "treedb_name", "treedb_refused",
+                "filename_mask", "%Y", "treedb_schema", jn_schema, "initial_load", "items", 5)), gobj)
+    );
+    JSON_DECREF(jn_schema)
+    if(gobj_find_service("treedb_refused", FALSE) ||
+            gobj_find_service("tranger_treedb_refused", FALSE) ||
+            gobj_find_service("__system__", FALSE)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a refused open-treedb left its services",
+            NULL
+        );
+        result += -1;
+    }
+    if(access("/tmp/treedb_evil.json", F_OK) == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a record was written out of the store",
+            NULL
+        );
+        result += -1;
+    }
+
+    /*
+     *  A value of a wrong type from a user with no permission: the parser
+     *  types every parameter now, and refuses it BEFORE the command runs
+     *  (so before its authz): -1, the parser's WARNING (a peer's)
+     */
+    result += check_refused(gobj, "open-treedb, exit_on_error a dict",
+        gobj_command(priv->gobj_treedbs, "open-treedb",
+            json_pack("{s:s, s:s, s:{}}", "__username__", "denied@test",
+                "treedb_name", "treedb_refused", "exit_on_error"), gobj)
+    );
+    result += check_refused(gobj, "create-topic, topic_version a list",
+        gobj_command(priv->gobj_treedbs, "create-topic",
+            json_pack("{s:s, s:s, s:s, s:[]}", "__username__", "denied@test",
+                "treedb_name", TREEDB_NAME, "topic_name", "x", "topic_version"), gobj)
+    );
+    const char *forced_cmds[] = {"close-treedb", "delete-treedb", NULL};
+    for(int i = 0; forced_cmds[i]; i++) {
+        result += check_refused(gobj, forced_cmds[i],
+            gobj_command(priv->gobj_treedbs, forced_cmds[i],
+                json_pack("{s:s, s:s, s:{}}", "__username__", "denied@test",
+                    "treedb_name", TREEDB_NAME, "force"), gobj)
+        );
+    }
+
+    /*
+     *  The seeds of initial_load: a peer's in an EXTERNAL open-treedb
+     *  (WARNINGs), a C caller's in an internal one (ERRORs). The treedb
+     *  opens all the same, and goes with its schema afterwards. A topic the
+     *  treedb has not, a ref to a topic it has not (it reached
+     *  treedb_get_node(), an ERROR inside the window), a ref through a hook
+     *  that is not one (treedb_link_nodes(), the same). The peer's are
+     *  applied again at the next start of the treedb, a WARNING still.
+     */
+    json_t *jn_seeds = json_pack("{s:[{s:s}], s:[{s:s}], s:[{s:s, s:s}, {s:s, s:s}]}",
+        "nope", "id", "x",
+        "groups", "id", "g1",
+        "items",
+            "id", "i1", "group_id", "nope^g1^items",
+            "id", "i2", "group_id", "groups^g1^nohook"
+    );
+    for(int pass = 0; pass < 2; pass++) {
+        BOOL external = (pass == 0);
+        json_t *kw_open = json_pack("{s:s, s:s, s:o, s:O}",
+            "treedb_name", "treedb_seeded",
+            "filename_mask", "%Y",
+            "treedb_schema", seeded_schema("treedb_seeded"),
+            "initial_load", jn_seeds
+        );
+        if(external) {
+            as_peer(kw_open);
+        }
+        json_t *jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb", kw_open, gobj);
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: the seeded treedb did not open",
+                "external",     "%d", external? 1 : 0,
+                "comment",      "%s", kw_get_str(gobj, jn_resp, "comment", "", 0),
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
+        if(treedb_peer_data()) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: open-treedb left the window of a peer's data open",
+                NULL
+            );
+            result += -1;
+        }
+        if(external) {
+            /*  A pause-yuno + play-yuno: its start applies the seeds again  */
+            hgobj gobj_seeded = gobj_find_service("treedb_seeded", FALSE);
+            if(gobj_seeded) {
+                gobj_stop(gobj_seeded);
+                gobj_start(gobj_seeded);
+            }
+        }
+        jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
+            json_pack("{s:s, s:b}", "treedb_name", "treedb_seeded", "force", 1), gobj);
+        JSON_DECREF(jn_resp)
+    }
+    JSON_DECREF(jn_seeds)
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "delete-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", "treedb_seeded", "force", 1), gobj);
+    JSON_DECREF(jn_resp)
+
+    return result;
+}
+
+/***************************************************************************
+ *  A file written by the test, as another process (or an operator) would
+ *  leave it. Return 0 or -1 (logged).
+ ***************************************************************************/
+PRIVATE int write_test_file(hgobj gobj, const char *directory, const char *filename, const char *text)
+{
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), directory, filename, NULL);
+    FILE *fp = fopen(path, "w");
+    if(!fp) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: cannot write a file of the test",
+            "path",         "%s", path,
+            NULL
+        );
+        return -1;
+    }
+    fputs(text, fp);
+    fclose(fp);
+    return 0;
+}
+
+/***************************************************************************
+ *  close-treedb (force) and delete-treedb of `treedb_name`, as the C caller
+ *  (`user` NULL) or as that user from outside. Return 0, or -1 (logged)
+ *  when the close was refused.
+ ***************************************************************************/
+PRIVATE int close_and_delete_treedb(hgobj gobj, const char *treedb_name, const char *user)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw_close = json_pack("{s:s, s:b}", "treedb_name", treedb_name, "force", 1);
+    json_t *kw_delete = json_pack("{s:s, s:b}", "treedb_name", treedb_name, "force", 1);
+    if(user) {
+        json_object_set_new(kw_close, "__username__", json_string(user));
+        json_object_set_new(kw_delete, "__username__", json_string(user));
+    }
+    int result = 0;
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb", kw_close, gobj);
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+        result += save_fail(gobj, "TEST FAIL: close-treedb refused", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+    jn_resp = gobj_command(priv->gobj_treedbs, "delete-treedb", kw_delete, gobj);
+    JSON_DECREF(jn_resp)
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d4: what the treedb refuses of a peer's schema is refused BEFORE
+ *  the open, and the store a peer names must be that treedb's (REV-CLOUD
+ *  V20, third pass):
+ *  - a topic with no columns, no `id` column, a bad `file` column: the
+ *    open logged the CRITICAL "Cannot create topic of the schema", an exit
+ *    with the peer's exit_on_error (D1); a C caller's is an ERROR;
+ *  - exit_on_error and import_root from a peer;
+ *  - a column id too long for its id in __system__ (D5), a name with
+ *    ".treedb_schema.json" in it (D6), a seed id that is not a string
+ *    (D7 a);
+ *  - a topic named as a directory of the store that is not a topic,
+ *    `.blobs` (D3), in create-topic and in a schema;
+ *  - a store that is not the treedb's, that a master holds, or that a
+ *    tranger of this process has open (c2#1);
+ *  - delete-treedb of a name that is a path (D2): `x/../<T>` removed the
+ *    files of the OPEN treedb T in saved_schemas/;
+ *  - a saved schema whose topic the treedb would refuse at its next open,
+ *    in apply-schema (c2#3);
+ *  - and a dict of topics whose entry has no topic_name nor id is still a
+ *    schema: the key names it.
+ ***************************************************************************/
+PRIVATE int check_peer_schema_and_store_refused(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    /*
+     *  D1: the topics the treedb refuses, refused up front; the CRITICAL
+     *  would exit the test (exit_on_error from a C caller below)
+     */
+    json_t *jn_no_cols = json_pack("{s:s, s:i, s:[{s:s, s:s, s:s, s:i, s:{}}]}",
+        "id", "treedb_refused", "schema_version", 1,
+        "topics", "id", "t", "pkey", "id", "system_flag", "sf_string_key", "topic_version", 1,
+            "cols"
+    );
+    json_t *jn_no_id = json_pack("{s:s, s:i, s:[{s:s, s:s, s:s, s:i, s:{s:{s:s, s:s}}}]}",
+        "id", "treedb_refused", "schema_version", 1,
+        "topics", "id", "t", "pkey", "id", "system_flag", "sf_string_key", "topic_version", 1,
+            "cols", "name", "header", "Name", "type", "string"
+    );
+    json_t *jn_bad_file = json_pack(
+        "{s:s, s:i, s:[{s:s, s:s, s:s, s:i, s:{s:{s:s, s:s}, s:{s:s, s:s, s:[s]}}}]}",
+        "id", "treedb_refused", "schema_version", 1,
+        "topics", "id", "t", "pkey", "id", "system_flag", "sf_string_key", "topic_version", 1,
+            "cols",
+                "id", "header", "Id", "type", "string",
+                "picture", "header", "Picture", "type", "string", "flag", "file"
+    );
+    json_t *bad_schemas[] = {jn_no_cols, jn_no_id, jn_bad_file, NULL};
+    for(int i = 0; bad_schemas[i]; i++) {
+        result += check_refused(gobj, "open-treedb of a topic the treedb refuses",
+            gobj_command(priv->gobj_treedbs, "open-treedb",
+                as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", "treedb_refused",
+                    "filename_mask", "%Y", "treedb_schema", bad_schemas[i])), gobj)
+        );
+    }
+    /*
+     *  A C caller's open goes as it always went (REV-CLOUD V20 #1): the
+     *  topic the treedb refuses is logged (the ERROR and the CRITICAL "Cannot
+     *  create topic of the schema", which does not exit: exit_on_error 0)
+     *  and left out, and the treedb OPENS. Refused up front, it answered -1,
+     *  and the agent exits on an open-treedb that answers -1
+     */
+    {
+        json_t *jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb",
+            json_pack("{s:s, s:s, s:i, s:O}", "treedb_name", "treedb_refused",
+                "filename_mask", "%Y", "exit_on_error", 0, "treedb_schema", jn_no_cols), gobj);
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+            result += save_fail(gobj, "TEST FAIL: a C caller's open of a topic the treedb "
+                "refuses did not open, as it did before", jn_resp);
+        }
+        JSON_DECREF(jn_resp)
+        result += close_and_delete_treedb(gobj, "treedb_refused", NULL);
+    }
+    JSON_DECREF(jn_no_cols)
+    JSON_DECREF(jn_no_id)
+    JSON_DECREF(jn_bad_file)
+
+    /*
+     *  ... and so does its name: a name of the system from C opens, as it
+     *  did (the name rule is a peer's). And so does a C caller's
+     *  create-topic (REV-CLOUD V20 c4 #3): the up-front checks of C_TREEDB
+     *  are a peer's, and a file of the database is refused by the tranger,
+     *  as it was (its CRITICAL, with exit_on_error 0 here)
+     */
+    {
+        json_t *jn_c_schema = items_schema("__c_caller", NULL);
+        json_t *jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb",
+            json_pack("{s:s, s:s, s:o}", "treedb_name", "__c_caller",
+                "filename_mask", "%Y", "treedb_schema", jn_c_schema), gobj);
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+            result += save_fail(gobj, "TEST FAIL: a C caller's open of a name of the system "
+                "did not open, as it did before", jn_resp);
+        }
+        JSON_DECREF(jn_resp)
+        result += close_and_delete_treedb(gobj, "__c_caller", NULL);
+
+        json_t *cols = json_pack("{s:{s:s, s:s}}", "id", "header", "Id", "type", "string");
+        result += check_refused(gobj, "create-topic from C of a file of the database",
+            gobj_command(priv->gobj_treedbs, "create-topic",
+                json_pack("{s:s, s:s, s:o}", "treedb_name", TREEDB_NAME,
+                    "topic_name", "__timeranger2__.json", "cols", cols), gobj)
+        );
+    }
+
+    /*
+     *  The rest of a peer's schema, parse_schema()'s (a hook to a topic the
+     *  schema has not), inside the window too: it was parsed after the
+     *  tranger was made, an ERROR
+     */
+    {
+        json_t *jn_bad_hook = json_pack(
+            "{s:s, s:i, s:[{s:s, s:s, s:s, s:i, s:{s:{s:s, s:s}, s:{s:s, s:s, s:[s], s:{s:s}}}}]}",
+            "id", "treedb_refused", "schema_version", 1,
+            "topics", "id", "t", "pkey", "id", "system_flag", "sf_string_key", "topic_version", 1,
+                "cols",
+                    "id", "header", "Id", "type", "string",
+                    "kids", "header", "Kids", "type", "array", "flag", "hook",
+                        "hook", "nope", "parent_id"
+        );
+        result += check_refused(gobj, "open-treedb of a schema with a hook to no topic",
+            gobj_command(priv->gobj_treedbs, "open-treedb",
+                as_peer(json_pack("{s:s, s:s, s:o}", "treedb_name", "treedb_refused",
+                    "filename_mask", "%Y", "treedb_schema", jn_bad_hook)), gobj)
+        );
+    }
+
+    /*
+     *  What only C code configures, from a peer: exit_on_error, import_root
+     */
+    json_t *jn_schema = items_schema("treedb_refused", NULL);
+    result += check_refused(gobj, "open-treedb of a peer with exit_on_error",
+        gobj_command(priv->gobj_treedbs, "open-treedb",
+            as_peer(json_pack("{s:s, s:s, s:i, s:O}", "treedb_name", "treedb_refused",
+                "filename_mask", "%Y", "exit_on_error", 2, "treedb_schema", jn_schema)), gobj)
+    );
+    result += check_refused(gobj, "open-treedb of a peer with import_root",
+        gobj_command(priv->gobj_treedbs, "open-treedb",
+            as_peer(json_pack("{s:s, s:s, s:s, s:O}", "treedb_name", "treedb_refused",
+                "filename_mask", "%Y", "import_root", "/", "treedb_schema", jn_schema)), gobj)
+    );
+
+    /*
+     *  D6: a name the treedb would cut; D7 a: a seed id that is not a string
+     */
+    result += check_refused(gobj, "open-treedb of a name with .treedb_schema.json",
+        gobj_command(priv->gobj_treedbs, "open-treedb",
+            as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", "a.treedb_schema.json",
+                "filename_mask", "%Y", "treedb_schema", jn_schema)), gobj)
+    );
+    result += check_refused(gobj, "open-treedb with a seed id that is not a string",
+        gobj_command(priv->gobj_treedbs, "open-treedb",
+            as_peer(json_pack("{s:s, s:s, s:O, s:{s:[{s:i}]}}", "treedb_name", "treedb_refused",
+                "filename_mask", "%Y", "treedb_schema", jn_schema, "initial_load",
+                "items", "id", 5)), gobj)
+    );
+
+    /*
+     *  D5: a column id whose id in __system__, treedb_refused.items.<id>,
+     *  does not fit a record key
+     */
+    {
+        char long_col[245 + 1];
+        memset(long_col, 'c', sizeof(long_col) - 1);
+        long_col[sizeof(long_col) - 1] = 0;
+        json_t *jn_long = items_schema("treedb_refused", NULL);
+        json_object_set_new(
+            json_object_get(json_array_get(json_object_get(jn_long, "topics"), 0), "cols"),
+            long_col,
+            json_pack("{s:s, s:s}", "header", "Long", "type", "string")
+        );
+        result += check_refused(gobj, "open-treedb of a column id too long for __system__",
+            gobj_command(priv->gobj_treedbs, "open-treedb",
+                as_peer(json_pack("{s:s, s:s, s:o}", "treedb_name", "treedb_refused",
+                    "filename_mask", "%Y", "treedb_schema", jn_long)), gobj)
+        );
+    }
+
+    /*
+     *  c2#1: a store there that is not that treedb's (no schema file of
+     *  it), and one a master holds (the lock of its __timeranger2__.json)
+     */
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, "not_a_treedb", NULL);
+    mkrdir(dir, 02770);
+    result += check_refused(gobj, "open-treedb of a directory that is not the treedb's store",
+        gobj_command(priv->gobj_treedbs, "open-treedb",
+            as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", "not_a_treedb",
+                "filename_mask", "%Y", "treedb_schema", jn_schema)), gobj)
+    );
+    if(file_exists(dir, "__timeranger2__.json")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a refused open-treedb made a store",
+            NULL
+        );
+        result += -1;
+    }
+    {
+        build_path(dir, sizeof(dir), priv->path_database, "held_store", NULL);
+        json_t *held = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+            "path", dir, "filename_mask", "%Y", "master", 1, "on_critical_error", 0), 0);
+        result += write_test_file(gobj, dir, "held_store.treedb_schema.json", "{}");
+        result += check_refused(gobj, "open-treedb of a store a master holds",
+            gobj_command(priv->gobj_treedbs, "open-treedb",
+                as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", "held_store",
+                    "filename_mask", "%Y", "treedb_schema", jn_schema)), gobj)
+        );
+        tranger2_shutdown(held);
+    }
+    {
+        /*  A replica tranger of this process on the store: it holds no lock  */
+        build_path(dir, sizeof(dir), priv->path_database, "replica_store", NULL);
+        json_t *made = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+            "path", dir, "filename_mask", "%Y", "master", 1, "on_critical_error", 0), 0);
+        tranger2_shutdown(made);
+        result += write_test_file(gobj, dir, "replica_store.treedb_schema.json", "{}");
+        hgobj gobj_replica = gobj_create_service("tranger_replica_test", C_TRANGER,
+            json_pack("{s:s, s:s, s:b, s:i}", "path", dir, "filename_mask", "%Y",
+                "master", 0, "on_critical_error", 0), gobj);
+        result += check_refused(gobj, "open-treedb of a store a tranger of this process has open",
+            gobj_command(priv->gobj_treedbs, "open-treedb",
+                as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", "replica_store",
+                    "filename_mask", "%Y", "treedb_schema", jn_schema)), gobj)
+        );
+        gobj_destroy(gobj_replica);
+    }
+    JSON_DECREF(jn_schema)
+
+    /*
+     *  D3: a directory of the store that is not a topic, `.blobs`, in
+     *  create-topic: nothing written into it
+     */
+    build_path(dir, sizeof(dir), priv->path_database, TREEDB_NAME, ".blobs", NULL);
+    mkrdir(dir, 02770);
+    result += check_refused(gobj, "create-topic of a directory that is not a topic",
+        gobj_command(priv->gobj_treedbs, "create-topic",
+            as_peer(json_pack("{s:s, s:s, s:{s:{s:s, s:s}}}", "treedb_name", TREEDB_NAME,
+                "topic_name", ".blobs", "cols", "id", "header", "Id", "type", "string")), gobj)
+    );
+    if(file_exists(dir, "topic_cols.json") || file_exists(dir, "topic_var.json")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: create-topic wrote into a directory that is not a topic",
+            NULL
+        );
+        result += -1;
+    }
+    rmrdir(dir);
+
+    /*
+     *  D4: C_TRANGER create-topic of a new topic_version over a topic of a
+     *  treedb open on that tranger: its schema is the treedb's
+     */
+    {
+        build_path(dir, sizeof(dir), priv->path_database, TREEDB_NAME, "users", NULL);
+        json_t *var_before = load_json_from_file(gobj, dir, "topic_var.json", 0);
+        hgobj gobj_tranger = gobj_find_service("tranger_" TREEDB_NAME, FALSE);
+        result += check_refused(gobj, "C_TRANGER create-topic over a topic of a treedb",
+            gobj_command(gobj_tranger, "create-topic",
+                as_peer(json_pack("{s:s, s:{s:i}, s:{s:s}}", "topic_name", "users",
+                    "jn_var", "topic_version", 99999, "jn_cols", "id", "")), gobj)
+        );
+        json_t *var_after = load_json_from_file(gobj, dir, "topic_var.json", 0);
+        if(!json_equal(var_before, var_after)) {
+            result += save_fail(gobj, "TEST FAIL: create-topic rewrote a topic of the treedb", var_after);
+        }
+        JSON_DECREF(var_before)
+        JSON_DECREF(var_after)
+    }
+
+    char in_use_dir[PATH_MAX];
+    build_path(in_use_dir, sizeof(in_use_dir), priv->path_database, TREEDB_NAME, NULL);
+    char saved_dir[PATH_MAX];
+    build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
+
+    /*
+     *  #18: a draft in __system__ whose topic the treedb would refuse at
+     *  its next open (a pkey2 "id"): save-schema refuses it, with the
+     *  check of apply-schema (it published it, and only the apply refused
+     *  it). The saved schema the apply refuses below is written by hand: a
+     *  file an older release saved, or an operator wrote
+     */
+    json_t *in_use = load_json_from_file(gobj, in_use_dir, TREEDB_NAME ".treedb_schema.json", 0);
+    json_int_t in_use_version = kw_get_int(gobj, in_use, "schema_version", 0, KW_WILD_NUMBER);
+    {
+        char users_id[RECORD_KEY_VALUE_MAX];
+        system_topic_id(gobj, "users", users_id, sizeof(users_id));
+        hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+        json_t *jn_users = gobj_get_node(gobj_node_system, "topics",
+            json_pack("{s:s}", "id", users_id), 0, gobj);
+        json_t *pkey2s_before = json_incref(json_object_get(jn_users, "pkey2s"));
+        JSON_DECREF(jn_users)
+        json_t *edited = gobj_update_node(gobj_node_system, "topics",
+            json_pack("{s:s, s:s}", "id", users_id, "pkey2s", "id"), 0, gobj);
+        JSON_DECREF(edited)
+        json_t *jn_save = gobj_command(priv->gobj_treedbs, "save-schema",
+            as_peer(json_pack("{s:s}", "treedb_name", TREEDB_NAME)), gobj);
+        if(kw_get_int(gobj, jn_save, "result", 0, 0) != -1 ||
+                file_exists(saved_dir, TREEDB_NAME ".treedb_schema.json")) {
+            result += save_fail(gobj, "TEST FAIL: save-schema published a draft whose topic "
+                "the treedb refuses (a pkey2 'id')", jn_save);
+        }
+        JSON_DECREF(jn_save)
+        edited = gobj_update_node(gobj_node_system, "topics",
+            json_pack("{s:s, s:O}", "id", users_id, "pkey2s", pkey2s_before? pkey2s_before : json_null()),
+            0, gobj);
+        JSON_DECREF(edited)
+        JSON_DECREF(pkey2s_before)
+
+        json_t *saved = json_deep_copy(in_use);
+        json_object_set_new(saved, "schema_version", json_integer(in_use_version + 1));
+        size_t idx; json_t *jn_topic;
+        json_array_foreach(json_object_get(saved, "topics"), idx, jn_topic) {
+            if(strcmp(json_string_value(json_object_get(jn_topic, "id")), "users")==0) {
+                json_object_set_new(jn_topic, "pkey2s", json_string("id"));
+            }
+        }
+        mkrdir(saved_dir, 02770);
+        save_json_to_file(gobj, saved_dir, TREEDB_NAME ".treedb_schema.json", 02770, 0660,
+            0, TRUE, FALSE, saved);     // owned
+    }
+    JSON_DECREF(in_use)
+
+    /*
+     *  D2: delete-treedb of a name that is a path. build_path() keeps it in
+     *  saved_schemas/, but `x/../<T>` is the files of the treedb T there --
+     *  its saved schema, the records of its apply and its projection --
+     *  and the "is it open" test looked the raw name up: T is open, and its
+     *  files went
+     */
+    result += check_refused(gobj, "delete-treedb of a name that is a path",
+        gobj_command(priv->gobj_treedbs, "delete-treedb",
+            as_peer(json_pack("{s:s, s:b}", "treedb_name", "x/../" TREEDB_NAME, "force", 1)), gobj)
+    );
+    if(!file_exists(saved_dir, TREEDB_NAME ".treedb_schema.json")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: delete-treedb removed the saved schema of an open treedb",
+            NULL
+        );
+        result += -1;
+    }
+
+    /*
+     *  c2#3: that saved schema, newer than the file in use, whose topic the
+     *  treedb would refuse at its next open: apply-schema refuses it, the
+     *  file in use stays
+     */
+    {
+        json_t *jn_apply = gobj_command(priv->gobj_treedbs, "apply-schema",
+            as_peer(json_pack("{s:s}", "treedb_name", TREEDB_NAME)), gobj);
+        if(kw_get_bool(gobj, jn_apply, "data`applied", 0, 0)) {
+            result += save_fail(gobj, "TEST FAIL: apply-schema applied a topic the treedb refuses", jn_apply);
+        }
+        result += check_refused(gobj, "apply-schema of a topic the treedb refuses", jn_apply);
+        in_use = load_json_from_file(gobj, in_use_dir, TREEDB_NAME ".treedb_schema.json", 0);
+        if(kw_get_int(gobj, in_use, "schema_version", 0, KW_WILD_NUMBER) != in_use_version) {
+            result += save_fail(gobj, "TEST FAIL: the file in use was replaced", NULL);
+        }
+        JSON_DECREF(in_use)
+        char saved_path[PATH_MAX];
+        build_path(saved_path, sizeof(saved_path), saved_dir, TREEDB_NAME ".treedb_schema.json", NULL);
+        unlink(saved_path);
+    }
+
+    /*
+     *  A dict of topics whose entry has no topic_name nor id: its key names
+     *  it, as kwid_new_list() and schema_topics_as_list() read it
+     */
+    {
+        json_t *jn_dict_schema = json_pack("{s:s, s:i, s:{s:{s:s, s:s, s:i, s:{s:{s:s, s:s, s:[s]}}}}}",
+            "id", "treedb_dict_topics", "schema_version", 1,
+            "topics",
+                "things", "pkey", "id", "system_flag", "sf_string_key", "topic_version", 1,
+                    "cols", "id", "header", "Id", "type", "string", "flag", "persistent"
+        );
+        json_t *jn_open = gobj_command(priv->gobj_treedbs, "open-treedb",
+            as_peer(json_pack("{s:s, s:s, s:o}", "treedb_name", "treedb_dict_topics",
+                "filename_mask", "%Y", "treedb_schema", jn_dict_schema)), gobj);
+        if(kw_get_int(gobj, jn_open, "result", -1, 0) < 0) {
+            result += save_fail(gobj, "TEST FAIL: a dict of topics keyed by their names was refused", jn_open);
+        }
+        JSON_DECREF(jn_open)
+        jn_open = gobj_command(priv->gobj_treedbs, "close-treedb",
+            json_pack("{s:s, s:b}", "treedb_name", "treedb_dict_topics", "force", 1), gobj);
+        JSON_DECREF(jn_open)
+        jn_open = gobj_command(priv->gobj_treedbs, "delete-treedb",
+            json_pack("{s:s, s:b}", "treedb_name", "treedb_dict_topics", "force", 1), gobj);
+        JSON_DECREF(jn_open)
+    }
+
+    if(gobj_find_service("treedb_refused", FALSE) || gobj_find_service("not_a_treedb", FALSE) ||
+            gobj_find_service("held_store", FALSE) || gobj_find_service("replica_store", FALSE)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a refused open-treedb left its services",
+            NULL
+        );
+        result += -1;
+    }
+    return result;
+}
+
+/***************************************************************************
+ *  A topic of a schema: `id`, pkey "id", sf_string_key, topic_version 1,
+ *  and the columns `id` and `name`. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *plain_topic(const char *topic_name)
+{
+    return json_pack("{s:s, s:s, s:s, s:i, s:{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s]}}}",
+        "id", topic_name, "pkey", "id", "system_flag", "sf_string_key", "topic_version", 1,
+        "cols",
+            "id", "header", "Id", "type", "string", "flag", "persistent",
+            "name", "header", "Name", "type", "string", "flag", "persistent"
+    );
+}
+
+/***************************************************************************
+ *  A schema of `treedb_name` with `topics` (a list or a dict, OWNED).
+ *  Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *schema_of_topics(const char *treedb_name, json_int_t schema_version, json_t *topics)
+{
+    return json_pack("{s:s, s:I, s:o}",
+        "id", treedb_name, "schema_version", schema_version, "topics", topics
+    );
+}
+
+/***************************************************************************
+ *  open-treedb of `treedb_name` with `jn_schema` (OWNED), as the C caller
+ *  (`user` NULL) or as that user from outside. Return the answer (YOURS).
+ ***************************************************************************/
+PRIVATE json_t *open_treedb_as(
+    hgobj gobj,
+    const char *user,
+    const char *treedb_name,
+    json_t *jn_schema,  // owned
+    json_t *kw_more     // owned, may be NULL: more keys of the command
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = json_pack("{s:s, s:s, s:o}",
+        "treedb_name", treedb_name, "filename_mask", "%Y", "treedb_schema", jn_schema
+    );
+    if(kw_more) {
+        json_object_update(kw, kw_more);
+        JSON_DECREF(kw_more)
+    }
+    if(user) {
+        json_object_set_new(kw, "__username__", json_string(user));
+    }
+    return gobj_command(priv->gobj_treedbs, "open-treedb", kw, gobj);
+}
+
+/***************************************************************************
+ *  The answer says the command was done (result 0). Return 0, or -1
+ *  (logged). jn_resp owned.
+ ***************************************************************************/
+PRIVATE int check_done(hgobj gobj, const char *what, json_t *jn_resp)
+{
+    int result = 0;
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) != 0) {
+        result = save_fail(gobj, what, jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d5 (REV-CLOUD V20, fourth pass), #1: an open-treedb of the C
+ *  code goes as it always went, whatever its data: what tr_treedb refuses
+ *  of it is logged and left out, and the treedb OPENS -- the agent exits
+ *  on an open-treedb that answers -1 (c_agent.c), and the yunos of the
+ *  projects go on with no treedb. A store with a leftover topic directory
+ *  (no topic_desc.json) and a seed without a string id: refused to a peer
+ *  before anything is made, opened for the C caller with their ERRORs.
+ ***************************************************************************/
+PRIVATE int check_c_caller_open_as_before(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *db = "treedb_c_left";
+
+    result += check_done(gobj, "TEST FAIL: the store of treedb_c_left was not made",
+        open_treedb_as(gobj, NULL, db, items_schema(db, NULL), NULL));
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", db, "force", 1), gobj);
+    JSON_DECREF(jn_resp)
+
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, db, "leftover", NULL);
+    mkrdir(dir, 02770);
+
+    /*  A peer's: refused (the leftover directory; the seed)  */
+    result += check_refused(gobj, "open-treedb of a peer over a leftover topic directory",
+        open_treedb_as(gobj, PEER_USER, db,
+            schema_of_topics(db, 2, json_pack("[o,o]", plain_topic("items"), plain_topic("leftover"))),
+            NULL));
+    result += check_refused(gobj, "open-treedb of a peer with a seed without a string id",
+        open_treedb_as(gobj, PEER_USER, db, items_schema(db, NULL),
+            json_pack("{s:{s:[{s:i}]}}", "initial_load", "items", "id", 5)));
+    if(gobj_find_service(db, FALSE) || gobj_find_service("tranger_treedb_c_left", FALSE)) {
+        result += save_fail(gobj, "TEST FAIL: a refused open-treedb left its services", NULL);
+    }
+
+    /*  The C caller's: it opens, as it did  */
+    result += check_done(gobj, "TEST FAIL: a C caller's open over a leftover topic directory "
+        "and a seed without a string id did not open, as it did before",
+        open_treedb_as(gobj, NULL, db,
+            schema_of_topics(db, 2, json_pack("[o,o]", plain_topic("items"), plain_topic("leftover"))),
+            json_pack("{s:i, s:{s:[{s:i}, {s:s}]}}", "exit_on_error", 0,
+                "initial_load", "items", "id", 5, "id", "s1")));
+    hgobj gobj_db = gobj_find_service(db, FALSE);
+    json_t *tranger = gobj_db? gobj_read_pointer_attr(gobj_db, "tranger") : NULL;
+    if(!tranger || !treedb_is_treedbs_topic(tranger, db, "items") ||
+            !treedb_get_node(tranger, db, "items", "s1")) {
+        result += save_fail(gobj, "TEST FAIL: the C caller's treedb has not its topic or its "
+            "good seed", NULL);
+    }
+    result += close_and_delete_treedb(gobj, db, NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d5, #0 and #15: close-treedb `force` from OUTSIDE closes only a
+ *  treedb THAT user opened -- on one the yuno's code opened, the code
+ *  kept its pointers to what the close freed (refused whatever `force`
+ *  says since c5 #7, check_peer_close_of_code_treedb()). A peer re-opens its store
+ *  (mqtt_broker opens its own so at every start): an existing, valid,
+ *  free store is the accepting branch of refuse_peer_store().
+ ***************************************************************************/
+PRIVATE int check_peer_force_close(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *db = "treedb_peer_own";
+
+    result += check_refused(gobj, "close-treedb force of a peer, of a treedb the C code opened",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            as_peer(json_pack("{s:s, s:b}", "treedb_name", TREEDB_NAME, "force", 1)), gobj));
+    if(!gobj_find_service(TREEDB_NAME, FALSE)) {
+        result += save_fail(gobj, "TEST FAIL: a peer closed a treedb the C code opened", NULL);
+    }
+
+    result += check_done(gobj, "TEST FAIL: a peer could not open its treedb",
+        open_treedb_as(gobj, PEER_USER, db, items_schema(db, NULL), NULL));
+    result += check_refused(gobj, "close-treedb force of another user",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            json_pack("{s:s, s:s, s:b}", "__username__", "other@test",
+                "treedb_name", db, "force", 1), gobj));
+    result += check_done(gobj, "TEST FAIL: a peer could not force the close of its treedb",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            as_peer(json_pack("{s:s, s:b}", "treedb_name", db, "force", 1)), gobj));
+
+    result += check_done(gobj, "TEST FAIL: a peer could not re-open its own valid store",
+        open_treedb_as(gobj, PEER_USER, db, items_schema(db, NULL), NULL));
+    result += close_and_delete_treedb(gobj, db, PEER_USER);
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d5, #3: C_TRANGER writes nothing of a peer's into a topic of a
+ *  treedb open on its tranger -- they are written through C_NODE -- nor
+ *  makes a new topic in its store: add-record (a raw record was the node at
+ *  the next load), delete-key, delete-topic, create-topic.
+ ***************************************************************************/
+PRIVATE int check_peer_writes_of_treedb_topics(hgobj gobj)
+{
+    int result = 0;
+
+    hgobj gobj_tranger = gobj_find_service("tranger_" TREEDB_NAME, FALSE);
+    json_t *tranger = gobj_read_pointer_attr(gobj_tranger, "tranger");
+    result += check_refused(gobj, "C_TRANGER add-record of a peer into a topic of a treedb",
+        gobj_command(gobj_tranger, "add-record",
+            as_peer(json_pack("{s:s, s:{s:s}}", "topic_name", "users", "record", "id", "raw_user")),
+            gobj));
+    if(tranger2_topic_key_size(tranger, "users", "raw_user") != 0) {
+        result += save_fail(gobj, "TEST FAIL: a raw record was appended to a topic of a treedb", NULL);
+    }
+    result += check_refused(gobj, "C_TRANGER delete-key of a peer in a topic of a treedb",
+        gobj_command(gobj_tranger, "delete-key",
+            as_peer(json_pack("{s:s, s:s, s:b}", "topic_name", "users", "key", "raw_user",
+                "force", 1)), gobj));
+    result += check_refused(gobj, "C_TRANGER delete-topic of a peer of a topic of a treedb",
+        gobj_command(gobj_tranger, "delete-topic",
+            as_peer(json_pack("{s:s, s:b}", "topic_name", "users", "force", 1)), gobj));
+    if(!tranger2_topic_is_open(tranger, "users")) {
+        result += save_fail(gobj, "TEST FAIL: a topic of a treedb was deleted by C_TRANGER", NULL);
+    }
+    result += check_refused(gobj, "C_TRANGER create-topic of a peer in the store of a treedb",
+        gobj_command(gobj_tranger, "create-topic",
+            as_peer(json_pack("{s:s, s:{s:s}}", "topic_name", "brand_new", "jn_cols", "id", "")),
+            gobj));
+    if(tranger2_topic_is_open(tranger, "brand_new")) {
+        result += save_fail(gobj, "TEST FAIL: a peer made a topic in the store of a treedb", NULL);
+    }
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d5, the shape of a peer's schema, refused BEFORE anything is
+ *  made (#14: no store is left):
+ *  - a topic named as what a store keeps (#4, A, J): `__timeranger2__.json`
+ *    and `<treedb>.treedb_schema.json` (its tranger and its open write them
+ *    after the up-front checks of a NEW store), `.blobs`, a system topic,
+ *    a backup; and from create-topic the temporary file of apply-schema;
+ *  - impose_c_schema (#5, I);
+ *  - one name per topic (#6, B): a topic_name that is not the id, a list
+ *    topic without its id, a dict entry whose id is not its key;
+ *  - a hook column of type string (#8, D);
+ *  - values of a wrong type (#9, E) and a version past an int (#12, K);
+ *  - two elements with one id in __system__ (#10, F: a WARNING);
+ *  - two `file` columns of one __assets__ hook (#7, C).
+ ***************************************************************************/
+PRIVATE int check_peer_schema_shapes(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *db = "treedb_shapes";
+
+    const char *reserved[] = {
+        "__timeranger2__.json", "treedb_shapes.treedb_schema.json", ".blobs", "__snaps__",
+        "old.bak", NULL
+    };
+    for(int i = 0; reserved[i]; i++) {
+        result += check_refused(gobj, reserved[i],
+            open_treedb_as(gobj, PEER_USER, db,
+                schema_of_topics(db, 1, json_pack("[o]", plain_topic(reserved[i]))), NULL));
+    }
+    result += check_refused(gobj, "open-treedb of a peer with impose_c_schema",
+        open_treedb_as(gobj, PEER_USER, db, items_schema(db, NULL),
+            json_pack("{s:b}", "impose_c_schema", 1)));
+
+    /*  One name per topic  */
+    json_t *t1 = plain_topic("a");
+    json_object_set_new(t1, "topic_name", json_string("t"));
+    json_t *t2 = plain_topic("x");
+    json_object_del(t2, "id");
+    json_object_set_new(t2, "topic_name", json_string("t"));
+    json_t *t3 = plain_topic("x");
+    json_object_set_new(t3, "id", json_integer(5));
+    json_object_set_new(t3, "topic_name", json_string("t"));
+    json_t *t4 = plain_topic("b");
+    json_t *names[] = {
+        json_pack("[o]", t1),
+        json_pack("[o]", t2),
+        json_pack("[o]", t3),
+        json_pack("{s:o}", "a", t4),
+        NULL
+    };
+    for(int i = 0; names[i]; i++) {
+        result += check_refused(gobj, "a topic named twice, or without its id",
+            open_treedb_as(gobj, PEER_USER, db, schema_of_topics(db, 1, names[i]), NULL));
+    }
+
+    /*  A hook column of type string  */
+    json_t *t_hook = plain_topic("items");
+    json_object_set_new(json_object_get(t_hook, "cols"), "kids",
+        json_pack("{s:s, s:s, s:[s], s:{s:s}}", "header", "Kids", "type", "string",
+            "flag", "hook", "hook", "items", "id"));
+    result += check_refused(gobj, "a hook column of type string",
+        open_treedb_as(gobj, PEER_USER, db, schema_of_topics(db, 1, json_pack("[o]", t_hook)), NULL));
+
+    /*  Values of a wrong type, and versions past an int  */
+    struct {
+        const char *field;
+        json_t *value;
+    } wrong_types[] = {
+        {"topic_version", json_object()},
+        {"system_topic", json_integer(1)},
+        {"main_topic", json_string("yes")},
+        {"topic_version", json_string("017")},
+        {"topic_version", json_integer(2147483648LL)},
+        {NULL, NULL}
+    };
+    for(int i = 0; wrong_types[i].field; i++) {
+        json_t *topic = plain_topic("items");
+        json_object_set_new(topic, wrong_types[i].field, wrong_types[i].value);
+        result += check_refused(gobj, wrong_types[i].field,
+            open_treedb_as(gobj, PEER_USER, db, schema_of_topics(db, 1, json_pack("[o]", topic)), NULL));
+    }
+    {
+        json_t *jn_schema = items_schema(db, NULL);
+        json_object_set_new(jn_schema, "schema_version", json_array());
+        result += check_refused(gobj, "schema_version a list",
+            open_treedb_as(gobj, PEER_USER, db, jn_schema, NULL));
+        jn_schema = items_schema(db, NULL);
+        json_object_set_new(jn_schema, "schema_version", json_integer(2147483648LL));
+        result += check_refused(gobj, "schema_version past an int",
+            open_treedb_as(gobj, PEER_USER, db, jn_schema, NULL));
+    }
+
+    /*  Two elements with one id in __system__: `u` col `x.y`, `u.x` col `y`  */
+    {
+        json_t *u = plain_topic("u");
+        json_object_set_new(json_object_get(u, "cols"), "x.y",
+            json_pack("{s:s, s:s}", "header", "XY", "type", "string"));
+        json_t *ux = plain_topic("u.x");
+        json_object_set_new(json_object_get(ux, "cols"), "y",
+            json_pack("{s:s, s:s}", "header", "Y", "type", "string"));
+        result += check_refused(gobj, "two elements with one id in __system__",
+            open_treedb_as(gobj, PEER_USER, db, schema_of_topics(db, 1, json_pack("[o,o]", u, ux)), NULL));
+    }
+
+    /*  Two `file` columns of one __assets__ hook: `a` col `b_c`, `a_b` col `c`  */
+    {
+        json_t *a = plain_topic("a");
+        json_object_set_new(json_object_get(a, "cols"), "b_c",
+            json_pack("{s:s, s:s, s:[s,s,s,s]}", "header", "Pic", "type", "string",
+                "flag", "fkey", "file", "writable", "persistent"));
+        json_t *a_b = plain_topic("a_b");
+        json_object_set_new(json_object_get(a_b, "cols"), "c",
+            json_pack("{s:s, s:s, s:[s,s,s,s]}", "header", "Pic", "type", "string",
+                "flag", "fkey", "file", "writable", "persistent"));
+        result += check_refused(gobj, "two file columns of one __assets__ hook",
+            open_treedb_as(gobj, PEER_USER, db, schema_of_topics(db, 1, json_pack("[o,o]", a, a_b)), NULL));
+    }
+
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, db, NULL);
+    if(access(dir, F_OK) == 0 || gobj_find_service(db, FALSE) ||
+            gobj_find_service("tranger_treedb_shapes", FALSE)) {
+        result += save_fail(gobj, "TEST FAIL: a refused open-treedb left its store or its services", NULL);
+    }
+
+    /*  create-topic: the temporary file of apply-schema, a file of the store, a version past an int  */
+    json_t *cols = json_pack("{s:{s:s, s:s}}", "id", "header", "Id", "type", "string");
+    const char *created[] = {"." TREEDB_NAME ".treedb_schema.json.tmp", "x.json", NULL};
+    for(int i = 0; created[i]; i++) {
+        result += check_refused(gobj, created[i],
+            gobj_command(priv->gobj_treedbs, "create-topic",
+                as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", TREEDB_NAME,
+                    "topic_name", created[i], "cols", cols)), gobj));
+    }
+    result += check_refused(gobj, "create-topic of a topic_version past an int",
+        gobj_command(priv->gobj_treedbs, "create-topic",
+            as_peer(json_pack("{s:s, s:s, s:I, s:O}", "treedb_name", TREEDB_NAME,
+                "topic_name", "past_int", "topic_version", (json_int_t)2147483648LL, "cols", cols)), gobj));
+    JSON_DECREF(cols)
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d5, #7: a topic created into an open treedb is asked its `file`
+ *  columns against the __assets__ hooks the treedb has: `a_b` col `c` and
+ *  the `a` col `b_c` there both derive `as_a_b_c`
+ ***************************************************************************/
+PRIVATE int check_create_topic_file_hooks(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *db = "treedb_hooks";
+
+    json_t *a = plain_topic("a");
+    json_object_set_new(json_object_get(a, "cols"), "b_c",
+        json_pack("{s:s, s:s, s:[s,s,s,s]}", "header", "Pic", "type", "string",
+            "flag", "fkey", "file", "writable", "persistent"));
+    result += check_done(gobj, "TEST FAIL: a treedb with a file column did not open",
+        open_treedb_as(gobj, PEER_USER, db, schema_of_topics(db, 1, json_pack("[o]", a)), NULL));
+    result += check_refused(gobj, "create-topic of a file column of a hook the treedb has",
+        gobj_command(priv->gobj_treedbs, "create-topic",
+            as_peer(json_pack("{s:s, s:s, s:{s:{s:s, s:s}, s:{s:s, s:s, s:[s,s,s,s]}}}",
+                "treedb_name", db, "topic_name", "a_b",
+                "cols",
+                    "id", "header", "Id", "type", "string",
+                    "c", "header", "Pic", "type", "string",
+                        "flag", "fkey", "file", "writable", "persistent")), gobj));
+    hgobj gobj_db = gobj_find_service(db, FALSE);
+    json_t *tranger = gobj_db? gobj_read_pointer_attr(gobj_db, "tranger") : NULL;
+    if(tranger && treedb_is_treedbs_topic(tranger, db, "a_b")) {
+        result += save_fail(gobj, "TEST FAIL: a topic whose file column shares a hook was created", NULL);
+    }
+    result += close_and_delete_treedb(gobj, db, PEER_USER);
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d5, #12 (K): versions are json_int_t end to end. A C caller's
+ *  literal of schema_version and topic_version 2147483648 over a store of
+ *  version 1: treedb_open_db() cut them to an int (-2147483648, older than
+ *  the file), so the literal C_TREEDB had decided to install was not, and
+ *  __system__ named a schema that did not run.
+ ***************************************************************************/
+PRIVATE int check_versions_past_an_int(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *db = "treedb_versions";
+
+    result += check_done(gobj, "TEST FAIL: treedb_versions did not open",
+        open_treedb_as(gobj, NULL, db, items_schema(db, NULL), NULL));
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", db, "force", 1), gobj);
+    JSON_DECREF(jn_resp)
+
+    json_t *jn_schema = items_schema(db, NULL);
+    json_object_set_new(jn_schema, "schema_version", json_integer(2147483648LL));
+    json_object_set_new(json_array_get(json_object_get(jn_schema, "topics"), 0),
+        "topic_version", json_integer(2147483648LL));
+    result += check_done(gobj, "TEST FAIL: treedb_versions did not open with versions past an int",
+        open_treedb_as(gobj, NULL, db, jn_schema, NULL));
+
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, db, NULL);
+    json_t *file = load_json_from_file(gobj, dir, "treedb_versions.treedb_schema.json", 0);
+    json_int_t file_version = kw_get_int(gobj, file, "schema_version", 0, KW_WILD_NUMBER);
+    JSON_DECREF(file)
+    build_path(dir, sizeof(dir), priv->path_database, db, "items", NULL);
+    json_t *topic_var = load_json_from_file(gobj, dir, "topic_var.json", 0);
+    json_int_t topic_version = kw_get_int(gobj, topic_var, "topic_version", 0, KW_WILD_NUMBER);
+    JSON_DECREF(topic_var)
+    if(file_version != 2147483648LL || topic_version != 2147483648LL) {
+        json_t *versions = json_pack("{s:I, s:I}",
+            "schema_version", file_version, "topic_version", topic_version);
+        result += save_fail(gobj, "TEST FAIL: a version past an int was cut: the literal "
+            "was not installed", versions);
+        JSON_DECREF(versions)
+    }
+    result += close_and_delete_treedb(gobj, db, NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  A topic of `plain_topic()`, of `topic_version`, with `pkey2s` (OWNED,
+ *  may be NULL). Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *topic_with(const char *topic_name, json_int_t topic_version, json_t *pkey2s)
+{
+    json_t *topic = plain_topic(topic_name);
+    json_object_set_new(topic, "topic_version", json_integer(topic_version));
+    if(pkey2s) {
+        json_object_set_new(topic, "pkey2s", pkey2s);
+    }
+    return topic;
+}
+
+/***************************************************************************
+ *  A topic hooked to ITSELF (its `children` hold the topic's own nodes,
+ *  linked back by `parent_id`): the only kind that can be a main_topic.
+ *  Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *self_hooked_topic(const char *topic_name, BOOL main_topic)
+{
+    json_t *topic = plain_topic(topic_name);
+    json_t *cols = json_object_get(topic, "cols");
+    json_object_set_new(cols, "children", json_pack("{s:s, s:s, s:[s], s:{s:s}}",
+        "header", "Children", "type", "array", "flag", "hook", "hook", topic_name, "parent_id"));
+    json_object_set_new(cols, "parent_id", json_pack("{s:s, s:s, s:[s]}",
+        "header", "Parent", "type", "string", "flag", "fkey"));
+    if(main_topic) {
+        json_object_set_new(topic, "main_topic", json_true());
+    }
+    return topic;
+}
+
+/***************************************************************************
+ *  The schema of a msg2db as the db_history yunos open it on the tranger
+ *  of their treedb: `alarms`, topic_version "1". Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *msg2db_alarms_schema(void)
+{
+    return json_pack(
+        "{s:s, s:s, s:[{s:s, s:s, s:s, s:s, s:s, s:s, s:{"
+            "s:{s:s, s:s, s:[s,s]}, s:{s:s, s:s, s:[s,s,s]}, s:{s:s, s:s, s:[s,s]}}}]}",
+        "id", "msg2db_alarms",
+        "schema_version", "1",
+        "topics",
+            "id", "alarms", "pkey", "id", "tkey", "tm", "system_flag", "sf_string_key",
+            "pkey2", "alarm", "topic_version", "1",
+            "cols",
+                "id", "header", "Id", "type", "string", "flag", "persistent", "required",
+                "tm", "header", "Time", "type", "integer", "flag", "persistent", "required", "time",
+                "alarm", "header", "Alarm", "type", "string", "flag", "persistent", "required"
+    );
+}
+
+/***************************************************************************
+ *  The topic_version in the topic_var.json of a topic of `treedb_name`'s
+ *  store, and the number of its columns on disk (in *n_cols).
+ ***************************************************************************/
+PRIVATE json_int_t store_topic_version(hgobj gobj, const char *treedb_name, const char *topic_name,
+    json_int_t *n_cols)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, treedb_name, topic_name, NULL);
+    json_t *topic_var = load_json_from_file(gobj, dir, "topic_var.json", 0);
+    json_int_t v = kw_get_int(gobj, topic_var, "topic_version", -1, KW_WILD_NUMBER);
+    JSON_DECREF(topic_var)
+    json_t *topic_cols = load_json_from_file(gobj, dir, "topic_cols.json", 0);
+    *n_cols = (json_int_t)json_size(topic_cols);
+    JSON_DECREF(topic_cols)
+    return v;
+}
+
+/***************************************************************************
+ *  close-treedb `force` of a treedb PEER_USER opened, as that peer: the
+ *  yuno plays. Return 0, or -1 (logged).
+ ***************************************************************************/
+PRIVATE int close_peer_treedb(hgobj gobj, const char *treedb_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    return check_done(gobj, "TEST FAIL: a peer could not close its treedb",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            as_peer(json_pack("{s:s, s:b}", "treedb_name", treedb_name, "force", 1)), gobj));
+}
+
+/***************************************************************************
+ *  Test 13d6 (REV-CLOUD V20, fifth pass), c4 A: a PEER never makes the
+ *  treedb adopt a topic another database of its store owns. The store of
+ *  a treedb is the tranger of others too: the db_history yunos open their
+ *  msg2db `alarms` on it. create-topic of the msg2db's topic with a higher
+ *  topic_version rewrote its topic_cols.json and topic_var.json, its
+ *  records were the treedb's nodes, and delete-topic took them all. The
+ *  evidence is POSITIVE (c5 #1): the msg2db open on the store, or its
+ *  schema file there, the msg2db closed. So, from a peer:
+ *  - create-topic of the msg2db's topic: refused, the msg2db open, and the
+ *    msg2db closed (its schema file names it); the topic untouched;
+ *  - delete-topic of a topic a msg2db holds too (one a C caller adopted,
+ *    as it always could): refused, the msg2db open and closed;
+ *  - open-treedb of the store (closed, the msg2db closed too) whose schema
+ *    names the msg2db's topic: refused, its own schema opens.
+ *  A directory no other database names is taken as it always was
+ *  (check_peer_dropped_topic_comes_back()).
+ ***************************************************************************/
+PRIVATE int check_peer_cannot_adopt_foreign_topics(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *db = "treedb_m2";
+
+    result += check_done(gobj, "TEST FAIL: treedb_m2 did not open",
+        open_treedb_as(gobj, PEER_USER, db, items_schema(db, NULL), NULL));
+    hgobj gobj_db = gobj_find_service(db, FALSE);
+    json_t *tranger = gobj_db? gobj_read_pointer_attr(gobj_db, "tranger") : NULL;
+    if(!tranger || !msg2db_open_db(tranger, "msg2db_alarms", msg2db_alarms_schema(), "persistent")) {
+        return save_fail(gobj, "TEST FAIL: the msg2db did not open on the tranger of treedb_m2", NULL);
+    }
+
+    json_t *cols = json_pack("{s:{s:s, s:s, s:[s]}}",
+        "id", "header", "Id", "type", "string", "flag", "persistent");
+    result += check_refused(gobj, "create-topic of a peer over the topic of a msg2db",
+        gobj_command(priv->gobj_treedbs, "create-topic",
+            as_peer(json_pack("{s:s, s:s, s:i, s:O}", "treedb_name", db, "topic_name", "alarms",
+                "topic_version", 2, "cols", cols)), gobj));
+    json_int_t n_cols = 0;
+    json_int_t v = store_topic_version(gobj, db, "alarms", &n_cols);
+    if(treedb_is_treedbs_topic(tranger, db, "alarms") || v != 1 || n_cols != 3) {
+        json_t *what = json_pack("{s:I, s:I}", "alarms_topic_version", v, "alarms_cols", n_cols);
+        result += save_fail(gobj, "TEST FAIL: a peer's create-topic adopted the topic of a msg2db",
+            what);
+        JSON_DECREF(what)
+    }
+
+    /*  A C caller adopts it, as it always did (its version, 1, rewrites nothing)  */
+    result += check_done(gobj, "TEST FAIL: the C caller's create-topic of alarms",
+        gobj_command(priv->gobj_treedbs, "create-topic",
+            json_pack("{s:s, s:s, s:O}", "treedb_name", db, "topic_name", "alarms",
+                "cols", cols), gobj));
+    result += check_refused(gobj, "delete-topic of a peer of a topic a msg2db holds too",
+        gobj_command(priv->gobj_treedbs, "delete-topic",
+            as_peer(json_pack("{s:s, s:s}", "treedb_name", db, "topic_name", "alarms")), gobj));
+    msg2db_close_db(tranger, "msg2db_alarms");
+    result += check_refused(gobj, "delete-topic of a peer of a topic the schema file of a "
+        "closed msg2db names",
+        gobj_command(priv->gobj_treedbs, "delete-topic",
+            as_peer(json_pack("{s:s, s:s}", "treedb_name", db, "topic_name", "alarms")), gobj));
+    char alarms_dir[PATH_MAX];
+    build_path(alarms_dir, sizeof(alarms_dir), priv->path_database, db, "alarms", NULL);
+    if(!is_directory(alarms_dir)) {
+        result += save_fail(gobj, "TEST FAIL: a peer's delete-topic took the topic of a msg2db", NULL);
+    }
+
+    result += close_peer_treedb(gobj, db);
+
+    /*  The second route: the open of its store, whose schema names `alarms`  */
+    result += check_refused(gobj, "open-treedb of a peer whose schema names the msg2db's topic",
+        open_treedb_as(gobj, PEER_USER, db,
+            schema_of_topics(db, 2, json_pack("[o,o]", plain_topic("items"), topic_with("alarms", 2, NULL))),
+            NULL));
+    v = store_topic_version(gobj, db, "alarms", &n_cols);
+    if(gobj_find_service(db, FALSE) || v != 1 || n_cols != 3) {
+        json_t *what = json_pack("{s:I, s:I}", "alarms_topic_version", v, "alarms_cols", n_cols);
+        result += save_fail(gobj, "TEST FAIL: a peer's open-treedb adopted the topic of a msg2db",
+            what);
+        JSON_DECREF(what)
+    }
+    result += check_done(gobj, "TEST FAIL: treedb_m2 did not open again with its own schema",
+        open_treedb_as(gobj, PEER_USER, db, items_schema(db, NULL), NULL));
+
+    /*  The msg2db closed, its schema file in the store: create-topic refused too  */
+    result += check_refused(gobj, "create-topic of a peer of a topic the schema file of a "
+        "closed msg2db names",
+        gobj_command(priv->gobj_treedbs, "create-topic",
+            as_peer(json_pack("{s:s, s:s, s:i, s:O}", "treedb_name", db, "topic_name", "alarms",
+                "topic_version", 2, "cols", cols)), gobj));
+    gobj_db = gobj_find_service(db, FALSE);
+    tranger = gobj_db? gobj_read_pointer_attr(gobj_db, "tranger") : NULL;
+    v = store_topic_version(gobj, db, "alarms", &n_cols);
+    if(!tranger || treedb_is_treedbs_topic(tranger, db, "alarms") || v != 1 || n_cols != 3) {
+        json_t *what = json_pack("{s:I, s:I}", "alarms_topic_version", v, "alarms_cols", n_cols);
+        result += save_fail(gobj, "TEST FAIL: a peer's create-topic adopted the topic of a "
+            "closed msg2db", what);
+        JSON_DECREF(what)
+    }
+    JSON_DECREF(cols)
+    result += close_and_delete_treedb(gobj, db, PEER_USER);
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d6, c4 #2: a C caller's open of an EXISTING store keeps a topic
+ *  on disk whose literal now gives it pkey2s a NEW topic is refused for --
+ *  `id` on `items` -- or whose list id is then past NAME_MAX -- `name` on
+ *  a topic of 196 bytes: the id index fits (252), the pkey2's does not
+ *  (256). Refused, the topic was gone from the treedb (the CRITICAL
+ *  "Cannot create topic of the schema", an exit for C_AUTHZ); it opens as
+ *  it did, each fault an ERROR.
+ ***************************************************************************/
+PRIVATE int check_c_caller_topic_on_disk_as_before(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *db = "treedb_on_disk";
+    char long_topic[197];
+    memset(long_topic, 'l', sizeof(long_topic) - 1);
+    long_topic[sizeof(long_topic) - 1] = 0;
+
+    result += check_done(gobj, "TEST FAIL: treedb_on_disk did not open",
+        open_treedb_as(gobj, NULL, db,
+            schema_of_topics(db, 1,
+                json_pack("[o,o]", topic_with("items", 1, NULL), topic_with(long_topic, 1, NULL))),
+            NULL));
+    hgobj gobj_db = gobj_find_service(db, FALSE);
+    json_t *node = gobj_db? gobj_create_node(gobj_db, "items",
+        json_pack("{s:s, s:s}", "id", "n1", "name", "N1"), 0, gobj) : NULL;
+    JSON_DECREF(node)
+    node = gobj_db? gobj_create_node(gobj_db, long_topic,
+        json_pack("{s:s, s:s}", "id", "n2", "name", "N2"), 0, gobj) : NULL;
+    JSON_DECREF(node)
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", db, "force", 1), gobj);
+    JSON_DECREF(jn_resp)
+
+    result += check_done(gobj, "TEST FAIL: a C caller's open of a store whose topics on disk "
+        "now have bad pkey2s did not open",
+        open_treedb_as(gobj, NULL, db,
+            schema_of_topics(db, 2,
+                json_pack("[o,o]",
+                    topic_with("items", 2, json_pack("[s]", "id")),
+                    topic_with(long_topic, 2, json_pack("[s]", "name")))),
+            NULL));
+    gobj_db = gobj_find_service(db, FALSE);
+    json_t *tranger = gobj_db? gobj_read_pointer_attr(gobj_db, "tranger") : NULL;
+    if(!tranger || !treedb_is_treedbs_topic(tranger, db, "items") ||
+            !treedb_is_treedbs_topic(tranger, db, long_topic) ||
+            !treedb_get_node(tranger, db, "items", "n1") ||
+            !treedb_get_node(tranger, db, long_topic, "n2")) {
+        result += save_fail(gobj, "TEST FAIL: a topic on disk was lost at a C caller's open, "
+            "or its node", NULL);
+    }
+    result += close_and_delete_treedb(gobj, db, NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d6, c4 #3: a C caller's create-topic goes as it went: a hook
+ *  column of type string is a check of a PEER's topic (link types), so the
+ *  C caller's topic is created, as it was, and a peer's is refused.
+ ***************************************************************************/
+PRIVATE int check_c_caller_create_topic_as_before(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    json_t *cols = json_pack("{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s], s:{s:s}}}",
+        "id", "header", "Id", "type", "string", "flag", "persistent",
+        "kids", "header", "Kids", "type", "string", "flag", "hook", "hook", "items", "id");
+    result += check_refused(gobj, "create-topic of a peer with a hook column of type string",
+        gobj_command(priv->gobj_treedbs, "create-topic",
+            as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", TREEDB_NAME,
+                "topic_name", "hook_str", "cols", cols)), gobj));
+    result += check_done(gobj, "TEST FAIL: a C caller's create-topic with a hook column of "
+        "type string was refused, it was created before",
+        gobj_command(priv->gobj_treedbs, "create-topic",
+            json_pack("{s:s, s:s, s:O}", "treedb_name", TREEDB_NAME,
+                "topic_name", "hook_str", "cols", cols), gobj));
+    result += check_done(gobj, "TEST FAIL: the C caller's topic hook_str was not deleted",
+        gobj_command(priv->gobj_treedbs, "delete-topic",
+            json_pack("{s:s, s:s}", "treedb_name", TREEDB_NAME, "topic_name", "hook_str"), gobj));
+    JSON_DECREF(cols)
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d6, c4 C: the `main_topic` marks of a peer's schema are refused
+ *  up front, a WARNING: two topics marked, a topic marked that is not
+ *  hooked to itself. The open logged an ERROR of each at every open, a
+ *  peer's mistake as a broken contract. One mark on a topic hooked to
+ *  itself opens.
+ ***************************************************************************/
+PRIVATE int check_peer_main_topic(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *db = "treedb_main";
+
+    result += check_refused(gobj, "two topics marked main_topic",
+        open_treedb_as(gobj, PEER_USER, db,
+            schema_of_topics(db, 1, json_pack("[o,o]",
+                self_hooked_topic("a", TRUE), self_hooked_topic("b", TRUE))), NULL));
+    json_t *not_hooked = plain_topic("c");
+    json_object_set_new(not_hooked, "main_topic", json_true());
+    result += check_refused(gobj, "main_topic on a topic not hooked to itself",
+        open_treedb_as(gobj, PEER_USER, db,
+            schema_of_topics(db, 1, json_pack("[o,o]", self_hooked_topic("a", FALSE), not_hooked)),
+            NULL));
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, db, NULL);
+    if(access(dir, F_OK) == 0 || gobj_find_service(db, FALSE)) {
+        result += save_fail(gobj, "TEST FAIL: a refused open-treedb left its store or its services", NULL);
+    }
+    result += check_done(gobj, "TEST FAIL: one main_topic on a topic hooked to itself did not open",
+        open_treedb_as(gobj, PEER_USER, db,
+            schema_of_topics(db, 1, json_pack("[o,o]",
+                self_hooked_topic("a", TRUE), self_hooked_topic("b", FALSE))), NULL));
+    result += close_and_delete_treedb(gobj, db, PEER_USER);
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d6, c4 D: a peer's save-schema does not raise a version past
+ *  2147483647. The save took the version in use + 1, so a treedb opened at
+ *  2147483647 (the largest a peer may open) saved 2147483648, and the
+ *  peer's apply-schema and every later save of it were refused: locked out
+ *  of its own treedb. Refused, nothing saved; for the schema_version and
+ *  for a topic_version.
+ ***************************************************************************/
+PRIVATE int check_peer_save_past_version_max(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *dbs[] = {"treedb_vmax", "treedb_vmax2", NULL};
+
+    for(int i = 0; dbs[i]; i++) {
+        const char *db = dbs[i];
+        json_t *jn_schema = items_schema(db, NULL);
+        if(i == 0) {
+            json_object_set_new(jn_schema, "schema_version", json_integer(2147483647LL));
+        } else {
+            json_object_set_new(json_array_get(json_object_get(jn_schema, "topics"), 0),
+                "topic_version", json_integer(2147483647LL));
+        }
+        result += check_done(gobj, "TEST FAIL: a peer's treedb at the largest version did not open",
+            open_treedb_as(gobj, PEER_USER, db, jn_schema, NULL));
+
+        char col_id[NAME_MAX];
+        snprintf(col_id, sizeof(col_id), "%s.items.name", db);
+        json_t *edited = gobj_update_node(
+            gobj_find_service(SYSTEM_TREEDB, FALSE),
+            "cols",
+            json_pack("{s:s, s:s}", "id", col_id, "header", "Label"),
+            json_pack("{s:b}", "refs", 1),
+            gobj
+        );
+        if(!edited) {
+            result += save_fail(gobj, "TEST FAIL: the draft of a column was not edited", NULL);
+        }
+        JSON_DECREF(edited)
+
+        result += check_refused(gobj, "save-schema of a peer past the largest version",
+            gobj_command(priv->gobj_treedbs, "save-schema",
+                as_peer(json_pack("{s:s}", "treedb_name", db)), gobj));
+        json_t *jn_resp = gobj_command(priv->gobj_treedbs, "saved-schema",
+            as_peer(json_pack("{s:s}", "treedb_name", db)), gobj);
+        json_t *data = kw_get_dict_value(gobj, jn_resp, "data", 0, 0);
+        if(kw_get_int(gobj, json_is_array(data)? json_array_get(data, 0) : data,
+                "saved_schema_version", 0, KW_WILD_NUMBER) > 0) {
+            result += save_fail(gobj, "TEST FAIL: a save past the largest version was written", jn_resp);
+        }
+        JSON_DECREF(jn_resp)
+        result += close_and_delete_treedb(gobj, db, PEER_USER);
+    }
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d6, c4 Residual: a treedb the code of the yuno opens is the
+ *  code's, closed too. A peer that opened it while it was closed put its
+ *  schema over the code's file in use, and the code's own next open
+ *  answered "already open" (the yunos of today destroy their C_TREEDB when
+ *  their code closes its treedbs, and a peer cannot close them: this is a
+ *  C_TREEDB that outlives the code's close). The code opens it again.
+ *  c6r: the name in ANOTHER CASE too -- refused, and no directory made.
+ *  c7: a name whose services are the code's treedb's -- `tranger_<it>`, and
+ *  `<x>` of the code's `tranger_<x>`, in any case -- refused while it is
+ *  closed, no directory made, and the code opens it again; open, answered
+ *  by the service it would take, with no log. And a peer's delete-treedb
+ *  (force) of the code's CLOSED treedb, by its name and in another case:
+ *  refused, its projection in __system__ and its saved schema left.
+ ***************************************************************************/
+PRIVATE int check_peer_open_of_code_treedb(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *db = "treedb_code_own";
+
+    result += check_done(gobj, "TEST FAIL: treedb_code_own did not open",
+        open_treedb_as(gobj, NULL, db, items_schema(db, NULL), NULL));
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", db, "force", 1), gobj);
+    JSON_DECREF(jn_resp)
+
+    json_t *jn_schema = items_schema(db, NULL);
+    json_object_set_new(jn_schema, "schema_version", json_integer(5));
+    result += check_refused(gobj, "open-treedb of a peer of a treedb the code opens",
+        open_treedb_as(gobj, PEER_USER, db, jn_schema, NULL));
+    if(gobj_find_service(db, FALSE)) {
+        result += save_fail(gobj, "TEST FAIL: a peer opened a treedb the code opens", NULL);
+    }
+
+    /*
+     *  c6r: the name in another case is another directory, but the same
+     *  services: the code's next open answered "already open" for the peer's
+     */
+    const char *db_case = "TREEDB_CODE_OWN";
+    result += check_refused(gobj, "open-treedb of a peer of a treedb the code opens, in another case",
+        open_treedb_as(gobj, PEER_USER, db_case, items_schema(db_case, NULL), NULL));
+    char dir_case[PATH_MAX];
+    build_path(dir_case, sizeof(dir_case), priv->path_database, db_case, NULL);
+    if(gobj_find_service(db, FALSE) || is_directory(dir_case)) {
+        result += save_fail(gobj, "TEST FAIL: a peer opened a treedb the code opens, in another case", NULL);
+    }
+
+    /*
+     *  c7: a name whose services are the code's treedb's. `tranger_<it>` is
+     *  the name of its C_TRANGER: a peer's open took it, and the code's next
+     *  open answered "a service named ... exists already"
+     */
+    const char *db_tranger = "tranger_treedb_code_own";
+    result += check_refused(gobj, "open-treedb of a peer named as the tranger of a treedb the code opens",
+        open_treedb_as(gobj, PEER_USER, db_tranger, items_schema(db_tranger, NULL), NULL));
+    char dir_tranger[PATH_MAX];
+    build_path(dir_tranger, sizeof(dir_tranger), priv->path_database, db_tranger, NULL);
+    if(gobj_find_service(db_tranger, FALSE) || is_directory(dir_tranger)) {
+        result += save_fail(gobj, "TEST FAIL: a peer opened a treedb named as the tranger of a "
+            "treedb the code opens", NULL);
+    }
+
+    /*
+     *  c7: and its schema is the code's, closed too: a peer's delete-treedb
+     *  (force) deleted its projection in __system__, its saved schema and
+     *  its records. By its name and in another case: nothing goes.
+     */
+    char saved_dir[PATH_MAX];
+    build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    mkrdir(saved_dir, 02770);
+    save_json_to_file(gobj, saved_dir, "treedb_code_own.treedb_schema.json",
+        02770, 0660, 0, TRUE, FALSE,
+        json_pack("{s:s, s:i, s:[]}", "id", db, "schema_version", 50, "topics")
+    );
+    int treedbs_before = system_count_under(gobj, "treedbs", db);
+    int topics_before = system_count_under(gobj, "topics", "treedb_code_own.");
+    int cols_before = system_count_under(gobj, "cols", "treedb_code_own.");
+    result += check_refused(gobj, "delete-treedb of a peer of the code's closed treedb",
+        gobj_command(priv->gobj_treedbs, "delete-treedb",
+            as_peer(json_pack("{s:s, s:b}", "treedb_name", db, "force", 1)), gobj));
+    result += check_refused(gobj, "delete-treedb of a peer of the code's closed treedb, in another case",
+        gobj_command(priv->gobj_treedbs, "delete-treedb",
+            as_peer(json_pack("{s:s, s:b}", "treedb_name", db_case, "force", 1)), gobj));
+    if(treedbs_before != 1 || topics_before < 1 || cols_before < 1 ||
+            system_count_under(gobj, "treedbs", db) != treedbs_before ||
+            system_count_under(gobj, "topics", "treedb_code_own.") != topics_before ||
+            system_count_under(gobj, "cols", "treedb_code_own.") != cols_before ||
+            !file_exists(saved_dir, "treedb_code_own.treedb_schema.json")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a peer's delete-treedb deleted the schema of the "
+                                  "code's closed treedb",
+            "treedbs",      "%d", treedbs_before,
+            "topics",       "%d", topics_before,
+            "cols",         "%d", cols_before,
+            NULL
+        );
+        result += -1;
+    }
+    char saved_path[PATH_MAX];
+    build_path(saved_path, sizeof(saved_path), saved_dir, "treedb_code_own.treedb_schema.json", NULL);
+    unlink(saved_path);
+
+    result += check_done(gobj, "TEST FAIL: the code could not open its treedb again",
+        open_treedb_as(gobj, NULL, db, items_schema(db, NULL), NULL));
+
+    /*
+     *  c7: open, the same name is answered by the service it would take,
+     *  with nothing to log
+     */
+    jn_resp = open_treedb_as(gobj, PEER_USER, db_tranger, items_schema(db_tranger, NULL), NULL);
+    if(!strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "exists already")) {
+        result += save_fail(gobj, "TEST FAIL: a peer's open named as the tranger of an open "
+            "treedb of the code was not answered by its service", jn_resp);
+    }
+    result += check_refused(gobj, "open-treedb of a peer named as the tranger of an open treedb "
+        "the code opens", jn_resp);
+    result += close_and_delete_treedb(gobj, db, NULL);
+
+    /*
+     *  c7: and the other way, in another case: the code's `tranger_code_side`
+     *  is the name of the C_TRANGER of a peer's `Code_Side`
+     */
+    const char *db_side = "tranger_code_side";
+    const char *peer_side = "Code_Side";
+    result += check_done(gobj, "TEST FAIL: tranger_code_side did not open",
+        open_treedb_as(gobj, NULL, db_side, items_schema(db_side, NULL), NULL));
+    jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", db_side, "force", 1), gobj);
+    JSON_DECREF(jn_resp)
+    result += check_refused(gobj, "open-treedb of a peer whose tranger is a treedb the code opens",
+        open_treedb_as(gobj, PEER_USER, peer_side, items_schema(peer_side, NULL), NULL));
+    char dir_side[PATH_MAX];
+    build_path(dir_side, sizeof(dir_side), priv->path_database, peer_side, NULL);
+    if(gobj_find_service(db_side, FALSE) || gobj_find_service(peer_side, FALSE) ||
+            is_directory(dir_side)) {
+        result += save_fail(gobj, "TEST FAIL: a peer opened a treedb whose tranger is a treedb "
+            "the code opens", NULL);
+    }
+    result += check_done(gobj, "TEST FAIL: the code could not open tranger_code_side again",
+        open_treedb_as(gobj, NULL, db_side, items_schema(db_side, NULL), NULL));
+    result += close_and_delete_treedb(gobj, db_side, NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d7 (REV-CLOUD V20, sixth pass), c5 #7: a peer never closes a
+ *  treedb the code of the yuno opened, playing or PAUSED, with `force` or
+ *  without. mqtt_broker opens treedb_mqtt_broker in mt_start and keeps it
+ *  through a pause: the guards of close-treedb asked only a PLAYING yuno,
+ *  so a peer's close of the paused broker's treedb was done, and its next
+ *  play-yuno (or stop) used the memory the close freed. Here the yuno is
+ *  paused with C_TREEDB and its treedbs kept, as the broker's are
+ *  (pause_keeps_treedbs). A C caller still closes it.
+ *  c6r: a service is found by its name in any case, so the name in ANOTHER
+ *  CASE is refused the same, playing and paused, with `force` and without
+ *  (`TREEDB_MQTT_BROKER` closed the paused broker's treedb). And a PEER's
+ *  treedb named in another case: another user's `force` refused, the
+ *  opener's done, playing; its close paused done -- and each close takes
+ *  the treedb out of `treedbs` (its maps went on under the real name).
+ ***************************************************************************/
+PRIVATE int check_peer_close_of_code_treedb(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *db = "treedb_code_close";
+    const char *db_case = "TREEDB_CODE_CLOSE";
+    const char *pdb = "treedb_peer_case";
+    const char *pdb_case = "TREEDB_PEER_CASE";
+    BOOL impose; const char *decided_by;
+
+    result += check_done(gobj, "TEST FAIL: treedb_code_close did not open",
+        open_treedb_as(gobj, NULL, db, items_schema(db, NULL), NULL));
+    result += check_done(gobj, "TEST FAIL: treedb_peer_case did not open",
+        open_treedb_as(gobj, PEER_USER, pdb, items_schema(pdb, NULL), NULL));
+
+    result += check_refused(gobj, "close-treedb of a peer of the code's treedb, playing",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            as_peer(json_pack("{s:s}", "treedb_name", db)), gobj));
+    result += check_refused(gobj, "close-treedb force of a peer of the code's treedb, playing",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            as_peer(json_pack("{s:s, s:b}", "treedb_name", db, "force", 1)), gobj));
+    result += check_refused(gobj, "close-treedb of a peer of the code's treedb in another case, playing",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            as_peer(json_pack("{s:s}", "treedb_name", db_case)), gobj));
+    result += check_refused(gobj, "close-treedb force of a peer of the code's treedb in another case, playing",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            as_peer(json_pack("{s:s, s:b}", "treedb_name", db_case, "force", 1)), gobj));
+
+    result += check_refused(gobj, "close-treedb force of another user, in another case",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            json_pack("{s:s, s:s, s:b}", "__username__", "other@test",
+                "treedb_name", pdb_case, "force", 1), gobj));
+    if(!gobj_find_service(pdb, FALSE)) {
+        result += save_fail(gobj, "TEST FAIL: another user closed a peer's treedb, in another case", NULL);
+    }
+    result += check_done(gobj, "TEST FAIL: a peer could not force the close of its treedb, in another case",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            as_peer(json_pack("{s:s, s:b}", "treedb_name", pdb_case, "force", 1)), gobj));
+    if(gobj_find_service(pdb, FALSE) || treedbs_row(gobj, pdb, &impose, &decided_by)) {
+        result += save_fail(gobj, "TEST FAIL: a close in another case left the treedb, playing", NULL);
+    }
+    result += check_done(gobj, "TEST FAIL: treedb_peer_case did not open again",
+        open_treedb_as(gobj, PEER_USER, pdb, items_schema(pdb, NULL), NULL));
+
+    priv->pause_keeps_treedbs = TRUE;
+    gobj_pause(gobj_yuno());
+    if(gobj_is_playing(gobj_yuno()) || !gobj_find_service(db, FALSE)) {
+        result += save_fail(gobj, "TEST FAIL: the yuno did not pause keeping its treedb", NULL);
+    }
+    result += check_refused(gobj, "close-treedb of a peer of the code's treedb, paused",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            as_peer(json_pack("{s:s}", "treedb_name", db)), gobj));
+    result += check_refused(gobj, "close-treedb force of a peer of the code's treedb, paused",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            as_peer(json_pack("{s:s, s:b}", "treedb_name", db, "force", 1)), gobj));
+    result += check_refused(gobj, "close-treedb of a peer of the code's treedb in another case, paused",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            as_peer(json_pack("{s:s}", "treedb_name", db_case)), gobj));
+    result += check_refused(gobj, "close-treedb force of a peer of the code's treedb in another case, paused",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            as_peer(json_pack("{s:s, s:b}", "treedb_name", db_case, "force", 1)), gobj));
+    if(!gobj_find_service(db, FALSE)) {
+        result += save_fail(gobj, "TEST FAIL: a peer closed the code's treedb of a paused yuno", NULL);
+    }
+
+    result += check_done(gobj, "TEST FAIL: a peer could not close its treedb in another case, paused",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            as_peer(json_pack("{s:s}", "treedb_name", pdb_case)), gobj));
+    if(gobj_find_service(pdb, FALSE) || treedbs_row(gobj, pdb, &impose, &decided_by)) {
+        result += save_fail(gobj, "TEST FAIL: a close in another case left the treedb, paused", NULL);
+    }
+
+    result += check_done(gobj, "TEST FAIL: the code could not close its treedb, paused",
+        gobj_command(priv->gobj_treedbs, "close-treedb",
+            json_pack("{s:s}", "treedb_name", db), gobj));
+    if(gobj_find_service(db, FALSE)) {
+        result += save_fail(gobj, "TEST FAIL: the code's close left its treedb", NULL);
+    }
+
+    gobj_play(gobj_yuno());
+    if(!gobj_is_playing(gobj_yuno()) || priv->pause_keeps_treedbs) {
+        priv->pause_keeps_treedbs = FALSE;
+        result += save_fail(gobj, "TEST FAIL: the yuno did not play again", NULL);
+    }
+
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "delete-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", db, "force", 1), gobj);
+    JSON_DECREF(jn_resp)
+    jn_resp = gobj_command(priv->gobj_treedbs, "delete-treedb",
+        as_peer(json_pack("{s:s, s:b}", "treedb_name", pdb, "force", 1)), gobj);
+    JSON_DECREF(jn_resp)
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d7, c5 #1: a topic is another database's on POSITIVE evidence
+ *  only. A topic the treedb had and DROPPED comes back: open {items, x},
+ *  then {items}, then {items, x} again -- taken, with the records x had.
+ *  Nothing keeps the name of a dropped topic, so "no schema of the treedb
+ *  names it" refused it, and the only way back was to delete its records.
+ ***************************************************************************/
+PRIVATE int check_peer_dropped_topic_comes_back(hgobj gobj)
+{
+    int result = 0;
+    const char *db = "treedb_drop";
+
+    result += check_done(gobj, "TEST FAIL: treedb_drop did not open with x",
+        open_treedb_as(gobj, PEER_USER, db,
+            schema_of_topics(db, 1, json_pack("[o,o]", plain_topic("items"), plain_topic("x"))),
+            NULL));
+    hgobj gobj_db = gobj_find_service(db, FALSE);
+    json_t *node = gobj_db? gobj_create_node(gobj_db, "x",
+        json_pack("{s:s, s:s}", "id", "x1", "name", "X1"), 0, gobj) : NULL;
+    if(!node) {
+        result += save_fail(gobj, "TEST FAIL: the node of x was not created", NULL);
+    }
+    JSON_DECREF(node)
+    result += close_peer_treedb(gobj, db);
+
+    result += check_done(gobj, "TEST FAIL: treedb_drop did not open without x",
+        open_treedb_as(gobj, PEER_USER, db,
+            schema_of_topics(db, 2, json_pack("[o]", plain_topic("items"))), NULL));
+    result += close_peer_treedb(gobj, db);
+
+    result += check_done(gobj, "TEST FAIL: the dropped topic x did not come back",
+        open_treedb_as(gobj, PEER_USER, db,
+            schema_of_topics(db, 3, json_pack("[o,o]", plain_topic("items"), topic_with("x", 2, NULL))),
+            NULL));
+    gobj_db = gobj_find_service(db, FALSE);
+    json_t *tranger = gobj_db? gobj_read_pointer_attr(gobj_db, "tranger") : NULL;
+    if(!tranger || !treedb_is_treedbs_topic(tranger, db, "x") ||
+            !treedb_get_node(tranger, db, "x", "x1")) {
+        result += save_fail(gobj, "TEST FAIL: the dropped topic x came back without its records", NULL);
+    }
+    result += close_and_delete_treedb(gobj, db, PEER_USER);
+    return result;
+}
+
+/***************************************************************************
+ *  Test 13d7, c5 #4: the C_NODE route of a tkey date past the 44 bits of
+ *  an md2 row. A peer's topic can have a tkey that is a string column
+ *  (create-topic, topic_tkey); a node with "@99999999999999 +0000" in it
+ *  was appended with its __tm__ cut, without a word. Refused before the
+ *  append: create-node and update-node of a peer (a WARNING), and a C
+ *  caller's create (an ERROR). A date it keeps is taken. And a C caller's
+ *  append of such a record straight to the tranger goes on, as it always
+ *  went -- with an ERROR now.
+ ***************************************************************************/
+PRIVATE int check_tkey_date_past_max_c_node(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *db = "treedb_tkey";
+    const char *bad_date = "@99999999999999 +0000";
+    const char *good_date = "@1760000000 +0000";
+
+    result += check_done(gobj, "TEST FAIL: treedb_tkey did not open",
+        open_treedb_as(gobj, PEER_USER, db, items_schema(db, NULL), NULL));
+    result += check_done(gobj, "TEST FAIL: a peer's topic with a string tkey was not created",
+        gobj_command(priv->gobj_treedbs, "create-topic",
+            as_peer(json_pack("{s:s, s:s, s:s, s:{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s]}}}",
+                "treedb_name", db, "topic_name", "events", "topic_tkey", "when",
+                "cols",
+                    "id", "header", "Id", "type", "string", "flag", "persistent",
+                    "when", "header", "When", "type", "string", "flag", "persistent")),
+            gobj));
+    hgobj gobj_db = gobj_find_service(db, FALSE);
+    json_t *tranger = gobj_db? gobj_read_pointer_attr(gobj_db, "tranger") : NULL;
+    if(!tranger) {
+        return save_fail(gobj, "TEST FAIL: treedb_tkey has no tranger", NULL);
+    }
+
+    result += check_refused(gobj, "create-node of a peer with a tkey date past 44 bits",
+        gobj_command(gobj_db, "create-node",
+            as_peer(json_pack("{s:s, s:{s:s, s:s}}",
+                "topic_name", "events", "record", "id", "e1", "when", bad_date)), gobj));
+    if(treedb_get_node(tranger, db, "events", "e1") ||
+            tranger2_topic_key_size(tranger, "events", "e1") != 0) {
+        result += save_fail(gobj, "TEST FAIL: a node with a tkey date past 44 bits was written", NULL);
+    }
+
+    result += check_done(gobj, "TEST FAIL: create-node of a peer with a date a record keeps",
+        gobj_command(gobj_db, "create-node",
+            as_peer(json_pack("{s:s, s:{s:s, s:s}}",
+                "topic_name", "events", "record", "id", "e2", "when", good_date)), gobj));
+    result += check_refused(gobj, "update-node of a peer with a tkey date past 44 bits",
+        gobj_command(gobj_db, "update-node",
+            as_peer(json_pack("{s:s, s:{s:s, s:s}}",
+                "topic_name", "events", "record", "id", "e2", "when", bad_date)), gobj));
+    json_t *e2 = treedb_get_node(tranger, db, "events", "e2");
+    if(!e2 || strcmp(kw_get_str(gobj, e2, "when", "", 0), good_date)!=0 ||
+            tranger2_topic_key_size(tranger, "events", "e2") != 1) {
+        result += save_fail(gobj, "TEST FAIL: an update with a tkey date past 44 bits was written", e2);
+    }
+
+    json_t *node = gobj_create_node(gobj_db, "events",
+        json_pack("{s:s, s:s}", "id", "e3", "when", bad_date), 0, gobj);
+    if(node || tranger2_topic_key_size(tranger, "events", "e3") != 0) {
+        result += save_fail(gobj, "TEST FAIL: a C caller's node with a tkey date past 44 bits "
+            "was written", node);
+    }
+    JSON_DECREF(node)
+
+    /*  timeranger2 itself: a C caller's append is kept, cut as it was, and said  */
+    if(!tranger2_create_topic(tranger, "raw_t", "id", "when", NULL, sf_string_key,
+            json_pack("{s:s, s:s}", "id", "", "when", ""), json_pack("{s:i}", "topic_version", 1))) {
+        result += save_fail(gobj, "TEST FAIL: the topic raw_t was not made", NULL);
+    }
+    md2_record_ex_t md_record;
+    if(tranger2_append_record(tranger, "raw_t", 0, 0, &md_record,
+            json_pack("{s:s, s:s}", "id", "r1", "when", bad_date)) < 0 ||
+            tranger2_topic_key_size(tranger, "raw_t", "r1") != 1) {
+        result += save_fail(gobj, "TEST FAIL: a C caller's append with a time past 44 bits "
+            "was not kept", NULL);
+    }
+
+    result += close_and_delete_treedb(gobj, db, PEER_USER);
+    return result;
+}
+
+/***************************************************************************
  *  Run all tests — called from the timer action, inside the event loop
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -5785,6 +7900,62 @@ PRIVATE int run_tests(hgobj gobj)
      *  user with no permission
      *-----------------------------------------------*/
     result += check_every_command_refuses_nobody(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 13d2: the data of a peer is refused, a
+     *  WARNING each, before the library's ERROR
+     *-----------------------------------------------*/
+    result += check_peer_data_refused(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 13d3: more of a peer's data is refused,
+     *  and the seeds of an external open-treedb are
+     *  a peer's data
+     *-----------------------------------------------*/
+    result += check_more_peer_data_refused(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 13d4: what the treedb refuses of a
+     *  peer's schema is refused before the open, and
+     *  the store a peer names must be that treedb's
+     *-----------------------------------------------*/
+    result += check_peer_schema_and_store_refused(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 13d5: a C caller's open goes as it did;
+     *  a peer's force-close, writes into a treedb's
+     *  topics and the shapes of its schema
+     *-----------------------------------------------*/
+    result += check_c_caller_open_as_before(gobj);
+    result += check_peer_force_close(gobj);
+    result += check_peer_writes_of_treedb_topics(gobj);
+    result += check_peer_schema_shapes(gobj);
+    result += check_create_topic_file_hooks(gobj);
+    result += check_versions_past_an_int(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 13d6: a peer adopts no topic of the
+     *  store that is not the treedb's; a C caller's
+     *  open of a store and its create-topic go as
+     *  they did; main_topic and the largest version
+     *  of a peer; a treedb the code opens
+     *-----------------------------------------------*/
+    result += check_peer_cannot_adopt_foreign_topics(gobj);
+    result += check_c_caller_topic_on_disk_as_before(gobj);
+    result += check_c_caller_create_topic_as_before(gobj);
+    result += check_peer_main_topic(gobj);
+    result += check_peer_save_past_version_max(gobj);
+    result += check_peer_open_of_code_treedb(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 13d7: a peer closes no treedb the code
+     *  opened, paused too; a topic is another
+     *  database's on positive evidence only; a tkey
+     *  date past 44 bits through C_NODE
+     *-----------------------------------------------*/
+    result += check_peer_close_of_code_treedb(gobj);
+    result += check_peer_dropped_topic_comes_back(gobj);
+    result += check_tkey_date_past_max_c_node(gobj);
 
     /*-----------------------------------------------*
      *  Test 13e: __system__ lost its lock: C_TREEDB

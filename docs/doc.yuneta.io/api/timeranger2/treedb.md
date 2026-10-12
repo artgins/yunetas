@@ -804,6 +804,30 @@ json_t *d = treedb_create_node(tranger, "my_db", "defaulted", json_pack("{s:s}",
 treedb_get_instance(tranger, "my_db", "defaulted", "version", "d", "v0");   // d
 ```
 
+**The time of the tkey must fit the record.** The tkey of the topic is the
+`__tm__` of the record's md2 row, which keeps 44 bits
+([`TRANGER2_MAX_TIME`](#timeranger2-max-time)). The time is the one the
+append keeps ([`tranger2_record_tkey_time()`](<#tranger2_record_tkey_time>)):
+an integer as it is, a string read as a date (`approxidate()`, times 1000 on
+an `sf_tm_ms` topic). One that is negative or past the 44 bits is refused
+before anything is written: the function returns `NULL`, sets the last
+message, and logs *"Node refused: the time of its tkey does not fit a record
+(negative, or past 44 bits)"* (`tkey`, `value`, `int_value`, `tm`) -- a
+WARNING inside the window of a peer's data, an ERROR with a stack for C code
+(new after 7.26.9; it was appended with the time cut, and the node's `__tm__`
+was not its date). [`treedb_update_node()`](<#treedb_update_node>) asks the
+same of what a saved update writes. A save that only links, unlinks or tags a
+snapshot is not asked: refusing it would lock out a node that already holds
+such a time.
+
+```C
+/*  topic `events`, tkey `when`, a string column  */
+treedb_create_node(tranger, "my_db", "events",
+    json_pack("{s:s, s:s}", "id", "e1", "when", "@99999999999999 +0000"));  // NULL, refused
+treedb_create_node(tranger, "my_db", "events",
+    json_pack("{s:s, s:s}", "id", "e2", "when", "@1760000000 +0000"));      // created
+```
+
 See the [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md)
 §3.3 for the flags and §3.11 for why the schema topics are keyed this way.
 
@@ -819,7 +843,7 @@ json_t *treedb_create_topic(
     json_t       *tranger,
     const char   *treedb_name,
     const char   *topic_name,
-    int          topic_version,
+    json_int_t   topic_version,
     const char   *topic_tkey,
     json_t       *pkey2s,      // owned, string or dict of string | [strings]
     json_t       *jn_cols,     // owned
@@ -836,10 +860,10 @@ json_t *treedb_create_topic(
 | `tranger` | `json_t *` | Pointer to the tranger instance managing the TreeDB. |
 | `treedb_name` | `const char *` | Name of the TreeDB where the topic will be created. |
 | `topic_name` | `const char *` | Name of the topic to be created. |
-| `topic_version` | `int` | Version number of the topic schema. |
+| `topic_version` | `json_int_t` | Version number of the topic schema. 64 bits since SDK 7.26.10 (it was an `int`, and a version past 2147483647 was cut to a negative one); a caller that passes an `int` compiles unchanged. A version that comes from outside is at most [`TRANGER2_VERSION_MAX`](#timeranger2-version-max). |
 | `topic_tkey` | `const char *` | Topic key used for indexing. |
-| `pkey2s` | `json_t *` | Primary key(s) for the topic, either a string or a dictionary of strings. |
-| `jn_cols` | `json_t *` | JSON object defining the schema of the topic, including field types and attributes. |
+| `pkey2s` | `json_t *` | The secondary keys of the topic: a name, a list of names, or a dict keyed by them. An empty name is no key. See the rules below. |
+| `jn_cols` | `json_t *` | The columns of the topic: a dict keyed by column id, or a list of columns, each one a json object. See the rules below. |
 | `snap_tag` | `uint32_t` | Snapshot tag associated with the topic creation. |
 | `system_topic` | `BOOL` | If `TRUE`, the topic is marked non-deletable: [`treedb_delete_topic()`](<#treedb_delete_topic>) refuses it and `force` does NOT override. The flag is persisted in `topic_var.json` (metadata, not a data column), so it survives reload and needs no `topic_version` bump. |
 | `create_schema` | `BOOL` | Flag indicating whether to create the schema if it does not exist. |
@@ -868,7 +892,8 @@ function returns `NULL`. See [`parse_schema()`](<#parse_schema>).
 So is a topic whose columns would not open: no columns, no `id` column, or a
 column that fails the validation [`parse_schema()`](<#parse_schema>) applies
 when a schema is read. The function logs *"Topic refused: bad columns"* with
-the reason, sets the last message, and creates nothing on disk. Until 7.24.1
+the reason, sets the last message (*"topic 'things' refused: no 'id' column
+(the pkey is 'id')"*), and creates nothing on disk. Until 7.24.1
 the topic was written first and validated after, so a caller was told
 *"Topic created!"* for a topic the next open could not load.
 
@@ -878,6 +903,259 @@ treedb_create_topic(tranger, "my_db", "things", 1, "", 0,
     json_pack("{s:{s:s, s:s, s:[s]}}",    /* cols, keyed by column name */
         "name", "header", "Name", "type", "string", "flag", "persistent"),
     0, FALSE, FALSE);   /* -> NULL, and no topic on disk */
+```
+
+**What a new topic must be.** First, before the treedb is looked up, three
+faults of the names return `NULL`, each one with its own ERROR:
+
+- an empty `treedb_name`: *"treedb_name empty"*;
+- an empty `topic_name`: *"topic_name empty"*;
+- a `topic_name` that breaks the topic rule
+  ([`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>)):
+  ``Invalid name: empty, '.', '..', '/' or '`' not allowed``.
+
+These three are ERRORs always, inside the window of a peer's data too. An
+ERROR copies its `msg` into the last message, so the last message is that
+`msg` (for example *"topic_name empty"*). The form *"topic '\<topic>'
+refused: \<why>"* is NOT set for them: it is the last message of the faults
+of the table below.
+
+```C
+/*  a topic_name with a '/': NULL, the ERROR above, and
+ *  gobj_log_last_message() answers the msg of that ERROR  */
+treedb_create_topic(tranger, "my_db", "a/b", 1, "", 0,
+    json_pack("{s:{s:s, s:s, s:[s]}}", "id", "header", "Id", "type", "string", "flag", "persistent"),
+    0, FALSE, FALSE);   /* -> NULL */
+```
+
+A topic that the treedb has in memory is answered as it
+is (the function is idempotent). A NEW one is asked these, in this order,
+before anything is written; the first fault refuses it, the function returns
+`NULL` and sets the last message (*"topic '\<topic>' refused: \<why>"*);
+[`treedb_check_new_topic()`](<#treedb_check_new_topic>) asks the same
+before a create:
+
+| Rule | Logged | `why` of the log |
+|---|---|---|
+| The name is `NAME_MAX` (255) bytes at most (the topic rule is asked above; `treedb_check_new_topic()` asks both here) | *"Topic refused: bad name"* | ``the topic name breaks the name rule (empty, '.', '..', '/', '`', or longer than NAME_MAX)`` |
+| The columns are a dict or a list, not empty, and each column is a json object | *"Topic refused: bad columns"* | *"no columns"*, *"a column is not a json object"* |
+| In a LIST of columns, each column has an `id`, a string | *"Topic refused: bad columns"* | *"a column without an id, or an id that is not a string"* |
+| A `file` column is flagged `fkey` and `file`, on a `string` | *"Topic refused: bad 'file' column"* | |
+| No column is flagged both `hook` and `fkey` | *"Topic refused: a column is both 'hook' and 'fkey'"* | |
+| Each column id is of the column rule ([`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>)); an `id` column is there (the pkey is `id`); each column passes [`parse_schema_cols()`](<#parse_schema_cols>) | *"Topic refused: bad columns"* | `` a column id breaks the name rule (empty or '`') ``, *"no 'id' column (the pkey is 'id')"*, *"a column is not valid (see the log)"* |
+| `pkey2s` is a name, a list of names or a dict of them; each name (an empty one is no key) has no backtick, is not `id` and not the tkey, and is named once | *"Topic refused: bad pkey2s"* | *"a pkey2 cannot be the pkey 'id'"*, *"a pkey2 cannot be the tkey: the lists of their indexes would share one id"*, *"a pkey2 named twice"*, ... |
+| The id of the list that loads each index, `treedb-<gclass>-<gobj>-<treedb>-<topic>-<key>` (`<gobj>` is the tranger's gobj, `<key>` the tkey for the `id` index and the pkey2 for its own), is shorter than `NAME_MAX` | *"Topic refused: the id of a list of its indexes is longer than NAME_MAX"* | |
+
+The faults of the table are ERRORs, and WARNINGs inside the window of a
+peer's data ([`treedb_set_peer_data()`](<#treedb_set_peer_data>)); the last
+one is an ERROR always (the gobj's name is in the id, so it is never a
+peer's). Before SDK 7.26.10 a column that was not a json object, a pkey2 of
+`id` or of the tkey, and a pkey2 named twice were taken, and their index was
+built wrong (a node stored inside itself, two lists on one id); a list id
+that did not fit was cut, and two lists of the topic shared what was left.
+
+```C
+/*  taken: a list of columns, each one with its string id, and one pkey2  */
+treedb_create_topic(tranger, "my_db", "things", 1, "", json_string("name"),
+    json_pack("[{s:s, s:s, s:s, s:[s]}, {s:s, s:s, s:s, s:[s]}]",
+        "id", "id",   "header", "Id",   "type", "string", "flag", "persistent",
+        "id", "name", "header", "Name", "type", "string", "flag", "persistent"),
+    0, FALSE, FALSE);
+
+/*  refused: a column of the list without its id  */
+treedb_create_topic(tranger, "my_db", "things2", 1, "", 0,
+    json_pack("[{s:s, s:s}]", "header", "Id", "type", "string"),
+    0, FALSE, FALSE);   /* -> NULL, "Topic refused: bad columns" */
+
+/*  refused: the pkey2 is the pkey  */
+treedb_create_topic(tranger, "my_db", "things3", 1, "", json_string("id"),
+    json_pack("{s:{s:s, s:s, s:[s]}}", "id", "header", "Id", "type", "string", "flag", "persistent"),
+    0, FALSE, FALSE);   /* -> NULL, "Topic refused: bad pkey2s" */
+
+/*  refused: the pkey2 is the tkey  */
+treedb_create_topic(tranger, "my_db", "things4", 1, "tm", json_string("tm"),
+    json_pack("{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s]}}",
+        "id", "header", "Id", "type", "string",  "flag", "persistent",
+        "tm", "header", "Tm", "type", "integer", "flag", "persistent"),
+    0, FALSE, FALSE);   /* -> NULL, "Topic refused: bad pkey2s" */
+```
+
+**A topic already on disk opens as it was.** When the directory of the topic
+holds its `topic_desc.json` (an existing store) and the call is OUTSIDE the
+window of a peer's data -- the open of a C caller --, the pkey2s rule and the
+list-id rule of the table are not asked (the others are): the topic opens
+with its pkey2s and the ids of its lists as they are, and each fault is said
+instead, an ERROR naming it:
+
+| Fault | Logged |
+|---|---|
+| its pkey2s (`id`, the tkey, a name twice, ...) | *"Topic on disk opened as it was, with bad pkey2s: fix its schema, a new topic with them is refused"*, with `why` and `pkey2` |
+| the id of a list of its indexes past `NAME_MAX` (cut, as it always was) | *"Topic on disk opened as it was, the id of a list of its indexes cut to NAME_MAX: shorten its names, a new topic with them is refused"*, with `index_key`, `length` and `max` |
+
+Refusing it would take the topic from the treedb at the next open of a store
+that has lived with it, with the CRITICAL *"Cannot create topic of the
+schema"* -- an exit of a yuno whose `on_critical_error` exits. So the topic
+runs as it ran:
+a pkey2 `id` indexes nothing, and each node it would index logs *"cannot add
+an instance to the pkey2 index"*, as before. A NEW topic with these faults is
+refused, from C code too (up to 7.26.9 it was created), and so is every topic
+inside the window of a peer's data. Fix the schema, or shorten the names:
+
+```C
+/*  the store has `items` on disk; the literal now gives it the pkey2 "id"  */
+treedb_create_topic(tranger, "my_db", "items", 2, "", json_string("id"),
+    json_pack("{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s]}}",
+        "id",   "header", "Id",   "type", "string", "flag", "persistent",
+        "name", "header", "Name", "type", "string", "flag", "persistent"),
+    0, FALSE, FALSE);   /* -> the topic, opened as before, and the ERROR "Topic on disk opened as it was, with bad pkey2s: ..." */
+
+/*  the same call on a store with no `items` directory  */
+/*  -> NULL, "Topic refused: bad pkey2s"  */
+```
+
+---
+
+(treedb_check_new_topic)=
+## [`treedb_check_new_topic()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/tr_treedb.c)
+
+What [`treedb_create_topic()`](<#treedb_create_topic>) refuses of a NEW
+topic, asked BEFORE anything is created: the name, the columns, the `file`
+columns, a column both `hook` and `fkey`, the `id` column and the pkey2s (see
+*What a new topic must be* there). The id of the lists of its indexes is not
+asked: it holds the name of the tranger's gobj. And one rule that only this
+function asks: a `hook` column is of type `dict` or `list` (or `object`,
+`array`), an `fkey` column of type `dict`, `list` or `string` (or `object`,
+`array`). `treedb_create_topic()` takes such a column, as it always did: a
+store whose schema has one keeps its topic at the open. The columns are read
+from a copy, so `jn_cols` is not changed.
+
+A fault is logged as `treedb_create_topic()` logs it: an ERROR, and a WARNING
+inside the window of a peer's data
+([`treedb_set_peer_data()`](<#treedb_set_peer_data>)). `C_TREEDB` asks it of
+each topic of a PEER's `open-treedb` schema, of a NEW topic that a PEER's
+`create-topic` makes, and of each topic of a schema that `save-schema` or
+`apply-schema` is about to publish, whoever asks (a WARNING for a peer, an
+ERROR for C code; since SDK 7.26.10). A C caller's `open-treedb` and
+`create-topic` are not asked it: they reach `treedb_create_topic()` as they
+always did.
+
+```C
+int treedb_check_new_topic(
+    hgobj       gobj,           // the gobj that logs
+    const char  *treedb_name,
+    const char  *topic_name,
+    const char  *topic_tkey,
+    json_t      *pkey2s,        // NOT owned, string or dict of string | [strings]
+    json_t      *jn_cols,       // NOT owned, dict or list
+    const char  **why
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj that logs the fault. |
+| `treedb_name` | `const char *` | The treedb, for the log. |
+| `topic_name` | `const char *` | The name of the new topic. |
+| `topic_tkey` | `const char *` | Its tkey, `""` or `NULL` for none. A pkey2 cannot be the tkey. |
+| `pkey2s` | `json_t *` | Its secondary keys, not owned. `NULL`: none. |
+| `jn_cols` | `json_t *` | Its columns, not owned: a dict or a list. |
+| `why` | `const char **` | Where the cause goes (a static string), or `NULL`. |
+
+**Returns**
+
+`0` when the topic can be created, `-1` (logged, the cause in `*why` and in
+the last message) when it is refused.
+
+**Example**
+
+```C
+/*  a topic a peer hands, asked before anything is made  */
+const char *why = NULL;
+BOOL peer_data = treedb_set_peer_data(TRUE);    // a WARNING, not an ERROR
+int ret = treedb_check_new_topic(gobj, "treedb_x", "devices", "",
+    pkey2s,     // e.g. json_string("serial")
+    cols,       // e.g. {"id": {...}, "serial": {...}, "place": {"type": "string", "flag": ["hook"], ...}}
+    &why
+);
+treedb_set_peer_data(peer_data);
+if(ret < 0) {
+    /*  logged; why: "a hook column must be of type dict or list, an fkey
+     *  one of type dict, list or string"  */
+    return -1;
+}
+```
+
+---
+
+(treedb_check_file_hooks)=
+## [`treedb_check_file_hooks()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/tr_treedb.c)
+
+Each `file` column derives a hook of `__assets__` named `as_<topic>_<col>`
+(see [File columns](#treedb-file-columns)). The name is ambiguous: the topic
+`a` with the column `b_c` and the topic `a_b` with the column `c` both
+derive `as_a_b_c`, and the second column then linked through the first
+one's hook, onto the other topic's column. This function asks the `file`
+columns of `topics` BEFORE they are created, and refuses:
+
+- a hook name that does not fit `NAME_MAX` (it was cut): *"the names of the
+  topic and of its 'file' column are too long for the name of their
+  __assets__ hook"*;
+- a hook that another `file` column derives too, of `topics` or one that the
+  `__assets__` of `tranger` already has: *"two 'file' columns derive the same
+  __assets__ hook (as_<topic>_<col>): rename one of them"*.
+
+The log is *"Topic refused: its 'file' column has no __assets__ hook of its
+own"*, with `why`, `topic_name` and `col`: an ERROR, and a WARNING inside the
+window of a peer's data ([`treedb_set_peer_data()`](<#treedb_set_peer_data>)).
+`C_TREEDB` asks it of the whole schema of a PEER's `open-treedb`, of
+`save-schema` and `apply-schema` (whoever asks), and in a PEER's
+`create-topic` against the hooks the open treedb has (since SDK 7.26.10). A
+C caller's `open-treedb` and `create-topic` are not asked it.
+
+```C
+int treedb_check_file_hooks(
+    hgobj       gobj,           // the gobj that logs
+    json_t      *tranger,       // NOT owned, may be NULL
+    const char  *treedb_name,
+    json_t      *topics,        // NOT owned, [{"topic_name": name, "cols": dict or list}]
+    const char  **why
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj that logs the fault. |
+| `tranger` | `json_t *` | The tranger whose `__assets__` hooks are asked too, not owned. `NULL`: none (a schema before its open). |
+| `treedb_name` | `const char *` | The treedb, for the log. |
+| `topics` | `json_t *` | Not owned: a list of `{"topic_name": <name>, "cols": <dict or list of columns>}`. A topic without a name is skipped. |
+| `why` | `const char **` | Where the cause goes (a static string), or `NULL`. |
+
+**Returns**
+
+`0` when every `file` column has a hook of its own, `-1` (logged, the cause
+in `*why` and in the last message) when not.
+
+**Example**
+
+```C
+/*  the open treedb has the topic `a` with the `file` column `b_c`  */
+json_t *topics = json_pack("[{s:s, s:{s:{s:s, s:s}, s:{s:s, s:s, s:[s,s,s,s]}}}]",
+    "topic_name", "a_b",
+    "cols",
+        "id", "header", "Id", "type", "string",
+        "c",  "header", "Pic", "type", "string",
+              "flag", "fkey", "file", "writable", "persistent"
+);
+const char *why = NULL;
+if(treedb_check_file_hooks(gobj, tranger, "treedb_x", topics, &why) < 0) {
+    /*  why: "two 'file' columns derive the same __assets__ hook
+     *  (as_<topic>_<col>): rename one of them"  */
+}
+json_decref(topics);
 ```
 
 ---
@@ -972,7 +1250,7 @@ if(inst && treedb_delete_instance(tranger, inst, "yuno_release", 0) < 0) {
 }
 ```
 
-A record marked immutable (`__md_treedb__`immutable`, see
+A record marked immutable (`` __md_treedb__`immutable ``, see
 [`treedb_set_node_immutable()`](<#treedb_set_node_immutable>)) is refused and
 `force` does NOT override it.
 
@@ -1168,7 +1446,7 @@ treedb_delete_node(tranger, node, json_pack("{s:b, s:b}",
     "force", 1, "ignore_snaps", 1));
 ```
 
-A record marked immutable (`__md_treedb__`immutable`, see
+A record marked immutable (`` __md_treedb__`immutable ``, see
 [`treedb_set_node_immutable()`](<#treedb_set_node_immutable>)) is refused and
 `force` does NOT override it.
 
@@ -1617,7 +1895,7 @@ BOOL treedb_col_name_is_identifier(
 
 **Notes**
 
-A column is a key of the records and a segment of the kw paths the treedb builds (`topics`<topic>`cols`<col>`), never a directory: so `/`, `.` and `..` are allowed in it. A treedb or topic name is a directory too, and follows the stricter [`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>). [`treedb_open_db()`](<#treedb_open_db>) leaves out a topic with a column that breaks this rule; [`treedb_link_nodes()`](<#treedb_link_nodes>) and the other functions that take a hook or an fkey refuse it with *"Invalid column name: empty or '`' not allowed"*.
+A column is a key of the records and a segment of the kw paths the treedb builds (`` topics`<topic>`cols`<col> ``), never a directory: so `/`, `.` and `..` are allowed in it. A treedb or topic name is a directory too, and follows the stricter [`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>). [`treedb_open_db()`](<#treedb_open_db>) leaves out a topic with a column that breaks this rule; [`treedb_link_nodes()`](<#treedb_link_nodes>) and the other functions that take a hook or an fkey refuse it with ``Invalid column name: empty or '`' not allowed``.
 
 ```C
 treedb_col_name_is_identifier("departments");   // TRUE
@@ -2757,7 +3035,7 @@ For each fkey column of the node's topic, the refs of the node are compared with
 - A ref that `kw` names and the node does not have is linked (`EV_TREEDB_NODE_LINKED`).
 - A ref in both is not touched: no event, no write.
 
-A column that `kw` does not carry is an **empty** column, and its links are removed (with the warning *"fkey empty"*). Send every fkey column, or do not use `autolink` for a partial update.
+A column that `kw` does not carry is an **empty** column, and its links are removed, with the warning *"fkey absent in the record: the links it had are dropped"* (the links in `links`). A column the node had no links in logs nothing: a record with no parent there is a valid record (up to 7.26.9 every such column logged *"fkey empty"*, with the whole record). Send every fkey column, or do not use `autolink` for a partial update.
 
 **A column is replaced whole, or not at all** (since 7.25.0). Every new ref of a column is checked BEFORE any old link of it is undone, and a column with one ref that cannot be linked keeps the links it has. A ref cannot be linked when:
 
@@ -2981,7 +3259,7 @@ Returns `0` on success, or a negative error code on failure.
 **Notes**
 
 The mark rides the md2 `system_flag` bit (`sf_immutable_record`), NOT a data
-column: it persists across reload and is surfaced as `__md_treedb__`immutable`.
+column: it persists across reload and is surfaced as `` __md_treedb__`immutable ``.
 No user-schema change and no `topic_version` bump are required.
 
 The current primary record is rewritten in place (no new record is appended).
@@ -3028,8 +3306,14 @@ DATA is then logged as a WARNING without a stack trace, not as an ERROR with
 one: a field required or of the wrong type, an fkey reference that cannot be
 linked, a link that would close a cycle or links a node to itself, an unlink
 of a child that does not hang from that parent, a create of an id that
-exists, a `pkey2` that is not a secondary index. A fault of the SCHEMA stays
-an ERROR.
+exists, a `pkey2` that is not a secondary index, a time of the tkey that the
+record cannot keep (since SDK 7.26.10). Since SDK 7.26.10 so is a
+fault of the schema of a NEW topic, or of a schema that a peer hands: the
+columns, the pkey2s and the hooks
+([`treedb_check_new_topic()`](<#treedb_check_new_topic>),
+[`treedb_check_file_hooks()`](<#treedb_check_file_hooks>),
+[`parse_schema()`](<#parse_schema>)). A store that does not open, and the id
+of a list that does not fit `NAME_MAX`, are an ERROR always.
 
 ```C
 BOOL treedb_set_peer_data(
@@ -3056,11 +3340,15 @@ and an ERROR per mistake is noise that any user with the permission can make.
 delete, link, unlink, import-db), since SDK 7.26.10 -- see
 [what a command names is the peer's data](#c-node-peer-data).
 
-The flag is process-wide, so the treedb turns it OFF while it publishes a
-change: a subscriber runs as a C caller, and what it writes keeps its ERRORs.
-`db_history_ce` writes `treedb_authzs` from its `EV_TREEDB_NODE_CREATED`
-handler, inside the create of a peer; a fault of that write is its own, not
-the peer's. Restore the flag, do not reset it, because the calls nest:
+The flag is process-wide, so the treedb turns it OFF wherever code that is
+not the treedb's runs inside its calls: while it publishes a change, and
+while it appends a record, whose rt lists ([`tranger2_open_rt_mem()`](<#tranger2_open_rt_mem>),
+`C_TRANGER`'s `open-rt` publishing `EV_TRANGER_RECORD_ADDED`) are fed in the
+same call. A subscriber of either runs as a C caller, and what it writes keeps
+its ERRORs. `db_history_ce` writes `treedb_authzs` from its
+`EV_TREEDB_NODE_CREATED` handler, inside the create of a peer; a fault of that
+write is its own, not the peer's. Restore the flag, do not reset it, because
+the calls nest:
 
 ```C
 BOOL peer_data = treedb_set_peer_data(TRUE);    // the record is a peer's
@@ -3560,6 +3848,21 @@ json_t *n = treedb_update_node(tranger, node, json_pack("{s:s}", "name", "x"), T
 /*  tranger opened with "master": false  */
 json_t *n = treedb_update_node(tranger, node, json_pack("{s:s}", "name", "x"), TRUE);
 /*  n == NULL, one error logged, node unchanged  */
+```
+
+A saved update whose tkey time does not fit the md2 row (negative, or past
+the 44 bits of [`TRANGER2_MAX_TIME`](#timeranger2-max-time)) is refused
+before the node moves, as [`treedb_create_node()`](<#treedb_create_node>)
+refuses it: *"Node refused: the time of its tkey does not fit a record
+(negative, or past 44 bits)"*, a WARNING inside the window of a peer's data,
+an ERROR with a stack for C code (new after 7.26.9). An update that does not
+write the tkey keeps the time the node had, and a memory-only update
+(`save` FALSE) is not asked.
+
+```C
+/*  topic `events`, tkey `when`: the node keeps "@1760000000 +0000"  */
+json_t *n = treedb_update_node(tranger, node,
+    json_pack("{s:s}", "when", "@99999999999999 +0000"), TRUE);   // NULL, node unchanged
 ```
 
 **Notes**

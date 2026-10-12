@@ -98,7 +98,12 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
 
 /*
  *  Every log line from INFO up, in order: one per emission (strict FIFO).
+ *  An entry that starts with AS_WARNING must be logged as a WARNING, one
+ *  that starts with AS_ERROR as an ERROR.
  */
+#define AS_WARNING  "<WARNING>"
+#define AS_ERROR    "<ERROR>"
+
 PRIVATE const char *expected_log_msgs[] = {
     /*  start up  */
     "Starting yuno",
@@ -364,6 +369,365 @@ PRIVATE const char *expected_log_msgs[] = {
     "Cannot load json file, bad json",
     "Schema applied",
     /*  Test 13d: every command refuses `denied`, which logs nothing  */
+    /*  Test 13d2: the data of a peer is refused, a WARNING each (V20.4)  */
+    AS_WARNING "Command parameter of the wrong type",       // save-schema treedb_name 5
+    AS_WARNING "Command parameter of the wrong type",       // apply-schema treedb_name 5
+    AS_WARNING "treedb not open here, refused",
+    AS_WARNING "treedb not open here, refused",
+    AS_WARNING "treedb not open here, refused",
+    AS_WARNING "treedb not open here, refused",
+    AS_WARNING "topic not found, refused",
+    AS_WARNING "system topic, delete refused",
+    AS_WARNING "Topic refused: bad name",                   // a/b, the treedb's own check
+    AS_WARNING "Topic refused: bad columns",                // no columns
+    AS_WARNING "Topic refused: bad name",                   // longer than NAME_MAX
+    AS_WARNING "treedb name breaks the name rule, or is too long, refused",
+    AS_WARNING "open-treedb without a treedb_schema json object, refused",
+    AS_WARNING "Command parameter of the wrong type",       // files_max_size "big": the parser's
+    AS_WARNING "open-treedb with an attribute of a wrong type, refused",    // 1.5: the command's
+    /*  Test 13d3: more of a peer's data refused, a WARNING each (V20)  */
+    AS_WARNING "topic of a wrong shape, refused",           // a file: __timeranger2__.json
+    AS_WARNING "topic of a wrong shape, refused",           // a file: the schema file
+    AS_WARNING "Topic refused: bad pkey2s",                 // pkey2s twice
+    AS_WARNING "Topic refused: bad pkey2s",                 // pkey2 "id"
+    AS_WARNING "Topic refused: bad pkey2s",                 // pkey2 with '`'
+    AS_WARNING "Topic refused: bad pkey2s",                 // pkey2 the tkey
+    AS_WARNING "topic of a wrong shape, refused",           // too long for its lists
+    AS_WARNING "open-treedb with a filename_mask that is not one file name, refused",
+    AS_WARNING "open-treedb with a filename_mask that is not one file name, refused",
+    AS_WARNING "open-treedb with a filename_mask that is not one file name, refused",
+    AS_WARNING "treedb name breaks the name rule, or is too long, refused",  // __system__
+    AS_WARNING "treedb name breaks the name rule, or is too long, refused",  // __other
+    AS_WARNING "treedb name breaks the name rule, or is too long, refused",  // a^b
+    AS_WARNING "treedb name breaks the name rule, or is too long, refused",  // 109 bytes
+    AS_WARNING "Topic refused: bad pkey2s",                 // a topic of the schema
+    AS_WARNING "open-treedb with an attribute of a wrong type, refused",
+    /*  a value of a wrong type from a user with no permission: the parser's, before authz  */
+    AS_WARNING "Command parameter of the wrong type",
+    AS_WARNING "Command parameter of the wrong type",
+    AS_WARNING "Command parameter of the wrong type",
+    AS_WARNING "Command parameter of the wrong type",
+    /*  the seeds of an EXTERNAL open-treedb, applied again at its next start, then of an internal one  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    AS_WARNING "initial_load: topic not found in treedb",
+    "initial_load: seed record created",
+    "initial_load: seed record created",
+    "initial_load: seed record created",
+    AS_WARNING "initial_load: bad parent ref",              // a ref to a topic the treedb has not
+    AS_WARNING "initial_load: bad parent ref",              // a ref through a hook that is not one
+    AS_WARNING "initial_load: topic not found in treedb",   // the start after a stop: a peer's still
+    AS_WARNING "initial_load: bad parent ref",
+    AS_WARNING "initial_load: bad parent ref",
+    AS_ERROR "initial_load: topic not found in treedb",
+    AS_ERROR "initial_load: bad parent ref",
+    AS_ERROR "initial_load: bad parent ref",
+    /*  Test 13d4: a peer's schema refused before the open, and its store  */
+    AS_WARNING "Topic refused: bad columns",                // no columns
+    AS_WARNING "Topic refused: bad columns",                // no 'id' column
+    AS_WARNING "a 'file' column must be flagged 'fkey' too",
+    AS_WARNING "Topic refused: bad 'file' column",
+    /*  the same from C: the open goes as it always went, the topic logged
+     *  and left out, and the treedb opens (REV-CLOUD V20 #1)  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    AS_ERROR "Topic refused: bad columns",
+    "Cannot create topic of the schema",                    // a CRITICAL, exit_on_error 0
+    "Creating topic",
+    "Creating topic",
+    /*  a name of the system from C opens (#1), and a refusal of C_TREEDB
+     *  for a C caller is an ERROR (create-topic of a file of the database)  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    /*  ...and its create-topic of a file of the database goes as it went:
+     *  the tranger refuses it (exit_on_error 0)  */
+    AS_ERROR "Not a directory: the path exists and is not a directory",
+    "Cannot create TimeRanger subdir. mkrdir() FAILED",     // a CRITICAL
+    "Cannot create topic: it is not whole, what was made is removed",   // a CRITICAL
+    AS_WARNING "link topic not found",                      // parse_schema(), in the window
+    AS_WARNING "open-treedb from outside with a setting of the code, refused",  // exit_on_error
+    AS_WARNING "open-treedb from outside with a setting of the code, refused",  // import_root
+    AS_WARNING "treedb name breaks the name rule, or is too long, refused",     // .treedb_schema.json
+    AS_WARNING "open-treedb with an attribute of a wrong type, refused",        // a seed id 5
+    AS_WARNING "topic of a wrong shape, refused",           // a column id too long for __system__
+    AS_WARNING "open-treedb of a store that is not that treedb's, or held, refused",
+    "Creating __timeranger2__.json",                        // the store a master holds
+    AS_WARNING "open-treedb of a store that is not that treedb's, or held, refused",
+    "Creating __timeranger2__.json",                        // the store a replica tranger has open
+    AS_WARNING "open-treedb of a store that is not that treedb's, or held, refused",
+    AS_WARNING "topic of a wrong shape, refused",           // .blobs
+    AS_WARNING "topic of a wrong shape, create refused",    // C_TRANGER: a topic of a treedb
+    AS_WARNING "Topic refused: bad pkey2s",                 // save-schema of a draft with a pkey2 "id" (#18)
+    AS_WARNING "treedb name breaks the name rule, or is too long, refused",     // delete-treedb x/../
+    AS_WARNING "Topic refused: bad pkey2s",                 // apply-schema of a pkey2 "id"
+    "Creating __timeranger2__.json",                        // a dict of topics: opens
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    /*  Test 13d5 #1: a C caller's open goes as it did: the store made...  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    /*  ...a peer's open over a leftover topic directory, and with a seed
+     *  without a string id, refused before anything is made...  */
+    AS_WARNING "topic of a wrong shape, refused",
+    AS_WARNING "open-treedb with an attribute of a wrong type, refused",
+    /*  ...the C caller's opens, the leftover topic and the seed logged and
+     *  left out, as tr_treedb, timeranger2 and C_NODE always did  */
+    "Updating TreeDB schema in __system__",
+    "Re-Creating TreeDB schema file",
+    AS_ERROR "kw must be list or dict",                     // tranger2_create_topic() over a directory
+    AS_ERROR "kw must be list or dict",                     //   with no topic_var.json nor topic_desc.json
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    AS_ERROR "Not a topic: topic_desc.json not found",
+    "Cannot create topic of the schema",                    // a CRITICAL, exit_on_error 0
+    AS_ERROR "initial_load: record without id",
+    "initial_load: seed record created",
+    /*  #0: a peer forces the close of a treedb the C code opened; #15 its own  */
+    AS_WARNING "close-treedb from outside of a treedb the code of the yuno opened, refused",
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    AS_WARNING "close-treedb force of a treedb this peer did not open, refused",   // another user
+    /*  #3: C_TRANGER writes of a peer into a treedb's topics, a new topic in its store  */
+    AS_WARNING "write of a topic of a treedb or a msg2db, refused",     // add-record
+    AS_WARNING "write of a topic of a treedb or a msg2db, refused",     // delete-key
+    AS_WARNING "write of a topic of a treedb or a msg2db, refused",     // delete-topic
+    AS_WARNING "topic of a wrong shape, create refused",                // create-topic
+    /*  the shapes of a peer's schema  */
+    AS_WARNING "topic of a wrong shape, refused",           // __timeranger2__.json
+    AS_WARNING "topic of a wrong shape, refused",           // <treedb>.treedb_schema.json
+    AS_WARNING "topic of a wrong shape, refused",           // .blobs
+    AS_WARNING "topic of a wrong shape, refused",           // __snaps__
+    AS_WARNING "topic of a wrong shape, refused",           // old.bak
+    AS_WARNING "open-treedb from outside with a setting of the code, refused",  // impose_c_schema
+    AS_WARNING "topic of a wrong shape, refused",           // topic_name is not the id
+    AS_WARNING "topic of a wrong shape, refused",           // no id
+    AS_WARNING "topic of a wrong shape, refused",           // id 5
+    AS_WARNING "topic of a wrong shape, refused",           // a dict entry whose id is not its key
+    AS_WARNING "A hook column must be of type dict or list",
+    AS_WARNING "Topic refused: a link column of a wrong type",
+    AS_WARNING "topic of a wrong shape, refused",           // topic_version {}
+    AS_WARNING "topic of a wrong shape, refused",           // system_topic 1
+    AS_WARNING "topic of a wrong shape, refused",           // main_topic "yes"
+    AS_WARNING "topic of a wrong shape, refused",           // topic_version "017"
+    AS_WARNING "topic of a wrong shape, refused",           // topic_version 2147483648
+    AS_WARNING "schema of a wrong shape, refused",          // schema_version []
+    AS_WARNING "schema of a wrong shape, refused",          // schema_version 2147483648
+    AS_WARNING "Schema refused: two elements have the same qualified id in __system__ (a name with a dot), rename one of them",
+    AS_WARNING "Topic refused: its 'file' column has no __assets__ hook of its own",
+    AS_WARNING "topic of a wrong shape, refused",           // create-topic .<treedb>.treedb_schema.json.tmp
+    AS_WARNING "topic of a wrong shape, refused",           // create-topic x.json
+    AS_WARNING "topic of a wrong shape, refused",           // create-topic topic_version 2147483648
+    /*  #7: create-topic of a file column of a hook the treedb has  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    AS_WARNING "Topic refused: its 'file' column has no __assets__ hook of its own",
+    /*  #12: versions past an int, from C: the literal is installed  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    /*  Test 13d6 c4 A: a peer's treedb and a msg2db `alarms` on its tranger...  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating Msg2DB schema file",
+    "Creating topic",                                       // alarms
+    /*  ...create-topic of the msg2db's topic, refused; a C caller adopts
+     *  `alarms` (no log), a peer's delete of it refused, the msg2db open and
+     *  closed (its schema file); the open of the store whose schema names
+     *  `alarms`, refused; create-topic of it, the msg2db closed, refused  */
+    AS_WARNING "topic of the store that is not this treedb's, refused",
+    AS_WARNING "delete of a topic that a msg2db or another treedb holds too, refused",
+    AS_WARNING "delete of a topic that a msg2db or another treedb holds too, refused",
+    AS_WARNING "topic of the store that is not this treedb's, refused",
+    AS_WARNING "topic of the store that is not this treedb's, refused",
+    /*  c4 #2: a C caller's store with `items` and a topic of 196 bytes...  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    /*  ...opened again by a literal that gives them bad pkey2s: kept, as they
+     *  were, each fault an ERROR (and the instance the pkey2 `id` cannot index,
+     *  as it always was)  */
+    "Updating TreeDB schema in __system__",
+    "Re-Creating TreeDB schema file",
+    AS_ERROR "Topic on disk opened as it was, with bad pkey2s: fix its schema, a new topic with them is refused",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    AS_ERROR "cannot add an instance to the pkey2 index",
+    AS_ERROR "Topic on disk opened as it was, the id of a list of its indexes cut to NAME_MAX: shorten its names, a new topic with them is refused",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    /*  c4 #3: a hook column of type string, a peer's refused, the C caller's created  */
+    AS_WARNING "A hook column must be of type dict or list",
+    AS_WARNING "Topic refused: a link column of a wrong type",
+    "Creating topic",
+    "Deleting topic",
+    /*  c4 C: two main_topic, a main_topic not hooked to itself; one, opened  */
+    AS_WARNING "schema with a wrong main_topic, refused",
+    AS_WARNING "schema with a wrong main_topic, refused",
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    /*  c4 D: a peer's save past the largest version, of the schema and of a topic  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    AS_WARNING "save-schema would raise a version past 2147483647, refused",
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    AS_WARNING "save-schema would raise a version past 2147483647, refused",
+    /*  c4 Residual: a peer's open of a treedb the code opens, closed  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    AS_WARNING "open-treedb from outside of a treedb the code of the yuno opens, refused",
+    AS_WARNING "open-treedb from outside of a treedb the code of the yuno opens, refused",  // c6r: another case
+    /*  c7: a peer's open of `tranger_treedb_code_own` (the code's tranger),
+     *  refused; a peer's delete-treedb (force) of the code's closed treedb, by
+     *  its name and in another case, refused; the code opens it again, and a
+     *  peer's open of its tranger's name is answered by that service (no log)  */
+    AS_WARNING "open-treedb from outside with the service names of a treedb the code of the yuno opens, refused",
+    AS_WARNING "delete-treedb from outside of a treedb the code of the yuno opened, refused",
+    AS_WARNING "delete-treedb from outside of a treedb the code of the yuno opened, refused",  // another case
+    /*  c7: the code's `tranger_code_side`, and a peer's `Code_Side` (whose
+     *  tranger it is) refused while it is closed  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    AS_WARNING "open-treedb from outside with the service names of a treedb the code of the yuno opens, refused",
+    /*  Test 13d7 c5 #7: a peer's close of a treedb the code opened, playing and
+     *  paused (C_TREEDB kept, as mqtt_broker keeps it), with force and without,
+     *  by its name and (c6r) in another case; a peer's treedb named in another
+     *  case: another user's force refused, the opener's closes done; the
+     *  code's own close, paused, logs nothing  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating __timeranger2__.json",                        // treedb_peer_case, a peer's
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    AS_WARNING "close-treedb from outside of a treedb the code of the yuno opened, refused",
+    AS_WARNING "close-treedb from outside of a treedb the code of the yuno opened, refused",
+    AS_WARNING "close-treedb from outside of a treedb the code of the yuno opened, refused",  // another case
+    AS_WARNING "close-treedb from outside of a treedb the code of the yuno opened, refused",  // another case, force
+    AS_WARNING "close-treedb force of a treedb this peer did not open, refused",   // another user, another case
+    "Pausing yuno",
+    AS_WARNING "close-treedb from outside of a treedb the code of the yuno opened, refused",
+    AS_WARNING "close-treedb from outside of a treedb the code of the yuno opened, refused",
+    AS_WARNING "close-treedb from outside of a treedb the code of the yuno opened, refused",  // another case
+    AS_WARNING "close-treedb from outside of a treedb the code of the yuno opened, refused",  // another case, force
+    "Playing yuno",
+    /*  c5 #1: a peer's treedb with {items, x}, then {items} (x withdrawn from
+     *  __system__), then {items, x} again: taken, x at its new version  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    "Topic not declared by the schema from C: removed from __system__",
+    "Re-Creating TreeDB schema file",
+    "Updating TreeDB schema in __system__",
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    /*  c5 #4: a peer's topic `events` with the string tkey `when`; a date past
+     *  44 bits refused in create-node and update-node of a peer, and in a C
+     *  caller's create; a C caller's append to the tranger kept, and said  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",                                       // events
+    AS_WARNING "Node refused: the time of its tkey does not fit a record (negative, or past 44 bits)",
+    AS_WARNING "Node refused: the time of its tkey does not fit a record (negative, or past 44 bits)",
+    AS_ERROR "Node refused: the time of its tkey does not fit a record (negative, or past 44 bits)",
+    "Creating topic",                                       // raw_t
+    AS_ERROR "Record time past what an md2 row keeps (44 bits): appended CUT",
     /*  Test 14: the replica, and its C_TREEDB writes READ-ONLY  */
     "impose_c_schema forced by the code of the yuno, over the attribute",
     "Opening TreeDB with the schema from C, __system__ not read",
@@ -379,8 +743,19 @@ PRIVATE const char *expected_log_msgs[] = {
 PRIVATE json_t *expected_log_list(void)
 {
     json_t *list = json_array();
+    size_t ln_mark = strlen(AS_WARNING);
+    size_t ln_error_mark = strlen(AS_ERROR);
     for(int i = 0; expected_log_msgs[i]; i++) {
-        json_array_append_new(list, json_pack("{s:s}", "msg", expected_log_msgs[i]));
+        const char *msg = expected_log_msgs[i];
+        if(strncmp(msg, AS_WARNING, ln_mark)==0) {
+            json_array_append_new(list, json_pack("{s:s, s:s}",
+                "msg", msg + ln_mark, "__priority__", "WARNING"));
+        } else if(strncmp(msg, AS_ERROR, ln_error_mark)==0) {
+            json_array_append_new(list, json_pack("{s:s, s:s}",
+                "msg", msg + ln_error_mark, "__priority__", "ERROR"));
+        } else {
+            json_array_append_new(list, json_pack("{s:s}", "msg", msg));
+        }
     }
     return list;
 }

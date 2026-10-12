@@ -84,7 +84,28 @@ agent stamped (__username__): another user is refused, two sessions of the
 same user through the agent are one owner. A gobj of this yuno is trusted.
 
 add-record appends a record (it carries the topic's pkey): permission `write`,
-master-only.
+master-only. delete-topic, delete-key and the create-topic of a NEW topic are
+master-only too: a replica answers READ-ONLY.
+
+The data a command is handed is refused with -1 that says why, before the
+tranger (which logs an ERROR for it): a WARNING when the command came from
+outside (`__username__`, a peer's), an ERROR with a stack from C code, a
+broken contract (log_refusal()). An unknown topic or a name that breaks the
+topic rule, a system topic to delete, a create-topic of a wrong shape (a file
+of the database by that name, a new topic_version over a system topic, over a
+topic of a treedb or a msg2db open on the tranger -- its schema is theirs --,
+or over a topic with columns without its jn_cols, which wrote its columns
+empty), a record that is not a dict or whose pkey or times the topic cannot
+take (__t__ and the tkey's time: 44 bits, what the md2 row keeps,
+TRANGER2_MAX_TIME), a key that is not one directory component, a bad rkey, a
+time bound of open-list that is neither an integer nor a string, and a path of
+print-tranger that kw_find_path() logs an ERROR for. From a peer also: a write
+(add-record, delete-key, delete-topic) into a topic of a treedb or a msg2db
+open on the tranger, which are written through them; a NEW topic in their
+store, or named as what a store keeps (tranger2_reserved_name_fault()); and a
+jn_var of what the tranger keeps or types (tranger2_topic_var_fault()).
+check-json asks `read`, as print-tranger. Every answer names the yuno first
+(-403 included).
 
 
  *          Copyright (c) 2020 Niyamaka.
@@ -94,6 +115,7 @@ master-only.
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <sys/stat.h>
 
 #define PCRE2_STATIC
 #define PCRE2_CODE_UNIT_WIDTH 8
@@ -115,6 +137,28 @@ master-only.
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+/*
+ *  The limits kw_find_path() logs an ERROR for (kwid.c), asked of the path
+ *  of print-tranger before it (find_peer_path())
+ */
+#define PEER_PATH_SEGMENT_MAX   255     // kw_find_path_depth(): char segment[256]
+#define PEER_PATH_DEPTH_MAX     64      // KW_MAX_PATH_DEPTH
+
+/*
+ *  A refusal of the data a command was handed, with the split of the
+ *  command parser and of C_TREEDB: from outside -- the kw carries
+ *  `__username__`, C_IEVENT_SRV's stamp (command_is_external()) -- the
+ *  mistake is the peer's, a WARNING without a stack; from C code it is a
+ *  broken contract, an ERROR with one (REV-CLOUD V20 #17).
+ */
+#define log_refusal(gobj_, peer_, ...)                                  \
+    do {                                                                \
+        if(peer_) {                                                     \
+            gobj_log_warning((gobj_), 0, __VA_ARGS__);                  \
+        } else {                                                        \
+            gobj_log_error((gobj_), LOG_OPT_TRACE_STACK, __VA_ARGS__);  \
+        }                                                               \
+    } while(0)
 
 /***************************************************************************
  *              Structures
@@ -224,6 +268,35 @@ PRIVATE json_t *refuse_foreign_handle(
     json_t *kw,
     hgobj src
 );
+PRIVATE BOOL command_is_external(json_t *kw);
+PRIVATE BOOL refuse_peer_topic_name(hgobj gobj, BOOL peer, const char *topic_name);
+PRIVATE const char *schema_owner_of_topic(json_t *tranger, const char *topic_name);
+PRIVATE BOOL refuse_peer_write_of_owned_topic(
+    hgobj gobj,
+    BOOL peer,
+    const char *cmd,
+    const char *topic_name
+);
+PRIVATE json_t *refuse_peer_new_topic(
+    hgobj gobj,
+    BOOL peer,
+    const char *topic_name,
+    const char *pkey,
+    const char *system_flag,
+    json_t *jn_cols,
+    json_t *jn_var
+);
+PRIVATE const char *refuse_peer_record(
+    hgobj gobj,
+    BOOL peer,
+    const char *topic_name,
+    json_t *record,
+    json_int_t __t__
+);
+PRIVATE BOOL refuse_peer_key(hgobj gobj, BOOL peer, const char *topic_name, const char *key);
+PRIVATE BOOL path_is_not_a_directory(const char *path);
+PRIVATE json_t *find_peer_path(hgobj gobj, BOOL peer, json_t *kw, const char *path);
+PRIVATE void oneshot_creator(hgobj gobj, char *bf, size_t bfsize);
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
@@ -245,6 +318,7 @@ SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"
 SDATAPM (DTP_BOOLEAN,   "expanded",     0,              0,          "No expanded (default) return [[size]]"),
 SDATAPM (DTP_INTEGER,   "lists_limit",  0,              0,          "Expand lists only if size < limit. 0 no limit"),
 SDATAPM (DTP_INTEGER,   "dicts_limit",  0,              0,          "Expand dicts only if size < limit. 0 no limit"),
+SDATAPM (DTP_STRING,    "path",         0,              0,          "Drill into a subpath (kw_find_path style, `-delimited) to lazily expand it"),
 SDATA_END()
 };
 
@@ -309,12 +383,12 @@ PRIVATE sdata_desc_t pm_open_list[] = {
 SDATAPM (DTP_STRING,    "list_id",              0,          0,      "Id of list"),
 SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
 SDATAPM (DTP_STRING,    "key",                  0,          0,      "match_cond:"),
-SDATAPM (DTP_STRING,    "from_tm",              0,          0,      "match_cond:"),
-SDATAPM (DTP_STRING,    "to_tm",                0,          0,      "match_cond:"),
+SDATAPM (DTP_JSON,      "from_tm",              0,          0,      "match_cond: an integer (topic unit), or a date string ('T' in it)"),
+SDATAPM (DTP_JSON,      "to_tm",                0,          0,      "match_cond: an integer (topic unit), or a date string ('T' in it)"),
 SDATAPM (DTP_INTEGER,   "from_rowid",           0,          0,      "match_cond:"),
 SDATAPM (DTP_INTEGER,   "to_rowid",             0,          0,      "match_cond:"),
-SDATAPM (DTP_STRING,    "from_t",               0,          0,      "match_cond:"),
-SDATAPM (DTP_STRING,    "to_t",                 0,          0,      "match_cond:"),
+SDATAPM (DTP_JSON,      "from_t",               0,          0,      "match_cond: an integer (topic unit), or a date string ('T' in it)"),
+SDATAPM (DTP_JSON,      "to_t",                 0,          0,      "match_cond: an integer (topic unit), or a date string ('T' in it)"),
 SDATAPM (DTP_STRING,    "fields",               0,          0,      "match_cond: Only this fields"),
 SDATAPM (DTP_STRING,    "rkey",                 0,          0,      "match_cond: regex (PCRE2) over the keys; only for a KEYLESS list. Governs both the disk load AND the realtime feed"),
 SDATAPM (DTP_BOOLEAN,   "return_data",          0,          0,      "True for return list data"),
@@ -410,7 +484,7 @@ SDATACM (DTP_SCHEMA,    "authzs",           0,          pm_authzs,  cmd_authzs, 
 
 /*-CMD2---type----------name----------------flag------------alias---items---------------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "print-tranger",    SDF_AUTHZ_X,    0,      pm_print_tranger,   cmd_print_tranger,  "Print tranger"),
-SDATACM2 (DTP_SCHEMA,   "check-json",       0,              0,      pm_check_json,      cmd_check_json, "Check json refcounts"),
+SDATACM2 (DTP_SCHEMA,   "check-json",       SDF_AUTHZ_X,    0,      pm_check_json,      cmd_check_json, "Check json refcounts of the tranger (permission 'read', as print-tranger)"),
 SDATACM2 (DTP_SCHEMA,   "topics",           SDF_AUTHZ_X,    0,      pm_topics,          cmd_topics,         "List topics: names, or with expanded=1 a dict per topic (system_flag tells the time unit of t/tm)"),
 SDATACM2 (DTP_SCHEMA,   "desc",             SDF_AUTHZ_X,    0,      pm_desc,            cmd_desc,           "Schema of topic or full"),
 SDATACM2 (DTP_SCHEMA,   "create-topic",     SDF_AUTHZ_X,    0,      pm_create_topic,    cmd_create_topic,   "Create topic"),
@@ -717,6 +791,492 @@ PRIVATE json_t *refuse_foreign_handle(
         0,
         kw  // owned
     );
+}
+
+/***************************************************************************
+ *  A command from OUTSIDE carries `__username__`: C_IEVENT_SRV stamps it on
+ *  every command it delivers (and overwrites what a peer put there), and
+ *  the agent forwards it in a command-yuno. A C caller sends none.
+ ***************************************************************************/
+PRIVATE BOOL command_is_external(json_t *kw)
+{
+    return !empty_string(json_string_value(json_object_get(kw, "__username__")))? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  A topic named by a command that is not there (not open, not on disk),
+ *  or a name that breaks the topic rule, is refused BEFORE the tranger,
+ *  which logs an ERROR for it ("Cannot open topic", "Invalid topic name"):
+ *  a WARNING for a peer's, an ERROR for a C caller's, a broken contract
+ *  (log_refusal(), REV-CLOUD V20.4.2). TRUE = refused.
+ ***************************************************************************/
+PRIVATE BOOL refuse_peer_topic_name(hgobj gobj, BOOL peer, const char *topic_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(tranger2_name_is_identifier(topic_name) && strlen(topic_name) <= NAME_MAX) {
+        if(tranger2_topic_is_open(priv->tranger, topic_name)) {
+            return FALSE;
+        }
+        /*  A directory of the database that is not a topic (saved_schemas/
+         *  under __system__) is not one: the open needs its topic_desc.json  */
+        char topic_dir[PATH_MAX];
+        if(tranger2_topic_path(topic_dir, sizeof(topic_dir), priv->tranger, topic_name) == 0 &&
+                file_exists(topic_dir, "topic_desc.json")) {
+            return FALSE;
+        }
+    }
+    log_refusal(gobj, peer,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "topic not found, refused",
+        "topic_name",   "%.64s", topic_name? topic_name : "",
+        NULL
+    );
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The names tranger2_str2system_flag() knows (sf_names of timeranger2.c):
+ *  it logs an ERROR for any other, and creates the topic without it.
+ ***************************************************************************/
+PRIVATE const char *system_flag_names[] = {
+    "sf_string_key",
+    "sf_rowid_key",
+    "sf_int_key",
+    "sf_zip_record",
+    "sf_cipher_record",
+    "sf_t_ms",
+    "sf_tm_ms",
+    "sf_deleted_instance",
+    "sf_immutable_record",
+    "sf_loading_from_disk",
+    0
+};
+
+/***************************************************************************
+ *  Whose is the topic `topic_name` of the tranger: a treedb's or a msg2db's
+ *  open on it (their topics are keys of `treedbs`.<name> and of
+ *  `msg2dbs`.<name> in the tranger). "treedb" or "msg2db"; NULL when it is
+ *  nobody's but the tranger's.
+ ***************************************************************************/
+PRIVATE const char *schema_owner_of_topic(json_t *tranger, const char *topic_name)
+{
+    const char *name; json_t *jn_db;
+    json_object_foreach(json_object_get(tranger, "treedbs"), name, jn_db) {
+        if(json_is_object(json_object_get(jn_db, topic_name))) {
+            return "treedb";
+        }
+    }
+    json_object_foreach(json_object_get(tranger, "msg2dbs"), name, jn_db) {
+        if(json_is_object(json_object_get(jn_db, topic_name))) {
+            return "msg2db";
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  A write of a peer (add-record, delete-key, delete-topic) into a topic of
+ *  a treedb or a msg2db open on this tranger: their topics are written
+ *  through THEM (C_NODE, the msg2db's code), which validate the record,
+ *  keep the immutable seeds and ask their authz. A raw record appended to
+ *  `users` was that node at the next load (the newest record of a key
+ *  wins), a delete-key took a node behind the treedb's back, and a
+ *  delete-topic took a topic of a running treedb, whose next writes failed
+ *  (REV-CLOUD V20 G). A C caller is its own owner. TRUE = refused, with a
+ *  WARNING.
+ ***************************************************************************/
+PRIVATE BOOL refuse_peer_write_of_owned_topic(
+    hgobj gobj,
+    BOOL peer,
+    const char *cmd,
+    const char *topic_name
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!peer) {
+        return FALSE;
+    }
+    const char *owner = schema_owner_of_topic(priv->tranger, topic_name);
+    if(!owner) {
+        return FALSE;
+    }
+    log_refusal(gobj, peer,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "write of a topic of a treedb or a msg2db, refused",
+        "command",      "%s", cmd,
+        "topic_name",   "%s", topic_name,
+        "owner",        "%s", owner,
+        NULL
+    );
+    return TRUE;
+}
+
+/***************************************************************************
+ *  What create-topic is handed for a topic is the caller's: a name of the
+ *  topic rule and NAME_MAX at most, system_flag names the tranger knows
+ *  and ONE key type among them, a pkey for a new topic that is not keyed
+ *  by rowid, and jn_cols / jn_var as json objects (a null is none). Each
+ *  one was an ERROR of the tranger (a name too long, a CRITICAL), or was
+ *  dropped in silence, and two key types made a topic that refused every
+ *  append. Nor a file of the database by that name (its mkrdir() was a
+ *  CRITICAL), nor a new topic_version over a SYSTEM topic (REV-CLOUD V20).
+ *
+ *  From a peer (`peer`), also (REV-CLOUD V20 A, J, L):
+ *  - the jn_var the tranger can take from outside
+ *    (tranger2_topic_var_fault()): no field the tranger keeps itself, no
+ *    `system_topic` (a topic nothing deletes), `topic_version` and
+ *    `last_rowid_id` integers -- a string there was an ERROR with a stack
+ *    at the next change of the topic's version;
+ *  - for a NEW topic, a name that is the store's, not a topic's
+ *    (tranger2_reserved_name_fault()), and no new topic in the store of a
+ *    treedb or a msg2db open on this tranger: its topics are its own, made
+ *    by it (C_TREEDB create-topic), and beside them the store keeps its
+ *    files and folders (`saved_schemas/` of __system__, `.blobs`).
+ *  A refusal is a WARNING for a peer, an ERROR for a C caller
+ *  (log_refusal()). NULL when it can be created, else the comment of the
+ *  answer (YOURS).
+ ***************************************************************************/
+PRIVATE json_t *refuse_peer_new_topic(
+    hgobj gobj,
+    BOOL peer,
+    const char *topic_name,
+    const char *pkey,
+    const char *system_flag,
+    json_t *jn_cols,
+    json_t *jn_var
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *why = NULL;
+    if(!tranger2_name_is_identifier(topic_name)) {
+        why = "the topic name breaks the name rule (empty, '.', '..', '/' or '`')";
+    } else if(strlen(topic_name) > NAME_MAX) {
+        /*  A directory name: its mkdir fails, a CRITICAL that exits with
+         *  the default on_critical_error  */
+        why = "a topic name longer than NAME_MAX";
+    } else if(!json_absent(jn_cols) && !json_is_object(jn_cols)) {
+        why = "jn_cols is not a json object";
+    } else if(!json_absent(jn_var) && !json_is_object(jn_var)) {
+        why = "jn_var is not a json object";
+    } else if(json_is_object(json_object_get(jn_var, "topic_version")) ||
+            json_is_array(json_object_get(jn_var, "topic_version"))) {
+        why = "the topic_version of jn_var is not a number";
+    } else if(peer) {
+        why = tranger2_topic_var_fault(jn_var);
+    }
+
+    if(!why) {
+        int n_names = 0;
+        const char **names = split2(system_flag, "|, ", &n_names);
+        for(int i = 0; i < n_names; i++) {
+            if(idx_in_list(system_flag_names, names[i], TRUE) < 0) {
+                why = "an unknown system_flag name";
+                break;
+            }
+        }
+        split_free2(names);
+    }
+
+    if(!why) {
+        system_flag2_t key_type = tranger2_str2system_flag(system_flag) & KEY_TYPE_MASK2;
+        char topic_dir[PATH_MAX];
+        tranger2_topic_path(topic_dir, sizeof(topic_dir), priv->tranger, topic_name);  // name rule asked above
+        BOOL is_new = is_directory(topic_dir)? FALSE : TRUE;
+        if(path_is_not_a_directory(topic_dir)) {
+            why = "a file of the database has that name, it cannot be a topic";
+        } else if(key_type & (key_type - 1)) {
+            why = "more than one key type in system_flag";
+        } else if(is_new && empty_string(pkey) && !(key_type & sf_rowid_key)) {
+            why = "no pkey for a topic that is not keyed by rowid";
+        } else if(is_new && peer && (why = tranger2_reserved_name_fault(topic_name))) {
+            // the name is the store's
+        } else if(is_new && peer && (json_object_size(json_object_get(priv->tranger, "treedbs")) > 0 ||
+                json_object_size(json_object_get(priv->tranger, "msg2dbs")) > 0)) {
+            why = "a new topic in the store of a treedb or a msg2db: its topics are made by it";
+        } else if(!is_new && !file_exists(topic_dir, "topic_desc.json")) {
+            why = "a directory of the database that is not a topic";
+        } else if(!is_new) {
+            /*
+             *  A new topic_version re-writes topic_cols.json and topic_var.json
+             *  of a topic that exists (the change of a schema): over a SYSTEM
+             *  topic it took the mark that protects it from delete-topic, and
+             *  its columns. Refused as delete-topic refuses it (REV-CLOUD
+             *  V20.7); the change of any other topic is the feature it is.
+             */
+            json_t *topic = tranger2_topic(priv->tranger, topic_name);  // NULL: logged
+            json_int_t new_version = json_is_object(jn_var)?
+                kw_get_int(gobj, jn_var, "topic_version", 0, KW_WILD_NUMBER) : 0;
+            json_int_t version = topic?
+                kw_get_int(gobj, topic, "topic_version", 0, KW_WILD_NUMBER) : 0;
+            const char *owner = NULL;
+            if(json_boolean_value(json_object_get(topic, "system_topic")) &&
+                    new_version != 0 && new_version != version) {
+                why = "a system topic: its topic_version cannot be changed";
+            } else if(new_version > version &&
+                    (owner = schema_owner_of_topic(priv->tranger, topic_name))) {
+                /*
+                 *  The rule (REV-CLOUD V20 D4): the schema of a topic that a
+                 *  treedb or a msg2db open on this tranger declares is THEIRS,
+                 *  and it moves with theirs (a literal, save-schema +
+                 *  apply-schema), never with a create-topic: written over
+                 *  here, it lost its cols and pkey2s, and nothing wrote them
+                 *  back -- the literal's version is lower.
+                 */
+                why = strcmp(owner, "treedb")==0?
+                    "a topic of a treedb: its schema is the treedb's, changed by "
+                        "save-schema + apply-schema, not by create-topic" :
+                    "a topic of a msg2db: its schema is the msg2db's, not create-topic's";
+            } else if(new_version > version && json_absent(jn_cols)) {
+                /*
+                 *  The change writes topic_cols.json from jn_cols, and the
+                 *  tranger refuses a change without them with an ERROR: an
+                 *  empty dict is the columns of a topic that has none
+                 */
+                why = "a new topic_version of a topic that exists needs its jn_cols "
+                    "(an empty dict for a topic with no columns)";
+            } else if(new_version > version && json_size(jn_cols) == 0 &&
+                    json_size(json_object_get(topic, "cols")) > 0) {
+                /*
+                 *  And the version of a topic WITH columns moves with them:
+                 *  written from no columns, they were wiped. A topic of a
+                 *  plain tranger, with its jn_cols, keeps the feature; and so
+                 *  does one that has no columns by design (timeranger2
+                 *  columns are optional): there is nothing to wipe
+                 *  (REV-CLOUD V20 c3#1d).
+                 */
+                why = "a new topic_version of a topic that exists needs its jn_cols: "
+                    "without them its columns were written empty";
+            }
+        }
+    }
+
+    if(!why) {
+        return NULL;
+    }
+    log_refusal(gobj, peer,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "topic of a wrong shape, create refused",
+        "why",          "%s", why,
+        "topic_name",   "%.64s", topic_name? topic_name : "",
+        "system_flag",  "%.64s", system_flag? system_flag : "",
+        NULL
+    );
+    return json_sprintf("%s: cannot create topic '%.*s': %s",
+        gobj_yuno_role_plus_name(),
+        utf8_prefix_len(topic_name? topic_name : "", 64), topic_name? topic_name : "",
+        why
+    );
+}
+
+/***************************************************************************
+ *  The record add-record appends is the peer's: its pkey must be what the
+ *  key type of the topic asks -- a string that is one directory component
+ *  (not empty, no '/', no leading '.', NAME_MAX at most), or an integer --
+ *  and its `__t__` a time the tranger can name a file by. Each one was an
+ *  ERROR of the tranger with the record dumped, and an int key that was
+ *  not an integer was appended in silence under the key 0. The cause when
+ *  refused, said in a WARNING for a peer, an ERROR for a C caller
+ *  (log_refusal()); NULL when it can be appended.
+ ***************************************************************************/
+PRIVATE const char *refuse_peer_record(
+    hgobj gobj,
+    BOOL peer,
+    const char *topic_name,
+    json_t *record,
+    json_int_t __t__
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
+    system_flag2_t system_flag = (system_flag2_t)json_integer_value(json_object_get(topic, "system_flag"));
+    const char *pkey = json_string_value(json_object_get(topic, "pkey"));
+    json_t *jn_key = pkey? json_object_get(record, pkey) : NULL;
+
+    const char *why = NULL;
+    switch(system_flag & KEY_TYPE_MASK2) {
+        case sf_string_key:
+            {
+                const char *key = json_string_value(jn_key);
+                if(empty_string(key)) {
+                    why = "no pkey, or a pkey that is not a string";
+                } else if(strlen(key) > NAME_MAX) {
+                    why = "a pkey longer than NAME_MAX";
+                } else if(strchr(key, '/') || key[0] == '.') {
+                    why = "a pkey with a '/' or a leading '.'";
+                }
+            }
+            break;
+        case sf_int_key:
+            if(!json_is_integer(jn_key)) {
+                why = "no pkey, or a pkey that is not an integer";
+            }
+            break;
+        default:
+            break;  // rowid: no pkey; none: the topic's own fault, the tranger says it
+    }
+
+    if(!why && __t__ < 0) {
+        why = "a negative __t__";
+    } else if(!why && (uint64_t)__t__ > TRANGER2_MAX_TIME) {
+        /*  The md2 row holds 44 bits of it: the flags were written over the
+         *  rest, and the record kept another time than its file's name
+         *  (REV-CLOUD V20 D8)  */
+        why = "a __t__ larger than the time a record keeps (44 bits)";
+    } else if(!why && __t__ > 0) {
+        /*  The tranger names the file of the record by its __t__  */
+        time_t secs = (time_t)((system_flag & sf_t_ms)? __t__/1000 : __t__);
+        struct tm tm_;
+        if(!gmtime_r(&secs, &tm_)) {
+            why = "a __t__ out of the range of a date";
+        }
+    }
+    if(!why) {
+        /*
+         *  The time of its tkey is the __tm__ of the row: the same 44 bits,
+         *  appended cut past them. An integer is kept as it is; a string is
+         *  a date, read by approxidate() and multiplied by 1000 on an
+         *  sf_tm_ms topic. A date has no year limit: "@<seconds> +0000" is
+         *  any number of seconds (REV-CLOUD V20 c4 B), so the value the row
+         *  would keep is asked, as the append computes it
+         *  (tranger2_record_tkey_time()).
+         */
+        BOOL fits = TRUE;
+        tranger2_record_tkey_time(topic, record, &fits);
+        if(!fits) {
+            why = "a time in its tkey that a record cannot keep (negative, or past 44 bits)";
+        }
+    }
+
+    if(!why) {
+        return NULL;
+    }
+    log_refusal(gobj, peer,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "record of a wrong shape, refused",
+        "why",          "%s", why,
+        "topic_name",   "%s", topic_name,
+        "pkey",         "%s", pkey? pkey : "",
+        NULL
+    );
+    return why;
+}
+
+/***************************************************************************
+ *  A key a command names is a directory of the topic, `keys/<key>/`, and
+ *  the tranger reads it with no check when it opens a list, an iterator or
+ *  a feed on it: `../../<another topic>/keys/<k>` read the records of
+ *  another topic, under the permission asked for this one (REV-CLOUD
+ *  V20.2). One component: no '/', no leading '.', NAME_MAX at most -- what
+ *  tranger2_delete_key() and add-record ask of a key. An empty key is none
+ *  (every key). TRUE = refused, with a WARNING for a peer, an ERROR for a C
+ *  caller (log_refusal()).
+ ***************************************************************************/
+PRIVATE BOOL refuse_peer_key(hgobj gobj, BOOL peer, const char *topic_name, const char *key)
+{
+    if(empty_string(key) ||
+            (!strchr(key, '/') && key[0] != '.' && strlen(key) <= NAME_MAX)) {
+        return FALSE;
+    }
+    log_refusal(gobj, peer,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "key that is not one directory component, refused",
+        "topic_name",   "%s", topic_name,
+        "key",          "%.64s", key,
+        NULL
+    );
+    return TRUE;
+}
+
+/***************************************************************************
+ *  Something that is not a directory is there by that name: a file of the
+ *  database (`__timeranger2__.json`), or a link to nothing. The mkrdir() of
+ *  a topic over it was a CRITICAL of the tranger, an exit of the yuno with
+ *  the default on_critical_error (REV-CLOUD V20.1).
+ ***************************************************************************/
+PRIVATE BOOL path_is_not_a_directory(const char *path)
+{
+    struct stat st;
+    return (lstat(path, &st) == 0 && !is_directory(path))? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  The value at `path` of the tranger json, the path a peer hands
+ *  print-tranger: kw_find_path() style, segments joined by '`', a list
+ *  indexed by the number of the segment. Walked HERE, a segment at a time,
+ *  and refused (a WARNING for a peer, log_refusal()) where kw_find_path()
+ *  logs an ERROR with a stack (kwid.c, "do not edit"): a segment longer than its buffer,
+ *  char[256] ("buffer too small"), more segments than KW_MAX_PATH_DEPTH,
+ *  64 ("max nesting depth exceeded"), and a segment under something that
+ *  is not a dict or a list ("kw must be list or dict"). NULL when the path
+ *  names nothing (a key that is not there is said by the answer only, as
+ *  kw_find_path() with verbose FALSE did).
+ ***************************************************************************/
+PRIVATE json_t *find_peer_path(hgobj gobj, BOOL peer, json_t *kw, const char *path)
+{
+    const char *why = NULL;
+    json_t *value = kw;
+    int depth = 0;
+    const char *p = path;
+    while(value) {
+        const char *d = strchr(p, '`');
+        size_t len = d? (size_t)(d - p) : strlen(p);
+        if(len > PEER_PATH_SEGMENT_MAX) {
+            why = "a segment of the path longer than 255 bytes";
+            break;
+        }
+        if(++depth > PEER_PATH_DEPTH_MAX) {
+            why = "a path of more than 64 segments";
+            break;
+        }
+        if(!json_is_object(value) && !json_is_array(value)) {
+            why = "a segment of the path under a value that is not a dict or a list";
+            break;
+        }
+        char segment[PEER_PATH_SEGMENT_MAX + 1];
+        snprintf(segment, sizeof(segment), "%.*s", (int)len, p);
+        json_t *next = json_is_object(value)?
+            json_object_get(value, segment) :
+            json_array_get(value, (size_t)atoi(segment));
+        if(!d) {
+            return next;    // NULL: not there
+        }
+        value = json_absent(next)? NULL : next;
+        p = d + 1;
+    }
+    if(why) {
+        log_refusal(gobj, peer,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "print-tranger path refused",
+            "why",          "%s", why,
+            "path",         "%.64s", path,
+            NULL
+        );
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  The creator the iterators of a ONE-SHOT open-list (return_data) are
+ *  opened under. Their id is the key, and they were opened under the
+ *  list_id the peer chose: a list_id equal to the name of this service
+ *  (the creator of open-iterator) collided with the iterator a client had
+ *  open on that key ("Iterator already exists" ERROR, and the key was left
+ *  out of the answer). Under a creator of their own they collide with
+ *  nothing: each one is closed before the next is opened.
+ ***************************************************************************/
+PRIVATE void oneshot_creator(hgobj gobj, char *bf, size_t bfsize)
+{
+    snprintf(bf, bfsize, "%s^oneshot", gobj_name(gobj));
 }
 
 /***************************************************************************
@@ -1477,7 +2037,8 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -1492,11 +2053,12 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *value = priv->tranger;
 
     if(!empty_string(path)) {
-        value = kw_find_path(gobj, value, path, FALSE);
+        value = find_peer_path(gobj, command_is_external(kw), value, path);
         if(!value) {
             return msg_iev_build_response(gobj,
                 -1,
-                json_sprintf("Path not found: '%s'", path),
+                json_sprintf("%s: path not found: '%.*s'",
+                    gobj_yuno_role_plus_name(), utf8_prefix_len(path, 64), path),
                 0,
                 0,
                 kw  // owned
@@ -1504,7 +2066,9 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
         }
     }
 
-    if(expanded) {
+    if(!json_is_object(value) && !json_is_array(value)) {
+        value = json_incref(value); // a scalar has nothing to collapse: kw_collapse() logged an ERROR
+    } else if(expanded) {
         if(!lists_limit && !dicts_limit) {
             kw_incref(value); // All
         } else {
@@ -1533,6 +2097,28 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *
+     *  `read`, the permission of print-tranger: both walk the tranger
+     *  json and change nothing. It had none, and with max_refcount=1 the
+     *  walk logs an ERROR and a json trace of every node held twice (the
+     *  indexes and the hooks of a treedb hold each one), so any peer could
+     *  fill the log (REV-CLOUD V20.11).
+     *----------------------------------------*/
+    const char *permission = "read";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     int max_refcount = (int)kw_get_int(gobj, kw, "max_refcount", 1, KW_WILD_NUMBER);
 
     json_t *tranger = priv->tranger;
@@ -1540,7 +2126,8 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_check_refcounts(tranger, max_refcount, &result);
     return msg_iev_build_response(gobj,
         result,
-        json_sprintf("check refcounts of tranger: %s. If it was error then check the log files", result==0?"Ok":"Bad"),
+        json_sprintf("%s: check refcounts of tranger: %s. If it was error then check the log files",
+            gobj_yuno_role_plus_name(), result==0?"Ok":"Bad"),
         0,
         0,
         kw  // owned
@@ -1562,7 +2149,8 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -1574,7 +2162,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -1584,8 +2172,47 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     const char *pkey = kw_get_str(gobj, kw, "pkey", "", 0);
     const char *tkey = kw_get_str(gobj, kw, "tkey", "", 0);
     const char *system_flag_ = kw_get_str(gobj, kw, "system_flag", "", 0);
-    json_t *jn_cols = kw_get_dict(gobj, kw, "jn_cols", 0, 0);
-    json_t *jn_var = kw_get_dict(gobj, kw, "jn_var", 0, 0);
+    json_t *jn_cols = json_object_get(kw, "jn_cols");
+    json_t *jn_var = json_object_get(kw, "jn_var");
+
+    json_t *refused = refuse_peer_new_topic(
+        gobj, command_is_external(kw), topic_name, pkey, system_flag_, jn_cols, jn_var
+    );
+    if(refused) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            refused,
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(json_is_null(jn_cols)) {
+        jn_cols = NULL;
+    }
+    if(json_is_null(jn_var)) {
+        jn_var = NULL;
+    }
+
+    /*
+     *  A topic that is not there is created by the master only (asked
+     *  before the library: what the tranger IS), as add-record appends
+     */
+    char topic_dir[PATH_MAX];
+    tranger2_topic_path(topic_dir, sizeof(topic_dir), priv->tranger, topic_name);  // name rule asked above
+    if(!is_directory(topic_dir) && !gobj_read_bool_attr(gobj, "master")) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: tranger '%s' is READ-ONLY, this yuno is not its master: "
+                "create-topic of a new topic runs on the master",
+                gobj_yuno_role_plus_name(), gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     system_flag2_t system_flag = tranger2_str2system_flag(system_flag_);
 
@@ -1603,7 +2230,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     return msg_iev_build_response(gobj,
         topic?0:-1,
         topic?
-            json_sprintf("Topic created: '%s'", topic_name):
+            json_sprintf("%s: Topic created: '%s'", gobj_yuno_role_plus_name(), topic_name):
             json_sprintf("%s: cannot create topic '%s' (see the log)",
                 gobj_yuno_role_plus_name(), topic_name),
         0,
@@ -1627,7 +2254,8 @@ PRIVATE json_t *cmd_open_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -1639,7 +2267,19 @@ PRIVATE json_t *cmd_open_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(refuse_peer_topic_name(gobj, command_is_external(kw), topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -1649,13 +2289,13 @@ PRIVATE json_t *cmd_open_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_t *topic = tranger2_open_topic( // WARNING returned json IS NOT YOURS
         priv->tranger,      // If topic exists then only needs (tranger, topic_name) parameters
         topic_name,
-        FALSE
+        TRUE    // a topic that is there and does not open is no peer's fault: said
     );
 
     return msg_iev_build_response(gobj,
         topic?0:-1,
         topic?
-            json_sprintf("Topic opened: '%s'", topic_name):
+            json_sprintf("%s: Topic opened: '%s'", gobj_yuno_role_plus_name(), topic_name):
             json_sprintf("%s: cannot open topic '%s' (see the log)",
                 gobj_yuno_role_plus_name(), topic_name),
         0,
@@ -1679,7 +2319,8 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -1691,7 +2332,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -1700,12 +2341,70 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     /*  KW_WILD_NUMBER: `force=1` arrives as an integer from the command line  */
     BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
+    if(refuse_peer_topic_name(gobj, command_is_external(kw), topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_write_of_owned_topic(gobj, command_is_external(kw), "delete-topic", topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: '%s' is a topic of a treedb or a msg2db: it is written through it, "
+                "not by delete-topic", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     json_t *topic = tranger2_topic(priv->tranger, topic_name);
     if(!topic) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Topic not found: '%s'", topic_name),
+            json_sprintf("%s: cannot open topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  The tranger refuses both with an ERROR: what the tranger IS (only the
+     *  master deletes), and a topic marked system_topic
+     */
+    if(!gobj_read_bool_attr(gobj, "master")) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: tranger '%s' is READ-ONLY, this yuno is not its master: "
+                "delete-topic runs on the master",
+                gobj_yuno_role_plus_name(), gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(json_boolean_value(json_object_get(topic, "system_topic"))) {
+        log_refusal(gobj, command_is_external(kw),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "system topic, delete refused",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: '%s' is a system topic, it cannot be deleted",
+                gobj_yuno_role_plus_name(), topic_name),
             0,
             0,
             kw  // owned
@@ -1718,7 +2417,8 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("'%s' topic with records, you must force to delete", topic_name),
+                json_sprintf("%s: '%s' topic with records, you must force to delete",
+                    gobj_yuno_role_plus_name(), topic_name),
                 0,
                 0,
                 kw  // owned
@@ -1734,7 +2434,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     return msg_iev_build_response(gobj,
         ret,
         ret>=0?
-            json_sprintf("Topic deleted: '%s'", topic_name):
+            json_sprintf("%s: Topic deleted: '%s'", gobj_yuno_role_plus_name(), topic_name):
             json_sprintf("%s: cannot delete topic '%s' (see the log)",
                 gobj_yuno_role_plus_name(), topic_name),
         0,
@@ -1757,7 +2457,8 @@ PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -1769,7 +2470,7 @@ PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -1780,19 +2481,56 @@ PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What key?"),
+            json_sprintf("%s: What key?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
         );
     }
 
+    if(refuse_peer_topic_name(gobj, command_is_external(kw), topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_write_of_owned_topic(gobj, command_is_external(kw), "delete-key", topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: '%s' is a topic of a treedb or a msg2db: it is written through it, "
+                "not by delete-key", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     json_t *topic = tranger2_topic(priv->tranger, topic_name);
     if(!topic) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Topic not found: '%s'", topic_name),
+            json_sprintf("%s: cannot open topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*  Only the master deletes: the tranger refuses it with an ERROR  */
+    if(!gobj_read_bool_attr(gobj, "master")) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: tranger '%s' is READ-ONLY, this yuno is not its master: "
+                "delete-key runs on the master",
+                gobj_yuno_role_plus_name(), gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -1811,7 +2549,8 @@ PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Key not found in topic '%s': '%s'", topic_name, key),
+            json_sprintf("%s: Key not found in topic '%s': '%s'",
+                gobj_yuno_role_plus_name(), topic_name, key),
             0,
             0,
             kw  // owned
@@ -1829,7 +2568,8 @@ PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Key '%s' of topic '%s' holds %lu records, you must force to delete",
+            json_sprintf("%s: Key '%s' of topic '%s' holds %lu records, you must force to delete",
+                gobj_yuno_role_plus_name(),
                 key,
                 topic_name,
                 (unsigned long)records
@@ -1874,7 +2614,8 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -1933,7 +2674,8 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -1945,19 +2687,31 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
         );
     }
 
+    if(refuse_peer_topic_name(gobj, command_is_external(kw), topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     json_t *topic = tranger2_topic(priv->tranger, topic_name);
     if(!topic) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Topic not found: '%s'", topic_name),
+            json_sprintf("%s: cannot open topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
             0,
             0,
             kw  // owned
@@ -1992,7 +2746,8 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -2010,7 +2765,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What list_id?"),
+            json_sprintf("%s: What list_id?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2021,7 +2776,18 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_topic_name(gobj, command_is_external(kw), topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -2032,7 +2798,8 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Topic not found: '%s'", topic_name),
+            json_sprintf("%s: cannot open topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
             0,
             0,
             kw  // owned
@@ -2046,7 +2813,8 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("List is already open: '%s'", list_id),
+            json_sprintf("%s: List is already open: '%s'",
+                gobj_yuno_role_plus_name(), list_id),
             0,
             0,
             kw  // owned
@@ -2063,11 +2831,49 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     uint32_t user_flag_mask_notset = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_notset", 0, KW_WILD_NUMBER);
     const char *key = kw_get_str(gobj, kw, "key", 0, 0);
     const char *rkey = kw_get_str(gobj, kw, "rkey", 0, 0);
-    const char *from_t = kw_get_str(gobj, kw, "from_t", 0, 0);
-    const char *to_t = kw_get_str(gobj, kw, "to_t", 0, 0);
-    const char *from_tm = kw_get_str(gobj, kw, "from_tm", 0, 0);
-    const char *to_tm = kw_get_str(gobj, kw, "to_tm", 0, 0);
     const char *fields = kw_get_str(gobj, kw, "fields", 0, 0);
+
+    if(refuse_peer_key(gobj, command_is_external(kw), topic_name, key)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: key '%.*s' is not one directory component",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(key, 64), key),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  A time bound is what timeranger2 takes: an integer (the topic's
+     *  unit, negative from the last record), or a string -- a date when it
+     *  has a 'T', a number otherwise. They were DTP_STRING, and an integer
+     *  from a kw was refused by the command parser (REV-CLOUD V20.13).
+     */
+    static const char *time_bounds[] = {"from_t", "to_t", "from_tm", "to_tm", NULL};
+    for(int i = 0; time_bounds[i]; i++) {
+        json_t *jn_bound = json_object_get(kw, time_bounds[i]);
+        if(!json_absent(jn_bound) && !json_is_string(jn_bound) && !json_is_integer(jn_bound)) {
+            log_refusal(gobj, command_is_external(kw),
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "time bound of a wrong type, refused",
+                "topic_name",   "%s", topic_name,
+                "bound",        "%s", time_bounds[i],
+                NULL
+            );
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: %s must be an integer or a date string",
+                    gobj_yuno_role_plus_name(), time_bounds[i]),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
 
     json_t *match_cond = json_pack("{s:b, s:b}",
         "backward", backward,
@@ -2097,17 +2903,11 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     if(rkey) {
         json_object_set_new(match_cond, "rkey", json_string(rkey));
     }
-    if(from_t) {
-        json_object_set_new(match_cond, "from_t", json_string(from_t));
-    }
-    if(to_t) {
-        json_object_set_new(match_cond, "to_t", json_string(to_t));
-    }
-    if(from_tm) {
-        json_object_set_new(match_cond, "from_tm", json_string(from_tm));
-    }
-    if(to_tm) {
-        json_object_set_new(match_cond, "to_tm", json_string(to_tm));
+    for(int i = 0; time_bounds[i]; i++) {
+        json_t *jn_bound = json_object_get(kw, time_bounds[i]);
+        if(!json_absent(jn_bound)) {
+            json_object_set(match_cond, time_bounds[i], jn_bound);
+        }
     }
     if(!empty_string(fields)) {
         json_object_set_new(
@@ -2145,7 +2945,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 if(!re) {
                     PCRE2_UCHAR err[256];
                     pcre2_get_error_message(errornumber, err, sizeof(err));
-                    gobj_log_warning(gobj, 0,
+                    log_refusal(gobj, command_is_external(kw),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "Bad rkey regex",
@@ -2160,8 +2960,8 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                     return msg_iev_build_response(
                         gobj,
                         -1,
-                        json_sprintf("Bad rkey regex '%s' at %d: %s",
-                            rkey, (int)erroroffset, (char *)err),
+                        json_sprintf("%s: Bad rkey regex '%s' at %d: %s",
+                            gobj_yuno_role_plus_name(), rkey, (int)erroroffset, (char *)err),
                         0,
                         0,
                         kw  // owned
@@ -2184,7 +2984,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                     return msg_iev_build_response(
                         gobj,
                         -1,
-                        json_sprintf("No memory for the rkey matcher"),
+                        json_sprintf("%s: No memory for the rkey matcher", gobj_yuno_role_plus_name()),
                         0,
                         0,
                         kw  // owned
@@ -2207,6 +3007,8 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             }
         }
 
+        char creator[NAME_MAX];
+        oneshot_creator(gobj, creator, sizeof(creator));
         int idx; json_t *jn_key;
         json_array_foreach(jn_keys, idx, jn_key) {
             const char *key_ = json_string_value(jn_key);
@@ -2217,7 +3019,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 json_deep_copy(match_cond), // owned; one per key: a negative bound is resolved per key
                 load_record_callback,       // collects into extra's `data`
                 "",         // iterator id (defaults to the key)
-                list_id,    // creator
+                creator,
                 NULL,       // data (the callback collects, applying fields/only_md)
                 json_pack("{s:O}", "data", jn_data) // extra, owned
             );
@@ -2233,7 +3035,8 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             0,
-            json_sprintf("List loaded: '%s', %d records", list_id, (int)json_array_size(jn_data)),
+            json_sprintf("%s: List loaded: '%s', %d records",
+                gobj_yuno_role_plus_name(), list_id, (int)json_array_size(jn_data)),
             0,
             jn_data,
             kw  // owned
@@ -2294,7 +3097,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("List opened: '%s'", list_id),
+        json_sprintf("%s: List opened: '%s'", gobj_yuno_role_plus_name(), list_id),
         0,
         0,
         kw  // owned
@@ -2316,7 +3119,8 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -2329,7 +3133,7 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What list_id?"),
+            json_sprintf("%s: What list_id?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2341,7 +3145,7 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             0,
-            json_sprintf("List not found: '%s'", list_id),
+            json_sprintf("%s: List not found: '%s'", gobj_yuno_role_plus_name(), list_id),
             0,
             0,
             kw  // owned
@@ -2372,7 +3176,7 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         gobj,
         result,
         result>=0?
-            json_sprintf("List closed: '%s'", list_id):
+            json_sprintf("%s: List closed: '%s'", gobj_yuno_role_plus_name(), list_id):
             json_sprintf("%s: cannot close list '%s' (see the log)",
                 gobj_yuno_role_plus_name(), list_id),
         0,
@@ -2405,7 +3209,8 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -2438,17 +3243,27 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     }
 
     /*
-     *  A topic that is not there is the caller's mistake, answered and not
-     *  logged: asked of the disk first (tranger2_topic() logs a miss). One
-     *  that is there and cannot be opened is logged by the open.
+     *  A topic that is not there is the caller's mistake: asked of the disk
+     *  first (tranger2_topic() logs a miss). One that is there and cannot be
+     *  opened is logged by the open.
      */
-    char topic_dir[PATH_MAX];
-    if(tranger2_topic_path(topic_dir, sizeof(topic_dir), priv->tranger, topic_name) < 0 ||
-            !is_directory(topic_dir)) {
+    if(refuse_peer_topic_name(gobj, command_is_external(kw), topic_name)) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Topic not found: '%s'", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_write_of_owned_topic(gobj, command_is_external(kw), "add-record", topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: '%s' is a topic of a treedb or a msg2db: it is written through it, "
+                "not by add-record", gobj_yuno_role_plus_name(), topic_name),
             0,
             0,
             kw  // owned
@@ -2475,6 +3290,15 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         record = json_incref(jn_record);
     }
     if(!json_is_object(record)) {
+        /*  A peer's data: it answered -1 with no log (REV-CLOUD V20.9)  */
+        log_refusal(gobj, command_is_external(kw),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "record of a wrong shape, refused",
+            "why",          "%s", "the record is not a json object",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
         JSON_DECREF(record)
         return msg_iev_build_response(
             gobj,
@@ -2487,14 +3311,28 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
-    uint64_t __t__ = (uint64_t)kw_get_int(gobj, kw, "__t__", 0, KW_WILD_NUMBER);
+    json_int_t __t__ = (json_int_t)kw_get_int(gobj, kw, "__t__", 0, KW_WILD_NUMBER);
     uint16_t user_flag = (uint16_t)kw_get_int(gobj, kw, "user_flag", 0, KW_WILD_NUMBER);
+
+    const char *why = refuse_peer_record(gobj, command_is_external(kw), topic_name, record, __t__);
+    if(why) {
+        JSON_DECREF(record)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: record refused by topic '%s': %s",
+                gobj_yuno_role_plus_name(), topic_name, why),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     md2_record_ex_t md_record = {0};
     int ret = tranger2_append_record(
         priv->tranger,
         topic_name,
-        __t__,      // 0: now
+        (uint64_t)__t__,    // 0: now
         user_flag,
         &md_record,
         record      // owned
@@ -2542,7 +3380,8 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -2555,7 +3394,7 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What list_id?"),
+            json_sprintf("%s: What list_id?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2567,7 +3406,7 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             0,
-            json_sprintf("List not found: '%s'", list_id),
+            json_sprintf("%s: List not found: '%s'", gobj_yuno_role_plus_name(), list_id),
             0,
             0,
             kw  // owned
@@ -2686,6 +3525,7 @@ PRIVATE int sort_keys(json_t *jn_list, BOOL by_records, BOOL desc)
  ***************************************************************************/
 PRIVATE json_t *match_topic_keys(
     hgobj gobj,
+    BOOL peer,      // the rkey is a peer's: a bad one is a WARNING (log_refusal())
     const char *topic_name,
     const char *rkey,
     json_t **jn_comment
@@ -2705,7 +3545,7 @@ PRIVATE json_t *match_topic_keys(
         if(!re) {
             PCRE2_UCHAR err[256];
             pcre2_get_error_message(errornumber, err, sizeof(err));
-            gobj_log_warning(gobj, 0,
+            log_refusal(gobj, peer,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Bad rkey regex",
@@ -2714,8 +3554,8 @@ PRIVATE json_t *match_topic_keys(
                 "error",        "%s", (char *)err,
                 NULL
             );
-            *jn_comment = json_sprintf("Bad rkey regex '%s' at %d: %s",
-                rkey, (int)erroroffset, (char *)err);
+            *jn_comment = json_sprintf("%s: Bad rkey regex '%s' at %d: %s",
+                gobj_yuno_role_plus_name(), rkey, (int)erroroffset, (char *)err);
             return NULL;
         }
         pcre2_jit_compile(re, PCRE2_JIT_COMPLETE);
@@ -2729,7 +3569,7 @@ PRIVATE json_t *match_topic_keys(
                 "msg",          "%s", "pcre2_match_data_create_from_pattern() FAILED",
                 NULL
             );
-            *jn_comment = json_sprintf("No memory for the rkey matcher");
+            *jn_comment = json_sprintf("%s: No memory for the rkey matcher", gobj_yuno_role_plus_name());
             return NULL;
         }
     }
@@ -2783,7 +3623,8 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -2795,7 +3636,18 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_topic_name(gobj, command_is_external(kw), topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -2806,7 +3658,8 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Topic not found: '%s'", topic_name),
+            json_sprintf("%s: cannot open topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
             0,
             0,
             kw  // owned
@@ -2823,7 +3676,8 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Unknown order: '%s' (key|records)", order),
+            json_sprintf("%s: Unknown order: '%s' (key|records)",
+                gobj_yuno_role_plus_name(), order),
             0,
             0,
             kw  // owned
@@ -2837,7 +3691,7 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     }
 
     json_t *jn_comment = NULL;
-    json_t *jn_matched = match_topic_keys(gobj, topic_name, rkey, &jn_comment);
+    json_t *jn_matched = match_topic_keys(gobj, command_is_external(kw), topic_name, rkey, &jn_comment);
     if(!jn_matched) {
         return msg_iev_build_response(
             gobj,
@@ -2958,7 +3812,7 @@ PRIVATE json_t *open_multi_key_iterator(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *jn_comment = NULL;
-    json_t *jn_keys = match_topic_keys(gobj, topic_name, rkey, &jn_comment);
+    json_t *jn_keys = match_topic_keys(gobj, command_is_external(kw), topic_name, rkey, &jn_comment);
     if(!jn_keys || sort_keys(jn_keys, FALSE, FALSE) < 0) {
         JSON_DECREF(jn_keys)
         JSON_DECREF(match_cond)
@@ -3084,8 +3938,8 @@ PRIVATE json_t *open_multi_key_iterator(
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Iterator opened: '%s', %d keys",
-            iterator_id, (int)json_array_size(parts)),
+        json_sprintf("%s: Iterator opened: '%s', %d keys",
+            gobj_yuno_role_plus_name(), iterator_id, (int)json_array_size(parts)),
         0,
         json_pack("{s:s, s:I, s:I}",
             "iterator_id", iterator_id,
@@ -3114,7 +3968,8 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -3132,7 +3987,7 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3142,7 +3997,8 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What key? (key, or rkey for several)"),
+            json_sprintf("%s: What key? (key, or rkey for several)",
+                gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3152,7 +4008,18 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("key or rkey, not both"),
+            json_sprintf("%s: key or rkey, not both", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_topic_name(gobj, command_is_external(kw), topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -3163,7 +4030,19 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Topic not found: '%s'", topic_name),
+            json_sprintf("%s: cannot open topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_key(gobj, command_is_external(kw), topic_name, key)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: key '%.*s' is not one directory component",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(key, 64), key),
             0,
             0,
             kw  // owned
@@ -3179,7 +4058,8 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Iterator is already open: '%s'", iterator_id),
+            json_sprintf("%s: Iterator is already open: '%s'",
+                gobj_yuno_role_plus_name(), iterator_id),
             0,
             0,
             kw  // owned
@@ -3260,7 +4140,8 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Iterator opened: '%s'", iterator_id),
+        json_sprintf("%s: Iterator opened: '%s'",
+            gobj_yuno_role_plus_name(), iterator_id),
         0,
         json_pack("{s:s, s:I}",
             "iterator_id", iterator_id,
@@ -3286,7 +4167,8 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -3298,7 +4180,7 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What iterator_id?"),
+            json_sprintf("%s: What iterator_id?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3309,7 +4191,8 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Iterator not found: '%s'", iterator_id),
+            json_sprintf("%s: Iterator not found: '%s'",
+                gobj_yuno_role_plus_name(), iterator_id),
             0,
             0,
             kw  // owned
@@ -3419,7 +4302,8 @@ PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgob
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -3431,7 +4315,7 @@ PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgob
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What iterator_id?"),
+            json_sprintf("%s: What iterator_id?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3442,7 +4326,8 @@ PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgob
         return msg_iev_build_response(
             gobj,
             0,
-            json_sprintf("Iterator not found: '%s'", iterator_id),
+            json_sprintf("%s: Iterator not found: '%s'",
+                gobj_yuno_role_plus_name(), iterator_id),
             0,
             0,
             kw  // owned
@@ -3472,7 +4357,8 @@ PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgob
         gobj,
         result,
         result>=0?
-            json_sprintf("Iterator closed: '%s'", iterator_id):
+            json_sprintf("%s: Iterator closed: '%s'",
+                gobj_yuno_role_plus_name(), iterator_id):
             json_sprintf("%s: cannot close iterator '%s' (see the log)",
                 gobj_yuno_role_plus_name(), iterator_id),
         0,
@@ -3499,7 +4385,8 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -3514,7 +4401,7 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What rt_id?"),
+            json_sprintf("%s: What rt_id?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3524,7 +4411,7 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3537,7 +4424,7 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *  master's rt_mem too: one rule for the id, whichever side opens it.
      */
     if(strlen(rt_id) > NAME_MAX) {
-        gobj_log_warning(gobj, 0,
+        log_refusal(gobj, command_is_external(kw),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "rt_id too long",
@@ -3549,7 +4436,19 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: rt_id longer than %d bytes", gobj_yuno_role_plus_name(), NAME_MAX),
+            json_sprintf("%s: rt_id longer than %d bytes",
+                gobj_yuno_role_plus_name(), NAME_MAX),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_topic_name(gobj, command_is_external(kw), topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
             0,
             0,
             kw  // owned
@@ -3560,7 +4459,19 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Topic not found: '%s'", topic_name),
+            json_sprintf("%s: cannot open topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_key(gobj, command_is_external(kw), topic_name, key)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: key '%.*s' is not one directory component",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(key, 64), key),
             0,
             0,
             kw  // owned
@@ -3573,7 +4484,8 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Realtime feed is already open: '%s'", rt_id),
+            json_sprintf("%s: Realtime feed is already open: '%s'",
+                gobj_yuno_role_plus_name(), rt_id),
             0,
             0,
             kw  // owned
@@ -3644,7 +4556,8 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Realtime feed opened: '%s'", rt_id),
+        json_sprintf("%s: Realtime feed opened: '%s'",
+            gobj_yuno_role_plus_name(), rt_id),
         0,
         0,
         kw  // owned
@@ -3666,7 +4579,8 @@ PRIVATE json_t *cmd_close_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -3678,7 +4592,7 @@ PRIVATE json_t *cmd_close_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What rt_id?"),
+            json_sprintf("%s: What rt_id?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3689,7 +4603,8 @@ PRIVATE json_t *cmd_close_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             0,
-            json_sprintf("Realtime feed not found: '%s'", rt_id),
+            json_sprintf("%s: Realtime feed not found: '%s'",
+                gobj_yuno_role_plus_name(), rt_id),
             0,
             0,
             kw  // owned
@@ -3721,7 +4636,8 @@ PRIVATE json_t *cmd_close_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         gobj,
         result,
         result>=0?
-            json_sprintf("Realtime feed closed: '%s'", rt_id):
+            json_sprintf("%s: Realtime feed closed: '%s'",
+                gobj_yuno_role_plus_name(), rt_id):
             json_sprintf("%s: cannot close realtime feed '%s' (see the log)",
                 gobj_yuno_role_plus_name(), rt_id),
         0,

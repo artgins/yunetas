@@ -434,9 +434,19 @@ The response, as a JSON object with the keys `result`, `comment`, `schema` and
 
 **Notes**
 
-The GClass declares its commands with the `SDATACM` macro, and gives them to
-[`command_parser()`](#js_command_parser) from the `mt_command_parser` method.
-See [Commands and statistics](commands.md).
+The command goes to the gclass's own `mt_command_parser` method when it has
+one, and else, when the gclass has a command table (`SDATACM`), to the global
+parser of [`gobj_start_up()`](bootstrap.md#js_gobj_start_up). A gclass with
+neither answers `-1` *"\<gobj>: command table not available"*. See
+[Commands and statistics](commands.md).
+
+For a yuno of `C_YUNO` (as gui_agent and gui_treedb create it), whose
+`mt_command_parser` answers `get-global-trace`:
+
+```javascript
+let r = gobj_command(gobj_yuno(), "get-global-trace", {}, gobj);
+// r: {result: 0, comment: "", schema: {}, data: ["machine"]}     (the global levels that are set)
+```
 
 ---
 
@@ -468,8 +478,12 @@ The response, as a JSON object. Build it with
 (js_command_parser)=
 ## [`command_parser()`](https://github.com/artgins/gobj-js/blob/7.26.19/src/command_parser.js#L12)
 
-The default parser of commands. A GClass gives it as its `mt_command_parser`
-method.
+An empty stub, exported to fill the `global_command_parser_fn` slot of
+[`gobj_start_up()`](bootstrap.md#js_gobj_start_up). It reads no command table,
+types no parameter and returns `undefined`: it is NOT a parser of commands as
+the C kernel's [`command_parser()`](#command_parser) is. A gclass that answers
+its commands gives its own `mt_command_parser` method (see
+[Commands and statistics](commands.md)).
 
 ```javascript
 command_parser(gobj, command, kw, src)
@@ -477,14 +491,25 @@ command_parser(gobj, command, kw, src)
 
 **Returns**
 
-The response of the command, as a JSON object.
+`undefined`.
+
+```javascript
+gobj_command(gobj, "help", {}, src);
+// a gclass with a command table and no mt_command_parser, started with
+// command_parser as global_command_parser_fn: undefined, the command did nothing
+```
 
 ---
 
 (js_stats_parser)=
 ## [`stats_parser()`](https://github.com/artgins/gobj-js/blob/7.26.19/src/stats_parser.js#L12)
 
-The default parser of statistics. A GClass gives it as its `mt_stats` method.
+An empty stub, exported to fill the `global_stats_parser_fn` slot of
+[`gobj_start_up()`](bootstrap.md#js_gobj_start_up). It reads no statistic and
+returns `undefined`. [`gobj_stats()`](#js_gobj_stats) asks the gclass's own
+`mt_stats` method first, and this global parser only for a gclass without
+one; with no global parser it answers `-1` *"\<gobj>, stats parser not
+available"*.
 
 ```javascript
 stats_parser(gobj, stats, kw, src)
@@ -492,7 +517,12 @@ stats_parser(gobj, stats, kw, src)
 
 **Returns**
 
-The response, as a JSON object.
+`undefined`.
+
+```javascript
+gobj_stats(gobj, "", {}, src);
+// a gclass with no mt_stats, started with stats_parser as global_stats_parser_fn: undefined
+```
 
 ---
 

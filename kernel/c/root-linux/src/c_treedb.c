@@ -13,20 +13,60 @@
  *            silence up to 7.25.4)
  *
  *          "open-treedb"   -> create a timeranger and a treedb (C_NODE) with the schema passed;
- *                             refused, before anything is touched, for a treedb already open here
- *          "close-treedb"
- *          "delete-treedb"
- *          "create-topic"
- *          "delete-topic"
+ *                             refused, before anything is touched, for a treedb already open here.
+ *                             An open from OUTSIDE (`__username__`, a peer's) is refused for its
+ *                             data with a WARNING, BEFORE anything is made (refuse_peer_open_treedb()):
+ *                             a name of the system ("__"), with '^' or ".treedb_schema.json" or too
+ *                             long for the names made from it (108 bytes), a filename_mask that is
+ *                             not one file name, exit_on_error, import_root and impose_c_schema (they
+ *                             are the code's), a topic of the schema the treedb refuses (its own
+ *                             checks, treedb_check_new_topic(): columns, `id`, `file`, hook+fkey,
+ *                             link types, pkey2s), named twice (`id` and `topic_name`), of a wrong
+ *                             type, named as a file of the store, whose `file` columns share an
+ *                             __assets__ hook, or whose directory, lists or ids in __system__ do not
+ *                             fit, a schema parse_schema() refuses (inside the window of a peer's
+ *                             data) or whose ids collide, attributes and seeds of a wrong shape (a
+ *                             seed without its string id), a topic another database of the store
+ *                             owns (a msg2db's), more than one main_topic or one on a topic not
+ *                             hooked to itself, a treedb the code of the yuno opened, or a name
+ *                             whose services are that treedb's (while it is closed, in any case:
+ *                             `tranger_<it>`, and `<x>` of a `tranger_<x>` of the code), and a
+ *                             store there that is not that treedb's or that a master holds
+ *                             (refuse_peer_store()). The seeds of an EXTERNAL open are a peer's
+ *                             data, at every start of the treedb: what they get wrong is a
+ *                             WARNING. An open from C goes as it always went: what tr_treedb
+ *                             refuses of its schema is logged and left out
+ *          "close-treedb"  -> from outside, never a treedb the code of the yuno opened, its name
+ *                             in any case (played or paused, with `force` or without:
+ *                             mqtt_broker keeps its own open across a pause). While the yuno
+ *                             PLAYS, nobody closes without `force`, and `force` from outside is
+ *                             only for a treedb that user opened; paused, any other treedb
+ *                             closes without `force`, whoever opened it
+ *          "delete-treedb" -> every command that names a treedb asks a peer's name the rule of
+ *                             open-treedb first: `x/../<T>` reached the files of T in saved_schemas/.
+ *                             A name of an OPEN treedb is taken in any case, as its service is
+ *                             found, and read as the name it was opened with (treedb_name_here()).
+ *                             From outside, never a treedb the code of the yuno opened, open or
+ *                             closed, its name in any case
+ *          "create-topic"  -> from OUTSIDE, refused as a topic of the schema of open-treedb is,
+ *                             a directory of the store that is not a topic (`.blobs`), and a
+ *                             topic another database of the store owns -- a msg2db or treedb
+ *                             open on it holds it, or its schema file names it
+ *                             (foreign_topic_fault()); from C it goes as it went
+ *          "delete-topic"  -> from OUTSIDE, not a topic another database of the store holds too
+ *                             (open on it, or named by its schema file)
  *          "diff-schema"   -> what the __system__ projection says that the schema from C does not
  *          "treedbs"       -> the treedbs opened here, and for each one whether
  *                             it opens with its schema from C and who decided it
  *          "save-schema"   -> publish the draft edited in __system__: the versions of
  *                             what differs from the file in use + 1, written to
  *                             saved_schemas/ under the __system__ tranger. A draft
- *                             that is the file in use again withdraws that file
+ *                             that is the file in use again withdraws that file; a
+ *                             topic the treedb would refuse at its next open is refused,
+ *                             and from outside a version raised past 2147483647
  *          "saved-schema"  -> that saved schema, what it changes, whether it applies
- *          "apply-schema"  -> put it in place of the file in use (master, not imposed)
+ *          "apply-schema"  -> put it in place of the file in use (master, not imposed); a
+ *                             topic the treedb would refuse at its next open is refused
  *
  *          __SYSTEM__ IS WHERE A SCHEMA IS EDITED, NOT WHERE A TREEDB OPENS
  *          FROM. The master projects into it what the treedb runs: a literal
@@ -76,10 +116,12 @@
  ***********************************************************************/
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <limits.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 
 #include <gobj.h>
@@ -105,6 +147,22 @@
  *  literal has that version.
  */
 #define C_SCHEMA_UNFINISHED     (-1)
+
+/*
+ *  A refusal of the data a command was handed, with the split of the
+ *  command parser (refuse_parameter()): from outside -- the kw carries
+ *  `__username__`, C_IEVENT_SRV's stamp (command_is_external()) -- the
+ *  mistake is the peer's, a WARNING without a stack; from C code it is a
+ *  broken contract, an ERROR with one (REV-CLOUD V20 #5).
+ */
+#define log_refusal(gobj_, peer_, ...)                                  \
+    do {                                                                \
+        if(peer_) {                                                     \
+            gobj_log_warning((gobj_), 0, __VA_ARGS__);                  \
+        } else {                                                        \
+            gobj_log_error((gobj_), LOG_OPT_TRACE_STACK, __VA_ARGS__);  \
+        }                                                               \
+    } while(0)
 
 /*
  *  Attributes of a __system__ node that say how it is STORED, never what it
@@ -192,6 +250,78 @@ PRIVATE int delete_client_treedb_schema(
 PRIVATE BOOL is_treedb_opened_here(
     hgobj gobj,
     hgobj gobj_node
+);
+PRIVATE json_t *treedb_tranger_here(hgobj gobj, const char *treedb_name);
+PRIVATE const char *treedb_name_here(
+    hgobj gobj,
+    const char *treedb_name,
+    char *bf,
+    size_t bfsize
+);
+PRIVATE BOOL treedb_opened_by_code(hgobj gobj, const char *treedb_name);
+PRIVATE const char *find_code_treedb_sharing_services(hgobj gobj, const char *treedb_name);
+PRIVATE BOOL command_is_external(json_t *kw);
+PRIVATE BOOL refuse_peer_treedb_not_open(hgobj gobj, BOOL peer, const char *treedb_name);
+PRIVATE const char *refuse_peer_treedb_name(hgobj gobj, BOOL peer, const char *treedb_name);
+PRIVATE const char *refuse_peer_filename_mask(const char *filename_mask);
+PRIVATE const char *refuse_peer_new_topic(
+    hgobj gobj,
+    BOOL peer,
+    const char *treedb_name,
+    const char *treedb_directory,
+    const char *topic_name,
+    const char *topic_tkey,
+    json_t *pkey2s,
+    json_t *cols
+);
+PRIVATE const char *refuse_peer_schema_topics(
+    hgobj gobj,
+    BOOL peer,
+    const char *treedb_name,
+    const char *treedb_directory,
+    json_t *jn_schema,
+    const char **bad_topic
+);
+PRIVATE const char *refuse_peer_store(
+    hgobj gobj,
+    BOOL peer,
+    const char *treedb_name,
+    const char *treedb_directory
+);
+PRIVATE json_t *refuse_peer_open_treedb(
+    hgobj gobj,
+    json_t *kw,
+    const char *treedb_name,
+    const char *treedb_directory,
+    const char *filename_mask,
+    int exit_on_error,
+    json_t *jn_treedb_schema
+);
+PRIVATE BOOL store_has_tranger_here(const char *directory);
+PRIVATE const char *topic_of_another_store_db(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *directory,
+    const char *topic_name,
+    char *db_name,
+    size_t db_name_size,
+    BOOL *open
+);
+PRIVATE const char *foreign_topic_fault(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *treedb_directory,
+    const char *topic_name
+);
+PRIVATE const char *main_topic_fault(hgobj gobj, json_t *jn_topics, const char **bad_topic);
+PRIVATE BOOL peer_version_is_valid(json_t *jn_version);
+PRIVATE BOOL refuse_peer_topic_name(
+    hgobj gobj,
+    BOOL peer,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name
 );
 PRIVATE json_t *build_readonly_response(
     hgobj gobj,
@@ -328,6 +458,7 @@ PRIVATE json_t *twin_names_in_tree(hgobj gobj, const char *treedb_name, json_t *
 PRIVATE json_t *left_out_of_rebuild(hgobj gobj, json_t *tree, json_t *left);
 PRIVATE json_t *schema_id_collision(
     hgobj gobj,
+    BOOL peer,
     const char *treedb_name,
     json_t *jn_schema,
     BOOL cross
@@ -562,6 +693,8 @@ typedef struct _PRIVATE_DATA {
     json_t *jn_not_opened;              // {treedb: true} whose services exist but treedb_open_db() refused it
     json_t *jn_records_not_written;     // {treedb: record} of an unfinished projection the disk refused
     json_t *jn_upgrade_records;         // {treedb: {record, stat}} read from saved_schemas/, see load_upgrade_record
+    json_t *jn_opened_by_peer;          // {treedb: __username__} opened by an EXTERNAL open-treedb
+    json_t *jn_opened_by_code;          // {treedb: true} a C caller opened in this process, never a peer's
     json_int_t system_schema_version;   // of treedb_system_schema, see reconcile
     int32_t exit_on_error;
 } PRIVATE_DATA;
@@ -603,6 +736,8 @@ PRIVATE void mt_create(hgobj gobj)
     priv->jn_not_opened = json_object();
     priv->jn_records_not_written = json_object();
     priv->jn_upgrade_records = json_object();
+    priv->jn_opened_by_peer = json_object();
+    priv->jn_opened_by_code = json_object();
 
     /*-----------------------------------*
      *      Create System Timeranger
@@ -730,6 +865,8 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->jn_not_opened)
     JSON_DECREF(priv->jn_records_not_written)
     JSON_DECREF(priv->jn_upgrade_records)
+    JSON_DECREF(priv->jn_opened_by_peer)
+    JSON_DECREF(priv->jn_opened_by_code)
 }
 
 /***************************************************************************
@@ -850,13 +987,11 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *filename_mask = kw_get_str(gobj, kw, "filename_mask", "", 0);
-    int exit_on_error = (int)kw_get_int(gobj, kw, "exit_on_error", 0, KW_WILD_NUMBER);
-    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
-    json_t *_jn_treedb_schema = kw_get_dict(gobj, kw, "treedb_schema", 0, 0);
-
     /*----------------------------------------*
      *  Check AUTHZS
+     *  BEFORE any value of the kw is read: a
+     *  peer without the permission makes no
+     *  log write what its values are not
      *----------------------------------------*/
     const char *permission = "open-close";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
@@ -870,6 +1005,12 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             kw  // owned
         );
     }
+
+    const char *filename_mask = kw_get_str(gobj, kw, "filename_mask", "", 0);
+    int exit_on_error = (int)kw_get_int(gobj, kw, "exit_on_error", 0, KW_WILD_NUMBER);
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    json_t *_jn_treedb_schema = kw_get_dict(gobj, kw, "treedb_schema", 0, 0);
+    BOOL external = command_is_external(kw);
 
     /*-----------------------------------*
      *      Check parameters
@@ -896,6 +1037,39 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     /*-----------------------------------*
+     *  An EXTERNAL open (a peer's) is
+     *  refused for its data BEFORE anything
+     *  is made, with a WARNING
+     *  (refuse_peer_open_treedb()). A C
+     *  caller's open goes as it always went
+     *  (REV-CLOUD V20 #1): what tr_treedb
+     *  refuses of its schema is logged and
+     *  left out, and the treedb opens -- the
+     *  agent EXITS on an open-treedb that
+     *  answers -1, and the yunos of the
+     *  projects go on with no treedb.
+     *-----------------------------------*/
+    char treedb_directory[PATH_MAX];
+    build_path(treedb_directory, sizeof(treedb_directory),
+        gobj_read_str_attr(gobj, "path"), treedb_name, NULL
+    );
+    if(external) {
+        json_t *refused = refuse_peer_open_treedb(
+            gobj, kw, treedb_name, treedb_directory, filename_mask, exit_on_error, _jn_treedb_schema
+        );
+        if(refused) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                refused,
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
+
+    /*-----------------------------------*
      *  A treedb already open here is refused
      *  BEFORE anything else: the open that
      *  follows reconciles __system__, and a
@@ -914,7 +1088,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             comment = json_sprintf("%s: cannot open treedb '%s': a service named '%s' exists "
                 "already, nothing was changed", gobj_yuno_role_plus_name(), treedb_name,
                 gobj_already? treedb_name : tranger_name);
-        } else if(json_object_get(priv->jn_not_opened, treedb_name)) {
+        } else if(json_object_get(priv->jn_not_opened, gobj_name(gobj_already))) {
             comment = json_sprintf("%s: treedb '%s' did not open at its last open-treedb, "
                 "its schema was refused (see the log): close-treedb it before opening it "
                 "again, nothing was changed", gobj_yuno_role_plus_name(), treedb_name);
@@ -930,6 +1104,34 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             0,
             kw  // owned
         );
+    }
+
+    /*
+     *  A treedb the yuno's code opens is the code's, open or closed: a peer
+     *  that opened it while it was closed (refuse_peer_open_treedb()) put its
+     *  own schema over the code's, and the code's next open found it "already
+     *  open" and went on without its treedb (REV-CLOUD V20 c4 Residual)
+     */
+    if(!external) {
+        json_object_set_new(priv->jn_opened_by_code, treedb_name, json_true());
+    }
+
+    /*
+     *  The store of a peer's open: that treedb's, not held (refuse_peer_store())
+     */
+    if(external) {
+        const char *why = refuse_peer_store(gobj, external, treedb_name, treedb_directory);
+        if(why) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: cannot open treedb '%s': %s, nothing was changed",
+                    gobj_yuno_role_plus_name(), treedb_name, why),
+                0,
+                0,
+                kw  // owned
+            );
+        }
     }
 
     /*-----------------------------------*
@@ -1062,10 +1264,25 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     };
     for(int i = 0; file_attrs[i]; i++) {
         json_t *jn_value = kw_get_dict_value(gobj, kw, file_attrs[i], 0, 0);
-        if(jn_value) {
+        if(!json_absent(jn_value)) {   // a null is no value: C_NODE's default
             json_object_set(kw_resource, file_attrs[i], jn_value);
         }
     }
+
+    /*
+     *  The seeds of initial_load are the data of whoever sent the command,
+     *  and C_NODE creates them in its start, in this call. An EXTERNAL
+     *  command (the one C_IEVENT_SRV stamps with `__username__`) is a peer's:
+     *  what its seeds get wrong is said as WARNINGs, by C_NODE and by the
+     *  treedb (REV-CLOUD V20.8). A C caller (the agent's own open-treedb)
+     *  keeps its ERRORs. C_NODE opens the treedb itself OUTSIDE the window:
+     *  the store and the schema are not the seeds. And it is told where its
+     *  seeds come from (`peer_initial_load`): it applies them again at every
+     *  start (a pause-yuno + play-yuno), with nobody's window around it
+     *  (REV-CLOUD V20 D7).
+     */
+    json_object_set_new(kw_resource, "peer_initial_load", json_boolean(external));
+    BOOL peer_data = external? treedb_set_peer_data(TRUE) : FALSE;
 
     hgobj gobj_client_node = gobj_create_service(
         treedb_name,
@@ -1085,6 +1302,12 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         started = gobj_start(gobj_client_node);
     } else {
         gobj_destroy(gobj_client_tranger);  // Error already logged
+        /*  Kept by the schema decided above: no treedb of that name is
+         *  open, and save-/saved-schema of every treedb would ask for it  */
+        json_object_del(priv->jn_c_schemas, treedb_name);
+    }
+    if(external) {
+        treedb_set_peer_data(peer_data);
     }
 
     /*
@@ -1105,6 +1328,13 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_object_set_new(priv->jn_forced_treedbs, treedb_name, json_true());
     } else {
         json_object_del(priv->jn_forced_treedbs, treedb_name);
+    }
+    if(external && gobj_client_node) {
+        /*  Who may close it with `force` from outside (cmd_close_treedb())  */
+        json_object_set_new(priv->jn_opened_by_peer, treedb_name,
+            json_string(json_string_value(json_object_get(kw, "__username__"))));
+    } else {
+        json_object_del(priv->jn_opened_by_peer, treedb_name);
     }
     if(gobj_client_node && started < 0) {
         json_object_set_new(priv->jn_not_opened, treedb_name, json_true());
@@ -1147,11 +1377,8 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
-    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
-
     /*----------------------------------------*
-     *  Check AUTHZS
+     *  Check AUTHZS, before any value is read
      *----------------------------------------*/
     const char *permission = "open-close";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
@@ -1166,6 +1393,9 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
+
     /*-----------------------------------*
      *      Check parameters
      *-----------------------------------*/
@@ -1179,6 +1409,20 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             kw  // owned
         );
     }
+    const char *why_name = refuse_peer_treedb_name(gobj, command_is_external(kw), treedb_name);
+    if(why_name) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: treedb '%.*s' refused: %s", gobj_yuno_role_plus_name(),
+                utf8_prefix_len(treedb_name, 64), treedb_name, why_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    char name_here[NAME_MAX];
+    treedb_name = treedb_name_here(gobj, treedb_name, name_here, sizeof(name_here));
 
     /*-----------------------------------------------------*
      *  Closing destroys the treedb's C_NODE and its
@@ -1190,15 +1434,54 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *  treedb). Freed underneath, the next record processed
      *  writes into released memory.
      *
-     *  The owner closes and reopens through its own
-     *  lifecycle — mt_pause closes, mt_play reopens and
-     *  re-acquires every handle — and by then the yuno is
-     *  already out of play. From outside, that is
-     *  `pause-yuno` + `play-yuno`.
+     *  So a PEER never closes a treedb the yuno's code
+     *  opened (jn_opened_by_code), whether the yuno plays
+     *  or not, with `force` or without: the code closes it
+     *  through its own lifecycle, and it is not always
+     *  the pause -- mqtt_broker opens treedb_mqtt_broker
+     *  (and its msg2db `alarms` on the same tranger) in
+     *  mt_start and closes it in mt_stop, so its `treedbs`
+     *  service and its handles live through a pause, and a
+     *  close of a paused broker was a use of freed memory
+     *  at its next play-yuno or stop (REV-CLOUD V20 c5).
+     *  From outside, a yuno whose code closes the treedb in
+     *  its pause reopens it with `pause-yuno` +
+     *  `play-yuno`; the broker, with a restart of the yuno.
+     *  The name is compared in any case, as the service is
+     *  found: `TREEDB_MQTT_BROKER` closed the broker's
+     *  treedb_mqtt_broker (REV-CLOUD V20 c6r).
      *
-     *  `force` is for a caller that opened the treedb and
-     *  holds nothing of it.
+     *  Then, while the yuno plays, nobody closes a treedb
+     *  without `force` -- a C caller neither. `force` is
+     *  for a caller that opened the treedb and holds
+     *  nothing of it: from outside, only the peer that
+     *  opened it (below).
      *-----------------------------------------------------*/
+    if(command_is_external(kw) && treedb_opened_by_code(gobj, treedb_name)) {
+        log_refusal(gobj, TRUE,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "close-treedb from outside of a treedb the code of the yuno opened, refused",
+            "treedb_name",  "%.64s", treedb_name,
+            "force",        "%d", force? 1 : 0,
+            "playing",      "%d", gobj_is_playing(gobj_yuno())? 1 : 0,
+            NULL
+        );
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: cannot close treedb '%.*s': the code of the yuno opened it and holds "
+                "its handles, playing or paused; the yuno's own lifecycle closes it "
+                "(pause-yuno + play-yuno, or a restart of the yuno)",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(treedb_name, 64), treedb_name
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     if(gobj_is_playing(gobj_yuno()) && !force) {
         return msg_iev_build_response(
             gobj,
@@ -1213,6 +1496,42 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             0,
             kw  // owned
         );
+    }
+
+    /*
+     *  And `force` from OUTSIDE only for a treedb that peer opened: on
+     *  another peer's, that peer may hold its handles (REV-CLOUD V20 #0,
+     *  #15; one the yuno's code opened was refused above). The opener is
+     *  the `__username__` of its open (jn_opened_by_peer, by the name it
+     *  was opened with: treedb_name_here() above); a C caller keeps its
+     *  force.
+     */
+    if(force && gobj_is_playing(gobj_yuno()) && command_is_external(kw)) {
+        const char *opener = json_string_value(json_object_get(priv->jn_opened_by_peer, treedb_name));
+        const char *user = json_string_value(json_object_get(kw, "__username__"));
+        if(!opener || !user || strcmp(opener, user)!=0) {
+            log_refusal(gobj, TRUE,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "close-treedb force of a treedb this peer did not open, refused",
+                "treedb_name",  "%.64s", treedb_name,
+                "user",         "%.64s", user? user : "",
+                NULL
+            );
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf(
+                    "%s: cannot force the close of treedb '%.*s' while the yuno plays: "
+                    "this user did not open it, and whoever did may hold its handles. "
+                    "Use pause-yuno + play-yuno",
+                    gobj_yuno_role_plus_name(), utf8_prefix_len(treedb_name, 64), treedb_name
+                ),
+                0,
+                0,
+                kw  // owned
+            );
+        }
     }
 
     /*----------------------*
@@ -1254,6 +1573,7 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_object_del(priv->jn_c_schemas, treedb_name);
     json_object_del(priv->jn_forced_treedbs, treedb_name);
     json_object_del(priv->jn_not_opened, treedb_name);
+    json_object_del(priv->jn_opened_by_peer, treedb_name);
 
     return msg_iev_build_response(gobj,
         0,
@@ -1271,11 +1591,8 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
-    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
-
     /*----------------------------------------*
-     *  Check AUTHZS
+     *  Check AUTHZS, before any value is read
      *----------------------------------------*/
     const char *permission = "open-close";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
@@ -1290,6 +1607,9 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
+
     /*-----------------------------------*
      *      Check parameters
      *-----------------------------------*/
@@ -1303,6 +1623,20 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
             kw  // owned
         );
     }
+    const char *why_name = refuse_peer_treedb_name(gobj, command_is_external(kw), treedb_name);
+    if(why_name) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: treedb '%.*s' refused: %s", gobj_yuno_role_plus_name(),
+                utf8_prefix_len(treedb_name, 64), treedb_name, why_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    char name_here[NAME_MAX];
+    treedb_name = treedb_name_here(gobj, treedb_name, name_here, sizeof(name_here));
     if(!force) {
         return msg_iev_build_response(
             gobj,
@@ -1315,9 +1649,10 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
     }
 
     /*
-     *  The schema of the schemas is not a treedb's schema to delete
+     *  The schema of the schemas is not a treedb's schema to delete (its
+     *  name in any case: it is the name of a service)
      */
-    if(strcmp(treedb_name, gobj_name(priv->gobj_node_system))==0) {
+    if(strcasecmp(treedb_name, gobj_name(priv->gobj_node_system))==0) {
         return msg_iev_build_response(
             gobj,
             -1,
@@ -1330,6 +1665,36 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
             kw  // owned
         );
     }
+
+    /*
+     *  A treedb the yuno's code opened is the code's, open or closed: from
+     *  outside, its projection in __system__, its saved schema and its
+     *  records are not deleted while it is closed either, the code's next
+     *  open reads them (REV-CLOUD V20 c7). Its name in any case, as close
+     *  compares it. A C caller deletes it.
+     */
+    if(command_is_external(kw) && treedb_opened_by_code(gobj, treedb_name)) {
+        log_refusal(gobj, TRUE,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "delete-treedb from outside of a treedb the code of the yuno opened, refused",
+            "treedb_name",  "%.64s", treedb_name,
+            NULL
+        );
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: cannot delete the schema of treedb '%.*s': the code of the yuno opened it, "
+                "and its schema is the code's, open or closed",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(treedb_name, 64), treedb_name
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     /*-----------------------------------------------------*
      *  Not while it is OPEN, and `force` does not lift this.
      *
@@ -1453,15 +1818,8 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-    int topic_version = kw_get_int(gobj, kw, "topic_version", 1, KW_WILD_NUMBER);
-    const char *topic_tkey = kw_get_str(gobj, kw, "topic_tkey", "", 0);
-    json_t *pkey2s_ = kw_get_dict_value(gobj, kw, "pkey2s", 0, 0);
-    json_t *cols_ = kw_get_dict_value(gobj, kw, "cols", 0, 0);
-
     /*----------------------------------------*
-     *  Check AUTHZS
+     *  Check AUTHZS, before any value is read
      *----------------------------------------*/
     const char *permission = "create-delete";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
@@ -1475,6 +1833,30 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             kw  // owned
         );
     }
+
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    json_int_t topic_version = kw_get_int(gobj, kw, "topic_version", 1, KW_WILD_NUMBER);
+    const char *topic_tkey = kw_get_str(gobj, kw, "topic_tkey", "", 0);
+    json_t *pkey2s_ = kw_get_dict_value(gobj, kw, "pkey2s", 0, 0);
+    json_t *cols_ = kw_get_dict_value(gobj, kw, "cols", 0, 0);
+
+    if(!empty_string(treedb_name)) {
+        const char *why_name = refuse_peer_treedb_name(gobj, command_is_external(kw), treedb_name);
+        if(why_name) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: treedb '%.*s' refused: %s", gobj_yuno_role_plus_name(),
+                    utf8_prefix_len(treedb_name, 64), treedb_name, why_name),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
+    char name_here[NAME_MAX];
+    treedb_name = treedb_name_here(gobj, treedb_name, name_here, sizeof(name_here));
 
     hgobj gobj_client_node = gobj_find_service(treedb_name, FALSE);
     if(!gobj_client_node) {
@@ -1504,6 +1886,87 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_t *tranger = gobj_read_pointer_attr(gobj_client_node, "tranger");
     if(!tranger_writes_now(gobj, tranger)) {
         return build_readonly_response(gobj, treedb_name, tranger, kw);
+    }
+
+    /*
+     *  A PEER's topic, before the treedb refuses it with an ERROR (a name
+     *  too long, a CRITICAL of the tranger): a topic of the treedb is
+     *  answered as it is (the create is idempotent); a NEW one is asked
+     *  what the treedb asks it and what C_TREEDB knows of its store
+     *  (refuse_peer_new_topic(), which logs): its name, its columns, its
+     *  pkey2s, its directory -- a topic another database of the store owns,
+     *  a msg2db's above all, is not adopted (foreign_topic_fault()) --, and
+     *  the ids made from its names; then its `file` columns against
+     *  the hooks the treedb has. A C caller's create goes as it always went
+     *  (REV-CLOUD V20 c4 #3): treedb_create_topic() judges and logs it.
+     */
+    BOOL peer = command_is_external(kw);
+    if(peer) {
+        if(empty_string(topic_name)) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: what topic_name?", gobj_yuno_role_plus_name()),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        const char *why = NULL;
+        if(!tranger2_name_is_identifier(topic_name) ||
+                !treedb_is_treedbs_topic(tranger, treedb_name, topic_name)) {
+            if(topic_version < 0 || topic_version > TRANGER2_VERSION_MAX) {
+                why = "a topic_version that is not an integer from 0 to 2147483647";
+                log_refusal(gobj, peer,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "topic of a wrong shape, refused",
+                    "why",          "%s", why,
+                    "treedb_name",  "%s", treedb_name,
+                    "topic_name",   "%.64s", topic_name,
+                    NULL
+                );
+            }
+            if(!why) {
+                why = refuse_peer_new_topic(
+                    gobj,
+                    peer,
+                    treedb_name,
+                    kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+                    topic_name,
+                    topic_tkey,
+                    pkey2s_,
+                    cols_
+                );
+            }
+            if(!why) {
+                /*
+                 *  Its `file` columns against the hooks the treedb's
+                 *  __assets__ has: two columns of one hook was an ERROR after
+                 *  the topic was created, and the new column linked through
+                 *  the other's hook (REV-CLOUD V20 C)
+                 */
+                json_t *hook_topics = json_pack("[{s:s, s:O}]",
+                    "topic_name", topic_name, "cols", cols_
+                );
+                BOOL peer_data = treedb_set_peer_data(peer);
+                treedb_check_file_hooks(gobj, tranger, treedb_name, hook_topics, &why);  // logged
+                treedb_set_peer_data(peer_data);
+                JSON_DECREF(hook_topics)
+            }
+        }
+        if(why) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: cannot create topic '%.*s' in treedb '%s': %s",
+                    gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name,
+                    treedb_name, why),
+                0,
+                0,
+                kw  // owned
+            );
+        }
     }
 
     json_t *topic = treedb_create_topic( // WARNING Return is NOT YOURS
@@ -1537,11 +2000,8 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-
     /*----------------------------------------*
-     *  Check AUTHZS
+     *  Check AUTHZS, before any value is read
      *----------------------------------------*/
     const char *permission = "create-delete";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
@@ -1555,6 +2015,26 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             kw  // owned
         );
     }
+
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+
+    if(!empty_string(treedb_name)) {
+        const char *why_name = refuse_peer_treedb_name(gobj, command_is_external(kw), treedb_name);
+        if(why_name) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: treedb '%.*s' refused: %s", gobj_yuno_role_plus_name(),
+                    utf8_prefix_len(treedb_name, 64), treedb_name, why_name),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
+    char name_here[NAME_MAX];
+    treedb_name = treedb_name_here(gobj, treedb_name, name_here, sizeof(name_here));
 
     hgobj gobj_client_node = gobj_find_service(treedb_name, FALSE);
     if(!gobj_client_node) {
@@ -1584,6 +2064,91 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_t *tranger = gobj_read_pointer_attr(gobj_client_node, "tranger");
     if(!tranger_writes_now(gobj, tranger)) {
         return build_readonly_response(gobj, treedb_name, tranger, kw);
+    }
+
+    /*
+     *  The peer's topic, before the treedb refuses it with an ERROR: one of
+     *  the treedb, and not one of its system topics
+     */
+    if(empty_string(topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: what topic_name?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_topic_name(gobj, command_is_external(kw), tranger, treedb_name, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found in treedb '%s': '%.*s'",
+                gobj_yuno_role_plus_name(), treedb_name,
+                utf8_prefix_len(topic_name, 64), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    /*
+     *  Nor a topic that another database of the store holds too -- a
+     *  msg2db or another treedb open on it, or one whose schema file names
+     *  it (topic_of_another_store_db()): delete-topic takes its directory
+     *  and every record in it, with no `force`, and the other's next writes
+     *  failed (REV-CLOUD V20 c4 A). A peer cannot make the treedb hold one
+     *  any more (create-topic, foreign_topic_fault()); one a C caller
+     *  adopted is still its owner's.
+     */
+    char db_name[NAME_MAX];
+    BOOL db_open = FALSE;
+    const char *other_db = command_is_external(kw)?
+        topic_of_another_store_db(gobj, tranger, treedb_name,
+            kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+            topic_name, db_name, sizeof(db_name), &db_open) : NULL;
+    if(other_db) {
+        log_refusal(gobj, TRUE,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "delete of a topic that a msg2db or another treedb holds too, refused",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "owner",        "%s", other_db,
+            "owner_name",   "%s", db_name,
+            "owner_open",   "%d", db_open? 1 : 0,
+            NULL
+        );
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot delete topic '%s' of treedb '%s': the %s '%s' holds it too",
+                gobj_yuno_role_plus_name(), topic_name, treedb_name, other_db, db_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *topic = json_object_get(json_object_get(tranger, "topics"), topic_name);
+    if(json_boolean_value(json_object_get(topic, "system_topic"))) {
+        log_refusal(gobj, command_is_external(kw),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "system topic, delete refused",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: '%s' is a system topic of treedb '%s', it cannot be deleted",
+                gobj_yuno_role_plus_name(), topic_name, treedb_name),
+            0,
+            0,
+            kw  // owned
+        );
     }
 
     int ret = treedb_delete_topic(
@@ -1669,14 +2234,7 @@ PRIVATE json_int_t schema_version_of(hgobj gobj, json_t *jn_schema)
  ***************************************************************************/
 PRIVATE int in_use_schema_dir(hgobj gobj, const char *treedb_name, char *bf, size_t bfsize)
 {
-    char tranger_name[NAME_MAX];
-    snprintf(tranger_name, sizeof(tranger_name), "tranger_%s", treedb_name);
-    hgobj gobj_tranger = gobj_find_service(tranger_name, FALSE);
-    if(gobj_tranger &&
-            (!gobj_typeof_gclass(gobj_tranger, C_TRANGER) || gobj_parent(gobj_tranger) != gobj)) {
-        gobj_tranger = NULL;    /*  a service of that name, but not the tranger we opened  */
-    }
-    json_t *tranger = gobj_tranger? gobj_read_pointer_attr(gobj_tranger, "tranger"): NULL;
+    json_t *tranger = treedb_tranger_here(gobj, treedb_name);
     if(!tranger) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2651,22 +3209,38 @@ PRIVATE void places_moved_from_file(
 /***************************************************************************
  *  What the rebuild of a draft leaves out of what an older release left
  *  (`left`, {id: topic name}, see left_by_older_release_now): all of it,
- *  but a left topic that holds a column somebody added since, which is a
- *  draft (rows_without_leftovers keeps its row) and stays, without its
- *  left columns. Return {id: true}, YOURS.
+ *  but a left topic that holds a column somebody added or edited since,
+ *  which is a draft (rows_without_leftovers keeps its row) and stays WHOLE,
+ *  its left columns too: the edit made the topic the operator's, and the
+ *  topic is what the editor shows. It stayed without its left columns, and
+ *  a left `id` column went with them -- the save published a topic with no
+ *  `id`, which the treedb refuses at its next open (REV-CLOUD V20 #18).
+ *  Return {id: true}, YOURS.
  ***************************************************************************/
 PRIVATE json_t *left_out_of_rebuild(hgobj gobj, json_t *tree, json_t *left)
 {
-    json_t *left_out = json_object();
     json_t *tree_topics = tree? kw_get_dict(gobj, tree, "topics", 0, 0) : NULL;
+    json_t *kept = json_object();   // {id: true}, the left topics that stay and their columns
     const char *left_id; json_t *v;
     json_object_foreach(left, left_id, v) {
-        if(json_object_get(tree_topics, left_id) &&
-                topic_holds_other_cols(gobj, tree, left_id, left)) {
+        json_t *topic = json_object_get(tree_topics, left_id);
+        if(!topic || !topic_holds_other_cols(gobj, tree, left_id, left)) {
             continue;
         }
-        json_object_set_new(left_out, left_id, json_true());
+        json_object_set_new(kept, left_id, json_true());
+        const char *col_id; json_t *col;
+        json_object_foreach(kw_get_dict(gobj, topic, "cols", 0, 0), col_id, col) {
+            json_object_set_new(kept, col_id, json_true());
+        }
     }
+
+    json_t *left_out = json_object();
+    json_object_foreach(left, left_id, v) {
+        if(!json_object_get(kept, left_id)) {
+            json_object_set_new(left_out, left_id, json_true());
+        }
+    }
+    JSON_DECREF(kept)
     return left_out;
 }
 
@@ -2696,6 +3270,27 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return build_readonly_response(gobj, gobj_name(priv->gobj_node_system), priv->tranger_system_, kw);
     }
 
+    const char *why_name = refuse_peer_treedb_name(gobj, command_is_external(kw), treedb_name);
+    if(why_name) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: treedb '%.*s' refused: %s", gobj_yuno_role_plus_name(),
+                utf8_prefix_len(treedb_name, 64), treedb_name, why_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    char name_here[NAME_MAX];
+    treedb_name = treedb_name_here(gobj, treedb_name, name_here, sizeof(name_here));
+    if(refuse_peer_treedb_not_open(gobj, command_is_external(kw), treedb_name)) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: treedb '%.*s' is not open here", gobj_yuno_role_plus_name(),
+                utf8_prefix_len(treedb_name, 64), treedb_name),
+            0, 0, kw
+        );
+    }
     char in_use_dir[PATH_MAX];
     if(in_use_schema_dir(gobj, treedb_name, in_use_dir, sizeof(in_use_dir))<0) {
         return msg_iev_build_response(gobj, -1,
@@ -2785,14 +3380,19 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         JSON_DECREF(upgrade)
         JSON_DECREF(pending_saved)
 
-        const char *left_id; json_t *v;
-        json_object_foreach(left, left_id, v) {
-            json_array_append_new(left_ids, json_string(left_id));
-        }
-        if(json_array_size(left_ids) > 0) {
+        if(json_object_size(left) > 0) {
+            /*
+             *  What the rebuild leaves out is what the save leaves out of
+             *  its rows and names in `left_by_older_release`: a left topic
+             *  the operator made theirs is published whole
+             */
             json_t *tree = system_tree_of(gobj, treedb_name);
             JSON_DECREF(left_out)
             left_out = left_out_of_rebuild(gobj, tree, left);
+            const char *left_id; json_t *v;
+            json_object_foreach(left_out, left_id, v) {
+                json_array_append_new(left_ids, json_string(left_id));
+            }
             rows = rows_without_leftovers(gobj, treedb_name, tree, rows, left_ids);
             JSON_DECREF(tree)
         }
@@ -2946,7 +3546,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  A draft whose elements get one id in __system__ (a name with a dot):
      *  applied, the treedb would not open again
      */
-    json_t *collision = schema_id_collision(gobj, treedb_name, schema, TRUE);
+    json_t *collision = schema_id_collision(gobj, command_is_external(kw), treedb_name, schema, TRUE);
     if(collision) {
         JSON_DECREF(schema)
         JSON_DECREF(changed)
@@ -2994,6 +3594,35 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     /*
+     *  Each topic as the treedb creates it at the next open, the check of
+     *  apply-schema (refuse_peer_schema_topics()): a draft whose topic the
+     *  treedb refuses was published, and refused only at its apply
+     *  (REV-CLOUD V20 #18)
+     */
+    {
+        const char *bad_topic = NULL;
+        const char *why = refuse_peer_schema_topics(
+            gobj, command_is_external(kw), treedb_name, in_use_dir, schema, &bad_topic
+        );
+        if(why) {
+            json_t *comment = json_sprintf("%s: cannot save the schema of '%s': topic '%.*s' of "
+                "its draft: %s, the treedb would refuse it at its next open",
+                gobj_yuno_role_plus_name(), treedb_name,
+                utf8_prefix_len(bad_topic? bad_topic : "", 64), bad_topic? bad_topic : "", why);
+            JSON_DECREF(schema)
+            JSON_DECREF(changed)
+            JSON_DECREF(in_use)
+            JSON_DECREF(left_ids)
+            return msg_iev_build_response(gobj, -1,
+                comment,
+                0,
+                json_pack("{s:s, s:o}", "treedb_name", treedb_name, "changes", rows),
+                kw
+            );
+        }
+    }
+
+    /*
      *  The versions: the one in use + 1, or the draft's when it is already
      *  ahead of that
      */
@@ -3004,10 +3633,26 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
     json_object_set_new(schema, "schema_version", json_integer(schema_version));
 
+    /*
+     *  A PEER's versions stop at TRANGER2_VERSION_MAX: past it, its
+     *  apply-schema and every later save of the treedb were refused, and the
+     *  peer had locked itself out of its own treedb (REV-CLOUD V20 c4 D). The
+     *  save that would raise one past it is refused, nothing written. A C
+     *  caller's versions are json_int_t end to end.
+     */
+    BOOL peer = command_is_external(kw);
+    const char *past_max = NULL;
+    if(peer && schema_version > TRANGER2_VERSION_MAX) {
+        past_max = "schema_version";
+    }
+
     json_t *versions = json_object();
     int idx; json_t *topic;
     json_array_foreach(json_object_get(schema, "topics"), idx, topic) {
         const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
+        if(past_max) {
+            break;
+        }
         if(!json_object_get(changed, topic_name)) {
             continue;
         }
@@ -3027,11 +3672,40 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         if(v < in_use_v + 1) {
             v = in_use_v + 1;
         }
+        if(peer && v > TRANGER2_VERSION_MAX) {
+            past_max = topic_name;
+            break;
+        }
         json_object_set_new(topic, "topic_version", json_integer(v));
         json_object_set_new(versions, topic_name, json_integer(v));
     }
     JSON_DECREF(changed)
     JSON_DECREF(in_use)
+    if(past_max) {
+        log_refusal(gobj, peer,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "save-schema would raise a version past 2147483647, refused",
+            "treedb_name",  "%s", treedb_name,
+            "version_of",   "%.64s", past_max,
+            NULL
+        );
+        BOOL of_schema = (strcmp(past_max, "schema_version")==0)? TRUE : FALSE;
+        json_t *comment = json_sprintf("%s: cannot save the schema of '%s': the %s '%.*s' "
+            "would pass 2147483647, the largest version a command can publish",
+            gobj_yuno_role_plus_name(), treedb_name,
+            of_schema? "version" : "topic_version of topic",
+            utf8_prefix_len(past_max, 64), past_max);
+        JSON_DECREF(versions)
+        JSON_DECREF(schema)
+        JSON_DECREF(left_ids)
+        return msg_iev_build_response(gobj, -1,
+            comment,
+            0,
+            json_pack("{s:s, s:o}", "treedb_name", treedb_name, "changes", rows),
+            kw
+        );
+    }
 
     json_t *not_placed = json_array();  // nodes of more than one parent: their `order` says nothing
     if(dry_run) {
@@ -3193,6 +3867,27 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     if(empty_string(treedb_name)) {
         return for_every_treedb(gobj, cmd, kw, src, cmd_saved_schema);
+    }
+    const char *why_name = refuse_peer_treedb_name(gobj, command_is_external(kw), treedb_name);
+    if(why_name) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: treedb '%.*s' refused: %s", gobj_yuno_role_plus_name(),
+                utf8_prefix_len(treedb_name, 64), treedb_name, why_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    char name_here[NAME_MAX];
+    treedb_name = treedb_name_here(gobj, treedb_name, name_here, sizeof(name_here));
+    if(refuse_peer_treedb_not_open(gobj, command_is_external(kw), treedb_name)) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: treedb '%.*s' is not open here", gobj_yuno_role_plus_name(),
+                utf8_prefix_len(treedb_name, 64), treedb_name),
+            0, 0, kw
+        );
     }
     char in_use_dir[PATH_MAX];
     if(in_use_schema_dir(gobj, treedb_name, in_use_dir, sizeof(in_use_dir))<0) {
@@ -3533,6 +4228,7 @@ PRIVATE int commit_schema_file(
  ***************************************************************************/
 PRIVATE json_t *check_saved_schema_to_apply(
     hgobj gobj,
+    BOOL peer,                  // the apply came from outside (command_is_external())
     const char *treedb_name,
     json_t **p_saved,           // YOURS when NULL is returned
     char *in_use_dir,
@@ -3605,7 +4301,7 @@ PRIVATE json_t *check_saved_schema_to_apply(
         return json_sprintf("%s: the saved schema of '%s' does not parse (see the log)",
             gobj_yuno_role_plus_name(), treedb_name);
     }
-    json_t *collision = schema_id_collision(gobj, treedb_name, saved, TRUE);
+    json_t *collision = schema_id_collision(gobj, peer, treedb_name, saved, TRUE);
     if(collision) {
         json_t *comment = json_sprintf("%s: the saved schema of '%s' is refused: %s and %s get "
             "the same id '%s' in __system__, rename one of them",
@@ -3614,6 +4310,23 @@ PRIVATE json_t *check_saved_schema_to_apply(
             kw_get_str(gobj, collision, "second", "", 0),
             kw_get_str(gobj, collision, "id", "", 0));
         JSON_DECREF(collision)
+        JSON_DECREF(saved)
+        return comment;
+    }
+
+    /*
+     *  Each topic as the treedb creates it at the next open: a topic it
+     *  refuses there is gone from the treedb, and logged as the CRITICAL
+     *  "Cannot create topic of the schema" -- an exit of the yuno with its
+     *  exit_on_error. A pkey2s of "id", or the tkey, edited in __system__
+     *  went through save-schema and apply-schema (REV-CLOUD V20 c2#3).
+     */
+    const char *bad_topic = NULL;
+    const char *why = refuse_peer_schema_topics(gobj, peer, treedb_name, in_use_dir, saved, &bad_topic);
+    if(why) {
+        json_t *comment = json_sprintf("%s: the saved schema of '%s' is refused: topic '%.*s': %s",
+            gobj_yuno_role_plus_name(), treedb_name,
+            utf8_prefix_len(bad_topic? bad_topic : "", 64), bad_topic? bad_topic : "", why);
         JSON_DECREF(saved)
         return comment;
     }
@@ -3668,13 +4381,36 @@ PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     if(empty_string(treedb_name)) {
         return apply_every_saved_schema(gobj, cmd, kw);
     }
+    const char *why_name = refuse_peer_treedb_name(gobj, command_is_external(kw), treedb_name);
+    if(why_name) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: treedb '%.*s' refused: %s", gobj_yuno_role_plus_name(),
+                utf8_prefix_len(treedb_name, 64), treedb_name, why_name),
+            0,
+            apply_schema_data(treedb_name, FALSE, 0, 0),
+            kw  // owned
+        );
+    }
+    char name_here[NAME_MAX];
+    treedb_name = treedb_name_here(gobj, treedb_name, name_here, sizeof(name_here));
+    if(refuse_peer_treedb_not_open(gobj, command_is_external(kw), treedb_name)) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: treedb '%.*s' is not open here", gobj_yuno_role_plus_name(),
+                utf8_prefix_len(treedb_name, 64), treedb_name),
+            0,
+            apply_schema_data(treedb_name, FALSE, 0, 0),
+            kw
+        );
+    }
 
     json_t *saved;
     char in_use_dir[PATH_MAX];
     json_int_t saved_version, in_use_version;
     BOOL applicable, broken;
     json_t *refused = check_saved_schema_to_apply(
-        gobj, treedb_name, &saved, in_use_dir, sizeof(in_use_dir),
+        gobj, command_is_external(kw), treedb_name, &saved, in_use_dir, sizeof(in_use_dir),
         &saved_version, &in_use_version, &applicable, &broken
     );
     if(refused) {
@@ -3792,7 +4528,7 @@ PRIVATE json_t *apply_every_saved_schema(hgobj gobj, const char *cmd, json_t *kw
         json_int_t saved_version, in_use_version;
         BOOL applicable, broken;
         json_t *refused = check_saved_schema_to_apply(
-            gobj, name, &saved, in_use_dir, sizeof(in_use_dir),
+            gobj, command_is_external(kw), name, &saved, in_use_dir, sizeof(in_use_dir),
             &saved_version, &in_use_version, &applicable, &broken
         );
         if(broken) {
@@ -4002,10 +4738,8 @@ PRIVATE json_t *cmd_diff_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
-
     /*----------------------------------------*
-     *  Check AUTHZS
+     *  Check AUTHZS, before any value is read
      *----------------------------------------*/
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
@@ -4019,6 +4753,24 @@ PRIVATE json_t *cmd_diff_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             kw  // owned
         );
     }
+
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    if(!empty_string(treedb_name)) {
+        const char *why_name = refuse_peer_treedb_name(gobj, command_is_external(kw), treedb_name);
+        if(why_name) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: treedb '%.*s' refused: %s", gobj_yuno_role_plus_name(),
+                    utf8_prefix_len(treedb_name, 64), treedb_name, why_name),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
+    char name_here[NAME_MAX];
+    treedb_name = treedb_name_here(gobj, treedb_name, name_here, sizeof(name_here));
 
     /*--------------------------------------------------*
      *  Only a treedb opened with a schema from C can be
@@ -5116,11 +5868,14 @@ PRIVATE json_t *schema_id_described(
  *  It runs at every open, so the ids are only collected: the two elements
  *  are described once there is a collision (schema_id_described).
  *
- *  Return NULL, or the collision (YOURS), logged as an ERROR naming both
- *  elements: {"id": ..., "first": ..., "second": ...}.
+ *  Return NULL, or the collision (YOURS), logged naming both elements:
+ *  {"id": ..., "first": ..., "second": ...}. A WARNING when the schema is
+ *  a peer's (`peer`, REV-CLOUD V20 F), the ERROR it always was otherwise
+ *  (without a stack, as before: REV-CLOUD V20 c4 #1).
  ***************************************************************************/
 PRIVATE json_t *schema_id_collision(
     hgobj gobj,
+    BOOL peer,              // the schema is a peer's data: a WARNING (log_refusal())
     const char *treedb_name,
     json_t *jn_schema,      // not owned
     BOOL cross
@@ -5194,16 +5949,31 @@ PRIVATE json_t *schema_id_collision(
     JSON_DECREF(seen)
 
     if(collision) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "Schema refused: two elements have the same qualified id in __system__ (a name with a dot), rename one of them",
-            "treedb_name",  "%s", treedb_name,
-            "id",           "%s", kw_get_str(gobj, collision, "id", "", 0),
-            "first",        "%s", kw_get_str(gobj, collision, "first", "", 0),
-            "second",       "%s", kw_get_str(gobj, collision, "second", "", 0),
-            NULL
-        );
+        /*  A C caller's: the ERROR it always was, without a stack (it names
+         *  both elements: the stack says nothing more)  */
+        if(peer) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Schema refused: two elements have the same qualified id in __system__ (a name with a dot), rename one of them",
+                "treedb_name",  "%s", treedb_name,
+                "id",           "%s", kw_get_str(gobj, collision, "id", "", 0),
+                "first",        "%s", kw_get_str(gobj, collision, "first", "", 0),
+                "second",       "%s", kw_get_str(gobj, collision, "second", "", 0),
+                NULL
+            );
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Schema refused: two elements have the same qualified id in __system__ (a name with a dot), rename one of them",
+                "treedb_name",  "%s", treedb_name,
+                "id",           "%s", kw_get_str(gobj, collision, "id", "", 0),
+                "first",        "%s", kw_get_str(gobj, collision, "first", "", 0),
+                "second",       "%s", kw_get_str(gobj, collision, "second", "", 0),
+                NULL
+            );
+        }
     }
     return collision;
 }
@@ -10981,6 +11751,1360 @@ PRIVATE BOOL is_treedb_opened_here(
 }
 
 /***************************************************************************
+ *  The tranger of the treedb `treedb_name` that THIS service opened (its
+ *  C_TRANGER `tranger_<treedb_name>`, a child of this service), or NULL.
+ *  Silent: a NULL is answered by whoever asks.
+ ***************************************************************************/
+PRIVATE json_t *treedb_tranger_here(hgobj gobj, const char *treedb_name)
+{
+    char tranger_name[NAME_MAX];
+    snprintf(tranger_name, sizeof(tranger_name), "tranger_%s", treedb_name);
+    hgobj gobj_tranger = gobj_find_service(tranger_name, FALSE);
+    if(gobj_tranger &&
+            (!gobj_typeof_gclass(gobj_tranger, C_TRANGER) || gobj_parent(gobj_tranger) != gobj)) {
+        gobj_tranger = NULL;    /*  a service of that name, but not the tranger we opened  */
+    }
+    return gobj_tranger? gobj_read_pointer_attr(gobj_tranger, "tranger") : NULL;
+}
+
+/***************************************************************************
+ *  The name of the treedb open HERE that `treedb_name` names, in `bf`.
+ *  A service is found by its name in any case (gobj_find_service() lowers
+ *  it), so `TREEDB_X` acts on the open treedb_x; but its store, its files
+ *  and the maps of priv are keyed by the name it was opened with, the name
+ *  of its C_NODE. Read by the name from the wire, a guard missed it and a
+ *  close left the maps behind (REV-CLOUD V20 c6r). A name no treedb open
+ *  here answers to is returned as it is: a closed treedb is a directory,
+ *  and those differ by case. Copied: a close destroys the C_NODE whose name
+ *  it is.
+ ***************************************************************************/
+PRIVATE const char *treedb_name_here(
+    hgobj gobj,
+    const char *treedb_name,
+    char *bf,
+    size_t bfsize
+)
+{
+    hgobj gobj_node = empty_string(treedb_name)? NULL : gobj_find_service(treedb_name, FALSE);
+    if(!is_treedb_opened_here(gobj, gobj_node)) {
+        return treedb_name;
+    }
+    const char *name = gobj_name(gobj_node);
+    if(strlen(name) >= bfsize) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "treedb name too long, taken as given",
+            "treedb_name",  "%.64s", treedb_name,
+            NULL
+        );
+        return treedb_name;
+    }
+    snprintf(bf, bfsize, "%s", name);
+    return bf;
+}
+
+/***************************************************************************
+ *  Did the yuno's code open a treedb of this name in this process
+ *  (jn_opened_by_code)? In any case, as the service registry compares
+ *  names: a peer's `TREEDB_X` is the code's treedb_x when open (REV-CLOUD
+ *  V20 c6r). Asked by close-treedb and delete-treedb; open-treedb asks
+ *  find_code_treedb_sharing_services(), which also matches the names of
+ *  its tranger.
+ ***************************************************************************/
+PRIVATE BOOL treedb_opened_by_code(hgobj gobj, const char *treedb_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *name; json_t *jn_value;
+    json_object_foreach(priv->jn_opened_by_code, name, jn_value) {
+        if(strcasecmp(name, treedb_name)==0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  The treedb the yuno's code opened (jn_opened_by_code) whose services an
+ *  open of `treedb_name` would register, or NULL. An open registers
+ *  `<name>` (its C_NODE) and `tranger_<name>` (its C_TRANGER), and the
+ *  registry compares names in any case. So the code's `treedb_x` shares
+ *  them with `TREEDB_X` and `tranger_treedb_x`, and the code's `tranger_y`
+ *  with `y`: a peer's open of one of them took a service name, and the
+ *  code's next open answered "a service named ... exists already"
+ *  (REV-CLOUD V20 c7).
+ ***************************************************************************/
+PRIVATE const char *find_code_treedb_sharing_services(hgobj gobj, const char *treedb_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *prefix = "tranger_";
+    size_t prefix_len = strlen(prefix);
+
+    const char *name; json_t *jn_value;
+    json_object_foreach(priv->jn_opened_by_code, name, jn_value) {
+        if(strcasecmp(name, treedb_name)==0) {
+            return name;
+        }
+        if(strncasecmp(treedb_name, prefix, prefix_len)==0 &&
+                strcasecmp(treedb_name + prefix_len, name)==0) {
+            return name;
+        }
+        if(strncasecmp(name, prefix, prefix_len)==0 &&
+                strcasecmp(name + prefix_len, treedb_name)==0) {
+            return name;
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  A command that carries `__username__` came from OUTSIDE the yuno:
+ *  C_IEVENT_SRV stamps it on every command it delivers (and overwrites
+ *  what a peer put there), the command parser reads it the same way (its
+ *  authz gate, refuse_parameter()). A C caller puts none in the kw: the
+ *  identity a yuno's code acts with is an ATTRIBUTE of the gobj that
+ *  sends the command (`src`, read by the authz) -- mqtt_broker, which put
+ *  the yuno's `__username__` in the kw of its own open-treedb and
+ *  close-treedb, holds it as its attribute since REV-CLOUD V20.
+ ***************************************************************************/
+PRIVATE BOOL command_is_external(json_t *kw)
+{
+    return !empty_string(json_string_value(json_object_get(kw, "__username__")))? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  A treedb named by a schema command (save-schema, saved-schema,
+ *  apply-schema) that this service has not opened is the peer's data: a
+ *  warning and a refusal, BEFORE in_use_schema_dir() logs its ERROR ("Treedb
+ *  not open here"), which says a broken contract to a C caller (REV-CLOUD
+ *  V20.4.2): an ERROR with a stack for a C caller (log_refusal()). TRUE =
+ *  refused.
+ ***************************************************************************/
+PRIVATE BOOL refuse_peer_treedb_not_open(hgobj gobj, BOOL peer, const char *treedb_name)
+{
+    if(treedb_tranger_here(gobj, treedb_name)) {
+        return FALSE;
+    }
+    log_refusal(gobj, peer,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "treedb not open here, refused",
+        "treedb_name",  "%.64s", treedb_name,
+        NULL
+    );
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The length of the id tr_treedb gives the list that loads an index of a
+ *  topic of a treedb opened HERE, `treedb-<gclass>-<gobj>-<treedb>-<topic>-<key>`
+ *  (build_topic_list_id() of tr_treedb.c; <key> is the tkey for the id
+ *  index, or the pkey2). <gclass>-<gobj> is the tranger's gobj, the
+ *  C_TRANGER `tranger_<treedb>` that cmd_open_treedb() creates, so the name
+ *  of the treedb is in it TWICE. The id goes in a char[NAME_MAX], and
+ *  tr_treedb refuses a topic whose id does not fit with an ERROR (it was
+ *  cut, and two lists of the topic shared one id).
+ ***************************************************************************/
+PRIVATE size_t treedb_list_id_len(
+    const char *treedb_name,
+    const char *topic_name,
+    const char *key
+)
+{
+    return strlen("treedb-") + strlen(C_TRANGER) + strlen("-tranger_") + strlen(treedb_name)
+        + strlen("-") + strlen(treedb_name)
+        + strlen("-") + strlen(topic_name)
+        + strlen("-") + strlen(key);
+}
+
+/***************************************************************************
+ *  Something that is not a directory is there by that name: a file of the
+ *  database (`__timeranger2__.json`, `<treedb>.treedb_schema.json`), or a
+ *  link to nothing. The mkrdir() of a topic over it was a CRITICAL of the
+ *  tranger, an exit of the yuno with its on_critical_error (REV-CLOUD V20.1).
+ ***************************************************************************/
+PRIVATE BOOL path_is_not_a_directory(const char *path)
+{
+    struct stat st;
+    return (lstat(path, &st) == 0 && !is_directory(path))? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  The name open-treedb is handed is a directory under `path`, the name of
+ *  two services (`<name>`, `tranger_<name>`) and part of file names and of
+ *  the ids of lists. A name is refused BEFORE anything is made (it
+ *  was checked by treedb_open_db() with an ERROR, after its tranger had made
+ *  the directory, and its services stayed behind):
+ *  - the topic name rule of timeranger2 (not empty, not '.' or '..', no '/'
+ *    or '`'), and no '^', which a gobj name cannot have: the create of its
+ *    C_TRANGER failed, a CRITICAL ("tranger client NULL") that exits the
+ *    yuno with exit_on_error;
+ *  - not in the namespace of the system ("__"): `__system__` is the store
+ *    of the schemas, held by this service, and its lock refused the open
+ *    with a CRITICAL of the tranger (REV-CLOUD V20.3);
+ *  - no ".treedb_schema.json" in it: treedb_open_db() cuts the name there
+ *    (`a.treedb_schema.json` is the treedb `a`), so the treedb was registered
+ *    under another name than its C_NODE's, and every call of that C_NODE
+ *    logged "TreeDB not found" (REV-CLOUD V20 D6);
+ *  - short enough for the LONGEST name made from it. Of the files, that is
+ *    `.<name>.treedb_schema.json.tmp` (write_schema_tmp() of apply-schema;
+ *    save-schema's `<name>.treedb_schema.json.new` is one shorter), each one
+ *    a char[NAME_MAX]. Of the ids of lists, it is the list of the id index of
+ *    `__assets__`, the longest topic every treedb has, with no tkey
+ *    (treedb_list_id_len()): 38 + 2 * the name. So the name is 108 bytes at
+ *    most (REV-CLOUD V20.4), and each topic of it is asked again with its
+ *    own name and keys (refuse_peer_new_topic()).
+ *  Asked by every command that takes a treedb_name from OUTSIDE (`peer`):
+ *  delete-treedb built the paths of the files of saved_schemas/ from it,
+ *  and `x/../T` reached the files of the treedb T (REV-CLOUD V20 D2). A C
+ *  caller's name is its own, as it always was: what its open-treedb opens,
+ *  its close-treedb closes (REV-CLOUD V20 #1).
+ *  NULL when it can be used, else why (logged as a WARNING).
+ ***************************************************************************/
+PRIVATE const char *refuse_peer_treedb_name(hgobj gobj, BOOL peer, const char *treedb_name)
+{
+    if(!peer) {
+        return NULL;
+    }
+    const char *why = NULL;
+    if(!tranger2_name_is_identifier(treedb_name) || strchr(treedb_name, '^')) {
+        why = "its name breaks the name rule (empty, '.', '..', '/', '`' or '^')";
+    } else if(strncmp(treedb_name, "__", 2)==0) {
+        why = "a name starting with '__' is of the system";
+    } else if(strstr(treedb_name, ".treedb_schema.json")) {
+        why = "a name with '.treedb_schema.json' in it is cut there by the treedb";
+    } else if(strlen(".") + strlen(treedb_name) + strlen(".treedb_schema.json") + strlen(".tmp")
+                >= NAME_MAX ||
+            treedb_list_id_len(treedb_name, TREEDB_ASSETS_TOPIC, "") >= NAME_MAX) {
+        why = "its name is too long for the names of the files and lists made from it";
+    }
+    if(!why) {
+        return NULL;
+    }
+    log_refusal(gobj, peer,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "treedb name breaks the name rule, or is too long, refused",
+        "why",          "%s", why,
+        "treedb_name",  "%.64s", treedb_name? treedb_name : "",
+        NULL
+    );
+    return why;
+}
+
+/***************************************************************************
+ *  The filename_mask a peer hands open-treedb names the files of a NEW
+ *  store: strftime() of the time of each record (get_file_id() of
+ *  timeranger2), `<topic>/keys/<key>/<expansion>.json` and `.md2`. Nothing
+ *  checked it: `../../tmp/evil` wrote the records out of the store, `%Y/%m`
+ *  made a CRITICAL of every append (a directory that is not there), and an
+ *  expansion longer than a file name an ERROR of every append (REV-CLOUD
+ *  V20.2). It must expand to ONE name of a file, so it is made of letters,
+ *  digits, '-' and '_' (no '/', '\\', '.', blank or '%'), and of the
+ *  strftime() conversions that write only digits and '-' (the names of
+ *  months and days depend on the locale). Each conversion may write 20
+ *  bytes at most (%s, the seconds of a 64-bit time): the expansion, with
+ *  ".json", must fit NAME_MAX.
+ *  NULL when it can be used, else why.
+ ***************************************************************************/
+PRIVATE const char *refuse_peer_filename_mask(const char *filename_mask)
+{
+    static const char *conversions = "YyCGgmdjHIMSUWVuwsF";
+    const size_t max_conversion_width = 20;
+
+    size_t expansion = 0;
+    for(const char *p = filename_mask; *p; p++) {
+        char c = *p;
+        if(c == '%') {
+            p++;
+            if(*p == 0 || !strchr(conversions, *p)) {
+                return "a conversion that may write more than digits and '-'";
+            }
+            expansion += max_conversion_width;
+        } else if(c == '/' || c == '\\') {
+            return "a path separator";
+        } else if(c == '.') {
+            return "a '.' (a leading '.' or '..')";
+        } else if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                (c >= '0' && c <= '9') || c == '-' || c == '_') {
+            expansion++;
+        } else {
+            return "a character that is not a letter, a digit, '-' or '_'";
+        }
+    }
+    if(expansion + strlen(".json") >= NAME_MAX) {
+        return "an expansion that may not fit a file name";
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  The ids a topic and its columns get in __system__, the projection of the
+ *  schema: `<treedb>.<topic>` and `<treedb>.<topic>.<col>`
+ *  (build_schema_node_id()), each one a record key of RECORD_KEY_VALUE_MAX.
+ *  One that does not fit was an ERROR with a stack per projection, and the
+ *  column left out of __system__ (REV-CLOUD V20 D5). NULL when they fit,
+ *  else why.
+ ***************************************************************************/
+PRIVATE const char *projection_ids_fault(
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *cols    // NOT owned, a dict or a list of columns
+)
+{
+    size_t topic_id_len = strlen(treedb_name) + strlen(".") + strlen(topic_name);
+    if(topic_id_len >= RECORD_KEY_VALUE_MAX) {
+        return "the names of the treedb and the topic are too long for the id of the topic in __system__";
+    }
+    if(json_is_object(cols)) {
+        const char *col_id; json_t *col;
+        json_object_foreach(cols, col_id, col) {
+            if(topic_id_len + strlen(".") + strlen(col_id) >= RECORD_KEY_VALUE_MAX) {
+                return "a column id too long for the id of the column in __system__";
+            }
+        }
+    } else if(json_is_array(cols)) {
+        int idx; json_t *col;
+        json_array_foreach(cols, idx, col) {
+            const char *col_id = json_string_value(json_object_get(col, "id"));
+            if(col_id && topic_id_len + strlen(".") + strlen(col_id) >= RECORD_KEY_VALUE_MAX) {
+                return "a column id too long for the id of the column in __system__";
+            }
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  A NEW topic (create-topic, a topic of the schema of open-treedb, a topic
+ *  of a schema save-schema or apply-schema is about to publish), what
+ *  tr_treedb and timeranger2 refuse with an ERROR or a CRITICAL (an exit of
+ *  the yuno with exit_on_error), asked first:
+ *  - what treedb_create_topic() refuses, asked by the treedb itself
+ *    (treedb_check_new_topic()): the name, the columns (an `id` among them,
+ *    `file` columns, hook+fkey, what parse_schema_cols() takes), the pkey2s.
+ *    Inside the window of a peer's data for a peer (a WARNING), outside it
+ *    for a C caller (an ERROR): it logs its fault itself;
+ *  - the directory of its tranger: no file by its name
+ *    (path_is_not_a_directory()), nor a directory that is not a topic (no
+ *    topic_desc.json: `.blobs`, where the files of the treedb live), where
+ *    the tranger wrote topic_cols.json and topic_var.json and then logged
+ *    "Not a topic" (REV-CLOUD V20 D3);
+ *  - the id of the list of each index of it, the tkey and every pkey2
+ *    (treedb_list_id_len()), NAME_MAX at most;
+ *  - the ids of the topic and its columns in __system__
+ *    (projection_ids_fault());
+ *  - from a peer, a topic another database of the store owns
+ *    (foreign_topic_fault()): a msg2db's above all;
+ *  - from a peer, a name that is not the store's to give a topic
+ *    (tranger2_reserved_name_fault()): a leading '.' or "__", a ".json" or
+ *    ".bak" suffix -- the names of the files and folders timeranger2,
+ *    tr_treedb and C_TREEDB keep beside the topics (`__timeranger2__.json`,
+ *    `<treedb>.treedb_schema.json`, `.<treedb>.treedb_schema.json.tmp`,
+ *    `.blobs`, the system topics), asked by NAME, so a store that does not
+ *    exist yet is covered: its tranger wrote `__timeranger2__.json` over
+ *    the topic's directory, a CRITICAL (REV-CLOUD V20 A, J).
+ *  NULL when it can be created, else why: always logged, once.
+ ***************************************************************************/
+PRIVATE const char *refuse_peer_new_topic(
+    hgobj gobj,
+    BOOL peer,
+    const char *treedb_name,
+    const char *treedb_directory,   // the directory of its tranger, "" none yet
+    const char *topic_name,
+    const char *topic_tkey,
+    json_t *pkey2s,     // not owned
+    json_t *cols        // not owned
+)
+{
+    if(!topic_tkey) {
+        topic_tkey = "";
+    }
+
+    const char *why = NULL;
+    BOOL peer_data = treedb_set_peer_data(peer);
+    int ret = treedb_check_new_topic(gobj, treedb_name, topic_name, topic_tkey, pkey2s, cols, &why);
+    treedb_set_peer_data(peer_data);
+    if(ret < 0) {
+        return why? why : "refused by the treedb (see the log)";    // Error already logged
+    }
+
+    if(peer) {
+        why = tranger2_reserved_name_fault(topic_name);
+    }
+
+    char topic_path[PATH_MAX];
+    if(!why && !empty_string(treedb_directory) &&
+            build_path(topic_path, sizeof(topic_path), treedb_directory, topic_name, NULL)) {
+        if(path_is_not_a_directory(topic_path)) {
+            why = "a file of the database has that name, it cannot be a topic";
+        } else if(is_directory(topic_path) && !file_exists(topic_path, "topic_desc.json")) {
+            why = "a directory of the database that is not a topic (no topic_desc.json)";
+        }
+    }
+    const char *msg = "topic of a wrong shape, refused";
+    if(!why && peer) {
+        why = foreign_topic_fault(gobj, treedb_name, treedb_directory, topic_name);
+        if(why) {
+            msg = "topic of the store that is not this treedb's, refused";
+        }
+    }
+
+    if(!why && treedb_list_id_len(treedb_name, topic_name, topic_tkey) >= NAME_MAX) {
+        why = "the names of the treedb, the topic and its tkey are too long for the list of its index";
+    }
+    if(!why && !json_absent(pkey2s)) {
+        json_t *keys = kwid_get_ids(pkey2s);
+        int idx; json_t *jn_key;
+        json_array_foreach(keys, idx, jn_key) {
+            const char *name = json_string_value(jn_key);
+            if(!empty_string(name) && treedb_list_id_len(treedb_name, topic_name, name) >= NAME_MAX) {
+                why = "the names of the treedb, the topic and a pkey2 are too long for the list of its index";
+                break;
+            }
+        }
+        JSON_DECREF(keys)
+    }
+    if(!why) {
+        why = projection_ids_fault(treedb_name, topic_name, cols);
+    }
+
+    if(why) {
+        log_refusal(gobj, peer,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", msg,
+            "why",          "%s", why,
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%.64s", topic_name? topic_name : "",
+            NULL
+        );
+    }
+    return why;
+}
+
+/***************************************************************************
+ *  A version of a peer's schema (`schema_version`, `topic_version`), as
+ *  the treedb reads it (kw_get_int() with KW_WILD_NUMBER): an integer, or
+ *  the decimal string of one -- the literals write them so ('26') --, from
+ *  0 to TRANGER2_VERSION_MAX (REV-CLOUD V20 E, K). Absent is 0. A dict or
+ *  a list was an ERROR of every read; a real, a boolean, "0x1A" or "017"
+ *  (octal to strtoll()) a number nobody wrote; and one past an int was cut
+ *  where it was read as one.
+ ***************************************************************************/
+PRIVATE BOOL peer_version_is_valid(json_t *jn_version)
+{
+    if(json_absent(jn_version)) {
+        return TRUE;
+    }
+    json_int_t version;
+    if(json_is_integer(jn_version)) {
+        version = json_integer_value(jn_version);
+    } else if(json_is_string(jn_version)) {
+        const char *s = json_string_value(jn_version);
+        size_t ln = strlen(s);
+        if(ln == 0 || ln > 10 || (s[0] == '0' && ln > 1)) {
+            return FALSE;
+        }
+        for(size_t i = 0; i < ln; i++) {
+            if(s[i] < '0' || s[i] > '9') {
+                return FALSE;
+            }
+        }
+        version = strtoll(s, NULL, 10);
+    } else {
+        return FALSE;
+    }
+    return (version >= 0 && version <= TRANGER2_VERSION_MAX)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  The topics of a schema (handed by a peer to open-treedb, or about to be
+ *  published by save-schema or apply-schema), each one a NEW topic of the
+ *  treedb (refuse_peer_new_topic()): tr_treedb refused a bad one with an
+ *  ERROR at the open, and then logged the CRITICAL "Cannot create topic of
+ *  the schema", an exit of the yuno with exit_on_error (REV-CLOUD V20 D1).
+ *  A topic is a list of them or a dict keyed by their names, its `pkey`
+ *  "id" and its `system_flag` "sf_string_key" (treedb_open_db() leaves
+ *  another one out, with an ERROR), and the `file` columns of all of them
+ *  derive __assets__ hooks of their own (treedb_check_file_hooks()).
+ *
+ *  Of a PEER's schema (`peer`), and only of it (a C caller's schema is
+ *  read as it always was, REV-CLOUD V20 B):
+ *  - ONE name per topic, which every reader of the schema takes: the
+ *    readers disagreed (the up-front checks took `topic_name`, parse_schema()
+ *    and the projection `id`), so one name was checked and another one
+ *    opened. In a list a topic is named by its `id`, a string; in a dict
+ *    by its key. A `topic_name`, or an `id` in a dict, is the same name or
+ *    the topic is refused;
+ *  - the types of what the treedb reads of a topic (REV-CLOUD V20 E):
+ *    `topic_version` and the schema's `schema_version` a version
+ *    (peer_version_is_valid()), `system_topic` and `main_topic` booleans,
+ *    `tkey` a string. Of another type each one was an ERROR of a kw_get_*()
+ *    at the open, and a schema_version read at every `treedbs`;
+ *  - one `main_topic`, on a topic hooked to itself (main_topic_fault()).
+ *  A C caller's topic is named by its `topic_name`, else its key (in a
+ *  dict), else its `id`, as before.
+ *  NULL when they can be created, else why (logged), the topic in
+ *  *bad_topic (held by the schema).
+ ***************************************************************************/
+PRIVATE const char *refuse_peer_schema_topics(
+    hgobj gobj,
+    BOOL peer,
+    const char *treedb_name,
+    const char *treedb_directory,   // the directory of its tranger, "" none yet
+    json_t *jn_schema,      // not owned
+    const char **bad_topic
+)
+{
+    *bad_topic = NULL;
+
+    json_t *jn_topics = json_object_get(jn_schema, "topics");
+    if(!json_is_array(jn_topics) && !json_is_object(jn_topics)) {
+        if(!peer) {
+            /*  A C caller's: the open goes as it always went, the literal
+             *  installed and refused by treedb_open_db() ("No topics found"),
+             *  the saved schema kept (C_TREEDB's own flow, not a fault here)  */
+            return NULL;
+        }
+        log_refusal(gobj, peer,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "schema without topics, refused",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+        return "a schema without topics (a list or a dict of them)";
+    }
+
+    const char *why = NULL;
+    if(peer) {
+        if(!peer_version_is_valid(json_object_get(jn_schema, "schema_version"))) {
+            why = "a schema_version that is not an integer from 0 to 2147483647";
+            log_refusal(gobj, peer,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "schema of a wrong shape, refused",
+                "why",          "%s", why,
+                "treedb_name",  "%s", treedb_name,
+                NULL
+            );
+            return why;
+        }
+    }
+
+    json_t *hook_topics = json_array();     // [{topic_name, cols}] for treedb_check_file_hooks()
+    size_t n = json_is_array(jn_topics)? json_array_size(jn_topics) : 0;
+    void *iter = json_is_object(jn_topics)? json_object_iter(jn_topics) : NULL;
+    for(size_t idx = 0; ; idx++) {
+        const char *key = NULL;
+        json_t *jn_topic;
+        if(json_is_array(jn_topics)) {
+            if(idx >= n) {
+                break;
+            }
+            jn_topic = json_array_get(jn_topics, idx);
+        } else {
+            if(!iter) {
+                break;
+            }
+            key = json_object_iter_key(iter);
+            jn_topic = json_object_iter_value(iter);
+            iter = json_object_iter_next(jn_topics, iter);
+        }
+
+        json_t *jn_id = json_object_get(jn_topic, "id");
+        json_t *jn_topic_name = json_object_get(jn_topic, "topic_name");
+        const char *topic_name;
+        if(peer) {
+            topic_name = key? key : json_string_value(jn_id);
+        } else {
+            topic_name = json_string_value(jn_topic_name);
+            if(empty_string(topic_name)) {
+                topic_name = key? key : json_string_value(jn_id);
+            }
+        }
+        *bad_topic = topic_name;   // held by the schema, which the caller holds
+
+        if(!json_is_object(jn_topic)) {
+            why = "a topic of the schema is not a json object";
+        } else if(empty_string(topic_name)) {
+            why = peer?
+                "a topic without its name (its `id`, a string, in a list of topics)" :
+                "a topic without topic_name or id";
+        } else if(peer && !key && !json_absent(jn_topic_name) &&
+                !(json_is_string(jn_topic_name) &&
+                    strcmp(json_string_value(jn_topic_name), topic_name)==0)) {
+            why = "a topic whose topic_name is not its id: the readers of the schema take one or the other";
+        } else if(peer && key && ((!json_absent(jn_id) &&
+                    !(json_is_string(jn_id) && strcmp(json_string_value(jn_id), key)==0)) ||
+                (!json_absent(jn_topic_name) &&
+                    !(json_is_string(jn_topic_name) &&
+                        strcmp(json_string_value(jn_topic_name), key)==0)))) {
+            why = "a topic whose id or topic_name is not its key: the readers of the schema take one or the other";
+        } else if(!json_is_string(json_object_get(jn_topic, "pkey")) ||
+                strcmp(json_string_value(json_object_get(jn_topic, "pkey")), "id")!=0) {
+            why = "a topic whose pkey is not 'id'";
+        } else if(!json_is_string(json_object_get(jn_topic, "system_flag")) ||
+                strcmp(json_string_value(json_object_get(jn_topic, "system_flag")), "sf_string_key")!=0) {
+            why = "a topic whose system_flag is not 'sf_string_key'";
+        } else if(!json_absent(json_object_get(jn_topic, "tkey")) &&
+                !json_is_string(json_object_get(jn_topic, "tkey"))) {
+            why = "a topic whose tkey is not a string";
+        } else if(peer) {
+            json_t *jn_topic_version = json_object_get(jn_topic, "topic_version");
+            json_t *jn_system_topic = json_object_get(jn_topic, "system_topic");
+            json_t *jn_main_topic = json_object_get(jn_topic, "main_topic");
+            if(!peer_version_is_valid(jn_topic_version)) {
+                why = "a topic whose topic_version is not an integer from 0 to 2147483647";
+            } else if(!json_absent(jn_system_topic) && !json_is_boolean(jn_system_topic)) {
+                why = "a topic whose system_topic is not a boolean";
+            } else if(!json_absent(jn_main_topic) && !json_is_boolean(jn_main_topic)) {
+                why = "a topic whose main_topic is not a boolean";
+            }
+        }
+        if(why) {
+            log_refusal(gobj, peer,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "topic of a wrong shape, refused",
+                "why",          "%s", why,
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%.64s", topic_name? topic_name : "",
+                NULL
+            );
+            break;
+        }
+
+        why = refuse_peer_new_topic(
+            gobj,
+            peer,
+            treedb_name,
+            treedb_directory,
+            topic_name,
+            json_string_value(json_object_get(jn_topic, "tkey")),
+            json_object_get(jn_topic, "pkey2s"),
+            json_object_get(jn_topic, "cols")
+        );
+        if(why) {
+            break;  // Error already logged
+        }
+        json_array_append_new(hook_topics, json_pack("{s:s, s:O}",
+            "topic_name", topic_name,
+            "cols", json_object_get(jn_topic, "cols")
+        ));
+    }
+
+    if(!why && peer) {
+        /*
+         *  Their `main_topic` marks: one, on a topic hooked to itself
+         *  (main_topic_fault())
+         */
+        const char *main_topic = NULL;
+        why = main_topic_fault(gobj, jn_topics, &main_topic);
+        if(why) {
+            *bad_topic = main_topic;
+            log_refusal(gobj, peer,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "schema with a wrong main_topic, refused",
+                "why",          "%s", why,
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%.64s", main_topic? main_topic : "",
+                NULL
+            );
+        }
+    }
+
+    if(!why) {
+        /*
+         *  The `file` columns of all of them: each one derives an __assets__
+         *  hook of its own, `as_<topic>_<col>`, which two columns could share
+         *  (REV-CLOUD V20 C): the open logged an ERROR and the CRITICAL "Bad
+         *  'file' column: __assets__ hooks NOT derived"
+         */
+        BOOL peer_data = treedb_set_peer_data(peer);
+        if(treedb_check_file_hooks(gobj, NULL, treedb_name, hook_topics, &why) < 0) {
+            *bad_topic = NULL;  // Error already logged, naming the topic
+            if(!why) {
+                why = "two of its 'file' columns derive the same __assets__ hook";
+            }
+        }
+        treedb_set_peer_data(peer_data);
+    }
+    JSON_DECREF(hook_topics)
+
+    if(!why) {
+        *bad_topic = NULL;
+    }
+    return why;
+}
+
+/***************************************************************************
+ *  What an EXTERNAL open-treedb (a peer's, command_is_external()) hands is
+ *  its data, refused with a WARNING BEFORE anything is made -- the tranger
+ *  of the open makes the directory of the store, and a refusal after it
+ *  left the store and its services behind (REV-CLOUD V20 #14):
+ *  - the name (refuse_peer_treedb_name()) and the filename_mask
+ *    (refuse_peer_filename_mask());
+ *  - what only the yuno's code configures: exit_on_error (a CRITICAL of the
+ *    store exits the yuno), import_root (where import-assets reads files
+ *    from), impose_c_schema (a schema imposed over the store's file and
+ *    topics, which apply-schema then refuses as "imposed by the binary");
+ *  - the schema: a json object whose topics the treedb creates
+ *    (refuse_peer_schema_topics()), that parse_schema() takes (inside the
+ *    window of a peer's data), and whose elements get one id each in
+ *    __system__ (schema_id_collision());
+ *  - the attributes C_NODE takes, of their types, and the seeds, each one
+ *    a json object with its `id`, a string (a seed without one is no seed:
+ *    it stayed in initial_load, read as a string by every write of its
+ *    topic, an ERROR with a stack per read, REV-CLOUD V20 D7). The rest of
+ *    what a seed says is C_NODE's to judge;
+ *  - last, the name of a treedb the yuno's code opened in this process
+ *    (jn_opened_by_code), while it is closed, compared in ANY case as the
+ *    service registry compares it (treedb_opened_by_code()). Opened by a
+ *    peer then (a C_TREEDB kept across the close of its treedb), the peer's
+ *    schema replaced the code's file in use, and the code's own next open
+ *    answered "already open" and went on without its treedb (REV-CLOUD V20
+ *    c4 Residual). In another case it is another directory but the same
+ *    services: the code's next open answered "already open" for the peer's
+ *    C_NODE (c6r). And a name whose services are that treedb's
+ *    (find_code_treedb_sharing_services(): `tranger_<it>`, or `<x>` of the
+ *    code's `tranger_<x>`) took one of its service names, and the code's
+ *    next open answered "a service named ... exists already" (c7). While
+ *    that treedb is open, the services already exist and cmd_open_treedb()
+ *    answers it -- unless an earlier check refuses it first (the same name
+ *    in another case finds the open treedb's tranger, so a topic both
+ *    schemas hold is refused by foreign_topic_fault()). A peer cannot close
+ *    such a treedb
+ *    (cmd_close_treedb()), and the yunos of today destroy their C_TREEDB
+ *    when their code closes its treedbs -- most at their pause (a paused
+ *    yuno answers "Service not found"), mqtt_broker at its stop (its
+ *    C_TREEDB and treedb_mqtt_broker live through a pause) --, so this
+ *    guards a C_TREEDB that outlives the close of its code's treedb.
+ *  A C caller is not asked any of this: its open goes as it always went
+ *  (cmd_open_treedb()). NULL when it can be opened, else the comment of
+ *  the answer (YOURS); the cause is logged.
+ ***************************************************************************/
+PRIVATE json_t *refuse_peer_open_treedb(
+    hgobj gobj,
+    json_t *kw,                     // not owned
+    const char *treedb_name,
+    const char *treedb_directory,
+    const char *filename_mask,
+    int exit_on_error,
+    json_t *jn_treedb_schema        // not owned, NULL: not a json object
+)
+{
+    const char *why = refuse_peer_treedb_name(gobj, TRUE, treedb_name);
+    if(why) {
+        return json_sprintf("%s: cannot open treedb '%.*s': %s, nothing was changed",
+            gobj_yuno_role_plus_name(), utf8_prefix_len(treedb_name, 64), treedb_name, why);
+    }
+    why = refuse_peer_filename_mask(filename_mask);
+    if(why) {
+        log_refusal(gobj, TRUE,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "open-treedb with a filename_mask that is not one file name, refused",
+            "why",          "%s", why,
+            "treedb_name",  "%s", treedb_name,
+            "filename_mask","%.64s", filename_mask,
+            NULL
+        );
+        return json_sprintf("%s: cannot open treedb '%s': filename_mask '%.*s' has %s, "
+            "nothing was changed", gobj_yuno_role_plus_name(), treedb_name,
+            utf8_prefix_len(filename_mask, 64), filename_mask, why);
+    }
+
+    json_t *jn_import_root = json_object_get(kw, "import_root");
+    if(exit_on_error != 0) {
+        why = "exit_on_error is set by the yuno's code, not by a command";
+    } else if(!json_absent(jn_import_root) &&
+            !(json_is_string(jn_import_root) && json_string_length(jn_import_root) == 0)) {
+        why = "import_root is set by the yuno's code, not by a command";
+    } else if(kw_get_bool(gobj, kw, "impose_c_schema", 0, KW_WILD_NUMBER)) {
+        why = "impose_c_schema is set by the yuno's code, not by a command";
+    }
+    if(why) {
+        log_refusal(gobj, TRUE,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "open-treedb from outside with a setting of the code, refused",
+            "why",          "%s", why,
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+        return json_sprintf("%s: cannot open treedb '%s': %s, nothing was changed",
+            gobj_yuno_role_plus_name(), treedb_name, why);
+    }
+
+    if(!jn_treedb_schema) {
+        log_refusal(gobj, TRUE,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "open-treedb without a treedb_schema json object, refused",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+        return json_sprintf("%s: cannot open treedb '%s': treedb_schema must be a json object, "
+            "nothing was changed", gobj_yuno_role_plus_name(), treedb_name);
+    }
+
+    const char *bad_topic = NULL;
+    why = refuse_peer_schema_topics(
+        gobj, TRUE, treedb_name, treedb_directory, jn_treedb_schema, &bad_topic
+    );
+    if(!why) {
+        BOOL peer_data = treedb_set_peer_data(TRUE);
+        if(parse_schema(jn_treedb_schema)<0) {
+            why = "it does not parse (see the log)";    // Error already logged
+        }
+        treedb_set_peer_data(peer_data);
+    }
+    if(!why) {
+        json_t *collision = schema_id_collision(gobj, TRUE, treedb_name, jn_treedb_schema, TRUE);
+        if(collision) {
+            why = "two of its elements get the same id in __system__ (a name with a dot)";  // logged
+            JSON_DECREF(collision)
+        }
+    }
+    if(why) {
+        return bad_topic?
+            json_sprintf("%s: cannot open treedb '%s': topic '%.*s' of its schema: %s, "
+                "nothing was changed", gobj_yuno_role_plus_name(), treedb_name,
+                utf8_prefix_len(bad_topic, 64), bad_topic, why) :
+            json_sprintf("%s: cannot open treedb '%s': its schema: %s, nothing was changed",
+                gobj_yuno_role_plus_name(), treedb_name, why);
+    }
+
+    json_t *jn_attr = json_object_get(kw, "files_max_size");
+    if(!json_absent(jn_attr) && !json_is_integer(jn_attr)) {
+        why = "files_max_size must be an integer";
+    }
+    jn_attr = json_object_get(kw, "files_content_types");
+    if(!why && !json_absent(jn_attr)) {
+        if(!json_is_array(jn_attr)) {
+            why = "files_content_types must be a list of mime types";
+        }
+        size_t idx; json_t *jn_type;
+        json_array_foreach(jn_attr, idx, jn_type) {
+            if(!json_is_string(jn_type)) {
+                why = "files_content_types must be a list of mime types";
+                break;
+            }
+        }
+    }
+    if(!why && !json_absent(jn_import_root) && !json_is_string(jn_import_root)) {
+        why = "import_root must be a string";
+    }
+    jn_attr = json_object_get(kw, "initial_load");
+    if(!why && !json_absent(jn_attr) && !json_is_object(jn_attr)) {
+        why = "initial_load must be a json object";
+    }
+    if(!why && json_is_object(jn_attr)) {
+        const char *seed_topic; json_t *jn_seeds;
+        json_object_foreach(jn_attr, seed_topic, jn_seeds) {
+            if(!json_is_array(jn_seeds)) {
+                why = "initial_load must be {topic: [record, ...]}";
+                break;
+            }
+            size_t idx; json_t *jn_seed;
+            json_array_foreach(jn_seeds, idx, jn_seed) {
+                if(!json_is_object(jn_seed)) {
+                    why = "initial_load must be {topic: [record, ...]}, a record a json object";
+                    break;
+                }
+                if(empty_string(json_string_value(json_object_get(jn_seed, "id")))) {
+                    why = "a seed of initial_load without its id, a string";
+                    break;
+                }
+            }
+            if(why) {
+                break;
+            }
+        }
+    }
+    if(why) {
+        log_refusal(gobj, TRUE,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "open-treedb with an attribute of a wrong type, refused",
+            "why",          "%s", why,
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+        return json_sprintf("%s: cannot open treedb '%s': %s, nothing was changed",
+            gobj_yuno_role_plus_name(), treedb_name, why);
+    }
+
+    char tranger_name[NAME_MAX];
+    snprintf(tranger_name, sizeof(tranger_name), "tranger_%s", treedb_name);
+    const char *code_treedb = find_code_treedb_sharing_services(gobj, treedb_name);
+    if(code_treedb && !gobj_find_service(treedb_name, FALSE) &&
+            !gobj_find_service(tranger_name, FALSE)) {
+        /*  With its services there, cmd_open_treedb() answers "already open" or "exists"  */
+        if(strcasecmp(code_treedb, treedb_name)==0) {
+            log_refusal(gobj, TRUE,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "open-treedb from outside of a treedb the code of the yuno opens, refused",
+                "treedb_name",  "%s", treedb_name,
+                NULL
+            );
+            return json_sprintf("%s: cannot open treedb '%s': it is opened by the code of the yuno, "
+                "and a peer cannot open it, nor its store, even while it is closed; nothing was changed",
+                gobj_yuno_role_plus_name(), treedb_name);
+        }
+        log_refusal(gobj, TRUE,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "open-treedb from outside with the service names of a treedb the code of the yuno opens, refused",
+            "treedb_name",  "%s", treedb_name,
+            "code_treedb",  "%s", code_treedb,
+            NULL
+        );
+        return json_sprintf("%s: cannot open treedb '%s': its services would take the names of "
+            "treedb '%s', which the code of the yuno opens, and a peer cannot take them even while "
+            "it is closed; nothing was changed",
+            gobj_yuno_role_plus_name(), treedb_name, code_treedb);
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Is the store `directory` open by a C_TRANGER service of this process,
+ *  whatever its lock (a replica takes none)? Compared by their real paths.
+ ***************************************************************************/
+PRIVATE BOOL store_has_tranger_here(const char *directory)
+{
+    char real_dir[PATH_MAX];
+    if(!realpath(directory, real_dir)) {
+        return FALSE;   // not there: nobody holds it
+    }
+
+    BOOL found = FALSE;
+    json_t *services = gobj_services();
+    int idx; json_t *jn_srv;
+    json_array_foreach(services, idx, jn_srv) {
+        const char *gclass = json_string_value(json_object_get(jn_srv, "gclass"));
+        const char *name = json_string_value(json_object_get(jn_srv, "service"));
+        if(!gclass || !name || strcmp(gclass, C_TRANGER)!=0) {
+            continue;
+        }
+        hgobj gobj_tranger = gobj_find_service(name, FALSE);
+        json_t *tranger = gobj_tranger? gobj_read_pointer_attr(gobj_tranger, "tranger") : NULL;
+        const char *tranger_dir = json_string_value(json_object_get(tranger, "directory"));
+        char real_tranger_dir[PATH_MAX];
+        if(tranger_dir && realpath(tranger_dir, real_tranger_dir) &&
+                strcmp(real_tranger_dir, real_dir)==0) {
+            found = TRUE;
+            break;
+        }
+    }
+    JSON_DECREF(services)
+    return found;
+}
+
+/***************************************************************************
+ *  Whose else is the topic `topic_name` of `tranger`: a msg2db's or
+ *  ANOTHER treedb's open on it (their topics are keys of `msg2dbs`.<name>
+ *  and of `treedbs`.<name> in the tranger, as C_TRANGER's
+ *  schema_owner_of_topic() reads them). "msg2db" or "treedb", with its name
+ *  in *db_name; NULL when no other one holds it.
+ ***************************************************************************/
+PRIVATE const char *topic_of_another_db(
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    const char **db_name
+)
+{
+    *db_name = NULL;
+    const char *name; json_t *jn_db;
+    json_object_foreach(json_object_get(tranger, "msg2dbs"), name, jn_db) {
+        if(json_is_object(json_object_get(jn_db, topic_name))) {
+            *db_name = name;
+            return "msg2db";
+        }
+    }
+    json_object_foreach(json_object_get(tranger, "treedbs"), name, jn_db) {
+        if(strcmp(name, treedb_name)!=0 && json_is_object(json_object_get(jn_db, topic_name))) {
+            *db_name = name;
+            return "treedb";
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Does `jn_schema` (a schema file: topics as a list or a dict) name the
+ *  topic `topic_name`, by its `id`, its `topic_name` or its key?
+ ***************************************************************************/
+PRIVATE BOOL schema_names_topic(json_t *jn_schema, const char *topic_name)
+{
+    json_t *topics = json_object_get(jn_schema, "topics");
+    if(json_is_object(topics)) {
+        if(json_object_get(topics, topic_name)) {
+            return TRUE;
+        }
+        const char *key; json_t *jn_topic;
+        json_object_foreach(topics, key, jn_topic) {
+            const char *id = json_string_value(json_object_get(jn_topic, "id"));
+            const char *name = json_string_value(json_object_get(jn_topic, "topic_name"));
+            if((id && strcmp(id, topic_name)==0) || (name && strcmp(name, topic_name)==0)) {
+                return TRUE;
+            }
+        }
+        return FALSE;
+    }
+    size_t idx; json_t *jn_topic;
+    json_array_foreach(topics, idx, jn_topic) {
+        const char *id = json_string_value(json_object_get(jn_topic, "id"));
+        const char *name = json_string_value(json_object_get(jn_topic, "topic_name"));
+        if((id && strcmp(id, topic_name)==0) || (name && strcmp(name, topic_name)==0)) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Does a schema file of ANOTHER database in the store `directory` name
+ *  the topic `topic_name`? The files the opens write beside the topics:
+ *  - `<msg2db>.msg2db_schema.json`, by msg2db_open_db() (persistent): every
+ *    one is another database's;
+ *  - `<treedb>.treedb_schema.json`, by treedb_open_db(): another treedb's,
+ *    unless it is `<treedb_name>.treedb_schema.json`;
+ *  - `<treedb>-<topic>.treedb_schema.json`, the schema of ONE topic, by
+ *    treedb_create_topic() with create_schema (no caller of today asks for
+ *    it): another treedb's, unless it is `<treedb_name>-<topic_name>`.
+ *  Read by key: the `topics` of a schema (a list or a dict,
+ *  schema_names_topic()), or the `topic_name` of a one-topic file. A store
+ *  that is not there names nothing. "msg2db" or "treedb", the database (its
+ *  file name without the suffix) in db_name; NULL when no file names it.
+ ***************************************************************************/
+PRIVATE const char *schema_file_of_another_db(
+    hgobj gobj,
+    const char *directory,
+    const char *treedb_name,
+    const char *topic_name,
+    char *db_name,
+    size_t db_name_size
+)
+{
+    static const char *suffixes[] = {".msg2db_schema.json", ".treedb_schema.json", NULL};
+    static const char *kinds[] = {"msg2db", "treedb", NULL};
+
+    *db_name = 0;
+    if(empty_string(directory) || !is_directory(directory)) {
+        return NULL;
+    }
+
+    char own_file[NAME_MAX*2];
+    snprintf(own_file, sizeof(own_file), "%s.treedb_schema.json", treedb_name);
+    char own_topic_file[NAME_MAX*2];
+    snprintf(own_topic_file, sizeof(own_topic_file), "%s-%s.treedb_schema.json",
+        treedb_name, topic_name);
+
+    const char *found = NULL;
+    for(int i = 0; suffixes[i] && !found; i++) {
+        dir_array_t da;
+        if(find_files_with_suffix_array(gobj, directory, suffixes[i], &da) < 0) {
+            continue;   // Error already logged: a store that cannot be listed gives no evidence
+        }
+        for(json_int_t j = 0; j < da.count && !found; j++) {
+            const char *filename = da.items[j];
+            if(strcmp(filename, own_file)==0 || strcmp(filename, own_topic_file)==0) {
+                continue;
+            }
+            json_t *jn_file = load_json_from_file(gobj, directory, filename, 0);
+            BOOL names;
+            if(json_object_get(jn_file, "topics")) {
+                names = schema_names_topic(jn_file, topic_name);
+            } else {
+                const char *one = json_string_value(json_object_get(jn_file, "topic_name"));
+                names = (one && strcmp(one, topic_name)==0)? TRUE : FALSE;
+            }
+            JSON_DECREF(jn_file)
+            if(names) {
+                found = kinds[i];
+                size_t ln = strlen(filename) - strlen(suffixes[i]);
+                snprintf(db_name, db_name_size, "%.*s", (int)ln, filename);
+            }
+        }
+        dir_array_free(&da);
+    }
+    return found;
+}
+
+/***************************************************************************
+ *  POSITIVE evidence that ANOTHER database of the store says the topic
+ *  `topic_name` is its own (REV-CLOUD V20 c5 #1): a msg2db or another
+ *  treedb open on the tranger holds it (topic_of_another_db()), or a schema
+ *  file of one in the store names it, open or not
+ *  (schema_file_of_another_db()). "msg2db" or "treedb", the database in
+ *  db_name and *open TRUE when it is open on the tranger; NULL when no
+ *  other database says so.
+ ***************************************************************************/
+PRIVATE const char *topic_of_another_store_db(
+    hgobj gobj,
+    json_t *tranger,                // NULL: no tranger yet
+    const char *treedb_name,
+    const char *directory,          // the directory of the store, "" none yet
+    const char *topic_name,
+    char *db_name,
+    size_t db_name_size,
+    BOOL *open
+)
+{
+    *open = FALSE;
+    *db_name = 0;
+    if(tranger) {
+        const char *open_db = NULL;
+        const char *kind = topic_of_another_db(tranger, treedb_name, topic_name, &open_db);
+        if(kind) {
+            *open = TRUE;
+            snprintf(db_name, db_name_size, "%s", open_db? open_db : "");
+            return kind;
+        }
+    }
+    return schema_file_of_another_db(gobj, directory, treedb_name, topic_name, db_name, db_name_size);
+}
+
+/***************************************************************************
+ *  A NEW topic of the treedb `treedb_name` that a PEER names (create-topic,
+ *  a topic of the schema of its open-treedb, of a draft save-schema or
+ *  apply-schema publishes): is it ANOTHER database's? The directory of a
+ *  treedb's store is the tranger of others too: the db_history yunos and
+ *  mqtt_broker open their msg2db `alarms` on it. Adopted, the topic was the
+ *  treedb's -- its records loaded as nodes and written by C_NODE, a higher
+ *  topic_version rewrote its topic_cols.json and topic_var.json under the
+ *  msg2db, which never wrote them back (its version is lower), and a
+ *  delete-topic took the directory and every record (REV-CLOUD V20 c4 A).
+ *  So it is refused on POSITIVE evidence that another database owns it
+ *  (topic_of_another_store_db()): a msg2db or another treedb open on the
+ *  store holds it, or a schema file of one in the store names it -- the
+ *  msg2db closed too, and whether its directory is there or not (the
+ *  msg2db makes it at its next open). A topic the treedb holds now is its
+ *  own. A directory no other database names is taken as it always was: a
+ *  topic the treedb had and dropped (nothing keeps a dropped name), a
+ *  create-topic never published, a C_TRANGER's plain topic.
+ *  NULL when it can be the treedb's, else why (not logged: the caller logs
+ *  it).
+ ***************************************************************************/
+PRIVATE const char *foreign_topic_fault(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *treedb_directory,   // the directory of its tranger, "" none yet
+    const char *topic_name
+)
+{
+    json_t *tranger = treedb_tranger_here(gobj, treedb_name);
+    if(tranger && treedb_is_treedbs_topic(tranger, treedb_name, topic_name)) {
+        return NULL;
+    }
+
+    char db_name[NAME_MAX];
+    BOOL open = FALSE;
+    const char *other_db = topic_of_another_store_db(
+        gobj, tranger, treedb_name, treedb_directory, topic_name, db_name, sizeof(db_name), &open
+    );
+    if(!other_db) {
+        return NULL;
+    }
+    BOOL msg2db = (strcmp(other_db, "msg2db")==0)? TRUE : FALSE;
+    if(open) {
+        return msg2db?
+            "a topic of a msg2db open on the store of the treedb: it is the msg2db's" :
+            "a topic of another treedb open on the store of the treedb: it is that treedb's";
+    }
+    return msg2db?
+        "a topic the schema file of a msg2db in the store of the treedb names: it is the msg2db's" :
+        "a topic the schema file of another treedb in the store of the treedb names: it is that treedb's";
+}
+
+/***************************************************************************
+ *  The `main_topic` marks of a PEER's topics (a list or a dict of them):
+ *  ONE topic, hooked to itself (a hook column that maps its own name),
+ *  can be the topic the tree of the treedb hangs from. treedb_open_db()
+ *  keeps the first mark and ignores the others, and a mark on a topic not
+ *  hooked to itself, each with an ERROR at every open -- outside the
+ *  window of a peer's data, so the peer's mistake read as a broken
+ *  contract (REV-CLOUD V20 c4 C). Asked as topic_hooks_itself() of
+ *  tr_treedb asks it, without touching the topic. NULL when they can be
+ *  opened, else why, the topic in *bad_topic (held by the schema).
+ ***************************************************************************/
+PRIVATE const char *main_topic_fault(hgobj gobj, json_t *jn_topics, const char **bad_topic)
+{
+    *bad_topic = NULL;
+    const char *marked = NULL;
+    size_t n = json_is_array(jn_topics)? json_array_size(jn_topics) : 0;
+    void *iter = json_is_object(jn_topics)? json_object_iter(jn_topics) : NULL;
+    for(size_t idx = 0; ; idx++) {
+        const char *topic_name;
+        json_t *jn_topic;
+        if(json_is_array(jn_topics)) {
+            if(idx >= n) {
+                break;
+            }
+            jn_topic = json_array_get(jn_topics, idx);
+            topic_name = json_string_value(json_object_get(jn_topic, "id"));
+        } else {
+            if(!iter) {
+                break;
+            }
+            topic_name = json_object_iter_key(iter);
+            jn_topic = json_object_iter_value(iter);
+            iter = json_object_iter_next(jn_topics, iter);
+        }
+        if(!json_is_true(json_object_get(jn_topic, "main_topic")) || empty_string(topic_name)) {
+            continue;
+        }
+        *bad_topic = topic_name;
+        if(marked) {
+            return "more than one topic marked main_topic";
+        }
+        marked = topic_name;
+
+        BOOL hooked = FALSE;
+        json_t *cols = json_object_get(jn_topic, "cols");
+        void *col_iter = json_is_object(cols)? json_object_iter(cols) : NULL;
+        size_t n_cols = json_is_array(cols)? json_array_size(cols) : 0;
+        for(size_t i = 0; !hooked; i++) {
+            json_t *col;
+            if(json_is_array(cols)) {
+                if(i >= n_cols) {
+                    break;
+                }
+                col = json_array_get(cols, i);
+            } else {
+                if(!col_iter) {
+                    break;
+                }
+                col = json_object_iter_value(col_iter);
+                col_iter = json_object_iter_next(cols, col_iter);
+            }
+            json_t *flag = json_object_get(col, "flag");
+            json_t *hook = json_object_get(col, "hook");
+            if(flag && kw_has_word(gobj, flag, "hook", 0) &&
+                    json_is_object(hook) && json_object_get(hook, topic_name)) {
+                hooked = TRUE;
+            }
+        }
+        if(!hooked) {
+            return "a topic marked main_topic that is not hooked to itself";
+        }
+    }
+    *bad_topic = NULL;
+    return NULL;
+}
+
+/***************************************************************************
+ *  The store an EXTERNAL open-treedb would open, `<path>/<name>`, when it
+ *  exists: it must be the store of THAT treedb, and not one held already.
+ *  The directory of C_TREEDB is the parent of other stores too (C_AUTHZ's
+ *  `authzs`, C_TRANGER stores: `tracks`, `automations`...), and a name that
+ *  matched one opened it as a treedb, with the peer's schema -- or met the
+ *  lock of its tranger, a CRITICAL with the peer's exit_on_error
+ *  (REV-CLOUD V20 c2#1). So:
+ *  - a directory (not a file);
+ *  - with the schema file of that treedb, `<name>.treedb_schema.json`:
+ *    every store open-treedb made has it (C_AUTHZ's `authzs` holds
+ *    `treedb_authzs.treedb_schema.json`);
+ *  - not open by a C_TRANGER of this process (store_has_tranger_here()),
+ *    which a replica's open would read with no lock to meet;
+ *  - when this service opens masters, with its lock free: the exclusive
+ *    lock of `__timeranger2__.json`, taken by a master tranger of THIS
+ *    process too (flock() locks an open file, not a process). It is taken
+ *    and given back at once, never held.
+ *  A store a C caller opens is its own business: the single-master guard of
+ *  tranger2_startup() is a CRITICAL by design there (see timeranger2.c), so
+ *  this is asked of a peer only. NULL when it can be opened, else why
+ *  (logged).
+ ***************************************************************************/
+PRIVATE const char *refuse_peer_store(
+    hgobj gobj,
+    BOOL peer,
+    const char *treedb_name,
+    const char *treedb_directory
+)
+{
+    struct stat st;
+    if(lstat(treedb_directory, &st) < 0) {
+        return NULL;    // a new store
+    }
+
+    const char *why = NULL;
+    char schema_file[NAME_MAX];
+    snprintf(schema_file, sizeof(schema_file), "%s.treedb_schema.json", treedb_name);    // fits: refuse_peer_treedb_name()
+    if(!is_directory(treedb_directory)) {
+        why = "a file of the store directory has that name";
+    } else if(!file_exists(treedb_directory, schema_file)) {
+        why = "a directory there is not the store of that treedb (no schema file of it)";
+    } else if(store_has_tranger_here(treedb_directory)) {
+        why = "its store is open already by a tranger of this process";
+    } else if(gobj_read_bool_attr(gobj, "master") &&
+            file_exists(treedb_directory, "__timeranger2__.json")) {
+        char lock_file[PATH_MAX];
+        build_path(lock_file, sizeof(lock_file), treedb_directory, "__timeranger2__.json", NULL);
+        int fd = open(lock_file, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
+        if(fd < 0) {
+            why = "its __timeranger2__.json cannot be opened";
+        } else {
+            if(flock(fd, LOCK_EX|LOCK_NB) < 0) {
+                why = (errno == EWOULDBLOCK)?
+                    "its store is held by a master already, in this process or another" :
+                    "the lock of its store cannot be taken";
+            }
+            close(fd);  // gives the lock back, if it was taken
+        }
+    }
+    if(!why) {
+        return NULL;
+    }
+    log_refusal(gobj, peer,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "open-treedb of a store that is not that treedb's, or held, refused",
+        "why",          "%s", why,
+        "treedb_name",  "%s", treedb_name,
+        NULL
+    );
+    return why;
+}
+
+/***************************************************************************
+ *  A topic named by delete-topic that is not one of the treedb (unknown,
+ *  or a name that breaks the topic rule) is the peer's data: a warning and
+ *  a refusal, as C_NODE refuses it, before treedb_delete_topic() logs its
+ *  ERROR ("Topic name not found in treedbs"). TRUE = refused.
+ ***************************************************************************/
+PRIVATE BOOL refuse_peer_topic_name(
+    hgobj gobj,
+    BOOL peer,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name
+)
+{
+    if(tranger2_name_is_identifier(topic_name) &&
+            treedb_is_treedbs_topic(tranger, treedb_name, topic_name)) {
+        return FALSE;
+    }
+    log_refusal(gobj, peer,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "topic not found, refused",
+        "treedb_name",  "%s", treedb_name,
+        "topic_name",   "%.64s", topic_name? topic_name : "",
+        NULL
+    );
+    return TRUE;
+}
+
+/***************************************************************************
  *  The response a write command gives when the tranger it would write is
  *  a replica's. Same words as C_NODE's: on a replica nobody can write,
  *  and the library refuses it anyway -- this says why, up front, before
@@ -11039,7 +13163,7 @@ PRIVATE BOOL schema_to_run_collides(
     BOOL installed = (!file_in_use ||
         (imposing? new_version != in_use_version : new_version > in_use_version))? TRUE: FALSE;
     json_t *collision = schema_id_collision(
-        gobj, treedb_name, installed? jn_schema : file_in_use, TRUE
+        gobj, FALSE, treedb_name, installed? jn_schema : file_in_use, TRUE
     );
     if(!collision) {
         return FALSE;

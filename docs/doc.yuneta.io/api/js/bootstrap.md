@@ -40,8 +40,8 @@ gobj_start_up(
 | `save_persistent_attrs_fn` | `function` | Saves the persistent attributes. |
 | `remove_persistent_attrs_fn` | `function` | Deletes the persistent attributes. |
 | `list_persistent_attrs_fn` | `function` | Lists the persistent attributes. |
-| `global_command_parser_fn` | `function` | The parser of the commands, for a gclass that gives no table. |
-| `global_stats_parser_fn` | `function` | The parser of the statistics. |
+| `global_command_parser_fn` | `function` | The parser of the commands of a gclass that HAS a command table and no `mt_command_parser` method. A gclass with neither is never handed to it: [`gobj_command()`](events.md#js_gobj_command) answers `-1` *"\<gobj>: command table not available"*. The [`command_parser()`](events.md#js_command_parser) of gobj-js is an empty stub that returns `undefined`. |
+| `global_stats_parser_fn` | `function` | The parser of the statistics of a gclass that has no `mt_stats` method. The [`stats_parser()`](events.md#js_stats_parser) of gobj-js is an empty stub that returns `undefined`. |
 
 **Returns**
 
@@ -89,7 +89,9 @@ gobj_play(yuno);
 ```
 
 The order matters. Every gclass that a creation names must have its registration
-first.
+first. `command_parser` and `stats_parser` only fill their slots: both are
+empty stubs, so a gclass that answers commands or statistics gives its own
+`mt_command_parser` or `mt_stats` method (see [Commands](commands.md)).
 
 ---
 

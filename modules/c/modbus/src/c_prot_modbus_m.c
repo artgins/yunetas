@@ -366,8 +366,8 @@ SDATA_END()
 PRIVATE const sdata_desc_t pm_dump_data[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_INTEGER,   "slave_id",     0,              0,          "Slave id (-1 all slaves)"),
-SDATAPM (DTP_STRING,    "address",      0,              0,          "Address"),
-SDATAPM (DTP_STRING,    "size",         0,              0,          "Size (-1 all data)"),
+SDATAPM (DTP_JSON,      "address",      0,              0,          "Address: a number, or its text"),
+SDATAPM (DTP_JSON,      "size",         0,              0,          "Size (-1 all data): a number, or its text"),
 SDATA_END()
 };
 PRIVATE const sdata_desc_t pm_timeout[] = {

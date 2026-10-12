@@ -156,7 +156,7 @@ typedef struct {
     BOOL t_ordered;
 } seg_view_t;
 
-#define TIME_FLAG_MASK  0x00000FFFFFFFFFFFULL  /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
+#define TIME_FLAG_MASK  TRANGER2_MAX_TIME      /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
 #define USER_FLAG_MASK  0x0FFFF00000000000ULL
 
 /*
@@ -1229,6 +1229,63 @@ PUBLIC BOOL tranger2_name_is_identifier(const char *name)
     return TRUE;
 }
 
+/***************************************************************************
+ *  The names of a store's directory that are not a topic's (see
+ *  timeranger2.h)
+ ***************************************************************************/
+PUBLIC const char *tranger2_reserved_name_fault(const char *name)
+{
+    if(empty_string(name)) {
+        return NULL;    // the name rule's
+    }
+    size_t ln = strlen(name);
+    if(name[0] == '.') {
+        return "a name starting with '.' is a hidden file of the store";
+    }
+    if(strncmp(name, "__", 2)==0) {
+        return "a name starting with '__' is of the system";
+    }
+    if(ln >= strlen(".json") && strcmp(name + ln - strlen(".json"), ".json")==0) {
+        return "a name ending in '.json' is a file of the store";
+    }
+    if(ln >= strlen(".bak") && strcmp(name + ln - strlen(".bak"), ".bak")==0) {
+        return "a name ending in '.bak' is the backup of a topic";
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  A topic_var.json from outside (see timeranger2.h)
+ ***************************************************************************/
+PUBLIC const char *tranger2_topic_var_fault(json_t *jn_var)
+{
+    if(json_absent(jn_var)) {
+        return NULL;
+    }
+    if(!json_is_object(jn_var)) {
+        return "jn_var is not a json object";
+    }
+    for(int i = 0; topic_fields[i]; i++) {
+        if(json_object_get(jn_var, topic_fields[i])) {
+            return "jn_var has a field the tranger keeps itself";
+        }
+    }
+    if(json_object_get(jn_var, "system_topic")) {
+        return "jn_var marks a system topic, which nothing deletes";
+    }
+    json_t *jn_version = json_object_get(jn_var, "topic_version");
+    if(!json_absent(jn_version) && (!json_is_integer(jn_version) ||
+            json_integer_value(jn_version) < 0 ||
+            json_integer_value(jn_version) > TRANGER2_VERSION_MAX)) {
+        return "the topic_version of jn_var is not an integer from 0 to 2147483647";
+    }
+    json_t *jn_rowid = json_object_get(jn_var, "last_rowid_id");
+    if(!json_absent(jn_rowid) && (!json_is_integer(jn_rowid) || json_integer_value(jn_rowid) < 0)) {
+        return "the last_rowid_id of jn_var is not an integer, 0 or more";
+    }
+    return NULL;
+}
+
 PRIVATE BOOL topic_name_is_confined(
     hgobj gobj,
     json_t *tranger,
@@ -1882,8 +1939,8 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                         "msg",              "%s", "Imposing topic_version from C over a newer one",
                         "database",         "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
                         "topic",            "%s", topic_name,
-                        "topic_version",    "%d", (int)topic_new_version,
-                        "stored_version",   "%d", (int)topic_old_version,
+                        "topic_version",    "%lld", (long long)topic_new_version,
+                        "stored_version",   "%lld", (long long)topic_old_version,
                         NULL
                     );
                 }
@@ -1912,13 +1969,13 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                     "msg",          "%s", "Cannot re-create topic_cols.json for a new topic_version: the topic keeps its version, and is not opened",
                     "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
                     "topic",        "%s", topic_name,
-                    "topic_version", "%d", (int)topic_new_version,
-                    "stored_version", "%d", (int)topic_old_version,
+                    "topic_version", "%lld", (long long)topic_new_version,
+                    "stored_version", "%lld", (long long)topic_old_version,
                     NULL
                 );
                 gobj_log_set_last_message(
-                    "Cannot re-create topic_cols.json of topic '%s' for topic_version %d",
-                    topic_name, (int)topic_new_version
+                    "Cannot re-create topic_cols.json of topic '%s' for topic_version %lld",
+                    topic_name, (long long)topic_new_version
                 );
                 JSON_DECREF(jn_cols)
                 JSON_DECREF(jn_var)
@@ -1968,8 +2025,8 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                  *  create sees the version go up again and writes both.
                  */
                 gobj_log_set_last_message(
-                    "Cannot re-create topic_var.json of topic '%s' for topic_version %d",
-                    topic_name, (int)topic_new_version
+                    "Cannot re-create topic_var.json of topic '%s' for topic_version %lld",
+                    topic_name, (long long)topic_new_version
                 );
                 JSON_DECREF(jn_cols)
                 JSON_DECREF(jn_var)
@@ -3855,6 +3912,65 @@ PRIVATE BOOL feed_wants_only_md(json_t *feed)
 }
 
 /***************************************************************************
+ *  The __tm__ an append keeps of the tkey of `record`: an integer as it
+ *  is, a string read as a date by approxidate() and multiplied by 1000 on
+ *  an sf_tm_ms topic, 0 when it has none. *wrapped TRUE when that
+ *  multiplication passed the 44 bits of an md2 row (asked before it: past
+ *  64 bits it wraps to a value that looks like a time). The rest of what
+ *  does not fit is a returned value past TRANGER2_MAX_TIME (a negative
+ *  integer too): the append asks it with one compare, together with its
+ *  __t__.
+ ***************************************************************************/
+static inline uint64_t tkey_time_of_record(
+    const char *tkey,
+    system_flag2_t system_flag,
+    json_t *record,
+    BOOL *wrapped
+)
+{
+    *wrapped = FALSE;
+    if(empty_string(tkey)) {
+        return 0;   // No tkey value, mark with 0
+    }
+    json_t *jn_tval = json_object_get(record, tkey);
+    if(json_is_string(jn_tval)) {
+        timestamp_t timestamp = approxidate(json_string_value(jn_tval));
+        if(system_flag & sf_tm_ms) {
+            if(timestamp > TRANGER2_MAX_TIME/1000) {
+                *wrapped = TRUE;
+            }
+            timestamp *= 1000;
+        }
+        return timestamp;
+    }
+    if(json_is_integer(jn_tval)) {
+        return (uint64_t)json_integer_value(jn_tval);
+    }
+    return 0;   // No tkey value, mark with 0
+}
+
+/***************************************************************************
+ *  The time an append keeps as the __tm__ of `record`, and whether an md2
+ *  row keeps it whole (see the header)
+ ***************************************************************************/
+PUBLIC uint64_t tranger2_record_tkey_time(
+    json_t *topic,      // NOT owned
+    json_t *record,     // NOT owned
+    BOOL *fits
+)
+{
+    BOOL wrapped = FALSE;
+    uint64_t tm = tkey_time_of_record(
+        json_string_value(json_object_get(topic, "tkey")),
+        (system_flag2_t)json_integer_value(json_object_get(topic, "system_flag")),
+        record,
+        &wrapped
+    );
+    *fits = (!wrapped && tm <= TRANGER2_MAX_TIME)? TRUE : FALSE;
+    return tm;
+}
+
+/***************************************************************************
     Append a new item to record.
     The 'pkey' and 'tkey' are getting according to the topic schema.
     Return the new record's metadata.
@@ -4032,26 +4148,32 @@ PUBLIC int tranger2_append_record(
     /*--------------------------------------------*
      *  Get and save the t-key if exists
      *--------------------------------------------*/
-    const char *tkey = json_string_value(json_object_get(topic, "tkey"));
-    if(!empty_string(tkey)) {
-        json_t *jn_tval = json_object_get(record, tkey);
-        if(!jn_tval) {
-            md_record.__tm__ = 0; // No tkey value, mark with 0
-        } else {
-            if(json_is_string(jn_tval)) {
-                timestamp_t timestamp = approxidate(json_string_value(jn_tval));
-                if(system_flag & sf_tm_ms) {
-                    timestamp *= 1000;
-                }
-                md_record.__tm__ = timestamp;
-            } else if(json_is_integer(jn_tval)) {
-                md_record.__tm__ = json_integer_value(jn_tval);
-            } else {
-                md_record.__tm__ = 0; // No tkey value, mark with 0
-            }
-        }
-    } else {
-        md_record.__tm__ = 0;  // No tkey value, mark with 0
+    BOOL tm_wrapped;
+    md_record.__tm__ = tkey_time_of_record(
+        json_string_value(json_object_get(topic, "tkey")),
+        system_flag,
+        record,
+        &tm_wrapped
+    );
+
+    /*
+     *  An md2 row keeps 44 bits of each time: the flags go over the rest.
+     *  A time past them is appended cut, as it always was -- and said: it
+     *  was cut without a word (REV-CLOUD V20 c5 #4). A caller that takes
+     *  the time from a peer refuses it first (tranger2_record_tkey_time()).
+     */
+    if((md_record.__t__ | md_record.__tm__) > TRANGER2_MAX_TIME || tm_wrapped) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Record time past what an md2 row keeps (44 bits): appended CUT",
+            "topic",        "%s", topic_name,
+            "key",          "%s", key_value? key_value : "",
+            "__t__",        "%" PRIu64, (uint64_t)md_record.__t__,
+            "__tm__",       "%" PRIu64, (uint64_t)md_record.__tm__,
+            "tm_wrapped",   "%d", tm_wrapped? 1 : 0,
+            NULL
+        );
     }
 
     // TEST performance 600000

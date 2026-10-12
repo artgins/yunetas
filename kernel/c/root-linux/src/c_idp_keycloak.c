@@ -182,7 +182,7 @@ PRIVATE sdata_desc_t pm_list_idp_users[] = {
 SDATAPM (DTP_STRING,    "search",       0,      "",     "Match against username, first/last name and email. Empty lists all"),
 SDATAPM (DTP_INTEGER,   "first",        0,      "0",    "Index of the first result (paging)"),
 SDATAPM (DTP_INTEGER,   "max",          0,      "0",    "Results per page (default 50, ceiling 500)"),
-SDATAPM (DTP_STRING,    "brief",        0,      "1",    "1: the short representation (no attributes/credentials). 0: the full one"),
+SDATAPM (DTP_JSON,      "brief",        0,      "1",    "1: the short representation (no attributes/credentials). 0: the full one"),
 SDATA_END()
 };
 
@@ -203,9 +203,9 @@ SDATAPM (DTP_STRING,    "user_id",          0,      "",     "IdP user id (the uu
 SDATAPM (DTP_STRING,    "id",               0,      "",     "Alias of user_id. Unusable through `command-yuno`, which reserves id"),
 SDATAPM (DTP_STRING,    "firstName",        0,      0,      "First name. Absent leaves it unchanged"),
 SDATAPM (DTP_STRING,    "lastName",         0,      0,      "Last name. Absent leaves it unchanged"),
-SDATAPM (DTP_STRING,    "enabled",          0,      0,      "1/0. Absent leaves it unchanged. A disabled account cannot log in"),
-SDATAPM (DTP_STRING,    "emailVerified",    0,      0,      "1/0. Absent leaves it unchanged"),
-SDATAPM (DTP_STRING,    "requiredActions",  0,      0,      "JSON list, or one action. Absent leaves it unchanged; [] clears the pending actions"),
+SDATAPM (DTP_JSON,      "enabled",          0,      0,      "1/0. Absent leaves it unchanged. A disabled account cannot log in"),
+SDATAPM (DTP_JSON,      "emailVerified",    0,      0,      "1/0. Absent leaves it unchanged"),
+SDATAPM (DTP_JSON,      "requiredActions",  0,      0,      "JSON list, or one action. Absent leaves it unchanged; [] clears the pending actions"),
 SDATA_END()
 };
 
@@ -213,7 +213,7 @@ PRIVATE sdata_desc_t pm_send_actions[] = {
 /*-PM----type-----------name------------flag----default-description---------- */
 SDATAPM (DTP_STRING,    "user_id",      0,      "",     "IdP user id (the uuid Keycloak gives, not the email)"),
 SDATAPM (DTP_STRING,    "id",           0,      "",     "Alias of user_id. Unusable through `command-yuno`, which reserves id"),
-SDATAPM (DTP_STRING,    "actions",      0,      0,      "JSON list, or one action. Default ['UPDATE_PASSWORD']. E.g. VERIFY_EMAIL"),
+SDATAPM (DTP_JSON,      "actions",      0,      0,      "JSON list, or one action. Default ['UPDATE_PASSWORD']. E.g. VERIFY_EMAIL"),
 SDATA_END()
 };
 

@@ -158,6 +158,7 @@ typedef struct posted_event_s {
  *              Prototypes
  ***************************************************************/
 PRIVATE void purge_posted_events(gobj_t *gobj);
+PRIVATE json_t *find_authzs(hgobj gobj, const char *authz, BOOL verbose);
 PRIVATE json_t *gobj_hsdata(hgobj gobj); // Return is NOT YOURS
 PRIVATE json_t *gobj_hsdata2(hgobj gobj, const char *name, gobj_t **gobj_found); // Return is NOT YOURS
 PRIVATE state_t *_find_state(gclass_t *gclass, gobj_state_t state_name);
@@ -2261,7 +2262,15 @@ PUBLIC hgobj gobj_service_factory(
         JSON_DECREF(kw)
         return 0;
     }
+
+    /*
+     *  Both names are read from kw, which the global settings can rewrite
+     *  and json_replace_var() frees before the last trace: the gclass name
+     *  is taken from the gclass, the service name keeps a reference.
+     */
+    gclass_name = gclass->gclass_name;
     const char *gobj_name = kw_get_str(0, kw, "name", 0, 0);
+    json_t *jn_gobj_name = gobj_name? json_incref(json_object_get(kw, "name")) : NULL;
 
     /*
      *  Get any own config of global conf
@@ -2338,6 +2347,7 @@ PUBLIC hgobj gobj_service_factory(
         );
         trace_tree_config_masked(0, new_kw, "final kw");
     }
+    JSON_DECREF(jn_gobj_name)
 
     hgobj gobj = gobj_create_tree0(
         __yuno__,
@@ -10279,6 +10289,20 @@ PUBLIC json_t *authzs_list(
     const char *authz
 )
 {
+    return find_authzs(gobj, authz, TRUE);
+}
+
+/***************************************************************************
+ *  authzs_list(), and whether an authz that is not there is logged: it is
+ *  for C code, whose authz names are its own; the `authzs` command asks
+ *  for the name a peer wrote, and answers it (gobj_build_authzs_doc()).
+ ***************************************************************************/
+PRIVATE json_t *find_authzs(
+    hgobj gobj,
+    const char *authz,
+    BOOL verbose
+)
+{
     json_t *jn_list = 0;
     if(!gobj) { // Can be null
         jn_list = sdataauth2json(gobj_get_global_authz_table());
@@ -10330,13 +10354,15 @@ PUBLIC json_t *authzs_list(
         json_decref(jn_global);
     }
 
-    gobj_log_error(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER,
-        "msg",          "%s", "authz not found",
-        "authz",        "%s", authz,
-        NULL
-    );
+    if(verbose) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "authz not found",
+            "authz",        "%s", authz,
+            NULL
+        );
+    }
 
     return 0;
 }
@@ -10519,15 +10545,24 @@ PUBLIC json_t *gobj_build_authzs_doc(
         if(!service_gobj) {
             jn_authzs = json_sprintf("Service not found: '%s'", service);
         } else {
-            jn_authzs = authzs_list(service_gobj, authz);
+            jn_authzs = find_authzs(service_gobj, authz, FALSE);
             if(!jn_authzs) {
                 if(empty_string(authz)) {
                     jn_authzs = json_sprintf(
                         "Service without authzs table: '%s'", service
                     );
                 } else {
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER,
+                        "msg",          "%s", "authz not found, refused",
+                        "service",      "%s", service,
+                        "authz",        "%s", authz,
+                        NULL
+                    );
                     jn_authzs = json_sprintf(
-                        "Authz not found: '%s' in service: '%s'", authz, service
+                        "Authz not found: '%.*s' in service: '%s'",
+                        utf8_prefix_len(authz, 64), authz, service
                     );
                 }
             }
@@ -10542,8 +10577,10 @@ PUBLIC json_t *gobj_build_authzs_doc(
             hgobj gobj_service = gobj_find_service(service_, TRUE);
             if(gobj_service) {
                 if(gclass_authz_desc(gobj_gclass(gobj_service))) {
-                    json_t *l = authzs_list(gobj_service, authz);
-                    json_object_set_new(jn_authzs, service_, l);
+                    json_t *l = find_authzs(gobj_service, authz, FALSE);
+                    if(l) {
+                        json_object_set_new(jn_authzs, service_, l);
+                    }
                 }
             }
         }

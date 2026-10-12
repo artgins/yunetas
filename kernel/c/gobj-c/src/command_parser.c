@@ -43,6 +43,16 @@ PRIVATE json_t *build_cmd_kw(
 );
 PRIVATE const sdata_desc_t *find_ip_parameter(const sdata_desc_t *input_parameters, const char *key);
 PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key);
+PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, BOOL *refused);
+PRIVATE json_t *kw2parameter(data_type_t type, json_t *value, BOOL as_given, const char **refused);
+PRIVATE json_t *refuse_parameter(
+    hgobj gobj,
+    BOOL peer,
+    const char *command,
+    const char *name,
+    data_type_t type,
+    const char *got
+);
 PRIVATE void append_masked_parameters(
     gbuffer_t *gbuf,
     const char *line,
@@ -284,6 +294,276 @@ PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key)
         return TRUE;
     }
     return is_secret_name(key, strlen(key));
+}
+
+/***************************************************************************
+ *  What a parameter takes, whatever gives it: the command line (text), kw
+ *  (json) or its declared default (text) (REV-CLOUD V20.4):
+ *
+ *      DTP_STRING      a string
+ *      DTP_DICT        a json object (text: the json of one)
+ *      DTP_LIST        a json array (text: the json of one)
+ *      DTP_INTEGER,    a number or a boolean, never an object or an array.
+ *      DTP_REAL,       Text is read as one: a number with nothing after it,
+ *      DTP_BOOLEAN     and a boolean as true/false, yes/no, on/off or a
+ *                      number ("yes" was atoi()'d to FALSE, so a
+ *                      `dry_run=yes` saved for real)
+ *      DTP_JSON        anything; text that is not json is a string, but
+ *                      not one that starts as json ({ [ ") and breaks
+ *
+ *  A null is no value (but for DTP_JSON): the parameter takes its default,
+ *  or is missing. Up to 7.26.9 a value of another shape went to the handler
+ *  as it came: its kw_get_*() logged an ERROR with a stack for the caller's
+ *  mistake, and a wrong type could widen what the command does (C_TREEDB's
+ *  save-schema read `"treedb_name": 5` as no treedb named, and saved every
+ *  one).
+ ***************************************************************************/
+PRIVATE BOOL value_has_shape(data_type_t type, json_t *value)
+{
+    if(DTP_IS_STRING(type)) {
+        return json_is_string(value);
+    }
+    if(DTP_IS_DICT(type)) {
+        return json_is_object(value);
+    }
+    if(DTP_IS_LIST(type)) {
+        return json_is_array(value);
+    }
+    if(DTP_IS_NUMBER(type)) {
+        return json_is_number(value) || json_is_boolean(value);
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  What a parameter of `type` must be, said to whoever gave another thing
+ ***************************************************************************/
+PRIVATE const char *shape_of_type(data_type_t type)
+{
+    if(DTP_IS_STRING(type)) {
+        return "a string";
+    }
+    if(DTP_IS_DICT(type)) {
+        return "a json object";
+    }
+    if(DTP_IS_LIST(type)) {
+        return "a json array";
+    }
+    if(DTP_IS_BOOLEAN(type)) {
+        return "a boolean (true/false, yes/no, on/off, or a number)";
+    }
+    if(DTP_IS_INTEGER(type)) {
+        return "an integer";
+    }
+    if(DTP_IS_REAL(type)) {
+        return "a number";
+    }
+    if(DTP_IS_JSON(type)) {
+        return "a valid json";
+    }
+    return "a value of its type";
+}
+
+/***************************************************************************
+ *  What was given instead (never the value: it may be a secret)
+ ***************************************************************************/
+PRIVATE const char *shape_of_value(json_t *value)
+{
+    switch(json_typeof(value)) { // json_typeof PROTECTED
+        case JSON_OBJECT:
+            return "an object";
+        case JSON_ARRAY:
+            return "an array";
+        case JSON_STRING:
+            return "a text that does not read as one";
+        case JSON_INTEGER:
+            return "an integer";
+        case JSON_REAL:
+            return "a real";
+        case JSON_TRUE:
+        case JSON_FALSE:
+            return "a boolean";
+        default:
+            return "null";
+    }
+}
+
+/***************************************************************************
+ *  The value of a parameter written as text. Return a new reference; NULL
+ *  with *refused FALSE is no value (an empty number from kw: a form field
+ *  left empty), NULL with *refused TRUE a text that does not read as the
+ *  type. An empty number on the command line is 0, as it always was.
+ ***************************************************************************/
+PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, BOOL *refused)
+{
+    *refused = FALSE;
+    if(!s) {
+        s = "";
+    }
+
+    if(DTP_IS_STRING(type)) {
+        return json_string(s);
+    }
+
+    if(DTP_IS_NUMBER(type)) {
+        if(empty_string(s)) {
+            if(from_kw) {
+                return NULL;
+            }
+            if(DTP_IS_BOOLEAN(type)) {
+                return json_false();
+            }
+            return DTP_IS_REAL(type)? json_real(0) : json_integer(0);
+        }
+        if(DTP_IS_BOOLEAN(type)) {
+            if(strcasecmp(s, "true")==0 || strcasecmp(s, "yes")==0 || strcasecmp(s, "on")==0) {
+                return json_true();
+            }
+            if(strcasecmp(s, "false")==0 || strcasecmp(s, "no")==0 || strcasecmp(s, "off")==0) {
+                return json_false();
+            }
+        }
+        char *end = NULL;
+        if(DTP_IS_REAL(type)) {
+            double d = strtod(s, &end);
+            if(end == s || *end != 0) {
+                *refused = TRUE;
+                return NULL;
+            }
+            return json_real(d);
+        }
+        long long n = strtoll(s, &end, 10);
+        if(end == s || *end != 0) {
+            *refused = TRUE;
+            return NULL;
+        }
+        if(DTP_IS_BOOLEAN(type)) {
+            return json_boolean(n != 0);
+        }
+        return json_integer(n);
+    }
+
+    if(DTP_IS_DICT(type) || DTP_IS_LIST(type)) {
+        json_t *jn = string2json(s, FALSE);   // never logged: the text may be a secret
+        if(!jn || !value_has_shape(type, jn)) {
+            JSON_DECREF(jn)
+            *refused = TRUE;
+            return NULL;
+        }
+        return jn;
+    }
+
+    if(DTP_IS_JSON(type)) {
+        json_t *jn = anystring2json(s, strlen(s), FALSE);  // never logged: it may be a secret
+        if(!jn) {
+            const char *p = s;
+            while(*p == ' ' || *p == '\t') {
+                p++;
+            }
+            if(*p == '{' || *p == '[' || *p == '"') {
+                *refused = TRUE;    // json written wrong, not a text
+                return NULL;
+            }
+            jn = json_string(s);    // a bare word, a date: text
+        }
+        return jn;
+    }
+
+    *refused = TRUE;    // a type a command parameter cannot have
+    return NULL;
+}
+
+/***************************************************************************
+ *  The value of a parameter given in kw. Return a new reference; NULL with
+ *  *refused NULL is no value; NULL with *refused set is a value of another
+ *  shape, *refused says which. A text for a number, a boolean, an object or
+ *  a list is read as text2parameter() reads the command line; `as_given`
+ *  keeps a DTP_JSON as it came (a required one always did).
+ ***************************************************************************/
+PRIVATE json_t *kw2parameter(data_type_t type, json_t *value, BOOL as_given, const char **refused)
+{
+    *refused = NULL;
+    if(!value) {
+        return NULL;
+    }
+    if(DTP_IS_JSON(type)) {
+        if(as_given || !json_is_string(value)) {
+            return json_incref(value);
+        }
+        BOOL bad = FALSE;
+        json_t *jn = text2parameter(type, json_string_value(value), TRUE, &bad);
+        if(!jn) {
+            jn = json_incref(value);    // a string is a json too
+        }
+        return jn;
+    }
+    if(!(DTP_IS_STRING(type) || DTP_IS_DICT(type) || DTP_IS_LIST(type) || DTP_IS_NUMBER(type))) {
+        return json_incref(value);
+    }
+    if(json_is_null(value)) {
+        return NULL;
+    }
+    if(json_is_string(value) && !DTP_IS_STRING(type)) {
+        BOOL bad = FALSE;
+        json_t *jn = text2parameter(type, json_string_value(value), TRUE, &bad);
+        if(bad) {
+            *refused = shape_of_value(value);
+        }
+        return jn;
+    }
+    if(!value_has_shape(type, value)) {
+        *refused = shape_of_value(value);
+        return NULL;
+    }
+    return json_incref(value);
+}
+
+/***************************************************************************
+ *  The refusal, and the answer that names the parameter. A command with a
+ *  user in kw came from outside (c_ievent_srv puts `__username__` there):
+ *  the mistake is the peer's, a WARNING. From C code it is a broken
+ *  contract, an ERROR with a stack.
+ ***************************************************************************/
+PRIVATE json_t *refuse_parameter(
+    hgobj gobj,
+    BOOL peer,
+    const char *command,
+    const char *name,
+    data_type_t type,
+    const char *got
+)
+{
+    if(peer) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Command parameter of the wrong type",
+            "command",      "%s", command,
+            "parameter",    "%s", name,
+            "expected",     "%s", shape_of_type(type),
+            "got",          "%s", got,
+            NULL
+        );
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Command parameter of the wrong type",
+            "command",      "%s", command,
+            "parameter",    "%s", name,
+            "expected",     "%s", shape_of_type(type),
+            "got",          "%s", got,
+            NULL
+        );
+    }
+    return json_sprintf(
+        "%s: command '%s', parameter '%s' must be %s, not %s",
+        gobj_short_name(gobj),
+        command,
+        name,
+        shape_of_type(type),
+        got
+    );
 }
 
 /***************************************************************************
@@ -576,83 +856,6 @@ PRIVATE json_t *expand_command(
 }
 
 /***************************************************************************
- *  Parameters of command are described as sdata_desc_t
- ***************************************************************************/
-PRIVATE json_t *parameter2json(
-    hgobj gobj,
-    int type,
-    const char *name,
-    const char *s,
-    BOOL secret,    // a json that does not parse is not logged
-    int *result
-)
-{
-    *result = 0;
-
-    if(DTP_IS_STRING(type)) {
-        if(!s) {
-            s = "";
-        }
-        return json_string(s);
-
-    } else if(DTP_IS_BOOLEAN(type)) {
-        BOOL value;
-        if(strcasecmp(s, "TRUE")==0) {
-            value = 1;
-        } else if(strcasecmp(s, "FALSE")==0) {
-            value = 0;
-        } else {
-            value = atoi(s);
-        }
-        if(value) {
-            return json_true();
-        } else {
-            return json_false();
-        }
-
-    } else if(DTP_IS_INTEGER(type)) {
-        return json_integer(atoll(s));
-
-    } else if(DTP_IS_REAL(type)) {
-        return json_real(atof(s));
-
-    } else if(DTP_IS_JSON(type) || DTP_IS_LIST(type) || DTP_IS_DICT(type)) {
-        /*
-         *  The verbose parsers log the text that does not parse: not for a
-         *  secret, whose failure is said by its name only. Up to 7.25.21
-         *  it was logged in clear.
-         */
-        json_t *jn = DTP_IS_JSON(type)?
-            anystring2json(s, strlen(s), !secret) : string2json(s, !secret);
-        if(!jn && secret) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "secret parameter is not a valid json",
-                "parameter",    "%s", name,
-                NULL
-            );
-            *result = -1;
-            return json_sprintf(
-                "%s: parameter '%s' is not a valid json",
-                gobj_short_name(gobj),
-                name
-            );
-        }
-        return jn;
-    } else {
-        *result = -1;
-        json_t *jn_data = json_sprintf(
-            "%s: type %d of parameter '%s' is unknown",
-            gobj_short_name(gobj),
-            (int)type,
-            name
-        );
-        return jn_data;
-    }
-}
-
-/***************************************************************************
  *  Find an input parameter
  ***************************************************************************/
 PRIVATE const sdata_desc_t *find_ip_parameter(const sdata_desc_t *input_parameters, const char *key)
@@ -778,6 +981,7 @@ PRIVATE json_t *build_cmd_kw(
     if(!pxxx) {
         pxxx = bftemp;
     }
+    BOOL peer = json_is_string(json_object_get(kw, "__username__"));   // see refuse_parameter()
 
     *result = 0;
 
@@ -806,9 +1010,17 @@ PRIVATE json_t *build_cmd_kw(
             /*
              *  Required: si no está en pxxx buscalo en kw
              */
-            json_t *jn_param = json_object_get(kw, ip->name);  // a key, as written below
+            const char *refused = NULL;
+            json_t *jn_param = kw2parameter(  // a key, as written below
+                ip->type, json_object_get(kw, ip->name), TRUE, &refused
+            );
+            if(refused) {
+                *result = -1;
+                JSON_DECREF(kw_cmd);
+                return refuse_parameter(gobj, peer, command, ip->name, ip->type, refused);
+            }
             if(jn_param) {
-                json_object_set(kw_cmd, ip->name, jn_param);
+                json_object_set_new(kw_cmd, ip->name, jn_param);
                 ip++;
                 continue;
             } else {
@@ -832,21 +1044,13 @@ PRIVATE json_t *build_cmd_kw(
                 ip->name
             );
         }
-        json_t *jn_param = parameter2json(gobj, ip->type, ip->name, param,
-            is_secret_parameter(cnf_cmd, ip->name), result
-        );
-        if(*result < 0) {
-            JSON_DECREF(kw_cmd);
-            return jn_param;
-        }
+        BOOL refused = FALSE;
+        json_t *jn_param = text2parameter(ip->type, param, FALSE, &refused);
         if(!jn_param) {
             *result = -1;
             JSON_DECREF(kw_cmd);
-            return json_sprintf(
-                "%s: internal error, command '%s', parameter '%s'",
-                gobj_short_name(gobj),
-                command,
-                ip->name
+            return refuse_parameter(gobj, peer, command, ip->name, ip->type,
+                "a text that does not read as one"
             );
         }
         json_object_set_new(kw_cmd, ip->name, jn_param);
@@ -856,48 +1060,61 @@ PRIVATE json_t *build_cmd_kw(
     }
 
     /*
-     *  Next: get value from kw or default values
+     *  Next: get value from kw or default values. A value of kw that is
+     *  refused is refused at the end, unless the line gives the parameter:
+     *  the line has the last word (key=value below).
      */
+    json_t *jn_refused = json_object();     // parameter -> what kw gave instead
     while(ip->name) {
         if(ip->flag & SDF_NOTACCESS) {
             ip++;
             continue;
         }
 
-        if(kw_has_key(kw, ip->name)) {
-            json_t *value = json_object_get(kw, ip->name);  // a key: kw_has_key() found it
-            if(!DTP_IS_STRING(ip->type) && json_is_string(value)) {
-                const char *s = json_string_value(value);
-                json_t *new_value = anystring2json(s, strlen(s), FALSE);
-                if(new_value) {
-                    json_object_set_new(kw_cmd, ip->name, new_value);
-                    ip++;
-                    continue;
-                }
-            } else if(value) {
-                json_object_set(kw_cmd, ip->name, value);
-                ip++;
-                continue;
-            }
+        const char *refused = NULL;
+        json_t *jn_param = kw2parameter(  // a key, as above
+            ip->type, json_object_get(kw, ip->name), FALSE, &refused
+        );
+        if(refused) {
+            json_object_set_new(jn_refused, ip->name, json_string(refused));
+            ip++;
+            continue;
+        }
+        if(jn_param) {
+            json_object_set_new(kw_cmd, ip->name, jn_param);
+            ip++;
+            continue;
         }
 
         if(ip->default_value) {
-            json_t *jn_param = parameter2json(
-                gobj,
-                ip->type,
-                ip->name,
-                (char *)ip->default_value,
-                is_secret_parameter(cnf_cmd, ip->name),
-                result
-            );
-            if(*result < 0) {
+            BOOL bad = FALSE;
+            jn_param = text2parameter(ip->type, ip->default_value, FALSE, &bad);
+            if(bad) {
+                /*
+                 *  The default the gclass declares does not read as its type
+                 */
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "Command parameter default does not read as its type",
+                    "command",      "%s", command,
+                    "parameter",    "%s", ip->name,
+                    "expected",     "%s", shape_of_type(ip->type),
+                    NULL
+                );
+                *result = -1;
                 JSON_DECREF(kw_cmd);
-                return jn_param;
+                JSON_DECREF(jn_refused);
+                return json_sprintf(
+                    "%s: command '%s', parameter '%s': its default does not read as its type",
+                    gobj_short_name(gobj),
+                    command,
+                    ip->name
+                );
             }
-            json_object_set_new(kw_cmd, ip->name, jn_param);
-
-            ip++;
-            continue;
+            if(jn_param) {
+                json_object_set_new(kw_cmd, ip->name, jn_param);
+            }
         }
 
         ip++;
@@ -919,6 +1136,7 @@ PRIVATE json_t *build_cmd_kw(
              */
             *result = -1;
             JSON_DECREF(kw_cmd);
+            JSON_DECREF(jn_refused);
             return json_sprintf(
                 "%s: command '%s', parameter '%s': value with no closing quote",
                 gobj_short_name(gobj),
@@ -942,6 +1160,7 @@ PRIVATE json_t *build_cmd_kw(
              */
             *result = -1;
             JSON_DECREF(kw_cmd);
+            JSON_DECREF(jn_refused);
             return json_sprintf(
                 "%s: command '%s' with a malformed parameter: '<...>=...'",
                 gobj_short_name(gobj),
@@ -951,15 +1170,24 @@ PRIVATE json_t *build_cmd_kw(
         const sdata_desc_t *ip2 = find_ip_parameter(input_parameters, key);
         json_t *jn_param = 0;
         if(ip2) {
-            jn_param = parameter2json(gobj, ip2->type, ip2->name, value,
-                is_secret_parameter(cnf_cmd, ip2->name), result
-            );
+            BOOL refused = FALSE;
+            jn_param = text2parameter(ip2->type, value, FALSE, &refused);
+            if(!jn_param) {
+                *result = -1;
+                JSON_DECREF(kw_cmd);
+                JSON_DECREF(jn_refused);
+                return refuse_parameter(gobj, peer, command, ip2->name, ip2->type,
+                    "a text that does not read as one"
+                );
+            }
+            json_object_del(jn_refused, ip2->name);    // the line gives it
         } else {
             if(wild_command) {
-                jn_param = parameter2json(gobj, DTP_STRING, "wild-option", value, FALSE, result);
+                jn_param = json_string(value);
             } else {
                 *result = -1;
                 JSON_DECREF(kw_cmd);
+                JSON_DECREF(jn_refused);
                 return json_sprintf(
                     "%s: '%s' command has no option '%s'",
                     gobj_short_name(gobj),
@@ -967,22 +1195,6 @@ PRIVATE json_t *build_cmd_kw(
                     key?key:"?"
                 );
             }
-        }
-        if(*result < 0) {
-            JSON_DECREF(kw_cmd);
-            return jn_param;
-        }
-        if(!jn_param) {
-            *result = -1;
-            JSON_DECREF(kw_cmd);
-            jn_param = json_sprintf(
-                "%s: internal error, command '%s', parameter '%s', value '%s'",
-                gobj_short_name(gobj),
-                command,
-                key,
-                is_secret_parameter(cnf_cmd, key)? "********" : value
-            );
-            return jn_param;
         }
         json_object_set_new(kw_cmd, key, jn_param);
         last_key = key;
@@ -999,6 +1211,7 @@ PRIVATE json_t *build_cmd_kw(
          */
         *result = -1;
         JSON_DECREF(kw_cmd);
+        JSON_DECREF(jn_refused);
         BOOL extra_is_secret = last_key && is_secret_parameter(cnf_cmd, last_key);
         char *masked = extra_is_secret? NULL : mask_secrets_inline(pxxx);
         json_t *jn_error = json_sprintf(
@@ -1012,10 +1225,36 @@ PRIVATE json_t *build_cmd_kw(
     }
 
     /*
+     *  What kw gave a parameter, refused, and the line did not give
+     */
+    const char *name;
+    json_t *jn_got;
+    json_object_foreach(jn_refused, name, jn_got) {
+        const sdata_desc_t *ip_refused = find_ip_parameter(input_parameters, name);
+        json_t *jn_error = refuse_parameter(gobj, peer, command, name,
+            ip_refused? ip_refused->type : DTP_STRING, json_string_value(jn_got)
+        );
+        *result = -1;
+        JSON_DECREF(kw_cmd);
+        JSON_DECREF(jn_refused);
+        return jn_error;
+    }
+    JSON_DECREF(jn_refused);
+
+    /*
      *  The keys of kw that are not parameters reach the handler too;
-     *  callers (the GUI) depend on it.
+     *  callers (the GUI) depend on it. Not the null of a parameter: it is
+     *  no value (but for a DTP_JSON)
      */
     kw_update_missing(gobj, kw_cmd, kw);
+    for(ip = input_parameters; ip->name; ip++) {
+        if((ip->flag & SDF_NOTACCESS) || DTP_IS_JSON(ip->type)) {
+            continue;
+        }
+        if(json_is_null(json_object_get(kw_cmd, ip->name))) {
+            json_object_del(kw_cmd, ip->name);
+        }
+    }
 
     return kw_cmd;
 }

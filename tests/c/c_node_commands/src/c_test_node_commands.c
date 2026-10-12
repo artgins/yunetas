@@ -549,6 +549,28 @@ PRIVATE int export_and_import(hgobj gobj)
 }
 
 /***************************************************************************
+ *  REV-CLOUD V20.3: what an rt list of `departments` sees of the peer's
+ *  window. It is fed inside the treedb's append, and its callback is a
+ *  subscriber like those of the publication.
+ ***************************************************************************/
+PRIVATE int rt_probe_window = -1;   // -1: the callback did not run
+
+PRIVATE int rt_probe_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record_ex,
+    json_t *jn_record   // owned
+)
+{
+    rt_probe_window = treedb_peer_data()? 1 : 0;
+    JSON_DECREF(jn_record)
+    return 0;
+}
+
+/***************************************************************************
  *  Run every check
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -562,6 +584,10 @@ PRIVATE int run_tests(hgobj gobj)
      */
     CHECK(expect_refused, "refused: node of an unknown topic", "node",
         json_pack("{s:s, s:s}", "topic_name", "nosuch", "node_id", "x"), "Topic not found")
+    CHECK(expect_refused, "refused: a node_id that is not a string (V20.4.1)", "node",
+        json_pack("{s:s, s:i, s:s}", "topic_name", "departments", "node_id", 5,
+            "__username__", "peer@example.com"),    // a peer's command: a WARNING
+        "parameter 'node_id' must be a string, not an integer")
     CHECK(expect_refused, "refused: pkey2s of a topic with the delimiter", "pkey2s",
         json_pack("{s:s}", "topic_name", "a`b"), "Topic not found")
     {
@@ -651,6 +677,24 @@ PRIVATE int run_tests(hgobj gobj)
         GBUFFER_DECREF(gbuf)
     }
     {
+        /*  V20.4.4: a valid record with no fkey imports with nothing logged  */
+        const char *db = "{\"departments\": [{\"id\": \"plain\", \"name\": \"Plain\"}]}";
+        gbuffer_t *gbuf = gbuffer_create(256, 256);
+        gbuffer_append_string(gbuf, db);
+        gbuffer_t *gbuf64 = gbuffer_binary_to_base64(gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf));
+        json_t *resp = ask(gobj, "import-db", json_pack("{s:s, s:s}",
+            "content64", gbuffer_cur_rd_pointer(gbuf64), "if-resource-exists", "skip"));
+        json_t *data = kw_get_dict(gobj, resp, "data", 0, 0);
+        if(kw_get_int(gobj, resp, "result", -1, 0) != 0 ||
+                kw_get_int(gobj, data, "added", -1, 0) != 1 ||
+                kw_get_int(gobj, data, "failure", -1, 0) != 0) {
+            result += fail(gobj, "import-db: a record with no fkey, added", resp);
+        }
+        JSON_DECREF(resp)
+        GBUFFER_DECREF(gbuf64)
+        GBUFFER_DECREF(gbuf)
+    }
+    {
         /*  V19.3.3: no node_id and no filter, all the instances of the topic  */
         json_t *resp = ask(gobj, "instances", json_pack("{s:s}", "topic_name", "items"));
         if(kw_get_int(gobj, resp, "result", -1, 0) != 0 ||
@@ -675,6 +719,32 @@ PRIVATE int run_tests(hgobj gobj)
             result += fail(gobj, "create-node of probe, and the window closed after it", resp);
         }
         JSON_DECREF(resp)
+    }
+    {
+        /*  V20.3: an rt list is fed outside the window too (update = append)  */
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        json_t *rt = tranger2_open_rt_mem(priv->tranger, "departments", "probe", NULL,
+            rt_probe_callback, "rt_probe", "c_node_commands", NULL);
+        json_t *resp = ask(gobj, "update-node", json_pack("{s:s, s:{s:s, s:s}}",
+            "topic_name", "departments", "record", "id", "probe", "name", "Probe"));
+        if(kw_get_int(gobj, resp, "result", -1, 0) != 0 || rt_probe_window != 0) {
+            result += fail(gobj, "an rt list of the topic is fed outside the peer's window", resp);
+        }
+        JSON_DECREF(resp)
+        tranger2_close_rt_mem(priv->tranger, rt);
+    }
+    {
+        /*  V20.4.3: the options of children and parent_refs may be NULL  */
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        json_t *top = treedb_get_node(priv->tranger, TREEDB, "departments", "top");
+        json_t *dev = treedb_get_node(priv->tranger, TREEDB, "departments", "dev");
+        json_t *children = treedb_node_children(priv->tranger, "departments", top, NULL, NULL);
+        json_t *parents = treedb_parent_refs(priv->tranger, "department_id", dev, NULL);
+        if(json_array_size(children) == 0 || json_array_size(parents) != 1) {
+            result += fail(gobj, "children and parent_refs with no options", NULL);
+        }
+        JSON_DECREF(children)
+        JSON_DECREF(parents)
     }
 
     /*

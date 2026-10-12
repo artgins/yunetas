@@ -71,7 +71,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.27`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.28`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -438,10 +438,16 @@ Corollaries:
   columns collide the same way. Check those columns before naming a parameter,
   and prefix yours (`report_date`, `<thing>_id`), keeping the bare name as a
   fallback the handler reads for direct callers.
-  (2) `SDF_REQUIRED` + `DTP_JSON`/`DTP_INTEGER` parameters are
-  forwarded from kw **without** type coercion — drop `SDF_REQUIRED` and
-  validate in the handler, or defensively accept the string form
-  (`anystring2json`).
+  (2) **The parser types every parameter (7.26.10+)**, from the line, kw or
+  its default alike: a `DTP_STRING` is a string, a `DTP_DICT`/`DTP_LIST` an
+  object/array, a number or boolean is never an object or array, and text is
+  read as the type (`"5"` -> 5, a boolean as true/false, yes/no, on/off or a
+  number). Another shape is refused before the handler (`-1`; WARNING from a
+  peer, ERROR with a stack from C), and a `null` is no value. So a handler can
+  trust a parameter to have its declared type or be absent -- and a parameter
+  the handler takes in several shapes ON PURPOSE must be declared `DTP_JSON`
+  (anything; non-json text arrives as a string). Up to 7.26.9 a required one
+  was forwarded from kw with no coercion at all.
 - **`gobj_log_last_message()`** is a process-global 256-byte buffer written
   only by `priority <= LOG_ERR` logs. Prefer explicit `json_sprintf` messages
   in `cmd_*` failure paths; never rely on it across function boundaries. A
@@ -1331,10 +1337,26 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
 
   **The check is not a grep**: dump `title`/`aria-label` from the DEPLOYED DOM,
   resolve each control's name the way a reader does, then switch language and
-  diff. A key that arrives as a VARIABLE — from a data table, a helper's
-  argument, a local alias of `t()` — is invisible to `validate-locales`, and a
-  name written onto a widget's DOM is a race with the next render. Both are
-  found only by reading the page.
+  diff. A name written onto a widget's DOM is a race with the next render, and
+  only the page shows it. A key handed to a FUNCTION is read where it is
+  handed (gobj-ui 7.26.28+): at the key positions of every function in
+  gobj-ui's `I18N_KEY_FUNCTIONS` (`src/i18n_key_functions.js`),
+  `validate-locales` reads a string literal, or a `const` bound to one. A key
+  handed there by table or variable is PUBLISHED by its module — an exported
+  `<NAME>_I18N_KEYS` array of literals the validator reads — and the call is
+  marked `/* i18n: <NAME>_I18N_KEYS */` (`/* i18n: data */` when what arrives
+  is data no locale can list: a topic name, a backend's comment). A library
+  test fails on any other unmarked argument at a key position. The validator
+  follows a literal, a `const` (a const table too, `t(LABELS[x])`) and a
+  MARKED plain `let`: it reads everything the `let` is given in its scope
+  (initializer, `=`, `||=`, `??=`, `&&=`), asks the locales for each literal
+  and, under a list marker, fails one the list lacks; a marked `let` that only
+  ever holds literals fails with *"make it a const"*. What stays invisible is
+  a key an app hands through a wrapper of its own, or to a function the table
+  does not name — and, in the library and in an app alike, a key that reaches
+  `t()` (or an `i18n` / `data-i18n*` value) through an UNMARKED `let`, a
+  parameter or a computed string (`let k = "x"; t(k)`, `t("state " + s)`): no
+  check sees it and nothing fails. Check those on the page.
 - **Every text goes through i18n — and must be able to CHANGE language.**
   Passing a string through `t()` once is NOT enough: `refresh_language()` only
   re-translates a node that **carries its key**, so anything composed at render

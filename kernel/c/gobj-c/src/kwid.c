@@ -622,6 +622,9 @@ PRIVATE json_t *kw_find_path_depth(
 
     char segment[256];
     if(snprintf(segment, sizeof(segment), "%.*s", (int)(size_t)(p-path), path)>=sizeof(segment)) {
+        /*
+         *  A segment cut to fit would look up another key
+         */
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
@@ -629,6 +632,7 @@ PRIVATE json_t *kw_find_path_depth(
             "path",         "%s", path,
             NULL
         );
+        return 0;
     }
 
     json_t *next_json = 0;
@@ -666,6 +670,25 @@ PRIVATE json_t *kw_find_path_depth(
             }
             return 0;
         }
+    }
+
+    if(!(json_is_object(next_json) || json_is_array(next_json))) {
+        /*
+         *  A scalar in the middle of the path: the path is not there, as for
+         *  a segment not found (only the kw at the start of the path must be
+         *  a dict or a list)
+         */
+        if(verbose) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Segment is not a dict or a list",
+                "path",         "%s", path,
+                "segment",      "%s", segment,
+                NULL
+            );
+        }
+        return 0;
     }
 
     return kw_find_path_depth(gobj, next_json, p+1, verbose, depth+1);

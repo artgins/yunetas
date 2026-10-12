@@ -25,6 +25,37 @@
  *        user (every relayed command was trusted)
  *      - add-record asks `write`, and answers -403 on a refusal (a
  *        counting authz checker, installed at the start up)
+ *      - the data of a peer is refused with a WARNING and -1 before the
+ *        tranger logs its ERROR: an unknown topic or a name with '/' or
+ *        '..', a system topic to delete, a create-topic of a wrong shape
+ *        (unknown system_flag, two key types, no pkey, jn_cols not a dict,
+ *        a name longer than NAME_MAX), a record without its pkey or with
+ *        a pkey that is a path, a __t__ that is no date; a replica answers
+ *        READ-ONLY to delete-key, delete-topic and create-topic
+ *      - more of it (REV-CLOUD V20): a topic named as a file of the
+ *        database, a new topic_version over a system topic, a record that
+ *        is not a dict, a key that is a path (open-iterator, open-list,
+ *        open-rt), a time bound that is a dict (and an integer one, taken),
+ *        the paths of print-tranger kw_find_path() logs an ERROR for (and a
+ *        string at the end, answered); a one-shot open-list named as the
+ *        service reads a key the service has an iterator open on;
+ *        check-json asks `read`, and a -403 names the yuno first; a new
+ *        topic_version of a topic that exists without its jn_cols (its
+ *        columns were written empty) or over a topic of a treedb (its schema
+ *        is the treedb's), while a plain topic with its jn_cols still takes
+ *        it; a __t__ or a tkey time of more than 44 bits (what an md2 row
+ *        keeps); a print-tranger path of a wrong type is sent as a peer's
+ *        (the parser refuses a C caller's with an ERROR)
+ *      - the data of a peer is sent as a peer's (`__username__`): its
+ *        refusals are WARNINGs, a C caller's an ERROR with a stack (an
+ *        unknown topic from C); a peer writes nothing into a topic of a
+ *        treedb (add-record, delete-key, delete-topic) nor makes a new topic
+ *        in its store, while a C caller's add-record there is taken; a new
+ *        topic named as what a store keeps (`.hidden`, `__x`, `x.json`,
+ *        `x.bak`); a jn_var of what the tranger keeps or types
+ *        (system_topic, last_rowid_id "x", directory, topic_version "2");
+ *        a topic with no columns by design takes a new topic_version with
+ *        an empty jn_cols, and without jn_cols it is refused
  *
  *  The C_TRANGER gobj is created as a master yuno; its own tranger handle is
  *  borrowed to create a topic and append records, then the commands are
@@ -152,6 +183,48 @@ PRIVATE void check_str(const char *name, const char *got, const char *expected)
     } else {
         printf("ok   %-40s ('%s')\n", name, got);
     }
+}
+
+/*  A refusal of a peer's data: its WARNING, then the one the answer's
+ *  gobj_yuno_role_plus_name() logs in this test, whose yuno is the
+ *  C_TRANGER (see main()). The phase that expects them captures warnings.  */
+PRIVATE void expect_refusal(json_t *list, const char *msg)
+{
+    json_array_append_new(list, json_pack("{s:s, s:s}", "msg", msg, "__priority__", "WARNING"));
+    json_array_append_new(list, json_pack("{s:s, s:s}",
+        "msg", "GClass Attribute NOT FOUND", "__priority__", "WARNING"));
+}
+
+/*  `n` answers that name the yuno, each one the warning of
+ *  gobj_yuno_role_plus_name() in this test (see expect_refusal()), for a
+ *  phase that captures warnings  */
+PRIVATE json_t *expect_role_warnings(int n)
+{
+    json_t *list = json_array();
+    for(int i = 0; i < n; i++) {
+        json_array_append_new(list, json_pack("{s:s, s:s}",
+            "msg", "GClass Attribute NOT FOUND", "__priority__", "WARNING"));
+    }
+    return list;
+}
+
+/*  The kw of a command as C_IEVENT_SRV delivers it from a peer: with the
+ *  `__username__` it stamps. Its refusals are WARNINGs; without it the
+ *  caller is C code, and they are ERRORs with a stack (REV-CLOUD V20 #17)  */
+#define PEER_USER   "peer@test"
+
+PRIVATE json_t *as_peer(json_t *kw)  // kw owned, returned
+{
+    json_object_set_new(kw, "__username__", json_string(PEER_USER));
+    return kw;
+}
+
+/*  The command answers -1 and says why  */
+PRIVATE void check_refused(const char *name, json_t *r)
+{
+    check_int(name, kw_get_int(0, r, "result", -999, 0), -1);
+    check_bool(name, !empty_string(kw_get_str(0, r, "comment", "", 0)), TRUE);
+    JSON_DECREF(r)
 }
 
 /*  global rowid of a record, read from its __md_tranger__ metadata
@@ -536,7 +609,7 @@ PRIVATE int do_test(void)
     /*  A malformed regex is a client error, not an empty answer: it must be
      *  told apart from "no key matched".  */
     r = gobj_command(yuno, "list-keys",
-        json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME, "rkey", "a[b"), yuno);
+        as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME, "rkey", "a[b")), yuno);
     check_bool("list-keys bad rkey fails", kw_get_int(0, r, "result", 0, 0) < 0, TRUE);
     JSON_DECREF(r)
 
@@ -881,11 +954,11 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
 
     r = gobj_command(yuno, "open-iterator",
-        json_pack("{s:s, s:s, s:s}",
+        as_peer(json_pack("{s:s, s:s, s:s}",
             "iterator_id", "itBad",
             "topic_name", TOPIC_NAME,
             "rkey", "a[b"
-        ), yuno);
+        )), yuno);
     check_bool("open-iterator bad rkey fails", kw_get_int(0, r, "result", 0, 0) < 0, TRUE);
     JSON_DECREF(r)
 
@@ -1016,7 +1089,7 @@ PRIVATE int do_test(void)
      *      Negative: list-keys on missing topic
      *-------------------------------------------------*/
     r = gobj_command(yuno, "list-keys",
-        json_pack("{s:s}", "topic_name", "does_not_exist"), yuno);
+        as_peer(json_pack("{s:s}", "topic_name", "does_not_exist")), yuno);
     check_int("list-keys bad-topic result", kw_get_int(0, r, "result", -999, 0), -1);
     JSON_DECREF(r)
 
@@ -1125,11 +1198,11 @@ PRIVATE int do_test(void)
     /*  A malformed rkey REFUSES the list: degrading it to "every key" would
      *  push the caller exactly the records it asked not to receive.  */
     r = gobj_command(yuno, "open-list",
-        json_pack("{s:s, s:s, s:s}",
+        as_peer(json_pack("{s:s, s:s, s:s}",
             "list_id", "lstBad",
             "topic_name", TOPIC_NAME,
             "rkey", "a[b"
-        ), yuno);
+        )), yuno);
     check_bool("open-list bad rkey fails", kw_get_int(0, r, "result", 0, 0) < 0, TRUE);
     JSON_DECREF(r)
 
@@ -1981,7 +2054,7 @@ PRIVATE int do_test(void)
     r = gobj_command(yuno, "close-rt",
         json_pack("{s:s}", "rt_id", "itW^__keys__"), yuno);
     check_bool("close-rt of the client's feed closes it",
-        strncmp(kw_get_str(0, r, "comment", "", 0), "Realtime feed closed", 20) == 0, TRUE);
+        strstr(kw_get_str(0, r, "comment", "", 0), "Realtime feed closed") != NULL, TRUE);
     JSON_DECREF(r)
     global_result += test_json(NULL);
 
@@ -1995,10 +2068,10 @@ PRIVATE int do_test(void)
         memset(long_id, 'x', sizeof(long_id) - 1);
         long_id[sizeof(long_id) - 1] = 0;
         r = gobj_command(yuno, "open-rt",
-            json_pack("{s:s, s:s}",
+            as_peer(json_pack("{s:s, s:s}",
                 "rt_id", long_id,
                 "topic_name", TOPIC_NAME
-            ), yuno);
+            )), yuno);
         check_int("open-rt with an rt_id longer than NAME_MAX", kw_get_int(0, r, "result", -999, 0), -1);
         JSON_DECREF(r)
     }
@@ -2057,7 +2130,7 @@ PRIVATE int do_test(void)
     tranger2_close_topic(tranger, TOPIC_NAME4);
     r = gobj_command(yuno, "close-list", json_pack("{s:s}", "list_id", "lstNoRt1"), yuno);
     check_bool("close-list of a no_rt list whose topic is closed closes it",
-        strncmp(kw_get_str(0, r, "comment", "", 0), "List closed", 11) == 0, TRUE);
+        strstr(kw_get_str(0, r, "comment", "", 0), "List closed") != NULL, TRUE);
     JSON_DECREF(r)
 
     /*  delete-topic drops the other one, and frees it  */
@@ -2070,7 +2143,7 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
     r = gobj_command(yuno, "close-list", json_pack("{s:s}", "list_id", "lstNoRt2"), yuno);
     check_bool("delete-topic dropped the no_rt list",
-        strncmp(kw_get_str(0, r, "comment", "", 0), "List not found", 14) == 0, TRUE);
+        strstr(kw_get_str(0, r, "comment", "", 0), "List not found") != NULL, TRUE);
     JSON_DECREF(r)
     global_result += test_json(NULL);
 
@@ -2131,7 +2204,9 @@ PRIVATE int do_test(void)
     gobj_log_add_handler("test_capture_warn", "testing", LOG_OPT_UP_WARNING, 0);
     set_expected_results(
         "a paging session is watched once",
-        NULL,   // no "subscription(s) REPEATED", nothing else
+        /*  no "subscription(s) REPEATED", nothing but the three answers
+         *  that name the yuno (two iterators and a list opened)  */
+        expect_role_warnings(3),
         NULL, NULL, 1
     );
     hgobj session = gobj_create("session", C_IEVENT_SRV, 0, probe);
@@ -2210,7 +2285,7 @@ PRIVATE int do_test(void)
     r = gobj_command(yuno, "get-list-data",
         json_pack("{s:s}", "list_id", "lstSession"), session);
     check_bool("a live session keeps its list after its last unsubscribe",
-        strncmp(kw_get_str(0, r, "comment", "", 0), "List not found", 14) != 0, TRUE);
+        strstr(kw_get_str(0, r, "comment", "", 0), "List not found") == NULL, TRUE);
     JSON_DECREF(r)
     global_result += test_json(NULL);
 
@@ -2218,7 +2293,7 @@ PRIVATE int do_test(void)
      *  it, and the probe (its parent) heard the close exactly once.  */
     set_expected_results(
         "a gone paging session takes its iterators with it",
-        NULL,
+        expect_role_warnings(3),    // two iterators and a list not found, said with the yuno
         NULL, NULL, 1
     );
     g_session_closed = 0;
@@ -2248,7 +2323,7 @@ PRIVATE int do_test(void)
     r = gobj_command(yuno, "get-list-data",
         json_pack("{s:s}", "list_id", "lstSession"), yuno);
     check_bool("a gone session takes its list with it",
-        strncmp(kw_get_str(0, r, "comment", "", 0), "List not found", 14) == 0, TRUE);
+        strstr(kw_get_str(0, r, "comment", "", 0), "List not found") != NULL, TRUE);
     JSON_DECREF(r)
     global_result += test_json(NULL);
     gobj_destroy(session);
@@ -2321,7 +2396,7 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
     r = gobj_command(yuno, "close-rt", json_pack("{s:s}", "rt_id", "rtOwn"), sessA);
     check_bool("close-rt by its session",
-        strncmp(kw_get_str(0, r, "comment", "", 0), "Realtime feed closed", 20) == 0, TRUE);
+        strstr(kw_get_str(0, r, "comment", "", 0), "Realtime feed closed") != NULL, TRUE);
     JSON_DECREF(r)
     r = gobj_command(yuno, "close-iterator", json_pack("{s:s}", "iterator_id", "itOwn"), sessA);
     check_int("close-iterator by its session", kw_get_int(0, r, "result", -999, 0), 0);
@@ -2398,7 +2473,7 @@ PRIVATE int do_test(void)
     r = gobj_command(yuno, "close-rt",
         json_pack("{s:s, s:s}", "rt_id", "rtRelay", "__username__", "alice"), relay);
     check_bool("close-rt by its user through the agent",
-        strncmp(kw_get_str(0, r, "comment", "", 0), "Realtime feed closed", 20) == 0, TRUE);
+        strstr(kw_get_str(0, r, "comment", "", 0), "Realtime feed closed") != NULL, TRUE);
     JSON_DECREF(r)
     check_int("nothing more is refused through the agent", g_not_owner_said,
         (json_int_t)ARRAY_SIZE(relayed));
@@ -2469,9 +2544,22 @@ PRIVATE int do_test(void)
             "record", "id", "K", "tm", (json_int_t)BASE_T), yuno);
     check_int("add-record refused", kw_get_int(0, r, "result", -999, 0), -403);
     check_str("add-record asks", g_last_authz, "write");
+    /*  A -403 names the yuno first, as every answer of a command does
+     *  (REV-CLOUD V20.12): here the yuno has no role, the prefix is empty  */
+    check_bool("a -403 names the yuno",
+        strstr(kw_get_str(0, r, "comment", "", 0), ": No permission to 'write'") != NULL, TRUE);
     JSON_DECREF(r)
     check_int("a refused add-record adds nothing",
         (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME, "K"), 0);
+
+    /*  check-json asks `read`, as print-tranger: it had no authz, and its
+     *  walk logs an ERROR per node held twice (REV-CLOUD V20.11)  */
+    g_deny_authz = "read";
+    g_last_authz[0] = 0;
+    r = gobj_command(yuno, "check-json", json_object(), yuno);
+    check_int("check-json refused", kw_get_int(0, r, "result", -999, 0), -403);
+    check_str("check-json asks", g_last_authz, "read");
+    JSON_DECREF(r)
     g_deny_authz = NULL;
     global_result += test_json(NULL);
 
@@ -2485,14 +2573,14 @@ PRIVATE int do_test(void)
     check_int("add-record without topic_name", kw_get_int(0, r, "result", -999, 0), -1);
     JSON_DECREF(r)
     r = gobj_command(yuno, "add-record",
-        json_pack("{s:s, s:{s:s}}", "topic_name", "nope", "record", "id", "K"), yuno);
+        as_peer(json_pack("{s:s, s:{s:s}}", "topic_name", "nope", "record", "id", "K")), yuno);
     check_int("add-record to a topic that is not there", kw_get_int(0, r, "result", -999, 0), -1);
     JSON_DECREF(r)
-    r = gobj_command(yuno, "add-record", json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
+    r = gobj_command(yuno, "add-record", as_peer(json_pack("{s:s}", "topic_name", TOPIC_NAME)), yuno);
     check_int("add-record without record", kw_get_int(0, r, "result", -999, 0), -1);
     JSON_DECREF(r)
     r = gobj_command(yuno, "add-record",
-        json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME, "record", "[1,2]"), yuno);
+        as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME, "record", "[1,2]")), yuno);
     check_int("add-record of a record that is not a dict", kw_get_int(0, r, "result", -999, 0), -1);
     JSON_DECREF(r)
 
@@ -2528,6 +2616,501 @@ PRIVATE int do_test(void)
     }
     JSON_DECREF(r)
     global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
+     *      The data of a peer is refused: a WARNING (no stack) and -1
+     *      that says why, asked BEFORE the tranger, which logged an ERROR
+     *      for each one -- an unknown topic or a name with '/' or '..'
+     *      ("Cannot open topic", "Invalid topic name"), a system topic to
+     *      delete, an unknown system_flag, a record without its pkey or
+     *      with a pkey that is a path, a __t__ that is no date (REV-CLOUD
+     *      V20.4.2). The phase captures the warnings too.
+     *-------------------------------------------------*/
+    if(!tranger2_create_topic(tranger, "topic_sys", "id", "tm", NULL, sf_string_key,
+            json_pack("{s:s}", "id", ""), json_pack("{s:b}", "system_topic", 1)) ||
+       !tranger2_create_topic(tranger, "topic_int", "id", "", NULL, sf_int_key,
+            json_pack("{s:I}", "id", (json_int_t)0), 0)) {
+        printf("%s: FAIL (create the topics of the refusals)\n", APP);
+        return -1;
+    }
+    gobj_log_del_handler("test_capture");
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
+    {
+        json_t *expected_refusals = json_array();
+        /*  desc x2, open-topic, delete-topic, delete-key, open-list,
+         *  list-keys, open-iterator, open-rt, add-record  */
+        for(int i = 0; i < 10; i++) {
+            expect_refusal(expected_refusals, "topic not found, refused");
+        }
+        expect_refusal(expected_refusals, "system topic, delete refused");
+        for(int i = 0; i < 6; i++) {
+            expect_refusal(expected_refusals, "topic of a wrong shape, create refused");
+        }
+        for(int i = 0; i < 5; i++) {
+            expect_refusal(expected_refusals, "record of a wrong shape, refused");
+        }
+        json_array_append_new(expected_refusals, json_pack("{s:s, s:s}",    // V20.4.1
+            "msg", "Command parameter of the wrong type", "__priority__", "WARNING"));
+        /*  the same refusal for a C caller: an ERROR (REV-CLOUD V20 #17)  */
+        json_array_append_new(expected_refusals, json_pack("{s:s, s:s}",
+            "msg", "topic not found, refused", "__priority__", "ERROR"));
+        json_array_append_new(expected_refusals, json_pack("{s:s, s:s}",
+            "msg", "GClass Attribute NOT FOUND", "__priority__", "WARNING"));
+        set_expected_results("a peer's data is refused", expected_refusals, NULL, NULL, 1);
+    }
+
+    r = gobj_command(yuno, "desc", as_peer(json_pack("{s:s}", "topic_name", "nope")), yuno);
+    check_refused("desc of an unknown topic", r);
+    r = gobj_command(yuno, "desc", as_peer(json_pack("{s:s}", "topic_name", "../" TOPIC_NAME)), yuno);
+    check_refused("desc of a topic name with '..'", r);
+    r = gobj_command(yuno, "open-topic", as_peer(json_pack("{s:s}", "topic_name", "nope")), yuno);
+    check_refused("open-topic of an unknown topic", r);
+    r = gobj_command(yuno, "delete-topic",
+        as_peer(json_pack("{s:s, s:b}", "topic_name", "a/b", "force", 1)), yuno);
+    check_refused("delete-topic of a topic name with '/'", r);
+    r = gobj_command(yuno, "delete-key",
+        as_peer(json_pack("{s:s, s:s}", "topic_name", "nope", "key", KEY_A)), yuno);
+    check_refused("delete-key of an unknown topic", r);
+    r = gobj_command(yuno, "open-list",
+        as_peer(json_pack("{s:s, s:s}", "list_id", "lstNope", "topic_name", "nope")), yuno);
+    check_refused("open-list of an unknown topic", r);
+    r = gobj_command(yuno, "list-keys", as_peer(json_pack("{s:s}", "topic_name", "nope")), yuno);
+    check_refused("list-keys of an unknown topic", r);
+    r = gobj_command(yuno, "open-iterator",
+        as_peer(json_pack("{s:s, s:s, s:s}", "iterator_id", "itNope", "topic_name", "nope", "key", KEY_A)), yuno);
+    check_refused("open-iterator of an unknown topic", r);
+    r = gobj_command(yuno, "open-rt",
+        as_peer(json_pack("{s:s, s:s}", "rt_id", "rtNope", "topic_name", "nope")), yuno);
+    check_refused("open-rt of an unknown topic", r);
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:{s:s}}", "topic_name", "a/b", "record", "id", "K")), yuno);
+    check_refused("add-record to a topic name with '/'", r);
+
+    r = gobj_command(yuno, "delete-topic",
+        as_peer(json_pack("{s:s, s:b}", "topic_name", "topic_sys", "force", 1)), yuno);
+    check_refused("delete-topic of a system topic", r);
+    check_bool("the system topic is still there",
+        tranger2_topic_is_open(tranger, "topic_sys"), TRUE);
+
+    r = gobj_command(yuno, "create-topic", as_peer(json_pack("{s:s}", "topic_name", "a/b")), yuno);
+    check_refused("create-topic of a name with '/'", r);
+    r = gobj_command(yuno, "create-topic",
+        as_peer(json_pack("{s:s, s:s}", "topic_name", "topic_new", "system_flag", "sf_bogus")), yuno);
+    check_refused("create-topic with an unknown system_flag", r);
+    r = gobj_command(yuno, "create-topic",
+        as_peer(json_pack("{s:s, s:s}", "topic_name", "topic_new", "system_flag", "sf_string_key|sf_int_key")), yuno);
+    check_refused("create-topic with two key types", r);
+    r = gobj_command(yuno, "create-topic",
+        as_peer(json_pack("{s:s, s:s}", "topic_name", "topic_new", "pkey", "")), yuno);
+    check_refused("create-topic of a new topic without pkey", r);
+    r = gobj_command(yuno, "create-topic",
+        as_peer(json_pack("{s:s, s:i}", "topic_name", "topic_new", "jn_cols", 5)), yuno);
+    check_refused("create-topic with jn_cols not a dict", r);
+    {
+        /*  Its directory cannot be made: a CRITICAL of the tranger, which
+         *  exits the yuno with the default on_critical_error  */
+        char long_name[NAME_MAX + 2];
+        memset(long_name, 'x', sizeof(long_name) - 1);
+        long_name[sizeof(long_name) - 1] = 0;
+        r = gobj_command(yuno, "create-topic", as_peer(json_pack("{s:s}", "topic_name", long_name)), yuno);
+        check_refused("create-topic of a name longer than NAME_MAX", r);
+    }
+    check_bool("no refused create made the topic",
+        tranger2_topic_is_open(tranger, "topic_new"), FALSE);
+
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:{s:s}}", "topic_name", TOPIC_NAME, "record", "content", "no pkey")), yuno);
+    check_refused("add-record without its pkey", r);
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:{s:s}}", "topic_name", TOPIC_NAME, "record", "id", "../escape")), yuno);
+    check_refused("add-record with a pkey that is a path", r);
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:{s:s}}", "topic_name", TOPIC_NAME, "record", "id", ".hidden")), yuno);
+    check_refused("add-record with a pkey with a leading dot", r);
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:I, s:{s:s}}", "topic_name", TOPIC_NAME,
+            "__t__", (json_int_t)9223372036854775807LL, "record", "id", "K")), yuno);
+    check_refused("add-record with a __t__ that is no date", r);
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:{s:s}}", "topic_name", "topic_int", "record", "id", "abc")), yuno);
+    check_refused("add-record of a string to an int key", r);
+    check_int("no refused add-record added a record",
+        (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME, "K"), 2);
+    check_int("nor to the int key topic",
+        (json_int_t)tranger2_topic_size(tranger, "topic_int"), 0);
+
+    /*  A peer's, with the `__username__` C_IEVENT_SRV stamps: the parser
+     *  refuses a C caller's with an ERROR and a stack  */
+    r = gobj_command(yuno, "print-tranger",
+        json_pack("{s:i, s:s}", "path", 5, "__username__", "peer@test"), yuno);
+    check_refused("print-tranger with a path that is not a string", r);
+
+    /*  The C caller's: an ERROR with a stack, a broken contract  */
+    r = gobj_command(yuno, "desc", json_pack("{s:s}", "topic_name", "nope"), yuno);
+    check_refused("desc of an unknown topic, from C", r);
+
+    global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
+     *      More of a peer's data, refused with a WARNING (REV-CLOUD V20):
+     *      a topic named as a FILE of the database (its mkrdir() was a
+     *      CRITICAL, an exit of the yuno), a new topic_version over a
+     *      SYSTEM topic (it took its mark), a record that is not a dict
+     *      (-1 with no log), a key that is a path (it read another key),
+     *      a time bound of a wrong type (and an integer one, taken now),
+     *      and the paths of print-tranger kw_find_path() logs an ERROR for.
+     *      A one-shot open-list named as this service read the key of an
+     *      open iterator: "Iterator already exists", and the key left out.
+     *-------------------------------------------------*/
+    {
+        json_t *expected = json_array();
+        expect_refusal(expected, "topic of a wrong shape, create refused");  // a file
+        expect_refusal(expected, "topic of a wrong shape, create refused");  // system
+        expect_refusal(expected, "record of a wrong shape, refused");
+        for(int i = 0; i < 3; i++) {    // open-iterator, open-list, open-rt
+            expect_refusal(expected, "key that is not one directory component, refused");
+        }
+        json_t *loaded = expect_role_warnings(1);   // List loaded, from_t an integer
+        json_array_extend(expected, loaded);
+        JSON_DECREF(loaded)
+        expect_refusal(expected, "time bound of a wrong type, refused");
+        json_t *opened = expect_role_warnings(3);   // Iterator opened, List loaded, Iterator closed
+        json_array_extend(expected, opened);
+        JSON_DECREF(opened)
+        expect_refusal(expected, "print-tranger path refused");     // a segment too long
+        expect_refusal(expected, "print-tranger path refused");     // under a string
+        expect_refusal(expected, "topic of a wrong shape, create refused");  // a version, no jn_cols
+        json_t *created = expect_role_warnings(1);  // the version WITH its jn_cols, taken
+        json_array_extend(expected, created);
+        JSON_DECREF(created)
+        expect_refusal(expected, "topic of a wrong shape, create refused");  // a treedb's topic
+        expect_refusal(expected, "record of a wrong shape, refused");       // __t__ of 45 bits
+        expect_refusal(expected, "record of a wrong shape, refused");       // a tkey of 45 bits
+        /*  c4 B: a tkey date past 44 bits, plain and sf_tm_ms; one it keeps, taken  */
+        expect_refusal(expected, "record of a wrong shape, refused");
+        expect_refusal(expected, "record of a wrong shape, refused");
+        json_t *dated = expect_role_warnings(1);
+        json_array_extend(expected, dated);
+        JSON_DECREF(dated)
+        /*  REV-CLOUD V20 #3: a peer's writes into a treedb's topic, a new topic in its store  */
+        expect_refusal(expected, "write of a topic of a treedb or a msg2db, refused");  // add-record
+        expect_refusal(expected, "write of a topic of a treedb or a msg2db, refused");  // delete-key
+        expect_refusal(expected, "write of a topic of a treedb or a msg2db, refused");  // delete-topic
+        expect_refusal(expected, "topic of a wrong shape, create refused");             // create-topic
+        json_t *added = expect_role_warnings(1);    // the C caller's add-record, taken
+        json_array_extend(expected, added);
+        JSON_DECREF(added)
+        /*  #4: a new topic named as what a store keeps  */
+        for(int i = 0; i < 4; i++) {
+            expect_refusal(expected, "topic of a wrong shape, create refused");
+        }
+        /*  #13: a jn_var of what the tranger keeps, or of a wrong type  */
+        for(int i = 0; i < 4; i++) {
+            expect_refusal(expected, "topic of a wrong shape, create refused");
+        }
+        /*  #16: a version of a topic with no columns, with an empty jn_cols; and
+         *  without jn_cols, refused  */
+        json_t *changed = expect_role_warnings(1);
+        json_array_extend(expected, changed);
+        JSON_DECREF(changed)
+        expect_refusal(expected, "topic of a wrong shape, create refused");
+        set_expected_results("more of a peer's data is refused", expected, NULL, NULL, 1);
+    }
+
+    r = gobj_command(yuno, "create-topic",
+        as_peer(json_pack("{s:s}", "topic_name", "__timeranger2__.json")), yuno);
+    check_refused("create-topic named as a file of the database", r);
+    check_bool("the file is still a file",
+        file_exists(path_database, "__timeranger2__.json"), TRUE);
+
+    r = gobj_command(yuno, "create-topic",
+        as_peer(json_pack("{s:s, s:{s:I}}", "topic_name", "topic_sys",
+            "jn_var", "topic_version", (json_int_t)99)), yuno);
+    check_refused("create-topic of a new topic_version over a system topic", r);
+    {
+        char topic_sys_dir[PATH_MAX];
+        build_path(topic_sys_dir, sizeof(topic_sys_dir), path_database, "topic_sys", NULL);
+        json_t *topic_var = load_json_from_file(0, topic_sys_dir, "topic_var.json", 0);
+        check_bool("the system topic keeps its mark on disk",
+            json_boolean_value(json_object_get(topic_var, "system_topic")), TRUE);
+        check_int("and its topic_version",
+            kw_get_int(0, topic_var, "topic_version", 0, KW_WILD_NUMBER), 0);
+        JSON_DECREF(topic_var)
+    }
+
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:i}", "topic_name", TOPIC_NAME, "record", 5)), yuno);
+    check_refused("add-record of a record that is not a dict", r);
+
+    r = gobj_command(yuno, "open-iterator",
+        as_peer(json_pack("{s:s, s:s, s:s}", "iterator_id", "itPath", "topic_name", TOPIC_NAME,
+            "key", "../keys/" KEY_A)), yuno);
+    check_refused("open-iterator of a key that is a path", r);
+    r = gobj_command(yuno, "open-list",
+        as_peer(json_pack("{s:s, s:s, s:s, s:b}", "list_id", "lstPath", "topic_name", TOPIC_NAME,
+            "key", "../keys/" KEY_A, "return_data", 1)), yuno);
+    check_refused("open-list of a key that is a path", r);
+    r = gobj_command(yuno, "open-rt",
+        as_peer(json_pack("{s:s, s:s, s:s}", "rt_id", "rtPath", "topic_name", TOPIC_NAME,
+            "key", "../x")), yuno);
+    check_refused("open-rt of a key that is a path", r);
+
+    /*  key C holds KEY_C_ROWS records at t BASE_T+0..3  */
+    r = gobj_command(yuno, "open-list",
+        as_peer(json_pack("{s:s, s:s, s:s, s:b, s:I}", "list_id", "lstFromT", "topic_name", TOPIC_NAME,
+            "key", KEY_C, "return_data", 1, "from_t", (json_int_t)(BASE_T + 2))), yuno);
+    check_int("open-list with an integer from_t", kw_get_int(0, r, "result", -999, 0), 0);
+    check_int("open-list with an integer from_t: the records from it",
+        json_array_size(kw_get_list(0, r, "data", 0, 0)), KEY_C_ROWS - 2);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-list",
+        as_peer(json_pack("{s:s, s:s, s:s, s:b, s:{}}", "list_id", "lstBadT", "topic_name", TOPIC_NAME,
+            "key", KEY_C, "return_data", 1, "from_t")), yuno);
+    check_refused("open-list with a from_t that is a dict", r);
+
+    r = gobj_command(yuno, "open-iterator",
+        as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME, "key", KEY_C)), yuno);
+    check_int("open-iterator of key C, named as its key",
+        kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-list",
+        as_peer(json_pack("{s:s, s:s, s:s, s:b}", "list_id", gobj_name(yuno), "topic_name", TOPIC_NAME,
+            "key", KEY_C, "return_data", 1)), yuno);
+    check_int("a one-shot open-list named as the service",
+        kw_get_int(0, r, "result", -999, 0), 0);
+    check_int("reads the key an iterator of the service has open",
+        json_array_size(kw_get_list(0, r, "data", 0, 0)), KEY_C_ROWS);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator", as_peer(json_pack("{s:s}", "iterator_id", KEY_C)), yuno);
+    check_int("close-iterator of key C", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    {
+        char long_path[300 + sizeof("`y")];
+        memset(long_path, 'x', 300);
+        snprintf(long_path + 300, sizeof(long_path) - 300, "`y");
+        r = gobj_command(yuno, "print-tranger", as_peer(json_pack("{s:s}", "path", long_path)), yuno);
+        check_refused("print-tranger with a segment longer than 255 bytes", r);
+    }
+    r = gobj_command(yuno, "print-tranger", as_peer(json_pack("{s:s}", "path", "directory`x")), yuno);
+    check_refused("print-tranger with a path under a string", r);
+    r = gobj_command(yuno, "print-tranger", as_peer(json_pack("{s:s}", "path", "directory")), yuno);
+    check_int("print-tranger of a string", kw_get_int(0, r, "result", -999, 0), 0);
+    check_str("is the string", json_string_value(json_object_get(r, "data")), path_database);
+    JSON_DECREF(r)
+
+    /*
+     *  A new topic_version of a topic that exists (REV-CLOUD V20 D4): it
+     *  re-writes topic_cols.json from jn_cols, so without them the columns
+     *  were written EMPTY; and over a topic of a treedb, whose schema is the
+     *  treedb's, it took its cols and pkey2s for good. A plain topic with
+     *  its jn_cols keeps the feature.
+     */
+    if(!tranger2_create_topic(tranger, "topic_plain", "id", "", NULL, sf_string_key,
+            json_pack("{s:s, s:s}", "id", "", "name", ""), json_pack("{s:i}", "topic_version", 1))) {
+        printf("%s: FAIL (create topic_plain)\n", APP);
+        global_result += -1;
+    }
+    {
+        char plain_dir[PATH_MAX];
+        build_path(plain_dir, sizeof(plain_dir), path_database, "topic_plain", NULL);
+        r = gobj_command(yuno, "create-topic",
+            as_peer(json_pack("{s:s, s:{s:i}}", "topic_name", "topic_plain",
+                "jn_var", "topic_version", 2)), yuno);
+        check_refused("create-topic of a new topic_version without jn_cols", r);
+        json_t *jn_cols_disk = load_json_from_file(0, plain_dir, "topic_cols.json", 0);
+        check_int("the topic keeps its columns on disk", (json_int_t)json_object_size(jn_cols_disk), 2);
+        JSON_DECREF(jn_cols_disk)
+        r = gobj_command(yuno, "create-topic",
+            as_peer(json_pack("{s:s, s:{s:i}, s:{s:s, s:s, s:s}}", "topic_name", "topic_plain",
+                "jn_var", "topic_version", 2, "jn_cols", "id", "", "name", "", "more", "")), yuno);
+        check_int("create-topic of a new topic_version with its jn_cols",
+            kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+        jn_cols_disk = load_json_from_file(0, plain_dir, "topic_cols.json", 0);
+        check_int("the topic takes its new columns", (json_int_t)json_object_size(jn_cols_disk), 3);
+        JSON_DECREF(jn_cols_disk)
+    }
+    {
+        /*
+         *  A topic of a treedb: what treedb_open_db() leaves in the tranger
+         *  for each topic of the treedb, `treedbs`.<treedb>.<topic> (its
+         *  indexes). Put there by hand: a real treedb on this tranger reads
+         *  the plain topics of the test as its own, whose columns are no
+         *  json objects.
+         */
+        json_t *treedbs = json_object();
+        json_object_set_new(treedbs, "tdb", json_pack("{s:{}}", "topic_plain"));
+        json_object_set_new(tranger, "treedbs", treedbs);
+        char plain_dir[PATH_MAX];
+        build_path(plain_dir, sizeof(plain_dir), path_database, "topic_plain", NULL);
+        r = gobj_command(yuno, "create-topic",
+            as_peer(json_pack("{s:s, s:{s:i}, s:{s:s}}", "topic_name", "topic_plain",
+                "jn_var", "topic_version", 99, "jn_cols", "id", "")), yuno);
+        check_refused("create-topic of a new topic_version over a topic of a treedb", r);
+        json_t *topic_var = load_json_from_file(0, plain_dir, "topic_var.json", 0);
+        check_int("the treedb's topic keeps its topic_version",
+            kw_get_int(0, topic_var, "topic_version", 0, KW_WILD_NUMBER), 2);
+        JSON_DECREF(topic_var)
+        json_object_del(tranger, "treedbs");
+    }
+
+    /*
+     *  A time a record cannot keep (REV-CLOUD V20 D8): the md2 row holds 44
+     *  bits of __t__ and of __tm__, the flags were written over the rest
+     */
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:I, s:{s:s}}", "topic_name", TOPIC_NAME,
+            "__t__", (json_int_t)TRANGER2_MAX_TIME + 1, "record", "id", "K")), yuno);
+    check_refused("add-record with a __t__ of more than 44 bits", r);
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:{s:s, s:I}}", "topic_name", TOPIC_NAME,
+            "record", "id", "K", "tm", (json_int_t)TRANGER2_MAX_TIME + 1)), yuno);
+    check_refused("add-record with a tkey time of more than 44 bits", r);
+    check_int("no refused add-record added a record (44 bits)",
+        (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME, "K"), 2);
+
+    /*
+     *  And a tkey that is a DATE (REV-CLOUD V20 c4 B): approxidate() reads
+     *  "@<seconds> +0000" with no year limit, and the row kept 44 bits of
+     *  it -- of it times 1000 on an sf_tm_ms topic, where 2e10 seconds is
+     *  already past them. A date it can keep is taken.
+     */
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:{s:s, s:s}}", "topic_name", TOPIC_NAME,
+            "record", "id", "K", "tm", "@99999999999999 +0000")), yuno);
+    check_refused("add-record with a tkey date past 44 bits", r);
+    check_int("no refused add-record added a record (a date past 44 bits)",
+        (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME, "K"), 2);
+    if(!tranger2_create_topic(tranger, "topic_tm_ms", "id", "tm", NULL, sf_string_key|sf_tm_ms,
+            json_pack("{s:s, s:I}", "id", "", "tm", (json_int_t)0), 0)) {
+        printf("%s: FAIL (create topic_tm_ms)\n", APP);
+        global_result += -1;
+    }
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:{s:s, s:s}}", "topic_name", "topic_tm_ms",
+            "record", "id", "M", "tm", "@20000000000 +0000")), yuno);
+    check_refused("add-record with a tkey date past 44 bits in ms (sf_tm_ms)", r);
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:{s:s, s:s}}", "topic_name", "topic_tm_ms",
+            "record", "id", "M", "tm", "@1700000000 +0000")), yuno);
+    check_int("add-record with a tkey date it can keep (sf_tm_ms)",
+        kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    check_int("only the date it can keep was added (sf_tm_ms)",
+        (json_int_t)tranger2_topic_key_size(tranger, "topic_tm_ms", "M"), 1);
+
+    /*
+     *  REV-CLOUD V20 #3 (G): the topics of a treedb or a msg2db open on the
+     *  tranger are written through it, never by a peer's add-record,
+     *  delete-key or delete-topic: a raw record appended to `users` was that
+     *  node at the next load. Nor does a peer make a new topic in its store.
+     *  A C caller is its own owner. The treedb is put by hand, as above.
+     */
+    {
+        json_t *treedbs = json_object();
+        json_object_set_new(treedbs, "tdb", json_pack("{s:{}}", "topic_plain"));
+        json_object_set_new(tranger, "treedbs", treedbs);
+        r = gobj_command(yuno, "add-record",
+            as_peer(json_pack("{s:s, s:{s:s}}", "topic_name", "topic_plain", "record", "id", "raw")),
+            yuno);
+        check_refused("add-record of a peer into a topic of a treedb", r);
+        check_int("nothing was appended to the treedb's topic",
+            (json_int_t)tranger2_topic_key_size(tranger, "topic_plain", "raw"), 0);
+        r = gobj_command(yuno, "delete-key",
+            as_peer(json_pack("{s:s, s:s, s:b}", "topic_name", "topic_plain", "key", "raw",
+                "force", 1)), yuno);
+        check_refused("delete-key of a peer in a topic of a treedb", r);
+        r = gobj_command(yuno, "delete-topic",
+            as_peer(json_pack("{s:s, s:b}", "topic_name", "topic_plain", "force", 1)), yuno);
+        check_refused("delete-topic of a peer of a topic of a treedb", r);
+        check_bool("the treedb's topic is still there",
+            tranger2_topic_is_open(tranger, "topic_plain"), TRUE);
+        r = gobj_command(yuno, "create-topic",
+            as_peer(json_pack("{s:s, s:{s:s}}", "topic_name", "fresh", "jn_cols", "id", "")), yuno);
+        check_refused("create-topic of a peer of a new topic in the store of a treedb", r);
+        check_bool("no topic was made in the treedb's store",
+            tranger2_topic_is_open(tranger, "fresh"), FALSE);
+        r = gobj_command(yuno, "add-record",
+            json_pack("{s:s, s:{s:s}}", "topic_name", "topic_plain", "record", "id", "by_c"), yuno);
+        check_int("the C caller's add-record into the treedb's topic",
+            kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+        json_object_del(tranger, "treedbs");
+    }
+
+    /*
+     *  #4 (A, J): a NEW topic named as what a store keeps beside its topics:
+     *  hidden files, the system's namespace, its .json files, backups
+     */
+    {
+        const char *reserved[] = {".hidden", "__x", "x.json", "x.bak", NULL};
+        for(int i = 0; reserved[i]; i++) {
+            r = gobj_command(yuno, "create-topic",
+                as_peer(json_pack("{s:s, s:{s:s}}", "topic_name", reserved[i], "jn_cols", "id", "")),
+                yuno);
+            check_refused(reserved[i], r);
+            check_bool("no topic was made of a name of the store",
+                tranger2_topic_is_open(tranger, reserved[i]), FALSE);
+        }
+    }
+
+    /*
+     *  #13 (L): the jn_var of a peer: no field the tranger keeps (it made
+     *  the topic undeletable: system_topic), and the types the tranger
+     *  reads (an ERROR with a stack at the next change of version)
+     */
+    {
+        json_t *bad_vars[] = {
+            json_pack("{s:b}", "system_topic", 1),
+            json_pack("{s:i, s:s}", "topic_version", 1, "last_rowid_id", "x"),
+            json_pack("{s:s}", "directory", "/tmp"),
+            json_pack("{s:s}", "topic_version", "2"),
+            NULL
+        };
+        for(int i = 0; bad_vars[i]; i++) {
+            r = gobj_command(yuno, "create-topic",
+                as_peer(json_pack("{s:s, s:o, s:{s:s}}", "topic_name", "topic_var_x",
+                    "jn_var", bad_vars[i], "jn_cols", "id", "")), yuno);
+            check_refused("create-topic with a jn_var of the tranger's", r);
+        }
+        check_bool("no topic was made with a jn_var of the tranger's",
+            tranger2_topic_is_open(tranger, "topic_var_x"), FALSE);
+    }
+
+    /*
+     *  #16 (c3#1d): a new topic_version of a topic with no columns BY DESIGN
+     *  (timeranger2 columns are optional) takes an empty jn_cols: there is
+     *  nothing to wipe. Without jn_cols it is refused, before the tranger's
+     *  ERROR
+     */
+    if(!tranger2_create_topic(tranger, "topic_nocols", "id", "", NULL, sf_string_key,
+            json_object(), json_pack("{s:i}", "topic_version", 1))) {
+        printf("%s: FAIL (create topic_nocols)\n", APP);
+        global_result += -1;
+    }
+    {
+        r = gobj_command(yuno, "create-topic",
+            as_peer(json_pack("{s:s, s:{s:i}, s:{}}", "topic_name", "topic_nocols",
+                "jn_var", "topic_version", 2, "jn_cols")), yuno);
+        check_int("a new version of a topic with no columns, with an empty jn_cols",
+            kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+        char nocols_dir[PATH_MAX];
+        build_path(nocols_dir, sizeof(nocols_dir), path_database, "topic_nocols", NULL);
+        json_t *topic_var = load_json_from_file(0, nocols_dir, "topic_var.json", 0);
+        check_int("the topic with no columns takes its new version",
+            kw_get_int(0, topic_var, "topic_version", 0, KW_WILD_NUMBER), 2);
+        JSON_DECREF(topic_var)
+        r = gobj_command(yuno, "create-topic",
+            as_peer(json_pack("{s:s, s:{s:i}}", "topic_name", "topic_nocols",
+                "jn_var", "topic_version", 3)), yuno);
+        check_refused("a new version without jn_cols", r);
+    }
+
+    global_result += test_json(NULL);
+    gobj_log_del_handler("test_capture");
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_ERROR, 0);
 
     /*-------------------------------------------------*
      *      A master that LOST its lock (another process took the store
@@ -2582,6 +3165,24 @@ PRIVATE int do_test(void)
     check_bool("add-record on a replica says READ-ONLY",
         strstr(kw_get_str(0, r, "comment", "", 0), "READ-ONLY") != NULL, TRUE);
     JSON_DECREF(r)
+    /*  Nor does it delete, or create a topic: refused before the library,
+     *  which logged an ERROR ("Only master can delete", "Cannot open
+     *  TimeRanger topic. Not found and no master") (REV-CLOUD V20.4.2)  */
+    r = gobj_command(yuno, "delete-key",
+        json_pack("{s:s, s:s, s:b}", "topic_name", TOPIC_NAME, "key", KEY_A, "force", 1), yuno);
+    check_bool("delete-key on a replica says READ-ONLY",
+        strstr(kw_get_str(0, r, "comment", "", 0), "READ-ONLY") != NULL, TRUE);
+    check_refused("delete-key on a replica", r);
+    r = gobj_command(yuno, "delete-topic",
+        json_pack("{s:s, s:b}", "topic_name", TOPIC_NAME, "force", 1), yuno);
+    check_bool("delete-topic on a replica says READ-ONLY",
+        strstr(kw_get_str(0, r, "comment", "", 0), "READ-ONLY") != NULL, TRUE);
+    check_refused("delete-topic on a replica", r);
+    r = gobj_command(yuno, "create-topic",
+        json_pack("{s:s}", "topic_name", "topic_on_a_replica"), yuno);
+    check_bool("create-topic on a replica says READ-ONLY",
+        strstr(kw_get_str(0, r, "comment", "", 0), "READ-ONLY") != NULL, TRUE);
+    check_refused("create-topic on a replica", r);
     tranger2_shutdown(other_master);
     global_result += test_json(NULL);
 

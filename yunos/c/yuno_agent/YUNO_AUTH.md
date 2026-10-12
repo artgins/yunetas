@@ -1405,8 +1405,12 @@ be able to pull all of it. `brief=0` asks for the full representation.
 
 **`update-idp-user` changes only what you pass.** `firstName`, `lastName`,
 `enabled`, `emailVerified` and `requiredActions`; a field you do not pass stays
-as it is. The booleans accept `true`/`false` from a SPA and `1`/`0` from
-`command-yuno`, which forwards parameters without coercing them. Send
+as it is. These parameters, `brief` of `list-idp-users` and `actions` of
+`send-idp-user-actions` are declared `DTP_JSON` (since SDK 7.26.10; they were
+`DTP_STRING`, and the command parser now refuses a boolean or a list given to
+a string): the handler reads each one in more than one shape. A boolean is
+`true`/`false` from a SPA, or `1`/`0`, `true`, `yes` on the command line; a
+list is a json list, the json of one, or one bare word. Send
 `requiredActions=[]` to clear the pending actions of an account.
 
 **`delete-idp-user` deletes in the IdP only.** The `treedb_authzs` record stays

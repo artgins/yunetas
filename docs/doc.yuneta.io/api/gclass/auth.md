@@ -168,6 +168,22 @@ never goes into code or committed configuration.
 `user_id` also answers to `id`, which is unusable through `command-yuno`
 (the agent reads `id` as the yuno to address).
 
+`brief`, `enabled`, `emailVerified`, `requiredActions` and `actions` are
+`DTP_JSON` (since SDK 7.26.10; they were `DTP_STRING`, which the command
+parser now holds to a string): a boolean is taken as `true`/`false`, `1`/`0`
+or its text, a list as a json list, its text, or one bare word.
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=idp command=update-idp-user user_id=<uuid> enabled=0 requiredActions=VERIFY_EMAIL'
+ycommand -c 'command-yuno id=<yuno> service=idp command=send-idp-user-actions user_id=<uuid> actions=VERIFY_EMAIL'
+```
+
+```js
+// from a SPA: the json shapes
+gobj_command(gobj_remote_idp, "update-idp-user",
+    {user_id: uuid, enabled: false, requiredActions: []}, gobj);
+```
+
 **Example**
 
 The service in a yuno's `main.c`, and its first configuration:

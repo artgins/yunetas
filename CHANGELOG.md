@@ -121,8 +121,9 @@ Out of the nineteenth review (V19):
   `t()` as data in an exported `<NAME>_I18N_KEYS` array, and
   `validate-locales` asks for them wherever the module is mounted
   (`yui_dev.js`: the 51 keys of the Developer window, of which yunomusica
-  lacked 35 -- added in its 10 languages). The 11 controls of the gobj tree's
-  property popovers are named and change language. `validate-locales`: a key
+  lacked 35 -- added in its 10 languages). The 11 controls of the property
+  popovers of the treedb's node graph (`C_G6_NODES_TREE`) are named and change
+  language. `validate-locales`: a key
   that only ends like a plural form is a key, ordinals per language, an
   endonym only when it is a locale's `name`, a declared attr name no source
   uses fails, tests are not read. gui_agent 0.29.41, gui_treedb 0.17.108.
@@ -135,6 +136,141 @@ Out of the nineteenth review (V19):
   variable or `setAttribute`: `apply`, `node id required` (it was
   `t('node id') + ' required'`), and `not saved yet` (written WITHOUT `t()`
   by `yui_file_field.js`). gui_agent 0.29.40, gui_treedb 0.17.107.
+
+Out of the twentieth review (V20):
+
+- **The command parser types every parameter** (V20.4.1,
+  `command_parser.c`), required or optional, from the line, the kw or its
+  default alike. A `DTP_STRING` must be a string, a `DTP_DICT` an object, a
+  `DTP_LIST` an array; a `DTP_INTEGER`/`DTP_REAL`/`DTP_BOOLEAN` takes a
+  number or a boolean, never an object or an array; text is read AS the type
+  (`"5"` -> 5 by strtoll/strtod with the whole text consumed; a boolean as
+  true/false, yes/no, on/off or a number); a `null` is no value. Another shape
+  is refused BEFORE the handler (so before its authz check): `-1`, a WARNING
+  when the kw carries `__username__` (a peer), an ERROR with a stack from C.
+  The line has the last word over a refused kw value. A `DTP_JSON` takes
+  anything; on the line, text that is not json arrives as a string, except a
+  text that starts like json (`{`, `[`, `"`) and breaks, which is refused. A
+  declared default that does not read as its type is an ERROR. Up to 7.26.9 a
+  required parameter given in kw was forwarded with no coercion at all, so a
+  handler read `"5"` as 0 or an object where it wanted a string -- and
+  `save-schema {"treedb_name": 5}` fell back to "every treedb" and saved all
+  six (V20.4.2). **A handler can now trust a parameter's declared type**; a
+  parameter it takes in several shapes ON PURPOSE must be declared
+  `DTP_JSON`. Retyped for that reason: `C_NODE` `set-link-events` `set`,
+  `C_IDP_KEYCLOAK`'s `brief`, `enabled`, `emailVerified`, `requiredActions`
+  and `actions`, `C_PROT_MODBUS_M`'s `address`/`size` (and, in the projects,
+  yunovatios' `set-coordinates` `lng`/`lat` and wattyzer's `gate_pvpc`
+  `body`). New test `command_parameter_types` (the whole matrix). Docs:
+  `command_parser.md`.
+- **fix: `treedb_create_node()` on a uuid topic read a stack buffer out of
+  its scope** (V20.2.1): the generated id lived in a `char[]` declared inside
+  the `if`, and was used after it -- reachable by a peer's `create-node` or
+  `import-db` with no `id`. The id is read back from the kw.
+- **fix: `gobj_service_factory()` read the service name from a kw it had
+  freed** (V20.2.2), in its `create_delete2` trace: the name keeps its own
+  reference now, and the gclass name comes from the gclass.
+- **fix: the peer's window reached the rt lists of the treedb's appends**
+  (V20.3). A `C_TRANGER` `open-rt` (and any rt_mem list) on a treedb topic
+  ran inside the window of a peer's write, so its subscriber's own faults
+  were lowered to WARNINGs. The treedb turns the mark off around its appends
+  as around its publication.
+- **fix: `treedb_node_children()` / `treedb_parent_refs()` with NULL
+  options logged an ERROR** (V20.4.3). `replace_links_in_memory` warns about
+  an absent fkey only when it drops the links the node had (V20.4.4: an
+  `import-db` of valid records warned for each).
+- `kw_find_path_depth()` with `verbose` FALSE logs nothing (a peer's
+  `print-tranger path=` reached it); `authzs authz=<unknown>` answers with a
+  WARNING, not an ERROR, and caps the name.
+- **`C_TRANGER` and `C_TREEDB` refuse what a peer gets wrong, with a
+  WARNING, before the library** (V20.4.2; five passes of fixes and
+  adversarial checks), and a C caller keeps its ERROR -- with a stack -- and
+  its path. Every answer starts with the yuno's role.
+  - **fix: a `create-topic` with a name longer than NAME_MAX made the yuno
+    exit** (a CRITICAL in `mkrdir`, and C_TRANGER's `on_critical_error`);
+    **fix: a refused `open-treedb` left its directory and its services
+    behind**; fix: an int-key record with a non-integer key was appended
+    under key 0, and a negative `__t__` was appended.
+  - `C_TRANGER`: a topic name of the rule, open or a topic on disk; a key is
+    one directory component; `check-json` asks `read`; the `open-list` time
+    bounds are `DTP_JSON` (a date or a number); `print-tranger path=` walks
+    a path and answers a scalar as it is. `create-topic` refuses reserved
+    names (a leading `.` or `__`, a `.json` or `.bak` suffix: new
+    `tranger2_reserved_name_fault()`), more than one key type, a version
+    change a treedb or msg2db owns, and a `jn_var` with the fields the
+    tranger keeps or a `system_topic` (new `tranger2_topic_var_fault()`).
+    `add-record`, `delete-key` and `delete-topic` of a topic a treedb or
+    msg2db of that tranger owns are refused (they are written through
+    `C_NODE`), as is a new topic in such a store. A `__t__` or a tkey time
+    (a date string too) must fit the 44 bits a record keeps (new
+    `TRANGER2_MAX_TIME`, `tranger2_record_tkey_time()`). On a replica the
+    master-only commands answer READ-ONLY.
+  - **`tranger2_append_record()` logs an ERROR when it cuts a time** past
+    the 44 bits of an md2 row (*"appended CUT"*); it still appends, as
+    before. `treedb_create_node()` and `treedb_update_node()` refuse such a
+    tkey time BEFORE the append -- a WARNING in a peer's window, an ERROR
+    with a stack from C (a C caller's create used to be appended with the
+    time cut). Links, unlinks and snapshot saves of an existing node are not
+    checked, so a node that already holds such a time is not locked out.
+  - `C_TREEDB` `open-treedb` from a peer checks everything BEFORE anything
+    is created, so a refused open leaves nothing on disk: the name (108
+    bytes, no `__`, no `^`), `filename_mask`, `impose_c_schema`,
+    `exit_on_error` and `import_root` (settings only code sets), the
+    schema's shape (one name per topic, types, `main_topic`, versions up to
+    the new `TRANGER2_VERSION_MAX`), every topic as `create-topic` would
+    judge it, `file` columns sharing an `__assets__` hook, the store, and a
+    topic another database owns. A C caller (the agent, the control center,
+    mqtt_broker, the db_history yunos) keeps its pre-V20 path exactly.
+    **fix: a peer could close the treedb of a paused mqtt_broker**, which
+    keeps its `C_TREEDB` and treedb from `mt_start` to `mt_stop` -- freed
+    memory at the next play. `close-treedb` from a peer never closes a
+    treedb the yuno's code opened, playing or paused, with or without
+    `force`, whatever the case of the name (service names are
+    case-insensitive), and a peer can neither `delete-treedb` it (open or
+    closed) nor open a treedb that would take its name or its
+    `tranger_<name>` service; `force` on a treedb a peer opened is taken,
+    while the yuno plays, only from the user who opened it. The name of an
+    OPEN treedb is taken in any case by every `C_TREEDB` command, which then
+    acts under the name it was opened with (its files, its maps, its
+    answers: `apply-schema` of `TREEDB_X` could write a
+    `TREEDB_X.treedb_schema.json` into `treedb_x`'s store). A topic is another
+    database's on positive evidence only -- a msg2db or treedb open on the
+    tranger holds it, or another database's schema file in the store names
+    it (a db_history's msg2db `alarms`, open or closed): `create-topic`,
+    `delete-topic`, a peer's `open-treedb`, `save-schema` and
+    `apply-schema` refuse it, and a topic the treedb itself dropped comes
+    back. `save-schema` runs the topic checks (and refuses a version past
+    the maximum).
+  - **fix: `save-schema` published a topic an older release left without
+    its `id` column** once one of its columns was edited: such a topic is
+    published whole.
+  - `tr_treedb`: new `treedb_check_new_topic()` and
+    `treedb_check_file_hooks()`; `treedb_create_topic()` takes its version as
+    `json_int_t` (callers compile unchanged) and refuses a NEW topic with a
+    pkey2 that is `id`, the tkey or repeated, or a list id that does not
+    fit; a topic already on disk with those faults opens as before, with an
+    ERROR per fault. Versions are 64-bit in `treedb_open_db()`.
+  - `C_MQTT_BROKER` holds its `__username__` as an attribute (it was put in
+    its own `open-treedb` kw, which made that open a peer's). `C_NODE`: new
+    `peer_initial_load` attribute; the faults of a seed go through
+    `log_data_fault()`.
+- **JS layer: gobj-ui 7.26.28.** A key handed to a FUNCTION of the library
+  is read where it is handed: `I18N_KEY_FUNCTIONS` names every function that
+  receives a key and at which argument, and `validate-locales` reads it there
+  (`expand loaded`, `click to load`, `please select some row`, `accept`, `other
+  routes`... reached the deployed apps raw with the validator green). A
+  library test enforces the per-call rule: a literal, a `const`, a key
+  position handed on, or a call marked `/* i18n: <NAME>_I18N_KEYS */` or
+  `/* i18n: data */`. `validate-locales` parses the source (acorn): a broken
+  locale or source fails (a broken `es.js` was skipped, rc 0), a
+  `*_I18N_KEYS` it cannot read fails, a plural needs its bare base or
+  `_other`. The shell's fallback names are keys (`toolbar`, `user menu`,
+  `menu`), `C_YUI_NAV`'s back says `back`. `C_G6_NODES_TREE` is operable by
+  keyboard: its floating buttons and toolbar items are named buttons, the
+  canvas takes Tab in its place (`set_canvas_tab_order()`, in every G6 graph
+  of the library), a toolbar keeps its states across a rebuild, and every
+  click crosses the FSM (new INPUT events, no new output event). gui_agent
+  0.29.42, gui_treedb 0.17.109; every SPA on `^7.26.28` and deployed.
 
 ## v7.26.9 (2026-10-11)
 

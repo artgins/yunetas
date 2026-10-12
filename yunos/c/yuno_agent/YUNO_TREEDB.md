@@ -1457,7 +1457,7 @@ never a data column** — it does not touch the user schema and never bumps
 - Set it with `treedb_set_node_immutable(tranger, node, set)`, which
   rewrites the node's current primary record **in place** (no new record)
   via the gated `tranger2_set_system_flag()`, and flips
-  `__md_treedb__`immutable` in memory.
+  `` __md_treedb__`immutable `` in memory.
 - `treedb_save_node()` re-stamps the bit after every update (the re-append
   inherits only the topic-default `system_flag`, so the bit is re-applied).
   The snap `tag` is NOT re-applied: a save is always untagged; only
@@ -2714,7 +2714,10 @@ nothing was changed"*, and its row of `treedbs` carries `"opened": false`
 is clean. The failed open logs the cause once (for a schema file with no
 topics: ERROR *"No topics found"*, from `treedb_open_db`), and nothing
 more: `C_NODE` does not set the callback of a treedb that did not open, and
-does not close it. `delete-treedb` of it is refused until it is closed:
+does not close it. `delete-treedb` of it is refused until it is closed. The
+open below is a peer's (an operator's `open-treedb`), so that operator closes
+it, `force=1` while the yuno plays; a failed open of the yuno's code is
+closed by its code:
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=treedbs command=treedbs'
@@ -2727,6 +2730,91 @@ ycommand -c 'command-yuno id=<id> service=treedbs command=close-treedb treedb_na
 
 (In 7.25.4 that close logged *"TreeDB not found"* twice, with a stack, and
 `delete-treedb` answered *"while it is OPEN"*.)
+
+**Who closes a treedb from outside** (a `command-yuno` carries the
+operator's `__username__`; new after 7.26.9):
+
+| The treedb was opened by | `close-treedb` from outside |
+|---|---|
+| the yuno's code (the agent's, a `db_history`'s, the broker's `treedb_mqtt_broker`) | never, playing or paused, with `force` or without. The code holds pointers to its `C_NODE`, its tranger and what else it opened there (a msg2db `alarms`), and the close freed what they point at. Its lifecycle closes it: `pause-yuno` + `play-yuno` for a yuno that opens its treedbs at play; a restart (`kill-yuno` + `run-yuno`) for `mqtt_broker`, which opens its treedb at its start and keeps it through a pause |
+| an operator's `open-treedb`, the yuno PLAYS | that same user, with `force=1`; another user is refused |
+| an operator's `open-treedb`, the yuno is PAUSED (a yuno that keeps its `C_TREEDB` through a pause, as `mqtt_broker` does) | any user with `open-close`, with `force` or without: both rules above ask `gobj_is_playing()` |
+
+**Who deletes the schema of a treedb from outside** (`delete-treedb`, new
+after 7.26.9 for the code's): never one that the yuno's code opened, open or
+closed, `force` or not. Its `__system__` projection and its files in
+`saved_schemas/` are what the code's next open reads. Any other treedb, once
+it is closed (see `delete-treedb` below).
+
+**And the case of the name** (new after 7.26.9). The service registry finds
+a service by its name in any case, and a closed treedb is a directory, whose
+name is case-sensitive. These checks read a name in three ways:
+
+- The name of an OPEN treedb is taken in any case. The command then acts
+  under the name the treedb was opened with, and the answer names that name:
+  `TREEDB_X` closes or refuses `treedb_x`, and says `'treedb_x'`. Only
+  `open-treedb` answers with the name as written: *"treedb 'TREEDB_X' is
+  already open here: close-treedb first, nothing was changed"*.
+- The name of a treedb the yuno's CODE opened is refused to a peer in any
+  case, also while that treedb is closed: `close-treedb`, `open-treedb` and
+  `delete-treedb`. While it is closed, the answer names it as the peer wrote
+  it. A peer's `open-treedb` of a name whose services would take that
+  treedb's does not open either: an open registers `<name>` (its `C_NODE`)
+  and `tranger_<name>` (its `C_TRANGER`), so `tranger_treedb_x` takes the
+  name of the tranger of the code's `treedb_x`, and for a code treedb named
+  `tranger_logs` a peer's `Logs` takes it with its own tranger. While the
+  code's treedb is open, its services exist and the answer is *"a service
+  named ... exists already"*; while it is closed, the peer gets its own
+  refusal.
+- Any other name of a closed treedb is taken as it is written: `TREEDB_Y`
+  and `treedb_y` are two stores, two directories. Only one of them can be
+  open at a time, because they share their service names.
+
+```bash
+# treedb_x: the yuno's code opened it and it is open (the yuno plays, or is paused and keeps it, as mqtt_broker does)
+ycommand -c 'command-yuno id=<id> service=treedbs command=close-treedb treedb_name=treedb_x force=1'
+# -1: <role^name>: cannot close treedb 'treedb_x': the code of the yuno opened it and holds its handles, playing or paused; the yuno's own lifecycle closes it (pause-yuno + play-yuno, or a restart of the yuno)
+
+# the same, named in another case: the answer names the treedb as it was opened
+ycommand -c 'command-yuno id=<id> service=treedbs command=close-treedb treedb_name=TREEDB_X force=1'
+# -1: <role^name>: cannot close treedb 'treedb_x': the code of the yuno opened it and holds its handles, playing or paused; the yuno's own lifecycle closes it (pause-yuno + play-yuno, or a restart of the yuno)
+
+# its schema
+ycommand -c 'command-yuno id=<id> service=treedbs command=delete-treedb treedb_name=treedb_x force=1'
+# -1: <role^name>: cannot delete the schema of treedb 'treedb_x': the code of the yuno opened it, and its schema is the code's, open or closed
+
+# the name of its tranger: the service exists, so the open is answered before any check of a peer, with no log
+ycommand -c 'command-yuno id=<id> service=treedbs command=open-treedb treedb_name=tranger_treedb_x treedb_schema=...'
+# -1: <role^name>: cannot open treedb 'tranger_treedb_x': a service named 'tranger_treedb_x' exists already, nothing was changed
+
+# treedb_z: the yuno's code opened it and closed it, its C_TREEDB kept
+ycommand -c 'command-yuno id=<id> service=treedbs command=open-treedb treedb_name=TREEDB_Z treedb_schema=...'
+# -1: <role^name>: cannot open treedb 'TREEDB_Z': it is opened by the code of the yuno, and a peer cannot open it, nor its store, even while it is closed; nothing was changed
+ycommand -c 'command-yuno id=<id> service=treedbs command=open-treedb treedb_name=tranger_treedb_z treedb_schema=...'
+# -1: <role^name>: cannot open treedb 'tranger_treedb_z': its services would take the names of treedb 'treedb_z', which the code of the yuno opens, and a peer cannot take them even while it is closed; nothing was changed
+
+# tranger_logs: the yuno's code opened it and closed it; a peer's Logs would take its name with its own tranger
+ycommand -c 'command-yuno id=<id> service=treedbs command=open-treedb treedb_name=Logs treedb_schema=...'
+# -1: <role^name>: cannot open treedb 'Logs': its services would take the names of treedb 'tranger_logs', which the code of the yuno opens, and a peer cannot take them even while it is closed; nothing was changed
+
+# treedb_y: alice opened it with open-treedb, the yuno plays; bob forces its close
+ycommand -c 'command-yuno id=<id> service=treedbs command=close-treedb treedb_name=treedb_y force=1'
+# -1: <role^name>: cannot force the close of treedb 'treedb_y' while the yuno plays: this user did not open it, and whoever did may hold its handles. Use pause-yuno + play-yuno
+
+# alice forces it, named in another case: closed, under the name it was opened with
+ycommand -c 'command-yuno id=<id> service=treedbs command=close-treedb treedb_name=TREEDB_Y force=1'
+# 0: <role^name>: treedb closed: 'treedb_y'
+
+# treedb_w, which alice opened too: bob closes it while the yuno is paused (its C_TREEDB kept), no force needed
+ycommand -c 'pause-yuno id=<id>'
+ycommand -c 'command-yuno id=<id> service=treedbs command=close-treedb treedb_name=treedb_w'
+# 0: <role^name>: treedb closed: 'treedb_w'
+ycommand -c 'play-yuno id=<id>'
+```
+
+Up to 7.26.9 any user with `open-close` closed a treedb of the yuno's code
+with `force=1`, and a paused `mqtt_broker`'s with no `force`: a use of freed
+memory at the next write, `play-yuno` or stop.
 
 **A failed open keeps the saved schema.** An open that installs a newer
 literal withdraws the treedb's saved schema, which was published against the
@@ -2868,10 +2956,12 @@ PRIVATE char variable_config[]= "\
 `set-impose-c-schema` saved it: a `set=0` outranked the configuration,
 survived every new binary and lived nowhere a deploy could see. The command
 is gone, and not kept as an in-memory switch either: the value is read only
-when a treedb opens, a treedb opens only when its yuno starts (`close-treedb`
-refuses while the yuno plays), and a restart reads the configuration again —
-so a value set at run time could never reach a treedb. To change it, change
-the `main.c` or the config file and deploy.
+when a treedb opens, and from outside `close-treedb` never closes a treedb
+the yuno's code opened. So an in-memory value would reach a treedb only at
+the yuno's next own reopen (`pause-yuno` + `play-yuno` for a yuno that opens
+its treedbs at play), at a moment that has nothing to do with the command,
+and a restart reads the configuration again and drops it. To change it,
+change the `main.c` or the config file and deploy.
 
 `treedbs` lists what the service opened and, for each treedb, whether it
 imposes and who decided it (`decided_by`: `code`, `dynamic_schema_treedbs`,
@@ -3289,12 +3379,17 @@ keeps raw handles that no framework cleanup can reach — the service pointer,
 the `tranger` json_t read from it, copies of both on a hot path, and whatever
 else it opened on that same tranger (`db_history_co` opens its `msg2db_alarms`
 there). Called from outside on a playing yuno, the next record processed
-writes into released memory. Every in-tree consumer therefore closes only from
-`mt_pause` and reopens in `mt_play`, which re-acquires every handle; from
-outside, that pair is `pause-yuno` + `play-yuno`, and it does **not** restart
-the process. `cmd_close_treedb` refuses while the yuno plays (`force=1` for a
-caller that holds nothing of the treedb). Note `pause` stops the yuno's other
-services too, so its gate goes down for the cycle.
+writes into released memory. The in-tree consumers therefore close only from
+their own lifecycle, which re-acquires every handle: most close in `mt_pause`
+and reopen in `mt_play` -- from outside, that pair is `pause-yuno` +
+`play-yuno`, and it does **not** restart the process --, and `mqtt_broker`
+closes in `mt_stop` and opens in `mt_start`, so only a restart reopens its
+treedb. `cmd_close_treedb` never closes, from outside, a treedb that the
+yuno's code opened, whether the yuno plays or not, `force` or not (new after
+7.26.9); while the yuno plays any other close needs `force=1`, taken from
+the yuno's C code, and from outside only from the user whose `open-treedb`
+opened the treedb. Note `pause` stops the yuno's other services too, so its
+gate goes down for the cycle.
 
 Round-trip coverage:
 [`tests/c/c_treedb_system_schema`](https://github.com/artgins/yunetas/tree/7.26.9/tests/c/c_treedb_system_schema).
@@ -3312,8 +3407,22 @@ stayed.) `force=1` is required and
 means "yes, delete the schema"; it does not lift the refusal of an OPEN
 treedb, because an open one goes on answering from its copy in memory with a
 schema that exists nowhere, and the next `open-treedb` dies on the C_TRANGER
-service still alive under its name, leaving the store orphaned. Close first
-(`close-treedb force=1`, or `pause-yuno` + `play-yuno`), then delete. A
+service still alive under its name, leaving the store orphaned. Close first,
+then delete: a treedb an operator opened is closed by that operator,
+`close-treedb force=1` while the yuno plays, or by any user with
+`open-close` while it is paused (see *Who closes a treedb from outside*
+above). A treedb the yuno's
+code opened is refused from outside, open or closed, its name in any case
+(new after 7.26.9): its projection and its files in `saved_schemas/` are what
+the code's next open reads, and a peer's delete of them while it was closed,
+in a `C_TREEDB` that lived on, took them. `command-yuno id=<id>
+service=treedbs command=delete-treedb treedb_name=treedb_x force=1` answers
+`-1` *"\<role^name>: cannot delete the schema of treedb 'treedb_x': the code
+of the yuno opened it, and its schema is the code's, open or closed"*, with a
+WARNING *"delete-treedb from outside of a treedb the code of the yuno opened,
+refused"*; the yuno's C code deletes it as before. From outside, the name passes the name rule of
+`open-treedb` first: `x/../treedb_y` reached the files of the open
+`treedb_y` in `saved_schemas/`, and removed its saved schema (up to 7.26.9). A
 treedb whose last `open-treedb` did not open it is refused the same way,
 with *"its last open-treedb did not open it, and its services are still
 there. close-treedb it first, then delete-treedb"*. It
@@ -3324,6 +3433,7 @@ also removes, from `saved_schemas/`, the treedb's saved schema
 (`<treedb>.upgrade.json`):
 
 ```
+# treedb_foo opened by this same user with open-treedb: force while the yuno plays
 command-yuno id=<id> service=treedbs command=close-treedb treedb_name=treedb_foo force=1
 command-yuno id=<id> service=treedbs command=delete-treedb treedb_name=treedb_foo force=1
 ```

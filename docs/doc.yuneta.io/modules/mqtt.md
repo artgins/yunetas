@@ -45,6 +45,15 @@ session handling, and persistent storage using TreeDB on timeranger2.
 
 **Trace levels:** `messages`, `messages2`.
 
+**Attribute `__username__`** (`SDF_RD`): the broker writes the yuno's user
+here before it opens its treedb, and its `treedbs` service asks the
+permission of the broker's own `open-treedb` and `close-treedb` with it,
+read from their `src`. That service is a `C_TREEDB` the broker creates
+itself, in `open_database()` at its start, only when `mqtt_persistent_db` is
+on, and destroys in `close_database()` at its stop. The user is not put in the kw of those commands: a kw
+with `__username__` is a peer's command for `C_TREEDB` (see
+[the broker's treedb](#mqtt-broker-treedb-user)).
+
 Driven by the [`mqtt_broker`](../yunos/mqtt_broker.md) yuno — see that page for
 the protocol/persistence/configuration details.
 

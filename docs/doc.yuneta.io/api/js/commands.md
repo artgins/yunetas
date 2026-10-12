@@ -12,9 +12,7 @@ attributes. Every descriptor is an `SDataDesc`, and the macros below build one.
 
 **Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.26.19/src/gobj.js)
 
-The command table goes to [`gclass_create()`](js_gclass.md#js_gclass_create), and
-[`command_parser()`](events.md#js_command_parser) reads it. A gclass that gives a
-command table does not need the `mt_command` method.
+The command table goes to [`gclass_create()`](js_gclass.md#js_gclass_create):
 
 ```javascript
 const command_table = [
@@ -22,6 +20,39 @@ const command_table = [
         "Command's help"),
     SDATA_END()
 ];
+```
+
+[`gobj_command()`](events.md#js_gobj_command) hands the command and its `kw`,
+unchanged, to the first of these that the gclass has:
+
+1. its own `mt_command_parser` method;
+2. when the gclass has a command table, the global parser given to
+   [`gobj_start_up()`](bootstrap.md#js_gobj_start_up)
+   (`global_command_parser_fn`).
+
+A gclass with a table and no global parser gets `-1` *"\<gobj>: global
+command parser not available"*. A gclass with no table and no
+`mt_command_parser` gets `-1` *"\<gobj>: command table not available"*: the
+global parser is never asked for it. The
+[`command_parser()`](events.md#js_command_parser) of gobj-js is an empty stub:
+it reads no table, types no parameter and returns `undefined`. So a gclass
+that must answer its commands gives its own `mt_command_parser`, as `C_YUNO`
+does for its trace commands:
+
+```javascript
+function mt_command_parser(gobj, command, kw, src)
+{
+    switch(command) {
+        case "get-global-trace":
+            return build_command_response(gobj, 0, null, null, gobj_get_global_trace_level());
+        default:
+            return build_command_response(gobj, -1, `${gobj_yuno_role()}^${gobj_yuno_name()}: command not available: ${command}`, null, null);
+    }
+}
+
+const gmt = {
+    mt_command_parser: mt_command_parser,
+};
 ```
 
 ---
@@ -83,12 +114,35 @@ const pm_help = [
 ```
 
 :::{warning}
-Two traps hit a command that an operator calls through the agent, and both come
-from the C side of the control plane. A parameter with the name of a field of
-the yuno record becomes a filter on that field, and the command answers *"Yuno
-not found"*. Give your parameter a name with a prefix. A parameter that is
-`SDF_REQUIRED` and `DTP_JSON` or `DTP_INTEGER` arrives without a change of
-type, so validate it in the handler.
+**gobj-js does not type the parameters of a command.** A JS command gets
+its `kw` as the caller wrote it (see above), so its handler checks every type
+it needs. The typing below is the C kernel's: it happens where a C yuno parses
+a command, and that includes a command that a SPA sends to a C yuno. Then the
+`SDATAPM` table of the C yuno's command decides, not a table in the SPA.
+
+Two things to know about a command of a C yuno that an operator calls through
+the agent. A parameter with the name of a field of the yuno record becomes a
+filter on that field, and the command answers *"Yuno not found"*. Give your
+parameter a name with a prefix. And the C parser types every parameter,
+`SDF_REQUIRED` or not, since SDK 7.26.10: a `DTP_INTEGER`, `DTP_REAL` or
+`DTP_BOOLEAN` given as text is read as one (`"5"` is `5`), and a
+`DTP_STRING`, `DTP_DICT`, `DTP_LIST` or number of another shape is refused
+before the handler (see [`command_parser()`](#command_parser)). Only a
+`DTP_JSON` parameter arrives in any shape, so validate that one in the
+handler. Up to SDK 7.26.9 a `SDF_REQUIRED` parameter given in the kw arrived
+without a change of type.
+
+```C
+/*  the parameters of a command of a C yuno  */
+SDATAPM (DTP_INTEGER,   "limit",    0,  "100",  "rows of a page"),                      // "50" arrives as 50
+SDATAPM (DTP_JSON,      "set",      0,  "",     "a number, a boolean or their text"),   // any shape: check it
+```
+
+```javascript
+// a SPA sends the command to the C yuno through its C_IEVENT_CLI:
+// the C parser reads "50" as 50 before the C handler runs
+gobj_command(gobj_remote_yuno, "list-rows", {service: "my_service", limit: "50"}, gobj);
+```
 :::
 
 (js_SDATAPM0)=

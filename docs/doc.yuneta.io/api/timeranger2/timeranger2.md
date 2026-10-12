@@ -38,6 +38,66 @@ field), never the parent. See the
 full rules and `g_rowid` tracing examples.
 :::
 
+## Limits
+
+`timeranger2.h` defines two limits for values that come from outside: a
+record's time, and a version.
+
+(timeranger2-max-time)=
+**`TRANGER2_MAX_TIME`** (`0x00000FFFFFFFFFFF`, 17592186044415) is the
+largest time that an md2 row keeps, as `__t__` and as `__tm__`. The row
+keeps 44 bits of the time. The 16 bits above them hold the user flag and the
+system flag, so [`tranger2_append_record()`](#tranger2_append_record) writes
+the flags over the high bits of a larger time. Then the record keeps another
+time than the name of its file. In seconds the last time is
+559444-03-08T09:40:15 UTC; in milliseconds (`sf_t_ms`, `sf_tm_ms`) it is
+2527-06-23T06:20:44.415 UTC. The time of the tkey is a time too, and a
+string tkey is a DATE with no year limit (`approxidate()` reads
+`"@99999999999999 +0000"` as that many seconds, times 1000 on an `sf_tm_ms`
+topic). [`tranger2_append_record()`](#tranger2_append_record) keeps a time
+that does not fit CUT, as it always did, and logs an ERROR since SDK 7.26.10.
+A caller that takes times from outside asks first, with
+[`tranger2_record_tkey_time()`](<#tranger2_record_tkey_time>) for the tkey:
+`C_TRANGER`'s `add-record` (see [`C_TRANGER`](#c-tranger-peer-data)), and
+the treedb's [`treedb_create_node()`](<#treedb_create_node>) and
+[`treedb_update_node()`](<#treedb_update_node>) refuse such a record:
+
+```C
+BOOL fits = TRUE;
+tranger2_record_tkey_time(topic, record, &fits);
+if(__t__ < 0 || (uint64_t)__t__ > TRANGER2_MAX_TIME || !fits) {
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "a time that a record cannot keep, refused",
+        NULL
+    );
+    return -1;
+}
+```
+
+(timeranger2-version-max)=
+**`TRANGER2_VERSION_MAX`** (`0x7FFFFFFF`, 2147483647) is the largest
+`topic_version` or `schema_version` that a command takes from outside. A
+version goes up one at a time, and `save-schema` writes the version plus 1,
+so a version near the end of a `json_int_t` overflowed there. The code keeps
+and compares versions as `json_int_t`, whatever their size. It is asked by
+[`tranger2_topic_var_fault()`](<#tranger2_topic_var_fault>) and by
+`C_TREEDB`'s `open-treedb` and `create-topic` for a peer's schema, and a
+peer's `save-schema` is refused when it would raise the `schema_version` or
+a `topic_version` past it (since SDK 7.26.10). So a treedb a peer opens AT
+the maximum cannot save an edit again: give a peer's schema versions far
+below it.
+
+```bash
+# from a peer: refused
+command-yuno id=<id> service=treedbs command=create-topic treedb_name=treedb_x topic_name=t2 topic_version=2147483648 cols='{"id":{"header":"Id","type":"string","flag":["persistent"]}}'
+# -> -1 <role^name>: cannot create topic 't2' in treedb 'treedb_x': a topic_version that is not an integer from 0 to 2147483647
+# a peer's treedb opened at "schema_version": 2147483647, and a column edited in __system__
+command-yuno id=<id> service=treedbs command=save-schema treedb_name=treedb_x
+# -> -1 <role^name>: cannot save the schema of 'treedb_x': the version 'schema_version' would pass 2147483647, the largest version a command can publish
+```
+
 ## Filesystem watcher
 
 `src/fs_watcher.c` implements an inotify-based watcher (`fs_event_t`)
@@ -111,6 +171,24 @@ Returns 0 on success, or a negative value on failure.
 **Notes**
 
 The function makes sure that the record is appended to the specified topic in [`tranger2_startup()`](<#tranger2_startup>). If the topic does not exist, it must be created using [`tranger2_create_topic()`](<#tranger2_create_topic>) before calling this function.
+
+**A time past the 44 bits of an md2 row is kept CUT, and said.** The row
+keeps 44 bits of `__t__` and of `__tm__` ([`TRANGER2_MAX_TIME`](#timeranger2-max-time));
+the flags go over the rest. A `__t__`, or a time of the tkey
+([`tranger2_record_tkey_time()`](<#tranger2_record_tkey_time>)), that does
+not fit is appended cut, as it always was, and logged as an ERROR (without a
+stack; since SDK 7.26.10, it was cut without a word): *"Record time past what
+an md2 row keeps (44 bits): appended CUT"*, with `topic`, `key`, `__t__`,
+`__tm__` and `tm_wrapped` (the multiplication by 1000 of a date of an
+`sf_tm_ms` topic passed 64 bits). The append returns `0`. A caller that takes
+the time from a peer refuses the record before the append:
+
+```C
+/*  topic `raw_t`, tkey `when`, sf_string_key  */
+tranger2_append_record(tranger, "raw_t", 0, 0, &md,
+    json_pack("{s:s, s:s}", "id", "r1", "when", "@99999999999999 +0000"));
+/*  0: appended, its __tm__ cut; ERROR "Record time past what an md2 row keeps (44 bits): appended CUT"  */
+```
 
 **Reading the metadata back.** The metadata of the new record is returned in
 `md_record_ex`, and that is where a caller reads it: `md.g_rowid` is the
@@ -349,6 +427,80 @@ it = tranger2_open_iterator(tranger, "topic", "A",
 chmod(path_md2_day2, 0660);
 tranger2_append_record(tranger, "topic", t_day2, 0, &md, rec_v9); // counts day 2
 /*  its page:  total_rows 4, v1 v2 v3 v4                                     */
+```
+
+---
+
+(tranger2_record_tkey_time)=
+## [`tranger2_record_tkey_time()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/timeranger2.c)
+
+The time that [`tranger2_append_record()`](#tranger2_append_record) keeps as
+the `__tm__` of `record` in `topic`, and whether an md2 row keeps it whole.
+The append and the callers that check a record first share this one
+computation, so a check cannot disagree with what is written.
+
+```C
+uint64_t tranger2_record_tkey_time(
+    json_t *topic,      // NOT owned
+    json_t *record,     // NOT owned
+    BOOL   *fits
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `topic` | `json_t *` | The json of an open topic ([`tranger2_topic()`](<#tranger2_topic>)): its `tkey` and `system_flag` are read. Not owned. |
+| `record` | `json_t *` | The record about to be appended. Not owned, not changed. |
+| `fits` | `BOOL *` | Set to `FALSE` when an md2 row cannot keep the time: negative, past [`TRANGER2_MAX_TIME`](#timeranger2-max-time), or a date of an `sf_tm_ms` topic whose multiplication by 1000 passes the 44 bits (asked before it, because past 64 bits it wraps to a value that looks like a time). `TRUE` otherwise. |
+
+**Returns**
+
+The time the append keeps: the value of the tkey -- an integer as it is, a
+string read as a date by `approxidate()` and multiplied by 1000 on an
+`sf_tm_ms` topic --, or `0` when the topic has no tkey or the record no
+value of it (a value of another type is `0` too). A negative integer comes
+back as a large unsigned value, and `*fits` is `FALSE`.
+
+**Notes**
+
+The append keeps a time that does not fit CUT, and logs it as an ERROR; it
+does not refuse it. A caller that takes the record from a peer asks this
+first and refuses the record: `C_TRANGER`'s `add-record`, and the treedb
+before a create or a saved update of a node (since SDK 7.26.10).
+
+**Example**
+
+```C
+json_t *topic = tranger2_topic(tranger, "events");     // tkey "when", sf_tm_ms
+BOOL fits;
+
+json_t *rec = json_pack("{s:s}", "when", "@1700000000 +0000");
+uint64_t tm = tranger2_record_tkey_time(topic, rec, &fits); // 1700000000000, fits TRUE
+json_decref(rec);
+
+rec = json_pack("{s:s}", "when", "@20000000000 +0000");
+tranger2_record_tkey_time(topic, rec, &fits);               // fits FALSE: 2e13 ms is past 44 bits
+json_decref(rec);
+
+rec = json_pack("{s:I}", "when", (json_int_t)-1);
+tranger2_record_tkey_time(topic, rec, &fits);               // fits FALSE: negative
+json_decref(rec);
+
+/*  the check of a peer's record (yours), before the append  */
+tranger2_record_tkey_time(topic, record, &fits);
+if(!fits) {
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "a time in its tkey that a record cannot keep, refused",
+        NULL
+    );
+    JSON_DECREF(record)
+    return -1;
+}
+tranger2_append_record(tranger, "events", 0, 0, &md, record);   // owns record
 ```
 
 ---
@@ -2983,6 +3135,152 @@ tranger2_name_is_identifier(".hidden");     // TRUE: a leading '.' is allowed
 tranger2_name_is_identifier("users`id");    // FALSE: the path delimiter
 tranger2_name_is_identifier("kids/all");    // FALSE: a path separator
 tranger2_name_is_identifier("..");          // FALSE
+```
+
+---
+
+(tranger2_reserved_name_fault)=
+## [`tranger2_reserved_name_fault()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/timeranger2.c)
+
+Why `name` cannot name a NEW topic that comes from outside (a command), or
+`NULL`. Beside its topics, the directory of a store holds what the libraries
+keep there. A topic with such a name is a directory over that file or
+folder, now or later, when the library writes it (the store may not exist
+yet). So these names are refused:
+
+| Name | Why | What the store keeps there |
+|---|---|---|
+| a leading `.` | *"a name starting with '.' is a hidden file of the store"* | `.blobs` (the files of a treedb), `.<treedb>.treedb_schema.json.tmp` (`apply-schema`) |
+| a leading `__` | *"a name starting with '__' is of the system"* | `__timeranger2__.json`, the system topics of a treedb (`__snaps__`, `__graphs__`, `__assets__`, `__icons__`) |
+| a `.json` suffix | *"a name ending in '.json' is a file of the store"* | `__timeranger2__.json`, `<treedb>.treedb_schema.json`, `<msg2db>.msg2db_schema.json` |
+| a `.bak` suffix | *"a name ending in '.bak' is the backup of a topic"* | the backup of [`tranger2_backup_topic()`](#tranger2_backup_topic) |
+
+The name rule ([`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>))
+is not asked here: ask it too. The function logs nothing; the caller says
+what the name was for. A topic that a C caller creates is not asked this:
+the system topics of a treedb, and the queues of the MQTT broker, named
+`<client_id>-IN` / `<client_id>-OUT` after a client id the client chose (a
+client `.foo` has the queues `.foo-IN` and `.foo-OUT`), are made by C code. `C_TRANGER` and `C_TREEDB` ask it of the new topics of a
+peer (since SDK 7.26.10).
+
+```C
+const char *tranger2_reserved_name_fault(
+    const char *name
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `name` | `const char *` | The name of the new topic. An empty or `NULL` name answers `NULL`: the name rule refuses it. |
+
+**Returns**
+
+A static string with the cause, or `NULL` when a topic can take the name.
+
+**Example**
+
+```C
+tranger2_reserved_name_fault("users");          // NULL
+tranger2_reserved_name_fault(".blobs");         // "a name starting with '.' is a hidden file of the store"
+tranger2_reserved_name_fault("__snaps__");      // "a name starting with '__' is of the system"
+tranger2_reserved_name_fault("x.json");         // "a name ending in '.json' is a file of the store"
+tranger2_reserved_name_fault("users.bak");      // "a name ending in '.bak' is the backup of a topic"
+tranger2_reserved_name_fault("a/b");            // NULL: tranger2_name_is_identifier() refuses it
+
+/*  a new topic that a peer names  */
+const char *why = tranger2_reserved_name_fault(topic_name);
+if(why) {
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "topic name of the store, refused",
+        "why",          "%s", why,
+        "topic_name",   "%s", topic_name,
+        NULL
+    );
+    return -1;
+}
+```
+
+---
+
+(tranger2_topic_var_fault)=
+## [`tranger2_topic_var_fault()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/timeranger2.c)
+
+Why `jn_var` cannot be the `topic_var.json` of a topic that comes from
+outside (a command), or `NULL`.
+[`tranger2_create_topic()`](#tranger2_create_topic) merges `jn_var` into the
+topic, and a new `topic_version` in it writes the topic's `topic_cols.json`
+and `topic_var.json` again. A `NULL` or a json `null` is no var. Anything
+else must be a dict that:
+
+- has none of the fields that the tranger keeps itself: `topic_name`,
+  `pkey`, `tkey`, `system_flag`, `cols`, `directory`, `wr_fd_files`,
+  `rd_fd_files`, `rd_fd_life`, `lists`, `disks`, `iterators`,
+  `iterators_by_id`, `cache`, `delete_seq`, `delete_seq_max`,
+  `deletes_applied`, `delete_ref_keys`, `long_key_refs`, `long_key_hashes`,
+  `fs_event_master`, `filename_mask`, `xpermission`, `rpermission`. An open
+  does not read them from the var;
+- has no `system_topic`: it marks a topic that nothing deletes, a topic of
+  the system;
+- has a `topic_version` that is an integer from 0 to
+  [`TRANGER2_VERSION_MAX`](#timeranger2-version-max), when it has one. A
+  string there was an ERROR with a stack at the next change of the topic's
+  version;
+- has a `last_rowid_id` (the counter of a rowid key) that is an integer, 0 or
+  more, when it has one.
+
+The function logs nothing; the caller says it. `C_TRANGER`'s `create-topic`
+asks it of a peer's `jn_var` (since SDK 7.26.10).
+
+```C
+const char *tranger2_topic_var_fault(
+    json_t *jn_var
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_var` | `json_t *` | The var of the topic, not owned. `NULL` or a json `null`: no var. |
+
+**Returns**
+
+A static string with the cause, or `NULL` when the var can be used.
+
+**Example**
+
+```C
+tranger2_topic_var_fault(NULL);                                     // NULL: no var
+json_t *v = json_pack("{s:i}", "topic_version", 2);
+tranger2_topic_var_fault(v);                                        // NULL
+json_decref(v);
+
+v = json_pack("{s:s}", "topic_version", "2");
+tranger2_topic_var_fault(v);    // "the topic_version of jn_var is not an integer from 0 to 2147483647"
+json_decref(v);
+v = json_pack("{s:b}", "system_topic", 1);
+tranger2_topic_var_fault(v);    // "jn_var marks a system topic, which nothing deletes"
+json_decref(v);
+v = json_pack("{s:s}", "directory", "/tmp");
+tranger2_topic_var_fault(v);    // "jn_var has a field the tranger keeps itself"
+json_decref(v);
+v = json_pack("{s:i}", "last_rowid_id", -1);
+tranger2_topic_var_fault(v);    // "the last_rowid_id of jn_var is not an integer, 0 or more"
+json_decref(v);
+v = json_pack("[i]", 2);
+tranger2_topic_var_fault(v);    // "jn_var is not a json object"
+json_decref(v);
+```
+
+From a peer, through `C_TRANGER`:
+
+```bash
+command-yuno id=<id> service=tranger command=create-topic topic_name=pp jn_var='{"system_topic":true}'
+# -> -1 <role^name>: cannot create topic 'pp': jn_var marks a system topic, which nothing deletes
 ```
 
 ---

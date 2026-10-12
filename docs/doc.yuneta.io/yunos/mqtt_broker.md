@@ -59,6 +59,54 @@ in `<queue>.bak` (see [`tranger2_backup_topic()`](#tranger2_backup_topic)).
 A queue that could not open its topic again after a failed backup takes it
 again as soon as it can be opened (see [`trq_check_backup()`](#trq_check_backup)).
 
+(mqtt-broker-treedb-user)=
+**The broker opens its treedb as C code.** At its start (`mt_start`, with
+`mqtt_persistent_db` on) the broker creates its own `C_TREEDB` service,
+`treedbs`, in `open_database()`, and sends it `open-treedb`
+(`treedb_mqtt_broker`, `filename_mask` `%Y`, `exit_on_error` `0`,
+`impose_c_schema` `1`); it opens its msg2db `msg2db_alarms` on the same
+tranger. At its stop (`mt_stop`) `close_database()` sends `close-treedb`
+and destroys the service. Not at play and pause: the `EV_ON_CLOSE` of the
+sessions must reach the database, so the treedb and its `treedbs` service
+live through a `pause-yuno`. `C_TREEDB` asks the permission of those commands
+with the yuno's user, and it reads that user from their `src`, the broker's
+gobj: the broker copies the yuno's `__username__` into its own `__username__`
+attribute before the open, as the agent and the controlcenter do. It does
+NOT put `__username__` in the kw of the commands: for `C_TREEDB` a kw with a
+`__username__` is a command from outside, a peer's, and a peer's
+`impose_c_schema` is refused, and a peer's open is asked what an open by C
+code is not (see [What a peer hands C_TREEDB](#c-treedb-peer-data)). The
+broker passed it in the kw until SDK 7.26.10, when `C_TREEDB` started to
+tell the two apart.
+
+So the treedb is the code's, and no command from outside closes it, the
+broker paused or not, with `force` or without (since SDK 7.26.10): the broker
+holds its `C_NODE`, its tranger and the msg2db on that tranger, and a close
+of a paused broker was a use of freed memory at its next `play-yuno` or
+stop. A restart (`kill-yuno` + `run-yuno`) closes and opens it:
+
+```bash
+ycommand -c 'pause-yuno id=<broker>'
+ycommand -c 'command-yuno id=<broker> service=treedbs command=close-treedb treedb_name=treedb_mqtt_broker'
+# -1: <role^name>: cannot close treedb 'treedb_mqtt_broker': the code of the yuno opened it and holds its handles, playing or paused; the yuno's own lifecycle closes it (pause-yuno + play-yuno, or a restart of the yuno)
+ycommand -c 'play-yuno id=<broker>'
+```
+
+```C
+gobj_write_str_attr(gobj, "__username__", gobj_read_str_attr(gobj_yuno(), "__username__"));
+json_t *jn_resp = gobj_command(priv->gobj_treedbs,
+    "open-treedb",
+    json_pack("{s:s, s:i, s:s, s:o, s:b}",
+        "filename_mask", "%Y",
+        "exit_on_error", 0,
+        "treedb_name", priv->treedb_mqtt_broker_name,
+        "treedb_schema", jn_treedb_schema_mqtt_broker,
+        "impose_c_schema", 1    // the binary imposes its schema
+    ),
+    gobj    // src: the permission is asked with its __username__
+);
+```
+
 ## Configuration
 
 `C_MQTT_BROKER` (the `mqtt_broker` service):
@@ -72,6 +120,7 @@ again as soon as it can be opened (see [`trq_check_backup()`](#trq_check_backup)
 | `mqtt_service` | *(yuno_role)* | Service name (multi-service) |
 | `mqtt_tenant` | *(yuno_name)* | Tenant id (multi-tenant) |
 | `on_critical_error` | `2` | `LOG_OPT_EXIT_ZERO` (exit, no auto-restart) on error |
+| `__username__` | *(the yuno's)* | `SDF_RD`, not configured: the broker writes the yuno's `__username__` here before it opens its treedb, and `C_TREEDB` asks the permission of the broker's `open-treedb` / `close-treedb` with it (see [above](#mqtt-broker-treedb-user)) |
 
 Session limits are from [`C_AUTHZ`](#gclass-c-authz) (for example `Authz.max_sessions_per_user`,
 default 4 in `main.c`).

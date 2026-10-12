@@ -137,6 +137,7 @@ SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-
 SDATA (DTP_JSON,    "deny_subscribes",  0,          0,          "JSON list of topic strings to deny subscription"),
 
 SDATA (DTP_INTEGER, "on_critical_error",SDF_RD,     "2",        "LOG_OPT_EXIT_ZERO exit on error (Zero to avoid restart)"),
+SDATA (DTP_STRING,  "__username__",     SDF_RD,     "",         "Username of the yuno: the authz of the commands this service sends to its C_TREEDB is asked with it (set before the open)"),
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. If it's null then the subscriber is the parent."),
 SDATA (DTP_INTEGER, "timeout",          SDF_RD,     "1000",     "Timeout"),
 SDATA (DTP_POINTER, "user_data",        0,          0,          "user data"),
@@ -1077,10 +1078,18 @@ PRIVATE int open_database(hgobj gobj)
     );
     snprintf(priv->treedb_mqtt_broker_name, sizeof(priv->treedb_mqtt_broker_name), "%s", treedb_name_);
 
+    /*
+     *  The authz of these commands is asked with the yuno's user, read from
+     *  this gobj (their `src`), as the agent and the controlcenter do. It
+     *  was stamped in the kw, which makes a command a PEER's: C_TREEDB
+     *  refuses a peer's impose_c_schema, and asks a peer's open what it
+     *  does not ask the code's (REV-CLOUD V20).
+     */
+    gobj_write_str_attr(gobj, "__username__", gobj_read_str_attr(gobj_yuno(), "__username__"));
+
     json_t *jn_resp = gobj_command(priv->gobj_treedbs,
         "open-treedb",
-        json_pack("{s:s, s:s, s:i, s:s, s:o, s:b}",
-            "__username__", gobj_read_str_attr(gobj_yuno(), "__username__"),
+        json_pack("{s:s, s:i, s:s, s:o, s:b}",
             "filename_mask", "%Y",
             "exit_on_error", 0,
             "treedb_name", priv->treedb_mqtt_broker_name,
@@ -1201,8 +1210,7 @@ PRIVATE int close_database(hgobj gobj)
      *---------------------------------------*/
     json_decref(gobj_command(priv->gobj_treedbs,
         "close-treedb",
-        json_pack("{s:s, s:s}",
-            "__username__", gobj_read_str_attr(gobj_yuno(), "__username__"),
+        json_pack("{s:s}",
             "treedb_name", priv->treedb_mqtt_broker_name
         ),
         gobj

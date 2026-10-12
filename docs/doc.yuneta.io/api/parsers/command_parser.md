@@ -65,6 +65,60 @@ PRIVATE json_t *cmd_upload(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 Up to 7.25.4 the copy took no reference, and the gbuffer was released once
 too often (*"BAD gbuf_decref()"*).
 
+**What a parameter takes**, whatever gives it -- the command line (text), `kw`
+(json) or its declared default (text):
+
+| Declared | Takes | Text is read as |
+|---|---|---|
+| `DTP_STRING` | a string | the text |
+| `DTP_DICT` / `DTP_LIST` | a json object / a json array | its json |
+| `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, never an object or an array | a number with nothing after it; a boolean as `true`/`false`, `yes`/`no`, `on`/`off` or a number |
+| `DTP_JSON` | anything | its json, or the text itself as a string (a bare word, a date); a text that starts as json (`{`, `[`, `"`) and does not parse is refused |
+
+A `null` is no value (but for a `DTP_JSON`): the parameter takes its default,
+or is missing if it is `SDF_REQUIRED`. An empty text of a number is `0` on the
+command line and no value in `kw` (a form field left empty). The line has the
+last word: a value of `kw` that is refused does not count when the same
+parameter comes as `key=value`.
+
+Anything else is refused before the handler runs, with the answer `-1` that
+names the parameter, the shape expected and the shape given (never the value:
+it may be a secret). A command with a user in `kw` (`__username__`, which
+`C_IEVENT_SRV` puts there) came from outside, and the mistake is the peer's: a
+WARNING (*"Command parameter of the wrong type"*). From C code it is a broken
+contract: an ERROR with a stack.
+
+```C
+/*  `node_id` is declared DTP_STRING; a GUI sends a number  */
+json_t *resp = gobj_command(gobj_node, "node",
+    json_pack("{s:s, s:i, s:s}",
+        "topic_name", "departments",
+        "node_id", 5,
+        "__username__", "ana@example.com"
+    ),
+    src
+);
+/*  resp: {"result": -1, "comment":
+ *    "<gobj>: command 'node', parameter 'node_id' must be a string, not an integer"}
+ *  one WARNING, and the handler never ran                                      */
+```
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=treedbs command=save-schema treedb_name=treedb_x dry_run=yes'   # dry_run is TRUE
+ycommand -c 'command-yuno id=<yuno> service=treedbs command=save-schema treedb_name=treedb_x dry_run=maybe' # refused
+```
+
+A handler that takes more than one shape on purpose declares `DTP_JSON` and
+reads what it gets (`C_NODE`'s `set-link-events set`, the keycloak
+`update-idp-user` flags).
+
+Up to 7.26.9 a value of another shape went to the handler as it came, and its
+`kw_get_*()` logged the caller's mistake as an ERROR with a stack -- or read it
+as something else: `C_TREEDB`'s `save-schema` read `"treedb_name": 5` as no
+treedb named, and saved every treedb open; `dry_run=yes` was `atoi()`'d to
+FALSE, and the save was real. A `SDF_REQUIRED` parameter given in `kw` was not
+converted at all.
+
 ---
 
 (gobj_build_cmds_doc)=

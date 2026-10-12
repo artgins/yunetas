@@ -28,6 +28,17 @@
 #define MEM_MAX_SYSTEM_MEMORY   0
 
 /***************************************************************************
+ *  The commands of C_NODE ask a permission (print-tranger, `read`), and
+ *  without an authz service the default checker denies them: the test
+ *  grants every one.
+ ***************************************************************************/
+PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    return TRUE;
+}
+
+/***************************************************************************
  *                      Default config
  ***************************************************************************/
 PRIVATE char fixed_config[]= "\
@@ -95,7 +106,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -118,6 +129,9 @@ static int register_yuno_and_more(void)
             "msg", "Cannot delete node: immutable record",
             "msg", "initial_load: link would overwrite a seed link",
             "msg", "Child already in parent hook, skipping duplicate link",
+            /*  print-tranger: a segment too long, a segment under a string  */
+            "msg", "print-tranger path refused", "__priority__", "WARNING",
+            "msg", "print-tranger path refused", "__priority__", "WARNING",
             "msg", "All c_node initial_load tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",
@@ -181,7 +195,7 @@ int main(int argc, char *argv[])
         NULL,       // persistent_attrs
         NULL,       // command_parser
         NULL,       // stats_parser
-        NULL,       // authz_checker
+        test_authz_checker, // print-tranger asks `read`
         NULL,       // authentication_parser
         MEM_MAX_BLOCK,
         MEM_MAX_SYSTEM_MEMORY,
