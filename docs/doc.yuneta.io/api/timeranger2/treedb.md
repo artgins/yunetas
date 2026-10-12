@@ -2266,7 +2266,7 @@ Three things in it are on purpose:
 
 - the topic is named by `topic_name` first and `id` second, as the treedb
   names it ([`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/timeranger2/src/tr_treedb.c)):
-  a recipe that read `.id // .topic_name` let `{"id": "ok", "topic_name": "a`b"}`
+  a recipe that read `.id // .topic_name` let `` {"id": "ok", "topic_name": "a`b"} ``
   through;
 - a topic with no name at all is a line (`TOPIC ""`), not a jq error that stops
   the reading of the rest of its file;

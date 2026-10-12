@@ -35,10 +35,20 @@ Out of the seventeenth review (yunovatios `REV-CLOUD.md`, V17), read while
   that does not exist.
 - **docs:** the recipe that checks a store for names that break the rule
   (`treedb.md`) names a topic by `topic_name` first, as the treedb does
-  (`{"id": "ok", "topic_name": "a`b"}` went through), does not stop at a topic
+  (`` {"id": "ok", "topic_name": "a`b"} `` went through), does not stop at a topic
   with no name, prints the file of each line, and has a Python twin for the
   nodes without `jq` (three of six). Run on all six nodes after the 7.26.9
   upgrade: clean.
+- **JS layer: gobj-ui 7.26.25** publishes `scripts/validate-locales.mjs`, and
+  every SPA runs that one from its `prebuild` and keeps no copy (V17.3.4):
+  the copies had drifted into three families with different rules, and two
+  of them skipped `t('topic') + ':'` as a key built by concatenation, so the
+  gobj tree's *"topic:"* went untranslated in wattyzer and yunovatios. An
+  import conflict of a hook map names the hook column it is written in
+  (V17.3.5). gui_agent 0.29.39, gui_treedb 0.17.106; every SPA on
+  `^7.26.25` and deployed.
+- **docs:** the 7.26.9 release body nests its sub-bullets again (the 4 spaces
+  stripped from every line had flattened them).
 
 ## v7.26.9 (2026-10-11)
 

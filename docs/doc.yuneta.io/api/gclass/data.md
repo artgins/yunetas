@@ -481,7 +481,7 @@ mistakes: for a C caller it is a broken contract.
 | a topic the treedb does not have, or one that breaks the name rule ([`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>)) | *"topic not found, refused"* | `Topic not found: '<topic>'` |
 | a hook / link that is not a column of the topic with that flag | *"not a column of the topic with that flag, refused"* | `Hook not found: '<hook>'` |
 | a hook whose map does not take the child's topic (`link-nodes`, `unlink-nodes`) | *"the hook does not link that topic, refused"* | `Hook '<hook>' does not link topic '<topic>'` |
-| a column name that breaks the rule ([`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>)) | *"column name breaks the name rule (empty or '`'), refused"* | |
+| a column name that breaks the rule ([`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>)) | `` column name breaks the name rule (empty or '`'), refused `` | |
 | a parent ref that is not `topic^id^hook` | *"parent ref must be topic^id^hook, with names of the name rule; refused"* (with a `why`) | `Wrong parent ref (see the log)` |
 | an `update-node` of a node that does not exist, without `create` | *"node not found, update refused (no 'create' option)"* | `Node not found: '<id>' of topic '<topic>'` |
 
