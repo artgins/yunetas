@@ -27,9 +27,9 @@ system-wide commands.
 | `view-services` / `view-top-services` | List services. |
 | `view-gobj` / `view-gobj-tree` | Inspect the gobj tree. |
 | `enable-gobj` / `disable-gobj` | Enable or disable a gobj. |
-| `write-attr` / `view-attrs` / `attrs-schema` | Read/write gobj attributes. |
-| `set-global-trace` / `set-gclass-trace` / `set-gobj-trace` | Configure trace levels. |
-| `reset-all-traces` / `set-deep-trace` | Trace management. |
+| `write-attr` / `view-attrs` / `attrs-schema` | Read/write gobj attributes. `write-attr gobj_name=<g> attribute=<a> value=<text>`: the value is TEXT, read as the type of the attribute exactly as the parser reads a parameter of that type ([`command_parameter_from_text()`](<#command_parameter_from_text>)): a boolean as `true`/`false`, `yes`/`no`, `on`/`off` or a number, an integer or a real with nothing before or after it and in its range. A text that does not read as one is refused and nothing is written: `-1` *"\<gobj>: attr 'debug' takes a boolean (true/false, yes/no, on/off, or a number), not a text that does not read as one"* (since 7.26.10; `atoi()` and `strtoll()` wrote `value=yes` as FALSE, `abc` as 0 and `12abc` as 12). |
+| `set-global-trace` / `set-gclass-trace` / `set-gobj-trace` | Configure trace levels. `level` is the name of a level (or its bitmask in digits); `set` takes `1`/`true`/`set`/`yes`/`on` to set and `0`/`false`/`reset`/`no`/`off` to reset, as text or as json: `command-yuno id=<id> service=__yuno__ command=set-gclass-trace gclass=C_TCP level=traffic set=1`, or `{"gclass": "C_TCP", "level": "traffic", "set": true}` from a GUI. Anything else answers `-1` *"\<role^name>: bitmask set or re-set?"* (since 7.26.10: it was read as text by `atoi()`, so `set=yes` was a RESET, and a GUI's `set: 1` was refused as no text). The same `set` in `set-global-no-trace`, `set-gclass-no-trace`, `set-gobj-no-trace` and `set-trace-filter`. |
+| `reset-all-traces` / `set-deep-trace` | Trace management. The `set` of `set-deep-trace` and `set-machine-format` is a number, the level or the format (`set` / `true` are `1`, `reset` / `false` are `0`). |
 | `info-global-trace` | Show trace configuration. |
 | `view-config` | Show yuno configuration. |
 | `info-mem` | Memory usage info. |

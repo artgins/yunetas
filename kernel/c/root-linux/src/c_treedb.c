@@ -11942,7 +11942,11 @@ PRIVATE BOOL path_is_not_a_directory(const char *path)
  *    yuno with exit_on_error;
  *  - not in the namespace of the system ("__"): `__system__` is the store
  *    of the schemas, held by this service, and its lock refused the open
- *    with a CRITICAL of the tranger (REV-CLOUD V20.3);
+ *    with a CRITICAL of the tranger (REV-CLOUD V20.3); nor any other name
+ *    of the store (tranger2_reserved_name_fault(): a leading '.', a '.json'
+ *    or '.bak' suffix): the name is the id of the treedb's node in
+ *    __system__, which cannot start with a '.', and `.x` ran with no
+ *    projection (REV-CLOUD V21.2.1);
  *  - no ".treedb_schema.json" in it: treedb_open_db() cuts the name there
  *    (`a.treedb_schema.json` is the treedb `a`), so the treedb was registered
  *    under another name than its C_NODE's, and every call of that C_NODE
@@ -11970,8 +11974,14 @@ PRIVATE const char *refuse_peer_treedb_name(hgobj gobj, BOOL peer, const char *t
     const char *why = NULL;
     if(!tranger2_name_is_identifier(treedb_name) || strchr(treedb_name, '^')) {
         why = "its name breaks the name rule (empty, '.', '..', '/', '`' or '^')";
-    } else if(strncmp(treedb_name, "__", 2)==0) {
-        why = "a name starting with '__' is of the system";
+    } else if((why = tranger2_reserved_name_fault(treedb_name))) {
+        /*
+         *  A name of the store (a leading '.' or '__', a '.json' or '.bak'
+         *  suffix): a treedb `.x` was opened, and its node in the `treedbs`
+         *  topic of __system__ -- the name is its id, which cannot start
+         *  with a '.' -- was refused with an ERROR, outside the peer's
+         *  window, so it ran with no projection (REV-CLOUD V21.2.1)
+         */
     } else if(strstr(treedb_name, ".treedb_schema.json")) {
         why = "a name with '.treedb_schema.json' in it is cut there by the treedb";
     } else if(strlen(".") + strlen(treedb_name) + strlen(".treedb_schema.json") + strlen(".tmp")
@@ -12549,6 +12559,27 @@ PRIVATE json_t *refuse_peer_open_treedb(
             NULL
         );
         return json_sprintf("%s: cannot open treedb '%s': treedb_schema must be a json object, "
+            "nothing was changed", gobj_yuno_role_plus_name(), treedb_name);
+    }
+
+    /*
+     *  The schema of THIS treedb: its file is <treedb_name>.treedb_schema.json,
+     *  and its `id` said another treedb (REV-CLOUD V21.2.2). No id is none.
+     */
+    json_t *jn_schema_id = json_object_get(jn_treedb_schema, "id");
+    if(!json_absent(jn_schema_id) &&
+            !(json_is_string(jn_schema_id) && strcmp(json_string_value(jn_schema_id), treedb_name)==0)) {
+        log_refusal(gobj, TRUE,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "open-treedb with the schema of another treedb, refused",
+            "treedb_name",  "%s", treedb_name,
+            "schema_id",    "%.*s", json_is_string(jn_schema_id)?
+                utf8_prefix_len(json_string_value(jn_schema_id), 64) : 0,
+                json_is_string(jn_schema_id)? json_string_value(jn_schema_id) : "",
+            NULL
+        );
+        return json_sprintf("%s: cannot open treedb '%s': the id of its schema is not its name, "
             "nothing was changed", gobj_yuno_role_plus_name(), treedb_name);
     }
 

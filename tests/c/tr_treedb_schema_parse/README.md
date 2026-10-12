@@ -29,7 +29,15 @@ The test checks:
    inside itself, two lists on one id. Each one is an ERROR for a C caller,
    and a WARNING inside the window of a peer's data
    (`treedb_set_peer_data(TRUE)`, the last case).
-9. `treedb_create_topic()` refuses a topic whose list id, the id of the list
+9. `treedb_create_topic()` refuses a topic whose name or hook id holds a
+   `^` -- the separator of the parts of a reference, `topic^id^hook`, so every
+   ref to its nodes was undecodable --, and a pkey2 that names no column of
+   the topic (its index held nothing): *"Topic refused: a name of its
+   references or of its keys"*, an ERROR for a C caller, a WARNING in the
+   window of a peer's data. And `treedb_create_node()` refuses an `id` that is
+   not a string (*"Field 'id' must be a string"*; an integer was read with an
+   ERROR of `kw_get_str()`, and the node made with no id or a uuid).
+10. `treedb_create_topic()` refuses a topic whose list id, the id of the list
    that loads an index (`treedb-<gclass>-<gobj>-<treedb>-<topic>-<key>`), does
    not fit `NAME_MAX` (a topic name of 250 bytes): an ERROR always (*"Topic
    refused: the id of a list of its indexes is longer than NAME_MAX"*), and no

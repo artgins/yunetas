@@ -5507,7 +5507,10 @@ PRIVATE int check_more_peer_data_refused(hgobj gobj)
     char too_long[109 + 1];     // the limit is 108 bytes (refuse_peer_treedb_name)
     memset(too_long, 't', sizeof(too_long) - 1);
     too_long[sizeof(too_long) - 1] = 0;
-    const char *bad_names[] = {"__system__", "__other", "a^b", too_long, NULL};
+    /*  `.x`: its node in __system__ (the name is its id) was refused with an
+     *  ERROR, and it ran with no projection; `x.json` is a file of a store
+     *  (REV-CLOUD V21.2.1)  */
+    const char *bad_names[] = {"__system__", "__other", "a^b", too_long, ".x", "x.json", NULL};
     for(int i = 0; bad_names[i]; i++) {
         result += check_refused(gobj, bad_names[i],
             gobj_command(priv->gobj_treedbs, "open-treedb",
@@ -5521,6 +5524,14 @@ PRIVATE int check_more_peer_data_refused(hgobj gobj)
             gobj_command(priv->gobj_treedbs, "open-treedb",
                 as_peer(json_pack("{s:s, s:s, s:o}", "treedb_name", "treedb_refused",
                     "filename_mask", "%Y", "treedb_schema", jn_bad_schema)), gobj)
+        );
+    }
+    {
+        /*  the schema of another treedb: its id is not the name (V21.2.2)  */
+        result += check_refused(gobj, "open-treedb with the schema of another treedb",
+            gobj_command(priv->gobj_treedbs, "open-treedb",
+                as_peer(json_pack("{s:s, s:s, s:o}", "treedb_name", "treedb_refused",
+                    "filename_mask", "%Y", "treedb_schema", items_schema("treedb_other", NULL))), gobj)
         );
     }
     result += check_refused(gobj, "open-treedb with seeds that are not a list",
@@ -5881,8 +5892,8 @@ PRIVATE int check_peer_schema_and_store_refused(hgobj gobj)
     mkrdir(dir, 02770);
     result += check_refused(gobj, "open-treedb of a directory that is not the treedb's store",
         gobj_command(priv->gobj_treedbs, "open-treedb",
-            as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", "not_a_treedb",
-                "filename_mask", "%Y", "treedb_schema", jn_schema)), gobj)
+            as_peer(json_pack("{s:s, s:s, s:o}", "treedb_name", "not_a_treedb",
+                "filename_mask", "%Y", "treedb_schema", items_schema("not_a_treedb", NULL))), gobj)
     );
     if(file_exists(dir, "__timeranger2__.json")) {
         gobj_log_error(gobj, 0,
@@ -5900,8 +5911,8 @@ PRIVATE int check_peer_schema_and_store_refused(hgobj gobj)
         result += write_test_file(gobj, dir, "held_store.treedb_schema.json", "{}");
         result += check_refused(gobj, "open-treedb of a store a master holds",
             gobj_command(priv->gobj_treedbs, "open-treedb",
-                as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", "held_store",
-                    "filename_mask", "%Y", "treedb_schema", jn_schema)), gobj)
+                as_peer(json_pack("{s:s, s:s, s:o}", "treedb_name", "held_store",
+                    "filename_mask", "%Y", "treedb_schema", items_schema("held_store", NULL))), gobj)
         );
         tranger2_shutdown(held);
     }
@@ -5917,8 +5928,8 @@ PRIVATE int check_peer_schema_and_store_refused(hgobj gobj)
                 "master", 0, "on_critical_error", 0), gobj);
         result += check_refused(gobj, "open-treedb of a store a tranger of this process has open",
             gobj_command(priv->gobj_treedbs, "open-treedb",
-                as_peer(json_pack("{s:s, s:s, s:O}", "treedb_name", "replica_store",
-                    "filename_mask", "%Y", "treedb_schema", jn_schema)), gobj)
+                as_peer(json_pack("{s:s, s:s, s:o}", "treedb_name", "replica_store",
+                    "filename_mask", "%Y", "treedb_schema", items_schema("replica_store", NULL))), gobj)
         );
         gobj_destroy(gobj_replica);
     }

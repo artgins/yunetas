@@ -95,6 +95,7 @@ PRIVATE int remove_denied_ip(const char *ip);
 
 PRIVATE int capture_signals(hgobj gobj);
 PRIVATE hgclass get_gclass_from_gobj(const char *gobj_name);
+PRIVATE int trace_set_value(json_t *kw, int *value);
 PRIVATE void remove_pid_file(void);
 PRIVATE int save_pid_in_file(hgobj gobj);
 
@@ -249,7 +250,7 @@ SDATA_END()
 PRIVATE const sdata_desc_t pm_set_global_tr[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "level",        0,              0,          "attribute name"),
-SDATAPM (DTP_STRING,    "set",          0,              0,          "value"),
+SDATAPM (DTP_JSON,      "set",          0,              0,          "1/true/set to set, 0/false/reset to reset"),
 SDATA_END()
 };
 PRIVATE const sdata_desc_t pm_set_gclass_tr[] = {
@@ -257,7 +258,7 @@ PRIVATE const sdata_desc_t pm_set_gclass_tr[] = {
 SDATAPM (DTP_STRING,    "gclass_name",  0,              0,          "gclass-name"),
 SDATAPM (DTP_STRING,    "gclass",       0,              0,          "gclass-name"),
 SDATAPM (DTP_STRING,    "level",        0,              0,          "attribute name"),
-SDATAPM (DTP_STRING,    "set",          0,              0,          "value"),
+SDATAPM (DTP_JSON,      "set",          0,              0,          "1/true/set to set, 0/false/reset to reset"),
 SDATA_END()
 };
 PRIVATE const sdata_desc_t pm_reset_all_tr[] = {
@@ -284,7 +285,7 @@ PRIVATE const sdata_desc_t pm_set_gobj_tr[] = {
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "gobj",         0,              "",         "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "level",        0,              0,          "attribute name"),
-SDATAPM (DTP_STRING,    "set",          0,              0,          "value"),
+SDATAPM (DTP_JSON,      "set",          0,              0,          "1/true/set to set, 0/false/reset to reset"),
 SDATA_END()
 };
 
@@ -294,13 +295,13 @@ SDATAPM (DTP_STRING,    "gclass_name",  0,              0,          "gclass-name
 SDATAPM (DTP_STRING,    "gclass",       0,              0,          "gclass-name"),
 SDATAPM (DTP_STRING,    "attr",         0,              "",         "Attribute of gobj to filter"),
 SDATAPM (DTP_STRING,    "value",        0,              "",         "Value of attribute to filer"),
-SDATAPM (DTP_STRING,    "set",          0,              0,          "value"),
+SDATAPM (DTP_JSON,      "set",          0,              0,          "1/true/set to set, 0/false/reset to reset"),
 SDATAPM (DTP_BOOLEAN,   "all",          0,              0,          "Remove all filters"),
 SDATA_END()
 };
 PRIVATE const sdata_desc_t pm_set_deep_trace[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "set",          0,              0,          "value"),
+SDATAPM (DTP_JSON,      "set",          0,              0,          "the level, a number (1/true/set is 1, 0/false/reset is 0)"),
 SDATA_END()
 };
 PRIVATE const sdata_desc_t pm_add_log_handler[] = {
@@ -1388,16 +1389,44 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     int type = gobj_attr_type(gobj2write, attribute);
     switch(type) {
         case DTP_BOOLEAN:
+        case DTP_INTEGER:
+        case DTP_REAL:
             {
-                BOOL value;
-                if(strcasecmp(svalue, "TRUE")==0) {
-                    value = 1;
-                } else if(strcasecmp(svalue, "FALSE")==0) {
-                    value = 0;
-                } else {
-                    value = atoi(svalue);
+                /*
+                 *  The text read AS the attribute's type, as the command
+                 *  parser reads a parameter of that type: atoi() and
+                 *  strtoll() wrote "yes" as FALSE, "abc" as 0 and "12abc"
+                 *  as 12 (REV-CLOUD V21.3.6)
+                 */
+                const char *why = NULL;
+                json_t *jn_value = command_parameter_from_text((data_type_t)type, svalue, &why);
+                if(!jn_value) {
+                    json_t *kw_response = build_command_response(
+                        gobj,
+                        -1,     // result
+                        json_sprintf(
+                            "%s: attr '%s' takes %s, not %s",
+                            gobj_short_name(gobj2write),
+                            attribute,
+                            DTP_IS_BOOLEAN(type)?
+                                "a boolean (true/false, yes/no, on/off, or a number)" :
+                                DTP_IS_INTEGER(type)? "an integer" : "a number",
+                            why
+                        ),
+                        0,      // jn_schema
+                        0       // jn_data
+                    );
+                    JSON_DECREF(kw)
+                    return kw_response;
                 }
-                ret = gobj_write_bool_attr(gobj2write, attribute, value);
+                if(DTP_IS_BOOLEAN(type)) {
+                    ret = gobj_write_bool_attr(gobj2write, attribute, json_is_true(jn_value));
+                } else if(DTP_IS_INTEGER(type)) {
+                    ret = gobj_write_integer_attr(gobj2write, attribute, json_integer_value(jn_value));
+                } else {
+                    ret = gobj_write_real_attr(gobj2write, attribute, json_real_value(jn_value));
+                }
+                JSON_DECREF(jn_value)
             }
             break;
 
@@ -1429,24 +1458,6 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             }
             break;
 
-        case DTP_REAL:
-        case DTP_INTEGER:
-            {
-                if(DTP_IS_INTEGER(type)) {
-                    int64_t value;
-                    value = strtoll(svalue, 0, 10);
-                    ret = gobj_write_integer_attr(gobj2write, attribute, value);
-                } else if(DTP_IS_REAL(type)) {
-                    double value;
-                    value = strtod(svalue, 0);
-                    ret = gobj_write_real_attr(gobj2write, attribute, value);
-                } else if(DTP_IS_BOOLEAN(type)) {
-                    double value;
-                    value = strtod(svalue, 0);
-                    ret = gobj_write_bool_attr(gobj2write, attribute, value?1:0);
-                }
-            }
-            break;
         default:
             break;
     }
@@ -2264,6 +2275,53 @@ PRIVATE hgclass get_gclass_from_gobj(const char *gobj_name)
 }
 
 /***************************************************************************
+ *  The `set` of a trace command (DTP_JSON): a json boolean, a json integer
+ *  (a level of set-deep-trace, a format of set-machine-format), or text --
+ *  TRUE / set / yes / on, FALSE / reset / no / off, or a whole integer.
+ *  0 and *value; -1 when it is absent or none of them. It was read as text
+ *  only, by atoi(): `set=yes` and `set=maybe` were 0 -- a reset -- and a
+ *  GUI's `set: 1` was refused for not being a text (REV-CLOUD V21.3.6).
+ ***************************************************************************/
+PRIVATE int trace_set_value(json_t *kw, int *value)
+{
+    json_t *jn_set = json_object_get(kw, "set");
+    if(json_is_boolean(jn_set)) {
+        *value = json_is_true(jn_set)? 1 : 0;
+        return 0;
+    }
+
+    json_t *jn_read = NULL;
+    if(json_is_integer(jn_set)) {
+        jn_read = json_incref(jn_set);
+    } else if(json_is_string(jn_set) && !empty_string(json_string_value(jn_set))) {
+        const char *s = json_string_value(jn_set);
+        if(strcasecmp(s, "set")==0) {
+            *value = 1;
+            return 0;
+        }
+        if(strcasecmp(s, "reset")==0) {
+            *value = 0;
+            return 0;
+        }
+        jn_read = command_parameter_from_text(DTP_INTEGER, s, NULL);
+        if(!jn_read) {
+            jn_read = command_parameter_from_text(DTP_BOOLEAN, s, NULL);
+        }
+    }
+    if(!jn_read) {
+        return -1;
+    }
+    json_int_t n = json_is_integer(jn_read)?
+        json_integer_value(jn_read) : (json_is_true(jn_read)? 1 : 0);
+    JSON_DECREF(jn_read)
+    if(n < INT_MIN || n > INT_MAX) {
+        return -1;
+    }
+    *value = (int)n;
+    return 0;
+}
+
+/***************************************************************************
  *  Save the global trace scope WHOLE, from the levels in force.
  *
  *  A saved scope REPLACES, at start up, what main() set by default (see
@@ -2482,8 +2540,8 @@ PRIVATE json_t *cmd_set_global_trace(hgobj gobj, const char *cmd, json_t *kw, hg
         return kw_response;
     }
 
-    const char *trace_value = kw_get_str(gobj, kw, "set", 0, 0);
-    if(empty_string(trace_value)) {
+    int trace;
+    if(trace_set_value(kw, &trace) < 0) {
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
@@ -2495,15 +2553,6 @@ PRIVATE json_t *cmd_set_global_trace(hgobj gobj, const char *cmd, json_t *kw, hg
         );
         JSON_DECREF(kw)
         return kw_response;
-    }
-
-    BOOL trace;
-    if(strcasecmp(trace_value, "TRUE")==0 || strcasecmp(trace_value, "set")==0) {
-        trace = 1;
-    } else if(strcasecmp(trace_value, "FALSE")==0 || strcasecmp(trace_value, "reset")==0) {
-        trace = 0;
-    } else {
-        trace = atoi(trace_value);
     }
 
     int ret = gobj_set_global_trace(level, trace);
@@ -2567,8 +2616,8 @@ PRIVATE json_t *cmd_set_global_no_trace(hgobj gobj, const char *cmd, json_t *kw,
         return kw_response;
     }
 
-    const char *trace_value = kw_get_str(gobj, kw, "set", 0, 0);
-    if(empty_string(trace_value)) {
+    int trace;
+    if(trace_set_value(kw, &trace) < 0) {
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
@@ -2580,15 +2629,6 @@ PRIVATE json_t *cmd_set_global_no_trace(hgobj gobj, const char *cmd, json_t *kw,
         );
         JSON_DECREF(kw)
         return kw_response;
-    }
-
-    BOOL trace;
-    if(strcasecmp(trace_value, "TRUE")==0 || strcasecmp(trace_value, "set")==0) {
-        trace = 1;
-    } else if(strcasecmp(trace_value, "FALSE")==0 || strcasecmp(trace_value, "reset")==0) {
-        trace = 0;
-    } else {
-        trace = atoi(trace_value);
     }
 
     int ret = gobj_set_global_no_trace(level, trace);
@@ -2812,8 +2852,8 @@ PRIVATE json_t *cmd_set_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
         return kw_response;
     }
 
-    const char *trace_value = kw_get_str(gobj, kw, "set", 0, 0);
-    if(empty_string(trace_value)) {
+    int trace;
+    if(trace_set_value(kw, &trace) < 0) {
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
@@ -2825,15 +2865,6 @@ PRIVATE json_t *cmd_set_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
         );
         JSON_DECREF(kw)
         return kw_response;
-    }
-
-    BOOL trace;
-    if(strcasecmp(trace_value, "TRUE")==0 || strcasecmp(trace_value, "set")==0) {
-        trace = 1;
-    } else if(strcasecmp(trace_value, "FALSE")==0 || strcasecmp(trace_value, "reset")==0) {
-        trace = 0;
-    } else {
-        trace = atoi(trace_value);
     }
 
     int ret = gobj_set_gclass_trace(gclass, level, trace);
@@ -2903,8 +2934,8 @@ PRIVATE json_t *cmd_set_no_gclass_trace(hgobj gobj, const char *cmd, json_t *kw,
         return kw_response;
     }
 
-    const char *trace_value = kw_get_str(gobj, kw, "set", 0, 0);
-    if(empty_string(trace_value)) {
+    int trace;
+    if(trace_set_value(kw, &trace) < 0) {
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
@@ -2916,15 +2947,6 @@ PRIVATE json_t *cmd_set_no_gclass_trace(hgobj gobj, const char *cmd, json_t *kw,
         );
         JSON_DECREF(kw)
         return kw_response;
-    }
-
-    BOOL trace;
-    if(strcasecmp(trace_value, "TRUE")==0 || strcasecmp(trace_value, "set")==0) {
-        trace = 1;
-    } else if(strcasecmp(trace_value, "FALSE")==0 || strcasecmp(trace_value, "reset")==0) {
-        trace = 0;
-    } else {
-        trace = atoi(trace_value);
     }
 
     int ret = gobj_set_gclass_no_trace(gclass, level, trace);
@@ -3112,8 +3134,8 @@ PRIVATE json_t *cmd_set_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
         return kw_response;
     }
 
-    const char *trace_value = kw_get_str(gobj, kw, "set", 0, 0);
-    if(empty_string(trace_value)) {
+    int trace;
+    if(trace_set_value(kw, &trace) < 0) {
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
@@ -3125,15 +3147,6 @@ PRIVATE json_t *cmd_set_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
         );
         JSON_DECREF(kw)
         return kw_response;
-    }
-
-    BOOL trace;
-    if(strcasecmp(trace_value, "TRUE")==0 || strcasecmp(trace_value, "set")==0) {
-        trace = 1;
-    } else if(strcasecmp(trace_value, "FALSE")==0 || strcasecmp(trace_value, "reset")==0) {
-        trace = 0;
-    } else {
-        trace = atoi(trace_value);
     }
 
     KW_INCREF(kw);
@@ -3203,8 +3216,8 @@ PRIVATE json_t *cmd_set_no_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, h
         return kw_response;
     }
 
-    const char *trace_value = kw_get_str(gobj, kw, "set", 0, 0);
-    if(empty_string(trace_value)) {
+    int trace;
+    if(trace_set_value(kw, &trace) < 0) {
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
@@ -3216,15 +3229,6 @@ PRIVATE json_t *cmd_set_no_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, h
         );
         JSON_DECREF(kw)
         return kw_response;
-    }
-
-    BOOL trace;
-    if(strcasecmp(trace_value, "TRUE")==0 || strcasecmp(trace_value, "set")==0) {
-        trace = 1;
-    } else if(strcasecmp(trace_value, "FALSE")==0 || strcasecmp(trace_value, "reset")==0) {
-        trace = 0;
-    } else {
-        trace = atoi(trace_value);
     }
 
     int ret = gobj_set_gobj_no_trace(gobj2read, level, trace);
@@ -3256,8 +3260,8 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
     const char *value = kw_get_str(gobj, kw, "value", 0, 0);
     BOOL all = kw_get_bool(gobj, kw, "all", 0, KW_WILD_NUMBER);
 
-    const char *trace_value = kw_get_str(gobj, kw, "set", 0, 0);
-    if(empty_string(trace_value)) {
+    int set;
+    if(trace_set_value(kw, &set) < 0) {
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
@@ -3269,15 +3273,6 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
         );
         JSON_DECREF(kw)
         return kw_response;
-    }
-
-    BOOL set;
-    if(strcasecmp(trace_value, "TRUE")==0 || strcasecmp(trace_value, "set")==0) {
-        set = 1;
-    } else if(strcasecmp(trace_value, "FALSE")==0 || strcasecmp(trace_value, "reset")==0) {
-        set = 0;
-    } else {
-        set = atoi(trace_value);
     }
 
     const char *gclass_name_ = kw_get_str(
@@ -3511,8 +3506,8 @@ PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hg
  ***************************************************************************/
 PRIVATE json_t* cmd_set_deep_trace(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
 {
-    const char *trace_value = kw_get_str(gobj, kw, "set", 0, 0);
-    if(empty_string(trace_value)) {
+    int trace;
+    if(trace_set_value(kw, &trace) < 0) {
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
@@ -3524,15 +3519,6 @@ PRIVATE json_t* cmd_set_deep_trace(hgobj gobj, const char* cmd, json_t* kw, hgob
         );
         JSON_DECREF(kw)
         return kw_response;
-    }
-
-    BOOL trace;
-    if(strcasecmp(trace_value, "TRUE")==0 || strcasecmp(trace_value, "set")==0) {
-        trace = 1;
-    } else if(strcasecmp(trace_value, "FALSE")==0 || strcasecmp(trace_value, "reset")==0) {
-        trace = 0;
-    } else {
-        trace = atoi(trace_value);
     }
 
     gobj_write_integer_attr(gobj, "deep_trace", trace);
@@ -3557,8 +3543,8 @@ PRIVATE json_t* cmd_set_deep_trace(hgobj gobj, const char* cmd, json_t* kw, hgob
  ***************************************************************************/
 PRIVATE json_t* cmd_set_trace_machine_format(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
 {
-    const char *trace_value = kw_get_str(gobj, kw, "set", 0, 0);
-    if(empty_string(trace_value)) {
+    int trace;
+    if(trace_set_value(kw, &trace) < 0) {
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
@@ -3570,15 +3556,6 @@ PRIVATE json_t* cmd_set_trace_machine_format(hgobj gobj, const char* cmd, json_t
         );
         JSON_DECREF(kw)
         return kw_response;
-    }
-
-    BOOL trace;
-    if(strcasecmp(trace_value, "TRUE")==0 || strcasecmp(trace_value, "set")==0) {
-        trace = 1;
-    } else if(strcasecmp(trace_value, "FALSE")==0 || strcasecmp(trace_value, "reset")==0) {
-        trace = 0;
-    } else {
-        trace = atoi(trace_value);
     }
 
     gobj_write_integer_attr(gobj, "trace_machine_format", trace);

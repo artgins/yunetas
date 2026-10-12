@@ -8,6 +8,8 @@
  *          All Rights Reserved.
 ***********************************************************************/
 #include <string.h>
+#include <errno.h>
+#include <float.h>
 #include "gobj.h"
 #include "command_parser.h"
 
@@ -27,11 +29,23 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE const sdata_desc_t *find_command_desc(
+    hgobj gobj,
+    const char *command,
+    json_t **jn_error
+);
+PRIVATE json_t *refuse_command_without_authz(
+    hgobj gobj,
+    const sdata_desc_t *cnf_cmd,
+    json_t *kw,     // NOT owned
+    hgobj src
+);
 PRIVATE json_t *expand_command(
     hgobj gobj,
     const char *command,
+    const sdata_desc_t *cnf_cmd,
     json_t *kw,     // NOT owned
-    const sdata_desc_t **cmd_desc
+    int *result
 );
 PRIVATE json_t *build_cmd_kw(
     hgobj gobj,
@@ -43,7 +57,7 @@ PRIVATE json_t *build_cmd_kw(
 );
 PRIVATE const sdata_desc_t *find_ip_parameter(const sdata_desc_t *input_parameters, const char *key);
 PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key);
-PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, BOOL *refused);
+PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, const char **refused);
 PRIVATE json_t *kw2parameter(data_type_t type, json_t *value, BOOL as_given, const char **refused);
 PRIVATE json_t *refuse_parameter(
     hgobj gobj,
@@ -85,19 +99,47 @@ PUBLIC json_t *command_parser(
      */
     gobj_log_set_last_message("%s", "");
 
-    const sdata_desc_t *cnf_cmd = 0;
-    json_t *kw_cmd = expand_command(gobj, command, kw, &cnf_cmd);
+    json_t *jn_error = 0;
+    const sdata_desc_t *cnf_cmd = find_command_desc(gobj, command, &jn_error);
+    if(!cnf_cmd) {
+        if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
+            gobj_trace_json(gobj, jn_error, "expanded_command: kw_cmd");
+        }
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,
+            jn_error,
+            0,
+            0
+        );
+        KW_DECREF(kw)
+        return kw_response;
+    }
+
+    /*
+     *  The permission is asked BEFORE the parameters are read: a caller
+     *  without it gets the 403, never the diagnostic of a parameter
+     *  (REV-CLOUD V21.3.8)
+     */
+    json_t *kw_denied = refuse_command_without_authz(gobj, cnf_cmd, kw, src);
+    if(kw_denied) {
+        KW_DECREF(kw)
+        return kw_denied;
+    }
+
+    int result = 0;
+    json_t *kw_cmd = expand_command(gobj, command, cnf_cmd, kw, &result);
     if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
         /*
-         *  With no cnf_cmd kw_cmd is the error string, which masks what it
+         *  On a failure kw_cmd is the error string, which masks what it
          *  echoes (build_cmd_kw())
          */
-        json_t *kw_shown = cnf_cmd?
+        json_t *kw_shown = (result >= 0)?
             command_mask_secret_kw(gobj, command, kw_cmd) : json_incref(kw_cmd);
         gobj_trace_json(gobj, kw_shown, "expanded_command: kw_cmd");
         JSON_DECREF(kw_shown)
     }
-    if(!cnf_cmd) {
+    if(result < 0) {
         json_t *kw_response = build_command_response(
             gobj,
             -1,
@@ -107,76 +149,6 @@ PUBLIC json_t *command_parser(
         );
         KW_DECREF(kw)
         return kw_response;
-    }
-
-    /*-----------------------------------------------*
-     *  Check AUTHZ (per-command authorization)
-     *
-     *  Gated opt-in: the SDF_AUTHZ_X role check runs only when the yuno sets
-     *  `enable_command_authz` TRUE. Default (attr absent or FALSE) preserves
-     *  the historical behaviour, so yunos without a C_AUTHZ role model are not
-     *  broken — the global authz_checker is fail-closed when no C_AUTHZ service
-     *  is running, which most yunos lack.
-     *
-     *  ONLY EXTERNAL commands are gated. The external entry layer (c_ievent_srv)
-     *  injects the authenticated `__username__` into the command kw
-     *  (kw_set_dict_value, overwrite — a wire client cannot spoof it). Internal
-     *  framework calls — gobj_command() in C, e.g. the agent's mt_play
-     *  `open-treedb`, the c_yuno cert-reload walk — carry NO `__username__` in
-     *  kw, so they are never gated (otherwise a yuno would deny its own startup
-     *  commands and exit). Self-issued commands (src == gobj) are likewise
-     *  bypassed. This gate adds *authorization* (permission) on top of the
-     *  authentication already enforced upstream.
-     *-----------------------------------------------*/
-    if(cnf_cmd->flag & SDF_AUTHZ_X) {
-        hgobj yuno = gobj_yuno();
-        BOOL authz_enabled = yuno &&
-            gobj_has_attr(yuno, "enable_command_authz") &&
-            gobj_read_bool_attr(yuno, "enable_command_authz");
-
-        const char *cmd_username = kw_get_str(gobj, kw, "__username__", NULL, 0);
-        BOOL external = !empty_string(cmd_username);
-
-        if(authz_enabled && external && src != gobj) {
-            json_t *kw_authz = json_pack("{s:s, s:s}",
-                "command", command,
-                "__username__", cmd_username     // authoritative external principal
-            );
-            if(kw) {
-                json_object_set(kw_authz, "kw", kw);    // incref
-            } else {
-                json_object_set_new(kw_authz, "kw", json_object());
-            }
-            /*
-             *  gobj_user_has_authz() takes ownership of kw_authz (the checker
-             *  KW_DECREF's it on every path), so it is not freed here.
-             */
-            if(!gobj_user_has_authz(
-                    gobj,
-                    "__execute_command__",
-                    kw_authz,
-                    src
-              )) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", "No permission to execute command",
-                    "gclass",       "%s", gobj_gclass_name(gobj),
-                    "command",      "%s", command?command:"",
-                    NULL
-                );
-                json_t *kw_response = build_command_response(
-                    gobj,
-                    -403,
-                    json_sprintf("No permission to execute command: '%s'", command?command:""),
-                    0,
-                    0
-                );
-                KW_DECREF(kw_cmd)
-                KW_DECREF(kw)
-                return kw_response;
-            }
-        }
     }
 
     json_t *kw_response = 0;
@@ -204,6 +176,95 @@ PUBLIC json_t *command_parser(
     }
     KW_DECREF(kw)
     return kw_response;  /* can be null if asynchronous response */
+}
+
+/***************************************************************************
+ *  Check AUTHZ (per-command authorization)
+ *
+ *  Gated opt-in: the SDF_AUTHZ_X role check runs only when the yuno sets
+ *  `enable_command_authz` TRUE. Default (attr absent or FALSE) preserves
+ *  the historical behaviour, so yunos without a C_AUTHZ role model are not
+ *  broken — the global authz_checker is fail-closed when no C_AUTHZ service
+ *  is running, which most yunos lack.
+ *
+ *  ONLY EXTERNAL commands are gated. The external entry layer (c_ievent_srv)
+ *  injects the authenticated `__username__` into the command kw
+ *  (kw_set_dict_value, overwrite — a wire client cannot spoof it). Internal
+ *  framework calls — gobj_command() in C, e.g. the agent's mt_play
+ *  `open-treedb`, the c_yuno cert-reload walk — carry NO `__username__` in
+ *  kw, so they are never gated (otherwise a yuno would deny its own startup
+ *  commands and exit). Self-issued commands (src == gobj) are likewise
+ *  bypassed. This gate adds *authorization* (permission) on top of the
+ *  authentication already enforced upstream.
+ *
+ *  The checker is asked for the command's NAME (`command` of
+ *  __execute_command__ is "Command name"), and the refusal logs and answers
+ *  the name: it was given the whole line, with its parameters -- a password
+ *  among them -- and logged it.
+ *
+ *  NULL when the command can run, else the answer (YOURS).
+ ***************************************************************************/
+PRIVATE json_t *refuse_command_without_authz(
+    hgobj gobj,
+    const sdata_desc_t *cnf_cmd,
+    json_t *kw,     // NOT owned
+    hgobj src
+)
+{
+    if(!(cnf_cmd->flag & SDF_AUTHZ_X)) {
+        return NULL;
+    }
+    hgobj yuno = gobj_yuno();
+    BOOL authz_enabled = yuno &&
+        gobj_has_attr(yuno, "enable_command_authz") &&
+        gobj_read_bool_attr(yuno, "enable_command_authz");
+
+    const char *cmd_username = json_string_value(json_object_get(kw, "__username__"));
+    BOOL external = !empty_string(cmd_username);
+
+    if(!(authz_enabled && external && src != gobj)) {
+        return NULL;
+    }
+
+    json_t *kw_authz = json_pack("{s:s, s:s}",
+        "command", cnf_cmd->name,
+        "__username__", cmd_username     // authoritative external principal
+    );
+    if(kw) {
+        json_object_set(kw_authz, "kw", kw);    // incref
+    } else {
+        json_object_set_new(kw_authz, "kw", json_object());
+    }
+    /*
+     *  gobj_user_has_authz() takes ownership of kw_authz (the checker
+     *  KW_DECREF's it on every path), so it is not freed here.
+     */
+    if(gobj_user_has_authz(
+            gobj,
+            "__execute_command__",
+            kw_authz,
+            src
+      )) {
+        return NULL;
+    }
+
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH,
+        "msg",          "%s", "No permission to execute command",
+        "gclass",       "%s", gobj_gclass_name(gobj),
+        "command",      "%s", cnf_cmd->name,
+        NULL
+    );
+    return build_command_response(
+        gobj,
+        -403,
+        json_sprintf("%s: No permission to execute command: '%s'",
+            gobj_short_name(gobj), cnf_cmd->name
+        ),
+        0,
+        0
+    );
 }
 
 /***************************************************************************
@@ -304,12 +365,19 @@ PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key)
  *      DTP_DICT        a json object (text: the json of one)
  *      DTP_LIST        a json array (text: the json of one)
  *      DTP_INTEGER,    a number or a boolean, never an object or an array.
- *      DTP_REAL,       Text is read as one: a number with nothing after it,
- *      DTP_BOOLEAN     and a boolean as true/false, yes/no, on/off or a
- *                      number ("yes" was atoi()'d to FALSE, so a
- *                      `dry_run=yes` saved for real)
+ *      DTP_REAL,       Text is read as one: a number with nothing before or
+ *      DTP_BOOLEAN     after it, in its range, and a boolean as true/false,
+ *                      yes/no, on/off or a number ("yes" was atoi()'d to
+ *                      FALSE, so a `dry_run=yes` saved for real)
  *      DTP_JSON        anything; text that is not json is a string, but
  *                      not one that starts as json ({ [ ") and breaks
+ *
+ *  The handler gets the EXACT type (number_as_type(), REV-CLOUD V21.3.2): a
+ *  number given to a DTP_BOOLEAN is true unless 0; a boolean given to a
+ *  DTP_INTEGER or a DTP_REAL is 1 or 0; a real given to a DTP_INTEGER is
+ *  that integer, and a real with decimals is refused, as the text "2.7" is.
+ *  Handed on as it came, a `1` reached a kw_get_bool() (with no
+ *  KW_WILD_NUMBER) that logged an ERROR with a stack and took its default.
  *
  *  A null is no value (but for DTP_JSON): the parameter takes its default,
  *  or is missing. Up to 7.26.9 a value of another shape went to the handler
@@ -389,14 +457,62 @@ PRIVATE const char *shape_of_value(json_t *value)
 }
 
 /***************************************************************************
- *  The value of a parameter written as text. Return a new reference; NULL
- *  with *refused FALSE is no value (an empty number from kw: a form field
- *  left empty), NULL with *refused TRUE a text that does not read as the
- *  type. An empty number on the command line is 0, as it always was.
+ *  A json number or boolean (value_has_shape()) as the EXACT type of a
+ *  DTP_INTEGER, DTP_REAL or DTP_BOOLEAN parameter. Return a new reference;
+ *  NULL with *refused saying why: a DTP_INTEGER takes no real with
+ *  decimals, nor one out of its range.
  ***************************************************************************/
-PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, BOOL *refused)
+PRIVATE json_t *number_as_type(data_type_t type, json_t *value, const char **refused)
 {
-    *refused = FALSE;
+    *refused = NULL;
+    if(DTP_IS_BOOLEAN(type)) {
+        if(json_is_boolean(value)) {
+            return json_incref(value);
+        }
+        if(json_is_integer(value)) {
+            return json_boolean(json_integer_value(value) != 0);
+        }
+        return json_boolean(json_real_value(value) != 0.0);
+    }
+    if(DTP_IS_REAL(type)) {
+        if(json_is_real(value)) {
+            return json_incref(value);
+        }
+        if(json_is_integer(value)) {
+            return json_real((double)json_integer_value(value));
+        }
+        return json_real(json_is_true(value)? 1.0 : 0.0);
+    }
+
+    if(json_is_integer(value)) {
+        return json_incref(value);
+    }
+    if(json_is_boolean(value)) {
+        return json_integer(json_is_true(value)? 1 : 0);
+    }
+    double d = json_real_value(value);
+    if(!(d >= -9223372036854775808.0 && d < 9223372036854775808.0)) {
+        *refused = "a number out of its range";    // the cast below would be undefined
+        return NULL;
+    }
+    json_int_t n = (json_int_t)d;
+    if((double)n != d) {
+        *refused = "a real with decimals";
+        return NULL;
+    }
+    return json_integer(n);
+}
+
+/***************************************************************************
+ *  The value of a parameter written as text. Return a new reference; NULL
+ *  with *refused NULL is no value (an empty number from kw: a form field
+ *  left empty), NULL with *refused set a text that does not read as the
+ *  type, *refused says why. An empty number on the command line is 0, as it
+ *  always was.
+ ***************************************************************************/
+PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, const char **refused)
+{
+    *refused = NULL;
     if(!s) {
         s = "";
     }
@@ -423,18 +539,35 @@ PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, BO
                 return json_false();
             }
         }
+        /*
+         *  Nothing before the number either: strtoll() and strtod() skip the
+         *  blanks before it, and " 5" was taken where "5 " was refused
+         */
+        if(*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r' || *s == '\f' || *s == '\v') {
+            *refused = "a text that does not read as one";
+            return NULL;
+        }
         char *end = NULL;
+        errno = 0;
         if(DTP_IS_REAL(type)) {
             double d = strtod(s, &end);
-            if(end == s || *end != 0) {
-                *refused = TRUE;
+            if(end == s || *end != 0 || d != d) {   // d != d: "nan"
+                *refused = "a text that does not read as one";
+                return NULL;
+            }
+            if(errno == ERANGE || d > DBL_MAX || d < -DBL_MAX) {    // "1e999", "inf"
+                *refused = "a number out of its range";
                 return NULL;
             }
             return json_real(d);
         }
         long long n = strtoll(s, &end, 10);
         if(end == s || *end != 0) {
-            *refused = TRUE;
+            *refused = "a text that does not read as one";
+            return NULL;
+        }
+        if(errno == ERANGE) {
+            *refused = "a number out of its range";   // strtoll() saturates in silence
             return NULL;
         }
         if(DTP_IS_BOOLEAN(type)) {
@@ -447,7 +580,7 @@ PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, BO
         json_t *jn = string2json(s, FALSE);   // never logged: the text may be a secret
         if(!jn || !value_has_shape(type, jn)) {
             JSON_DECREF(jn)
-            *refused = TRUE;
+            *refused = "a text that does not read as one";
             return NULL;
         }
         return jn;
@@ -461,7 +594,7 @@ PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, BO
                 p++;
             }
             if(*p == '{' || *p == '[' || *p == '"') {
-                *refused = TRUE;    // json written wrong, not a text
+                *refused = "a text that does not read as one";    // json written wrong, not a text
                 return NULL;
             }
             jn = json_string(s);    // a bare word, a date: text
@@ -469,16 +602,37 @@ PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, BO
         return jn;
     }
 
-    *refused = TRUE;    // a type a command parameter cannot have
+    *refused = "a text that does not read as one";    // a type a command parameter cannot have
     return NULL;
+}
+
+/***************************************************************************
+ *  A value of `type` written as text (see command_parser.h)
+ ***************************************************************************/
+PUBLIC json_t *command_parameter_from_text(
+    data_type_t type,
+    const char *text,
+    const char **refused
+)
+{
+    const char *why = NULL;
+    json_t *jn = text2parameter(type, text, FALSE, &why);
+    if(!jn && !why) {
+        why = "a text that does not read as one";   // no value: out of memory
+    }
+    if(refused) {
+        *refused = why;
+    }
+    return jn;
 }
 
 /***************************************************************************
  *  The value of a parameter given in kw. Return a new reference; NULL with
  *  *refused NULL is no value; NULL with *refused set is a value of another
  *  shape, *refused says which. A text for a number, a boolean, an object or
- *  a list is read as text2parameter() reads the command line; `as_given`
- *  keeps a DTP_JSON as it came (a required one always did).
+ *  a list is read as text2parameter() reads the command line, a number as
+ *  the exact type (number_as_type()); `as_given` keeps a DTP_JSON as it
+ *  came (a required one always did).
  ***************************************************************************/
 PRIVATE json_t *kw2parameter(data_type_t type, json_t *value, BOOL as_given, const char **refused)
 {
@@ -490,7 +644,7 @@ PRIVATE json_t *kw2parameter(data_type_t type, json_t *value, BOOL as_given, con
         if(as_given || !json_is_string(value)) {
             return json_incref(value);
         }
-        BOOL bad = FALSE;
+        const char *bad = NULL;
         json_t *jn = text2parameter(type, json_string_value(value), TRUE, &bad);
         if(!jn) {
             jn = json_incref(value);    // a string is a json too
@@ -504,16 +658,14 @@ PRIVATE json_t *kw2parameter(data_type_t type, json_t *value, BOOL as_given, con
         return NULL;
     }
     if(json_is_string(value) && !DTP_IS_STRING(type)) {
-        BOOL bad = FALSE;
-        json_t *jn = text2parameter(type, json_string_value(value), TRUE, &bad);
-        if(bad) {
-            *refused = shape_of_value(value);
-        }
-        return jn;
+        return text2parameter(type, json_string_value(value), TRUE, refused);
     }
     if(!value_has_shape(type, value)) {
         *refused = shape_of_value(value);
         return NULL;
+    }
+    if(DTP_IS_NUMBER(type)) {
+        return number_as_type(type, value, refused);
     }
     return json_incref(value);
 }
@@ -797,60 +949,61 @@ PUBLIC char *command_mask_secret_line(
 }
 
 /***************************************************************************
- *  Return a new kw for command, popping the parameters inside of `command`
- *  If cmd_desc is 0 then there is a error
- *  and the return json is a json string message with the error.
+ *  The descriptor of the command of the line `command` (its first word),
+ *  NULL if there is none, with *jn_error the answer that says why (YOURS)
  ***************************************************************************/
-PRIVATE json_t *expand_command(
+PRIVATE const sdata_desc_t *find_command_desc(
     hgobj gobj,
     const char *command,
-    json_t *kw,     // NOT owned
-    const sdata_desc_t **cmd_desc
+    json_t **jn_error
 )
 {
-    if(cmd_desc) {
-        *cmd_desc = 0; // It's error
-    }
+    *jn_error = 0;
     const sdata_desc_t *cmd_table = gobj_command_desc(gobj, NULL, FALSE);
     if(!cmd_table) {
-        return json_sprintf("%s: No command table", gobj_short_name(gobj));
+        *jn_error = json_sprintf("%s: No command table", gobj_short_name(gobj));
+        return NULL;
     }
 
     char *str, *p;
     str = p = gbmem_strdup(command);
     char *cmd = get_parameter(p, &p);
     if(empty_string(cmd)) {
-        json_t *jn_error = json_sprintf("%s: No command", gobj_short_name(gobj));
+        *jn_error = json_sprintf("%s: No command", gobj_short_name(gobj));
         GBMEM_FREE(str)
-        return jn_error;
+        return NULL;
     }
 
     const sdata_desc_t *cnf_cmd = command_get_cmd_desc(cmd_table, cmd);
     if(!cnf_cmd) {
-        json_t *jn_error = json_sprintf(
+        *jn_error = json_sprintf(
             "%s: command not available: '%s'. Try 'help' command.",
             gobj_short_name(gobj),
             cmd
         );
-        GBMEM_FREE(str)
-        return jn_error;
     }
-
-    if(cmd_desc) {
-        *cmd_desc = cnf_cmd;
-    }
-
-    int ok = 0;
-    json_t *kw_cmd = build_cmd_kw(gobj, cnf_cmd->name, cnf_cmd, p, kw, &ok);
     GBMEM_FREE(str)
+    return cnf_cmd;
+}
 
-    if(ok < 0) {
-        if(cmd_desc) {
-            *cmd_desc = 0;
-        }
-        GBMEM_FREE(str)
-        return kw_cmd;
-    }
+/***************************************************************************
+ *  Return a new kw for the command `cnf_cmd`, popping the parameters of the
+ *  line `command` (its words after the first). If *result < 0 there is an
+ *  error, and the return json is a json string message with the error.
+ ***************************************************************************/
+PRIVATE json_t *expand_command(
+    hgobj gobj,
+    const char *command,
+    const sdata_desc_t *cnf_cmd,
+    json_t *kw,     // NOT owned
+    int *result
+)
+{
+    char *str, *p;
+    str = p = gbmem_strdup(command);
+    get_parameter(p, &p);   // the command's name, found by find_command_desc()
+
+    json_t *kw_cmd = build_cmd_kw(gobj, cnf_cmd->name, cnf_cmd, p, kw, result);
     GBMEM_FREE(str)
     return kw_cmd;
 }
@@ -1044,13 +1197,13 @@ PRIVATE json_t *build_cmd_kw(
                 ip->name
             );
         }
-        BOOL refused = FALSE;
+        const char *refused = NULL;
         json_t *jn_param = text2parameter(ip->type, param, FALSE, &refused);
         if(!jn_param) {
             *result = -1;
             JSON_DECREF(kw_cmd);
             return refuse_parameter(gobj, peer, command, ip->name, ip->type,
-                "a text that does not read as one"
+                refused? refused : "a text that does not read as one"
             );
         }
         json_object_set_new(kw_cmd, ip->name, jn_param);
@@ -1087,7 +1240,7 @@ PRIVATE json_t *build_cmd_kw(
         }
 
         if(ip->default_value) {
-            BOOL bad = FALSE;
+            const char *bad = NULL;
             jn_param = text2parameter(ip->type, ip->default_value, FALSE, &bad);
             if(bad) {
                 /*
@@ -1170,14 +1323,14 @@ PRIVATE json_t *build_cmd_kw(
         const sdata_desc_t *ip2 = find_ip_parameter(input_parameters, key);
         json_t *jn_param = 0;
         if(ip2) {
-            BOOL refused = FALSE;
+            const char *refused = NULL;
             jn_param = text2parameter(ip2->type, value, FALSE, &refused);
             if(!jn_param) {
                 *result = -1;
                 JSON_DECREF(kw_cmd);
                 JSON_DECREF(jn_refused);
                 return refuse_parameter(gobj, peer, command, ip2->name, ip2->type,
-                    "a text that does not read as one"
+                    refused? refused : "a text that does not read as one"
                 );
             }
             json_object_del(jn_refused, ip2->name);    // the line gives it
@@ -1243,18 +1396,27 @@ PRIVATE json_t *build_cmd_kw(
 
     /*
      *  The keys of kw that are not parameters reach the handler too;
-     *  callers (the GUI) depend on it. Not the null of a parameter: it is
-     *  no value (but for a DTP_JSON)
+     *  callers (the GUI) depend on it. Not a parameter that has no value
+     *  here (but a DTP_JSON): what kw gave it was no value -- a null, an
+     *  empty text for a number (REV-CLOUD V21.3.4: the "" reached the
+     *  handler) -- or was refused and the line gave it under another
+     *  spelling of its name.
      */
-    kw_update_missing(gobj, kw_cmd, kw);
+    json_t *jn_no_value = json_array();
     for(ip = input_parameters; ip->name; ip++) {
         if((ip->flag & SDF_NOTACCESS) || DTP_IS_JSON(ip->type)) {
             continue;
         }
-        if(json_is_null(json_object_get(kw_cmd, ip->name))) {
-            json_object_del(kw_cmd, ip->name);
+        if(!json_object_get(kw_cmd, ip->name)) {
+            json_array_append_new(jn_no_value, json_string(ip->name));
         }
     }
+    kw_update_missing(gobj, kw_cmd, kw);
+    int idx; json_t *jn_name;
+    json_array_foreach(jn_no_value, idx, jn_name) {
+        json_object_del(kw_cmd, json_string_value(jn_name));
+    }
+    JSON_DECREF(jn_no_value);
 
     return kw_cmd;
 }

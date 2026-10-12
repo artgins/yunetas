@@ -97,15 +97,19 @@ topic of a treedb or a msg2db open on the tranger -- its schema is theirs --,
 or over a topic with columns without its jn_cols, which wrote its columns
 empty), a record that is not a dict or whose pkey or times the topic cannot
 take (__t__ and the tkey's time: 44 bits, what the md2 row keeps,
-TRANGER2_MAX_TIME), a key that is not one directory component, a bad rkey, a
-time bound of open-list that is neither an integer nor a string, and a path of
-print-tranger that kw_find_path() logs an ERROR for. From a peer also: a write
-(add-record, delete-key, delete-topic) into a topic of a treedb or a msg2db
-open on the tranger, which are written through them; a NEW topic in their
-store, or named as what a store keeps (tranger2_reserved_name_fault()); and a
-jn_var of what the tranger keeps or types (tranger2_topic_var_fault()).
-check-json asks `read`, as print-tranger. Every answer names the yuno first
-(-403 included).
+TRANGER2_MAX_TIME), a key that is not one directory component, a bad rkey, and
+a time bound of open-list that is neither an integer nor a string. From a peer
+also: a write (add-record, delete-key, delete-topic) into a topic of a treedb
+or a msg2db open on the tranger, which are written through them; a NEW topic in
+their store, or named as what a store keeps (tranger2_reserved_name_fault());
+and a jn_var of what the tranger keeps or types (tranger2_topic_var_fault()).
+The path of print-tranger is walked whatever its length (kw_find_path(), a
+loop), and a path that is not there is said by the answer.
+check-json asks `read`, as print-tranger, and ANSWERS what it finds
+(json_refcounts_report(): the totals and the first paths) instead of logging
+an ERROR for each json -- with max_refcount=1 that was every node of a treedb;
+by default it looks only for corrupted jsons. Every answer names the yuno
+first (-403 included).
 
 
  *          Copyright (c) 2020 Niyamaka.
@@ -137,13 +141,6 @@ check-json asks `read`, as print-tranger. Every answer names the yuno first
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-/*
- *  The limits kw_find_path() logs an ERROR for (kwid.c), asked of the path
- *  of print-tranger before it (find_peer_path())
- */
-#define PEER_PATH_SEGMENT_MAX   255     // kw_find_path_depth(): char segment[256]
-#define PEER_PATH_DEPTH_MAX     64      // KW_MAX_PATH_DEPTH
-
 /*
  *  A refusal of the data a command was handed, with the split of the
  *  command parser and of C_TREEDB: from outside -- the kw carries
@@ -295,7 +292,6 @@ PRIVATE const char *refuse_peer_record(
 );
 PRIVATE BOOL refuse_peer_key(hgobj gobj, BOOL peer, const char *topic_name, const char *key);
 PRIVATE BOOL path_is_not_a_directory(const char *path);
-PRIVATE json_t *find_peer_path(hgobj gobj, BOOL peer, json_t *kw, const char *path);
 PRIVATE void oneshot_creator(hgobj gobj, char *bf, size_t bfsize);
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 
@@ -324,7 +320,7 @@ SDATA_END()
 
 PRIVATE sdata_desc_t pm_check_json[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_INTEGER,   "max_refcount",   0,              0,          "Maximum refcount"),
+SDATAPM (DTP_INTEGER,   "max_refcount",   0,              "0",        "Also report the jsons held more than this many times (0: only the corrupted ones)"),
 SDATA_END()
 };
 
@@ -1209,63 +1205,6 @@ PRIVATE BOOL path_is_not_a_directory(const char *path)
 }
 
 /***************************************************************************
- *  The value at `path` of the tranger json, the path a peer hands
- *  print-tranger: kw_find_path() style, segments joined by '`', a list
- *  indexed by the number of the segment. Walked HERE, a segment at a time,
- *  and refused (a WARNING for a peer, log_refusal()) where kw_find_path()
- *  logs an ERROR with a stack (kwid.c, "do not edit"): a segment longer than its buffer,
- *  char[256] ("buffer too small"), more segments than KW_MAX_PATH_DEPTH,
- *  64 ("max nesting depth exceeded"), and a segment under something that
- *  is not a dict or a list ("kw must be list or dict"). NULL when the path
- *  names nothing (a key that is not there is said by the answer only, as
- *  kw_find_path() with verbose FALSE did).
- ***************************************************************************/
-PRIVATE json_t *find_peer_path(hgobj gobj, BOOL peer, json_t *kw, const char *path)
-{
-    const char *why = NULL;
-    json_t *value = kw;
-    int depth = 0;
-    const char *p = path;
-    while(value) {
-        const char *d = strchr(p, '`');
-        size_t len = d? (size_t)(d - p) : strlen(p);
-        if(len > PEER_PATH_SEGMENT_MAX) {
-            why = "a segment of the path longer than 255 bytes";
-            break;
-        }
-        if(++depth > PEER_PATH_DEPTH_MAX) {
-            why = "a path of more than 64 segments";
-            break;
-        }
-        if(!json_is_object(value) && !json_is_array(value)) {
-            why = "a segment of the path under a value that is not a dict or a list";
-            break;
-        }
-        char segment[PEER_PATH_SEGMENT_MAX + 1];
-        snprintf(segment, sizeof(segment), "%.*s", (int)len, p);
-        json_t *next = json_is_object(value)?
-            json_object_get(value, segment) :
-            json_array_get(value, (size_t)atoi(segment));
-        if(!d) {
-            return next;    // NULL: not there
-        }
-        value = json_absent(next)? NULL : next;
-        p = d + 1;
-    }
-    if(why) {
-        log_refusal(gobj, peer,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "print-tranger path refused",
-            "why",          "%s", why,
-            "path",         "%.64s", path,
-            NULL
-        );
-    }
-    return NULL;
-}
-
-/***************************************************************************
  *  The creator the iterators of a ONE-SHOT open-list (return_data) are
  *  opened under. Their id is the key, and they were opened under the
  *  list_id the peer chose: a list_id equal to the name of this service
@@ -2053,7 +1992,11 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *value = priv->tranger;
 
     if(!empty_string(path)) {
-        value = find_peer_path(gobj, command_is_external(kw), value, path);
+        /*
+         *  A path of any length walked, and a path that is not there said by
+         *  the answer only (kw_find_path() with verbose FALSE logs nothing)
+         */
+        value = kw_find_path(gobj, value, path, FALSE);
         if(!value) {
             return msg_iev_build_response(gobj,
                 -1,
@@ -2101,10 +2044,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  Check AUTHZS
      *
      *  `read`, the permission of print-tranger: both walk the tranger
-     *  json and change nothing. It had none, and with max_refcount=1 the
-     *  walk logs an ERROR and a json trace of every node held twice (the
-     *  indexes and the hooks of a treedb hold each one), so any peer could
-     *  fill the log (REV-CLOUD V20.11).
+     *  json and change nothing (REV-CLOUD V20.11).
      *----------------------------------------*/
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
@@ -2119,17 +2059,54 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
-    int max_refcount = (int)kw_get_int(gobj, kw, "max_refcount", 1, KW_WILD_NUMBER);
+    /*
+     *  What it finds is the ANSWER: json_check_refcounts() logged an ERROR,
+     *  and a json trace, for every json held more than max_refcount times
+     *  -- with the default 1, every node of a treedb, held by its indexes
+     *  and its parents' hooks: a reader filled the log (REV-CLOUD V21.2.3).
+     *  Only a corrupted json is our own broken invariant, and is logged.
+     */
+    int max_refcount = (int)kw_get_int(gobj, kw, "max_refcount", 0, 0);
+    json_t *jn_report = json_refcounts_report(priv->tranger, max_refcount, 20);
+    if(!jn_report) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: no tranger to check", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );  // Error already logged
+    }
+    json_int_t corrupted = kw_get_int(gobj, jn_report, "corrupted", 0, 0);
+    json_int_t over_max = kw_get_int(gobj, jn_report, "over_max", 0, 0);
+    if(corrupted > 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Corrupted jsons in the tranger",
+            "corrupted",    "%" JSON_INTEGER_FORMAT, corrupted,
+            NULL
+        );
+    }
 
-    json_t *tranger = priv->tranger;
-    int result = 0;
-    json_check_refcounts(tranger, max_refcount, &result);
+    json_t *jn_comment;
+    if(max_refcount > 0) {
+        jn_comment = json_sprintf(
+            "%s: check refcounts of tranger: %" JSON_INTEGER_FORMAT " corrupted, "
+            "%" JSON_INTEGER_FORMAT " held more than %d times",
+            gobj_yuno_role_plus_name(), corrupted, over_max, max_refcount
+        );
+    } else {
+        jn_comment = json_sprintf(
+            "%s: check refcounts of tranger: %" JSON_INTEGER_FORMAT " corrupted",
+            gobj_yuno_role_plus_name(), corrupted
+        );
+    }
     return msg_iev_build_response(gobj,
-        result,
-        json_sprintf("%s: check refcounts of tranger: %s. If it was error then check the log files",
-            gobj_yuno_role_plus_name(), result==0?"Ok":"Bad"),
+        (corrupted > 0 || over_max > 0)? -1 : 0,
+        jn_comment,
         0,
-        0,
+        jn_report,  // owned
         kw  // owned
     );
 }

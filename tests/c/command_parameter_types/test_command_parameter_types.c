@@ -17,10 +17,23 @@
  *            - an integer, a real, a boolean: a number or a boolean, never
  *              an object or an array; text read as one (a boolean as
  *              true/false, yes/no, on/off or a number), or refused;
+ *            - and the handler gets the EXACT type (REV-CLOUD V21.3.2): a
+ *              number given to a boolean is true or false, a boolean given
+ *              to an integer 1 or 0, a real given to an integer that
+ *              integer -- and one with decimals, or out of range, refused
+ *              as the text "2.7" is; an integer given to a real a real;
+ *            - a number written as text: nothing before or after it, and
+ *              in its range ("nan", "inf", an overflow refused: strtoll()
+ *              saturated in silence, V21.3.3);
  *            - a DTP_JSON: anything; text that is not json is a string,
  *              unless it starts as json and breaks;
- *            - a null is no value: the default, or "is required";
- *            - the line has the last word over a refused kw value.
+ *            - a null, or an empty text for a number, is no value: the
+ *              default, or absent -- the kw's "" reached the handler
+ *              (V21.3.4) --, or "is required";
+ *            - the line has the last word over a refused kw value, and the
+ *              refused value does not reach the handler under the name;
+ *            - command_parameter_from_text() reads a text as the parser
+ *              does (write-attr reads its value as the attribute's type).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -330,6 +343,82 @@ int main(int argc, char *argv[])
     }
     expect_refused(yuno, "required string given a list", "required",
         json_pack("{s:b, s:[]}", "rb", 1, "rs"), "parameter 'rs' must be a string, not an array", FALSE);
+
+    /*
+     *  The EXACT type: a number to a boolean, a boolean to a number, a real
+     *  to an integer (REV-CLOUD V21.3.2). As it came, a `1` reached a
+     *  kw_get_bool() that logged an ERROR with a stack and took its default.
+     */
+    expect_value(yuno, "boolean given the integer 1: true", "typed",
+        json_pack("{s:i}", "b", 1), "b", json_true());
+    expect_value(yuno, "boolean given the integer 0: false", "typed",
+        json_pack("{s:i}", "b", 0), "b", json_false());
+    expect_value(yuno, "boolean given a real: true", "typed",
+        json_pack("{s:f}", "b", 2.5), "b", json_true());
+    expect_value(yuno, "integer given true: 1", "typed",
+        json_pack("{s:b}", "n", 1), "n", json_integer(1));
+    expect_value(yuno, "integer given a real of no decimals", "typed",
+        json_pack("{s:f}", "n", 2.0), "n", json_integer(2));
+    expect_refused(yuno, "integer given a real with decimals", "typed",
+        json_pack("{s:f}", "n", 2.7), "parameter 'n' must be an integer, not a real with decimals", FALSE);
+    expect_refused(yuno, "integer given a real out of its range, by a peer", "typed",
+        json_pack("{s:f, s:s}", "n", 1e30, "__username__", "someone"),
+        "parameter 'n' must be an integer, not a number out of its range", TRUE);
+    expect_value(yuno, "real given an integer: a real", "typed",
+        json_pack("{s:i}", "r", 3), "r", json_real(3.0));
+    expect_value(yuno, "real given true: 1.0", "typed",
+        json_pack("{s:b}", "r", 1), "r", json_real(1.0));
+
+    /*
+     *  A number written as text: nothing before or after it, in its range
+     *  (REV-CLOUD V21.3.3)
+     */
+    expect_refused(yuno, "integer text past 64 bits", "typed",
+        json_pack("{s:s}", "n", "99999999999999999999"),
+        "parameter 'n' must be an integer, not a number out of its range", FALSE);
+    expect_refused(yuno, "integer text past 64 bits, on the line", "typed n=99999999999999999999",
+        0, "parameter 'n' must be an integer, not a number out of its range", FALSE);
+    expect_refused(yuno, "integer text with a blank before", "typed",
+        json_pack("{s:s}", "n", " 5"), "parameter 'n' must be an integer, not a text", FALSE);
+    expect_refused(yuno, "integer text with a blank after", "typed",
+        json_pack("{s:s}", "n", "5 "), "parameter 'n' must be an integer, not a text", FALSE);
+    expect_refused(yuno, "real text nan", "typed",
+        json_pack("{s:s}", "r", "nan"), "parameter 'r' must be a number, not a text", FALSE);
+    expect_refused(yuno, "real text inf", "typed",
+        json_pack("{s:s}", "r", "inf"), "parameter 'r' must be a number, not a number out of its range", FALSE);
+    expect_refused(yuno, "real text past a double", "typed",
+        json_pack("{s:s}", "r", "1e999"), "parameter 'r' must be a number, not a number out of its range", FALSE);
+
+    /*
+     *  An empty text for a number with no default is no value, absent: kw
+     *  passed the "" on to the handler (REV-CLOUD V21.3.4)
+     */
+    expect_value(yuno, "real empty in kw, no default: absent", "typed",
+        json_pack("{s:s}", "r", ""), "r", NULL);
+    expect_value(yuno, "boolean empty in kw, no default: absent", "typed",
+        json_pack("{s:s}", "b", ""), "b", NULL);
+    expect_value(yuno, "a refused kw value is not passed on under its name", "typed S=five",
+        json_pack("{s:i}", "s", 5), "s", NULL);
+
+    /*
+     *  command_parameter_from_text(): the parser's reader of a text
+     */
+    {
+        const char *why = NULL;
+        json_t *jn = command_parameter_from_text(DTP_BOOLEAN, "yes", &why);
+        check("from_text boolean yes", "true", json_is_true(jn) && why == NULL);
+        JSON_DECREF(jn)
+        jn = command_parameter_from_text(DTP_INTEGER, "12abc", &why);
+        check("from_text integer 12abc", "refused, and why",
+            jn == NULL && why && strcmp(why, "a text that does not read as one")==0);
+        jn = command_parameter_from_text(DTP_REAL, "-3.5", &why);
+        check("from_text real -3.5", "-3.5", json_is_real(jn) && json_real_value(jn) == -3.5);
+        JSON_DECREF(jn)
+        jn = command_parameter_from_text(DTP_INTEGER, "", &why);
+        check("from_text integer empty", "0, as on the line",
+            json_is_integer(jn) && json_integer_value(jn) == 0);
+        JSON_DECREF(jn)
+    }
 
     JSON_DECREF(g_seen)
     gobj_end();

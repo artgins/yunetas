@@ -312,7 +312,7 @@ PRIVATE int test_delete_node_by_key_and_names(
      *  '/' in its id is fine; the delimiter is not.
      */
     if(!treedb_create_topic(
-            tranger, treedb_name, "slashcols", 1, "", json_string("version"),
+            tranger, treedb_name, "slashcols", 1, "", 0,   // no pkey2: a pkey2 of no column is refused
             json_pack("{s:{s:s, s:s, s:s, s:[s]}, s:{s:s, s:s, s:s, s:[s]}}",
                 "id", "id", "id", "header", "Id", "type", "string", "flag", "persistent",
                 "kids/all", "id", "kids/all", "header", "Kids", "type", "string", "flag", "persistent"
@@ -322,7 +322,7 @@ PRIVATE int test_delete_node_by_key_and_names(
         result += -1;
     }
     if(treedb_create_topic(
-            tranger, treedb_name, "tickcols", 1, "", json_string("version"),
+            tranger, treedb_name, "tickcols", 1, "", 0,
             json_pack("{s:{s:s, s:s, s:s, s:[s]}, s:{s:s, s:s, s:s, s:[s]}}",
                 "id", "id", "id", "header", "Id", "type", "string", "flag", "persistent",
                 "x`y", "id", "x`y", "header", "XY", "type", "string", "flag", "persistent"

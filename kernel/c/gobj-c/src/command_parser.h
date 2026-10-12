@@ -47,6 +47,22 @@ PUBLIC const sdata_desc_t *command_get_cmd_desc(
 );
 
 /*
+ *  A value of `type` written as TEXT, read as the parser reads a parameter
+ *  written on the command line: a number with nothing before or after it
+ *  and in its range, a boolean as true/false, yes/no, on/off or a number,
+ *  an object or a list as its json, a DTP_JSON as its json or else the text
+ *  itself; an empty text is 0 or false. For a command whose value takes the
+ *  type of something else (`write-attr value=...` takes the attribute's).
+ *  Return a NEW reference, or NULL with *refused saying why (a short
+ *  phrase, never the text: it may be a secret).
+ */
+PUBLIC json_t *command_parameter_from_text(
+    data_type_t type,
+    const char *text,
+    const char **refused
+);
+
+/*
  *  What a trace shows of a command: its SDF_SECRET parameters (by the
  *  command table of `gobj`) and the keys with a secret's name
  *  (is_secret_name(): the free keys of a SDF_WILD_CMD command) masked as

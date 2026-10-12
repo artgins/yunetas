@@ -72,14 +72,32 @@ too often (*"BAD gbuf_decref()"*).
 |---|---|---|
 | `DTP_STRING` | a string | the text |
 | `DTP_DICT` / `DTP_LIST` | a json object / a json array | its json |
-| `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, never an object or an array | a number with nothing after it; a boolean as `true`/`false`, `yes`/`no`, `on`/`off` or a number |
+| `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, never an object or an array | a number with nothing before or after it, in its range; a boolean as `true`/`false`, `yes`/`no`, `on`/`off` or a number |
 | `DTP_JSON` | anything | its json, or the text itself as a string (a bare word, a date); a text that starts as json (`{`, `[`, `"`) and does not parse is refused |
 
-A `null` is no value (but for a `DTP_JSON`): the parameter takes its default,
-or is missing if it is `SDF_REQUIRED`. An empty text of a number is `0` on the
-command line and no value in `kw` (a form field left empty). The line has the
-last word: a value of `kw` that is refused does not count when the same
-parameter comes as `key=value`.
+**The handler gets the EXACT type** (7.26.10+), so it can read a parameter
+with the plain `kw_get_bool()` / `kw_get_int()` / `kw_get_real()` and no
+`KW_WILD_NUMBER`:
+
+| Given | to a `DTP_BOOLEAN` | to a `DTP_INTEGER` | to a `DTP_REAL` |
+|---|---|---|---|
+| `true` / `false` | as it is | `1` / `0` | `1.0` / `0.0` |
+| an integer `n` | `true` unless `0` | as it is | `n` as a real |
+| a real `d` | `true` unless `0.0` | `d` when it has no decimals (`2.0` -> `2`); with decimals (`2.7`), or out of the 64 bits, **refused** -- as the text `"2.7"` is | as it is |
+
+A number written as text has nothing before or after it (`" 5"` and `"5 "`
+are refused), and is in its range: `limit=99999999999999999999` is refused
+(`strtoll()` used to saturate it in silence to 2⁶³-1), and so are `nan`,
+`inf` and `1e999`.
+
+A `null` is no value (but for a `DTP_JSON`), and so is an empty text given in
+`kw` to a number (a form field left empty): the parameter takes its default;
+with no default it is ABSENT from the handler's kw -- the `""` used to reach it
+--; and an `SDF_REQUIRED` one is refused with the answer *"parameter 'x' is
+required"*. On the command line an empty number is `0`, as it always was. The
+line has the last word: a value of `kw` that is refused does not count when the
+same parameter comes as `key=value` -- and it does not reach the handler under
+its name either.
 
 Anything else is refused before the handler runs, with the answer `-1` that
 names the parameter, the shape expected and the shape given (never the value:
@@ -101,6 +119,17 @@ json_t *resp = gobj_command(gobj_node, "node",
 /*  resp: {"result": -1, "comment":
  *    "<gobj>: command 'node', parameter 'node_id' must be a string, not an integer"}
  *  one WARNING, and the handler never ran                                      */
+
+/*  `force` is declared DTP_BOOLEAN; a GUI sends 1: the handler reads `true`  */
+gobj_command(gobj_treedbs, "close-treedb",
+    json_pack("{s:s, s:i}", "treedb_name", "treedb_x", "force", 1), src);
+
+/*  `limit` of C_NODE's `nodes` is declared DTP_INTEGER  */
+gobj_command(gobj_node, "nodes",
+    json_pack("{s:s, s:f}", "topic_name", "departments", "limit", 2.0), src);  /* limit is 2 */
+gobj_command(gobj_node, "nodes",
+    json_pack("{s:s, s:f}", "topic_name", "departments", "limit", 2.7), src);
+/*  -1 "<gobj>: command 'nodes', parameter 'limit' must be an integer, not a real with decimals"  */
 ```
 
 ```bash
@@ -110,7 +139,57 @@ ycommand -c 'command-yuno id=<yuno> service=treedbs command=save-schema treedb_n
 
 A handler that takes more than one shape on purpose declares `DTP_JSON` and
 reads what it gets (`C_NODE`'s `set-link-events set`, the keycloak
-`update-idp-user` flags).
+`update-idp-user` flags, the `set` of the trace commands of the yuno).
+
+**What a caller must send (BREAKING, 7.26.10+).** Every parameter is typed,
+so a caller that relied on the handler's own reading gets `-1` now. Refused:
+
+- a number, a boolean, an object or an array given to a `DTP_STRING`
+  (`node_id: 5`);
+- given to a `DTP_INTEGER`: a text that is not a whole integer (`play=y`,
+  `"5 "`, `" 5"`, `1e3`, a date), a real with decimals (`2.7`), a number past
+  64 bits;
+- given to a `DTP_REAL`: a text that is not a number, `nan`, `inf`, `1e999`;
+- given to a `DTP_BOOLEAN`: a text that is not `true`/`false`, `yes`/`no`,
+  `on`/`off` or a number (`maybe`);
+- an object or an array given to a number or a boolean, a non-object to a
+  `DTP_DICT`, a non-array to a `DTP_LIST`;
+- a text that starts as json and does not parse, given to a `DTP_JSON`.
+
+Before, such a value reached the handler, which logged an ERROR or read it as
+something else. Look at the command's `help` for the type of each parameter:
+**the same name can have another type in another command** -- `from_t` /
+`to_t` are a `DTP_JSON` (a date or a number) in `C_TRANGER`'s `open-list` and a
+`DTP_INTEGER` in its `open-iterator`; `options` is a string, an integer or a
+json; `set` is a json in the yuno's trace commands and a boolean or a json
+elsewhere.
+
+**Authorization comes first.** The per-command gate of the parser
+(`SDF_AUTHZ_X`, when the yuno sets `enable_command_authz`) is asked BEFORE the
+parameters are read, so a caller without the permission gets `-403`, never the
+diagnostic of a parameter. The checker is asked for the command's NAME (the
+`command` of `__execute_command__`), and a denial logs and answers the name:
+up to 7.26.9 it was given the whole line, with its parameters -- a password
+among them -- and logged it. A permission that a HANDLER asks itself
+(`C_TREEDB`'s `create`, `C_NODE`'s `read`, ...) is asked by the handler, so
+after the typing: the parser does not know it.
+
+**Who is a peer.** A command is a peer's when its kw carries `__username__`.
+`C_IEVENT_SRV` writes it into every command that comes in from outside, over
+whatever the client put there, so a client cannot choose it. Two things follow,
+and they are the model, not a hole:
+
+- a command that comes in by a `C_IEVENT_CLI` link -- this yuno is the CLIENT
+  of another one, and the other side sends it a command -- is dispatched with
+  the kw the server sent. If the server is not an agent and does not stamp
+  `__username__`, the command is a C caller's here: trusted, its mistakes are
+  ERRORs, and the peer checks of `C_TREEDB` / `C_TRANGER` do not apply. A yuno
+  connects as a client only to a yuno it trusts;
+- a rule of "the same user" (the `force` of `C_TREEDB`'s `close-treedb` on a
+  treedb a peer opened) compares that name: everything that comes in under one
+  identity of an agent is one user. And a treedb a peer opened, once it is
+  closed, is anybody's with the permission: another user can delete it or open
+  it again.
 
 Up to 7.26.9 a value of another shape went to the handler as it came, and its
 `kw_get_*()` logged the caller's mistake as an ERROR with a stack -- or read it
@@ -211,6 +290,59 @@ A pointer to the matching `sdata_desc_t` entry in the command table, or `NULL` i
 **Notes**
 
 Aliases have precedence when the descriptor has no `json_fn` command function set. This is the mechanism used to redirect commands as named events.
+
+---
+
+(command_parameter_from_text)=
+## [`command_parameter_from_text()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/gobj-c/src/command_parser.c)
+
+A value of `type` written as TEXT, read exactly as [`command_parser()`](#command_parser)
+reads a parameter written on the command line: a number with nothing before or
+after it and in its range, a boolean as `true`/`false`, `yes`/`no`, `on`/`off`
+or a number, an object or a list as its json, a `DTP_JSON` as its json or else
+the text itself; an empty text is `0` or `false`. It is for a command whose
+value takes the type of something else: the yuno's `write-attr value=...`
+reads the value as the type of the ATTRIBUTE.
+
+```C
+json_t *command_parameter_from_text(
+    data_type_t type,
+    const char *text,
+    const char **refused
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `type` | `data_type_t` | The type to read the text as: `DTP_STRING`, `DTP_INTEGER`, `DTP_REAL`, `DTP_BOOLEAN`, `DTP_DICT`, `DTP_LIST` or `DTP_JSON`. |
+| `text` | `const char *` | The text. `NULL` is an empty text. |
+| `refused` | `const char **` | Out, may be `NULL`: why the text was refused, a short phrase (`"a text that does not read as one"`, `"a number out of its range"`), never the text -- it may be a secret. `NULL` when it was read. |
+
+**Returns**
+
+A NEW reference to the value, of the exact json type of `type`; `NULL` when the
+text does not read as one.
+
+**Example**
+
+```C
+const char *why = NULL;
+json_t *jn = command_parameter_from_text(DTP_BOOLEAN, "yes", &why);    /* true */
+JSON_DECREF(jn)
+jn = command_parameter_from_text(DTP_INTEGER, "12abc", &why);
+/*  NULL, why: "a text that does not read as one" -- strtoll() read 12  */
+jn = command_parameter_from_text(DTP_INTEGER, "99999999999999999999", &why);
+/*  NULL, why: "a number out of its range" -- strtoll() saturated it  */
+```
+
+**Notes**
+
+`write-attr attribute=<a> value=<text>` of `C_YUNO` reads `value` this way for
+a boolean, integer or real attribute: `atoi()` and `strtoll()` wrote `"yes"`
+as FALSE, `"abc"` as 0 and `"12abc"` as 12. A text that does not read as the
+attribute's type is refused, `-1`, and nothing is written.
 
 ---
 

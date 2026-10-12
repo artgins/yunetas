@@ -2255,6 +2255,135 @@ PRIVATE int check_pkey2s_of_new_topic(
 }
 
 /***************************************************************************
+ *  The column `col_id` of `cols` -- a dict of columns, or a list of them
+ *  each with its `id` --, NULL if the topic has none of that name
+ ***************************************************************************/
+PRIVATE json_t *col_of_cols(json_t *cols, const char *col_id)
+{
+    if(json_is_object(cols)) {
+        return json_object_get(cols, col_id);
+    }
+    int idx; json_t *col;
+    json_array_foreach(cols, idx, col) {
+        const char *id = json_string_value(json_object_get(col, "id"));
+        if(id && strcmp(id, col_id)==0) {
+            return col;
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  A hook column whose id cannot be the last part of a reference
+ ***************************************************************************/
+PRIVATE BOOL hook_id_breaks_refs(hgobj gobj, const char *col_id, json_t *col)
+{
+    if(!kw_has_word(gobj, kw_get_dict_value(gobj, col, "flag", 0, 0), "hook", 0)) {
+        return FALSE;
+    }
+    return (strchr(col_id, '^') || strlen(col_id) >= NAME_MAX)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  The names of a NEW topic that go into the references of its children
+ *  (`topic^id^hook`, the fkey of a child), and the columns its pkey2s
+ *  index (REV-CLOUD V21.2.2):
+ *  - its name and the ids of its hook columns are parts of a ref: no '^',
+ *    the separator of the parts (split in more than three parts, every ref
+ *    to its nodes was undecodable), and a hook id shorter than NAME_MAX
+ *    (decode_parent_ref() copies each part into a char[NAME_MAX]). The id
+ *    of a node with hooks is refused for the same reasons already;
+ *  - each pkey2 names a column of the topic: the value of a pkey2 is the
+ *    value of the column of its name (get_key2_value()), so one of no
+ *    column indexed nothing -- and a qualified id, which takes the first
+ *    pkey2, could not be built.
+ *  NULL, or why, with the name at fault written in `bad`.
+ ***************************************************************************/
+PRIVATE const char *refs_and_keys_fault(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *pkey2s, // NOT owned
+    json_t *cols,   // NOT owned, a dict or a list of json objects
+    char *bad,
+    size_t bad_size
+)
+{
+    *bad = 0;
+    if(strchr(topic_name, '^')) {
+        snprintf(bad, bad_size, "%s", topic_name);
+        return "the topic name holds a '^', the separator of the parts of a reference";
+    }
+
+    const char *why_hook = "a hook column id holds a '^', the separator of the parts of a reference, "
+        "or is too long to be a part of one";
+    if(json_is_object(cols)) {
+        const char *col_id; json_t *col;
+        json_object_foreach(cols, col_id, col) {
+            if(hook_id_breaks_refs(gobj, col_id, col)) {
+                snprintf(bad, bad_size, "%s", col_id);
+                return why_hook;
+            }
+        }
+    } else {
+        int idx; json_t *col;
+        json_array_foreach(cols, idx, col) {
+            const char *col_id = json_string_value(json_object_get(col, "id"));
+            if(col_id && hook_id_breaks_refs(gobj, col_id, col)) {
+                snprintf(bad, bad_size, "%s", col_id);
+                return why_hook;
+            }
+        }
+    }
+
+    if(!(json_is_string(pkey2s) || json_is_array(pkey2s) || json_is_object(pkey2s))) {
+        return NULL;    // none, or a shape pkey2s_fault() says
+    }
+    const char *why = NULL;
+    json_t *names = kwid_get_ids(pkey2s);
+    int idx; json_t *jn_name;
+    json_array_foreach(names, idx, jn_name) {
+        const char *name = json_string_value(jn_name);
+        if(!empty_string(name) && !col_of_cols(cols, name)) {
+            snprintf(bad, bad_size, "%s", name);
+            why = "a pkey2 names no column of the topic: its index would hold nothing";
+            break;
+        }
+    }
+    JSON_DECREF(names)
+    return why;
+}
+
+PRIVATE int check_refs_and_keys_of_new_topic(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *pkey2s, // NOT owned
+    json_t *cols,   // NOT owned
+    const char **p_why
+)
+{
+    char bad[NAME_MAX];
+    const char *why = refs_and_keys_fault(gobj, topic_name, pkey2s, cols, bad, sizeof(bad));
+    if(why) {
+        log_data_fault(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Topic refused: a name of its references or of its keys",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%.64s", topic_name,
+            "why",          "%s", why,
+            "name",         "%.*s", utf8_prefix_len(bad, 64), bad,
+            NULL
+        );
+        gobj_log_set_last_message("topic '%.64s' refused: %s", topic_name, why);
+    }
+    if(p_why) {
+        *p_why = why;
+    }
+    return why? -1 : 0;
+}
+
+/***************************************************************************
  *  The ids of the lists that load the indexes of a NEW topic, its "id"
  *  index (named by the tkey) and the index of each pkey2: each one must
  *  fit the char[NAME_MAX] it is written in (build_topic_list_id()). Cut,
@@ -2354,11 +2483,25 @@ PRIVATE void say_faults_of_topic_on_disk(
     const char *treedb_name,
     const char *topic_name,
     const char *topic_tkey,
-    json_t *pkey2s  // NOT owned
+    json_t *pkey2s, // NOT owned
+    json_t *cols    // NOT owned
 )
 {
     char bad[NAME_MAX];
-    const char *why = pkey2s_fault(topic_tkey, pkey2s, bad, sizeof(bad));
+    const char *why = refs_and_keys_fault(gobj, topic_name, pkey2s, cols, bad, sizeof(bad));
+    if(why) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Topic on disk opened as it was, with a name of its references or of its keys at fault: fix its schema, a new topic with it is refused",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%.64s", topic_name,
+            "why",          "%s", why,
+            "name",         "%.*s", utf8_prefix_len(bad, 64), bad,
+            NULL
+        );
+    }
+    why = pkey2s_fault(topic_tkey, pkey2s, bad, sizeof(bad));
     if(why) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2571,6 +2714,11 @@ PUBLIC int treedb_check_new_topic(
     if(ret == 0) {
         ret = check_link_col_types_of_new_topic(
             gobj, treedb_name? treedb_name : "", topic_name, cols_copy, why
+        );
+    }
+    if(ret == 0) {
+        ret = check_refs_and_keys_of_new_topic(
+            gobj, treedb_name? treedb_name : "", topic_name, pkey2s, cols_copy, why
         );
     }
     JSON_DECREF(cols_copy)
@@ -2810,14 +2958,16 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     }
     if(check_new_topic(gobj, treedb_name, topic_name, topic_tkey, on_disk? NULL : pkey2s, cols, NULL)<0 ||
             (!on_disk &&
-                check_list_ids_of_new_topic(gobj, treedb_name, topic_name, topic_tkey, pkey2s)<0)) {
+                check_list_ids_of_new_topic(gobj, treedb_name, topic_name, topic_tkey, pkey2s)<0) ||
+            (!on_disk &&
+                check_refs_and_keys_of_new_topic(gobj, treedb_name, topic_name, pkey2s, cols, NULL)<0)) {
         // Error already logged, and the last message set
         JSON_DECREF(pkey2s)
         JSON_DECREF(cols)
         return 0;
     }
     if(on_disk) {
-        say_faults_of_topic_on_disk(gobj, treedb_name, topic_name, topic_tkey, pkey2s);
+        say_faults_of_topic_on_disk(gobj, treedb_name, topic_name, topic_tkey, pkey2s, cols);
     }
 
     /*------------------------------*
@@ -7299,7 +7449,29 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*-------------------------------*
      *  Get the id to create node
      *  it's mandatory
+     *
+     *  A string, or none (a null is
+     *  none): an integer was read by
+     *  kw_get_str() with an ERROR, and
+     *  the node got a uuid or a rowid
+     *  in silence (REV-CLOUD V21.2.4)
      *-------------------------------*/
+    json_t *jn_given_id = json_object_get(kw, "id");
+    if(json_is_null(jn_given_id)) {
+        json_object_del(kw, "id");
+    } else if(jn_given_id && !json_is_string(jn_given_id)) {
+        log_data_fault(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Field 'id' must be a string",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        gobj_log_set_last_message("node of '%s' refused: its 'id' must be a string", topic_name);
+        JSON_DECREF(kw)
+        return 0;
+    }
     const char *id = kw_get_str(gobj, kw, "id", 0, 0);
     if(empty_string(id)) {
         json_t *id_col_flag = KWID_GET_BY_KEYS(gobj, tranger, 0, "topics", topic_name, "cols", "id", "flag");

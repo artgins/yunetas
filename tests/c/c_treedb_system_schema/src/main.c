@@ -384,7 +384,7 @@ PRIVATE const char *expected_log_msgs[] = {
     AS_WARNING "treedb name breaks the name rule, or is too long, refused",
     AS_WARNING "open-treedb without a treedb_schema json object, refused",
     AS_WARNING "Command parameter of the wrong type",       // files_max_size "big": the parser's
-    AS_WARNING "open-treedb with an attribute of a wrong type, refused",    // 1.5: the command's
+    AS_WARNING "Command parameter of the wrong type",       // 1.5: the parser's too, a real with decimals (V21.3.2)
     /*  Test 13d3: more of a peer's data refused, a WARNING each (V20)  */
     AS_WARNING "topic of a wrong shape, refused",           // a file: __timeranger2__.json
     AS_WARNING "topic of a wrong shape, refused",           // a file: the schema file
@@ -400,7 +400,10 @@ PRIVATE const char *expected_log_msgs[] = {
     AS_WARNING "treedb name breaks the name rule, or is too long, refused",  // __other
     AS_WARNING "treedb name breaks the name rule, or is too long, refused",  // a^b
     AS_WARNING "treedb name breaks the name rule, or is too long, refused",  // 109 bytes
+    AS_WARNING "treedb name breaks the name rule, or is too long, refused",  // .x
+    AS_WARNING "treedb name breaks the name rule, or is too long, refused",  // x.json
     AS_WARNING "Topic refused: bad pkey2s",                 // a topic of the schema
+    AS_WARNING "open-treedb with the schema of another treedb, refused",
     AS_WARNING "open-treedb with an attribute of a wrong type, refused",
     /*  a value of a wrong type from a user with no permission: the parser's, before authz  */
     AS_WARNING "Command parameter of the wrong type",

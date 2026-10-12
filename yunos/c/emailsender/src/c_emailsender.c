@@ -577,10 +577,10 @@ PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     const char *body = kw_get_str(gobj, kw, "body", "", 0);
 
     /*
-     *  is_html arrives from the agent's command parser as a JSON integer
-     *  (the parser does not coerce DTP_BOOLEAN -> json bool, see memory
-     *  feedback_command_parser_via_agent_quirks). KW_WILD_NUMBER lets
-     *  kw_get_bool accept int/real/string/bool without erroring.
+     *  is_html is DTP_BOOLEAN: the parser of SDK 7.26.10+ hands it on as a
+     *  json boolean, whatever the caller sent. Up to 7.26.9 it came as sent
+     *  -- an integer through the agent's command-yuno --, so KW_WILD_NUMBER
+     *  stays while a node runs one.
      */
     BOOL is_html = kw_get_bool(gobj, kw, "is_html", 0, KW_WILD_NUMBER);
 

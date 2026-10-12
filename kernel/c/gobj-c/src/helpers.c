@@ -3994,6 +3994,229 @@ PUBLIC int json_check_refcounts(
 }
 
 /***************************************************************************
+ *  A dict or a list met by json_refcounts_report(), and where it is: its
+ *  key in the dict of the frame `parent`, or its index in the list.
+ ***************************************************************************/
+typedef struct {
+    json_t *jn;
+    size_t parent;          // (size_t)-1: the root
+    const char *key;        // NULL: the item `idx` of a list
+    size_t idx;
+} refcount_frame_t;
+
+/***************************************************************************
+ *  The kw path of what is at (key or idx) in the frame `frame`
+ ***************************************************************************/
+PRIVATE json_t *refcount_path(
+    const refcount_frame_t *frames,
+    size_t frame,
+    const char *key,
+    size_t idx
+)
+{
+    json_t *jn_segments = json_array();
+    if(frame != (size_t)-1) {
+        json_array_append_new(jn_segments, key? json_string(key) : json_sprintf("%zu", idx));
+    }
+    for(size_t i = frame; i != (size_t)-1 && frames[i].parent != (size_t)-1; i = frames[i].parent) {
+        json_array_append_new(jn_segments, frames[i].key?
+            json_string(frames[i].key) : json_sprintf("%zu", frames[i].idx));
+    }
+
+    size_t ln = 1;
+    size_t n = json_array_size(jn_segments);
+    for(size_t i = 0; i < n; i++) {
+        ln += json_string_length(json_array_get(jn_segments, i)) + 1;
+    }
+    char *bf = gbmem_malloc(ln);
+    if(!bf) {
+        JSON_DECREF(jn_segments)
+        return json_string("");   // Error already logged
+    }
+    char *p = bf;
+    for(size_t i = n; i > 0; i--) {
+        json_t *jn_segment = json_array_get(jn_segments, i - 1);
+        size_t l = json_string_length(jn_segment);
+        if(p != bf) {
+            *p++ = '`';
+        }
+        memcpy(p, json_string_value(jn_segment), l);
+        p += l;
+    }
+    *p = 0;
+    json_t *jn_path = json_string(bf);
+    GBMEM_FREE(bf)
+    JSON_DECREF(jn_segments)
+    return jn_path? jn_path : json_string("");
+}
+
+/***************************************************************************
+ *  What json_refcounts_report() counts as it walks
+ ***************************************************************************/
+typedef struct {
+    int max_refcount;
+    int max_shown;
+    json_int_t jsons;
+    json_int_t corrupted;
+    json_int_t over_max;
+    json_t *jn_seen;        // "%p" of a json held more than once -> true
+    json_t *jn_shown;
+} refcount_walk_t;
+
+/***************************************************************************
+ *  Check one json met by the walk; TRUE when the walk goes into it (a dict
+ *  or a list, sound, not met before)
+ ***************************************************************************/
+PRIVATE BOOL refcount_check_one(
+    json_t *jn,
+    const refcount_frame_t *frames,
+    size_t frame,
+    const char *key,
+    size_t idx,
+    refcount_walk_t *walk
+)
+{
+    const char *fault = NULL;
+    switch(json_typeof(jn)) { // json_typeof PROTECTED
+        case JSON_TRUE:
+        case JSON_FALSE:
+        case JSON_NULL:
+            return FALSE;   // singletons, of no refcount
+        case JSON_OBJECT:
+        case JSON_ARRAY:
+        case JSON_STRING:
+        case JSON_INTEGER:
+        case JSON_REAL:
+            break;
+        default:
+            fault = "corrupted";
+            break;
+    }
+
+    if(!fault && jn->refcount > 1) {
+        /*
+         *  Only a json held more than once can be met twice
+         */
+        char addr[2 + 2*sizeof(void *) + 1];
+        snprintf(addr, sizeof(addr), "%p", (void *)jn);
+        if(json_object_get(walk->jn_seen, addr)) {
+            return FALSE;
+        }
+        json_object_set_new(walk->jn_seen, addr, json_true());
+    }
+
+    walk->jsons++;
+    if(!fault && jn->refcount == 0) {
+        fault = "corrupted";    // freed: not walked into
+    } else if(!fault && walk->max_refcount > 0 && jn->refcount > (size_t)walk->max_refcount) {
+        fault = "over_max";
+    }
+    if(!fault) {
+        return (json_is_object(jn) || json_is_array(jn))? TRUE : FALSE;
+    }
+
+    BOOL corrupted = (strcmp(fault, "corrupted")==0)? TRUE : FALSE;
+    if(corrupted) {
+        walk->corrupted++;
+    } else {
+        walk->over_max++;
+    }
+    if((int)json_array_size(walk->jn_shown) < walk->max_shown) {
+        json_array_append_new(walk->jn_shown, json_pack("{s:o, s:I, s:s}",
+            "path", refcount_path(frames, frame, key, idx),
+            "refcount", (json_int_t)jn->refcount,
+            "fault", fault
+        ));
+    }
+    if(corrupted) {
+        return FALSE;
+    }
+    return (json_is_object(jn) || json_is_array(jn))? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  What the refcounts of a json say (see helpers.h). A LOOP over the dicts
+ *  and lists met, each kept as a frame: json_check_refcounts() recursed,
+ *  logged an ERROR for each fault, and went round a cycle for ever.
+ ***************************************************************************/
+PUBLIC json_t *json_refcounts_report(
+    json_t *jn, // not owned
+    int max_refcount,
+    int max_shown
+)
+{
+    if(!jn) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "jn NULL",
+            NULL
+        );
+        return NULL;
+    }
+
+    refcount_walk_t walk = {
+        .max_refcount = max_refcount,
+        .max_shown = max_shown,
+        .jn_seen = json_object(),
+        .jn_shown = json_array()
+    };
+
+    size_t capacity = 64;
+    size_t n_frames = 0;
+    refcount_frame_t *frames = gbmem_malloc(capacity * sizeof(refcount_frame_t));
+
+    if(frames && refcount_check_one(jn, frames, (size_t)-1, NULL, 0, &walk)) {
+        frames[n_frames++] = (refcount_frame_t){jn, (size_t)-1, NULL, 0};
+    }
+
+    for(size_t i = 0; frames && i < n_frames; i++) {
+        json_t *jn_container = frames[i].jn;
+        size_t n_children = json_is_object(jn_container)?
+            json_object_size(jn_container) : json_array_size(jn_container);
+        if(n_frames + n_children > capacity) {
+            size_t new_capacity = capacity;
+            while(n_frames + n_children > new_capacity) {
+                new_capacity *= 2;
+            }
+            refcount_frame_t *new_frames = gbmem_realloc(frames, new_capacity * sizeof(refcount_frame_t));
+            if(!new_frames) {
+                break;  // Error already logged: the report says what was walked
+            }
+            frames = new_frames;
+            capacity = new_capacity;
+        }
+
+        if(json_is_object(jn_container)) {
+            const char *key; json_t *jn_child;
+            json_object_foreach(jn_container, key, jn_child) {
+                if(refcount_check_one(jn_child, frames, i, key, 0, &walk)) {
+                    frames[n_frames++] = (refcount_frame_t){jn_child, i, key, 0};
+                }
+            }
+        } else {
+            size_t idx; json_t *jn_child;
+            json_array_foreach(jn_container, idx, jn_child) {
+                if(refcount_check_one(jn_child, frames, i, NULL, idx, &walk)) {
+                    frames[n_frames++] = (refcount_frame_t){jn_child, i, NULL, idx};
+                }
+            }
+        }
+    }
+    GBMEM_FREE(frames)  // a failed malloc: Error already logged, nothing walked
+
+    json_t *jn_report = json_pack("{s:i, s:I, s:I, s:I, s:o}",
+        "max_refcount", max_refcount,
+        "jsons", walk.jsons,
+        "corrupted", walk.corrupted,
+        "over_max", walk.over_max,
+        "shown", walk.jn_shown
+    );
+    JSON_DECREF(walk.jn_seen)
+    return jn_report;
+}
+
+/***************************************************************************
  *  Print deeply the refcount of kw
  ***************************************************************************/
 PUBLIC int json_print_refcounts(

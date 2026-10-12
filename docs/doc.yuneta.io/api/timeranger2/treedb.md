@@ -760,8 +760,19 @@ Returns a JSON object representing the newly created node. WARNING: The returned
 
 This function creates a 'pure node' without loading hook links. The primary key (`pkey`) of all topics must be 'id', and it must be a string.
 
-`id` is mandatory, but the topic can hand it out. When the `kw` carries no
-`id`, the flag on the `id` column decides what the new one is:
+`id` is mandatory, but the topic can hand it out. A given `id` is a string
+(a `null` is none): another type is refused, *"Field 'id' must be a string"*
+-- an ERROR, a WARNING inside the window of a peer's data. Up to 7.26.9 an
+integer was read with an ERROR of `kw_get_str()`, and the node was made with a
+uuid or a rowid in silence, over the id the caller gave:
+
+```C
+treedb_create_node(tranger, "my_db", "users", json_pack("{s:i}", "id", 5));   // NULL
+treedb_create_node(tranger, "my_db", "users", json_pack("{s:s}", "id", "5"));  // created
+```
+
+When the `kw` carries no `id`, the flag on the `id` column decides what the new
+one is:
 
 | Flag on `id` | The id the topic hands out |
 |---|---|
@@ -945,11 +956,16 @@ before a create:
 | Each column id is of the column rule ([`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>)); an `id` column is there (the pkey is `id`); each column passes [`parse_schema_cols()`](<#parse_schema_cols>) | *"Topic refused: bad columns"* | `` a column id breaks the name rule (empty or '`') ``, *"no 'id' column (the pkey is 'id')"*, *"a column is not valid (see the log)"* |
 | `pkey2s` is a name, a list of names or a dict of them; each name (an empty one is no key) has no backtick, is not `id` and not the tkey, and is named once | *"Topic refused: bad pkey2s"* | *"a pkey2 cannot be the pkey 'id'"*, *"a pkey2 cannot be the tkey: the lists of their indexes would share one id"*, *"a pkey2 named twice"*, ... |
 | The id of the list that loads each index, `treedb-<gclass>-<gobj>-<treedb>-<topic>-<key>` (`<gobj>` is the tranger's gobj, `<key>` the tkey for the `id` index and the pkey2 for its own), is shorter than `NAME_MAX` | *"Topic refused: the id of a list of its indexes is longer than NAME_MAX"* | |
+| The name of the topic and the id of each `hook` column hold no `^`, and a hook id is shorter than `NAME_MAX`: they are parts of the references of its children (`topic^id^hook`, split at the `^`, each part copied into a `char[NAME_MAX]`). Each pkey2 names a column of the topic: the value of a pkey2 is the value of the column of its name | *"Topic refused: a name of its references or of its keys"* | *"the topic name holds a '^', the separator of the parts of a reference"*, *"a hook column id holds a '^', the separator of the parts of a reference, or is too long to be a part of one"*, *"a pkey2 names no column of the topic: its index would hold nothing"* |
 
 The faults of the table are ERRORs, and WARNINGs inside the window of a
-peer's data ([`treedb_set_peer_data()`](<#treedb_set_peer_data>)); the last
-one is an ERROR always (the gobj's name is in the id, so it is never a
-peer's). Before SDK 7.26.10 a column that was not a json object, a pkey2 of
+peer's data ([`treedb_set_peer_data()`](<#treedb_set_peer_data>)); the list
+id one is an ERROR always (the gobj's name is in the id, so it is never a
+peer's), and only `treedb_create_topic()` asks it. Up to 7.26.9 a `^` in the
+name of a topic or of a hook was taken, and every reference to its nodes was
+undecodable (*"Wrong fkey (parent) reference"*); a pkey2 of no column was
+taken, and its index held nothing -- the name of a `qualified` id, which is its
+first pkey2, could not be built. Before SDK 7.26.10 a column that was not a json object, a pkey2 of
 `id` or of the tkey, and a pkey2 named twice were taken, and their index was
 built wrong (a node stored inside itself, two lists on one id); a list id
 that did not fit was cut, and two lists of the topic shared what was left.
@@ -978,18 +994,34 @@ treedb_create_topic(tranger, "my_db", "things4", 1, "tm", json_string("tm"),
         "id", "header", "Id", "type", "string",  "flag", "persistent",
         "tm", "header", "Tm", "type", "integer", "flag", "persistent"),
     0, FALSE, FALSE);   /* -> NULL, "Topic refused: bad pkey2s" */
+
+/*  refused: the pkey2 names no column  */
+treedb_create_topic(tranger, "my_db", "things5", 1, "", json_string("nmae"),
+    json_pack("{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s]}}",
+        "id",   "header", "Id",   "type", "string", "flag", "persistent",
+        "name", "header", "Name", "type", "string", "flag", "persistent"),
+    0, FALSE, FALSE);   /* -> NULL, "Topic refused: a name of its references or of its keys" */
+
+/*  refused: a '^' in the name of a hook, the separator of its refs  */
+treedb_create_topic(tranger, "my_db", "groups", 1, "", 0,
+    json_pack("{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s], s:{s:s}}}",
+        "id",        "header", "Id",      "type", "string", "flag", "persistent",
+        "members^x", "header", "Members", "type", "dict",   "flag", "hook",
+            "hook", "users", "group_id"),
+    0, FALSE, FALSE);   /* -> NULL, "Topic refused: a name of its references or of its keys" */
 ```
 
 **A topic already on disk opens as it was.** When the directory of the topic
 holds its `topic_desc.json` (an existing store) and the call is OUTSIDE the
-window of a peer's data -- the open of a C caller --, the pkey2s rule and the
-list-id rule of the table are not asked (the others are): the topic opens
-with its pkey2s and the ids of its lists as they are, and each fault is said
-instead, an ERROR naming it:
+window of a peer's data -- the open of a C caller --, the pkey2s rule, the
+list-id rule and the references-and-keys rule of the table are not asked (the
+others are): the topic opens with its names, its pkey2s and the ids of its
+lists as they are, and each fault is said instead, an ERROR naming it:
 
 | Fault | Logged |
 |---|---|
 | its pkey2s (`id`, the tkey, a name twice, ...) | *"Topic on disk opened as it was, with bad pkey2s: fix its schema, a new topic with them is refused"*, with `why` and `pkey2` |
+| a `^` in its name or in the id of a hook, a hook id of `NAME_MAX` or more, a pkey2 of no column | *"Topic on disk opened as it was, with a name of its references or of its keys at fault: fix its schema, a new topic with it is refused"*, with `why` and `name` |
 | the id of a list of its indexes past `NAME_MAX` (cut, as it always was) | *"Topic on disk opened as it was, the id of a list of its indexes cut to NAME_MAX: shorten its names, a new topic with them is refused"*, with `index_key`, `length` and `max` |
 
 Refusing it would take the topic from the treedb at the next open of a store

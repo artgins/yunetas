@@ -665,22 +665,27 @@ static int test_reg_f001_gbuffer_deserialize_bad_base64(void)
 }
 
 /***************************************************************************
- *  Regression f003: kw_find_path() must bound recursion depth so a deeply
- *  nested kw plus a long backtick-delimited path cannot exhaust the stack.
+ *  Regression f003: a deeply nested kw plus a long backtick-delimited path
+ *  must not exhaust the stack. kw_find_path() walks the path in a LOOP (it
+ *  recursed once per segment, and was cut at 64 segments with an ERROR even
+ *  with verbose FALSE, REV-CLOUD V21.2.4), so a deep path that is there is
+ *  found, one that is not is answered NULL logging nothing, and a segment
+ *  longer than 255 bytes is looked up as the key it is.
  ***************************************************************************/
 static int test_reg_f003_kw_find_path_depth(void)
 {
     int result = 0;
-    int N = 100;    // > KW_MAX_PATH_DEPTH (64)
+    int N = 100;    // past the 64 segments the walk used to be cut at
 
-    /* kw nested N deep: {"a":{"a":{...}}} */
+    /* kw nested N deep: {"a":{"a":{...{"a": 42}}}} */
     json_t *root = json_object();
     json_t *cur = root;
-    for(int i=0; i<N; i++) {
+    for(int i=0; i<N-1; i++) {
         json_t *child = json_object();
         json_object_set_new(cur, "a", child);
         cur = child;
     }
+    json_object_set_new(cur, "a", json_integer(42));
 
     /* path "a`a`...`a" with N segments */
     char path[256];
@@ -695,19 +700,123 @@ static int test_reg_f003_kw_find_path_depth(void)
 
     set_expected_results(
         "reg_f003_kw_find_path_depth",
-        json_pack("[{s:s}]",
-            "msg", "kw_find_path: max nesting depth exceeded"
-        ),
+        json_pack("[]"),    // nothing logged
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
         1       // verbose
     );
 
     json_t *found = kw_find_path(0, root, path, FALSE);
-    if(found != NULL) {
-        result += -1;   // must abort to not-found, not keep recursing
+    if(!found || json_integer_value(found) != 42) {
+        result += -1;   // a deep path that is there is found
     }
+
+    /* the same depth, a path that is not there: NULL, and nothing logged */
+    path[off-1] = 'b';
+    if(kw_find_path(0, root, path, FALSE) != NULL) {
+        result += -1;
+    }
+
+    /* a segment of 300 bytes is a key like any other */
+    char long_key[301];
+    memset(long_key, 'k', sizeof(long_key) - 1);
+    long_key[sizeof(long_key) - 1] = 0;
+    json_t *jn_long = json_pack("{s:{s:i}}", long_key, "x", 7);
+    char long_path[320];
+    snprintf(long_path, sizeof(long_path), "%s`x", long_key);
+    found = kw_find_path(0, jn_long, long_path, FALSE);
+    if(!found || json_integer_value(found) != 7) {
+        result += -1;
+    }
+    json_decref(jn_long);
     json_decref(root);
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  json_refcounts_report(): what the refcounts say, as an answer, logging
+ *  nothing, each json once and a cycle walked once (REV-CLOUD V21.2.3):
+ *  json_check_refcounts() logged an ERROR per fault and recursed round a
+ *  cycle for ever -- a cycle is two nodes in each other's hooks.
+ ***************************************************************************/
+static int test_json_refcounts_report(void)
+{
+    int result = 0;
+
+    set_expected_results(
+        "json_refcounts_report",
+        json_pack("[]"),    // nothing logged
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+
+    /*  a node held twice (an index and a hook), and two nodes in a cycle  */
+    json_t *node = json_pack("{s:s}", "id", "n1");
+    json_t *a = json_object();
+    json_t *b = json_object();
+    json_object_set(a, "hook", b);      // b held twice: by a, and below
+    json_object_set(b, "hook", a);      // a held twice: the cycle
+    json_t *root = json_pack("{s:{s:O}, s:{s:O}, s:O, s:O}",
+        "index", "n1", node,
+        "hooks", "n1", node,
+        "a", a,
+        "b", b
+    );
+
+    json_t *jn_report = json_refcounts_report(root, 1, 20);
+    if(!jn_report) {
+        result += -1;
+    }
+    if(json_integer_value(json_object_get(jn_report, "corrupted")) != 0) {
+        result += -1;
+    }
+    /*  node, a and b are each held more than once, each said once  */
+    if(json_integer_value(json_object_get(jn_report, "over_max")) != 3) {
+        printf("over_max %d\n", (int)json_integer_value(json_object_get(jn_report, "over_max")));
+        result += -1;
+    }
+    json_t *shown = json_object_get(jn_report, "shown");
+    if(json_array_size(shown) != 3) {
+        result += -1;
+    }
+    BOOL path_seen = FALSE;
+    size_t idx; json_t *jn_shown;
+    json_array_foreach(shown, idx, jn_shown) {
+        const char *path = json_string_value(json_object_get(jn_shown, "path"));
+        if(path && (strcmp(path, "index`n1")==0 || strcmp(path, "hooks`n1")==0)) {
+            path_seen = TRUE;
+        }
+    }
+    if(!path_seen) {
+        result += -1;   // the path of the node, as kw_find_path() reads it
+    }
+    JSON_DECREF(jn_report)
+
+    /*  max_refcount 0: the corrupted only, and none  */
+    jn_report = json_refcounts_report(root, 0, 20);
+    if(json_integer_value(json_object_get(jn_report, "over_max")) != 0 ||
+            json_array_size(json_object_get(jn_report, "shown")) != 0) {
+        result += -1;
+    }
+    JSON_DECREF(jn_report)
+
+    /*  max_shown caps the list, not the count  */
+    jn_report = json_refcounts_report(root, 1, 1);
+    if(json_integer_value(json_object_get(jn_report, "over_max")) != 3 ||
+            json_array_size(json_object_get(jn_report, "shown")) != 1) {
+        result += -1;
+    }
+    JSON_DECREF(jn_report)
+
+    /*  break the cycle, so all of it goes  */
+    json_object_del(a, "hook");
+    JSON_DECREF(a)
+    JSON_DECREF(b)
+    JSON_DECREF(node)
+    JSON_DECREF(root)
 
     result += test_json(NULL);
     return result;
@@ -956,6 +1065,7 @@ PRIVATE int do_test(void)
     result += test_reg_f001_gbuffer_deserialize_bad_base64();
     result += test_reg_f002_find_record_not_found();
     result += test_reg_f003_kw_find_path_depth();
+    result += test_json_refcounts_report();
     result += test_reg_f004_kwid_compare_records_depth();
     result += test_kw_collapse_toplevel_array();
     result += test_kw_collapse_primitive_rejected();

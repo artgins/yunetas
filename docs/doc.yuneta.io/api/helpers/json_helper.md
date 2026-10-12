@@ -393,6 +393,68 @@ This function recursively checks all elements in the JSON object, including arra
 
 A NULL `kw` is reported and the function **returns**: it used to log the NULL and then fall through to `json_typeof()` on it, crashing on the very thing it exists to detect.
 
+It recurses, and does not guard against a CYCLE (two nodes of a treedb in each other's hooks), which it walks round for ever; and it logs an ERROR for every fault, and a json trace of each container over the maximum. To ask what a json held by others looks like -- a tranger, as the `check-json` commands do -- use [`json_refcounts_report()`](#json_refcounts_report), which answers and logs nothing.
+
+---
+
+(json_refcounts_report)=
+## [`json_refcounts_report()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/gobj-c/src/helpers.c)
+
+What the reference counts of a json say, as a REPORT, logging nothing: the jsons held more than `max_refcount` times, and the corrupted ones (a refcount of 0, or a type jansson does not have), with the [`kw_find_path()`](<#kw_find_path>) path of the first `max_shown`. Each json is walked ONCE, in a loop: a json held in several places -- a node of a treedb is in its indexes and in the hooks of its parents -- is reported once, and a cycle does not loop the walk. A corrupted json is not walked into.
+
+```C
+json_t *json_refcounts_report(
+    json_t *jn,
+    int max_refcount,
+    int max_shown
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn` | `json_t *` | The json to walk. Not owned. |
+| `max_refcount` | `int` | Report the jsons held more than this many times; `0` asks only for the corrupted ones. |
+| `max_shown` | `int` | How many faults the report lists with their path; the counts count them all. |
+
+**Returns**
+
+A NEW json, `NULL` (and an ERROR) if `jn` is `NULL`:
+
+```json
+{
+    "max_refcount": 1,
+    "jsons": 431,
+    "corrupted": 0,
+    "over_max": 27,
+    "shown": [
+        {"path": "treedbs`treedb_x`items`id`a1", "refcount": 3, "fault": "over_max"}
+    ]
+}
+```
+
+`jsons` is how many jsons were walked (`true`, `false` and `null` are not counted: they are singletons); `fault` is `"over_max"` or `"corrupted"`.
+
+**Example**
+
+```C
+json_t *jn_report = json_refcounts_report(tranger, 2, 20);
+if(kw_get_int(gobj, jn_report, "corrupted", 0, 0) > 0) {
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL,
+        "msg",          "%s", "Corrupted jsons in the tranger",
+        NULL
+    );
+}
+JSON_DECREF(jn_report)
+```
+
+**Notes**
+
+`check-json` of `C_TRANGER` and of the agent answer with it (since 7.26.10): `json_check_refcounts()` logged an ERROR for every json held more than `max_refcount` times, and with its default `1` that was every node of a treedb -- a reader filled the log.
+
 ---
 
 (json_config)=

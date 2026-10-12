@@ -71,7 +71,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.28`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.29`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -441,13 +441,21 @@ Corollaries:
   (2) **The parser types every parameter (7.26.10+)**, from the line, kw or
   its default alike: a `DTP_STRING` is a string, a `DTP_DICT`/`DTP_LIST` an
   object/array, a number or boolean is never an object or array, and text is
-  read as the type (`"5"` -> 5, a boolean as true/false, yes/no, on/off or a
-  number). Another shape is refused before the handler (`-1`; WARNING from a
-  peer, ERROR with a stack from C), and a `null` is no value. So a handler can
-  trust a parameter to have its declared type or be absent -- and a parameter
-  the handler takes in several shapes ON PURPOSE must be declared `DTP_JSON`
-  (anything; non-json text arrives as a string). Up to 7.26.9 a required one
-  was forwarded from kw with no coercion at all.
+  read as the type (`"5"` -> 5, nothing before or after it and in its range;
+  a boolean as true/false, yes/no, on/off or a number). The handler gets the
+  EXACT type: a `1` given to a `DTP_BOOLEAN` arrives as `true`, a boolean
+  given to a `DTP_INTEGER` as 1, a `2.0` as 2 -- and a real with decimals
+  given to an integer is refused, as its text is. Another shape is refused
+  before the handler (`-1`; WARNING from a peer, ERROR with a stack from C),
+  and a `null` -- or an empty text given in kw to a number -- is no value:
+  the default, or absent. So a handler can read a parameter with the plain
+  `kw_get_*()` (no `KW_WILD_NUMBER`) and trust it to have its declared type
+  or be absent -- and a parameter the handler takes in several shapes ON
+  PURPOSE must be declared `DTP_JSON` (anything; non-json text arrives as a
+  string). The parser's own permission gate (`SDF_AUTHZ_X`, with
+  `enable_command_authz`) is asked BEFORE the parameters; a permission a
+  handler asks itself comes after them. Up to 7.26.9 a required one was
+  forwarded from kw with no coercion at all.
 - **`gobj_log_last_message()`** is a process-global 256-byte buffer written
   only by `priority <= LOG_ERR` logs. Prefer explicit `json_sprintf` messages
   in `cmd_*` failure paths; never rely on it across function boundaries. A
@@ -1200,8 +1208,9 @@ Examples: `c_yui_main.js` (`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
   you mean goes in `html_markup('<i class="yi-…"></i>')`. gobj-ui (7.26.10+),
   `yunos/js/*` and the yunovatios GUIs run in that mode, and their `prebuild`
   runs the check gobj-ui publishes
-  (`node_modules/@yuneta/gobj-ui/scripts/check-markup-strings.mjs`, with
-  `acorn` declared by the app). So do wattyzer, yunomusica and the
+  (`node_modules/@yuneta/gobj-ui/scripts/check-markup-strings.mjs`; its
+  `acorn` is a dependency of gobj-ui since 7.26.29, so an app need not
+  declare it). So do wattyzer, yunomusica and the
   `js_gui` scaffold (which takes gobj-ui from npm since 2026-10-11; it used
   to vendor lib-yui). **The default does not flip in 7.x, by decision
   (2026-10-11):** estadodelaire and hidraulia are frozen on gobj-ui v1, whose
@@ -1341,22 +1350,42 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   only the page shows it. A key handed to a FUNCTION is read where it is
   handed (gobj-ui 7.26.28+): at the key positions of every function in
   gobj-ui's `I18N_KEY_FUNCTIONS` (`src/i18n_key_functions.js`),
-  `validate-locales` reads a string literal, or a `const` bound to one. A key
-  handed there by table or variable is PUBLISHED by its module — an exported
-  `<NAME>_I18N_KEYS` array of literals the validator reads — and the call is
-  marked `/* i18n: <NAME>_I18N_KEYS */` (`/* i18n: data */` when what arrives
-  is data no locale can list: a topic name, a backend's comment). A library
-  test fails on any other unmarked argument at a key position. The validator
-  follows a literal, a `const` (a const table too, `t(LABELS[x])`) and a
-  MARKED plain `let`: it reads everything the `let` is given in its scope
-  (initializer, `=`, `||=`, `??=`, `&&=`), asks the locales for each literal
-  and, under a list marker, fails one the list lacks; a marked `let` that only
-  ever holds literals fails with *"make it a const"*. What stays invisible is
-  a key an app hands through a wrapper of its own, or to a function the table
-  does not name — and, in the library and in an app alike, a key that reaches
-  `t()` (or an `i18n` / `data-i18n*` value) through an UNMARKED `let`, a
-  parameter or a computed string (`let k = "x"; t(k)`, `t("state " + s)`): no
-  check sees it and nothing fails. Check those on the page.
+  `validate-locales` reads a string literal, a `const` bound to one, and
+  (7.26.29+) a call of a function of the same module whose every return is
+  one, `String(x)`, a lone `${x}`, a parameter's default. DOM at a key
+  position is no key -- an array spec, `createElement2()` /
+  `createOneHtml()` / `html_markup()` of gobj-js, `text_node()`,
+  `document.createElement()`, or a const or `let` only ever given one --,
+  known by where it comes from, never by a variable's name. The table is
+  COMPLETE: gobj-ui's test finds every library function that hands a
+  parameter (or what it reads from one) to `t()`, an `i18n` / `code` /
+  `data-i18n*` value or a key position, and fails until it is listed; one
+  that nothing calls by name (an FSM action, a callback) marks its hand-off
+  instead. A key handed by table or variable is PUBLISHED by its module -- an
+  exported `<NAME>_I18N_KEYS` array of literals, which may spread another
+  const array of the module -- and the call is marked
+  `/* i18n: <NAME>_I18N_KEYS */` (`/* i18n: data */` when what arrives is
+  data no locale can list: a topic name, a backend's comment); a `data`
+  marker over what the reader follows to keys fails. **The rule is per call
+  in the APP's own code too** (7.26.29+): an app key position given an
+  unmarked `let`, an options variable, a concatenation or a parameter of its
+  own wrapper fails `validate-locales`, with the file and the line -- and so
+  does a TRANSLATED text, `t("k")`, even marked: the function translates it
+  again and it never changes language, so hand it the key. An app's
+  functions are in no table: a wrapper of its own marks what it hands on,
+  and its callers' literal keys are read only through a list the module
+  publishes. The validator follows a literal, a `const` (a const table too,
+  `t(LABELS[x])`) and a MARKED plain `let`: it reads everything the `let` is
+  given in its scope (initializer, `=`, `||=`, `??=`, `&&=`), asks the
+  locales for each literal and, under a list marker, fails one the list
+  lacks; a marked `let` that only ever holds literals fails with *"make it a
+  const"*. Sources are parsed, never run; a locale is parsed and then
+  imported, so its top-level code runs. What stays invisible is a key that
+  reaches `t()` (or an `i18n` / `data-i18n*` value) through an UNMARKED
+  `let`, a call the reader does not follow or a computed string
+  (`let k = "x"; t(k)`, `t("state " + s)`), and a window's `title` given as
+  an attribute at `gobj_create`: no check sees it and nothing fails. Check
+  those on the page.
 - **Every text goes through i18n — and must be able to CHANGE language.**
   Passing a string through `t()` once is NOT enough: `refresh_language()` only
   re-translates a node that **carries its key**, so anything composed at render

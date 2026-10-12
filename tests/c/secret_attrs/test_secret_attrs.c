@@ -920,6 +920,56 @@ PRIVATE void check_log_dumps(hgobj gobj)
     );
 
     /*
+     *  write-attr reads its value text AS the attribute's type, as the
+     *  parser reads a parameter of that type (REV-CLOUD V21.3.6): strtoll()
+     *  wrote "12abc" as 12
+     */
+    json_int_t pin_before = gobj_read_integer_attr(holder, "pin");
+    resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=pin value=12abc",
+        json_object(), gobj
+    );
+    check_int("write-attr of a text that is no integer: refused",
+        (int)kw_get_int(0, resp, "result", 0, 0), -1);
+    JSON_DECREF(resp)
+    check_int("write-attr refused: the attribute unchanged",
+        (int)gobj_read_integer_attr(holder, "pin"), (int)pin_before);
+    resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=pin value=4242",
+        json_object(), gobj
+    );
+    check_int("write-attr of an integer text: written",
+        (int)gobj_read_integer_attr(holder, "pin"), 4242);
+    JSON_DECREF(resp)
+
+    /*
+     *  The `set` of a trace command takes text or json (DTP_JSON): `set=yes`
+     *  was atoi()'d to a RESET, and a GUI's `set: 1` was refused for not
+     *  being a text (REV-CLOUD V21.3.6)
+     */
+    resp = gobj_command(gobj_yuno(), "set-global-trace",
+        json_pack("{s:s, s:i}", "level", "start_stop", "set", 1), gobj);
+    check_int("set-global-trace set: 1 (json) sets",
+        (gobj_global_trace_level() & TRACE_START_STOP)? 1 : 0, 1);
+    JSON_DECREF(resp)
+    resp = gobj_command(gobj_yuno(), "set-global-trace level=start_stop set=no", 0, gobj);
+    check_int("set-global-trace set=no resets",
+        (gobj_global_trace_level() & TRACE_START_STOP)? 1 : 0, 0);
+    JSON_DECREF(resp)
+    resp = gobj_command(gobj_yuno(), "set-global-trace level=start_stop set=yes", 0, gobj);
+    check_int("set-global-trace set=yes sets",
+        (gobj_global_trace_level() & TRACE_START_STOP)? 1 : 0, 1);
+    JSON_DECREF(resp)
+    resp = gobj_command(gobj_yuno(), "set-global-trace level=start_stop set=maybe", 0, gobj);
+    check_int("set-global-trace set=maybe: refused",
+        (int)kw_get_int(0, resp, "result", 0, 0), -1);
+    JSON_DECREF(resp)
+    resp = gobj_command(gobj_yuno(), "set-global-trace level=start_stop set=reset", 0, gobj);
+    check_int("set-global-trace set=reset resets",
+        (gobj_global_trace_level() & TRACE_START_STOP)? 1 : 0, 0);
+    JSON_DECREF(resp)
+
+    /*
      *  The names: what names something ABOUT a credential is not one
      */
     check_true("access_token is a secret's name", is_secret_name("access_token", 12));

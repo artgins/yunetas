@@ -16,12 +16,13 @@ What it checks:
 - The links a person adds to a seed afterwards CAN be cut, and a record no
   seed hangs from can be deleted.
 - A second start creates nothing and writes no link.
-- `print-tranger` walks the `path` it is handed itself: a segment longer than
-  255 bytes and a segment under a string (`` directory`x ``) are refused with
-  `-1` and a WARNING *"print-tranger path refused"* (they were ERRORs of
-  `kw_find_path()`), and a string at the end of the path (`directory`) is
-  answered as it is (it was an ERROR of `kw_collapse()`). The test installs
-  an authz checker that grants every permission: `print-tranger` asks `read`.
+- A `print-tranger` path that is not there -- a segment longer than 255
+  bytes, a segment under a string (`` directory`x ``) -- answers `-1` and logs
+  nothing: `kw_find_path()` walks any path in a loop (C_NODE walked it itself
+  and refused those with a WARNING, where `kw_find_path()` logged ERRORs); a
+  string at the end of the path (`directory`) is answered as it is (it was an
+  ERROR of `kw_collapse()`). The test installs an authz checker that grants
+  every permission: `print-tranger` asks `read`.
 
 What a seed gets wrong is a WARNING when the seeds are a peer's (an
 `open-treedb` from outside); that case is tested in

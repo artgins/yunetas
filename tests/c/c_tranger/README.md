@@ -53,11 +53,16 @@ What it checks:
     `tranger2_record_tkey_time()`;
   - a key that is a path (`open-iterator`, `open-list`, `open-rt`), a time
     bound that is a dict (and an integer one, taken);
-  - `print-tranger` paths that `kw_find_path()` logged an ERROR for, and a
-    string at the end of a path, answered as it is;
+  - a `print-tranger` path that is not there -- a segment of 300 bytes, a
+    segment under a string --, answered `-1` with no log (`kw_find_path()`
+    walks any path in a loop; they were refused with a WARNING, where it
+    logged an ERROR), and a string at the end of a path, answered as it is;
   - a one-shot `open-list` whose `list_id` is the name of the service reads
     a key that has an iterator open;
-  - `check-json` asks `read`, and a `-403` names the yuno first;
+  - `check-json` asks `read`, and a `-403` names the yuno first; it ANSWERS
+    what it finds (`json_refcounts_report()`: the jsons walked, none
+    corrupted; with `max_refcount=1`, `-1` exactly when it reports some, at
+    most 20 shown) and logs nothing;
   - the same refusal from C code (no `__username__`) is an ERROR.
 - **A replica** -- a master that lost its lock reads as a replica, and
   `delete-key`, `delete-topic` and the `create-topic` of a new topic answer

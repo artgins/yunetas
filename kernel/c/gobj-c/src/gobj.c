@@ -10543,7 +10543,9 @@ PUBLIC json_t *gobj_build_authzs_doc(
     if(!empty_string(service)) {
         hgobj service_gobj = gobj_find_service(service, FALSE);
         if(!service_gobj) {
-            jn_authzs = json_sprintf("Service not found: '%s'", service);
+            jn_authzs = json_sprintf("Service not found: '%.*s'",
+                utf8_prefix_len(service, 64), service
+            );
         } else {
             jn_authzs = find_authzs(service_gobj, authz, FALSE);
             if(!jn_authzs) {
@@ -10557,7 +10559,7 @@ PUBLIC json_t *gobj_build_authzs_doc(
                         "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "authz not found, refused",
                         "service",      "%s", service,
-                        "authz",        "%s", authz,
+                        "authz",        "%.*s", utf8_prefix_len(authz, 64), authz,
                         NULL
                     );
                     jn_authzs = json_sprintf(

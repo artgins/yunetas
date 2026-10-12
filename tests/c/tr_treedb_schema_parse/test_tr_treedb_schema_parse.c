@@ -565,6 +565,81 @@ PRIVATE int test_open(void)
     }
     result += test_json(NULL);
 
+    /*
+     *  The names that go into a reference, `topic^id^hook`: a '^' in the
+     *  name of the topic or of a hook split every ref to its nodes in more
+     *  than three parts. And a pkey2 is the value of the column of its
+     *  name: one that names no column indexed nothing (REV-CLOUD V21.2.2).
+     *  An ERROR for a C caller, a WARNING inside the window of a peer's.
+     */
+    set_expected_results(
+        "create-topic refuses a '^' in a name of its refs, and a pkey2 of no column",
+        json_pack("[{s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}]",
+            "msg", "Topic refused: a name of its references or of its keys", "__priority__", "ERROR",
+            "msg", "Topic refused: a name of its references or of its keys", "__priority__", "ERROR",
+            "msg", "Topic refused: a name of its references or of its keys", "__priority__", "ERROR",
+            "msg", "Topic refused: a name of its references or of its keys", "__priority__", "WARNING"
+        ),
+        NULL, NULL, 1
+    );
+    struct {
+        const char *topic_name;
+        const char *hook_name;
+        const char *pkey2;
+        BOOL peer;
+    } bad_refs[] = {
+        {"ref^notes", "kids", "", FALSE},
+        {"ref_notes", "kids^x", "", FALSE},
+        {"ref_notes", "kids", "w", FALSE},
+        {"ref_notes", "kids", "w", TRUE},
+        {NULL, NULL, NULL, FALSE}
+    };
+    for(int i = 0; bad_refs[i].topic_name; i++) {
+        BOOL peer_data = bad_refs[i].peer? treedb_set_peer_data(TRUE) : FALSE;
+        json_t *jn_cols = json_pack("{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s]}}",
+            "id", "header", "Id", "type", "string", "flag", "persistent",
+            "v", "header", "V", "type", "string", "flag", "persistent"
+        );
+        json_object_set_new(jn_cols, bad_refs[i].hook_name, json_pack("{s:s, s:s, s:[s], s:{s:s}}",
+            "header", "Kids", "type", "dict", "flag", "hook",
+            "hook", bad_refs[i].topic_name, "v"
+        ));
+        topic = treedb_create_topic(
+            tranger, TREEDB_NAME, bad_refs[i].topic_name, 1, "",
+            empty_string(bad_refs[i].pkey2)? 0 : json_string(bad_refs[i].pkey2),   // owned
+            jn_cols,    // owned
+            0, FALSE, FALSE
+        );
+        if(bad_refs[i].peer) {
+            treedb_set_peer_data(peer_data);
+        }
+        char path[PATH_MAX];
+        tranger2_topic_path(path, sizeof(path), tranger, bad_refs[i].topic_name);
+        if(topic || is_directory(path)) {
+            printf("%sERROR%s --> treedb_create_topic() accepted a name of its refs or keys (case %d)\n",
+                On_Red BWhite, Color_Off, i);
+            result += -1;
+        }
+    }
+    result += test_json(NULL);
+
+    /*
+     *  An id is a string: an integer was read with an ERROR of kw_get_str()
+     *  and the node made with no id, or a uuid (REV-CLOUD V21.2.4)
+     */
+    set_expected_results(
+        "create-node refuses an id that is not a string",
+        json_pack("[{s:s, s:s}]",
+            "msg", "Field 'id' must be a string", "__priority__", "ERROR"
+        ),
+        NULL, NULL, 1
+    );
+    if(treedb_create_node(tranger, TREEDB_NAME, TOPIC_NAME, json_pack("{s:i}", "id", 5))) {
+        printf("%sERROR%s --> treedb_create_node() took an integer id\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
     set_expected_results("close and shutdown", NULL, NULL, NULL, 1);
     treedb_close_db(tranger, TREEDB_NAME);
     tranger2_shutdown(tranger);

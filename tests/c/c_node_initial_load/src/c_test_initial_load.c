@@ -694,13 +694,16 @@ PRIVATE int run_tests(hgobj gobj)
     result += check_seed_state(gobj, "after second start");
 
     /*-----------------------------------------------*
-     *  11. The path a peer hands print-tranger is
-     *      walked by C_NODE: refused with a WARNING
-     *      where kw_find_path() logged an ERROR (a
-     *      segment longer than its buffer, a segment
-     *      under a string), and a string at the end
-     *      is answered as it is (kw_collapse() logged
-     *      an ERROR) (REV-CLOUD V20.15)
+     *  11. A path a peer hands print-tranger that is
+     *      not there -- a segment longer than 255
+     *      bytes, a segment under a string -- is
+     *      said by the answer only: kw_find_path()
+     *      walks any path in a loop and, verbose
+     *      FALSE, logs nothing (REV-CLOUD V21.2.4;
+     *      C_NODE walked it and refused it with a
+     *      WARNING, V20.15). A string at the end is
+     *      answered as it is (kw_collapse() logged
+     *      an ERROR)
      *-----------------------------------------------*/
     {
         char long_path[300 + sizeof("`y")];
@@ -711,7 +714,7 @@ PRIVATE int run_tests(hgobj gobj)
             json_t *jn_resp = gobj_command(node, "print-tranger",
                 json_pack("{s:s}", "path", bad_paths[i]), gobj);
             if(kw_get_int(gobj, jn_resp, "result", 0, 0) != -1) {
-                result += fail(gobj, "print-tranger of a bad path was not refused");
+                result += fail(gobj, "print-tranger of a path not there was not answered -1");
             }
             JSON_DECREF(jn_resp)
         }

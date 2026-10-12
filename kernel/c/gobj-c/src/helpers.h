@@ -747,6 +747,25 @@ PUBLIC int json_check_refcounts(
 );
 
 /**rst**
+    What the refcounts of a json say, as a REPORT, logging nothing: the jsons
+    held more than `max_refcount` times (0: not asked) and the corrupted ones
+    (refcount 0, or a type jansson does not have), with the kw path of the
+    first `max_shown`. Each json is walked ONCE, in a loop: a json held in
+    several places (a node of a treedb is in its indexes and in the hooks of
+    its parents) is reported once, and a cycle (two nodes in each other's
+    hooks) does not loop the walk. A NEW json, NULL if `jn` is NULL:
+
+        {"max_refcount": 1, "jsons": 431, "corrupted": 0, "over_max": 27,
+         "shown": [{"path": "topics`users`...", "refcount": 2,
+                    "fault": "over_max"}, ...]}
+**rst**/
+PUBLIC json_t *json_refcounts_report(
+    json_t *jn, // not owned
+    int max_refcount,
+    int max_shown
+);
+
+/**rst**
     Check deeply the refcount of kw
 **rst**/
 PUBLIC int json_print_refcounts(

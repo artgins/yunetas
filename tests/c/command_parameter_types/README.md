@@ -10,13 +10,21 @@ the command, a WARNING when a peer does (its kw carries `__username__`).
 |---|---|---|
 | `DTP_STRING` | a string | the text |
 | `DTP_DICT` / `DTP_LIST` | a json object / array | its json |
-| `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean | a number with nothing after it; a boolean as true/false, yes/no, on/off or a number |
+| `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, handed on as the EXACT type | a number with nothing before or after it, in its range; a boolean as true/false, yes/no, on/off or a number |
 | `DTP_JSON` | anything | its json, or the text as a string; a text that starts as json and breaks is refused |
 
-A `null` is no value (but for a `DTP_JSON`, which keeps it): the parameter
-takes its default, or is missing, and a `SDF_REQUIRED` one answers that it is
-required. A value of kw that is refused is overridden by the same parameter
-on the line.
+The exact type: a number given to a `DTP_BOOLEAN` is `true` unless 0, a
+boolean given to a `DTP_INTEGER` or a `DTP_REAL` is 1 or 0, a real given to a
+`DTP_INTEGER` is that integer -- and one with decimals (`2.7`), or past 64
+bits, is refused, as its text is --, an integer given to a `DTP_REAL` is a
+real. As it came, a `1` reached a `kw_get_bool()` that logged an ERROR.
+
+A `null` is no value (but for a `DTP_JSON`, which keeps it), and so is an
+empty text given in kw to a number: the parameter takes its default, or is
+ABSENT from the handler's kw (the `""` used to reach it), and a
+`SDF_REQUIRED` one answers that it is required. A value of kw that is refused
+is overridden by the same parameter on the line, and does not reach the
+handler under its name.
 
 The cases, one each: a string given a number (by C, an ERROR; by a peer, a
 WARNING); a dict given a list (in kw and on the line) and given its json as
@@ -27,7 +35,14 @@ a real given its text and other text; a boolean given `yes`, `off`, `1` and
 json as text, a number, and json written wrong (`j={"a":1`, refused); a
 `null` for a string (the default) and for a boolean with no default (absent);
 a required boolean given its text, a required one given `null`, a required
-string given a list. And no leak.
+string given a list. The exact type: a boolean given `1`, `0` and `2.5`, an
+integer given `true`, `2.0`, `2.7` (refused) and `1e30` (refused, from a
+peer), a real given `3` and `true`. Text: an integer past 64 bits (in kw and
+on the line), with a blank before and after, a real `nan`, `inf` and `1e999`
+(all refused). An empty real and boolean in kw with no default (absent), and
+a refused `s` the line gives as `S` (absent under `s`).
+`command_parameter_from_text()`: `yes`, `12abc` (refused, and why), `-3.5`,
+an empty integer (0). And no leak.
 
 ```C
 /*  a peer's kw: one WARNING, -1, and the handler never runs  */

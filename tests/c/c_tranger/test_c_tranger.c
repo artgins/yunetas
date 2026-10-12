@@ -36,10 +36,11 @@
  *        database, a new topic_version over a system topic, a record that
  *        is not a dict, a key that is a path (open-iterator, open-list,
  *        open-rt), a time bound that is a dict (and an integer one, taken),
- *        the paths of print-tranger kw_find_path() logs an ERROR for (and a
- *        string at the end, answered); a one-shot open-list named as the
- *        service reads a key the service has an iterator open on;
- *        check-json asks `read`, and a -403 names the yuno first; a new
+ *        a print-tranger path that is not there, of any length, answered
+ *        with no log (and a string at the end, answered); a one-shot
+ *        open-list named as the service reads a key the service has an
+ *        iterator open on; check-json asks `read`, a -403 names the yuno
+ *        first, and it ANSWERS what it finds, logging nothing; a new
  *        topic_version of a topic that exists without its jn_cols (its
  *        columns were written empty) or over a topic of a treedb (its schema
  *        is the treedb's), while a plain topic with its jn_cols still takes
@@ -2563,6 +2564,26 @@ PRIVATE int do_test(void)
     g_deny_authz = NULL;
     global_result += test_json(NULL);
 
+    /*  And what it finds is its ANSWER, logging nothing (REV-CLOUD V21.2.3):
+     *  json_check_refcounts() logged an ERROR for every json held more than
+     *  max_refcount times. By default it looks for corrupted jsons only.  */
+    set_expected_results("check-json answers", json_array(), NULL, NULL, 1);
+    r = gobj_command(yuno, "check-json", json_object(), yuno);
+    check_int("check-json: nothing corrupted", kw_get_int(0, r, "result", -999, 0), 0);
+    json_t *jn_report = kw_get_dict(0, r, "data", 0, 0);
+    check_bool("check-json: the jsons walked", kw_get_int(0, jn_report, "jsons", 0, 0) > 0, TRUE);
+    check_int("check-json: none corrupted", kw_get_int(0, jn_report, "corrupted", -1, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "check-json", json_pack("{s:i}", "max_refcount", 1), yuno);
+    jn_report = kw_get_dict(0, r, "data", 0, 0);
+    json_int_t over_max = kw_get_int(0, jn_report, "over_max", -1, 0);
+    check_int("check-json max_refcount=1: answers what it found",
+        kw_get_int(0, r, "result", -999, 0), over_max > 0? -1 : 0);
+    check_bool("check-json max_refcount=1: shows at most 20",
+        json_array_size(kw_get_list(0, jn_report, "shown", 0, 0)) <= 20, TRUE);
+    JSON_DECREF(r)
+    global_result += test_json(NULL);
+
     /*-------------------------------------------------*
      *      add-record: a record appended to a topic. Up to 7.25.4 it
      *      was a stub that answered -1 "Pending to review" and logged an
@@ -2757,8 +2778,9 @@ PRIVATE int do_test(void)
      *      CRITICAL, an exit of the yuno), a new topic_version over a
      *      SYSTEM topic (it took its mark), a record that is not a dict
      *      (-1 with no log), a key that is a path (it read another key),
-     *      a time bound of a wrong type (and an integer one, taken now),
-     *      and the paths of print-tranger kw_find_path() logs an ERROR for.
+     *      a time bound of a wrong type (and an integer one, taken now);
+     *      and a print-tranger path that is not there, answered with no
+     *      log (it was refused, where kw_find_path() logged an ERROR).
      *      A one-shot open-list named as this service read the key of an
      *      open iterator: "Iterator already exists", and the key left out.
      *-------------------------------------------------*/
@@ -2777,8 +2799,9 @@ PRIVATE int do_test(void)
         json_t *opened = expect_role_warnings(3);   // Iterator opened, List loaded, Iterator closed
         json_array_extend(expected, opened);
         JSON_DECREF(opened)
-        expect_refusal(expected, "print-tranger path refused");     // a segment too long
-        expect_refusal(expected, "print-tranger path refused");     // under a string
+        json_t *not_there = expect_role_warnings(2);    // two print-tranger paths not there, no log
+        json_array_extend(expected, not_there);
+        JSON_DECREF(not_there)
         expect_refusal(expected, "topic of a wrong shape, create refused");  // a version, no jn_cols
         json_t *created = expect_role_warnings(1);  // the version WITH its jn_cols, taken
         json_array_extend(expected, created);
@@ -2885,15 +2908,19 @@ PRIVATE int do_test(void)
     check_int("close-iterator of key C", kw_get_int(0, r, "result", -999, 0), 0);
     JSON_DECREF(r)
 
+    /*  A path that is not there, of any length or under a string, is said
+     *  by the answer only: kw_find_path() walks it in a loop and, with
+     *  verbose FALSE, logs nothing (REV-CLOUD V21.2.4). They were refused
+     *  with a WARNING here, where kw_find_path() logged an ERROR.  */
     {
         char long_path[300 + sizeof("`y")];
         memset(long_path, 'x', 300);
         snprintf(long_path + 300, sizeof(long_path) - 300, "`y");
         r = gobj_command(yuno, "print-tranger", as_peer(json_pack("{s:s}", "path", long_path)), yuno);
-        check_refused("print-tranger with a segment longer than 255 bytes", r);
+        check_refused("print-tranger of a segment longer than 255 bytes: not found", r);
     }
     r = gobj_command(yuno, "print-tranger", as_peer(json_pack("{s:s}", "path", "directory`x")), yuno);
-    check_refused("print-tranger with a path under a string", r);
+    check_refused("print-tranger of a path under a string: not found", r);
     r = gobj_command(yuno, "print-tranger", as_peer(json_pack("{s:s}", "path", "directory")), yuno);
     check_int("print-tranger of a string", kw_get_int(0, r, "result", -999, 0), 0);
     check_str("is the string", json_string_value(json_object_get(r, "data")), path_database);

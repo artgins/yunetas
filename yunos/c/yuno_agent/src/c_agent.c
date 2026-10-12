@@ -791,7 +791,7 @@ SDATA_END()
 
 PRIVATE sdata_desc_t pm_check_json[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_INTEGER, "max_refcount",   0,              0,          "Maximum refcount"),
+SDATAPM (DTP_INTEGER, "max_refcount",   0,              "0",        "Also report the jsons held more than this many times (0: only the corrupted ones)"),
 SDATA_END()
 };
 
@@ -6725,16 +6725,44 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int max_refcount = kw_get_int(gobj, kw, "max_refcount", 1, KW_WILD_NUMBER);
+    /*
+     *  What it finds is the ANSWER, as C_TRANGER's check-json: an ERROR per
+     *  json held more than max_refcount times (with the old default 1,
+     *  every node of the agent's treedb) filled the log (REV-CLOUD V21.2.3)
+     */
+    int max_refcount = (int)kw_get_int(gobj, kw, "max_refcount", 0, 0);
 
     json_t *tranger = gobj_read_pointer_attr(priv->resource, "tranger");
-    int result = 0;
-    json_check_refcounts(tranger, max_refcount, &result);
+    json_t *jn_report = json_refcounts_report(tranger, max_refcount, 20);
+    if(!jn_report) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: no tranger to check", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );  // Error already logged
+    }
+    json_int_t corrupted = kw_get_int(gobj, jn_report, "corrupted", 0, 0);
+    json_int_t over_max = kw_get_int(gobj, jn_report, "over_max", 0, 0);
+    if(corrupted > 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Corrupted jsons in the tranger",
+            "corrupted",    "%" JSON_INTEGER_FORMAT, corrupted,
+            NULL
+        );
+    }
     return msg_iev_build_response(gobj,
-        result,
-        json_sprintf("check refcounts of tranger: %s", result==0?"Ok":"Bad"),
+        (corrupted > 0 || over_max > 0)? -1 : 0,
+        json_sprintf(
+            "%s: check refcounts of tranger: %" JSON_INTEGER_FORMAT " corrupted, "
+            "%" JSON_INTEGER_FORMAT " held more than %d times",
+            gobj_yuno_role_plus_name(), corrupted, over_max, max_refcount
+        ),
         0,
-        0,
+        jn_report,  // owned
         kw  // owned
     );
 }

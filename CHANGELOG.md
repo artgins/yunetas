@@ -139,7 +139,7 @@ Out of the nineteenth review (V19):
 
 Out of the twentieth review (V20):
 
-- **The command parser types every parameter** (V20.4.1,
+- **BREAKING: the command parser types every parameter** (V20.4.1,
   `command_parser.c`), required or optional, from the line, the kw or its
   default alike. A `DTP_STRING` must be a string, a `DTP_DICT` an object, a
   `DTP_LIST` an array; a `DTP_INTEGER`/`DTP_REAL`/`DTP_BOOLEAN` takes a
@@ -179,9 +179,10 @@ Out of the twentieth review (V20):
   options logged an ERROR** (V20.4.3). `replace_links_in_memory` warns about
   an absent fkey only when it drops the links the node had (V20.4.4: an
   `import-db` of valid records warned for each).
-- `kw_find_path_depth()` with `verbose` FALSE logs nothing (a peer's
-  `print-tranger path=` reached it); `authzs authz=<unknown>` answers with a
-  WARNING, not an ERROR, and caps the name.
+- `kw_find_path()` with `verbose` FALSE logs nothing for a path that is not
+  there (a peer's `print-tranger path=` reached it; see V21 below for the
+  last two cases); `authzs authz=<unknown>` answers with a WARNING, not an
+  ERROR, and caps the name.
 - **`C_TRANGER` and `C_TREEDB` refuse what a peer gets wrong, with a
   WARNING, before the library** (V20.4.2; five passes of fixes and
   adversarial checks), and a C caller keeps its ERROR -- with a stack -- and
@@ -246,7 +247,9 @@ Out of the twentieth review (V20):
     published whole.
   - `tr_treedb`: new `treedb_check_new_topic()` and
     `treedb_check_file_hooks()`; `treedb_create_topic()` takes its version as
-    `json_int_t` (callers compile unchanged) and refuses a NEW topic with a
+    `json_int_t` (callers compile unchanged; an ABI change: an object built
+    against the old header, with an `int` there, passes garbage in the high
+    32 bits -- rebuild it) and refuses a NEW topic with a
     pkey2 that is `id`, the tkey or repeated, or a list id that does not
     fit; a topic already on disk with those faults opens as before, with an
     ERROR per fault. Versions are 64-bit in `treedb_open_db()`.
@@ -271,6 +274,80 @@ Out of the twentieth review (V20):
   of the library), a toolbar keeps its states across a rebuild, and every
   click crosses the FSM (new INPUT events, no new output event). gui_agent
   0.29.42, gui_treedb 0.17.109; every SPA on `^7.26.28` and deployed.
+
+Out of the twenty-first review (V21):
+
+- **The parser hands the handler the EXACT type** (V21.3.2). A number given
+  to a `DTP_BOOLEAN` is `true` unless 0, a boolean given to a `DTP_INTEGER`
+  or a `DTP_REAL` is 1 or 0, a real given to a `DTP_INTEGER` is that integer
+  (`2.0` -> 2), an integer given to a `DTP_REAL` a real. **A real with
+  decimals given to a `DTP_INTEGER` is refused**, as its text `"2.7"` is, and
+  so is a real past 64 bits. As it came, a GUI's `"force": 1` reached a
+  `kw_get_bool()` with no `KW_WILD_NUMBER` that logged an ERROR with a stack
+  and took the default. **A number written as text** has nothing before or
+  after it (`" 5"` was taken, `"5 "` refused) and is in its range:
+  `limit=99999999999999999999` was saturated in silence to 2^63-1, and
+  `nan`, `inf`, `1e999` are refused (V21.3.3). **An empty text given in kw to
+  a number with no default is absent** (V21.3.4: `kw_update_missing()` passed
+  the `""` on to the handler), and a value of kw that is refused does not
+  reach the handler under its name when the line gives it in another case.
+  The list of what a caller gets `-1` for since 7.26.10 is in
+  `command_parser.md` (*What a caller must send*).
+- **The parser asks the per-command permission BEFORE the parameters**
+  (V21.3.8): with `enable_command_authz`, a caller without the permission
+  gets `-403`, never the diagnostic of a parameter. The checker is asked for
+  the command's NAME, and a denial logs and answers the name: it was handed
+  the whole line, with its parameters -- a password among them -- and logged
+  it. A permission a handler asks itself (`C_TREEDB`'s `create`, `C_NODE`'s
+  `read`) is still asked after the typing: the parser does not know it.
+- New `command_parameter_from_text()`: a text read as a type, as the parser
+  reads a parameter. **fix: `write-attr` wrote `value=yes` as FALSE**, `abc`
+  as 0 and `12abc` as 12 (`atoi()`, `strtoll()`): a boolean, integer or real
+  attribute takes its value text read that way, or `-1` and nothing written.
+  The `set` of the yuno's trace commands is `DTP_JSON` and takes text or json
+  -- `1`/`true`/`set`/`yes`/`on`, `0`/`false`/`reset`/`no`/`off`, a level --:
+  **fix: `set=yes` was a reset**, and a GUI's `set: 1` was refused.
+- **`kw_find_path()` walks the path in a loop** (V21.2.4): it recursed once
+  per segment and was cut at 64 segments and at a segment of 255 bytes, each
+  one an ERROR even with `verbose` FALSE, and a path that is there answered
+  as not found. `print-tranger` of `C_TRANGER` and of `C_NODE` call it now
+  (they walked the path themselves and refused those with a WARNING).
+- **`check-json` answers what it finds, and logs nothing** (V21.2.3; in
+  `C_TRANGER` and in the agent): new `json_refcounts_report()`, the counts
+  and the first 20 with their path, each json walked once, in a loop.
+  `json_check_refcounts()` logged an ERROR for each json held more than
+  `max_refcount` times (default 1: every node of a treedb), and recursed
+  round a cycle of hooks for ever. Its default is `0` now: corrupted jsons
+  only, the one fault that is also logged.
+- **A peer's treedb name is not a name of the store** (V21.2.1,
+  `tranger2_reserved_name_fault()`): a treedb `.x` opened and its projection
+  in `__system__` was refused with an ERROR (an id cannot start with `.`);
+  `x.json` and `x.bak` too. **A peer's schema is the treedb's**: one whose
+  `id` names another treedb is refused (V21.2.2).
+- **`tr_treedb`: a NEW topic with a `^` in its name or in the id of a hook,
+  a hook id of `NAME_MAX` or more, or a pkey2 that names no column, is
+  refused** (V21.2.2): every reference to its nodes (`topic^id^hook`) was
+  undecodable, and the index of such a pkey2 held nothing. A topic on disk
+  with them opens as it was, with an ERROR naming the fault.
+  `treedb_create_node()` refuses an `id` that is not a string (an integer
+  was an ERROR of `kw_get_str()`, and the node got a uuid in silence).
+- `authzs`: the WARNING caps the authz name, and the answer caps a service
+  that is not there.
+- `command_parser.md` writes who is a peer -- a kw with `__username__`, which
+  `C_IEVENT_SRV` stamps -- and what follows from it (V21.2.6): a command
+  that comes in by a `C_IEVENT_CLI` link is the server's, a C caller here
+  when the server is not an agent, and "the same user" of `force` is one
+  identity of an agent.
+- **JS layer: gobj-ui 7.26.29** (V21.4). The test FINDS every library
+  function that hands a key on (to `t()`, an `i18n` / `data-i18n*` value or a
+  key position) and fails until it is in `I18N_KEY_FUNCTIONS`: 39 were
+  missing, so a literal handed to one went unasked. `validate-locales` holds
+  an APP's own code to the per-call rule, knows DOM by where it comes from,
+  fails a translated text at a key position (`t("install this app")` handed
+  to the install prompt never changed language, in four apps), and fails a
+  `data` marker over what it can read as keys; a published list may spread
+  one of its module; `acorn` is a dependency. gui_agent 0.29.43, gui_treedb
+  0.17.110; every SPA on `^7.26.29` and deployed.
 
 ## v7.26.9 (2026-10-11)
 

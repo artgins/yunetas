@@ -100,7 +100,10 @@ The test drives `C_TREEDB` through its own commands and checks:
      a CRITICAL); pkey2s that collide or break the column rule; names too
      long for the lists of the indexes (the 108-byte treedb name); a
      `filename_mask` that is a path or more than one file name; a treedb of
-     the system's namespace (`__system__`); `initial_load` of a wrong shape;
+     the system's namespace (`__system__`), or named as what a store keeps
+     (`.x`: its node in `__system__` was refused with an ERROR, and it ran
+     with no projection; `x.json`); a schema whose `id` is another treedb's;
+     `initial_load` of a wrong shape;
      a value of a wrong type from a user with no permission, refused by the
      parser before the command's own permission check; and the seeds of
      `initial_load`, a peer's data in an external `open-treedb` (WARNINGs,

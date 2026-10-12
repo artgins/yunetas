@@ -9,6 +9,13 @@
  *            2. attr on, no permission     -> command DENIED (-403), not run
  *            3. attr on, self src (==gobj) -> bypass, command runs
  *            4. attr on, permission granted-> command runs
+ *            5. the permission is asked BEFORE the parameters are read
+ *               (REV-CLOUD V21.3.8): without it, a parameter of the wrong
+ *               type still answers -403, never its diagnostic; with it,
+ *               the parameter is refused (-1); and the checker is asked
+ *               for the command's NAME, not its line (the line, with its
+ *               parameters, was what it was given and what a denial
+ *               logged -- a password among them)
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -25,6 +32,7 @@
 PRIVATE int  global_result = 0;
 PRIVATE BOOL g_allow = FALSE;   /* verdict returned by the test authz checker */
 PRIVATE int  g_executed = 0;    /* incremented by the guarded command */
+PRIVATE char g_checked_command[64] = {0};   /* the `command` the checker was asked for */
 
 GOBJ_DEFINE_GCLASS(C_AUTHZTEST);
 
@@ -41,6 +49,9 @@ PRIVATE json_t *cmd_secret(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 /* Owns kw (contract: the checker frees it). Returns the controllable verdict. */
 PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj src)
 {
+    snprintf(g_checked_command, sizeof(g_checked_command), "%s",
+        json_string_value(json_object_get(kw, "command"))?
+            json_string_value(json_object_get(kw, "command")) : "");
     KW_DECREF(kw)
     return g_allow;
 }
@@ -48,8 +59,14 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
 /***************************************************************
  *              GClass scaffolding
  ***************************************************************/
+PRIVATE sdata_desc_t pm_typed[] = {
+SDATAPM (DTP_INTEGER, "n", 0, 0, "an integer"),
+SDATA_END()
+};
+
 PRIVATE sdata_desc_t command_table[] = {
 SDATACM2(DTP_SCHEMA, "secret", SDF_AUTHZ_X, 0, 0, cmd_secret, "guarded command"),
+SDATACM2(DTP_SCHEMA, "typed", SDF_AUTHZ_X, 0, pm_typed, cmd_secret, "guarded command with a parameter"),
 SDATA_END()
 };
 
@@ -182,6 +199,22 @@ int main(int argc, char *argv[])
     g_allow = TRUE; g_executed = 0;
     r = gobj_command(yuno, "secret", EXT_KW(), src);
     check_int("ext allow runs", g_executed, 1);
+    JSON_DECREF(r)
+
+    /* Case 6: the permission first, then the parameters (REV-CLOUD V21.3.8) */
+    g_allow = FALSE; g_executed = 0; g_checked_command[0] = 0;
+    r = gobj_command(yuno, "typed n=abc",
+        json_pack("{s:s}", "__username__", "alice"), src);
+    check_int("no permission, a bad parameter: -403", (int)kw_get_int(0, r, "result", 0, 0), -403);
+    check_int("no permission, a bad parameter: not run", g_executed, 0);
+    check_int("the checker is asked for the name, not the line",
+        strcmp(g_checked_command, "typed"), 0);
+    JSON_DECREF(r)
+    g_allow = TRUE; g_executed = 0;
+    r = gobj_command(yuno, "typed n=abc",
+        json_pack("{s:s}", "__username__", "alice"), src);
+    check_int("permission, a bad parameter: -1", (int)kw_get_int(0, r, "result", 0, 0), -1);
+    check_int("permission, a bad parameter: not run", g_executed, 0);
     JSON_DECREF(r)
 
     /*

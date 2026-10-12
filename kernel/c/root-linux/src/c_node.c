@@ -43,13 +43,6 @@
         }                                                   \
     } while(0)
 
-/*
- *  The limits kw_find_path() logs an ERROR for (kwid.c), asked of the path
- *  of print-tranger before it (find_peer_path())
- */
-#define PEER_PATH_SEGMENT_MAX   255     // kw_find_path_depth(): char segment[256]
-#define PEER_PATH_DEPTH_MAX     64      // KW_MAX_PATH_DEPTH
-
 /***************************************************************************
  *              Structures
  ***************************************************************************/
@@ -125,7 +118,6 @@ PRIVATE BOOL refuse_peer_record(
     const char *topic_name,
     json_t *record
 );
-PRIVATE json_t *find_peer_path(hgobj gobj, json_t *kw, const char *path);
 
 PRIVATE int apply_initial_load(hgobj gobj);
 PRIVATE const char *seed_ref_fault(hgobj gobj, const char *ref, const char *child_topic);
@@ -5447,7 +5439,11 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *value = priv->tranger;
 
     if(!empty_string(path)) {
-        value = find_peer_path(gobj, value, path);
+        /*
+         *  A path of any length walked, and a path that is not there said by
+         *  the answer only (kw_find_path() with verbose FALSE logs nothing)
+         */
+        value = kw_find_path(gobj, value, path, FALSE);
         if(!value) {
             return msg_iev_build_response(gobj,
                 -1,
@@ -6966,63 +6962,6 @@ PRIVATE BOOL refuse_peer_hook_without_child_topic(
         NULL
     );
     return TRUE;
-}
-
-/***************************************************************************
- *  The value at `path` of the tranger json, the path a peer hands
- *  print-tranger: kw_find_path() style, segments joined by '`', a list
- *  indexed by the number of the segment. Walked HERE, a segment at a time,
- *  and refused with a WARNING where kw_find_path() logs an ERROR with a
- *  stack (kwid.c): a segment longer than its buffer, char[256] ("buffer
- *  too small"), more segments than KW_MAX_PATH_DEPTH, 64 ("max nesting
- *  depth exceeded"), and a segment under something that is not a dict or
- *  a list ("kw must be list or dict"). NULL when the path names nothing (a
- *  key that is not there is said by the answer only, as kw_find_path()
- *  with verbose FALSE did). The twin of C_TRANGER's.
- ***************************************************************************/
-PRIVATE json_t *find_peer_path(hgobj gobj, json_t *kw, const char *path)
-{
-    const char *why = NULL;
-    json_t *value = kw;
-    int depth = 0;
-    const char *p = path;
-    while(value) {
-        const char *d = strchr(p, '`');
-        size_t len = d? (size_t)(d - p) : strlen(p);
-        if(len > PEER_PATH_SEGMENT_MAX) {
-            why = "a segment of the path longer than 255 bytes";
-            break;
-        }
-        if(++depth > PEER_PATH_DEPTH_MAX) {
-            why = "a path of more than 64 segments";
-            break;
-        }
-        if(!json_is_object(value) && !json_is_array(value)) {
-            why = "a segment of the path under a value that is not a dict or a list";
-            break;
-        }
-        char segment[PEER_PATH_SEGMENT_MAX + 1];
-        snprintf(segment, sizeof(segment), "%.*s", (int)len, p);
-        json_t *next = json_is_object(value)?
-            json_object_get(value, segment) :
-            json_array_get(value, (size_t)atoi(segment));
-        if(!d) {
-            return next;    // NULL: not there
-        }
-        value = json_absent(next)? NULL : next;
-        p = d + 1;
-    }
-    if(why) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "print-tranger path refused",
-            "why",          "%s", why,
-            "path",         "%.64s", path,
-            NULL
-        );
-    }
-    return NULL;
 }
 
 /***************************************************************************
