@@ -114,6 +114,15 @@ Out of the nineteenth review (V19):
   use `utf8_prefix_len()`.
 - docs: the three new functions link to `main` until the next release
   repins them (they are not in 7.26.9).
+- **JS layer: gobj-ui 7.26.27.** A module publishes the keys it hands to
+  `t()` as data in an exported `<NAME>_I18N_KEYS` array, and
+  `validate-locales` asks for them wherever the module is mounted
+  (`yui_dev.js`: the 51 keys of the Developer window, of which yunomusica
+  lacked 35 -- added in its 10 languages). The 11 controls of the gobj tree's
+  property popovers are named and change language. `validate-locales`: a key
+  that only ends like a plural form is a key, ordinals per language, an
+  endonym only when it is a locale's `name`, a declared attr name no source
+  uses fails, tests are not read. gui_agent 0.29.41, gui_treedb 0.17.108.
 - **JS layer: gobj-ui 7.26.26.** `validate-locales` compares plurals per
   language (`Intl.PluralRules`), takes endonyms as literals, reads the app's
   `attr_keys` / `array_keys` from its `package.json` (the names of the
