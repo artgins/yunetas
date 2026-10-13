@@ -435,6 +435,13 @@ Out of the twenty-second review (V22):
   gui_agent 0.29.44 publishes the keys its monitor builds
   (`monitor ${control}`, `monitor confirm ${control}`), none of which was
   ever asked of the locales. Every SPA on `^7.26.32` and deployed.
+- **JS layer: gobj-ui 7.26.33.** fix: a `C_YUI_FORM` template field saved in
+  'exec' mode (a sub-form) is the dict its fields fill again, not `null`.
+  7.26.8 sent the sub-form's node through the json conversion like a field
+  somebody typed, which handed its `null` on, and `kw_set_dict_value()`
+  refused to write the fields below it: every save of an estadodelaire
+  device's settings wiped its alarm colours (one device, repaired from its
+  previous record). Every SPA on `^7.26.33` and deployed.
 
 ## v7.26.9 (2026-10-11)
 
