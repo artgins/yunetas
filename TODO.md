@@ -175,16 +175,35 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 - **The masking rule's limits** (C and JS alike). It over-masks ordinary trace
   text (`token=x is fine now` → `token=********`; a clause up to the next
-  `word=` disappears; `command_mask_secret_line()` hides its own ` <...>`
-  marker after a secret), and under-masks across a newline (`password=a
-  b\nuser=bob` shows `b`) and a later word containing `=` (`token=abc def==`
-  shows `def==`, base64 padding). The price of passwords with blanks.
-- **Secrets a trace cannot tell**: a credential in RECEIVED bytes that is
-  neither an HTTP credential header, nor a `name=value`, nor a json `"name":
-  value` with a secret's name; a credential cut between two reads (the masking
-  of received bytes is per buffer); and a parameter of a command for a REMOTE
-  service whose name is not a secret's name (no command table at hand says it
-  is `SDF_SECRET`).
+  `word=` disappears; a secret's name and a `:` is read as a label, so `Wrong
+  token: try again` → `Wrong token: ******** again`;
+  `command_mask_secret_line()` hides its own ` <...>` marker after a secret),
+  and under-masks across a newline (`password=a b\nuser=bob` shows `b`) and a
+  later word containing `=` (`token=abc def==` shows `def==`, base64 padding).
+  The price of passwords with blanks.
+- **The word after a bare `Bearer` that cannot be a credential is shown**, by
+  decision, so that prose is not masked (`the bearer of this letter`): when it
+  is not quoted, not after the scheme again, not under a secret's name and not
+  at the end of a dump, and it is shorter than 8 characters, prose of 8 to 23
+  (ASCII letters, each run lower case, upper case or capitalized, joined by
+  `-`, `.` or `/`) or dots only. So a real token that short or of that shape,
+  written bare in a text, shows (`sent Bearer abc123`); under
+  `Authorization:` or a secret's name it is masked whole. The agent's audit
+  record keeps its stricter reading (any word after `Bearer `). Rule and
+  examples: `string_helper.md`; to undo it, `scheme_credential()` in C and its
+  twin in gobj-js.
+- **A json KEY is judged as a name, never as a value**: a key that is itself a
+  credential (a dict keyed by tokens, `{"eyJ...": 1}`) is shown as it is
+  (`json_mask_secrets()`, C and JS).
+- **Secrets a trace cannot tell**: a credential in RECEIVED bytes that has no
+  shape the masking knows (an HTTP credential header, a `name=value` or a
+  `name: value` with a secret's name, a JWT or a JWE, the word after `Bearer`
+  or `Basic` that can be a credential); the rest of a credential cut between
+  two reads (the masking of received bytes is per buffer: a JWT or the word
+  after a scheme that reaches the END of a buffer is masked whatever its
+  shape, but what the next read brings is not); and a parameter of a command
+  for a REMOTE service whose name is not a secret's name (no command table at
+  hand says it is `SDF_SECRET`).
 
 ### Resolver
 

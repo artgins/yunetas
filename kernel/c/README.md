@@ -1796,7 +1796,7 @@ int yuneta_entry_point(
     const char *APP_DATETIME,
     const char *fixed_config,
     const char *variable_config,
-    int (*register_yuno_and_more)(void),
+    int (*register_yuno_and_more)(void),    // 0; < 0: a gclass refused, the yuno exits (7.26.10+)
     void (*cleaning_fn)(void)
 );
 
