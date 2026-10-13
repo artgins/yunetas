@@ -421,6 +421,20 @@ Out of the twenty-second review (V22):
   an ERROR of `kw_find_path()`; `kernel/c/README.md` lists
   `json_refcounts_report()`; `test_suite.md` and the comment of
   `treedb_check_new_topic()` brought up to date.
+- **JS layer: gobj-ui 7.26.32** (V22.2, V22.6). **fix: `validate-locales`
+  hung the build on a recursive helper** -- 7.26.29 re-read a function at
+  every call of it, and `label_of(n)` calling itself in three branches never
+  ended; what a function returns is read once now, and a recursion is not
+  followed. The table of key functions is CORRECT, not only complete (the
+  search from no table must find every entry), and the search fails on a
+  hand-off no position can name; ONE notion of a translator (an import alias,
+  a const or `.bind()` alias, `t?.()`, `.call()`; an array is a list of keys);
+  imports followed into the files the validator reads; a `data` marker that
+  would hide a key fails (a call mixing keys and data, an array of strings,
+  an imported literal); a published list is an `export const`, never mutated.
+  gui_agent 0.29.44 publishes the keys its monitor builds
+  (`monitor ${control}`, `monitor confirm ${control}`), none of which was
+  ever asked of the locales. Every SPA on `^7.26.32` and deployed.
 
 ## v7.26.9 (2026-10-11)
 

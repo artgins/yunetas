@@ -71,7 +71,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.29`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.32`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -1356,27 +1356,41 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   handed (gobj-ui 7.26.28+): at the key positions of every function in
   gobj-ui's `I18N_KEY_FUNCTIONS` (`src/i18n_key_functions.js`),
   `validate-locales` reads a string literal, a `const` bound to one, and
-  (7.26.29+) a call of a function of the same module whose every return is
-  one, `String(x)`, a lone `${x}`, a parameter's default. DOM at a key
+  (7.26.29+) a call of a function whose every return is one -- of the same
+  module, or (7.26.32+) imported from a file it reads --, `String(x)`, a lone
+  `${x}`, a parameter's default. What a function returns is read ONCE and a
+  recursion is not followed (7.26.29 re-read it at every call: a helper
+  calling itself in three branches hung the build). DOM at a key
   position is no key -- an array spec, `createElement2()` /
   `createOneHtml()` / `html_markup()` of gobj-js, `text_node()`,
   `document.createElement()`, or a const or `let` only ever given one --,
-  known by where it comes from, never by a variable's name. The table is
-  COMPLETE: gobj-ui's test finds every library function that hands a
-  parameter (or what it reads from one) to `t()`, an `i18n` / `code` /
-  `data-i18n*` value or a key position, and fails until it is listed; one
-  that nothing calls by name (an FSM action, a callback) marks its hand-off
+  known by where it comes from, never by a variable's name. A translator is
+  `t`/`tr`, `.t`, i18next's `t` under any import name, a const or `.bind()`
+  alias, called as `t?.()` or `t.call()` too; an array handed to it is a list
+  of keys. The table is COMPLETE and CORRECT (7.26.32): gobj-ui's test finds
+  every library function that hands a parameter on (`opts.title`,
+  `opts?.title`, a destructuring, `arguments[1]`, a copy `{...opts}`) to a
+  translator, an `i18n` / `code` / `data-i18n*` value or a key position, and
+  fails until it is listed; it fails on a hand-off no position can name (a
+  transformed key, `k.toLowerCase()`, an `Object.entries(opts)` walk) until it
+  is restructured or marked; and an entry nothing forwards to fails. One that
+  nothing calls by name (an FSM action, a callback) marks its hand-off
   instead. A key handed by table or variable is PUBLISHED by its module -- an
-  exported `<NAME>_I18N_KEYS` array of literals, which may spread another
-  const array of the module -- and the call is marked
+  `export const` array of literals (never a `let`, never mutated: a `.push()`
+  hid keys), which may spread another const array of the module -- and the
+  call is marked
   `/* i18n: <NAME>_I18N_KEYS */` (`/* i18n: data */` when what arrives is
   data no locale can list: a topic name, a backend's comment); a `data`
-  marker over what the reader follows to keys fails. **The rule is per call
+  marker over what the reader follows to keys fails, and so does one over a
+  call that MIXES keys and data, or over an array of string literals; a list
+  marker over a template (`` `monitor ${control}` ``) needs a key of the list
+  of that shape. **The rule is per call
   in the APP's own code too** (7.26.29+): an app key position given an
   unmarked `let`, an options variable, a concatenation or a parameter of its
   own wrapper fails `validate-locales`, with the file and the line -- and so
-  does a TRANSLATED text, `t("k")`, even marked: the function translates it
-  again and it never changes language, so hand it the key. An app's
+  does a TRANSLATED text, `t("k")` or any translator's, even marked: the
+  function translates it again and it never changes language, so hand it the
+  key. An app's
   functions are in no table: a wrapper of its own marks what it hands on,
   and its callers' literal keys are read only through a list the module
   publishes. The validator follows a literal, a `const` (a const table too,
@@ -1388,9 +1402,11 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   imported, so its top-level code runs. What stays invisible is a key that
   reaches `t()` (or an `i18n` / `data-i18n*` value) through an UNMARKED
   `let`, a call the reader does not follow or a computed string
-  (`let k = "x"; t(k)`, `t("state " + s)`), and a window's `title` given as
-  an attribute at `gobj_create`: no check sees it and nothing fails. Check
-  those on the page.
+  (`let k = "x"; t(k)`, `t("state " + s)`), a key stored on a DOM node or a
+  heap object and read back elsewhere, a translator or a key function reached
+  through a parameter or a `let`, and a window's `title` given as an
+  attribute at `gobj_create`: no check sees it and nothing fails. Check those
+  on the page.
 - **Every text goes through i18n — and must be able to CHANGE language.**
   Passing a string through `t()` once is NOT enough: `refresh_language()` only
   re-translates a node that **carries its key**, so anything composed at render
