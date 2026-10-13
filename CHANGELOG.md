@@ -348,6 +348,20 @@ Out of the twenty-first review (V21):
   `data` marker over what it can read as keys; a published list may spread
   one of its module; `acorn` is a dependency. gui_agent 0.29.43, gui_treedb
   0.17.110; every SPA on `^7.26.29` and deployed.
+- **JS layer: gobj-ui 7.26.30 and 7.26.31, and estadodelaire leaves v1.** The
+  v1 freeze of estadodelaire was lifted and its GUI moved to v2 (the
+  declarative shell), its plan in `estadodelaire/gui/MIGRACION_V2.md`;
+  hidraulia, now the last v1 consumer, is next. What it needed went into the
+  library: a menu entry carries a badge with a tone (`badge`, `badge_tone`,
+  `yui_shell_set_nav_item_badge()`, the toolbar's setter taking the tone
+  too; 7.26.30). And three bugs only a real app showed (7.26.31): a
+  `C_YUI_WINDOW` with no `$parent` mounted on `document.body`, above the
+  whole shell (`.yui-shell` is `position: fixed`, a stacking context of its
+  own), so the confirmation of a window's own close opened UNDER it, out of
+  reach -- it mounts in the shell's overlay layer now; Tabulator's header
+  filters and row boxes, and the fields of `C_YUI_FORM`, had an aria-label
+  and no title. Every SPA on `^7.26.31` and deployed, estadodelaire in the
+  deploy round.
 
 ## v7.26.9 (2026-10-11)
 
