@@ -456,7 +456,7 @@ Out of the twenty-second review (V22):
   measure can never match). A colour field is cleared to `#000000` rather
   than `null`, which Chrome logged once per colour field each time the form
   was filled. Every SPA on `^7.26.34` and deployed.
-- **JS layer: gobj-ui 7.26.35 to 7.26.38, gobj-js 7.26.20** (the
+- **JS layer: gobj-ui 7.26.35 to 7.26.40, gobj-js 7.26.20** (the
   twenty-third review, V23.3, V23.5, V23.6). gobj-ui: a window whose host
   names no `$parent`
   outlives a logout and the next shell takes it in -- since 7.26.31 it stayed
@@ -487,7 +487,16 @@ Out of the twenty-second review (V22):
   question is over -- put back at once, it went above the question's own, and
   every Back stacked one more question (the treedb record form in its phone
   sheet; estadodelaire's device views, sheets on a phone since its 2.0.6).
-  Every SPA on `^7.26.38` / `^7.26.20` and deployed.
+  7.26.39: closing a `C_YUI_FORM` asks only for what the reader changed --
+  a new attr, `edited` (typed, cleared, pasted), decides `EV_WINDOW_TO_CLOSE`,
+  while `changes` keeps meaning that the form is not what is stored: a record
+  that lacks a defaulted field opened changed, and its close asked every time
+  with nothing of the reader's to lose (16 of 19 devices of estadodelaire).
+  7.26.40: the values of the Y axis of a chart can be read on the dark scheme
+  -- uPlot always draws a Y axis with its own black, and `C_YUI_UPLOT` inked
+  only the axes it was handed, by default the X alone; the ink moves to
+  `src/yui_uplot_ink.js` (`yui_uplot_axes()`), for an app's own uPlot too.
+  Every SPA on `^7.26.40` / `^7.26.20` and deployed.
 
 Out of the twenty-third review (V23):
 

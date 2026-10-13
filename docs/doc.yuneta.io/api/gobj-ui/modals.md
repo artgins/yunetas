@@ -7,7 +7,7 @@ description: >-
 
 # Dialogs and notifications
 
-**Source code:** [`src/shell_modals.js`](https://github.com/artgins/gobj-ui.js/blob/7.26.38/src/shell_modals.js)
+**Source code:** [`src/shell_modals.js`](https://github.com/artgins/gobj-ui.js/blob/7.26.40/src/shell_modals.js)
 
 Every function takes the shell as its first parameter.
 
@@ -36,17 +36,17 @@ again.close();      // it goes
 ```
 
 (js_yui_shell_show_info)=
-### [`yui_shell_show_info(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.38/src/shell_modals.js#L220)
+### [`yui_shell_show_info(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.40/src/shell_modals.js#L220)
 
 Shows a message of information.
 
 (js_yui_shell_show_warning)=
-### [`yui_shell_show_warning(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.38/src/shell_modals.js#L224)
+### [`yui_shell_show_warning(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.40/src/shell_modals.js#L224)
 
 Shows a warning.
 
 (js_yui_shell_show_error)=
-### [`yui_shell_show_error(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.38/src/shell_modals.js#L228)
+### [`yui_shell_show_error(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.40/src/shell_modals.js#L228)
 
 Shows an error.
 
@@ -55,7 +55,7 @@ Shows an error.
 ## Modal
 
 (js_yui_shell_show_modal)=
-## [`yui_shell_show_modal(shell, content, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.38/src/shell_modals.js#L243)
+## [`yui_shell_show_modal(shell, content, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.40/src/shell_modals.js#L243)
 
 Puts an overlay in the layer of the modals. `content` accepts a string, which
 the function draws inside a box, or an element, which it draws as it is.
@@ -87,7 +87,7 @@ const sheet = yui_shell_show_modal(shell, $body, {
     title:        "device settings",
     t:            t,
     before_close: () => {
-        if(!gobj_read_bool_attr(form, "changes")) {
+        if(!gobj_read_bool_attr(form, "edited")) {
             return true;
         }
         return yui_shell_confirm_yesnocancel(shell, "all changes will be lost", {t: t})
@@ -151,20 +151,20 @@ yui_shell_confirm_danger(shell, "delete account", {
 `"Install this app?"`.
 
 (js_yui_shell_confirm_ok)=
-### [`yui_shell_confirm_ok(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.38/src/shell_modals.js#L662)
+### [`yui_shell_confirm_ok(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.40/src/shell_modals.js#L662)
 
 Shows a message with one button. The promise gives `undefined` back.
 `opts.ok_label` changes the label; the default is `"ok"`.
 
 (js_yui_shell_confirm_yesno)=
-### [`yui_shell_confirm_yesno(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.38/src/shell_modals.js#L673)
+### [`yui_shell_confirm_yesno(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.40/src/shell_modals.js#L673)
 
 Asks a question with two answers. The promise gives `true` for yes.
 `opts.yes_label` and `opts.no_label` change the labels; the defaults are
 `"yes"` and `"no"`.
 
 (js_yui_shell_confirm_yesnocancel)=
-### [`yui_shell_confirm_yesnocancel(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.38/src/shell_modals.js#L710)
+### [`yui_shell_confirm_yesnocancel(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.40/src/shell_modals.js#L710)
 
 Asks a question with three answers. The promise gives `"yes"`, `"no"` or
 `"cancel"`. The labels are `opts.yes_label`, `opts.no_label` and
@@ -174,7 +174,7 @@ Use it when the third answer is a real one. A question such as *"play all"* has
 three answers and not two: add, replace, or cancel.
 
 (js_yui_shell_confirm_danger)=
-### [`yui_shell_confirm_danger(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.38/src/shell_modals.js#L697)
+### [`yui_shell_confirm_danger(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.40/src/shell_modals.js#L697)
 
 Asks a **destructive** question. The promise gives `true` only when the user
 presses the red button. `opts.confirm_label` and `opts.cancel_label` change the
