@@ -956,14 +956,16 @@ before a create:
 | Each column id is of the column rule ([`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>)); an `id` column is there (the pkey is `id`); each column passes [`parse_schema_cols()`](<#parse_schema_cols>) | *"Topic refused: bad columns"* | `` a column id breaks the name rule (empty or '`') ``, *"no 'id' column (the pkey is 'id')"*, *"a column is not valid (see the log)"* |
 | `pkey2s` is a name, a list of names or a dict of them; each name (an empty one is no key) has no backtick, is not `id` and not the tkey, and is named once | *"Topic refused: bad pkey2s"* | *"a pkey2 cannot be the pkey 'id'"*, *"a pkey2 cannot be the tkey: the lists of their indexes would share one id"*, *"a pkey2 named twice"*, ... |
 | The id of the list that loads each index, `treedb-<gclass>-<gobj>-<treedb>-<topic>-<key>` (`<gobj>` is the tranger's gobj, `<key>` the tkey for the `id` index and the pkey2 for its own), is shorter than `NAME_MAX` | *"Topic refused: the id of a list of its indexes is longer than NAME_MAX"* | |
-| The name of the topic and the id of each `hook` column hold no `^`, and a hook id is shorter than `NAME_MAX`: they are parts of the references of its children (`topic^id^hook`, split at the `^`, each part copied into a `char[NAME_MAX]`). Each pkey2 names a column of the topic: the value of a pkey2 is the value of the column of its name | *"Topic refused: a name of its references or of its keys"* | *"the topic name holds a '^', the separator of the parts of a reference"*, *"a hook column id holds a '^', the separator of the parts of a reference, or is too long to be a part of one"*, *"a pkey2 names no column of the topic: its index would hold nothing"* |
+| The name of the topic and the id of each `hook` column hold no `^`, and a hook id is shorter than `NAME_MAX`: they are parts of the references of its children (`topic^id^hook`, split at the `^`, each part copied into a `char[NAME_MAX]`). The id of a `file` column holds no `^` either: it is in the hook the column derives on `__assets__`, `as_<topic>_<col>`. Each pkey2 names a column of the topic: the value of a pkey2 is the value of the column of its name | *"Topic refused: a name of its references or of its keys"* | *"the topic name holds a '^', the separator of the parts of a reference"*, *"a hook or file column id holds a '^', the separator of the parts of a reference, or is too long to be a part of one"*, *"a pkey2 names no column of the topic: its index would hold nothing"* |
 
 The faults of the table are ERRORs, and WARNINGs inside the window of a
 peer's data ([`treedb_set_peer_data()`](<#treedb_set_peer_data>)); the list
 id one is an ERROR always (the gobj's name is in the id, so it is never a
 peer's), and only `treedb_create_topic()` asks it. Up to 7.26.9 a `^` in the
 name of a topic or of a hook was taken, and every reference to its nodes was
-undecodable (*"Wrong fkey (parent) reference"*); a pkey2 of no column was
+undecodable (*"Wrong fkey (parent) reference"*); so was one in the id of a
+`file` column, and every link of a file failed (*"Cannot build the reference
+of a node: ... holds a '^'"*); a pkey2 of no column was
 taken, and its index held nothing -- the name of a `qualified` id, which is its
 first pkey2, could not be built. Before SDK 7.26.10 a column that was not a json object, a pkey2 of
 `id` or of the tkey, and a pkey2 named twice were taken, and their index was
@@ -1009,6 +1011,14 @@ treedb_create_topic(tranger, "my_db", "groups", 1, "", 0,
         "members^x", "header", "Members", "type", "dict",   "flag", "hook",
             "hook", "users", "group_id"),
     0, FALSE, FALSE);   /* -> NULL, "Topic refused: a name of its references or of its keys" */
+
+/*  refused: a '^' in the id of a file column, which goes into the hook it
+ *  derives on __assets__ (as_people_pic^x)  */
+treedb_create_topic(tranger, "my_db", "people", 1, "", 0,
+    json_pack("{s:{s:s, s:s, s:[s]}, s:{s:s, s:s, s:[s,s]}}",
+        "id",    "header", "Id",      "type", "string", "flag", "persistent",
+        "pic^x", "header", "Picture", "type", "string", "flag", "fkey", "file"),
+    0, FALSE, FALSE);   /* -> NULL, "Topic refused: a name of its references or of its keys" */
 ```
 
 **A topic already on disk opens as it was.** When the directory of the topic
@@ -1021,7 +1031,7 @@ lists as they are, and each fault is said instead, an ERROR naming it:
 | Fault | Logged |
 |---|---|
 | its pkey2s (`id`, the tkey, a name twice, ...) | *"Topic on disk opened as it was, with bad pkey2s: fix its schema, a new topic with them is refused"*, with `why` and `pkey2` |
-| a `^` in its name or in the id of a hook, a hook id of `NAME_MAX` or more, a pkey2 of no column | *"Topic on disk opened as it was, with a name of its references or of its keys at fault: fix its schema, a new topic with it is refused"*, with `why` and `name` |
+| a `^` in its name or in the id of a hook or a file column, a hook id of `NAME_MAX` or more, a pkey2 of no column | *"Topic on disk opened as it was, with a name of its references or of its keys at fault: fix its schema, a new topic with it is refused"*, with `why` and `name` |
 | the id of a list of its indexes past `NAME_MAX` (cut, as it always was) | *"Topic on disk opened as it was, the id of a list of its indexes cut to NAME_MAX: shorten its names, a new topic with them is refused"*, with `index_key`, `length` and `max` |
 
 Refusing it would take the topic from the treedb at the next open of a store
@@ -1043,6 +1053,23 @@ treedb_create_topic(tranger, "my_db", "items", 2, "", json_string("id"),
 
 /*  the same call on a store with no `items` directory  */
 /*  -> NULL, "Topic refused: bad pkey2s"  */
+```
+
+**Its schema is not saved nor applied while the fault is in it.**
+`C_TREEDB`'s `save-schema` and `apply-schema` ask every topic of the draft as a
+NEW one, because the open that follows creates it as one: a treedb that opened
+with a fault on disk refuses a save or an apply that keeps it -- *"cannot save
+the schema of '\<treedb>': topic '\<topic>' of its draft: \<why>, the treedb
+would refuse it at its next open"*. The remedy is in the schema, the same as
+for the literal: drop the pkey2 of no column, rename the hook or the `file`
+column with the `^` (the references that hold it on disk were undecodable
+already), with the topic's `topic_version` bumped as every change of its
+columns needs; then save and apply.
+
+```bash
+# the draft keeps `items` with the pkey2 "id": refused
+ycommand -c 'command-yuno id=<yuno> service=treedbs command=save-schema treedb_name=my_db'
+# -1 "...: cannot save the schema of 'my_db': topic 'items' of its draft: a pkey2 cannot be the pkey 'id', ..."
 ```
 
 ---

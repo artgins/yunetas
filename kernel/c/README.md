@@ -778,7 +778,8 @@ json_t *load_persistent_json(hgobj gobj, const char *directory,
     int *pfd, BOOL exclusive, BOOL silence);
 
 // JSON refcount debugging
-int json_check_refcounts(json_t *kw, int max_refcount, int *result);
+json_t *json_refcounts_report(json_t *jn, json_int_t max_refcount, int max_shown);  // a report, logs nothing
+int json_check_refcounts(json_t *kw, int max_refcount, int *result);  // logs; recursive, no cycle guard: tests only
 ```
 
 **File system utilities:**

@@ -1388,19 +1388,43 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     int ret = -1;
     int type = gobj_attr_type(gobj2write, attribute);
     switch(type) {
+        case DTP_STRING:
+            {
+                ret = gobj_write_str_attr(gobj2write, attribute, svalue);
+            }
+            break;
+
         case DTP_BOOLEAN:
         case DTP_INTEGER:
         case DTP_REAL:
+        case DTP_DICT:
+        case DTP_LIST:
+        case DTP_JSON:
             {
                 /*
                  *  The text read AS the attribute's type, as the command
                  *  parser reads a parameter of that type: atoi() and
                  *  strtoll() wrote "yes" as FALSE, "abc" as 0 and "12abc"
-                 *  as 12 (REV-CLOUD V21.3.6)
+                 *  as 12 (REV-CLOUD V21.3.6); a json took no bare word, and
+                 *  a dict or a list could not be written (V22.4.6). The
+                 *  refusal never repeats the value: it may be a secret's,
+                 *  and a json one was echoed whole (V22.3.3).
                  */
                 const char *why = NULL;
                 json_t *jn_value = command_parameter_from_text((data_type_t)type, svalue, &why);
                 if(!jn_value) {
+                    const char *takes = "a json";
+                    if(DTP_IS_BOOLEAN(type)) {
+                        takes = "a boolean (true/false, yes/no, on/off, or an integer)";
+                    } else if(DTP_IS_INTEGER(type)) {
+                        takes = "an integer";
+                    } else if(DTP_IS_REAL(type)) {
+                        takes = "a number";
+                    } else if(DTP_IS_DICT(type)) {
+                        takes = "a json object";
+                    } else if(DTP_IS_LIST(type)) {
+                        takes = "a json array";
+                    }
                     json_t *kw_response = build_command_response(
                         gobj,
                         -1,     // result
@@ -1408,9 +1432,7 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
                             "%s: attr '%s' takes %s, not %s",
                             gobj_short_name(gobj2write),
                             attribute,
-                            DTP_IS_BOOLEAN(type)?
-                                "a boolean (true/false, yes/no, on/off, or a number)" :
-                                DTP_IS_INTEGER(type)? "an integer" : "a number",
+                            takes,
                             why
                         ),
                         0,      // jn_schema
@@ -1421,44 +1443,48 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
                 }
                 if(DTP_IS_BOOLEAN(type)) {
                     ret = gobj_write_bool_attr(gobj2write, attribute, json_is_true(jn_value));
+                    JSON_DECREF(jn_value)
                 } else if(DTP_IS_INTEGER(type)) {
                     ret = gobj_write_integer_attr(gobj2write, attribute, json_integer_value(jn_value));
-                } else {
+                    JSON_DECREF(jn_value)
+                } else if(DTP_IS_REAL(type)) {
                     ret = gobj_write_real_attr(gobj2write, attribute, json_real_value(jn_value));
+                    JSON_DECREF(jn_value)
+                } else {
+                    ret = gobj_write_new_json_attr(gobj2write, attribute, jn_value);
                 }
-                JSON_DECREF(jn_value)
             }
             break;
 
-        case DTP_STRING:
+        case DTP_POINTER:
             {
-                ret = gobj_write_str_attr(gobj2write, attribute, svalue);
+                json_t *kw_response = build_command_response(
+                    gobj,
+                    -1,     // result
+                    json_sprintf(
+                        "%s: attr '%s' is a pointer: no command writes it",
+                        gobj_short_name(gobj2write),
+                        attribute
+                    ),
+                    0,      // jn_schema
+                    0       // jn_data
+                );
+                JSON_DECREF(kw)
+                return kw_response;
             }
-            break;
-
-        case DTP_JSON:
-            {
-                json_t *jn_value = anystring2json(svalue, strlen(svalue), FALSE);
-                if(!jn_value) {
-                    json_t *kw_response = build_command_response(
-                        gobj,
-                        -1,     // result
-                        json_sprintf(
-                            "%s: cannot encode value string to json: '%s'",
-                            gobj_short_name(gobj2write),
-                            svalue
-                        ),
-                        0,      // jn_schema
-                        0       // jn_data
-                    );
-                    JSON_DECREF(kw)
-                    return kw_response;
-                }
-                ret = gobj_write_new_json_attr(gobj2write, attribute, jn_value);
-            }
-            break;
 
         default:
+            {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "write-attr of an attr of no known type",
+                    "gobj2write",   "%s", gobj_full_name(gobj2write),
+                    "attribute",    "%s", attribute,
+                    "type",         "%d", type,
+                    NULL
+                );
+            }
             break;
     }
 

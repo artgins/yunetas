@@ -24,6 +24,10 @@
  *               masked and the rest of the line still shown; a secret
  *               that is a number is masked; the error a malformed line
  *               answers ("extra parameters") does not echo a secret.
+ *               write-attr reads its value as the attribute's type (a
+ *               json one a bare word as the text, a dict or a list its
+ *               json, a pointer refused) and its refusal does not repeat
+ *               the value: a secret json's was echoed (V22.3.3, V22.4.6).
  *            4b. The command-yuno shape: a SDF_WILD_CMD command forwards
  *               free keys to a table that is not known where it is traced;
  *               a key with a secret's name (password=...) is masked, in
@@ -940,6 +944,63 @@ PRIVATE void check_log_dumps(hgobj gobj)
     );
     check_int("write-attr of an integer text: written",
         (int)gobj_read_integer_attr(holder, "pin"), 4242);
+    JSON_DECREF(resp)
+
+    /*
+     *  A json attr takes a bare word as the text, a dict or a list its
+     *  json, a pointer is refused, and a refusal never repeats the value:
+     *  a json one was echoed whole, a secret's too (REV-CLOUD V22.3.3,
+     *  V22.4.6)
+     */
+    resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=vault value={bad-secret-hunter2",
+        json_object(), gobj
+    );
+    check_int("write-attr of a json that breaks: refused",
+        (int)kw_get_int(0, resp, "result", 0, 0), -1);
+    check_true("write-attr refused: the value not repeated",
+        strstr(kw_get_str(0, resp, "comment", "", 0), "hunter2") == NULL);
+    JSON_DECREF(resp)
+    resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=vault value=word",
+        json_object(), gobj
+    );
+    check_int("write-attr of a json given a bare word: written",
+        (int)kw_get_int(0, resp, "result", 0, 0), 0);
+    JSON_DECREF(resp)
+    check_str("write-attr of a json: a bare word is the text",
+        json_string_value(gobj_read_json_attr(holder, "vault")), "word");
+    resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=settings value={\"a\":1}",
+        json_object(), gobj
+    );
+    JSON_DECREF(resp)
+    check_int("write-attr of a dict: written",
+        (int)json_integer_value(json_object_get(gobj_read_json_attr(holder, "settings"), "a")), 1);
+    resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=settings value=[1]",
+        json_object(), gobj
+    );
+    check_int("write-attr of a dict given a list: refused",
+        (int)kw_get_int(0, resp, "result", 0, 0), -1);
+    JSON_DECREF(resp)
+    check_true("write-attr refused: the dict unchanged",
+        json_is_object(gobj_read_json_attr(holder, "settings")));
+    resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=items value=[1,2]",
+        json_object(), gobj
+    );
+    JSON_DECREF(resp)
+    check_int("write-attr of a list: written",
+        (int)json_array_size(gobj_read_json_attr(holder, "items")), 2);
+    resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=handle value=5",
+        json_object(), gobj
+    );
+    check_int("write-attr of a pointer: refused",
+        (int)kw_get_int(0, resp, "result", 0, 0), -1);
+    check_true("write-attr of a pointer: says why",
+        strstr(kw_get_str(0, resp, "comment", "", 0), "is a pointer") != NULL);
     JSON_DECREF(resp)
 
     /*
@@ -1970,6 +2031,10 @@ SDATA (DTP_STRING,      "password",         SDF_WR|SDF_PERSIST|SDF_SECRET,"", "A
 SDATA (DTP_STRING,      "note",             SDF_WR|SDF_PERSIST,       "",     "Not a secret"),
 SDATA (DTP_INTEGER,     "pin",              SDF_WR|SDF_PERSIST|SDF_SECRET,"0","A secret that is a number"),
 SDATA (DTP_STRING,      "config_only",      SDF_PERSIST,              "",     "Persistent, set by the config"),
+SDATA (DTP_JSON,        "vault",            SDF_WR|SDF_SECRET,        0,      "A secret json"),
+SDATA (DTP_DICT,        "settings",         SDF_WR,                   "{}",   "A dict"),
+SDATA (DTP_LIST,        "items",            SDF_WR,                   "[]",   "A list"),
+SDATA (DTP_POINTER,     "handle",           SDF_WR,                   0,      "A pointer"),
 SDATA_END()
 };
 

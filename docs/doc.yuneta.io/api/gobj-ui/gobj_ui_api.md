@@ -114,7 +114,8 @@ values:
 ```
 
 ```bash
-# gobj-ui publishes the check (7.26.11+); the app declares acorn as a devDependency
+# gobj-ui publishes the check (7.26.11+); its acorn is a dependency of gobj-ui
+# since 7.26.29, so the app declares nothing for it
 node node_modules/@yuneta/gobj-ui/scripts/check-markup-strings.mjs src
 ```
 

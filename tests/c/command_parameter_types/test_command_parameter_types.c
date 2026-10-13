@@ -16,7 +16,7 @@
  *            - a string, an object, an array: that shape, or refused;
  *            - an integer, a real, a boolean: a number or a boolean, never
  *              an object or an array; text read as one (a boolean as
- *              true/false, yes/no, on/off or a number), or refused;
+ *              true/false, yes/no, on/off or an integer), or refused;
  *            - and the handler gets the EXACT type (REV-CLOUD V21.3.2): a
  *              number given to a boolean is true or false, a boolean given
  *              to an integer 1 or 0, a real given to an integer that
@@ -24,7 +24,13 @@
  *              as the text "2.7" is; an integer given to a real a real;
  *            - a number written as text: nothing before or after it, and
  *              in its range ("nan", "inf", an overflow refused: strtoll()
- *              saturated in silence, V21.3.3);
+ *              saturated in silence, V21.3.3); the text of a real a
+ *              decimal number (no hex) whose underflow is a number, that
+ *              of an integer or a boolean an integer (V22.4.3);
+ *            - a text of kw with a NUL inside refused, but for a DTP_JSON
+ *              (V22.4.2);
+ *            - a parameter given in another case on the line reaches the
+ *              handler under its declared name (V22.4.1);
  *            - a DTP_JSON: anything; text that is not json is a string,
  *              unless it starts as json and breaks;
  *            - a null, or an empty text for a number, is no value: the
@@ -397,8 +403,49 @@ int main(int argc, char *argv[])
         json_pack("{s:s}", "r", ""), "r", NULL);
     expect_value(yuno, "boolean empty in kw, no default: absent", "typed",
         json_pack("{s:s}", "b", ""), "b", NULL);
-    expect_value(yuno, "a refused kw value is not passed on under its name", "typed S=five",
-        json_pack("{s:i}", "s", 5), "s", NULL);
+    expect_value(yuno, "a refused kw value the line gives in another case", "typed S=five",
+        json_pack("{s:i}", "s", 5), "s", json_string("five"));
+
+    /*
+     *  A parameter reaches the handler under its DECLARED name: `N=5` was
+     *  stored as "N", the handler read `n` and took its default, and a kw
+     *  `n` beat the line (REV-CLOUD V22.4.1)
+     */
+    expect_value(yuno, "a key in another case is the declared parameter", "typed N=5",
+        0, "n", json_integer(5));
+    expect_value(yuno, "the line in another case beats kw", "typed N=5",
+        json_pack("{s:i}", "n", 3), "n", json_integer(5));
+
+    /*
+     *  A NUL inside a text of kw (an ievent frame is decoded with
+     *  JSON_ALLOW_NUL): C read it up to the NUL (REV-CLOUD V22.4.2)
+     */
+    expect_refused(yuno, "integer given a text with a NUL", "typed",
+        json_pack("{s:s%}", "n", "5\0junk", (size_t)6),
+        "parameter 'n' must be an integer, not a text with a NUL in it", FALSE);
+    expect_refused(yuno, "boolean given a text with a NUL, by a peer", "typed",
+        json_pack("{s:s%, s:s}", "b", "yes\0no", (size_t)6, "__username__", "someone"),
+        "parameter 'b' must be a boolean", TRUE);
+    expect_refused(yuno, "string given a text with a NUL", "typed",
+        json_pack("{s:s%}", "s", "ab\0cd", (size_t)5),
+        "parameter 's' must be a string, not a text with a NUL in it", FALSE);
+    expect_value(yuno, "json given a text with a NUL: as it came", "typed",
+        json_pack("{s:s%}", "j", "5\0junk", (size_t)6), "j", json_stringn("5\0junk", 6));
+
+    /*
+     *  The text of a real is a decimal number, as jansson reads one; that
+     *  of an integer or a boolean an integer (REV-CLOUD V22.4.3)
+     */
+    expect_refused(yuno, "real text in hex", "typed",
+        json_pack("{s:s}", "r", "0x10"), "parameter 'r' must be a number, not a text", FALSE);
+    expect_refused(yuno, "real text in hex, on the line", "typed r=0x1p3",
+        0, "parameter 'r' must be a number, not a text", FALSE);
+    expect_value(yuno, "real text that underflows is a number", "typed",
+        json_pack("{s:s}", "r", "1e-400"), "r", json_real(0.0));
+    expect_refused(yuno, "integer text of a real of no decimals", "typed n=2.0",
+        0, "parameter 'n' must be an integer, not a text", FALSE);
+    expect_refused(yuno, "boolean text of a real", "typed b=1.0",
+        0, "parameter 'b' must be a boolean", FALSE);
 
     /*
      *  command_parameter_from_text(): the parser's reader of a text
@@ -418,6 +465,15 @@ int main(int argc, char *argv[])
         check("from_text integer empty", "0, as on the line",
             json_is_integer(jn) && json_integer_value(jn) == 0);
         JSON_DECREF(jn)
+        jn = command_parameter_from_text(DTP_REAL, "0x10", &why);
+        check("from_text real 0x10", "refused: no hex",
+            jn == NULL && why && strcmp(why, "a text that does not read as one")==0);
+        jn = command_parameter_from_text(DTP_JSON, "word", &why);
+        check("from_text json word", "the text itself",
+            json_is_string(jn) && strcmp(json_string_value(jn), "word")==0);
+        JSON_DECREF(jn)
+        jn = command_parameter_from_text(DTP_DICT, "[1]", &why);
+        check("from_text dict [1]", "refused: not its shape", jn == NULL && why != NULL);
     }
 
     JSON_DECREF(g_seen)

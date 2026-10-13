@@ -818,6 +818,34 @@ static int test_json_refcounts_report(void)
     JSON_DECREF(node)
     JSON_DECREF(root)
 
+    /*
+     *  A cycle whose refcounts are corrupted BELOW the truth -- what the
+     *  report exists to find: `c` is held by the root and by `d`, with a
+     *  refcount of 1. Only the jsons held more than once were remembered,
+     *  so the walk went c, d, c, d... until its frames passed MAX_BLOCK, and
+     *  answered totals of a walk it did not say was cut (REV-CLOUD V22.5.3).
+     *  Every dict and list is remembered now: it ends, each counted once.
+     */
+    json_t *c = json_object();
+    json_t *d = json_object();
+    json_object_set_new(c, "hook", d);
+    json_object_set_new(d, "hook", c);  // c is d's now: refcount 1
+    json_t *root2 = json_object();
+    json_object_set_new(root2, "c", c); // and the root's too, with no reference of its own
+    jn_report = json_refcounts_report(root2, 0, 20);
+    if(json_integer_value(json_object_get(jn_report, "jsons")) != 3) {
+        printf("jsons %d, expected 3\n", (int)json_integer_value(json_object_get(jn_report, "jsons")));
+        result += -1;
+    }
+    if(!json_is_false(json_object_get(jn_report, "truncated"))) {
+        printf("truncated, expected false\n");
+        result += -1;
+    }
+    JSON_DECREF(jn_report)
+    json_incref(c);                     // the truth again: held twice
+    json_object_del(d, "hook");
+    JSON_DECREF(root2)
+
     result += test_json(NULL);
     return result;
 }

@@ -547,7 +547,7 @@ Returns a pointer to the JSON value found at the specified path. If the path is 
 
 **Notes**
 
-The function [`kw_find_path()`](#kw_find_path) supports traversing both dictionaries and lists. A segment is a key of a dict, or the number of an item of a list. It walks the path in a LOOP, a segment a turn, so a path of any depth and a segment of any length are walked (since 7.26.10). With `verbose` FALSE nothing is logged for a path that is not there -- a key or an index that is not there, or a segment under a value that is not a dict or a list --: the caller decides what it means. Only a broken call is an ERROR, whatever `verbose` says: `kw` not a dict or a list, a `NULL` path.
+The function [`kw_find_path()`](#kw_find_path) supports traversing both dictionaries and lists. A segment is a key of a dict, or the number of an item of a list. It walks the path in a LOOP, a segment a turn, so a path of any depth and a segment of any length are walked (since 7.26.10). With `verbose` FALSE nothing is logged for a path that is not there -- a key or an index that is not there, or a segment under a value that is not a dict or a list --: the caller decides what it means. Only a broken call or a broken json is an ERROR, whatever `verbose` says: `kw` not a dict or a list, a `NULL` path, and a container met on the way with a refcount of 0 (*"json refcount 0"*: a json already freed, our own invariant broken).
 
 ```C
 json_t *kw = json_pack("{s:{s:[i,i]}}", "topics", "ids", 7, 8);

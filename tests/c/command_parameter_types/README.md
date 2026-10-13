@@ -10,7 +10,7 @@ the command, a WARNING when a peer does (its kw carries `__username__`).
 |---|---|---|
 | `DTP_STRING` | a string | the text |
 | `DTP_DICT` / `DTP_LIST` | a json object / array | its json |
-| `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, handed on as the EXACT type | a number with nothing before or after it, in its range; a boolean as true/false, yes/no, on/off or a number |
+| `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, handed on as the EXACT type | a number with nothing before or after it, in its range (an integer for an integer or a boolean, a decimal for a real: `2.0`, `0x10` refused; an underflow is a number); a boolean as true/false, yes/no, on/off or an integer |
 | `DTP_JSON` | anything | its json, or the text as a string; a text that starts as json and breaks is refused |
 
 The exact type: a number given to a `DTP_BOOLEAN` is `true` unless 0, a
@@ -23,8 +23,10 @@ A `null` is no value (but for a `DTP_JSON`, which keeps it), and so is an
 empty text given in kw to a number: the parameter takes its default, or is
 ABSENT from the handler's kw (the `""` used to reach it), and a
 `SDF_REQUIRED` one answers that it is required. A value of kw that is refused
-is overridden by the same parameter on the line, and does not reach the
-handler under its name.
+is overridden by the same parameter on the line, written in any case: the
+handler gets the line's value under the parameter's DECLARED name (`N=5` is
+`n`; up to 7.26.9 it arrived as `"N"`, and the handler took its default). A
+text of kw with a NUL inside is refused, but for a `DTP_JSON`.
 
 The cases, one each: a string given a number (by C, an ERROR; by a peer, a
 WARNING); a dict given a list (in kw and on the line) and given its json as
@@ -40,9 +42,14 @@ integer given `true`, `2.0`, `2.7` (refused) and `1e30` (refused, from a
 peer), a real given `3` and `true`. Text: an integer past 64 bits (in kw and
 on the line), with a blank before and after, a real `nan`, `inf` and `1e999`
 (all refused). An empty real and boolean in kw with no default (absent), and
-a refused `s` the line gives as `S` (absent under `s`).
-`command_parameter_from_text()`: `yes`, `12abc` (refused, and why), `-3.5`,
-an empty integer (0). And no leak.
+a refused `s` the line gives as `S` (the line's value, under `s`). The
+declared name: `N=5` reaches the handler as `n`, and beats a kw `n`. A NUL
+inside a text of kw: refused for an integer, a boolean (from a peer) and a
+string, kept as it came by a `DTP_JSON`. The text reader: a real `0x10` and
+`0x1p3` refused, `1e-400` is `0.0`, an integer `2.0` and a boolean `1.0`
+refused. `command_parameter_from_text()`: `yes`, `12abc` (refused, and why),
+`-3.5`, an empty integer (0), a real `0x10` (refused), a json `word` (the
+text), a dict `[1]` (refused). And no leak.
 
 ```C
 /*  a peer's kw: one WARNING, -1, and the handler never runs  */

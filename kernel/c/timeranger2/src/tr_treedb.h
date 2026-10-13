@@ -227,7 +227,11 @@ PUBLIC json_t *treedb_create_topic( // WARNING Return is NOT YOURS
  *  or a list of json objects, an `id` among them, each one of the column
  *  rule and what parse_schema_cols() accepts, a `file` column an `fkey` on a
  *  string, no column both `hook` and `fkey`; pkey2s of the column rule, not
- *  the pkey `id` nor the tkey, each one once. Not the ids of the lists of
+ *  the pkey `id` nor the tkey, each one once, and each one naming a column.
+ *  The names that go into a reference (`topic^id^hook`): no '^' in the
+ *  topic name, nor in the id of a `hook` or a `file` column (a file column
+ *  derives the hook `as_<topic>_<col>`), and a hook id shorter than
+ *  NAME_MAX (REV-CLOUD V21.2.2, V22.5.1). Not the ids of the lists of
  *  its indexes, which hold the name of the tranger's gobj. And what only
  *  this asks, not treedb_create_topic(): a hook column of type dict or
  *  list, an fkey one of type dict, list or string (a store whose schema has

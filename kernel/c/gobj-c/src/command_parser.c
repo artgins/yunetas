@@ -57,6 +57,7 @@ PRIVATE json_t *build_cmd_kw(
 );
 PRIVATE const sdata_desc_t *find_ip_parameter(const sdata_desc_t *input_parameters, const char *key);
 PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key);
+PRIVATE json_t *mask_secret_params(json_t *jn, const sdata_desc_t *cnf_cmd);
 PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, const char **refused);
 PRIVATE json_t *kw2parameter(data_type_t type, json_t *value, BOOL as_given, const char **refused);
 PRIVATE json_t *refuse_parameter(
@@ -230,11 +231,12 @@ PRIVATE json_t *refuse_command_without_authz(
         "command", cnf_cmd->name,
         "__username__", cmd_username     // authoritative external principal
     );
-    if(kw) {
-        json_object_set(kw_authz, "kw", kw);    // incref
-    } else {
-        json_object_set_new(kw_authz, "kw", json_object());
-    }
+    /*
+     *  The kw with its SDF_SECRET parameters masked: a permission is no
+     *  question of a secret's value, and the authz trace, which prints what
+     *  the checker got, masks by names only (REV-CLOUD V22.3.4)
+     */
+    json_object_set_new(kw_authz, "kw", kw? mask_secret_params(kw, cnf_cmd) : json_object());
     /*
      *  gobj_user_has_authz() takes ownership of kw_authz (the checker
      *  KW_DECREF's it on every path), so it is not freed here.
@@ -367,10 +369,19 @@ PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key)
  *      DTP_INTEGER,    a number or a boolean, never an object or an array.
  *      DTP_REAL,       Text is read as one: a number with nothing before or
  *      DTP_BOOLEAN     after it, in its range, and a boolean as true/false,
- *                      yes/no, on/off or a number ("yes" was atoi()'d to
- *                      FALSE, so a `dry_run=yes` saved for real)
+ *                      yes/no, on/off or an integer ("yes" was atoi()'d to
+ *                      FALSE, so a `dry_run=yes` saved for real). The text
+ *                      of an integer or a boolean is an integer ("2.0" is
+ *                      refused, the json 2.0 is 2), that of a real a
+ *                      decimal number (no hex), and an underflow is a
+ *                      number, as jansson reads one (1e-400 is 0).
  *      DTP_JSON        anything; text that is not json is a string, but
- *                      not one that starts as json ({ [ ") and breaks
+ *                      not one that starts as json ({ [ ") and breaks --
+ *                      on the line or in a default: in kw a string is a
+ *                      json too, and stays as it came
+ *
+ *  A string from kw with a NUL inside is refused (but for DTP_JSON, where it
+ *  stays as it came): C reads it up to the NUL.
  *
  *  The handler gets the EXACT type (number_as_type(), REV-CLOUD V21.3.2): a
  *  number given to a DTP_BOOLEAN is true unless 0; a boolean given to a
@@ -418,7 +429,7 @@ PRIVATE const char *shape_of_type(data_type_t type)
         return "a json array";
     }
     if(DTP_IS_BOOLEAN(type)) {
-        return "a boolean (true/false, yes/no, on/off, or a number)";
+        return "a boolean (true/false, yes/no, on/off, or an integer)";
     }
     if(DTP_IS_INTEGER(type)) {
         return "an integer";
@@ -550,12 +561,22 @@ PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, co
         char *end = NULL;
         errno = 0;
         if(DTP_IS_REAL(type)) {
+            /*
+             *  A decimal number, as jansson reads one from a json:
+             *  strtod() reads hex too ("0x10" was 16.0), which an integer
+             *  never took; and an underflow is a number (1e-400 is 0),
+             *  only an overflow is refused (REV-CLOUD V22.4.3)
+             */
+            if(strchr(s, 'x') || strchr(s, 'X')) {
+                *refused = "a text that does not read as one";
+                return NULL;
+            }
             double d = strtod(s, &end);
             if(end == s || *end != 0 || d != d) {   // d != d: "nan"
                 *refused = "a text that does not read as one";
                 return NULL;
             }
-            if(errno == ERANGE || d > DBL_MAX || d < -DBL_MAX) {    // "1e999", "inf"
+            if(d > DBL_MAX || d < -DBL_MAX) {   // "1e999", "inf": an overflow is ±HUGE_VAL
                 *refused = "a number out of its range";
                 return NULL;
             }
@@ -640,8 +661,16 @@ PRIVATE json_t *kw2parameter(data_type_t type, json_t *value, BOOL as_given, con
     if(!value) {
         return NULL;
     }
+    /*
+     *  A NUL inside a text (an ievent frame is decoded with JSON_ALLOW_NUL):
+     *  C reads it up to the NUL, so "5\u0000junk" was 5, "yes\u0000no" true,
+     *  and a string reached the handler other than it was sent
+     *  (REV-CLOUD V22.4.2)
+     */
+    BOOL nul_inside = (json_is_string(value) &&
+        json_string_length(value) != strlen(json_string_value(value)))? TRUE : FALSE;
     if(DTP_IS_JSON(type)) {
-        if(as_given || !json_is_string(value)) {
+        if(as_given || !json_is_string(value) || nul_inside) {
             return json_incref(value);
         }
         const char *bad = NULL;
@@ -655,6 +684,10 @@ PRIVATE json_t *kw2parameter(data_type_t type, json_t *value, BOOL as_given, con
         return json_incref(value);
     }
     if(json_is_null(value)) {
+        return NULL;
+    }
+    if(nul_inside) {
+        *refused = "a text with a NUL in it";
         return NULL;
     }
     if(json_is_string(value) && !DTP_IS_STRING(type)) {
@@ -797,13 +830,10 @@ PRIVATE void append_masked_parameters(
 }
 
 /***************************************************************************
- *  A json value as a trace shows it, for a command of `cnf_cmd`: its
- *  SDF_SECRET parameters masked, and then what json_mask_secrets() masks
- *  (keys with a secret's name at any depth, the "value" of a write-attr of
- *  a secret, "name=value" secrets inside a string: the `command` of a
- *  command-yuno). Return a new reference.
+ *  A json value with the SDF_SECRET parameters of `cnf_cmd` masked. Return
+ *  a new reference: a masked copy, or jn itself when nothing is secret.
  ***************************************************************************/
-PRIVATE json_t *mask_secret_json(json_t *jn, const sdata_desc_t *cnf_cmd)
+PRIVATE json_t *mask_secret_params(json_t *jn, const sdata_desc_t *cnf_cmd)
 {
     json_t *jn_masked = NULL;
     if(json_is_object(jn) && cnf_cmd && cnf_cmd->schema) {
@@ -819,11 +849,21 @@ PRIVATE json_t *mask_secret_json(json_t *jn, const sdata_desc_t *cnf_cmd)
             }
         }
     }
-    if(!jn_masked) {
-        return json_mask_secrets(jn);
-    }
-    json_t *jn_shown = json_mask_secrets(jn_masked);
-    JSON_DECREF(jn_masked)
+    return jn_masked? jn_masked : json_incref(jn);
+}
+
+/***************************************************************************
+ *  A json value as a trace shows it, for a command of `cnf_cmd`: its
+ *  SDF_SECRET parameters masked, and then what json_mask_secrets() masks
+ *  (keys with a secret's name at any depth, the "value" of a write-attr of
+ *  a secret, "name=value" secrets inside a string: the `command` of a
+ *  command-yuno). Return a new reference.
+ ***************************************************************************/
+PRIVATE json_t *mask_secret_json(json_t *jn, const sdata_desc_t *cnf_cmd)
+{
+    json_t *jn_params = mask_secret_params(jn, cnf_cmd);
+    json_t *jn_shown = json_mask_secrets(jn_params);
+    JSON_DECREF(jn_params)
     return jn_shown;
 }
 
@@ -1349,8 +1389,14 @@ PRIVATE json_t *build_cmd_kw(
                 );
             }
         }
-        json_object_set_new(kw_cmd, key, jn_param);
-        last_key = key;
+        /*
+         *  Under its DECLARED name: find_ip_parameter() matches any case,
+         *  and `cmd N=5` arrived as "N" -- the handler read `n` and took
+         *  its default, and a kw `n` beat the line (REV-CLOUD V22.4.1)
+         */
+        const char *name = ip2? ip2->name : key;
+        json_object_set_new(kw_cmd, name, jn_param);
+        last_key = name;
     }
 
     if(!empty_string(pxxx)) {

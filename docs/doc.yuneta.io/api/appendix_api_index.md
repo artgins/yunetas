@@ -919,7 +919,7 @@ it by hand, run the script.
 
 89. [**`json_check_refcounts`**](helpers/json_helper.md#json_check_refcounts) — `PUBLIC int json_check_refcounts( json_t *kw, int max_refcount, int *result )`
 
-90. [**`json_refcounts_report`**](helpers/json_helper.md#json_refcounts_report) — `PUBLIC json_t *json_refcounts_report( json_t *jn, int max_refcount, int max_shown )`
+90. [**`json_refcounts_report`**](helpers/json_helper.md#json_refcounts_report) — `PUBLIC json_t *json_refcounts_report( json_t *jn, json_int_t max_refcount, int max_shown )`
 
 91. [**`json_print_refcounts`**](helpers/json_helper.md#json_print_refcounts) — `PUBLIC int json_print_refcounts( json_t *jn, int level )`
 

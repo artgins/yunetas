@@ -400,12 +400,12 @@ It recurses, and does not guard against a CYCLE (two nodes of a treedb in each o
 (json_refcounts_report)=
 ## [`json_refcounts_report()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/gobj-c/src/helpers.c)
 
-What the reference counts of a json say, as a REPORT, logging nothing: the jsons held more than `max_refcount` times, and the corrupted ones (a refcount of 0, or a type jansson does not have), with the [`kw_find_path()`](<#kw_find_path>) path of the first `max_shown`. Each json is walked ONCE, in a loop: a json held in several places -- a node of a treedb is in its indexes and in the hooks of its parents -- is reported once, and a cycle does not loop the walk. A corrupted json is not walked into.
+What the reference counts of a json say, as a REPORT, logging nothing: the jsons held more than `max_refcount` times, and the corrupted ones (a refcount of 0, or a type jansson does not have), with the [`kw_find_path()`](<#kw_find_path>) path of the first `max_shown`. Each json is walked ONCE, in a loop: a json held in several places -- a node of a treedb is in its indexes and in the hooks of its parents -- is reported once, and a cycle does not loop the walk, nor one whose refcounts are corrupted BELOW the truth (a json held twice with a refcount of 1): every dict and list met is remembered. A corrupted json is not walked into.
 
 ```C
 json_t *json_refcounts_report(
     json_t *jn,
-    int max_refcount,
+    json_int_t max_refcount,
     int max_shown
 );
 ```
@@ -415,7 +415,7 @@ json_t *json_refcounts_report(
 | Key | Type | Description |
 |---|---|---|
 | `jn` | `json_t *` | The json to walk. Not owned. |
-| `max_refcount` | `int` | Report the jsons held more than this many times; `0` asks only for the corrupted ones. |
+| `max_refcount` | `json_int_t` | Report the jsons held more than this many times; `0` (or less) asks only for the corrupted ones. |
 | `max_shown` | `int` | How many faults the report lists with their path; the counts count them all. |
 
 **Returns**
@@ -428,13 +428,14 @@ A NEW json, `NULL` (and an ERROR) if `jn` is `NULL`:
     "jsons": 431,
     "corrupted": 0,
     "over_max": 27,
+    "truncated": false,
     "shown": [
         {"path": "treedbs`treedb_x`items`id`a1", "refcount": 3, "fault": "over_max"}
     ]
 }
 ```
 
-`jsons` is how many jsons were walked (`true`, `false` and `null` are not counted: they are singletons); `fault` is `"over_max"` or `"corrupted"`.
+`jsons` is how many jsons were walked (`true`, `false` and `null` are not counted: they are singletons); `fault` is `"over_max"` or `"corrupted"`. `truncated` is `true` when the walk stopped short, with no memory left for what it remembers -- the gbmem ERROR says why (*"SIZE GREATER THAN MAX_BLOCK"*) --, and the counts are then of what was walked. Up to 7.26.9 only the jsons held more than once were remembered: a cycle held once, its refcounts corrupted below the truth, was walked round until its frames passed `MAX_BLOCK`, and the report did not say it was cut.
 
 **Example**
 
@@ -453,7 +454,7 @@ JSON_DECREF(jn_report)
 
 **Notes**
 
-`check-json` of `C_TRANGER` and of the agent answer with it (since 7.26.10): `json_check_refcounts()` logged an ERROR for every json held more than `max_refcount` times, and with its default `1` that was every node of a treedb -- a reader filled the log.
+`check-json` of `C_TRANGER` and of the agent answer with it (since 7.26.10): `json_check_refcounts()` logged an ERROR for every json held more than `max_refcount` times, and with its default `1` that was every node of a treedb -- a reader filled the log. Their `-1` is a FAULT, a corrupted json or a walk cut short; the jsons held more than `max_refcount` times are the answer to what was asked, a `0`.
 
 ---
 

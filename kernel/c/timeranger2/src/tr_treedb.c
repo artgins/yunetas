@@ -2274,14 +2274,22 @@ PRIVATE json_t *col_of_cols(json_t *cols, const char *col_id)
 }
 
 /***************************************************************************
- *  A hook column whose id cannot be the last part of a reference
+ *  A column whose id cannot be in the last part of a reference: a hook's
+ *  id is that part, and a `file` column's is in the hook it derives on
+ *  __assets__, `as_<topic>_<col>` (derive_file_hooks(); its length is
+ *  treedb_check_file_hooks()'s): with a '^' in it every link of a file
+ *  failed (REV-CLOUD V22.5.1)
  ***************************************************************************/
-PRIVATE BOOL hook_id_breaks_refs(hgobj gobj, const char *col_id, json_t *col)
+PRIVATE BOOL col_id_breaks_refs(hgobj gobj, const char *col_id, json_t *col)
 {
-    if(!kw_has_word(gobj, kw_get_dict_value(gobj, col, "flag", 0, 0), "hook", 0)) {
-        return FALSE;
+    json_t *flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+    if(kw_has_word(gobj, flag, "hook", 0)) {
+        return (strchr(col_id, '^') || strlen(col_id) >= NAME_MAX)? TRUE : FALSE;
     }
-    return (strchr(col_id, '^') || strlen(col_id) >= NAME_MAX)? TRUE : FALSE;
+    if(kw_has_word(gobj, flag, "file", 0)) {
+        return strchr(col_id, '^')? TRUE : FALSE;
+    }
+    return FALSE;
 }
 
 /***************************************************************************
@@ -2292,7 +2300,8 @@ PRIVATE BOOL hook_id_breaks_refs(hgobj gobj, const char *col_id, json_t *col)
  *    the separator of the parts (split in more than three parts, every ref
  *    to its nodes was undecodable), and a hook id shorter than NAME_MAX
  *    (decode_parent_ref() copies each part into a char[NAME_MAX]). The id
- *    of a node with hooks is refused for the same reasons already;
+ *    of a node with hooks is refused for the same reasons already. The id
+ *    of a `file` column is in the hook it derives: no '^' either;
  *  - each pkey2 names a column of the topic: the value of a pkey2 is the
  *    value of the column of its name (get_key2_value()), so one of no
  *    column indexed nothing -- and a qualified id, which takes the first
@@ -2314,12 +2323,12 @@ PRIVATE const char *refs_and_keys_fault(
         return "the topic name holds a '^', the separator of the parts of a reference";
     }
 
-    const char *why_hook = "a hook column id holds a '^', the separator of the parts of a reference, "
+    const char *why_hook = "a hook or file column id holds a '^', the separator of the parts of a reference, "
         "or is too long to be a part of one";
     if(json_is_object(cols)) {
         const char *col_id; json_t *col;
         json_object_foreach(cols, col_id, col) {
-            if(hook_id_breaks_refs(gobj, col_id, col)) {
+            if(col_id_breaks_refs(gobj, col_id, col)) {
                 snprintf(bad, bad_size, "%s", col_id);
                 return why_hook;
             }
@@ -2328,7 +2337,7 @@ PRIVATE const char *refs_and_keys_fault(
         int idx; json_t *col;
         json_array_foreach(cols, idx, col) {
             const char *col_id = json_string_value(json_object_get(col, "id"));
-            if(col_id && hook_id_breaks_refs(gobj, col_id, col)) {
+            if(col_id && col_id_breaks_refs(gobj, col_id, col)) {
                 snprintf(bad, bad_size, "%s", col_id);
                 return why_hook;
             }

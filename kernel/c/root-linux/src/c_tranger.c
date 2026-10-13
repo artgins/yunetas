@@ -2066,7 +2066,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  and its parents' hooks: a reader filled the log (REV-CLOUD V21.2.3).
      *  Only a corrupted json is our own broken invariant, and is logged.
      */
-    int max_refcount = (int)kw_get_int(gobj, kw, "max_refcount", 0, 0);
+    json_int_t max_refcount = kw_get_int(gobj, kw, "max_refcount", 0, 0);
     json_t *jn_report = json_refcounts_report(priv->tranger, max_refcount, 20);
     if(!jn_report) {
         return msg_iev_build_response(gobj,
@@ -2079,6 +2079,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     }
     json_int_t corrupted = kw_get_int(gobj, jn_report, "corrupted", 0, 0);
     json_int_t over_max = kw_get_int(gobj, jn_report, "over_max", 0, 0);
+    BOOL truncated = kw_get_bool(gobj, jn_report, "truncated", 0, 0);
     if(corrupted > 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2089,21 +2090,29 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
+    /*
+     *  -1 is a fault: a corrupted json, or a walk that stopped short. What
+     *  is held more than max_refcount times is the answer to the question
+     *  asked, a 0: with max_refcount=1 a sound treedb answered -1
+     *  (REV-CLOUD V22.5.4)
+     */
     json_t *jn_comment;
     if(max_refcount > 0) {
         jn_comment = json_sprintf(
             "%s: check refcounts of tranger: %" JSON_INTEGER_FORMAT " corrupted, "
-            "%" JSON_INTEGER_FORMAT " held more than %d times",
-            gobj_yuno_role_plus_name(), corrupted, over_max, max_refcount
+            "%" JSON_INTEGER_FORMAT " held more than %" JSON_INTEGER_FORMAT " times%s",
+            gobj_yuno_role_plus_name(), corrupted, over_max, max_refcount,
+            truncated? " (the walk stopped short: no memory left, see the log)" : ""
         );
     } else {
         jn_comment = json_sprintf(
-            "%s: check refcounts of tranger: %" JSON_INTEGER_FORMAT " corrupted",
-            gobj_yuno_role_plus_name(), corrupted
+            "%s: check refcounts of tranger: %" JSON_INTEGER_FORMAT " corrupted%s",
+            gobj_yuno_role_plus_name(), corrupted,
+            truncated? " (the walk stopped short: no memory left, see the log)" : ""
         );
     }
     return msg_iev_build_response(gobj,
-        (corrupted > 0 || over_max > 0)? -1 : 0,
+        (corrupted > 0 || truncated)? -1 : 0,
         jn_comment,
         0,
         jn_report,  // owned

@@ -277,7 +277,10 @@ Out of the twentieth review (V20):
 
 Out of the twenty-first review (V21):
 
-- **The parser hands the handler the EXACT type** (V21.3.2). A number given
+- **BREAKING: the parser hands the handler the EXACT type** (V21.3.2), and a
+  caller gets what it did not before -- `-1` for a real with decimals given to
+  an integer, a number given to a boolean converted, an empty numeric `""`
+  absent. A number given
   to a `DTP_BOOLEAN` is `true` unless 0, a boolean given to a `DTP_INTEGER`
   or a `DTP_REAL` is 1 or 0, a real given to a `DTP_INTEGER` is that integer
   (`2.0` -> 2), an integer given to a `DTP_REAL` a real. **A real with
@@ -362,6 +365,62 @@ Out of the twenty-first review (V21):
   filters and row boxes, and the fields of `C_YUI_FORM`, had an aria-label
   and no title. Every SPA on `^7.26.31` and deployed, estadodelaire in the
   deploy round.
+
+Out of the twenty-second review (V22):
+
+- **The parser stores a parameter under its DECLARED name** (V22.4.1): the
+  line finds a parameter in any case, and `cmd N=5` arrived as `"N"` -- the
+  handler read `n` and took its default, in silence, and a kw `n` beat the
+  line.
+- **A text of kw with a NUL inside is refused** (V22.4.2): an ievent frame is
+  decoded with `JSON_ALLOW_NUL`, and C read `"5\u0000junk"` as 5 and
+  `"yes\u0000no"` as true; a string reached the handler other than it was
+  sent. A `DTP_JSON` keeps it as it came.
+- **The text of a real is a decimal number, as jansson reads one**
+  (V22.4.3): `0x10` was `16.0` (`strtod()` reads hex, which an integer never
+  took), and an underflow is a number (`1e-400` is `0.0`), only an overflow
+  refused. The text of an integer or a boolean stays an integer: `2.0` is
+  refused, the json `2.0` is 2. `command_parser.md` says it, and that a json
+  text that breaks, given in kw to a `DTP_JSON`, stays a string.
+- **Secrets that still reached the log or an answer** (V22.3): out of
+  session `C_IEVENT_SRV` and `C_IEVENT_CLI` logged the whole forwarded line
+  -- a `set-password` through `command-yuno` to a yuno that had just gone --,
+  the command's name now; four WARNINGs of `C_IEVENT_SRV` dumped a peer's kw
+  raw (a request without its command, a frame without its routing, an event
+  to a service the channel may not reach, an unsubscribe that matches
+  nothing), masked now as the kw before the session is; `write-attr` echoed
+  a json value it refused, a secret's too; `write-tty`'s `content64` -- the
+  keystrokes -- is `SDF_SECRET` in the agent, agent22 and the controlcenter;
+  and the parser hands the authz checker the kw with its `SDF_SECRET`
+  parameters masked.
+- **`write-attr` reads every type as the parser does** (V22.4.6): a json
+  attr takes a bare word as the text (it was refused), a dict or a list its
+  json, checked for its shape (they answered *"Can't write attr"*), and a
+  pointer is refused saying why.
+- **`C_IEVENT_CLI` answers a command to a service not found with
+  `EV_MT_COMMAND_ANSWER`** (it went as `EV_MT_STATS_ANSWER`), and caps the
+  name in the log and in the answer (V22.4.7).
+- **`tr_treedb`: a NEW topic with a `^` in the id of a `file` column is
+  refused** (V22.5.1): it is in the hook the column derives on `__assets__`,
+  `as_<topic>_<col>`, and every link of a file failed (*"Cannot build the
+  reference of a node"*). A topic on disk with it opens, with an ERROR.
+- **`json_refcounts_report()` remembers every dict and list it meets**
+  (V22.5.3): only the jsons held more than once were, so a cycle whose
+  refcounts are corrupted below the truth -- what it exists to find -- was
+  walked round until its frames passed `MAX_BLOCK`, and the report did not
+  say it was cut. It says `truncated` now, and `max_refcount` is a
+  `json_int_t` (2^40 acted as 0); the function is new in this cycle.
+- **`check-json` answers `-1` for a FAULT only** (V22.5.4, `C_TRANGER` and
+  the agent): a corrupted json or a walk cut short. The jsons held more than
+  `max_refcount` times are the answer to what was asked, a `0`: with
+  `max_refcount=1` a sound treedb answered `-1`.
+- Docs (V22.4.4, V22.5.2, V22.5.5, V22.5.6): `treedb.md` says a treedb with
+  an old fault on disk opens, but its schema is not saved nor applied while
+  the fault is in it, and how to remove it; `data.md` that the yuno's code
+  can still open a `.x` treedb; `kwid.md` that a container of refcount 0 is
+  an ERROR of `kw_find_path()`; `kernel/c/README.md` lists
+  `json_refcounts_report()`; `test_suite.md` and the comment of
+  `treedb_check_new_topic()` brought up to date.
 
 ## v7.26.9 (2026-10-11)
 

@@ -102,7 +102,7 @@ PRIVATE BOOL peer_log_allowed(
     json_int_t *suppressed
 );
 PRIVATE size_t peer_json_dump(json_t *jn, char *bf, size_t bfsize);
-PRIVATE size_t peer_card_dump(json_t *kw, char *bf, size_t bfsize);
+PRIVATE size_t peer_kw_dump(json_t *kw, char *bf, size_t bfsize);
 PRIVATE void log_identity_card_refused(
     hgobj gobj,
     json_t *kw,     // not owned
@@ -433,11 +433,17 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) != ST_SESSION) {
+        /*
+         *  The command's NAME: `command` is the whole line forwarded (the
+         *  agent's command-yuno), and a set-password to a yuno that had just
+         *  gone left the password in the log (REV-CLOUD V22.3.1)
+         */
+        size_t name_len = command? strcspn(command, " \t\r\n") : 0;
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Not in session",
-            "command",      "%s", command,
+            "command",      "%.*s", (int)(name_len > 64? 64 : name_len), command? command : "",
             NULL
         );
         KW_DECREF(kw)
@@ -1426,14 +1432,16 @@ PRIVATE size_t peer_json_dump(json_t *jn, char *bf, size_t bfsize)
 }
 
 /***************************************************************************
- *  A kw of the peer before its session, as peer_json_dump(): what it
- *  carries as a credential is never written to a log -- its jwt, and any
- *  key named like one (is_secret_name()), at any depth: a command before
- *  the card carries its parameters, and there is no command table yet to
- *  ask which one is SDF_SECRET. Up to 7.25.20 the whole kw was written, credentials with
- *  it.
+ *  A kw of the peer, as peer_json_dump(): what it carries as a credential
+ *  is never written to a log -- its jwt, any key named like one
+ *  (is_secret_name()) at any depth, and a "name=value" secret inside a
+ *  string (the line of a command): a frame carries the parameters of a
+ *  command, and no command table is asked here which one is SDF_SECRET.
+ *  Up to 7.25.20 the whole kw before the session was written, credentials
+ *  with it; up to 7.26.9 the kw of a frame refused IN session too
+ *  (REV-CLOUD V22.3.2).
  ***************************************************************************/
-PRIVATE size_t peer_card_dump(json_t *kw, char *bf, size_t bfsize)
+PRIVATE size_t peer_kw_dump(json_t *kw, char *bf, size_t bfsize)
 {
     /*
      *  Capped BEFORE it is masked: a peer with no session sends up to the
@@ -1466,7 +1474,7 @@ PRIVATE void log_identity_card_refused(
 )
 {
     char dump[MAX_LOG_DUMP_SIZE];
-    size_t size = peer_card_dump(kw, dump, sizeof(dump));
+    size_t size = peer_kw_dump(kw, dump, sizeof(dump));
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_PROTOCOL,
@@ -1717,7 +1725,7 @@ PRIVATE int answer_bad_request(
     json_int_t suppressed = 0;
     if(peer_log_allowed(gobj, PEER_LOG_BAD_REQUEST, &suppressed)) {
         char dump[MAX_LOG_DUMP_SIZE];
-        size_t size = peer_json_dump(kw, dump, sizeof(dump));
+        size_t size = peer_kw_dump(kw, dump, sizeof(dump));
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
@@ -2145,7 +2153,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(gobj_current_state(gobj) != ST_SESSION) {
         if(iev_event != EV_IDENTITY_CARD && iev_event != EV_GOODBYE) {
             char dump[MAX_LOG_DUMP_SIZE];
-            size_t size = peer_card_dump(iev_kw, dump, sizeof(dump));
+            size_t size = peer_kw_dump(iev_kw, dump, sizeof(dump));
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL,
@@ -2192,7 +2200,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         json_int_t suppressed = 0;
         if(peer_log_allowed(gobj, PEER_LOG_NO_ROUTING, &suppressed)) {
             char dump[MAX_LOG_DUMP_SIZE];
-            size_t size = peer_json_dump(iev_kw, dump, sizeof(dump));
+            size_t size = peer_kw_dump(iev_kw, dump, sizeof(dump));
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL,
@@ -2286,7 +2294,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         json_int_t suppressed = 0;
         if(peer_log_allowed(gobj, PEER_LOG_UNROUTED, &suppressed)) {
             char dump[MAX_LOG_DUMP_SIZE];
-            size_t size = peer_json_dump(iev_kw, dump, sizeof(dump));
+            size_t size = peer_kw_dump(iev_kw, dump, sizeof(dump));
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
@@ -2587,7 +2595,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             } else {
                 if(peer_log_allowed(gobj, PEER_LOG_NO_MATCH, &suppressed)) {
                     char dump[MAX_LOG_DUMP_SIZE];
-                    size_t size = peer_json_dump(iev_kw, dump, sizeof(dump));
+                    size_t size = peer_kw_dump(iev_kw, dump, sizeof(dump));
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PROTOCOL,

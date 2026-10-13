@@ -182,7 +182,7 @@ PRIVATE sdata_desc_t pm_drop_agent[] = {
 PRIVATE sdata_desc_t pm_write_tty[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "agent_id",     0,              0,          "agent id"),
-SDATAPM (DTP_STRING,    "content64",    0,              0,          "Content64 data to write to tty"),
+SDATAPM (DTP_STRING,    "content64",    SDF_SECRET,     0,          "Content64 data to write to tty: keystrokes, a typed password among them"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_logout_user[] = {

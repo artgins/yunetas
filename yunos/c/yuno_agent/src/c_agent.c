@@ -619,7 +619,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_write_tty[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Name of console"),
-SDATAPM (DTP_STRING,    "content64",    0,              0,          "Content64 data to write to tty"),
+SDATAPM (DTP_STRING,    "content64",    SDF_SECRET,     0,          "Content64 data to write to tty: keystrokes, a typed password among them"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_read_json[] = {
@@ -6730,7 +6730,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  json held more than max_refcount times (with the old default 1,
      *  every node of the agent's treedb) filled the log (REV-CLOUD V21.2.3)
      */
-    int max_refcount = (int)kw_get_int(gobj, kw, "max_refcount", 0, 0);
+    json_int_t max_refcount = kw_get_int(gobj, kw, "max_refcount", 0, 0);
 
     json_t *tranger = gobj_read_pointer_attr(priv->resource, "tranger");
     json_t *jn_report = json_refcounts_report(tranger, max_refcount, 20);
@@ -6745,6 +6745,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     }
     json_int_t corrupted = kw_get_int(gobj, jn_report, "corrupted", 0, 0);
     json_int_t over_max = kw_get_int(gobj, jn_report, "over_max", 0, 0);
+    BOOL truncated = kw_get_bool(gobj, jn_report, "truncated", 0, 0);
     if(corrupted > 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -6754,12 +6755,17 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             NULL
         );
     }
+    /*
+     *  -1 is a fault, as C_TRANGER's: a corrupted json or a walk cut short;
+     *  what is held more than max_refcount times is the answer (V22.5.4)
+     */
     return msg_iev_build_response(gobj,
-        (corrupted > 0 || over_max > 0)? -1 : 0,
+        (corrupted > 0 || truncated)? -1 : 0,
         json_sprintf(
             "%s: check refcounts of tranger: %" JSON_INTEGER_FORMAT " corrupted, "
-            "%" JSON_INTEGER_FORMAT " held more than %d times",
-            gobj_yuno_role_plus_name(), corrupted, over_max, max_refcount
+            "%" JSON_INTEGER_FORMAT " held more than %" JSON_INTEGER_FORMAT " times%s",
+            gobj_yuno_role_plus_name(), corrupted, over_max, max_refcount,
+            truncated? " (the walk stopped short: no memory left, see the log)" : ""
         ),
         0,
         jn_report,  // owned

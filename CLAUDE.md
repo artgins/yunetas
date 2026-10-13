@@ -444,9 +444,11 @@ Corollaries:
   its default alike: a `DTP_STRING` is a string, a `DTP_DICT`/`DTP_LIST` an
   object/array, a number or boolean is never an object or array, and text is
   read as the type (`"5"` -> 5, nothing before or after it and in its range;
-  a boolean as true/false, yes/no, on/off or a number). The handler gets the
-  EXACT type: a `1` given to a `DTP_BOOLEAN` arrives as `true`, a boolean
-  given to a `DTP_INTEGER` as 1, a `2.0` as 2 -- and a real with decimals
+  a boolean as true/false, yes/no, on/off or an integer; the text of an
+  integer is an integer, `"2.0"` refused, that of a real a decimal, no hex).
+  The handler gets the EXACT type, under the parameter's DECLARED name
+  (`N=5` is `n`): a `1` given to a `DTP_BOOLEAN` arrives as `true`, a boolean
+  given to a `DTP_INTEGER` as 1, a json `2.0` as 2 -- and a real with decimals
   given to an integer is refused, as its text is. Another shape is refused
   before the handler (`-1`; WARNING from a peer, ERROR with a stack from C),
   and a `null` -- or an empty text given in kw to a number -- is no value:

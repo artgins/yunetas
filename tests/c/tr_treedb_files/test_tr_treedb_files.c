@@ -528,7 +528,9 @@ PRIVATE int test_one_asset_one_blob(json_t *tranger)
  *  `create-topic` and `delete-topic` are live commands. Derived only at
  *  open, a topic added while the yuno runs had a `file` column whose hook
  *  did not exist, and a topic deleted at runtime left its hook behind
- *  holding children that are gone -- which the gc reads as "linked".
+ *  holding children that are gone -- which the gc reads as "linked". A
+ *  `file` column that is not `fkey`, or whose id holds a '^' (it is in the
+ *  hook it derives), is refused before the topic exists.
  ***************************************************************************/
 PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
 {
@@ -536,13 +538,14 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
     const char *test = "10. the hooks follow the schema at run time";
     set_expected_results(
         test,
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Creating topic",
             /*  `works.plan` has no `writable` either: the warning fires
              *  when the hook is CREATED, once per topic and not per pass.  */
             "msg", "a 'file' column without 'writable' cannot be filled by a person",
             "msg", "a 'file' column must be flagged 'fkey' too",
             "msg", "Topic refused: bad 'file' column",
+            "msg", "Topic refused: a name of its references or of its keys",
             "msg", "Deleting topic"
         ),
         NULL, NULL, 1
@@ -614,6 +617,25 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
         result += -1;
     }
     JSON_DECREF(topics)
+
+    /*  A '^' in the id of a `file` column: it is in the hook the column
+     *  derives, as_<topic>_<col>, and every link of a file failed with
+     *  "Cannot build the reference of a node" (REV-CLOUD V22.5.1)  */
+    json_t *caret_cols = json_pack("{s:{s:s, s:s, s:i, s:s, s:[s,s]}, s:{s:s, s:s, s:i, s:s, s:[s,s,s]}}",
+        "id",
+            "id", "id", "header", "Id", "fillspace", 20, "type", "string",
+            "flag", "persistent", "required",
+        "scan^x",
+            "id", "scan^x", "header", "Scan", "fillspace", 20, "type", "string",
+            "flag", "fkey", "file", "writable"
+    );
+    if(treedb_create_topic(
+        tranger, TREEDB_NAME, "caretworks", 1, "", 0, caret_cols, 0, FALSE, FALSE
+    )) {
+        printf("%s  FAIL: a topic with a '^' in the id of a 'file' column was created%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
 
     /*  Delete the topic: the hook goes, and with it the children it held  */
     if(treedb_delete_topic(tranger, TREEDB_NAME, "works")<0) {

@@ -7,7 +7,8 @@ length in a loop, logging nothing for a path that is not there with `verbose`
 FALSE (`test_reg_f003_kw_find_path_depth`: it recursed, and was cut at 64
 segments and 255 bytes with an ERROR); and `json_refcounts_report()` answers
 what the refcounts say, each json once, a cycle walked once, logging nothing
-(`test_json_refcounts_report`).
+-- also a cycle whose refcounts are corrupted below the truth, which it
+walked round until its frames passed `MAX_BLOCK` (`test_json_refcounts_report`).
 
 ## Run
 

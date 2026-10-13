@@ -72,8 +72,8 @@ too often (*"BAD gbuf_decref()"*).
 |---|---|---|
 | `DTP_STRING` | a string | the text |
 | `DTP_DICT` / `DTP_LIST` | a json object / a json array | its json |
-| `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, never an object or an array | a number with nothing before or after it, in its range; a boolean as `true`/`false`, `yes`/`no`, `on`/`off` or a number |
-| `DTP_JSON` | anything | its json, or the text itself as a string (a bare word, a date); a text that starts as json (`{`, `[`, `"`) and does not parse is refused |
+| `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, never an object or an array | a number with nothing before or after it, in its range: an integer for a `DTP_INTEGER`, a decimal number for a `DTP_REAL`; a boolean as `true`/`false`, `yes`/`no`, `on`/`off` or an integer |
+| `DTP_JSON` | anything | its json, or the text itself as a string (a bare word, a date); a text that starts as json (`{`, `[`, `"`) and does not parse is refused -- on the command line or as a default. In `kw` a string is a json too, and stays as it came: `"{x"` given in `kw` arrives as that string |
 
 **The handler gets the EXACT type** (7.26.10+), so it can read a parameter
 with the plain `kw_get_bool()` / `kw_get_int()` / `kw_get_real()` and no
@@ -88,7 +88,17 @@ with the plain `kw_get_bool()` / `kw_get_int()` / `kw_get_real()` and no
 A number written as text has nothing before or after it (`" 5"` and `"5 "`
 are refused), and is in its range: `limit=99999999999999999999` is refused
 (`strtoll()` used to saturate it in silence to 2⁶³-1), and so are `nan`,
-`inf` and `1e999`.
+`inf` and `1e999`. The text of an integer or of a boolean is an INTEGER:
+`limit=2.0` and `force=1.0` are refused, where the json `2.0` is `2` and the
+json `1.0` is `true` -- a json number is converted, a text is read. The text of
+a real is a DECIMAL number, as jansson reads one from a json: `0x10` is refused
+(`strtod()` read it as `16.0`, which an integer never took), and an underflow
+is a number, `1e-400` is `0.0` -- only an overflow is refused.
+
+A string given in `kw` with a NUL inside (an ievent frame is decoded with
+`JSON_ALLOW_NUL`) is refused, but for a `DTP_JSON`, where it stays as it came:
+C reads a string up to the NUL, so `"5\u0000junk"` was read as `5` and a
+string reached the handler other than it was sent.
 
 A `null` is no value (but for a `DTP_JSON`), and so is an empty text given in
 `kw` to a number (a form field left empty): the parameter takes its default;
@@ -98,6 +108,12 @@ required"*. On the command line an empty number is `0`, as it always was. The
 line has the last word: a value of `kw` that is refused does not count when the
 same parameter comes as `key=value` -- and it does not reach the handler under
 its name either.
+
+**A parameter reaches the handler under its DECLARED name.** The line finds a
+parameter in any case (`N=5` is the parameter `n`), and the value is stored as
+`n`. Up to 7.26.9 it was stored as typed, `"N": 5`: the handler read `n` and
+took its default, in silence, and a `kw` `n` beat the line. A key of `kw` is
+json, and is matched exactly: a `kw` `"N"` is no parameter `n`.
 
 Anything else is refused before the handler runs, with the answer `-1` that
 names the parameter, the shape expected and the shape given (never the value:
@@ -146,15 +162,18 @@ so a caller that relied on the handler's own reading gets `-1` now. Refused:
 
 - a number, a boolean, an object or an array given to a `DTP_STRING`
   (`node_id: 5`);
-- given to a `DTP_INTEGER`: a text that is not a whole integer (`play=y`,
-  `"5 "`, `" 5"`, `1e3`, a date), a real with decimals (`2.7`), a number past
-  64 bits;
-- given to a `DTP_REAL`: a text that is not a number, `nan`, `inf`, `1e999`;
+- given to a `DTP_INTEGER`: a text that is not a whole integer (`limit=y`,
+  `"5 "`, `" 5"`, `1e3`, `2.0`, `0x10`, a date), a real with decimals
+  (`2.7`), a number past 64 bits;
+- given to a `DTP_REAL`: a text that is not a decimal number (`0x10`),
+  `nan`, `inf`, `1e999`;
 - given to a `DTP_BOOLEAN`: a text that is not `true`/`false`, `yes`/`no`,
-  `on`/`off` or a number (`maybe`);
+  `on`/`off` or an integer (`maybe`, `play=y`, `1.0`);
 - an object or an array given to a number or a boolean, a non-object to a
   `DTP_DICT`, a non-array to a `DTP_LIST`;
-- a text that starts as json and does not parse, given to a `DTP_JSON`.
+- a string with a NUL inside, given in `kw` to anything but a `DTP_JSON`;
+- a text that starts as json and does not parse, given to a `DTP_JSON` on
+  the command line or as a default.
 
 Before, such a value reached the handler, which logged an ERROR or read it as
 something else. Look at the command's `help` for the type of each parameter:

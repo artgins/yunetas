@@ -2574,11 +2574,15 @@ PRIVATE int do_test(void)
     check_bool("check-json: the jsons walked", kw_get_int(0, jn_report, "jsons", 0, 0) > 0, TRUE);
     check_int("check-json: none corrupted", kw_get_int(0, jn_report, "corrupted", -1, 0), 0);
     JSON_DECREF(r)
+    /*  What is held more than max_refcount times is the ANSWER, a 0: -1 is a
+     *  fault, a corrupted json or a walk cut short. A sound tranger asked
+     *  with max_refcount=1 answered -1 (REV-CLOUD V22.5.4).  */
     r = gobj_command(yuno, "check-json", json_pack("{s:i}", "max_refcount", 1), yuno);
     jn_report = kw_get_dict(0, r, "data", 0, 0);
-    json_int_t over_max = kw_get_int(0, jn_report, "over_max", -1, 0);
-    check_int("check-json max_refcount=1: answers what it found",
-        kw_get_int(0, r, "result", -999, 0), over_max > 0? -1 : 0);
+    check_int("check-json max_refcount=1: answers what it found, a 0",
+        kw_get_int(0, r, "result", -999, 0), 0);
+    check_bool("check-json max_refcount=1: the walk was whole",
+        kw_get_bool(0, jn_report, "truncated", 1, 0), FALSE);
     check_bool("check-json max_refcount=1: shows at most 20",
         json_array_size(kw_get_list(0, jn_report, "shown", 0, 0)) <= 20, TRUE);
     JSON_DECREF(r)

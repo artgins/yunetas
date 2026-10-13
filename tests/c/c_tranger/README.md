@@ -61,8 +61,8 @@ What it checks:
     a key that has an iterator open;
   - `check-json` asks `read`, and a `-403` names the yuno first; it ANSWERS
     what it finds (`json_refcounts_report()`: the jsons walked, none
-    corrupted; with `max_refcount=1`, `-1` exactly when it reports some, at
-    most 20 shown) and logs nothing;
+    corrupted; with `max_refcount=1` a `0`, the walk whole, at most 20
+    shown -- `-1` is a corrupted json or a walk cut short) and logs nothing;
   - the same refusal from C code (no `__username__`) is an ERROR.
 - **A replica** -- a master that lost its lock reads as a replica, and
   `delete-key`, `delete-topic` and the `create-topic` of a new topic answer

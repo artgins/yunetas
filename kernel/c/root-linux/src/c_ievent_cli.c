@@ -287,11 +287,17 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) != ST_SESSION) {
+        /*
+         *  The command's NAME: `command` is the whole line forwarded (the
+         *  agent's command-yuno), and a set-password to a yuno that had just
+         *  gone left the password in the log (REV-CLOUD V22.3.1)
+         */
+        size_t name_len = command? strcspn(command, " \t\r\n") : 0;
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Not in session",
-            "command",      "%s", command,
+            "command",      "%.*s", (int)(name_len > 64? 64 : name_len), command? command : "",
             NULL
         );
         KW_DECREF(kw)
@@ -1290,14 +1296,15 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Service not found",
-                "service",      "%s", service,
+                "service",      "%.128s", service,
                 "event",        "%s", event,
                 NULL
             );
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("Service not found: '%s'", service),   // jn_comment
+                json_sprintf("Service not found: '%.*s'",
+                    utf8_prefix_len(service, 60), service),   // jn_comment
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -1392,14 +1399,15 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Service not found",
-                "service",      "%s", service,
+                "service",      "%.128s", service,
                 "event",        "%s", event,
                 NULL
             );
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("Service not found: '%s'", service),   // jn_comment
+                json_sprintf("Service not found: '%.*s'",
+                    utf8_prefix_len(service, 60), service),   // jn_comment
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -1411,7 +1419,7 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
 
             return send_static_iev(gobj,
-                EV_MT_STATS_ANSWER,
+                EV_MT_COMMAND_ANSWER,   // it went as EV_MT_STATS_ANSWER (REV-CLOUD V22.4.7)
                 kw_response,
                 src
             );
