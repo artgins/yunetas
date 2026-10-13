@@ -456,7 +456,7 @@ Out of the twenty-second review (V22):
   measure can never match). A colour field is cleared to `#000000` rather
   than `null`, which Chrome logged once per colour field each time the form
   was filled. Every SPA on `^7.26.34` and deployed.
-- **JS layer: gobj-ui 7.26.35 and 7.26.36, gobj-js 7.26.20** (the
+- **JS layer: gobj-ui 7.26.35 to 7.26.37, gobj-js 7.26.20** (the
   twenty-third review, V23.3, V23.5, V23.6). gobj-ui: a window whose host
   names no `$parent`
   outlives a logout and the next shell takes it in -- since 7.26.31 it stayed
@@ -477,8 +477,11 @@ Out of the twenty-second review (V22):
   masking by value of the C kernel (above), and the `set` of the trace
   commands read with the C grammar. 7.26.36: the composed title of a dock
   chip (a window with a data half) changes language -- estadodelaire's QA,
-  which switches the language and reads every name again, found it. Every
-  SPA on `^7.26.36` / `^7.26.20` and deployed.
+  which switches the language and reads every name again, found it. 7.26.37:
+  the editor of a boolean cell is a box to tick, not the whole cell -- the
+  rule that sizes a cell editor to its cell reached the checkbox of the
+  `tickCross` editor, and validating an alarm on a phone opened a huge empty
+  box (a user's report). Every SPA on `^7.26.37` / `^7.26.20` and deployed.
 
 Out of the twenty-third review (V23):
 
