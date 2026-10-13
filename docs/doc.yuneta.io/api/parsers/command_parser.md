@@ -72,7 +72,7 @@ too often (*"BAD gbuf_decref()"*).
 |---|---|---|
 | `DTP_STRING` | a string | the text |
 | `DTP_DICT` / `DTP_LIST` | a json object / a json array | its json |
-| `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, never an object or an array | a number with nothing before or after it, in its range: an integer for a `DTP_INTEGER`, a decimal number for a `DTP_REAL`; a boolean as `true`/`false`, `yes`/`no`, `on`/`off` or an integer |
+| `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, never an object or an array | a number of the JSON grammar with nothing before or after it, in its range: a JSON integer for a `DTP_INTEGER`, a JSON number for a `DTP_REAL`; a boolean as `true`/`false`, `yes`/`no`, `on`/`off` or a JSON integer |
 | `DTP_JSON` | anything | its json, or the text itself as a string (a bare word, a date); a text that starts as json (`{`, `[`, `"`) and does not parse is refused -- on the command line or as a default. In `kw` a string is a json too, and stays as it came: `"{x"` given in `kw` arrives as that string |
 
 **The handler gets the EXACT type** (7.26.10+), so it can read a parameter
@@ -85,15 +85,40 @@ with the plain `kw_get_bool()` / `kw_get_int()` / `kw_get_real()` and no
 | an integer `n` | `true` unless `0` | as it is | `n` as a real |
 | a real `d` | `true` unless `0.0` | `d` when it has no decimals (`2.0` -> `2`); with decimals (`2.7`), or out of the 64 bits, **refused** -- as the text `"2.7"` is | as it is |
 
-A number written as text has nothing before or after it (`" 5"` and `"5 "`
-are refused), and is in its range: `limit=99999999999999999999` is refused
-(`strtoll()` used to saturate it in silence to 2⁶³-1), and so are `nan`,
-`inf` and `1e999`. The text of an integer or of a boolean is an INTEGER:
-`limit=2.0` and `force=1.0` are refused, where the json `2.0` is `2` and the
-json `1.0` is `true` -- a json number is converted, a text is read. The text of
-a real is a DECIMAL number, as jansson reads one from a json: `0x10` is refused
-(`strtod()` read it as `16.0`, which an integer never took), and an underflow
-is a number, `1e-400` is `0.0` -- only an overflow is refused.
+A number written as text is a number of the JSON grammar, the whole text:
+nothing before or after it (`" 5"` and `"5 "` are refused), and in its range.
+The text of an integer, and of a boolean that is not a word, is a JSON
+INTEGER:
+
+```text
+-?(0|[1-9][0-9]*)               0  -0  42  -7       not  +5  007  2.0  1e3  0x10  " 5"
+```
+
+The text of a real is a JSON NUMBER:
+
+```text
+-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?
+                                2.5  -0.5  1E5  1e-400  0       not  .5  5.  +5  007  0x10  nan  inf
+```
+
+So `limit=99999999999999999999` is refused (`strtoll()` used to saturate it in
+silence to 2⁶³-1), and so are `nan`, `inf` and `1e999`; `limit=2.0` and
+`force=1.0` are refused, where the json `2.0` is `2` and the json `1.0` is
+`true` -- a json number is converted, a text is read. An underflow is a number
+(`1e-400` is `0.0`), an overflow is refused. Up to 7.26.9 the text went to
+`strtod()` / `strtoll()`, which took `.5`, `5.`, `+5` and `007` (as `7`), and
+`0x10` (as `16.0`) for a real. The text is read in the `"C"` locale, whatever
+the `LC_NUMERIC` of the process: with the `LC_NUMERIC` of `es_ES`, `strtod()`
+read `2.5` as `2` and stopped at the `.` (and took `2,5`). No yuno sets its
+numeric locale, so that one was latent.
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=<treedb> command=nodes topic_name=t limit=7'     # limit is 7
+ycommand -c 'command-yuno id=<yuno> service=<treedb> command=nodes topic_name=t limit=007'   # refused: no JSON integer
+```
+
+The answer of the refusal: *"\<gobj>: command 'nodes', parameter 'limit' must
+be an integer, not a text that does not read as one"*.
 
 A string given in `kw` with a NUL inside (an ievent frame is decoded with
 `JSON_ALLOW_NUL`) is refused, but for a `DTP_JSON`, where it stays as it came:
@@ -162,13 +187,13 @@ so a caller that relied on the handler's own reading gets `-1` now. Refused:
 
 - a number, a boolean, an object or an array given to a `DTP_STRING`
   (`node_id: 5`);
-- given to a `DTP_INTEGER`: a text that is not a whole integer (`limit=y`,
-  `"5 "`, `" 5"`, `1e3`, `2.0`, `0x10`, a date), a real with decimals
-  (`2.7`), a number past 64 bits;
-- given to a `DTP_REAL`: a text that is not a decimal number (`0x10`),
-  `nan`, `inf`, `1e999`;
+- given to a `DTP_INTEGER`: a text that is not a JSON integer (`limit=y`,
+  `"5 "`, `" 5"`, `+5`, `007`, `1e3`, `2.0`, `0x10`, a date), a real with
+  decimals (`2.7`), a number past 64 bits;
+- given to a `DTP_REAL`: a text that is not a JSON number (`.5`, `5.`, `+5`,
+  `007`, `0x10`, `nan`, `inf`), an overflow (`1e999`);
 - given to a `DTP_BOOLEAN`: a text that is not `true`/`false`, `yes`/`no`,
-  `on`/`off` or an integer (`maybe`, `play=y`, `1.0`);
+  `on`/`off` or a JSON integer (`maybe`, `play=y`, `1.0`, `+1`, `007`);
 - an object or an array given to a number or a boolean, a non-object to a
   `DTP_DICT`, a non-array to a `DTP_LIST`;
 - a string with a NUL inside, given in `kw` to anything but a `DTP_JSON`;
@@ -384,6 +409,21 @@ shows as it is, so "not set" still shows. The kernel uses it for the
 `"command kw"` trace of `gobj_command()` and the `"expanded_command: kw_cmd"`
 trace of [`command_parser()`](#command_parser) (both under `ev_kw`).
 
+**A limit: a `SDF_SECRET` parameter whose NAME is not a secret's.** The
+`content64` of the agent's `write-tty` (the keystrokes of a console) and of its
+`create-config` / `update-config` (a configuration, credentials among it) is
+declared `SDF_SECRET`. The parser masks it by its declaration -- in the kw it
+hands the authz checker, in the `commands` trace, here -- but the `machine`
+trace with `ev_kw` of an EVENT that carries it (the `EV_WRITE_TTY` the agent
+sends its console, an inter-event of a peer before it is a command) masks by
+names only ([`json_mask_secrets()`](#json_mask_secrets)), and shows it. Name
+such a parameter with a secret's name when the trace must not show it.
+
+```C
+SDATAPM (DTP_STRING,    "content64",    SDF_SECRET,     0,          "Content in base64"),  // masked by the parser only
+SDATAPM (DTP_STRING,    "secret64",     SDF_SECRET,     0,          "Content in base64"),  // masked by the name everywhere
+```
+
 ```C
 json_t *command_mask_secret_kw(
     hgobj gobj,
@@ -494,15 +534,21 @@ line = command_mask_secret_line(agent,  // command-yuno is SDF_WILD_CMD
 );                                      // "command-yuno id=x command='set-user-pwd password=********'"
 ```
 
-The errors the parser answers for a malformed line mask what they echo: a
-secret `name=value` in the extra text, and all of it when it is the value of a
-secret parameter written with a blank after its `=`, or the rest of a
-positional secret written with blanks. `set-password password=
-hunter2` is refused with *"command 'set-password' with extra parameters:
-'<...>'"*, and so is `set-password-pos correct horse battery` (a required
-`SDF_SECRET` parameter given without its key: it takes `correct`, and up to
-7.25.21 the answer showed `'horse battery'`); `list-yunos foo` with *"...
-extra parameters: 'foo'"*.
+The errors the parser answers for a malformed line mask what they echo. The
+extra text of a line is NOT repeated when the line carries a secret: a secret
+parameter given on it (`SDF_SECRET`, or a secret's name), or anything
+[`mask_secrets_inline()`](#mask_secrets_inline) masks in it -- a secret
+`name=value`, the `value=` of a write-attr whose `attribute=` names a secret, a
+JWT, a `Bearer` token. A secret written with blanks leaves the rest of it as
+extra text: `set-password password=correct horse battery` and
+`set-password-pos correct horse battery` (a required `SDF_SECRET` parameter
+given without its key: it takes `correct`) are refused with *"command
+'set-password' with extra parameters: '<...>'"*, and so is `write-attr
+gobj_name=x attribute=password value=correct horse battery`, whose `value` is
+no secret parameter of its own. Else the extra text is echoed, its secrets
+masked: `list-yunos foo` is refused with *"... extra parameters: 'foo'"*. Up to
+7.25.21 the positional one showed `'horse battery'`, and up to 7.26.9 the
+write-attr one did.
 
 That masking holds because a required secret is always the LAST required
 parameter: [`gclass_create()`](#gclass_create) refuses a command table where

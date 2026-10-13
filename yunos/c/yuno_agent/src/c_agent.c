@@ -713,7 +713,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_create_config[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Id"),
-SDATAPM (DTP_STRING,    "content64",    0,              0,          "Content in base64"),
+SDATAPM (DTP_STRING,    "content64",    SDF_SECRET,     0,          "Content in base64: a configuration, its credentials among it"),
 SDATA_END()
 };
 
@@ -735,7 +735,7 @@ PRIVATE sdata_desc_t pm_update_config[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Id"),
 SDATAPM (DTP_STRING,    "version",      0,              0,          "configuration version"),
-SDATAPM (DTP_STRING,    "content64",    0,              0,          "content in base64"),
+SDATAPM (DTP_STRING,    "content64",    SDF_SECRET,     0,          "Content in base64: a configuration, its credentials among it"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_config[] = {

@@ -841,10 +841,101 @@ static int test_json_refcounts_report(void)
         printf("truncated, expected false\n");
         result += -1;
     }
+    /*
+     *  ... and it is REPORTED: `c` is reached twice, from the root and from
+     *  `d`, with a refcount of 1 -- the walk ended, and said nothing
+     *  (REV-CLOUD V23.4.4). Its path is where it was reached once too many.
+     */
+    if(json_integer_value(json_object_get(jn_report, "corrupted")) != 1) {
+        printf("corrupted %d, expected 1\n", (int)json_integer_value(json_object_get(jn_report, "corrupted")));
+        result += -1;
+    }
+    json_t *jn_fault = json_array_get(json_object_get(jn_report, "shown"), 0);
+    if(strcmp(json_string_value(json_object_get(jn_fault, "path"))?
+            json_string_value(json_object_get(jn_fault, "path")) : "", "c`hook`hook")!=0 ||
+       strcmp(json_string_value(json_object_get(jn_fault, "fault"))?
+            json_string_value(json_object_get(jn_fault, "fault")) : "", "corrupted")!=0) {
+        printf("the corrupted json is not shown at c`hook`hook\n");
+        result += -1;
+    }
     JSON_DECREF(jn_report)
     json_incref(c);                     // the truth again: held twice
     json_object_del(d, "hook");
     JSON_DECREF(root2)
+
+    /*
+     *  A json set with json_object_set_new() in two places: a refcount of 1
+     *  and two holders. A dict and a string, neither in a cycle.
+     */
+    json_t *twice = json_pack("{s:s}", "id", "x");
+    json_t *text = json_string("held twice");
+    json_t *root3 = json_object();
+    json_object_set_new(root3, "a", twice);
+    json_object_set_new(root3, "b", twice);     // the bug: the reference was the first's
+    json_object_set_new(root3, "t1", text);
+    json_object_set_new(root3, "t2", text);
+    jn_report = json_refcounts_report(root3, 0, 20);
+    if(json_integer_value(json_object_get(jn_report, "corrupted")) != 2) {
+        printf("corrupted %d, expected 2\n", (int)json_integer_value(json_object_get(jn_report, "corrupted")));
+        result += -1;
+    }
+    if(json_integer_value(json_object_get(jn_report, "jsons")) != 4) {
+        printf("jsons %d, expected 4\n", (int)json_integer_value(json_object_get(jn_report, "jsons")));
+        result += -1;
+    }
+    JSON_DECREF(jn_report)
+    json_incref(twice);                 // the truth again
+    json_incref(text);
+    JSON_DECREF(root3)
+
+    /*
+     *  A sound json: nothing corrupted, also with a node held by the caller
+     *  and by two hooks (refcount 3, reached twice)
+     */
+    json_t *node3 = json_pack("{s:s}", "id", "n3");
+    json_t *root4 = json_pack("{s:{s:O}, s:{s:O}}", "index", "n3", node3, "hooks", "n3", node3);
+    jn_report = json_refcounts_report(root4, 0, 20);
+    if(json_integer_value(json_object_get(jn_report, "corrupted")) != 0) {
+        printf("a sound json reported corrupted\n");
+        result += -1;
+    }
+    JSON_DECREF(jn_report)
+    JSON_DECREF(root4)
+    JSON_DECREF(node3)
+
+    /*
+     *  json_nul_fault(): a NUL in a string, at any depth (a json decoded with
+     *  JSON_ALLOW_NUL); C reads a string up to it (REV-CLOUD V23.4.2)
+     */
+    json_t *rec = json_pack("{s:s, s:{s:[s, s%]}}",
+        "id", "dx",
+        "data", "list", "ok", "dx\0evil", (size_t)7
+    );
+    const char *nul_fault = json_nul_fault(rec);
+    if(!nul_fault || strcmp(nul_fault, "a string with a NUL in it")!=0) {
+        printf("json_nul_fault() did not find the NUL down the record\n");
+        result += -1;
+    }
+    json_t *clean = json_pack("{s:s, s:[i, b, n]}", "id", "dx", "l", 1, 1);
+    if(json_nul_fault(clean)) {
+        printf("json_nul_fault() found a NUL in a clean record\n");
+        result += -1;
+    }
+    json_t *deep = json_array();
+    json_t *level = deep;
+    for(int i = 0; i < 3000; i++) {
+        json_t *next = json_array();
+        json_array_append_new(level, next);
+        level = next;
+    }
+    nul_fault = json_nul_fault(deep);
+    if(!nul_fault || strcmp(nul_fault, "a json nested deeper than a parser builds")!=0) {
+        printf("json_nul_fault() did not refuse a json 3000 levels deep\n");
+        result += -1;
+    }
+    JSON_DECREF(deep)
+    JSON_DECREF(clean)
+    JSON_DECREF(rec)
 
     result += test_json(NULL);
     return result;

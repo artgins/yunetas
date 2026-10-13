@@ -154,6 +154,11 @@ PUBLIC gbuffer_t *iev_create_to_gbuffer( // old iev_create()
 
 /*---------------------------------------------------------*
  *  Incorporate event's messages FROM the outside world.
+ *  The kw (yours), NULL for a frame that is not json or
+ *  not an inter-event (said with `verbose`; with 0 the
+ *  caller says it). *event is the public event the frame
+ *  names, NULL when no gclass has it as public: that one is
+ *  logged HERE, a WARNING, whatever `verbose`.
  *---------------------------------------------------------*/
 PUBLIC json_t *iev_create_from_gbuffer(
     hgobj gobj,

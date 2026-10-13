@@ -8,8 +8,12 @@
  *          All Rights Reserved.
 ***********************************************************************/
 #include <string.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <float.h>
+#ifdef __linux__
+#include <locale.h>
+#endif
 #include "gobj.h"
 #include "command_parser.h"
 
@@ -52,6 +56,7 @@ PRIVATE json_t *build_cmd_kw(
     const char *command,
     const sdata_desc_t *cnf_cmd,
     char *parameters,
+    const char *line,
     json_t *kw, // not owned
     int *result
 );
@@ -367,14 +372,19 @@ PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key)
  *      DTP_DICT        a json object (text: the json of one)
  *      DTP_LIST        a json array (text: the json of one)
  *      DTP_INTEGER,    a number or a boolean, never an object or an array.
- *      DTP_REAL,       Text is read as one: a number with nothing before or
- *      DTP_BOOLEAN     after it, in its range, and a boolean as true/false,
- *                      yes/no, on/off or an integer ("yes" was atoi()'d to
- *                      FALSE, so a `dry_run=yes` saved for real). The text
- *                      of an integer or a boolean is an integer ("2.0" is
- *                      refused, the json 2.0 is 2), that of a real a
- *                      decimal number (no hex), and an underflow is a
- *                      number, as jansson reads one (1e-400 is 0).
+ *      DTP_REAL,       Text is read as one: a number of the JSON grammar
+ *      DTP_BOOLEAN     with nothing before or after it, in its range, and a
+ *                      boolean as true/false, yes/no, on/off or an integer
+ *                      ("yes" was atoi()'d to FALSE, so a `dry_run=yes`
+ *                      saved for real). The text of an integer or a boolean
+ *                      is a JSON integer, -?(0|[1-9][0-9]*): "-0", "42";
+ *                      not "2.0" (the json 2.0 is 2), "+5", "007", " 5".
+ *                      That of a real is a JSON number,
+ *                      -?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?:
+ *                      "2.5", "-0.5", "1E5", "1e-400" (an underflow is a
+ *                      number, 0); not ".5", "5.", "+5", "007", "0x10",
+ *                      "nan", "inf", nor an overflow ("1e999"). Read in the
+ *                      "C" locale, whatever the LC_NUMERIC of the process.
  *      DTP_JSON        anything; text that is not json is a string, but
  *                      not one that starts as json ({ [ ") and breaks --
  *                      on the line or in a default: in kw a string is a
@@ -515,6 +525,94 @@ PRIVATE json_t *number_as_type(data_type_t type, json_t *value, const char **ref
 }
 
 /***************************************************************************
+ *  Is `s`, whole, a number of the JSON grammar? An integer when `integer`:
+ *      -?(0|[1-9][0-9]*)
+ *  else a JSON number:
+ *      -?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?
+ *  strtoll() and strtod() took ".5", "5.", "+5" and "007" (as 7), blanks
+ *  before the number, and strtod() hex, "nan" and "inf" (REV-CLOUD V23.4.6).
+ ***************************************************************************/
+PRIVATE BOOL is_ascii_digit(char c)
+{
+    return (c >= '0' && c <= '9')? TRUE : FALSE;
+}
+
+PRIVATE BOOL is_json_number_text(const char *s, BOOL integer)
+{
+    const char *p = s;
+    if(*p == '-') {
+        p++;
+    }
+    if(*p == '0') {
+        p++;
+    } else if(*p >= '1' && *p <= '9') {
+        while(is_ascii_digit(*p)) {
+            p++;
+        }
+    } else {
+        return FALSE;
+    }
+    if(!integer && *p == '.') {
+        p++;
+        if(!is_ascii_digit(*p)) {
+            return FALSE;
+        }
+        while(is_ascii_digit(*p)) {
+            p++;
+        }
+    }
+    if(!integer && (*p == 'e' || *p == 'E')) {
+        p++;
+        if(*p == '+' || *p == '-') {
+            p++;
+        }
+        if(!is_ascii_digit(*p)) {
+            return FALSE;
+        }
+        while(is_ascii_digit(*p)) {
+            p++;
+        }
+    }
+    return (*p == 0)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  The double of a text that is a JSON number (is_json_number_text()),
+ *  read in the "C" locale whatever the LC_NUMERIC of the process is: in
+ *  es_ES strtod() reads "2.5" as 2 and stops at the '.'. newlocale() of
+ *  "C" is the C library's own object, no file is read (it works in a
+ *  FULLY_STATIC binary), and it is freed at once. NULL, or *refused saying
+ *  why: an overflow ("1e999"). An underflow is a number (1e-400 is 0).
+ ***************************************************************************/
+PRIVATE json_t *json_number_text_to_real(const char *s, const char **refused)
+{
+    double d;
+#ifdef __linux__
+    locale_t c_numeric = newlocale(LC_NUMERIC_MASK, "C", (locale_t)0);
+    if(!c_numeric) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "newlocale() of \"C\" FAILED: a number text cannot be read",
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        *refused = "a number that could not be read (see the log)";
+        return NULL;
+    }
+    d = strtod_l(s, NULL, c_numeric);
+    freelocale(c_numeric);
+#else
+    d = strtod(s, NULL);    // the ESP32 port never sets a locale: "C"
+#endif
+    if(d > DBL_MAX || d < -DBL_MAX) {   // an overflow is +-HUGE_VAL
+        *refused = "a number out of its range";
+        return NULL;
+    }
+    return json_real(d);
+}
+
+/***************************************************************************
  *  The value of a parameter written as text. Return a new reference; NULL
  *  with *refused NULL is no value (an empty number from kw: a form field
  *  left empty), NULL with *refused set a text that does not read as the
@@ -551,42 +649,19 @@ PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, co
             }
         }
         /*
-         *  Nothing before the number either: strtoll() and strtod() skip the
-         *  blanks before it, and " 5" was taken where "5 " was refused
+         *  A number of the JSON grammar, the whole text: the text of a real
+         *  a JSON number, that of an integer or a boolean a JSON integer
+         *  (REV-CLOUD V22.4.3, V23.4.6)
          */
-        if(*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r' || *s == '\f' || *s == '\v') {
+        if(!is_json_number_text(s, DTP_IS_REAL(type)? FALSE : TRUE)) {
             *refused = "a text that does not read as one";
             return NULL;
         }
-        char *end = NULL;
-        errno = 0;
         if(DTP_IS_REAL(type)) {
-            /*
-             *  A decimal number, as jansson reads one from a json:
-             *  strtod() reads hex too ("0x10" was 16.0), which an integer
-             *  never took; and an underflow is a number (1e-400 is 0),
-             *  only an overflow is refused (REV-CLOUD V22.4.3)
-             */
-            if(strchr(s, 'x') || strchr(s, 'X')) {
-                *refused = "a text that does not read as one";
-                return NULL;
-            }
-            double d = strtod(s, &end);
-            if(end == s || *end != 0 || d != d) {   // d != d: "nan"
-                *refused = "a text that does not read as one";
-                return NULL;
-            }
-            if(d > DBL_MAX || d < -DBL_MAX) {   // "1e999", "inf": an overflow is ±HUGE_VAL
-                *refused = "a number out of its range";
-                return NULL;
-            }
-            return json_real(d);
+            return json_number_text_to_real(s, refused);
         }
-        long long n = strtoll(s, &end, 10);
-        if(end == s || *end != 0) {
-            *refused = "a text that does not read as one";
-            return NULL;
-        }
+        errno = 0;
+        long long n = strtoll(s, NULL, 10);     // digits only: no locale reads them otherwise
         if(errno == ERANGE) {
             *refused = "a number out of its range";   // strtoll() saturates in silence
             return NULL;
@@ -1043,7 +1118,7 @@ PRIVATE json_t *expand_command(
     str = p = gbmem_strdup(command);
     get_parameter(p, &p);   // the command's name, found by find_command_desc()
 
-    json_t *kw_cmd = build_cmd_kw(gobj, cnf_cmd->name, cnf_cmd, p, kw, result);
+    json_t *kw_cmd = build_cmd_kw(gobj, cnf_cmd->name, cnf_cmd, p, command, kw, result);
     GBMEM_FREE(str)
     return kw_cmd;
 }
@@ -1160,7 +1235,8 @@ PRIVATE json_t *build_cmd_kw(
     hgobj gobj,
     const char *command,
     const sdata_desc_t *cnf_cmd,
-    char *parameters,   // input line
+    char *parameters,   // input line, its words after the command's (cut by the parsing)
+    const char *line,   // the whole line, as it came
     json_t *kw, // not owned
     int *result
 )
@@ -1169,7 +1245,7 @@ PRIVATE json_t *build_cmd_kw(
     BOOL wild_command = (cnf_cmd->flag & SDF_WILD_CMD)?1:0;
     json_t *kw_cmd = json_object();
     char *pxxx = parameters;
-    const char *last_key = NULL;    // the parameter before an extra word
+    BOOL secret_given = FALSE;      // a secret parameter given on the line
     char bftemp[1] = {0};
     if(!pxxx) {
         pxxx = bftemp;
@@ -1247,7 +1323,9 @@ PRIVATE json_t *build_cmd_kw(
             );
         }
         json_object_set_new(kw_cmd, ip->name, jn_param);
-        last_key = ip->name;    // a positional secret with blanks leaves the rest of it
+        if(is_secret_parameter(cnf_cmd, ip->name)) {
+            secret_given = TRUE;    // a positional secret with blanks leaves the rest of it
+        }
 
         ip++;
     }
@@ -1396,28 +1474,36 @@ PRIVATE json_t *build_cmd_kw(
          */
         const char *name = ip2? ip2->name : key;
         json_object_set_new(kw_cmd, name, jn_param);
-        last_key = name;
+        if(is_secret_parameter(cnf_cmd, name)) {
+            secret_given = TRUE;
+        }
     }
 
     if(!empty_string(pxxx)) {
         /*
-         *  The extra text is echoed with its secrets masked: a secret
-         *  name=value in it, and all of it when it follows a secret
-         *  parameter -- the rest of its value, written with blanks
-         *  (password=correct horse battery, password= hunter2), as a
-         *  key=value or as a positional parameter (up to 7.25.21 the
-         *  positional one showed the rest of it)
+         *  The extra text is not repeated when the line carries a secret:
+         *  a secret parameter given on it (SDF_SECRET or a secret's name),
+         *  or anything mask_secrets_inline() masks in it -- a secret
+         *  name=value, the `value` of a write-attr of a secret attribute,
+         *  a JWT, a Bearer token. A secret written with blanks leaves the
+         *  rest of it as extra text (password=correct horse battery, as a
+         *  key=value or positional), and the `value` of a write-attr is no
+         *  secret parameter: `write-attr attribute=password value=correct
+         *  horse battery` answered 'horse battery' (REV-CLOUD V23.4.3).
+         *  Else the extra text is echoed, its secrets masked.
          */
         *result = -1;
         JSON_DECREF(kw_cmd);
         JSON_DECREF(jn_refused);
-        BOOL extra_is_secret = last_key && is_secret_parameter(cnf_cmd, last_key);
-        char *masked = extra_is_secret? NULL : mask_secrets_inline(pxxx);
+        char *line_masked = secret_given? NULL : mask_secrets_inline(line);
+        BOOL line_has_secret = (secret_given || line_masked)? TRUE : FALSE;
+        GBMEM_FREE(line_masked)
+        char *masked = line_has_secret? NULL : mask_secrets_inline(pxxx);
         json_t *jn_error = json_sprintf(
             "%s: command '%s' with extra parameters: '%s'",
             gobj_short_name(gobj),
             command,
-            extra_is_secret? "<...>" : (masked? masked : pxxx)
+            line_has_secret? "<...>" : (masked? masked : pxxx)
         );
         GBMEM_FREE(masked)
         return jn_error;

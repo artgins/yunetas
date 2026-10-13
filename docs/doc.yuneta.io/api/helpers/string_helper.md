@@ -475,16 +475,25 @@ A name is a secret's, in any case, when it holds one of `passw`, `pwd`,
 `passphrase`, `secret`, `token`, `jwt`, `bearer`, `authorization`, `cookie`,
 `credential`, `salt`; or one of `apikey`, `sessionid`, `sessionkey`,
 `authdata` once `_`, `-`, `.` and blanks are taken out (`api_key`,
-`X-Api-Key`, `__session_id__`); or both `priv` and `key` (`private_key`). Not
-secrets: the PATH of a key or a certificate (`ssl_certificate_key`), a public
-`cert_pem`, `max_sessions`, `authz`, `auth_method`; and a name with a SEGMENT
-(split by `_`, `-`, `.` and blanks) that names something ABOUT a credential:
-`endpoint`, `url`, `uri`, `domain`, `path`, `file`, `public`, `pub`, `count`,
-`counts`, `type`, `name`, `len`, `length`, `size`, `max`, `min`, `ttl`,
-`timeout`, `expiry`, `expires`, `mode` (`token_endpoint`,
-`cookie_domain`, `jwt_public_keys`, `refresh_token_count`). The agent's
-audit record does not take that last exception: it asks
-[`is_secret_name_any()`](#is_secret_name_any).
+`X-Api-Key`, `__session_id__`); or one of `pass`, `pin`, `otp` as a WHOLE
+segment -- a run of letters and digits: `pass`, `db_pass`, `user-pin`,
+`sim_pin`, `user[pin]`, `otp` are secrets, and `passive`, `bypass`, `compass`,
+`ping`, `mapping`, `spinner`, `otpx`, `pin2` are not (7.26.10+); or both `priv`
+and `key` (`private_key`). Not secrets: the PATH of a key or a certificate
+(`ssl_certificate_key`), a public `cert_pem`, `max_sessions`, `authz`,
+`auth_method`; and a name with a SEGMENT (split by `_`, `-`, `.` and blanks)
+that names something ABOUT a credential: `endpoint`, `url`, `uri`, `domain`,
+`path`, `file`, `public`, `pub`, `count`, `counts`, `type`, `name`, `len`,
+`length`, `size`, `max`, `min`, `ttl`, `timeout`, `expiry`, `expires`, `mode`
+(`token_endpoint`, `cookie_domain`, `jwt_public_keys`, `refresh_token_count`,
+`pin_count`). The agent's audit record does not take that last exception: it
+asks [`is_secret_name_any()`](#is_secret_name_any).
+
+`key` and `cert` alone are NOT secrets' names, on purpose: a `key` is the key
+of a record of timeranger as often as a credential (`delete-key key=K`, the
+`keys` of a topic), and a certificate is public -- a path to one, or its PEM.
+A secret by its VALUE is masked whatever its name: a JWT, a `Bearer` token
+([`mask_secrets_inline()`](#mask_secrets_inline)).
 
 ```C
 BOOL is_secret_name(
@@ -510,7 +519,12 @@ BOOL is_secret_name(
 is_secret_name("smtp_password", 13);    // TRUE
 is_secret_name("X-Api-Key", 9);         // TRUE (apikey, joined)
 is_secret_name("private_key", 11);      // TRUE (priv + key)
+is_secret_name("sim_pin", 7);           // TRUE (pin, a whole segment)
+is_secret_name("db_pass", 7);           // TRUE (pass, a whole segment)
+is_secret_name("mapping", 7);           // FALSE (pin inside a word)
+is_secret_name("passive", 7);           // FALSE (pass inside a word)
 is_secret_name("ssl_certificate_key", 19); // FALSE (a path)
+is_secret_name("key", 3);               // FALSE (a record key as often)
 is_secret_name("token_endpoint", 14);   // FALSE (about a token)
 is_secret_name("username", 8);          // FALSE
 ```
@@ -552,6 +566,7 @@ is NULL.
 ```C
 is_secret_name_any("token_endpoint", 14);   // TRUE  (is_secret_name(): FALSE)
 is_secret_name_any("api_key_max", 11);      // TRUE  (is_secret_name(): FALSE)
+is_secret_name_any("pin_count", 9);         // TRUE  (is_secret_name(): FALSE)
 is_secret_name_any("smtp_password", 13);    // TRUE
 is_secret_name_any("public_url", 10);       // FALSE
 ```
@@ -590,8 +605,11 @@ A json as a log or a trace may show it. At any depth, the value of a key whose
 name is a secret's ([`is_secret_name()`](#is_secret_name)) is `"********"`,
 whatever its json type (not an absent one, a null or an empty string, so "not
 set" still shows); so is the `value` of a dict whose `attribute` names a
-secret (a write-attr); and every string is masked as
-[`mask_secrets_inline()`](#mask_secrets_inline). What
+secret (a write-attr); and every string, under ANY key, is masked as
+[`mask_secrets_inline()`](#mask_secrets_inline): a JWT, the token after
+`Bearer `, a secret `name=value` in it (7.26.10+: up to 7.26.9 a JWT under a
+plain key showed). A string with a NUL inside (a frame of a peer is decoded with
+`JSON_ALLOW_NUL`) is looked at past the NUL too. What
 [`gobj_trace_json_masked()`](#gobj_trace_json_masked) prints, and what
 `C_IEVENT_SRV` writes of a kw before its session.
 
@@ -630,14 +648,17 @@ last item in a list) -- never in clear.
 **Example**
 
 ```C
-json_t *kw = json_pack("{s:I, s:{s:s}, s:s}",
+json_t *kw = json_pack("{s:I, s:{s:s}, s:s, s:s, s:s}",
     "password", (json_int_t)1234,
     "auth", "access_token", "eyJ...",
-    "__command__", "set-user-pwd username=bob password=hunter2"
+    "__command__", "set-user-pwd username=bob password=hunter2",
+    "note", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJib2IifQ.c2lnbmF0dXJl",
+    "headers", "Authorization: Bearer abc123"
 );
 json_t *kw_shown = json_mask_secrets(kw);
 // {"password": "********", "auth": {"access_token": "********"},
-//  "__command__": "set-user-pwd username=bob password=********"}
+//  "__command__": "set-user-pwd username=bob password=********",
+//  "note": "********", "headers": "Authorization: Bearer ********"}
 JSON_DECREF(kw_shown)
 ```
 
@@ -649,7 +670,12 @@ JSON_DECREF(kw_shown)
 A text (a command line) with the value of every `name=value` whose name is a
 secret's ([`is_secret_name()`](#is_secret_name)) written as `********`,
 quoted or not; and the `value=` of a write-attr whose `attribute=` names a
-secret. The rest of the text is kept as it is. The name is the word before
+secret. And a credential by its SHAPE, wherever it is and whatever names it
+(7.26.10+), the shapes the agent's audit record redacts: a JWT -- `eyJ` (the
+base64url of `{"`) at the start of a word and three parts of base64url joined
+by `.`; a `.` after it, the end of a sentence, is not a fourth part -- and the
+token after `Bearer ` (any case, a word of its own; the token runs to a blank,
+a quote or one of `,;}]`). The rest of the text is kept as it is. The name is the word before
 the `=` (since the last blank or the last `=`: `'password'=x` and
 `user[password]=x` are names too), judged by its last 128 bytes; a text over
 4 MB, or one whose masked copy cannot be allocated, is
@@ -684,6 +710,14 @@ char *s = mask_secrets_inline("write-attr attribute=password value=hunter2");
 // "write-attr attribute=password value=********"
 GBMEM_FREE(s)
 s = mask_secrets_inline("login user=bob token='a b c'");  // "login user=bob token=********"
+GBMEM_FREE(s)
+s = mask_secrets_inline("curl -H 'Authorization: Bearer abc123' url");
+// "curl -H 'Authorization: Bearer ********' url"
+GBMEM_FREE(s)
+s = mask_secrets_inline("note=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJib2IifQ.c2ln x=1");
+// "note=******** x=1"
+GBMEM_FREE(s)
+s = mask_secrets_inline("pin=1234 ping=1");  // "pin=******** ping=1"
 GBMEM_FREE(s)
 ```
 
@@ -740,8 +774,11 @@ dump stay as they were): the value of an HTTP `Cookie:`, `Set-Cookie:`,
 `Authorization:` or `Proxy-Authorization:` header (for the last two after the
 scheme: `Authorization: Bearer ******`); the value of a `name=value` whose
 name is a secret's ([`is_secret_name()`](#is_secret_name)), as in a query
-string, a form body or a command line; and the value of a json
-`"name": value` whose name is a secret's. The traffic dumps use it
+string, a form body or a command line; the value of a json
+`"name": value` whose name is a secret's; and a JWT or the token after
+`Bearer `, wherever they are in the bytes (7.26.10+; the shapes of
+[`mask_secrets_inline()`](#mask_secrets_inline)). A byte already masked is not
+counted twice. The traffic dumps use it
 ([`gobj_trace_dump()`](#gobj_trace_dump),
 [`gobj_trace_dump_gbuf()`](#gobj_trace_dump_gbuf),
 [`gobj_trace_dump_full_gbuf()`](#gobj_trace_dump_full_gbuf)) on a copy of
@@ -771,6 +808,10 @@ The number of bytes masked; `0` when there was nothing to mask.
 char text[] = "Cookie: sid=abc\r\n\r\nuser=bob&password=hunter2";
 mask_secrets_in_text(text, strlen(text));
 // "Cookie: *******\r\n\r\nuser=bob&password=*******"
+
+char text2[] = "{\"msg\": \"sent with Bearer abc123, twice\", \"pin\": 7}";
+mask_secrets_in_text(text2, strlen(text2));
+// "{\"msg\": \"sent with Bearer ******, twice\", \"pin\": *}"
 ```
 
 **Limits**

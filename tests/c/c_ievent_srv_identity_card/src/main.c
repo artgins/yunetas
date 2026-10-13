@@ -195,6 +195,7 @@ peer_log_count_t peer_log_counts[] = {
     {"Identity card refused, its jwt is not a string",  0, -1, 0},
     {"Event before the identity card, channel closed",  0, -1, 0},
     {"Frame before the identity card too big, channel closed", 0, -1, 0},
+    {"Frame of an event that is not public, refused",   0, -1, 0},
     {0, 0, 0, 0}
 };
 
@@ -246,7 +247,7 @@ static int register_yuno_and_more(void)
         APP_NAME,
         /*  Strict FIFO of the warnings and errors: one warning per refused
          *  card, and no error  */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Identity card without its routing (__md_iev__ ievent stack), refused",
             "msg", "Identity card refused, dst_role NOT MATCH",
             "msg", "Identity card refused, dst_yuno NOT MATCH",
@@ -255,7 +256,8 @@ static int register_yuno_and_more(void)
             "msg", "Identity card refused, dst_service NOT FOUND in this yuno",
             "msg", "Identity card refused, its jwt is not a string",
             "msg", "Event before the identity card, channel closed",
-            "msg", "Frame before the identity card too big, channel closed"
+            "msg", "Frame before the identity card too big, channel closed",
+            "msg", "Frame of an event that is not public, refused"
         ),
         NULL,   // expected
         NULL,   // ignore_keys

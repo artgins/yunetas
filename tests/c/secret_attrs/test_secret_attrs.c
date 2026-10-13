@@ -32,6 +32,17 @@
  *               free keys to a table that is not known where it is traced;
  *               a key with a secret's name (password=...) is masked, in
  *               the line, in the kw, and inside a quoted `command`.
+ *            4c. A secret by its VALUE (V23.4.3): a JWT and the token
+ *               after "Bearer " are masked under any name or none, in a
+ *               text and in a json; pass, pin and otp are secrets' names
+ *               as whole segments (not passive, ping, otpx), key and cert
+ *               are not; a string with a NUL is masked past it; a
+ *               write-attr of a secret written with blanks does not repeat
+ *               the rest of it; the first word of a line out of session
+ *               (C_IEVENT_SRV, C_IEVENT_CLI) is masked; the log line of a
+ *               peer's app (EV_REMOTE_LOG) is capped and masked, its kw not
+ *               dumped; and the frame of an event that is not public is
+ *               one WARNING, masked (V23.4.1).
  *            2b. view-config also masks: a secret that is a number, a
  *               'global' key whose prefix is the name of a child (not a
  *               gclass, not a service), and the __json_config_variables__
@@ -225,6 +236,7 @@ PRIVATE int s_wild_line_seen = 0;
 PRIVATE int s_tail_line_seen = 0;
 PRIVATE int s_watch_seen = 0;           // the watched secret, anywhere in a log
 PRIVATE int s_watch_msg_seen = 0;       // the watched message
+PRIVATE size_t s_remote_log_longest = 0;    // the longest "Remote Error" line
 PRIVATE const char *s_watch = NULL;
 PRIVATE const char *s_watch_msg = NULL;
 
@@ -413,6 +425,9 @@ PRIVATE int capture_logs(void *h, int priority, const char *bf, size_t len)
     }
     if(s_watch && strstr(bf, s_watch)) {
         s_watch_seen++;
+    }
+    if(strstr(bf, "Remote Error") && len > s_remote_log_longest) {
+        s_remote_log_longest = len;
     }
     if(s_watch_msg && strstr(bf, s_watch_msg)) {
         s_watch_msg_seen++;
@@ -1357,6 +1372,167 @@ PRIVATE void check_log_dumps(hgobj gobj)
     );
 }
 
+/*
+ *  A secret by its VALUE, and what still reached the log or an answer
+ *  (REV-CLOUD V23.4.1, V23.4.3)
+ */
+PRIVATE void check_secret_values(hgobj gobj)
+{
+    json_t *resp;
+
+    /*
+     *  pass, pin and otp are secrets' names as WHOLE segments only; key
+     *  and cert are not
+     */
+    struct {
+        const char *name;
+        BOOL secret;
+    } names[] = {
+        {"pass", TRUE}, {"db_pass", TRUE}, {"user-pin", TRUE}, {"otp", TRUE},
+        {"sim_pin", TRUE}, {"PIN", TRUE}, {"user[pin]", TRUE}, {"otp.code", TRUE},
+        {"passive", FALSE}, {"bypass", FALSE}, {"compass", FALSE}, {"ping", FALSE},
+        {"mapping", FALSE}, {"spinner", FALSE}, {"otpx", FALSE}, {"pin2", FALSE},
+        {"pin_count", FALSE},   // a segment about it
+        {"key", FALSE}, {"cert", FALSE}, {"cert_pem", FALSE},
+        {0, 0}
+    };
+    for(int i=0; names[i].name; i++) {
+        char what[128];
+        snprintf(what, sizeof(what), "%s is %sa secret's name",
+            names[i].name, names[i].secret? "" : "not ");
+        check_true(what, is_secret_name(names[i].name, strlen(names[i].name)) == names[i].secret);
+    }
+    check_true("pin_count is, for is_secret_name_any()", is_secret_name_any("pin_count", 9));
+
+    /*
+     *  A JWT, and the token after "Bearer ", by their shape: under any name
+     *  or none
+     */
+    struct {
+        const char *in;
+        const char *out;    // NULL: nothing to mask
+    } shapes[] = {
+        {"note=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnLWh1bnRlcjI x=1", "note=******** x=1"},
+        {"curl -H 'Authorization: Bearer abc-hunter2' x", "curl -H 'Authorization: Bearer ********' x"},
+        {"BEARER   tok-hunter2", "BEARER   ********"},
+        {"the jwt eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.c2ln.", "the jwt ********."},
+        {"pin=1234 sim_pin=5678 ping=1", "pin=******** sim_pin=******** ping=1"},
+        {"eyJabc.def x=eyJabc", NULL},     // two parts, and one: no JWT
+        {"xeyJa.b.c", NULL},               // inside a word
+        {"bearer=x", "bearer=********"},   // its name, as before
+        {0, 0}
+    };
+    for(int i=0; shapes[i].in; i++) {
+        char *m = mask_secrets_inline(shapes[i].in);   // NULL: nothing to mask
+        check_str("a credential by its shape is masked",
+            m? m : "(nothing to mask)", shapes[i].out? shapes[i].out : "(nothing to mask)"
+        );
+        GBMEM_FREE(m)
+    }
+
+    json_t *kw = json_pack("{s:s, s:s, s:I, s:s, s:s, s:s%}",
+        "note", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.jwtnote-hunter2",
+        "headers", "Authorization: Bearer hdr-hunter2",
+        "sim_pin", (json_int_t)4242,
+        "db_pass", "dbpass-hunter2",
+        "passive", "visible-passive",
+        "nul", "a\0password=nul-hunter2", (size_t)22
+    );
+    json_t *shown = json_mask_secrets(kw);
+    char *ss = json2uglystr(shown);
+    check_true("a JWT under a plain key is masked", ss && !strstr(ss, "jwtnote-hunter2"));
+    check_true("a Bearer token in a string is masked", ss && !strstr(ss, "hdr-hunter2"));
+    check_true("sim_pin and db_pass are masked", ss && !strstr(ss, "4242") && !strstr(ss, "dbpass-hunter2"));
+    check_true("passive is not a secret", ss && strstr(ss, "visible-passive"));
+    check_true("a string with a NUL is masked past it", ss && !strstr(ss, "nul-hunter2"));
+    GBMEM_FREE(ss)
+    JSON_DECREF(shown)
+    JSON_DECREF(kw)
+
+    /*
+     *  write-attr of a secret written with blanks: the parser refuses the
+     *  rest of it as extra text, and repeated it -- `value` is no secret
+     *  parameter (it answered 'horse battery')
+     */
+    gobj_set_global_trace("commands", TRUE);
+    watch("horse", "write-attr");
+    resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=password value=correct horse battery",
+        json_object(), gobj
+    );
+    check_int("a write-attr of a secret with blanks is refused",
+        (int)kw_get_int(0, resp, "result", 0, 0), -1);
+    check_true("its refusal shows no word of it",
+        !strstr(kw_get_str(0, resp, "comment", "", 0), "horse"));
+    JSON_DECREF(resp)
+    unwatch("the commands trace of a write-attr of a secret with blanks");
+    gobj_set_global_trace("commands", FALSE);
+    resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=note value=hello stray-word",
+        json_object(), gobj
+    );
+    check_true("a write-attr of a plain attr shows its extra word",
+        strstr(kw_get_str(0, resp, "comment", "", 0), "stray-word")? TRUE : FALSE);
+    JSON_DECREF(resp)
+
+    /*
+     *  Out of session the first word of the line is logged, masked: it can
+     *  be a secret itself
+     */
+    hgobj srv = gobj_create("ievent-out-of-session", C_IEVENT_SRV, 0, gobj);
+    watch("oos-hunter2", "Not in session");
+    resp = gobj_command(srv, "password=oos-hunter2 user=x", 0, gobj);
+    JSON_DECREF(resp)
+    unwatch("the first word of a line out of session (C_IEVENT_SRV)");
+
+    hgobj cli = gobj_create("ievent-cli-out-of-session", C_IEVENT_CLI, 0, gobj);
+    watch("oos2-hunter2", "Not in session");
+    resp = gobj_command(cli, "token=oos2-hunter2 x=1", 0, gobj);
+    JSON_DECREF(resp)
+    unwatch("the first word of a line out of session (C_IEVENT_CLI)");
+    gobj_destroy(cli);
+
+    /*
+     *  The log line of a peer's app (EV_REMOTE_LOG, in session): capped
+     *  and masked, its kw not dumped
+     */
+    gobj_change_state(srv, ST_SESSION);
+    size_t text_len = 4096;
+    char *text = gbmem_malloc(text_len + 1);
+    memset(text, 'x', text_len);
+    text[text_len] = 0;
+    memcpy(text, "ERROR password=rl-hunter2 ", 26);
+    s_remote_log_longest = 0;
+    watch("rl-hunter2", "Remote Error");
+    gobj_send_event(srv, EV_REMOTE_LOG,
+        json_pack("{s:s, s:s}", "msg", text, "token", "rl-hunter2-kw"),
+        gobj
+    );
+    unwatch("the log line of a peer's app");
+    check_true("the log line of a peer's app is capped", s_remote_log_longest > 0 &&
+        s_remote_log_longest < 2048);
+    GBMEM_FREE(text)
+    gobj_destroy(srv);
+
+    /*
+     *  The frame of an event that is not public: one WARNING, the name and
+     *  the kw masked -- the lookup was silent, and its callers traced the
+     *  kw raw
+     */
+    gbuffer_t *gbuf = gbuffer_create(1024, 1024);
+    gbuffer_append_string(gbuf,
+        "{\"event\": \"EV_NO_SUCH_EVENT_REV23\", \"kw\": {\"jwt\": \"ue-hunter2\","
+        " \"auth\": {\"client_secret\": \"ue-hunter2\"}, \"note\": \"visible\"}}"
+    );
+    gobj_event_t iev_event = EV_TIMEOUT;
+    watch("ue-hunter2", "Frame of an event that is not public");
+    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 0);
+    unwatch("the frame of an event that is not public");
+    check_true("an event that is not public is answered NULL", iev_event == NULL);
+    check_true("and its kw", iev_kw? TRUE : FALSE);
+    KW_DECREF(iev_kw)
+}
+
 /***************************************************************************
  *  The persistent attrs file of a yuno run as root (__wrap_geteuid): whose
  *  file is trusted, by the chain closed from "/" down
@@ -1953,6 +2129,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     check_command_trace();
     check_wild_command_trace();
     check_log_dumps(gobj);
+    check_secret_values(gobj);
     check_persistent_file();
 
     set_yuno_must_die();

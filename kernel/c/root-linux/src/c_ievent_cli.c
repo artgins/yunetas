@@ -290,16 +290,24 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
         /*
          *  The command's NAME: `command` is the whole line forwarded (the
          *  agent's command-yuno), and a set-password to a yuno that had just
-         *  gone left the password in the log (REV-CLOUD V22.3.1)
+         *  gone left the password in the log (REV-CLOUD V22.3.1). Masked,
+         *  for the first word can be a secret itself: `password=hunter2
+         *  user=x` logged "password=hunter2" (V23.4.3)
          */
-        size_t name_len = command? strcspn(command, " \t\r\n") : 0;
+        const char *line = command? command : "";
+        char name[65];
+        size_t name_len = strcspn(line, " \t\r\n");
+        snprintf(name, sizeof(name), "%.*s",
+            utf8_prefix_len(line, (int)MIN(name_len, sizeof(name) - 1)), line);
+        char *name_masked = mask_secrets_inline(name);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Not in session",
-            "command",      "%.*s", (int)(name_len > 64? 64 : name_len), command? command : "",
+            "command",      "%s", name_masked? name_masked : name,
             NULL
         );
+        GBMEM_FREE(name_masked)
         KW_DECREF(kw)
         return NULL;
     }
@@ -1000,8 +1008,12 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return -1;
     }
     if(empty_string(iev_event)) {
-        // Error already logged
-        gobj_trace_json(gobj, iev_kw, "iev_event NULL");
+        /*
+         *  An event no gclass has as public: iev_create_from_gbuffer() said
+         *  it, a WARNING with the name and the kw masked, capped -- the only
+         *  one that knows the name the frame gave. The whole kw was traced
+         *  here raw (REV-CLOUD V23.4.1). The channel goes.
+         */
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
         KW_DECREF(iev_kw)
         KW_DECREF(kw)

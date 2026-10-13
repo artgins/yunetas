@@ -19,6 +19,12 @@
  *          and to "") must be refused and leave the node, the instances
  *          and the disk as they were.
  *
+ *          And a NUL in the id or in a pkey2 value (a json decoded with
+ *          JSON_ALLOW_NUL) is refused by a create and by an update, from C
+ *          too, with an ERROR: C reads it up to the NUL, so the node was
+ *          indexed under one name and saved with another (REV-CLOUD
+ *          V23.4.2).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -321,6 +327,95 @@ PRIVATE int test_update_cannot_change_pkey2(
 }
 
 /***************************************************************************
+ *  A NUL in the id or in a pkey2 value, from C: refused by a create and by
+ *  an update, with an ERROR, and nothing written. A create of "nul\0evil"
+ *  took the key "nul"; an update of item-nul with the id "item-nul\0x"
+ *  saved that id under "item-nul", kept after a reload (REV-CLOUD
+ *  V23.4.2).
+ ***************************************************************************/
+PRIVATE int test_nul_in_a_name_of_the_node(
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    int result = 0;
+    const char *test = "a NUL in the id or a pkey2 value is refused";
+    time_measure_t time_measure;
+    set_expected_results(
+        test,
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
+            "msg", "Invalid id or pkey2 value: it holds a NUL",
+            "msg", "Invalid id or pkey2 value: it holds a NUL",
+            "msg", "Invalid id or pkey2 value: it holds a NUL",
+            "msg", "Invalid id or pkey2 value: it holds a NUL"
+        ),
+        NULL, NULL, 1
+    );
+    MT_START_TIME(time_measure)
+
+    json_t *created = treedb_create_node(
+        tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s%, s:s, s:s}", "id", "nul\0evil", (size_t)8, "version", "v1", "payload", "x")
+    );
+    if(created || treedb_get_node(tranger, treedb_name, TOPIC_NAME, "nul")) {
+        printf("%s  FAIL: a create of an id with a NUL was taken%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    created = treedb_create_node(
+        tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s%, s:s}", "id", "nul-version", "version", "v1\0x", (size_t)4, "payload", "x")
+    );
+    if(created || treedb_get_node(tranger, treedb_name, TOPIC_NAME, "nul-version")) {
+        printf("%s  FAIL: a create of a pkey2 value with a NUL was taken%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    json_t *node = treedb_create_node(
+        tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "item-nul", "version", "v1", "payload", "kept")
+    );
+    if(!node) {
+        printf("%s  FAIL: the node of the update cannot be created%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+        result += test_json(NULL);
+        return result;
+    }
+    json_int_t g_rowid = kw_get_int(0, node, "__md_treedb__`g_rowid", 0, 0);
+    json_t *updated = treedb_update_node(   // the same version: no pkey2 change
+        tranger,
+        node,
+        json_pack("{s:s%, s:s, s:s}", "id", "item-nul\0x", (size_t)10, "version", "v1", "payload", "nul"),
+        TRUE  // save
+    );
+    if(updated) {
+        printf("%s  FAIL: an update with an id with a NUL was taken%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    updated = treedb_update_node(
+        tranger,
+        node,
+        json_pack("{s:s, s:s%, s:s}", "id", "item-nul", "version", "v1\0x", (size_t)4, "payload", "nul"),
+        TRUE  // save
+    );
+    if(updated) {
+        printf("%s  FAIL: an update with a pkey2 value with a NUL was taken%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *jn_id = json_object_get(node, "id");
+    if(json_string_length(jn_id) != strlen("item-nul") ||
+            strcmp(kw_get_str(0, node, "payload", "", 0), "nul")==0 ||
+            kw_get_int(0, node, "__md_treedb__`g_rowid", 0, 0) != g_rowid) {
+        printf("%s  FAIL: a refused update touched the node%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  A child hooked by two instances of one parent (item-1 v1 and v9, left
  *  by the test above) and unlinked from ONE of them is gone from the hook
  *  of both: the child's fkey names the parent's id, not an instance.
@@ -579,6 +674,7 @@ PRIVATE int do_test(void)
     result += test_link_from_a_new_instance_writes_nothing(tranger, treedb_name);
     result += test_unlink_from_one_instance_frees_every_instance(tranger, treedb_name);
     result += test_dict_hook_keeps_the_primary_instance(tranger, treedb_name);
+    result += test_nul_in_a_name_of_the_node(tranger, treedb_name);
 
     /*------------------------------------*
      *  Shutdown

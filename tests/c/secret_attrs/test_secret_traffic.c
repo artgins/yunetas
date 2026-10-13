@@ -26,7 +26,8 @@
  *          (gbuffer_serialize() answers NULL, and a kw carrying it crosses
  *          without it). What is RECEIVED cannot be marked: its dump masks
  *          what can be told in the bytes (mask_secrets_in_text(): an HTTP
- *          Cookie/Authorization header, a password=..., a json "token":).
+ *          Cookie/Authorization header, a password=..., a json "token":, a
+ *          json "pin":, and a JWT or a Bearer token wherever they are).
  *
  *          Topology: the pepon server (C_IOGATE -> C_TCP_S + C_CHANNEL ->
  *          C_PROT_RAW -> C_TCP, no echo) and a pure C_TCP client, the only
@@ -337,13 +338,13 @@ PRIVATE void check_received_dump(void)
         "Cookie: sid=c-hunter2; theme=dark\r\n"
         "Authorization: Bearer a-hunter2\r\n"
         "\r\n"
-        "{\"client_secret\": \"j-hunter2\", \"pin\": 7, \"token\":42}";
+        "{\"client_secret\": \"j-hunter2\", \"pin\": 7, \"ping\": 8, \"token\":42}";
     char expected[] =
         "GET /x?user=bob&password=********* HTTP/1.1\r\n"
         "Cookie: *************************\r\n"
         "Authorization: Bearer *********\r\n"
         "\r\n"
-        "{\"client_secret\": \"*********\", \"pin\": 7, \"token\":**}";
+        "{\"client_secret\": \"*********\", \"pin\": *, \"ping\": 8, \"token\":**}";
     size_t masked = mask_secrets_in_text(text, strlen(text));
     check_true("the credentials of the bytes are masked, the rest kept",
         strcmp(text, expected)==0
@@ -351,7 +352,25 @@ PRIVATE void check_received_dump(void)
     if(strcmp(text, expected)!=0) {
         printf("     got      %s\n     expected %s\n", text, expected);
     }
-    check_int("the bytes masked", (int)masked, 9+25+9+9+2);
+    check_int("the bytes masked", (int)masked, 9+25+9+9+1+2);   // "pin" is a secret's name (V23.4.3)
+
+    /*
+     *  A JWT, and the token after "Bearer ", by their shape: wherever they
+     *  are in the bytes (REV-CLOUD V23.4.3)
+     */
+    char text3[] =
+        "{\"note\": \"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.sig-hunter2\","
+        " \"msg\": \"sent with Bearer brr-hunter2, twice\"}";
+    char expected3[] =
+        "{\"note\": \"************************************************\","
+        " \"msg\": \"sent with Bearer ***********, twice\"}";
+    mask_secrets_in_text(text3, strlen(text3));
+    check_true("a JWT and a Bearer token in the bytes are masked, the length kept",
+        strcmp(text3, expected3)==0
+    );
+    if(strcmp(text3, expected3)!=0) {
+        printf("     got      %s\n     expected %s\n", text3, expected3);
+    }
 
     char text2[] = "{\"token\": [1,{\"a\":\"x\"}], \"jwt_public_keys\": [{\"k\": 1}], \"b\": 2}";
     char expected2[] = "{\"token\": [***********], \"jwt_public_keys\": [{\"k\": 1}], \"b\": 2}";

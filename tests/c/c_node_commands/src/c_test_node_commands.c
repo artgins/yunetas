@@ -644,6 +644,25 @@ PRIVATE int run_tests(hgobj gobj)
     CHECK(expect_refused, "refused: a content64 that is not an object", "update-node",
         json_pack("{s:s, s:s}", "topic_name", "departments", "content64", "WzFd"),   // [1]
         "Wrong record")
+
+    /*
+     *  REV-CLOUD V23.4.2: a NUL in a string of the record (a frame is
+     *  decoded with JSON_ALLOW_NUL). C read the id "dx\u0000evil" as "dx",
+     *  and the key "dx" was taken; an update of "top" with the id
+     *  "top\u0000x" saved that id under "top". Refused, at any depth.
+     */
+    CHECK(expect_refused, "refused: an id with a NUL (create)", "create-node",
+        json_pack("{s:s, s:{s:s%, s:s}}", "topic_name", "departments",
+            "record", "id", "dx\0evil", (size_t)7, "name", "Evil"),
+        "Wrong record: a string with a NUL in it")
+    CHECK(expect_refused, "refused: an id with a NUL (update)", "update-node",
+        json_pack("{s:s, s:{s:s%, s:s}}", "topic_name", "departments",
+            "record", "id", "top\0x", (size_t)5, "name", "Top"),
+        "Wrong record: a string with a NUL in it")
+    CHECK(expect_refused, "refused: a NUL down the record", "update-node",
+        json_pack("{s:s, s:{s:s, s:{s:[s%]}}}", "topic_name", "departments",
+            "record", "id", "top", "extra", "list", "To\0p", (size_t)4),
+        "Wrong record: a string with a NUL in it")
     CHECK(expect_refused, "refused: create_only of a node that exists", "update-node",
         json_pack("{s:s, s:{s:s, s:s}, s:{s:b}}", "topic_name", "departments",
             "record", "id", "top", "name", "Top", "options", "create_only", 1),

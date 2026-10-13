@@ -1397,11 +1397,26 @@ PRIVATE const char *secret_name_joined[] = {
     "authdata",     // auth_data of c_prot_mqtt2 (the MQTT 5 auth data)
     0
 };
+
+/*
+ *  ... or one of these as a WHOLE segment, a run of letters and digits
+ *  (pass, db_pass, user-pin, sim_pin, otp, user[pin]): inside a word they
+ *  are other words (passive, bypass, compass, ping, mapping, spinner, otpx)
+ */
+PRIVATE const char *secret_name_segments[] = {
+    "pass",
+    "pin",
+    "otp",
+    0
+};
+
 /*
  *  Not secrets: the PATH of a key or a certificate (ssl_certificate_key,
  *  ssl_trusted_certificate), cert_pem (a public certificate), the ids of
  *  treedb (pkey, rkey, tkey), in_session, mqtt_clean_session,
- *  max_sessions, authz, auth_method, ignore_private.
+ *  max_sessions, authz, auth_method, ignore_private. `key` and `cert` are
+ *  no parts: a key is the key of a record of timeranger as often as a
+ *  credential, and a cert is public.
  *
  *  And a name with one of these SEGMENTS (split by '_', '-', '.' and
  *  blanks) is not a secret, whatever part it holds: it names something
@@ -1470,6 +1485,24 @@ PRIVATE void make_secret_first_letters(void)
     secret_first_letters_done = TRUE;
 }
 
+/*
+ *  Is the run of `seg_len` bytes at `seg` one of `list` (any case)?
+ */
+PRIVATE BOOL name_segment_in(const char *seg, size_t seg_len, const char **list)
+{
+    for(int n=0; seg_len && list[n]; n++) {
+        if(strlen(list[n]) == seg_len && strncasecmp(seg, list[n], seg_len)==0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+PRIVATE BOOL is_ascii_alnum(char c)
+{
+    return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))? TRUE: FALSE;
+}
+
 /***************************************************************************
  *  TRUE if `name` (of `len` bytes) is the name of a secret.
  *  One pass over the name, no copy: at each byte, only the parts that
@@ -1481,7 +1514,7 @@ PRIVATE void make_secret_first_letters(void)
 PRIVATE BOOL secret_name_check(const char *name, size_t len, BOOL about_wins)
 {
     if(!name || len < 3) {
-        return FALSE;   // the shortest part is three letters ("pwd", "jwt")
+        return FALSE;   // the shortest part is three letters ("pwd", "jwt", "pin")
     }
     if(!secret_first_letters_done) {
         make_secret_first_letters();
@@ -1495,12 +1528,22 @@ PRIVATE BOOL secret_name_check(const char *name, size_t len, BOOL about_wins)
         if(i < len && !is_name_joiner(name[i])) {
             continue;
         }
-        size_t seg_len = i - seg;
-        for(int n=0; seg_len && not_secret_segments[n]; n++) {
-            if(strlen(not_secret_segments[n]) == seg_len &&
-                    strncasecmp(name + seg, not_secret_segments[n], seg_len)==0) {
-                return FALSE;
-            }
+        if(name_segment_in(name + seg, i - seg, not_secret_segments)) {
+            return FALSE;
+        }
+        seg = i + 1;
+    }
+
+    /*
+     *  A secret's name as a whole segment (a run of letters and digits)
+     */
+    seg = 0;
+    for(size_t i=0; i<=len; i++) {
+        if(i < len && is_ascii_alnum(name[i])) {
+            continue;
+        }
+        if(name_segment_in(name + seg, i - seg, secret_name_segments)) {
+            return TRUE;
         }
         seg = i + 1;
     }
@@ -1655,37 +1698,130 @@ PRIVATE const char *inline_secret_value_end(const char *p, char outer)
 }
 
 /***************************************************************************
+ *  A credential by its SHAPE, whatever names it -- the shapes the agent's
+ *  audit record redacts (audit_record.c):
+ *    - a JWT: "eyJ" (the base64url of '{"') at the start of a word, and
+ *      three parts of base64url joined by '.'; the dots at the end of the
+ *      run are not its own (a JWT ends a sentence: "... eyJ.eyJ.sig.");
+ *    - the token after "Bearer " (any case, a word of its own).
+ *  On the bytes from `start` to `end`.
+ ***************************************************************************/
+PRIVATE BOOL is_base64url_char(char c)
+{
+    return (is_ascii_alnum(c) || c == '-' || c == '_')? TRUE : FALSE;
+}
+
+/*
+ *  The bytes of the JWT that begins at `p`, 0 if none begins there
+ */
+PRIVATE size_t jwt_len(const char *p, const char *start, const char *end)
+{
+    if(end - p < 3 || p[0] != 'e' || p[1] != 'y' || p[2] != 'J') {
+        return 0;
+    }
+    if(p > start && (is_base64url_char(p[-1]) || p[-1] == '.')) {
+        return 0;   // inside a word, or a part of a dotted run
+    }
+    const char *e = p;
+    int dots = 0;
+    while(e < end && (is_base64url_char(*e) || *e == '.')) {
+        if(*e == '.') {
+            dots++;
+        }
+        e++;
+    }
+    while(e[-1] == '.') {
+        e--;        // never before p: p[0] is 'e'
+        dots--;
+    }
+    return (dots == 2)? (size_t)(e - p) : 0;
+}
+
+/*
+ *  The token after a "Bearer " that begins at `p`: its offset from `p` in
+ *  *token_offset and its bytes as the return, 0 if none begins there. The
+ *  token runs to a blank, an end of line, a quote or one of ",;}]".
+ */
+PRIVATE size_t bearer_token_len(const char *p, const char *start, const char *end, size_t *token_offset)
+{
+    const size_t word_len = 6;  // "bearer"
+    if((size_t)(end - p) <= word_len || strncasecmp(p, "bearer", word_len) != 0) {
+        return 0;
+    }
+    if(p > start && is_ascii_alnum(p[-1])) {
+        return 0;   // inside a word
+    }
+    const char *t = p + word_len;
+    if(*t != ' ' && *t != '\t') {
+        return 0;
+    }
+    while(t < end && (*t == ' ' || *t == '\t')) {
+        t++;
+    }
+    const char *e = t;
+    while(e < end && !strchr(" \t\r\n'\",;}]", *e)) {
+        e++;
+    }
+    *token_offset = (size_t)(t - p);
+    return (size_t)(e - t);
+}
+
+/*
+ *  Where a JWT, or a "bearer" word, may begin at `p`: what is counted to
+ *  bound the copy, and what makes a text worth looking at
+ */
+PRIVATE BOOL may_begin_shape(const char *p)
+{
+    if(p[0] == 'e') {
+        return (p[1] == 'y' && p[2] == 'J')? TRUE : FALSE;
+    }
+    if(p[0] == 'b' || p[0] == 'B') {
+        return (strncasecmp(p, "bearer", 6)==0)? TRUE : FALSE;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *  A text (a command line) with the value of every "name=value" whose name
  *  is a secret's (is_secret_name()) written as "********", quoted or not;
  *  an unquoted one runs to the next "word=" (inline_secret_value_end()).
- *  The rest of the text is kept as it is. A gbmem string, or NULL when
- *  there was nothing to mask.
+ *  And a JWT, or the token after "Bearer ", wherever they are, whatever
+ *  names them. The rest of the text is kept as it is. A gbmem string, or
+ *  NULL when there was nothing to mask.
  ***************************************************************************/
 PUBLIC char *mask_secrets_inline(const char *str)
 {
-    if(!str || !strchr(str, '=')) {
+    if(!str) {
         return NULL;
     }
-    if(strlen(str) > MASK_MAX_BYTES) {
-        return gbmem_strdup(MASK_TOO_LARGE);
-    }
+    size_t len = 0;
     size_t n_eq = 0;
+    size_t n_shapes = 0;
     for(const char *p = str; *p; p++) {
+        len++;
         if(*p == '=') {
             n_eq++;
+        } else if(may_begin_shape(p)) {
+            n_shapes++;
         }
     }
+    if(n_eq == 0 && n_shapes == 0) {
+        return NULL;
+    }
+    if(len > MASK_MAX_BYTES) {
+        return gbmem_strdup(MASK_TOO_LARGE);
+    }
+    const char *str_end = str + len;
 
-    BOOL value_is_secret = inline_value_is_secret(str);
+    BOOL value_is_secret = n_eq? inline_value_is_secret(str) : FALSE;
     const char *mask = "********";
     size_t mask_len = strlen(mask);
     /*
-     *  Each value masked becomes "********": it can grow, by at most
-     *  mask_len for each one, and each needs a name of three bytes and
-     *  its '=' at least
+     *  Each run masked becomes "********": it can grow, by at most
+     *  mask_len for each one, and each run takes four bytes at least (a
+     *  name of three and its '=', a JWT, "bearer" and its blank)
      */
-    size_t len = strlen(str);
-    size_t n_masked_max = MIN(n_eq, len/4 + 1);
+    size_t n_masked_max = MIN(n_eq + n_shapes, len/4 + 1);
     char *masked = gbmem_malloc(len + n_masked_max*mask_len + 1);
     if(!masked) {
         // Error already logged
@@ -1709,6 +1845,24 @@ PUBLIC char *mask_secrets_inline(const char *str)
             } else if(*p == outer && (p[1] == 0 || p[1] == ' ' || p[1] == '\t')) {
                 outer = 0;      // closes it
             }
+        }
+        /*
+         *  A credential by its shape, under any name or none
+         */
+        size_t token_offset = 0;
+        size_t shape_len = (*p == 'e')? jwt_len(p, str, str_end) : 0;
+        if(*p == 'b' || *p == 'B') {
+            shape_len = bearer_token_len(p, str, str_end, &token_offset);
+        }
+        if(shape_len) {
+            memcpy(out, p, token_offset);   // "Bearer " is kept
+            out += token_offset;
+            memcpy(out, mask, mask_len);
+            out += mask_len;
+            changed = TRUE;
+            p += token_offset + shape_len;
+            word = p;
+            continue;
         }
         if(*p != '=') {
             *out++ = *p++;
@@ -1780,6 +1934,21 @@ PRIVATE BOOL is_name_char(char c)
     return (isalnum((unsigned char)c) || c == '_' || c == '-' || c == '.')? TRUE : FALSE;
 }
 
+/*
+ *  `n` bytes from `p` written as '*': return how many were not one already
+ */
+PRIVATE size_t mask_bytes(char *p, size_t n)
+{
+    size_t changed = 0;
+    for(size_t i = 0; i < n; i++) {
+        if(p[i] != '*') {
+            p[i] = '*';
+            changed++;
+        }
+    }
+    return changed;
+}
+
 /***************************************************************************
  *  The bytes of a traffic dump with the credentials that can be told
  *  soundly written as '*', in place, the length kept:
@@ -1788,7 +1957,9 @@ PRIVATE BOOL is_name_char(char c)
  *      "Authorization: Bearer ******");
  *    - the value of "name=value" whose name is a secret's (is_secret_name()),
  *      as in a query string, a form body or a command line;
- *    - the value of a json "name": value whose name is a secret's.
+ *    - the value of a json "name": value whose name is a secret's;
+ *    - a JWT, and the token after "Bearer ", wherever they are
+ *      (jwt_len(), bearer_token_len()).
  *  Return the bytes masked.
  ***************************************************************************/
 PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
@@ -1826,6 +1997,26 @@ PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
                     masked += mask_run(v, end, "");
                     break;
                 }
+            }
+        }
+
+        /*
+         *  A credential by its shape: a JWT, the token after "Bearer " (the
+         *  token of an Authorization header is masked above already: its
+         *  bytes are counted once)
+         */
+        if(*p == 'e') {
+            size_t n = jwt_len(p, bf, end);
+            if(n) {
+                masked += mask_bytes(p, n);
+                continue;   // its bytes are '*' now: nothing else begins there
+            }
+        } else if(*p == 'b' || *p == 'B') {
+            size_t token_offset = 0;
+            size_t n = bearer_token_len(p, bf, end, &token_offset);
+            if(n) {
+                masked += mask_bytes(p + token_offset, n);
+                continue;
             }
         }
 
@@ -1937,7 +2128,8 @@ PRIVATE BOOL secret_value_is_set(json_t *value)
  *  A json as a log or a trace may show it: at any depth, the value of a
  *  key with a secret's name (is_secret_name()) is "********", whatever its
  *  json type; so is the "value" of a dict whose "attribute" names a
- *  secret (write-attr); and in a string, a secret "name=value" is masked
+ *  secret (write-attr); and in a string, under any key, a secret
+ *  "name=value", a JWT and the token after "Bearer " are masked
  *  (mask_secrets_inline()). A dict or a list shared is masked once, the
  *  same everywhere; a cycle (json_object_set() can build one) is "<cycle>",
  *  and below MASK_MAX_DEPTH levels "<deeper not shown>": a kw of a peer
@@ -2064,7 +2256,28 @@ PRIVATE json_t *json_mask_secrets_depth(json_t *jn, json_t *memo, int depth, siz
             return json_string(MASK_TOO_LARGE);    // fails safe: not shown, never in clear
         }
         *budget -= len;
-        char *masked = mask_secrets_inline(json_string_value(jn));
+        const char *s = json_string_value(jn);
+        char *masked;
+        if(strlen(s) != len) {
+            /*
+             *  A NUL inside (a frame of a peer is decoded with
+             *  JSON_ALLOW_NUL): what follows it is looked at too, and when
+             *  something is masked the NULs are shown as blanks
+             */
+            char *copy = gbmem_malloc(len + 1);
+            if(!copy) {
+                // Error already logged
+                return json_string(MASK_TOO_LARGE);    // fails safe
+            }
+            for(size_t i = 0; i < len; i++) {
+                copy[i] = s[i]? s[i] : ' ';
+            }
+            copy[len] = 0;
+            masked = mask_secrets_inline(copy);
+            GBMEM_FREE(copy)
+        } else {
+            masked = mask_secrets_inline(s);
+        }
         if(masked) {
             json_t *jn_shown = json_string(masked);
             GBMEM_FREE(masked)
@@ -4051,12 +4264,16 @@ PRIVATE json_t *refcount_path(
 }
 
 /***************************************************************************
- *  A set of pointers, open addressing: what json_refcounts_report() has
- *  met. 16 bytes per json at most, where a json object keyed by "%p" took
- *  a key and a hashtable entry for each.
+ *  What json_refcounts_report() has met, and how many times it reached
+ *  each one: a set of pointers (open addressing, a load of 1/2 at most),
+ *  with a count beside each slot. A slot is 8 bytes of pointer and 4 of
+ *  count, and the slots double as they fill: 24 to 48 bytes per json
+ *  walked -- where a json object keyed by "%p" took a key and a hashtable
+ *  entry for each.
  ***************************************************************************/
 typedef struct {
     const void **slots;
+    uint32_t *reached;  // the times the json of each slot was reached, saturated
     size_t capacity;    // a power of 2; 0: nothing yet
     size_t count;
 } refcount_seen_t;
@@ -4072,33 +4289,45 @@ PRIVATE size_t refcount_seen_slot(const void **slots, size_t capacity, const voi
 }
 
 /*
- *  1 added, 0 met before, -1 no memory to remember it (Error already logged)
+ *  One more reach of `p`: *reached is how many times it has been reached,
+ *  this one included (1: the first). 0, or -1 with no memory to remember it
+ *  (Error already logged).
  */
-PRIVATE int refcount_seen_add(refcount_seen_t *seen, const void *p)
+PRIVATE int refcount_seen_reach(refcount_seen_t *seen, const void *p, uint32_t *reached)
 {
     if((seen->count + 1) * 2 > seen->capacity) {
         size_t new_capacity = seen->capacity? seen->capacity * 2 : 1024;
         const void **new_slots = gbmem_malloc(new_capacity * sizeof(void *));
-        if(!new_slots) {
+        uint32_t *new_reached = new_slots? gbmem_malloc(new_capacity * sizeof(uint32_t)) : NULL;
+        if(!new_reached) {
+            GBMEM_FREE(new_slots)
             return -1;  // Error already logged
         }
         memset(new_slots, 0, new_capacity * sizeof(void *));
+        memset(new_reached, 0, new_capacity * sizeof(uint32_t));
         for(size_t i = 0; i < seen->capacity; i++) {
             if(seen->slots[i]) {
-                new_slots[refcount_seen_slot(new_slots, new_capacity, seen->slots[i])] = seen->slots[i];
+                size_t j = refcount_seen_slot(new_slots, new_capacity, seen->slots[i]);
+                new_slots[j] = seen->slots[i];
+                new_reached[j] = seen->reached[i];
             }
         }
         GBMEM_FREE(seen->slots)
+        GBMEM_FREE(seen->reached)
         seen->slots = new_slots;
+        seen->reached = new_reached;
         seen->capacity = new_capacity;
     }
     size_t i = refcount_seen_slot(seen->slots, seen->capacity, p);
-    if(seen->slots[i]) {
-        return 0;
+    if(!seen->slots[i]) {
+        seen->slots[i] = p;
+        seen->count++;
     }
-    seen->slots[i] = p;
-    seen->count++;
-    return 1;
+    if(seen->reached[i] < UINT32_MAX) {
+        seen->reached[i]++;
+    }
+    *reached = seen->reached[i];
+    return 0;
 }
 
 /***************************************************************************
@@ -4111,13 +4340,13 @@ typedef struct {
     json_int_t corrupted;
     json_int_t over_max;
     BOOL truncated;         // stopped short: no memory for its frames or its set
-    refcount_seen_t seen;   // every dict and list met, and the scalars held more than once
+    refcount_seen_t seen;   // every json met (but the singletons), and its reaches
     json_t *jn_shown;
 } refcount_walk_t;
 
 /***************************************************************************
- *  Check one json met by the walk; TRUE when the walk goes into it (a dict
- *  or a list, sound, not met before)
+ *  Check one reach of a json by the walk; TRUE when the walk goes into it
+ *  (a dict or a list, sound, reached for the first time)
  ***************************************************************************/
 PRIVATE BOOL refcount_check_one(
     json_t *jn,
@@ -4131,7 +4360,7 @@ PRIVATE BOOL refcount_check_one(
     if(walk->truncated) {
         return FALSE;   // stopped short: no memory to remember more
     }
-    const char *fault = NULL;
+    BOOL bad_type = FALSE;
     switch(json_typeof(jn)) { // json_typeof PROTECTED
         case JSON_TRUE:
         case JSON_FALSE:
@@ -4144,61 +4373,63 @@ PRIVATE BOOL refcount_check_one(
         case JSON_REAL:
             break;
         default:
-            fault = "corrupted";
+            bad_type = TRUE;
             break;
     }
 
-    if(!fault && (json_is_object(jn) || json_is_array(jn) || jn->refcount > 1)) {
-        /*
-         *  EVERY dict and list is remembered, not only the ones held more
-         *  than once: a cycle whose refcounts are corrupted BELOW the truth,
-         *  what check-json exists to find, was walked round and round until
-         *  its frames passed MAX_BLOCK (REV-CLOUD V22.5.3). A scalar is
-         *  never walked into: only a shared one is counted once.
-         */
-        int added = refcount_seen_add(&walk->seen, jn);
-        if(added == 0) {
-            return FALSE;
-        }
-        if(added < 0) {
-            walk->truncated = TRUE;     // Error already logged
-            return FALSE;
-        }
-    }
-
-    walk->jsons++;
-    if(!fault && jn->refcount == 0) {
-        fault = "corrupted";    // freed: not walked into
-    } else if(!fault && walk->max_refcount > 0 && (json_int_t)jn->refcount > walk->max_refcount) {
-        fault = "over_max";
-    }
-    if(!fault) {
-        return (json_is_object(jn) || json_is_array(jn))? TRUE : FALSE;
-    }
-
-    BOOL corrupted = (strcmp(fault, "corrupted")==0)? TRUE : FALSE;
-    if(corrupted) {
-        walk->corrupted++;
-    } else {
-        walk->over_max++;
-    }
-    if((int)json_array_size(walk->jn_shown) < walk->max_shown) {
-        json_array_append_new(walk->jn_shown, json_pack("{s:o, s:I, s:s}",
-            "path", refcount_path(frames, frame, key, idx),
-            "refcount", (json_int_t)jn->refcount,
-            "fault", fault
-        ));
-    }
-    if(corrupted) {
+    /*
+     *  EVERY json is counted each time it is reached, and a dict or a list
+     *  is walked into the first time only, so a cycle ends. A json reached
+     *  more times than its refcount says it is held has a refcount BELOW
+     *  the truth -- what check-json exists to find: a cycle whose refcounts
+     *  are corrupted, a json json_object_set_new()'d into two places. Such a
+     *  cycle was walked round until its frames passed MAX_BLOCK (REV-CLOUD
+     *  V22.5.3), and then ended without saying it (V23.4.4). The root is
+     *  reached once by the caller, who holds it.
+     */
+    uint32_t reached = 0;
+    if(refcount_seen_reach(&walk->seen, jn, &reached) < 0) {
+        walk->truncated = TRUE;     // Error already logged
         return FALSE;
     }
-    return (json_is_object(jn) || json_is_array(jn))? TRUE : FALSE;
+    if(reached == 1) {
+        walk->jsons++;
+    }
+
+    const char *fault = NULL;
+    if(bad_type) {
+        if(reached == 1) {
+            fault = "corrupted";    // a type jansson does not have
+        }
+    } else if((size_t)reached == jn->refcount + 1) {
+        fault = "corrupted";        // refcount 0 (freed) at once, or one holder too many
+    } else if(reached == 1 && walk->max_refcount > 0 && (json_int_t)jn->refcount > walk->max_refcount) {
+        fault = "over_max";
+    }
+    if(fault) {
+        if(strcmp(fault, "corrupted")==0) {
+            walk->corrupted++;
+        } else {
+            walk->over_max++;
+        }
+        if((int)json_array_size(walk->jn_shown) < walk->max_shown) {
+            json_array_append_new(walk->jn_shown, json_pack("{s:o, s:I, s:s}",
+                "path", refcount_path(frames, frame, key, idx),
+                "refcount", (json_int_t)jn->refcount,
+                "fault", fault
+            ));
+        }
+    }
+    return (!bad_type && reached == 1 && jn->refcount > 0 &&
+        (json_is_object(jn) || json_is_array(jn)))? TRUE : FALSE;
 }
 
 /***************************************************************************
  *  What the refcounts of a json say (see helpers.h). A LOOP over the dicts
- *  and lists met, each kept as a frame: json_check_refcounts() recursed,
- *  logged an ERROR for each fault, and went round a cycle for ever.
+ *  and lists met, each kept as a frame (32 bytes per dict or list), with
+ *  the reaches of every json counted (24 to 48 bytes per json, see
+ *  refcount_seen_t): json_check_refcounts() recursed, logged an ERROR for
+ *  each fault, and went round a cycle for ever.
  ***************************************************************************/
 PUBLIC json_t *json_refcounts_report(
     json_t *jn, // not owned
@@ -4269,6 +4500,7 @@ PUBLIC json_t *json_refcounts_report(
     }
     GBMEM_FREE(frames)
     GBMEM_FREE(walk.seen.slots)
+    GBMEM_FREE(walk.seen.reached)
 
     json_t *jn_report = json_pack("{s:I, s:I, s:I, s:I, s:b, s:o}",
         "max_refcount", max_refcount,
@@ -4279,6 +4511,56 @@ PUBLIC json_t *json_refcounts_report(
         "shown", walk.jn_shown
     );
     return jn_report;
+}
+
+/***************************************************************************
+ *  See helpers.h. Recursive, at most JSON_PARSER_MAX_DEPTH levels deep (the
+ *  depth a parser builds, and the one jansson dumps or copies): deeper is a
+ *  fault of its own, a cycle among them.
+ ***************************************************************************/
+PRIVATE const char *json_nul_fault_depth(json_t *jn, int depth)
+{
+    if(json_is_string(jn)) {
+        return (json_string_length(jn) != strlen(json_string_value(jn)))?
+            "a string with a NUL in it" : NULL;
+    }
+    if(!json_is_object(jn) && !json_is_array(jn)) {
+        return NULL;
+    }
+    if(depth >= JSON_PARSER_MAX_DEPTH) {
+        return "a json nested deeper than a parser builds";
+    }
+    if(json_is_object(jn)) {
+        const char *key;
+        size_t key_len;
+        json_t *value;
+        json_object_keylen_foreach(jn, key, key_len, value) {
+            if(key_len != strlen(key)) {
+                return "a key with a NUL in it";
+            }
+            const char *fault = json_nul_fault_depth(value, depth + 1);
+            if(fault) {
+                return fault;
+            }
+        }
+        return NULL;
+    }
+    size_t idx;
+    json_t *value;
+    json_array_foreach(jn, idx, value) {
+        const char *fault = json_nul_fault_depth(value, depth + 1);
+        if(fault) {
+            return fault;
+        }
+    }
+    return NULL;
+}
+
+PUBLIC const char *json_nul_fault(
+    json_t *jn  // not owned
+)
+{
+    return json_nul_fault_depth(jn, 0);
 }
 
 /***************************************************************************

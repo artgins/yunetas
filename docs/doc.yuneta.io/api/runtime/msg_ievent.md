@@ -101,7 +101,7 @@ Deserializes an inter-event message received from the outside world.
 ```C
 json_t *iev_create_from_gbuffer(
     hgobj gobj,
-    gobj_event_t *event,   // output: extracted event name
+    gobj_event_t *event,   // output: the public event the frame names, NULL if none
     gbuffer_t *gbuf,       // owned, data consumed
     int verbose             // 1 = log, 2 = log + dump
 );
@@ -112,13 +112,48 @@ json_t *iev_create_from_gbuffer(
 | Key | Type | Description |
 |---|---|---|
 | `gobj` | `hgobj` | GObject instance. |
-| `event` | `gobj_event_t *` | Output — receives the extracted event name. |
+| `event` | `gobj_event_t *` | Output — the public event the frame names (the registered name, compared by pointer), `NULL` when no gclass has it as public. |
 | `gbuf` | `gbuffer_t *` | Buffer with the serialized message (owned and consumed). |
 | `verbose` | `int` | Verbosity level: `1` = log, `2` = log + dump. |
 
 **Returns**
 
-Deserialized `kw` JSON object, or `NULL` on error.
+Deserialized `kw` JSON object (yours), or `NULL` for a frame that is not json
+or not an inter-event (no `"event"` string, no `"kw"` dict). `*event` is the
+public event the frame names, `NULL` when no gclass has it as public.
+
+What a frame gets wrong is the peer's, said ONCE, a WARNING (`MSGSET_PROTOCOL`,
+`peername`, no stack). A frame that is not json, or not an inter-event, is said
+here with `verbose` (by `gbuf2json()` for the json); with `0` the caller says
+it, with the bytes of the frame -- `C_IEVENT_SRV` and `C_IEVENT_CLI` log *"Bad
+json"*. An event that is not public is said HERE whatever `verbose` is, since
+only here is the name the frame gave known: *"Frame of an event that is not
+public, refused"*, with the name capped to 64 bytes and the kw masked
+([`json_mask_secrets()`](#json_mask_secrets)) and capped to 256 bytes. The
+callers close the channel. Up to 7.26.9 that lookup was silent and both callers
+traced the whole kw raw (*"iev_event NULL"*: a jwt and a password before the
+session among it), and a frame with no `"event"` logged two ERRORs here and
+the caller's WARNING.
+
+**Example**
+
+```C
+gbuffer_incref(gbuf);   // the caller still dumps it if it is no inter-event
+gobj_event_t iev_event;
+json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 0);
+if(!iev_kw) {
+    // not json, or not an inter-event: the caller says it (verbose 0)
+} else if(!iev_event) {
+    // an event that is not public: logged by iev_create_from_gbuffer()
+    KW_DECREF(iev_kw)
+}
+```
+
+```text
+WARNING {"msgset": "Protocol", "msg": "Frame of an event that is not public, refused",
+         "event": "EV_NO_SUCH_EVENT", "peername": "127.0.0.1:45216",
+         "kw": "{\"jwt\":\"********\",\"password\":\"********\",...", "kw_size": 314}
+```
 
 ---
 

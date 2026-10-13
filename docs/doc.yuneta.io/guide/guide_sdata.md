@@ -228,6 +228,15 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
     command table cannot know -- the free keys of a `SDF_WILD_CMD` command,
     which the agent's `command-yuno` forwards to another yuno -- is masked
     when its NAME is a secret's ([`is_secret_name()`](#is_secret_name)).
+    And a value that has the shape of a credential is masked under any
+    name: a JWT, the token after `Bearer `.
+
+    A limit: a parameter whose name is not a secret's -- the `content64`
+    of the agent's `write-tty`, `create-config` and `update-config` -- is
+    masked by its declaration where the parser is asked (the kw of the
+    authz checker, the `commands` trace), and NOT in the `machine` trace
+    with `ev_kw` of an event that carries it, which masks by names only.
+    Give a secret a secret's name where you can.
 
 ```C
 SDATAPM (DTP_STRING,    "password",     SDF_SECRET,     0,          "Password"),

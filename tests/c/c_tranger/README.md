@@ -41,7 +41,8 @@ What it checks:
     `delete-topic`) and a new topic in its store, while a C caller's
     `add-record` there is taken;
   - `add-record` of a record that is not a dict, without its pkey, with a
-    pkey that is a path, a `__t__` of `9223372036854775807` and of
+    pkey that is a path, with a NUL in its pkey, down it or in its json text
+    (the pkey `"K\u0000evil"` was appended under `K`: REV-CLOUD V23.4.2), a `__t__` of `9223372036854775807` and of
     `TRANGER2_MAX_TIME + 1` (both refused as larger than the 44 bits of an
     md2 row: every `__t__` of 44 bits is a date), and an integer tkey time of
     more than 44 bits;

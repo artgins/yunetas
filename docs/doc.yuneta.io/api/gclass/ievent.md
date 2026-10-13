@@ -365,6 +365,8 @@ and how:
 | A subscription or a withdrawal of an event that is not public | Refused; the channel stays. | *"SUBSCRIBING event ignored, not PUBLIC..."*, WARNING, same pace. |
 | A command or a stats request that names no command (neither `__command__` in the kw nor in its stack), or whose `service` is not a string | Answered with an error; the channel stays. | *"Request without the command or stats it asks, refused"*, WARNING, the kw capped, same pace. |
 | A command or a stats request whose `service` does not exist, or (stats) is one the channel may not reach | Answered with an error; the channel stays. | *"Service not found"* / *"Not authorized to request stats of a different service"*, WARNING, same pace. |
+| An event no gclass has as public (any state) | Closes the channel. | *"Frame of an event that is not public, refused"*, WARNING, `MSGSET_PROTOCOL`, the name capped to 64 bytes, the kw masked and capped to 256 bytes -- said by [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer), once per connection. Up to 7.26.9 it was silent there, and the gate traced the whole kw raw (*"iev_event NULL"*), credentials before the session among it. `C_IEVENT_CLI` the same. |
+| `EV_REMOTE_LOG`: a log line of the peer's app (gobj-js `set_remote_log_functions()`), in session | Logged. | *"Remote Error"*, ERROR, `MSGSET_APP`, the `remote msg` capped to 1 KB and masked ([`mask_secrets_inline()`](#mask_secrets_inline)), its whole size and the `username`; the kw is not dumped. Up to 7.26.9 the text was written whole, and the kw traced raw. |
 
 Each of these is the peer's to repeat, frame after frame, so none writes a
 line per frame, none carries a stack trace, and none dumps the whole kw. Up
@@ -403,16 +405,27 @@ gate writes ONE warning (`MSGSET_PROTOCOL`, `peername`, the kw capped to 256
 bytes, no stack), with no credential in it. Before a session there is no
 command table to ask which parameter is `SDF_SECRET`, so the NAME decides
 (`is_secret_name()`, the one list of the SDK: `passw`, `token`, `secret`,
-`jwt`, `api_key`, `private_key`... any case): at any depth of the kw the value
-of such a key is shown as `********` (whatever its json type), and in a string
-(a command line) the value of such a `name=value` too -- the kernel's
-[`json_mask_secrets()`](#json_mask_secrets), the same rule as the `ievents`
-traces. A command sent before the card:
+`jwt`, `api_key`, `private_key`, `pin`... any case): at any depth of the kw
+the value of such a key is shown as `********` (whatever its json type), and in
+a string (a command line) the value of such a `name=value` too; and, under any
+key, a value with the shape of a credential -- a JWT, the token after
+`Bearer ` -- the kernel's [`json_mask_secrets()`](#json_mask_secrets), the same
+rule as the `ievents` traces. A command sent before the card:
 
 ```text
-kw   {"jwt": "eyJ...", "password": "s3cr3t", "kw": {"passw": "x"}, "__command__": "help token=abc"}
-log  {"jwt":"********","password":"********","kw":{"passw":"********"},"__command__":"help token=********", ...}
+kw   {"jwt": "eyJ...", "password": "s3cr3t", "kw": {"passw": "x"}, "__command__": "help token=abc",
+      "note": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln", "h": "Authorization: Bearer abc"}
+log  {"jwt":"********","password":"********","kw":{"passw":"********"},"__command__":"help token=********",
+      "note":"********","h":"Authorization: Bearer ********", ...}
 ```
+
+A command to a channel that is NOT in session (`mt_command` of `C_IEVENT_SRV`
+or `C_IEVENT_CLI`: the agent's `command-yuno` to a yuno that has just gone) is
+refused with *"Not in session"*, an ERROR that names the command by its first
+word, capped to 64 bytes and masked: the line is forwarded whole, so up to
+7.26.9 it logged a `set-password password=...` (and, with the line
+`password=hunter2 user=x`, the first word itself: it is `password=********`
+now).
 
 The `ievents` and `ievents2` traces of `C_IEVENT_CLI` and `C_IEVENT_SRV`
 (`trace_inter_event()`, `trace_inter_event2()`) mask the same way, in both
@@ -440,6 +453,7 @@ log  {"event": "EV_MT_COMMAND", "kw": {"__command__": "set-user-pwd username=bob
 | `jwt` present and not a string | *"Identity card refused, its jwt is not a string"* |
 | Any event but the card or `EV_GOODBYE` | *"Event before the identity card, channel closed"*, with `event` |
 | A frame bigger than `max_pre_session_frame` | *"Frame before the identity card too big, channel closed"*, with `size` and `max`; the frame is not parsed, and its bytes are not dumped (unparsed they cannot be masked, and a card carries a jwt) |
+| An event no gclass has as public | *"Frame of an event that is not public, refused"*, with `event` capped to 64 bytes, said by [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer); up to 7.26.9 the kw was traced raw, the jwt with it |
 
 A frame before the session is not even parsed when it is bigger than
 `max_pre_session_frame`. An identity card is a few KB (its jwt the largest

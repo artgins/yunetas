@@ -17,7 +17,10 @@
  *              5. dst_service not in this yuno
  *              6. a jwt that is not a string
  *              7. a command before any card
- *              8. a good card: EV_IDENTITY_CARD_ACK, the session opens
+ *              8. a card bigger than max_pre_session_frame
+ *              9. an event no gclass has as public, before any card,
+ *                 carrying credentials (REV-CLOUD V23.4.1)
+ *             10. a good card: EV_IDENTITY_CARD_ACK, the session opens
  *
  *          Each refusal is caused by the peer: ONE warning, with the kw
  *          capped and no stack (main.c counts the lines, their priority and
@@ -39,7 +42,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define LAST_CARD   9
+#define LAST_CARD   10
 
 /***************************************************************************
  *              Structures
@@ -314,6 +317,24 @@ PRIVATE int send_card(hgobj gobj, int card)
                 jn_routing = card_routing("", role, "tester", role, "cli");
             }
             break;
+
+        case 9:
+            /*
+             *  An event no gclass has as public, its kw with credentials:
+             *  the lookup was silent, and C_IEVENT_SRV traced the whole kw
+             *  raw (REV-CLOUD V23.4.1). One WARNING now, masked.
+             */
+            json_object_set_new(kw, "password", json_string("tester-secret-unknown-event"));
+            json_object_set_new(kw, "auth", json_pack("{s:s}",
+                "client_secret", "tester-secret-unknown-nested"
+            ));
+            json_object_set_new(kw, "note", json_string(
+                "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.tester-secret-jwt-sig"
+            ));
+            msg_iev_push_stack(gobj, kw, IEVENT_STACK_ID,
+                card_routing("", role, "tester", role, "cli")
+            );
+            return send_frame(gobj, "EV_NO_SUCH_EVENT_REV23", kw);
 
         default:
             jn_routing = card_routing("", role, "tester", role, "cli");

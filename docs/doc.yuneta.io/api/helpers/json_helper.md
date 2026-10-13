@@ -400,7 +400,7 @@ It recurses, and does not guard against a CYCLE (two nodes of a treedb in each o
 (json_refcounts_report)=
 ## [`json_refcounts_report()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/gobj-c/src/helpers.c)
 
-What the reference counts of a json say, as a REPORT, logging nothing: the jsons held more than `max_refcount` times, and the corrupted ones (a refcount of 0, or a type jansson does not have), with the [`kw_find_path()`](<#kw_find_path>) path of the first `max_shown`. Each json is walked ONCE, in a loop: a json held in several places -- a node of a treedb is in its indexes and in the hooks of its parents -- is reported once, and a cycle does not loop the walk, nor one whose refcounts are corrupted BELOW the truth (a json held twice with a refcount of 1): every dict and list met is remembered. A corrupted json is not walked into.
+What the reference counts of a json say, as a REPORT, logging nothing: the jsons held more than `max_refcount` times, and the corrupted ones, with the [`kw_find_path()`](<#kw_find_path>) path of the first `max_shown`. Corrupted is a type jansson does not have, a refcount of 0, or a refcount BELOW the truth: every json is counted each time the walk reaches it, and one reached more times than its refcount says it is held is reported, at the path where it was reached once too many -- a cycle whose refcounts are corrupted, a json `json_object_set_new()`'d into two places. The root is reached once by the caller, who holds it. Each json is walked ONCE, in a loop: a json held in several places -- a node of a treedb is in its indexes and in the hooks of its parents -- is reported once, and a cycle does not loop the walk. A corrupted json is not walked into.
 
 ```C
 json_t *json_refcounts_report(
@@ -435,7 +435,19 @@ A NEW json, `NULL` (and an ERROR) if `jn` is `NULL`:
 }
 ```
 
-`jsons` is how many jsons were walked (`true`, `false` and `null` are not counted: they are singletons); `fault` is `"over_max"` or `"corrupted"`. `truncated` is `true` when the walk stopped short, with no memory left for what it remembers -- the gbmem ERROR says why (*"SIZE GREATER THAN MAX_BLOCK"*) --, and the counts are then of what was walked. Up to 7.26.9 only the jsons held more than once were remembered: a cycle held once, its refcounts corrupted below the truth, was walked round until its frames passed `MAX_BLOCK`, and the report did not say it was cut.
+`jsons` is how many jsons were walked, each one once (`true`, `false` and `null` are not counted: they are singletons); `fault` is `"over_max"` or `"corrupted"`. The walk remembers every json it meets and how many times it reached it: 24 to 48 bytes per json (a set of pointers and counts, kept half empty, that doubles as it fills), and 32 bytes more per dict or list for its place in the walk. `truncated` is `true` when the walk stopped short, with no memory left for what it remembers -- the gbmem ERROR says why (*"SIZE GREATER THAN MAX_BLOCK"*) --, and the counts are then of what was walked: a yuno's `MAX_BLOCK` of 200 MB walks some 8 million jsons. Up to 7.26.9 only the jsons held more than once were remembered: a cycle held once, its refcounts corrupted below the truth, was walked round until its frames passed `MAX_BLOCK`, and the report did not say it was cut; and a json held by more places than its refcount, once the walk ended, was not reported at all.
+
+```C
+json_t *c = json_object();
+json_t *d = json_object();
+json_object_set_new(c, "hook", d);
+json_object_set_new(d, "hook", c);      // c is d's now: refcount 1
+json_t *root = json_object();
+json_object_set_new(root, "c", c);      // and the root's too: held twice, refcount 1
+json_t *jn_report = json_refcounts_report(root, 0, 20);
+// {"max_refcount": 0, "jsons": 3, "corrupted": 1, "over_max": 0, "truncated": false,
+//  "shown": [{"path": "c`hook`hook", "refcount": 1, "fault": "corrupted"}]}
+```
 
 **Example**
 
@@ -449,12 +461,63 @@ if(kw_get_int(gobj, jn_report, "corrupted", 0, 0) > 0) {
         NULL
     );
 }
+if(kw_get_bool(gobj, jn_report, "truncated", 0, 0)) {
+    /*
+     *  The walk stopped short (no memory: the gbmem ERROR says why): its
+     *  counts are of what was walked, and "no corrupted json" says nothing
+     *  of the rest
+     */
+}
 JSON_DECREF(jn_report)
 ```
 
 **Notes**
 
 `check-json` of `C_TRANGER` and of the agent answer with it (since 7.26.10): `json_check_refcounts()` logged an ERROR for every json held more than `max_refcount` times, and with its default `1` that was every node of a treedb -- a reader filled the log. Their `-1` is a FAULT, a corrupted json or a walk cut short; the jsons held more than `max_refcount` times are the answer to what was asked, a `0`.
+
+---
+
+(json_nul_fault)=
+## [`json_nul_fault()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/gobj-c/src/helpers.c)
+
+What is wrong with a json that C reads by its strings, as a short phrase, or `NULL` when nothing is. A json decoded with `JSON_ALLOW_NUL` -- every ievent frame is -- carries a string with a NUL in it, and C reads a string up to its first NUL: the id `"dx\u0000evil"` is `"dx"`. Walked at any depth, at most `JSON_PARSER_MAX_DEPTH` (2048) levels, the depth a parser builds and the one jansson dumps or copies; the json of a peer, built by a parser, is walked once.
+
+```C
+const char *json_nul_fault(
+    json_t *jn      // not owned
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn` | `json_t *` | Any json. Not owned, not modified. |
+
+**Returns**
+
+`NULL`, or what is wrong: *"a string with a NUL in it"*, *"a key with a NUL in it"* (a key set by code with `json_object_setn()`; a parser refuses one), or *"a json nested deeper than a parser builds"* (a cycle built with `json_object_set()` is one).
+
+**Example**
+
+```C
+json_t *record = json_pack("{s:s%, s:s}", "id", "dx\0evil", (size_t)7, "name", "Dx");
+const char *fault = json_nul_fault(record);    // "a string with a NUL in it"
+if(fault) {
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "record of a wrong shape, refused",
+        "why",          "%s", fault,
+        NULL
+    );
+}
+JSON_DECREF(record)
+```
+
+**Notes**
+
+`C_NODE` (create, update, delete, import) and `C_TRANGER` (`add-record`) refuse a peer's record with it (7.26.10+): an id `"dx\u0000evil"` took the key `"dx"`, and an update of `"g1"` with the id `"g1\u0000x"` saved that id under the key `"g1"`, with no log. The treedb asks it of the id and the pkey2 values of a create or an update, for a C caller too.
 
 ---
 

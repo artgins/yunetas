@@ -443,9 +443,12 @@ Corollaries:
   (2) **The parser types every parameter (7.26.10+)**, from the line, kw or
   its default alike: a `DTP_STRING` is a string, a `DTP_DICT`/`DTP_LIST` an
   object/array, a number or boolean is never an object or array, and text is
-  read as the type (`"5"` -> 5, nothing before or after it and in its range;
-  a boolean as true/false, yes/no, on/off or an integer; the text of an
-  integer is an integer, `"2.0"` refused, that of a real a decimal, no hex).
+  read as the type by the JSON grammar, the whole text and in its range: the
+  text of an integer (and of a boolean that is not true/false, yes/no,
+  on/off) is a JSON integer `-?(0|[1-9][0-9]*)` (`"5"` -> 5; `"2.0"`, `"+5"`,
+  `"007"`, `" 5"` refused), that of a real a JSON number
+  `-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?` (`"1E5"`; `".5"`, `"5."`,
+  `"0x10"`, `"nan"` refused), read in the "C" locale whatever `LC_NUMERIC` is.
   The handler gets the EXACT type, under the parameter's DECLARED name
   (`N=5` is `n`): a `1` given to a `DTP_BOOLEAN` arrives as `true`, a boolean
   given to a `DTP_INTEGER` as 1, a json `2.0` as 2 -- and a real with decimals

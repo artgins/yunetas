@@ -26,7 +26,9 @@
  *              in its range ("nan", "inf", an overflow refused: strtoll()
  *              saturated in silence, V21.3.3); the text of a real a
  *              decimal number (no hex) whose underflow is a number, that
- *              of an integer or a boolean an integer (V22.4.3);
+ *              of an integer or a boolean an integer (V22.4.3); of the
+ *              JSON grammar, ".5", "5.", "+5" and "007" refused, and read
+ *              in the "C" locale whatever LC_NUMERIC is (V23.4.6);
  *            - a text of kw with a NUL inside refused, but for a DTP_JSON
  *              (V22.4.2);
  *            - a parameter given in another case on the line reaches the
@@ -46,6 +48,7 @@
  ****************************************************************************/
 #include <stdio.h>
 #include <string.h>
+#include <locale.h>
 #include <yunetas.h>
 
 #define APP "test_command_parameter_types"
@@ -390,8 +393,8 @@ int main(int argc, char *argv[])
         json_pack("{s:s}", "n", "5 "), "parameter 'n' must be an integer, not a text", FALSE);
     expect_refused(yuno, "real text nan", "typed",
         json_pack("{s:s}", "r", "nan"), "parameter 'r' must be a number, not a text", FALSE);
-    expect_refused(yuno, "real text inf", "typed",
-        json_pack("{s:s}", "r", "inf"), "parameter 'r' must be a number, not a number out of its range", FALSE);
+    expect_refused(yuno, "real text inf", "typed",      // no JSON number (V23.4.6): it was "out of its range"
+        json_pack("{s:s}", "r", "inf"), "parameter 'r' must be a number, not a text", FALSE);
     expect_refused(yuno, "real text past a double", "typed",
         json_pack("{s:s}", "r", "1e999"), "parameter 'r' must be a number, not a number out of its range", FALSE);
 
@@ -448,6 +451,55 @@ int main(int argc, char *argv[])
         0, "parameter 'b' must be a boolean", FALSE);
 
     /*
+     *  A number written as text is one of the JSON grammar, the whole
+     *  text: strtod() and strtoll() took ".5", "5.", "+5" and "007" (as 7)
+     *  (REV-CLOUD V23.4.6)
+     */
+    expect_refused(yuno, "real text .5", "typed r=.5",
+        0, "parameter 'r' must be a number, not a text", FALSE);
+    expect_refused(yuno, "real text 5.", "typed r=5.",
+        0, "parameter 'r' must be a number, not a text", FALSE);
+    expect_refused(yuno, "real text +5", "typed",
+        json_pack("{s:s}", "r", "+5"), "parameter 'r' must be a number, not a text", FALSE);
+    expect_refused(yuno, "real text 007", "typed r=007",
+        0, "parameter 'r' must be a number, not a text", FALSE);
+    expect_refused(yuno, "real text 1e", "typed r=1e",
+        0, "parameter 'r' must be a number, not a text", FALSE);
+    expect_refused(yuno, "integer text +5", "typed n=+5",
+        0, "parameter 'n' must be an integer, not a text", FALSE);
+    expect_refused(yuno, "integer text 007, by a peer", "typed",
+        json_pack("{s:s, s:s}", "n", "007", "__username__", "someone"),
+        "parameter 'n' must be an integer, not a text", TRUE);
+    expect_refused(yuno, "boolean text 007", "typed b=007",
+        0, "parameter 'b' must be a boolean", FALSE);
+    expect_refused(yuno, "boolean text +1", "typed b=+1",
+        0, "parameter 'b' must be a boolean", FALSE);
+    expect_value(yuno, "integer text -0", "typed n=-0",
+        0, "n", json_integer(0));
+    expect_value(yuno, "boolean text -1", "typed b=-1",
+        0, "b", json_true());
+    expect_value(yuno, "real text 1E5", "typed r=1E5",
+        0, "r", json_real(100000.0));
+    expect_value(yuno, "real text -0.5e-1", "typed",
+        json_pack("{s:s}", "r", "-0.5e-1"), "r", json_real(-0.05));
+    expect_value(yuno, "real text 0", "typed r=0",
+        0, "r", json_real(0.0));
+
+    /*
+     *  ... read in the "C" locale: with the LC_NUMERIC of es_ES, strtod()
+     *  read "2.5" as 2 and stopped at the '.', and took "2,5"
+     */
+    if(setlocale(LC_NUMERIC, "es_ES.UTF-8") || setlocale(LC_NUMERIC, "es_ES.utf8")) {
+        expect_value(yuno, "real text 2.5, LC_NUMERIC es_ES", "typed r=2.5",
+            0, "r", json_real(2.5));
+        expect_refused(yuno, "real text 2,5, LC_NUMERIC es_ES", "typed",
+            json_pack("{s:s}", "r", "2,5"), "parameter 'r' must be a number, not a text", FALSE);
+        setlocale(LC_NUMERIC, "C");
+    } else {
+        printf("skip %-40s %s\n", "LC_NUMERIC es_ES", "the locale is not installed here");
+    }
+
+    /*
      *  command_parameter_from_text(): the parser's reader of a text
      */
     {
@@ -474,6 +526,15 @@ int main(int argc, char *argv[])
         JSON_DECREF(jn)
         jn = command_parameter_from_text(DTP_DICT, "[1]", &why);
         check("from_text dict [1]", "refused: not its shape", jn == NULL && why != NULL);
+        jn = command_parameter_from_text(DTP_REAL, ".5", &why);
+        check("from_text real .5", "refused: no JSON number",
+            jn == NULL && why && strcmp(why, "a text that does not read as one")==0);
+        jn = command_parameter_from_text(DTP_INTEGER, "007", &why);
+        check("from_text integer 007", "refused: no JSON integer",
+            jn == NULL && why && strcmp(why, "a text that does not read as one")==0);
+        jn = command_parameter_from_text(DTP_REAL, "1e999", &why);
+        check("from_text real 1e999", "refused: out of its range",
+            jn == NULL && why && strcmp(why, "a number out of its range")==0);
     }
 
     JSON_DECREF(g_seen)

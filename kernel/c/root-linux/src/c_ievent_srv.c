@@ -25,6 +25,7 @@
  *              Constants
  ***************************************************************************/
 #define MAX_LOG_DUMP_SIZE (256)     // Cap the data dump added to logs, for very large packets
+#define MAX_REMOTE_LOG_SIZE (1024)  // Cap the text of a log line the peer's app sends (EV_REMOTE_LOG)
 
 /*
  *  The `__config__` keys a remote peer may set in its subscription. The
@@ -436,16 +437,24 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
         /*
          *  The command's NAME: `command` is the whole line forwarded (the
          *  agent's command-yuno), and a set-password to a yuno that had just
-         *  gone left the password in the log (REV-CLOUD V22.3.1)
+         *  gone left the password in the log (REV-CLOUD V22.3.1). Masked,
+         *  for the first word can be a secret itself: `password=hunter2
+         *  user=x` logged "password=hunter2" (V23.4.3)
          */
-        size_t name_len = command? strcspn(command, " \t\r\n") : 0;
+        const char *line = command? command : "";
+        char name[65];
+        size_t name_len = strcspn(line, " \t\r\n");
+        snprintf(name, sizeof(name), "%.*s",
+            utf8_prefix_len(line, (int)MIN(name_len, sizeof(name) - 1)), line);
+        char *name_masked = mask_secrets_inline(name);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Not in session",
-            "command",      "%.*s", (int)(name_len > 64? 64 : name_len), command? command : "",
+            "command",      "%s", name_masked? name_masked : name,
             NULL
         );
+        GBMEM_FREE(name_masked)
         KW_DECREF(kw)
         return NULL;
     }
@@ -2105,8 +2114,13 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return -1;
     }
     if(empty_string(iev_event)) {
-        // Error already logged
-        gobj_trace_json(gobj, iev_kw, "iev_event NULL");
+        /*
+         *  An event no gclass has as public: iev_create_from_gbuffer() said
+         *  it, a WARNING with the name and the kw masked, capped -- the only
+         *  one that knows the name the frame gave. The whole kw was traced
+         *  here raw, a jwt and a password before the session among it
+         *  (REV-CLOUD V23.4.1). The channel goes, so it is one per connection.
+         */
         drop(gobj);
         KW_DECREF(iev_kw)
         KW_DECREF(kw)
@@ -3095,15 +3109,29 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_remote_log(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    const char *msg = kw_get_str(gobj, kw, "msg", "", 0);
+    /*
+     *  A log line of the peer's app (gobj-js' set_remote_log_functions()),
+     *  in session: its text capped and masked, and the kw not dumped. Both
+     *  were written whole and raw, the text of any size, twice (REV-CLOUD
+     *  V23.4.1).
+     */
+    const char *text = json_string_value(json_object_get(kw, "msg"));
+    if(!text) {
+        text = "";
+    }
+    char msg[MAX_REMOTE_LOG_SIZE];
+    snprintf(msg, sizeof(msg), "%.*s", utf8_prefix_len(text, (int)sizeof(msg) - 1), text);
+    char *msg_masked = mask_secrets_inline(msg);
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_APP,
         "msg",          "%s", "Remote Error",
-        "remote msg",   "%s", msg,
+        "remote msg",   "%s", msg_masked? msg_masked : msg,
+        "remote_msg_size", "%lu", (unsigned long)strlen(text),
+        "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
         NULL
     );
-    gobj_trace_json(gobj, kw, "Remote Error");
+    GBMEM_FREE(msg_masked)
 
     KW_DECREF(kw)
     return 0;

@@ -2841,6 +2841,10 @@ PRIVATE int do_test(void)
         json_array_extend(expected, changed);
         JSON_DECREF(changed)
         expect_refusal(expected, "topic of a wrong shape, create refused");
+        /*  V23.4.2: a NUL in the pkey, down the record, in its json text  */
+        for(int i = 0; i < 3; i++) {
+            expect_refusal(expected, "record of a wrong shape, refused");
+        }
         set_expected_results("more of a peer's data is refused", expected, NULL, NULL, 1);
     }
 
@@ -3137,6 +3141,34 @@ PRIVATE int do_test(void)
             as_peer(json_pack("{s:s, s:{s:i}}", "topic_name", "topic_nocols",
                 "jn_var", "topic_version", 3)), yuno);
         check_refused("a new version without jn_cols", r);
+    }
+
+    /*
+     *  REV-CLOUD V23.4.2: a NUL in a string of a peer's record (a frame is
+     *  decoded with JSON_ALLOW_NUL). C reads a string up to it: the pkey
+     *  "K\u0000evil" was appended under the key "K". Refused, at any depth,
+     *  and in the json text of the record too, which was parsed up to it.
+     */
+    {
+        json_int_t k_rows = (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME, "K");
+        r = gobj_command(yuno, "add-record",
+            as_peer(json_pack("{s:s, s:{s:s%, s:I}}", "topic_name", TOPIC_NAME,
+                "record", "id", "K\0evil", (size_t)6, "tm", (json_int_t)(BASE_T + 6000))), yuno);
+        check_bool("add-record of a pkey with a NUL: refused, saying why",
+            strstr(kw_get_str(0, r, "comment", "", 0),
+                "record refused by topic 'topic_cmd': a string with a NUL in it")? TRUE : FALSE, TRUE);
+        check_refused("add-record of a pkey with a NUL", r);
+        r = gobj_command(yuno, "add-record",
+            as_peer(json_pack("{s:s, s:{s:s, s:I, s:{s:[s%]}}}", "topic_name", TOPIC_NAME,
+                "record", "id", "K", "tm", (json_int_t)(BASE_T + 6000),
+                "content", "list", "a\0b", (size_t)3)), yuno);
+        check_refused("add-record of a record with a NUL down it", r);
+        r = gobj_command(yuno, "add-record",
+            as_peer(json_pack("{s:s, s:s%}", "topic_name", TOPIC_NAME,
+                "record", "{\"id\":\"K\",\"tm\":946690000}\0junk", (size_t)30)), yuno);
+        check_refused("add-record of the json text of a record with a NUL", r);
+        check_int("the refused records added nothing",
+            (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME, "K"), k_rows);
     }
 
     global_result += test_json(NULL);

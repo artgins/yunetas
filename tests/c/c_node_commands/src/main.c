@@ -107,7 +107,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -131,6 +131,9 @@ static int register_yuno_and_more(void)
             "msg", "the hook does not link that topic, refused", "__priority__", "WARNING",
             "msg", "node not found, update refused (no 'create' option)", "__priority__", "WARNING",
             "msg", "record of a wrong shape, refused", "__priority__", "WARNING",                // V18.2-V18.3
+            "msg", "record of a wrong shape, refused", "__priority__", "WARNING",
+            "msg", "record of a wrong shape, refused", "__priority__", "WARNING",
+            "msg", "record of a wrong shape, refused", "__priority__", "WARNING",                // V23.4.2: a NUL
             "msg", "record of a wrong shape, refused", "__priority__", "WARNING",
             "msg", "record of a wrong shape, refused", "__priority__", "WARNING",
             "msg", "node already exists, create_only refused", "__priority__", "WARNING",

@@ -7353,6 +7353,55 @@ PRIVATE const char *build_qualified_id(
 }
 
 /***************************************************************************
+ *  A name of a node -- its id, or a value of a pkey2 -- with a NUL in it:
+ *  a json decoded with JSON_ALLOW_NUL (a peer's frame) carries one, and C
+ *  reads it up to the NUL, so the node was indexed under one name and saved
+ *  with another -- a create of "dx\u0000evil" took the key "dx", and an
+ *  update of "g1" with the id "g1\u0000x" saved that id under "g1", kept
+ *  after a reload, with no log (REV-CLOUD V23.4.2). Refused for every
+ *  caller: a WARNING in a peer's window, an ERROR with a stack from C
+ *  (log_data_fault()). Return 0, or -1 refused.
+ ***************************************************************************/
+PRIVATE int refuse_node_name_with_nul(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *kw      // NOT owned
+)
+{
+    char field[NAME_MAX] = "";
+    if(json_nul_fault(json_object_get(kw, "id"))) {
+        snprintf(field, sizeof(field), "%s", "id");
+    } else {
+        json_t *pkey2s = treedb_topic_pkey2s(tranger, topic_name);
+        int idx; json_t *jn_pkey2_name;
+        json_array_foreach(pkey2s, idx, jn_pkey2_name) {
+            const char *pkey2_name = json_string_value(jn_pkey2_name);
+            if(!empty_string(pkey2_name) && json_nul_fault(json_object_get(kw, pkey2_name))) {
+                snprintf(field, sizeof(field), "%s", pkey2_name);
+                break;
+            }
+        }
+        JSON_DECREF(pkey2s)
+    }
+    if(empty_string(field)) {
+        return 0;
+    }
+    log_data_fault(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TREEDB,
+        "msg",          "%s", "Invalid id or pkey2 value: it holds a NUL",
+        "treedb_name",  "%s", treedb_name,
+        "topic_name",   "%s", topic_name,
+        "field",        "%s", field,
+        NULL
+    );
+    gobj_log_set_last_message("node of '%s' refused: its '%s' holds a NUL", topic_name, field);
+    return -1;
+}
+
+/***************************************************************************
  *  The pkey2 values of a create are the ones its record will hold: a value
  *  of `kw` that is not a string, or that `kw` does not carry, is written
  *  back into `kw` as its column normalizes it (its default, a wild
@@ -7480,6 +7529,10 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         gobj_log_set_last_message("node of '%s' refused: its 'id' must be a string", topic_name);
         JSON_DECREF(kw)
         return 0;
+    }
+    if(refuse_node_name_with_nul(gobj, tranger, treedb_name, topic_name, kw) < 0) {
+        JSON_DECREF(kw)
+        return 0;   // Error already logged
     }
     const char *id = kw_get_str(gobj, kw, "id", 0, 0);
     if(empty_string(id)) {
@@ -9710,6 +9763,15 @@ PRIVATE json_t *prepare_node_update(
         );
         gobj_log_set_last_message("Cannot update node in '%s', NO master", topic_name);
         return NULL;
+    }
+
+    /*-------------------------------*
+     *  Its id and pkey2 values, as the
+     *  create asks them: refused before
+     *  anything is stored
+     *-------------------------------*/
+    if(with_fields && refuse_node_name_with_nul(gobj, tranger, treedb_name, topic_name, kw) < 0) {
+        return NULL;    // Error already logged
     }
 
     /*-------------------------------*

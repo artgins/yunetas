@@ -1076,9 +1076,12 @@ PRIVATE json_t *refuse_peer_new_topic(
  *  (not empty, no '/', no leading '.', NAME_MAX at most), or an integer --
  *  and its `__t__` a time the tranger can name a file by. Each one was an
  *  ERROR of the tranger with the record dumped, and an int key that was
- *  not an integer was appended in silence under the key 0. The cause when
- *  refused, said in a WARNING for a peer, an ERROR for a C caller
- *  (log_refusal()); NULL when it can be appended.
+ *  not an integer was appended in silence under the key 0. And no string
+ *  of it holds a NUL (json_nul_fault(), at any depth): a frame is decoded
+ *  with JSON_ALLOW_NUL, and C reads a string up to its NUL, a pkey among
+ *  them (REV-CLOUD V23.4.2). The cause when refused, said in a WARNING for
+ *  a peer, an ERROR for a C caller (log_refusal()); NULL when it can be
+ *  appended.
  ***************************************************************************/
 PRIVATE const char *refuse_peer_record(
     hgobj gobj,
@@ -1095,27 +1098,29 @@ PRIVATE const char *refuse_peer_record(
     const char *pkey = json_string_value(json_object_get(topic, "pkey"));
     json_t *jn_key = pkey? json_object_get(record, pkey) : NULL;
 
-    const char *why = NULL;
-    switch(system_flag & KEY_TYPE_MASK2) {
-        case sf_string_key:
-            {
-                const char *key = json_string_value(jn_key);
-                if(empty_string(key)) {
-                    why = "no pkey, or a pkey that is not a string";
-                } else if(strlen(key) > NAME_MAX) {
-                    why = "a pkey longer than NAME_MAX";
-                } else if(strchr(key, '/') || key[0] == '.') {
-                    why = "a pkey with a '/' or a leading '.'";
+    const char *why = json_nul_fault(record);
+    if(!why) {
+        switch(system_flag & KEY_TYPE_MASK2) {
+            case sf_string_key:
+                {
+                    const char *key = json_string_value(jn_key);
+                    if(empty_string(key)) {
+                        why = "no pkey, or a pkey that is not a string";
+                    } else if(strlen(key) > NAME_MAX) {
+                        why = "a pkey longer than NAME_MAX";
+                    } else if(strchr(key, '/') || key[0] == '.') {
+                        why = "a pkey with a '/' or a leading '.'";
+                    }
                 }
-            }
-            break;
-        case sf_int_key:
-            if(!json_is_integer(jn_key)) {
-                why = "no pkey, or a pkey that is not an integer";
-            }
-            break;
-        default:
-            break;  // rowid: no pkey; none: the topic's own fault, the tranger says it
+                break;
+            case sf_int_key:
+                if(!json_is_integer(jn_key)) {
+                    why = "no pkey, or a pkey that is not an integer";
+                }
+                break;
+            default:
+                break;  // rowid: no pkey; none: the topic's own fault, the tranger says it
+        }
     }
 
     if(!why && __t__ < 0) {
@@ -3269,9 +3274,15 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     json_t *jn_record = kw_get_dict_value(gobj, kw, "record", 0, 0);
     json_t *record = NULL;  // yours
+    const char *not_a_record = "the record is not a json object";
     if(json_is_string(jn_record)) {
         const char *s = json_string_value(jn_record);
-        record = anystring2json(s, strlen(s), FALSE);
+        if(json_string_length(jn_record) != strlen(s)) {
+            /*  Its json text, parsed up to the NUL (REV-CLOUD V23.4.2)  */
+            not_a_record = "the json text of the record holds a NUL";
+        } else {
+            record = anystring2json(s, strlen(s), FALSE);
+        }
     } else if(jn_record) {
         record = json_incref(jn_record);
     }
@@ -3281,7 +3292,7 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "record of a wrong shape, refused",
-            "why",          "%s", "the record is not a json object",
+            "why",          "%s", not_a_record,
             "topic_name",   "%s", topic_name,
             NULL
         );

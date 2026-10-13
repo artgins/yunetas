@@ -113,7 +113,7 @@ PRIVATE BOOL refuse_peer_hook_without_child_topic(
     const char *hook_name,
     const char *child_topic_name
 );
-PRIVATE BOOL refuse_peer_record(
+PRIVATE const char *refuse_peer_record(
     hgobj gobj,
     const char *topic_name,
     json_t *record
@@ -2940,14 +2940,15 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
-    if(refuse_peer_record(gobj, topic_name, jn_content)) {
+    const char *wrong_record = refuse_peer_record(gobj, topic_name, jn_content);
+    if(wrong_record) {
         json_decref(jn_content);
         GBUFFER_DECREF(gbuf_files)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Wrong record: a json object, with a string id",
-                gobj_yuno_role_plus_name()),
+            json_sprintf("%s: Wrong record: %s",
+                gobj_yuno_role_plus_name(), wrong_record),
             0,
             0,
             kw  // owned
@@ -3131,14 +3132,15 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         kw_get_bool(gobj, _jn_options, "create", 0, KW_WILD_NUMBER) ||
         kw_get_bool(gobj, _jn_options, "create_only", 0, KW_WILD_NUMBER)
     );
-    if(refuse_peer_record(gobj, topic_name, jn_content)) {
+    const char *wrong_record = refuse_peer_record(gobj, topic_name, jn_content);
+    if(wrong_record) {
         json_decref(jn_content);
         GBUFFER_DECREF(gbuf_files)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Wrong record: a json object, with a string id",
-                gobj_yuno_role_plus_name()),
+            json_sprintf("%s: Wrong record: %s",
+                gobj_yuno_role_plus_name(), wrong_record),
             0,
             0,
             kw  // owned
@@ -3364,12 +3366,13 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
-    if(refuse_peer_record(gobj, topic_name, _jn_record)) {
+    const char *wrong_record = refuse_peer_record(gobj, topic_name, _jn_record);
+    if(wrong_record) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Wrong record: a json object, with a string id",
-                gobj_yuno_role_plus_name()),
+            json_sprintf("%s: Wrong record: %s",
+                gobj_yuno_role_plus_name(), wrong_record),
             0,
             0,
             kw  // owned
@@ -6970,9 +6973,14 @@ PRIVATE BOOL refuse_peer_hook_without_child_topic(
  *  further down as a path holding the wrong type -- an ERROR with a stack
  *  and the kw dumped, per read (REV-CLOUD V18.2.2, V18.3). An absent id --
  *  or a null one, which the readers take as absent -- is left to the treedb:
- *  a uuid, rowid or qualified id is made there (V19.3.1). TRUE = refused.
+ *  a uuid, rowid or qualified id is made there (V19.3.1). And no string of
+ *  it holds a NUL (json_nul_fault(), at any depth): an ievent frame is
+ *  decoded with JSON_ALLOW_NUL, and C reads a string up to its NUL -- an id
+ *  "dx\u0000evil" was indexed as "dx", which then was "Node already exists",
+ *  and an update of "g1" with the id "g1\u0000x" saved that id under the key
+ *  "g1" (V23.4.2). NULL, or why it is refused.
  ***************************************************************************/
-PRIVATE BOOL refuse_peer_record(
+PRIVATE const char *refuse_peer_record(
     hgobj gobj,
     const char *topic_name,
     json_t *record
@@ -6987,10 +6995,12 @@ PRIVATE BOOL refuse_peer_record(
         json_t *jn_id = json_object_get(record, "id");
         if(jn_id && !json_is_string(jn_id) && !json_is_null(jn_id)) {
             why = "the record id is not a string";
+        } else {
+            why = json_nul_fault(record);
         }
     }
     if(!why) {
-        return FALSE;
+        return NULL;
     }
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
@@ -7001,7 +7011,7 @@ PRIVATE BOOL refuse_peer_record(
         "topic_name",   "%s", topic_name,
         NULL
     );
-    return TRUE;
+    return why;
 }
 
 /***************************************************************************

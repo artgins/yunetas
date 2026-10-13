@@ -298,6 +298,7 @@ command-yuno id=<id> service=tranger command=create-topic topic_name=events jn_c
 
 | Refused | `why` |
 |---|---|
+| a NUL in a string of the record, at any depth (an ievent frame is decoded with `JSON_ALLOW_NUL`, and C reads a string up to its NUL: the pkey `"K\u0000evil"` was appended under the key `K`; up to 7.26.9). A record given as its json text with a NUL in the text is refused as *"What record?"*, with the `why` *"the json text of the record holds a NUL"* (it was parsed up to the NUL) | *"a string with a NUL in it"*, *"a key with a NUL in it"*, *"a json nested deeper than a parser builds"* ([`json_nul_fault()`](#json_nul_fault)) |
 | a topic keyed by string (`sf_string_key`): no pkey, a pkey that is not a string, longer than `NAME_MAX`, or with a `/` or a leading `.` (a key is a directory) | *"no pkey, or a pkey that is not a string"*, *"a pkey longer than NAME_MAX"*, *"a pkey with a '/' or a leading '.'"* |
 | a topic keyed by integer (`sf_int_key`): a pkey that is not an integer (up to 7.26.9 appended in silence under the key 0) | *"no pkey, or a pkey that is not an integer"* |
 | a negative `__t__` (up to 7.26.9 appended in silence) | *"a negative __t__"* |
@@ -315,6 +316,18 @@ command-yuno id=<id> service=tranger command=add-record topic_name=pp_ms record=
 # -> the same refusal: pp_ms is sf_tm_ms, and 2e10 seconds are 2e13 milliseconds, past 44 bits
 command-yuno id=<id> service=tranger command=add-record topic_name=pp_ms record='{"id":"1","tm":"@1700000000 +0000"}'
 # -> 0 <role^name>: record added to topic 'pp_ms', rowid 1
+```
+
+A NUL reaches a record only in the kw of a frame, which is decoded with
+`JSON_ALLOW_NUL`; the json reader of the command line refuses a `\u0000`. The
+kw of an `add-record` of a peer, and its answer:
+
+```json
+{"topic_name": "pp", "record": {"id": "K\u0000evil", "tm": 1}}
+```
+
+```text
+-1 <role^name>: record refused by topic 'pp': a string with a NUL in it
 ```
 
 **A replica answers READ-ONLY to the master-only commands**: `add-record`,
@@ -952,7 +965,7 @@ contract.
 | a hook whose map does not take the child's topic (`link-nodes`, `unlink-nodes`) | *"the hook does not link that topic, refused"* | `Hook '<hook>' does not link topic '<topic>'` |
 | a column name that breaks the rule ([`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>)) | `` column name breaks the name rule (empty or '`'), refused `` | as the row above |
 | a parent ref that is not `topic^id^hook` | *"parent ref must be topic^id^hook, with names of the name rule; refused"* (with a `why`) | `Wrong parent ref (see the log)` |
-| a record that is not a json object, or whose `id` is not a string (`create-node`, `update-node`, `delete-node`; also a `content64` that decodes to something else). A `null` id is absent: the treedb makes one (uuid, rowid, qualified) or says it is required | *"record of a wrong shape, refused"* (with a `why`) | `Wrong record: a json object, with a string id` |
+| a record that is not a json object, whose `id` is not a string, or with a NUL in a string at any depth (`create-node`, `update-node`, `delete-node`, `import-db`; also a `content64` that decodes to something else). A `null` id is absent: the treedb makes one (uuid, rowid, qualified) or says it is required. A frame is decoded with `JSON_ALLOW_NUL`, and C reads a string up to its NUL: up to 7.26.9 the id `"dx\u0000evil"` took the key `dx` (a create of `dx` then answered *"Node already exists"*), and an update of `g1` with the id `"g1\u0000x"` saved that id under the key `g1`, kept after a reload, with no log | *"record of a wrong shape, refused"* (with a `why`: *"the record is not a json object"*, *"the record id is not a string"*, *"a string with a NUL in it"*, ...) | `Wrong record: <why>` (up to 7.26.9: `Wrong record: a json object, with a string id`) |
 | an `update-node` of a node that does not exist, without `create` | *"node not found, update refused (no 'create' option)"* | `Node not found: '<id>' of topic '<topic>'` |
 | an `update-node` with `create_only` of a node that exists | *"node already exists, create_only refused"* | `Node already exists: '<id>' of topic '<topic>'` |
 | `instances` by a `pkey2` that is not a secondary index of the topic (`id` names the primary one) | *"not a pkey2 of the topic, refused"* | `Not a pkey2 of topic '<topic>': '<pkey2>'` |

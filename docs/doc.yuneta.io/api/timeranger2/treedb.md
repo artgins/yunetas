@@ -771,6 +771,27 @@ treedb_create_node(tranger, "my_db", "users", json_pack("{s:i}", "id", 5));   //
 treedb_create_node(tranger, "my_db", "users", json_pack("{s:s}", "id", "5"));  // created
 ```
 
+**No NUL in the id nor in a pkey2 value.** A json decoded with
+`JSON_ALLOW_NUL` -- an ievent frame -- carries strings with a NUL in them, and C
+reads a string up to it: the node was indexed under one name and saved with
+another. A create or an update ([`treedb_update_node()`](#treedb_update_node))
+whose `id`, or the value of one of the topic's `pkey2s`, holds a NUL is refused
+before anything is written, *"Invalid id or pkey2 value: it holds a NUL"* with
+the `field` -- an ERROR with a stack from C, a WARNING inside the window of a
+peer's data (7.26.10+). Up to 7.26.9 a create of `"dx\u0000evil"` took the key
+`dx`, and an update of `g1` with the id `"g1\u0000x"` saved that id under the
+key `g1`, kept after a reload, with no log:
+
+```C
+treedb_create_node(tranger, "my_db", "users",
+    json_pack("{s:s%}", "id", "dx\0evil", (size_t)7));                            // NULL
+treedb_update_node(tranger, node_g1,
+    json_pack("{s:s%, s:s}", "id", "g1\0x", (size_t)4, "name", "G1"), TRUE);        // NULL
+```
+
+`C_NODE` refuses a peer's record with a NUL in ANY string of it, before the
+treedb is asked ([`json_nul_fault()`](#json_nul_fault)).
+
 When the `kw` carries no `id`, the flag on the `id` column decides what the new
 one is:
 
@@ -3907,6 +3928,15 @@ json_t *n = treedb_update_node(tranger, node, json_pack("{s:s}", "name", "x"), T
 /*  tranger opened with "master": false  */
 json_t *n = treedb_update_node(tranger, node, json_pack("{s:s}", "name", "x"), TRUE);
 /*  n == NULL, one error logged, node unchanged  */
+```
+
+An update whose `id`, or the value of a pkey2, holds a NUL is refused before
+anything is stored, as a create is (see [`treedb_create_node()`](#treedb_create_node)):
+
+```C
+json_t *n = treedb_update_node(tranger, node,     // node "g1"
+    json_pack("{s:s%, s:s}", "id", "g1\0x", (size_t)4, "name", "x"), TRUE);
+/*  n == NULL, "Invalid id or pkey2 value: it holds a NUL", node unchanged  */
 ```
 
 A saved update whose tkey time does not fit the md2 row (negative, or past

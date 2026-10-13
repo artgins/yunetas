@@ -273,11 +273,17 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr);
  *  Any case. A name holds one of the parts "passw", "pwd", "passphrase",
  *  "secret", "token", "jwt", "bearer", "authorization", "cookie",
  *  "credential", "salt"; or one of "apikey", "sessionid", "sessionkey",
- *  "authdata" once '_', '-', '.' and blanks are taken out; or "priv" and
- *  "key" both (private_key). But not a name with a segment that names
- *  something ABOUT a credential (endpoint, url, domain, path, file,
- *  public, count, type, name, ...: token_endpoint, cookie_domain,
- *  jwt_public_keys). The one list of the SDK; gobj-js has the same.
+ *  "authdata" once '_', '-', '.' and blanks are taken out; or one of
+ *  "pass", "pin", "otp" as a WHOLE segment, a run of letters and digits
+ *  (db_pass, user-pin, sim_pin; not passive, bypass, ping, spinner, otpx);
+ *  or "priv" and "key" both (private_key). But not a name with a segment
+ *  (split by '_', '-', '.' and blanks) that names something ABOUT a
+ *  credential (endpoint, url, domain, path, file, public, count, type,
+ *  name, ...: token_endpoint, cookie_domain, jwt_public_keys, pin_count).
+ *  "key" and "cert" alone are NOT secrets' names: a key is the key of a
+ *  record of timeranger as often as a credential, and a certificate is
+ *  public (ssl_certificate_key is a path). The one list of the SDK; gobj-js
+ *  has a twin.
 **rst**/
 PUBLIC BOOL is_secret_name(const char *name, size_t len);
 
@@ -294,7 +300,9 @@ PUBLIC BOOL is_secret_name_any(const char *name, size_t len);
 /**rst**
  *  A text (a command line) with the value of every "name=value" whose
  *  name is a secret's written as "********" (quoted or not; the "value" of
- *  a write-attr whose attribute names a secret too); the rest as it is.
+ *  a write-attr whose attribute names a secret too); and, under any name or
+ *  none, a JWT ("eyJ...", three base64url parts joined by '.') and the
+ *  token after "Bearer " (any case); the rest as it is.
  *  A gbmem string to GBMEM_FREE, or NULL when there was nothing to mask.
 **rst**/
 PUBLIC char *mask_secrets_inline(const char *str);
@@ -303,9 +311,10 @@ PUBLIC char *mask_secrets_inline(const char *str);
  *  A json as a log or a trace may show it: at any depth, the value of a
  *  key with a secret's name is "********" (whatever its json type; not an
  *  absent one, a null or an empty string), so is the "value" of a dict
- *  whose "attribute" names a secret, and a string is masked as
- *  mask_secrets_inline(). Return a NEW reference: a masked copy, or jn
- *  itself when there was nothing to mask. NULL for NULL.
+ *  whose "attribute" names a secret, and every string, under any key, is
+ *  masked as mask_secrets_inline() (a JWT, a "Bearer x", a password=x in
+ *  it). Return a NEW reference: a masked copy, or jn itself when there was
+ *  nothing to mask. NULL for NULL.
 **rst**/
 PUBLIC json_t *json_mask_secrets(json_t *jn);
 
@@ -326,7 +335,8 @@ PUBLIC json_t *json_mask_secrets_capped(json_t *jn, size_t max_bytes);
  *  soundly written as '*', IN PLACE, the length kept: the value of an HTTP
  *  Cookie, Set-Cookie, Authorization or Proxy-Authorization header (after
  *  the scheme for the last two), of a "name=value" and of a json
- *  "name": value whose name is a secret's (is_secret_name()).
+ *  "name": value whose name is a secret's (is_secret_name()), and a JWT or
+ *  the token after "Bearer " wherever they are.
  *  Work on a COPY of what you dump. Return the bytes masked.
 **rst**/
 PUBLIC size_t mask_secrets_in_text(char *bf, size_t len);
@@ -749,15 +759,19 @@ PUBLIC int json_check_refcounts(
 /**rst**
     What the refcounts of a json say, as a REPORT, logging nothing: the jsons
     held more than `max_refcount` times (0 or less: not asked) and the
-    corrupted ones (refcount 0, or a type jansson does not have), with the kw
-    path of the first `max_shown`. Each json is walked ONCE, in a loop: a
-    json held in several places (a node of a treedb is in its indexes and in
-    the hooks of its parents) is reported once, and a cycle (two nodes in
-    each other's hooks) does not loop the walk -- nor one whose refcounts are
-    corrupted below the truth: every dict and list met is remembered.
-    `truncated` is TRUE when the walk stopped short, with no memory left for
-    what it remembers (the gbmem ERROR says why): the totals are then of what
-    was walked. A NEW json, NULL if `jn` is NULL:
+    corrupted ones, with the kw path of the first `max_shown`. Corrupted: a
+    type jansson does not have, a refcount of 0, or a refcount BELOW the
+    truth -- a json reached by the walk more times than its refcount says it
+    is held (a cycle whose refcounts are corrupted, a json set with
+    json_object_set_new() in two places); its path is where it was reached
+    once too many. The root is reached once by the caller, who holds it.
+    Each json is walked ONCE, in a loop: a json held in several places (a
+    node of a treedb is in its indexes and in the hooks of its parents) is
+    reported once, and a cycle (two nodes in each other's hooks) does not
+    loop the walk. It costs 24 to 48 bytes per json walked, and 32 more per
+    dict or list. `truncated` is TRUE when the walk stopped short, with no
+    memory left for what it remembers (the gbmem ERROR says why): the totals
+    are then of what was walked. A NEW json, NULL if `jn` is NULL:
 
         {"max_refcount": 1, "jsons": 431, "corrupted": 0, "over_max": 27,
          "truncated": false,
@@ -768,6 +782,19 @@ PUBLIC json_t *json_refcounts_report(
     json_t *jn, // not owned
     json_int_t max_refcount,
     int max_shown
+);
+
+/**rst**
+    What is wrong with a json that C reads by its strings, as a short
+    phrase, or NULL when nothing is: "a string with a NUL in it" (a json
+    decoded with JSON_ALLOW_NUL, as an ievent frame is: C reads a string up
+    to its first NUL, so "dx\u0000evil" is "dx"), "a key with a NUL in it",
+    or "a json nested deeper than a parser builds" (JSON_PARSER_MAX_DEPTH
+    levels: a cycle built with json_object_set() is one). At any depth;
+    the json of a peer, which a parser built, is walked once.
+**rst**/
+PUBLIC const char *json_nul_fault(
+    json_t *jn  // not owned
 );
 
 /**rst**

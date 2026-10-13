@@ -368,20 +368,23 @@ Out of the twenty-first review (V21):
 
 Out of the twenty-second review (V22):
 
-- **The parser stores a parameter under its DECLARED name** (V22.4.1): the
-  line finds a parameter in any case, and `cmd N=5` arrived as `"N"` -- the
-  handler read `n` and took its default, in silence, and a kw `n` beat the
-  line.
-- **A text of kw with a NUL inside is refused** (V22.4.2): an ievent frame is
-  decoded with `JSON_ALLOW_NUL`, and C read `"5\u0000junk"` as 5 and
-  `"yes\u0000no"` as true; a string reached the handler other than it was
-  sent. A `DTP_JSON` keeps it as it came.
-- **The text of a real is a decimal number, as jansson reads one**
-  (V22.4.3): `0x10` was `16.0` (`strtod()` reads hex, which an integer never
-  took), and an underflow is a number (`1e-400` is `0.0`), only an overflow
-  refused. The text of an integer or a boolean stays an integer: `2.0` is
-  refused, the json `2.0` is 2. `command_parser.md` says it, and that a json
-  text that breaks, given in kw to a `DTP_JSON`, stays a string.
+- **BREAKING: the parser stores a parameter under its DECLARED name**
+  (V22.4.1), and a handler gets what it did not before: `cmd N=5` arrives as
+  `"n"`, and the line beats a kw `n`. The line finds a parameter in any case,
+  and `cmd N=5` arrived as `"N"` -- the handler read `n` and took its default,
+  in silence, and a kw `n` beat the line.
+- **BREAKING: a text of kw with a NUL inside is refused** (V22.4.2): a caller
+  gets `-1` where it got an answer. An ievent frame is decoded with
+  `JSON_ALLOW_NUL`, and C read `"5\u0000junk"` as 5 and `"yes\u0000no"` as
+  true; a string reached the handler other than it was sent. A `DTP_JSON`
+  keeps it as it came.
+- **BREAKING: the text of a real is a decimal number** (V22.4.3; and of the
+  JSON grammar since V23.4.6, below): `0x10` was `16.0` (`strtod()` reads hex,
+  which an integer never took) and is `-1` now, and an underflow is a number
+  (`1e-400` is `0.0`), only an overflow refused. The text of an integer or a
+  boolean stays an integer: `2.0` is refused, the json `2.0` is 2.
+  `command_parser.md` says it, and that a json text that breaks, given in kw
+  to a `DTP_JSON`, stays a string.
 - **Secrets that still reached the log or an answer** (V22.3): out of
   session `C_IEVENT_SRV` and `C_IEVENT_CLI` logged the whole forwarded line
   -- a `set-password` through `command-yuno` to a yuno that had just gone --,
@@ -400,20 +403,22 @@ Out of the twenty-second review (V22):
 - **`C_IEVENT_CLI` answers a command to a service not found with
   `EV_MT_COMMAND_ANSWER`** (it went as `EV_MT_STATS_ANSWER`), and caps the
   name in the log and in the answer (V22.4.7).
-- **`tr_treedb`: a NEW topic with a `^` in the id of a `file` column is
-  refused** (V22.5.1): it is in the hook the column derives on `__assets__`,
-  `as_<topic>_<col>`, and every link of a file failed (*"Cannot build the
-  reference of a node"*). A topic on disk with it opens, with an ERROR.
+- **BREAKING: `tr_treedb`: a NEW topic with a `^` in the id of a `file`
+  column is refused** (V22.5.1), where it was created: it is in the hook the
+  column derives on `__assets__`, `as_<topic>_<col>`, and every link of a file
+  failed (*"Cannot build the reference of a node"*). A topic on disk with it
+  opens, with an ERROR.
 - **`json_refcounts_report()` remembers every dict and list it meets**
   (V22.5.3): only the jsons held more than once were, so a cycle whose
   refcounts are corrupted below the truth -- what it exists to find -- was
   walked round until its frames passed `MAX_BLOCK`, and the report did not
   say it was cut. It says `truncated` now, and `max_refcount` is a
   `json_int_t` (2^40 acted as 0); the function is new in this cycle.
-- **`check-json` answers `-1` for a FAULT only** (V22.5.4, `C_TRANGER` and
-  the agent): a corrupted json or a walk cut short. The jsons held more than
-  `max_refcount` times are the answer to what was asked, a `0`: with
-  `max_refcount=1` a sound treedb answered `-1`.
+- **BREAKING: `check-json` answers `-1` for a FAULT only** (V22.5.4,
+  `C_TRANGER` and the agent), and `0` where it answered `-1`: a corrupted json
+  or a walk cut short is the fault. The jsons held more than `max_refcount`
+  times are the answer to what was asked, a `0`: with `max_refcount=1` a sound
+  treedb answered `-1`.
 - Docs (V22.4.4, V22.5.2, V22.5.5, V22.5.6): `treedb.md` says a treedb with
   an old fault on disk opens, but its schema is not saved nor applied while
   the fault is in it, and how to remove it; `data.md` that the yuno's code
@@ -451,6 +456,86 @@ Out of the twenty-second review (V22):
   measure can never match). A colour field is cleared to `#000000` rather
   than `null`, which Chrome logged once per colour field each time the form
   was filled. Every SPA on `^7.26.34` and deployed.
+
+Out of the twenty-third review (V23):
+
+- **BREAKING: a number written as text is one of the JSON grammar** (V23.4.6,
+  `command_parser.c`), the whole text: the text of an integer, and of a
+  boolean that is not a word, is a JSON integer `-?(0|[1-9][0-9]*)`, that of
+  a real a JSON number `-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?`. A
+  caller that typed `.5`, `5.`, `+5` or `007` gets `-1` (`strtod()` and
+  `strtoll()` took them, `007` as 7); what was refused still is (blanks, hex,
+  `nan`, `inf` -- now *"a text that does not read as one"*, it was *"out of its
+  range"* --, an overflow, `2.0` for an integer), and an underflow is a number.
+  And it is read in the `"C"` locale whatever `LC_NUMERIC` is (`newlocale()` +
+  `strtod_l()`, which work in a `FULLY_STATIC` binary): with the `LC_NUMERIC`
+  of `es_ES`, `strtod()` read `2.5` as 2 and took `2,5` -- latent, no yuno sets
+  it. `command_parameter_from_text()` (`write-attr`) reads the same. gobj-js
+  has no twin of this reader. Test `command_parameter_types`.
+- **Secrets told by their VALUE** (V23.4.3): `mask_secrets_inline()`,
+  `json_mask_secrets()` (every string, under any key) and
+  `mask_secrets_in_text()` mask a JWT (`eyJ...`, three base64url parts) and
+  the token after `Bearer ` (any case) wherever they are -- the shapes the
+  agent's audit record already redacted. A string with a NUL inside is masked
+  past it. `is_secret_name()` takes `pass`, `pin` and `otp` as WHOLE segments
+  (`db_pass`, `user-pin`, `sim_pin`; not `passive`, `ping`, `spinner`,
+  `otpx`); `key` and `cert` stay no secrets' names (a record key, a public
+  certificate), and its doc says so. The twins in gobj-js (`is_secret_name()`,
+  `mask_secrets_inline()`, `json_mask_secrets()`) are not changed here.
+- **`write-attr attribute=password value=correct horse battery` answers
+  `'<...>'`** (V23.4.3), not `'horse battery'` (`-1` either way): the parser
+  repeats no extra text of a line that carries a secret (a secret parameter
+  given on it, or anything `mask_secrets_inline()` masks in it); `system.md`
+  sold it as solved. `write-attr` and the `set` of the trace commands read a
+  number as the parser does (the JSON grammar above). **The `content64` of the agent's `create-config` / `update-config` is
+  `SDF_SECRET`** (a configuration carries credentials). Out of session,
+  `C_IEVENT_SRV` / `C_IEVENT_CLI` log the first word of a command masked:
+  `password=hunter2 user=x` logged `password=hunter2`. **Limit**, written in
+  `command_parser.md` and the `SDF_SECRET` guide: a `SDF_SECRET` command
+  parameter whose name is not a secret's (`content64`) is masked by the parser
+  (authz checker, `commands` trace), not by the `machine` / `ev_kw` trace of an
+  event that carries it, which masks by names. A check in `gclass_create()`
+  that an `SDF_SECRET` ATTRIBUTE carries a secret's name was NOT added: some
+  attributes of the tree do not, and it waits for a decision.
+- **The frame of an event that is not public is ONE WARNING, masked**
+  (V23.4.1): `iev_create_from_gbuffer()` looked it up in silence, and
+  `C_IEVENT_SRV` (before the session too) and `C_IEVENT_CLI` traced the whole
+  kw raw under *"iev_event NULL"*, a jwt, a password and a nested
+  `client_secret` with it, a json of any size. It is *"Frame of an event that
+  is not public, refused"*, `MSGSET_PROTOCOL`, the name capped to 64 bytes,
+  `peername`, the kw masked and capped to 256 bytes, said by
+  `iev_create_from_gbuffer()` whatever `verbose` (only it knows the name; the
+  callers close the channel). A frame without `"event"` or `"kw"` logged two
+  ERRORs there and the caller's WARNING: with `verbose` 0 only the caller
+  says it now. `EV_REMOTE_LOG` (a browser's log line, in session): its text is
+  capped to 1 KB and masked, and the kw is not dumped. Test
+  `c_ievent_srv_identity_card` (a new card), `secret_attrs`.
+- **BREAKING: a NUL in a string of a record is refused** (V23.4.2), where it
+  was taken: `C_NODE` (create, update, delete, import) and `C_TRANGER`'s
+  `add-record` walk the peer's record (new `json_nul_fault()`), a WARNING;
+  `C_NODE` answers `Wrong record: <why>` (it was `Wrong record: a json object,
+  with a string id`). `treedb_create_node()` and the update path refuse a NUL
+  in the id or a pkey2 value for a C caller too, an ERROR (*"Invalid id or
+  pkey2 value: it holds a NUL"*). The id `"dx\u0000evil"` took the key `dx`
+  (a create of `dx` then was *"Node already exists"*), an update of `g1` with
+  the id `"g1\u0000x"` saved that id under the key `g1`, kept after a reload,
+  and an `add-record` of the pkey `"K\u0000evil"` was appended under `K`.
+  Tests `c_node_commands`, `c_tranger`, `tr_treedb_update_instance`.
+- **`json_refcounts_report()` REPORTS a refcount below the truth** (V23.4.4):
+  every json is counted each time the walk reaches it, and one reached more
+  times than its refcount (a corrupted cycle, a json
+  `json_object_set_new()`'d into two places) is `corrupted`, at the path of
+  the reach too many; the root counts the caller's reference. It ended on such
+  a cycle and said nothing. It costs 24 to 48 bytes per json walked (it was
+  16 to 32 per dict, list and shared scalar), plus 32 per dict or list; past
+  `MAX_BLOCK` it says `truncated`. `check-json` keeps its rule: `-1` for a
+  corrupted json or a walk cut short. Test `kw1`.
+- `CHANGELOG`: the V22 bullets that change what a caller receives say
+  BREAKING (V23.4.5). Docs: `command_parser.md` (the JSON grammar, with
+  examples; the extra text; the limit), `json_helper.md` (`truncated` in the
+  example, `json_nul_fault()`), `string_helper.md`, `guide_sdata.md`,
+  `ievent.md`, `msg_ievent.md`, `system.md`, `data.md`, `treedb.md`,
+  `test_suite.md`, `kernel/c/README.md`.
 
 ## v7.26.9 (2026-10-11)
 

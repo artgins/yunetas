@@ -780,6 +780,7 @@ json_t *load_persistent_json(hgobj gobj, const char *directory,
 // JSON refcount debugging
 json_t *json_refcounts_report(json_t *jn, json_int_t max_refcount, int max_shown);  // a report, logs nothing
 int json_check_refcounts(json_t *kw, int max_refcount, int *result);  // logs; recursive, no cycle guard: tests only
+const char *json_nul_fault(json_t *jn);  // a string with a NUL (JSON_ALLOW_NUL) at any depth: why, or NULL
 ```
 
 **File system utilities:**
