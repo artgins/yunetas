@@ -442,6 +442,15 @@ Out of the twenty-second review (V22):
   refused to write the fields below it: every save of an estadodelaire
   device's settings wiped its alarm colours (one device, repaired from its
   previous record). Every SPA on `^7.26.33` and deployed.
+- **JS layer: gobj-ui 7.26.34.** fix: a table field of `C_YUI_FORM` that
+  does not validate refuses the save -- Tabulator's `validate()` answers
+  `true` or the LIST of the bad cells, and `!validate()` never refused a
+  list, so a `required` cell left empty was saved. A template item may carry
+  Tabulator validators of its own, which its column runs besides
+  `required` (estadodelaire's alarm editor refuses a trigger value its
+  measure can never match). A colour field is cleared to `#000000` rather
+  than `null`, which Chrome logged once per colour field each time the form
+  was filled. Every SPA on `^7.26.34` and deployed.
 
 ## v7.26.9 (2026-10-11)
 
