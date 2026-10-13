@@ -659,7 +659,7 @@ Out of the twenty-fourth review (V24):
   for 250 000 nodes held in two indexes, 59 to 72 at ten thousand jsons --
   the set holds 24 to 48 per json, up to 72 while it doubles, and a frame is 32
   per dict or list. The comment, `helpers.h` and `json_helper.md` said 24 to
-  48 per json and 32 per container; it measured 70 to 89 for a flat list.
+  48 per json and 32 per container; a flat list took 70 to 111, measured the same way.
 - **BREAKING: a gclass of the yuno that is refused stops the yuno**
   (V24.4, `yuneta_entry_point()`): a negative answer of
   `register_yuno_and_more()` is an ERROR and `exit(-1)`, as a refused gclass of
