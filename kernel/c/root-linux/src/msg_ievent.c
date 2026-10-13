@@ -188,8 +188,9 @@ PRIVATE const char *iev_peername(hgobj gobj)
  *  frame of json among them, and dumped its bytes raw, where a JWT cut by
  *  the window showed its header (REV-CLOUD V24.4). An event no gclass has
  *  as public is said HERE, whatever `verbose`: only here is the name the
- *  frame gave known -- masked and capped, as the kw (V24.4.1: a password or
- *  a JWT sent as the NAME was written in clear). `frame_size` is the bytes
+ *  frame gave known -- masked and then capped, as the kw (V24.4.1: a
+ *  password or a JWT sent as the NAME was written in clear; capped first, a
+ *  token that the cap cut showed its first bytes). `frame_size` is the bytes
  *  received; the kw_size up to 7.26.9 was the size of the masked, capped
  *  copy (a kw of 900 KB said 101). Up to 7.26.9 that lookup was silent and
  *  both callers traced the whole kw raw, credentials before the session
@@ -256,19 +257,17 @@ PUBLIC json_t *iev_create_from_gbuffer(
             char dump[IEV_LOG_DUMP_SIZE];
             iev_kw_dump(new_kw, dump, sizeof(dump));
             char name[65];
-            snprintf(name, sizeof(name), "%.*s", utf8_prefix_len(event_, (int)sizeof(name) - 1), event_);
-            char *name_masked = mask_secrets_inline(name);
+            mask_secrets_inline_capped(name, sizeof(name), event_, strlen(event_));
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL,
                 "msg",          "%s", "Frame of an event that is not public, refused",
-                "event",        "%s", name_masked? name_masked : name,
+                "event",        "%s", name,
                 "peername",     "%s", iev_peername(gobj),
                 "kw",           "%s", dump,
                 "frame_size",   "%lu", (unsigned long)frame_size,
                 NULL
             );
-            GBMEM_FREE(name_masked)
         }
     }
     JSON_DECREF(jn_msg)

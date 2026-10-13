@@ -1272,6 +1272,22 @@ PUBLIC gbuffer_t *json2gbuf(
 }
 
 /***************************************************************************
+ *  The text of a json error as a log shows it: without the bytes jansson
+ *  quotes from the json near the error (" near 'hunter2'"), for they are
+ *  what the json carried -- the value of a secret among them, whatever
+ *  the dump of its bytes masks. Its position says where it is.
+ ***************************************************************************/
+PRIVATE const char *json_error_shown(const json_error_t *error, char *bf, size_t bfsize)
+{
+    snprintf(bf, bfsize, "%s", error->text);
+    char *near = strstr(bf, " near '");
+    if(near) {
+        *near = 0;
+    }
+    return bf;
+}
+
+/***************************************************************************
  *  Convert any json message in gbuffer into json
  *  gbuf is decref
  *  Return NULL if error
@@ -1288,12 +1304,14 @@ PUBLIC json_t *gbuf2json(
 
     if(!jn_msg) {
         if(verbose) {
+            char error[JSON_ERROR_TEXT_LENGTH];
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_JSON,
                 "msg",          "%s", "json_load_callback() FAILED",
-                "error",        "%s", jn_error.text,
+                "error",        "%s", json_error_shown(&jn_error, error, sizeof(error)),
+                "position",     "%d", jn_error.position,
                 NULL
             );
             if(verbose > 1) {
@@ -1312,7 +1330,10 @@ PUBLIC json_t *gbuf2json(
 /***************************************************************************
  *  Convert json in a gbuffer RECEIVED from a peer: a failure is the
  *  peer's bad bytes, so a warning with a capped dump, never an error with
- *  a stack (see the decoder-severity rule of the yunetas CLAUDE.md).
+ *  a stack (see the decoder-severity rule of the yunetas CLAUDE.md). The
+ *  dump is masked (mask_secrets_in_text()), and so is the error: its
+ *  position, not the bytes jansson quotes near it ({"password": hunter2}
+ *  said "invalid token near 'hunter2'": json_error_shown()).
  *  gbuf is decref
  *  Return NULL if error
  ***************************************************************************/
@@ -1335,12 +1356,14 @@ PUBLIC json_t *gbuf2json_from_peer(
         if(peer_gobj && gobj_has_bottom_attr(peer_gobj, "peername")) {
             peername = gobj_read_str_attr(peer_gobj, "peername");
         }
+        char error[JSON_ERROR_TEXT_LENGTH];
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "frame is not json",
             "peername",     "%s", peername?peername:"",
-            "error",        "%s", jn_error.text,
+            "error",        "%s", json_error_shown(&jn_error, error, sizeof(error)),
+            "position",     "%d", jn_error.position,
             "len",          "%d", (int)len,
             NULL
         );

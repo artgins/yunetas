@@ -1484,6 +1484,19 @@ PRIVATE void check_secret_values(hgobj gobj)
         {"token_endpoint: https://idp/token", NULL},   // about a token
         {"at 12:30:45 on host:8080", NULL},
         {"Wrong token: try again", "Wrong token: ******** again"},  // a secret's name and a ':' is a label
+
+        /*
+         *  REV-CLOUD V24, the security review of 2e8d0589f: each rule judges
+         *  the text as it came, and 7.26.9's reading of the parameters is
+         *  kept whole -- V24 showed what 7.26.9 masked
+         */
+        {"eyJzdWIiOiJ4In0.bearer12345678=sr1-hunter2", "********=********"},  // a JWT of two parts took the name
+        {"Bearer Bearer pwd=x \"sr2-hunter2\"", "Bearer Bearer ********"},   // the doubled scheme took the '='
+        {"x-auth-token: password=sr3,hunter2 c", "x-auth-token: ********"},  // the label's value hid a name=value
+        {"x Bearer abc%2Bsr4hunter2 y", "x Bearer ******** y"},              // a token cut at a byte of no token68
+        {"password12:30command='sr5-hunter2' y", "password12:******** y"},   // a label inside a name
+        {"update-node x='{\\\"password\\\":\\\"sr6-hunter2\\\"}'",
+         "update-node x='{\\\"password\\\":********}'"},                     // a json text inside a json text
         {0, 0}
     };
     for(int i=0; shapes[i].in; i++) {
@@ -1491,7 +1504,56 @@ PRIVATE void check_secret_values(hgobj gobj)
         check_str("a credential by its shape is masked",
             m? m : "(nothing to mask)", shapes[i].out? shapes[i].out : "(nothing to mask)"
         );
+
+        /*
+         *  mark_secrets_inline() marks what mask_secrets_inline() masks: the
+         *  same text, each run of marks as one "********"
+         */
+        const char *in = shapes[i].in;
+        size_t len = strlen(in);
+        uint8_t marks[256] = {0};
+        size_t n_marked = mark_secrets_inline(in, len, marks);
+        char rebuilt[1024];
+        size_t r = 0;
+        for(size_t k = 0; k < len && r + 9 < sizeof(rebuilt); k++) {
+            BOOL marked = (marks[k >> 3] >> (k & 7)) & 1;
+            if(!marked) {
+                rebuilt[r++] = in[k];
+            } else if(k == 0 || !((marks[(k-1) >> 3] >> ((k-1) & 7)) & 1)) {
+                memcpy(rebuilt + r, "********", 8);
+                r += 8;
+            }
+        }
+        rebuilt[r] = 0;
+        check_str("mark_secrets_inline() marks what mask_secrets_inline() masks",
+            n_marked? rebuilt : "(nothing to mask)", m? m : "(nothing to mask)"
+        );
         GBMEM_FREE(m)
+    }
+
+    /*
+     *  mask_secrets_inline_capped(): masked FIRST, then cut. Cut first,
+     *  "Bearer abcd" was all of a token of 15 that a cap left: it showed
+     *  (REV-CLOUD V24, the ievent logs)
+     */
+    struct {
+        const char *in;
+        size_t bfsize;
+        const char *out;
+    } capped[] = {
+        {"EV_X Bearer abcdefghij12345", 17, "EV_X Bearer ****"},
+        {"EV_X password=hunter2 x=1", 64, "EV_X password=******** x=1"},
+        {"eyJhbGciOiJIUzI1NiJ9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.eyJzdWIi.c2ln", 33,
+         "********"},       // its '.' beyond the cap
+        {"señor password=x", 4, "se"},  // a whole character
+        {"plain text", 64, "plain text"},
+        {0, 0, 0}
+    };
+    for(int i=0; capped[i].in; i++) {
+        char bf[128];
+        size_t n = mask_secrets_inline_capped(bf, capped[i].bfsize, capped[i].in, strlen(capped[i].in));
+        check_str("masked, then capped", bf, capped[i].out);
+        check_int("its length", (int)n, (int)strlen(capped[i].out));
     }
 
     json_t *kw = json_pack("{s:s, s:s, s:I, s:s, s:s, s:s%}",
@@ -1567,6 +1629,30 @@ PRIVATE void check_secret_values(hgobj gobj)
     resp = gobj_stats(cli, "token=oos4-hunter2", 0, gobj);
     JSON_DECREF(resp)
     unwatch("the stats asked out of session (C_IEVENT_CLI)");
+
+    /*
+     *  Masked BEFORE they are capped: capped first, the token that the cap
+     *  cut showed its first bytes, too short to be judged one (REV-CLOUD
+     *  V24, the security review of 2e8d0589f). 49 bytes, " Bearer ", and
+     *  the cap at 64 leaves 7 of the token.
+     */
+    char line[256];
+    snprintf(line, sizeof(line), "%s Bearer sr7tokenvalue12345", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+    watch("sr7tok", "Not in session");
+    resp = gobj_stats(srv, line, 0, gobj);
+    JSON_DECREF(resp)
+    unwatch("a token the cap cuts, in the stats asked out of session (C_IEVENT_SRV)");
+    watch("sr7tok", "Not in session");
+    resp = gobj_stats(cli, line, 0, gobj);
+    JSON_DECREF(resp)
+    unwatch("a token the cap cuts, in the stats asked out of session (C_IEVENT_CLI)");
+    watch("eyJsr10", "Not in session");
+    resp = gobj_command(srv,
+        "eyJsr10AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.eyJzdWIiOiJ4In0.c2ln x=1",
+        0, gobj
+    );
+    JSON_DECREF(resp)
+    unwatch("a JWT whose '.' is beyond the cap, as the first word out of session");
     gobj_destroy(cli);
 
     /*
@@ -1588,6 +1674,11 @@ PRIVATE void check_secret_values(hgobj gobj)
     unwatch("the log line of a peer's app");
     check_true("the log line of a peer's app is capped", s_remote_log_longest > 0 &&
         s_remote_log_longest < 2048);
+    memset(text, 'x', text_len);
+    memcpy(text + 1023 - 8 - 6, " Bearer sr9tokenvalue12345", 26);  // the cap leaves 6 of the token
+    watch("sr9to", "Remote Error");
+    gobj_send_event(srv, EV_REMOTE_LOG, json_pack("{s:s}", "msg", text), gobj);
+    unwatch("a token the cap cuts, in the log line of a peer's app");
     GBMEM_FREE(text)
     gobj_destroy(srv);
 
@@ -1620,6 +1711,34 @@ PRIVATE void check_secret_values(hgobj gobj)
     watch("uename-hunter2", "Frame of an event that is not public");
     iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 0);
     unwatch("the name of an event that is not public");
+    KW_DECREF(iev_kw)
+
+    /*
+     *  ... masked before it is capped: "EV_" and 47 bytes, "Bearer ", and
+     *  the cap at 64 leaves 6 of the token
+     */
+    gbuf = gbuffer_create(1024, 1024);
+    gbuffer_append_string(gbuf,
+        "{\"event\": \"EV_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX Bearer sr8tokenvalue12345\","
+        " \"kw\": {\"note\": \"visible\"}}"
+    );
+    watch("sr8tok", "Frame of an event that is not public");
+    iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 0);
+    unwatch("a token the cap cuts, in the name of an event that is not public");
+    KW_DECREF(iev_kw)
+
+    /*
+     *  A frame that is not json: its WARNING says where it broke, not
+     *  jansson's quote of the bytes there ("premature end of input near
+     *  '\"sr12-hunter2'"): the dump of the frame is masked, and the error
+     *  showed the secret (REV-CLOUD V24, the security review)
+     */
+    gbuf = gbuffer_create(1024, 1024);
+    gbuffer_append_string(gbuf, "{\"event\": \"x\", \"kw\": {\"password\": \"sr12-hunter2");
+    watch("sr12-hunter2", "frame is not json");
+    iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 1);
+    unwatch("the error of a frame that is not json");
+    check_true("a frame that is not json is refused", iev_kw? FALSE : TRUE);
     KW_DECREF(iev_kw)
 
     /*

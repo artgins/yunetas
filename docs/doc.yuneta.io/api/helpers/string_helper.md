@@ -662,6 +662,20 @@ is spent the walk STOPS, and one `"<not shown: too large to mask>"` stands
 for the rest of each container being walked (a `"<more>"` key in a dict, a
 last item in a list) -- never in clear.
 
+**Limits**
+
+A key is judged as a NAME, never as a value: a key that is itself a credential
+-- a dict keyed by tokens, by session ids -- is shown as it is (its value is
+masked only when the key has a secret's name). gobj-js's `json_mask_secrets()`
+has the same limit.
+
+```C
+json_t *jn = json_pack("{s:s}", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJib2IifQ.c2ln", "bob");
+json_t *jn_shown = json_mask_secrets(jn);
+// {"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJib2IifQ.c2ln": "bob"}: the key as it is
+JSON_DECREF(jn_shown)
+```
+
 **Example**
 
 ```C
@@ -696,19 +710,36 @@ showed `Authorization: Bearer ********`). And a credential by its SHAPE,
 wherever it is and whatever names it (below). The rest of the text is kept as
 it is.
 
-The name is the word before the `=` or the `:` (since the last blank, or the
-last `=` or `:` of the word: `'password'=x`, `user[password]=x` and
-`{"password": x` are names too), judged by its last 128 bytes; a text over
-4 MB, or one whose masked copy cannot be allocated, is
-`"<not shown: too large to mask>"`: it is linear, and fails safe. An unquoted
-value of a `name=value` runs to the next `word=` (or the end): a password
-written with blanks (`password=correct horse battery`, `password= hunter2`) is
-masked whole, as the parser leaves those words unread. A quote inside it is
-part of it (`value=ab'cd` is masked whole), unless it is the quote that closes
-an outer quoted value (`command='set-user-pwd password=x'` keeps its closing
-quote). The value of a `name: value` is a quoted text to its closing quote, a
-json object or list to its closing bracket, a scheme and the word after it, or
-one word, to a blank or one of `,;&)]}<>"'`.
+**Each rule judges the text as it came** (7.26.10+): the bytes to mask are
+marked, and a run of them is ONE `********`. In the first commit of V24 a rule
+masked (or jumped over) its value before the next one looked, and a value the
+next rule would have masked showed: the JWT of `eyJ...bearer1=x` took its
+name, a label's value hid the `=` of the `name=value` inside it
+(`x-auth-token: password=a,b` showed `,b`). The rule of the `name=value` reads
+the text twice: as 7.26.9 read it, jumping over the shapes 7.26.9 knew -- so
+nothing that 7.26.9 masked shows, but the word after a bare `Bearer` that
+cannot be a credential (below) --, and jumping over nothing, so a `name=value`
+inside the word after `Bearer` is judged even when that word is no credential
+(`Bearer pwd=x` is `Bearer pwd=********`). Across 230 078 generated texts,
+what shows now that 7.26.9 hid is that word and nothing else.
+
+The name of a `name=value` is the word before the `=` (since the last blank,
+or the last `=` of the word: `'password'=x`, `user[password]=x` are names
+too); the name of a `name: value` the word before the `:` (since the last
+blank, `=` or `:`: `{"password": x`, `password12:30` are names too). Each is
+judged by its last 128 bytes; a text over 4 MB, or one whose masked copy
+cannot be allocated, is `"<not shown: too large to mask>"`: it is linear, and
+fails safe. An unquoted value of a `name=value` runs to the next `word=` (or
+the end): a password written with blanks (`password=correct horse battery`,
+`password= hunter2`) is masked whole, as the parser leaves those words unread.
+A quote inside it is part of it (`value=ab'cd` is masked whole), unless it is
+the quote that closes an outer quoted value (`command='set-user-pwd
+password=x'` keeps its closing quote). The value of a `name: value` is a
+quoted text to its closing quote, a json object or list to its closing
+bracket, the text of a json inside a json, its quote escaped, to the quote
+escaped the same way (`x='{\"password\":\"hunter2\"}'` is
+`x='{\"password\":********}'`; it showed `hunter2`), a scheme and the word
+after it, or one word, to a blank or one of `,;&)]}<>"'`.
 
 **By its shape** (7.26.10+), the shapes the agent's audit record redacts:
 
@@ -722,16 +753,20 @@ one word, to a blank or one of `,;&)]}<>"'`.
   of its own, a blank after it). It is masked when it CAN be a credential:
   - it is in quotes (`Bearer "tok"`), or follows the scheme written twice
     (`Bearer Bearer tok`, a header prefixed twice): whatever its shape;
-  - else it is the run of token68 characters after the blanks (letters,
-    digits, `-._~+/`, then `=` padding; a `.` that ends a sentence is not its
-    own) and it is **not a word of prose**: a word of prose is letters only,
-    in runs joined by one `-`, `.` or `/` (`self-service`, `e.g`, `and/or`),
-    each run in lower case, upper case or capitalized (`bond`, `Bond`,
-    `BOND`), and shorter than 24 characters. A credential holds a digit or one
-    of `_~+=`, mixes its case past its first letter, or is long. For `Bearer`
-    it has 8 characters at least; for `Basic` it is the base64 of a
-    `user:password` -- it decodes to bytes that hold a `:` -- whatever its
-    length.
+  - else it is the word after the blanks, as far as the token of 7.26.9
+    went -- to a blank, an end of line, a quote or one of `,;}]` --, masked
+    WHOLE, its dots at the end too, when it is **not a word of prose**, judged
+    without those dots (the end of a sentence). A word of prose is ASCII
+    letters only, in runs joined by one `-`, `.` or `/` (`self-service`,
+    `e.g`, `and/or`), each run in lower case, upper case or capitalized
+    (`bond`, `Bond`, `BOND`), and shorter than 24 characters. A credential
+    holds a digit, a symbol of its own (`_~+=%`...) or a character that is no
+    ASCII, mixes its case past its first letter, or is long. For `Bearer` it
+    has 8 characters at least; for `Basic` its run of base64 decodes to bytes
+    that hold a `:` (a `user:password`), whatever follows the run in the word
+    (`(Basic dXNlcjpwYXNz)`) and whatever its length. In the first commit of
+    V24 the token was cut at the first byte of no token68 (`Bearer
+    abc%2Bdefghijk` showed it all: `abc` was too short).
 
   | Text | Shown |
   |---|---|
@@ -748,10 +783,19 @@ one word, to a blank or one of `,;&)]}<>"'`.
   | `basic YTpi` (`a:b`) | `basic ********` |
   | `Bearer Bearer TOKEN` | `Bearer Bearer ********` |
   | `Bearer "tok"` | `Bearer ********` |
+  | `x Bearer abc%2Bdefghijk y` | `x Bearer ******** y`: the word whole |
+  | `sent Bearer abcdefgh12.` | `sent Bearer ********`: its dot too |
+  | `Bearer pwd=x` | `Bearer pwd=********`: a name=value inside |
 
   Up to 7.26.9 the word after `bearer` was masked whatever it was (`the bearer
   ******** this letter`), and `Basic`, a quoted token, `Bearer Bearer x`, a
-  JWE and a JWT cut by a cap were not masked.
+  JWE and a JWT cut by a cap were not masked. So what 7.26.9 masked and this
+  rule shows is the word after a bare `Bearer` (not quoted, not after the
+  scheme again, not under a secret's name): a word shorter than 8 characters,
+  a word of prose of 8 to 23, or one of dots only. Of 30 000 generated texts
+  (`twins`), 211 show such a word; of the targeted ones, tokens of 1 to 7
+  characters of any alphabet, and of 8 to 23 lower-case, upper-case or
+  capitalized letters.
 
 A secret's name followed by a `:` is read as a label, so its next word is
 masked even in a sentence: `Wrong token: try again` is
@@ -801,6 +845,104 @@ s = mask_secrets_inline("the bearer of this letter");  // NULL: prose
 GBMEM_FREE(s)
 s = mask_secrets_inline("pin=1234 ping=1");  // "pin=******** ping=1"
 GBMEM_FREE(s)
+s = mask_secrets_inline("x-auth-token: password=a,b c");  // "x-auth-token: ********"
+GBMEM_FREE(s)
+s = mask_secrets_inline("update-node x='{\\\"password\\\":\\\"hunter2\\\"}'");
+// "update-node x='{\\\"password\\\":********}'"
+GBMEM_FREE(s)
+```
+
+---
+
+(mark_secrets_inline)=
+## `mark_secrets_inline()`
+
+The bytes of a text that [`mask_secrets_inline()`](#mask_secrets_inline) masks,
+MARKED in a map of bits, for a writer of its own that must hide at least what
+`mask_secrets_inline()` hides, with the same rules: the agent's audit record
+writes each run of marked bytes it copies as `<redacted>`, so what the SDK
+masks, the record never writes. The text is `len` bytes, not NUL-terminated (a
+json string with a NUL inside is judged past it). Marks are only ever set,
+never cleared: a caller can add its own.
+
+```C
+size_t mark_secrets_inline(
+    const char *text,
+    size_t      len,
+    uint8_t    *marks   // (len + 7) / 8 bytes, zeroed
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `text` | `const char *` | The text. |
+| `len` | `size_t` | Its bytes. |
+| `marks` | `uint8_t *` | A map of `(len + 7) / 8` bytes, zeroed by the caller: bit `i % 8` of byte `i / 8` is set for byte `i` to mask. |
+
+**Returns**
+
+The bytes marked; `0` when there is nothing to mask.
+
+**Example**
+
+```C
+const char *text = "login user=bob password=hunter2";
+size_t len = strlen(text);
+uint8_t marks[(sizeof("login user=bob password=hunter2") + 7) / 8] = {0};
+size_t n = mark_secrets_inline(text, len, marks);   // 7: the bytes of hunter2
+for(size_t i = 0; i < len; i++) {
+    BOOL masked = (marks[i / 8] >> (i % 8)) & 1;    // TRUE for i 24 to 30
+}
+```
+
+---
+
+(mask_secrets_inline_capped)=
+## `mask_secrets_inline_capped()`
+
+A text as a log line shows it, CAPPED: masked as
+[`mask_secrets_inline()`](#mask_secrets_inline) masks it, and THEN cut to
+`bfsize - 1` bytes (a whole UTF-8 character) into `bf`. Capped first, a
+credential that the cap cut lost its shape and showed: `Bearer abcdefg` was
+all that a cap of 64 left of a long token, too short to be one, and the name
+of an event that is not public, the stats and the first word of a command out
+of session, and the log line of a peer's app (`EV_REMOTE_LOG`) wrote it. The
+bytes judged are the cap and 256 more (the work stays bounded by the cap, not
+by what a peer sent); a credential that reaches their end is masked whatever
+its shape, and the `value=` of a write-attr is judged by the whole text.
+
+```C
+size_t mask_secrets_inline_capped(
+    char       *bf,
+    size_t      bfsize,
+    const char *text,
+    size_t      len
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `bf` | `char *` | Where the text shown goes, NUL-terminated. |
+| `bfsize` | `size_t` | Its size: `bfsize - 1` bytes of text at most. |
+| `text` | `const char *` | The text. |
+| `len` | `size_t` | Its first `len` bytes are shown (the first word of a line, `strcspn(line, " \t")`). |
+
+**Returns**
+
+`strlen(bf)`.
+
+**Example**
+
+```C
+char name[65];
+mask_secrets_inline_capped(name, sizeof(name), event_, strlen(event_));
+// "EV_X Bearer abcdefghij12345" in 17 bytes: "EV_X Bearer ****", never "EV_X Bearer abcd"
+gobj_log_warning(gobj, 0, "msg", "%s", "Frame of an event that is not public, refused",
+    "event", "%s", name, NULL);
 ```
 
 ---
@@ -860,7 +1002,8 @@ dump stay as they were):
 - the value of a `name=value` whose name is a secret's
   ([`is_secret_name()`](#is_secret_name)), as in a query string, a form body
   or a command line;
-- the value of a json `"name": value`, and of a `name: value` -- another
+- the value of a json `"name": value` -- and of a `'name': value`, a Python
+  dict or a log of one (7.26.10+) --, and of a `name: value` -- another
   header, a label: `X-Auth-Token: x`, `bearer: tok` (7.26.10+) -- whose name
   is a secret's;
 - under such a name a value that is a scheme and its credential is masked
@@ -869,7 +1012,18 @@ dump stay as they were):
 - a JWT and the credential after `Bearer` or `Basic`, wherever they are in the
   bytes, by the rule of [`mask_secrets_inline()`](#mask_secrets_inline) (a JWE,
   a JWT the window of a dump cut, a quoted credential; prose is left as it
-  is).
+  is) -- and at the END of the bytes whatever its shape: a dump is the first
+  bytes of a frame, or one read of a stream, and its end may cut a
+  credential (`Bearer abcdefg` of a long token, a JWT before its first `.`).
+  So a dump that ends on `a basic plan` shows `a basic ****`.
+
+Each rule judges the bytes as they came, and 7.26.9's rules are kept whole as
+one pass (7.26.10+): in the first commit of V24 a value masked in place by one
+rule hid the name or the `=` of another (the label `x-auth-token:
+u?password="x"` showed the quoted value of `password=`), and the value of a
+json `"name":` stopped at `;&)<>"'` too (`"password": <x>` showed `<x>`).
+What 7.26.9 masked and a dump shows now is only the word after a bare `Bearer`
+that cannot be a credential (see [`mask_secrets_inline()`](#mask_secrets_inline)).
 
 A byte already masked is not counted twice. The traffic dumps use it
 ([`gobj_trace_dump()`](#gobj_trace_dump),
@@ -908,10 +1062,15 @@ mask_secrets_in_text(text2, strlen(text2));
 
 char text3[] = "GET /x?token=Bearer tb-hunter2&x=1\r\nX-Auth-Token: xa-hunter2\r\n";
 mask_secrets_in_text(text3, strlen(text3));
-// "GET /x?token=*****************&x=1\r\nX-Auth-Token: **********\r\n"
+// "GET /x?token=*********************\r\nX-Auth-Token: **********\r\n":
+// the word after "Bearer" goes on to a blank, an end of line, a quote or ,;}]
 
-char text4[] = "the bearer of this letter, a basic plan";
+char text4[] = "the bearer of this letter, a basic plan.\r\n";
 mask_secrets_in_text(text4, strlen(text4));     // 0: prose
+
+char text5[] = "{'password': 'sq-hunter2'}, sent with Bearer abcdefg";
+mask_secrets_in_text(text5, strlen(text5));
+// "{'password': ************}, sent with Bearer *******": the end may cut a token
 ```
 
 **Limits**

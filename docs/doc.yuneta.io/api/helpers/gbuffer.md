@@ -41,7 +41,7 @@ Use it for JSON that YOUR code wrote. For JSON received from a peer, use [`gbuf2
 (gbuf2json_from_peer)=
 ## [`gbuf2json_from_peer()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/gobj-c/src/gbuffer.c#L1321)
 
-Converts a [`gbuffer_t *`](#gbuffer_t) RECEIVED from a peer into a `json_t *`. Bytes that are not JSON are the peer's doing, not a broken invariant of ours, so the failure is one WARNING (`MSGSET_PROTOCOL`, *"frame is not json"*) that names the peer, gives the parser's error and the length, and dumps at most 256 bytes. No stack trace.
+Converts a [`gbuffer_t *`](#gbuffer_t) RECEIVED from a peer into a `json_t *`. Bytes that are not JSON are the peer's doing, not a broken invariant of ours, so the failure is one WARNING (`MSGSET_PROTOCOL`, *"frame is not json"*) that names the peer, gives the parser's error, its `position` and the length, and dumps at most 256 bytes, masked ([`mask_secrets_in_text()`](#mask_secrets_in_text)). No stack trace. The error is jansson's WITHOUT the bytes it quotes near it (7.26.10+): `{"password": "hunter2` said *"premature end of input near '"hunter2'"*, the secret the dump masked; it says *"premature end of input"* and `"position": 21` now. [`gbuf2json()`](#gbuf2json) logs its error the same way.
 
 ```C
 json_t *gbuf2json_from_peer(

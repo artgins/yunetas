@@ -312,12 +312,36 @@ PUBLIC BOOL is_secret_name_any(const char *name, size_t len);
  *  JWT or a JWE ("eyJ...", base64url and a '.': a JWT cut by a cap too) and
  *  the credential after "Bearer " or "Basic " (any case) when it can be one:
  *  quoted, after the scheme doubled, or not a word of prose -- a digit, a
- *  symbol of its own, its case mixed, 24 characters or more; for Bearer 8
- *  at least, for Basic the base64 of a "user:password". "the bearer of this
- *  letter" is left as it is. The rest as it is.
+ *  symbol of its own, a byte that is no ASCII, its case mixed, 24
+ *  characters or more; for Bearer 8 at least, for Basic a run of base64
+ *  that decodes to a "user:password". "the bearer of this letter" is left
+ *  as it is. Each rule judges the text as it came, and a run of bytes to
+ *  mask is ONE "********". The rest as it is.
  *  A gbmem string to GBMEM_FREE, or NULL when there was nothing to mask.
 **rst**/
 PUBLIC char *mask_secrets_inline(const char *str);
+
+/**rst**
+ *  The bytes of `text` (its `len` bytes, not NUL-terminated) that
+ *  mask_secrets_inline() masks, MARKED in `marks`: a map of (len + 7) / 8
+ *  bytes, zeroed by the caller, bit i % 8 of byte i / 8 set for byte i.
+ *  Marks are only ever set, so a caller can add its own. For a writer of
+ *  its own (the agent's audit record) that must hide at least what
+ *  mask_secrets_inline() hides, with the same rules. Return the bytes
+ *  marked.
+**rst**/
+PUBLIC size_t mark_secrets_inline(const char *text, size_t len, uint8_t *marks);
+
+/**rst**
+ *  `text` (its first `len` bytes) as a log line shows it, CAPPED: masked as
+ *  mask_secrets_inline() masks it, and THEN cut to bfsize - 1 bytes (a
+ *  whole UTF-8 character) into `bf`. Capped first, a credential that the
+ *  cap cut lost its shape and showed ("Bearer abcdefg" of "Bearer
+ *  abcdefghijk"). The bytes judged are the cap and 256 more, a credential
+ *  that reaches their end masked whatever its shape; the "value" of a
+ *  write-attr is judged by the whole text. Return strlen(bf).
+**rst**/
+PUBLIC size_t mask_secrets_inline_capped(char *bf, size_t bfsize, const char *text, size_t len);
 
 /**rst**
  *  A json as a log or a trace may show it: at any depth, the value of a
@@ -326,7 +350,9 @@ PUBLIC char *mask_secrets_inline(const char *str);
  *  whose "attribute" names a secret, and every string, under any key, is
  *  masked as mask_secrets_inline() (a JWT, a "Bearer x", a password=x or a
  *  "token": x in it). A key is judged and copied by all its bytes, a NUL
- *  among them. Return a NEW reference: a masked copy, or jn itself when
+ *  among them. A key is judged as a NAME, never as a value: a key that is
+ *  itself a credential (a dict keyed by tokens, {"eyJ...": 1}) is shown
+ *  as it is. Return a NEW reference: a masked copy, or jn itself when
  *  there was nothing to mask. NULL for NULL.
 **rst**/
 PUBLIC json_t *json_mask_secrets(json_t *jn);
@@ -348,10 +374,12 @@ PUBLIC json_t *json_mask_secrets_capped(json_t *jn, size_t max_bytes);
  *  soundly written as '*', IN PLACE, the length kept: the value of an HTTP
  *  Cookie, Set-Cookie, Authorization or Proxy-Authorization header at the
  *  start of a line (after the scheme for the last two), of a "name=value",
- *  a json "name": value and a name: value whose name is a secret's
- *  (is_secret_name(); a scheme and its credential whole), and a JWT or the
- *  credential after "Bearer " or "Basic " wherever they are, as
- *  mask_secrets_inline() tells them.
+ *  a json "name": value (or 'name': value) and a name: value whose name is
+ *  a secret's (is_secret_name(); a scheme and its credential whole), and a
+ *  JWT or the credential after "Bearer " or "Basic " wherever they are, as
+ *  mask_secrets_inline() tells them -- at the END of the bytes whatever its
+ *  shape: a dump is the first bytes of a frame, and its end may cut one.
+ *  Each rule judges the bytes as they came.
  *  Work on a COPY of what you dump. Return the bytes masked.
 **rst**/
 PUBLIC size_t mask_secrets_in_text(char *bf, size_t len);

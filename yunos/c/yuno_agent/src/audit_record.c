@@ -48,10 +48,19 @@
  *            `value` of a write-attr whose `attribute` has such a name (any
  *            case, in the text, in the kw, in a kw string, or in the same
  *            json object; with its json escapes decoded: api\u005fkey).
- *            And the token after "Bearer ", the credentials after "Basic "
- *            (when they are base64 of "user:password"), and anything with
- *            the shape of a JWT (eyJ..., three parts; a '.' after it, the
- *            end of a sentence, is not a fourth), wherever they are.
+ *            And whatever mask_secrets_inline() masks in a string, by the
+ *            same rules and the same function (mark_secrets_inline() of
+ *            helpers.h, each run of what it marks as one `<redacted>`): a
+ *            JWT or a JWE (eyJ, base64url and a '.'; a '.' after it, the end
+ *            of a sentence, is not its own), the credential after "Bearer"
+ *            or "Basic", a name: value of a secret's name (X-Auth-Token: x,
+ *            bearer: tok), a name=value to the next word= (password=correct
+ *            horse battery). Up to 7.26.9 the audit had a JWT of its own,
+ *            three parts exactly, and a JWE was written in clear (REV-CLOUD
+ *            V24). And on top of them, its own readings, stricter than the
+ *            SDK's: the word after "Bearer " whatever it is (the SDK leaves
+ *            prose since V24.4.2: "the bearer of this letter"), and after
+ *            "Basic " a base64 run of "user:password" inside a word.
  *
  *          - Both apply everywhere in the record: to a kw key of that name
  *            at any depth, and inside any string (the command text,
@@ -264,6 +273,7 @@ typedef struct {
     cut_t cut;              // how the last value of the decoded text was cut by its end
     key_kind_t cut_kind;
     BOOL no_memory;         // a redaction could not be allocated: the text is not written
+    const uint8_t *inherited_marks; // for the next redact_text(): what the text around marks in it
 } redact_ctx_t;
 
 /*
@@ -275,6 +285,8 @@ typedef struct {
     char *out;
     size_t out_len;
     size_t out_size;
+    size_t redacted_end;    // out_len after the last REDACTED written: one follows none
+    const uint8_t *marks;   // the bytes of `text` that mask_secrets_inline() masks, NULL: none
     BOOL no_memory;
     BOOL broken;            // a replacement behind the copy (never): nothing is written
     redact_ctx_t *ctx;
@@ -308,6 +320,7 @@ PRIVATE json_t *peer_field(const char *text);
 PRIVATE char *not_scanned_text(const char *text, size_t len);
 PRIVATE json_t *redacted_copy(json_t *jn, redact_ctx_t *ctx);
 PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const char *q, BOOL value_run);
+PRIVATE BOOL is_marked_byte(redact_scan_t *sc, const char *p);
 PRIVATE const char *redact_json_value(
     redact_scan_t *sc,
     key_kind_t kind,
@@ -730,68 +743,94 @@ PRIVATE size_t put_utf8(char *out, unsigned code)
  *  C string). `out` holds `len` + 1 bytes: a decoded text is never longer.
  *  Return its length.
  */
-PRIVATE size_t json_unescape(const char *s, size_t len, char *out)
+PRIVATE size_t json_unescape_marked(
+    const char *s,
+    size_t len,
+    char *out,
+    redact_scan_t *sc,
+    uint8_t *out_marks
+)
 {
     size_t n = 0;
     for(size_t i=0; i<len; i++) {
+        size_t i0 = i;
+        size_t n0 = n;
         char c = s[i];
         if(c != '\\' || i + 1 >= len) {
             out[n++] = c;
-            continue;
-        }
-        char e = s[++i];
-        switch(e) {
-            case 'b':
-                out[n++] = '\b';
-                break;
-            case 'f':
-                out[n++] = '\f';
-                break;
-            case 'n':
-                out[n++] = '\n';
-                break;
-            case 'r':
-                out[n++] = '\r';
-                break;
-            case 't':
-                out[n++] = '\t';
-                break;
-            case 'u':
-                {
-                    int code = u_escape_code(s, len, i);
-                    if(code < 0) {
-                        out[n++] = e;
-                        break;
-                    }
-                    i += 4;
-                    unsigned cp = (unsigned)code;
-                    if(cp >= 0xD800 && cp <= 0xDBFF && i + 2 < len &&
-                            s[i+1] == '\\' && s[i+2] == 'u') {
-                        int low = u_escape_code(s, len, i + 2);
-                        if(low >= 0xDC00 && low <= 0xDFFF) {
-                            cp = 0x10000 + ((cp - 0xD800) << 10) + ((unsigned)low - 0xDC00);
-                            i += 6;
+        } else {
+            char e = s[++i];
+            switch(e) {
+                case 'b':
+                    out[n++] = '\b';
+                    break;
+                case 'f':
+                    out[n++] = '\f';
+                    break;
+                case 'n':
+                    out[n++] = '\n';
+                    break;
+                case 'r':
+                    out[n++] = '\r';
+                    break;
+                case 't':
+                    out[n++] = '\t';
+                    break;
+                case 'u':
+                    {
+                        int code = u_escape_code(s, len, i);
+                        if(code < 0) {
+                            out[n++] = e;
+                            break;
                         }
+                        i += 4;
+                        unsigned cp = (unsigned)code;
+                        if(cp >= 0xD800 && cp <= 0xDBFF && i + 2 < len &&
+                                s[i+1] == '\\' && s[i+2] == 'u') {
+                            int low = u_escape_code(s, len, i + 2);
+                            if(low >= 0xDC00 && low <= 0xDFFF) {
+                                cp = 0x10000 + ((cp - 0xD800) << 10) + ((unsigned)low - 0xDC00);
+                                i += 6;
+                            }
+                        }
+                        if(cp == 0 || (cp >= 0xD800 && cp <= 0xDFFF)) {
+                            cp = REPLACEMENT_CHAR;
+                        }
+                        n += put_utf8(out + n, cp);
                     }
-                    if(cp == 0 || (cp >= 0xD800 && cp <= 0xDFFF)) {
-                        cp = REPLACEMENT_CHAR;
+                    break;
+                case '"':
+                case '\\':
+                case '/':
+                    out[n++] = e;
+                    break;
+                default:    // not a json escape: as it is (n+2 <= i+1, in place too)
+                    out[n++] = '\\';
+                    out[n++] = e;
+                    break;
+            }
+        }
+        if(out_marks) {
+            /*
+             *  A byte decoded from bytes of which one is marked is marked
+             */
+            for(size_t k=i0; k<=i && k<len; k++) {
+                if(is_marked_byte(sc, s + k)) {
+                    for(size_t j=n0; j<n; j++) {
+                        out_marks[j >> 3] |= (uint8_t)(1u << (j & 7));
                     }
-                    n += put_utf8(out + n, cp);
+                    break;
                 }
-                break;
-            case '"':
-            case '\\':
-            case '/':
-                out[n++] = e;
-                break;
-            default:    // not a json escape: as it is (n+2 <= i+1, in place too)
-                out[n++] = '\\';
-                out[n++] = e;
-                break;
+            }
         }
     }
     out[n] = 0;
     return n;
+}
+
+PRIVATE size_t json_unescape(const char *s, size_t len, char *out)
+{
+    return json_unescape_marked(s, len, out, NULL, NULL);
 }
 
 PRIVATE key_kind_t json_key_kind(const char *key, size_t len, const redact_ctx_t *ctx)
@@ -1095,6 +1134,86 @@ PRIVATE void out_append(redact_scan_t *sc, const char *data, size_t len)
 }
 
 /*
+ *  REDACTED, once: right after another one it is not written again (the
+ *  scan's value and the run of mask_secrets_inline() around it)
+ */
+PRIVATE void out_append_redacted(redact_scan_t *sc)
+{
+    if(sc->out_len > 0 && sc->out_len == sc->redacted_end) {
+        return;
+    }
+    out_append(sc, REDACTED, strlen(REDACTED));
+    sc->redacted_end = sc->out_len;
+}
+
+/*
+ *  The bytes [from, to) of the text as they are written: each run of the
+ *  ones mask_secrets_inline() masks as REDACTED (sc->marks). A quote that
+ *  begins or ends a run (with its backslashes: \") is written as it is, as
+ *  the audit keeps the quotes of every value it redacts
+ *  (password='<redacted>'): mask_secrets_inline() masks a quoted value
+ *  with its quotes.
+ */
+PRIVATE BOOL is_marked_byte(redact_scan_t *sc, const char *p)
+{
+    if(!sc->marks || p < sc->text) {
+        return FALSE;
+    }
+    size_t i = (size_t)(p - sc->text);
+    return (sc->marks[i >> 3] & (1u << (i & 7)))? TRUE: FALSE;
+}
+
+PRIVATE BOOL is_quote(char c)
+{
+    return (c == '"' || c == '\'')? TRUE: FALSE;
+}
+
+PRIVATE void out_append_text(redact_scan_t *sc, const char *from, const char *to)
+{
+    const char *p = from;
+    while(p < to) {
+        const char *q = p;
+        if(!is_marked_byte(sc, p)) {
+            while(q < to && !is_marked_byte(sc, q)) {
+                q++;
+            }
+            out_append(sc, p, (size_t)(q - p));
+            p = q;
+            continue;
+        }
+        while(q < to && is_marked_byte(sc, q)) {
+            q++;
+        }
+        const char *b = p;
+        const char *e = q;
+        if(!is_marked_byte(sc, p - 1)) {
+            /*
+             *  The quote that opens the run, escaped or not (\"two words\")
+             */
+            const char *t = b;
+            while(t < e && *t == '\\') {
+                t++;
+            }
+            if(t < e && is_quote(*t)) {
+                b = t + 1;
+            }
+        }
+        if(!is_marked_byte(sc, q) && e > b && is_quote(e[-1])) {
+            e--;    // the quote that closes it, and its backslashes
+            while(e > b && e[-1] == '\\') {
+                e--;
+            }
+        }
+        out_append(sc, p, (size_t)(b - p));
+        if(e > b || (!is_marked_byte(sc, p - 1) && !is_marked_byte(sc, q))) {
+            out_append_redacted(sc);    // and inside an empty quoted value: ''
+        }
+        out_append(sc, e, (size_t)(q - e));
+        p = q;
+    }
+}
+
+/*
  *  Copy the text up to `p`. Every scan replaces ahead of what was
  *  copied: a `p` behind it is a broken invariant, and then the text is
  *  not written at all (it may hold what was to be redacted).
@@ -1115,7 +1234,7 @@ PRIVATE BOOL out_copy_upto(redact_scan_t *sc, const char *p)
         sc->broken = TRUE;
         return FALSE;
     }
-    out_append(sc, sc->from, (size_t)(p - sc->from));
+    out_append_text(sc, sc->from, p);
     return TRUE;
 }
 
@@ -1133,7 +1252,11 @@ PRIVATE void out_replace(
         sc->broken = TRUE;  // Error already logged (or a value that ends before it begins: never)
         return;
     }
-    out_append(sc, replacement, strlen(replacement));
+    if(strcmp(replacement, REDACTED) == 0) {
+        out_append_redacted(sc);
+    } else {
+        out_append(sc, replacement, strlen(replacement));
+    }
     sc->from = end;
 }
 
@@ -1751,47 +1874,6 @@ PRIVATE const char *scan_basic(redact_scan_t *sc, scan_state_t *st, const char *
 }
 
 /***************************************************************************
- *  A JWT at `p` ("eyJ" = base64url of '{"', three parts joined by '.'):
- *  redacted. The dots at the end of the run are not its own: a JWT at the
- *  end of a sentence ("... eyJ.eyJ.sig.") is one, and its dot stays (taken
- *  as a fourth part, the JWT would not be one, and would be written). Return where the
- *  scan goes on (the end of the run of base64url bytes, a JWT or not: it
- *  holds no '=', ':' or quote).
- ***************************************************************************/
-PRIVATE BOOL is_b64url(char c)
-{
-    return (isalnum((unsigned char)c) || c == '-' || c == '_')? TRUE: FALSE;
-}
-
-PRIVATE const char *scan_jwt(redact_scan_t *sc, scan_state_t *st, const char *p)
-{
-    if(st->hi - p < 3 || p[0] != 'e' || p[1] != 'y' || p[2] != 'J') {
-        return NULL;
-    }
-    if(p > st->lo && (is_b64url(p[-1]) || p[-1] == '.')) {
-        return NULL;
-    }
-    const char *e = p;
-    int dots = 0;
-    while(e < st->hi && (is_b64url(*e) || *e == '.')) {
-        if(*e == '.') {
-            dots++;
-        }
-        e++;
-    }
-    const char *t = e;
-    while(t[-1] == '.') {
-        t--;    // never beyond p: p[0] is 'e'
-        dots--;
-    }
-    if(dots == 2) {
-        out_replace(sc, p, t, REDACTED);
-        forget_quotes(st);
-    }
-    return e;
-}
-
-/***************************************************************************
  *  A quoted run at `q` (a '"' not escaped) that holds a backslash is
  *  scanned again with its escapes decoded: a json text inside a json text
  *  has its quotes escaped (\"password\":\"x\"), and the scan of this
@@ -1892,28 +1974,42 @@ PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const 
         }
     } else {
         char *decoded = gbmem_malloc(len + 1);
-        if(!decoded) {
+        /*
+         *  What mask_secrets_inline() marks in the text around reaches into
+         *  the run: its bytes decoded stay marked (password"x=a \S, a value
+         *  whose name is outside the run, showed when the run was written
+         *  back)
+         */
+        size_t marks_size = len/8 + 1;
+        uint8_t *inherited = sc->marks? gbmem_malloc(marks_size) : NULL;
+        if(!decoded || (sc->marks && !inherited)) {
             // Error already logged. Never write what cannot be judged
             redacted = gbmem_strdup(NOT_WRITTEN_NO_MEMORY);
             if(!redacted) {
                 sc->ctx->no_memory = TRUE;  // Error already logged
             }
         } else {
-            size_t n = json_unescape(v, len, decoded);
+            if(inherited) {
+                memset(inherited, 0, marks_size);
+            }
+            size_t n = json_unescape_marked(v, len, decoded, sc, inherited);
             BOOL value_is_secret = sc->ctx->value_is_secret;
             if(!value_is_secret && names_secret_attribute(decoded, n, NULL)) {
                 sc->ctx->value_is_secret = TRUE;
             }
             sc->ctx->escape_level++;
             sc->ctx->cut = CUT_NONE;
+            sc->ctx->inherited_marks = inherited;
             redacted = redact_text(decoded, n, sc->ctx);
+            sc->ctx->inherited_marks = NULL;
             cut = sc->ctx->cut;
             cut_kind = sc->ctx->cut_kind;
             sc->ctx->cut = CUT_NONE;
             sc->ctx->escape_level--;
             sc->ctx->value_is_secret = value_is_secret;
-            gbmem_free(decoded);
         }
+        GBMEM_FREE(inherited);
+        GBMEM_FREE(decoded);
     }
     if(!redacted) {
         /*
@@ -2025,8 +2121,6 @@ PRIVATE void scan_text(redact_scan_t *sc, const char *begin, const char *end)
             next = scan_bearer(sc, &st, p);
         } else if((c == 'b' || c == 'B') && st.hi - p > 1 && ascii_lower(p[1]) == 'a') {
             next = scan_basic(sc, &st, p);
-        } else if(c == 'e' && st.hi - p > 2 && p[1] == 'y' && p[2] == 'J') {
-            next = scan_jwt(sc, &st, p);
         } else if(c == '"' && (st.backslashes % 2) == 0 && (!st.run_end || p >= st.run_end)) {
             next = scan_escaped_run(sc, &st, p, FALSE);
         }
@@ -2069,6 +2163,9 @@ PRIVATE char *not_scanned_text(const char *text, size_t len)
 
 PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx)
 {
+    const uint8_t *inherited = ctx->inherited_marks;
+    ctx->inherited_marks = NULL;    // this text's only: not the texts inside it
+
     char *redacted;
     if(len > ctx->budget) {
         ctx->budget = 0;
@@ -2080,15 +2177,41 @@ PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx)
     }
     ctx->budget -= len;
 
+    /*
+     *  What mask_secrets_inline() masks is redacted too, by the same
+     *  function: the audit's own JWT of three parts wrote a JWE in clear
+     */
+    size_t marks_size = (len + 7)/8;
+    uint8_t *marks = marks_size? gbmem_malloc(marks_size) : NULL;
+    if(marks_size && !marks) {
+        ctx->no_memory = TRUE;  // Error already logged. Never the text: it is not judged
+        return NULL;
+    }
+    size_t n_marked = 0;
+    if(marks) {
+        memset(marks, 0, marks_size);
+        n_marked = mark_secrets_inline(text, len, marks);
+        if(inherited) {
+            for(size_t i=0; i<marks_size; i++) {
+                marks[i] |= inherited[i];
+                if(inherited[i]) {
+                    n_marked++;     // any count but 0 says it
+                }
+            }
+        }
+    }
+
     redact_scan_t sc = {
         .text = text,
         .from = text,
+        .marks = n_marked? marks: NULL,
         .ctx = ctx
     };
     scan_text(&sc, text, text + len);
 
     if(sc.broken) {
         gbmem_free(sc.out);
+        GBMEM_FREE(marks);
         // Error already logged. Never the text: it holds what is redacted
         redacted = gbmem_strdup("<not written: the audit scan broke>");
         if(!redacted) {
@@ -2096,10 +2219,12 @@ PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx)
         }
         return redacted;
     }
-    if(sc.from == text) {
+    if(sc.from == text && !n_marked) {
+        GBMEM_FREE(marks);
         return NULL;    // Nothing replaced
     }
-    out_append(&sc, sc.from, (size_t)(text + len - sc.from));
+    out_append_text(&sc, sc.from, text + len);
+    GBMEM_FREE(marks);
     if(sc.no_memory) {
         gbmem_free(sc.out);
         // Error already logged. Never the text: it holds what is redacted

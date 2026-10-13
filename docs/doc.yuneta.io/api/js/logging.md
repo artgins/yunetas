@@ -128,7 +128,9 @@ ANY key, is masked as [`mask_secrets_inline()`](#js_mask_secrets_inline): a
 JWT, the credential after `Bearer` or `Basic`, a secret `name=value` or
 `name: value` in it. A string with a NUL
 inside is read as a blank, as C reads it (shown with blanks when something is
-masked). Up to gobj-js 7.26.19 a JWT under a plain key showed. It answers a masked
+masked). Up to gobj-js 7.26.19 a JWT under a plain key showed. A key is judged
+as a NAME, never as a value: a key that is itself a credential (an object
+keyed by tokens) is shown as it is, as in C. It answers a masked
 copy (the objects and arrays on the way to a masked value are copied, the
 rest is shared), or the value itself when there was nothing to mask; the
 value is never changed.
@@ -150,6 +152,8 @@ json_mask_secrets({password: 1234, auth: {access_token: "eyJ..."}, window: gobj}
 // {password: "********", auth: {access_token: "********"}, window: gobj}
 json_mask_secrets({note: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln", h: "Authorization: Bearer abc"});
 // {note: "********", h: "Authorization: ********"}
+json_mask_secrets({"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln": 1});
+// the same: the key as it is
 ```
 
 (js_mask_secrets_inline)=
@@ -167,13 +171,19 @@ SHAPE, wherever it is and whatever names it, by the rules of the C kernel's
 base64url and a `.`: also one a cap cut; a `.` after it, the end of a
 sentence, is not its own), and after `Bearer` or `Basic` (any case, a word of
 its own) the word that can be a credential -- quoted, after the scheme
-doubled, or not a word of prose (it holds a digit or one of `_~+=`, mixes its
-case, or has 24 characters or more; for `Bearer` 8 at least, for `Basic` the
-base64 of a `user:password`). The rest is kept. It answers `null` when there
-was nothing to mask. The C kernel and gobj-js answer the same on the tables of
-both test suites and on 30 000 generated texts (after gobj-js 7.26.20,
-unreleased: up to it the word after `bearer` was masked whatever it was, and
-`Basic`, a JWE, a cut JWT and a `name: value` were not).
+doubled, or not a word of prose (it holds a digit, a symbol of its own or a
+character that is no ASCII, mixes its case, or has 24 characters or more; for
+`Bearer` 8 at least, for `Basic` a run of base64 that decodes to a
+`user:password`) --, the word of 7.26.9's Bearer (to a blank, a quote or one
+of `,;}]`), masked whole. Each rule judges the text as it came, and a run of
+characters to mask is one `********`; 7.26.9's reading of the parameters is
+one of them, whole, so nothing the masking of 7.26.9 hid shows but the word
+after a bare `Bearer` that cannot be a credential. The rest is kept. It
+answers `null` when there was nothing to mask. The C kernel and gobj-js
+answer the same on the tables of both test suites and on 230 078 generated
+texts (after gobj-js 7.26.20, unreleased: up to it the word after `bearer`
+was masked whatever it was, and `Basic`, a JWE, a cut JWT and a `name: value`
+were not).
 
 ```js
 mask_secrets_inline("set-user-pwd username=bob password=hunter2");
@@ -184,6 +194,7 @@ mask_secrets_inline("sent Bearer mF_9.B5f-4.1JqM");   // "sent Bearer ********"
 mask_secrets_inline("the bearer of this letter");    // null: prose
 mask_secrets_inline("note=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln x=1");
 // "note=******** x=1"
+mask_secrets_inline("x-auth-token: password=a,b c");    // "x-auth-token: ********"
 mask_secrets_inline("list-yunos");      // null
 ```
 

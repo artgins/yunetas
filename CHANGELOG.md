@@ -639,7 +639,7 @@ Out of the twenty-fourth review (V24):
   frame masked --: `C_IEVENT_SRV` and `C_IEVENT_CLI` said *"Bad json"* for
   both, and dumped the bytes raw, where a JWT under a plain key, cut by the
   window, showed its header. Out of session, the name of a stats
-  (`mt_stats`) is capped and masked as the one of a command: it was logged
+  (`mt_stats`) is masked and capped as the one of a command: it was logged
   whole.
 - **The parser's refusals repeat no credential** (V24.4.4): a key that is not
   a parameter (`help <jwt>=1`: *"has no option '<jwt>'"*), a key with no
@@ -691,6 +691,80 @@ Out of the twenty-fourth review (V24):
   `command_parser.md`, `treedb.md`, `runtime_entry_point.md`, `console.md`,
   `mqtt.md`, `guide_sdata.md`, `api/js/logging.md`, `test_suite.md`,
   `ENTRY_POINT.md`.
+
+Out of the security review of those commits (V24, `2e8d0589f`):
+
+- **fix: the masking of V24 showed what 7.26.9 masked; each rule judges the
+  text as it came now, and 7.26.9's reading is kept whole**
+  (`mask_secrets_inline()`, `json_mask_secrets()`, `mask_secrets_in_text()`).
+  A rule masked, or jumped over, its value before the next one looked: the
+  JWT of two parts of `eyJ...bearer1=x` took the name of the `name=value`,
+  the word after `Bearer Bearer` took the `=` of `pwd=x "rest"`, a label's
+  value hid the `=` inside it (`x-auth-token: password=a,b` showed `,b`; in a
+  dump, `u?password="x"` showed `x`), the token after `Bearer` was cut at the
+  first byte of no token68 (`Bearer abc%2Bdefghijk`: `abc` was too short, and
+  all of it showed), and the value of a json `"name":` in a dump stopped at
+  `;&)<>"'` too (`"password": <x>` showed `<x>`). Now the bytes to mask are
+  MARKED, every rule on the bytes as they came, a run of them is one
+  `********`; 7.26.9's reading of the parameters, and its rules of a dump, are
+  one pass each, whole; the word after a scheme is the word of 7.26.9's
+  Bearer (to a blank, a quote or one of `,;}]`), masked whole, its dots at the
+  end too. Measured against the libraries of 7.26.9 on 199 971 generated
+  texts: `2e8d0589f` showed what 7.26.9 hid -- beyond the trade-off of
+  V24.4.2 -- in 1 299 of the 30 107 twin texts inline and 1 753 in a dump; now
+  in none, on any of them. What shows now that 7.26.9 hid is only V24.4.2's
+  set: the word after a bare `Bearer` (not quoted, not after the scheme again,
+  not under a secret's name, not at the end of a dump) that is shorter than 8
+  characters, a word of prose of 8 to 23, or dots only -- 211 of the 30 107
+  texts inline, 111 in a dump. A word of prose is ASCII letters only now (a
+  character that is no ASCII made a token look like prose), and `Basic`'s
+  base64 is read as far as it goes (`(Basic dXNlcjpwYXNz)`).
+- **The end of a dump is where a cap cuts a credential**
+  (`mask_secrets_in_text()`): a JWT with no `.` yet, or the word after
+  `Bearer`/`Basic`, that reaches the end of the bytes is masked whatever its
+  shape -- a dump of 256 bytes showed the first 7 of a token, and a JWT cut
+  before its first `.` showed its header. A dump that ends on `a basic plan`
+  shows `a basic ****`.
+- **A name in single quotes in a dump** (`'password': x`, a Python dict or a
+  log of one) is a json name; and **a json text inside a json text**
+  (`x='{\"password\":\"hunter2\"}'`) is a `name: value` whose value runs to
+  the quote escaped the same way: the trace of that command line showed
+  `hunter2`.
+- **Masked, then capped** (new `mask_secrets_inline_capped()`): the name of an
+  event that is not public (`iev_create_from_gbuffer()`), the stats and the
+  first word of a command out of session (`C_IEVENT_SRV`, `C_IEVENT_CLI`) and
+  the log line of a peer's app (`EV_REMOTE_LOG`) were capped first, and a
+  token that the cap cut showed its first bytes, too short to be one.
+- **The error of a frame that is not json says where, not what**
+  (`gbuf2json_from_peer()`, and `gbuf2json()` with `verbose`): jansson's text
+  quotes the bytes near the error, and the WARNING showed the value of a
+  secret its masked dump hid (`premature end of input near '"hunter2'`). It
+  says the error without them, and its `position`.
+- **The agent's audit record redacts all that `mask_secrets_inline()`
+  masks, with the same function** (new `mark_secrets_inline()`, of
+  `helpers.h`): its own JWT was three parts exactly, so a JWE and a JWT of two
+  parts were written in clear, and a `name: value` (`X-Auth-Token: x`,
+  `bearer: tok`) and the words after the first of a password written with
+  blanks were not redacted. A json text inside a json text that the record
+  writes back decoded keeps what the text around it marks. Its own readings,
+  stricter than the SDK's, stay on top (the word after `Bearer ` whatever it
+  is: V24.4.2 does not reach the record). A record costs more: `run-yuno` 7.0
+  to 8.4 us, an `update-node` with a json text in its kw 8.3 to 11.5 us.
+- `json_mask_secrets()`'s doc says its limit: a KEY is judged as a name, never
+  as a value, so a key that is itself a credential is shown as it is.
+- The maskers stay linear: 7 to 12 ms for a MB of the hardest shapes (7.26.9:
+  1 to 4 ms; four passes inline, five in a dump, a map of bits).
+- Tests, red on the library of `2e8d0589f` and green on the new one:
+  `secret_attrs/test_secret_attrs` (six lines that showed a secret; the marks
+  of `mark_secrets_inline()` give the text `mask_secrets_inline()` gives, on
+  the whole table; `mask_secrets_inline_capped()`; a token cut by the cap of
+  a stats and of a command out of session, of an event's name and of a remote
+  log line, and the error of a frame that is not json, never logged),
+  `secret_attrs/test_secret_traffic` (eight dumps), `helpers/test_audit_record`
+  (nine checks, among them 20 000 random texts: what `mask_secrets_inline()`
+  hides, the record does not write; 400 000 in a longer run, none). Docs:
+  `string_helper.md`, `gbuffer.md`, `msg_ievent.md`, `ievent.md`, `data.md`,
+  `yuneta_agent.md`, `DEBUGGING.md`, `test_suite.md`, `api/js/logging.md`.
 
 ## v7.26.9 (2026-10-11)
 

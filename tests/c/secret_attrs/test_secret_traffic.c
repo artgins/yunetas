@@ -384,7 +384,7 @@ PRIVATE void check_received_dump(void)
         const char *in;
         const char *out;
     } dumps[] = {
-        {"GET /x?token=Bearer tb-hunter2&x=1", "GET /x?token=*****************&x=1"},
+        {"GET /x?token=Bearer tb-hunter2&x=1", "GET /x?token=*********************"},  // the word of 7.26.9's Bearer
         {"{\"password\": Bearer pb-hunter2}", "{\"password\": *****************}"},
         {"password=Basic dXNlcjpwYXNz x", "password=****************** x"},
         {"X-Auth-Token: xa-hunter2\r\nHost: h", "X-Auth-Token: **********\r\nHost: h"},
@@ -395,8 +395,23 @@ PRIVATE void check_received_dump(void)
         {"x eyJhbGciOiJSU0EtT0FFUCJ9.OKOawDo.48V1_ALb.5eym8TW.XFBoMYUZ y",
          "x ********************************************************** y"},
         {"cut eyJhbGciOiJIUzI1NiJ9.eyJjdXQtaHVudGVyMiI", "cut ****************************************"},
-        {"the bearer of this letter, a basic plan", "the bearer of this letter, a basic plan"},
+        {"the bearer of this letter, a basic plan.\r\n", "the bearer of this letter, a basic plan.\r\n"},
         {"Authorization: Basic dXNlcjpwYXNz\r\n", "Authorization: Basic ************\r\n"},
+
+        /*
+         *  REV-CLOUD V24, the security review of 2e8d0589f: each rule judges
+         *  the bytes as they came, 7.26.9's rules among them whole -- V24
+         *  showed what 7.26.9 masked, and the end of a dump is where a cap
+         *  cuts a credential
+         */
+        {"{\"password\": <pw-hunter2>}", "{\"password\": ************}"},  // 7.26.9's stops
+        {"x-auth-token: u?password=\"in-hunter2\" ok",
+         "x-auth-token: ***********\"**********\" ok"},     // the label's value hid the '='
+        {"{'password': 'sq-hunter2'}", "{'password': ************}"},    // a name in single quotes
+        {"x Bearer abc%2Bdefghijk y", "x Bearer ************** y"},      // no token cut at a '%'
+        {"sent with Bearer abcdefg", "sent with Bearer *******"},        // its end: a cap may have cut it
+        {"cut eyJhbGciOiJIUzI1NiJ9", "cut ********************"},        // a JWT cut before its '.'
+        {"the bearer of this letter, a basic plan", "the bearer of this letter, a basic ****"},
         {0, 0}
     };
     for(int i=0; dumps[i].in; i++) {

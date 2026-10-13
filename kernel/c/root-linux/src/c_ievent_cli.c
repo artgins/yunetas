@@ -227,21 +227,20 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) != ST_SESSION) {
         /*
-         *  `stats` is the caller's text, as the line of mt_command(): capped
-         *  and masked. It was logged whole (REV-CLOUD V24.4).
+         *  `stats` is the caller's text, as the line of mt_command(): masked
+         *  and THEN capped (mask_secrets_inline_capped(): capped first, a
+         *  token the cap cut lost its shape and showed). It was logged whole
+         *  (REV-CLOUD V24.4).
          */
         char name[65];
-        snprintf(name, sizeof(name), "%.*s",
-            utf8_prefix_len(stats? stats : "", (int)sizeof(name) - 1), stats? stats : "");
-        char *name_masked = mask_secrets_inline(name);
+        mask_secrets_inline_capped(name, sizeof(name), stats? stats : "", stats? strlen(stats) : 0);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Not in session",
-            "stats",        "%s", name_masked? name_masked : name,
+            "stats",        "%s", name,
             NULL
         );
-        GBMEM_FREE(name_masked)
         KW_DECREF(kw)
         return NULL;
     }
@@ -300,22 +299,19 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
          *  agent's command-yuno), and a set-password to a yuno that had just
          *  gone left the password in the log (REV-CLOUD V22.3.1). Masked,
          *  for the first word can be a secret itself: `password=hunter2
-         *  user=x` logged "password=hunter2" (V23.4.3)
+         *  user=x` logged "password=hunter2" (V23.4.3); masked before it is
+         *  capped, a JWT cut before its '.' showed its header
          */
         const char *line = command? command : "";
         char name[65];
-        size_t name_len = strcspn(line, " \t\r\n");
-        snprintf(name, sizeof(name), "%.*s",
-            utf8_prefix_len(line, (int)MIN(name_len, sizeof(name) - 1)), line);
-        char *name_masked = mask_secrets_inline(name);
+        mask_secrets_inline_capped(name, sizeof(name), line, strcspn(line, " \t\r\n"));
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Not in session",
-            "command",      "%s", name_masked? name_masked : name,
+            "command",      "%s", name,
             NULL
         );
-        GBMEM_FREE(name_masked)
         KW_DECREF(kw)
         return NULL;
     }

@@ -126,9 +126,10 @@ What a frame gets wrong is the peer's, said ONCE, a WARNING (`MSGSET_PROTOCOL`,
 `peername`, no stack), saying what it got wrong:
 
 - with `verbose`, a frame that is not json is *"frame is not json"*
-  ([`gbuf2json_from_peer()`](#gbuf2json_from_peer): the parser's error, the
-  bytes, and a DEBUG dump of the first 256 masked as
-  [`mask_secrets_in_text()`](#mask_secrets_in_text) masks them);
+  ([`gbuf2json_from_peer()`](#gbuf2json_from_peer): the parser's error and its
+  position -- not the bytes jansson quotes near it, which showed the value of
+  a secret (7.26.10+) --, the bytes, and a DEBUG dump of the first 256 masked
+  as [`mask_secrets_in_text()`](#mask_secrets_in_text) masks them);
 - with `verbose`, a frame of json that is not an inter-event (no `"event"`
   string, no `"kw"` dict) is *"Frame is not an inter-event (an "event" string
   and a "kw" dict), refused"*, with the frame in `frame`, masked
@@ -137,10 +138,11 @@ What a frame gets wrong is the peer's, said ONCE, a WARNING (`MSGSET_PROTOCOL`,
 - with `0` the caller says both;
 - an event that is not public is said HERE whatever `verbose` is, since only
   here is the name the frame gave known: *"Frame of an event that is not
-  public, refused"*, with the name in `event` capped to 64 bytes AND masked
-  ([`mask_secrets_inline()`](#mask_secrets_inline): a password or a JWT sent
-  as the name of the event was written in clear up to 7.26.9), the kw in `kw`
-  masked and capped to 256 bytes, and `frame_size`.
+  public, refused"*, with the name in `event` masked and THEN capped to 64
+  bytes ([`mask_secrets_inline_capped()`](#mask_secrets_inline_capped): a
+  password or a JWT sent as the name of the event was written in clear up to
+  7.26.9; capped first, a token the cap cut showed its first bytes), the kw
+  in `kw` masked and capped to 256 bytes, and `frame_size`.
 
 `frame_size` is the bytes of the frame RECEIVED. Up to 7.26.9 the WARNING of an
 event that is not public said a `kw_size` that was the size of the masked,

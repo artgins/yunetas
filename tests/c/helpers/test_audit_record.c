@@ -33,6 +33,9 @@
  *            quoted secret value (\", the shell's '\''), a JWT at the end
  *            of a sentence, a write-attr whose names carry \u escapes or
  *            that comes as json text in a kw string: no secret is written,
+ *          - what mask_secrets_inline() masks, the audit redacts (the same
+ *            function, mark_secrets_inline()): a JWE, a JWT of two parts, a
+ *            name: value, a password with blanks, and random texts,
  *          and what one record costs, 7.25.4's way and the new way.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -1867,8 +1870,97 @@ PRIVATE void test_blank_keys_inner_quotes_jwt_dot(void)
     check_no_secret("x eyJhbGciOi.eyJzdWIi.S3CRsig...", NULL, "S3CRsig",
         "(u) a JWT followed by '...'");
     check_command_written("x see eyJhbGciOi.eyJzdWIi. and eyJhbGciOi.",
-        "x see eyJhbGciOi.eyJzdWIi. and eyJhbGciOi.",
-        "(u) two parts and a dot, one part and a dot: no JWT, kept");
+        "x see <redacted>. and <redacted>.",
+        "(u) two parts and a dot, one part and a dot: a JWT a cap cut, redacted (the SDK's rule, V24)");
+}
+
+/***************************************************************************
+ *  (v) The audit redacts all that mask_secrets_inline() masks, by the same
+ *  rules and the same function (mark_secrets_inline(), REV-CLOUD V24): its
+ *  own JWT was three parts exactly, so a JWE and a JWT a cap cut to two
+ *  parts were written in clear; a name: value (X-Auth-Token: x, bearer:
+ *  tok) and the words after the first of a password written with blanks
+ *  were not redacted at all. And random texts: no secret that
+ *  mask_secrets_inline() hides is written.
+ ***************************************************************************/
+PRIVATE void test_same_rules_as_the_sdk(void)
+{
+    int errors = s_errors;
+    check_no_secret("x token eyJhbGciOiJSU0EtT0FFUCJ9.S3CRv1key.S3CRv1iv.S3CRv1ct.S3CRv1tag y", NULL,
+        "S3CRv1", "(v) a JWE: five parts");
+    check_no_secret("x msg=\"cut eyJhbGciOiJIUzI1NiJ9.eyJTM0NSdjIi\"", NULL,
+        "eyJTM0NSdjIi", "(v) a JWT of two parts: a cap cut it");
+    check_no_secret("update-node note='X-Auth-Token: S3CRv3'", NULL,
+        "S3CRv3", "(v) a name: value of a secret's name");
+    check_no_secret("update-node note='bearer: S3CRv4'", NULL,
+        "S3CRv4", "(v) bearer: tok");
+    check_no_secret("set-user-pwd username=bob password=correct S3CRv5 battery", NULL,
+        "S3CRv5", "(v) a password written with blanks: all its words");
+    json_t *kw = json_pack("{s:s}", "note", "x-api-key: S3CRv6kw; next");
+    check_no_secret("update-node", kw, "S3CRv6kw", "(v) a label of a secret's name in a kw string");
+    JSON_DECREF(kw)
+    check_command_written("update-node note='X-Auth-Token: S3CRv7' n=1",
+        "update-node note='X-Auth-Token: <redacted>' n=1",
+        "(v) the quote around the value stays, n=1 kept");
+    check_command_written("x token eyJhbGciOiJSU0EtT0FFUCJ9.Zm9v.YmFy.YmF6.cXV4 y",
+        "x token <redacted> y",
+        "(v) the example of DEBUGGING.md: a JWE");
+    check_command_written("update-node note='X-Auth-Token: hunter2' n=1",
+        "update-node note='X-Auth-Token: <redacted>' n=1",
+        "(v) the example of DEBUGGING.md: a name: value");
+
+    static const char *pieces[] = {
+        " ", " ", " ", "=", ":", ": ", "\"", "'", ",", ";", "&", "{", "}", "[", "]", ".", "\\",
+        "\\\"", "password", "token", "pass", "pin", "x", "abc", "value", "attribute=password ",
+        "Bearer ", "bearer ", "Basic ", "eyJ", "eyJhbGciOiJIUzI1NiJ9.", "X-Auth-Token", "command=",
+        "Authorization: ", "content64=", "write-tty ",
+        0
+    };
+    int n_pieces = 0;
+    while(pieces[n_pieces]) {
+        n_pieces++;
+    }
+    int leaks = 0;
+    int hidden = 0;
+    int n_texts = 20000;
+    for(int i=0; i<n_texts; i++) {
+        char secret[32];
+        snprintf(secret, sizeof(secret), "S3CRW%05d", i);
+        gbuffer_t *gbuf = gbuffer_create(1024, 1024);
+        gbuffer_append_string(gbuf, "update-node ");
+        int n = 1 + (int)(next_rand() % 16);
+        int at = (int)(next_rand() % (uint32_t)n);
+        for(int j=0; j<n; j++) {
+            if(j == at) {
+                gbuffer_append_string(gbuf, secret);
+            }
+            gbuffer_append_string(gbuf, pieces[next_rand() % (uint32_t)n_pieces]);
+        }
+        char *text = gbuffer_cur_rd_pointer(gbuf);
+        char *masked = mask_secrets_inline(text);
+        if(masked && !strstr(masked, secret)) {
+            hidden++;
+            json_t *kw_text = json_pack("{s:s}", "data", text);
+            json_t *jn_record = audit_record_build(text, kw_text, DATE, command_table);
+            if(!jn_record || record_holds(jn_record, secret)) {
+                leaks++;
+                if(leaks <= 3) {
+                    char *r = record_text(jn_record);
+                    printf("     the text:   %s\n     masked:     %s\n     the record: %.400s\n", text, masked, r);
+                    GBMEM_FREE(r);
+                }
+            }
+            JSON_DECREF(jn_record)
+            JSON_DECREF(kw_text)
+        }
+        GBMEM_FREE(masked)
+        GBUFFER_DECREF(gbuf)
+    }
+    char name[160];
+    snprintf(name, sizeof(name), "(v) %d random texts: what mask_secrets_inline() hides (%d), the audit "
+        "does not write (%d written)", n_texts, hidden, leaks);
+    check(leaks == 0 && hidden > 1000, name);
+    check(s_errors == errors, "(v) no error logged");
 }
 
 /***************************************************************************
@@ -2387,6 +2479,7 @@ int main(int argc, char *argv[])
     test_peer_not_utf8();
     test_quote_before_json_text();
     test_blank_keys_inner_quotes_jwt_dot();
+    test_same_rules_as_the_sdk();
     test_generated_commands();
     test_cost();
 

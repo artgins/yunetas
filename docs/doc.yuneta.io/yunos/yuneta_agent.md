@@ -133,8 +133,14 @@ The agent writes every command that it runs to a daily audit file in
   its value is `<redacted>`, whatever else the name holds: `api_key_max`,
   `token_mode` and `token_endpoint` are redacted here, while the traces show
   them (a name ABOUT a credential; `is_secret_name_any()`; up to 7.25.21 the
-  record wrote them in clear). So are the token after `Bearer ` and anything
-  with the shape of a JWT, wherever they are: also in the `user`, the hops of
+  record wrote them in clear). So is whatever `mask_secrets_inline()` masks in
+  a string, by the same rules and the same function (`mark_secrets_inline()`):
+  a JWT or a JWE (two parts or more), the credential after `Bearer` or
+  `Basic`, a `name: value` of a secret's name (`X-Auth-Token: x` is
+  `X-Auth-Token: <redacted>`), every word of a password written with blanks;
+  and, stricter than the SDK, the word after `Bearer ` whatever it is. Up to
+  7.26.9 the record's JWT was three parts exactly, and a JWE was written in
+  clear. Wherever they are: also in the `user`, the hops of
   `source`, the console purpose and the console name, which come from a peer
   (a field of those longer than 1024 bytes is written as its size and
   sha256 only). For example a hop whose user is a JWT and whose host has

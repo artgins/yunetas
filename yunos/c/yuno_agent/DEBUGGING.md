@@ -644,11 +644,34 @@ nearest first:
   command-yuno id=x command="write-attr attribute=api_key value=<redacted>" n=1
   ```
 
-  Also the
-  token after `Bearer `, the credentials after `Basic ` when they are base64
-  of `user:password`, and anything with the shape of a JWT (`eyJ…`, three
-  parts joined by `.`; a `.` after it, as at the end of a sentence, is not
-  a fourth part), wherever they are. This applies to a kw key at any
+  Also whatever `mask_secrets_inline()` masks in a string, by the same rules
+  and the same function (`mark_secrets_inline()`, `string_helper.md`; each
+  run of what it marks is one `<redacted>`): a JWT or a JWE (`eyJ…`,
+  base64url and a `.`: two parts or more, a cap may have cut it; a `.` after
+  it, as at the end of a sentence, is not its own), the credential after
+  `Bearer` or `Basic`, a `name: value` whose name is a secret's
+  (`X-Auth-Token: x`, `bearer: tok`), every word of a password written with
+  blanks (`password=correct horse battery`). And on top of them the audit's
+  own readings, stricter than the SDK's: the token after `Bearer `, whatever
+  it is (the SDK leaves prose: `the bearer of this letter`), and after
+  `Basic ` a base64 run of `user:password` inside a word. Up to 7.26.9 the
+  audit's JWT was three parts exactly, so a JWE was written in clear, and a
+  `name: value` and the words after the first of a password with blanks were
+  not redacted:
+
+  ```text
+  x token eyJhbGciOiJSU0EtT0FFUCJ9.Zm9v.YmFy.YmF6.cXV4 y
+  update-node note='X-Auth-Token: hunter2' n=1
+  ```
+
+  are recorded as
+
+  ```text
+  x token <redacted> y
+  update-node note='X-Auth-Token: <redacted>' n=1
+  ```
+
+  This applies to a kw key at any
   depth, to `name=value` in any string (quoted or not, with blanks around the
   `=`), to the command carried by `command-yuno`, and to `"name": value` in a
   JSON given as text. The name of a JSON key is read with its escapes:
