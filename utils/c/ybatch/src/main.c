@@ -307,10 +307,12 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
  ***************************************************************************/
 static int register_yuno_and_more(void)
 {
+    int result = 0;
+
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    register_c_ybatch();
+    result += register_c_ybatch();
 
     /*------------------------------------------------*
      *          Traces
@@ -335,7 +337,7 @@ static int register_yuno_and_more(void)
         gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
     }
 
-    return 0;
+    return result;
 }
 
 /***************************************************************************

@@ -108,18 +108,20 @@ PRIVATE char variable_config[]= "\
  ***************************************************************************/
 static int register_yuno_and_more(void)
 {
+    int result = 0;
+
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    register_c_cli();
-    register_c_editline();
-    register_c_wn_list();
-    register_c_wn_box();
-    register_c_wn_layout();
-    register_c_wn_static();
-    register_c_wn_stsline();
-    register_c_wn_toolbar();
-    register_c_wn_stdscr();
+    result += register_c_cli();
+    result += register_c_editline();
+    result += register_c_wn_list();
+    result += register_c_wn_box();
+    result += register_c_wn_layout();
+    result += register_c_wn_static();
+    result += register_c_wn_stsline();
+    result += register_c_wn_toolbar();
+    result += register_c_wn_stdscr();
 
     /*------------------------------------------------*
      *          Traces
@@ -157,7 +159,7 @@ static int register_yuno_and_more(void)
     // gobj_set_global_trace("timer", TRUE);
     // gobj_set_global_trace("liburing_timer", TRUE);
 
-    return 0;
+    return result;
 }
 
 /***************************************************************************

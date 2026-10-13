@@ -1091,11 +1091,17 @@ PRIVATE const sdata_desc_t *find_command_desc(
 
     const sdata_desc_t *cnf_cmd = command_get_cmd_desc(cmd_table, cmd);
     if(!cnf_cmd) {
+        /*
+         *  The word is the caller's: `password=hunter2 user=x` or a JWT as
+         *  the first word was echoed in clear (REV-CLOUD V24.4.4)
+         */
+        char *cmd_masked = mask_secrets_inline(cmd);
         *jn_error = json_sprintf(
             "%s: command not available: '%s'. Try 'help' command.",
             gobj_short_name(gobj),
-            cmd
+            cmd_masked? cmd_masked : cmd
         );
+        GBMEM_FREE(cmd_masked)
     }
     GBMEM_FREE(str)
     return cnf_cmd;
@@ -1408,12 +1414,15 @@ PRIVATE json_t *build_cmd_kw(
             *result = -1;
             JSON_DECREF(kw_cmd);
             JSON_DECREF(jn_refused);
-            return json_sprintf(
+            char *key_masked = strpbrk(key, " \t")? NULL : mask_secrets_inline(key);
+            json_t *jn_error = json_sprintf(
                 "%s: command '%s', parameter '%s': value with no closing quote",
                 gobj_short_name(gobj),
                 command,
-                strpbrk(key, " \t")? "<...>" : key
+                strpbrk(key, " \t")? "<...>" : (key_masked? key_masked : key)
             );
+            GBMEM_FREE(key_masked)
+            return jn_error;
         }
         if(!value) {
             break;
@@ -1456,15 +1465,22 @@ PRIVATE json_t *build_cmd_kw(
             if(wild_command) {
                 jn_param = json_string(value);
             } else {
+                /*
+                 *  The key is the caller's: a JWT written as a key
+                 *  (`plain <jwt>=1`) was echoed in clear (REV-CLOUD V24.4.4)
+                 */
                 *result = -1;
                 JSON_DECREF(kw_cmd);
                 JSON_DECREF(jn_refused);
-                return json_sprintf(
+                char *key_masked = mask_secrets_inline(key);
+                json_t *jn_error = json_sprintf(
                     "%s: '%s' command has no option '%s'",
                     gobj_short_name(gobj),
                     command,
-                    key?key:"?"
+                    key_masked? key_masked : key
                 );
+                GBMEM_FREE(key_masked)
+                return jn_error;
             }
         }
         /*
@@ -1774,12 +1790,15 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
             return jn_resp;
         }
 
-        KW_DECREF(kw)
-        return json_sprintf(
+        char *cmd_masked = mask_secrets_inline(cmd);  // the caller's word, see find_command_desc()
+        json_t *jn_resp = json_sprintf(
             "%s: command '%s' not available.\n",
             gobj_short_name(gobj),
-            cmd
+            cmd_masked? cmd_masked : cmd
         );
+        GBMEM_FREE(cmd_masked)
+        KW_DECREF(kw)   // after: `cmd` is a text of kw
+        return jn_resp;
     }
 
     /*--------------------------*

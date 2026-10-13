@@ -804,7 +804,25 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     }
 
     if(register_yuno_and_more) {
-        result += register_yuno_and_more();
+        /*
+         *  A gclass of the app refused stops the yuno, as one of the core
+         *  does: it went on, and its service failed later with "gclass NOT
+         *  FOUND" (REV-CLOUD V24.4). Every register_yuno_and_more() of the
+         *  trees answers 0, or the sum of what its register_c_*() answer
+         *  (-1 for a gclass refused, its ERROR logged).
+         */
+        int ret = register_yuno_and_more();
+        if(ret < 0) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "register_yuno_and_more() FAILED: a gclass of the yuno was refused, the yuno exits",
+                "result",       "%d", ret,
+                NULL
+            );
+            exit(-1);
+        }
+        result += ret;
     }
 
     /*------------------------------------------------------------*

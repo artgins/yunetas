@@ -105,6 +105,8 @@ PRIVATE char variable_config[]= "\
  ***************************************************************************/
 static int register_yuno_and_more(void)
 {
+    int result = 0;
+
     /*--------------------*
      *  Register gclass
      *--------------------*/
@@ -112,7 +114,7 @@ static int register_yuno_and_more(void)
     // yunetas_register_c_core(); it lives as a child of C_CHANNEL inside
     // the __bff_side__ tree declared by the batch JSON.
     // Here we register the yuno's own top-level orchestrator GClass.
-    register_c_auth_bff_yuno();
+    result += register_c_auth_bff_yuno();
 
     /*------------------------------------------------*
      *          Traces
@@ -145,7 +147,7 @@ static int register_yuno_and_more(void)
     // gobj_set_global_trace("timer", TRUE);
     // gobj_set_global_trace("liburing_timer", TRUE);
 
-    return 0;
+    return result;
 }
 
 /***************************************************************************

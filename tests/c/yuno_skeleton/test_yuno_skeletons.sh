@@ -96,8 +96,8 @@ path = sys.argv[1]
 s = open(path).read()
 s = s.replace('#include "c_sktstd.h"\n',
     '#include "c_sktstd.h"\n#include "c_sktsvc.h"\n#include "c_sktchild.h"\n')
-s = s.replace('    register_c_sktstd();\n',
-    '    register_c_sktstd();\n    register_c_sktsvc();\n    register_c_sktchild();\n')
+s = s.replace('    result += register_c_sktstd();\n',
+    '    result += register_c_sktstd();\n    result += register_c_sktsvc();\n    result += register_c_sktchild();\n')
 s = s.replace("'gclass': 'C_SKTSTD',", "'gclass': 'C_SKTSVC',")
 # The service played (its timer is armed at the play), and the child as a
 # second service, started (its timer is armed at the start)

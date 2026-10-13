@@ -135,11 +135,13 @@ PRIVATE char variable_config[]= "\
  ***************************************************************************/
 static int register_yuno_and_more(void)
 {
+    int result = 0;
+
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    register_c_prot_mqtt2();
-    register_c_mqtt_broker();
+    result += register_c_prot_mqtt2();
+    result += register_c_mqtt_broker();
 
     /*------------------------------------------------*
      *          Traces
@@ -174,7 +176,7 @@ static int register_yuno_and_more(void)
     // gobj_set_global_trace("timer", TRUE);
     // gobj_set_global_trace("liburing_timer", TRUE);
 
-    return 0;
+    return result;
 }
 
 /***************************************************************************

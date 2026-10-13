@@ -319,10 +319,12 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
  ***************************************************************************/
 static int register_yuno_and_more(void)
 {
+    int result = 0;
+
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    register_c_emu_device();
+    result += register_c_emu_device();
 
     /*------------------------------------------------*
      *          Traces
@@ -355,7 +357,7 @@ static int register_yuno_and_more(void)
     // gobj_set_global_trace("timer", TRUE);
     // gobj_set_global_trace("liburing_timer", TRUE);
 
-    return 0;
+    return result;
 }
 
 /***************************************************************************

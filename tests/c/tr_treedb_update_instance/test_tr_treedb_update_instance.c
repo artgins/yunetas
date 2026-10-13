@@ -24,6 +24,8 @@
  *          too, with an ERROR: C reads it up to the NUL, so the node was
  *          indexed under one name and saved with another (REV-CLOUD
  *          V23.4.2).
+ *          And a NUL in a reference of an fkey column: refused by a create
+ *          and by an update with its links (REV-CLOUD V24.4).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -416,6 +418,87 @@ PRIVATE int test_nul_in_a_name_of_the_node(
 }
 
 /***************************************************************************
+ *  A NUL in a reference of an fkey column, from C: refused by a create and
+ *  by an update with its links, with an ERROR, and nothing written. C
+ *  reads a ref up to the NUL: "\0items^item-1^parts" was the empty ref,
+ *  left out, and the create saved the part with no parent and no log; a
+ *  ref with the NUL after its three parts linked the part to item-1
+ *  (REV-CLOUD V24.4).
+ ***************************************************************************/
+PRIVATE int test_nul_in_an_fkey_ref(
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    int result = 0;
+    const char *test = "a NUL in an fkey reference is refused";
+    time_measure_t time_measure;
+    set_expected_results(
+        test,
+        json_pack("[{s:s}, {s:s}, {s:s}]",
+            "msg", "Invalid fkey reference: it holds a NUL",
+            "msg", "Invalid fkey reference: it holds a NUL",
+            "msg", "Invalid fkey reference: it holds a NUL"
+        ),
+        NULL, NULL, 1
+    );
+    MT_START_TIME(time_measure)
+
+    json_t *created = treedb_create_node(
+        tranger, treedb_name, "parts",
+        json_pack("{s:s, s:s%}", "id", "part-nul", "item", "\0items^item-1^parts", (size_t)19)
+    );
+    if(created || treedb_get_node(tranger, treedb_name, "parts", "part-nul")) {
+        printf("%s  FAIL: a create with an fkey ref that begins with a NUL was taken%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    created = treedb_create_node(
+        tranger, treedb_name, "parts",
+        json_pack("{s:s, s:s%}", "id", "part-nul2", "item", "items^item-1^parts\0evil", (size_t)23)
+    );
+    if(created || treedb_get_node(tranger, treedb_name, "parts", "part-nul2")) {
+        printf("%s  FAIL: a create with an fkey ref with a NUL after it was taken%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    json_t *part = treedb_create_node(
+        tranger, treedb_name, "parts",
+        json_pack("{s:s}", "id", "part-nul3")
+    );
+    if(!part) {
+        printf("%s  FAIL: the part of the update cannot be created%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+        result += test_json(NULL);
+        return result;
+    }
+    json_int_t g_rowid = kw_get_int(0, part, "__md_treedb__`g_rowid", 0, 0);
+    json_t *updated = treedb_update_node_and_links(
+        tranger,
+        part,
+        json_pack("{s:s, s:s%}", "id", "part-nul3", "item", "items^item-1^parts\0evil", (size_t)23),
+        TRUE,   // with fields
+        NULL
+    );
+    if(updated) {
+        printf("%s  FAIL: an update with links with an fkey ref with a NUL was taken%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(kw_get_int(0, part, "__md_treedb__`g_rowid", 0, 0) != g_rowid ||
+            !empty_string(kw_get_str(0, part, "item", "", 0))) {
+        printf("%s  FAIL: a refused update with links touched the part%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  A child hooked by two instances of one parent (item-1 v1 and v9, left
  *  by the test above) and unlinked from ONE of them is gone from the hook
  *  of both: the child's fkey names the parent's id, not an instance.
@@ -675,6 +758,7 @@ PRIVATE int do_test(void)
     result += test_unlink_from_one_instance_frees_every_instance(tranger, treedb_name);
     result += test_dict_hook_keeps_the_primary_instance(tranger, treedb_name);
     result += test_nul_in_a_name_of_the_node(tranger, treedb_name);
+    result += test_nul_in_an_fkey_ref(tranger, treedb_name);
 
     /*------------------------------------*
      *  Shutdown

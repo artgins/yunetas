@@ -149,7 +149,7 @@ PUBLIC gbuffer_t *iev_create_to_gbuffer( // old iev_create()
 /***************************************************************************
  *  The kw of a refused frame as a log shows it: masked (a credential is
  *  never written, json_mask_secrets() on a budget) and capped, as
- *  C_IEVENT_SRV's peer_kw_dump(). Return its whole size.
+ *  C_IEVENT_SRV's peer_kw_dump(). Return the bytes written.
  ***************************************************************************/
 PRIVATE size_t iev_kw_dump(json_t *kw, char *bf, size_t bfsize)
 {
@@ -158,9 +158,9 @@ PRIVATE size_t iev_kw_dump(json_t *kw, char *bf, size_t bfsize)
     if(!kw_shown) {
         return 0;   // Error already logged
     }
-    size_t size = json_dumpb(kw_shown, bf, bfsize-1, JSON_COMPACT|JSON_ENCODE_ANY);
+    json_dumpb(kw_shown, bf, bfsize-1, JSON_COMPACT|JSON_ENCODE_ANY);
     JSON_DECREF(kw_shown)
-    return size;
+    return strlen(bf);
 }
 
 /***************************************************************************
@@ -179,16 +179,22 @@ PRIVATE const char *iev_peername(hgobj gobj)
  *  Incorporate event's messages FROM outside world.
  *  gbuf decref
  *
- *  What a frame gets wrong is the PEER's: one log line, a WARNING here. A
- *  frame that is not json is said by gbuf2json() with `verbose`, one that
- *  is not an inter-event (no "event" string, no "kw" dict) here with
- *  `verbose`; with 0 the caller says both, with the frame's bytes. An
- *  event no gclass has as public is said HERE, whatever `verbose`: only
- *  here is the name the frame gave known. Up to 7.26.9 that lookup was
- *  silent and both callers (C_IEVENT_SRV, C_IEVENT_CLI) traced the whole
- *  kw raw, credentials before the session among it; and a frame without
- *  "event" logged two ERRORs here and the caller's WARNING (REV-CLOUD
- *  V23.4.1).
+ *  What a frame gets wrong is the PEER's: one log line, a WARNING here,
+ *  saying what it got wrong. With `verbose`, a frame that is not json is
+ *  "frame is not json" (gbuf2json_from_peer(): its first bytes dumped,
+ *  masked), and one that is not an inter-event (no "event" string, no "kw"
+ *  dict) says so, its json masked and capped; with 0 the caller says both.
+ *  C_IEVENT_SRV and C_IEVENT_CLI pass 1: they said "Bad json" for both, a
+ *  frame of json among them, and dumped its bytes raw, where a JWT cut by
+ *  the window showed its header (REV-CLOUD V24.4). An event no gclass has
+ *  as public is said HERE, whatever `verbose`: only here is the name the
+ *  frame gave known -- masked and capped, as the kw (V24.4.1: a password or
+ *  a JWT sent as the NAME was written in clear). `frame_size` is the bytes
+ *  received; the kw_size up to 7.26.9 was the size of the masked, capped
+ *  copy (a kw of 900 KB said 101). Up to 7.26.9 that lookup was silent and
+ *  both callers traced the whole kw raw, credentials before the session
+ *  among it; and a frame without "event" logged two ERRORs here and the
+ *  caller's WARNING (REV-CLOUD V23.4.1).
  ***************************************************************************/
 PUBLIC json_t *iev_create_from_gbuffer(
     hgobj gobj,
@@ -202,12 +208,15 @@ PUBLIC json_t *iev_create_from_gbuffer(
     if(event) {
         *event = NULL;
     }
-    json_t *jn_msg = gbuf2json(gbuf, verbose); // gbuf stolen: decref and data consumed
+    size_t frame_size = gbuf? gbuffer_leftbytes(gbuf) : 0;
+    json_t *jn_msg = verbose?
+        gbuf2json_from_peer(gobj, gbuf, gobj) :     // gbuf stolen: decref and data consumed
+        gbuf2json(gbuf, 0);
     if(!jn_msg) {
         /*
-         *  Said by gbuf2json() with `verbose`, by the caller with 0 (it was
-         *  said twice with `verbose`): a peer sending bad json is its
-         *  business, not an internal invariant of ours
+         *  Said by gbuf2json_from_peer() with `verbose`, a WARNING: a peer
+         *  sending bad json is its business, not an internal invariant of
+         *  ours. With 0, by the caller.
          */
         return NULL;
     }
@@ -219,11 +228,15 @@ PUBLIC json_t *iev_create_from_gbuffer(
     json_t *kw = json_object_get(jn_msg, "kw");
     if(empty_string(event_) || !json_is_object(kw)) {
         if(verbose) {
+            char dump[IEV_LOG_DUMP_SIZE];
+            iev_kw_dump(jn_msg, dump, sizeof(dump));
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL,
                 "msg",          "%s", "Frame is not an inter-event (an \"event\" string and a \"kw\" dict), refused",
                 "peername",     "%s", iev_peername(gobj),
+                "frame",        "%s", dump,
+                "frame_size",   "%lu", (unsigned long)frame_size,
                 NULL
             );
         }
@@ -241,17 +254,21 @@ PUBLIC json_t *iev_create_from_gbuffer(
         *event = gclass_find_public_event(event_, FALSE);
         if(!*event) {
             char dump[IEV_LOG_DUMP_SIZE];
-            size_t size = iev_kw_dump(new_kw, dump, sizeof(dump));
+            iev_kw_dump(new_kw, dump, sizeof(dump));
+            char name[65];
+            snprintf(name, sizeof(name), "%.*s", utf8_prefix_len(event_, (int)sizeof(name) - 1), event_);
+            char *name_masked = mask_secrets_inline(name);
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL,
                 "msg",          "%s", "Frame of an event that is not public, refused",
-                "event",        "%.*s", utf8_prefix_len(event_, 64), event_,
+                "event",        "%s", name_masked? name_masked : name,
                 "peername",     "%s", iev_peername(gobj),
                 "kw",           "%s", dump,
-                "kw_size",      "%lu", (unsigned long)size,
+                "frame_size",   "%lu", (unsigned long)frame_size,
                 NULL
             );
+            GBMEM_FREE(name_masked)
         }
     }
     JSON_DECREF(jn_msg)

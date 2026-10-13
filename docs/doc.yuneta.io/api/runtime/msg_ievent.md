@@ -114,7 +114,7 @@ json_t *iev_create_from_gbuffer(
 | `gobj` | `hgobj` | GObject instance. |
 | `event` | `gobj_event_t *` | Output — the public event the frame names (the registered name, compared by pointer), `NULL` when no gclass has it as public. |
 | `gbuf` | `gbuffer_t *` | Buffer with the serialized message (owned and consumed). |
-| `verbose` | `int` | Verbosity level: `1` = log, `2` = log + dump. |
+| `verbose` | `int` | `0`: a frame that is not json or not an inter-event is the caller's to say; `1` or `2`: said here, a WARNING (a frame that is not json with a masked DEBUG dump of its first bytes). An event that is not public is said whatever `verbose` is. |
 
 **Returns**
 
@@ -123,26 +123,42 @@ or not an inter-event (no `"event"` string, no `"kw"` dict). `*event` is the
 public event the frame names, `NULL` when no gclass has it as public.
 
 What a frame gets wrong is the peer's, said ONCE, a WARNING (`MSGSET_PROTOCOL`,
-`peername`, no stack). A frame that is not json, or not an inter-event, is said
-here with `verbose` (by `gbuf2json()` for the json); with `0` the caller says
-it, with the bytes of the frame -- `C_IEVENT_SRV` and `C_IEVENT_CLI` log *"Bad
-json"*. An event that is not public is said HERE whatever `verbose` is, since
-only here is the name the frame gave known: *"Frame of an event that is not
-public, refused"*, with the name capped to 64 bytes and the kw masked
-([`json_mask_secrets()`](#json_mask_secrets)) and capped to 256 bytes. The
-callers close the channel. Up to 7.26.9 that lookup was silent and both callers
-traced the whole kw raw (*"iev_event NULL"*: a jwt and a password before the
-session among it), and a frame with no `"event"` logged two ERRORs here and
-the caller's WARNING.
+`peername`, no stack), saying what it got wrong:
+
+- with `verbose`, a frame that is not json is *"frame is not json"*
+  ([`gbuf2json_from_peer()`](#gbuf2json_from_peer): the parser's error, the
+  bytes, and a DEBUG dump of the first 256 masked as
+  [`mask_secrets_in_text()`](#mask_secrets_in_text) masks them);
+- with `verbose`, a frame of json that is not an inter-event (no `"event"`
+  string, no `"kw"` dict) is *"Frame is not an inter-event (an "event" string
+  and a "kw" dict), refused"*, with the frame in `frame`, masked
+  ([`json_mask_secrets()`](#json_mask_secrets)) and capped to 256 bytes, and
+  `frame_size`;
+- with `0` the caller says both;
+- an event that is not public is said HERE whatever `verbose` is, since only
+  here is the name the frame gave known: *"Frame of an event that is not
+  public, refused"*, with the name in `event` capped to 64 bytes AND masked
+  ([`mask_secrets_inline()`](#mask_secrets_inline): a password or a JWT sent
+  as the name of the event was written in clear up to 7.26.9), the kw in `kw`
+  masked and capped to 256 bytes, and `frame_size`.
+
+`frame_size` is the bytes of the frame RECEIVED. Up to 7.26.9 the WARNING of an
+event that is not public said a `kw_size` that was the size of the masked,
+capped copy (a kw of 900 KB said 101). `C_IEVENT_SRV` and `C_IEVENT_CLI` pass
+`1` (7.26.10+) and close the channel: they passed `0` and said *"Bad json"* for
+both refusals, a frame of json among them, with a dump of the frame's bytes
+raw, where a JWT under a plain key, cut by the window, showed its header. Up to
+7.26.9 the lookup of the event was silent and both callers traced the whole kw
+raw (*"iev_event NULL"*: a jwt and a password before the session among it),
+and a frame with no `"event"` logged two ERRORs here and the caller's WARNING.
 
 **Example**
 
 ```C
-gbuffer_incref(gbuf);   // the caller still dumps it if it is no inter-event
 gobj_event_t iev_event;
-json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 0);
+json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 1);
 if(!iev_kw) {
-    // not json, or not an inter-event: the caller says it (verbose 0)
+    // not json, or not an inter-event: said by iev_create_from_gbuffer()
 } else if(!iev_event) {
     // an event that is not public: logged by iev_create_from_gbuffer()
     KW_DECREF(iev_kw)
@@ -151,8 +167,11 @@ if(!iev_kw) {
 
 ```text
 WARNING {"msgset": "Protocol", "msg": "Frame of an event that is not public, refused",
-         "event": "EV_NO_SUCH_EVENT", "peername": "127.0.0.1:45216",
-         "kw": "{\"jwt\":\"********\",\"password\":\"********\",...", "kw_size": 314}
+         "event": "EV_NO_SUCH_EVENT password=********", "peername": "127.0.0.1:45216",
+         "kw": "{\"jwt\":\"********\",\"password\":\"********\",...", "frame_size": 66034}
+WARNING {"msgset": "Protocol",
+         "msg": "Frame is not an inter-event (an \"event\" string and a \"kw\" dict), refused",
+         "peername": "127.0.0.1:45218", "frame": "{\"note\":\"xxxx ********\"}", "frame_size": 321}
 ```
 
 ---

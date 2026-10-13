@@ -1227,6 +1227,28 @@ PRIVATE void check_log_dumps(hgobj gobj)
         GBMEM_FREE(m)
         t1 = time_in_milliseconds_monotonic();
         check_true("a 1 MB secret value is masked in under 500 ms", t1 - t0 < 500);
+
+        /*
+         *  And the shapes of V24.4: a scheme word repeated ("Bearer Bearer
+         *  ..." looked ahead from each of its words: quadratic), a text of
+         *  ':' after secrets' names, and a container that does not close
+         */
+        const char *patterns[] = {"Bearer ", "basic ", "token:", "\"pin\": {[", 0};
+        for(int k=0; patterns[k]; k++) {
+            size_t pl = strlen(patterns[k]);
+            for(size_t i=0; i + pl < big_len; i += pl) {
+                memcpy(big + i, patterns[k], pl);
+            }
+            big[big_len - (big_len % pl)] = 0;
+            t0 = time_in_milliseconds_monotonic();
+            m = mask_secrets_inline(big);
+            GBMEM_FREE(m)
+            mask_secrets_in_text(big, strlen(big));
+            t1 = time_in_milliseconds_monotonic();
+            char what[96];
+            snprintf(what, sizeof(what), "1 MB of '%s' is masked in under 500 ms", patterns[k]);
+            check_true(what, t1 - t0 < 500);
+        }
         GBMEM_FREE(big)
 
         size_t huge_len = 5*1024*1024;
@@ -1413,13 +1435,55 @@ PRIVATE void check_secret_values(hgobj gobj)
         const char *out;    // NULL: nothing to mask
     } shapes[] = {
         {"note=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnLWh1bnRlcjI x=1", "note=******** x=1"},
-        {"curl -H 'Authorization: Bearer abc-hunter2' x", "curl -H 'Authorization: Bearer ********' x"},
+        {"curl -H 'Authorization: Bearer abc-hunter2' x", "curl -H 'Authorization: ********' x"},
         {"BEARER   tok-hunter2", "BEARER   ********"},
         {"the jwt eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.c2ln.", "the jwt ********."},
         {"pin=1234 sim_pin=5678 ping=1", "pin=******** sim_pin=******** ping=1"},
-        {"eyJabc.def x=eyJabc", NULL},     // two parts, and one: no JWT
+        {"eyJabc.def x=eyJabc", "******** x=eyJabc"},  // two parts: a JWT a cap cut (V24.4.3)
         {"xeyJa.b.c", NULL},               // inside a word
         {"bearer=x", "bearer=********"},   // its name, as before
+
+        /*
+         *  REV-CLOUD V24.4.2: after "Bearer" or "Basic" the word is masked
+         *  when it can be a credential, never when it reads as prose
+         */
+        {"the bearer of this letter", NULL},
+        {"Pay the Bearer Bond.", NULL},
+        {"the bearer self-service and/or e.g. holder", NULL},
+        {"bearer BOND", NULL},
+        {"el portador bearer señor", NULL},
+        {"a basic plan, BASIC programs, Basic Operations", NULL},
+        {"Basic YWRtaW4=", NULL},          // the base64 of "admin": no ':', no user:password
+        {"Bearer mF_9.B5f-4.1JqM", "Bearer ********"},     // RFC 6750
+        {"bearer abcdEFGHijkl", "bearer ********"},        // its case mixed
+        {"Bearer 12345678", "Bearer ********"},
+        {"Bearer abcdefghijklmnopqrstuvwxyz", "Bearer ********"},  // long
+        {"Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln", "Bearer ********"},
+        {"Bearer short1", NULL},           // shorter than a token
+        {"x Basic dXNlcjpwYXNz y", "x Basic ******** y"},  // "user:pass"
+        {"basic YTpi", "basic ********"},  // "a:b"
+
+        /*
+         *  REV-CLOUD V24.4.3: the false negatives
+         */
+        {"Bearer Bearer TOKEN", "Bearer Bearer ********"},
+        {"Bearer \"tok\"", "Bearer ********"},
+        {"bearer: tok", "bearer: ********"},
+        {"x eyJhbGciOiJSU0EtT0FFUCJ9.OKOawDo.48V1_ALb.5eym8TW.XFBoMYUZ y", "x ******** y"},  // a JWE
+        {"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0ZX", "********"},   // cut by a cap
+        {"the jwt eyJhbGciOiJIUzI1NiJ9.", "the jwt ********."},     // cut after its header
+        {"eyJhbGciOiJIUzI1NiJ9", NULL},    // a header and no '.': no JWT
+        {"token=Bearer abc x=1", "token=******** x=1"},
+        {"password=Basic xyz", "password=********"},
+        {"\"password\": Bearer abc, \"a\": 1", "\"password\": ********, \"a\": 1"},
+        {"{\"password\": \"pw-hunter2\", \"user\": \"bob\"}", "{\"password\": ********, \"user\": \"bob\"}"},
+        {"\"password\": hunter2", "\"password\": ********"},
+        {"Authorization: Basic dXNlcjpwYXNz", "Authorization: ********"},
+        {"X-Auth-Token: xat-hunter2; next", "X-Auth-Token: ********; next"},
+        {"{'token': 'py-hunter2'}", "{'token': ********}"},
+        {"token_endpoint: https://idp/token", NULL},   // about a token
+        {"at 12:30:45 on host:8080", NULL},
+        {"Wrong token: try again", "Wrong token: ******** again"},  // a secret's name and a ':' is a label
         {0, 0}
     };
     for(int i=0; shapes[i].in; i++) {
@@ -1490,6 +1554,19 @@ PRIVATE void check_secret_values(hgobj gobj)
     resp = gobj_command(cli, "token=oos2-hunter2 x=1", 0, gobj);
     JSON_DECREF(resp)
     unwatch("the first word of a line out of session (C_IEVENT_CLI)");
+
+    /*
+     *  And the name of a stats out of session: it was logged whole
+     *  (REV-CLOUD V24.4)
+     */
+    watch("oos3-hunter2", "Not in session");
+    resp = gobj_stats(srv, "password=oos3-hunter2 x=1", 0, gobj);
+    JSON_DECREF(resp)
+    unwatch("the stats asked out of session (C_IEVENT_SRV)");
+    watch("oos4-hunter2", "Not in session");
+    resp = gobj_stats(cli, "token=oos4-hunter2", 0, gobj);
+    JSON_DECREF(resp)
+    unwatch("the stats asked out of session (C_IEVENT_CLI)");
     gobj_destroy(cli);
 
     /*
@@ -1531,6 +1608,79 @@ PRIVATE void check_secret_values(hgobj gobj)
     check_true("an event that is not public is answered NULL", iev_event == NULL);
     check_true("and its kw", iev_kw? TRUE : FALSE);
     KW_DECREF(iev_kw)
+
+    /*
+     *  ... and its NAME is masked as its kw is: a password or a JWT sent as
+     *  the name of the event showed (REV-CLOUD V24.4.1)
+     */
+    gbuf = gbuffer_create(1024, 1024);
+    gbuffer_append_string(gbuf,
+        "{\"event\": \"EV_X password=uename-hunter2\", \"kw\": {\"note\": \"visible\"}}"
+    );
+    watch("uename-hunter2", "Frame of an event that is not public");
+    iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 0);
+    unwatch("the name of an event that is not public");
+    KW_DECREF(iev_kw)
+
+    /*
+     *  A frame of json that is not an inter-event: its WARNING says so, with
+     *  the frame masked
+     */
+    gbuf = gbuffer_create(1024, 1024);
+    gbuffer_append_string(gbuf,
+        "{\"note\": \"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.frame-hunter2\", \"password\": \"frame-hunter2\"}"
+    );
+    watch("frame-hunter2", "Frame is not an inter-event");
+    iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 1);
+    unwatch("a frame of json that is not an inter-event");
+    check_true("a frame that is not an inter-event is refused", iev_kw? FALSE : TRUE);
+
+    /*
+     *  The parser's refusals repeat no credential of the line (REV-CLOUD
+     *  V24.4.4): a JWT written as a key, an Authorization written as extra
+     *  text, a json "password": x, a secret as the first word
+     */
+    struct {
+        const char *line;
+        const char *secret;
+        const char *answer;     // a part of the answer that must be there
+    } refusals[] = {
+        {"help eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.keyjwt-hunter2=1", "keyjwt-hunter2", "has no option '********'"},
+        {"help eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.quote-hunter2='x", "quote-hunter2", "value with no closing quote"},
+        {"help Authorization: Basic dXNlcjpiYXNpYy1odW50ZXIy", "dXNlcjpiYXNpYy1odW50ZXIy", "'<...>'"},
+        {"help \"password\": json-hunter2", "json-hunter2", "'<...>'"},
+        {"password=first-hunter2 user=x", "first-hunter2", "command not available: 'password=********'"},
+        {0, 0, 0}
+    };
+    for(int i=0; refusals[i].line; i++) {
+        resp = gobj_command(gobj_yuno(), refusals[i].line, json_object(), gobj);
+        const char *comment = kw_get_str(0, resp, "comment", "", 0);
+        char what[128];
+        snprintf(what, sizeof(what), "refused, without its secret (%d)", i);
+        check_true(what, kw_get_int(0, resp, "result", 0, 0) < 0 &&
+            !strstr(comment, refusals[i].secret) && strstr(comment, refusals[i].answer));
+        if(strstr(comment, refusals[i].secret) || !strstr(comment, refusals[i].answer)) {
+            printf("     the answer: %s\n", comment);
+        }
+        JSON_DECREF(resp)
+    }
+
+    /*
+     *  A key with a NUL (C code can build one; a parser refuses it) is
+     *  judged by all its bytes: it was judged up to the NUL and its value
+     *  shown (REV-CLOUD V24.4)
+     */
+    json_t *jn_nul_key = json_object();
+    json_object_setn_new(jn_nul_key, "a\0password", 10, json_string("nulkey-hunter2"));
+    json_object_set_new(jn_nul_key, "note", json_string("visible-nulkey"));
+    json_t *jn_nul_shown = json_mask_secrets(jn_nul_key);
+    char *ss_nul = json2uglystr(jn_nul_shown);
+    check_true("the value of a key with a NUL is masked", ss_nul && !strstr(ss_nul, "nulkey-hunter2"));
+    check_true("the rest of that json shows", ss_nul && strstr(ss_nul, "visible-nulkey"));
+    check_int("the masked copy keeps every key", (int)json_object_size(jn_nul_shown), 2);
+    GBMEM_FREE(ss_nul)
+    JSON_DECREF(jn_nul_shown)
+    JSON_DECREF(jn_nul_key)
 }
 
 /***************************************************************************

@@ -336,10 +336,12 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
  ***************************************************************************/
 static int register_yuno_and_more(void)
 {
+    int result = 0;
+
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    register_c_ystats();
+    result += register_c_ystats();
 
     /*------------------------------------------------*
      *          Traces
@@ -366,7 +368,7 @@ static int register_yuno_and_more(void)
     if(arguments.verbose > 3) {
         gobj_set_deep_tracing(1);
     }
-    return 0;
+    return result;
 }
 
 /***************************************************************************

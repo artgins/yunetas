@@ -550,6 +550,22 @@ masked: `list-yunos foo` is refused with *"... extra parameters: 'foo'"*. Up to
 7.25.21 the positional one showed `'horse battery'`, and up to 7.26.9 the
 write-attr one did.
 
+What the masking takes includes, since 7.26.10, a `name: value` of a secret's
+name and the credential after `Basic`, so these lines are refused without
+their credential too (up to 7.26.9 each was repeated whole):
+
+| Line | Answer |
+|---|---|
+| `help Authorization: Basic dXNlcjpwYXNz` | *"... 'help' with extra parameters: '<...>'"* |
+| `help "password": hunter2` | *"... 'help' with extra parameters: '<...>'"* |
+| `help eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln=1` | *"... 'help' command has no option '********'"* |
+| `help eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln='x` | *"... parameter '********': value with no closing quote"* |
+| `password=hunter2 user=x` | *"... command not available: 'password=********'. Try 'help' command."* |
+
+A key that is not a parameter, and the first word that names no command, are
+the caller's words: they are echoed as `mask_secrets_inline()` shows them (a
+JWT written as a key was repeated in clear).
+
 That masking holds because a required secret is always the LAST required
 parameter: [`gclass_create()`](#gclass_create) refuses a command table where
 a required secret (`SDF_SECRET`, or a secret's name) is followed by another

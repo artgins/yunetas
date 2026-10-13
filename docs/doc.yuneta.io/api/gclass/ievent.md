@@ -402,21 +402,27 @@ any frame, and it must name this yuno and one of its services:
 
 What is refused, each time, is the peer's: the channel is closed, and the
 gate writes ONE warning (`MSGSET_PROTOCOL`, `peername`, the kw capped to 256
-bytes, no stack), with no credential in it. Before a session there is no
+bytes in `kw` and its size in `kw_size`, no stack), with no credential in it.
+`kw_size` is the size of the kw RECEIVED, as compact json (7.26.10+: it was the
+size of the masked, capped copy, and a kw of 900 KB said 101). A frame that is
+not json, or not an inter-event, is said as what it is by
+[`iev_create_from_gbuffer()`](#iev_create_from_gbuffer) (*"frame is not
+json"*, *"Frame is not an inter-event ..."*), masked; the gate said *"Bad
+json"* for both up to 7.26.9, with a dump of the bytes raw. Before a session there is no
 command table to ask which parameter is `SDF_SECRET`, so the NAME decides
 (`is_secret_name()`, the one list of the SDK: `passw`, `token`, `secret`,
 `jwt`, `api_key`, `private_key`, `pin`... any case): at any depth of the kw
 the value of such a key is shown as `********` (whatever its json type), and in
 a string (a command line) the value of such a `name=value` too; and, under any
-key, a value with the shape of a credential -- a JWT, the token after
-`Bearer ` -- the kernel's [`json_mask_secrets()`](#json_mask_secrets), the same
-rule as the `ievents` traces. A command sent before the card:
+key, a value with the shape of a credential -- a JWT, the credential after
+`Bearer` or `Basic` -- the kernel's [`json_mask_secrets()`](#json_mask_secrets),
+the same rule as the `ievents` traces. A command sent before the card:
 
 ```text
 kw   {"jwt": "eyJ...", "password": "s3cr3t", "kw": {"passw": "x"}, "__command__": "help token=abc",
       "note": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln", "h": "Authorization: Bearer abc"}
 log  {"jwt":"********","password":"********","kw":{"passw":"********"},"__command__":"help token=********",
-      "note":"********","h":"Authorization: Bearer ********", ...}
+      "note":"********","h":"Authorization: ********", ...}
 ```
 
 A command to a channel that is NOT in session (`mt_command` of `C_IEVENT_SRV`
@@ -425,7 +431,8 @@ refused with *"Not in session"*, an ERROR that names the command by its first
 word, capped to 64 bytes and masked: the line is forwarded whole, so up to
 7.26.9 it logged a `set-password password=...` (and, with the line
 `password=hunter2 user=x`, the first word itself: it is `password=********`
-now).
+now). A stats asked out of session (`mt_stats`) is said the same way, its
+name capped to 64 bytes and masked: it was logged whole (7.26.10+).
 
 The `ievents` and `ievents2` traces of `C_IEVENT_CLI` and `C_IEVENT_SRV`
 (`trace_inter_event()`, `trace_inter_event2()`) mask the same way, in both

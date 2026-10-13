@@ -235,7 +235,9 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
     which the agent's `command-yuno` forwards to another yuno -- is masked
     when its NAME is a secret's ([`is_secret_name()`](#is_secret_name)).
     And a value that has the shape of a credential is masked under any
-    name: a JWT, the token after `Bearer `.
+    name: a JWT, the credential after `Bearer` or `Basic` (when it can be
+    one: not a word of prose, see
+    [`mask_secrets_inline()`](#mask_secrets_inline)).
 
     A limit: a PARAMETER whose name is not a secret's -- the `content64`
     of the agent's `write-tty`, `create-config` and `update-config` -- is

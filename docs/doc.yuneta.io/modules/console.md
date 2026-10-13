@@ -52,7 +52,8 @@ int register_c_editline(void);
 ```C
 static int register_yuno_and_more(void)
 {
-    register_c_editline();
-    return 0;
+    int result = 0;
+    result += register_c_editline();
+    return result;  // a gclass refused stops the yuno (7.26.10+)
 }
 ```

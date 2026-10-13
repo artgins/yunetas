@@ -1401,7 +1401,10 @@ PRIVATE const char *secret_name_joined[] = {
 /*
  *  ... or one of these as a WHOLE segment, a run of letters and digits
  *  (pass, db_pass, user-pin, sim_pin, otp, user[pin]): inside a word they
- *  are other words (passive, bypass, compass, ping, mapping, spinner, otpx)
+ *  are other words (passive, bypass, compass, ping, mapping, spinner, otpx).
+ *  As a segment they take ordinary names too -- gpio_pin, a `pass` that
+ *  counts passes, first_pass, sum_sla_pass --: accepted, the safe side
+ *  (REV-CLOUD V24.4)
  */
 PRIVATE const char *secret_name_segments[] = {
     "pass",
@@ -1486,12 +1489,20 @@ PRIVATE void make_secret_first_letters(void)
 }
 
 /*
- *  Is the run of `seg_len` bytes at `seg` one of `list` (any case)?
+ *  Is the run of `seg_len` bytes at `seg` one of `list` (any case, ASCII:
+ *  strncasecmp() of a Turkish locale does not take "PIN" for "pin")?
  */
 PRIVATE BOOL name_segment_in(const char *seg, size_t seg_len, const char **list)
 {
     for(int n=0; seg_len && list[n]; n++) {
-        if(strlen(list[n]) == seg_len && strncasecmp(seg, list[n], seg_len)==0) {
+        if(strlen(list[n]) != seg_len) {
+            continue;
+        }
+        size_t i = 0;
+        while(i < seg_len && name_lower(seg[i]) == list[n][i]) {
+            i++;
+        }
+        if(i == seg_len) {
             return TRUE;
         }
     }
@@ -1699,16 +1710,49 @@ PRIVATE const char *inline_secret_value_end(const char *p, char outer)
 
 /***************************************************************************
  *  A credential by its SHAPE, whatever names it -- the shapes the agent's
- *  audit record redacts (audit_record.c):
- *    - a JWT: "eyJ" (the base64url of '{"') at the start of a word, and
- *      three parts of base64url joined by '.'; the dots at the end of the
- *      run are not its own (a JWT ends a sentence: "... eyJ.eyJ.sig.");
- *    - the token after "Bearer " (any case, a word of its own).
+ *  audit record redacts (audit_record.c), and the schemes of an HTTP
+ *  Authorization:
+ *    - a JWT or a JWE: "eyJ" (the base64url of '{"') at the start of a
+ *      word, base64url, and a '.' after it -- three parts joined by '.' (a
+ *      JWS), five (a JWE), or fewer when a cap cut it (a dump of 256 bytes
+ *      kept "eyJhdr.eyJpay" and the header and part of the payload showed:
+ *      REV-CLOUD V24.4.3); the dots at the end of the run are not its own
+ *      (a JWT ends a sentence: "... eyJ.eyJ.sig.");
+ *    - the credential after the scheme word "Bearer" or "Basic" (any case,
+ *      a word of its own): scheme_credential().
  *  On the bytes from `start` to `end`.
  ***************************************************************************/
+#define MASK_TOKEN_MIN  8      // a Bearer token is this long at least
+#define MASK_PROSE_MAX  24     // a word of prose is shorter
+
 PRIVATE BOOL is_base64url_char(char c)
 {
     return (is_ascii_alnum(c) || c == '-' || c == '_')? TRUE : FALSE;
+}
+
+PRIVATE BOOL is_ascii_letter(char c)
+{
+    return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))? TRUE : FALSE;
+}
+
+PRIVATE BOOL is_ascii_upper(char c)
+{
+    return (c >= 'A' && c <= 'Z')? TRUE : FALSE;
+}
+
+/*
+ *  The `n` bytes at `p` are `word` (lower case) in any case: ASCII only,
+ *  whatever the locale (strncasecmp() of a Turkish locale folds 'I' to a
+ *  dotless i)
+ */
+PRIVATE BOOL ascii_case_equal(const char *p, const char *word, size_t n)
+{
+    for(size_t i = 0; i < n; i++) {
+        if(name_lower(p[i]) != word[i]) {
+            return FALSE;
+        }
+    }
+    return TRUE;
 }
 
 /*
@@ -1723,51 +1767,240 @@ PRIVATE size_t jwt_len(const char *p, const char *start, const char *end)
         return 0;   // inside a word, or a part of a dotted run
     }
     const char *e = p;
-    int dots = 0;
+    BOOL dotted = FALSE;
     while(e < end && (is_base64url_char(*e) || *e == '.')) {
         if(*e == '.') {
-            dots++;
+            dotted = TRUE;
         }
         e++;
     }
+    if(!dotted) {
+        return 0;   // base64url of a json, and no part after it
+    }
     while(e[-1] == '.') {
         e--;        // never before p: p[0] is 'e'
-        dots--;
     }
-    return (dots == 2)? (size_t)(e - p) : 0;
+    return (size_t)(e - p);
 }
 
 /*
- *  The token after a "Bearer " that begins at `p`: its offset from `p` in
- *  *token_offset and its bytes as the return, 0 if none begins there. The
- *  token runs to a blank, an end of line, a quote or one of ",;}]".
+ *  The scheme word that begins at `p` -- "bearer" or "basic", any case, a
+ *  word of its own and a blank after it -- as its bytes, 0 if none
  */
-PRIVATE size_t bearer_token_len(const char *p, const char *start, const char *end, size_t *token_offset)
+PRIVATE size_t scheme_word_len(const char *p, const char *start, const char *end)
 {
-    const size_t word_len = 6;  // "bearer"
-    if((size_t)(end - p) <= word_len || strncasecmp(p, "bearer", word_len) != 0) {
-        return 0;
-    }
+    static const char *schemes[] = {"bearer", "basic", 0};
     if(p > start && is_ascii_alnum(p[-1])) {
         return 0;   // inside a word
     }
-    const char *t = p + word_len;
-    if(*t != ' ' && *t != '\t') {
-        return 0;
+    for(int i=0; schemes[i]; i++) {
+        size_t n = strlen(schemes[i]);
+        if((size_t)(end - p) > n && ascii_case_equal(p, schemes[i], n) &&
+                (p[n] == ' ' || p[n] == '\t')) {
+            return n;
+        }
     }
-    while(t < end && (*t == ' ' || *t == '\t')) {
-        t++;
-    }
-    const char *e = t;
-    while(e < end && !strchr(" \t\r\n'\",;}]", *e)) {
-        e++;
-    }
-    *token_offset = (size_t)(t - p);
-    return (size_t)(e - t);
+    return 0;
 }
 
 /*
- *  Where a JWT, or a "bearer" word, may begin at `p`: what is counted to
+ *  A token68 character (RFC 7235, the credentials of an Authorization
+ *  scheme): the '=' of its padding comes only at its end
+ */
+PRIVATE BOOL is_token68_char(char c)
+{
+    return (is_ascii_alnum(c) || c == '-' || c == '.' || c == '_' ||
+        c == '~' || c == '+' || c == '/')? TRUE : FALSE;
+}
+
+/*
+ *  Is the word of `n` bytes at `w` a word of prose? Letters only, in runs
+ *  joined by one '-', '.' or '/' (self-service, e.g, and/or), each run in
+ *  lower case, in upper case or capitalized (bond, Bond, BOND), and shorter
+ *  than MASK_PROSE_MAX. A credential is not: it holds a digit or a symbol
+ *  of its own (_ ~ + =), mixes its case (aBc, abC), or is long.
+ */
+PRIVATE BOOL is_prose_word(const char *w, size_t n)
+{
+    if(n == 0 || n >= MASK_PROSE_MAX) {
+        return FALSE;
+    }
+    size_t i = 0;
+    while(1) {
+        size_t r = i;
+        BOOL upper_rest = TRUE;
+        BOOL lower_rest = TRUE;
+        while(r < n && is_ascii_letter(w[r])) {
+            if(r > i) {
+                if(is_ascii_upper(w[r])) {
+                    lower_rest = FALSE;
+                } else {
+                    upper_rest = FALSE;
+                }
+            }
+            r++;
+        }
+        if(r == i) {
+            return FALSE;   // no letter where a run begins
+        }
+        if(!lower_rest && !(upper_rest && is_ascii_upper(w[i]))) {
+            return FALSE;   // its case mixed
+        }
+        if(r == n) {
+            return TRUE;
+        }
+        if((w[r] != '-' && w[r] != '.' && w[r] != '/') || r + 1 == n) {
+            return FALSE;
+        }
+        i = r + 1;
+    }
+}
+
+/*
+ *  The value of a base64 digit, -1 for a byte that is none
+ */
+PRIVATE int base64_digit(char c)
+{
+    if(c >= 'A' && c <= 'Z') {
+        return c - 'A';
+    }
+    if(c >= 'a' && c <= 'z') {
+        return c - 'a' + 26;
+    }
+    if(c >= '0' && c <= '9') {
+        return c - '0' + 52;
+    }
+    if(c == '+') {
+        return 62;
+    }
+    if(c == '/') {
+        return 63;
+    }
+    return -1;
+}
+
+/*
+ *  Is the word of `n` bytes at `w` the base64 of "user:password", the
+ *  credentials of a Basic Authorization (RFC 7617)? Base64 only, its '='
+ *  padding at the end, and a ':' in the bytes it decodes to -- the ones a
+ *  cap left too.
+ */
+PRIVATE BOOL is_basic_credential(const char *w, size_t n)
+{
+    while(n > 0 && w[n-1] == '=') {
+        n--;
+    }
+    uint32_t bits = 0;
+    int n_bits = 0;
+    for(size_t i = 0; i < n; i++) {
+        int v = base64_digit(w[i]);
+        if(v < 0) {
+            return FALSE;
+        }
+        bits = ((bits << 6) | (uint32_t)v) & 0x3FFF;
+        n_bits += 6;
+        if(n_bits >= 8) {
+            n_bits -= 8;
+            if(((bits >> n_bits) & 0xFF) == ':') {
+                return TRUE;
+            }
+        }
+    }
+    return FALSE;
+}
+
+/*
+ *  The credential after a scheme word that begins at `p`
+ *  (scheme_word_len()): its offset from `p` in *offset, and its bytes as
+ *  the return; 0 when what follows the scheme is no credential. It is the
+ *  word after the scheme's blanks:
+ *    - in quotes ("Bearer \"tok\""), the quotes too: masked whatever its
+ *      shape, a quote makes it data;
+ *    - after the same scheme word again ("Bearer Bearer tok", a header
+ *      prefixed twice): masked whatever its shape;
+ *    - else a run of token68 (a final '.' that ends a sentence is not its
+ *      own), masked when it can be a credential: not a word of prose
+ *      (is_prose_word()), and for "Bearer" MASK_TOKEN_MIN bytes at least,
+ *      for "Basic" the base64 of a "user:password" (is_basic_credential()).
+ *  So "the bearer of this letter", "the bearer bond", "basic plan" or
+ *  "Basic Operations" are left as they are (REV-CLOUD V24.4.2: the word
+ *  after "bearer" was masked whatever it was).
+ */
+PRIVATE size_t scheme_credential(const char *p, const char *start, const char *end, size_t *offset)
+{
+    size_t n = scheme_word_len(p, start, end);
+    if(!n) {
+        return 0;
+    }
+    const char *scheme = (n == 5)? "basic" : "bearer";
+    BOOL context = FALSE;
+    const char *t = p + n;
+    while(t < end && (*t == ' ' || *t == '\t')) {
+        t++;
+    }
+    /*
+     *  The scheme doubled, once: a loop over "Bearer Bearer Bearer ..." from
+     *  each of its words was quadratic
+     */
+    if(t < end && scheme_word_len(t, start, end) == n && ascii_case_equal(t, scheme, n)) {
+        t += n;
+        context = TRUE;
+        while(t < end && (*t == ' ' || *t == '\t')) {
+            t++;
+        }
+    }
+    if(t >= end) {
+        return 0;
+    }
+
+    if(*t == '"' || *t == '\'') {
+        const char *q = t + 1;
+        while(q < end && *q != *t && *q != ' ' && *q != '\t' && *q != '\r' && *q != '\n') {
+            q++;
+        }
+        if(q < end && *q == *t && q > t + 1) {
+            *offset = (size_t)(t - p);
+            return (size_t)(q + 1 - t);
+        }
+        return 0;
+    }
+
+    const char *e = t;
+    while(e < end && is_token68_char(*e)) {
+        e++;
+    }
+    BOOL padded = FALSE;
+    while(e < end && *e == '=') {
+        e++;
+        padded = TRUE;
+    }
+    if(!padded) {
+        while(e > t && e[-1] == '.') {
+            e--;
+        }
+    }
+    size_t len = (size_t)(e - t);
+    if(len == 0) {
+        return 0;
+    }
+    if(!context) {
+        if(is_prose_word(t, len)) {
+            return 0;
+        }
+        if(n == 5) {
+            if(!is_basic_credential(t, len)) {
+                return 0;
+            }
+        } else if(len < MASK_TOKEN_MIN) {
+            return 0;
+        }
+    }
+    *offset = (size_t)(t - p);
+    return len;
+}
+
+/*
+ *  Where a JWT, or a scheme word, may begin at `p`: what is counted to
  *  bound the copy, and what makes a text worth looking at
  */
 PRIVATE BOOL may_begin_shape(const char *p)
@@ -1776,18 +2009,95 @@ PRIVATE BOOL may_begin_shape(const char *p)
         return (p[1] == 'y' && p[2] == 'J')? TRUE : FALSE;
     }
     if(p[0] == 'b' || p[0] == 'B') {
-        return (strncasecmp(p, "bearer", 6)==0)? TRUE : FALSE;
+        size_t n = 0;
+        while(n < 6 && p[n]) {
+            n++;
+        }
+        return ((n >= 6 && ascii_case_equal(p, "bearer", 6)) ||
+            (n >= 5 && ascii_case_equal(p, "basic", 5)))? TRUE : FALSE;
     }
     return FALSE;
+}
+
+/*
+ *  Where the value of a "name: value" ends, the value beginning at `v` (its
+ *  blanks skipped): a quoted text to its closing quote, a json object or
+ *  list to its closing bracket (the texts in it skipped), a scheme and the
+ *  word after it ("Bearer abc": the WHOLE value), or one word, to a blank,
+ *  an end of line or one of ,;&)]}<>"'
+ */
+PRIVATE BOOL is_colon_value_stop(char c)
+{
+    return (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == ',' || c == ';' ||
+        c == '&' || c == ')' || c == ']' || c == '}' || c == '<' || c == '>' ||
+        c == '"' || c == '\'')? TRUE : FALSE;
+}
+
+PRIVATE const char *colon_value_end(const char *v, const char *start, const char *end)
+{
+    if(v >= end) {
+        return v;
+    }
+    if(*v == '"' || *v == '\'') {
+        const char *e = v + 1;
+        while(e < end && *e != *v) {
+            if(*e == '\\' && e + 1 < end) {
+                e++;
+            }
+            e++;
+        }
+        return (e < end)? e + 1 : e;
+    }
+    if(*v == '{' || *v == '[') {
+        int depth = 0;
+        BOOL in_string = FALSE;
+        for(const char *e = v; e < end; e++) {
+            if(in_string) {
+                if(*e == '\\' && e + 1 < end) {
+                    e++;
+                } else if(*e == '"') {
+                    in_string = FALSE;
+                }
+            } else if(*e == '"') {
+                in_string = TRUE;
+            } else if(*e == '{' || *e == '[') {
+                depth++;
+            } else if(*e == '}' || *e == ']') {
+                depth--;
+                if(depth == 0) {
+                    return e + 1;
+                }
+            }
+        }
+        return end;
+    }
+    const char *e = v;
+    size_t n = scheme_word_len(v, start, end);
+    if(n) {
+        e = v + n;
+        while(e < end && (*e == ' ' || *e == '\t')) {
+            e++;
+        }
+        if(e < end && (*e == '"' || *e == '\'')) {
+            return colon_value_end(e, start, end);
+        }
+    }
+    while(e < end && !is_colon_value_stop(*e)) {
+        e++;
+    }
+    return e;
 }
 
 /***************************************************************************
  *  A text (a command line) with the value of every "name=value" whose name
  *  is a secret's (is_secret_name()) written as "********", quoted or not;
  *  an unquoted one runs to the next "word=" (inline_secret_value_end()).
- *  And a JWT, or the token after "Bearer ", wherever they are, whatever
- *  names them. The rest of the text is kept as it is. A gbmem string, or
- *  NULL when there was nothing to mask.
+ *  The same for a "name: value", its name in quotes or not (a json, a
+ *  header, a label: "password": hunter2, Authorization: Basic x, bearer:
+ *  tok), its value as colon_value_end() reads it. And a JWT, or the
+ *  credential after "Bearer " or "Basic " (scheme_credential()), wherever
+ *  they are, whatever names them. The rest of the text is kept as it is. A
+ *  gbmem string, or NULL when there was nothing to mask.
  ***************************************************************************/
 PUBLIC char *mask_secrets_inline(const char *str)
 {
@@ -1795,17 +2105,17 @@ PUBLIC char *mask_secrets_inline(const char *str)
         return NULL;
     }
     size_t len = 0;
-    size_t n_eq = 0;
+    size_t n_sep = 0;
     size_t n_shapes = 0;
     for(const char *p = str; *p; p++) {
         len++;
-        if(*p == '=') {
-            n_eq++;
+        if(*p == '=' || *p == ':') {
+            n_sep++;
         } else if(may_begin_shape(p)) {
             n_shapes++;
         }
     }
-    if(n_eq == 0 && n_shapes == 0) {
+    if(n_sep == 0 && n_shapes == 0) {
         return NULL;
     }
     if(len > MASK_MAX_BYTES) {
@@ -1813,15 +2123,16 @@ PUBLIC char *mask_secrets_inline(const char *str)
     }
     const char *str_end = str + len;
 
-    BOOL value_is_secret = n_eq? inline_value_is_secret(str) : FALSE;
+    BOOL value_is_secret = n_sep? inline_value_is_secret(str) : FALSE;
     const char *mask = "********";
     size_t mask_len = strlen(mask);
     /*
      *  Each run masked becomes "********": it can grow, by at most
      *  mask_len for each one, and each run takes four bytes at least (a
-     *  name of three and its '=', a JWT, "bearer" and its blank)
+     *  name of three and its '=' or ':', "eyJ" and its '.', a scheme word
+     *  and its blank)
      */
-    size_t n_masked_max = MIN(n_eq + n_shapes, len/4 + 1);
+    size_t n_masked_max = MIN(n_sep + n_shapes, len/4 + 1);
     char *masked = gbmem_malloc(len + n_masked_max*mask_len + 1);
     if(!masked) {
         // Error already logged
@@ -1852,10 +2163,10 @@ PUBLIC char *mask_secrets_inline(const char *str)
         size_t token_offset = 0;
         size_t shape_len = (*p == 'e')? jwt_len(p, str, str_end) : 0;
         if(*p == 'b' || *p == 'B') {
-            shape_len = bearer_token_len(p, str, str_end, &token_offset);
+            shape_len = scheme_credential(p, str, str_end, &token_offset);
         }
         if(shape_len) {
-            memcpy(out, p, token_offset);   // "Bearer " is kept
+            memcpy(out, p, token_offset);   // the scheme is kept: "Bearer "
             out += token_offset;
             memcpy(out, mask, mask_len);
             out += mask_len;
@@ -1864,39 +2175,48 @@ PUBLIC char *mask_secrets_inline(const char *str)
             word = p;
             continue;
         }
-        if(*p != '=') {
+        if(*p != '=' && *p != ':') {
             *out++ = *p++;
             continue;
         }
         /*
-         *  The name is the word before the '=' (since the last blank, or the
-         *  last '=' of the word -- a '=' is never part of a name), so
-         *  'password'=x and user[password]=x are names too; no more than its
-         *  LAST MASK_MAX_NAME bytes: each '=' looks back a bounded way
-         *  ("a=a=a=..." asked about the whole word at each '=')
+         *  The name is the word before the '=' or the ':' (since the last
+         *  blank, or the last '=' or ':' of the word -- neither is ever part
+         *  of a name), so 'password'=x, user[password]=x and "password": x
+         *  are names too; no more than its LAST MASK_MAX_NAME bytes: each
+         *  separator looks back a bounded way ("a=a=a=..." asked about the
+         *  whole word at each '=')
          */
+        char sep = *p;
         const char *name = ((size_t)(p - word) > MASK_MAX_NAME)? p - MASK_MAX_NAME : word;
         size_t name_len = (size_t)(p - name);
         word = p + 1;
-        if(!(is_secret_name(name, name_len) ||
-                (value_is_secret && name_len == 5 && strncasecmp(name, "value", 5)==0))) {
+        if(!(is_secret_name(name, name_len) || (sep == '=' && value_is_secret &&
+                name_len == 5 && ascii_case_equal(name, "value", 5)))) {
             *out++ = *p++;
             continue;
         }
 
-        *out++ = *p++;  // the '='
-        char quote = (*p == '"' || *p == '\'')? *p : 0;
+        *out++ = *p++;  // the '=' or the ':'
         const char *end;
-        if(quote) {
-            end = p + 1;
-            while(*end && *end != quote) {
-                end++;
+        if(sep == ':') {
+            while(*p == ' ' || *p == '\t') {
+                *out++ = *p++;
             }
-            if(*end == quote) {
-                end++;
-            }
+            end = colon_value_end(p, str, str_end);
         } else {
-            end = inline_secret_value_end(p, outer);
+            char quote = (*p == '"' || *p == '\'')? *p : 0;
+            if(quote) {
+                end = p + 1;
+                while(*end && *end != quote) {
+                    end++;
+                }
+                if(*end == quote) {
+                    end++;
+                }
+            } else {
+                end = inline_secret_value_end(p, outer);
+            }
         }
         if(end > p) {
             memcpy(out, mask, mask_len);
@@ -1916,22 +2236,25 @@ PUBLIC char *mask_secrets_inline(const char *str)
 }
 
 /***************************************************************************
- *  Mask `len` bytes from `p` with '*', up to a stop byte of `stops`, or
- *  a CR/LF, or the end. Return the bytes masked.
+ *  Mask the bytes from `p` with '*', up to a stop byte of `stops`, or a
+ *  CR/LF, or the end. Return the bytes masked that were not one already.
  ***************************************************************************/
 PRIVATE size_t mask_run(char *p, const char *end, const char *stops)
 {
     size_t n = 0;
     while(p < end && *p != '\r' && *p != '\n' && !strchr(stops, *p)) {
-        *p++ = '*';
-        n++;
+        if(*p != '*') {
+            *p = '*';
+            n++;
+        }
+        p++;
     }
     return n;
 }
 
 PRIVATE BOOL is_name_char(char c)
 {
-    return (isalnum((unsigned char)c) || c == '_' || c == '-' || c == '.')? TRUE : FALSE;
+    return (is_ascii_alnum(c) || c == '_' || c == '-' || c == '.')? TRUE : FALSE;
 }
 
 /*
@@ -1949,17 +2272,113 @@ PRIVATE size_t mask_bytes(char *p, size_t n)
     return changed;
 }
 
+/*
+ *  The value at `v` is a scheme and its credential ("Bearer abc", under a
+ *  secret's name): its WHOLE, the scheme, its blanks and the word after
+ *  them to a byte of `stops`, as '*'. Up to 7.26.9 the name rule masked
+ *  the scheme alone and the scheme rule then saw "******": the token showed
+ *  (REV-CLOUD V24.4.3). Return the bytes masked, 0 when `v` begins no
+ *  scheme.
+ */
+PRIVATE size_t mask_scheme_value(char *v, const char *start, char *end, const char *stops)
+{
+    size_t n = scheme_word_len(v, start, end);
+    if(!n) {
+        return 0;
+    }
+    char *w = v + n;
+    while(w < end && (*w == ' ' || *w == '\t')) {
+        w++;
+    }
+    size_t masked = mask_bytes(v, (size_t)(w - v));
+    if(w < end && (*w == '"' || *w == '\'')) {
+        masked += mask_bytes(w, (size_t)(colon_value_end(w, start, end) - w));
+    } else {
+        masked += mask_run(w, end, stops);
+    }
+    return masked;
+}
+
+/*
+ *  The value of a "name": value or a name: value, at `v` (its blanks
+ *  skipped), as '*': a quoted text inside its quotes, an object or a list
+ *  inside its brackets (to the one that closes it, the texts in it
+ *  skipped), a scheme and its credential whole, or a word to a blank or
+ *  one of ,;&)]}<>"'. Return the bytes masked.
+ */
+#define DUMP_VALUE_STOPS    ",;&)]}<>\"' \t"
+
+PRIVATE size_t mask_value_after_colon(char *v, const char *start, char *end)
+{
+    size_t masked = 0;
+    if(v >= end) {
+        return 0;
+    }
+    if(*v == '"' || *v == '\'') {
+        char quote = *v;
+        char *s = v + 1;
+        while(s < end && *s != quote) {
+            if(*s == '\\' && s + 1 < end) {
+                masked += mask_bytes(s, 1);
+                s++;
+            }
+            masked += mask_bytes(s, 1);
+            s++;
+        }
+        return masked;
+    }
+    if(*v == '{' || *v == '[') {
+        int depth = 0;
+        BOOL in_string = FALSE;
+        for(char *s = v; s < end; s++) {
+            if(in_string) {
+                if(*s == '\\' && s + 1 < end) {
+                    masked += mask_bytes(s, 1);
+                    s++;
+                } else if(*s == '"') {
+                    in_string = FALSE;
+                }
+            } else if(*s == '"') {
+                in_string = TRUE;
+            } else if(*s == '{' || *s == '[') {
+                depth++;
+                if(depth == 1) {
+                    continue;
+                }
+            } else if(*s == '}' || *s == ']') {
+                depth--;
+                if(depth == 0) {
+                    break;
+                }
+            }
+            if(*s != '\r' && *s != '\n') {
+                masked += mask_bytes(s, 1);
+            }
+        }
+        return masked;
+    }
+    size_t n = mask_scheme_value(v, start, end, DUMP_VALUE_STOPS);
+    if(n) {
+        return n;
+    }
+    return mask_run(v, end, DUMP_VALUE_STOPS);
+}
+
 /***************************************************************************
  *  The bytes of a traffic dump with the credentials that can be told
  *  soundly written as '*', in place, the length kept:
  *    - the value of an HTTP "Cookie:", "Set-Cookie:", "Authorization:" or
- *      "Proxy-Authorization:" header (for the last two, after the scheme:
- *      "Authorization: Bearer ******");
+ *      "Proxy-Authorization:" header at the start of a line (for the last
+ *      two, after the scheme: "Authorization: Bearer ******");
  *    - the value of "name=value" whose name is a secret's (is_secret_name()),
  *      as in a query string, a form body or a command line;
- *    - the value of a json "name": value whose name is a secret's;
- *    - a JWT, and the token after "Bearer ", wherever they are
- *      (jwt_len(), bearer_token_len()).
+ *    - the value of a json "name": value, and of a name: value (another
+ *      header, a label: X-Auth-Token: x, bearer: tok), whose name is a
+ *      secret's;
+ *      a value that is a scheme and its credential is masked WHOLE
+ *      (token=Bearer abc, "password": Basic xyz);
+ *    - a JWT, and the credential after "Bearer" or "Basic", wherever they
+ *      are (jwt_len(), scheme_credential()).
  *  Return the bytes masked.
  ***************************************************************************/
 PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
@@ -1972,6 +2391,7 @@ PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
     }
     char *end = bf + len;
     size_t masked = 0;
+    const char *header_colon = NULL;    // the ':' of the header masked at a line start
 
     for(char *p = bf; p < end; p++) {
         /*
@@ -1980,7 +2400,8 @@ PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
         if(p == bf || p[-1] == '\n') {
             for(int h=0; headers[h]; h++) {
                 size_t hl = strlen(headers[h]);
-                if((size_t)(end - p) > hl && strncasecmp(p, headers[h], hl)==0) {
+                if((size_t)(end - p) > hl && ascii_case_equal(p, headers[h], hl)) {
+                    header_colon = p + hl - 1;
                     char *v = p + hl;
                     while(v < end && (*v == ' ' || *v == '\t')) {
                         v++;
@@ -2001,9 +2422,9 @@ PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
         }
 
         /*
-         *  A credential by its shape: a JWT, the token after "Bearer " (the
-         *  token of an Authorization header is masked above already: its
-         *  bytes are counted once)
+         *  A credential by its shape: a JWT, the credential after "Bearer"
+         *  or "Basic" (the one of an Authorization header is masked above
+         *  already: its bytes are counted once)
          */
         if(*p == 'e') {
             size_t n = jwt_len(p, bf, end);
@@ -2013,7 +2434,7 @@ PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
             }
         } else if(*p == 'b' || *p == 'B') {
             size_t token_offset = 0;
-            size_t n = bearer_token_len(p, bf, end, &token_offset);
+            size_t n = scheme_credential(p, bf, end, &token_offset);
             if(n) {
                 masked += mask_bytes(p + token_offset, n);
                 continue;
@@ -2031,8 +2452,23 @@ PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
                     char q[2] = {*v, 0};
                     masked += mask_run(v + 1, end, q);
                 } else {
-                    masked += mask_run(v, end, "&; \t,\"'<>");
+                    size_t n_scheme = mask_scheme_value(v, bf, end, "&; \t,\"'<>");
+                    masked += n_scheme? n_scheme : mask_run(v, end, "&; \t,\"'<>");
                 }
+            }
+        }
+
+        /*
+         *  name: value -- not the colon of a header masked above
+         */
+        if(*p == ':' && p > bf && p != header_colon) {
+            char *n = (char *)name_before(bf, p);
+            if(n < p && is_secret_name(n, (size_t)(p - n))) {
+                char *v = p + 1;
+                while(v < end && (*v == ' ' || *v == '\t')) {
+                    v++;
+                }
+                masked += mask_value_after_colon(v, bf, end);
             }
         }
 
@@ -2055,53 +2491,7 @@ PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
                     while(v < end && (*v == ' ' || *v == '\t')) {
                         v++;
                     }
-                    if(v < end && *v == '"') {
-                        char *s = v + 1;
-                        while(s < end && *s != '"') {
-                            if(*s == '\\' && s + 1 < end) {
-                                *s++ = '*';
-                                masked++;
-                            }
-                            *s++ = '*';
-                            masked++;
-                        }
-                    } else if(v < end && (*v == '{' || *v == '[')) {
-                        /*
-                         *  A whole object or list: its inside, to the bracket
-                         *  that closes it (strings skipped), the brackets kept
-                         */
-                        int depth = 0;
-                        BOOL in_string = FALSE;
-                        char *s = v;
-                        for(; s < end; s++) {
-                            if(in_string) {
-                                if(*s == '\\' && s + 1 < end) {
-                                    *s++ = '*';
-                                    masked++;
-                                } else if(*s == '"') {
-                                    in_string = FALSE;
-                                }
-                            } else if(*s == '"') {
-                                in_string = TRUE;
-                            } else if(*s == '{' || *s == '[') {
-                                depth++;
-                                if(depth == 1) {
-                                    continue;
-                                }
-                            } else if(*s == '}' || *s == ']') {
-                                depth--;
-                                if(depth == 0) {
-                                    break;
-                                }
-                            }
-                            if(*s != '\r' && *s != '\n') {
-                                *s = '*';
-                                masked++;
-                            }
-                        }
-                    } else {
-                        masked += mask_run(v, end, ",}] \t");
-                    }
+                    masked += mask_value_after_colon(v, bf, end);
                     p = q;  // the closing quote of the name is not an opening one
                 }
             }
@@ -2187,18 +2577,24 @@ PRIVATE json_t *json_mask_container(json_t *jn, json_t *memo, int depth, size_t 
         result = json_object();
         const char *attribute = json_string_value(json_object_get(jn, "attribute"));
         BOOL value_is_secret = attribute && is_secret_name_tail(attribute, strlen(attribute));
+        /*
+         *  A key is judged, and copied, by all its bytes: a key with a NUL
+         *  (a parser refuses one, C code can build it) was judged up to the
+         *  NUL, its value shown, and the copy held the key cut (REV-CLOUD
+         *  V24.4)
+         */
         const char *key;
+        size_t key_len;
         json_t *value;
-        json_object_foreach(jn, key, value) {
+        json_object_keylen_foreach(jn, key, key_len, value) {
             if(*budget == 0) {
                 truncated = TRUE;
                 break;
             }
-            size_t key_len = strlen(key);
             charge(budget, 1 + key_len);
             json_t *shown;
             BOOL secret = is_secret_name_tail(key, key_len) ||
-                (value_is_secret && strcmp(key, "value")==0);
+                (value_is_secret && key_len == 5 && memcmp(key, "value", 5)==0);
             if(secret && secret_value_is_set(value)) {
                 shown = json_string("********");
             } else {
@@ -2207,7 +2603,7 @@ PRIVATE json_t *json_mask_container(json_t *jn, json_t *memo, int depth, size_t 
             if(shown != value) {
                 changed = TRUE;
             }
-            json_object_set_new(result, key, shown);
+            json_object_setn_new(result, key, key_len, shown);
         }
         if(truncated) {
             json_object_set_new(result, "<more>", json_string(MASK_TOO_LARGE));
@@ -4208,7 +4604,15 @@ PUBLIC int json_check_refcounts(
 
 /***************************************************************************
  *  A dict or a list met by json_refcounts_report(), and where it is: its
- *  key in the dict of the frame `parent`, or its index in the list.
+ *  key in the dict of the frame `parent`, or its index in the list. Only a
+ *  dict or a list gets a frame (32 bytes): a scalar is counted where its
+ *  container is walked. Up to 7.26.9 a frame was reserved for EVERY child
+ *  of the container being walked, scalars too, so a list of a million
+ *  integers asked one block of 32 MB and the walk stopped at its root
+ *  (REV-CLOUD V24.4.5).
+ *
+ *  The frames are kept in chunks of REFCOUNT_CHUNK_FRAMES: no block grows
+ *  with the json, MAX_BLOCK bounds none of them.
  ***************************************************************************/
 typedef struct {
     json_t *jn;
@@ -4217,11 +4621,86 @@ typedef struct {
     size_t idx;
 } refcount_frame_t;
 
+#define REFCOUNT_CHUNK_FRAMES   (16*1024)   // 512 KB of frames
+#define REFCOUNT_FIRST_FRAMES   64          // the first chunk doubles from here
+
+typedef struct {
+    refcount_frame_t **chunks;
+    size_t n_chunks;
+    size_t capacity;    // the frames of the chunks: the first one doubles up to a chunk
+    size_t count;
+} refcount_frames_t;
+
+PRIVATE refcount_frame_t *refcount_frame_at(const refcount_frames_t *frames, size_t i)
+{
+    return &frames->chunks[i / REFCOUNT_CHUNK_FRAMES][i % REFCOUNT_CHUNK_FRAMES];
+}
+
+/*
+ *  One more frame. 0, or -1 with no memory for it (Error already logged).
+ */
+PRIVATE int refcount_frames_push(refcount_frames_t *frames, refcount_frame_t frame)
+{
+    if(frames->count == frames->capacity) {
+        if(frames->capacity < REFCOUNT_CHUNK_FRAMES) {
+            /*
+             *  The first chunk doubles, as a small json needs few frames:
+             *  REFCOUNT_FIRST_FRAMES * 2^n reaches REFCOUNT_CHUNK_FRAMES
+             */
+            size_t new_capacity = frames->capacity? frames->capacity * 2 : REFCOUNT_FIRST_FRAMES;
+            if(!frames->chunks) {
+                frames->chunks = gbmem_malloc(sizeof(refcount_frame_t *));
+                if(!frames->chunks) {
+                    return -1;  // Error already logged
+                }
+                frames->chunks[0] = NULL;
+                frames->n_chunks = 1;
+            }
+            refcount_frame_t *first = frames->chunks[0]?
+                gbmem_realloc(frames->chunks[0], new_capacity * sizeof(refcount_frame_t)) :
+                gbmem_malloc(new_capacity * sizeof(refcount_frame_t));
+            if(!first) {
+                return -1;  // Error already logged
+            }
+            frames->chunks[0] = first;
+            frames->capacity = new_capacity;
+        } else {
+            refcount_frame_t **chunks = gbmem_realloc(frames->chunks,
+                (frames->n_chunks + 1) * sizeof(refcount_frame_t *)
+            );
+            if(!chunks) {
+                return -1;  // Error already logged
+            }
+            frames->chunks = chunks;
+            frames->chunks[frames->n_chunks] = gbmem_malloc(REFCOUNT_CHUNK_FRAMES * sizeof(refcount_frame_t));
+            if(!frames->chunks[frames->n_chunks]) {
+                return -1;  // Error already logged
+            }
+            frames->n_chunks++;
+            frames->capacity += REFCOUNT_CHUNK_FRAMES;
+        }
+    }
+    *refcount_frame_at(frames, frames->count) = frame;
+    frames->count++;
+    return 0;
+}
+
+PRIVATE void refcount_frames_free(refcount_frames_t *frames)
+{
+    for(size_t i = 0; i < frames->n_chunks; i++) {
+        GBMEM_FREE(frames->chunks[i])
+    }
+    GBMEM_FREE(frames->chunks)
+    frames->n_chunks = 0;
+    frames->capacity = 0;
+    frames->count = 0;
+}
+
 /***************************************************************************
  *  The kw path of what is at (key or idx) in the frame `frame`
  ***************************************************************************/
 PRIVATE json_t *refcount_path(
-    const refcount_frame_t *frames,
+    const refcount_frames_t *frames,
     size_t frame,
     const char *key,
     size_t idx
@@ -4231,9 +4710,10 @@ PRIVATE json_t *refcount_path(
     if(frame != (size_t)-1) {
         json_array_append_new(jn_segments, key? json_string(key) : json_sprintf("%zu", idx));
     }
-    for(size_t i = frame; i != (size_t)-1 && frames[i].parent != (size_t)-1; i = frames[i].parent) {
-        json_array_append_new(jn_segments, frames[i].key?
-            json_string(frames[i].key) : json_sprintf("%zu", frames[i].idx));
+    for(size_t i = frame; i != (size_t)-1 && refcount_frame_at(frames, i)->parent != (size_t)-1;
+            i = refcount_frame_at(frames, i)->parent) {
+        const refcount_frame_t *f = refcount_frame_at(frames, i);
+        json_array_append_new(jn_segments, f->key? json_string(f->key) : json_sprintf("%zu", f->idx));
     }
 
     size_t ln = 1;
@@ -4268,24 +4748,52 @@ PRIVATE json_t *refcount_path(
  *  each one: a set of pointers (open addressing, a load of 1/2 at most),
  *  with a count beside each slot. A slot is 8 bytes of pointer and 4 of
  *  count, and the slots double as they fill: 24 to 48 bytes per json
- *  walked -- where a json object keyed by "%p" took a key and a hashtable
- *  entry for each.
+ *  walked, and while they double the old slots and the new ones are held
+ *  together, 72 per json at that moment. The slots are kept in chunks of
+ *  REFCOUNT_CHUNK_SLOTS (768 KB), so no block grows with the json: in one
+ *  block, a million jsons asked 16 MB of pointers, MAX_BLOCK by default.
  ***************************************************************************/
+#define REFCOUNT_CHUNK_SLOTS    (64*1024)
+
 typedef struct {
     const void **slots;
     uint32_t *reached;  // the times the json of each slot was reached, saturated
-    size_t capacity;    // a power of 2; 0: nothing yet
+} refcount_seen_chunk_t;
+
+typedef struct {
+    refcount_seen_chunk_t *chunks;
+    size_t n_chunks;
+    unsigned chunk_shift;   // the slots of a chunk: 1 << chunk_shift, REFCOUNT_CHUNK_SLOTS at most
+    size_t capacity;    // n_chunks << chunk_shift, a power of 2; 0: nothing yet
     size_t count;
 } refcount_seen_t;
 
-PRIVATE size_t refcount_seen_slot(const void **slots, size_t capacity, const void *p)
+PRIVATE void refcount_seen_free_chunks(refcount_seen_chunk_t *chunks, size_t n_chunks)
 {
+    for(size_t i = 0; chunks && i < n_chunks; i++) {
+        GBMEM_FREE(chunks[i].slots)
+        GBMEM_FREE(chunks[i].reached)
+    }
+    GBMEM_FREE(chunks)
+}
+
+PRIVATE size_t refcount_seen_slot(
+    const refcount_seen_chunk_t *chunks,
+    unsigned chunk_shift,
+    size_t capacity,
+    const void *p
+)
+{
+    size_t chunk_mask = ((size_t)1 << chunk_shift) - 1;
     uint64_t h = ((uint64_t)(uintptr_t)p >> 4) * 0x9E3779B97F4A7C15ULL;
     size_t i = (size_t)(h >> 16) & (capacity - 1);
-    while(slots[i] && slots[i] != p) {
+    while(1) {
+        const void *slot = chunks[i >> chunk_shift].slots[i & chunk_mask];
+        if(!slot || slot == p) {
+            return i;
+        }
         i = (i + 1) & (capacity - 1);
     }
-    return i;
 }
 
 /*
@@ -4297,36 +4805,56 @@ PRIVATE int refcount_seen_reach(refcount_seen_t *seen, const void *p, uint32_t *
 {
     if((seen->count + 1) * 2 > seen->capacity) {
         size_t new_capacity = seen->capacity? seen->capacity * 2 : 1024;
-        const void **new_slots = gbmem_malloc(new_capacity * sizeof(void *));
-        uint32_t *new_reached = new_slots? gbmem_malloc(new_capacity * sizeof(uint32_t)) : NULL;
-        if(!new_reached) {
-            GBMEM_FREE(new_slots)
+        size_t new_chunk_slots = MIN(new_capacity, (size_t)REFCOUNT_CHUNK_SLOTS);
+        unsigned new_chunk_shift = 0;
+        while(((size_t)1 << new_chunk_shift) < new_chunk_slots) {
+            new_chunk_shift++;
+        }
+        size_t new_n_chunks = new_capacity / new_chunk_slots;
+        refcount_seen_chunk_t *new_chunks = gbmem_malloc(new_n_chunks * sizeof(refcount_seen_chunk_t));
+        if(!new_chunks) {
             return -1;  // Error already logged
         }
-        memset(new_slots, 0, new_capacity * sizeof(void *));
-        memset(new_reached, 0, new_capacity * sizeof(uint32_t));
+        memset(new_chunks, 0, new_n_chunks * sizeof(refcount_seen_chunk_t));
+        for(size_t c = 0; c < new_n_chunks; c++) {
+            new_chunks[c].slots = gbmem_malloc(new_chunk_slots * sizeof(void *));
+            new_chunks[c].reached = new_chunks[c].slots?
+                gbmem_malloc(new_chunk_slots * sizeof(uint32_t)) : NULL;
+            if(!new_chunks[c].reached) {
+                refcount_seen_free_chunks(new_chunks, new_n_chunks);
+                return -1;  // Error already logged
+            }
+            memset(new_chunks[c].slots, 0, new_chunk_slots * sizeof(void *));
+            memset(new_chunks[c].reached, 0, new_chunk_slots * sizeof(uint32_t));
+        }
+        size_t old_mask = ((size_t)1 << seen->chunk_shift) - 1;
+        size_t new_mask = new_chunk_slots - 1;
         for(size_t i = 0; i < seen->capacity; i++) {
-            if(seen->slots[i]) {
-                size_t j = refcount_seen_slot(new_slots, new_capacity, seen->slots[i]);
-                new_slots[j] = seen->slots[i];
-                new_reached[j] = seen->reached[i];
+            const refcount_seen_chunk_t *old = &seen->chunks[i >> seen->chunk_shift];
+            const void *slot = old->slots[i & old_mask];
+            if(slot) {
+                size_t j = refcount_seen_slot(new_chunks, new_chunk_shift, new_capacity, slot);
+                new_chunks[j >> new_chunk_shift].slots[j & new_mask] = slot;
+                new_chunks[j >> new_chunk_shift].reached[j & new_mask] = old->reached[i & old_mask];
             }
         }
-        GBMEM_FREE(seen->slots)
-        GBMEM_FREE(seen->reached)
-        seen->slots = new_slots;
-        seen->reached = new_reached;
+        refcount_seen_free_chunks(seen->chunks, seen->n_chunks);
+        seen->chunks = new_chunks;
+        seen->n_chunks = new_n_chunks;
+        seen->chunk_shift = new_chunk_shift;
         seen->capacity = new_capacity;
     }
-    size_t i = refcount_seen_slot(seen->slots, seen->capacity, p);
-    if(!seen->slots[i]) {
-        seen->slots[i] = p;
+    size_t i = refcount_seen_slot(seen->chunks, seen->chunk_shift, seen->capacity, p);
+    refcount_seen_chunk_t *chunk = &seen->chunks[i >> seen->chunk_shift];
+    size_t k = i & (((size_t)1 << seen->chunk_shift) - 1);
+    if(!chunk->slots[k]) {
+        chunk->slots[k] = p;
         seen->count++;
     }
-    if(seen->reached[i] < UINT32_MAX) {
-        seen->reached[i]++;
+    if(chunk->reached[k] < UINT32_MAX) {
+        chunk->reached[k]++;
     }
-    *reached = seen->reached[i];
+    *reached = chunk->reached[k];
     return 0;
 }
 
@@ -4350,7 +4878,7 @@ typedef struct {
  ***************************************************************************/
 PRIVATE BOOL refcount_check_one(
     json_t *jn,
-    const refcount_frame_t *frames,
+    const refcount_frames_t *frames,
     size_t frame,
     const char *key,
     size_t idx,
@@ -4427,9 +4955,10 @@ PRIVATE BOOL refcount_check_one(
 /***************************************************************************
  *  What the refcounts of a json say (see helpers.h). A LOOP over the dicts
  *  and lists met, each kept as a frame (32 bytes per dict or list), with
- *  the reaches of every json counted (24 to 48 bytes per json, see
- *  refcount_seen_t): json_check_refcounts() recursed, logged an ERROR for
- *  each fault, and went round a cycle for ever.
+ *  the reaches of every json counted (24 to 48 bytes per json, up to 72
+ *  while the set doubles, see refcount_seen_t): json_check_refcounts()
+ *  recursed, logged an ERROR for each fault, and went round a cycle for
+ *  ever.
  ***************************************************************************/
 PUBLIC json_t *json_refcounts_report(
     json_t *jn, // not owned
@@ -4452,55 +4981,40 @@ PUBLIC json_t *json_refcounts_report(
         .max_shown = max_shown,
         .jn_shown = json_array()
     };
+    refcount_frames_t frames = {0};
 
-    size_t capacity = 64;
-    size_t n_frames = 0;
-    refcount_frame_t *frames = gbmem_malloc(capacity * sizeof(refcount_frame_t));
-    if(!frames) {
-        walk.truncated = TRUE;  // Error already logged
-    }
-
-    if(frames && refcount_check_one(jn, frames, (size_t)-1, NULL, 0, &walk)) {
-        frames[n_frames++] = (refcount_frame_t){jn, (size_t)-1, NULL, 0};
-    }
-
-    for(size_t i = 0; frames && i < n_frames && !walk.truncated; i++) {
-        json_t *jn_container = frames[i].jn;
-        size_t n_children = json_is_object(jn_container)?
-            json_object_size(jn_container) : json_array_size(jn_container);
-        if(n_frames + n_children > capacity) {
-            size_t new_capacity = capacity;
-            while(n_frames + n_children > new_capacity) {
-                new_capacity *= 2;
-            }
-            refcount_frame_t *new_frames = gbmem_realloc(frames, new_capacity * sizeof(refcount_frame_t));
-            if(!new_frames) {
-                walk.truncated = TRUE;  // Error already logged: the report says so
-                break;
-            }
-            frames = new_frames;
-            capacity = new_capacity;
+    if(refcount_check_one(jn, &frames, (size_t)-1, NULL, 0, &walk)) {
+        if(refcount_frames_push(&frames, (refcount_frame_t){jn, (size_t)-1, NULL, 0}) < 0) {
+            walk.truncated = TRUE;  // Error already logged
         }
+    }
 
+    for(size_t i = 0; i < frames.count && !walk.truncated; i++) {
+        json_t *jn_container = refcount_frame_at(&frames, i)->jn;
         if(json_is_object(jn_container)) {
             const char *key; json_t *jn_child;
             json_object_foreach(jn_container, key, jn_child) {
-                if(refcount_check_one(jn_child, frames, i, key, 0, &walk)) {
-                    frames[n_frames++] = (refcount_frame_t){jn_child, i, key, 0};
+                if(refcount_check_one(jn_child, &frames, i, key, 0, &walk)) {
+                    if(refcount_frames_push(&frames, (refcount_frame_t){jn_child, i, key, 0}) < 0) {
+                        walk.truncated = TRUE;  // Error already logged: the report says so
+                        break;
+                    }
                 }
             }
         } else {
             size_t idx; json_t *jn_child;
             json_array_foreach(jn_container, idx, jn_child) {
-                if(refcount_check_one(jn_child, frames, i, NULL, idx, &walk)) {
-                    frames[n_frames++] = (refcount_frame_t){jn_child, i, NULL, idx};
+                if(refcount_check_one(jn_child, &frames, i, NULL, idx, &walk)) {
+                    if(refcount_frames_push(&frames, (refcount_frame_t){jn_child, i, NULL, idx}) < 0) {
+                        walk.truncated = TRUE;  // Error already logged: the report says so
+                        break;
+                    }
                 }
             }
         }
     }
-    GBMEM_FREE(frames)
-    GBMEM_FREE(walk.seen.slots)
-    GBMEM_FREE(walk.seen.reached)
+    refcount_frames_free(&frames);
+    refcount_seen_free_chunks(walk.seen.chunks, walk.seen.n_chunks);
 
     json_t *jn_report = json_pack("{s:I, s:I, s:I, s:I, s:b, s:o}",
         "max_refcount", max_refcount,

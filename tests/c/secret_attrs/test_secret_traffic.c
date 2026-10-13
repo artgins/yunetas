@@ -372,6 +372,45 @@ PRIVATE void check_received_dump(void)
         printf("     got      %s\n     expected %s\n", text3, expected3);
     }
 
+    /*
+     *  REV-CLOUD V24.4.2/3: a value under a secret's name that is a scheme
+     *  and its credential is masked WHOLE (the name rule masked the scheme,
+     *  and the scheme rule then saw "******"); "Basic" wherever a "Bearer"
+     *  would be; a "name: value" of another header or a label; a quoted
+     *  credential, a doubled scheme, a JWE, a JWT cut by the window -- and
+     *  prose is left as it is
+     */
+    struct {
+        const char *in;
+        const char *out;
+    } dumps[] = {
+        {"GET /x?token=Bearer tb-hunter2&x=1", "GET /x?token=*****************&x=1"},
+        {"{\"password\": Bearer pb-hunter2}", "{\"password\": *****************}"},
+        {"password=Basic dXNlcjpwYXNz x", "password=****************** x"},
+        {"X-Auth-Token: xa-hunter2\r\nHost: h", "X-Auth-Token: **********\r\nHost: h"},
+        {"bearer: bc-hunter2", "bearer: **********"},
+        {"sent Bearer \"bq-hunter2\" ok", "sent Bearer ************ ok"},
+        {"Bearer Bearer TOKEN", "Bearer Bearer *****"},
+        {"sent Basic dXNlcjpodW50ZXIy here", "sent Basic **************** here"},
+        {"x eyJhbGciOiJSU0EtT0FFUCJ9.OKOawDo.48V1_ALb.5eym8TW.XFBoMYUZ y",
+         "x ********************************************************** y"},
+        {"cut eyJhbGciOiJIUzI1NiJ9.eyJjdXQtaHVudGVyMiI", "cut ****************************************"},
+        {"the bearer of this letter, a basic plan", "the bearer of this letter, a basic plan"},
+        {"Authorization: Basic dXNlcjpwYXNz\r\n", "Authorization: Basic ************\r\n"},
+        {0, 0}
+    };
+    for(int i=0; dumps[i].in; i++) {
+        char bf[256];
+        snprintf(bf, sizeof(bf), "%s", dumps[i].in);
+        mask_secrets_in_text(bf, strlen(bf));
+        char what[96];
+        snprintf(what, sizeof(what), "the dump masks what it must, and only that (%d)", i);
+        check_true(what, strcmp(bf, dumps[i].out)==0);
+        if(strcmp(bf, dumps[i].out)!=0) {
+            printf("     got      %s\n     expected %s\n", bf, dumps[i].out);
+        }
+    }
+
     char text2[] = "{\"token\": [1,{\"a\":\"x\"}], \"jwt_public_keys\": [{\"k\": 1}], \"b\": 2}";
     char expected2[] = "{\"token\": [***********], \"jwt_public_keys\": [{\"k\": 1}], \"b\": 2}";
     mask_secrets_in_text(text2, strlen(text2));

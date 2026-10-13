@@ -19,8 +19,15 @@
  *              7. a command before any card
  *              8. a card bigger than max_pre_session_frame
  *              9. an event no gclass has as public, before any card,
- *                 carrying credentials (REV-CLOUD V23.4.1)
- *             10. a good card: EV_IDENTITY_CARD_ACK, the session opens
+ *                 carrying credentials (REV-CLOUD V23.4.1), its NAME too
+ *                 (V24.4.1), and a kw of 64 KB: the WARNING says the size
+ *                 received (`frame_size`), not that of the masked copy
+ *             10. a frame of json that is not an inter-event, a JWT under a
+ *                 plain key: said as what it is, masked (it was "Bad json"
+ *                 and a dump of its bytes raw, the JWT cut by the window)
+ *             11. a frame that is not json, a JWT cut by the window of its
+ *                 dump: "frame is not json", the dump masked
+ *             12. a good card: EV_IDENTITY_CARD_ACK, the session opens
  *
  *          Each refusal is caused by the peer: ONE warning, with the kw
  *          capped and no stack (main.c counts the lines, their priority and
@@ -42,7 +49,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define LAST_CARD   10
+#define LAST_CARD   12
 
 /***************************************************************************
  *              Structures
@@ -53,6 +60,7 @@
  ***************************************************************************/
 PRIVATE int send_card(hgobj gobj, int card);
 PRIVATE int send_frame(hgobj gobj, gobj_event_t event, json_t *kw);
+PRIVATE int send_raw(hgobj gobj, const char *bytes);
 PRIVATE json_t *card_routing(
     const char *dst_yuno,
     const char *dst_role,
@@ -215,6 +223,28 @@ PRIVATE int send_frame(hgobj gobj, gobj_event_t event, json_t *kw)
 }
 
 /***************************************************************************
+ *  A frame of bytes written by hand, as they are
+ ***************************************************************************/
+PRIVATE int send_raw(hgobj gobj, const char *bytes)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    size_t len = strlen(bytes);
+    gbuffer_t *gbuf = gbuffer_create(len, len);
+    if(!gbuf) {
+        // Error already logged
+        return -1;
+    }
+    gbuffer_append(gbuf, (void *)bytes, len);
+    return gobj_send_event(
+        priv->cli_gate,
+        EV_SEND_MESSAGE,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+        gobj
+    );
+}
+
+/***************************************************************************
  *  The card number `card`
  ***************************************************************************/
 PRIVATE int send_card(hgobj gobj, int card)
@@ -331,10 +361,43 @@ PRIVATE int send_card(hgobj gobj, int card)
             json_object_set_new(kw, "note", json_string(
                 "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.tester-secret-jwt-sig"
             ));
+            {
+                char big[64*1024];
+                memset(big, 'y', sizeof(big)-1);
+                big[sizeof(big)-1] = 0;
+                json_object_set_new(kw, "big", json_string(big));
+            }
             msg_iev_push_stack(gobj, kw, IEVENT_STACK_ID,
                 card_routing("", role, "tester", role, "cli")
             );
-            return send_frame(gobj, "EV_NO_SUCH_EVENT_REV23", kw);
+            return send_frame(gobj, "EV_NO_SUCH_EVENT_REV23 password=tester-secret-event-name", kw);
+
+        case 10:
+            /*
+             *  A frame of json that is not an inter-event: a JWT under a plain
+             *  key, where a window of 256 bytes cuts it after its header
+             */
+            JSON_DECREF(kw)
+            return send_raw(gobj,
+                "{\"note\": \""
+                "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                " eyJhbGciOiJIUzI1NiJ9.tester-secret-in-a-cut-jwt-payload-0123456789"
+                "abcdefghijklmnopqrstuvwxyz-abcdefghijklmnopqrstuvwxyz.c2lnbmF0dXJl\"}"
+            );
+
+        case 11:
+            /*
+             *  A frame that is not json, a JWT that the window of its dump cuts
+             */
+            JSON_DECREF(kw)
+            return send_raw(gobj,
+                "not json: "
+                "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                " eyJhbGciOiJIUzI1NiJ9.tester-secret-in-a-cut-jwt-payload-0123456789"
+                "abcdefghijklmnopqrstuvwxyz-abcdefghijklmnopqrstuvwxyz.c2lnbmF0dXJl"
+            );
 
         default:
             jn_routing = card_routing("", role, "tester", role, "cli");

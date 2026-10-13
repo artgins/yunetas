@@ -942,6 +942,70 @@ static int test_json_refcounts_report(void)
 }
 
 /***************************************************************************
+ *  json_refcounts_report() of a list of a MILLION scalars, under the
+ *  default MAX_BLOCK (16 MB): walked whole. A frame was reserved for every
+ *  child of the container walked, scalars too, one block of 32 MB for the
+ *  root: the walk stopped there, "truncated", one json counted (REV-CLOUD
+ *  V24.4.5). Only a dict or a list gets a frame now, and no block of the
+ *  walk grows with the json. And a list of 40 000 records (more frames than
+ *  one chunk holds), counted right.
+ ***************************************************************************/
+static int test_json_refcounts_report_scales(void)
+{
+    int result = 0;
+
+    set_expected_results(
+        "json_refcounts_report_scales",
+        json_pack("[]"),    // nothing logged: no block refused
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+
+    const json_int_t n_scalars = 1000000;
+    json_t *jn_list = json_array();
+    for(json_int_t i = 0; i < n_scalars; i++) {
+        json_array_append_new(jn_list, json_integer(i));
+    }
+    json_t *jn_report = json_refcounts_report(jn_list, 0, 20);
+    if(json_is_true(json_object_get(jn_report, "truncated")) ||
+            json_integer_value(json_object_get(jn_report, "jsons")) != n_scalars + 1 ||
+            json_integer_value(json_object_get(jn_report, "corrupted")) != 0) {
+        printf("a list of a million scalars: jsons %ld (expected %ld), truncated %s\n",
+            (long)json_integer_value(json_object_get(jn_report, "jsons")),
+            (long)(n_scalars + 1),
+            json_is_true(json_object_get(jn_report, "truncated"))? "true" : "false"
+        );
+        result += -1;
+    }
+    JSON_DECREF(jn_report)
+    JSON_DECREF(jn_list)
+
+    const json_int_t n_records = 40000;
+    json_t *jn_records = json_array();
+    for(json_int_t i = 0; i < n_records; i++) {
+        json_array_append_new(jn_records, json_pack("{s:I, s:s, s:[i]}",
+            "n", i, "id", "r", "tags", 1
+        ));
+    }
+    jn_report = json_refcounts_report(jn_records, 0, 20);
+    /*  each record: itself, its integer, its string, its list and the item  */
+    if(json_is_true(json_object_get(jn_report, "truncated")) ||
+            json_integer_value(json_object_get(jn_report, "jsons")) != 5*n_records + 1) {
+        printf("a list of records: jsons %ld (expected %ld)\n",
+            (long)json_integer_value(json_object_get(jn_report, "jsons")),
+            (long)(5*n_records + 1)
+        );
+        result += -1;
+    }
+    JSON_DECREF(jn_report)
+    JSON_DECREF(jn_records)
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  Regression f004: the kwid comparators must bound recursion depth so
  *  deeply nested JSON cannot exhaust the stack or amplify via deep-copy.
  ***************************************************************************/
@@ -1185,6 +1249,7 @@ PRIVATE int do_test(void)
     result += test_reg_f002_find_record_not_found();
     result += test_reg_f003_kw_find_path_depth();
     result += test_json_refcounts_report();
+    result += test_json_refcounts_report_scales();
     result += test_reg_f004_kwid_compare_records_depth();
     result += test_kw_collapse_toplevel_array();
     result += test_kw_collapse_primitive_rejected();
@@ -1216,6 +1281,13 @@ int main(int argc, char *argv[])
     sys_realloc_fn_t realloc_func;
     sys_calloc_fn_t calloc_func;
     sys_free_fn_t free_func;
+
+    /*
+     *  The default MAX_BLOCK (0: 16 MB), and room for the million jsons of
+     *  test_json_refcounts_report_scales() (the default system memory, 64
+     *  MB, does not hold them with CONFIG_DEBUG_TRACK_MEMORY)
+     */
+    gbmem_setup(0, 1024*1024*1024L, FALSE, 0, 0);
 
     gbmem_get_allocators(
         &malloc_func,

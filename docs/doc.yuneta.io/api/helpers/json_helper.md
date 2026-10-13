@@ -435,7 +435,20 @@ A NEW json, `NULL` (and an ERROR) if `jn` is `NULL`:
 }
 ```
 
-`jsons` is how many jsons were walked, each one once (`true`, `false` and `null` are not counted: they are singletons); `fault` is `"over_max"` or `"corrupted"`. The walk remembers every json it meets and how many times it reached it: 24 to 48 bytes per json (a set of pointers and counts, kept half empty, that doubles as it fills), and 32 bytes more per dict or list for its place in the walk. `truncated` is `true` when the walk stopped short, with no memory left for what it remembers -- the gbmem ERROR says why (*"SIZE GREATER THAN MAX_BLOCK"*) --, and the counts are then of what was walked: a yuno's `MAX_BLOCK` of 200 MB walks some 8 million jsons. Up to 7.26.9 only the jsons held more than once were remembered: a cycle held once, its refcounts corrupted below the truth, was walked round until its frames passed `MAX_BLOCK`, and the report did not say it was cut; and a json held by more places than its refcount, once the walk ended, was not reported at all.
+`jsons` is how many jsons were walked, each one once (`true`, `false` and `null` are not counted: they are singletons); `fault` is `"over_max"` or `"corrupted"`.
+
+**What it costs.** The walk remembers every json it meets and how many times it reached it -- a set of pointers and counts, kept half empty and doubled as it fills: 24 to 48 bytes per json, and up to 72 while it doubles, the old set and the new one held together -- and a frame of 32 bytes per dict or list for its place in the walk (a scalar takes none). Both are kept in chunks (768 KB and 512 KB), so no block grows with the json: `MAX_BLOCK` bounds none of them, the memory of the yuno does. Measured at its peak (7.26.10, the allocators of gbmem wrapped with `gbmem_set_allocators()`, the bytes each caller asks counted, the peak above what was held before the call):
+
+| The json | jsons | Peak | Per json |
+|---|---|---|---|
+| a list of 1 000 integers | 1 001 | 39 KB | 39 bytes |
+| a list of 10 000 integers | 10 001 | 592 KB | 59 bytes |
+| a list of 1 000 000 integers | 1 000 001 | 37.8 MB | 38 bytes |
+| a dict of 1 250 records of 8 jsons | 10 001 | 721 KB | 72 bytes |
+| a dict of 125 000 records of 8 jsons | 1 000 001 | 44.6 MB | 45 bytes |
+| 250 000 nodes held in two indexes | 1 000 003 | 46.1 MB | 46 bytes |
+
+`truncated` is `true` when the walk stopped short, with no memory left for what it remembers -- the gbmem ERROR says why --, and the counts are then of what was walked. Up to 7.26.9 a frame was reserved for EVERY child of a container walked, scalars too, in one block: a list of a million integers asked 32 MB for its frames, more than the default `MAX_BLOCK` (16 MB), and the walk stopped at its root, `truncated` with one json counted (70 to 89 bytes per json below that); the set was one block too, past `MAX_BLOCK` at about half a million jsons. And earlier, only the jsons held more than once were remembered: a cycle held once, its refcounts corrupted below the truth, was walked round until its frames passed `MAX_BLOCK`, and the report did not say it was cut; and a json held by more places than its refcount, once the walk ended, was not reported at all.
 
 ```C
 json_t *c = json_object();

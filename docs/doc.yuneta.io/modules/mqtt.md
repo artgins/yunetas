@@ -84,9 +84,10 @@ The `mqtt_broker` yuno registers the protocol and the broker:
 ```C
 static int register_yuno_and_more(void)
 {
-    register_c_prot_mqtt2();
-    register_c_mqtt_broker();
-    return 0;
+    int result = 0;
+    result += register_c_prot_mqtt2();
+    result += register_c_mqtt_broker();
+    return result;  // a gclass refused stops the yuno (7.26.10+)
 }
 ```
 

@@ -88,11 +88,13 @@ PRIVATE char variable_config[]= "\
  ***************************************************************************/
 static int register_yuno_and_more(void)
 {
+    int result = 0;
+
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    register_c_log_reader();
-    register_c_webstats();
+    result += register_c_log_reader();
+    result += register_c_webstats();
 
     /*------------------------------------------------*
      *          Traces
@@ -114,7 +116,7 @@ static int register_yuno_and_more(void)
     // gobj_set_global_trace("ev_kw", TRUE);
     // gobj_set_global_trace("states", TRUE);
 
-    return 0;
+    return result;
 }
 
 /***************************************************************************

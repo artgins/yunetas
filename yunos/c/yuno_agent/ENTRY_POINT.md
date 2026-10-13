@@ -181,8 +181,19 @@ Reads `environment.{daemon|console}_log_handlers` depending on
 
 ```c
 result += yunetas_register_c_core();   // runtime gclasses (c_tcp, c_timer, …)
-result += register_yuno_and_more();    // the yuno's own gclasses + setup
+if(result < 0) {
+    exit(-1);                          // a core gclass refused
+}
+int ret = register_yuno_and_more();    // the yuno's own gclasses + setup
+if(ret < 0) {
+    exit(-1);                          // one of the yuno's refused (an ERROR first)
+}
 ```
+
+A gclass of the yuno that `gclass_create()` refuses stops it there, as one of
+the core does (7.26.10+): up to 7.26.9 the yuno ran, and its services failed
+later with *"gclass NOT FOUND"*. So `register_yuno_and_more()` answers the sum
+of what its `register_c_*()` answer.
 
 `register_yuno_and_more()` runs **after** environment + gobj_start_up are
 ready, but **before** any service or yuno gobj is created. This is the

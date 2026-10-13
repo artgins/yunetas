@@ -7402,6 +7402,58 @@ PRIVATE int refuse_node_name_with_nul(
 }
 
 /***************************************************************************
+ *  A reference of an fkey column of `kw` with a NUL in it: refused as the
+ *  id and the pkey2 values are (refuse_node_name_with_nul()). C reads a
+ *  ref up to its NUL, so "\u0000users^u1^users" was the empty ref, left
+ *  out, and the create saved "" with no log; a ref with the NUL after its
+ *  third part linked the node to the parent C read (REV-CLOUD V24.4). A
+ *  peer's record never gets here with one (C_NODE refuses a NUL in any of
+ *  its texts): this is a C caller's, an ERROR with a stack. Return 0, or -1
+ *  refused.
+ ***************************************************************************/
+PRIVATE int refuse_fkey_ref_with_nul(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *kw      // NOT owned
+)
+{
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
+    const char *col_name; json_t *col;
+    const char *field = NULL;
+    json_object_foreach(cols, col_name, col) {
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        if(!kw_has_word(gobj, desc_flag, "fkey", 0)) {
+            continue;
+        }
+        /*  The column is a name of the schema: a key of the record  */
+        if(json_nul_fault(json_object_get(kw, col_name))) {
+            field = col_name;
+            break;
+        }
+    }
+    if(!field) {
+        JSON_DECREF(cols)
+        return 0;
+    }
+    log_data_fault(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TREEDB,
+        "msg",          "%s", "Invalid fkey reference: it holds a NUL",
+        "treedb_name",  "%s", treedb_name,
+        "topic_name",   "%s", topic_name,
+        "field",        "%s", field,
+        NULL
+    );
+    gobj_log_set_last_message("node of '%s' refused: a reference of its '%s' holds a NUL",
+        topic_name, field
+    );
+    JSON_DECREF(cols)
+    return -1;
+}
+
+/***************************************************************************
  *  The pkey2 values of a create are the ones its record will hold: a value
  *  of `kw` that is not a string, or that `kw` does not carry, is written
  *  back into `kw` as its column normalizes it (its default, a wild
@@ -7531,6 +7583,10 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         return 0;
     }
     if(refuse_node_name_with_nul(gobj, tranger, treedb_name, topic_name, kw) < 0) {
+        JSON_DECREF(kw)
+        return 0;   // Error already logged
+    }
+    if(refuse_fkey_ref_with_nul(gobj, tranger, treedb_name, topic_name, kw) < 0) {
         JSON_DECREF(kw)
         return 0;   // Error already logged
     }
@@ -14117,6 +14173,18 @@ PUBLIC json_t *treedb_update_node_and_links( // WARNING Return is NOT YOURS, pur
 
     if(links_refused) {
         *links_refused = FALSE;
+    }
+
+    /*
+     *  The links are the ones its fkey columns name, with fields or not: a
+     *  ref with a NUL is refused before anything moves
+     */
+    if(refuse_fkey_ref_with_nul(gobj, tranger,
+            kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0),
+            kw_get_str(gobj, node, "__md_treedb__`topic_name", "", 0),
+            kw) < 0) {
+        JSON_DECREF(kw)
+        return 0;   // Error already logged
     }
 
     json_t *updates = prepare_node_update(gobj, tranger, node, kw, TRUE, with_fields);

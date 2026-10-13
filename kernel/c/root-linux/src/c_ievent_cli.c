@@ -26,7 +26,6 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-#define MAX_LOG_DUMP_SIZE (256)     // Cap the data dump added to logs, for very large packets
 
 /***************************************************************
  *              Prototypes
@@ -227,13 +226,22 @@ PRIVATE void mt_destroy(hgobj gobj)
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) != ST_SESSION) {
+        /*
+         *  `stats` is the caller's text, as the line of mt_command(): capped
+         *  and masked. It was logged whole (REV-CLOUD V24.4).
+         */
+        char name[65];
+        snprintf(name, sizeof(name), "%.*s",
+            utf8_prefix_len(stats? stats : "", (int)sizeof(name) - 1), stats? stats : "");
+        char *name_masked = mask_secrets_inline(name);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Not in session",
-            "stats",        "%s", stats?stats:"",
+            "stats",        "%s", name_masked? name_masked : name,
             NULL
         );
+        GBMEM_FREE(name_masked)
         KW_DECREF(kw)
         return NULL;
     }
@@ -988,21 +996,13 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gbuffer_incref(gbuf);
 
     gobj_event_t iev_event;
-    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 0);
+    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 1);
     if(!iev_kw) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "Bad json",
-            "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
-            "sockname",     "%s", gobj_has_bottom_attr(gobj, "sockname")?gobj_read_str_attr(gobj, "sockname"):"",
-            NULL
-        );
-        gobj_trace_dump(gobj,
-            gbuffer_head_pointer(gbuf),
-            MIN(gbuffer_totalbytes(gbuf), MAX_LOG_DUMP_SIZE),
-            "Bad json"
-        );
+        /*
+         *  Said by iev_create_from_gbuffer(), a WARNING that says what the
+         *  frame got wrong: not json, or not an inter-event. Here it was
+         *  "Bad json" for both, and a dump of its bytes raw (REV-CLOUD V24.4).
+         */
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
         KW_DECREF(kw)
         return -1;

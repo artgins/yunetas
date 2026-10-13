@@ -374,13 +374,22 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) != ST_SESSION) {
+        /*
+         *  `stats` is the caller's text, as the line of mt_command(): capped
+         *  and masked. It was logged whole (REV-CLOUD V24.4).
+         */
+        char name[65];
+        snprintf(name, sizeof(name), "%.*s",
+            utf8_prefix_len(stats? stats : "", (int)sizeof(name) - 1), stats? stats : "");
+        char *name_masked = mask_secrets_inline(name);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Not in session",
-            "stats",        "%s", stats?stats:"",
+            "stats",        "%s", name_masked? name_masked : name,
             NULL
         );
+        GBMEM_FREE(name_masked)
         KW_DECREF(kw)
         return NULL;
     }
@@ -1449,6 +1458,10 @@ PRIVATE size_t peer_json_dump(json_t *jn, char *bf, size_t bfsize)
  *  Up to 7.25.20 the whole kw before the session was written, credentials
  *  with it; up to 7.26.9 the kw of a frame refused IN session too
  *  (REV-CLOUD V22.3.2).
+ *
+ *  Return the size of the KW, as compact json: the `kw_size` of the logs.
+ *  It was the size of the masked, capped copy (a kw of 900 KB said 101,
+ *  REV-CLOUD V24.4). One more walk of the kw, linear, as its parse was.
  ***************************************************************************/
 PRIVATE size_t peer_kw_dump(json_t *kw, char *bf, size_t bfsize)
 {
@@ -1462,8 +1475,9 @@ PRIVATE size_t peer_kw_dump(json_t *kw, char *bf, size_t bfsize)
         // Error already logged
         return peer_json_dump(json_null(), bf, bfsize);
     }
-    size_t size = peer_json_dump(kw_shown, bf, bfsize);
+    peer_json_dump(kw_shown, bf, bfsize);
     JSON_DECREF(kw_shown)
+    size_t size = json_dumpb(kw, NULL, 0, JSON_COMPACT|JSON_ENCODE_ANY);
     return size;
 }
 
@@ -2094,21 +2108,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gbuffer_incref(gbuf);
 
     gobj_event_t iev_event;
-    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 0);
+    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 1);
     if(!iev_kw) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "Bad json",
-            "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
-            "sockname",     "%s", gobj_has_bottom_attr(gobj, "sockname")?gobj_read_str_attr(gobj, "sockname"):"",
-            NULL
-        );
-        gobj_trace_dump(gobj,
-            gbuffer_head_pointer(gbuf),
-            MIN(gbuffer_totalbytes(gbuf), MAX_LOG_DUMP_SIZE),
-            "Bad json"
-        );
+        /*
+         *  Said by iev_create_from_gbuffer(), a WARNING that says what the
+         *  frame got wrong: not json, or not an inter-event. Here it was
+         *  "Bad json" for both, and a dump of its bytes raw: a JWT under a
+         *  plain key, cut by the window, showed its header (REV-CLOUD V24.4).
+         */
         drop(gobj);
         KW_DECREF(kw)
         return -1;

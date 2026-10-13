@@ -284,8 +284,12 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr);
  *  record of timeranger as often as a credential, and a certificate is
  *  public (ssl_certificate_key is a path). An attribute flagged SDF_SECRET
  *  must have a name it takes: gclass_create() refuses the gclass otherwise
- *  (not on the ESP32 port). The one list of the SDK; gobj-js has the same
- *  (its is_secret_name()).
+ *  (not on the ESP32 port), and so does a command table whose required
+ *  secret parameter is followed by another required one. A known effect,
+ *  accepted: an ordinary name with a segment pass, pin or otp is a secret's
+ *  too (gpio_pin, a `pass` that counts passes, first_pass, sum_sla_pass).
+ *  Compared in ASCII, whatever the locale. The one list of the SDK; gobj-js
+ *  has the same (its is_secret_name()).
 **rst**/
 PUBLIC BOOL is_secret_name(const char *name, size_t len);
 
@@ -300,11 +304,17 @@ PUBLIC BOOL is_secret_name(const char *name, size_t len);
 PUBLIC BOOL is_secret_name_any(const char *name, size_t len);
 
 /**rst**
- *  A text (a command line) with the value of every "name=value" whose
- *  name is a secret's written as "********" (quoted or not; the "value" of
- *  a write-attr whose attribute names a secret too); and, under any name or
- *  none, a JWT ("eyJ...", three base64url parts joined by '.') and the
- *  token after "Bearer " (any case); the rest as it is.
+ *  A text (a command line) with the value of every "name=value" and every
+ *  "name: value" (its name quoted or not: "password": x, bearer: tok)
+ *  whose name is a secret's written as "********" (quoted or not; the
+ *  "value" of a write-attr whose attribute names a secret too; a scheme and
+ *  its credential whole: token=Bearer abc); and, under any name or none, a
+ *  JWT or a JWE ("eyJ...", base64url and a '.': a JWT cut by a cap too) and
+ *  the credential after "Bearer " or "Basic " (any case) when it can be one:
+ *  quoted, after the scheme doubled, or not a word of prose -- a digit, a
+ *  symbol of its own, its case mixed, 24 characters or more; for Bearer 8
+ *  at least, for Basic the base64 of a "user:password". "the bearer of this
+ *  letter" is left as it is. The rest as it is.
  *  A gbmem string to GBMEM_FREE, or NULL when there was nothing to mask.
 **rst**/
 PUBLIC char *mask_secrets_inline(const char *str);
@@ -314,9 +324,10 @@ PUBLIC char *mask_secrets_inline(const char *str);
  *  key with a secret's name is "********" (whatever its json type; not an
  *  absent one, a null or an empty string), so is the "value" of a dict
  *  whose "attribute" names a secret, and every string, under any key, is
- *  masked as mask_secrets_inline() (a JWT, a "Bearer x", a password=x in
- *  it). Return a NEW reference: a masked copy, or jn itself when there was
- *  nothing to mask. NULL for NULL.
+ *  masked as mask_secrets_inline() (a JWT, a "Bearer x", a password=x or a
+ *  "token": x in it). A key is judged and copied by all its bytes, a NUL
+ *  among them. Return a NEW reference: a masked copy, or jn itself when
+ *  there was nothing to mask. NULL for NULL.
 **rst**/
 PUBLIC json_t *json_mask_secrets(json_t *jn);
 
@@ -335,10 +346,12 @@ PUBLIC json_t *json_mask_secrets_capped(json_t *jn, size_t max_bytes);
 /**rst**
  *  The bytes of a traffic dump with the credentials that can be told
  *  soundly written as '*', IN PLACE, the length kept: the value of an HTTP
- *  Cookie, Set-Cookie, Authorization or Proxy-Authorization header (after
- *  the scheme for the last two), of a "name=value" and of a json
- *  "name": value whose name is a secret's (is_secret_name()), and a JWT or
- *  the token after "Bearer " wherever they are.
+ *  Cookie, Set-Cookie, Authorization or Proxy-Authorization header at the
+ *  start of a line (after the scheme for the last two), of a "name=value",
+ *  a json "name": value and a name: value whose name is a secret's
+ *  (is_secret_name(); a scheme and its credential whole), and a JWT or the
+ *  credential after "Bearer " or "Basic " wherever they are, as
+ *  mask_secrets_inline() tells them.
  *  Work on a COPY of what you dump. Return the bytes masked.
 **rst**/
 PUBLIC size_t mask_secrets_in_text(char *bf, size_t len);
@@ -770,10 +783,15 @@ PUBLIC int json_check_refcounts(
     Each json is walked ONCE, in a loop: a json held in several places (a
     node of a treedb is in its indexes and in the hooks of its parents) is
     reported once, and a cycle (two nodes in each other's hooks) does not
-    loop the walk. It costs 24 to 48 bytes per json walked, and 32 more per
-    dict or list. `truncated` is TRUE when the walk stopped short, with no
-    memory left for what it remembers (the gbmem ERROR says why): the totals
-    are then of what was walked. A NEW json, NULL if `jn` is NULL:
+    loop the walk. Its memory: a set of the jsons met, 24 to 48 bytes per
+    json, up to 72 while the set doubles, and a frame of 32 bytes per dict or
+    list (a scalar takes none); in chunks, so no block grows with the json
+    and MAX_BLOCK bounds none. Measured at its peak: 38 bytes per json for a
+    list of a million integers, 45 for a dict of 125 000 records, 59 to 72
+    at ten thousand jsons (the set just doubled). `truncated` is TRUE when
+    the walk stopped short, with no memory left for what it remembers (the
+    gbmem ERROR says why): the totals are then of what was walked. A NEW
+    json, NULL if `jn` is NULL:
 
         {"max_refcount": 1, "jsons": 431, "corrupted": 0, "over_max": 27,
          "truncated": false,

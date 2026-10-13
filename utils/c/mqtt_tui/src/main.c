@@ -347,12 +347,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
  ***************************************************************************/
 static int register_yuno_and_more(void)
 {
+    int result = 0;
+
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    register_c_prot_mqtt2();
-    register_c_mqtt_client();
-    register_c_editline();
+    result += register_c_prot_mqtt2();
+    result += register_c_mqtt_client();
+    result += register_c_editline();
 
     /*------------------------------------------------*
      *          Traces
@@ -384,7 +386,7 @@ static int register_yuno_and_more(void)
         gobj_set_deep_tracing(1);
     }
 
-    return 0;
+    return result;
 }
 
 /***************************************************************************

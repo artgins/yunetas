@@ -196,8 +196,16 @@ peer_log_count_t peer_log_counts[] = {
     {"Event before the identity card, channel closed",  0, -1, 0},
     {"Frame before the identity card too big, channel closed", 0, -1, 0},
     {"Frame of an event that is not public, refused",   0, -1, 0},
+    {"Frame is not an inter-event",                     0, -1, 0},
+    {"frame is not json",                               0, -1, 0},
     {0, 0, 0, 0}
 };
+
+/*
+ *  The size the WARNING of the event that is not public says: of what was
+ *  received (its kw holds 64 KB), not of the masked, capped copy
+ */
+json_int_t unknown_event_frame_size = -1;
 
 int jwt_logged = 0;     // lines that carry the jwt of a card: none
 int secret_logged = 0;  // lines that carry a credential of the command before the card: none
@@ -212,7 +220,12 @@ static int peer_log_write(void *v, int priority, const char *bf, size_t len)
     if(memmem(bf, len, secret, strlen(secret))) {
         secret_logged++;
     }
-    for(int i=0; peer_log_counts[i].mark; i++) {
+    for(int i=0; peer_log_counts[i].mark && priority <= LOG_WARNING; i++) {
+        /*
+         *  The logs only: a frame that is not json is a WARNING and a dump
+         *  of its first bytes, a DEBUG trace -- masked, the jwt check above
+         *  reads every line
+         */
         peer_log_count_t *c = &peer_log_counts[i];
         if(memmem(bf, len, c->mark, strlen(c->mark))) {
             c->lines++;
@@ -221,6 +234,13 @@ static int peer_log_write(void *v, int priority, const char *bf, size_t len)
                 c->longest = len;
             }
         }
+    }
+    const char *unknown = "Frame of an event that is not public";
+    if(memmem(bf, len, unknown, strlen(unknown))) {
+        json_t *jn_line = json_loadb(bf, len, 0, 0);
+        json_t *jn_size = json_object_get(jn_line, "frame_size");
+        unknown_event_frame_size = json_is_integer(jn_size)? json_integer_value(jn_size) : -1;
+        JSON_DECREF(jn_line)
     }
     return 0;
 }
@@ -247,7 +267,7 @@ static int register_yuno_and_more(void)
         APP_NAME,
         /*  Strict FIFO of the warnings and errors: one warning per refused
          *  card, and no error  */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Identity card without its routing (__md_iev__ ievent stack), refused",
             "msg", "Identity card refused, dst_role NOT MATCH",
             "msg", "Identity card refused, dst_yuno NOT MATCH",
@@ -257,7 +277,9 @@ static int register_yuno_and_more(void)
             "msg", "Identity card refused, its jwt is not a string",
             "msg", "Event before the identity card, channel closed",
             "msg", "Frame before the identity card too big, channel closed",
-            "msg", "Frame of an event that is not public, refused"
+            "msg", "Frame of an event that is not public, refused",
+            "msg", "Frame is not an inter-event (an \"event\" string and a \"kw\" dict), refused",
+            "msg", "frame is not json"
         ),
         NULL,   // expected
         NULL,   // ignore_keys
@@ -295,6 +317,15 @@ static void cleaning(void)
             );
             result += -1;
         }
+    }
+    if(unknown_event_frame_size < 64*1024) {
+        printf("%sERROR --> %s: %ld%s\n",
+            On_Red BWhite,
+            "the frame_size of the event that is not public is not what was received",
+            (long)unknown_event_frame_size,
+            Color_Off
+        );
+        result += -1;
     }
     if(jwt_logged) {
         printf("%sERROR --> %s: %d lines%s\n",

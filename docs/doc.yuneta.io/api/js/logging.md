@@ -125,7 +125,8 @@ name is a secret's ([`is_secret_name()`](#js_is_secret_name)) is
 `"********"`, whatever its type (not `undefined`, `null` or `""`); so is the
 `value` of an object whose `attribute` names a secret; and every string, under
 ANY key, is masked as [`mask_secrets_inline()`](#js_mask_secrets_inline): a
-JWT, the token after `Bearer `, a secret `name=value` in it. A string with a NUL
+JWT, the credential after `Bearer` or `Basic`, a secret `name=value` or
+`name: value` in it. A string with a NUL
 inside is read as a blank, as C reads it (shown with blanks when something is
 masked). Up to gobj-js 7.26.19 a JWT under a plain key showed. It answers a masked
 copy (the objects and arrays on the way to a masked value are copied, the
@@ -148,27 +149,39 @@ and a failure answers
 json_mask_secrets({password: 1234, auth: {access_token: "eyJ..."}, window: gobj});
 // {password: "********", auth: {access_token: "********"}, window: gobj}
 json_mask_secrets({note: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln", h: "Authorization: Bearer abc"});
-// {note: "********", h: "Authorization: Bearer ********"}
+// {note: "********", h: "Authorization: ********"}
 ```
 
 (js_mask_secrets_inline)=
 ### [`mask_secrets_inline(text)`](https://github.com/artgins/gobj-js/blob/7.26.20/src/helpers.js#L647)
 
-A text (a command line) with the value of every `name=value` whose name is a
-secret's written as `********`, quoted or not, and the `value=` of a
-write-attr whose `attribute=` names a secret. An unquoted value runs to the
-next `word=`: `password=correct horse battery` is masked whole. And a
-credential by its SHAPE, wherever it is and whatever names it, the shapes of
-the C kernel: a JWT (`eyJ` at the start of a word and three base64url parts
-joined by `.`; a `.` after it, the end of a sentence, is not a fourth) and the
-token after `Bearer ` (any case, a word of its own). The rest is kept. It
-answers `null` when there was nothing to mask.
+A text (a command line) with the value of every `name=value` and every
+`name: value` (its name quoted or not: `"password": x`, `bearer: tok`) whose
+name is a secret's written as `********`, quoted or not, and the `value=` of a
+write-attr whose `attribute=` names a secret. An unquoted value of a
+`name=value` runs to the next `word=`: `password=correct horse battery` is
+masked whole; a value that is a scheme and its credential is masked whole
+(`token=Bearer abc`, `Authorization: Basic x`). And a credential by its
+SHAPE, wherever it is and whatever names it, by the rules of the C kernel's
+[`mask_secrets_inline()`](#mask_secrets_inline): a JWT or a JWE (`eyJ`,
+base64url and a `.`: also one a cap cut; a `.` after it, the end of a
+sentence, is not its own), and after `Bearer` or `Basic` (any case, a word of
+its own) the word that can be a credential -- quoted, after the scheme
+doubled, or not a word of prose (it holds a digit or one of `_~+=`, mixes its
+case, or has 24 characters or more; for `Bearer` 8 at least, for `Basic` the
+base64 of a `user:password`). The rest is kept. It answers `null` when there
+was nothing to mask. The C kernel and gobj-js answer the same on the tables of
+both test suites and on 30 000 generated texts (after gobj-js 7.26.20,
+unreleased: up to it the word after `bearer` was masked whatever it was, and
+`Basic`, a JWE, a cut JWT and a `name: value` were not).
 
 ```js
 mask_secrets_inline("set-user-pwd username=bob password=hunter2");
 // "set-user-pwd username=bob password=********"
 mask_secrets_inline("curl -H 'Authorization: Bearer abc' u");
-// "curl -H 'Authorization: Bearer ********' u"
+// "curl -H 'Authorization: ********' u"
+mask_secrets_inline("sent Bearer mF_9.B5f-4.1JqM");   // "sent Bearer ********"
+mask_secrets_inline("the bearer of this letter");    // null: prose
 mask_secrets_inline("note=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln x=1");
 // "note=******** x=1"
 mask_secrets_inline("list-yunos");      // null
@@ -188,7 +201,8 @@ credential (`endpoint`, `url`, `domain`, `path`, `file`, `public`, `count`,
 `type`, `name`, ... the C list) is not one: `token_endpoint`, `cookie_domain`,
 `jwt_public_keys`, `pin_count`. `key` and `cert` alone are not secrets' names:
 a record key, a public certificate. Up to gobj-js 7.26.19 `pass`, `pin` and
-`otp` were not in it.
+`otp` were not in it. As in C, an ordinary name with one of those segments is
+a secret's too (`gpio_pin`, `first_pass`): accepted, the safe side.
 
 ```js
 is_secret_name("smtp_password");    // true

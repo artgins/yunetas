@@ -789,6 +789,27 @@ treedb_update_node(tranger, node_g1,
     json_pack("{s:s%, s:s}", "id", "g1\0x", (size_t)4, "name", "G1"), TRUE);        // NULL
 ```
 
+**No NUL in an fkey reference either** (7.26.10+). A create, and an update
+with its links ([`treedb_update_node_and_links()`](#treedb_update_node_and_links),
+with fields or without), whose fkey column holds a reference with a NUL --
+a string, or a string of its list or dict -- is refused before anything moves,
+*"Invalid fkey reference: it holds a NUL"* with the `field`, an ERROR with a
+stack from C. C read the ref up to the NUL: `"\u0000users^u1^users"` was the
+empty ref, left out, and the create saved the node with no parent and no log;
+a ref with the NUL after its three parts linked the node to the parent C read.
+A plain [`treedb_update_node()`](#treedb_update_node) writes no fkey column, and
+does not ask. A link or an unlink takes nodes, not refs: no NUL reaches them.
+
+```C
+treedb_create_node(tranger, "my_db", "users",
+    json_pack("{s:s, s:s%}", "id", "u9", "departments", "\0departments^direction^users", (size_t)28)
+);                                                                                  // NULL
+treedb_update_node_and_links(tranger, node_u1,
+    json_pack("{s:s, s:s%}", "id", "u1", "departments", "departments^direction^users\0x", (size_t)29),
+    TRUE, NULL
+);                                                                                  // NULL
+```
+
 `C_NODE` refuses a peer's record with a NUL in ANY string of it, before the
 treedb is asked ([`json_nul_fault()`](#json_nul_fault)).
 

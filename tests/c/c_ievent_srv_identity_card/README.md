@@ -22,15 +22,25 @@ refused and its channel closed; the client connects again and sends the next:
 8. a card bigger than `max_pre_session_frame` (1 MB in this test; the
    default is 64 KB): not parsed, *"Frame before the identity card too big,
    channel closed"*, and its bytes not dumped (a card carries a jwt);
-9. an event no gclass has as public (`EV_NO_SUCH_EVENT_REV23`), before any
-   card, carrying a `password`, a nested `client_secret` and a JWT under a
-   plain key: *"Frame of an event that is not public, refused"*, said once
-   by `iev_create_from_gbuffer()` with the name and the kw masked. Up to
-   7.26.9 the lookup was silent and `C_IEVENT_SRV` traced the whole kw raw;
-10. a good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session.
+9. an event no gclass has as public, before any card, carrying a
+   `password`, a nested `client_secret`, a JWT under a plain key and 64 KB of
+   kw, its NAME with a secret too (`EV_NO_SUCH_EVENT_REV23
+   password=...`): *"Frame of an event that is not public, refused"*, said
+   once by `iev_create_from_gbuffer()` with the name and the kw masked, and
+   `frame_size` the bytes received (the test reads it: 64 KB or more). Up to
+   7.26.9 the lookup was silent and `C_IEVENT_SRV` traced the whole kw raw,
+   and then the name went in clear, with a `kw_size` of the masked copy;
+10. a frame of json that is not an inter-event, a JWT under a plain key that
+    a window of 256 bytes cuts after its header: *"Frame is not an
+    inter-event ..."*, the frame masked. Up to 7.26.9 it was *"Bad json"*,
+    and a dump of its bytes raw showed the JWT's payload;
+11. a frame that is not json, with the same cut JWT: *"frame is not json"*,
+    and a DEBUG dump of its first 256 bytes, the cut JWT masked;
+12. a good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session.
 
 Each refusal is caused by the peer, so it is ONE warning (`MSGSET_PROTOCOL`,
-`peername`, the kw capped, no stack), and the jwt of the card is never
+`peername`, the kw capped, no stack; the dump of a frame that is not json is a
+DEBUG trace besides, masked), and the jwt of the card is never
 written to the log (`main.c` counts the lines of each, their priority and
 their size, and looks for the jwt, and for the credentials of the command,
 in every line). Only the good card opens a session.

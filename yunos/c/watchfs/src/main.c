@@ -91,10 +91,12 @@ PRIVATE char variable_config[]= "\
  ***************************************************************************/
 static int register_yuno_and_more(void)
 {
+    int result = 0;
+
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    register_c_watchfs();
+    result += register_c_watchfs();
 
     /*------------------------------------------------*
      *          Traces
@@ -127,7 +129,7 @@ static int register_yuno_and_more(void)
     // gobj_set_global_trace("timer", TRUE);
     // gobj_set_global_trace("liburing_timer", TRUE);
 
-    return 0;
+    return result;
 }
 
 /***************************************************************************

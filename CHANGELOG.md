@@ -548,7 +548,15 @@ Out of the twenty-third review (V23):
   of the projects is refused but the test's `vault`, renamed `vault_secret`.
   Not on the ESP32 port (`ESP_PLATFORM`): its code is frozen, and its
   `C_WIFI` declares `wifi_list`. A PARAMETER keeps being taken (the limit
-  above). Test `command_secret_positional`.
+  above). **And it applies to command PARAMETERS too**: the names `pass`, `pin`
+  and `otp` (above) reach the check of a command table
+  (`check_secret_positional_params()`, since 7.25.22, ESP32 included), so a
+  gclass whose command has a REQUIRED parameter with such a name (`pin`,
+  `db_pass`) followed by another required one is refused, as a required
+  `SDF_SECRET` one was. Every command table of the trees was checked (571
+  tables, 23 required parameters followed by a required one): none is
+  affected but the two cases of the test, the ESP32 port's 17 tables among
+  them. Test `command_secret_positional`.
 - **The frame of an event that is not public is ONE WARNING, masked**
   (V23.4.1): `iev_create_from_gbuffer()` looked it up in silence, and
   `C_IEVENT_SRV` (before the session too) and `C_IEVENT_CLI` traced the whole
@@ -578,16 +586,111 @@ Out of the twenty-third review (V23):
   times than its refcount (a corrupted cycle, a json
   `json_object_set_new()`'d into two places) is `corrupted`, at the path of
   the reach too many; the root counts the caller's reference. It ended on such
-  a cycle and said nothing. It costs 24 to 48 bytes per json walked (it was
-  16 to 32 per dict, list and shared scalar), plus 32 per dict or list; past
-  `MAX_BLOCK` it says `truncated`. `check-json` keeps its rule: `-1` for a
-  corrupted json or a walk cut short. Test `kw1`.
+  a cycle and said nothing. Its cost, as measured in V24 (below): 24 to 48
+  bytes per json walked, up to 72 while its set doubles, plus 32 per dict or
+  list; with no memory left it says `truncated`. `check-json` keeps its rule:
+  `-1` for a corrupted json or a walk cut short. Test `kw1`.
 - `CHANGELOG`: the V22 bullets that change what a caller receives say
   BREAKING (V23.4.5). Docs: `command_parser.md` (the JSON grammar, with
   examples; the extra text; the limit), `json_helper.md` (`truncated` in the
   example, `json_nul_fault()`), `string_helper.md`, `guide_sdata.md`,
   `gclass.md`, `ievent.md`, `msg_ievent.md`, `system.md`, `data.md`,
   `treedb.md`, `test_suite.md`, `kernel/c/README.md`.
+
+Out of the twenty-fourth review (V24):
+
+- **The word after `Bearer` or `Basic` is masked when it can be a credential,
+  never when it reads as prose** (V24.4.2; `mask_secrets_inline()`,
+  `json_mask_secrets()`, `mask_secrets_in_text()`): a quoted one (`Bearer
+  "tok"`), one after the scheme written twice (`Bearer Bearer tok`), whatever
+  its shape; else a run of token68 that is no word of prose -- it holds a digit
+  or one of `_~+=`, mixes its case past its first letter, or has 24 characters
+  or more --, for `Bearer` 8 characters at least, for `Basic` the base64 of a
+  `user:password` (it decodes to bytes with a `:`). `the bearer of this letter`
+  showed `the bearer ******** this letter`; it, `the bearer bond`, `basic plan`
+  and `Basic Operations` are left as they are, and `Bearer mF_9.B5f-4.1JqM`,
+  `Basic dXNlcjpwYXNz` are masked. The rule, with examples of both sides, is in
+  `string_helper.md`.
+- **The false negatives of the masking by value** (V24.4.3): a JWT is `eyJ`,
+  base64url and a `.` -- a JWE (five parts) and a JWT a cap cut to fewer than
+  three were shown, its header and part of its payload --; `Basic` is a scheme
+  wherever `Bearer` is (it was masked only as an `Authorization:` header at the
+  start of a line of a dump); a `name: value` whose name is a secret's is
+  masked, its name quoted or not (`"password": hunter2`, `bearer: tok`,
+  `X-Auth-Token: x` in a dump); and a value under a secret's name that is a
+  scheme and its credential is masked WHOLE (`token=Bearer abc`, `"password":
+  Bearer abc`, `password=Basic xyz`: the dump masked the scheme, and the token
+  showed). So `Authorization: Bearer abc` in a text is `Authorization: ********`
+  (a header at the start of a line of a dump keeps its scheme, as before). A
+  secret's name and a `:` is read as a label: `Wrong token: try again` is
+  `Wrong token: ******** again`. A key with a NUL is judged and copied by all
+  its bytes (it was judged up to the NUL, its value shown). The names, the
+  schemes and the headers are compared in ASCII, whatever the locale. The
+  twins of gobj-js follow the same rules (a patch for the release after gobj-js
+  7.26.20): the C side and the JS side answer the same on the tables of both
+  test suites and on 30 000 generated texts.
+- **The name of an event that is not public is masked** (V24.4.1), as its kw:
+  a password or a JWT sent as the NAME was written in clear. Its WARNING says
+  `frame_size`, the bytes received; its `kw_size` was the size of the masked,
+  capped copy (a kw of 900 KB said 101), and so was the `kw_size` of the other
+  WARNINGs of `C_IEVENT_SRV`, the size of the kw now. A frame refused by
+  `iev_create_from_gbuffer()` is said as what it is -- *"frame is not json"*,
+  its first bytes dumped masked, or *"Frame is not an inter-event ..."*, the
+  frame masked --: `C_IEVENT_SRV` and `C_IEVENT_CLI` said *"Bad json"* for
+  both, and dumped the bytes raw, where a JWT under a plain key, cut by the
+  window, showed its header. Out of session, the name of a stats
+  (`mt_stats`) is capped and masked as the one of a command: it was logged
+  whole.
+- **The parser's refusals repeat no credential** (V24.4.4): a key that is not
+  a parameter (`help <jwt>=1`: *"has no option '<jwt>'"*), a key with no
+  closing quote, and the first word that names no command (*"command not
+  available: 'password=hunter2'"*, the help's too) are echoed masked; and an
+  extra text with `Authorization: Basic <b64>` or a json `"password": x` is
+  `'<...>'`, as any line that carries a secret.
+- **`json_refcounts_report()` walks a list of a million scalars under the
+  default `MAX_BLOCK`** (V24.4.5): a frame was reserved for EVERY child of the
+  container walked, scalars too, in one block -- 32 MB for that list, and the
+  walk stopped at its root, `truncated`, one json counted; and its set of the
+  jsons met was one block too, past `MAX_BLOCK` at half a million jsons. Only a
+  dict or a list gets a frame now, and the frames and the set are kept in
+  chunks, so no block grows with the json. Its cost, measured at its peak
+  (the allocators of gbmem wrapped, the bytes asked counted): 38 bytes per
+  json for a list of a million integers, 45 for a dict of 125 000 records, 46
+  for 250 000 nodes held in two indexes, 59 to 72 at ten thousand jsons --
+  the set holds 24 to 48 per json, up to 72 while it doubles, and a frame is 32
+  per dict or list. The comment, `helpers.h` and `json_helper.md` said 24 to
+  48 per json and 32 per container; it measured 70 to 89 for a flat list.
+- **BREAKING: a gclass of the yuno that is refused stops the yuno**
+  (V24.4, `yuneta_entry_point()`): a negative answer of
+  `register_yuno_and_more()` is an ERROR and `exit(-1)`, as a refused gclass of
+  the core. The yuno ran, and its services failed later with *"gclass NOT
+  FOUND"*. Every `register_yuno_and_more()` of the trees (204: the SDK, its
+  tests, wattyzer, estadodelaire, hidraulia, yunovatios) answers `0` or the sum
+  of what its `register_c_*()` answer (each `create_gclass()`: `0` or `-1`), so
+  none stops on a success; the 19 mains of the SDK that dropped those answers
+  (the agents, `controlcenter`, `mqtt_broker`, `logcenter`, `emailsender`, the
+  utils...) and the two templates of `yuno-skeleton` hand them back now. Test
+  `register_refused_gclass` (new).
+- **BREAKING: an fkey reference with a NUL is refused from C too** (V24.4,
+  `tr_treedb`), as the id and the pkey2 values: `treedb_create_node()` and
+  `treedb_update_node_and_links()` answer `NULL` with *"Invalid fkey
+  reference: it holds a NUL"*, an ERROR. C read the ref up to the NUL: the
+  create saved `""` with no log, or linked to the parent C read. A peer's
+  record never had one (`C_NODE` refuses a NUL in any of its texts). Test
+  `tr_treedb_update_instance`.
+- `is_secret_name()`'s doc says its known effect, accepted: an ordinary name
+  with a segment `pass`, `pin` or `otp` is a secret's too (`gpio_pin`, a `pass`
+  that counts passes, `first_pass`, wattyzer's `sum_sla_pass`).
+- Tests (red on the old library, green on the new): `secret_attrs`
+  (`test_secret_attrs`, `test_secret_traffic`), `kw1`,
+  `c_ievent_srv_identity_card` (three cards: a secret in the name of an event,
+  a json frame that is not an inter-event, a frame that is not json, a JWT cut
+  by the window in both), `tr_treedb_update_instance`,
+  `register_refused_gclass`; `yuno_skeleton/templates` follows the templates.
+  Docs: `string_helper.md`, `json_helper.md`, `msg_ievent.md`, `ievent.md`,
+  `command_parser.md`, `treedb.md`, `runtime_entry_point.md`, `console.md`,
+  `mqtt.md`, `guide_sdata.md`, `api/js/logging.md`, `test_suite.md`,
+  `ENTRY_POINT.md`.
 
 ## v7.26.9 (2026-10-11)
 

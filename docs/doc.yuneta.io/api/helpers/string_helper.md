@@ -492,8 +492,17 @@ asks [`is_secret_name_any()`](#is_secret_name_any).
 `key` and `cert` alone are NOT secrets' names, on purpose: a `key` is the key
 of a record of timeranger as often as a credential (`delete-key key=K`, the
 `keys` of a topic), and a certificate is public -- a path to one, or its PEM.
-A secret by its VALUE is masked whatever its name: a JWT, a `Bearer` token
-([`mask_secrets_inline()`](#mask_secrets_inline)).
+A secret by its VALUE is masked whatever its name: a JWT, the credential
+after `Bearer` or `Basic` ([`mask_secrets_inline()`](#mask_secrets_inline)).
+
+**A known effect, accepted: an ordinary name with one of those segments is a
+secret's too.** `pass`, `pin` and `otp` are whole segments, so `gpio_pin` (a
+pin of a board), a `pass` that counts passes, `first_pass` and wattyzer's
+`sum_sla_pass` (`c_db_history_wz.c`) are taken for secrets: a trace or a dump
+shows their values as `********`. It errs on the safe side -- telling them from
+`db_pass` or `sim_pin` would need to know what a name means. The names are
+compared in ASCII, whatever the locale (7.26.10+: a Turkish `LC_CTYPE` did not
+take `PIN` for `pin`).
 
 An attribute flagged [`SDF_SECRET`](#SDF_SECRET) must have a name this
 function takes: [`gclass_create()`](#gclass_create) refuses the gclass
@@ -531,6 +540,7 @@ is_secret_name("ssl_certificate_key", 19); // FALSE (a path)
 is_secret_name("key", 3);               // FALSE (a record key as often)
 is_secret_name("token_endpoint", 14);   // FALSE (about a token)
 is_secret_name("username", 8);          // FALSE
+is_secret_name("gpio_pin", 8);          // TRUE: the known effect above
 ```
 
 ---
@@ -610,10 +620,13 @@ name is a secret's ([`is_secret_name()`](#is_secret_name)) is `"********"`,
 whatever its json type (not an absent one, a null or an empty string, so "not
 set" still shows); so is the `value` of a dict whose `attribute` names a
 secret (a write-attr); and every string, under ANY key, is masked as
-[`mask_secrets_inline()`](#mask_secrets_inline): a JWT, the token after
-`Bearer `, a secret `name=value` in it (7.26.10+: up to 7.26.9 a JWT under a
-plain key showed). A string with a NUL inside (a frame of a peer is decoded with
-`JSON_ALLOW_NUL`) is looked at past the NUL too. What
+[`mask_secrets_inline()`](#mask_secrets_inline): a JWT, the credential after
+`Bearer` or `Basic`, a secret `name=value` or `name: value` in it (7.26.10+:
+up to 7.26.9 a JWT under a plain key showed). A string with a NUL inside (a
+frame of a peer is decoded with `JSON_ALLOW_NUL`) is looked at past the NUL
+too. A KEY is judged, and copied, by all its bytes: a key with a NUL (a parser
+refuses one, C code can build it) was judged up to the NUL, its value shown,
+and the copy held the key cut (7.26.10+). What
 [`gobj_trace_json_masked()`](#gobj_trace_json_masked) prints, and what
 `C_IEVENT_SRV` writes of a kw before its session.
 
@@ -662,7 +675,7 @@ json_t *kw = json_pack("{s:I, s:{s:s}, s:s, s:s, s:s}",
 json_t *kw_shown = json_mask_secrets(kw);
 // {"password": "********", "auth": {"access_token": "********"},
 //  "__command__": "set-user-pwd username=bob password=********",
-//  "note": "********", "headers": "Authorization: Bearer ********"}
+//  "note": "********", "headers": "Authorization: ********"}
 JSON_DECREF(kw_shown)
 ```
 
@@ -673,22 +686,77 @@ JSON_DECREF(kw_shown)
 
 A text (a command line) with the value of every `name=value` whose name is a
 secret's ([`is_secret_name()`](#is_secret_name)) written as `********`,
-quoted or not; and the `value=` of a write-attr whose `attribute=` names a
-secret. And a credential by its SHAPE, wherever it is and whatever names it
-(7.26.10+), the shapes the agent's audit record redacts: a JWT -- `eyJ` (the
-base64url of `{"`) at the start of a word and three parts of base64url joined
-by `.`; a `.` after it, the end of a sentence, is not a fourth part -- and the
-token after `Bearer ` (any case, a word of its own; the token runs to a blank,
-a quote or one of `,;}]`). The rest of the text is kept as it is. The name is the word before
-the `=` (since the last blank or the last `=`: `'password'=x` and
-`user[password]=x` are names too), judged by its last 128 bytes; a text over
+quoted or not; the same for a `name: value`, its name in quotes or not -- a
+json, a header, a label: `"password": hunter2`, `Authorization: Basic x`,
+`bearer: tok` (7.26.10+) --; and the `value=` of a write-attr whose
+`attribute=` names a secret. A value that is a scheme and its credential is
+masked WHOLE: `token=Bearer abc` is `token=********`, and so is
+`Authorization: Bearer abc` -- `Authorization: ********` (up to 7.26.9 it
+showed `Authorization: Bearer ********`). And a credential by its SHAPE,
+wherever it is and whatever names it (below). The rest of the text is kept as
+it is.
+
+The name is the word before the `=` or the `:` (since the last blank, or the
+last `=` or `:` of the word: `'password'=x`, `user[password]=x` and
+`{"password": x` are names too), judged by its last 128 bytes; a text over
 4 MB, or one whose masked copy cannot be allocated, is
-`"<not shown: too large to mask>"`: it is linear, and fails safe. An unquoted value
-runs to the next `word=` (or the end): a password written with blanks
-(`password=correct horse battery`, `password= hunter2`) is masked whole, as
-the parser leaves those words unread. A quote inside it is part of it
-(`value=ab'cd` is masked whole), unless it is the quote that closes an outer
-quoted value (`command='set-user-pwd password=x'` keeps its closing quote).
+`"<not shown: too large to mask>"`: it is linear, and fails safe. An unquoted
+value of a `name=value` runs to the next `word=` (or the end): a password
+written with blanks (`password=correct horse battery`, `password= hunter2`) is
+masked whole, as the parser leaves those words unread. A quote inside it is
+part of it (`value=ab'cd` is masked whole), unless it is the quote that closes
+an outer quoted value (`command='set-user-pwd password=x'` keeps its closing
+quote). The value of a `name: value` is a quoted text to its closing quote, a
+json object or list to its closing bracket, a scheme and the word after it, or
+one word, to a blank or one of `,;&)]}<>"'`.
+
+**By its shape** (7.26.10+), the shapes the agent's audit record redacts:
+
+- A JWT or a JWE: `eyJ` (the base64url of `{"`) at the start of a word,
+  base64url, and a `.` after it -- three parts joined by `.` (a JWS), five (a
+  JWE), or fewer when a cap cut it: the first 64 bytes of a JWT keep its header
+  and part of its payload. The dots at the end of the run are not its own: a
+  JWT ends a sentence (`... eyJ.eyJ.sig.`). A run with no `.`
+  (`eyJhbGciOiJIUzI1NiJ9`, a base64url json) is no JWT.
+- The credential after the scheme word `Bearer` or `Basic` (any case, a word
+  of its own, a blank after it). It is masked when it CAN be a credential:
+  - it is in quotes (`Bearer "tok"`), or follows the scheme written twice
+    (`Bearer Bearer tok`, a header prefixed twice): whatever its shape;
+  - else it is the run of token68 characters after the blanks (letters,
+    digits, `-._~+/`, then `=` padding; a `.` that ends a sentence is not its
+    own) and it is **not a word of prose**: a word of prose is letters only,
+    in runs joined by one `-`, `.` or `/` (`self-service`, `e.g`, `and/or`),
+    each run in lower case, upper case or capitalized (`bond`, `Bond`,
+    `BOND`), and shorter than 24 characters. A credential holds a digit or one
+    of `_~+=`, mixes its case past its first letter, or is long. For `Bearer`
+    it has 8 characters at least; for `Basic` it is the base64 of a
+    `user:password` -- it decodes to bytes that hold a `:` -- whatever its
+    length.
+
+  | Text | Shown |
+  |---|---|
+  | `the bearer of this letter` | as it is: `of` is prose |
+  | `Pay the Bearer Bond.` | as it is |
+  | `the bearer self-service`, `bearer BOND` | as it is |
+  | `a basic plan`, `Basic Operations` | as it is |
+  | `Basic YWRtaW4=` | as it is: the base64 of `admin` holds no `:` |
+  | `Bearer short1` | as it is: shorter than a token |
+  | `Bearer mF_9.B5f-4.1JqM` (RFC 6750) | `Bearer ********` |
+  | `bearer abcdEFGHijkl`, `Bearer 12345678` | `bearer ********`, `Bearer ********` |
+  | `Bearer abcdefghijklmnopqrstuvwxyz` | `Bearer ********`: long |
+  | `x Basic dXNlcjpwYXNz y` (`user:pass`) | `x Basic ******** y` |
+  | `basic YTpi` (`a:b`) | `basic ********` |
+  | `Bearer Bearer TOKEN` | `Bearer Bearer ********` |
+  | `Bearer "tok"` | `Bearer ********` |
+
+  Up to 7.26.9 the word after `bearer` was masked whatever it was (`the bearer
+  ******** this letter`), and `Basic`, a quoted token, `Bearer Bearer x`, a
+  JWE and a JWT cut by a cap were not masked.
+
+A secret's name followed by a `:` is read as a label, so its next word is
+masked even in a sentence: `Wrong token: try again` is
+`Wrong token: ******** again`. It errs on the safe side, as the names do
+([`is_secret_name()`](#is_secret_name)).
 
 ```C
 char *mask_secrets_inline(
@@ -716,10 +784,20 @@ GBMEM_FREE(s)
 s = mask_secrets_inline("login user=bob token='a b c'");  // "login user=bob token=********"
 GBMEM_FREE(s)
 s = mask_secrets_inline("curl -H 'Authorization: Bearer abc123' url");
-// "curl -H 'Authorization: Bearer ********' url"
+// "curl -H 'Authorization: ********' url"
+GBMEM_FREE(s)
+s = mask_secrets_inline("{\"password\": \"hunter2\", \"user\": \"bob\"}");
+// "{\"password\": ********, \"user\": \"bob\"}"
 GBMEM_FREE(s)
 s = mask_secrets_inline("note=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJib2IifQ.c2ln x=1");
 // "note=******** x=1"
+GBMEM_FREE(s)
+s = mask_secrets_inline("cut eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ");  // "cut ********"
+GBMEM_FREE(s)
+s = mask_secrets_inline("sent Bearer mF_9.B5f-4.1JqM, twice");
+// "sent Bearer ********, twice"
+GBMEM_FREE(s)
+s = mask_secrets_inline("the bearer of this letter");  // NULL: prose
 GBMEM_FREE(s)
 s = mask_secrets_inline("pin=1234 ping=1");  // "pin=******** ping=1"
 GBMEM_FREE(s)
@@ -774,15 +852,26 @@ JSON_DECREF(kw_shown)
 
 The bytes of a traffic dump with the credentials that can be told soundly
 written as `*`, IN PLACE, the length kept (so the offsets and the rest of the
-dump stay as they were): the value of an HTTP `Cookie:`, `Set-Cookie:`,
-`Authorization:` or `Proxy-Authorization:` header (for the last two after the
-scheme: `Authorization: Bearer ******`); the value of a `name=value` whose
-name is a secret's ([`is_secret_name()`](#is_secret_name)), as in a query
-string, a form body or a command line; the value of a json
-`"name": value` whose name is a secret's; and a JWT or the token after
-`Bearer `, wherever they are in the bytes (7.26.10+; the shapes of
-[`mask_secrets_inline()`](#mask_secrets_inline)). A byte already masked is not
-counted twice. The traffic dumps use it
+dump stay as they were):
+
+- the value of an HTTP `Cookie:`, `Set-Cookie:`, `Authorization:` or
+  `Proxy-Authorization:` header at the start of a line (for the last two
+  after the scheme: `Authorization: Bearer ******`);
+- the value of a `name=value` whose name is a secret's
+  ([`is_secret_name()`](#is_secret_name)), as in a query string, a form body
+  or a command line;
+- the value of a json `"name": value`, and of a `name: value` -- another
+  header, a label: `X-Auth-Token: x`, `bearer: tok` (7.26.10+) -- whose name
+  is a secret's;
+- under such a name a value that is a scheme and its credential is masked
+  WHOLE: `token=Bearer abc`, `"password": Bearer abc`, `password=Basic xyz`.
+  Up to 7.26.9 only the scheme was masked, and the token after it showed;
+- a JWT and the credential after `Bearer` or `Basic`, wherever they are in the
+  bytes, by the rule of [`mask_secrets_inline()`](#mask_secrets_inline) (a JWE,
+  a JWT the window of a dump cut, a quoted credential; prose is left as it
+  is).
+
+A byte already masked is not counted twice. The traffic dumps use it
 ([`gobj_trace_dump()`](#gobj_trace_dump),
 [`gobj_trace_dump_gbuf()`](#gobj_trace_dump_gbuf),
 [`gobj_trace_dump_full_gbuf()`](#gobj_trace_dump_full_gbuf)) on a copy of
@@ -813,9 +902,16 @@ char text[] = "Cookie: sid=abc\r\n\r\nuser=bob&password=hunter2";
 mask_secrets_in_text(text, strlen(text));
 // "Cookie: *******\r\n\r\nuser=bob&password=*******"
 
-char text2[] = "{\"msg\": \"sent with Bearer abc123, twice\", \"pin\": 7}";
+char text2[] = "{\"msg\": \"sent with Bearer brr-hunter2, twice\", \"pin\": 7}";
 mask_secrets_in_text(text2, strlen(text2));
-// "{\"msg\": \"sent with Bearer ******, twice\", \"pin\": *}"
+// "{\"msg\": \"sent with Bearer ***********, twice\", \"pin\": *}"
+
+char text3[] = "GET /x?token=Bearer tb-hunter2&x=1\r\nX-Auth-Token: xa-hunter2\r\n";
+mask_secrets_in_text(text3, strlen(text3));
+// "GET /x?token=*****************&x=1\r\nX-Auth-Token: **********\r\n"
+
+char text4[] = "the bearer of this letter, a basic plan";
+mask_secrets_in_text(text4, strlen(text4));     // 0: prose
 ```
 
 **Limits**
