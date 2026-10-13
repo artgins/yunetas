@@ -495,6 +495,10 @@ of a record of timeranger as often as a credential (`delete-key key=K`, the
 A secret by its VALUE is masked whatever its name: a JWT, a `Bearer` token
 ([`mask_secrets_inline()`](#mask_secrets_inline)).
 
+An attribute flagged [`SDF_SECRET`](#SDF_SECRET) must have a name this
+function takes: [`gclass_create()`](#gclass_create) refuses the gclass
+otherwise (7.26.10+, not on the ESP32 port).
+
 ```C
 BOOL is_secret_name(
     const char *name,

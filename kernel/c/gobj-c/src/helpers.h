@@ -282,8 +282,9 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr);
  *  name, ...: token_endpoint, cookie_domain, jwt_public_keys, pin_count).
  *  "key" and "cert" alone are NOT secrets' names: a key is the key of a
  *  record of timeranger as often as a credential, and a certificate is
- *  public (ssl_certificate_key is a path). The one list of the SDK; gobj-js
- *  has a twin.
+ *  public (ssl_certificate_key is a path). An attribute flagged SDF_SECRET
+ *  must have a name it takes: gclass_create() refuses the gclass otherwise
+ *  (not on the ESP32 port). The one list of the SDK; gobj-js has a twin.
 **rst**/
 PUBLIC BOOL is_secret_name(const char *name, size_t len);
 

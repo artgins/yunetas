@@ -968,7 +968,7 @@ PRIVATE void check_log_dumps(hgobj gobj)
      *  V22.4.6)
      */
     resp = gobj_command(gobj_yuno(),
-        "write-attr gobj_name=secret-holder attribute=vault value={bad-secret-hunter2",
+        "write-attr gobj_name=secret-holder attribute=vault_secret value={bad-secret-hunter2",
         json_object(), gobj
     );
     check_int("write-attr of a json that breaks: refused",
@@ -977,14 +977,14 @@ PRIVATE void check_log_dumps(hgobj gobj)
         strstr(kw_get_str(0, resp, "comment", "", 0), "hunter2") == NULL);
     JSON_DECREF(resp)
     resp = gobj_command(gobj_yuno(),
-        "write-attr gobj_name=secret-holder attribute=vault value=word",
+        "write-attr gobj_name=secret-holder attribute=vault_secret value=word",
         json_object(), gobj
     );
     check_int("write-attr of a json given a bare word: written",
         (int)kw_get_int(0, resp, "result", 0, 0), 0);
     JSON_DECREF(resp)
     check_str("write-attr of a json: a bare word is the text",
-        json_string_value(gobj_read_json_attr(holder, "vault")), "word");
+        json_string_value(gobj_read_json_attr(holder, "vault_secret")), "word");
     resp = gobj_command(gobj_yuno(),
         "write-attr gobj_name=secret-holder attribute=settings value={\"a\":1}",
         json_object(), gobj
@@ -2202,13 +2202,19 @@ PRIVATE sdata_desc_t driver_attrs_table[] = {
     SDATA_END()
 };
 
+/*
+ *  A SDF_SECRET attr has a secret's name: gclass_create() refuses one that
+ *  has not (REV-CLOUD V23.4.3; tests/c/command_secret_positional), so a
+ *  secret with a plain name -- this `vault_secret` was `vault` -- can no
+ *  longer exist on Linux
+ */
 PRIVATE sdata_desc_t holder_attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------------default-description---------- */
 SDATA (DTP_STRING,      "password",         SDF_WR|SDF_PERSIST|SDF_SECRET,"", "A secret"),
 SDATA (DTP_STRING,      "note",             SDF_WR|SDF_PERSIST,       "",     "Not a secret"),
 SDATA (DTP_INTEGER,     "pin",              SDF_WR|SDF_PERSIST|SDF_SECRET,"0","A secret that is a number"),
 SDATA (DTP_STRING,      "config_only",      SDF_PERSIST,              "",     "Persistent, set by the config"),
-SDATA (DTP_JSON,        "vault",            SDF_WR|SDF_SECRET,        0,      "A secret json"),
+SDATA (DTP_JSON,        "vault_secret",     SDF_WR|SDF_SECRET,        0,      "A secret json"),
 SDATA (DTP_DICT,        "settings",         SDF_WR,                   "{}",   "A dict"),
 SDATA (DTP_LIST,        "items",            SDF_WR,                   "[]",   "A list"),
 SDATA (DTP_POINTER,     "handle",           SDF_WR,                   0,      "A pointer"),

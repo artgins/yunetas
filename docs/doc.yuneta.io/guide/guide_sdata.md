@@ -153,7 +153,13 @@ SDATA (DTP_INTEGER, "cert_sync_interval_sec",SDF_WR|SDF_PERSIST, "900", "config 
 
 (SDF_SECRET)=
 ### SDF_SECRET
-    A secret -- a password, a client secret, a token. Since 7.25.19. The
+    A secret -- a password, a client secret, a token. Since 7.25.19. Its
+    NAME must be a secret's ([`is_secret_name()`](#is_secret_name):
+    `password`, `client_secret`, `jwt`, `sim_pin`, ...), or
+    [`gclass_create()`](#gclass_create) refuses the gclass, with an ERROR
+    naming the attribute (7.26.10+; not on the ESP32 port, whose code is
+    frozen): the flag masks it where its gclass is asked, and everywhere
+    else a secret is told by its name. The
     attr is read, written and persisted exactly as without the flag (the
     emailsender still sends its real password, the persistent-attrs file
     still keeps it); what changes is what is SHOWN: `view-attrs`,
@@ -231,12 +237,13 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
     And a value that has the shape of a credential is masked under any
     name: a JWT, the token after `Bearer `.
 
-    A limit: a parameter whose name is not a secret's -- the `content64`
+    A limit: a PARAMETER whose name is not a secret's -- the `content64`
     of the agent's `write-tty`, `create-config` and `update-config` -- is
-    masked by its declaration where the parser is asked (the kw of the
-    authz checker, the `commands` trace), and NOT in the `machine` trace
-    with `ev_kw` of an event that carries it, which masks by names only.
-    Give a secret a secret's name where you can.
+    taken (an attribute is not), and masked by its declaration where the
+    parser is asked (the kw of the authz checker, the `commands` trace),
+    and NOT in the `machine` trace with `ev_kw` of an event that carries
+    it, which masks by names only. Give a secret a secret's name where you
+    can.
 
 ```C
 SDATAPM (DTP_STRING,    "password",     SDF_SECRET,     0,          "Password"),

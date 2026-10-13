@@ -117,7 +117,7 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     SDF_AUTHZ_P     = 0x00040000,   /* authorization constraint parameter */
     SDF_AUTHZ_S     = 0x00080000,   /* Need Stats '__read_stats__' authorization */
     SDF_AUTHZ_RS    = 0x00100000,   /* Need Stats '__reset_stats__' authorization */
-    SDF_SECRET      = 0x00200000,   /* A secret (password, client secret, token): read and saved as usual, SHOWN as "********" (gobj_mask_secret_attrs) */
+    SDF_SECRET      = 0x00200000,   /* A secret (password, client secret, token): read and saved as usual, SHOWN as "********" (gobj_mask_secret_attrs). An attr's name must be a secret's (is_secret_name()): gclass_create() refuses it otherwise */
 } sdata_flag_t;
 
 #define SDF_PUBLIC_ATTR (SDF_RD|SDF_WR|SDF_STATS|SDF_PERSIST|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS)

@@ -19,6 +19,20 @@ takes as the rest of the secret and never shows.
 
 Up to 7.25.21 such a table was accepted.
 
+And an ATTRIBUTE flagged `SDF_SECRET` must have a secret's name
+(`is_secret_name()`; REV-CLOUD V23.4.3): the flag masks it where its gclass is
+asked (`view-attrs`, `view-config`), and everywhere else it is masked by its
+name only -- the `machine` trace with `ev_kw`, a dump of a peer's kw. So
+`gclass_create()` refuses a gclass with one that has not, with one ERROR,
+checked in the FIFO of expected logs (*"A SDF_SECRET attribute must have a
+secret's name: ..."*, with `gclass` and `attribute`):
+
+6. a `SDF_SECRET` attribute named `vault`: refused;
+7. the same attribute named `vault_secret`: accepted, no log.
+
+Not on the ESP32 port, whose code is frozen. Up to 7.26.9 such a gclass was
+created, and its secret showed in clear wherever only the name was asked.
+
 ## Run
 
 ```bash

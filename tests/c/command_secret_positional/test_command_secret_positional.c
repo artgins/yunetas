@@ -24,6 +24,14 @@
  *            5. a secret that is not required (key=value only) before a
  *               required parameter: accepted
  *
+ *          And an ATTRIBUTE flagged SDF_SECRET must have a secret's name
+ *          (REV-CLOUD V23.4.3): elsewhere than its gclass it is masked by
+ *          its name only (the machine trace with ev_kw, a dump of a peer's
+ *          kw), so gclass_create() refuses one that has not, with one ERROR
+ *          checked in the FIFO of expected logs. Not on the ESP32 port.
+ *            6. a SDF_SECRET attribute named `vault`: refused
+ *            7. the same attribute named `vault_secret`: accepted
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -44,6 +52,8 @@ GOBJ_DEFINE_GCLASS(C_SECRET_POS_2);
 GOBJ_DEFINE_GCLASS(C_SECRET_POS_3);
 GOBJ_DEFINE_GCLASS(C_SECRET_POS_4);
 GOBJ_DEFINE_GCLASS(C_SECRET_POS_5);
+GOBJ_DEFINE_GCLASS(C_SECRET_ATTR_6);
+GOBJ_DEFINE_GCLASS(C_SECRET_ATTR_7);
 
 PRIVATE json_t *cmd_probe(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -106,9 +116,25 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA_END()
 };
 
+/*-ATTR-type------------name----------------flag----------------default-description---------- */
+PRIVATE sdata_desc_t attrs_secret_plain_name[] = {
+SDATA (DTP_STRING,      "note",             SDF_WR,             "",     "Not a secret"),
+SDATA (DTP_JSON,        "vault",            SDF_WR|SDF_SECRET,  0,      "A secret with a plain name"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t attrs_secret_secret_name[] = {
+SDATA (DTP_STRING,      "note",             SDF_WR,             "",     "Not a secret"),
+SDATA (DTP_JSON,        "vault_secret",     SDF_WR|SDF_SECRET,  0,      "A secret with a secret's name"),
+SDATA_END()
+};
+
 PRIVATE const GMETHODS gmt = {0};
 
-PRIVATE hgclass create(gclass_name_t name, const sdata_desc_t *cmds)
+PRIVATE hgclass create_with_attrs(
+    gclass_name_t name,
+    const sdata_desc_t *cmds,
+    const sdata_desc_t *attrs
+)
 {
     ev_action_t st_idle[] = {
         {0, 0, 0}
@@ -126,13 +152,18 @@ PRIVATE hgclass create(gclass_name_t name, const sdata_desc_t *cmds)
         states,
         &gmt,
         0,              // lmt
-        attrs_table,
+        attrs,
         0,              // priv_size
         0,              // authz_table
         cmds,
         0,              // trace_level
         0               // gclass_flag
     );
+}
+
+PRIVATE hgclass create(gclass_name_t name, const sdata_desc_t *cmds)
+{
+    return create_with_attrs(name, cmds, attrs_table);
 }
 
 /***************************************************************
@@ -195,6 +226,40 @@ int main(int argc, char *argv[])
     check(create(C_SECRET_POS_4, cmds_4) != NULL, "4. a required parameter, then a required secret: accepted");
     check(create(C_SECRET_POS_5, cmds_5) != NULL, "5. a secret not required, first: accepted");
     check(errors_refused == 0, "3-5. ... with no ERROR");
+
+    /*
+     *  A SDF_SECRET attribute must have a secret's name: the ERROR of the
+     *  refusal, in the FIFO of expected logs, and nothing for the one that
+     *  has it (REV-CLOUD V23.4.3)
+     */
+    gobj_log_register_handler("testing", 0, capture_log_write, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
+    set_expected_results(
+        "6. a SDF_SECRET attribute with a plain name",
+        json_pack("[{s:s, s:s, s:s}]",
+            "msg", "A SDF_SECRET attribute must have a secret's name: elsewhere than its gclass it is masked by its name only",
+            "gclass", "C_SECRET_ATTR_6",
+            "attribute", "vault"
+        ),
+        NULL,   // expected
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+    check(create_with_attrs(C_SECRET_ATTR_6, cmds_3, attrs_secret_plain_name) == NULL,
+        "6. a SDF_SECRET attribute named `vault`: refused");
+    check(test_json(NULL) == 0, "6. ... with its ERROR, and no other log");
+
+    set_expected_results(
+        "7. a SDF_SECRET attribute with a secret's name",
+        json_pack("[]"),
+        NULL,   // expected
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+    check(create_with_attrs(C_SECRET_ATTR_7, cmds_3, attrs_secret_secret_name) != NULL,
+        "7. the same attribute named `vault_secret`: accepted");
+    check(test_json(NULL) == 0, "7. ... with no log");
+    gobj_log_del_handler("test_capture");
 
     gobj_log_del_handler("capture");
     gobj_end();

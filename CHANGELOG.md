@@ -494,9 +494,17 @@ Out of the twenty-third review (V23):
   `command_parser.md` and the `SDF_SECRET` guide: a `SDF_SECRET` command
   parameter whose name is not a secret's (`content64`) is masked by the parser
   (authz checker, `commands` trace), not by the `machine` / `ev_kw` trace of an
-  event that carries it, which masks by names. A check in `gclass_create()`
-  that an `SDF_SECRET` ATTRIBUTE carries a secret's name was NOT added: some
-  attributes of the tree do not, and it waits for a decision.
+  event that carries it, which masks by names.
+- **BREAKING: a gclass with an `SDF_SECRET` attribute that has no secret's
+  name is refused** (V23.4.3, `gclass_create()`): one ERROR naming the gclass
+  and the attribute, and `NULL` -- fail closed. The flag masks the attribute
+  where its gclass is asked; everywhere else (the `machine` trace with
+  `ev_kw`, a dump of a peer's kw) a secret is told by its name, and one named
+  `vault` showed in clear. Every tree was checked: no attribute of the SDK or
+  of the projects is refused but the test's `vault`, renamed `vault_secret`.
+  Not on the ESP32 port (`ESP_PLATFORM`): its code is frozen, and its
+  `C_WIFI` declares `wifi_list`. A PARAMETER keeps being taken (the limit
+  above). Test `command_secret_positional`.
 - **The frame of an event that is not public is ONE WARNING, masked**
   (V23.4.1): `iev_create_from_gbuffer()` looked it up in silence, and
   `C_IEVENT_SRV` (before the session too) and `C_IEVENT_CLI` traced the whole
@@ -534,8 +542,8 @@ Out of the twenty-third review (V23):
   BREAKING (V23.4.5). Docs: `command_parser.md` (the JSON grammar, with
   examples; the extra text; the limit), `json_helper.md` (`truncated` in the
   example, `json_nul_fault()`), `string_helper.md`, `guide_sdata.md`,
-  `ievent.md`, `msg_ievent.md`, `system.md`, `data.md`, `treedb.md`,
-  `test_suite.md`, `kernel/c/README.md`.
+  `gclass.md`, `ievent.md`, `msg_ievent.md`, `system.md`, `data.md`,
+  `treedb.md`, `test_suite.md`, `kernel/c/README.md`.
 
 ## v7.26.9 (2026-10-11)
 

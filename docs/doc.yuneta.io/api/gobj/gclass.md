@@ -297,6 +297,23 @@ ERROR (*"A required secret parameter must be the last required one"*): a
 secret written with blanks would spill into the next parameter (see
 [command_parser](#command_parser)). Up to 7.25.21 it was accepted.
 
+An attribute flagged [`SDF_SECRET`](#SDF_SECRET) must have a secret's name
+([`is_secret_name()`](#is_secret_name)), or the gclass is refused: one ERROR,
+*"A SDF_SECRET attribute must have a secret's name: elsewhere than its gclass
+it is masked by its name only"*, with `gclass` and `attribute`, and `NULL`
+(7.26.10+; up to 7.26.9 such a gclass was created). The flag masks the
+attribute where its gclass is asked (`view-attrs`, `view-config`, the
+`create_delete2` trace); everywhere else a secret is told by its NAME -- the
+`machine` trace with `ev_kw` of a kw that carries it, a dump of a peer's kw --
+and a secret named `vault` showed there in clear. Not on the ESP32 port
+(`ESP_PLATFORM`), whose code is frozen.
+
+```C
+SDATA (DTP_JSON,    "vault",        SDF_WR|SDF_SECRET,  0,  "Refused: a plain name"),
+SDATA (DTP_JSON,    "vault_secret", SDF_WR|SDF_SECRET,  0,  "Taken: a secret's name"),
+SDATA (DTP_STRING,  "sim_pin",      SDF_WR|SDF_SECRET,  "", "Taken: pin, a whole segment"),
+```
+
 ---
 
 (gclass_find_by_name)=

@@ -787,6 +787,42 @@ PRIVATE int check_secret_positional_params(
     return 0;
 }
 
+#ifndef ESP_PLATFORM
+/***************************************************************************
+ *  An attribute flagged SDF_SECRET carries a secret's name
+ *  (is_secret_name()). The flag masks it where its gclass is asked
+ *  (view-attrs, view-config, the create_delete2 trace); everywhere else a
+ *  secret is told by its name -- the machine trace with ev_kw of a kw that
+ *  carries it, a dump of a peer's kw, any json_mask_secrets() with no
+ *  gclass at hand -- and a secret named `vault` showed there in clear
+ *  (REV-CLOUD V23.4.3). Refused, fail closed: the gclass is not created.
+ *
+ *  Not on the ESP32 port (ESP_PLATFORM): its code is FROZEN, never to be
+ *  touched, and its C_WIFI declares `wifi_list` SDF_SECRET; the check
+ *  would refuse that gclass.
+ ***************************************************************************/
+PRIVATE int check_secret_attrs_named(
+    gclass_name_t gclass_name,
+    const sdata_desc_t *attrs_table
+)
+{
+    for(const sdata_desc_t *it = attrs_table; it && it->name; it++) {
+        if((it->flag & SDF_SECRET) && !is_secret_name(it->name, strlen(it->name))) {
+            gobj_log_error(NULL, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "A SDF_SECRET attribute must have a secret's name: elsewhere than its gclass it is masked by its name only",
+                "gclass",       "%s", gclass_name,
+                "attribute",    "%s", it->name,
+                NULL
+            );
+            return -1;
+        }
+    }
+    return 0;
+}
+#endif
+
 /***************************************************************************
  *
  ***************************************************************************/
@@ -842,6 +878,12 @@ PUBLIC hgclass gclass_create( // create and register gclass
     if(check_secret_positional_params(gclass_name, command_table) < 0) {
         return NULL;    // Error already logged
     }
+
+#ifndef ESP_PLATFORM
+    if(check_secret_attrs_named(gclass_name, attrs_table) < 0) {
+        return NULL;    // Error already logged
+    }
+#endif
 
 #ifdef ESP_PLATFORM
     if(strlen(gclass_name) > 15) {
