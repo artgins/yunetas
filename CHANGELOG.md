@@ -626,9 +626,9 @@ Out of the twenty-fourth review (V24):
   `Wrong token: ******** again`. A key with a NUL is judged and copied by all
   its bytes (it was judged up to the NUL, its value shown). The names, the
   schemes and the headers are compared in ASCII, whatever the locale. The
-  twins of gobj-js follow the same rules (a patch for the release after gobj-js
-  7.26.20): the C side and the JS side answer the same on the tables of both
-  test suites and on 30 000 generated texts.
+  twins of gobj-js follow the same rules (gobj-js 7.26.21, below): the C side
+  and the JS side answer the same on the tables of both test suites and on
+  30 000 generated texts.
 - **The name of an event that is not public is masked** (V24.4.1), as its kw:
   a password or a JWT sent as the NAME was written in clear. Its WARNING says
   `frame_size`, the bytes received; its `kw_size` was the size of the masked,
@@ -765,6 +765,37 @@ Out of the security review of those commits (V24, `2e8d0589f`):
   hides, the record does not write; 400 000 in a longer run, none). Docs:
   `string_helper.md`, `gbuffer.md`, `msg_ievent.md`, `ievent.md`, `data.md`,
   `yuneta_agent.md`, `DEBUGGING.md`, `test_suite.md`, `api/js/logging.md`.
+- **JS layer: gobj-ui 7.26.41 and 7.26.42, gobj-js 7.26.21** (the
+  twenty-fourth review, V24.2, V24.4, V24.5, V24.6, and the security review
+  above). gobj-ui: what the reader does to a table of a `C_YUI_FORM` (a cell
+  edited, a row added or deleted, a nested table) is `edited` whatever the
+  record the form opened with -- a form that opened changed unwired its
+  tables, so their edit was lost by a close that did not ask (estadodelaire's
+  devices without their alarm colours) --; a change of language no longer
+  adds a copy of every column title, and the titles of a form's tables change
+  language (`yui_tabulator_relocalize()` takes them); every change of a badge
+  is said, as text, in one message per turn; the canvas of a G6 graph is
+  named and shows its focus (new consumer keys `json graph`, `gobj tree
+  graph`, `treedb graph`, `fsm graph`); a nav or toolbar item without a
+  `name` is named by a key, by one rule everywhere; the openers of the schema
+  editor are named controls, and its topics table is a table; a gclass viewer
+  goes where the window it was opened from goes, and the windows of a
+  destroyed shell go to the shell still alive; a promise of a `before_close`
+  guard that settles with `true` closes the modal; `validate-locales` counts every write to an unmarked `let` (its
+  rule is flow-insensitive, by design: a sentinel that is no key fails),
+  fails a translated text wherever a key is read, reads the iteration
+  callbacks exactly and `.bind()`, and asks for the id a nameless item or node
+  is named by; `deploy-round` tests each app before deploying it, shows every
+  step's output, refuses a range it cannot raise safely, and takes a template
+  as a target. gobj-js: the masking of the C kernel above -- after `Bearer` or
+  `Basic` the word that can be a credential, a JWE, a `name: value`, each rule
+  on the text as it came --, with the same answers as C on 230 078 texts.
+  Measured against gobj-js 7.26.20 on those texts, what it shows that 7.26.20
+  hid is V24.4.2's set (the word after a bare `Bearer` that is shorter than 8
+  characters, prose of 8 to 23 or dots only), the second word of `Bearer
+  Bearer tok` (whose `tok` is masked now), and blanks, punctuation and
+  parameter names: no credential. Every SPA on `^7.26.42` / `^7.26.21` and
+  deployed.
 
 ## v7.26.9 (2026-10-11)
 

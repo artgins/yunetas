@@ -71,7 +71,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.40`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.26.42`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -180,7 +180,7 @@ The standalone repo carries **two maintained lines**, and they are consumed in
     host's FSM — or every host answers *"Event NOT DEFINED in state"*.
   **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
   **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, wattyzer, yunovatios,
-  estadodelaire — all pull it from the **npm registry**, and all import it by package
+  estadodelaire, yunomusica — all pull it from the **npm registry**, and all import it by package
   specifier (`@yuneta/gobj-ui/src/*.js`, resolved by v2's exports map
   `"./src/*"`; the source lives under `src/` mirroring v1, with `index.js` and
   the vite plugin at the package root, and the published tarball ships all of
@@ -210,7 +210,7 @@ for an app with no map — 1.5 MB).
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.26.9`, package **`7.26.20`** on npm since 2026-10-13)
+versioned to track `YUNETA_VERSION` (SDK `7.26.9`, package **`7.26.21`** on npm since 2026-10-13)
 and **published to npm**. It had drifted to 7.13.x while the SDK was at 7.16.2
 — a number that told a consumer nothing about which SDK it was built against —
 and jumped to `7.16.0` on 2026-08-28 to say it again; 7.14 and 7.15 were skipped
@@ -239,7 +239,7 @@ registry — estadodelaire, hidraulia, wattyzer, yunomusica, the three yunovatio
 GUIs and the in-repo `yunos/js/*` yunos — but they do **not** all declare the
 same floor, and assuming they do has been wrong since the in-repo yunos moved
 ahead: `yunos/js/*`, the yunovatios GUIs, wattyzer's gui, yunomusica and
-estadodelaire are on `^7.26.20` (2026-10-13). Check the consumer's own
+estadodelaire are on `^7.26.21` (2026-10-13). Check the consumer's own
 `package.json` rather than this line. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
 `src/`.
@@ -1394,7 +1394,10 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   own wrapper fails `validate-locales`, with the file and the line -- and so
   does a TRANSLATED text, `t("k")` or any translator's, even marked: the
   function translates it again and it never changes language, so hand it the
-  key. An app's
+  key. Since 7.26.42 a translated text fails wherever a key is READ, marked or
+  not: given to `t()` (`t(t("k") + "!")`), to an `i18n` / `code` /
+  `data-i18n*` value or to a `data-i18n*` attribute, and a `const` holding one
+  too. An app's
   functions are in no table: a wrapper of its own marks what it hands on,
   and its callers' literal keys are read only through a list the module
   publishes. The validator follows a literal, a `const` (a const table too,
@@ -1403,16 +1406,35 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   locales for each literal and, under a list marker, fails one the list
   lacks; a marked `let` that only ever holds literals fails with *"make it a
   const"*. An UNMARKED plain `let` is followed too (gobj-ui 7.26.35+) when
-  every value it is given in its scope is WRITTEN as a string literal, a
-  const bound to one, `null` or a branch of those: it can only hold those
-  literals, so they are asked for where `t()` / an `i18n` / a `data-i18n*`
-  value reads it, and it fails nothing new (at a key position of a key
-  function a `let` still fails the per-call rule). A translator handed as a
-  CALLBACK is read too: `keys.map(t)`, `.forEach(t)`, `Array.from(keys, t)`
-  hand it each element as a key (an array the reader cannot follow fails
-  unless the call is marked), and what `.then(t)` / `.catch(t)` settles with
-  is a key no source writes (marked, or it fails). Sources are parsed, never
-  run; a locale is parsed and then imported, so its top-level code runs.
+  EVERY write to it in its scope is one the reader reads (7.26.42 counts them
+  all: a destructuring loop head `for([k, label] of rows)`, a `var` declared
+  again, a direct `eval()`) and each is WRITTEN as a string literal, a const
+  bound to one, `null` or a branch of those: it can only hold those literals,
+  so they are asked for where `t()` / an `i18n` / a `data-i18n*` value reads
+  it (at a key position of a key function a `let` still fails the per-call
+  rule). **The rule is flow-INSENSITIVE, by design**: every literal the `let`
+  is given is asked for, also one an `if` keeps away from the read, so a
+  sentinel that is no key (`let key = "-"`) fails the build like a missing
+  key -- write the sentinel `null`, or give the key its own `const`. (7.26.35
+  said the rule failed nothing new; 7.26.42 withdrew it.) A translator handed
+  as a CALLBACK is read too, in exactly these forms: an iteration method
+  (`map`, `flatMap`, `forEach`, `filter`, `find`, `findIndex`, `findLast`,
+  `findLastIndex`, `some`, `every`) called on the array (`keys.map(t)`,
+  `keys?.map(t)`, `keys["map"](t)`) or by `.call()` / `.apply()` of the method
+  (`Array.prototype.map.call(keys, t)`), and `Array.from(keys, t)` /
+  `Array.fromAsync(keys, t)`, hand it each element as a key (an array the
+  reader cannot follow fails unless the call is marked); what `.then(t)` /
+  `.catch(t)` settles with is a key no source writes (marked, or it fails).
+  Nothing else is read as calling it (`keys.reduce(t)`, `keys.sort(t)`, an
+  alias of a method, `Reflect.apply()`). A `.bind()` with arguments is counted
+  (7.26.42+): what a call of `t.bind(null, k)` is handed is i18next's options,
+  never a key, and a KEY FUNCTION bound with its first arguments
+  (`yui_shell_show_info.bind(null, shell)`) is read at the right positions.
+  The `id` a nameless item is named by is a key it asks for (7.26.42+): the
+  library names a menu entry `name || aria_label || id`, a toolbar item
+  `aria_label || name || id` and a `C_YUI_NODE` node `label || id`, each as a
+  KEY. Sources are parsed, never run; a locale is parsed and then imported, so
+  its top-level code runs.
   What stays invisible is a key that reaches `t()` (or an `i18n` /
   `data-i18n*` value) through an UNMARKED `let` given anything but literals
   (a property of a table, a call, a parameter, data, a `+=`: `let k =
@@ -1423,11 +1445,12 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   no check sees it and nothing fails. Left invisible by decision too
   (REV-CLOUD V23.5, gobj-ui 7.26.35): a translator called through what is no
   name of it (`(0, t)(k)`, `[t][0](k)`, `Reflect.apply(t, x, [k])`,
-  `Function.prototype.call.call(t, x, k)`), a key bound with it
-  (`t.bind(null, k)`), a translator handed to a function other than an
-  iteration method, `Array.from()` or `.then()`/`.catch()` (`{t: t}` is how
-  gobj-ui takes one), a parameter a closure returns (`const inner = () =>
-  key; t(inner())`), a translated text held in a marked `let`, and a
+  `Function.prototype.call.call(t, x, k)`), the key bound with it
+  (`t.bind(null, k)`: the key it binds is not read), a translator handed to a
+  function other than the iteration methods above, `Array.from()` /
+  `Array.fromAsync()` or `.then()`/`.catch()` (`{t: t}` is how gobj-ui takes
+  one), a parameter a closure returns (`const inner = () => key;
+  t(inner())`), a translated text held in a `let`, marked or not, and a
   published list mutated through a function it is handed to or by
   `Array.prototype.push.call()`. Check those on the page.
 - **Every text goes through i18n — and must be able to CHANGE language.**
