@@ -471,7 +471,9 @@ Out of the twenty-third review (V23):
   `strtod_l()`, which work in a `FULLY_STATIC` binary): with the `LC_NUMERIC`
   of `es_ES`, `strtod()` read `2.5` as 2 and took `2,5` -- latent, no yuno sets
   it. `command_parameter_from_text()` (`write-attr`) reads the same. gobj-js
-  has no twin of this reader. Test `command_parameter_types`.
+  has no twin of this reader; its `C_YUNO` reads the `set` of the trace
+  commands as C does now (gobj-js `main`, unreleased). Test
+  `command_parameter_types`.
 - **Secrets told by their VALUE** (V23.4.3): `mask_secrets_inline()`,
   `json_mask_secrets()` (every string, under any key) and
   `mask_secrets_in_text()` mask a JWT (`eyJ...`, three base64url parts) and
@@ -481,7 +483,8 @@ Out of the twenty-third review (V23):
   (`db_pass`, `user-pin`, `sim_pin`; not `passive`, `ping`, `spinner`,
   `otpx`); `key` and `cert` stay no secrets' names (a record key, a public
   certificate), and its doc says so. The twins in gobj-js (`is_secret_name()`,
-  `mask_secrets_inline()`, `json_mask_secrets()`) are not changed here.
+  `mask_secrets_inline()`, `json_mask_secrets()`) follow the same rule (gobj-js
+  `main`, unreleased; `api/js/logging.md` and `api/js/traces.md` say it).
 - **`write-attr attribute=password value=correct horse battery` answers
   `'<...>'`** (V23.4.3), not `'horse battery'` (`-1` either way): the parser
   repeats no extra text of a line that carries a secret (a secret parameter

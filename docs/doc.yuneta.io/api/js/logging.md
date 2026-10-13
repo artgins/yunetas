@@ -123,8 +123,11 @@ A JSON value as a log or a trace may show it, with the rule and the lists of
 the C kernel's `json_mask_secrets()`. At any depth, the value of a key whose
 name is a secret's ([`is_secret_name()`](#js_is_secret_name)) is
 `"********"`, whatever its type (not `undefined`, `null` or `""`); so is the
-`value` of an object whose `attribute` names a secret; and a string is masked
-as [`mask_secrets_inline()`](#js_mask_secrets_inline). It answers a masked
+`value` of an object whose `attribute` names a secret; and every string, under
+ANY key, is masked as [`mask_secrets_inline()`](#js_mask_secrets_inline): a
+JWT, the token after `Bearer `, a secret `name=value` in it. A string with a NUL
+inside is read as a blank, as C reads it (shown with blanks when something is
+masked). Up to gobj-js 7.26.19 a JWT under a plain key showed. It answers a masked
 copy (the objects and arrays on the way to a masked value are copied, the
 rest is shared), or the value itself when there was nothing to mask; the
 value is never changed.
@@ -144,6 +147,8 @@ and a failure answers
 ```js
 json_mask_secrets({password: 1234, auth: {access_token: "eyJ..."}, window: gobj});
 // {password: "********", auth: {access_token: "********"}, window: gobj}
+json_mask_secrets({note: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln", h: "Authorization: Bearer abc"});
+// {note: "********", h: "Authorization: Bearer ********"}
 ```
 
 (js_mask_secrets_inline)=
@@ -152,13 +157,20 @@ json_mask_secrets({password: 1234, auth: {access_token: "eyJ..."}, window: gobj}
 A text (a command line) with the value of every `name=value` whose name is a
 secret's written as `********`, quoted or not, and the `value=` of a
 write-attr whose `attribute=` names a secret. An unquoted value runs to the
-next `word=`: `password=correct horse battery` is masked whole. The rest is
-kept. It answers
-`null` when there was nothing to mask.
+next `word=`: `password=correct horse battery` is masked whole. And a
+credential by its SHAPE, wherever it is and whatever names it, the shapes of
+the C kernel: a JWT (`eyJ` at the start of a word and three base64url parts
+joined by `.`; a `.` after it, the end of a sentence, is not a fourth) and the
+token after `Bearer ` (any case, a word of its own). The rest is kept. It
+answers `null` when there was nothing to mask.
 
 ```js
 mask_secrets_inline("set-user-pwd username=bob password=hunter2");
 // "set-user-pwd username=bob password=********"
+mask_secrets_inline("curl -H 'Authorization: Bearer abc' u");
+// "curl -H 'Authorization: Bearer ********' u"
+mask_secrets_inline("note=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln x=1");
+// "note=******** x=1"
 mask_secrets_inline("list-yunos");      // null
 ```
 
@@ -169,14 +181,20 @@ mask_secrets_inline("list-yunos");      // null
 `passw`, `pwd`, `passphrase`, `secret`, `token`, `jwt`, `bearer`,
 `authorization`, `cookie`, `credential` or `salt`; or `apikey`, `sessionid`,
 `sessionkey` or `authdata` once `_`, `-`, `.` and blanks are taken out; or
-both `priv` and `key`. Any case. A name with a segment that names something
-ABOUT a credential (`endpoint`, `url`, `domain`, `path`, `file`, `public`,
-`count`, `type`, `name`, ... the C list) is not one: `token_endpoint`,
-`cookie_domain`, `jwt_public_keys`.
+`pass`, `pin` or `otp` as a WHOLE segment, a run of letters and digits
+(`db_pass`, `user-pin`, `sim_pin`; not `passive`, `ping`, `otpx`); or both
+`priv` and `key`. Any case. A name with a segment that names something ABOUT a
+credential (`endpoint`, `url`, `domain`, `path`, `file`, `public`, `count`,
+`type`, `name`, ... the C list) is not one: `token_endpoint`, `cookie_domain`,
+`jwt_public_keys`, `pin_count`. `key` and `cert` alone are not secrets' names:
+a record key, a public certificate. Up to gobj-js 7.26.19 `pass`, `pin` and
+`otp` were not in it.
 
 ```js
 is_secret_name("smtp_password");    // true
 is_secret_name("X-Api-Key");        // true
+is_secret_name("sim_pin");          // true
+is_secret_name("mapping");          // false
 is_secret_name("username");         // false
 is_secret_name("token_endpoint");   // false
 ```

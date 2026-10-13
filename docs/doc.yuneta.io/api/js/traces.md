@@ -219,8 +219,13 @@ same keys.
 | `set-gclass-no-trace` | `gclass_name`, `level`, `set` | `no_trace_levels.<gclass>` |
 
 `get-global-trace`, `get-global-no-trace`, `get-gclass-trace` and
-`get-gclass-no-trace` read the same levels. `set` accepts `1` / `0`, `true` /
-`false` and `set` / `reset`.
+`get-gclass-no-trace` read the same levels. `set` is read as the C kernel reads
+it: a boolean, an integer (`1` / `0`), or text -- `set` / `reset`, a JSON
+integer (`"1"`, `"-1"`, `"0"`), `true` / `false`, `yes` / `no`, `on` / `off` in
+any case. Anything else answers `-1` *"bitmask set or re-set?"*: a real
+(`2.5`), `" 1"`, `"0x1"`, `"1e3"`, `"+5"`, `"007"`. Up to gobj-js 7.26.19 the
+text went through `Number()`, which took all of those, and `"yes"` / `"on"`
+were refused.
 
 ```javascript
 gobj_command(gobj_yuno(), "set-gclass-trace",
