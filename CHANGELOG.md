@@ -456,6 +456,29 @@ Out of the twenty-second review (V22):
   measure can never match). A colour field is cleared to `#000000` rather
   than `null`, which Chrome logged once per colour field each time the form
   was filled. Every SPA on `^7.26.34` and deployed.
+- **JS layer: gobj-ui 7.26.35 and 7.26.36, gobj-js 7.26.20** (the
+  twenty-third review, V23.3, V23.5, V23.6). gobj-ui: a window whose host
+  names no `$parent`
+  outlives a logout and the next shell takes it in -- since 7.26.31 it stayed
+  alive with its DOM detached, and gui_agent's developer window vanished after
+  a logout and login --; every window of the library lives in a window layer
+  under the drawer, in ONE z-order, and the floating dock under the dialogs
+  and toasts; a menu badge is part of its item's name and a change is
+  announced with it; the controls the library drew without a name (find
+  boxes, the dock chip, crumbs, cards, topic tabs, site-map links, Tom
+  Select's remove, Tabulator's cell editors, the json editor's menus,
+  maplibre's canvas) carry title and aria-label with their keys; a field label
+  or a column header is re-translated by the key that translated it;
+  `validate-locales` reads a translator handed as a callback, a destructured
+  translator, a text built from a translation, an unmarked `let` that only
+  ever holds literals (37 keys more read across the apps, all defined), and
+  catches a published list mutated through an alias; `deploy-round` raises
+  each app's patch version with its range. gobj-js: the secret names and the
+  masking by value of the C kernel (above), and the `set` of the trace
+  commands read with the C grammar. 7.26.36: the composed title of a dock
+  chip (a window with a data half) changes language -- estadodelaire's QA,
+  which switches the language and reads every name again, found it. Every
+  SPA on `^7.26.36` / `^7.26.20` and deployed.
 
 Out of the twenty-third review (V23):
 
