@@ -456,7 +456,7 @@ Out of the twenty-second review (V22):
   measure can never match). A colour field is cleared to `#000000` rather
   than `null`, which Chrome logged once per colour field each time the form
   was filled. Every SPA on `^7.26.34` and deployed.
-- **JS layer: gobj-ui 7.26.35 to 7.26.37, gobj-js 7.26.20** (the
+- **JS layer: gobj-ui 7.26.35 to 7.26.38, gobj-js 7.26.20** (the
   twenty-third review, V23.3, V23.5, V23.6). gobj-ui: a window whose host
   names no `$parent`
   outlives a logout and the next shell takes it in -- since 7.26.31 it stayed
@@ -481,7 +481,13 @@ Out of the twenty-second review (V22):
   the editor of a boolean cell is a box to tick, not the whole cell -- the
   rule that sizes a cell editor to its cell reached the checkbox of the
   `tickCross` editor, and validating an alarm on a phone opened a huge empty
-  box (a user's report). Every SPA on `^7.26.37` / `^7.26.20` and deployed.
+  box (a user's report). 7.26.38: a `before_close` guard of
+  `yui_shell_show_modal` that ASKS answers the question's promise, and the
+  modal takes back the history entry the browser Back took only once the
+  question is over -- put back at once, it went above the question's own, and
+  every Back stacked one more question (the treedb record form in its phone
+  sheet; estadodelaire's device views, sheets on a phone since its 2.0.6).
+  Every SPA on `^7.26.38` / `^7.26.20` and deployed.
 
 Out of the twenty-third review (V23):
 
