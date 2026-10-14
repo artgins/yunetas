@@ -28,7 +28,7 @@ Do not edit it by hand. Run the script after a submodule bump.
 
 ## gobj-js (Core Framework)
 
-**Package:** `@yuneta/gobj-js` — **version:** `7.26.21` — **source:** [github.com/artgins/gobj-js](https://github.com/artgins/gobj-js/tree/7.26.21)
+**Package:** `@yuneta/gobj-js` — **version:** `7.26.22` — **source:** [github.com/artgins/gobj-js](https://github.com/artgins/gobj-js/tree/7.26.22)
 
 283 symbols, 283 with a reference entry.
 
@@ -36,334 +36,334 @@ Do not edit it by hand. Run the script after a submodule bump.
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_ievent_cli`**](js/builtin_gclasses.md#js_register_c_ievent_cli) | `function register_c_ievent_cli()` | [L1660](https://github.com/artgins/gobj-js/blob/7.26.21/src/c_ievent_cli.js#L1660) |
+| [**`register_c_ievent_cli`**](js/builtin_gclasses.md#js_register_c_ievent_cli) | `function register_c_ievent_cli()` | [L1646](https://github.com/artgins/gobj-js/blob/7.26.22/src/c_ievent_cli.js#L1646) |
 
 ### `src/c_timer.js` — 4 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`clear_timeout`**](js/builtin_gclasses.md#js_clear_timeout) | `function clear_timeout(gobj)` | [L391](https://github.com/artgins/gobj-js/blob/7.26.21/src/c_timer.js#L391) |
-| [**`register_c_timer`**](js/builtin_gclasses.md#js_register_c_timer) | `function register_c_timer()` | [L326](https://github.com/artgins/gobj-js/blob/7.26.21/src/c_timer.js#L326) |
-| [**`set_timeout`**](js/builtin_gclasses.md#js_set_timeout) | `function set_timeout(gobj, msec)` | [L355](https://github.com/artgins/gobj-js/blob/7.26.21/src/c_timer.js#L355) |
-| [**`set_timeout_periodic`**](js/builtin_gclasses.md#js_set_timeout_periodic) | `function set_timeout_periodic(gobj, msec)` | [L373](https://github.com/artgins/gobj-js/blob/7.26.21/src/c_timer.js#L373) |
+| [**`clear_timeout`**](js/builtin_gclasses.md#js_clear_timeout) | `function clear_timeout(gobj)` | [L391](https://github.com/artgins/gobj-js/blob/7.26.22/src/c_timer.js#L391) |
+| [**`register_c_timer`**](js/builtin_gclasses.md#js_register_c_timer) | `function register_c_timer()` | [L326](https://github.com/artgins/gobj-js/blob/7.26.22/src/c_timer.js#L326) |
+| [**`set_timeout`**](js/builtin_gclasses.md#js_set_timeout) | `function set_timeout(gobj, msec)` | [L355](https://github.com/artgins/gobj-js/blob/7.26.22/src/c_timer.js#L355) |
+| [**`set_timeout_periodic`**](js/builtin_gclasses.md#js_set_timeout_periodic) | `function set_timeout_periodic(gobj, msec)` | [L373](https://github.com/artgins/gobj-js/blob/7.26.22/src/c_timer.js#L373) |
 
 ### `src/c_yuno.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yuno`**](js/builtin_gclasses.md#js_register_c_yuno) | `function register_c_yuno()` | [L556](https://github.com/artgins/gobj-js/blob/7.26.21/src/c_yuno.js#L556) |
+| [**`register_c_yuno`**](js/builtin_gclasses.md#js_register_c_yuno) | `function register_c_yuno()` | [L556](https://github.com/artgins/gobj-js/blob/7.26.22/src/c_yuno.js#L556) |
 
 ### `src/command_parser.js` — 2 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`build_command_response`**](js/events.md#js_build_command_response) | `function build_command_response( gobj, result, comment, schema, data )` | [L24](https://github.com/artgins/gobj-js/blob/7.26.21/src/command_parser.js#L24) |
-| [**`command_parser`**](js/events.md#js_command_parser) | `function command_parser( gobj, command, kw, src )` | [L12](https://github.com/artgins/gobj-js/blob/7.26.21/src/command_parser.js#L12) |
+| [**`build_command_response`**](js/events.md#js_build_command_response) | `function build_command_response( gobj, result, comment, schema, data )` | [L24](https://github.com/artgins/gobj-js/blob/7.26.22/src/command_parser.js#L24) |
+| [**`command_parser`**](js/events.md#js_command_parser) | `function command_parser( gobj, command, kw, src )` | [L12](https://github.com/artgins/gobj-js/blob/7.26.22/src/command_parser.js#L12) |
 
 ### `src/dbsimple.js` — 4 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`db_list_persistent_attrs`**](js/persistence.md#js_db_list_persistent_attrs) | `function db_list_persistent_attrs(gobj, keys)` | [L123](https://github.com/artgins/gobj-js/blob/7.26.21/src/dbsimple.js#L123) |
-| [**`db_load_persistent_attrs`**](js/persistence.md#js_db_load_persistent_attrs) | `function db_load_persistent_attrs( gobj, keys` | [L38](https://github.com/artgins/gobj-js/blob/7.26.21/src/dbsimple.js#L38) |
-| [**`db_remove_persistent_attrs`**](js/persistence.md#js_db_remove_persistent_attrs) | `function db_remove_persistent_attrs( gobj, keys` | [L96](https://github.com/artgins/gobj-js/blob/7.26.21/src/dbsimple.js#L96) |
-| [**`db_save_persistent_attrs`**](js/persistence.md#js_db_save_persistent_attrs) | `function db_save_persistent_attrs( gobj, keys` | [L69](https://github.com/artgins/gobj-js/blob/7.26.21/src/dbsimple.js#L69) |
+| [**`db_list_persistent_attrs`**](js/persistence.md#js_db_list_persistent_attrs) | `function db_list_persistent_attrs(gobj, keys)` | [L123](https://github.com/artgins/gobj-js/blob/7.26.22/src/dbsimple.js#L123) |
+| [**`db_load_persistent_attrs`**](js/persistence.md#js_db_load_persistent_attrs) | `function db_load_persistent_attrs( gobj, keys` | [L38](https://github.com/artgins/gobj-js/blob/7.26.22/src/dbsimple.js#L38) |
+| [**`db_remove_persistent_attrs`**](js/persistence.md#js_db_remove_persistent_attrs) | `function db_remove_persistent_attrs( gobj, keys` | [L96](https://github.com/artgins/gobj-js/blob/7.26.22/src/dbsimple.js#L96) |
+| [**`db_save_persistent_attrs`**](js/persistence.md#js_db_save_persistent_attrs) | `function db_save_persistent_attrs( gobj, keys` | [L69](https://github.com/artgins/gobj-js/blob/7.26.22/src/dbsimple.js#L69) |
 
 ### `src/gobj.js` — 131 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`GObj`**](js/js_gclass.md#js_GObj) | `class GObj` | [L226](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L226) |
-| [**`SDATA`**](js/js_attrs.md#js_SDATA) | `const SDATA       = (type, name, flag, default_value, description) => new SDataDesc(type, name, flag, defau...` | [L181](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L181) |
-| [**`SDATAAUTHZ`**](js/commands.md#js_SDATAAUTHZ) | `const SDATAAUTHZ  = (type, name, flag, alias, items, description) => new SDataDesc(type, name, flag, null, ...` | [L185](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L185) |
-| [**`SDATACM`**](js/commands.md#js_SDATACM) | `const SDATACM     = (type, name, alias, items, json_fn, description) => new SDataDesc(type, name, 0, null, ...` | [L182](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L182) |
-| [**`SDATACM2`**](js/commands.md#js_SDATACM2) | `const SDATACM2    = (type, name, flag, alias, items, json_fn, description) => new SDataDesc(type, name, fla...` | [L183](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L183) |
-| [**`SDATADF`**](js/commands.md#js_SDATADF) | `const SDATADF     = (type, name, flag, header, fillspace, description) => new SDataDesc(type, name, flag, n...` | [L187](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L187) |
-| [**`SDATAPM`**](js/commands.md#js_SDATAPM) | `const SDATAPM     = (type, name, flag, default_value, description) => new SDataDesc(type, name, flag, defau...` | [L184](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L184) |
-| [**`SDATAPM0`**](js/commands.md#js_SDATAPM0) | `const SDATAPM0    = (type, name, flag, authpth, description) => new SDataDesc(type, name, flag, null, descr...` | [L186](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L186) |
-| [**`SDATA_END`**](js/commands.md#js_SDATA_END) | `const SDATA_END   = () => new SDataDesc(0, null);` | [L180](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L180) |
-| [**`SDataDesc`**](js/commands.md#js_SDataDesc) | `class SDataDesc` | [L163](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L163) |
-| [**`YUNETA_VERSION`**](js/bootstrap.md#js_YUNETA_VERSION) | `let YUNETA_VERSION = "7.0.0a";` | [L59](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L59) |
-| [**`__yuno__`**](js/hierarchy.md#js___yuno__) | `let __yuno__ = null;` | [L80](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L80) |
-| [**`command_parameter_from_json`**](js/js_attrs.md#js_command_parameter_from_json) | `function command_parameter_from_json(type, value)` | [L1215](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1215) |
-| [**`command_parameter_from_text`**](js/js_attrs.md#js_command_parameter_from_text) | `function command_parameter_from_text(type, text)` | [L1195](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1195) |
-| [**`data_type_t`**](js/js_attrs.md#js_data_type_t) | `const data_type_t = Object.freeze(` | [L108](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L108) |
-| [**`event_flag_t`**](js/state_machine.md#js_event_flag_t) | `const event_flag_t = Object.freeze(` | [L321](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L321) |
-| [**`gclass_add_ev_action`**](js/js_gclass.md#js_gclass_add_ev_action) | `function gclass_add_ev_action( gclass, state_name, event_name, action, next_state )` | [L1641](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1641) |
-| [**`gclass_add_event_type`**](js/js_gclass.md#js_gclass_add_event_type) | `function gclass_add_event_type(gclass, event_name, event_flag)` | [L1688](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1688) |
-| [**`gclass_add_state`**](js/js_gclass.md#js_gclass_add_state) | `function gclass_add_state(gclass, state_name)` | [L1621](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1621) |
-| [**`gclass_check_fsm`**](js/js_gclass.md#js_gclass_check_fsm) | `function gclass_check_fsm(gclass)` | [L1724](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1724) |
-| [**`gclass_create`**](js/js_gclass.md#js_gclass_create) | `function gclass_create( gclass_name, event_types, states, gmt, lmt, attrs_table, priv, authz_table, command...` | [L1444](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1444) |
-| [**`gclass_event_type`**](js/js_gclass.md#js_gclass_event_type) | `function gclass_event_type(gclass, event_name)` | [L1701](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1701) |
-| [**`gclass_find_by_name`**](js/js_gclass.md#js_gclass_find_by_name) | `function gclass_find_by_name(gclass_name, verbose)` | [L1817](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1817) |
-| [**`gclass_flag_t`**](js/js_gclass.md#js_gclass_flag_t) | `const gclass_flag_t = Object.freeze(` | [L272](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L272) |
-| [**`gclass_unregister`**](js/js_gclass.md#js_gclass_unregister) | `function gclass_unregister(gclass)` | [L1558](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1558) |
-| [**`gobj_bottom_gobj`**](js/hierarchy.md#js_gobj_bottom_gobj) | `function gobj_bottom_gobj(gobj)` | [L3124](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3124) |
-| [**`gobj_change_parent`**](js/hierarchy.md#js_gobj_change_parent) | `function gobj_change_parent(gobj, parent)` | [L4137](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L4137) |
-| [**`gobj_change_state`**](js/state_machine.md#js_gobj_change_state) | `function gobj_change_state(gobj, state_name)` | [L4065](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L4065) |
-| [**`gobj_command`**](js/events.md#js_gobj_command) | `function gobj_command(gobj, command, kw, src)` | [L5845](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L5845) |
-| [**`gobj_create`**](js/lifecycle.md#js_gobj_create) | `function gobj_create( gobj_name, gclass_name, kw, parent )` | [L2393](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2393) |
-| [**`gobj_create2`**](js/lifecycle.md#js_gobj_create2) | `function gobj_create2( gobj_name, gclass_name, kw, parent, gobj_flag )` | [L2148](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2148) |
-| [**`gobj_create_default_service`**](js/lifecycle.md#js_gobj_create_default_service) | `function gobj_create_default_service( gobj_name, gclass_name, kw, parent )` | [L2348](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2348) |
-| [**`gobj_create_pure_child`**](js/lifecycle.md#js_gobj_create_pure_child) | `function gobj_create_pure_child( gobj_name, gclass_name, kw, parent )` | [L2378](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2378) |
-| [**`gobj_create_service`**](js/lifecycle.md#js_gobj_create_service) | `function gobj_create_service( gobj_name, gclass_name, kw, parent )` | [L2339](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2339) |
-| [**`gobj_create_volatil`**](js/lifecycle.md#js_gobj_create_volatil) | `function gobj_create_volatil( gobj_name, gclass_name, kw, parent )` | [L2363](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2363) |
-| [**`gobj_create_yuno`**](js/lifecycle.md#js_gobj_create_yuno) | `function gobj_create_yuno( gobj_name, gclass_name, kw )` | [L2331](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2331) |
-| [**`gobj_current_state`**](js/state_machine.md#js_gobj_current_state) | `function gobj_current_state(gobj)` | [L4116](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L4116) |
-| [**`gobj_default_service`**](js/hierarchy.md#js_gobj_default_service) | `function gobj_default_service()` | [L1860](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1860) |
-| [**`gobj_deliver_posted_events`**](js/events.md#js_gobj_deliver_posted_events) | `function gobj_deliver_posted_events()` | [L4341](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L4341) |
-| [**`gobj_destroy`**](js/lifecycle.md#js_gobj_destroy) | `function gobj_destroy(gobj)` | [L2411](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2411) |
-| [**`gobj_find_child`**](js/hierarchy.md#js_gobj_find_child) | `function gobj_find_child(gobj, jn_filter)` | [L3501](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3501) |
-| [**`gobj_find_gobj`**](js/hierarchy.md#js_gobj_find_gobj) | `function gobj_find_gobj(gobj, path)` | [L3417](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3417) |
-| [**`gobj_find_service`**](js/hierarchy.md#js_gobj_find_service) | `function gobj_find_service( service_name, verbose )` | [L1871](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1871) |
-| [**`gobj_find_subscribings`**](js/events.md#js_gobj_find_subscribings) | `function gobj_find_subscribings( subscriber, event, kw,` | [L5497](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L5497) |
-| [**`gobj_find_subscriptions`**](js/events.md#js_gobj_find_subscriptions) | `function gobj_find_subscriptions( publisher, event, kw, subscriber)` | [L5424](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L5424) |
-| [**`gobj_flag_t`**](js/lifecycle.md#js_gobj_flag_t) | `const gobj_flag_t = Object.freeze(` | [L301](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L301) |
-| [**`gobj_full_name`**](js/hierarchy.md#js_gobj_full_name) | `function gobj_full_name(gobj)` | [L3044](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3044) |
-| [**`gobj_gclass_name`**](js/hierarchy.md#js_gobj_gclass_name) | `function gobj_gclass_name(gobj)` | [L3018](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3018) |
-| [**`gobj_get_gclass_trace_level`**](js/traces.md#js_gobj_get_gclass_trace_level) | `function gobj_get_gclass_trace_level(gclass)` | [L729](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L729) |
-| [**`gobj_get_gclass_trace_level2`**](js/traces.md#js_gobj_get_gclass_trace_level2) | `function gobj_get_gclass_trace_level2(gclass)` | [L739](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L739) |
-| [**`gobj_get_gclass_trace_no_level`**](js/traces.md#js_gobj_get_gclass_trace_no_level) | `function gobj_get_gclass_trace_no_level(gclass)` | [L749](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L749) |
-| [**`gobj_get_global_trace_level`**](js/traces.md#js_gobj_get_global_trace_level) | `function gobj_get_global_trace_level()` | [L719](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L719) |
-| [**`gobj_get_global_trace_no_level`**](js/traces.md#js_gobj_get_global_trace_no_level) | `function gobj_get_global_trace_no_level()` | [L724](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L724) |
-| [**`gobj_global_trace_level`**](js/traces.md#js_gobj_global_trace_level) | `function gobj_global_trace_level()` | [L683](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L683) |
-| [**`gobj_global_trace_no_level`**](js/traces.md#js_gobj_global_trace_no_level) | `function gobj_global_trace_no_level()` | [L688](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L688) |
-| [**`gobj_has_attr`**](js/js_attrs.md#js_gobj_has_attr) | `function gobj_has_attr(gobj, name)` | [L3617](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3617) |
-| [**`gobj_has_event`**](js/state_machine.md#js_gobj_has_event) | `function gobj_has_event(gobj, event, event_flag)` | [L4218](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L4218) |
-| [**`gobj_has_output_event`**](js/state_machine.md#js_gobj_has_output_event) | `function gobj_has_output_event(gobj, event, event_flag)` | [L4235](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L4235) |
-| [**`gobj_hsdata`**](js/js_attrs.md#js_gobj_hsdata) | `function gobj_hsdata(gobj)` | [L1390](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1390) |
-| [**`gobj_is_destroying`**](js/lifecycle.md#js_gobj_is_destroying) | `function gobj_is_destroying(gobj)` | [L3109](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3109) |
-| [**`gobj_is_playing`**](js/lifecycle.md#js_gobj_is_playing) | `function gobj_is_playing(gobj)` | [L2947](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2947) |
-| [**`gobj_is_pure_child`**](js/lifecycle.md#js_gobj_is_pure_child) | `function gobj_is_pure_child(gobj)` | [L3093](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3093) |
-| [**`gobj_is_running`**](js/lifecycle.md#js_gobj_is_running) | `function gobj_is_running(gobj)` | [L2913](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2913) |
-| [**`gobj_is_service`**](js/lifecycle.md#js_gobj_is_service) | `function gobj_is_service(gobj)` | [L2935](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2935) |
-| [**`gobj_is_volatil`**](js/lifecycle.md#js_gobj_is_volatil) | `function gobj_is_volatil(gobj)` | [L3077](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3077) |
-| [**`gobj_list_persistent_attrs`**](js/persistence.md#js_gobj_list_persistent_attrs) | `function gobj_list_persistent_attrs(gobj, keys)` | [L2041](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2041) |
-| [**`gobj_list_subscriptions`**](js/events.md#js_gobj_list_subscriptions) | `function gobj_list_subscriptions(gobj2view)` | [L5446](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L5446) |
-| [**`gobj_load_persistent_attrs`**](js/persistence.md#js_gobj_load_persistent_attrs) | `function gobj_load_persistent_attrs( gobj, keys` | [L1989](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1989) |
-| [**`gobj_match_children`**](js/hierarchy.md#js_gobj_match_children) | `function gobj_match_children(gobj, jn_filter)` | [L3522](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3522) |
-| [**`gobj_match_children_tree`**](js/hierarchy.md#js_gobj_match_children_tree) | `function gobj_match_children_tree(gobj, jn_filter)` | [L3546](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3546) |
-| [**`gobj_match_gobj`**](js/hierarchy.md#js_gobj_match_gobj) | `function gobj_match_gobj(gobj, jn_filter)` | [L3439](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3439) |
-| [**`gobj_name`**](js/hierarchy.md#js_gobj_name) | `function gobj_name(gobj)` | [L3005](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3005) |
-| [**`gobj_parent`**](js/hierarchy.md#js_gobj_parent) | `function gobj_parent(gobj)` | [L3064](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3064) |
-| [**`gobj_pause`**](js/lifecycle.md#js_gobj_pause) | `function gobj_pause(gobj)` | [L2878](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2878) |
-| [**`gobj_play`**](js/lifecycle.md#js_gobj_play) | `function gobj_play(gobj)` | [L2822](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2822) |
-| [**`gobj_post_event`**](js/events.md#js_gobj_post_event) | `function gobj_post_event(dst, event, kw, src)` | [L4275](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L4275) |
-| [**`gobj_posted_events_size`**](js/events.md#js_gobj_posted_events_size) | `function gobj_posted_events_size()` | [L4333](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L4333) |
-| [**`gobj_publish_event`**](js/events.md#js_gobj_publish_event) | `function gobj_publish_event( publisher, event, kw)` | [L5517](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L5517) |
-| [**`gobj_read_attr`**](js/js_attrs.md#js_gobj_read_attr) | `function gobj_read_attr(gobj, name, src)` | [L3628](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3628) |
-| [**`gobj_read_attrs`**](js/js_attrs.md#js_gobj_read_attrs) | `function gobj_read_attrs( gobj, include_flag,` | [L3651](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3651) |
-| [**`gobj_read_bool_attr`**](js/js_attrs.md#js_gobj_read_bool_attr) | `function gobj_read_bool_attr(gobj, name)` | [L3687](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3687) |
-| [**`gobj_read_integer_attr`**](js/js_attrs.md#js_gobj_read_integer_attr) | `function gobj_read_integer_attr(gobj, name)` | [L3718](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3718) |
-| [**`gobj_read_pointer_attr`**](js/js_attrs.md#js_gobj_read_pointer_attr) | `function gobj_read_pointer_attr(gobj, name)` | [L3764](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3764) |
-| [**`gobj_read_str_attr`**](js/js_attrs.md#js_gobj_read_str_attr) | `function gobj_read_str_attr(gobj, name)` | [L3741](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3741) |
-| [**`gobj_remove_persistent_attrs`**](js/persistence.md#js_gobj_remove_persistent_attrs) | `function gobj_remove_persistent_attrs( gobj, keys` | [L2023](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2023) |
-| [**`gobj_repr_global_trace_levels`**](js/traces.md#js_gobj_repr_global_trace_levels) | `function gobj_repr_global_trace_levels()` | [L857](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L857) |
-| [**`gobj_reset_volatil_attrs`**](js/js_attrs.md#js_gobj_reset_volatil_attrs) | `function gobj_reset_volatil_attrs(gobj)` | [L3932](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3932) |
-| [**`gobj_save_persistent_attrs`**](js/persistence.md#js_gobj_save_persistent_attrs) | `function gobj_save_persistent_attrs( gobj, keys` | [L2006](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2006) |
-| [**`gobj_search_path`**](js/hierarchy.md#js_gobj_search_path) | `function gobj_search_path(gobj, path)` | [L3571](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3571) |
-| [**`gobj_send_event`**](js/events.md#js_gobj_send_event) | `function gobj_send_event(dst, event, kw, src)` | [L4536](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L4536) |
-| [**`gobj_services`**](js/hierarchy.md#js_gobj_services) | `function gobj_services()` | [L1846](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L1846) |
-| [**`gobj_set_bottom_gobj`**](js/hierarchy.md#js_gobj_set_bottom_gobj) | `function gobj_set_bottom_gobj(gobj, bottom_gobj)` | [L3136](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3136) |
-| [**`gobj_set_deep_trace`**](js/traces.md#js_gobj_set_deep_trace) | `function gobj_set_deep_trace(value)` | [L760](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L760) |
-| [**`gobj_set_gclass_no_trace`**](js/traces.md#js_gobj_set_gclass_no_trace) | `function gobj_set_gclass_no_trace(gclass, level, set)` | [L818](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L818) |
-| [**`gobj_set_gclass_trace`**](js/traces.md#js_gobj_set_gclass_trace) | `function gobj_set_gclass_trace(gclass, level, set)` | [L770](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L770) |
-| [**`gobj_set_global_no_trace`**](js/traces.md#js_gobj_set_global_no_trace) | `function gobj_set_global_no_trace(level, set)` | [L669](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L669) |
-| [**`gobj_set_global_no_trace2`**](js/traces.md#js_gobj_set_global_no_trace2) | `function gobj_set_global_no_trace2(bitmask, set)` | [L704](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L704) |
-| [**`gobj_set_global_trace`**](js/traces.md#js_gobj_set_global_trace) | `function gobj_set_global_trace(level, set)` | [L655](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L655) |
-| [**`gobj_set_global_trace2`**](js/traces.md#js_gobj_set_global_trace2) | `function gobj_set_global_trace2(bitmask, set)` | [L694](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L694) |
-| [**`gobj_set_gobj_no_trace`**](js/traces.md#js_gobj_set_gobj_no_trace) | `function gobj_set_gobj_no_trace(gobj, level, set)` | [L838](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L838) |
-| [**`gobj_set_gobj_trace`**](js/traces.md#js_gobj_set_gobj_trace) | `function gobj_set_gobj_trace(gobj, level, set)` | [L790](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L790) |
-| [**`gobj_set_trace_machine_format`**](js/traces.md#js_gobj_set_trace_machine_format) | `function gobj_set_trace_machine_format(format)` | [L394](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L394) |
-| [**`gobj_short_name`**](js/hierarchy.md#js_gobj_short_name) | `function gobj_short_name(gobj)` | [L3031](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3031) |
-| [**`gobj_start`**](js/lifecycle.md#js_gobj_start) | `function gobj_start(gobj)` | [L2579](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2579) |
-| [**`gobj_start_children`**](js/lifecycle.md#js_gobj_start_children) | `function gobj_start_children(gobj)` | [L2675](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2675) |
-| [**`gobj_start_tree`**](js/lifecycle.md#js_gobj_start_tree) | `function gobj_start_tree(gobj)` | [L2703](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2703) |
-| [**`gobj_start_up`**](js/bootstrap.md#js_gobj_start_up) | `function gobj_start_up( jn_global_settings, load_persistent_attrs_fn, save_persistent_attrs_fn, remove_pers...` | [L868](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L868) |
-| [**`gobj_stats`**](js/events.md#js_gobj_stats) | `function gobj_stats(gobj, stats, kw, src)` | [L5909](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L5909) |
-| [**`gobj_stop`**](js/lifecycle.md#js_gobj_stop) | `function gobj_stop(gobj)` | [L2734](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2734) |
-| [**`gobj_stop_children`**](js/lifecycle.md#js_gobj_stop_children) | `function gobj_stop_children(gobj)` | [L2784](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2784) |
-| [**`gobj_stop_tree`**](js/lifecycle.md#js_gobj_stop_tree) | `function gobj_stop_tree(gobj)` | [L2797](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2797) |
-| [**`gobj_subscribe_event`**](js/events.md#js_gobj_subscribe_event) | `function gobj_subscribe_event( publisher, event, kw, subscriber)` | [L5158](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L5158) |
-| [**`gobj_trace_level`**](js/traces.md#js_gobj_trace_level) | `function gobj_trace_level(gobj)` | [L543](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L543) |
-| [**`gobj_trace_machine_format`**](js/traces.md#js_gobj_trace_machine_format) | `function gobj_trace_machine_format()` | [L399](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L399) |
-| [**`gobj_trace_no_level`**](js/traces.md#js_gobj_trace_no_level) | `function gobj_trace_no_level(gobj)` | [L558](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L558) |
-| [**`gobj_unsubscribe_event`**](js/events.md#js_gobj_unsubscribe_event) | `function gobj_unsubscribe_event( publisher, event, kw, subscriber)` | [L5301](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L5301) |
-| [**`gobj_unsubscribe_list`**](js/events.md#js_gobj_unsubscribe_list) | `function gobj_unsubscribe_list( gobj, dl_subs, force` | [L5392](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L5392) |
-| [**`gobj_walk_gobj_children`**](js/hierarchy.md#js_gobj_walk_gobj_children) | `function gobj_walk_gobj_children( gobj, walk_type,` | [L3172](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3172) |
-| [**`gobj_walk_gobj_children_tree`**](js/hierarchy.md#js_gobj_walk_gobj_children_tree) | `function gobj_walk_gobj_children_tree( gobj, walk_type,` | [L3190](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3190) |
-| [**`gobj_write_attr`**](js/js_attrs.md#js_gobj_write_attr) | `function gobj_write_attr( gobj, path,` | [L3783](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3783) |
-| [**`gobj_write_attrs`**](js/js_attrs.md#js_gobj_write_attrs) | `function gobj_write_attrs( gobj, kw, include_flag,` | [L3944](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3944) |
-| [**`gobj_write_bool_attr`**](js/js_attrs.md#js_gobj_write_bool_attr) | `function gobj_write_bool_attr(gobj, name, value)` | [L3969](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3969) |
-| [**`gobj_write_integer_attr`**](js/js_attrs.md#js_gobj_write_integer_attr) | `function gobj_write_integer_attr(gobj, name, value)` | [L4001](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L4001) |
-| [**`gobj_write_str_attr`**](js/js_attrs.md#js_gobj_write_str_attr) | `function gobj_write_str_attr(gobj, name, value)` | [L4033](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L4033) |
-| [**`gobj_yuno`**](js/hierarchy.md#js_gobj_yuno) | `function gobj_yuno()` | [L2958](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2958) |
-| [**`gobj_yuno_id`**](js/hierarchy.md#js_gobj_yuno_id) | `function gobj_yuno_id()` | [L2993](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2993) |
-| [**`gobj_yuno_name`**](js/hierarchy.md#js_gobj_yuno_name) | `function gobj_yuno_name()` | [L2969](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2969) |
-| [**`gobj_yuno_role`**](js/hierarchy.md#js_gobj_yuno_role) | `function gobj_yuno_role()` | [L2981](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L2981) |
-| [**`sdata_flag_t`**](js/js_attrs.md#js_sdata_flag_t) | `const sdata_flag_t = Object.freeze(` | [L132](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L132) |
-| [**`trace_level_t`**](js/traces.md#js_trace_level_t) | `const trace_level_t = Object.freeze(` | [L430](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L430) |
-| [**`walk_type_t`**](js/hierarchy.md#js_walk_type_t) | `const walk_type_t = Object.freeze(` | [L328](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L328) |
+| [**`GObj`**](js/js_gclass.md#js_GObj) | `class GObj` | [L227](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L227) |
+| [**`SDATA`**](js/js_attrs.md#js_SDATA) | `const SDATA       = (type, name, flag, default_value, description) => new SDataDesc(type, name, flag, defau...` | [L182](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L182) |
+| [**`SDATAAUTHZ`**](js/commands.md#js_SDATAAUTHZ) | `const SDATAAUTHZ  = (type, name, flag, alias, items, description) => new SDataDesc(type, name, flag, null, ...` | [L186](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L186) |
+| [**`SDATACM`**](js/commands.md#js_SDATACM) | `const SDATACM     = (type, name, alias, items, json_fn, description) => new SDataDesc(type, name, 0, null, ...` | [L183](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L183) |
+| [**`SDATACM2`**](js/commands.md#js_SDATACM2) | `const SDATACM2    = (type, name, flag, alias, items, json_fn, description) => new SDataDesc(type, name, fla...` | [L184](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L184) |
+| [**`SDATADF`**](js/commands.md#js_SDATADF) | `const SDATADF     = (type, name, flag, header, fillspace, description) => new SDataDesc(type, name, flag, n...` | [L188](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L188) |
+| [**`SDATAPM`**](js/commands.md#js_SDATAPM) | `const SDATAPM     = (type, name, flag, default_value, description) => new SDataDesc(type, name, flag, defau...` | [L185](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L185) |
+| [**`SDATAPM0`**](js/commands.md#js_SDATAPM0) | `const SDATAPM0    = (type, name, flag, authpth, description) => new SDataDesc(type, name, flag, null, descr...` | [L187](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L187) |
+| [**`SDATA_END`**](js/commands.md#js_SDATA_END) | `const SDATA_END   = () => new SDataDesc(0, null);` | [L181](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L181) |
+| [**`SDataDesc`**](js/commands.md#js_SDataDesc) | `class SDataDesc` | [L164](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L164) |
+| [**`YUNETA_VERSION`**](js/bootstrap.md#js_YUNETA_VERSION) | `let YUNETA_VERSION = "7.0.0a";` | [L59](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L59) |
+| [**`__yuno__`**](js/hierarchy.md#js___yuno__) | `let __yuno__ = null;` | [L80](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L80) |
+| [**`command_parameter_from_json`**](js/js_attrs.md#js_command_parameter_from_json) | `function command_parameter_from_json(type, value)` | [L1216](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1216) |
+| [**`command_parameter_from_text`**](js/js_attrs.md#js_command_parameter_from_text) | `function command_parameter_from_text(type, text)` | [L1196](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1196) |
+| [**`data_type_t`**](js/js_attrs.md#js_data_type_t) | `const data_type_t = Object.freeze(` | [L109](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L109) |
+| [**`event_flag_t`**](js/state_machine.md#js_event_flag_t) | `const event_flag_t = Object.freeze(` | [L322](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L322) |
+| [**`gclass_add_ev_action`**](js/js_gclass.md#js_gclass_add_ev_action) | `function gclass_add_ev_action( gclass, state_name, event_name, action, next_state )` | [L1642](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1642) |
+| [**`gclass_add_event_type`**](js/js_gclass.md#js_gclass_add_event_type) | `function gclass_add_event_type(gclass, event_name, event_flag)` | [L1689](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1689) |
+| [**`gclass_add_state`**](js/js_gclass.md#js_gclass_add_state) | `function gclass_add_state(gclass, state_name)` | [L1622](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1622) |
+| [**`gclass_check_fsm`**](js/js_gclass.md#js_gclass_check_fsm) | `function gclass_check_fsm(gclass)` | [L1725](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1725) |
+| [**`gclass_create`**](js/js_gclass.md#js_gclass_create) | `function gclass_create( gclass_name, event_types, states, gmt, lmt, attrs_table, priv, authz_table, command...` | [L1445](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1445) |
+| [**`gclass_event_type`**](js/js_gclass.md#js_gclass_event_type) | `function gclass_event_type(gclass, event_name)` | [L1702](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1702) |
+| [**`gclass_find_by_name`**](js/js_gclass.md#js_gclass_find_by_name) | `function gclass_find_by_name(gclass_name, verbose)` | [L1818](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1818) |
+| [**`gclass_flag_t`**](js/js_gclass.md#js_gclass_flag_t) | `const gclass_flag_t = Object.freeze(` | [L273](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L273) |
+| [**`gclass_unregister`**](js/js_gclass.md#js_gclass_unregister) | `function gclass_unregister(gclass)` | [L1559](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1559) |
+| [**`gobj_bottom_gobj`**](js/hierarchy.md#js_gobj_bottom_gobj) | `function gobj_bottom_gobj(gobj)` | [L3125](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3125) |
+| [**`gobj_change_parent`**](js/hierarchy.md#js_gobj_change_parent) | `function gobj_change_parent(gobj, parent)` | [L4138](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L4138) |
+| [**`gobj_change_state`**](js/state_machine.md#js_gobj_change_state) | `function gobj_change_state(gobj, state_name)` | [L4066](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L4066) |
+| [**`gobj_command`**](js/events.md#js_gobj_command) | `function gobj_command(gobj, command, kw, src)` | [L5846](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L5846) |
+| [**`gobj_create`**](js/lifecycle.md#js_gobj_create) | `function gobj_create( gobj_name, gclass_name, kw, parent )` | [L2394](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2394) |
+| [**`gobj_create2`**](js/lifecycle.md#js_gobj_create2) | `function gobj_create2( gobj_name, gclass_name, kw, parent, gobj_flag )` | [L2149](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2149) |
+| [**`gobj_create_default_service`**](js/lifecycle.md#js_gobj_create_default_service) | `function gobj_create_default_service( gobj_name, gclass_name, kw, parent )` | [L2349](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2349) |
+| [**`gobj_create_pure_child`**](js/lifecycle.md#js_gobj_create_pure_child) | `function gobj_create_pure_child( gobj_name, gclass_name, kw, parent )` | [L2379](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2379) |
+| [**`gobj_create_service`**](js/lifecycle.md#js_gobj_create_service) | `function gobj_create_service( gobj_name, gclass_name, kw, parent )` | [L2340](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2340) |
+| [**`gobj_create_volatil`**](js/lifecycle.md#js_gobj_create_volatil) | `function gobj_create_volatil( gobj_name, gclass_name, kw, parent )` | [L2364](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2364) |
+| [**`gobj_create_yuno`**](js/lifecycle.md#js_gobj_create_yuno) | `function gobj_create_yuno( gobj_name, gclass_name, kw )` | [L2332](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2332) |
+| [**`gobj_current_state`**](js/state_machine.md#js_gobj_current_state) | `function gobj_current_state(gobj)` | [L4117](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L4117) |
+| [**`gobj_default_service`**](js/hierarchy.md#js_gobj_default_service) | `function gobj_default_service()` | [L1861](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1861) |
+| [**`gobj_deliver_posted_events`**](js/events.md#js_gobj_deliver_posted_events) | `function gobj_deliver_posted_events()` | [L4342](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L4342) |
+| [**`gobj_destroy`**](js/lifecycle.md#js_gobj_destroy) | `function gobj_destroy(gobj)` | [L2412](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2412) |
+| [**`gobj_find_child`**](js/hierarchy.md#js_gobj_find_child) | `function gobj_find_child(gobj, jn_filter)` | [L3502](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3502) |
+| [**`gobj_find_gobj`**](js/hierarchy.md#js_gobj_find_gobj) | `function gobj_find_gobj(gobj, path)` | [L3418](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3418) |
+| [**`gobj_find_service`**](js/hierarchy.md#js_gobj_find_service) | `function gobj_find_service( service_name, verbose )` | [L1872](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1872) |
+| [**`gobj_find_subscribings`**](js/events.md#js_gobj_find_subscribings) | `function gobj_find_subscribings( subscriber, event, kw,` | [L5498](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L5498) |
+| [**`gobj_find_subscriptions`**](js/events.md#js_gobj_find_subscriptions) | `function gobj_find_subscriptions( publisher, event, kw, subscriber)` | [L5425](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L5425) |
+| [**`gobj_flag_t`**](js/lifecycle.md#js_gobj_flag_t) | `const gobj_flag_t = Object.freeze(` | [L302](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L302) |
+| [**`gobj_full_name`**](js/hierarchy.md#js_gobj_full_name) | `function gobj_full_name(gobj)` | [L3045](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3045) |
+| [**`gobj_gclass_name`**](js/hierarchy.md#js_gobj_gclass_name) | `function gobj_gclass_name(gobj)` | [L3019](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3019) |
+| [**`gobj_get_gclass_trace_level`**](js/traces.md#js_gobj_get_gclass_trace_level) | `function gobj_get_gclass_trace_level(gclass)` | [L730](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L730) |
+| [**`gobj_get_gclass_trace_level2`**](js/traces.md#js_gobj_get_gclass_trace_level2) | `function gobj_get_gclass_trace_level2(gclass)` | [L740](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L740) |
+| [**`gobj_get_gclass_trace_no_level`**](js/traces.md#js_gobj_get_gclass_trace_no_level) | `function gobj_get_gclass_trace_no_level(gclass)` | [L750](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L750) |
+| [**`gobj_get_global_trace_level`**](js/traces.md#js_gobj_get_global_trace_level) | `function gobj_get_global_trace_level()` | [L720](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L720) |
+| [**`gobj_get_global_trace_no_level`**](js/traces.md#js_gobj_get_global_trace_no_level) | `function gobj_get_global_trace_no_level()` | [L725](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L725) |
+| [**`gobj_global_trace_level`**](js/traces.md#js_gobj_global_trace_level) | `function gobj_global_trace_level()` | [L684](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L684) |
+| [**`gobj_global_trace_no_level`**](js/traces.md#js_gobj_global_trace_no_level) | `function gobj_global_trace_no_level()` | [L689](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L689) |
+| [**`gobj_has_attr`**](js/js_attrs.md#js_gobj_has_attr) | `function gobj_has_attr(gobj, name)` | [L3618](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3618) |
+| [**`gobj_has_event`**](js/state_machine.md#js_gobj_has_event) | `function gobj_has_event(gobj, event, event_flag)` | [L4219](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L4219) |
+| [**`gobj_has_output_event`**](js/state_machine.md#js_gobj_has_output_event) | `function gobj_has_output_event(gobj, event, event_flag)` | [L4236](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L4236) |
+| [**`gobj_hsdata`**](js/js_attrs.md#js_gobj_hsdata) | `function gobj_hsdata(gobj)` | [L1391](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1391) |
+| [**`gobj_is_destroying`**](js/lifecycle.md#js_gobj_is_destroying) | `function gobj_is_destroying(gobj)` | [L3110](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3110) |
+| [**`gobj_is_playing`**](js/lifecycle.md#js_gobj_is_playing) | `function gobj_is_playing(gobj)` | [L2948](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2948) |
+| [**`gobj_is_pure_child`**](js/lifecycle.md#js_gobj_is_pure_child) | `function gobj_is_pure_child(gobj)` | [L3094](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3094) |
+| [**`gobj_is_running`**](js/lifecycle.md#js_gobj_is_running) | `function gobj_is_running(gobj)` | [L2914](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2914) |
+| [**`gobj_is_service`**](js/lifecycle.md#js_gobj_is_service) | `function gobj_is_service(gobj)` | [L2936](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2936) |
+| [**`gobj_is_volatil`**](js/lifecycle.md#js_gobj_is_volatil) | `function gobj_is_volatil(gobj)` | [L3078](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3078) |
+| [**`gobj_list_persistent_attrs`**](js/persistence.md#js_gobj_list_persistent_attrs) | `function gobj_list_persistent_attrs(gobj, keys)` | [L2042](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2042) |
+| [**`gobj_list_subscriptions`**](js/events.md#js_gobj_list_subscriptions) | `function gobj_list_subscriptions(gobj2view)` | [L5447](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L5447) |
+| [**`gobj_load_persistent_attrs`**](js/persistence.md#js_gobj_load_persistent_attrs) | `function gobj_load_persistent_attrs( gobj, keys` | [L1990](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1990) |
+| [**`gobj_match_children`**](js/hierarchy.md#js_gobj_match_children) | `function gobj_match_children(gobj, jn_filter)` | [L3523](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3523) |
+| [**`gobj_match_children_tree`**](js/hierarchy.md#js_gobj_match_children_tree) | `function gobj_match_children_tree(gobj, jn_filter)` | [L3547](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3547) |
+| [**`gobj_match_gobj`**](js/hierarchy.md#js_gobj_match_gobj) | `function gobj_match_gobj(gobj, jn_filter)` | [L3440](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3440) |
+| [**`gobj_name`**](js/hierarchy.md#js_gobj_name) | `function gobj_name(gobj)` | [L3006](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3006) |
+| [**`gobj_parent`**](js/hierarchy.md#js_gobj_parent) | `function gobj_parent(gobj)` | [L3065](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3065) |
+| [**`gobj_pause`**](js/lifecycle.md#js_gobj_pause) | `function gobj_pause(gobj)` | [L2879](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2879) |
+| [**`gobj_play`**](js/lifecycle.md#js_gobj_play) | `function gobj_play(gobj)` | [L2823](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2823) |
+| [**`gobj_post_event`**](js/events.md#js_gobj_post_event) | `function gobj_post_event(dst, event, kw, src)` | [L4276](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L4276) |
+| [**`gobj_posted_events_size`**](js/events.md#js_gobj_posted_events_size) | `function gobj_posted_events_size()` | [L4334](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L4334) |
+| [**`gobj_publish_event`**](js/events.md#js_gobj_publish_event) | `function gobj_publish_event( publisher, event, kw)` | [L5518](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L5518) |
+| [**`gobj_read_attr`**](js/js_attrs.md#js_gobj_read_attr) | `function gobj_read_attr(gobj, name, src)` | [L3629](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3629) |
+| [**`gobj_read_attrs`**](js/js_attrs.md#js_gobj_read_attrs) | `function gobj_read_attrs( gobj, include_flag,` | [L3652](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3652) |
+| [**`gobj_read_bool_attr`**](js/js_attrs.md#js_gobj_read_bool_attr) | `function gobj_read_bool_attr(gobj, name)` | [L3688](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3688) |
+| [**`gobj_read_integer_attr`**](js/js_attrs.md#js_gobj_read_integer_attr) | `function gobj_read_integer_attr(gobj, name)` | [L3719](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3719) |
+| [**`gobj_read_pointer_attr`**](js/js_attrs.md#js_gobj_read_pointer_attr) | `function gobj_read_pointer_attr(gobj, name)` | [L3765](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3765) |
+| [**`gobj_read_str_attr`**](js/js_attrs.md#js_gobj_read_str_attr) | `function gobj_read_str_attr(gobj, name)` | [L3742](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3742) |
+| [**`gobj_remove_persistent_attrs`**](js/persistence.md#js_gobj_remove_persistent_attrs) | `function gobj_remove_persistent_attrs( gobj, keys` | [L2024](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2024) |
+| [**`gobj_repr_global_trace_levels`**](js/traces.md#js_gobj_repr_global_trace_levels) | `function gobj_repr_global_trace_levels()` | [L858](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L858) |
+| [**`gobj_reset_volatil_attrs`**](js/js_attrs.md#js_gobj_reset_volatil_attrs) | `function gobj_reset_volatil_attrs(gobj)` | [L3933](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3933) |
+| [**`gobj_save_persistent_attrs`**](js/persistence.md#js_gobj_save_persistent_attrs) | `function gobj_save_persistent_attrs( gobj, keys` | [L2007](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2007) |
+| [**`gobj_search_path`**](js/hierarchy.md#js_gobj_search_path) | `function gobj_search_path(gobj, path)` | [L3572](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3572) |
+| [**`gobj_send_event`**](js/events.md#js_gobj_send_event) | `function gobj_send_event(dst, event, kw, src)` | [L4537](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L4537) |
+| [**`gobj_services`**](js/hierarchy.md#js_gobj_services) | `function gobj_services()` | [L1847](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L1847) |
+| [**`gobj_set_bottom_gobj`**](js/hierarchy.md#js_gobj_set_bottom_gobj) | `function gobj_set_bottom_gobj(gobj, bottom_gobj)` | [L3137](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3137) |
+| [**`gobj_set_deep_trace`**](js/traces.md#js_gobj_set_deep_trace) | `function gobj_set_deep_trace(value)` | [L761](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L761) |
+| [**`gobj_set_gclass_no_trace`**](js/traces.md#js_gobj_set_gclass_no_trace) | `function gobj_set_gclass_no_trace(gclass, level, set)` | [L819](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L819) |
+| [**`gobj_set_gclass_trace`**](js/traces.md#js_gobj_set_gclass_trace) | `function gobj_set_gclass_trace(gclass, level, set)` | [L771](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L771) |
+| [**`gobj_set_global_no_trace`**](js/traces.md#js_gobj_set_global_no_trace) | `function gobj_set_global_no_trace(level, set)` | [L670](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L670) |
+| [**`gobj_set_global_no_trace2`**](js/traces.md#js_gobj_set_global_no_trace2) | `function gobj_set_global_no_trace2(bitmask, set)` | [L705](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L705) |
+| [**`gobj_set_global_trace`**](js/traces.md#js_gobj_set_global_trace) | `function gobj_set_global_trace(level, set)` | [L656](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L656) |
+| [**`gobj_set_global_trace2`**](js/traces.md#js_gobj_set_global_trace2) | `function gobj_set_global_trace2(bitmask, set)` | [L695](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L695) |
+| [**`gobj_set_gobj_no_trace`**](js/traces.md#js_gobj_set_gobj_no_trace) | `function gobj_set_gobj_no_trace(gobj, level, set)` | [L839](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L839) |
+| [**`gobj_set_gobj_trace`**](js/traces.md#js_gobj_set_gobj_trace) | `function gobj_set_gobj_trace(gobj, level, set)` | [L791](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L791) |
+| [**`gobj_set_trace_machine_format`**](js/traces.md#js_gobj_set_trace_machine_format) | `function gobj_set_trace_machine_format(format)` | [L395](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L395) |
+| [**`gobj_short_name`**](js/hierarchy.md#js_gobj_short_name) | `function gobj_short_name(gobj)` | [L3032](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3032) |
+| [**`gobj_start`**](js/lifecycle.md#js_gobj_start) | `function gobj_start(gobj)` | [L2580](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2580) |
+| [**`gobj_start_children`**](js/lifecycle.md#js_gobj_start_children) | `function gobj_start_children(gobj)` | [L2676](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2676) |
+| [**`gobj_start_tree`**](js/lifecycle.md#js_gobj_start_tree) | `function gobj_start_tree(gobj)` | [L2704](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2704) |
+| [**`gobj_start_up`**](js/bootstrap.md#js_gobj_start_up) | `function gobj_start_up( jn_global_settings, load_persistent_attrs_fn, save_persistent_attrs_fn, remove_pers...` | [L869](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L869) |
+| [**`gobj_stats`**](js/events.md#js_gobj_stats) | `function gobj_stats(gobj, stats, kw, src)` | [L5910](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L5910) |
+| [**`gobj_stop`**](js/lifecycle.md#js_gobj_stop) | `function gobj_stop(gobj)` | [L2735](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2735) |
+| [**`gobj_stop_children`**](js/lifecycle.md#js_gobj_stop_children) | `function gobj_stop_children(gobj)` | [L2785](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2785) |
+| [**`gobj_stop_tree`**](js/lifecycle.md#js_gobj_stop_tree) | `function gobj_stop_tree(gobj)` | [L2798](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2798) |
+| [**`gobj_subscribe_event`**](js/events.md#js_gobj_subscribe_event) | `function gobj_subscribe_event( publisher, event, kw, subscriber)` | [L5159](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L5159) |
+| [**`gobj_trace_level`**](js/traces.md#js_gobj_trace_level) | `function gobj_trace_level(gobj)` | [L544](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L544) |
+| [**`gobj_trace_machine_format`**](js/traces.md#js_gobj_trace_machine_format) | `function gobj_trace_machine_format()` | [L400](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L400) |
+| [**`gobj_trace_no_level`**](js/traces.md#js_gobj_trace_no_level) | `function gobj_trace_no_level(gobj)` | [L559](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L559) |
+| [**`gobj_unsubscribe_event`**](js/events.md#js_gobj_unsubscribe_event) | `function gobj_unsubscribe_event( publisher, event, kw, subscriber)` | [L5302](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L5302) |
+| [**`gobj_unsubscribe_list`**](js/events.md#js_gobj_unsubscribe_list) | `function gobj_unsubscribe_list( gobj, dl_subs, force` | [L5393](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L5393) |
+| [**`gobj_walk_gobj_children`**](js/hierarchy.md#js_gobj_walk_gobj_children) | `function gobj_walk_gobj_children( gobj, walk_type,` | [L3173](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3173) |
+| [**`gobj_walk_gobj_children_tree`**](js/hierarchy.md#js_gobj_walk_gobj_children_tree) | `function gobj_walk_gobj_children_tree( gobj, walk_type,` | [L3191](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3191) |
+| [**`gobj_write_attr`**](js/js_attrs.md#js_gobj_write_attr) | `function gobj_write_attr( gobj, path,` | [L3784](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3784) |
+| [**`gobj_write_attrs`**](js/js_attrs.md#js_gobj_write_attrs) | `function gobj_write_attrs( gobj, kw, include_flag,` | [L3945](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3945) |
+| [**`gobj_write_bool_attr`**](js/js_attrs.md#js_gobj_write_bool_attr) | `function gobj_write_bool_attr(gobj, name, value)` | [L3970](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L3970) |
+| [**`gobj_write_integer_attr`**](js/js_attrs.md#js_gobj_write_integer_attr) | `function gobj_write_integer_attr(gobj, name, value)` | [L4002](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L4002) |
+| [**`gobj_write_str_attr`**](js/js_attrs.md#js_gobj_write_str_attr) | `function gobj_write_str_attr(gobj, name, value)` | [L4034](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L4034) |
+| [**`gobj_yuno`**](js/hierarchy.md#js_gobj_yuno) | `function gobj_yuno()` | [L2959](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2959) |
+| [**`gobj_yuno_id`**](js/hierarchy.md#js_gobj_yuno_id) | `function gobj_yuno_id()` | [L2994](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2994) |
+| [**`gobj_yuno_name`**](js/hierarchy.md#js_gobj_yuno_name) | `function gobj_yuno_name()` | [L2970](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2970) |
+| [**`gobj_yuno_role`**](js/hierarchy.md#js_gobj_yuno_role) | `function gobj_yuno_role()` | [L2982](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L2982) |
+| [**`sdata_flag_t`**](js/js_attrs.md#js_sdata_flag_t) | `const sdata_flag_t = Object.freeze(` | [L133](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L133) |
+| [**`trace_level_t`**](js/traces.md#js_trace_level_t) | `const trace_level_t = Object.freeze(` | [L431](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L431) |
+| [**`walk_type_t`**](js/hierarchy.md#js_walk_type_t) | `const walk_type_t = Object.freeze(` | [L329](https://github.com/artgins/gobj-js/blob/7.26.22/src/gobj.js#L329) |
 
 ### `src/helpers.js` — 129 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`build_path`**](js/helpers_str.md#js_build_path) | `function build_path(...segments)` | [L5581](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5581) |
-| [**`clean_name`**](js/helpers_str.md#js_clean_name) | `function clean_name(name)` | [L5486](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5486) |
-| [**`cmp_two_simple_json`**](js/helpers_str.md#js_cmp_two_simple_json) | `function cmp_two_simple_json(jn_var1, jn_var2)` | [L2324](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2324) |
-| [**`createElement2`**](js/helpers_dom.md#js_createElement2) | `function createElement2(description, translate_fn)` | [L5137](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5137) |
-| [**`createOneHtml`**](js/helpers_dom.md#js_createOneHtml) | `function createOneHtml(htmlString)` | [L4935](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4935) |
-| [**`create_json_record`**](js/helpers_str.md#js_create_json_record) | `function create_json_record(json_desc, value)` | [L4729](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4729) |
-| [**`current_timestamp`**](js/helpers_str.md#js_current_timestamp) | `function current_timestamp(now)` | [L5416](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5416) |
-| [**`debounce`**](js/helpers_str.md#js_debounce) | `function debounce(func, wait = 0, immediate = false)` | [L5522](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5522) |
-| [**`delete_from_list`**](js/helpers_str.md#js_delete_from_list) | `function delete_from_list(list, elm)` | [L4183](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4183) |
-| [**`duplicate_objects`**](js/helpers_json.md#js_duplicate_objects) | `function duplicate_objects(...sourceObjects)` | [L1762](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1762) |
-| [**`empty_json`**](js/helpers_json.md#js_empty_json) | `function empty_json(a)` | [L2005](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2005) |
-| [**`empty_string`**](js/helpers_json.md#js_empty_string) | `function empty_string(value)` | [L2227](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2227) |
-| [**`escapeHtml`**](js/helpers_dom.md#js_escapeHtml) | `function escapeHtml(str)` | [L4811](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4811) |
-| [**`flat2json`**](js/helpers_json.md#js_flat2json) | `function flat2json(flat)` | [L5794](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5794) |
-| [**`flat_apply`**](js/helpers_json.md#js_flat_apply) | `function flat_apply(flat, diff)` | [L5947](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5947) |
-| [**`flat_diff`**](js/helpers_json.md#js_flat_diff) | `function flat_diff(flat1, flat2)` | [L5918](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5918) |
-| [**`flat_key_join`**](js/helpers_json.md#js_flat_key_join) | `function flat_key_join(segments)` | [L5693](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5693) |
-| [**`flat_key_split`**](js/helpers_json.md#js_flat_key_split) | `function flat_key_split(key)` | [L5708](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5708) |
-| [**`getPositionRelativeToBody`**](js/helpers_dom.md#js_getPositionRelativeToBody) | `function getPositionRelativeToBody(element)` | [L5263](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5263) |
-| [**`get_function_name`**](js/helpers_str.md#js_get_function_name) | `function get_function_name(func)` | [L5494](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5494) |
-| [**`get_now`**](js/helpers_str.md#js_get_now) | `function get_now()` | [L5441](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5441) |
-| [**`html_markup`**](js/helpers_dom.md#js_html_markup) | `function html_markup(html)` | [L4868](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4868) |
-| [**`id_index_in_obj_list`**](js/helpers_str.md#js_id_index_in_obj_list) | `function id_index_in_obj_list(list, id)` | [L4112](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4112) |
-| [**`index_in_list`**](js/helpers_str.md#js_index_in_list) | `function index_in_list(list, elm)` | [L5449](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5449) |
-| [**`is_array`**](js/helpers_json.md#js_is_array) | `function is_array(value)` | [L2141](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2141) |
-| [**`is_boolean`**](js/helpers_json.md#js_is_boolean) | `function is_boolean(value)` | [L2162](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2162) |
-| [**`is_date`**](js/helpers_json.md#js_is_date) | `function is_date(value)` | [L2206](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2206) |
-| [**`is_function`**](js/helpers_json.md#js_is_function) | `function is_function(value)` | [L2213](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2213) |
-| [**`is_gobj`**](js/helpers_json.md#js_is_gobj) | `function is_gobj(value)` | [L2220](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2220) |
-| [**`is_html_markup`**](js/helpers_dom.md#js_is_html_markup) | `function is_html_markup(v)` | [L4877](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4877) |
-| [**`is_metadata_key`**](js/helpers_kw.md#js_is_metadata_key) | `function is_metadata_key(key)` | [L2421](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2421) |
-| [**`is_null`**](js/helpers_json.md#js_is_null) | `function is_null(value)` | [L2169](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2169) |
-| [**`is_number`**](js/helpers_json.md#js_is_number) | `function is_number(value)` | [L2155](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2155) |
-| [**`is_object`**](js/helpers_json.md#js_is_object) | `function is_object(value)` | [L2134](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2134) |
-| [**`is_private_key`**](js/helpers_kw.md#js_is_private_key) | `function is_private_key(key)` | [L2441](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2441) |
-| [**`is_pure_number`**](js/helpers_json.md#js_is_pure_number) | `function is_pure_number(str)` | [L2181](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2181) |
-| [**`is_secret_name`**](js/logging.md#js_is_secret_name) | `function is_secret_name(name)` | [L626](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L626) |
-| [**`is_string`**](js/helpers_json.md#js_is_string) | `function is_string(value)` | [L2148](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2148) |
-| [**`jdb_delete`**](js/helpers_data.md#js_jdb_delete) | `function jdb_delete(jdb, topic_name, path, kw)` | [L4574](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4574) |
-| [**`jdb_get`**](js/helpers_data.md#js_jdb_get) | `function jdb_get(jdb, topic_name, id, recursive)` | [L4651](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4651) |
-| [**`jdb_get_by_idx`**](js/helpers_data.md#js_jdb_get_by_idx) | `function jdb_get_by_idx(jdb, topic_name, idx)` | [L4668](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4668) |
-| [**`jdb_get_topic`**](js/helpers_data.md#js_jdb_get_topic) | `function jdb_get_topic(jdb, topic_name)` | [L4631](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4631) |
-| [**`jdb_init`**](js/helpers_data.md#js_jdb_init) | `function jdb_init(jdb, prefix, duplicate)` | [L4463](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4463) |
-| [**`jdb_update`**](js/helpers_data.md#js_jdb_update) | `function jdb_update(jdb, topic_name, path, kw)` | [L4495](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4495) |
-| [**`json2flat`**](js/helpers_json.md#js_json2flat) | `function json2flat(jn)` | [L5749](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5749) |
-| [**`json_array_append`**](js/helpers_json.md#js_json_array_append) | `function json_array_append(a, v)` | [L1919](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1919) |
-| [**`json_array_append_new`**](js/helpers_json.md#js_json_array_append_new) | `function json_array_append_new(a, v)` | [L1927](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1927) |
-| [**`json_array_extend`**](js/helpers_json.md#js_json_array_extend) | `function json_array_extend(destination, source)` | [L1943](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1943) |
-| [**`json_array_remove`**](js/helpers_json.md#js_json_array_remove) | `function json_array_remove(a, idx)` | [L1935](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1935) |
-| [**`json_array_size`**](js/helpers_json.md#js_json_array_size) | `function json_array_size(a)` | [L1966](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1966) |
-| [**`json_deep_copy`**](js/helpers_json.md#js_json_deep_copy) | `function json_deep_copy(obj)` | [L1753](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1753) |
-| [**`json_is_identical`**](js/helpers_json.md#js_json_is_identical) | `function json_is_identical(kw1, kw2)` | [L1775](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1775) |
-| [**`json_mask_secrets`**](js/logging.md#js_json_mask_secrets) | `function json_mask_secrets(jn)` | [L1731](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1731) |
-| [**`json_object_del`**](js/helpers_json.md#js_json_object_del) | `function json_object_del(o, k)` | [L1882](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1882) |
-| [**`json_object_get`**](js/helpers_json.md#js_json_object_get) | `function json_object_get(o, key)` | [L1871](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1871) |
-| [**`json_object_set`**](js/helpers_json.md#js_json_object_set) | `function json_object_set(o, k, v)` | [L1892](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1892) |
-| [**`json_object_set_new`**](js/helpers_json.md#js_json_object_set_new) | `function json_object_set_new(o, k, v)` | [L1900](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1900) |
-| [**`json_object_size`**](js/helpers_json.md#js_json_object_size) | `function json_object_size(a)` | [L1955](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1955) |
-| [**`json_object_update`**](js/helpers_json.md#js_json_object_update) | `function json_object_update(destination, source)` | [L1823](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1823) |
-| [**`json_object_update_existing`**](js/helpers_json.md#js_json_object_update_existing) | `function json_object_update_existing(destination, source)` | [L1838](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1838) |
-| [**`json_object_update_missing`**](js/helpers_json.md#js_json_object_update_missing) | `function json_object_update_missing(destination, source)` | [L1855](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1855) |
-| [**`json_size`**](js/helpers_json.md#js_json_size) | `function json_size(a)` | [L1979](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1979) |
-| [**`jwt2json`**](js/helpers_data.md#js_jwt2json) | `function jwt2json(jwt, what)` | [L4788](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4788) |
-| [**`jwtDecode`**](js/helpers_data.md#js_jwtDecode) | `function jwtDecode(jwt)` | [L4740](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4740) |
-| [**`kw_clone_by_keys`**](js/helpers_kw.md#js_kw_clone_by_keys) | `function kw_clone_by_keys(gobj, kw, keys, verbose)` | [L3542](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3542) |
-| [**`kw_clone_by_not_keys`**](js/helpers_kw.md#js_kw_clone_by_not_keys) | `function kw_clone_by_not_keys( gobj, kw, keys, verbose )` | [L3594](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3594) |
-| [**`kw_collect`**](js/helpers_kw.md#js_kw_collect) | `function kw_collect(gobj, kw, jn_filter, match_fn)` | [L3500](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3500) |
-| [**`kw_delete`**](js/helpers_kw.md#js_kw_delete) | `function kw_delete(gobj, kw, path)` | [L2622](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2622) |
-| [**`kw_find_json_in_list`**](js/helpers_kw.md#js_kw_find_json_in_list) | `function kw_find_json_in_list( gobj, kw_list, item, flag )` | [L3431](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3431) |
-| [**`kw_find_path`**](js/helpers_kw.md#js_kw_find_path) | `function kw_find_path(gobj, kw, path, verbose)` | [L2551](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2551) |
-| [**`kw_flag_t`**](js/helpers_kw.md#js_kw_flag_t) | `const kw_flag_t = Object.freeze(` | [L15](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L15) |
-| [**`kw_get_bool`**](js/helpers_kw.md#js_kw_get_bool) | `function kw_get_bool(gobj, kw, path, default_value, flag)` | [L2673](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2673) |
-| [**`kw_get_dict`**](js/helpers_kw.md#js_kw_get_dict) | `function kw_get_dict(gobj, kw, path, default_value, flag)` | [L3015](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3015) |
-| [**`kw_get_dict_value`**](js/helpers_kw.md#js_kw_get_dict_value) | `function kw_get_dict_value(gobj, kw, path, default_value, flag)` | [L3078](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3078) |
-| [**`kw_get_int`**](js/helpers_kw.md#js_kw_get_int) | `function kw_get_int(gobj, kw, path, default_value, flag)` | [L2769](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2769) |
-| [**`kw_get_list`**](js/helpers_kw.md#js_kw_get_list) | `function kw_get_list(gobj, kw, path, default_value, flag)` | [L3120](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3120) |
-| [**`kw_get_local_storage_value`**](js/helpers_kw.md#js_kw_get_local_storage_value) | `function kw_get_local_storage_value(key, default_value, create = false)` | [L3647](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3647) |
-| [**`kw_get_pointer`**](js/helpers_kw.md#js_kw_get_pointer) | `function kw_get_pointer(gobj, kw, path, default_value, flag)` | [L2974](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2974) |
-| [**`kw_get_real`**](js/helpers_kw.md#js_kw_get_real) | `function kw_get_real(gobj, kw, path, default_value, flag)` | [L2834](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2834) |
-| [**`kw_get_str`**](js/helpers_kw.md#js_kw_get_str) | `function kw_get_str(gobj, kw, path, default_value, flag)` | [L2930](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2930) |
-| [**`kw_has_key`**](js/helpers_kw.md#js_kw_has_key) | `function kw_has_key(kw, key)` | [L2483](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2483) |
-| [**`kw_match_simple`**](js/helpers_kw.md#js_kw_match_simple) | `function kw_match_simple( kw,` | [L3414](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3414) |
-| [**`kw_pop`**](js/helpers_kw.md#js_kw_pop) | `function kw_pop(kw1, kw2)` | [L2462](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2462) |
-| [**`kw_remove_local_storage_value`**](js/helpers_kw.md#js_kw_remove_local_storage_value) | `function kw_remove_local_storage_value(key)` | [L3703](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3703) |
-| [**`kw_select`**](js/helpers_kw.md#js_kw_select) | `function kw_select(gobj, kw, jn_filter, match_fn)` | [L3463](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3463) |
-| [**`kw_set_dict_value`**](js/helpers_kw.md#js_kw_set_dict_value) | `function kw_set_dict_value(gobj, kw, path, value)` | [L3183](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3183) |
-| [**`kw_set_local_storage_value`**](js/helpers_kw.md#js_kw_set_local_storage_value) | `function kw_set_local_storage_value(key, value)` | [L3680](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3680) |
-| [**`kw_set_subdict_value`**](js/helpers_kw.md#js_kw_set_subdict_value) | `function kw_set_subdict_value(gobj, kw, path, key, value)` | [L3284](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3284) |
-| [**`kwid_collect`**](js/helpers_kw.md#js_kwid_collect) | `function kwid_collect(gobj, kw, ids, jn_filter, match_fn)` | [L3782](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3782) |
-| [**`kwid_find_one_record`**](js/helpers_kw.md#js_kwid_find_one_record) | `function kwid_find_one_record(gobj, kw, ids, jn_filter, match_fn)` | [L3938](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3938) |
-| [**`kwid_get_ids`**](js/helpers_kw.md#js_kwid_get_ids) | `function kwid_get_ids(gobj, ids)` | [L3982](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3982) |
-| [**`kwid_match_id`**](js/helpers_kw.md#js_kwid_match_id) | `function kwid_match_id(ids, id)` | [L3724](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3724) |
-| [**`kwid_new_dict`**](js/helpers_kw.md#js_kwid_new_dict) | `function kwid_new_dict(gobj, kw, path)` | [L3849](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3849) |
-| [**`kwid_new_list`**](js/helpers_kw.md#js_kwid_new_list) | `function kwid_new_list(gobj, kw, path)` | [L3901](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L3901) |
-| [**`list2options`**](js/helpers_str.md#js_list2options) | `function list2options(list, field_id, field_value)` | [L4048](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4048) |
-| [**`load_json_file`**](js/helpers_data.md#js_load_json_file) | `function load_json_file(url, on_success, on_error)` | [L4331](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4331) |
-| [**`log_debug`**](js/logging.md#js_log_debug) | `function log_debug(format, ...args)` | [L393](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L393) |
-| [**`log_error`**](js/logging.md#js_log_error) | `function log_error(format, ...args)` | [L340](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L340) |
-| [**`log_info`**](js/logging.md#js_log_info) | `function log_info(format, ...args)` | [L380](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L380) |
-| [**`log_warning`**](js/logging.md#js_log_warning) | `function log_warning(format, ...args)` | [L360](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L360) |
-| [**`mask_secrets_inline`**](js/logging.md#js_mask_secrets_inline) | `function mask_secrets_inline(str)` | [L1556](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1556) |
-| [**`msg_iev_get_msg_type`**](js/helpers_kw.md#js_msg_iev_get_msg_type) | `function msg_iev_get_msg_type(gobj, kw)` | [L4320](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4320) |
-| [**`msg_iev_get_stack`**](js/helpers_kw.md#js_msg_iev_get_stack) | `function msg_iev_get_stack(gobj, kw, stack, verbose)` | [L4254](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4254) |
-| [**`msg_iev_push_stack`**](js/helpers_kw.md#js_msg_iev_push_stack) | `function msg_iev_push_stack(gobj, kw, stack, jn_data)` | [L4226](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4226) |
-| [**`msg_iev_read_key`**](js/helpers_kw.md#js_msg_iev_read_key) | `function msg_iev_read_key(kw, key)` | [L4197](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4197) |
-| [**`msg_iev_set_msg_type`**](js/helpers_kw.md#js_msg_iev_set_msg_type) | `function msg_iev_set_msg_type( gobj, kw, msg_type` | [L4303](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4303) |
-| [**`msg_iev_write_key`**](js/helpers_kw.md#js_msg_iev_write_key) | `function msg_iev_write_key(kw, key, value)` | [L4213](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4213) |
-| [**`node_uuid`**](js/helpers_str.md#js_node_uuid) | `function node_uuid()` | [L5464](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5464) |
-| [**`parseBoolean`**](js/helpers_json.md#js_parseBoolean) | `function parseBoolean(s)` | [L2243](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2243) |
-| [**`parseSVG`**](js/helpers_dom.md#js_parseSVG) | `function parseSVG(string)` | [L5291](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5291) |
-| [**`refresh_language`**](js/helpers_dom.md#js_refresh_language) | `function refresh_language(element, t)` | [L5299](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5299) |
-| [**`safeSrc`**](js/helpers_dom.md#js_safeSrc) | `function safeSrc(url)` | [L4829](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4829) |
-| [**`send_http_json_post`**](js/helpers_data.md#js_send_http_json_post) | `function send_http_json_post(url, data, on_response)` | [L4364](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4364) |
-| [**`set_console_log_enabled`**](js/logging.md#js_set_console_log_enabled) | `function set_console_log_enabled(enabled)` | [L114](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L114) |
-| [**`set_console_log_filter`**](js/logging.md#js_set_console_log_filter) | `function set_console_log_filter(fn)` | [L135](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L135) |
-| [**`set_log_callback`**](js/logging.md#js_set_log_callback) | `function set_log_callback(fn)` | [L81](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L81) |
-| [**`set_remote_log_functions`**](js/logging.md#js_set_remote_log_functions) | `function set_remote_log_functions(remote_log_fn)` | [L186](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L186) |
-| [**`set_strings_are_text`**](js/helpers_dom.md#js_set_strings_are_text) | `function set_strings_are_text(on)` | [L4904](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4904) |
-| [**`str_in_list`**](js/helpers_str.md#js_str_in_list) | `function str_in_list(list, str, ignore_case)` | [L4127](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4127) |
-| [**`strcasecmp`**](js/helpers_str.md#js_strcasecmp) | `function strcasecmp(str1, str2)` | [L2302](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2302) |
-| [**`strcmp`**](js/helpers_str.md#js_strcmp) | `function strcmp(str1, str2)` | [L2284](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2284) |
-| [**`strings_are_text`**](js/helpers_dom.md#js_strings_are_text) | `function strings_are_text()` | [L4909](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4909) |
-| [**`strncmp`**](js/helpers_str.md#js_strncmp) | `function strncmp(str1, str2, lgth)` | [L2260](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2260) |
-| [**`strs_in_list`**](js/helpers_str.md#js_strs_in_list) | `function strs_in_list(list, strs, ignore_case)` | [L4160](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L4160) |
-| [**`strstr`**](js/helpers_str.md#js_strstr) | `function strstr(haystack, needle, bool)` | [L2386](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L2386) |
-| [**`timeTracker`**](js/helpers_str.md#js_timeTracker) | `function timeTracker(tracker_name="Time Tracker", verbose=false)` | [L5381](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L5381) |
-| [**`trace_json`**](js/logging.md#js_trace_json) | `function trace_json(jn, msg)` | [L419](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L419) |
-| [**`trace_json_masked`**](js/logging.md#js_trace_json_masked) | `function trace_json_masked(jn, msg)` | [L1744](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L1744) |
-| [**`trace_msg`**](js/logging.md#js_trace_msg) | `function trace_msg(format, ...args)` | [L406](https://github.com/artgins/gobj-js/blob/7.26.21/src/helpers.js#L406) |
+| [**`build_path`**](js/helpers_str.md#js_build_path) | `function build_path(...segments)` | [L5581](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5581) |
+| [**`clean_name`**](js/helpers_str.md#js_clean_name) | `function clean_name(name)` | [L5486](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5486) |
+| [**`cmp_two_simple_json`**](js/helpers_str.md#js_cmp_two_simple_json) | `function cmp_two_simple_json(jn_var1, jn_var2)` | [L2324](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2324) |
+| [**`createElement2`**](js/helpers_dom.md#js_createElement2) | `function createElement2(description, translate_fn)` | [L5137](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5137) |
+| [**`createOneHtml`**](js/helpers_dom.md#js_createOneHtml) | `function createOneHtml(htmlString)` | [L4935](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4935) |
+| [**`create_json_record`**](js/helpers_str.md#js_create_json_record) | `function create_json_record(json_desc, value)` | [L4729](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4729) |
+| [**`current_timestamp`**](js/helpers_str.md#js_current_timestamp) | `function current_timestamp(now)` | [L5416](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5416) |
+| [**`debounce`**](js/helpers_str.md#js_debounce) | `function debounce(func, wait = 0, immediate = false)` | [L5522](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5522) |
+| [**`delete_from_list`**](js/helpers_str.md#js_delete_from_list) | `function delete_from_list(list, elm)` | [L4183](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4183) |
+| [**`duplicate_objects`**](js/helpers_json.md#js_duplicate_objects) | `function duplicate_objects(...sourceObjects)` | [L1762](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1762) |
+| [**`empty_json`**](js/helpers_json.md#js_empty_json) | `function empty_json(a)` | [L2005](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2005) |
+| [**`empty_string`**](js/helpers_json.md#js_empty_string) | `function empty_string(value)` | [L2227](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2227) |
+| [**`escapeHtml`**](js/helpers_dom.md#js_escapeHtml) | `function escapeHtml(str)` | [L4811](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4811) |
+| [**`flat2json`**](js/helpers_json.md#js_flat2json) | `function flat2json(flat)` | [L5794](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5794) |
+| [**`flat_apply`**](js/helpers_json.md#js_flat_apply) | `function flat_apply(flat, diff)` | [L5947](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5947) |
+| [**`flat_diff`**](js/helpers_json.md#js_flat_diff) | `function flat_diff(flat1, flat2)` | [L5918](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5918) |
+| [**`flat_key_join`**](js/helpers_json.md#js_flat_key_join) | `function flat_key_join(segments)` | [L5693](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5693) |
+| [**`flat_key_split`**](js/helpers_json.md#js_flat_key_split) | `function flat_key_split(key)` | [L5708](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5708) |
+| [**`getPositionRelativeToBody`**](js/helpers_dom.md#js_getPositionRelativeToBody) | `function getPositionRelativeToBody(element)` | [L5263](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5263) |
+| [**`get_function_name`**](js/helpers_str.md#js_get_function_name) | `function get_function_name(func)` | [L5494](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5494) |
+| [**`get_now`**](js/helpers_str.md#js_get_now) | `function get_now()` | [L5441](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5441) |
+| [**`html_markup`**](js/helpers_dom.md#js_html_markup) | `function html_markup(html)` | [L4868](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4868) |
+| [**`id_index_in_obj_list`**](js/helpers_str.md#js_id_index_in_obj_list) | `function id_index_in_obj_list(list, id)` | [L4112](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4112) |
+| [**`index_in_list`**](js/helpers_str.md#js_index_in_list) | `function index_in_list(list, elm)` | [L5449](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5449) |
+| [**`is_array`**](js/helpers_json.md#js_is_array) | `function is_array(value)` | [L2141](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2141) |
+| [**`is_boolean`**](js/helpers_json.md#js_is_boolean) | `function is_boolean(value)` | [L2162](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2162) |
+| [**`is_date`**](js/helpers_json.md#js_is_date) | `function is_date(value)` | [L2206](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2206) |
+| [**`is_function`**](js/helpers_json.md#js_is_function) | `function is_function(value)` | [L2213](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2213) |
+| [**`is_gobj`**](js/helpers_json.md#js_is_gobj) | `function is_gobj(value)` | [L2220](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2220) |
+| [**`is_html_markup`**](js/helpers_dom.md#js_is_html_markup) | `function is_html_markup(v)` | [L4877](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4877) |
+| [**`is_metadata_key`**](js/helpers_kw.md#js_is_metadata_key) | `function is_metadata_key(key)` | [L2421](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2421) |
+| [**`is_null`**](js/helpers_json.md#js_is_null) | `function is_null(value)` | [L2169](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2169) |
+| [**`is_number`**](js/helpers_json.md#js_is_number) | `function is_number(value)` | [L2155](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2155) |
+| [**`is_object`**](js/helpers_json.md#js_is_object) | `function is_object(value)` | [L2134](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2134) |
+| [**`is_private_key`**](js/helpers_kw.md#js_is_private_key) | `function is_private_key(key)` | [L2441](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2441) |
+| [**`is_pure_number`**](js/helpers_json.md#js_is_pure_number) | `function is_pure_number(str)` | [L2181](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2181) |
+| [**`is_secret_name`**](js/logging.md#js_is_secret_name) | `function is_secret_name(name)` | [L626](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L626) |
+| [**`is_string`**](js/helpers_json.md#js_is_string) | `function is_string(value)` | [L2148](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2148) |
+| [**`jdb_delete`**](js/helpers_data.md#js_jdb_delete) | `function jdb_delete(jdb, topic_name, path, kw)` | [L4574](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4574) |
+| [**`jdb_get`**](js/helpers_data.md#js_jdb_get) | `function jdb_get(jdb, topic_name, id, recursive)` | [L4651](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4651) |
+| [**`jdb_get_by_idx`**](js/helpers_data.md#js_jdb_get_by_idx) | `function jdb_get_by_idx(jdb, topic_name, idx)` | [L4668](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4668) |
+| [**`jdb_get_topic`**](js/helpers_data.md#js_jdb_get_topic) | `function jdb_get_topic(jdb, topic_name)` | [L4631](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4631) |
+| [**`jdb_init`**](js/helpers_data.md#js_jdb_init) | `function jdb_init(jdb, prefix, duplicate)` | [L4463](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4463) |
+| [**`jdb_update`**](js/helpers_data.md#js_jdb_update) | `function jdb_update(jdb, topic_name, path, kw)` | [L4495](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4495) |
+| [**`json2flat`**](js/helpers_json.md#js_json2flat) | `function json2flat(jn)` | [L5749](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5749) |
+| [**`json_array_append`**](js/helpers_json.md#js_json_array_append) | `function json_array_append(a, v)` | [L1919](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1919) |
+| [**`json_array_append_new`**](js/helpers_json.md#js_json_array_append_new) | `function json_array_append_new(a, v)` | [L1927](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1927) |
+| [**`json_array_extend`**](js/helpers_json.md#js_json_array_extend) | `function json_array_extend(destination, source)` | [L1943](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1943) |
+| [**`json_array_remove`**](js/helpers_json.md#js_json_array_remove) | `function json_array_remove(a, idx)` | [L1935](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1935) |
+| [**`json_array_size`**](js/helpers_json.md#js_json_array_size) | `function json_array_size(a)` | [L1966](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1966) |
+| [**`json_deep_copy`**](js/helpers_json.md#js_json_deep_copy) | `function json_deep_copy(obj)` | [L1753](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1753) |
+| [**`json_is_identical`**](js/helpers_json.md#js_json_is_identical) | `function json_is_identical(kw1, kw2)` | [L1775](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1775) |
+| [**`json_mask_secrets`**](js/logging.md#js_json_mask_secrets) | `function json_mask_secrets(jn)` | [L1731](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1731) |
+| [**`json_object_del`**](js/helpers_json.md#js_json_object_del) | `function json_object_del(o, k)` | [L1882](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1882) |
+| [**`json_object_get`**](js/helpers_json.md#js_json_object_get) | `function json_object_get(o, key)` | [L1871](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1871) |
+| [**`json_object_set`**](js/helpers_json.md#js_json_object_set) | `function json_object_set(o, k, v)` | [L1892](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1892) |
+| [**`json_object_set_new`**](js/helpers_json.md#js_json_object_set_new) | `function json_object_set_new(o, k, v)` | [L1900](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1900) |
+| [**`json_object_size`**](js/helpers_json.md#js_json_object_size) | `function json_object_size(a)` | [L1955](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1955) |
+| [**`json_object_update`**](js/helpers_json.md#js_json_object_update) | `function json_object_update(destination, source)` | [L1823](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1823) |
+| [**`json_object_update_existing`**](js/helpers_json.md#js_json_object_update_existing) | `function json_object_update_existing(destination, source)` | [L1838](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1838) |
+| [**`json_object_update_missing`**](js/helpers_json.md#js_json_object_update_missing) | `function json_object_update_missing(destination, source)` | [L1855](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1855) |
+| [**`json_size`**](js/helpers_json.md#js_json_size) | `function json_size(a)` | [L1979](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1979) |
+| [**`jwt2json`**](js/helpers_data.md#js_jwt2json) | `function jwt2json(jwt, what)` | [L4788](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4788) |
+| [**`jwtDecode`**](js/helpers_data.md#js_jwtDecode) | `function jwtDecode(jwt)` | [L4740](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4740) |
+| [**`kw_clone_by_keys`**](js/helpers_kw.md#js_kw_clone_by_keys) | `function kw_clone_by_keys(gobj, kw, keys, verbose)` | [L3542](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3542) |
+| [**`kw_clone_by_not_keys`**](js/helpers_kw.md#js_kw_clone_by_not_keys) | `function kw_clone_by_not_keys( gobj, kw, keys, verbose )` | [L3594](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3594) |
+| [**`kw_collect`**](js/helpers_kw.md#js_kw_collect) | `function kw_collect(gobj, kw, jn_filter, match_fn)` | [L3500](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3500) |
+| [**`kw_delete`**](js/helpers_kw.md#js_kw_delete) | `function kw_delete(gobj, kw, path)` | [L2622](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2622) |
+| [**`kw_find_json_in_list`**](js/helpers_kw.md#js_kw_find_json_in_list) | `function kw_find_json_in_list( gobj, kw_list, item, flag )` | [L3431](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3431) |
+| [**`kw_find_path`**](js/helpers_kw.md#js_kw_find_path) | `function kw_find_path(gobj, kw, path, verbose)` | [L2551](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2551) |
+| [**`kw_flag_t`**](js/helpers_kw.md#js_kw_flag_t) | `const kw_flag_t = Object.freeze(` | [L15](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L15) |
+| [**`kw_get_bool`**](js/helpers_kw.md#js_kw_get_bool) | `function kw_get_bool(gobj, kw, path, default_value, flag)` | [L2673](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2673) |
+| [**`kw_get_dict`**](js/helpers_kw.md#js_kw_get_dict) | `function kw_get_dict(gobj, kw, path, default_value, flag)` | [L3015](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3015) |
+| [**`kw_get_dict_value`**](js/helpers_kw.md#js_kw_get_dict_value) | `function kw_get_dict_value(gobj, kw, path, default_value, flag)` | [L3078](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3078) |
+| [**`kw_get_int`**](js/helpers_kw.md#js_kw_get_int) | `function kw_get_int(gobj, kw, path, default_value, flag)` | [L2769](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2769) |
+| [**`kw_get_list`**](js/helpers_kw.md#js_kw_get_list) | `function kw_get_list(gobj, kw, path, default_value, flag)` | [L3120](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3120) |
+| [**`kw_get_local_storage_value`**](js/helpers_kw.md#js_kw_get_local_storage_value) | `function kw_get_local_storage_value(key, default_value, create = false)` | [L3647](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3647) |
+| [**`kw_get_pointer`**](js/helpers_kw.md#js_kw_get_pointer) | `function kw_get_pointer(gobj, kw, path, default_value, flag)` | [L2974](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2974) |
+| [**`kw_get_real`**](js/helpers_kw.md#js_kw_get_real) | `function kw_get_real(gobj, kw, path, default_value, flag)` | [L2834](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2834) |
+| [**`kw_get_str`**](js/helpers_kw.md#js_kw_get_str) | `function kw_get_str(gobj, kw, path, default_value, flag)` | [L2930](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2930) |
+| [**`kw_has_key`**](js/helpers_kw.md#js_kw_has_key) | `function kw_has_key(kw, key)` | [L2483](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2483) |
+| [**`kw_match_simple`**](js/helpers_kw.md#js_kw_match_simple) | `function kw_match_simple( kw,` | [L3414](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3414) |
+| [**`kw_pop`**](js/helpers_kw.md#js_kw_pop) | `function kw_pop(kw1, kw2)` | [L2462](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2462) |
+| [**`kw_remove_local_storage_value`**](js/helpers_kw.md#js_kw_remove_local_storage_value) | `function kw_remove_local_storage_value(key)` | [L3703](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3703) |
+| [**`kw_select`**](js/helpers_kw.md#js_kw_select) | `function kw_select(gobj, kw, jn_filter, match_fn)` | [L3463](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3463) |
+| [**`kw_set_dict_value`**](js/helpers_kw.md#js_kw_set_dict_value) | `function kw_set_dict_value(gobj, kw, path, value)` | [L3183](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3183) |
+| [**`kw_set_local_storage_value`**](js/helpers_kw.md#js_kw_set_local_storage_value) | `function kw_set_local_storage_value(key, value)` | [L3680](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3680) |
+| [**`kw_set_subdict_value`**](js/helpers_kw.md#js_kw_set_subdict_value) | `function kw_set_subdict_value(gobj, kw, path, key, value)` | [L3284](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3284) |
+| [**`kwid_collect`**](js/helpers_kw.md#js_kwid_collect) | `function kwid_collect(gobj, kw, ids, jn_filter, match_fn)` | [L3782](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3782) |
+| [**`kwid_find_one_record`**](js/helpers_kw.md#js_kwid_find_one_record) | `function kwid_find_one_record(gobj, kw, ids, jn_filter, match_fn)` | [L3938](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3938) |
+| [**`kwid_get_ids`**](js/helpers_kw.md#js_kwid_get_ids) | `function kwid_get_ids(gobj, ids)` | [L3982](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3982) |
+| [**`kwid_match_id`**](js/helpers_kw.md#js_kwid_match_id) | `function kwid_match_id(ids, id)` | [L3724](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3724) |
+| [**`kwid_new_dict`**](js/helpers_kw.md#js_kwid_new_dict) | `function kwid_new_dict(gobj, kw, path)` | [L3849](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3849) |
+| [**`kwid_new_list`**](js/helpers_kw.md#js_kwid_new_list) | `function kwid_new_list(gobj, kw, path)` | [L3901](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L3901) |
+| [**`list2options`**](js/helpers_str.md#js_list2options) | `function list2options(list, field_id, field_value)` | [L4048](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4048) |
+| [**`load_json_file`**](js/helpers_data.md#js_load_json_file) | `function load_json_file(url, on_success, on_error)` | [L4331](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4331) |
+| [**`log_debug`**](js/logging.md#js_log_debug) | `function log_debug(format, ...args)` | [L393](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L393) |
+| [**`log_error`**](js/logging.md#js_log_error) | `function log_error(format, ...args)` | [L340](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L340) |
+| [**`log_info`**](js/logging.md#js_log_info) | `function log_info(format, ...args)` | [L380](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L380) |
+| [**`log_warning`**](js/logging.md#js_log_warning) | `function log_warning(format, ...args)` | [L360](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L360) |
+| [**`mask_secrets_inline`**](js/logging.md#js_mask_secrets_inline) | `function mask_secrets_inline(str)` | [L1556](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1556) |
+| [**`msg_iev_get_msg_type`**](js/helpers_kw.md#js_msg_iev_get_msg_type) | `function msg_iev_get_msg_type(gobj, kw)` | [L4320](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4320) |
+| [**`msg_iev_get_stack`**](js/helpers_kw.md#js_msg_iev_get_stack) | `function msg_iev_get_stack(gobj, kw, stack, verbose)` | [L4254](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4254) |
+| [**`msg_iev_push_stack`**](js/helpers_kw.md#js_msg_iev_push_stack) | `function msg_iev_push_stack(gobj, kw, stack, jn_data)` | [L4226](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4226) |
+| [**`msg_iev_read_key`**](js/helpers_kw.md#js_msg_iev_read_key) | `function msg_iev_read_key(kw, key)` | [L4197](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4197) |
+| [**`msg_iev_set_msg_type`**](js/helpers_kw.md#js_msg_iev_set_msg_type) | `function msg_iev_set_msg_type( gobj, kw, msg_type` | [L4303](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4303) |
+| [**`msg_iev_write_key`**](js/helpers_kw.md#js_msg_iev_write_key) | `function msg_iev_write_key(kw, key, value)` | [L4213](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4213) |
+| [**`node_uuid`**](js/helpers_str.md#js_node_uuid) | `function node_uuid()` | [L5464](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5464) |
+| [**`parseBoolean`**](js/helpers_json.md#js_parseBoolean) | `function parseBoolean(s)` | [L2243](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2243) |
+| [**`parseSVG`**](js/helpers_dom.md#js_parseSVG) | `function parseSVG(string)` | [L5291](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5291) |
+| [**`refresh_language`**](js/helpers_dom.md#js_refresh_language) | `function refresh_language(element, t)` | [L5299](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5299) |
+| [**`safeSrc`**](js/helpers_dom.md#js_safeSrc) | `function safeSrc(url)` | [L4829](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4829) |
+| [**`send_http_json_post`**](js/helpers_data.md#js_send_http_json_post) | `function send_http_json_post(url, data, on_response)` | [L4364](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4364) |
+| [**`set_console_log_enabled`**](js/logging.md#js_set_console_log_enabled) | `function set_console_log_enabled(enabled)` | [L114](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L114) |
+| [**`set_console_log_filter`**](js/logging.md#js_set_console_log_filter) | `function set_console_log_filter(fn)` | [L135](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L135) |
+| [**`set_log_callback`**](js/logging.md#js_set_log_callback) | `function set_log_callback(fn)` | [L81](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L81) |
+| [**`set_remote_log_functions`**](js/logging.md#js_set_remote_log_functions) | `function set_remote_log_functions(remote_log_fn)` | [L186](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L186) |
+| [**`set_strings_are_text`**](js/helpers_dom.md#js_set_strings_are_text) | `function set_strings_are_text(on)` | [L4904](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4904) |
+| [**`str_in_list`**](js/helpers_str.md#js_str_in_list) | `function str_in_list(list, str, ignore_case)` | [L4127](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4127) |
+| [**`strcasecmp`**](js/helpers_str.md#js_strcasecmp) | `function strcasecmp(str1, str2)` | [L2302](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2302) |
+| [**`strcmp`**](js/helpers_str.md#js_strcmp) | `function strcmp(str1, str2)` | [L2284](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2284) |
+| [**`strings_are_text`**](js/helpers_dom.md#js_strings_are_text) | `function strings_are_text()` | [L4909](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4909) |
+| [**`strncmp`**](js/helpers_str.md#js_strncmp) | `function strncmp(str1, str2, lgth)` | [L2260](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2260) |
+| [**`strs_in_list`**](js/helpers_str.md#js_strs_in_list) | `function strs_in_list(list, strs, ignore_case)` | [L4160](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L4160) |
+| [**`strstr`**](js/helpers_str.md#js_strstr) | `function strstr(haystack, needle, bool)` | [L2386](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L2386) |
+| [**`timeTracker`**](js/helpers_str.md#js_timeTracker) | `function timeTracker(tracker_name="Time Tracker", verbose=false)` | [L5381](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L5381) |
+| [**`trace_json`**](js/logging.md#js_trace_json) | `function trace_json(jn, msg)` | [L419](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L419) |
+| [**`trace_json_masked`**](js/logging.md#js_trace_json_masked) | `function trace_json_masked(jn, msg)` | [L1744](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L1744) |
+| [**`trace_msg`**](js/logging.md#js_trace_msg) | `function trace_msg(format, ...args)` | [L406](https://github.com/artgins/gobj-js/blob/7.26.22/src/helpers.js#L406) |
 
 ### `src/lib_treedb.js` — 7 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`create_template_record`**](js/treedb_helpers.md#js_create_template_record) | `function create_template_record(template, kw)` | [L460](https://github.com/artgins/gobj-js/blob/7.26.21/src/lib_treedb.js#L460) |
-| [**`template_get_field_desc`**](js/treedb_helpers.md#js_template_get_field_desc) | `function template_get_field_desc(key, value)` | [L383](https://github.com/artgins/gobj-js/blob/7.26.21/src/lib_treedb.js#L383) |
-| [**`treedb_decoder_fkey`**](js/treedb_helpers.md#js_treedb_decoder_fkey) | `function treedb_decoder_fkey(col, fkey)` | [L83](https://github.com/artgins/gobj-js/blob/7.26.21/src/lib_treedb.js#L83) |
-| [**`treedb_decoder_hook`**](js/treedb_helpers.md#js_treedb_decoder_hook) | `function treedb_decoder_hook(col, hook)` | [L174](https://github.com/artgins/gobj-js/blob/7.26.21/src/lib_treedb.js#L174) |
-| [**`treedb_encoder_fkey`**](js/treedb_helpers.md#js_treedb_encoder_fkey) | `function treedb_encoder_fkey(col, fkey)` | [L147](https://github.com/artgins/gobj-js/blob/7.26.21/src/lib_treedb.js#L147) |
-| [**`treedb_get_field_desc`**](js/treedb_helpers.md#js_treedb_get_field_desc) | `function treedb_get_field_desc(col)` | [L307](https://github.com/artgins/gobj-js/blob/7.26.21/src/lib_treedb.js#L307) |
-| [**`treedb_hook_data_size`**](js/treedb_helpers.md#js_treedb_hook_data_size) | `function treedb_hook_data_size(value)` | [L51](https://github.com/artgins/gobj-js/blob/7.26.21/src/lib_treedb.js#L51) |
+| [**`create_template_record`**](js/treedb_helpers.md#js_create_template_record) | `function create_template_record(template, kw)` | [L460](https://github.com/artgins/gobj-js/blob/7.26.22/src/lib_treedb.js#L460) |
+| [**`template_get_field_desc`**](js/treedb_helpers.md#js_template_get_field_desc) | `function template_get_field_desc(key, value)` | [L383](https://github.com/artgins/gobj-js/blob/7.26.22/src/lib_treedb.js#L383) |
+| [**`treedb_decoder_fkey`**](js/treedb_helpers.md#js_treedb_decoder_fkey) | `function treedb_decoder_fkey(col, fkey)` | [L83](https://github.com/artgins/gobj-js/blob/7.26.22/src/lib_treedb.js#L83) |
+| [**`treedb_decoder_hook`**](js/treedb_helpers.md#js_treedb_decoder_hook) | `function treedb_decoder_hook(col, hook)` | [L174](https://github.com/artgins/gobj-js/blob/7.26.22/src/lib_treedb.js#L174) |
+| [**`treedb_encoder_fkey`**](js/treedb_helpers.md#js_treedb_encoder_fkey) | `function treedb_encoder_fkey(col, fkey)` | [L147](https://github.com/artgins/gobj-js/blob/7.26.22/src/lib_treedb.js#L147) |
+| [**`treedb_get_field_desc`**](js/treedb_helpers.md#js_treedb_get_field_desc) | `function treedb_get_field_desc(col)` | [L307](https://github.com/artgins/gobj-js/blob/7.26.22/src/lib_treedb.js#L307) |
+| [**`treedb_hook_data_size`**](js/treedb_helpers.md#js_treedb_hook_data_size) | `function treedb_hook_data_size(value)` | [L51](https://github.com/artgins/gobj-js/blob/7.26.22/src/lib_treedb.js#L51) |
 
 ### `src/sprintf.js` — 2 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`sprintf`**](js/logging.md#js_sprintf) | `function sprintf(key)` | [L24](https://github.com/artgins/gobj-js/blob/7.26.21/src/sprintf.js#L24) |
-| [**`vsprintf`**](js/logging.md#js_vsprintf) | `function vsprintf(fmt, argv)` | [L29](https://github.com/artgins/gobj-js/blob/7.26.21/src/sprintf.js#L29) |
+| [**`sprintf`**](js/logging.md#js_sprintf) | `function sprintf(key)` | [L24](https://github.com/artgins/gobj-js/blob/7.26.22/src/sprintf.js#L24) |
+| [**`vsprintf`**](js/logging.md#js_vsprintf) | `function vsprintf(fmt, argv)` | [L29](https://github.com/artgins/gobj-js/blob/7.26.22/src/sprintf.js#L29) |
 
 ### `src/stats_parser.js` — 2 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`build_stats_response`**](js/events.md#js_build_stats_response) | `function build_stats_response( gobj, result, comment, schema, data )` | [L24](https://github.com/artgins/gobj-js/blob/7.26.21/src/stats_parser.js#L24) |
-| [**`stats_parser`**](js/events.md#js_stats_parser) | `function stats_parser( gobj, stats, kw, src )` | [L12](https://github.com/artgins/gobj-js/blob/7.26.21/src/stats_parser.js#L12) |
+| [**`build_stats_response`**](js/events.md#js_build_stats_response) | `function build_stats_response( gobj, result, comment, schema, data )` | [L24](https://github.com/artgins/gobj-js/blob/7.26.22/src/stats_parser.js#L24) |
+| [**`stats_parser`**](js/events.md#js_stats_parser) | `function stats_parser( gobj, stats, kw, src )` | [L12](https://github.com/artgins/gobj-js/blob/7.26.22/src/stats_parser.js#L12) |
 
 ## gobj-ui (UI Library)
 

@@ -1004,6 +1004,28 @@ fixed:
   `command_parameter_from_json()` and the json readers carry examples; the
   masking pages say what each figure compares against.
 
+- **JS layer: gobj-ui 7.26.43, gobj-js 7.26.22, gui_agent 0.29.54,
+  gui_treedb 0.17.120** (the twenty-fifth review). gobj-js: the masking above
+  (a URL query token; 7.26.19's reading kept whole; a name judged like C, in
+  ASCII case and by its last 128 UTF-8 bytes; an eyJ header with no dot of
+  its own; no server text logged unmasked by `C_IEVENT_CLI`; as fast as
+  7.26.20 again), an attribute's value read as its type by the C parser's
+  grammar (`json2item()`, `gobj_write_attr()`, the typed writers; a table of
+  71 cases shared with the C tests), the check of a gobj destroyed under code
+  still running on it, and `C_TIMER` / `C_IEVENT_CLI` as pure children
+  publishing to their parent as in C. gobj-ui: Undo reverts a form's tables
+  and the record stays as loaded; nested tables live as long as their row (a
+  forced redraw rebuilt them empty); a table loads in one call (300 rows 20.6 s
+  -> 0.14 s); `C_YUI_WINDOW` implements `focus`, `modal` and `keyboard` (a
+  dialog with a name, Escape, focus); the shell's dialogs have a name and can
+  be reached from the keyboard (the focus trap gave the focus to a hidden
+  control); the floating dock no longer covers a full-screen window; a child
+  is never destroyed under its own publication; `validate-locales` reads
+  `.bind()`, declares `fallbacks`, and FAILS where it gives up (it stopped in
+  silence at 24 steps); `deploy-round` leaves a refused app as it was and never
+  lowers a range. The yunos: three transports and timers taken down on the
+  next turn.
+
 ## v7.26.9 (2026-10-11)
 
 A hardening release, out of sixteen rounds of review (yunovatios

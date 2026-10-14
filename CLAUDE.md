@@ -178,6 +178,12 @@ The standalone repo carries **two maintained lines**, and they are consumed in
     BREAKING change.** The child subscribes its host to everything it
     publishes, so a new output event is a new mandatory declaration in every
     host's FSM — or every host answers *"Event NOT DEFINED in state"*.
+  - **A host takes down a child that may be publishing to it in two steps**:
+    off the page now, destroyed on the next turn from an event posted to
+    itself (`C_YUI_SCHEMA_EDITOR`'s drawing, `C_YUI_NODE`'s navs, gobj-ui
+    7.26.43) -- its own click can be what makes the host leave it, and
+    gobj-js 7.26.22 reports a child destroyed under its own publication as an
+    ERROR, as the C kernel does.
   **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
   **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, wattyzer, yunovatios,
   estadodelaire, yunomusica — all pull it from the **npm registry**, and all import it by package
@@ -1255,6 +1261,9 @@ Examples: `c_yui_main.js` (`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
   open alarms for the toolbar badge does exactly that).
 - `pure_child` gobjs are not auto-started by `c_yuno.mt_play` — call
   `gobj_start(child)` explicitly.
+- A pure-child `C_TIMER` or `C_IEVENT_CLI` **publishes** to its parent, which
+  it subscribes in `mt_create` (gobj-js 7.26.22, as in C); up to 7.26.21 it
+  SENT, so a `subscriber` other than the parent never heard it.
 - `c_ievent_cli` contract (C and JS): a **deliberate** `gobj_stop` /
   `gobj_stop_tree` must still deliver the transport close to the FSM so
   `EV_ON_CLOSE` reaches subscribers when a session was open. Guard the handler

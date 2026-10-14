@@ -51,6 +51,19 @@ clear_timeout(timer_gobj);
 
 **Attributes:** `subscriber`, `periodic`, `msec`
 
+**Who hears it:** the `subscriber` attr, else, for a pure child, its parent,
+which the timer subscribes in `mt_create`. That is the C timer's rule, and the
+timeout is always PUBLISHED (gobj-js 7.26.22). Up to 7.26.21 a pure child SENT
+it to its parent, also when it had a `subscriber`. A host that ends its timer
+in the timer's `EV_TIMEOUT` destroys it under its publication: post an event to
+itself instead (see [`gobj_destroy()`](lifecycle.md#js_gobj_destroy)).
+
+```javascript
+// The host is the parent: it declares EV_TIMEOUT in its FSM.
+let timer = gobj_create_pure_child("deadline", "C_TIMER", {}, gobj);
+set_timeout(timer, 15000);
+```
+
 (js_set_timeout)=
 ### [`set_timeout(gobj, msec)`](https://github.com/artgins/gobj-js/blob/7.26.21/src/c_timer.js#L341)
 

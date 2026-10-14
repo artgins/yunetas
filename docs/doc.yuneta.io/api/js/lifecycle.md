@@ -98,6 +98,47 @@ Destroys a gobj. The destruction goes down: it destroys the children first. It
 deletes the subscriptions, and it takes the gobj out of the queue of the posted
 events.
 
+**Not under code that still runs on it** (gobj-js 7.26.22, the same check as
+the C kernel's [`gobj_destroy()`](../gobj/creation.md#gobj_destroy)). The
+runtime keeps a frame for each action, publication and framework method in
+progress. When `gobj_destroy()` finds a live frame of the gobj that it
+destroys, or of a gobj below it, it logs an ERROR with the stack and destroys
+all the same:
+
+- *"Destroying a gobj while its tree is publishing"*: a subscriber destroys
+  the publisher, or an ancestor of the publisher.
+- *"Destroying a gobj while one of its actions is still running"*: an inner
+  dispatch destroys a gobj whose outer action did not return.
+
+The line names `destroying`, `publisher` (or `running`), `event`, `destroyer`
+and `inner_event`. It is not an error when the innermost frame destroys its own
+gobj (a gobj that destroys itself in its action), or when a host destroys its
+transport in the transport's `EV_STOPPED`.
+
+The fix is to post an event to yourself and destroy in its action. The event is
+an input event of the gclass, in its FSM and in its `event_types`:
+
+```javascript
+// A host ends the C_TIMER child that it armed. EV_TIMEOUT is PUBLISHED by
+// the timer: destroying it here destroys the timer under its publication.
+function ac_timeout(gobj, event, kw, src)
+{
+    gobj_post_event(gobj, "EV_TIMER_DONE", {timer: gobj_name(src)}, gobj);
+    return 0;
+}
+
+function ac_timer_done(gobj, event, kw, src)
+{
+    let timer = gobj.priv.timer;
+    if(timer && gobj_name(timer) === kw.timer) {
+        gobj_stop(timer);
+        gobj_destroy(timer);
+        gobj.priv.timer = null;
+    }
+    return 0;
+}
+```
+
 ---
 
 ## Start and stop
@@ -134,10 +175,12 @@ Starts a gobj and each one of the gobjs below it. A gclass with the flag
 Stops a gobj and each one of the gobjs below it.
 
 :::{warning}
-Never stop the tree of a publisher inside the action of a subscriber.
-[`gobj_publish_event()`](events.md#js_gobj_publish_event) dispatches
-synchronously, so the action runs inside the stack of the publisher, and the
-stop dismantles what is still in an iteration. Post an event instead.
+Never stop or destroy the tree of a publisher inside the action of a
+subscriber. [`gobj_publish_event()`](events.md#js_gobj_publish_event)
+dispatches synchronously, so the action runs inside the stack of the
+publisher, and the stop dismantles what is still in an iteration. Post an event
+instead. A destroy there is an ERROR (see
+[`gobj_destroy()`](#js_gobj_destroy)).
 :::
 
 ---
