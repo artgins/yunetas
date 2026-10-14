@@ -26,6 +26,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define PEER_NAME_SHOWN     129     // a name the server wrote, as a log shows it: masked, capped
 
 /***************************************************************
  *              Prototypes
@@ -1030,23 +1031,23 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*-----------------------------------------*
-     *  If state is not in SESSION, send self.
-     *  Mainly process EV_IDENTITY_CARD_ACK
+     *  Before the session the server says one
+     *  thing only: EV_IDENTITY_CARD_ACK.
+     *  Anything else is the server's fault: a
+     *  WARNING, and the channel goes. Up to
+     *  7.26.9 a session event went to
+     *  mt_inject_event() ("Not in session", an
+     *  ERROR) and then here, an ERROR too.
      *-----------------------------------------*/
     if(gobj_current_state(gobj) != ST_SESSION) {
-        int ret = -1;
-        if(gobj_has_event(gobj, iev_event, EVF_PUBLIC_EVENT)) {
-            kw_incref(iev_kw);
-            ret = gobj_send_event(gobj, iev_event, iev_kw, gobj);
-            if(ret==0) {
-                KW_DECREF(iev_kw)
-                KW_DECREF(kw)
-                return 0;
-            }
+        if(iev_event == EV_IDENTITY_CARD_ACK) {
+            int ret = gobj_send_event(gobj, iev_event, iev_kw, gobj);  // iev_kw owned
+            KW_DECREF(kw)
+            return ret;
         }
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "event UNKNOWN in not-session state",
             "event",        "%s", iev_event,
             NULL
@@ -1055,7 +1056,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
         KW_DECREF(iev_kw)
         KW_DECREF(kw)
-        return ret;
+        return -1;
     }
 
     /*------------------------------------*
@@ -1072,15 +1073,23 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*----------------------------------------*
      *  Check dst role^name
      *----------------------------------------*/
+    /*
+     *  The names below are the server's text: masked and capped (a name can
+     *  carry what is not a name). Its faults are WARNINGs, as C_IEVENT_SRV
+     *  says those of its clients.
+     */
+    char shown[PEER_NAME_SHOWN];
     const char *iev_dst_role = kw_get_str(gobj, jn_ievent_id, "dst_role", "", 0);
     if(!empty_string(iev_dst_role)) {
         if(strcasecmp(iev_dst_role, gobj_yuno_role())!=0) {
-            gobj_log_error(gobj, 0,
+            mask_secrets_inline_capped(shown, sizeof(shown), iev_dst_role, strlen(iev_dst_role));
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
+                "msgset",       "%s", MSGSET_PROTOCOL,
                 "msg",          "%s", "It's not my role",
-                "yuno_role",    "%s", iev_dst_role,
+                "yuno_role",    "%s", shown,
                 "my_role",      "%s", gobj_yuno_role(),
+                "event",        "%s", iev_event,
                 NULL
             );
             trace_inter_event(gobj, prefix, iev_event, iev_kw);
@@ -1093,12 +1102,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     const char *iev_dst_yuno = kw_get_str(gobj, jn_ievent_id, "dst_yuno", "", 0);
     if(!empty_string(iev_dst_yuno)) {
         if(strcasecmp(iev_dst_yuno, gobj_yuno_name())!=0) {
-            gobj_log_error(gobj, 0,
+            mask_secrets_inline_capped(shown, sizeof(shown), iev_dst_yuno, strlen(iev_dst_yuno));
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
+                "msgset",       "%s", MSGSET_PROTOCOL,
                 "msg",          "%s", "It's not my name",
-                "yuno_name",    "%s", iev_dst_yuno,
+                "yuno_name",    "%s", shown,
                 "my_name",      "%s", gobj_yuno_name(),
+                "event",        "%s", iev_event,
                 NULL
             );
             trace_inter_event(gobj, prefix, iev_event, iev_kw);
@@ -1160,11 +1171,12 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         /*-----------------------------------*
          *  It's a external subscription
          *-----------------------------------*/
-        gobj_log_error(gobj, 0,
+        mask_secrets_inline_capped(shown, sizeof(shown), iev_dst_service, strlen(iev_dst_service));
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "subscription event ignored, I'm client",
-            "service",      "%s", iev_dst_service,
+            "service",      "%s", shown,
             "event",        "%s", iev_event,
             NULL
         );
@@ -1177,11 +1189,12 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         /*-----------------------------------*
          *  It's a external unsubscription
          *-----------------------------------*/
-        gobj_log_error(gobj, 0,
+        mask_secrets_inline_capped(shown, sizeof(shown), iev_dst_service, strlen(iev_dst_service));
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "subscription event ignored, I'm client",
-            "service",      "%s", iev_dst_service,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "unsubscription event ignored, I'm client",
+            "service",      "%s", shown,
             "event",        "%s", iev_event,
             NULL
         );

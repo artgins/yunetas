@@ -30,7 +30,9 @@ and every `<msg2db>.msg2db_schema.json`. One line per fault:
 LEVEL, by what the SDK does at the open:
     NO-OPEN     the treedb is not opened at all (an ERROR), when this file is
                 the schema it opens with (the persisted one wins unless the
-                code's has a higher schema_version)
+                code's has a higher schema_version): the line says the
+                schema_version a master's schema from C must differ from to
+                replace it
     LEFT-OUT    the topic is not opened (an ERROR): its records stay on disk,
                 unreachable until the schema is fixed
     CRITICAL    "Cannot create topic of the schema": the treedb is not the one
@@ -371,11 +373,23 @@ def check_main_topics(rep, path, topics):
         marked = tn
 
 
+def unless_replaced(data):
+    """What lifts a NO-OPEN: treedb_open_db() opens with the persisted schema
+    unless the yuno is the MASTER and its schema from C has another
+    schema_version than the file's (a higher one, or any other when imposed)
+    -- then the code's schema replaces the file at that open"""
+    v = data.get("schema_version", 0) if isinstance(data, dict) else 0
+    if not isinstance(v, int) or isinstance(v, bool):
+        v = 0
+    return (f" (unless a master opens it with a schema from C whose schema_version is not {v},"
+            f" a higher one when not imposed: that one replaces this file)")
+
+
 def check_treedb_file(rep, path, data, list_gobj):
     fn = os.path.basename(path)
     tranger_dir = os.path.dirname(path)
     if isinstance(data, dict) and "topics" not in data and "topic_name" not in data:
-        rep.say(path, "NO-OPEN", fn[:-len(TREEDB_SUFFIX)], "a treedb schema with no 'topics'", "No topics found")
+        rep.say(path, "NO-OPEN", fn[:-len(TREEDB_SUFFIX)], "a treedb schema with no 'topics'" + unless_replaced(data), "No topics found")
     elif isinstance(data, dict) and "topics" in data:
         treedb = fn[:-len(TREEDB_SUFFIX)]
         topics = data.get("topics")
@@ -384,7 +398,7 @@ def check_treedb_file(rep, path, data, list_gobj):
         elif isinstance(topics, list):
             items = [(None, t) for t in topics]
         else:
-            rep.say(path, "NO-OPEN", treedb, "'topics' is neither a list nor a dict", "No topics found")
+            rep.say(path, "NO-OPEN", treedb, "'topics' is neither a list nor a dict" + unless_replaced(data), "No topics found")
             return
         for key, t in items:
             if not isinstance(t, dict):
@@ -401,7 +415,7 @@ def check_treedb_file(rep, path, data, list_gobj):
         treedb = stem[:-(len(tn) + 1)] if tn and stem.endswith("-" + tn) else stem
         check_treedb_topic(rep, path, treedb, data, None, tranger_dir, list_gobj)
     else:
-        rep.say(path, "NO-OPEN", "?", "the schema is not a json object", "No topics found")
+        rep.say(path, "NO-OPEN", "?", "the schema is not a json object" + unless_replaced(data), "No topics found")
 
 
 def check_msg2db_file(rep, path, data):

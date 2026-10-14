@@ -1256,9 +1256,14 @@ PRIVATE void check_log_dumps(hgobj gobj)
         /*
          *  And the shapes of V24.4: a scheme word repeated ("Bearer Bearer
          *  ..." looked ahead from each of its words: quadratic), a text of
-         *  ':' after secrets' names, and a container that does not close
+         *  ':' after secrets' names, and a container that does not close;
+         *  and of 7.26.10: names in brackets, %-encoded, as labels, and the
+         *  userinfo of a URL
          */
-        const char *patterns[] = {"Bearer ", "basic ", "token:", "\"pin\": {[", 0};
+        const char *patterns[] = {
+            "Bearer ", "basic ", "token:", "\"pin\": {[",
+            "[pin]=\"", "t%6Fken=x&", "x[pin]: ", "a://b:c@", 0
+        };
         for(int k=0; patterns[k]; k++) {
             size_t pl = strlen(patterns[k]);
             for(size_t i=0; i + pl < big_len; i += pl) {
@@ -1632,6 +1637,20 @@ PRIVATE void check_secret_values(hgobj gobj)
         {"pin='token=qs4'hunter2 x", "pin=********"},
         {"password=Basic qs5hunter2==", "password=********"},
         {"eyJhIjoxfQ. eyJhIjoxfQ..", NULL},  // headers whose dots end them
+
+        /*
+         *  7.26.10: a query name as a form writes it -- in brackets,
+         *  %-encoded -- after a word that is no secret's name, and the
+         *  password of the userinfo of a URL
+         */
+        {"GET https://my-file-server.com/get?user[password]=wn1-hunter2&x=1",
+         "GET https://my-file-server.com/get?user[password]=********&x=1"},
+        {"GET https://my-file-server.com/get?t%6Fken=wn2-hunter2", "GET https://my-file-server.com/get?t%6Fken=********"},
+        {"GET https://my-file-server.com/f?user%5Bpin%5D=1234&a%5B0%5D=5",
+         "GET https://my-file-server.com/f?user%5Bpin%5D=********&a%5B0%5D=5"},
+        {"clone https://bob:wn3-hunter2@git.example/x.git", "clone https://bob:********@git.example/x.git"},
+        {"redis://:wn4-hunter2@[::1]:6379/0", "redis://:********@[::1]:6379/0"},
+        {"ssh://git@github.com:22/x http://[::1]:8080/y", NULL},    // a user, a port: no password
         {0, 0}
     };
     for(int i=0; shapes[i].in; i++) {

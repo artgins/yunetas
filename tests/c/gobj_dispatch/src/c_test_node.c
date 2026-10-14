@@ -17,7 +17,9 @@
  *
  *          and, by attribute, it ends itself in its own mt_start, mt_stop or
  *          mt_play, as a volatile C_TASK whose first job fails does in its
- *          mt_start.
+ *          mt_start; its mt_stop publishes EV_STOPPED at once (a C_TCP with
+ *          nothing in flight), or destroys its "victim"; and it destroys
+ *          itself in the EV_STOPPED of a child.
  *
  *          None of its actions touches the gobj after a publication or a
  *          destroy: the gobj may be gone by then, and what this test checks
@@ -56,6 +58,9 @@ SDATA (DTP_BOOLEAN,     "die_on_start",     SDF_RD,             "0",        "Des
 SDATA (DTP_BOOLEAN,     "die_on_stop",      SDF_RD,             "0",        "Destroy itself in its mt_stop"),
 SDATA (DTP_BOOLEAN,     "die_on_play",      SDF_RD,             "0",        "Destroy itself in its mt_play, which then fails"),
 SDATA (DTP_POINTER,     "peer",             0,                  0,          "Where EV_TEST_RELAY sends EV_TEST_BOUNCE"),
+SDATA (DTP_BOOLEAN,     "farewell_on_stop", SDF_RD,             "0",        "Publish EV_STOPPED in its mt_stop, as a transport with nothing in flight does"),
+SDATA (DTP_POINTER,     "victim",           0,                  0,          "A gobj its mt_stop destroys"),
+SDATA (DTP_BOOLEAN,     "die_on_child_stopped",SDF_RD,          "0",        "Destroy itself in the EV_STOPPED of a child"),
 SDATA_END()
 };
 
@@ -130,6 +135,14 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    hgobj victim = (hgobj)gobj_read_pointer_attr(gobj, "victim");
+    if(victim) {
+        gobj_write_pointer_attr(gobj, "victim", NULL);
+        gobj_destroy(victim);
+    }
+    if(gobj_read_bool_attr(gobj, "farewell_on_stop")) {
+        return gobj_publish_event(gobj, EV_STOPPED, 0);
+    }
     if(gobj_read_bool_attr(gobj, "die_on_stop")) {
         gobj_stop_children(gobj);
         gobj_destroy(gobj);
@@ -246,6 +259,19 @@ PRIVATE int ac_bounce(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  A child stopped: with die_on_child_stopped, end itself in it (a host
+ *  whose work ends with its transport).
+ ***************************************************************************/
+PRIVATE int ac_child_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    if(gobj_read_bool_attr(gobj, "die_on_child_stopped")) {
+        gobj_destroy(gobj);
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  Must not run when the change of state destroyed the gobj.
  ***************************************************************************/
 PRIVATE int ac_move(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -328,6 +354,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TEST_MOVE,              ac_move,                ST_TEST_MOVED},
         {EV_TEST_RELAY,             ac_relay,               0},
         {EV_TEST_BOUNCE,            ac_bounce,              0},
+        {EV_STOPPED,                ac_child_stopped,       0},
         {0,0,0}
     };
     ev_action_t st_test_moved[] = {

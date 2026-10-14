@@ -302,6 +302,15 @@ This function does not return a value.
 - A playing gobj is paused, and a running one stopped, before it is
   destroyed, each with an ERROR: destroying a live gobj is the caller's bug
   (call `gobj_stop_tree()` first).
+- That pause and that stop are watched: a stop that publishes `EV_STOPPED` at
+  once (a `C_TCP` with nothing in flight) lets its host destroy the gobj in
+  there, the whole destroy. Then `gobj_destroy()` returns, with nothing left
+  to do and nothing of the gobj read (7.26.10; up to 7.26.9 it went on with
+  the freed gobj). The caller must not touch the gobj after `gobj_destroy()`
+  in any case.
+- Its children are destroyed one by one, watched the same way: when the
+  destroy of one child destroys the next (its stop, for a running one), it
+  goes on from the first child left.
 - Its subscriptions, both ways, are removed, a service is deregistered, its
   children are destroyed (before its `mt_destroy()`), and the events it left
   posted are dropped.
@@ -340,11 +349,15 @@ every live frame of the subtree except
 - the innermost one: it is the code that destroys, and knows it. A gobj that
   destroys itself in its own action, at the end of its work, with nothing of
   it further up the stack, is legal;
-- those of a gobj whose innermost publication is its `EV_STOPPED`. By the stop
-  contract it is the last thing a gobj does with itself, and its host destroys
-  it there (`C_TCP`, `C_UDP_S`, `C_PTY`);
-- the kernel's own watch frames (the walks of `gobj_start_tree()` and
-  `gobj_stop_tree()`), which run no gclass code.
+- the `EV_STOPPED` publication of a gobj, and the frames of that gobj it runs
+  inside of (the `mt_stop` or the action that published it, an outer
+  publication of it). By the stop contract it is the last thing a gobj does
+  with itself, its host destroys it there (`C_TCP`, `C_UDP_S`, `C_PTY`), and
+  the code it returns to returns at once. NOT a frame of that gobj that began
+  inside its `EV_STOPPED` (an action its host sends it from there): it does
+  not know, and it is an ERROR;
+- the kernel's own watch frames (the walks of the tree, and the pause and
+  stop inside `gobj_destroy()`), which run no gclass code.
 
 The fix is to leave the stack: post an event to yourself with
 [`gobj_post_event()`](events_state.md#gobj_post_event), and destroy in its

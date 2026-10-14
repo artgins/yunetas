@@ -2,6 +2,14 @@
 
 Read and write gobj attributes. Attributes are typed fields declared through the GClass's SData schema and can be marked writable, persistent, statistic and more.
 
+**The default value of an attribute** is the text in the fourth field of its `SDATA()`. A boolean, an integer or a real default is read by the same grammar as a config and a command parameter ([`command_parameter_from_text()`](../parsers/command_parser.md#command_parameter_from_text)): an empty text is `0` or `false`; `true`/`false`, `yes`/`no`, `on`/`off` for a boolean; a JSON number, the whole text. So a default can be copied into a config as it is. A default that does not read as its type is the gclass's bug: an ERROR when the gobj is created, and the zero of the type. Since 7.26.10; up to 7.26.9 a default had a grammar of its own (`atoi()`, `strtoll()` in base 0): `"yes"` and `"on"` were `false`, `"12abc"` was 12, and `"0660"` an octal 432 that no config could write.
+
+```C
+SDATA (DTP_BOOLEAN,     "use_tls",          SDF_RD,     "yes",      "Use TLS"),
+SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,     "432",      "Permission of the files it creates (0660 in octal)"),
+SDATA (DTP_REAL,        "ratio",            SDF_WR,     "0.5",      "A ratio"),
+```
+
 Source code:
 
 - [`gobj.h`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/gobj-c/src/gobj.h)

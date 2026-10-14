@@ -82,6 +82,12 @@
  *  over, and it is ignored. Up to 7.26.9 the task ended at once, and C_TIMER,
  *  execute_action() and the kernel read the freed memory afterwards.
  *
+ *  While its end waits its turn the owner can still act: a task it STOPS
+ *  publishes no EV_END_TASK (a volatile one is destroyed all the same), and
+ *  a task it STARTS again drops the end of the previous run (each end names
+ *  its run). An owner that keeps the task in a pointer compares `src` of an
+ *  EV_END_TASK with it all the same.
+ *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
@@ -205,6 +211,8 @@ typedef struct _PRIVATE_DATA {
 
     hgobj gobj_jobs;
     hgobj gobj_results;
+
+    json_int_t run;     // each start begins a run; a posted end names its own
 } PRIVATE_DATA;
 
 
@@ -338,6 +346,7 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_subscribe_event(priv->gobj_results, NULL, 0, gobj);
 
     gobj_change_state(gobj, ST_IDLE);   // a task that ended is left in ST_WAIT_STOPPED
+    priv->run++;
     priv->idx_job = 0; // First job at start
     if(gobj_read_bool_attr(gobj, "connected")) {
         execute_action(gobj);
@@ -482,7 +491,7 @@ PRIVATE int stop_task(hgobj gobj, int result)
         EV_END_TASK,
         kw_task
     );
-    if(gobj_is_running(gobj)) { // its owner may stop it while its end waits its turn
+    if(gobj_is_running(gobj)) {
         gobj_stop(gobj);
     }
 
@@ -498,7 +507,10 @@ PRIVATE int stop_task(hgobj gobj, int result)
  ***************************************************************************/
 PRIVATE int end_task(hgobj gobj, int result)
 {
-    if(gobj_post_event(gobj, EV_FINISH_TASK, json_pack("{s:i}", "result", result), gobj) < 0) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw_finish = json_pack("{s:i, s:I}", "result", result, "run", priv->run);
+    if(gobj_post_event(gobj, EV_FINISH_TASK, kw_finish, gobj) < 0) {
         // Error already logged: an end in place is better than no end at all
         return stop_task(gobj, result);
     }
@@ -717,13 +729,44 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  The end of the task, in its own turn of the loop.
+ *  The end of the task, in its own turn of the loop. Its owner may have
+ *  acted while it waited:
+ *  - started the task again (a run after the one that ended): this end is
+ *    not the run's that is going on, and it is dropped -- in ST_IDLE, or
+ *    in ST_WAIT_STOPPED when the new run has ended too, its own end posted
+ *    after this one;
+ *  - stopped it: the owner left the task, and hears no end. A volatile one
+ *    is destroyed all the same, as its end would have done.
  ***************************************************************************/
 PRIVATE int ac_finish_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    int result = (int)kw_get_int(gobj, kw, "result", -2, KW_REQUIRED);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    int result = (int)kw_get_int(gobj, kw, "result", -2, KW_REQUIRED);
+    json_int_t run = kw_get_int(gobj, kw, "run", 0, KW_REQUIRED);
     KW_DECREF(kw)
+
+    if(run != priv->run) {
+        if(gobj_trace_level(gobj) & (TRACE_MESSAGES|TRACE_MESSAGES2)) {
+            gobj_trace_msg(gobj, "💎💎Task ⏳ end of a run before a restart, ignored, gobj %s",
+                gobj_name(gobj)
+            );
+        }
+        return 0;
+    }
+
+    if(!gobj_is_running(gobj)) {
+        if(gobj_trace_level(gobj) & (TRACE_MESSAGES|TRACE_MESSAGES2)) {
+            gobj_trace_msg(gobj, "💎💎Task ⏳ stopped by its owner before its end, no end published, gobj %s",
+                gobj_name(gobj)
+            );
+        }
+        if(gobj_is_volatil(gobj)) {
+            gobj_destroy(gobj);
+        }
+        return 0;
+    }
+
     stop_task(gobj, result);
     return 0;
 }
@@ -801,6 +844,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_CLOSE,               ac_on_close,            0},
         {EV_TIMEOUT,                ac_timeout,             0},
         {EV_STOPPED,                ac_stopped,             0},
+        {EV_FINISH_TASK,            ac_finish_task,         0}, // only the end of a run before a restart
         {0,0,0}
     };
     ev_action_t st_wait_stopped[] = {

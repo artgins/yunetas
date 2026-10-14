@@ -182,6 +182,24 @@ applications use.
 Takes a handler off the chain. Call it on **every** path that closes the
 overlay, and not only on the Escape key.
 
+(js_yui_shell_escape_order)=
+### [`yui_shell_escape_order(shell_gobj)`](https://github.com/artgins/gobj-ui.js/blob/7.26.44/src/c_yui_shell.js#L4477)
+
+Returns the order of the top entry of the chain, or 0 when the chain is empty.
+Every entry gets an order when it is pushed, and the orders only grow. An
+overlay that hears the Escape key itself keeps the order when it opens. When
+the order is higher at its Escape, an overlay was opened after it: it lets the
+key go on to the shell, which closes that overlay first. A `C_YUI_WINDOW` does
+this since gobj-ui 7.26.45.
+
+```javascript
+priv.escape_order = yui_shell_escape_order(shell);     // when it opens
+// … in its own Escape handler:
+if(yui_shell_escape_order(shell) > priv.escape_order) {
+    return;     // a menu opened after it: the shell closes it first
+}
+```
+
 ---
 
 ## Overlays and the Back button

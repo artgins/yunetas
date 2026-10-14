@@ -778,14 +778,15 @@ Out of the security review of those commits (V24, `2e8d0589f`):
   under it now.
 - `json_mask_secrets()`'s doc says its limit: a KEY is judged as a name, never
   as a value, so a key that is itself a credential is shown as it is.
-- The maskers stay linear. Measured with -O2 over 1 MB of each of 14 hard
-  shapes, the best of 9 runs: inline 7 to 31 ms (`abcd=` is the slowest), in
-  a dump 7 to 51 ms (`pin="`); 7.26.9 on the same shapes, 0 to 27 ms inline
-  and 1 to 40 ms in a dump. A reading that cannot read otherwise than the
-  reading of now is not run (7.26.9's when no name of a segment is met, gobj-js
-  7.26.20's when none of its shapes begins), and a name is compared only with
-  the words that begin with its letter. The first version of this round took
-  up to 56 ms inline and 66 ms in a dump.
+- The maskers stay linear. Measured with -O2 over 1 MB of each of 18 hard
+  shapes, the best of 45 runs: the slowest shape inline (`abcd=`) takes 1.3
+  times what 7.26.9 takes, the slowest in a dump (`pin="`) 1.35 times; the
+  readings of a written name and of a URL's password (below) cost the earlier
+  shapes 3 to 10 % (up to 1.6 times on `t%6Fken=x&`, a shape they read). A
+  reading that cannot read otherwise than the reading of now is not run
+  (7.26.9's when no name of a segment is met, gobj-js 7.26.20's when none of
+  its shapes begins, the written name when the text has none of `[]%'"`), and
+  a name is compared only with the words that begin with its letter.
 - Tests, red on the library of `2e8d0589f` and green on the new one:
   `secret_attrs/test_secret_attrs` (six lines that showed a secret; the marks
   of `mark_secrets_inline()` give the text `mask_secrets_inline()` gives, on
@@ -863,7 +864,13 @@ fixed:
   They do not fire for a gobj that destroys itself in the innermost code with
   nothing of it further up the stack, nor for a host that destroys its
   transport in the transport's `EV_STOPPED` (the documented stop contract).
-  Across the whole suite only `C_TASK` and `C_COUNTER` broke the rule.
+  Across the whole suite only `C_TASK` and `C_COUNTER` broke the rule. Only
+  the `EV_STOPPED` publication and the code it runs inside of are excused: an
+  action of the transport that begins inside its own `EV_STOPPED` and is still
+  running when it is destroyed is reported (test `gobj_dispatch`, phase 8). A
+  `gobj_stop_tree()` inside a publication, which the rule forbids too, is not
+  checked: the shape is common (a host stopping its client gate when the
+  answer arrives).
 - **fix: `C_TASK` and `C_COUNTER` freed themselves under code still running
   on them.** A job that timed out, or a counter that expired (the agent's
   run/kill/play/pause-yuno counters), ended inside the `EV_TIMEOUT` of its own
@@ -878,7 +885,12 @@ fixed:
   published once, but it arrives on the next turn for 0 and -1 too, not inside
   the publication of `gobj_results` (none of its four users -- the BFF,
   `C_TASK_AUTHENTICATE`, `C_IDP_KEYCLOAK`, `dba_postgres` -- depends on it).
-  Tests `c_task`, `c_counter`.
+  An owner that stops the task, or the counter, while its end waits gets no
+  `EV_END_TASK` / final count (a volatile one is destroyed all the same); one
+  that starts it again drops the end of the previous run: each posted end
+  names its run, and `EV_FINISH_TASK` / `EV_COUNT_EXPIRED` are declared in
+  `ST_IDLE` for it. `C_AUTH_BFF` and `C_IDP_KEYCLOAK` check that the `src` of
+  `EV_END_TASK` is the task in flight. Tests `c_task`, `c_counter`.
 - **fix: a value written to an attribute is read as the attribute's type, by
   the parser's grammar** (`json2item()`, new `command_parameter_from_json()`):
   a json string given to a `DTP_BOOLEAN`, `DTP_INTEGER`, `DTP_REAL`,
@@ -896,7 +908,7 @@ fixed:
   a boolean given a null or an object was false with no log. Not BREAKING: a
   value that changes meaning is one the old code could not have meant, and no
   deployed config depends on it. gobj-js reads it the same way (7.26.22): a
-  table of 71 cases is read by the tests of both kernels, with the same
+  table of 92 cases is read by the tests of both kernels, with the same
   outcome. Test `attr_types/test_attr_types`.
 - **fix: a json null given to a string attribute is `""`, never the text
   `"null"`** (`json2item()`: a config, `gobj_write_attr()`, the persistent
@@ -1032,6 +1044,52 @@ fixed:
   `C_IEVENT_CLI` warned on every close of its websocket, the clean one of a
   logout included (the C transport logs an ended session nowhere: it is
   `EV_ON_CLOSE`), and the reason of a failed open was logged unmasked.
+
+Out of the twenty-sixth review (V26), each finding checked before it was
+fixed:
+
+- **fix: destroying a RUNNING gobj whose stop says farewell at once freed it twice.** `gobj_destroy()` stops a running gobj before it raises `obflag_destroying`. When `mt_stop` published `EV_STOPPED` synchronously (a `C_TCP`, `C_UDP_S` or `C_PTY` with nothing in flight) and the host destroyed it there, the inner destroy freed it and the outer one went on with the freed gobj (ASan: use after free at its `obflag`; plain: *"Deleting item with DIFFERENT dl_list_t"*, abort). The pause and the stop are now watched, and the outer destroy returns. The same applies to the auto-pause of `gobj_stop()`, the auto-start of `gobj_play()` and `gobj_destroy_named_children()`. Test `gobj_dispatch` (phase 6).
+- **fix: the walks of the gobj tree went on with freed gobjs.** `gobj_stop_tree()`, `gobj_stop_children()`, `gobj_start_tree()`, `gobj_walk_gobj_children*()` (`WALK_BYLEVEL` included) and `gobj_destroy_children()` took the next child before the callback. A callback that destroyed the next sibling, or the gobj whose children were walked (a host that ends itself in a child's `EV_STOPPED`), left the walk on freed memory (ASan, five cases). The next child is now taken after the callback, from frames on the child, the next one and the owner. A walk that loses its place ends with an ERROR; `gobj_destroy_children()` starts again from the first child left. Test `gobj_dispatch` (phase 7).
+- **fix: a C_TASK abandoned by `C_AUTH_BFF` stayed a stopped child for ever.** On a browser close, and in `mt_stop`, the BFF stopped the task in flight but nothing destroyed it: a stopped task does not end itself, contrary to the comment there. One zombie per request the browser left. The BFF and `C_IDP_KEYCLOAK` now stop and destroy their tasks, and clear `processing`, which stayed TRUE after a stop. Test `c_auth_bff/test9_browser_cancel`.
+- **fix: an attribute default is read by the parser's grammar** (`set_default()`, via `command_parameter_from_text()`). `"yes"` and `"on"` were `false` (`atoi`), `"12abc"` was 12, and `"0660"` an octal 432 that no config could write. A default that does not read is an ERROR and the zero of its type. The seven octal or hex defaults of the tree are decimal now, same values: `xpermission` 1528 (02770), `rpermission` 432 (0660), `c_qiogate` `on_critical_error` 16.
+- **fix: `C_IEVENT_CLI` says the faults of its server as the server's.** *"event UNKNOWN in not-session state"*, *"It's not my role"*, *"It's not my name"* and *"subscription/unsubscription event ignored, I'm client"* are one WARNING each (`MSGSET_PROTOCOL`, no stack, the names the server wrote masked and capped), not an ERROR with the names in clear. Before the session only `EV_IDENTITY_CARD_ACK` is taken; a session event went to `mt_inject_event()` (*"Not in session"*, an ERROR). Test `c_ievent_cli_peer_faults`.
+- `test_attr_types` skips its gobj-js parity check, and says so, when the `gobj-js` submodule is absent (a tarball); it reads the table's `json` cases (92 cases now).
+- **fix: a dump showed a name as a form writes it, and no masking hid the
+  password of a URL** (`mask_secrets_in_text()`, `mask_secrets_inline()`,
+  `json_mask_secrets()`, and the agent's audit record through
+  `mark_secrets_inline()`). A dump judged only the run of name bytes before a
+  `=`, so a form body `user%5Bemail%5D=a%40b.c&user%5Bpassword%5D=hunter2`,
+  `user[password]=x`, `'password'=x`, `t%6Fken=x` and a label `user[password]:
+  x` showed their value, against the doc that promised "a form body"; inline,
+  `?user[password]=x` and `?t%6Fken=x` showed after a word with a segment about
+  a credential (`https://my-file-server.com/get?...`). The name is also read as
+  a form writes it: the run of name bytes, brackets, quotes and `%` before the
+  `=` (or the `:` of a label in a dump), its `%XX` decoded, is a secret's when
+  one of its parts between the brackets and the quotes is (`user[token_type]`
+  is not). The password of the userinfo of a URL (`https://bob:hunter2@host`)
+  is masked from the first `:` after `://` to the last `@` of the authority; a
+  user alone and a port are kept. In 7.26.9 too. Measured position by position
+  against 7.26.9 on 378 008 generated texts (60 000 new ones built around these
+  names): nothing it hid shows; C and gobj-js 7.26.24 give the same text on all
+  of them and on 30 000 jsons. Tests `secret_attrs`.
+- **JS layer: gobj-ui 7.26.45, gobj-js 7.26.24.** gobj-js: a session cut
+  (not clean, or not 1000/1001) is a WARNING again and `EV_ON_CLOSE` carries
+  `code`, `reason` (masked) and `was_clean`; an event of the server that no
+  gclass declares is dropped with a masked WARNING; `C_IEVENT_CLI` routes as C
+  (an empty `dst_role` is legal, a foreign one closes the channel, before the
+  session only `EV_IDENTITY_CARD_ACK`); a value with no json text is refused,
+  not thrown; json text is read as jansson reads it (92-case parity table);
+  the masking above; and 7.26.22's CHANGELOG marks its contract changes
+  BREAKING (the typed writers refuse an absent value and keep the attribute,
+  by decision). gobj-ui: `selectable` is Tabulator's `selectableRowsCheck`
+  (7.26.44 did the opposite with `selectableRows`); an open cell editor no
+  longer breaks a reload; nested tables are built with their rows; a window
+  yields Escape to an overlay opened after it and takes no focus under a
+  foreign focus trap; what the schema editor and `C_YUI_NODE` retire is
+  unsubscribed at once; `validate-locales` gives an order-independent verdict,
+  reads computed `.bind`/`.call`/`.apply`, is no longer quadratic on many
+  `let`s, and no longer cuts a long list at exit; `deploy-round` reads a
+  range's history by value and refuses a shallow clone.
 
 ## v7.26.9 (2026-10-11)
 

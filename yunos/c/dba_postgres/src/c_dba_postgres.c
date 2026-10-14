@@ -74,8 +74,8 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name------------flag--------------------default-----description--*/
 SDATA (DTP_STRING,      "filename_mask",SDF_RD|SDF_REQUIRED,    "%Y-%m",    "System organization of tables (file name format, see strftime())"),
 SDATA (DTP_BOOLEAN,     "master",       SDF_RD,                 "1",       "the master is the only that can write"),
-SDATA (DTP_INTEGER,     "xpermission",  SDF_RD,                 "02770",    "Use in creation, default 02770"),
-SDATA (DTP_INTEGER,     "rpermission",  SDF_RD,                 "0660",     "Use in creation, default 0660"),
+SDATA (DTP_INTEGER,     "xpermission",  SDF_RD,                 "1528",     "Use in creation, default 1528 (02770 in octal)"),
+SDATA (DTP_INTEGER,     "rpermission",  SDF_RD,                 "432",      "Use in creation, default 432 (0660 in octal)"),
 SDATA (DTP_INTEGER,     "exit_on_error",0,                      "2",        "exit on error"),
 SDATA (DTP_INTEGER,     "txMsgs",       SDF_RD|SDF_RSTATS,      0,          "Messages transmitted"),
 SDATA (DTP_INTEGER,     "rxMsgs",       SDF_RD|SDF_RSTATS,      0,          "Messages receiveds"),

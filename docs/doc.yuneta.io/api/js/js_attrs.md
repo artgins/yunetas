@@ -146,10 +146,17 @@ the functions above are the way to read an attribute.
 
 Writes an attribute of any type. The value is read as the type of the
 attribute, as in C and as [`gobj_write_attrs()`](#js_gobj_write_attrs) reads it
-(7.26.22+). A refused value is not written, and the function returns a
-negative number. `undefined` for a boolean, integer, real, list or dict
-attribute is refused: this is an explicit write of nothing. Up to 7.26.21 the
-value was written as it was given.
+(7.26.22+). A refused value is not written, the function returns a negative
+number, and the attribute keeps its value. `undefined`, `null` and `""` for a
+boolean, integer, real, list or dict attribute are refused: this is an
+explicit write of nothing. Up to 7.26.21 the value was written as it was given
+(BREAKING in 7.26.22).
+
+```javascript
+gobj_write_attr(gobj, "ratio", 1.5);
+gobj_write_attr(gobj, "ratio", "");     // -1, one ERROR, "ratio" is still 1.5
+gobj_write_attr(gobj, "ratio", "2.5");  // 2.5
+```
 
 (js_gobj_write_attrs)=
 ### [`gobj_write_attrs(gobj, kw, include_flag, src)`](https://github.com/artgins/gobj-js/blob/7.26.23/src/gobj.js#L3945)
@@ -198,6 +205,17 @@ kernels.
 - A number or a boolean is read as the exact type. `2.7` for an integer is
   refused.
 - An object or a list must have the shape of the type.
+- A JSON text that the C parser refuses is refused in JS too (7.26.24),
+  although `JSON.parse()` reads it: an escaped NUL (`"\u0000"`), a lone
+  surrogate (`"\ud800"`), an integer out of int64, a real that overflows
+  (`1e309`). For a `DTP_JSON` such a text stays the text: `"1e309"` is the
+  string `"1e309"`, not `Infinity`.
+
+Two cases cannot be the same in JS, because a JS number cannot carry them: an
+integer beyond 2^53 is rounded (`"9007199254740993"` is `9007199254740992`),
+and `2.0` is the integer `2` (so `2.0` for a dict is refused as `"an integer"`,
+where C says `"a real"`). The test table has both cases, with the result of
+each kernel.
 
 It returns `{value, refused}`. If `value` is `undefined`, `refused` gives the
 cause, and it never contains the value. If `refused` is `null` too, there is
@@ -207,6 +225,9 @@ no value: a `null`, `undefined`, or an empty text for a number.
 command_parameter_from_json(data_type_t.DTP_INTEGER, "42");   // {value: 42, refused: null}
 command_parameter_from_json(data_type_t.DTP_INTEGER, 2.7);    // {value: undefined, refused: "a real with decimals"}
 command_parameter_from_json(data_type_t.DTP_BOOLEAN, "");     // {value: undefined, refused: null}
+command_parameter_from_json(data_type_t.DTP_JSON, "1e309");   // {value: "1e309", refused: null}
+command_parameter_from_json(data_type_t.DTP_DICT, '{"a": "x\\u0000"}');
+                                    // {value: undefined, refused: "a text that does not read as one"}
 ```
 
 (js_command_parameter_from_text)=
@@ -235,9 +256,24 @@ command_parameter_from_text(data_type_t.DTP_INTEGER, "12abc");  // {value: undef
 
 Writes a boolean attribute. The value is read as a boolean by the grammar of
 [`command_parameter_from_json()`](#js_command_parameter_from_json) (7.26.22+):
-`"yes"` and `1` are `true`. A value that is not a boolean (`"maybe"`, an
-object, `undefined`) is refused: one `log_error`, a negative return, and the
-attribute keeps its value. Up to 7.26.21, `"yes"` was written `false`.
+`"yes"` and `1` are `true`.
+
+A value that is not a boolean is refused: `"maybe"`, an object, and also NO
+value (`undefined`, `null`, `""`). The function logs one `log_error` and
+returns `-1`, and **the attribute keeps the value it had**. It does not become
+`false`. This is the contract of `json2item()` in the C kernel. It is a
+BREAKING change of 7.26.22: up to 7.26.21 an absent value was written `false`
+and the function returned `0`, and `"yes"` was written `false` too.
+
+```javascript
+gobj_write_bool_attr(gobj, "selectable", true);
+
+// kw has no "selectable": -1, one ERROR, and "selectable" is still true
+gobj_write_bool_attr(gobj, "selectable", kw.selectable);
+
+// When the value can be absent, compute it before the write
+gobj_write_bool_attr(gobj, "selectable", kw.selectable === true);   // false
+```
 
 (js_gobj_write_integer_attr)=
 ### [`gobj_write_integer_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.26.23/src/gobj.js#L4002)
@@ -254,6 +290,13 @@ Writes an integer attribute. The value is read as an integer, as
 Writes a string attribute. `null` and `undefined` are written as `""`, and
 any other value that is not a string as its JSON text (7.26.22+). Up to
 7.26.21 they were written as the texts `"null"` and `"undefined"`.
+
+A value that has no JSON text (a circular object, such as a gobj or a DOM
+node, or a `BigInt`) is refused: one `log_error`, `-1`, and the attribute keeps
+its value (7.26.24). In 7.26.22 and 7.26.23 the function threw the exception
+of `JSON.stringify()`. [`gobj_write_attr()`](#js_gobj_write_attr) and
+[`gobj_write_attrs()`](#js_gobj_write_attrs) do the same for a string
+attribute.
 
 ```javascript
 gobj_write_integer_attr(gobj, "timeout", "1000");       // 1000

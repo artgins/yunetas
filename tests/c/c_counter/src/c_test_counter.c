@@ -19,6 +19,16 @@
  *      C) It reaches its count: EV_FINAL_COUNT comes inside the last count,
  *         as it always did. Only an expiration is deferred.
  *
+ *      D) It is expired from outside, and its owner STOPS it before its
+ *         final count was delivered. No final count, and the volatile
+ *         counter is gone (its stop drops its subscriptions: a final count
+ *         would go to nobody, "Publish event WITHOUT subscribers").
+ *
+ *      E) A counter that is not volatile is expired from outside, stopped
+ *         and STARTED again before its final count was delivered: the
+ *         expiration of the first run does not end the second, which goes
+ *         on counting, with no "Event NOT DEFINED in state".
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -39,7 +49,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE hgobj create_counter(hgobj gobj, const char *name, int max_count, json_int_t expiration);
+PRIVATE hgobj create_counter(hgobj gobj, const char *name, int max_count, json_int_t expiration, BOOL volatil);
 PRIVATE int send_count(hgobj gobj, const char *name);
 PRIVATE int check_case(hgobj gobj, const char *case_name, int expected_count);
 
@@ -74,7 +84,7 @@ SDATA_END()
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    char cur_case[2];           // "A", "B", "C"
+    char cur_case[2];           // "A" ... "E"
     int finals;                 // EV_FINAL_COUNT of the current case
     int last_count;
 } PRIVATE_DATA;
@@ -154,9 +164,9 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 /***************************************************************************
- *  A volatile counter of EV_TEST_TICK, whose final count comes here.
+ *  A counter of EV_TEST_TICK, whose final count comes here.
  ***************************************************************************/
-PRIVATE hgobj create_counter(hgobj gobj, const char *name, int max_count, json_int_t expiration)
+PRIVATE hgobj create_counter(hgobj gobj, const char *name, int max_count, json_int_t expiration, BOOL volatil)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -171,7 +181,9 @@ PRIVATE hgobj create_counter(hgobj gobj, const char *name, int max_count, json_i
             "event", "EV_TEST_TICK"
     );
 
-    hgobj counter = gobj_create_volatil(name, C_COUNTER, kw_counter, gobj);
+    hgobj counter = volatil?
+        gobj_create_volatil(name, C_COUNTER, kw_counter, gobj) :
+        gobj_create(name, C_COUNTER, kw_counter, gobj);
     if(!counter) {
         // Error already logged
         return NULL;
@@ -257,7 +269,7 @@ PRIVATE int ac_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     KW_DECREF(kw)
 
     snprintf(priv->cur_case, sizeof(priv->cur_case), "%s", "A");
-    create_counter(gobj, "counter_a", 3, SHORT_EXPIRATION_MS);
+    create_counter(gobj, "counter_a", 3, SHORT_EXPIRATION_MS, TRUE);
     send_count(gobj, "counter_a");
     return 0;
 }
@@ -302,7 +314,7 @@ PRIVATE int ac_check(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  Case B: expired from outside, and three counts right after
          */
         snprintf(priv->cur_case, sizeof(priv->cur_case), "%s", "B");
-        hgobj counter = create_counter(gobj, "counter_b", 3, LONG_EXPIRATION_MS);
+        hgobj counter = create_counter(gobj, "counter_b", 3, LONG_EXPIRATION_MS, TRUE);
         if(counter) {
             gobj_send_event(counter, EV_TIMEOUT, 0, gobj);
             send_count(gobj, "counter_b");
@@ -322,7 +334,7 @@ PRIVATE int ac_check(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  Case C: the count is reached, the final count comes inside it
          */
         snprintf(priv->cur_case, sizeof(priv->cur_case), "%s", "C");
-        create_counter(gobj, "counter_c", 2, LONG_EXPIRATION_MS);
+        create_counter(gobj, "counter_c", 2, LONG_EXPIRATION_MS, TRUE);
         send_count(gobj, "counter_c");
         send_count(gobj, "counter_c");
         if(priv->finals != 1) {
@@ -335,11 +347,77 @@ PRIVATE int ac_check(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
         }
 
-    } else {
+    } else if(strcmp(priv->cur_case, "C")==0) {
         check_case(gobj, "C", 2);   // Error already logged
         gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "case C ok",
+            NULL
+        );
+
+        /*
+         *  Case D: expired from outside, and stopped by its owner; no final
+         *  count will post the check, so it is posted after the expiration
+         */
+        snprintf(priv->cur_case, sizeof(priv->cur_case), "%s", "D");
+        hgobj counter = create_counter(gobj, "counter_d", 3, LONG_EXPIRATION_MS, TRUE);
+        if(counter) {
+            gobj_send_event(counter, EV_TIMEOUT, 0, gobj);
+            gobj_stop(counter);
+        }
+        gobj_post_event(gobj, EV_TEST_CHECK, 0, gobj);
+
+    } else if(strcmp(priv->cur_case, "D")==0) {
+        if(priv->finals != 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "A counter stopped by its owner published its final count",
+                "finals",       "%d", priv->finals,
+                NULL
+            );
+        }
+        priv->finals = 1;   // the one check_case() asks for
+        priv->last_count = 0;
+        check_case(gobj, "D", 0);   // Error already logged
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "case D ok",
+            NULL
+        );
+
+        /*
+         *  Case E: not volatile, expired from outside, stopped and started
+         *  again before its final count was delivered
+         */
+        snprintf(priv->cur_case, sizeof(priv->cur_case), "%s", "E");
+        hgobj counter = create_counter(gobj, "counter_e", 3, LONG_EXPIRATION_MS, FALSE);
+        if(counter) {
+            gobj_send_event(counter, EV_TIMEOUT, 0, gobj);
+            gobj_stop(counter);
+            gobj_start(counter);
+        }
+        gobj_post_event(gobj, EV_TEST_CHECK, 0, gobj);
+
+    } else {
+        hgobj counter = gobj_child_by_name(gobj, "counter_e");
+        if(!counter || !gobj_is_running(counter) ||
+                strcmp(gobj_current_state(counter), ST_IDLE)!=0 || priv->finals != 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "A counter started again was ended by the expiration of its previous run",
+                "finals",       "%d", priv->finals,
+                NULL
+            );
+        }
+        if(counter) {
+            gobj_stop(counter);
+            gobj_destroy(counter);
+        }
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "case E ok",
             NULL
         );
         set_yuno_must_die();

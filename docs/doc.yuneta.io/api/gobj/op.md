@@ -983,6 +983,24 @@ If the `gobj` is already being destroyed, an error is logged and the function re
 This function first stops the given `gobj` and then recursively stops all its child objects.
 Uses [`gobj_walk_gobj_children_tree()`](#gobj_walk_gobj_children_tree) to traverse the child objects.
 
+**Not from inside a publication of the tree.** A subscriber that stops the tree of its publisher stops it under the publication still going on, and under the publisher's own code after it. The kernel does not check it (it does check a destroy, see [`gobj_destroy()`](creation.md#gobj_destroy)); defer the stop with [`gobj_post_event()`](events_state.md#gobj_post_event):
+
+```C
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    gobj_post_event(gobj, EV_STOP_ALL, 0, gobj);    // not gobj_stop_tree(gobj) here: src is publishing
+    return 0;
+}
+
+PRIVATE int ac_stop_all(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    gobj_stop_tree(gobj);   // the next turn, no publication in progress
+    return 0;
+}
+```
+
 ---
 
 (gobj_walk_gobj_children)=
@@ -1019,6 +1037,8 @@ Returns 0 on success, or a negative value if an error occurs.
 
 This function only traverses the direct children of the given `hgobj`. To traverse the entire hierarchy, use [`gobj_walk_gobj_children_tree()`](#gobj_walk_gobj_children_tree).
 
+The callback may destroy the child it is given, and more: the next child is taken after it returns, by what the kernel saw destroyed (7.26.10; up to 7.26.9 it was taken before, and a callback that destroyed the next sibling left the walk on freed memory). When `gobj` itself is destroyed by the callback the walk ends; when the child AND the next one are destroyed, it ends with an ERROR, *"A walk of the children lost its place"*.
+
 ---
 
 (gobj_walk_gobj_children_tree)=
@@ -1054,6 +1074,8 @@ Returns 0 on success or a negative value if an error occurs.
 **Notes**
 
 The callback function must return 0 to continue traversal, a negative value to stop traversal, or a positive value to skip the current branch when using `WALK_TOP2BOTTOM`.
+
+The callback may destroy the child it is given, its next sibling, or `gobj` itself (a host that ends itself in the `EV_STOPPED` of a child it stops): the walk does not go into the children of a child destroyed, goes on from the child that follows the one given, and ends when `gobj` is gone (7.26.10; up to 7.26.9 it went on with freed gobjs). As in [`gobj_walk_gobj_children()`](#gobj_walk_gobj_children), a walk that loses its place ends with an ERROR.
 
 ---
 

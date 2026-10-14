@@ -46,6 +46,34 @@
  *              event whose action destroys it (one of its actions is still
  *              running) -- C_TASK's end inside a job's action, up to 7.26.9.
  *
+ *          Phase 6 -- a RUNNING gobj destroyed, whose mt_stop publishes
+ *          EV_STOPPED at once (a C_TCP with nothing in flight), and whose
+ *          host destroys it there (the stop contract). gobj_destroy() stops
+ *          it first, and the host's destroy, inside that stop, is the one
+ *          that frees it: up to 7.26.9 the outer gobj_destroy() went on with
+ *          the freed gobj (run it under ASan). The ERROR is the one that
+ *          destroying a running gobj always gave.
+ *
+ *          Phase 7 -- the walks of the tree, when the callback destroys more
+ *          than the gobj it was given:
+ *            - stopping a child destroys its NEXT sibling, in a walk of
+ *              gobj_stop_tree() and in one of gobj_stop_children();
+ *            - stopping a child destroys the ROOT of the walk (a host that
+ *              ends itself in the EV_STOPPED of its transport);
+ *            - destroying a running child, inside gobj_destroy() of its
+ *              parent, destroys its next sibling.
+ *          Up to 7.26.9 each walk took its next gobj before the callback and
+ *          went on with it, freed (run it under ASan). No ERROR: each
+ *          destroy is the stop of the gobj destroyed, or its own code,
+ *          except the running child destroyed with its parent.
+ *
+ *          Phase 8 -- what the farewell excuses. A gobj publishes EV_STOPPED,
+ *          and its host, instead of destroying it there, sends it an event
+ *          whose action ends in its destroy, further in. That action began
+ *          INSIDE the farewell and does not know it: an ERROR (one of its
+ *          actions is still running): the farewell excuses only the code
+ *          it runs inside of.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -70,6 +98,11 @@ PRIVATE int run_phase2(hgobj gobj);
 PRIVATE int run_phase3(hgobj gobj);
 PRIVATE int run_phase4(hgobj gobj);
 PRIVATE int run_phase5(hgobj gobj);
+PRIVATE int run_phase6(hgobj gobj);
+PRIVATE int run_phase7(hgobj gobj);
+PRIVATE int run_phase8(hgobj gobj);
+PRIVATE hgobj create_killer_pair(hgobj gobj, const char *name);
+PRIVATE int cb_stop_running(hgobj child, void *user_data, void *user_data2, void *user_data3);
 PRIVATE int check_gone(hgobj gobj, const char *name, const char *phase);
 
 /***************************************************************************
@@ -463,6 +496,198 @@ PRIVATE int run_phase5(hgobj gobj)
     return 0;
 }
 
+/***************************************************************************
+ *  Phase 6: a running gobj destroyed, whose stop says farewell at once and
+ *  is destroyed by its host in it.
+ ***************************************************************************/
+PRIVATE int run_phase6(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->phase = 6;
+
+    hgobj transport = gobj_create("transport", C_TEST_NODE,
+        json_pack("{s:b}", "farewell_on_stop", 1),
+        gobj
+    );
+    if(!transport) {
+        // Error already logged
+        return -1;
+    }
+    gobj_start(transport);
+
+    gobj_destroy(transport);    // ERROR: a RUNNING gobj; its host frees it inside the stop
+    check_gone(gobj, "transport", "phase 6");   // Error already logged
+
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "phase 6 ok",
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
+ *  A gobj with two children: `killer`, whose mt_stop destroys `victim`.
+ ***************************************************************************/
+PRIVATE hgobj create_killer_pair(hgobj gobj, const char *name)
+{
+    hgobj tree = gobj_create(name, C_TEST_NODE, 0, gobj);
+    hgobj killer = gobj_create("killer", C_TEST_NODE, 0, tree);
+    hgobj victim = gobj_create("victim", C_TEST_NODE, 0, tree);
+    if(!tree || !killer || !victim) {
+        // Error already logged
+        return NULL;
+    }
+    gobj_write_pointer_attr(killer, "victim", victim);
+    return tree;
+}
+
+/***************************************************************************
+ *  A walk's callback: stop the child.
+ ***************************************************************************/
+PRIVATE int cb_stop_running(hgobj child, void *user_data, void *user_data2, void *user_data3)
+{
+    if(gobj_is_running(child)) {
+        gobj_stop(child);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Phase 7: walks whose callback destroys more than the gobj it was given.
+ *
+ *      sibling_tree            gobj_stop_tree()
+ *        ├── killer            its mt_stop destroys `victim`
+ *        └── victim            the next gobj of the walk
+ *
+ *      sibling_list            gobj_stop_children(), the same pair
+ *
+ *      root                    destroys itself in the EV_STOPPED of `first`
+ *        ├── first             publishes EV_STOPPED in its mt_stop
+ *        └── second            the next gobj of the walk
+ *
+ *      root_by_level           the same, in a walk WALK_BYLEVEL, which
+ *                              goes on to the children of the children
+ *
+ *      parent                  gobj_destroy(): its children are destroyed
+ *        ├── killer            RUNNING: stopped first, its mt_stop destroys
+ *        └── victim            the next child to destroy
+ ***************************************************************************/
+PRIVATE int run_phase7(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->phase = 7;
+
+    /*
+     *  The next sibling, in a walk of the tree and in one of the children
+     */
+    hgobj sibling_tree = create_killer_pair(gobj, "sibling_tree");
+    if(sibling_tree) {
+        gobj_start(sibling_tree);
+        gobj_start(gobj_child_by_name(sibling_tree, "killer"));
+        gobj_stop_tree(sibling_tree);
+        check_gone(sibling_tree, "victim", "phase 7");  // Error already logged
+        gobj_destroy(sibling_tree);
+    }
+
+    hgobj sibling_list = create_killer_pair(gobj, "sibling_list");
+    if(sibling_list) {
+        gobj_start(gobj_child_by_name(sibling_list, "killer"));
+        gobj_stop_children(sibling_list);
+        check_gone(sibling_list, "victim", "phase 7");  // Error already logged
+        gobj_destroy(sibling_list);
+    }
+
+    /*
+     *  The root of the walk
+     */
+    hgobj root = gobj_create("root", C_TEST_NODE,
+        json_pack("{s:b}", "die_on_child_stopped", 1),
+        gobj
+    );
+    hgobj first = gobj_create("first", C_TEST_NODE,
+        json_pack("{s:b}", "farewell_on_stop", 1),
+        root
+    );
+    hgobj second = gobj_create("second", C_TEST_NODE, 0, root);
+    if(root && first && second) {
+        gobj_start(root);
+        gobj_start(first);
+        gobj_stop_tree(root);
+        check_gone(gobj, "root", "phase 7");    // Error already logged
+    }
+
+    root = gobj_create("root_by_level", C_TEST_NODE,
+        json_pack("{s:b}", "die_on_child_stopped", 1),
+        gobj
+    );
+    first = gobj_create("first", C_TEST_NODE,
+        json_pack("{s:b}", "farewell_on_stop", 1),
+        root
+    );
+    second = gobj_create("second", C_TEST_NODE, 0, root);
+    if(root && first && second) {
+        gobj_start(first);
+        gobj_walk_gobj_children_tree(root, WALK_BYLEVEL|WALK_FIRST2LAST, cb_stop_running, 0, 0, 0);
+        check_gone(gobj, "root_by_level", "phase 7");   // Error already logged
+    }
+
+    /*
+     *  The next child of a gobj destroyed
+     */
+    hgobj parent = create_killer_pair(gobj, "parent");
+    if(parent) {
+        gobj_start(gobj_child_by_name(parent, "killer"));
+        gobj_destroy(parent);   // ERROR: a RUNNING child
+        check_gone(gobj, "parent", "phase 7");  // Error already logged
+    }
+
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "phase 7 ok",
+        NULL
+    );
+    return 0;
+}
+
+
+/***************************************************************************
+ *  Phase 8: an action that begins inside the farewell of its gobj.
+ *
+ *  late ---EV_STOPPED--> driver ---EV_TEST_RELAY--> late
+ *  late ---EV_TEST_BOUNCE--> peer ---EV_TEST_DIE--> late
+ *  (ac_relay of late still running)
+ ***************************************************************************/
+PRIVATE int run_phase8(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->phase = 8;
+
+    hgobj peer = gobj_create("peer", C_TEST_NODE, 0, gobj);
+    hgobj late = gobj_create("late", C_TEST_NODE,
+        json_pack("{s:I}", "peer", (json_int_t)(uintptr_t)peer),
+        gobj
+    );
+    if(!peer || !late) {
+        // Error already logged
+        return -1;
+    }
+
+    gobj_send_event(late, EV_TEST_STOP_ME, 0, gobj);
+    check_gone(gobj, "late", "phase 8");    // Error already logged
+    gobj_destroy(peer);
+
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "phase 8 ok",
+        NULL
+    );
+    return 0;
+}
+
 
 
 
@@ -485,6 +710,9 @@ PRIVATE int ac_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     run_phase3(gobj);
     run_phase4(gobj);
     run_phase5(gobj);
+    run_phase6(gobj);
+    run_phase7(gobj);
+    run_phase8(gobj);
 
     set_yuno_must_die();
     return 0;
@@ -533,6 +761,7 @@ PRIVATE int ac_state_changed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 
 /***************************************************************************
  *  The host of the stop contract: destroy it in its EV_STOPPED.
+ *  Phase 8: send it an event instead, whose action ends in its destroy.
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -541,6 +770,9 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->farewells++;
 
     KW_DECREF(kw)
+    if(priv->phase == 8) {
+        return gobj_send_event(src, EV_TEST_RELAY, 0, gobj);
+    }
     gobj_destroy(src);
     return 0;
 }

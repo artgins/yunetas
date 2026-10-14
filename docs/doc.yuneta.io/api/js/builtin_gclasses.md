@@ -54,9 +54,12 @@ clear_timeout(timer_gobj);
 **Who hears it:** the `subscriber` attr, else, for a pure child, its parent,
 which the timer subscribes in `mt_create`. That is the C timer's rule, and the
 timeout is always PUBLISHED (gobj-js 7.26.22). Up to 7.26.21 a pure child SENT
-it to its parent, also when it had a `subscriber`. A host that ends its timer
-in the timer's `EV_TIMEOUT` destroys it under its publication: post an event to
-itself instead (see [`gobj_destroy()`](lifecycle.md#js_gobj_destroy)).
+it to its parent, also when it had a `subscriber`. This is a BREAKING change
+for a host that ends its timer, or itself, in the timer's `EV_TIMEOUT`: it now
+destroys the timer under its publication, and `gobj_destroy()` logs the ERROR
+*"Destroying a gobj while its tree is publishing"*. Post an event to itself
+instead (see [`gobj_destroy()`](lifecycle.md#js_gobj_destroy)). To re-arm or
+clear the timer in the action is correct.
 
 ```javascript
 // The host is the parent: it declares EV_TIMEOUT in its FSM.
@@ -119,3 +122,42 @@ const remote = gobj_create_service("backend", "C_IEVENT_CLI", {
 Once connected, `C_IEVENT_CLI` republishes every event that arrives
 from the remote side as a local event on itself — subscribe to it the
 same way you will to any local GObject.
+
+A message that names a service goes to that service, if the service takes the
+event as public. A message that names no service is published only if a
+registered gclass declares its event
+([`gobj_find_event_type()`](state_machine.md#js_gobj_find_event_type)). The
+transport drops any other message with a WARNING, and masks the name of the
+event (7.26.24). An error of the server is a WARNING, not an ERROR, and these
+errors also close the channel, as in the C transport:
+
+- Before the session, an event that is not `EV_IDENTITY_CARD_ACK`.
+- A `dst_role` that is not the role of this yuno, or a `dst_yuno` that is not
+  its name. An empty `dst_role` or `dst_yuno` is legal.
+
+An event that the named service does not take as public is dropped, and the
+session stays open.
+
+### The end of a session
+
+`EV_ON_CLOSE` and `EV_ON_OPEN_ERROR` carry `code`, `reason` and `was_clean`
+(7.26.24). The `reason` is masked and capped. The transport logs nothing when a
+session ends cleanly: a stop, a logout, or a close of the server with 1000 or
+1001. A session that is CUT (not clean, or any other code, such as 1006, 1008
+or 1011) gives one WARNING with the code and the masked reason. A socket that
+closes before it opens is the `EV_ON_OPEN_ERROR` WARNING.
+
+```javascript
+function ac_on_close(gobj, event, kw, src)
+{
+    if(!kw.was_clean || (kw.code !== 1000 && kw.code !== 1001)) {
+        show_banner(gobj, kw.code);     // the transport logged the WARNING
+    }
+    return 0;
+}
+```
+
+A pure child `C_IEVENT_CLI` with no `subscriber` publishes to its parent
+(7.26.22). This is a BREAKING change for such a host: its FSM must declare
+`EV_ON_CLOSE` and `EV_ON_OPEN_ERROR`, or each one is *"Event NOT DEFINED in
+state"*.

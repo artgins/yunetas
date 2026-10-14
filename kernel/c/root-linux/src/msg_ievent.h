@@ -303,6 +303,13 @@ PUBLIC json_t *iev_create_from_gbuffer(
 
     ###############################################
 
+    The kw of msg_iev_get_stack() (with `verbose`) and msg_iev_pop_stack()
+    is an inter-event that came from a PEER -- an answer to a request this
+    yuno sent, the frame of a peer -- and every caller of the SDK and of the
+    apps reads it so. A stack it lacks is the peer's to send: a WARNING
+    (MSGSET_PROTOCOL, its kw masked and capped), not an ERROR with a stack.
+    A kw that is not a dict stays an ERROR: that one is the caller's.
+
  *-----------------------------------------------------*/
 PUBLIC int msg_iev_push_stack( // Push a record in the stack
     hgobj gobj,

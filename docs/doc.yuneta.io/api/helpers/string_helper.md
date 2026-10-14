@@ -737,6 +737,19 @@ digits, `_`, `-`, `.` --, as in a query string (7.26.10+):
 `GET https://my-file-server.com/get?token=********&x=1`. Its word holds
 `file`, a segment about a credential, and up to 7.26.9 the token showed.
 Under that name the value runs to a blank or one of `&;,"'<>`, as in a dump.
+And the name as a form or a query writes it (7.26.10+): the run of name
+characters, brackets, quotes and `%` before the `=`, its `%XX` decoded, is a
+secret's when one of its parts between the brackets and the quotes is --
+`?user[password]=x`, `?user%5Bpassword%5D=x`, `?t%6Fken=x`, `'password'=x`
+(the trailing run of name characters after the last bracket or quote is the
+rule above's). Its value runs to the same stops. A part about a credential
+is no secret (`user[token_type]=bearer`, as `token_type`).
+
+The password of the userinfo of a URL, `scheme://user:password@host`, is
+masked too (7.26.10+): from the first `:` after the `://` to the last `@`
+before a `/`, `?`, `#`, a blank, a quote, `<`, `>` or an end of line --
+`https://bob:hunter2@git.example/x` is `https://bob:********@git.example/x`.
+A user alone (`ssh://git@host`) and a port (`http://[::1]:8080/`) are kept.
 The name of a `name: value` is the word before the `:` (since the last
 blank, `=` or `:`: `{"password": x`, `password12:30` are names too). Each is
 judged by its last 128 bytes; a text over 4 MB, or one whose masked copy
@@ -819,7 +832,19 @@ after it, or one word, to a blank or one of `,;&)]}<>"'`.
 A secret's name followed by a `:` is read as a label, so its next word is
 masked even in a sentence: `Wrong token: try again` is
 `Wrong token: ******** again`. It errs on the safe side, as the names do
-([`is_secret_name()`](#is_secret_name)).
+([`is_secret_name()`](#is_secret_name)), and so does the word before a `=`:
+when a path carries a secret's name, the query after it is masked
+(`/static/token.png?v=2` is `/static/token.png?v=********`, `?token&x=1` is
+`?token&x=********`). 7.26.9 masked them so, and that word is how
+`/reset_password?k=hunter2` is masked.
+
+**What it does not mask**, by decision: a name that is no secret's even when
+its value is a credential of a protocol the SDK does not speak -- OAuth's
+`code=` (one use, minutes of life, and `code` names status, error and
+country codes everywhere), `X-Amz-Signature=`, Azure's `sig=` (`signature`
+names attack signatures in webstats); a `user:password@host` with no `://`
+before it (a DSN, an scp target); and a token written as the user of a URL
+(`https://TOKEN@host`: the user is kept).
 
 ```C
 char *mask_secrets_inline(
@@ -868,6 +893,12 @@ s = mask_secrets_inline("GET https://my-file-server.com/get?token=abc&x=1");
 // "GET https://my-file-server.com/get?token=********&x=1"
 GBMEM_FREE(s)
 s = mask_secrets_inline("db_pass='password'=hunter2");  // "db_pass=********=********"
+GBMEM_FREE(s)
+s = mask_secrets_inline("GET https://my-file-server.com/get?user%5Bpassword%5D=abc&x=1");
+// "GET https://my-file-server.com/get?user%5Bpassword%5D=********&x=1"
+GBMEM_FREE(s)
+s = mask_secrets_inline("clone https://bob:hunter2@git.example/x.git");
+// "clone https://bob:********@git.example/x.git"
 GBMEM_FREE(s)
 s = mask_secrets_inline("the header eyJhIjoxfQ.");  // NULL: its only dot ends it
 GBMEM_FREE(s)
@@ -1027,11 +1058,16 @@ dump stay as they were):
   after the scheme: `Authorization: Bearer ******`);
 - the value of a `name=value` whose name is a secret's
   ([`is_secret_name()`](#is_secret_name)), as in a query string, a form body
-  or a command line;
+  or a command line -- its name the run of name bytes before the `=`, or the
+  name as a form writes it, a part of it in brackets or quotes, `%XX`
+  decoded: `user[password]=x`, `user%5Bpassword%5D=x`, `'password'=x`,
+  `t%6Fken=x` (7.26.10+; up to then a dump showed them);
+- the password of the userinfo of a URL, `scheme://user:password@host`
+  (7.26.10+);
 - the value of a json `"name": value` -- and of a `'name': value`, a Python
   dict or a log of one (7.26.10+) --, and of a `name: value` -- another
-  header, a label: `X-Auth-Token: x`, `bearer: tok` (7.26.10+) -- whose name
-  is a secret's;
+  header, a label: `X-Auth-Token: x`, `bearer: tok`, `user[password]: x`
+  (7.26.10+) -- whose name is a secret's;
 - under such a name a value that is a scheme and its credential is masked
   WHOLE: `token=Bearer abc`, `"password": Bearer abc`, `password=Basic xyz`.
   Up to 7.26.9 only the scheme was masked, and the token after it showed;
@@ -1100,6 +1136,10 @@ mask_secrets_in_text(text4, strlen(text4));     // 0: prose
 char text5[] = "{'password': 'sq-hunter2'}, sent with Bearer abcdefg";
 mask_secrets_in_text(text5, strlen(text5));
 // "{'password': ************}, sent with Bearer *******": the end may cut a token
+
+char text6[] = "POST /login\r\n\r\nuser%5Bemail%5D=a%40b.c&user%5Bpassword%5D=hunter2";
+mask_secrets_in_text(text6, strlen(text6));
+// "POST /login\r\n\r\nuser%5Bemail%5D=a%40b.c&user%5Bpassword%5D=*******"
 ```
 
 **Limits**

@@ -80,14 +80,19 @@ A window is a dialog (since gobj-ui 7.26.43):
   body, from 0). The default is the window itself. A window that the
   application opens without an action of the reader (for example a window it
   restores at start up) does not take the focus. A modal window always takes
-  it. When the window closes, the focus goes back to the element that had it
-  before, if the focus was in the window.
+  it. A window that opens under an overlay that holds the focus (a modal
+  window, a dialog, the drawer, a menu) does not take it either (since gobj-ui
+  7.26.45): it opens under the overlay, and the reader finds it when the
+  overlay closes. When the window closes, the focus goes back to the element
+  that had it before, if the focus was in the window.
 - Escape closes the window, as its ✕ does (`EV_CLOSE_WINDOW`). A subscriber
   of `EV_WINDOW_TO_CLOSE` can still stop the close or ask a question. Set
   `keyboard: false` to keep Escape. Escape does not close the window when the
   element that got the key used it: a handler that called `preventDefault()`,
   a cell editor of Tabulator, a search box with text, a `textarea` or a
-  `contenteditable`.
+  `contenteditable`. When an overlay of the shell opened after the window (a
+  menu of the toolbar) is open, Escape closes that overlay first (since
+  gobj-ui 7.26.45, see `yui_shell_escape_order()`).
 - `modal: true` blocks the rest of the application: a backdrop in the dialog
   layer of the shell, `aria-modal="true"`, and Tab stays in the window. A modal
   window does not go to the dock.
@@ -164,7 +169,15 @@ The nested tables of a row live as long as the row. A reload, Undo, Clear, a
 row that the reader deletes and the destroy of the form destroy them. A row
 that Tabulator draws again keeps its nested tables and their rows. A table
 loads all its rows in one call and draws them one time: 300 rows load in
-0.14 s (20 s before 7.26.43).
+0.14 s (20 s before 7.26.43). A nested table is built with its rows (since
+gobj-ui 7.26.45): 300 rows with a nested table each load in about 2.4 s
+(3.2 s in 7.26.43 and 7.26.44, 40 s before 7.26.43), in Chromium with
+Tabulator 6.6.0.
+
+A reload, Undo, Clear or the close of the form with a cell editor open closes
+the editor first, and drops what is typed in it (since gobj-ui 7.26.45).
+Tabulator 6.6.0 throws when it wipes its rows with an editor open in any row
+but the first.
 
 ```js
 const kw = {abort_close: false};
@@ -172,6 +185,19 @@ gobj_send_event(form, "EV_WINDOW_TO_CLOSE", kw, gobj);
 if(kw.abort_close) {
     // the reader changed the form: ask kw.warning ("all changes will be lost")
 }
+```
+
+The tables of a form select no rows. To select rows with a click, set
+`selectableRows` in `tabulator_settings`; the attribute `selectable` (`true`
+by default) then says whether a click selects. Before gobj-ui 7.26.45 a click
+selected nothing with `selectableRows: true`, and selected a row with
+`selectable: false`.
+
+```js
+gobj_create("form", "C_YUI_FORM", {
+    template:           template,
+    tabulator_settings: {selectableRows: 1},    // a click selects one row
+}, parent);
 ```
 
 (js_register_c_yui_json)=

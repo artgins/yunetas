@@ -372,10 +372,17 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->gobj_kc_task && gobj_is_running(priv->gobj_kc_task)) {
-        gobj_stop(priv->gobj_kc_task);
+    /*
+     *  A stopped task is not destroyed by anyone else: the owner does it
+     */
+    if(priv->gobj_kc_task) {
+        if(gobj_is_running(priv->gobj_kc_task)) {
+            gobj_stop(priv->gobj_kc_task);
+        }
+        gobj_destroy(priv->gobj_kc_task);
+        priv->gobj_kc_task = NULL;
     }
-    priv->gobj_kc_task = NULL;
+    priv->kc_processing = FALSE;
     if(priv->gobj_kc && gobj_is_running(priv->gobj_kc)) {
         gobj_stop(priv->gobj_kc);
     }
@@ -1575,7 +1582,19 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->gobj_kc_task = NULL;  /* ac_stopped destroys the volatile task */
+    if(!src || src != priv->gobj_kc_task) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_END_TASK of a task not in flight, ignored",
+            "task",         "%s", src? gobj_short_name(src) : "",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    priv->gobj_kc_task = NULL;  /* the volatile task destroys itself at its end */
     priv->kc_processing = FALSE;
 
     int result = (int)kw_get_int(gobj, kw, "result", 0, 0);

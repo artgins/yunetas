@@ -2334,7 +2334,7 @@ PRIVATE BOOL mark_params(
         size_t name_len = (size_t)(p - name);
         word = p + 1;
         BOOL secret = is_secret_name_by(name, name_len, names);
-        if(secret && names == NAMES_NOW && !is_secret_name_by(name, name_len, NAMES_7_26_9)) {
+        if(secret && names == NAMES_NOW && !not_7_26_9 && !is_secret_name_by(name, name_len, NAMES_7_26_9)) {
             not_7_26_9 = TRUE;
         }
         if(!(secret || (value_is_secret && name_len == 5 && ascii_case_equal(name, "value", 5)))) {
@@ -2427,22 +2427,136 @@ PRIVATE const char *mark_scheme_value(const char *bf, const char *v, const char 
 }
 
 /*
- *  The value of a name=value whose name -- the run of name bytes before
- *  the '=' (name_before()) -- is a secret's, as in a query string, a form
- *  body or a command line, marked: inside its quotes, or to a byte of
- *  PARAM_VALUE_STOPS. The word before the '=' (mark_params()) can hold
- *  more than the name: in "GET https://my-file-server.com/get?token=x" it
- *  holds a segment about a credential ("file"), and the token showed.
+ *  How the name before a '=' (or a ':') is read: the run of name bytes
+ *  before it (name_before()), or the name as a form or a query writes it
+ *  (written_name_is_secret())
  */
-PRIVATE void mark_query_params(const char *bf, const char *end, uint8_t *marks)
+typedef enum {
+    NAME_PLAIN = 0,
+    NAME_WRITTEN,
+} name_reading_t;
+
+PRIVATE int hex_digit_value(char c)
 {
+    if(c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    if(c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+    if(c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    }
+    return -1;
+}
+
+PRIVATE BOOL is_written_name_byte(char c)
+{
+    return (is_name_char(c) || c == '[' || c == ']' || c == '%' || c == '\'' || c == '"')? TRUE : FALSE;
+}
+
+PRIVATE BOOL is_written_name_bracket(char c)
+{
+    return (c == '[' || c == ']' || c == '\'' || c == '"')? TRUE : FALSE;
+}
+
+/*
+ *  The name before the '=' or ':' at `eq` as a form or a query writes it:
+ *  the run of name bytes, brackets, quotes and '%' before it (its last
+ *  MASK_MAX_NAME), its %XX decoded -- user[password], user%5Bpassword%5D,
+ *  t%6Fken, 'password'. Is one of its parts, between the brackets and the
+ *  quotes, a secret's name? Not its last part when that is a run of name
+ *  bytes after a bracket or a quote (the "pin" of x"pin): that one is
+ *  name_before()'s, and so is a name of name bytes only.
+ */
+PRIVATE BOOL written_name_is_secret(const char *start, const char *eq)
+{
+    const char *n = eq;
+    const char *plain = NULL;   // where the run of name bytes before `eq` begins
+    while(n > start && (size_t)(eq - n) < MASK_MAX_NAME && is_written_name_byte(n[-1])) {
+        n--;
+        if(!plain && !is_name_char(*n)) {
+            plain = n + 1;
+        }
+    }
+    if(!plain) {
+        return FALSE;
+    }
+    const char *to = (plain[-1] == '%')? eq : plain - 1;
+
+    char name[MASK_MAX_NAME];
+    size_t len = 0;
+    for(const char *s = n; s < to; s++) {
+        int hi = (*s == '%' && to - s > 2)? hex_digit_value(s[1]) : -1;
+        int lo = (hi >= 0)? hex_digit_value(s[2]) : -1;
+        if(lo >= 0) {
+            name[len++] = (char)(hi*16 + lo);
+            s += 2;
+        } else {
+            name[len++] = *s;
+        }
+    }
+
+    size_t seg = 0;
+    for(size_t i = 0; i <= len; i++) {
+        if(i < len && !is_written_name_bracket(name[i])) {
+            continue;
+        }
+        if(is_secret_name(name + seg, i - seg)) {
+            return TRUE;
+        }
+        seg = i + 1;
+    }
+    return FALSE;
+}
+
+/*
+ *  Does a byte of a written name that is no name byte ("[]%'\"") lie
+ *  between `bf` and `end`? Without one, NAME_WRITTEN finds nothing.
+ */
+PRIVATE BOOL may_hold_written_name(const char *bf, const char *end)
+{
+    for(const char *p = bf; p < end; p++) {
+        if(*p == '[' || *p == ']' || *p == '%' || *p == '\'' || *p == '"') {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/*
+ *  Is the name before the '=' or ':' at `p` a secret's, as `reading` reads it?
+ */
+PRIVATE BOOL name_at_is_secret(const char *bf, const char *p, name_reading_t reading)
+{
+    if(reading == NAME_WRITTEN) {
+        return written_name_is_secret(bf, p);
+    }
+    const char *n = name_before(bf, p);
+    return (n < p && is_secret_name(n, (size_t)(p - n)))? TRUE : FALSE;
+}
+
+/*
+ *  The value of a name=value whose name -- the run of name bytes before
+ *  the '=' (name_before()), or, with NAME_WRITTEN, the name as a form
+ *  writes it (written_name_is_secret()) -- is a secret's, as in a query
+ *  string, a form body or a command line, marked: inside its quotes, or
+ *  to a byte of PARAM_VALUE_STOPS. The word before the '=' (mark_params())
+ *  can hold more than the name: in "GET https://my-file-server.com/get?token=x"
+ *  it holds a segment about a credential ("file"), and the token showed.
+ *  Each reading is a pass of its own.
+ */
+PRIVATE void mark_query_params(const char *bf, const char *end, name_reading_t reading, uint8_t *marks)
+{
+    if(reading == NAME_WRITTEN && !may_hold_written_name(bf, end)) {
+        return;
+    }
     const char *frontier = bf;
     for(const char *p = bf + 1; p < end; p++) {
         if(*p != '=' || p < frontier) {
             continue;
         }
-        const char *n = name_before(bf, p);
-        if(n == p || !is_secret_name(n, (size_t)(p - n))) {
+        if(!name_at_is_secret(bf, p, reading)) {
             continue;
         }
         const char *v = p + 1;
@@ -2453,6 +2567,39 @@ PRIVATE void mark_query_params(const char *bf, const char *end, uint8_t *marks)
             mark_scheme_value(bf, v, end, PARAM_VALUE_STOPS, marks);
             frontier = mark_run(bf, v, end, PARAM_VALUE_STOPS, marks);  // where 7.26.9's dump went on
         }
+    }
+}
+
+/*
+ *  The password of the userinfo of a URL (scheme://user:password@host),
+ *  marked: from the first ':' of the authority to its last '@' (the
+ *  userinfo ends at the last one, as a browser reads it). The authority
+ *  runs to a byte of URL_AUTHORITY_STOPS, an end of line or a NUL, so the
+ *  scans from two "://" never overlap.
+ */
+#define URL_AUTHORITY_STOPS "/?#\"'<> \t"
+
+PRIVATE void mark_url_passwords(const char *bf, const char *end, uint8_t *marks)
+{
+    for(const char *p = bf + 1; p + 2 < end; p++) {
+        if(p[0] != ':' || p[1] != '/' || p[2] != '/' || !is_ascii_alnum(p[-1])) {
+            continue;
+        }
+        const char *colon = NULL;
+        const char *at = NULL;
+        const char *e = p + 3;
+        while(e < end && *e && *e != '\r' && *e != '\n' && !strchr(URL_AUTHORITY_STOPS, *e)) {
+            if(*e == '@') {
+                at = e;
+            } else if(*e == ':' && !colon) {
+                colon = e;
+            }
+            e++;
+        }
+        if(colon && at && colon < at) {
+            mark_range(marks, (size_t)(colon + 1 - bf), (size_t)(at - bf));
+        }
+        p = e - 2;  // the ':' of the next "://" may be the last byte scanned
     }
 }
 
@@ -2541,7 +2688,9 @@ PRIVATE void mark_inline_secrets(
     if(has_shape_js_7_26_20(str, len)) {
         mark_params(str, len, value_is_secret, READ_AS_GOBJ_JS_7_26_20, marks);
     }
-    mark_query_params(str, str + len, marks);
+    mark_query_params(str, str + len, NAME_PLAIN, marks);
+    mark_query_params(str, str + len, NAME_WRITTEN, marks);
+    mark_url_passwords(str, str + len, marks);
     mark_shapes(str, len, end_is_cut, marks);
     mark_labels(str, len, marks);
 }
@@ -2605,8 +2754,9 @@ PRIVATE char *mask_inline_secrets(const char *str, size_t len, size_t text_len, 
  *      (is_secret_name()), quoted or not; an unquoted one runs to the next
  *      "word=" (inline_secret_value_end()). The name is the word before
  *      the '=', and also the run of name bytes before it, as in a query
- *      string (mark_query_params(): its value to a byte of &;,"'<> or a
- *      blank);
+ *      string, and the name as a form writes it (mark_query_params(),
+ *      name_reading_t: its value to a byte of &;,"'<> or a blank);
+ *    - the password of the userinfo of a URL (mark_url_passwords());
  *    - the value of every "name: value" whose name is a secret's, its name
  *      in quotes or not (a json, a header, a label: "password": hunter2,
  *      Authorization: Basic x, bearer: tok);
@@ -3023,12 +3173,16 @@ PRIVATE void mark_dump_json_members(const char *bf, const char *end, uint8_t *ma
 
 /*
  *  The value of a name: value whose name (a run of name bytes before the
- *  ':') is a secret's: another header, a label (X-Auth-Token: x, bearer:
- *  tok). Not the colon of a header that mark_dump_in_place() masks: its
+ *  ':', or the name as a form writes it: name_reading_t) is a secret's:
+ *  another header, a label (X-Auth-Token: x, bearer: tok, user[password]:
+ *  x). Not the colon of a header that mark_dump_in_place() masks: its
  *  scheme is kept.
  */
-PRIVATE void mark_dump_labels(const char *bf, const char *end, uint8_t *marks)
+PRIVATE void mark_dump_labels(const char *bf, const char *end, name_reading_t reading, uint8_t *marks)
 {
+    if(reading == NAME_WRITTEN && !may_hold_written_name(bf, end)) {
+        return;
+    }
     const char *frontier = bf;
     const char *header_colon = credential_header_colon(bf, end);
     for(const char *p = bf; p < end; p++) {
@@ -3038,8 +3192,7 @@ PRIVATE void mark_dump_labels(const char *bf, const char *end, uint8_t *marks)
         if(*p != ':' || p == bf || p < frontier || p == header_colon) {
             continue;
         }
-        const char *n = name_before(bf, p);
-        if(n == p || !is_secret_name(n, (size_t)(p - n))) {
+        if(!name_at_is_secret(bf, p, reading)) {
             continue;
         }
         const char *v = p + 1;
@@ -3059,7 +3212,9 @@ PRIVATE void mark_dump_labels(const char *bf, const char *end, uint8_t *marks)
  *      "Proxy-Authorization:" header at the start of a line (for the last
  *      two, after the scheme: "Authorization: Bearer ******");
  *    - the value of "name=value" whose name is a secret's (is_secret_name()),
- *      as in a query string, a form body or a command line;
+ *      as in a query string, a form body or a command line, its name read
+ *      as a run of name bytes and as a form writes it (name_reading_t);
+ *    - the password of the userinfo of a URL (mark_url_passwords());
  *    - the value of a json "name": value (or 'name': value), and of a
  *      name: value (another header, a label: X-Auth-Token: x, bearer:
  *      tok), whose name is a secret's;
@@ -3103,9 +3258,12 @@ PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
         mark_dump_in_place(bf, copy, len, READ_AS_7_26_9, marks);
     }
     mark_dump_shapes(bf, end, marks);
-    mark_query_params(bf, end, marks);
+    mark_query_params(bf, end, NAME_PLAIN, marks);
+    mark_query_params(bf, end, NAME_WRITTEN, marks);
+    mark_url_passwords(bf, end, marks);
     mark_dump_json_members(bf, end, marks);
-    mark_dump_labels(bf, end, marks);
+    mark_dump_labels(bf, end, NAME_PLAIN, marks);
+    mark_dump_labels(bf, end, NAME_WRITTEN, marks);
 
     for(size_t i = 0; i < len; i++) {
         if(is_marked(marks, i) && bf[i] != '*') {

@@ -685,7 +685,10 @@ Memory
 `gobj_stop_tree(publisher)` from inside an `EV_ON_*` subscriber re-enters
 the publisher mid-iteration. Defer it: post the continuation to yourself
 with [`gobj_post_event`](#post-message)
-and do the stop in that action.
+and do the stop in that action. The kernel does NOT say this one (unlike the
+destroy below): the pattern is common -- a host that stops its client gate
+in the gate's own `EV_ON_MESSAGE` (`tests/c/c_tcps` does) -- and an ERROR for
+it would land on running apps that work.
 
 **Destroying is worse, and the kernel says it.** A subscriber that destroys
 the publisher, or one of its ancestors, frees the publisher while it is still
@@ -703,19 +706,41 @@ destroys all the same: *"Destroying a gobj while its tree is publishing"* or
 `publisher`/`running`, `event`, `destroyer`, `inner_event`).
 
 Which frames count: every live frame of the gobj destroyed, or of its subtree,
-except the innermost one (the code that destroys), those of a gobj whose
-innermost publication is its `EV_STOPPED`, and the kernel's watch frames:
+except the innermost one (the code that destroys), the kernel's watch frames,
+and the farewell of the stop contract: the `EV_STOPPED` publication of a gobj
+**and the frames of that gobj it runs inside of** (the `mt_stop` or the action
+that published it, an outer publication of it), because `EV_STOPPED` is the
+last thing the gobj does with itself and the code it returns to returns at
+once. A frame of that gobj that began INSIDE its `EV_STOPPED` (an action its
+host sends it from there) is not excused: it does not know. Excusing ONLY the publication frame is not possible:
+it would report every `C_TCP` destroyed in its `EV_STOPPED`, whose
+publication runs inside its own `mt_stop` or action.
 
 | Case | ERROR? |
 |---|---|
 | A gobj destroys itself in its own action, nothing of it further up | No |
 | A gobj publishes its last event, then destroys itself | No: its publication is over |
 | A host destroys its transport in the transport's `EV_STOPPED` | No: the stop contract |
+| A host destroys a RUNNING transport, whose `mt_stop` publishes `EV_STOPPED` at once, and destroys it again in that `EV_STOPPED` | Only *"Destroying a RUNNING gobj"*: the inner destroy frees it, the outer returns (7.26.10; up to 7.26.9 the outer went on with the freed gobj) |
+| A host, in its transport's `EV_STOPPED`, sends the transport an event whose action ends in the transport's destroy further in | Yes, *"one of its actions is still running"*: that action began inside the farewell |
 | A gobj destroys itself in its own `mt_start` / `mt_stop` / `mt_play` | No |
 | A subscriber destroys the publisher | Yes, *"its tree is publishing"* |
 | A subscriber destroys an ancestor of the publisher (its parent, or itself when the publisher is its child) | Yes, *"its tree is publishing"* |
 | A subscriber sends the publisher an event, and the publisher's action destroys itself | Yes: the publication is still running |
 | An action of the gobj calls something whose inner dispatch destroys the gobj | Yes, *"one of its actions is still running"* |
+
+**The walks of the tree are watched too** (7.26.10): `gobj_start_tree()`,
+`gobj_stop_tree()`, `gobj_stop_children()`, `gobj_walk_gobj_children*()` and
+`gobj_destroy_children()` take the next child AFTER the callback, from frames
+on the child, the next one and the gobj whose children are walked. A callback
+may destroy the child it was given (a gobj that ends itself in its `mt_stop`),
+the next sibling (the stop of a child destroys it) or the root of the walk (a
+host that ends itself in a child's `EV_STOPPED`): the walk goes on from what
+is left, or ends when the root is gone. A walk that loses its place (the child
+AND the next one destroyed, the root alive) ends with an ERROR, *"A walk of the
+children lost its place"*; `gobj_destroy_children()` starts again from the
+first child left instead. Up to 7.26.9 each walk took the next child before
+the callback and went on with it freed.
 
 The two usual cases: a gclass that ends itself in the `EV_TIMEOUT` of its own
 `C_TIMER` child (`C_TASK` and `C_COUNTER` until 7.26.10), and a gclass whose
@@ -726,23 +751,51 @@ action; `C_TASK` does it for every end:
 ```c
 PRIVATE int end_task(hgobj gobj, int result)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     /*
      *  Not here: this may run inside the publication of the C_TIMER child,
      *  or inside a job's action that is still running on the task.
      */
-    gobj_post_event(gobj, EV_FINISH_TASK, json_pack("{s:i}", "result", result), gobj);
+    gobj_post_event(gobj, EV_FINISH_TASK,
+        json_pack("{s:i, s:I}", "result", result, "run", priv->run),  // mt_start counts the runs
+        gobj
+    );
     gobj_change_state(gobj, ST_WAIT_STOPPED);   // late events are not the job's any more
     return 0;
 }
 
 PRIVATE int ac_finish_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     int result = (int)kw_get_int(gobj, kw, "result", -2, KW_REQUIRED);
+    json_int_t run = kw_get_int(gobj, kw, "run", 0, KW_REQUIRED);
     KW_DECREF(kw)
+
+    if(run != priv->run) {
+        return 0;               // started again since: not the end of this run
+    }
+    if(!gobj_is_running(gobj)) {
+        if(gobj_is_volatil(gobj)) {
+            gobj_destroy(gobj); // its owner stopped it: no end, but its own destroy
+        }
+        return 0;
+    }
     stop_task(gobj, result);    // publishes EV_END_TASK, stops, destroys a volatile task
     return 0;
 }
 ```
+
+**What the owner does meanwhile still counts.** The end waits a turn, and the
+owner may stop the gobj, or stop and start it again, in that turn. A stop
+cancels the end (the owner left the task; a volatile one is destroyed all the
+same), and a restart drops it (each posted end names its run, and `mt_start`
+begins a new one) -- so `EV_FINISH_TASK` is declared in `ST_IDLE` too, where
+only the end of a run before a restart can arrive. Without both checks the
+stop would publish a stale `EV_END_TASK`, and the restart would get the
+posted end in `ST_IDLE` as *"Event NOT DEFINED"*. `C_COUNTER` does the same
+with `EV_COUNT_EXPIRED`.
 
 The posted event is an INPUT event of the gclass, declared in its FSM and in
 its `event_types`. Never an output event: a new output event of a gclass that

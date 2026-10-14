@@ -9,7 +9,10 @@
  *  EV_COUNT_EXPIRED to the counter (gobj_post_event()) and moves to
  *  ST_WAIT_STOPPED; the final count is published in the next turn of the
  *  loop, and a count that arrives in between does not count. Up to 7.26.9
- *  the timer, and the kernel, read the freed timer afterwards.
+ *  the timer, and the kernel, read the freed timer afterwards. A counter
+ *  its owner STOPS in between publishes no final count (a volatile one is
+ *  destroyed all the same), and one STARTED again drops the expiration of
+ *  the run before (each expiration names its run).
  *
  *          Copyright (c) 2014 Niyamaka.
  *          Copyright (c) 2025-2026, ArtGins.
@@ -83,6 +86,7 @@ typedef struct _PRIVATE_DATA {
 
     uint32_t cur_count;
 
+    json_int_t run;     // each start begins a run; a posted expiration names its own
 } PRIVATE_DATA;
 
 
@@ -139,6 +143,7 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_change_state(gobj, ST_IDLE);   // a counter that expired is left in ST_WAIT_STOPPED
+    priv->run++;
 
     /*
      *  Set timer if configured it.
@@ -432,7 +437,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     clear_timeout(priv->timer);
     KW_DECREF(kw);
 
-    if(gobj_post_event(gobj, EV_COUNT_EXPIRED, 0, gobj) < 0) {
+    if(gobj_post_event(gobj, EV_COUNT_EXPIRED, json_pack("{s:I}", "run", priv->run), gobj) < 0) {
         // Error already logged: a final count in place is better than none
         publish_finalcount(gobj);
         return 0;
@@ -443,10 +448,35 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  The final count of a counter that expired, in its own turn of the loop.
+ *  Its owner may have acted while it waited: started it again (this
+ *  expiration is of a run before, dropped -- in ST_IDLE, or in
+ *  ST_WAIT_STOPPED when the new run has expired too), or stopped it (no
+ *  final count; a volatile one is destroyed all the same, as its final
+ *  count would have done).
  ***************************************************************************/
 PRIVATE int ac_count_expired(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t run = kw_get_int(gobj, kw, "run", 0, KW_REQUIRED);
     KW_DECREF(kw);
+
+    if(run != priv->run) {
+        if(gobj_trace_level(gobj) & TRACE_DEBUG) {
+            trace_msg0("expiration of a run before a restart, ignored: %s", gobj_name(gobj));
+        }
+        return 0;
+    }
+
+    if(!gobj_is_running(gobj)) {
+        if(gobj_trace_level(gobj) & TRACE_DEBUG) {
+            trace_msg0("stopped by its owner before its final count, none published: %s", gobj_name(gobj));
+        }
+        if(gobj_is_volatil(gobj)) {
+            gobj_destroy(gobj);
+        }
+        return 0;
+    }
 
     // publish the output event and die!
     publish_finalcount(gobj);
@@ -519,8 +549,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_idle[] = {
-        {EV_COUNT,      ac_count,   0},
-        {EV_TIMEOUT,    ac_timeout, 0},
+        {EV_COUNT,          ac_count,           0},
+        {EV_TIMEOUT,        ac_timeout,         0},
+        {EV_COUNT_EXPIRED,  ac_count_expired,   0}, // only the expiration of a run before a restart
         {0,0,0}
     };
     ev_action_t st_wait_stopped[] = {

@@ -180,7 +180,11 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   `command_mask_secret_line()` hides its own ` <...>` marker after a secret),
   and under-masks across a newline (`password=a b\nuser=bob` shows `b`) and a
   later word containing `=` (`token=abc def==` shows `def==`, base64 padding).
-  The price of passwords with blanks.
+  The price of passwords with blanks. A secret's name in the path before a
+  query masks the query's values (`/static/token.png?v=2` -> `?v=********`,
+  `?token&x=1` -> `x=********`): the word before the `=` is how 7.26.9 masked
+  `/reset_password?k=hunter2`, so showing those values would show what 7.26.9
+  hid.
 - **The word after a bare `Bearer` that cannot be a credential is shown**, by
   decision, so that prose is not masked (`the bearer of this letter`): when it
   is not quoted, not after the scheme again, not under a secret's name and not
@@ -212,7 +216,13 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   after a scheme that reaches the END of a buffer is masked whatever its
   shape, but what the next read brings is not); and a parameter of a command
   for a REMOTE service whose name is not a secret's name (no command table at
-  hand says it is `SDF_SECRET`).
+  hand says it is `SDF_SECRET`); a credential under a name that is no
+  secret's, of a protocol the SDK does not speak: OAuth's `code=` (single use,
+  minutes of life; `code` names status, error and country codes everywhere),
+  `X-Amz-Signature=` and Azure's `sig=` (`signature` names webstats' attack
+  signatures, `sig` a JWKS key use); a `user:password@host` with no `://`
+  before it (a DSN, an scp target); a token written as the user of a URL
+  (`https://TOKEN@host`).
 
 ### Resolver
 

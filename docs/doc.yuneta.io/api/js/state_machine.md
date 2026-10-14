@@ -50,6 +50,22 @@ Changes the state without an event. Returns `true` when the state changes.
 Tells if the gclass declares an event. Give `0` in `event_flag` to accept every
 flag.
 
+(js_gobj_find_event_type)=
+## [`gobj_find_event_type(event, event_flag, verbose)`](https://github.com/artgins/gobj-js/blob/7.26.23/src/gobj.js#L4867)
+
+Finds an event in ANY registered gclass, as `gobj_find_event_type()` of the C
+kernel: the case of the name is ignored. Gives `0` in `event_flag` to accept
+every flag. Returns the event type (`event_name` is the name as the gclass
+declares it), or `null`. With `verbose`, a miss is logged with the name: do not
+give `verbose` for a name that comes from a peer (7.26.24).
+
+```javascript
+const event_type = gobj_find_event_type("ev_treedb_node_updated", 0, false);
+if(event_type) {
+    gobj_publish_event(gobj, event_type.event_name, kw);   // "EV_TREEDB_NODE_UPDATED"
+}
+```
+
 (js_gobj_has_output_event)=
 ## [`gobj_has_output_event(gobj, event, event_flag)`](https://github.com/artgins/gobj-js/blob/7.26.23/src/gobj.js#L4236)
 

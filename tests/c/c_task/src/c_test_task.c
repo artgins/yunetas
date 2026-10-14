@@ -30,6 +30,16 @@
  *         result 0 arrives once, on the next turn, and the result is
  *         processed once.
  *
+ *      E) The job's result arrives, and the owner STOPS the task before its
+ *         end was delivered (C_AUTH_BFF when the browser goes away). The
+ *         owner hears no EV_END_TASK, and the volatile task is gone: its
+ *         end was decided: no stale EV_END_TASK of a task its owner left.
+ *
+ *      F) A task that is not volatile is answered, stopped and STARTED
+ *         again before its end was delivered, and answered again. The end
+ *         of the first run does not end the second: EV_END_TASK arrives
+ *         once, with the result of the second run.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -51,11 +61,13 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE hgobj create_task(hgobj gobj, const char *name, json_int_t exec_timeout);
+PRIVATE hgobj create_task(hgobj gobj, const char *name, json_int_t exec_timeout, BOOL volatil);
 PRIVATE int start_case_a(hgobj gobj);
 PRIVATE int start_case_b(hgobj gobj);
 PRIVATE int start_case_c(hgobj gobj);
 PRIVATE int start_case_d(hgobj gobj);
+PRIVATE int start_case_e(hgobj gobj);
+PRIVATE int start_case_f(hgobj gobj);
 PRIVATE int check_case(
     hgobj gobj,
     const char *case_name,
@@ -98,7 +110,7 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     hgobj results;              // the gobj_results of every task
 
-    char cur_case[2];           // "A", "B", "C"
+    char cur_case[2];           // "A" ... "F"
     int ends;                   // EV_END_TASK of the current case
     int last_result;
     int last_job;
@@ -214,9 +226,9 @@ PRIVATE json_t *job_result(hgobj gobj, const char *lmethod, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
- *  A volatile task with one job, that waits for EV_ON_OPEN of the results.
+ *  A task with one job, that waits for EV_ON_OPEN of the results.
  ***************************************************************************/
-PRIVATE hgobj create_task(hgobj gobj, const char *name, json_int_t exec_timeout)
+PRIVATE hgobj create_task(hgobj gobj, const char *name, json_int_t exec_timeout, BOOL volatil)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -241,7 +253,7 @@ PRIVATE hgobj create_task(hgobj gobj, const char *name, json_int_t exec_timeout)
         return NULL;
     }
     gobj_subscribe_event(task, EV_END_TASK, 0, gobj);
-    gobj_set_volatil(task, TRUE);
+    gobj_set_volatil(task, volatil);
     gobj_start(task);
 
     /*
@@ -260,7 +272,7 @@ PRIVATE int start_case_a(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     snprintf(priv->cur_case, sizeof(priv->cur_case), "%s", "A");
-    create_task(gobj, "task_a", SHORT_TIMEOUT_MS);
+    create_task(gobj, "task_a", SHORT_TIMEOUT_MS, TRUE);
     return 0;
 }
 
@@ -272,7 +284,7 @@ PRIVATE int start_case_b(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     snprintf(priv->cur_case, sizeof(priv->cur_case), "%s", "B");
-    hgobj task = create_task(gobj, "task_b", LONG_TIMEOUT_MS);
+    hgobj task = create_task(gobj, "task_b", LONG_TIMEOUT_MS, TRUE);
     if(!task) {
         // Error already logged
         return -1;
@@ -291,7 +303,7 @@ PRIVATE int start_case_c(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     snprintf(priv->cur_case, sizeof(priv->cur_case), "%s", "C");
-    if(!create_task(gobj, "task_c", LONG_TIMEOUT_MS)) {
+    if(!create_task(gobj, "task_c", LONG_TIMEOUT_MS, TRUE)) {
         // Error already logged
         return -1;
     }
@@ -319,11 +331,58 @@ PRIVATE int start_case_d(hgobj gobj)
 
     snprintf(priv->cur_case, sizeof(priv->cur_case), "%s", "D");
     priv->answer_in_action = TRUE;
-    if(!create_task(gobj, "task_d", LONG_TIMEOUT_MS)) {
+    if(!create_task(gobj, "task_d", LONG_TIMEOUT_MS, TRUE)) {
         // Error already logged
         return -1;
     }
     priv->answer_in_action = FALSE;
+    return 0;
+}
+
+/***************************************************************************
+ *  Case E: answered, and stopped by its owner before its end was delivered.
+ ***************************************************************************/
+PRIVATE int start_case_e(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    snprintf(priv->cur_case, sizeof(priv->cur_case), "%s", "E");
+    hgobj task = create_task(gobj, "task_e", LONG_TIMEOUT_MS, TRUE);
+    if(!task) {
+        // Error already logged
+        return -1;
+    }
+
+    gobj_send_event(priv->results, EV_TEST_ANSWER, 0, gobj);
+    gobj_stop(task);
+
+    /*
+     *  No EV_END_TASK will come to post the check: post it now, after the
+     *  end of the task in the queue
+     */
+    gobj_post_event(gobj, EV_TEST_CHECK, 0, gobj);
+    return 0;
+}
+
+/***************************************************************************
+ *  Case F: answered, stopped, started again and answered again, all before
+ *  the end of the first run was delivered.
+ ***************************************************************************/
+PRIVATE int start_case_f(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    snprintf(priv->cur_case, sizeof(priv->cur_case), "%s", "F");
+    hgobj task = create_task(gobj, "task_f", LONG_TIMEOUT_MS, FALSE);
+    if(!task) {
+        // Error already logged
+        return -1;
+    }
+
+    gobj_send_event(priv->results, EV_TEST_ANSWER, 0, gobj);
+    gobj_stop(task);
+    gobj_start(task);
+    gobj_send_event(priv->results, EV_TEST_ANSWER, 0, gobj);
     return 0;
 }
 
@@ -463,11 +522,53 @@ PRIVATE int ac_check(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
         start_case_d(gobj);
 
-    } else {
+    } else if(strcmp(priv->cur_case, "D")==0) {
         check_case(gobj, "D", 0, 1, "", 1);    // Error already logged
         gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "case D ok",
+            NULL
+        );
+        start_case_e(gobj);
+
+    } else if(strcmp(priv->cur_case, "E")==0) {
+        /*
+         *  No end at all, and the volatile task gone: one of each is what
+         *  check_case() asks, so the end that must NOT be is counted here
+         */
+        if(priv->ends != 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "A task stopped by its owner published its end",
+                "ends",         "%d", priv->ends,
+                "result",       "%d", priv->last_result,
+                NULL
+            );
+        }
+        priv->ends = 1;
+        priv->last_result = 0;
+        priv->last_job = 1;
+        check_case(gobj, "E", 0, 1, "", 1);    // Error already logged
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "case E ok",
+            NULL
+        );
+        start_case_f(gobj);
+
+    } else {
+        hgobj task = gobj_child_by_name(gobj, "task_f");
+        if(task) {
+            if(gobj_is_running(task)) {
+                gobj_stop(task);
+            }
+            gobj_destroy(task);
+        }
+        check_case(gobj, "F", 0, 1, "", 2);    // Error already logged
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "case F ok",
             NULL
         );
         set_yuno_must_die();

@@ -421,6 +421,18 @@ PRIVATE void check_received_dump(void)
         {"pin=1234Authorizationcommand='dump-hunter2'", "pin=*************************'************'"},
         {"eyJhIjoxfQ. x", "eyJhIjoxfQ. x"},
         {"cut eyJhIjoxfQ.", "cut **********."},
+
+        /*
+         *  7.26.10: a name as a form body writes it -- in brackets,
+         *  %-encoded, quoted -- and the password of the userinfo of a URL
+         */
+        {"POST /login user%5Bemail%5D=a%40b.c&user%5Bpassword%5D=hunter2",
+         "POST /login user%5Bemail%5D=a%40b.c&user%5Bpassword%5D=*******"},
+        {"user[password]=hunter2&user[pin]=1234&a[0]=5", "user[password]=*******&user[pin]=****&a[0]=5"},
+        {"'password'=hunter2 t%6Fken=hunter2", "'password'=******* t%6Fken=*******"},
+        {"user[token_type]=bearer", "user[token_type]=bearer"},    // about a credential
+        {"user[password]: hunter2\r\n", "user[password]: *******\r\n"},
+        {"GET https://u:hunter2@h/x?a=1 ssh://git@h:22/", "GET https://u:*******@h/x?a=1 ssh://git@h:22/"},
         {0, 0}
     };
     for(int i=0; dumps[i].in; i++) {

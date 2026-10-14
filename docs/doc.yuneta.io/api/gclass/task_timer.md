@@ -16,7 +16,7 @@ an action and the result it waits for, with a timeout per job.
 | Property | Value |
 |----------|-------|
 | **States** | `ST_IDLE` (working), `ST_WAIT_STOPPED` (its end waits for the next turn of the loop) |
-| **Input events** | from `gobj_results`: `EV_ON_OPEN`, `EV_ON_MESSAGE`, `EV_ON_CLOSE`, `EV_STOPPED`; `EV_TIMEOUT` (its own `C_TIMER`, or sent from outside); `EV_FINISH_TASK` (private, posted to itself) |
+| **Input events** | from `gobj_results`: `EV_ON_OPEN`, `EV_ON_MESSAGE`, `EV_ON_CLOSE`, `EV_STOPPED`; `EV_TIMEOUT` (its own `C_TIMER`, or sent from outside); `EV_FINISH_TASK` (private, posted to itself; in `ST_IDLE` only the one of a run before a restart, dropped) |
 | **Output events** | `EV_END_TASK` |
 
 ### Key attributes
@@ -81,6 +81,39 @@ In between, the task is in `ST_WAIT_STOPPED`, and what `gobj_results` says
 belongs to a job that is over: a late answer is not processed, and the end is
 published once. A job's action whose result came inside it leaves the task as
 that result left it (it arms no timeout, and does not end the task again).
+
+The owner may act in that turn too, and it wins (7.26.10):
+
+- a task its owner STOPS publishes no `EV_END_TASK` (the owner left it), and
+  a volatile one is destroyed all the same. A stopped task is destroyed by
+  nobody else: an owner that stops a task it no longer wants destroys it
+  (`C_AUTH_BFF` does when the browser goes away);
+- a task its owner starts AGAIN drops the end of the run before (each end
+  names its run, and `mt_start` begins a new one), so `EV_FINISH_TASK` is
+  declared in `ST_IDLE` too, where only such an end can arrive.
+
+An owner that keeps the task in a pointer compares `src` of `EV_END_TASK` with
+it, and ignores (and logs) the end of a task it no longer has in flight:
+
+```C
+PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!src || src != priv->gobj_task) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_END_TASK of a task not in flight, ignored",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+    priv->gobj_task = NULL;     // the volatile task destroys itself at its end
+    ...
+}
+```
 
 Up to 7.26.9 the task ended at once: the timer, or the task, was freed under
 code still running on it, and `C_TIMER`, `execute_action()` and the kernel
@@ -195,7 +228,7 @@ yunos that answer a `run-yuno`, `kill-yuno`, `play-yuno` or `pause-yuno`.
 | Property | Value |
 |----------|-------|
 | **States** | `ST_IDLE` (counting), `ST_WAIT_STOPPED` (expired, its final count waits for the next turn of the loop) |
-| **Input events** | `EV_COUNT` (an event to count), `EV_TIMEOUT` (its own `C_TIMER`, or sent from outside), `EV_COUNT_EXPIRED` (private, posted to itself) |
+| **Input events** | `EV_COUNT` (an event to count), `EV_TIMEOUT` (its own `C_TIMER`, or sent from outside), `EV_COUNT_EXPIRED` (private, posted to itself; in `ST_IDLE` only the one of a run before a restart, dropped) |
 | **Output events** | `final_event_name` (default `EV_FINAL_COUNT`) |
 
 ### Key attributes
@@ -240,3 +273,8 @@ count that arrives in between does not count (`ST_WAIT_STOPPED`). The final
 count of a count reached is published where it happens, inside the last
 `EV_COUNT`. Up to 7.26.9 the expiration published and destroyed at once, and
 `C_TIMER` and the kernel read the freed timer afterwards. `tests/c/c_counter`.
+
+As with `C_TASK`, the owner wins the turn in between: a counter it STOPS
+publishes no final count (a volatile one is destroyed all the same), and one
+it starts AGAIN drops the expiration of the run before (`EV_COUNT_EXPIRED` is
+declared in `ST_IDLE` for it).

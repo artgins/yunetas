@@ -1022,7 +1022,9 @@ happens exclusively via events carrying JSON payloads (`json_t *kw`).
   under that code, and `gobj_stop_tree` there corrupts mid-iteration state.
   Since 7.26.10 the kernel itself survives it -- it keeps a frame per dispatch
   and never reads the gobj afterwards -- and says it: *"Destroying a gobj while
-  its tree is publishing"*, an ERROR with a stack. Defer with
+  its tree is publishing"*, an ERROR with a stack. It checks the DESTROY
+  only: a `gobj_stop_tree()` there is not reported (the shape is too common),
+  and is just as wrong. Defer with
   `gobj_post_event()` to yourself and stop or destroy in that action, never
   with a `C_TIMER0` (see *Explicit lifecycle*). The same holds further up your
   own stack: never end a gobj from an inner dispatch while an outer action (or

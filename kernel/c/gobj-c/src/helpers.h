@@ -311,7 +311,10 @@ PUBLIC BOOL is_secret_name_any(const char *name, size_t len);
  *  its credential whole: token=Bearer abc). The name of a "name=value" is
  *  the word before the '=', and also the run of name characters before it,
  *  as in a query string ("https://my-file-server.com/get?token=x&y=1": its
- *  word holds "file", a segment about a credential). And, under any name
+ *  word holds "file", a segment about a credential), and the name as a form
+ *  writes it, a part of it in brackets or quotes, %XX decoded
+ *  (user[password], user%5Bpassword%5D, t%6Fken). The password of the
+ *  userinfo of a URL (scheme://user:password@host). And, under any name
  *  or none, a JWT or a JWE ("eyJ...", base64url and a '.' of its own: a JWT
  *  cut by a cap too; "eyJhIjoxfQ." is a header, no JWT) and the credential
  *  after "Bearer " or "Basic " (any case) when it can be one:
@@ -379,7 +382,9 @@ PUBLIC json_t *json_mask_secrets_capped(json_t *jn, size_t max_bytes);
  *  Cookie, Set-Cookie, Authorization or Proxy-Authorization header at the
  *  start of a line (after the scheme for the last two), of a "name=value",
  *  a json "name": value (or 'name': value) and a name: value whose name is
- *  a secret's (is_secret_name(); a scheme and its credential whole), and a
+ *  a secret's (is_secret_name(); a scheme and its credential whole; the
+ *  name as a form writes it too: user%5Bpassword%5D=x, 'password'=x), the
+ *  password of the userinfo of a URL (scheme://user:password@host), and a
  *  JWT or the credential after "Bearer " or "Basic " wherever they are, as
  *  mask_secrets_inline() tells them -- at the END of the bytes whatever its
  *  shape: a dump is the first bytes of a frame, and its end may cut one.

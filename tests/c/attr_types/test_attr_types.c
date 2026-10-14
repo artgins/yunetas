@@ -19,7 +19,9 @@
  *          And the table of what a value given as json becomes, which
  *          gobj-js reads too (kernel/js/gobj-js/tests/fixtures/
  *          attr_types_parity.json): C and JS read an attribute value the
- *          same way.
+ *          same way. A tree without the gobj-js submodule (a tarball of
+ *          yunetas alone) has no table: that check is SKIPPED, said on the
+ *          output, and the others run.
  *          A null given to a DTP_STRING is "", the convention of the
  *          default of a string attr and of empty_string() (and of gobj-js):
  *          it was the text "null", which empty_string() reads as a value.
@@ -31,10 +33,12 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <yunetas.h>
 
 #define APP_NAME        "test_attr_types"
@@ -174,6 +178,14 @@ PRIVATE void check_parity_table(void)
         "kernel/js/gobj-js/tests/fixtures/attr_types_parity.json",
         NULL
     );
+    if(access(path, F_OK) != 0 && errno == ENOENT) {
+        /*
+         *  The table lives in the gobj-js submodule: a source tree without
+         *  it (a tarball of yunetas alone) cannot compare C with JS
+         */
+        printf("SKIP the parity table of gobj-js: %s not found (the kernel/js/gobj-js submodule is not checked out)\n", path);
+        return;
+    }
     json_error_t error;
     json_t *jn_table = json_load_file(path, JSON_ALLOW_NUL, &error);
     json_t *jn_cases = json_object_get(jn_table, "cases");
@@ -193,6 +205,7 @@ PRIVATE void check_parity_table(void)
         {"real",    DTP_REAL},
         {"list",    DTP_LIST},
         {"dict",    DTP_DICT},
+        {"json",    DTP_JSON},
         {0, 0}
     };
 

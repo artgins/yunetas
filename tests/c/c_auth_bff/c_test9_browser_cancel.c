@@ -215,6 +215,24 @@ PRIVATE void verify_and_die(hgobj gobj)
     hgobj kc = test_helpers_find_service_child(gobj, "__idp_side__", "C_MOCK_KEYCLOAK");
     test_helpers_check_stats(gobj, kc, "test9_browser_cancel[mock-kc]", kc_expected);
 
+    /*
+     *  The task the browser left is gone: stopped, nothing but the BFF
+     *  destroys it (up to 7.26.9 it stayed, a stopped child of the BFF)
+     */
+    json_t *jn_tasks = gobj_match_children_tree(bff, json_pack("{s:s}",
+        "__gclass_name__", C_TASK
+    ));
+    if(json_array_size(jn_tasks) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The task of a request the browser left is still there",
+            "tasks",        "%d", (int)json_array_size(jn_tasks),
+            NULL
+        );
+    }
+    gobj_free_iter(jn_tasks);
+
     priv->test_passed = TRUE;
     priv->phase = T9_VERIFIED;
 

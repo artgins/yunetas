@@ -179,8 +179,12 @@ character that is no ASCII, mixes its case, or has 24 characters or more; for
 whole. The name of a `name=value` is also the run of name characters before
 the `=`, as in a query string (gobj-js 7.26.22+):
 `GET https://my-file-server.com/get?token=abc&x=1` is
-`GET https://my-file-server.com/get?token=********&x=1`. A JWT header whose
-only dots end it is no JWT (`eyJhIjoxfQ.`, 7.26.22+). Each rule judges the
+`GET https://my-file-server.com/get?token=********&x=1`; and the name as a
+form writes it, a part of it in brackets or quotes, its `%XX` decoded
+(`user[password]=x`, `user%5Bpassword%5D=x`, `t%6Fken=x`; gobj-js 7.26.24+).
+The password of the userinfo of a URL is masked too
+(`https://bob:hunter2@host` is `https://bob:********@host`, 7.26.24+). A JWT
+header whose only dots end it is no JWT (`eyJhIjoxfQ.`, 7.26.22+). Each rule judges the
 text as it came, and a run of characters to mask is one `********`; the
 readings of the parameters of gobj-js 7.26.19 and 7.26.20 are rules of their
 own, whole: measured position by position on 318 008 generated texts, nothing
@@ -205,6 +209,10 @@ mask_secrets_inline("note=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln x=1");
 mask_secrets_inline("x-auth-token: password=a,b c");    // "x-auth-token: ********"
 mask_secrets_inline("GET https://my-file-server.com/get?token=abc&x=1");
 // "GET https://my-file-server.com/get?token=********&x=1"
+mask_secrets_inline("GET https://my-file-server.com/get?user%5Bpassword%5D=abc");
+// "GET https://my-file-server.com/get?user%5Bpassword%5D=********"
+mask_secrets_inline("clone https://bob:hunter2@git.example/x.git");
+// "clone https://bob:********@git.example/x.git"
 mask_secrets_inline("the header eyJhIjoxfQ.");      // null: its only dot ends it
 mask_secrets_inline("list-yunos");      // null
 ```

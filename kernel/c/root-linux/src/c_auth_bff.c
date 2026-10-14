@@ -607,15 +607,25 @@ PRIVATE int mt_stop(hgobj gobj)
         gobj_stop(priv->gobj_timer);
     }
 
-    if(priv->gobj_discovery_task && gobj_is_running(priv->gobj_discovery_task)) {
-        gobj_stop(priv->gobj_discovery_task);
+    /*
+     *  A stopped task is not destroyed by anyone else: the owner does it
+     */
+    if(priv->gobj_discovery_task) {
+        if(gobj_is_running(priv->gobj_discovery_task)) {
+            gobj_stop(priv->gobj_discovery_task);
+        }
+        gobj_destroy(priv->gobj_discovery_task);
+        priv->gobj_discovery_task = NULL;
     }
-    priv->gobj_discovery_task = NULL;
 
-    if(priv->gobj_task && gobj_is_running(priv->gobj_task)) {
-        gobj_stop(priv->gobj_task);
+    if(priv->gobj_task) {
+        if(gobj_is_running(priv->gobj_task)) {
+            gobj_stop(priv->gobj_task);
+        }
+        gobj_destroy(priv->gobj_task);
+        priv->gobj_task = NULL;
     }
-    priv->gobj_task = NULL;
+    priv->processing = FALSE;
 
     if(priv->gobj_idprovider && gobj_is_running(priv->gobj_idprovider)) {
         gobj_stop(priv->gobj_idprovider);
@@ -2292,9 +2302,11 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              *  End the in-flight task synchronously.  Otherwise its
              *  exec_timeout (idp_timeout_ms, seconds) would keep
              *  processing=TRUE and block any request from the next
-             *  browser for the full timeout window.  The task is
-             *  volatil — stopping it destroys it via its own
-             *  ac_stopped, so clear our pointers first.
+             *  browser for the full timeout window.  Stopped, a task
+             *  publishes no end (an end already decided included), and
+             *  nothing destroys it but its owner: up to 7.26.9 the
+             *  comment here said its ac_stopped would, and every task
+             *  abandoned so stayed a stopped child of this BFF.
              */
             if(priv->gobj_task) {
                 hgobj task = priv->gobj_task;
@@ -2303,6 +2315,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 if(gobj_is_running(task)) {
                     gobj_stop(task);
                 }
+                gobj_destroy(task);
             }
         }
 
@@ -2695,6 +2708,23 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Only the end of a task in flight: a task this gclass let go (the
+     *  browser closed, the BFF stopped) is no longer one of them, and its
+     *  end must not finish the request that took its place.
+     */
+    if(!src || (src != priv->gobj_discovery_task && src != priv->gobj_task)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "👤BFF EV_END_TASK of a task not in flight, ignored",
+            "task",         "%s", src? gobj_short_name(src) : "",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
 
     /*
      *  Discovery task ends separately from the auth tasks: it never
