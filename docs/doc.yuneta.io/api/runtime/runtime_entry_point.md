@@ -318,9 +318,28 @@ int yunetas_register_c_core(void);
 
 **Returns**
 
-`0` on success.
+`0` on success, `-1` when a gclass was refused or when it is called a second
+time (an ERROR logged in both cases).
 
 **Notes**
 
 - Internally calls every `register_c_*()` function listed in
   [GClass Registration](registration.md).
+- [`yuneta_entry_point()`](#yuneta_entry_point) calls it once, before the
+  yuno's `register_yuno_and_more()`. A yuno never calls it: its
+  `register_yuno_and_more()` registers its OWN gclasses only.
+- A second call registers nothing and returns `-1` with an ERROR that says
+  why (*"yunetas_register_c_core() called twice: ..."*). Made from
+  `register_yuno_and_more()`, that `-1` stops the yuno before it runs, as a
+  refused gclass does. Up to 7.26.9 the second call returned `-1` with no
+  log, and the only line was the entry point's, naming no cause.
+
+```C
+static int register_yuno_and_more(void)
+{
+    int result = 0;
+    result += register_c_my_service();      // the yuno's own gclasses
+    // yunetas_register_c_core();           // NO: the entry point already did
+    return result;
+}
+```

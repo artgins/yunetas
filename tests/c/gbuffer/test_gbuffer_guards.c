@@ -7,7 +7,9 @@
  *          (hardens the content64/base64 NULL-deref family at the source).
  *          Also asserts the valid path is unchanged, and that bytes from
  *          a peer that are not json are a WARNING, not an error
- *          (gbuf2json_from_peer). gbuffer_serialize() of a NULL gbuffer
+ *          (gbuf2json_from_peer, anystring2json_from_peer), and never logged
+ *          as they came (json_error_for_log() drops the bytes jansson
+ *          quotes). gbuffer_serialize() of a NULL gbuffer
  *          answers NULL with an ERROR. A gbuffer grown from small reaches
  *          its max (up to 7.25.21 it stopped at its last doubling under
  *          the max: 4 KB with a max of 10 KB held 8 KB). gbuffer_printf()
@@ -54,6 +56,10 @@ PRIVATE void test_sink_graceful(void)
     json_t *jn = json_string(gbuffer_cur_rd_pointer(NULL));
     ok_or_fail(jn == NULL, "json_string(cur_rd_pointer(NULL)) == NULL");
     JSON_DECREF(jn);
+
+    // The agent's create-config of a content64 that is not base64 reached strlen() with NULL
+    jn = config_gbuffer2json(gbuffer_base64_to_binary("@@@!", 4), 2);
+    ok_or_fail(jn == NULL, "config_gbuffer2json(NULL) == NULL");
 }
 
 /***************************************************************************
@@ -107,6 +113,7 @@ PRIVATE void test_valid_path(void)
  ***************************************************************************/
 PRIVATE int captured_warnings = 0;
 PRIVATE int captured_errors = 0;
+PRIVATE int captured_secret = 0;    // "peer-hunter2" in any log line
 
 PRIVATE int capture_write(void *h, int priority, const char *bf, size_t len)
 {
@@ -114,6 +121,9 @@ PRIVATE int capture_write(void *h, int priority, const char *bf, size_t len)
         captured_warnings++;
     } else if(priority <= LOG_ERR) {
         captured_errors++;
+    }
+    if(strstr(bf, "peer-hunter2")) {
+        captured_secret++;
     }
     return 0;
 }
@@ -137,6 +147,32 @@ PRIVATE void test_json_from_peer(void)
     ok_or_fail(captured_warnings == 1, "gbuf2json_from_peer: one warning");
     ok_or_fail(captured_errors == 0, "gbuf2json_from_peer: no error");
     JSON_DECREF(jn);
+
+    // The same for bytes that are not a gbuffer (an HTTP body): its `len` bytes, any json value
+    const char *body = "{\"password\": \"peer-hunter2\"} trailing";
+    jn = anystring2json_from_peer(0, body, strlen("{\"password\": \"peer-hunter2\"}"), 0);
+    ok_or_fail(json_is_object(jn), "anystring2json_from_peer: its len bytes, json comes back");
+    JSON_DECREF(jn);
+    jn = anystring2json_from_peer(0, "42", 2, 0);
+    ok_or_fail(json_integer_value(jn) == 42, "anystring2json_from_peer: any json value");
+    JSON_DECREF(jn);
+
+    captured_warnings = 0;
+    captured_errors = 0;
+    captured_secret = 0;
+    const char *cut = "{\"password\": \"peer-hunter2";
+    jn = anystring2json_from_peer(0, cut, strlen(cut), 0);
+    ok_or_fail(jn == NULL, "anystring2json_from_peer: bad bytes give NULL");
+    ok_or_fail(captured_warnings == 1, "anystring2json_from_peer: one warning");
+    ok_or_fail(captured_errors == 0, "anystring2json_from_peer: no error");
+    ok_or_fail(captured_secret == 0, "anystring2json_from_peer: the bytes not logged as they came");
+
+    json_error_t error;
+    jn = json_loads(cut, 0, &error);
+    char shown[JSON_ERROR_TEXT_LENGTH];
+    ok_or_fail(!jn && strstr(error.text, "peer-hunter2") &&
+        strcmp(json_error_for_log(&error, shown, sizeof(shown)), "premature end of input") == 0,
+        "json_error_for_log: jansson's text without the bytes it quotes");
 
     gobj_log_del_handler("capture");
 }

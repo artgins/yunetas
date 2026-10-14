@@ -18,8 +18,8 @@ message.
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_DISCONNECTED`, `ST_WAIT_CONNECTED`, `ST_CONNECTED` |
-| **Input events** | `EV_SEND_MESSAGE`, `EV_CONNECTED`, `EV_DISCONNECTED`, `EV_RX_DATA`, `EV_TX_READY`, `EV_TIMEOUT` |
+| **States** | `ST_DISCONNECTED`, `ST_CONNECTED` |
+| **Input events** | `EV_CONNECTED`, `EV_STOPPED` (disconnected); `EV_SEND_MESSAGE`, `EV_RX_DATA`, `EV_TIMEOUT`, `EV_TX_READY`, `EV_DISCONNECTED`, `EV_DROP` (connected) |
 | **Output events** | `EV_ON_MESSAGE`, `EV_ON_HEADER`, `EV_ON_OPEN`, `EV_ON_CLOSE` |
 
 ### Key attributes
@@ -32,6 +32,51 @@ message.
 | `crypto` | `json` | TLS config forwarded to the bottom C_TCP for `https://` URLs. Default `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` — verifies the server cert against the system CA. Override with `ssl_trusted_certificate` for a private CA, or `ssl_allow_insecure_client: true` to skip verification (MITM risk). |
 | `raw_body_data` | `bool` | `TRUE` to deliver body chunks incrementally. |
 | `subscriber` | `pointer` | Gobj receiving output events. |
+
+### Sending a request: `EV_SEND_MESSAGE`
+
+Sent to the client once it is connected (after its `EV_ON_OPEN`). The kw:
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `method` | `"GET"` | The HTTP method. |
+| `resource` | `"/"` | The path of the request. |
+| `headers` | — | A dict of headers, written over the defaults (`User-Agent`, `Connection`, `Accept`, `Host`, and `Content-Type: application/json` when there is `data`). |
+| `data` | — | The body. Any json value (7.26.10+ also a bare string or number), sent compact. |
+| `query` | `""` | With `Content-Type: application/x-www-form-urlencoded`, the form as text; empty, the form is built from `data` (a dict: `k1=v1&k2=v2`). |
+
+With `application/x-www-form-urlencoded` the form is the body, except in a
+**GET**, which carries it as the query of the resource (`/path?k1=v1`); a GET
+with no form has no `?`. The values are written as they are, not URL-encoded:
+encode them first. Up to 7.26.9 a GET lost the last character of its query.
+
+```C
+/*  GET /users?first=0&max=50  */
+gobj_send_event(gobj_http, EV_SEND_MESSAGE, json_pack("{s:s, s:s, s:{s:s}, s:{s:s, s:s}}",
+    "method", "GET",
+    "resource", "/users",
+    "headers", "Content-Type", "application/x-www-form-urlencoded",
+    "data", "first", "0", "max", "50"
+), gobj);
+
+/*  POST /token, the form as text  */
+gobj_send_event(gobj_http, EV_SEND_MESSAGE, json_pack("{s:s, s:s, s:s, s:{s:s}}",
+    "method", "POST",
+    "resource", "/token",
+    "query", "grant_type=refresh_token&refresh_token=...",
+    "headers", "Content-Type", "application/x-www-form-urlencoded"
+), gobj);
+
+/*  PUT /actions with a json array body  */
+gobj_send_event(gobj_http, EV_SEND_MESSAGE, json_pack("{s:s, s:s, s:[s]}",
+    "method", "PUT",
+    "resource", "/actions",
+    "data", "UPDATE_PASSWORD"
+), gobj);
+```
+
+A request that cannot be built (a part over the maximum block, a `data` that
+cannot be dumped) is not sent: the action logs an ERROR and answers `-1`.
 
 ---
 

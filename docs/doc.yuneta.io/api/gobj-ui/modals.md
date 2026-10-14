@@ -93,6 +93,23 @@ before_close: async () => {
 }
 ```
 
+An `async` guard closes the modal with `return true`, not with `return;`. An
+`async` guard that ends with `return;` settles with `undefined`, and
+`undefined` is a veto. When such a guard opened nothing through the shell, no
+question is on the screen and the modal does not close. The modal then writes
+a warning in the log (since gobj-ui 7.26.43): *"before_close settled with
+undefined and asked nothing"*. When the guard asked a question, `undefined` is
+its "no", and the log gets nothing.
+
+```js
+before_close: async () => {
+    if(!gobj_read_bool_attr(form, "edited")) {
+        return true;                    // not `return;`: that keeps the modal open
+    }
+    return yui_shell_confirm_yesno(shell, "all changes will be lost", {t: t});
+}
+```
+
 ```js
 const sheet = yui_shell_show_modal(shell, $body, {
     dialog:       true,

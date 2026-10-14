@@ -34,7 +34,17 @@ Returns a `json_t *` representing the parsed JSON object, or NULL if parsing fai
 
 **Notes**
 
-Uses `json_loadb()` with `JSON_DECODE_ANY` to support multiple JSON formats. If `verbose` is TRUE, logs errors when parsing fails.
+Uses `json_loadb()` with `JSON_DECODE_ANY` to support multiple JSON formats. If `verbose` is TRUE, a failure is an ERROR with a stack trace: use it for JSON that YOUR code wrote. The bytes are never logged as they came (7.26.10+): the error is jansson's text without the bytes it quotes near the error ([`json_error_for_log()`](#json_error_for_log)), with its `line`, `column` and `position`, and the dump of the `len` bytes is masked ([`mask_secrets_in_text()`](#mask_secrets_in_text)). Up to 7.26.9 the log carried the whole text in a `"bf"` field, a password among it. For bytes received from a peer (an HTTP body) use [`anystring2json_from_peer()`](#anystring2json_from_peer): a WARNING, no stack.
+
+**Example**
+
+```C
+json_t *jn = anystring2json(text, strlen(text), TRUE);
+if(!jn) {
+    // Error already logged: where it breaks, the bytes masked
+    return -1;
+}
+```
 
 ---
 
@@ -954,7 +964,19 @@ Returns a `json_t *` object if parsing is successful. Returns `NULL` if parsing 
 
 **Notes**
 
-['This function only accepts JSON objects (`{}`) or arrays (`[]`).', 'For more flexible JSON parsing, use [`anystring2json()`](#anystring2json).', 'The returned `json_t *` must be freed using `json_decref()` to avoid memory leaks.']
+- This function only accepts JSON objects (`{}`) or arrays (`[]`). For more flexible JSON parsing, use [`anystring2json()`](#anystring2json).
+- With `verbose`, a failure is logged as [`anystring2json()`](#anystring2json) logs it (7.26.10+): an ERROR without the text, which is dumped masked. Up to 7.26.9 the log carried the whole text in a `"str"` field. Pass `FALSE` when the caller says the failure itself, or when the text is not yours (a value a user wrote).
+- The returned `json_t *` must be freed using `json_decref()` to avoid memory leaks.
+
+**Example**
+
+```C
+json_t *jn_schema = string2json(schema_text, TRUE);   // our own literal: a failure is a bug
+if(!jn_schema) {
+    // Error already logged
+    return -1;
+}
+```
 
 ---
 
@@ -1006,11 +1028,21 @@ json_t *anyfile2json(
 | Key | Type | Description |
 |---|---|---|
 | `path` | `const char *` | The file path to load the JSON data from. |
-| `verbose` | `BOOL` | If TRUE, logs errors when the file cannot be opened or parsed. |
+| `verbose` | `BOOL` | If TRUE, logs errors when the file cannot be opened or parsed. The error is jansson's without the bytes it quotes from the file ([`json_error_for_log()`](#json_error_for_log), 7.26.10+), with its `line`, `column` and `position`. |
 
 **Returns**
 
 Returns a `json_t *` representing the parsed JSON object, or NULL if the file cannot be opened or parsing fails.
+
+**Example**
+
+```C
+json_t *jn = anyfile2json("/yuneta/agent/yuneta_agent.json", TRUE);
+if(!jn) {
+    // Error already logged
+    return -1;
+}
+```
 
 ---
 
@@ -1104,11 +1136,20 @@ json_t *json_config_string2json(
 | Key | Type | Description |
 |---|---|---|
 | `bf` | `const char *` | The JSON configuration string to parse. It can contain inline comments delimited by `##^`. |
-| `verbose` | `BOOL` | If TRUE, logs errors when parsing fails. |
+| `verbose` | `BOOL` | If TRUE, logs errors when parsing fails, as [`anystring2json()`](#anystring2json) logs them: the text dumped masked, comments removed. |
 
 **Returns**
 
-Returns a `json_t *` representing the parsed JSON object, or NULL if parsing fails.
+Returns a `json_t *` representing the parsed JSON object, or NULL if parsing fails, or if `bf` is NULL (an ERROR; up to 7.26.9 a SIGSEGV -- the agent's `create-config` of a `content64` that is not base64 reached it).
+
+**Example**
+
+```C
+json_t *jn_config = json_config_string2json(
+    "{\"port\": 8080}   ##^ the port of the gate\n",
+    TRUE
+);
+```
 
 ---
 

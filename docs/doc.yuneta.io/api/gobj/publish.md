@@ -160,6 +160,43 @@ gobj_subscribe_event(publisher, EV_X, 0, b);
 gobj_publish_event(publisher, EV_X, json_pack("{s:i}", "x", 1));
 ```
 
+**A publisher destroyed by its subscribers.** Delivery is synchronous: each
+subscriber's action runs inside this call. When one of them destroys the
+publisher, directly or with one of its ancestors, the subscribers after it do
+not get the event. The kernel learns it from the frame of the publication,
+which [`gobj_destroy()`](creation.md#gobj_destroy) marks, never from the
+publisher's memory. Up to 7.26.9 it read the publisher's `obflag` after each
+subscriber, in freed memory once the publisher was gone, and could go on to
+the next subscriber with a freed publisher.
+
+The kernel survives it; the publisher may not, because its code goes on after
+the call returns. So a subscriber that destroys the publisher's tree is an
+ERROR (*"Destroying a gobj while its tree is publishing"*), except in the
+publisher's `EV_STOPPED`, which by the stop contract is the last thing the
+publisher does with itself. Defer anything else with
+[`gobj_post_event()`](events_state.md#gobj_post_event):
+
+```C
+/*
+ *  EV_JOB_DONE comes from the child worker, inside its publication:
+ *  destroying this gobj here would destroy the worker under it.
+ */
+PRIVATE int ac_job_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    gobj_post_event(gobj, EV_FINISH, 0, gobj);     // an input event of this gclass
+    return 0;
+}
+
+PRIVATE int ac_finish(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    gobj_stop_tree(gobj);
+    gobj_destroy(gobj);     // the worker goes with it: nobody is publishing now
+    return 0;
+}
+```
+
 ---
 
 (gobj_subscribe_event)=

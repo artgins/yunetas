@@ -412,6 +412,15 @@ PRIVATE void check_received_dump(void)
         {"sent with Bearer abcdefg", "sent with Bearer *******"},        // its end: a cap may have cut it
         {"cut eyJhbGciOiJIUzI1NiJ9", "cut ********************"},        // a JWT cut before its '.'
         {"the bearer of this letter, a basic plan", "the bearer of this letter, a basic ****"},
+
+        /*
+         *  7.26.10: what 7.26.9's dump masked after the value of a name of a
+         *  segment (pin) is masked; a JWT header whose only dot ends it is
+         *  no JWT, but at the end of the bytes (a cap may have cut it)
+         */
+        {"pin=1234Authorizationcommand='dump-hunter2'", "pin=*************************'************'"},
+        {"eyJhIjoxfQ. x", "eyJhIjoxfQ. x"},
+        {"cut eyJhIjoxfQ.", "cut **********."},
         {0, 0}
     };
     for(int i=0; dumps[i].in; i++) {

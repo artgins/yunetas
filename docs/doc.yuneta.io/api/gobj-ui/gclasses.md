@@ -69,10 +69,61 @@ Gives the container of a view to the host that holds it.
 
 `C_YUI_WINDOW` draws a window that floats above the application.
 
+A window is a dialog (since gobj-ui 7.26.43):
+
+- It has `role="dialog"`. Its title gives its name: `aria-labelledby` points
+  to the two halves of the title, `title_prefix` and `title`, so the name
+  changes language with the title.
+- When the window starts (`gobj_start`) because the reader pressed or typed
+  something, it takes the focus. The attribute `focus` selects the element: an
+  element of the window, a CSS selector, or a number (the n-th control of the
+  body, from 0). The default is the window itself. A window that the
+  application opens without an action of the reader (for example a window it
+  restores at start up) does not take the focus. A modal window always takes
+  it. When the window closes, the focus goes back to the element that had it
+  before, if the focus was in the window.
+- Escape closes the window, as its ✕ does (`EV_CLOSE_WINDOW`). A subscriber
+  of `EV_WINDOW_TO_CLOSE` can still stop the close or ask a question. Set
+  `keyboard: false` to keep Escape. Escape does not close the window when the
+  element that got the key used it: a handler that called `preventDefault()`,
+  a cell editor of Tabulator, a search box with text, a `textarea` or a
+  `contenteditable`.
+- `modal: true` blocks the rest of the application: a backdrop in the dialog
+  layer of the shell, `aria-modal="true"`, and Tab stays in the window. A modal
+  window does not go to the dock.
+
+```js
+const win = gobj_create_service("keys", "C_YUI_WINDOW", {
+    title_prefix: topic,            // data, not translated
+    title:        "keys",           // an i18n key
+    body:         $box,
+    focus:        ".KEYS_FILTER",   // this box gets the focus
+    modal:        true,             // the reader answers it first
+}, gobj);
+gobj_start(win);                    // opened by the reader: the focus goes in
+```
+
 (js_register_c_yui_window_manager)=
 ### [`register_c_yui_window_manager()`](https://github.com/artgins/gobj-ui.js/blob/7.26.42/src/c_yui_window_manager.js#L916)
 
 `C_YUI_WINDOW_MANAGER` holds the windows, and it draws the dock of them.
+
+A floating dock keeps a band at the top or at the bottom of the viewport. It
+writes the height of the band in two CSS variables on the root element:
+`--yui-dock-inset-top` and `--yui-dock-inset-bottom` (since gobj-ui 7.26.43).
+A window that fills the screen (the sheet of a phone, a maximized window) does
+not go into the band. An inline dock and an empty dock keep no band. An
+element of the application that fills the screen can use the same variables:
+
+```css
+.MY_FULL_PANEL {
+    position: fixed;
+    top:    var(--yui-dock-inset-top, 0px);
+    bottom: var(--yui-dock-inset-bottom, 0px);
+    left: 0;
+    right: 0;
+}
+```
 
 ---
 
@@ -101,6 +152,19 @@ form that opened changed did not hear its tables, and closing it lost a table
 edit without a question). The rows the form loads itself are not. The titles
 of the tables' columns change language with the shell's
 `EV_LANGUAGE_CHANGED`, like the rest of the form.
+
+Undo shows the rows that the form loaded (since gobj-ui 7.26.43). Tabulator
+keeps the objects that it gets, and a cell edit writes into them, so each
+table gets its own copy of the rows of the record. Before 7.26.43 the table
+got the objects of the record: an edit wrote into the record, Undo loaded the
+edited record again and cleared `edited`, and the close did not ask. What a
+save publishes is a copy too.
+
+The nested tables of a row live as long as the row. A reload, Undo, Clear, a
+row that the reader deletes and the destroy of the form destroy them. A row
+that Tabulator draws again keeps its nested tables and their rows. A table
+loads all its rows in one call and draws them one time: 300 rows load in
+0.14 s (20 s before 7.26.43).
 
 ```js
 const kw = {abort_close: false};

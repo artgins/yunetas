@@ -374,13 +374,7 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) != ST_SESSION) {
-        /*
-         *  `stats` is the caller's text, as the line of mt_command(): masked
-         *  and THEN capped (mask_secrets_inline_capped(): capped first, a
-         *  token the cap cut lost its shape and showed). It was logged whole
-         *  (REV-CLOUD V24.4).
-         */
-        char name[65];
+        char name[65];  // the caller's text: masked, then capped (a cap first can unshape a token)
         mask_secrets_inline_capped(name, sizeof(name), stats? stats : "", stats? strlen(stats) : 0);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -442,14 +436,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) != ST_SESSION) {
-        /*
-         *  The command's NAME: `command` is the whole line forwarded (the
-         *  agent's command-yuno), and a set-password to a yuno that had just
-         *  gone left the password in the log (REV-CLOUD V22.3.1). Masked,
-         *  for the first word can be a secret itself: `password=hunter2
-         *  user=x` logged "password=hunter2" (V23.4.3); masked before it is
-         *  capped, a JWT cut before its '.' showed its header
-         */
+        // The name only (the line carries the parameters), masked: the first word can be a secret
         const char *line = command? command : "";
         char name[65];
         mask_secrets_inline_capped(name, sizeof(name), line, strcspn(line, " \t\r\n"));
@@ -2106,12 +2093,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_event_t iev_event;
     json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 1);
     if(!iev_kw) {
-        /*
-         *  Said by iev_create_from_gbuffer(), a WARNING that says what the
-         *  frame got wrong: not json, or not an inter-event. Here it was
-         *  "Bad json" for both, and a dump of its bytes raw: a JWT under a
-         *  plain key, cut by the window, showed its header (REV-CLOUD V24.4).
-         */
+        // Error already logged: iev_create_from_gbuffer() says what the frame got wrong
         drop(gobj);
         KW_DECREF(kw)
         return -1;
@@ -3112,13 +3094,7 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_remote_log(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    /*
-     *  A log line of the peer's app (gobj-js' set_remote_log_functions()),
-     *  in session: its text masked and then capped, and the kw not dumped.
-     *  Both were written whole and raw, the text of any size, twice
-     *  (REV-CLOUD V23.4.1); capped first, a token that the cap cut showed
-     *  its first bytes.
-     */
+    // The peer app's log line: masked, then capped (a cap first can unshape a token)
     const char *text = json_string_value(json_object_get(kw, "msg"));
     if(!text) {
         text = "";

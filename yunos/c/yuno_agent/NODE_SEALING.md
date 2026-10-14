@@ -317,6 +317,14 @@ here is a candidate for promotion to Tier 1:
   box, but the operation was a shell on the node. Either an
   `set-idp-user-password` command joins `C_IDP_KEYCLOAK` (Tier 1) or this
   stays a break-glass operation.
+- **Checking a store's schemas before an SDK upgrade** (2026-10-14):
+  `tools/treedb/check_store_schemas.py` walks `/yuneta/store` and says, per
+  persisted `*.treedb_schema.json` / `*.msg2db_schema.json`, what the new SDK
+  will log when it opens it. It is a python3 script run ON the node (over ssh
+  today, the PTY under a seal). The files themselves are reachable through
+  Tier 1 (`dir-store`, `read-json`), but the check also asks whether each
+  topic is on disk, so a `check-store-schemas` agent command is the Tier-1
+  answer.
 - Upgrading **the agent binary**. The agent is a standalone daemon, not a
   managed yuno: `update-binary` does not reach it, and it is restarted with
   `systemctl restart` of its unit (`--stop` then `--start` on a node without

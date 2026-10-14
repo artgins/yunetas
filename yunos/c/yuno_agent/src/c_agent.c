@@ -3828,6 +3828,16 @@ PRIVATE json_t *cmd_create_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
     if(!empty_string(content64)) {
         gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
+        if(!gbuf_content) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: Invalid base64 in content64", gobj_yuno_role_plus_name()),
+                0,
+                0,
+                kw  // owned
+            );
+        }
         jn_config = config_gbuffer2json(
             gbuf_content,  // owned
             2
@@ -3995,6 +4005,16 @@ PRIVATE json_t *cmd_update_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *jn_config = 0;
     if(!empty_string(content64)) {
         gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
+        if(!gbuf_content) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: Invalid base64 in content64", gobj_yuno_role_plus_name()),
+                0,
+                0,
+                kw  // owned
+            );
+        }
         jn_config = config_gbuffer2json(
             gbuf_content,  // owned
             2
@@ -11814,9 +11834,9 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    int readed = read(fp, s, len-1);
-    if(!readed) {
-        int err = errno;
+    ssize_t readed = read(fp, s, len-1);
+    if(readed <= 0) {
+        int err = readed < 0? errno: 0;
         close(fp);
         gbmem_free(s);
         return gobj_send_event(
@@ -11824,7 +11844,7 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             event,
             msg_iev_build_response(gobj,
                 -1,
-                json_sprintf("Error with file '%s': %s", filename, strerror(err)),
+                json_sprintf("Error with file '%s': %s", filename, err? strerror(err): "empty"),
                 0,
                 0,
                 kw  // owned
@@ -11840,7 +11860,22 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         p++;
     }
-    json_t *jn_s = anystring2json(s, strlen(s), TRUE); // nonlegalstring2json
+    json_error_t jn_error;
+    json_t *jn_s = json_loadb(s, (size_t)readed, JSON_DECODE_ANY, &jn_error);
+    if(!jn_s) {
+        // The operator's file, not ours: where it breaks, never its content
+        char error[JSON_ERROR_TEXT_LENGTH];
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "File is not json",
+            "filename",     "%s", filename,
+            "error",        "%s", json_error_for_log(&jn_error, error, sizeof(error)),
+            "line",         "%d", jn_error.line,
+            "position",     "%d", jn_error.position,
+            NULL
+        );
+    }
     json_t *jn_data = json_pack("{s:s, s:o}",
         "name", p,
         "zcontent", jn_s?jn_s:json_string("Invalid json in filename")

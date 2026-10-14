@@ -63,8 +63,9 @@ BOOL client_secure_connected = FALSE;
 /***************************************************************************
  *              Test
  ***************************************************************************/
-PRIVATE int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
+PRIVATE int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)   // gbuf owned
 {
+    gbuffer_incref(gbuf);   // ytls_encrypt_data() takes one, the check below reads it
     if(ytls_encrypt_data(ytls, sskt, gbuf)<0) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
@@ -73,6 +74,7 @@ PRIVATE int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
             "error",        "%s", ytls_get_last_error(ytls, sskt),
             NULL
         );
+        gbuffer_decref(gbuf);
         return -1;
     }
     if(gbuffer_leftbytes(gbuf) > 0) {
@@ -83,6 +85,7 @@ PRIVATE int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
             NULL
         );
     }
+    gbuffer_decref(gbuf);
     return 0;
 }
 

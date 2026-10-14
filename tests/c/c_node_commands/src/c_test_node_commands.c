@@ -644,6 +644,14 @@ PRIVATE int run_tests(hgobj gobj)
     CHECK(expect_refused, "refused: a content64 that is not an object", "update-node",
         json_pack("{s:s, s:s}", "topic_name", "departments", "content64", "WzFd"),   // [1]
         "Wrong record")
+    CHECK(expect_refused, "refused: a content64 that is not json", "update-node",
+        json_pack("{s:s, s:s}", "topic_name", "departments",
+            "content64", "eyJwYXNzd29yZCI6InM0Y3JldCIs"),    // {"password":"s4cret",
+        "Can't decode json content64")
+    CHECK(expect_refused, "refused: a content64 that is not json (create)", "create-node",
+        json_pack("{s:s, s:s}", "topic_name", "departments",
+            "content64", "eyJwYXNzd29yZCI6InM0Y3JldCIs"),
+        "Can't decode json content64")
 
     /*
      *  REV-CLOUD V23.4.2: a NUL in a string of the record (a frame is

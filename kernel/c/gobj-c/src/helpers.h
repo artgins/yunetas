@@ -308,9 +308,13 @@ PUBLIC BOOL is_secret_name_any(const char *name, size_t len);
  *  "name: value" (its name quoted or not: "password": x, bearer: tok)
  *  whose name is a secret's written as "********" (quoted or not; the
  *  "value" of a write-attr whose attribute names a secret too; a scheme and
- *  its credential whole: token=Bearer abc); and, under any name or none, a
- *  JWT or a JWE ("eyJ...", base64url and a '.': a JWT cut by a cap too) and
- *  the credential after "Bearer " or "Basic " (any case) when it can be one:
+ *  its credential whole: token=Bearer abc). The name of a "name=value" is
+ *  the word before the '=', and also the run of name characters before it,
+ *  as in a query string ("https://my-file-server.com/get?token=x&y=1": its
+ *  word holds "file", a segment about a credential). And, under any name
+ *  or none, a JWT or a JWE ("eyJ...", base64url and a '.' of its own: a JWT
+ *  cut by a cap too; "eyJhIjoxfQ." is a header, no JWT) and the credential
+ *  after "Bearer " or "Basic " (any case) when it can be one:
  *  quoted, after the scheme doubled, or not a word of prose -- a digit, a
  *  symbol of its own, a byte that is no ASCII, its case mixed, 24
  *  characters or more; for Bearer 8 at least, for Basic a run of base64

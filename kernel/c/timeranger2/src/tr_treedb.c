@@ -7408,8 +7408,10 @@ PRIVATE int refuse_node_name_with_nul(
  *  out, and the create saved "" with no log; a ref with the NUL after its
  *  third part linked the node to the parent C read (REV-CLOUD V24.4). A
  *  peer's record never gets here with one (C_NODE refuses a NUL in any of
- *  its texts): this is a C caller's, an ERROR with a stack. Return 0, or -1
- *  refused.
+ *  its texts): this is a C caller's, an ERROR with a stack. Asked by every
+ *  write that reads an fkey ref of a kw: a create, an update (its `file`
+ *  columns), an update with links, an autolink, a replace of links.
+ *  Return 0, or -1 refused.
  ***************************************************************************/
 PRIVATE int refuse_fkey_ref_with_nul(
     hgobj gobj,
@@ -7419,6 +7421,9 @@ PRIVATE int refuse_fkey_ref_with_nul(
     json_t *kw      // NOT owned
 )
 {
+    if(!json_nul_fault(kw)) {
+        return 0;   // the copy of the columns is paid only by a kw with a NUL
+    }
     json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     const char *col_name; json_t *col;
     const char *field = NULL;
@@ -9973,6 +9978,7 @@ PRIVATE json_t *prepare_node_update(
     Update the existing current node with fields of kw
     HACK fkeys and hook fields are not updated!
     A pkey2 value names an instance: a kw that changes it is refused.
+    So is a kw with an fkey ref holding a NUL: the 'file' columns are linked.
     A save that fails takes the update back in memory, the links of the
     'file' columns included, and tells no event (see begin_node_write).
  ***************************************************************************/
@@ -9984,6 +9990,14 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    if(refuse_fkey_ref_with_nul(gobj, tranger,
+            kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0),
+            kw_get_str(gobj, node, "__md_treedb__`topic_name", "", 0),
+            kw) < 0) {
+        JSON_DECREF(kw)
+        return 0;   // Error already logged
+    }
 
     json_t *updates = prepare_node_update(gobj, tranger, node, kw, save, TRUE);
     if(!updates) {
@@ -13682,6 +13696,14 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
         return -1;
     }
 
+    if(refuse_fkey_ref_with_nul(gobj, tranger,
+            kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0),
+            kw_get_str(gobj, node, "__md_treedb__`topic_name", "", 0),
+            kw) < 0) {
+        JSON_DECREF(kw)
+        return -1;  // Error already logged
+    }
+
     /*
      *  A 'file' column may still hold a bare id here (idempotent
      *  otherwise). Stored BEFORE the write opens: storing may write an
@@ -14113,6 +14135,14 @@ PUBLIC int treedb_replace_links(
         gobj_trace_json(gobj, node, "Not a pure node");
         JSON_DECREF(kw)
         return -1;
+    }
+
+    if(refuse_fkey_ref_with_nul(gobj, tranger,
+            kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0),
+            kw_get_str(gobj, node, "__md_treedb__`topic_name", "", 0),
+            kw) < 0) {
+        JSON_DECREF(kw)
+        return -1;  // Error already logged
     }
 
     /*

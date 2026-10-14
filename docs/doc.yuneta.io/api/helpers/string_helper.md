@@ -679,17 +679,19 @@ JSON_DECREF(jn_shown)
 **Example**
 
 ```C
-json_t *kw = json_pack("{s:I, s:{s:s}, s:s, s:s, s:s}",
+json_t *kw = json_pack("{s:I, s:{s:s}, s:s, s:s, s:s, s:s}",
     "password", (json_int_t)1234,
     "auth", "access_token", "eyJ...",
     "__command__", "set-user-pwd username=bob password=hunter2",
     "note", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJib2IifQ.c2lnbmF0dXJl",
-    "headers", "Authorization: Bearer abc123"
+    "headers", "Authorization: Bearer abc123",
+    "url", "https://cdn.public.example/x?access_token=abc123"
 );
 json_t *kw_shown = json_mask_secrets(kw);
 // {"password": "********", "auth": {"access_token": "********"},
 //  "__command__": "set-user-pwd username=bob password=********",
-//  "note": "********", "headers": "Authorization: ********"}
+//  "note": "********", "headers": "Authorization: ********",
+//  "url": "https://cdn.public.example/x?access_token=********"}
 JSON_DECREF(kw_shown)
 ```
 
@@ -706,26 +708,36 @@ json, a header, a label: `"password": hunter2`, `Authorization: Basic x`,
 `attribute=` names a secret. A value that is a scheme and its credential is
 masked WHOLE: `token=Bearer abc` is `token=********`, and so is
 `Authorization: Bearer abc` -- `Authorization: ********` (up to 7.26.9 it
-showed `Authorization: Bearer ********`). And a credential by its SHAPE,
+showed as it was: no `name: value` was masked). And a credential by its SHAPE,
 wherever it is and whatever names it (below). The rest of the text is kept as
 it is.
 
 **Each rule judges the text as it came** (7.26.10+): the bytes to mask are
-marked, and a run of them is ONE `********`. In the first commit of V24 a rule
-masked (or jumped over) its value before the next one looked, and a value the
-next rule would have masked showed: the JWT of `eyJ...bearer1=x` took its
-name, a label's value hid the `=` of the `name=value` inside it
-(`x-auth-token: password=a,b` showed `,b`). The rule of the `name=value` reads
-the text twice: as 7.26.9 read it, jumping over the shapes 7.26.9 knew -- so
-nothing that 7.26.9 masked shows, but the word after a bare `Bearer` that
-cannot be a credential (below) --, and jumping over nothing, so a `name=value`
-inside the word after `Bearer` is judged even when that word is no credential
-(`Bearer pwd=x` is `Bearer pwd=********`). Across 230 078 generated texts,
-what shows now that 7.26.9 hid is that word and nothing else.
+marked, and a run of them is ONE `********`. A rule that masked (or jumped
+over) its value before the next one looked hid from it what it judges by: a
+label's value hid the `=` of the `name=value` inside it (`x-auth-token:
+password=a,b` showed `,b`). The rule of the `name=value` reads the text with
+the names of now, jumping over nothing, so a `name=value` inside the word
+after `Bearer` is judged even when that word is no credential (`Bearer pwd=x`
+is `Bearer pwd=********`); and, wherever they can read it otherwise, as two
+released versions read it, each reading whole: as 7.26.9 read it, with its
+names -- `pass`, `pin` and `otp` were none, so the value of a name of a
+segment jumped over no `name=value` after it: `db_pass='password'=hunter2` is
+`db_pass=********=********` --, and as gobj-js 7.26.20 read it, jumping over
+its shapes. Measured position by position against the library of 7.26.9, on
+318 008 generated texts: nothing that 7.26.9 masked shows, inline or in a
+dump. Against gobj-js 7.26.20, what shows is the word after a bare `Bearer`
+that cannot be a credential (below), and nothing else.
 
 The name of a `name=value` is the word before the `=` (since the last blank,
 or the last `=` of the word: `'password'=x`, `user[password]=x` are names
-too); the name of a `name: value` the word before the `:` (since the last
+too), and also the run of name characters just before the `=` -- letters,
+digits, `_`, `-`, `.` --, as in a query string (7.26.10+):
+`GET https://my-file-server.com/get?token=abc&x=1` is
+`GET https://my-file-server.com/get?token=********&x=1`. Its word holds
+`file`, a segment about a credential, and up to 7.26.9 the token showed.
+Under that name the value runs to a blank or one of `&;,"'<>`, as in a dump.
+The name of a `name: value` is the word before the `:` (since the last
 blank, `=` or `:`: `{"password": x`, `password12:30` are names too). Each is
 judged by its last 128 bytes; a text over 4 MB, or one whose masked copy
 cannot be allocated, is `"<not shown: too large to mask>"`: it is linear, and
@@ -748,13 +760,17 @@ after it, or one word, to a blank or one of `,;&)]}<>"'`.
   JWE), or fewer when a cap cut it: the first 64 bytes of a JWT keep its header
   and part of its payload. The dots at the end of the run are not its own: a
   JWT ends a sentence (`... eyJ.eyJ.sig.`). A run with no `.`
-  (`eyJhbGciOiJIUzI1NiJ9`, a base64url json) is no JWT.
+  (`eyJhbGciOiJIUzI1NiJ9`, a base64url json) is no JWT, and neither is one
+  whose only dots end it (`eyJhIjoxfQ.`: a header, 7.26.10+); where the text
+  was cut (a dump, the window of a capped log line), a run that reaches the
+  end is masked whatever its dots.
 - The credential after the scheme word `Bearer` or `Basic` (any case, a word
   of its own, a blank after it). It is masked when it CAN be a credential:
   - it is in quotes (`Bearer "tok"`), or follows the scheme written twice
     (`Bearer Bearer tok`, a header prefixed twice): whatever its shape;
-  - else it is the word after the blanks, as far as the token of 7.26.9
-    went -- to a blank, an end of line, a quote or one of `,;}]` --, masked
+  - else it is the word after the blanks, as far as the token after
+    `Bearer` went in gobj-js 7.26.20 and in the agent's audit record of
+    7.26.9 -- to a blank, an end of line, a quote or one of `,;}]` --, masked
     WHOLE, its dots at the end too, when it is **not a word of prose**, judged
     without those dots (the end of a sentence). A word of prose is ASCII
     letters only, in runs joined by one `-`, `.` or `/` (`self-service`,
@@ -787,15 +803,18 @@ after it, or one word, to a blank or one of `,;&)]}<>"'`.
   | `sent Bearer abcdefgh12.` | `sent Bearer ********`: its dot too |
   | `Bearer pwd=x` | `Bearer pwd=********`: a name=value inside |
 
-  Up to 7.26.9 the word after `bearer` was masked whatever it was (`the bearer
-  ******** this letter`), and `Basic`, a quoted token, `Bearer Bearer x`, a
-  JWE and a JWT cut by a cap were not masked. So what 7.26.9 masked and this
-  rule shows is the word after a bare `Bearer` (not quoted, not after the
-  scheme again, not under a secret's name): a word shorter than 8 characters,
-  a word of prose of 8 to 23, or one of dots only. Of 30 000 generated texts
-  (`twins`), 211 show such a word; of the targeted ones, tokens of 1 to 7
-  characters of any alphabet, and of 8 to 23 lower-case, upper-case or
-  capitalized letters.
+  Up to 7.26.9 this function masked no credential by its shape: a JWT, or the
+  word after `Bearer`, showed unless a secret's name came before it (the
+  agent's audit record redacted the word after `Bearer ` whatever it was, and
+  still does). gobj-js 7.26.20 masked the word after `bearer` whatever it was
+  (`the bearer ******** this letter`), and `Basic`, a quoted token, `Bearer
+  Bearer x`, a JWE and a JWT cut by a cap were not masked. So what gobj-js
+  7.26.20 masked and this rule shows is the word after a bare `Bearer` (not
+  quoted, not after the scheme again, not under a secret's name): a word
+  shorter than 8 characters, a word of prose of 8 to 23, or one of dots
+  only. Of 232 444 generated texts, 8 876 show such a word, and nothing else
+  that gobj-js 7.26.20 masked: tokens of 1 to 7 characters of any alphabet,
+  and of 8 to 23 lower-case, upper-case or capitalized letters.
 
 A secret's name followed by a `:` is read as a label, so its next word is
 masked even in a sentence: `Wrong token: try again` is
@@ -844,6 +863,13 @@ GBMEM_FREE(s)
 s = mask_secrets_inline("the bearer of this letter");  // NULL: prose
 GBMEM_FREE(s)
 s = mask_secrets_inline("pin=1234 ping=1");  // "pin=******** ping=1"
+GBMEM_FREE(s)
+s = mask_secrets_inline("GET https://my-file-server.com/get?token=abc&x=1");
+// "GET https://my-file-server.com/get?token=********&x=1"
+GBMEM_FREE(s)
+s = mask_secrets_inline("db_pass='password'=hunter2");  // "db_pass=********=********"
+GBMEM_FREE(s)
+s = mask_secrets_inline("the header eyJhIjoxfQ.");  // NULL: its only dot ends it
 GBMEM_FREE(s)
 s = mask_secrets_inline("x-auth-token: password=a,b c");  // "x-auth-token: ********"
 GBMEM_FREE(s)
@@ -1017,13 +1043,16 @@ dump stay as they were):
   credential (`Bearer abcdefg` of a long token, a JWT before its first `.`).
   So a dump that ends on `a basic plan` shows `a basic ****`.
 
-Each rule judges the bytes as they came, and 7.26.9's rules are kept whole as
-one pass (7.26.10+): in the first commit of V24 a value masked in place by one
-rule hid the name or the `=` of another (the label `x-auth-token:
+Each rule judges the bytes as they came, and the rules of 7.26.9's dump are
+kept whole as one pass, read with its names (7.26.10+): a value masked in place
+by one rule hid the name or the `=` of another (the label `x-auth-token:
 u?password="x"` showed the quoted value of `password=`), and the value of a
-json `"name":` stopped at `;&)<>"'` too (`"password": <x>` showed `<x>`).
-What 7.26.9 masked and a dump shows now is only the word after a bare `Bearer`
-that cannot be a credential (see [`mask_secrets_inline()`](#mask_secrets_inline)).
+`pin=` -- a secret's name since 7.26.10 -- hid the `=` after it from the rule
+that masked it in 7.26.9 (`pin=1234Authorizationcommand='x'` showed `x`).
+Measured position by position against the library of 7.26.9 on 318 008
+generated texts, nothing that its dump masked shows. A JWT header whose only
+dots end it is no JWT (`eyJhIjoxfQ. x` shows as it is), but at the end of the
+bytes, where a cap may have cut it (`cut eyJhIjoxfQ.` is `cut **********.`).
 
 A byte already masked is not counted twice. The traffic dumps use it
 ([`gobj_trace_dump()`](#gobj_trace_dump),

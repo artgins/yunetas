@@ -804,13 +804,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     }
 
     if(register_yuno_and_more) {
-        /*
-         *  A gclass of the app refused stops the yuno, as one of the core
-         *  does: it went on, and its service failed later with "gclass NOT
-         *  FOUND" (REV-CLOUD V24.4). Every register_yuno_and_more() of the
-         *  trees answers 0, or the sum of what its register_c_*() answer
-         *  (-1 for a gclass refused, its ERROR logged).
-         */
+        // A refused gclass of the yuno stops it, as a refused one of the core does
         int ret = register_yuno_and_more();
         if(ret < 0) {
             gobj_log_error(0, 0,

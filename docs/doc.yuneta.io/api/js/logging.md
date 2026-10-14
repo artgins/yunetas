@@ -141,9 +141,10 @@ is masked once, the same everywhere; a cycle back to one is `"<cycle>"`; an
 object or array reached at 64 levels (as in C) is `"<deeper not shown>"` --
 counted from the FIRST time it is met: one masked higher up shows whole
 wherever else it appears; the walk has a budget of 4 MB units (every node
-one, a key or a string its bytes too), and once it is spent it stops: one
+one, a key or a string its characters too), and once it is spent it stops: one
 `"<not shown: too large to mask>"` stands for the rest of each object or
-array being walked (it is linear and bounded, as in C);
+array being walked (it is linear and bounded, as in C, a string counted in
+characters);
 and a failure answers
 `"<not shown: the masking failed>"`: it never throws.
 
@@ -174,16 +175,23 @@ its own) the word that can be a credential -- quoted, after the scheme
 doubled, or not a word of prose (it holds a digit, a symbol of its own or a
 character that is no ASCII, mixes its case, or has 24 characters or more; for
 `Bearer` 8 at least, for `Basic` a run of base64 that decodes to a
-`user:password`) --, the word of 7.26.9's Bearer (to a blank, a quote or one
-of `,;}]`), masked whole. Each rule judges the text as it came, and a run of
-characters to mask is one `********`; 7.26.9's reading of the parameters is
-one of them, whole, so nothing the masking of 7.26.9 hid shows but the word
-after a bare `Bearer` that cannot be a credential. The rest is kept. It
+`user:password`) --, the word to a blank, a quote or one of `,;}]`, masked
+whole. The name of a `name=value` is also the run of name characters before
+the `=`, as in a query string (gobj-js 7.26.22+):
+`GET https://my-file-server.com/get?token=abc&x=1` is
+`GET https://my-file-server.com/get?token=********&x=1`. A JWT header whose
+only dots end it is no JWT (`eyJhIjoxfQ.`, 7.26.22+). Each rule judges the
+text as it came, and a run of characters to mask is one `********`; the
+readings of the parameters of gobj-js 7.26.19 and 7.26.20 are rules of their
+own, whole: measured position by position on 318 008 generated texts, nothing
+that 7.26.19 masked shows but where a name is judged as C judges it (its last
+128 bytes, its case in ASCII), and nothing that 7.26.20 masked shows but the
+word after a bare `Bearer` that cannot be a credential. The rest is kept. It
 answers `null` when there was nothing to mask. The C kernel and gobj-js
-answer the same on the tables of both test suites and on 230 078 generated
-texts (since gobj-js 7.26.21: up to 7.26.20 the word after `bearer` was
-masked whatever it was, and `Basic`, a JWE, a cut JWT and a `name: value`
-were not).
+answer the same on the tables of both test suites, on 318 008 generated
+texts and on 30 000 generated jsons (since gobj-js 7.26.21: up to 7.26.20 the
+word after `bearer` was masked whatever it was, and `Basic`, a JWE, a cut JWT
+and a `name: value` were not).
 
 ```js
 mask_secrets_inline("set-user-pwd username=bob password=hunter2");
@@ -195,6 +203,9 @@ mask_secrets_inline("the bearer of this letter");    // null: prose
 mask_secrets_inline("note=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln x=1");
 // "note=******** x=1"
 mask_secrets_inline("x-auth-token: password=a,b c");    // "x-auth-token: ********"
+mask_secrets_inline("GET https://my-file-server.com/get?token=abc&x=1");
+// "GET https://my-file-server.com/get?token=********&x=1"
+mask_secrets_inline("the header eyJhIjoxfQ.");      // null: its only dot ends it
 mask_secrets_inline("list-yunos");      // null
 ```
 
@@ -207,7 +218,9 @@ mask_secrets_inline("list-yunos");      // null
 `sessionkey` or `authdata` once `_`, `-`, `.` and blanks are taken out; or
 `pass`, `pin` or `otp` as a WHOLE segment, a run of letters and digits
 (`db_pass`, `user-pin`, `sim_pin`; not `passive`, `ping`, `otpx`); or both
-`priv` and `key`. Any case. A name with a segment that names something ABOUT a
+`priv` and `key`. Any case, folded in ASCII as C folds it (gobj-js 7.26.22+:
+the Kelvin sign is no `k`), and judged by its last 128 bytes of UTF-8, as C
+judges it, where a name is cut. A name with a segment that names something ABOUT a
 credential (`endpoint`, `url`, `domain`, `path`, `file`, `public`, `count`,
 `type`, `name`, ... the C list) is not one: `token_endpoint`, `cookie_domain`,
 `jwt_public_keys`, `pin_count`. `key` and `cert` alone are not secrets' names:

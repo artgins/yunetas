@@ -276,6 +276,20 @@ If the event is not found in the current state of `dst`, the function checks if 
 
 Delivery is **synchronous**: when the call returns, the action has run to the end, with every cascade it started. To send an event that must run after the current action returns, use [`gobj_post_event()`](#gobj_post_event).
 
+**The action may destroy `dst`.** A gobj that destroys itself at the end of its work does it in its own action, and that is legal -- unless another action of it is still running further up the stack (it called something whose dispatch came back to it): that is an ERROR, see [`gobj_destroy()`](creation.md#gobj_destroy). The kernel does not read `dst` after the action then: it asks the frame of the dispatch, which [`gobj_destroy()`](creation.md#gobj_destroy) marks. Up to 7.26.9 it read `dst` to print the return of the `machine` trace, and read freed memory every time that trace was on.
+
+**The change of state may destroy `dst` too.** The state of the event's entry is set before the action runs, and that change runs `mt_state_changed()`, or publishes `EV_STATE_CHANGED`. If that destroys `dst`, the action is not run, and an ERROR says so: *"gobj destroyed by its change of state, action not run"* (with `state_name` and `event`). Up to 7.26.9 the action ran on the freed gobj.
+
+```C
+PRIVATE int ac_end_of_work(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    gobj_stop(gobj);
+    gobj_destroy(gobj);     // legal: the kernel does not touch gobj after this
+    return 0;
+}
+```
+
 ---
 
 (gobj_post_event)=

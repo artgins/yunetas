@@ -741,6 +741,19 @@ Returns 0 on success, or -1 if the attribute is not found or an error occurs.
 
 If the attribute does not exist, an error is logged. The function makes sure that the provided value is decremented after use.
 
+The value is read as the attribute's type by the grammar of the command parser ([`command_parameter_from_json()`](#command_parameter_from_json), 7.26.10+), and a json null given to a `DTP_STRING` is `""`; so is every value written from json -- [`gobj_write_attrs()`](#gobj_write_attrs), the config of `gobj_create()`, the persistent attributes loaded. A json string given to a boolean, an integer, a real, a list or a dict is read from its text; a number or a boolean as the exact type. A value that does not read as the type is not written: `-1`, one ERROR (*"Attribute value of the wrong type, not written"*) naming the attribute, its type and why, the value masked, and the attribute keeps its value. A `DTP_STRING` takes any json as its text, a `DTP_JSON` any json as it is.
+
+**Example**
+
+```C
+gobj_write_attr(gobj, "timeout", json_string("1000"), gobj);   // a DTP_INTEGER: 1000
+gobj_write_attr(gobj, "ratio", json_integer(3), gobj);          // a DTP_REAL: 3.0
+if(gobj_write_attr(gobj, "timeout", json_string("10s"), gobj) < 0) {
+    // Error already logged: "timeout" keeps 1000
+}
+```
+Up to 7.26.9 `"1000"` was written 0, and an integer to a real was refused.
+
 ---
 
 (gobj_write_attrs)=
@@ -990,6 +1003,17 @@ Returns `0` on success, or `-1` if the attribute does not exist.
 **Notes**
 
 If the attribute does not exist in the `hgobj`, a warning is logged. If the `hgobj` has a `mt_writing` method, it is called after updating the attribute.
+
+A `NULL` value writes a json null, and [`gobj_read_str_attr()`](#gobj_read_str_attr) then answers `NULL`; `empty_string()` reads it as empty. A json null given to a string attribute by [`gobj_write_attr()`](#gobj_write_attr), a config or the persistent attributes is the empty string `""`, as the default of a string attribute (7.26.10+; it was the text `"null"`, which `empty_string()` reads as a value).
+
+**Example**
+
+```C
+gobj_write_str_attr(gobj, "jwt", NULL);     // a json null: no token
+if(empty_string(gobj_read_str_attr(gobj, "jwt"))) {
+    // no token yet
+}
+```
 
 ---
 

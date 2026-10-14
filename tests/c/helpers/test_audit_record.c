@@ -36,6 +36,8 @@
  *          - what mask_secrets_inline() masks, the audit redacts (the same
  *            function, mark_secrets_inline()): a JWE, a JWT of two parts, a
  *            name: value, a password with blanks, and random texts,
+ *          - a masked run that ends the text, at every length modulo 8:
+ *            the map of masked bytes is not read past its end,
  *          and what one record costs, 7.25.4's way and the new way.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -1870,13 +1872,13 @@ PRIVATE void test_blank_keys_inner_quotes_jwt_dot(void)
     check_no_secret("x eyJhbGciOi.eyJzdWIi.S3CRsig...", NULL, "S3CRsig",
         "(u) a JWT followed by '...'");
     check_command_written("x see eyJhbGciOi.eyJzdWIi. and eyJhbGciOi.",
-        "x see <redacted>. and <redacted>.",
-        "(u) two parts and a dot, one part and a dot: a JWT a cap cut, redacted (the SDK's rule, V24)");
+        "x see <redacted>. and eyJhbGciOi.",
+        "(u) two parts and a dot: a JWT a cap cut, redacted; one part and a dot: a header (the SDK's rule)");
 }
 
 /***************************************************************************
  *  (v) The audit redacts all that mask_secrets_inline() masks, by the same
- *  rules and the same function (mark_secrets_inline(), REV-CLOUD V24): its
+ *  rules and the same function (mark_secrets_inline()): its
  *  own JWT was three parts exactly, so a JWE and a JWT a cap cut to two
  *  parts were written in clear; a name: value (X-Auth-Token: x, bearer:
  *  tok) and the words after the first of a password written with blanks
@@ -1961,6 +1963,37 @@ PRIVATE void test_same_rules_as_the_sdk(void)
         "does not write (%d written)", n_texts, hidden, leaks);
     check(leaks == 0 && hidden > 1000, name);
     check(s_errors == errors, "(v) no error logged");
+}
+
+/***************************************************************************
+ *  (w) A masked run at the very end of a text whose length is a multiple
+ *  of 8: the map of masked bytes ends there, the byte after the text is
+ *  not in it (it was read one byte past the map). Every length modulo 8.
+ ***************************************************************************/
+PRIVATE void test_marks_at_the_end_of_the_text(void)
+{
+    static const struct {
+        const char *tail;
+        const char *expected;
+    } cases[] = {
+        {"X-Auth-Token: abcdefghi", "X-Auth-Token: <redacted>"},
+        {"note='X-Auth-Token: abcdefghi'", "note='X-Auth-Token: <redacted>'"},
+        {"password='abcd efgh'", "password='<redacted>'"},
+        {"msg=\"login eyJhbGciOiJIUzI1NiJ9.eyJzdWIi.c2lnbmF0dXJl\"", "msg=\"login <redacted>\""},
+        {0, 0}
+    };
+    for(int i=0; cases[i].tail; i++) {
+        for(int pad=0; pad<8; pad++) {
+            char command[256];
+            char expected[256];
+            snprintf(command, sizeof(command), "update-node %.*s %s", pad + 1, "xxxxxxxx", cases[i].tail);
+            snprintf(expected, sizeof(expected), "update-node %.*s %s", pad + 1, "xxxxxxxx", cases[i].expected);
+            char name[320];
+            snprintf(name, sizeof(name), "(w) %zu bytes, %zu modulo 8: %s", strlen(command),
+                strlen(command) % 8, cases[i].tail);
+            check_command_written(command, expected, name);
+        }
+    }
 }
 
 /***************************************************************************
@@ -2459,6 +2492,7 @@ int main(int argc, char *argv[])
     test_content64();
     test_source_summary();
     test_read_only();
+    test_marks_at_the_end_of_the_text();
     test_secrets();
     test_stats_reset();
     test_content64_blank_before_equal();

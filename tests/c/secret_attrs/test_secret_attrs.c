@@ -43,6 +43,14 @@
  *               peer's app (EV_REMOTE_LOG) is capped and masked, its kw not
  *               dumped; and the frame of an event that is not public is
  *               one WARNING, masked (V23.4.1).
+ *            4d. A json that does not parse is never logged as it came
+ *               (anystring2json(), string2json(), json_config_string2json(),
+ *               a dict or list attr written as text): not its bytes, not
+ *               the bytes jansson quotes near the error. An HTTP json body
+ *               that breaks (ghttp_parser) and an inter-event without its
+ *               routing (msg_iev_get_stack(), msg_iev_pop_stack()) are the
+ *               peer's: a WARNING, masked. Up to 7.26.9 each was an ERROR
+ *               with the text, or the kw, in clear.
  *            2b. view-config also masks: a secret that is a number, a
  *               'global' key whose prefix is the name of a child (not a
  *               gclass, not a service), and the __json_config_variables__
@@ -236,6 +244,7 @@ PRIVATE int s_wild_line_seen = 0;
 PRIVATE int s_tail_line_seen = 0;
 PRIVATE int s_watch_seen = 0;           // the watched secret, anywhere in a log
 PRIVATE int s_watch_msg_seen = 0;       // the watched message
+PRIVATE int s_watch_errors = 0;         // ERRORs (or worse) logged while watching
 PRIVATE size_t s_remote_log_longest = 0;    // the longest "Remote Error" line
 PRIVATE const char *s_watch = NULL;
 PRIVATE const char *s_watch_msg = NULL;
@@ -431,6 +440,9 @@ PRIVATE int capture_logs(void *h, int priority, const char *bf, size_t len)
     }
     if(s_watch_msg && strstr(bf, s_watch_msg)) {
         s_watch_msg_seen++;
+    }
+    if(s_watch && priority <= LOG_ERR) {
+        s_watch_errors++;
     }
     return 0;
 }
@@ -824,6 +836,7 @@ PRIVATE void watch(const char *secret, const char *msg)
     s_watch_msg = msg;
     s_watch_seen = 0;
     s_watch_msg_seen = 0;
+    s_watch_errors = 0;
     s_capturing = TRUE;
 }
 
@@ -837,6 +850,18 @@ PRIVATE void unwatch(const char *what)
     check_int(name, s_watch_seen, 0);
     s_watch = NULL;
     s_watch_msg = NULL;
+}
+
+/*
+ *  unwatch() of what a peer sent: a WARNING, never an ERROR
+ */
+PRIVATE void unwatch_peer(const char *what)
+{
+    char name[128];
+    int errors = s_watch_errors;
+    unwatch(what);
+    snprintf(name, sizeof(name), "%s: no ERROR", what);
+    check_int(name, errors, 0);
 }
 
 /*
@@ -1395,6 +1420,101 @@ PRIVATE void check_log_dumps(hgobj gobj)
 }
 
 /*
+ *  A json text that does not parse is never logged as it came: not its
+ *  bytes, not the bytes jansson quotes near the error ("near '\"S'"). The
+ *  error says where (position, line, column); a dump of the bytes is
+ *  masked. What a peer sent (an HTTP body, an inter-event without its
+ *  routing) is a WARNING.
+ */
+PRIVATE void check_json_parse_logs(hgobj gobj)
+{
+    hgobj holder = gobj_find_service("secret-holder", TRUE);
+    const char *trailing_comma = "{\"username\":\"bob\",\"password\":\"parse-hunter2\",}";
+    const char *cut = "{\"password\": \"parse-hunter2";
+
+    watch("parse-hunter2", "json_loadb() FAILED");
+    json_t *jn = anystring2json(trailing_comma, strlen(trailing_comma), TRUE);
+    check_true("anystring2json() of a json that breaks: NULL", jn == NULL);
+    jn = anystring2json(cut, strlen(cut), TRUE);
+    check_true("anystring2json() of a json cut: NULL", jn == NULL);
+    unwatch("anystring2json() of a json that breaks");
+
+    watch("parse-hunter2", "json_loads() FAILED");
+    jn = string2json(trailing_comma, TRUE);
+    check_true("string2json() of a json that breaks: NULL", jn == NULL);
+    jn = string2json(cut, TRUE);
+    check_true("string2json() of a json cut: NULL", jn == NULL);
+    unwatch("string2json() of a json that breaks");
+
+    watch("parse-hunter2", "json_loads() FAILED");
+    jn = json_config_string2json(trailing_comma, TRUE);
+    check_true("json_config_string2json() of a json that breaks: NULL", jn == NULL);
+    jn = json_config_string2json(cut, TRUE);
+    check_true("json_config_string2json() of a json cut: NULL", jn == NULL);
+    unwatch("json_config_string2json() of a json that breaks");
+
+    watch("parse-hunter2", "Attribute value of the wrong type");
+    gobj_write_attr(holder, "settings", json_string(trailing_comma), gobj);
+    unwatch("a dict attr written as text that breaks");
+    watch("parse-hunter2", "Attribute value of the wrong type");
+    gobj_write_attr(holder, "items", json_string(cut), gobj);
+    unwatch("a list attr written as text that breaks");
+
+    // The json body of an HTTP message (the BFF's /auth/login, an IdP's answer), as ghttp_parser reads it
+    GHTTP_PARSER *parser = ghttp_parser_create(gobj, HTTP_REQUEST, 0, 0, EV_TEST_SECRET_KW, TRUE);
+    char request[512];
+    int len = snprintf(request, sizeof(request),
+        "POST /auth/login HTTP/1.1\r\n"
+        "Host: localhost\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: %d\r\n"
+        "\r\n"
+        "%s",
+        (int)strlen(trailing_comma), trailing_comma
+    );
+    watch("parse-hunter2", "is not json");
+    ghttp_parser_received(parser, request, (size_t)len);
+    unwatch_peer("an HTTP json body that breaks");
+    len = snprintf(request, sizeof(request),
+        "POST /auth/login HTTP/1.1\r\n"
+        "Host: localhost\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: %d\r\n"
+        "\r\n"
+        "%s",
+        (int)strlen(cut), cut
+    );
+    watch("parse-hunter2", "is not json");
+    ghttp_parser_received(parser, request, (size_t)len);
+    unwatch_peer("an HTTP json body cut");
+    ghttp_parser_destroy(parser);
+
+    // An inter-event without its routing (__md_iev__, or its stack): the peer's frame
+    json_t *kw = json_pack("{s:s, s:s}",
+        "__command__", "set-password password=stack-hunter2",
+        "password", "stack-hunter2"
+    );
+    watch("stack-hunter2", "__md_iev__ NOT FOUND");
+    check_true("msg_iev_get_stack() without __md_iev__: NULL",
+        msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, TRUE) == NULL);
+    unwatch_peer("msg_iev_get_stack() of a kw without __md_iev__");
+    watch("stack-hunter2", "__md_iev__ NOT FOUND");
+    check_true("msg_iev_pop_stack() without __md_iev__: NULL",
+        msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID) == NULL);
+    unwatch_peer("msg_iev_pop_stack() of a kw without __md_iev__");
+    json_object_set_new(kw, "__md_iev__", json_pack("{s:s}", "__msg_type__", "__message__"));
+    watch("stack-hunter2", "stack NOT FOUND");
+    check_true("msg_iev_get_stack() without the stack: NULL",
+        msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, TRUE) == NULL);
+    unwatch_peer("msg_iev_get_stack() of a kw without its stack");
+    watch("stack-hunter2", "stack NOT FOUND");
+    check_true("msg_iev_pop_stack() without the stack: NULL",
+        msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID) == NULL);
+    unwatch_peer("msg_iev_pop_stack() of a kw without its stack");
+    JSON_DECREF(kw)
+}
+
+/*
  *  A secret by its VALUE, and what still reached the log or an answer
  *  (REV-CLOUD V23.4.1, V23.4.3)
  */
@@ -1471,7 +1591,8 @@ PRIVATE void check_secret_values(hgobj gobj)
         {"bearer: tok", "bearer: ********"},
         {"x eyJhbGciOiJSU0EtT0FFUCJ9.OKOawDo.48V1_ALb.5eym8TW.XFBoMYUZ y", "x ******** y"},  // a JWE
         {"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0ZX", "********"},   // cut by a cap
-        {"the jwt eyJhbGciOiJIUzI1NiJ9.", "the jwt ********."},     // cut after its header
+        {"the jwt eyJhbGciOiJIUzI1NiJ9.", NULL},  // its only dot ends the sentence: a header
+        {"the jwt eyJhbGciOiJIUzI1NiJ9.eyJ", "the jwt ********"},  // cut after its header
         {"eyJhbGciOiJIUzI1NiJ9", NULL},    // a header and no '.': no JWT
         {"token=Bearer abc x=1", "token=******** x=1"},
         {"password=Basic xyz", "password=********"},
@@ -1497,6 +1618,20 @@ PRIVATE void check_secret_values(hgobj gobj)
         {"password12:30command='sr5-hunter2' y", "password12:******** y"},   // a label inside a name
         {"update-node x='{\\\"password\\\":\\\"sr6-hunter2\\\"}'",
          "update-node x='{\\\"password\\\":********}'"},                     // a json text inside a json text
+
+        /*
+         *  7.26.10: a secret's name in a query string, after a word that is
+         *  no secret's name ("file" is about a credential); what 7.26.9
+         *  masked after the value of a name of a segment (pass, pin); a
+         *  scheme and its credential under a secret's name, whole
+         */
+        {"GET https://my-file-server.com/get?token=qs1-hunter2&x=1",
+         "GET https://my-file-server.com/get?token=********&x=1"},
+        {"https://cdn.public.example/x?access_token=qs2-hunter2", "https://cdn.public.example/x?access_token=********"},
+        {"db_pass='password'=qs3-hunter2", "db_pass=********=********"},
+        {"pin='token=qs4'hunter2 x", "pin=********"},
+        {"password=Basic qs5hunter2==", "password=********"},
+        {"eyJhIjoxfQ. eyJhIjoxfQ..", NULL},  // headers whose dots end them
         {0, 0}
     };
     for(int i=0; shapes[i].in; i++) {
@@ -1556,13 +1691,33 @@ PRIVATE void check_secret_values(hgobj gobj)
         check_int("its length", (int)n, (int)strlen(capped[i].out));
     }
 
-    json_t *kw = json_pack("{s:s, s:s, s:I, s:s, s:s, s:s%}",
+    /*
+     *  A masked copy that fits in the cap ends on a whole character too: the
+     *  window it was masked from cut one ("EV_pin=", 300 x, " next=1 ", and
+     *  the window of 320 bytes ends in the 3rd e-acute)
+     */
+    char cut_text[1024];
+    size_t cut_len = (size_t)snprintf(cut_text, sizeof(cut_text), "EV_pin=%300s next=1 ", "");
+    memset(cut_text + 7, 'x', 300);
+    for(int i = 0; i < 300 && cut_len + 2 < sizeof(cut_text); i++) {
+        cut_text[cut_len++] = (char)0xC3;
+        cut_text[cut_len++] = (char)0xA9;
+    }
+    cut_text[cut_len] = 0;
+    char cut_bf[65];
+    size_t cut_n = mask_secrets_inline_capped(cut_bf, sizeof(cut_bf), cut_text, cut_len);
+    check_str("a masked copy shorter than the cap ends on a whole character",
+        cut_bf, "EV_pin=******** next=1 \xC3\xA9\xC3\xA9");
+    check_int("its length", (int)cut_n, 27);
+
+    json_t *kw = json_pack("{s:s, s:s, s:I, s:s, s:s, s:s%, s:s}",
         "note", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.jwtnote-hunter2",
         "headers", "Authorization: Bearer hdr-hunter2",
         "sim_pin", (json_int_t)4242,
         "db_pass", "dbpass-hunter2",
         "passive", "visible-passive",
-        "nul", "a\0password=nul-hunter2", (size_t)22
+        "nul", "a\0password=nul-hunter2", (size_t)22,
+        "url", "https://cdn.public.example/x?access_token=urljson-hunter2"
     );
     json_t *shown = json_mask_secrets(kw);
     char *ss = json2uglystr(shown);
@@ -1571,6 +1726,8 @@ PRIVATE void check_secret_values(hgobj gobj)
     check_true("sim_pin and db_pass are masked", ss && !strstr(ss, "4242") && !strstr(ss, "dbpass-hunter2"));
     check_true("passive is not a secret", ss && strstr(ss, "visible-passive"));
     check_true("a string with a NUL is masked past it", ss && !strstr(ss, "nul-hunter2"));
+    check_true("a token in the query of a url is masked", ss && !strstr(ss, "urljson-hunter2") &&
+        strstr(ss, "https://cdn.public.example/x?access_token=********"));
     GBMEM_FREE(ss)
     JSON_DECREF(shown)
     JSON_DECREF(kw)
@@ -2398,6 +2555,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     check_command_trace();
     check_wild_command_trace();
     check_log_dumps(gobj);
+    check_json_parse_logs(gobj);
     check_secret_values(gobj);
     check_persistent_file();
 

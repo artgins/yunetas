@@ -16,6 +16,13 @@
  *          parent checks that the child exited with 255, the exit(-1) of
  *          the entry point.
  *
+ *          A second child calls yunetas_register_c_core() from its
+ *          register_yuno_and_more(), which the entry point has already
+ *          called: refused, and the yuno stops too. The parent reads the
+ *          child's stdout for the ERROR that says why: up to 7.26.9 the
+ *          second call answered -1 with no log at all, and the only line
+ *          was the entry point's, naming no cause.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -25,6 +32,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/types.h>
 #include <yunetas.h>
 
 #define APP             "test_register_refused_gclass"
@@ -41,6 +49,7 @@
 
 #define YUNO_RAN        7       // what the child answers when its yuno ran
 #define CHILD_TIMEOUT   20      // seconds: the yuno that runs stops itself at once
+#define OUTPUT_MAX      (256*1024)  // what the parent keeps of a child's stdout
 
 /***************************************************************
  *              Data
@@ -49,6 +58,8 @@ GOBJ_DEFINE_GCLASS(C_TEST_REGISTER_DRIVER);
 GOBJ_DEFINE_GCLASS(C_TEST_REGISTER_REFUSED);
 
 PRIVATE BOOL yuno_played = FALSE;
+PRIVATE BOOL register_core_again = FALSE;   // the second child
+PRIVATE char child_output[OUTPUT_MAX];      // the stdout of a child
 
 /***************************************************************
  *              Config (single quotes -> double at runtime)
@@ -157,7 +168,11 @@ PRIVATE int register_yuno_and_more(void)
 {
     int result = 0;
     result += register_gclass(C_TEST_REGISTER_DRIVER, driver_attrs_table);
-    result += register_gclass(C_TEST_REGISTER_REFUSED, refused_attrs_table);
+    if(register_core_again) {
+        result += yunetas_register_c_core();
+    } else {
+        result += register_gclass(C_TEST_REGISTER_REFUSED, refused_attrs_table);
+    }
     return result;
 }
 
@@ -198,38 +213,98 @@ PRIVATE int run_the_yuno(int argc, char *argv[])
 }
 
 /***************************************************************************
- *              Main
+ *  Fork the yuno, with its stdout into `output` (NUL-terminated, capped).
+ *  Return its wait status, or -1.
  ***************************************************************************/
-int main(int argc, char *argv[])
+PRIVATE int run_child(int argc, char *argv[], BOOL core_again, char *output, size_t output_size)
 {
+    int fds[2];
+    if(pipe(fds) < 0) {
+        printf("FAIL cannot make a pipe: %s\n", strerror(errno));
+        return -1;
+    }
     fflush(stdout);
     pid_t pid = fork();
     if(pid < 0) {
         printf("FAIL cannot fork: %s\n", strerror(errno));
+        close(fds[0]);
+        close(fds[1]);
         return -1;
     }
     if(pid == 0) {
+        close(fds[0]);
+        dup2(fds[1], STDOUT_FILENO);
+        close(fds[1]);
+        register_core_again = core_again;
         exit(run_the_yuno(argc, argv));
     }
+
+    close(fds[1]);
+    size_t len = 0;
+    char bf[4096];
+    ssize_t n;
+    while((n = read(fds[0], bf, sizeof(bf))) > 0) {
+        size_t room = output_size - 1 - len;
+        size_t take = (size_t)n < room? (size_t)n : room;
+        memcpy(output + len, bf, take);
+        len += take;
+    }
+    output[len] = 0;
+    close(fds[0]);
 
     int status = 0;
     if(waitpid(pid, &status, 0) < 0) {
         printf("FAIL cannot wait for the yuno: %s\n", strerror(errno));
         return -1;
     }
-    int result = 0;
+    return status;
+}
+
+/***************************************************************************
+ *  The child must have exited with 255, the exit(-1) of the entry point
+ ***************************************************************************/
+PRIVATE int check_exit(int status, const char *what)
+{
+    if(status < 0) {
+        return -1;  // Error already printed
+    }
     if(WIFEXITED(status) && WEXITSTATUS(status) == 255) {
-        printf("ok   a yuno whose gclass is refused exits with -1 before it runs\n");
-    } else if(WIFEXITED(status)) {
-        printf("FAIL a yuno whose gclass is refused exited with %d%s\n",
+        printf("ok   %s exits with -1 before it runs\n", what);
+        return 0;
+    }
+    if(WIFEXITED(status)) {
+        printf("FAIL %s exited with %d%s\n",
+            what,
             WEXITSTATUS(status),
             WEXITSTATUS(status) == YUNO_RAN? ": it RAN" : ""
         );
-        result = -1;
     } else {
-        printf("FAIL a yuno whose gclass is refused ended by the signal %d\n",
+        printf("FAIL %s ended by the signal %d\n",
+            what,
             WIFSIGNALED(status)? WTERMSIG(status) : -1
         );
+    }
+    return -1;
+}
+
+/***************************************************************************
+ *              Main
+ ***************************************************************************/
+int main(int argc, char *argv[])
+{
+    int result = 0;
+
+    int status = run_child(argc, argv, FALSE, child_output, sizeof(child_output));
+    fputs(child_output, stdout);
+    result += check_exit(status, "a yuno whose gclass is refused");
+
+    status = run_child(argc, argv, TRUE, child_output, sizeof(child_output));
+    fputs(child_output, stdout);
+    result += check_exit(status, "a yuno that registers the core gclasses again");
+    if(strstr(child_output, "yunetas_register_c_core() called twice")) {
+        printf("ok   the second registration of the core gclasses says why it is refused\n");
+    } else {
+        printf("FAIL the second registration of the core gclasses was refused with no log of why\n");
         result = -1;
     }
 

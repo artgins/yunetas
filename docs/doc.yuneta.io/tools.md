@@ -18,12 +18,14 @@ tools/
 │   ├── sync_binaries.py        # reconcile built yunos vs the agent's installed set
 │   ├── sync_configs.py         # reconcile a directory's configs vs the agent's installed set
 │   └── set_start_priorities.py # assign each managed yuno's start_priority by role
-└── sshd/
-    ├── audit-sshd.sh                  # report failures and improvements (read-only)
-    ├── install-sshd-flood-guard.sh    # keep sshd reachable under a connection flood
-    ├── install-fail2ban-sshd-jail.sh  # make fail2ban watch sshd
-    ├── stop-sshd.sh                   # stop sshd, with a timer that starts it again
-    └── start-sshd.sh                  # start sshd, cancel that timer
+├── sshd/
+│   ├── audit-sshd.sh                  # report failures and improvements (read-only)
+│   ├── install-sshd-flood-guard.sh    # keep sshd reachable under a connection flood
+│   ├── install-fail2ban-sshd-jail.sh  # make fail2ban watch sshd
+│   ├── stop-sshd.sh                   # stop sshd, with a timer that starts it again
+│   └── start-sshd.sh                  # start sshd, cancel that timer
+└── treedb/
+    └── check_store_schemas.py         # what a store's schemas make the SDK log at the open (read-only)
 ```
 
 ## `cmake/project.cmake` — build infrastructure
@@ -83,3 +85,13 @@ Helpers for talking to a running `yuneta_agent`.
 - [`set_start_priorities.py`](tools/set_start_priorities.md) — assign each
   managed yuno's `start_priority` (its launch tier) by role, in one shot, via
   `update-node`.
+
+## `treedb/` — the stores of a node
+
+- [`check_store_schemas.py`](tools/check_store_schemas.md) — say, per schema
+  persisted in a store, what the SDK will log when a yuno opens it. Run it on
+  every store of a node before upgrading its SDK:
+
+  ```bash
+  python3 /yuneta/development/yunetas/tools/treedb/check_store_schemas.py /yuneta/store
+  ```

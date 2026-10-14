@@ -24,6 +24,8 @@
  *           13. the gc holds what an activation would LOAD; a deleted snap
  *               holds nothing
  *           14. a `file` column names its OWN asset hook, or it is refused
+ *          14b. a NUL in the reference of a `file` column is refused by an
+ *               update, as by a create
  *           15. a second arrival with no name keeps the stored one
  *           16. the gc takes the bytes that no row names
  *           17. a second arrival under the SAME name appends nothing
@@ -1307,6 +1309,67 @@ PRIVATE int test_file_col_names_its_own_hook(json_t *tranger)
     }
     if(strcmp(fkey_id(node, "foto"), id_f)!=0) {
         printf("%s  FAIL: a refused update moved the column%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  14b. A NUL in the reference of a 'file' column is refused by an update
+ *
+ *  C reads the reference up to the NUL: "\0junk" was "" and unlinked the
+ *  file, "<id>\0evil" linked the asset <id>, and the update answered
+ *  success. Up to 7.26.9 a create refused it and an update did not.
+ ***************************************************************************/
+PRIVATE int test_nul_in_a_file_ref(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "14b. a NUL in a file reference is refused by an update";
+    set_expected_results(
+        test,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Invalid fkey reference: it holds a NUL",
+            "msg", "Invalid fkey reference: it holds a NUL"
+        ),
+        NULL, NULL, 1
+    );
+
+    char id_f[SHA256_HEX_LEN + 1];
+    char id_a[SHA256_HEX_LEN + 1];
+    snprintf(id_f, sizeof(id_f), "%s", sha(PNG_F, sizeof(PNG_F)-1));
+    snprintf(id_a, sizeof(id_a), "%s", sha(PNG_A, sizeof(PNG_A)-1));
+
+    json_t *node = treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-own");
+    if(!node || strcmp(fkey_id(node, "foto"), id_f)!=0) {
+        printf("%s  FAIL: dev-own with the foto F is missing%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+        result += test_json(NULL);
+        return result;
+    }
+
+    json_t *kw = json_pack("{s:s, s:s%}", "id", "dev-own", "foto", "\0junk", (size_t)5);
+    if(treedb_update_node(tranger, node, kw, TRUE)) {
+        printf("%s  FAIL: an update with a file ref that begins with a NUL was taken%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    char ref[SHA256_HEX_LEN + 8];
+    snprintf(ref, sizeof(ref), "%s", id_a);
+    size_t ref_len = strlen(ref);
+    memcpy(ref + ref_len, "\0evil", 5);
+    kw = json_pack("{s:s, s:s%}", "id", "dev-own", "foto", ref, ref_len + 5);
+    if(treedb_update_node(tranger, node, kw, TRUE)) {
+        printf("%s  FAIL: an update with a file ref with a NUL after the id was taken%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    if(strcmp(fkey_id(node, "foto"), id_f)!=0) {
+        printf("%s  FAIL: a refused update moved the file column: '%s'%s\n",
+            On_Red BWhite, kw_get_str(0, node, "foto", "", 0), Color_Off);
         result += -1;
     }
 
@@ -2813,6 +2876,7 @@ PRIVATE int do_test(void)
     result += test_two_treedbs_one_tranger(tranger);
     result += test_gc_holds_what_a_snap_would_load(tranger);
     result += test_file_col_names_its_own_hook(tranger);
+    result += test_nul_in_a_file_ref(tranger);
     result += test_second_arrival_keeps_the_name(tranger);
     result += test_same_name_appends_nothing(tranger);
     result += test_refused_create_stores_nothing(tranger);

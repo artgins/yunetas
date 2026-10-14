@@ -226,13 +226,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) != ST_SESSION) {
-        /*
-         *  `stats` is the caller's text, as the line of mt_command(): masked
-         *  and THEN capped (mask_secrets_inline_capped(): capped first, a
-         *  token the cap cut lost its shape and showed). It was logged whole
-         *  (REV-CLOUD V24.4).
-         */
-        char name[65];
+        char name[65];  // the caller's text: masked, then capped (a cap first can unshape a token)
         mask_secrets_inline_capped(name, sizeof(name), stats? stats : "", stats? strlen(stats) : 0);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -294,14 +288,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) != ST_SESSION) {
-        /*
-         *  The command's NAME: `command` is the whole line forwarded (the
-         *  agent's command-yuno), and a set-password to a yuno that had just
-         *  gone left the password in the log (REV-CLOUD V22.3.1). Masked,
-         *  for the first word can be a secret itself: `password=hunter2
-         *  user=x` logged "password=hunter2" (V23.4.3); masked before it is
-         *  capped, a JWT cut before its '.' showed its header
-         */
+        // The name only (the line carries the parameters), masked: the first word can be a secret
         const char *line = command? command : "";
         char name[65];
         mask_secrets_inline_capped(name, sizeof(name), line, strcspn(line, " \t\r\n"));
@@ -994,11 +981,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_event_t iev_event;
     json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 1);
     if(!iev_kw) {
-        /*
-         *  Said by iev_create_from_gbuffer(), a WARNING that says what the
-         *  frame got wrong: not json, or not an inter-event. Here it was
-         *  "Bad json" for both, and a dump of its bytes raw (REV-CLOUD V24.4).
-         */
+        // Error already logged: iev_create_from_gbuffer() says what the frame got wrong
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
         KW_DECREF(kw)
         return -1;
@@ -1080,14 +1063,11 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *------------------------------------*/
     const char *msg_type = msg_iev_get_msg_type(gobj, iev_kw);
 
-    /*-----------------------------------------------------------*
+    /*----------------------------------------*
      *  Get inter-event routing information.
-     *  Version >= 7.0.0
-     *  Changed msg_iev_get_stack(, , TRUE->FALSE)
-     *  because a run->(auto)play change it comes without a stack,
-     *  because it is not a request that comes from the client.
-     *-----------------------------------------------------------*/
-    json_t *jn_ievent_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_STACK_ID, TRUE); // TODO check
+     *----------------------------------------*/
+    // C_IEVENT_SRV pushes the stack on every request it sends (EV_PLAY_YUNO too): without it, the peer's fault
+    json_t *jn_ievent_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_STACK_ID, TRUE);
 
     /*----------------------------------------*
      *  Check dst role^name
@@ -1338,7 +1318,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!stats) {
         // v7
         json_t *__stats__ = msg_iev_get_stack(gobj, kw, "__stats__", TRUE);
-        stats = kw_get_str(gobj, __stats__, "stats", "", KW_REQUIRED);
+        stats = kw_get_str(gobj, __stats__, "stats", "", 0);   // a frame without it: warned above
     }
 
     KW_INCREF(kw);
@@ -1441,7 +1421,7 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!command) {
         // v7
         json_t *__command__ = msg_iev_get_stack(gobj, kw, "__command__", TRUE);
-        command = kw_get_str(gobj, __command__, "command", "", KW_REQUIRED);
+        command = kw_get_str(gobj, __command__, "command", "", 0);   // a frame without it: warned above
     }
 
     KW_INCREF(kw);

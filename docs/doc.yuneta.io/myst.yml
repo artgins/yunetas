@@ -403,6 +403,8 @@ project:
           file: tools/set_start_priorities.md
         - title: sshd scripts
           file: tools/sshd.md
+        - title: check_store_schemas.py
+          file: tools/check_store_schemas.md
 
     - title: Test Suite
       file: test_suite.md

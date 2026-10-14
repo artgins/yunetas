@@ -64,6 +64,24 @@ PUBLIC json_t *command_parameter_from_text(
 );
 
 /*
+ *  A value of `type` given as JSON, read as the parser reads a parameter
+ *  given in kw: a string as command_parameter_from_text() reads a text (a
+ *  string with a NUL inside refused), a number or a boolean as the EXACT
+ *  type (an integer to a DTP_REAL is its real, a boolean to a DTP_INTEGER 1
+ *  or 0, 2.0 to a DTP_INTEGER 2, 2.7 refused), an object or a list of its
+ *  shape as it is, any other shape refused. For a writer of a typed value
+ *  that is not a command (an attribute, json2item()).
+ *  Return a NEW reference; NULL with *refused saying why (never the value);
+ *  NULL with *refused NULL is NO value: a null, or an empty text given to a
+ *  number.
+ */
+PUBLIC json_t *command_parameter_from_json(
+    data_type_t type,
+    json_t *value,  // not owned
+    const char **refused
+);
+
+/*
  *  What a trace shows of a command: its SDF_SECRET parameters (by the
  *  command table of `gobj`) and the keys with a secret's name
  *  (is_secret_name(): the free keys of a SDF_WILD_CMD command) masked as

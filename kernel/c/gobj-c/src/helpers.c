@@ -1403,8 +1403,8 @@ PRIVATE const char *secret_name_joined[] = {
  *  (pass, db_pass, user-pin, sim_pin, otp, user[pin]): inside a word they
  *  are other words (passive, bypass, compass, ping, mapping, spinner, otpx).
  *  As a segment they take ordinary names too -- gpio_pin, a `pass` that
- *  counts passes, first_pass, sum_sla_pass --: accepted, the safe side
- *  (REV-CLOUD V24.4)
+ *  counts passes, first_pass, sum_sla_pass --: accepted, the safe side.
+ *  Up to 7.26.9 they were no names (secret_names_t).
  */
 PRIVATE const char *secret_name_segments[] = {
     "pass",
@@ -1494,15 +1494,19 @@ PRIVATE void make_secret_first_letters(void)
  */
 PRIVATE BOOL name_segment_in(const char *seg, size_t seg_len, const char **list)
 {
-    for(int n=0; seg_len && list[n]; n++) {
-        if(strlen(list[n]) != seg_len) {
+    if(seg_len == 0) {
+        return FALSE;
+    }
+    char c0 = name_lower(seg[0]);
+    for(int n=0; list[n]; n++) {
+        if(list[n][0] != c0) {
             continue;
         }
-        size_t i = 0;
-        while(i < seg_len && name_lower(seg[i]) == list[n][i]) {
+        size_t i = 1;
+        while(i < seg_len && list[n][i] && name_lower(seg[i]) == list[n][i]) {
             i++;
         }
-        if(i == seg_len) {
+        if(i == seg_len && list[n][i] == 0) {
             return TRUE;
         }
     }
@@ -1520,9 +1524,10 @@ PRIVATE BOOL is_ascii_alnum(char c)
  *  begin with that letter are compared. Any case; for the joined parts the
  *  bytes '_', '-', '.' and blanks of the name are skipped. With
  *  `about_wins` a segment that names something about a credential makes
- *  the name not a secret's.
+ *  the name not a secret's; with `by_segments` pass, pin and otp as whole
+ *  segments are names too.
  ***************************************************************************/
-PRIVATE BOOL secret_name_check(const char *name, size_t len, BOOL about_wins)
+PRIVATE BOOL secret_name_check(const char *name, size_t len, BOOL about_wins, BOOL by_segments)
 {
     if(!name || len < 3) {
         return FALSE;   // the shortest part is three letters ("pwd", "jwt", "pin")
@@ -1549,7 +1554,7 @@ PRIVATE BOOL secret_name_check(const char *name, size_t len, BOOL about_wins)
      *  A secret's name as a whole segment (a run of letters and digits)
      */
     seg = 0;
-    for(size_t i=0; i<=len; i++) {
+    for(size_t i=0; by_segments && i<=len; i++) {
         if(i < len && is_ascii_alnum(name[i])) {
             continue;
         }
@@ -1590,7 +1595,7 @@ PRIVATE BOOL secret_name_check(const char *name, size_t len, BOOL about_wins)
  ***************************************************************************/
 PUBLIC BOOL is_secret_name(const char *name, size_t len)
 {
-    return secret_name_check(name, len, TRUE);
+    return secret_name_check(name, len, TRUE, TRUE);
 }
 
 /***************************************************************************
@@ -1598,7 +1603,24 @@ PUBLIC BOOL is_secret_name(const char *name, size_t len)
  ***************************************************************************/
 PUBLIC BOOL is_secret_name_any(const char *name, size_t len)
 {
-    return secret_name_check(name, len, FALSE);
+    return secret_name_check(name, len, FALSE, TRUE);
+}
+
+/*
+ *  The names a reading judges by: the names of now, or the names of 7.26.9
+ *  -- by their parts only, pass, pin and otp no names. A reading of 7.26.9
+ *  is kept whole (mark_params(), mark_dump_in_place()): with the names of
+ *  now, the value of a name of a segment ("db_pass='password'=x") is jumped
+ *  over, and 7.26.9 judged the bytes inside it.
+ */
+typedef enum {
+    NAMES_NOW = 0,
+    NAMES_7_26_9,
+} secret_names_t;
+
+PRIVATE BOOL is_secret_name_by(const char *name, size_t len, secret_names_t names)
+{
+    return secret_name_check(name, len, TRUE, (names == NAMES_NOW)? TRUE : FALSE);
 }
 
 /*
@@ -1618,13 +1640,13 @@ PRIVATE BOOL is_name_char(char c);
  *  Is the name a secret's, by its LAST MASK_MAX_NAME bytes (the part that
  *  says what it is comes last: <130 x>_password)
  */
-PRIVATE BOOL is_secret_name_tail(const char *name, size_t len)
+PRIVATE BOOL is_secret_name_tail(const char *name, size_t len, secret_names_t names)
 {
     if(len > MASK_MAX_NAME) {
         name += len - MASK_MAX_NAME;
         len = MASK_MAX_NAME;
     }
-    return is_secret_name(name, len);
+    return is_secret_name_by(name, len, names);
 }
 
 /*
@@ -1643,9 +1665,9 @@ PRIVATE const char *name_before(const char *start, const char *eq)
 /***************************************************************************
  *  Does `str` (a command line, its `len` bytes) carry "attribute=<a
  *  secret's name>"? Then its "value" is that secret (write-attr
- *  attribute=password value=...).
+ *  attribute=password value=...), judged by the names of `names`.
  ***************************************************************************/
-PRIVATE BOOL inline_value_is_secret(const char *str, size_t len)
+PRIVATE BOOL inline_value_is_secret(const char *str, size_t len, secret_names_t names)
 {
     static const char attribute_eq[] = "attribute=";
     const size_t n = sizeof(attribute_eq) - 1;
@@ -1663,7 +1685,7 @@ PRIVATE BOOL inline_value_is_secret(const char *str, size_t len)
         while(e < end && *e && *e != ' ' && *e != '\t' && *e != '"' && *e != '\'') {
             e++;
         }
-        if(is_secret_name_tail(v, (size_t)(e - v))) {
+        if(is_secret_name_tail(v, (size_t)(e - v), names)) {
             return TRUE;
         }
     }
@@ -1719,13 +1741,14 @@ PRIVATE const char *inline_secret_value_end(const char *p, const char *limit, ch
  *  agent's audit record redacts too (audit_record.c, through
  *  mark_secrets_inline()), and the schemes of an HTTP Authorization:
  *    - a JWT or a JWE: "eyJ" (the base64url of '{"') at the start of a
- *      word, base64url, and a '.' after it -- three parts joined by '.' (a
- *      JWS), five (a JWE), or fewer when a cap cut it (a dump of 256 bytes
- *      kept "eyJhdr.eyJpay" and the header and part of the payload showed:
- *      REV-CLOUD V24.4.3); the dots at the end of the run are not its own
- *      (a JWT ends a sentence: "... eyJ.eyJ.sig."). Where the text may
- *      have been cut (`end_is_cut`: a dump, a window), a run that reaches
- *      its end is one without its '.' too: the cut may have taken it;
+ *      word, base64url, and a '.' of its own after it -- three parts joined
+ *      by '.' (a JWS), five (a JWE), or fewer when a cap cut it (a dump of
+ *      256 bytes keeps "eyJhdr.eyJpay"). The dots at the end of the run are
+ *      not its own (a JWT ends a sentence: "... eyJ.eyJ.sig."), so a run
+ *      whose only dots end it is a header and no JWT ("eyJhIjoxfQ."). Where
+ *      the text may have been cut (`end_is_cut`: a dump, a window), a run
+ *      that reaches its end is one without its '.' too: the cut may have
+ *      taken it;
  *    - the credential after the scheme word "Bearer" or "Basic" (any case,
  *      a word of its own): scheme_credential().
  *  On the bytes from `start` to `end`.
@@ -1775,9 +1798,9 @@ PRIVATE size_t jwt_len(const char *p, const char *start, const char *end, BOOL e
         return 0;   // inside a word, or a part of a dotted run
     }
     const char *e = p;
-    BOOL dotted = FALSE;
+    BOOL dotted = FALSE;    // a '.' with a part after it: its own
     while(e < end && (is_base64url_char(*e) || *e == '.')) {
-        if(*e == '.') {
+        if(e > p && *e != '.' && e[-1] == '.') {
             dotted = TRUE;
         }
         e++;
@@ -1924,7 +1947,8 @@ PRIVATE BOOL is_basic_credential(const char *w, size_t n)
 
 /*
  *  Where the word after a scheme ends: a blank, an end of line, a quote,
- *  one of ,;}] or a NUL -- where the token of 7.26.9 ended
+ *  one of ,;}] or a NUL -- where the token after "Bearer" ended in the
+ *  audit record of 7.26.9 and in gobj-js 7.26.20
  */
 PRIVATE BOOL is_scheme_word_stop(char c)
 {
@@ -1936,8 +1960,8 @@ PRIVATE BOOL is_scheme_word_stop(char c)
  *  The credential after a scheme word that begins at `p`
  *  (scheme_word_len()): its offset from `p` in *offset, and its bytes as
  *  the return; 0 when what follows the scheme is no credential. It is the
- *  word after the scheme's blanks, as far as the token of 7.26.9 went (to
- *  a blank, an end of line, a quote or one of ,;}]), masked whole:
+ *  word after the scheme's blanks, to a blank, an end of line, a quote or
+ *  one of ,;}] (is_scheme_word_stop()), masked whole:
  *    - in quotes ("Bearer \"tok\""), the quotes too: whatever its shape, a
  *      quote makes it data;
  *    - after the same scheme word again ("Bearer Bearer tok", a header
@@ -1950,8 +1974,8 @@ PRIVATE BOOL is_scheme_word_stop(char c)
  *      for "Bearer" MASK_TOKEN_MIN characters at least, for "Basic" a run
  *      of base64 that decodes to a "user:password" (is_basic_credential()).
  *  So "the bearer of this letter", "the bearer bond", "basic plan" or
- *  "Basic Operations" are left as they are (REV-CLOUD V24.4.2: the word
- *  after "bearer" was masked whatever it was).
+ *  "Basic Operations" are left as they are (gobj-js 7.26.20 masked the
+ *  word after "bearer" whatever it was).
  */
 PRIVATE size_t scheme_credential(
     const char *p,
@@ -1971,10 +1995,7 @@ PRIVATE size_t scheme_credential(
     while(t < end && (*t == ' ' || *t == '\t')) {
         t++;
     }
-    /*
-     *  The scheme doubled, once: a loop over "Bearer Bearer Bearer ..." from
-     *  each of its words was quadratic
-     */
+    // the scheme doubled, once: a loop over "Bearer Bearer ..." would be quadratic
     if(t < end && scheme_word_len(t, start, end) == n && ascii_case_equal(t, scheme, n)) {
         t += n;
         context = TRUE;
@@ -2166,11 +2187,9 @@ PRIVATE const char *colon_value_end(const char *v, const char *start, const char
  *  The bytes to mask are MARKED, one bit for each byte of the text, and
  *  every rule judges the text as it came: what one rule masks hides from
  *  no other rule the bytes it judges by, and what is masked is what any
- *  of them masks. In V24 the "name: value" rule masked its value before
- *  the name=value rule looked, and a '=' inside that value was never
- *  judged: its secret showed beyond it ("label:token=a,b c" showed ",b
- *  c"; the dump's "x-auth-token: url?token=" showed the "password" after
- *  it).
+ *  of them masks. A rule that masked in place, or jumped over its value,
+ *  hid from the next rule a name=value inside that value
+ *  ("x-auth-token: password=a,b c" showed ",b c").
  ***************************************************************************/
 PRIVATE void mark_range(uint8_t *marks, size_t from, size_t to)
 {
@@ -2185,15 +2204,14 @@ PRIVATE BOOL is_marked(const uint8_t *marks, size_t i)
 }
 
 /*
- *  The shape at `p` as 7.26.9 told it, the one its reading of the
- *  parameters jumps over: a JWT of exactly three parts (its dots at the
- *  end not its own), or the word after a "bearer" word, whatever it is, to
- *  a blank, an end of line, a quote or one of ,;}]. Its bytes, 0 if none;
- *  *offset is where it begins, from `p`. 7.26.9's reading is kept whole
- *  (mark_params(), mark_dump_as_7_26_9()), so nothing that 7.26.9 masked
- *  is lost; whether a shape is masked is mark_shapes()'s to say now.
+ *  The shape at `p` as gobj-js 7.26.20 told it (the C of that round was
+ *  never released), the one its reading of the parameters jumps over: a
+ *  JWT of exactly three parts (its dots at the end not its own), or the
+ *  word after a "bearer" word, whatever it is, to a blank, an end of line,
+ *  a quote or one of ,;}]. Its bytes, 0 if none; *offset is where it
+ *  begins, from `p`. Whether a shape is masked is mark_shapes()'s to say.
  */
-PRIVATE size_t shape_len_7_26_9(const char *p, const char *start, const char *end, size_t *offset)
+PRIVATE size_t shape_len_js_7_26_20(const char *p, const char *start, const char *end, size_t *offset)
 {
     *offset = 0;
     if(*p == 'e') {
@@ -2242,26 +2260,44 @@ PRIVATE size_t shape_len_7_26_9(const char *p, const char *start, const char *en
 }
 
 /*
- *  The name=value secrets of the `len` bytes of `str`, marked. A
- *  name=value is judged by the word before its '=' (since the last blank
- *  or '=', its last MASK_MAX_NAME bytes): 'password'=x and
- *  user[password]=x are names too, and so is the `value` of a write-attr
- *  of a secret attribute (`value_is_secret`). Its value, quoted or not,
- *  runs to the next "word=" (inline_secret_value_end()). One pass: a value
- *  marked is jumped over. Read twice: `as_7_26_9`, as 7.26.9 read it,
- *  jumping over its shapes too (shape_len_7_26_9(): a word begins after
- *  one), so every value it masked is masked; and without jumping over
- *  them, so a name=value inside the word after "bearer" is judged even
- *  when that word is no credential ("Bearer pwd=x").
+ *  The readings of the name=value parameters. Each one is kept whole, so
+ *  that nothing a released version masked shows:
+ *    - READ_AS_7_26_9: as 7.26.9 read them, with its names (NAMES_7_26_9)
+ *      and no shape;
+ *    - READ_AS_GOBJ_JS_7_26_20: as gobj-js 7.26.20 read them, with the
+ *      names of now, jumping over its shapes (shape_len_js_7_26_20(): a
+ *      word begins after one);
+ *    - READ_NOW: with the names of now, jumping over no shape, so a
+ *      name=value inside the word after "bearer" is judged even when that
+ *      word is no credential ("Bearer pwd=x").
  */
-PRIVATE void mark_params(
+typedef enum {
+    READ_NOW = 0,
+    READ_AS_GOBJ_JS_7_26_20,
+    READ_AS_7_26_9,
+} param_reading_t;
+
+/*
+ *  The name=value secrets of the `len` bytes of `str`, marked as one
+ *  reading (param_reading_t) reads them. A name=value is judged by the
+ *  word before its '=' (since the last blank or '=', its last
+ *  MASK_MAX_NAME bytes): 'password'=x and user[password]=x are names too,
+ *  and so is the `value` of a write-attr of a secret attribute
+ *  (`value_is_secret`). Its value, quoted or not, runs to the next "word="
+ *  (inline_secret_value_end()). One pass: a value marked is jumped over.
+ *  Return TRUE if a name it took for a secret's is none of 7.26.9's: up
+ *  to the first one, READ_AS_7_26_9 reads as READ_NOW does.
+ */
+PRIVATE BOOL mark_params(
     const char *str,
     size_t len,
     BOOL value_is_secret,
-    BOOL as_7_26_9,
+    param_reading_t reading,
     uint8_t *marks
 )
 {
+    secret_names_t names = (reading == READ_AS_7_26_9)? NAMES_7_26_9 : NAMES_NOW;
+    BOOL not_7_26_9 = FALSE;
     const char *str_end = str + len;
     char outer = 0;             // the quote of an outer value open (command='...')
     const char *word = str;     // where the current word begins
@@ -2279,9 +2315,9 @@ PRIVATE void mark_params(
                 outer = 0;      // closes it
             }
         }
-        if(as_7_26_9) {
+        if(reading == READ_AS_GOBJ_JS_7_26_20) {
             size_t offset = 0;
-            size_t n = shape_len_7_26_9(p, str, str_end, &offset);
+            size_t n = shape_len_js_7_26_20(p, str, str_end, &offset);
             if(n) {
                 p += offset + n;
                 word = p;
@@ -2293,15 +2329,15 @@ PRIVATE void mark_params(
             continue;
         }
 
-        /*
-         *  Each '=' looks back a bounded way ("a=a=a=..." asked about the
-         *  whole word at each '=')
-         */
+        // a bounded look back: "a=a=a=..." would ask about the whole word at each '='
         const char *name = ((size_t)(p - word) > MASK_MAX_NAME)? p - MASK_MAX_NAME : word;
         size_t name_len = (size_t)(p - name);
         word = p + 1;
-        if(!(is_secret_name(name, name_len) || (value_is_secret &&
-                name_len == 5 && ascii_case_equal(name, "value", 5)))) {
+        BOOL secret = is_secret_name_by(name, name_len, names);
+        if(secret && names == NAMES_NOW && !is_secret_name_by(name, name_len, NAMES_7_26_9)) {
+            not_7_26_9 = TRUE;
+        }
+        if(!(secret || (value_is_secret && name_len == 5 && ascii_case_equal(name, "value", 5)))) {
             p++;
             continue;
         }
@@ -2323,6 +2359,100 @@ PRIVATE void mark_params(
         mark_range(marks, (size_t)(p - str), (size_t)(end - str));
         p = end;
         word = p;
+    }
+    return not_7_26_9;
+}
+
+/*
+ *  Does a shape of gobj-js 7.26.20 begin in the `len` bytes of `str`?
+ *  Where none does, READ_AS_GOBJ_JS_7_26_20 reads as READ_NOW does.
+ */
+PRIVATE BOOL has_shape_js_7_26_20(const char *str, size_t len)
+{
+    const char *end = str + len;
+    for(const char *p = str; p < end; p++) {
+        size_t offset = 0;
+        if((*p == 'e' || *p == 'b' || *p == 'B') && shape_len_js_7_26_20(p, str, end, &offset)) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/*
+ *  The stops of a value of a dump, and of a query string
+ */
+#define PARAM_VALUE_STOPS   "&; \t,\"'<>"       // name=value, as 7.26.9's dump
+#define JSON_VALUE_STOPS    ",}] \t"            // "name": value, as 7.26.9's dump
+#define LABEL_VALUE_STOPS   ",;&)]}<>\"' \t"    // name: value
+
+/*
+ *  Mark from `p` up to a byte of `stops`, a CR/LF, a NUL or `end`: return
+ *  where it stopped
+ */
+PRIVATE const char *mark_run(const char *bf, const char *p, const char *end, const char *stops, uint8_t *marks)
+{
+    const char *e = p;
+    while(e < end && *e != '\r' && *e != '\n' && *e && !strchr(stops, *e)) {
+        e++;
+    }
+    mark_range(marks, (size_t)(p - bf), (size_t)(e - bf));
+    return e;
+}
+
+/*
+ *  The value at `v` is a scheme and its credential ("Bearer abc", under a
+ *  secret's name): its WHOLE marked, the scheme, its blanks and the word
+ *  after them (to a byte of `stops`; a quoted one to its quote) -- the
+ *  scheme alone masked would leave the token to a rule that sees it
+ *  masked. Return where it ends, NULL when `v` begins no scheme.
+ */
+PRIVATE const char *mark_scheme_value(const char *bf, const char *v, const char *end, const char *stops, uint8_t *marks)
+{
+    size_t n = scheme_word_len(v, bf, end);
+    if(!n) {
+        return NULL;
+    }
+    const char *w = v + n;
+    while(w < end && (*w == ' ' || *w == '\t')) {
+        w++;
+    }
+    mark_range(marks, (size_t)(v - bf), (size_t)(w - bf));
+    if(w < end && (*w == '"' || *w == '\'')) {
+        const char *e = colon_value_end(w, bf, end);
+        mark_range(marks, (size_t)(w - bf), (size_t)(e - bf));
+        return e;
+    }
+    return mark_run(bf, w, end, stops, marks);
+}
+
+/*
+ *  The value of a name=value whose name -- the run of name bytes before
+ *  the '=' (name_before()) -- is a secret's, as in a query string, a form
+ *  body or a command line, marked: inside its quotes, or to a byte of
+ *  PARAM_VALUE_STOPS. The word before the '=' (mark_params()) can hold
+ *  more than the name: in "GET https://my-file-server.com/get?token=x" it
+ *  holds a segment about a credential ("file"), and the token showed.
+ */
+PRIVATE void mark_query_params(const char *bf, const char *end, uint8_t *marks)
+{
+    const char *frontier = bf;
+    for(const char *p = bf + 1; p < end; p++) {
+        if(*p != '=' || p < frontier) {
+            continue;
+        }
+        const char *n = name_before(bf, p);
+        if(n == p || !is_secret_name(n, (size_t)(p - n))) {
+            continue;
+        }
+        const char *v = p + 1;
+        if(v < end && (*v == '"' || *v == '\'')) {
+            char q[2] = {*v, 0};
+            frontier = mark_run(bf, v + 1, end, q, marks);
+        } else {
+            mark_scheme_value(bf, v, end, PARAM_VALUE_STOPS, marks);
+            frontier = mark_run(bf, v, end, PARAM_VALUE_STOPS, marks);  // where 7.26.9's dump went on
+        }
     }
 }
 
@@ -2390,18 +2520,28 @@ PRIVATE void mark_labels(const char *str, size_t len, uint8_t *marks)
 }
 
 /*
- *  The bytes of the text that mask_secrets_inline() masks, marked
+ *  The bytes of the text that mask_secrets_inline() masks, marked: the
+ *  `len` bytes of `str`, of a text of `text_len` bytes (a window of it,
+ *  when `end_is_cut`) -- its "attribute=" is looked for in all of it
  */
 PRIVATE void mark_inline_secrets(
     const char *str,
     size_t len,
+    size_t text_len,
     BOOL end_is_cut,
-    BOOL value_is_secret,
     uint8_t *marks
 )
 {
-    mark_params(str, len, value_is_secret, TRUE, marks);
-    mark_params(str, len, value_is_secret, FALSE, marks);
+    BOOL value_is_secret = inline_value_is_secret(str, text_len, NAMES_NOW);
+    BOOL value_is_secret_7_26_9 = inline_value_is_secret(str, text_len, NAMES_7_26_9);
+    BOOL not_7_26_9 = mark_params(str, len, value_is_secret, READ_NOW, marks);
+    if(not_7_26_9 || value_is_secret != value_is_secret_7_26_9) {
+        mark_params(str, len, value_is_secret_7_26_9, READ_AS_7_26_9, marks);
+    }
+    if(has_shape_js_7_26_20(str, len)) {
+        mark_params(str, len, value_is_secret, READ_AS_GOBJ_JS_7_26_20, marks);
+    }
+    mark_query_params(str, str + len, marks);
     mark_shapes(str, len, end_is_cut, marks);
     mark_labels(str, len, marks);
 }
@@ -2410,7 +2550,7 @@ PRIVATE void mark_inline_secrets(
  *  The `len` bytes of `str` with each run of bytes to mask written as
  *  "********". A gbmem string, NULL if there is nothing to mask.
  */
-PRIVATE char *mask_inline_secrets(const char *str, size_t len, BOOL end_is_cut, BOOL value_is_secret)
+PRIVATE char *mask_inline_secrets(const char *str, size_t len, size_t text_len, BOOL end_is_cut)
 {
     size_t marks_size = (len + 7)/8;
     uint8_t *marks = gbmem_malloc(marks_size);
@@ -2419,7 +2559,7 @@ PRIVATE char *mask_inline_secrets(const char *str, size_t len, BOOL end_is_cut, 
         return gbmem_strdup(MASK_TOO_LARGE);   // fails safe: never "nothing to mask"
     }
     memset(marks, 0, marks_size);
-    mark_inline_secrets(str, len, end_is_cut, value_is_secret, marks);
+    mark_inline_secrets(str, len, text_len, end_is_cut, marks);
 
     size_t n_marked = 0;
     size_t n_runs = 0;
@@ -2463,17 +2603,21 @@ PRIVATE char *mask_inline_secrets(const char *str, size_t len, BOOL end_is_cut, 
  *  "********" (each run of them as one), the rest kept as it is:
  *    - the value of every "name=value" whose name is a secret's
  *      (is_secret_name()), quoted or not; an unquoted one runs to the next
- *      "word=" (inline_secret_value_end());
+ *      "word=" (inline_secret_value_end()). The name is the word before
+ *      the '=', and also the run of name bytes before it, as in a query
+ *      string (mark_query_params(): its value to a byte of &;,"'<> or a
+ *      blank);
  *    - the value of every "name: value" whose name is a secret's, its name
  *      in quotes or not (a json, a header, a label: "password": hunter2,
  *      Authorization: Basic x, bearer: tok);
  *    - a JWT, or the credential after "Bearer " or "Basic "
  *      (scheme_credential()), wherever they are, whatever names them.
- *  Each rule judges the text as it came (mark_inline_secrets()), and
- *  7.26.9's reading of the parameters is one of them, whole: what 7.26.9
- *  masked is masked, but the word after a bare "Bearer" that cannot be a
- *  credential (V24.4.2). A gbmem string, or NULL when there was nothing to
- *  mask.
+ *  Each rule judges the text as it came (mark_inline_secrets()), and the
+ *  readings of the parameters of 7.26.9 and of gobj-js 7.26.20 are rules
+ *  of their own, whole (param_reading_t): what they masked is masked, but
+ *  the word after a bare "Bearer" that cannot be a credential, which
+ *  gobj-js 7.26.20 masked whatever it was. A gbmem string, or NULL when
+ *  there was nothing to mask.
  ***************************************************************************/
 PUBLIC char *mask_secrets_inline(const char *str)
 {
@@ -2494,7 +2638,7 @@ PUBLIC char *mask_secrets_inline(const char *str)
     if(len > MASK_MAX_BYTES) {
         return gbmem_strdup(MASK_TOO_LARGE);
     }
-    return mask_inline_secrets(str, len, FALSE, inline_value_is_secret(str, len));
+    return mask_inline_secrets(str, len, len, FALSE);
 }
 
 /***************************************************************************
@@ -2514,7 +2658,7 @@ PUBLIC size_t mark_secrets_inline(const char *text, size_t len, uint8_t *marks)
         );
         return 0;
     }
-    mark_inline_secrets(text, len, FALSE, inline_value_is_secret(text, len), marks);
+    mark_inline_secrets(text, len, len, FALSE, marks);
     size_t n_marked = 0;
     for(size_t i = 0; i < len; i++) {
         if(is_marked(marks, i)) {
@@ -2545,12 +2689,14 @@ PUBLIC size_t mask_secrets_inline_capped(char *bf, size_t bfsize, const char *te
         return 0;
     }
     size_t window = MIN(len, bfsize - 1 + MASK_CAP_MARGIN);
+    while(window > 0 && window < len && (((unsigned char)text[window]) & 0xC0) == 0x80) {
+        window--;   // a copy that fits in bf ends where the window ends
+    }
     char *masked;
     if(window > MASK_MAX_BYTES) {
         masked = gbmem_strdup(MASK_TOO_LARGE);
     } else {
-        masked = mask_inline_secrets(text, window, (window < len)? TRUE : FALSE,
-            inline_value_is_secret(text, len));
+        masked = mask_inline_secrets(text, window, len, (window < len)? TRUE : FALSE);
     }
     const char *shown = masked? masked : text;
     size_t shown_len = masked? strlen(masked) : window;
@@ -2568,54 +2714,9 @@ PUBLIC size_t mask_secrets_inline_capped(char *bf, size_t bfsize, const char *te
  *  The rules of a dump (mask_secrets_in_text()), each one a pass of its
  *  own over the bytes as they came, marking what it masks
  ***************************************************************************/
-#define PARAM_VALUE_STOPS   "&; \t,\"'<>"       // name=value, as since 7.26.9
-#define JSON_VALUE_STOPS    ",}] \t"            // "name": value, as since 7.26.9
-#define LABEL_VALUE_STOPS   ",;&)]}<>\"' \t"    // name: value (V24)
-
 PRIVATE BOOL is_name_char(char c)
 {
     return (is_ascii_alnum(c) || c == '_' || c == '-' || c == '.')? TRUE : FALSE;
-}
-
-/*
- *  Mark from `p` up to a byte of `stops`, a CR/LF, a NUL or `end`: return
- *  where it stopped
- */
-PRIVATE const char *mark_run(const char *bf, const char *p, const char *end, const char *stops, uint8_t *marks)
-{
-    const char *e = p;
-    while(e < end && *e != '\r' && *e != '\n' && *e && !strchr(stops, *e)) {
-        e++;
-    }
-    mark_range(marks, (size_t)(p - bf), (size_t)(e - bf));
-    return e;
-}
-
-/*
- *  The value at `v` is a scheme and its credential ("Bearer abc", under a
- *  secret's name): its WHOLE marked, the scheme, its blanks and the word
- *  after them (to a byte of `stops`; a quoted one to its quote). Up to
- *  7.26.9 the name rule masked the scheme alone and the scheme rule then
- *  saw "******": the token showed (REV-CLOUD V24.4.3). Return where it
- *  ends, NULL when `v` begins no scheme.
- */
-PRIVATE const char *mark_scheme_value(const char *bf, const char *v, const char *end, const char *stops, uint8_t *marks)
-{
-    size_t n = scheme_word_len(v, bf, end);
-    if(!n) {
-        return NULL;
-    }
-    const char *w = v + n;
-    while(w < end && (*w == ' ' || *w == '\t')) {
-        w++;
-    }
-    mark_range(marks, (size_t)(v - bf), (size_t)(w - bf));
-    if(w < end && (*w == '"' || *w == '\'')) {
-        const char *e = colon_value_end(w, bf, end);
-        mark_range(marks, (size_t)(w - bf), (size_t)(e - bf));
-        return e;
-    }
-    return mark_run(bf, w, end, stops, marks);
 }
 
 /*
@@ -2709,27 +2810,39 @@ PRIVATE char *mask_run_in_place(char *p, const char *end, const char *stops)
 }
 
 /*
- *  7.26.9's reading of a dump, kept whole: its rules as one loop, each one
- *  masking IN PLACE as 7.26.9 did -- on `copy`, the bytes as they came --
- *  so each sees what it saw then:
+ *  The rules of a dump as one loop, each one masking IN PLACE -- on `copy`,
+ *  the bytes as they came -- so each sees what the ones before it left, as
+ *  7.26.9 masked a dump. It is read twice (param_reading_t), each reading
+ *  whole: READ_AS_7_26_9, 7.26.9's dump, its names (NAMES_7_26_9) and no
+ *  shape; and READ_AS_GOBJ_JS_7_26_20, the names of now and the shapes of
+ *  gobj-js 7.26.20. The rules:
  *    - the value of a Cookie:, Set-Cookie:, Authorization: or
  *      Proxy-Authorization: header at the start of a line (after the
  *      scheme for the last two), to the end of the line;
- *    - a JWT of three parts, the word after a "bearer" word
- *      (shape_len_7_26_9());
+ *    - with the shapes, a JWT of three parts, the word after a "bearer"
+ *      word (shape_len_js_7_26_20());
  *    - the value of a name=value whose name is a secret's, to a byte of
  *      PARAM_VALUE_STOPS, or inside its quotes;
  *    - the value of a "name": value whose name is a secret's: inside its
  *      quotes, inside its brackets, or to a byte of JSON_VALUE_STOPS.
- *  What it masks is marked, but the word after "bearer": 7.26.9 masked it
- *  whatever it was, and V24 only when it can be a credential
- *  (mark_dump_shapes()) -- here it is hidden from the rules after it, as
- *  it was, and not marked (a byte 1 in the copy, no '*').
+ *  What it masks is marked, but the word after "bearer": masked only when
+ *  it can be a credential (mark_dump_shapes()), it is hidden here from the
+ *  rules after it, and not marked (a byte 1 in the copy, no '*'). Return
+ *  TRUE if it met a shape or a secret's name that is none of 7.26.9's: up
+ *  to the first one, READ_AS_7_26_9 reads as the other reading does.
  */
 #define HIDDEN_BYTE     '\x01'
 
-PRIVATE void mark_dump_as_7_26_9(const char *bf, char *copy, size_t len, uint8_t *marks)
+PRIVATE BOOL mark_dump_in_place(
+    const char *bf,
+    char *copy,
+    size_t len,
+    param_reading_t reading,
+    uint8_t *marks
+)
 {
+    secret_names_t names = (reading == READ_AS_7_26_9)? NAMES_7_26_9 : NAMES_NOW;
+    BOOL not_7_26_9 = FALSE;
     char *end = copy + len;
     memcpy(copy, bf, len);
 
@@ -2754,10 +2867,11 @@ PRIVATE void mark_dump_as_7_26_9(const char *bf, char *copy, size_t len, uint8_t
             }
         }
 
-        if(*p == 'e' || *p == 'b' || *p == 'B') {
+        if(reading == READ_AS_GOBJ_JS_7_26_20 && (*p == 'e' || *p == 'b' || *p == 'B')) {
             size_t offset = 0;
-            size_t n = shape_len_7_26_9(p, copy, end, &offset);
+            size_t n = shape_len_js_7_26_20(p, copy, end, &offset);
             if(n) {
+                not_7_26_9 = TRUE;
                 char *t = p + offset;
                 for(size_t i = 0; i < n; i++) {
                     if(t[i] != '*') {
@@ -2770,7 +2884,10 @@ PRIVATE void mark_dump_as_7_26_9(const char *bf, char *copy, size_t len, uint8_t
 
         if(*p == '=' && p > copy) {
             const char *n = name_before(copy, p);
-            if(n < p && is_secret_name(n, (size_t)(p - n))) {
+            if(n < p && is_secret_name_by(n, (size_t)(p - n), names)) {
+                if(names == NAMES_NOW && !is_secret_name_by(n, (size_t)(p - n), NAMES_7_26_9)) {
+                    not_7_26_9 = TRUE;
+                }
                 char *v = p + 1;
                 if(v < end && (*v == '"' || *v == '\'')) {
                     char q[2] = {*v, 0};
@@ -2787,7 +2904,10 @@ PRIVATE void mark_dump_as_7_26_9(const char *bf, char *copy, size_t len, uint8_t
             while(q < end && *q != '"' && *q != '\r' && *q != '\n') {
                 q++;
             }
-            if(q < end && *q == '"' && q > n && is_secret_name_tail(n, (size_t)(q - n))) {
+            if(q < end && *q == '"' && q > n && is_secret_name_tail(n, (size_t)(q - n), names)) {
+                if(names == NAMES_NOW && !is_secret_name_tail(n, (size_t)(q - n), NAMES_7_26_9)) {
+                    not_7_26_9 = TRUE;
+                }
                 char *v = q + 1;
                 while(v < end && (*v == ' ' || *v == '\t')) {
                     v++;
@@ -2846,6 +2966,7 @@ PRIVATE void mark_dump_as_7_26_9(const char *bf, char *copy, size_t len, uint8_t
             mark_range(marks, i, i + 1);
         }
     }
+    return not_7_26_9;
 }
 
 /*
@@ -2856,32 +2977,6 @@ PRIVATE void mark_dump_as_7_26_9(const char *bf, char *copy, size_t len, uint8_t
 PRIVATE void mark_dump_shapes(const char *bf, const char *end, uint8_t *marks)
 {
     mark_shapes(bf, (size_t)(end - bf), TRUE, marks);
-}
-
-/*
- *  The value of a name=value whose name (a run of name bytes before the
- *  '=') is a secret's, as in a query string, a form body, a command line
- */
-PRIVATE void mark_dump_params(const char *bf, const char *end, uint8_t *marks)
-{
-    const char *frontier = bf;
-    for(const char *p = bf + 1; p < end; p++) {
-        if(*p != '=' || p < frontier) {
-            continue;
-        }
-        const char *n = name_before(bf, p);
-        if(n == p || !is_secret_name(n, (size_t)(p - n))) {
-            continue;
-        }
-        const char *v = p + 1;
-        if(v < end && (*v == '"' || *v == '\'')) {
-            char q[2] = {*v, 0};
-            frontier = mark_run(bf, v + 1, end, q, marks);
-        } else {
-            mark_scheme_value(bf, v, end, PARAM_VALUE_STOPS, marks);
-            frontier = mark_run(bf, v, end, PARAM_VALUE_STOPS, marks);   // where 7.26.9 went on
-        }
-    }
 }
 
 /*
@@ -2901,7 +2996,7 @@ PRIVATE void mark_dump_json_members(const char *bf, const char *end, uint8_t *ma
         while(q < end && *q != quote && *q != '\r' && *q != '\n') {
             q++;
         }
-        if(!(q < end && *q == quote && q > n && is_secret_name_tail(n, (size_t)(q - n)))) {
+        if(!(q < end && *q == quote && q > n && is_secret_name_tail(n, (size_t)(q - n), NAMES_NOW))) {
             continue;
         }
         const char *v = q + 1;
@@ -2919,11 +3014,7 @@ PRIVATE void mark_dump_json_members(const char *bf, const char *end, uint8_t *ma
         if(v < end && (*v == '"' || *v == '{' || *v == '[')) {
             frontier = e;
         } else {
-            /*
-             *  And the value as 7.26.9 read it, a run to a byte of
-             *  JSON_VALUE_STOPS ('it''s', "Bearer"): where the pass goes on,
-             *  so a scheme taken whole hides no name after it
-             */
+            // and as 7.26.9's dump read it ('it''s', "Bearer"): a scheme taken whole hides no name after it
             frontier = mark_run(bf, v, end, JSON_VALUE_STOPS, marks);
         }
         p = q;  // the closing quote of the name is not an opening one
@@ -2933,7 +3024,7 @@ PRIVATE void mark_dump_json_members(const char *bf, const char *end, uint8_t *ma
 /*
  *  The value of a name: value whose name (a run of name bytes before the
  *  ':') is a secret's: another header, a label (X-Auth-Token: x, bearer:
- *  tok). Not the colon of a header that mark_dump_as_7_26_9() masks: its
+ *  tok). Not the colon of a header that mark_dump_in_place() masks: its
  *  scheme is kept.
  */
 PRIVATE void mark_dump_labels(const char *bf, const char *end, uint8_t *marks)
@@ -2978,9 +3069,8 @@ PRIVATE void mark_dump_labels(const char *bf, const char *end, uint8_t *marks)
  *      are (jwt_len(), scheme_credential()), and at the end of the bytes
  *      whatever its shape: a dump is the first bytes of a frame.
  *  Each rule is a pass of its own over the bytes as they came, marking
- *  what it masks (mark_range()), and 7.26.9's rules are one pass, whole
- *  (mark_dump_as_7_26_9()): what 7.26.9 masked is masked, but the word
- *  after a bare "Bearer" that cannot be a credential (V24.4.2). Return the
+ *  what it masks (mark_range()), and the dump of 7.26.9 is one pass,
+ *  whole (mark_dump_in_place()): what 7.26.9 masked is masked. Return the
  *  bytes masked.
  ***************************************************************************/
 PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
@@ -3009,9 +3099,11 @@ PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
     }
     memset(marks, 0, marks_size);
 
-    mark_dump_as_7_26_9(bf, copy, len, marks);
+    if(mark_dump_in_place(bf, copy, len, READ_AS_GOBJ_JS_7_26_20, marks)) {
+        mark_dump_in_place(bf, copy, len, READ_AS_7_26_9, marks);
+    }
     mark_dump_shapes(bf, end, marks);
-    mark_dump_params(bf, end, marks);
+    mark_query_params(bf, end, marks);
     mark_dump_json_members(bf, end, marks);
     mark_dump_labels(bf, end, marks);
 
@@ -3092,24 +3184,15 @@ PRIVATE json_t *json_mask_container(json_t *jn, json_t *memo, int depth, size_t 
     charge(budget, 1);
     json_object_set_new(memo, key_, json_true());  // in progress
 
-    /*
-     *  The result is built as the children are walked: once the budget is
-     *  spent the walk STOPS, and one placeholder stands for the rest
-     */
+    // built as the children are walked: once the budget is spent the walk stops
     BOOL changed = FALSE;
     BOOL truncated = FALSE;
     json_t *result;
     if(json_is_object(jn)) {
         result = json_object();
         const char *attribute = json_string_value(json_object_get(jn, "attribute"));
-        BOOL value_is_secret = attribute && is_secret_name_tail(attribute, strlen(attribute));
-        /*
-         *  A key is judged, and copied, by all its bytes: a key with a NUL
-         *  (a parser refuses one, C code can build it) was judged up to the
-         *  NUL, its value shown, and the copy held the key cut (REV-CLOUD
-         *  V24.4)
-         */
-        const char *key;
+        BOOL value_is_secret = attribute && is_secret_name_tail(attribute, strlen(attribute), NAMES_NOW);
+        const char *key;    // judged and copied by all its bytes, a NUL in it too
         size_t key_len;
         json_t *value;
         json_object_keylen_foreach(jn, key, key_len, value) {
@@ -3119,7 +3202,7 @@ PRIVATE json_t *json_mask_container(json_t *jn, json_t *memo, int depth, size_t 
             }
             charge(budget, 1 + key_len);
             json_t *shown;
-            BOOL secret = is_secret_name_tail(key, key_len) ||
+            BOOL secret = is_secret_name_tail(key, key_len, NAMES_NOW) ||
                 (value_is_secret && key_len == 5 && memcmp(key, "value", 5)==0);
             if(secret && secret_value_is_set(value)) {
                 shown = json_string("********");
@@ -3181,11 +3264,7 @@ PRIVATE json_t *json_mask_secrets_depth(json_t *jn, json_t *memo, int depth, siz
         const char *s = json_string_value(jn);
         char *masked;
         if(strlen(s) != len) {
-            /*
-             *  A NUL inside (a frame of a peer is decoded with
-             *  JSON_ALLOW_NUL): what follows it is looked at too, and when
-             *  something is masked the NULs are shown as blanks
-             */
+            // a NUL inside (a peer's frame, JSON_ALLOW_NUL) is read, and shown, as a blank
             char *copy = gbmem_malloc(len + 1);
             if(!copy) {
                 // Error already logged
@@ -3736,13 +3815,15 @@ PRIVATE json_t *load_json_from_fd(
     json_t *jn = json_loadb(bf, len, 0, &error);
     gbmem_free(bf);
     if(!jn) {
+        char error_shown[JSON_ERROR_TEXT_LENGTH];
         gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "Cannot load json file, bad json",
             "path",         "%s", path,
-            "error",        "%s", error.text,
+            "error",        "%s", json_error_for_log(&error, error_shown, sizeof(error_shown)),
             "line",         "%d", error.line,
+            "position",     "%d", error.position,
             NULL
         );
     }
@@ -4742,6 +4823,10 @@ PUBLIC BOOL json_is_identical(
 
 /***************************************************************************
  *  Convert any json string to json binary.
+ *  verbose: the failure of a json of OUR OWN, an ERROR with a stack; its
+ *  bytes are never logged as they came: a masked dump, and the error
+ *  without jansson's quote (json_error_for_log()). For bytes of a peer use
+ *  anystring2json_from_peer().
  ***************************************************************************/
 PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
 {
@@ -4761,18 +4846,19 @@ PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
     json_t *jn = json_loadb(bf, len, flags, &error);
     if(!jn) {
         if(verbose) {
+            char error_shown[JSON_ERROR_TEXT_LENGTH];
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_JSON,
                 "msg",          "%s", "json_loadb() FAILED",
-                "bf",           "%s", bf,
-                "error",        "%s", error.text,
+                "error",        "%s", json_error_for_log(&error, error_shown, sizeof(error_shown)),
                 "line",         "%d", error.line,
                 "column",       "%d", error.column,
                 "position",     "%d", error.position,
+                "len",          "%lu", (unsigned long)len,
                 NULL
             );
-            gobj_trace_dump(0, bf, strlen(bf), "json_loadb() FAILED");
+            gobj_trace_dump(0, bf, len, "json_loadb() FAILED");
         }
     }
     return jn;
@@ -4789,12 +4875,13 @@ PUBLIC json_t *anyfile2json(const char *path, BOOL verbose)
     json_t *jn = json_load_file(path, flags, &error);
     if(!jn) {
         if(verbose) {
+            char error_shown[JSON_ERROR_TEXT_LENGTH];
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "json_load_file() FAILED",
                 "path",         "%s", path,
-                "error",        "%s", error.text,
+                "error",        "%s", json_error_for_log(&error, error_shown, sizeof(error_shown)),
                 "line",         "%d", error.line,
                 "column",       "%d", error.column,
                 "position",     "%d", error.position,
@@ -4809,6 +4896,7 @@ PUBLIC json_t *anyfile2json(const char *path, BOOL verbose)
  *  Convert a legal json string to json binary.
  *  legal json string: MUST BE an array [] or object {}
  *  Old legalstring2json()
+ *  verbose: as anystring2json()
  ***************************************************************************/
 PUBLIC json_t *string2json(const char *str, BOOL verbose)
 {
@@ -4818,17 +4906,20 @@ PUBLIC json_t *string2json(const char *str, BOOL verbose)
     json_t *jn = json_loads(str, flags, &error);
     if(!jn) {
         if(verbose) {
+            char error_shown[JSON_ERROR_TEXT_LENGTH];
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "json_loads() FAILED",
-                "str",          "%s", str,
-                "error",        "%s", error.text,
+                "error",        "%s", json_error_for_log(&error, error_shown, sizeof(error_shown)),
                 "line",         "%d", error.line,
                 "column",       "%d", error.column,
                 "position",     "%d", error.position,
                 NULL
             );
+            if(str) {
+                gobj_trace_dump(0, str, strlen(str), "json_loads() FAILED");
+            }
         }
     }
     return jn;
@@ -4836,11 +4927,22 @@ PUBLIC json_t *string2json(const char *str, BOOL verbose)
 
 /***************************************************************************
  *  Convert a legal json string to json binary removing comments.
+ *  verbose: as anystring2json()
  ***************************************************************************/
 PUBLIC json_t *json_config_string2json(const char *bf, BOOL verbose)
 {
     size_t flags = 0;
     json_error_t error;
+
+    if(!bf) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "bf NULL",
+            NULL
+        );
+        return NULL;
+    }
 
     /*
      *  Memory needed, double for src,dst
@@ -4891,24 +4993,22 @@ PUBLIC json_t *json_config_string2json(const char *bf, BOOL verbose)
 
     json_t *jn_msg = json_loads(s, flags, &error);
     if(!jn_msg) {
-        /*
-         *  Free
-         */
-        gbuffer_decref(gbuf_src);
-        gbuffer_decref(gbuf_dst);
         if(verbose) {
+            char error_shown[JSON_ERROR_TEXT_LENGTH];
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "json_loads() FAILED",
-                "str",          "%s", s,
-                "error",        "%s", error.text,
+                "error",        "%s", json_error_for_log(&error, error_shown, sizeof(error_shown)),
                 "line",         "%d", error.line,
                 "column",       "%d", error.column,
                 "position",     "%d", error.position,
                 NULL
             );
+            gobj_trace_dump(0, s, strlen(s), "json_loads() FAILED, comments removed");
         }
+        gbuffer_decref(gbuf_src);
+        gbuffer_decref(gbuf_dst);
         return NULL;
     }
 

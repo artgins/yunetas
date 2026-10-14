@@ -23,6 +23,13 @@
 /****************************************************************
  *         Prototypes
  ****************************************************************/
+PRIVATE void log_kw_without_routing(
+    hgobj gobj,
+    const char *function,
+    const char *msg,
+    const char *stack,
+    json_t *kw
+);
 
 /****************************************************************
  *         FSM
@@ -173,6 +180,31 @@ PRIVATE const char *iev_peername(hgobj gobj)
         peername = gobj_read_str_attr(gobj, "peername");
     }
     return peername? peername : "";
+}
+
+/***************************************************************************
+ *  A kw without the routing an inter-event carries (its __md_iev__, or a
+ *  stack of it): the peer sent it so. A WARNING, its kw masked and capped.
+ ***************************************************************************/
+PRIVATE void log_kw_without_routing(
+    hgobj gobj,
+    const char *function,
+    const char *msg,
+    const char *stack,
+    json_t *kw
+)
+{
+    char dump[IEV_LOG_DUMP_SIZE];
+    iev_kw_dump(kw, dump, sizeof(dump));
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", function,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", msg,
+        "stack",        "%s", stack,
+        "peername",     "%s", iev_peername(gobj),
+        "kw",           "%s", dump,
+        NULL
+    );
 }
 
 /***************************************************************************
@@ -499,13 +531,7 @@ PUBLIC json_t *msg_iev_get_stack( // Get a record without popping from the stack
     json_t *md_iev = kw_get_dict(gobj, kw, "__md_iev__", 0, 0);
     if(!md_iev) {
         if(verbose) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "__md_iev__ NOT FOUND",
-                NULL
-            );
-            gobj_trace_json(gobj, kw, "__md_iev__ NOT FOUND");
+            log_kw_without_routing(gobj, __FUNCTION__, "__md_iev__ NOT FOUND", stack, kw);
         }
         return NULL;
     }
@@ -513,14 +539,7 @@ PUBLIC json_t *msg_iev_get_stack( // Get a record without popping from the stack
     json_t *jn_stack = kw_get_list(gobj, md_iev, stack, 0, 0);
     if(!jn_stack) {
         if(verbose) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "__md_iev__ stack NOT FOUND",
-                "stack",        "%s", stack,
-                NULL
-            );
-            gobj_trace_json(gobj, kw, "__md_iev__ stack NOT FOUND");
+            log_kw_without_routing(gobj, __FUNCTION__, "__md_iev__ stack NOT FOUND", stack, kw);
         }
         return NULL;
     }
@@ -549,26 +568,13 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
     }
     json_t *md_iev = kw_get_dict(gobj, kw, "__md_iev__", 0, 0);
     if(!md_iev) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "__md_iev__ NOT FOUND",
-            NULL
-        );
-        gobj_trace_json(gobj, kw, "__md_iev__ NOT FOUND");
+        log_kw_without_routing(gobj, __FUNCTION__, "__md_iev__ NOT FOUND", stack, kw);
         return NULL;
     }
 
     json_t *jn_stack = kw_get_list(gobj, md_iev, stack, 0, 0);
     if(!jn_stack) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "__md_iev__ stack NOT FOUND",
-            "stack",        "%s", stack,
-            NULL
-        );
-        gobj_trace_json(gobj, kw, "__md_iev__ stack NOT FOUND");
+        log_kw_without_routing(gobj, __FUNCTION__, "__md_iev__ stack NOT FOUND", stack, kw);
         return NULL;
     }
 

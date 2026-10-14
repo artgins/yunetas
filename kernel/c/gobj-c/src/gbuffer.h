@@ -408,6 +408,18 @@ PUBLIC gbuffer_t *json2gbuf(
     size_t flags
 );
 /*
+ *  The text of a json error as a log may show it: jansson's text WITHOUT
+ *  the bytes it quotes near the error (" near 'hunter2'"), which are bytes
+ *  of the json -- a secret's value among them. Log the error's position
+ *  with it. Written into bf, returned.
+ */
+PUBLIC const char *json_error_for_log(
+    const json_error_t *error,
+    char *bf,
+    size_t bfsize
+);
+
+/*
  *  Convert any json message in gbuffer into json
  */
 PUBLIC json_t *gbuf2json(
@@ -426,6 +438,19 @@ PUBLIC json_t *gbuf2json(
 PUBLIC json_t *gbuf2json_from_peer(
     hgobj gobj,
     gbuffer_t *gbuf,        // owned
+    hgobj peer_gobj         // the channel (or any gobj above the transport) it came through, NULL if unknown
+);
+
+/*
+ *  anystring2json() of bytes that came from a PEER (an HTTP body): the
+ *  `len` bytes of `bf`, any json value. A failure is logged as
+ *  gbuf2json_from_peer() logs it: a WARNING, no stack, a capped and
+ *  masked dump.
+ */
+PUBLIC json_t *anystring2json_from_peer(
+    hgobj gobj,
+    const char *bf,
+    size_t len,
     hgobj peer_gobj         // the channel (or any gobj above the transport) it came through, NULL if unknown
 );
 

@@ -56,10 +56,10 @@
  *            or "Basic", a name: value of a secret's name (X-Auth-Token: x,
  *            bearer: tok), a name=value to the next word= (password=correct
  *            horse battery). Up to 7.26.9 the audit had a JWT of its own,
- *            three parts exactly, and a JWE was written in clear (REV-CLOUD
- *            V24). And on top of them, its own readings, stricter than the
- *            SDK's: the word after "Bearer " whatever it is (the SDK leaves
- *            prose since V24.4.2: "the bearer of this letter"), and after
+ *            three parts exactly, and a JWE was written in clear. And on top
+ *            of them, its own readings, stricter than the SDK's: the word
+ *            after "Bearer " whatever it is (the SDK leaves prose: "the
+ *            bearer of this letter"), and after
  *            "Basic " a base64 run of "user:password" inside a word.
  *
  *          - Both apply everywhere in the record: to a kw key of that name
@@ -281,6 +281,7 @@ typedef struct {
  */
 typedef struct {
     const char *text;
+    size_t text_len;        // the bytes of `text` (and of `marks`)
     const char *from;       // next byte of `text` still to copy
     char *out;
     size_t out_len;
@@ -1156,7 +1157,7 @@ PRIVATE void out_append_redacted(redact_scan_t *sc)
  */
 PRIVATE BOOL is_marked_byte(redact_scan_t *sc, const char *p)
 {
-    if(!sc->marks || p < sc->text) {
+    if(!sc->marks || p < sc->text || p >= sc->text + sc->text_len) {
         return FALSE;
     }
     size_t i = (size_t)(p - sc->text);
@@ -1974,12 +1975,7 @@ PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const 
         }
     } else {
         char *decoded = gbmem_malloc(len + 1);
-        /*
-         *  What mask_secrets_inline() marks in the text around reaches into
-         *  the run: its bytes decoded stay marked (password"x=a \S, a value
-         *  whose name is outside the run, showed when the run was written
-         *  back)
-         */
+        // A value marked in the text around can go on inside the run: its decoded bytes keep the marks
         size_t marks_size = len/8 + 1;
         uint8_t *inherited = sc->marks? gbmem_malloc(marks_size) : NULL;
         if(!decoded || (sc->marks && !inherited)) {
@@ -2177,10 +2173,7 @@ PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx)
     }
     ctx->budget -= len;
 
-    /*
-     *  What mask_secrets_inline() masks is redacted too, by the same
-     *  function: the audit's own JWT of three parts wrote a JWE in clear
-     */
+    // What mask_secrets_inline() masks is redacted too: the same rules as the SDK's logs
     size_t marks_size = (len + 7)/8;
     uint8_t *marks = marks_size? gbmem_malloc(marks_size) : NULL;
     if(marks_size && !marks) {
@@ -2203,6 +2196,7 @@ PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx)
 
     redact_scan_t sc = {
         .text = text,
+        .text_len = len,
         .from = text,
         .marks = n_marked? marks: NULL,
         .ctx = ctx

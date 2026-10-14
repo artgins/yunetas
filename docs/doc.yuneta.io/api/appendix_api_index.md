@@ -19,7 +19,7 @@ it by hand, run the script.
 
 ## gobj-c (Core Framework)
 
-### `command_parser.h` — 8 functions
+### `command_parser.h` — 9 functions
 
 **Source:** `kernel/c/gobj-c/src/command_parser.h`
 
@@ -33,11 +33,13 @@ it by hand, run the script.
 
 5. [**`command_parameter_from_text`**](parsers/command_parser.md#command_parameter_from_text) — `PUBLIC json_t *command_parameter_from_text( data_type_t type, const char *text, const char **refused )`
 
-6. [**`command_mask_secret_kw`**](parsers/command_parser.md#command_mask_secret_kw) — `PUBLIC json_t *command_mask_secret_kw( hgobj gobj, const char *command, json_t *kw )`
+6. [**`command_parameter_from_json`**](parsers/command_parser.md#command_parameter_from_json) — `PUBLIC json_t *command_parameter_from_json( data_type_t type, json_t *value, const char **refused )`
 
-7. [**`command_mask_secret_line`**](parsers/command_parser.md#command_mask_secret_line) — `PUBLIC char *command_mask_secret_line( hgobj gobj, const char *command )`
+7. [**`command_mask_secret_kw`**](parsers/command_parser.md#command_mask_secret_kw) — `PUBLIC json_t *command_mask_secret_kw( hgobj gobj, const char *command, json_t *kw )`
 
-8. [**`search_command_desc`**](parsers/command_parser.md#search_command_desc) — `PUBLIC const sdata_desc_t *search_command_desc( hgobj gobj, const char *command, int level, hgobj *gobj_found )`
+8. [**`command_mask_secret_line`**](parsers/command_parser.md#command_mask_secret_line) — `PUBLIC char *command_mask_secret_line( hgobj gobj, const char *command )`
+
+9. [**`search_command_desc`**](parsers/command_parser.md#search_command_desc) — `PUBLIC const sdata_desc_t *search_command_desc( hgobj gobj, const char *command, int level, hgobj *gobj_found )`
 
 ### `dl_list.h` — 8 functions
 
@@ -93,7 +95,7 @@ it by hand, run the script.
 
 15. [**`print_track_mem`**](helpers/memory.md#print_track_mem) — `PUBLIC void print_track_mem(void)`
 
-### `gbuffer.h` — 28 functions
+### `gbuffer.h` — 30 functions
 
 **Source:** `kernel/c/gobj-c/src/gbuffer.h`
 
@@ -143,15 +145,19 @@ it by hand, run the script.
 
 23. [**`json2gbuf`**](helpers/gbuffer.md#json2gbuf) — `PUBLIC gbuffer_t *json2gbuf( gbuffer_t *gbuf, json_t *jn, size_t flags )`
 
-24. [**`gbuf2json`**](helpers/gbuffer.md#gbuf2json) — `PUBLIC json_t *gbuf2json( gbuffer_t *gbuf, int verbose )`
+24. [**`json_error_for_log`**](helpers/gbuffer.md#json_error_for_log) — `PUBLIC const char *json_error_for_log( const json_error_t *error, char *bf, size_t bfsize )`
 
-25. [**`gbuf2json_from_peer`**](helpers/gbuffer.md#gbuf2json_from_peer) — `PUBLIC json_t *gbuf2json_from_peer( hgobj gobj, gbuffer_t *gbuf, hgobj peer_gobj )`
+25. [**`gbuf2json`**](helpers/gbuffer.md#gbuf2json) — `PUBLIC json_t *gbuf2json( gbuffer_t *gbuf, int verbose )`
 
-26. [**`config_gbuffer2json`**](helpers/gbuffer.md#config_gbuffer2json) — `PUBLIC json_t *config_gbuffer2json( gbuffer_t *gbuf, int verbose )`
+26. [**`gbuf2json_from_peer`**](helpers/gbuffer.md#gbuf2json_from_peer) — `PUBLIC json_t *gbuf2json_from_peer( hgobj gobj, gbuffer_t *gbuf, hgobj peer_gobj )`
 
-27. [**`gobj_trace_dump_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_gbuf) — `PUBLIC void gobj_trace_dump_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
+27. [**`anystring2json_from_peer`**](helpers/gbuffer.md#anystring2json_from_peer) — `PUBLIC json_t *anystring2json_from_peer( hgobj gobj, const char *bf, size_t len, hgobj peer_gobj )`
 
-28. [**`gobj_trace_dump_full_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_full_gbuf) — `PUBLIC void gobj_trace_dump_full_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
+28. [**`config_gbuffer2json`**](helpers/gbuffer.md#config_gbuffer2json) — `PUBLIC json_t *config_gbuffer2json( gbuffer_t *gbuf, int verbose )`
+
+29. [**`gobj_trace_dump_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_gbuf) — `PUBLIC void gobj_trace_dump_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
+
+30. [**`gobj_trace_dump_full_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_full_gbuf) — `PUBLIC void gobj_trace_dump_full_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
 
 ### `glogger.h` — 35 functions
 
@@ -1313,7 +1319,7 @@ it by hand, run the script.
 
 11. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 623 functions**
+**Total: 626 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2394,7 +2400,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1041 functions** sorted alphabetically with their source header.
+All **1044 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2404,6 +2410,7 @@ All **1041 functions** sorted alphabetically with their source header.
 | [**`all_numbers`**](helpers/string_helper.md#all_numbers) | `helpers.h` | gobj-c (Core Framework) |
 | [**`anyfile2json`**](helpers/json_helper.md#anyfile2json) | `helpers.h` | gobj-c (Core Framework) |
 | [**`anystring2json`**](helpers/json_helper.md#anystring2json) | `helpers.h` | gobj-c (Core Framework) |
+| [**`anystring2json_from_peer`**](helpers/gbuffer.md#anystring2json_from_peer) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`authentication_parser`**](gobj/authz.md#authentication_parser) | `c_authz.h` | root-linux (Runtime GClasses) |
 | [**`authz_checker`**](gobj/authz.md#authz_checker) | `c_authz.h` | root-linux (Runtime GClasses) |
 | [**`authz_get_level_desc`**](gobj/authz.md#authz_get_level_desc) | `gobj.h` | gobj-c (Core Framework) |
@@ -2429,6 +2436,7 @@ All **1041 functions** sorted alphabetically with their source header.
 | [**`command_get_cmd_desc`**](parsers/command_parser.md#command_get_cmd_desc) | `command_parser.h` | gobj-c (Core Framework) |
 | [**`command_mask_secret_kw`**](parsers/command_parser.md#command_mask_secret_kw) | `command_parser.h` | gobj-c (Core Framework) |
 | [**`command_mask_secret_line`**](parsers/command_parser.md#command_mask_secret_line) | `command_parser.h` | gobj-c (Core Framework) |
+| [**`command_parameter_from_json`**](parsers/command_parser.md#command_parameter_from_json) | `command_parser.h` | gobj-c (Core Framework) |
 | [**`command_parameter_from_text`**](parsers/command_parser.md#command_parameter_from_text) | `command_parser.h` | gobj-c (Core Framework) |
 | [**`command_parser`**](parsers/command_parser.md#command_parser) | `command_parser.h` | gobj-c (Core Framework) |
 | [**`config_gbuffer2json`**](helpers/gbuffer.md#config_gbuffer2json) | `gbuffer.h` | gobj-c (Core Framework) |
@@ -2878,6 +2886,7 @@ All **1041 functions** sorted alphabetically with their source header.
 | [**`json_config_string2json`**](helpers/json_helper.md#json_config_string2json) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_desc_to_schema`**](helpers/json_helper.md#json_desc_to_schema) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_dict_recursive_update`**](helpers/json_helper.md#json_dict_recursive_update) | `helpers.h` | gobj-c (Core Framework) |
+| [**`json_error_for_log`**](helpers/gbuffer.md#json_error_for_log) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`json_flatten_dict`**](helpers/kwid.md#json_flatten_dict) | `kwid.h` | gobj-c (Core Framework) |
 | [**`json_is_identical`**](helpers/json_helper.md#json_is_identical) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_is_range`**](helpers/json_helper.md#json_is_range) | `helpers.h` | gobj-c (Core Framework) |

@@ -219,6 +219,9 @@ If the node runs SDK 7.25.4 or earlier, read
 and look for md2 files that are not whole rows before step 1: see
 [Before an upgrade from 7.25.4 or earlier](#dy-md2-scan).
 
+If the SDK goes to 7.26.10 or later, check the schemas of the node's stores
+before step 1: see [Upgrading to 7.26.10](#dy-upgrade-72610).
+
 ```bash
 # 1. Build
 yunetas build
@@ -502,6 +505,30 @@ first boot.
 without `SDF_WR` answers *"attr not writable"*. A script that set one at run
 time puts it in the yuno's config (`yunos/batches/<host>/<yuno>.json`), or uses
 the attribute's own command (`set-max-sessions`, `set-email-user`, ...).
+
+(dy-upgrade-72610)=
+### Upgrading to 7.26.10: check the schemas of the stores first
+
+7.26.10 opens a topic already on disk that breaks a rule of a NEW topic as it
+was, and says so with an ERROR at **every** open of its treedb; a few faults
+leave the topic out, and a few refuse it with a CRITICAL (*"Cannot create topic
+of the schema"*), which exits a yuno whose `on_critical_error` exits. Before the
+upgrade, ask every store of the node what it will say, with
+[`check_store_schemas.py`](tools/check_store_schemas.md):
+
+```bash
+# a node that has the tool (a source checkout, or a package of 7.26.10 or later)
+python3 /yuneta/development/yunetas/tools/treedb/check_store_schemas.py /yuneta/store
+
+# a node on an older package: stream it from your checkout
+ssh <node> python3 - /yuneta/store < tools/treedb/check_store_schemas.py
+```
+
+A clean store prints only `checked N schema files: 0 faults, 0 unreadable`.
+Each fault is a line with the level of what the open does and the message it
+logs; fix the schema in the code that owns it (raise its `topic_version` and
+`schema_version`, see [`treedb_open_db()`](api/timeranger2/treedb.md#treedb_open_db))
+before the new yunos start, or accept the ERROR it names.
 
 (dy-recipe-config)=
 ## Recipe C — config-only change

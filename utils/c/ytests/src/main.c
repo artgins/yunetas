@@ -382,11 +382,16 @@ int main(int argc, char *argv[])
     /*
      *  Put configuration
      */
+    char *param = NULL;     // in argvs while the yuno runs, freed when it ends
     if(arguments.use_config_file) {
         int l = strlen("--config-file=") + strlen(arguments.config_json_file) + 4;
-        char *param2 = malloc(l);
-        snprintf(param2, l, "--config-file=%s", arguments.config_json_file);
-        argvs[idx++] = param2;
+        param = malloc(l);
+        if(!param) {
+            printf("No memory for the parameters\n");
+            exit(-1);
+        }
+        snprintf(param, l, "--config-file=%s", arguments.config_json_file);
+        argvs[idx++] = param;
     } else {
         json_t *kw_utility = json_pack(
             "{s:{s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}}",
@@ -407,18 +412,21 @@ int main(int argc, char *argv[])
             "C_YTESTS.yuno_service", arguments.yuno_service
         );
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);
+        json_decref(kw_utility);    // here: jansson still allocates with libc
         if(!param1_) {
             printf("Some parameter is wrong\n");
             exit(-1);
         }
         int len = strlen(param1_) + 3;
-        char *param1 = malloc(len);
-        if(param1) {
-            memset(param1, 0, len);
-            snprintf(param1, len, "%s", param1_);
+        param = malloc(len);
+        if(!param) {
+            printf("No memory for the parameters\n");
+            exit(-1);
         }
+        memset(param, 0, len);
+        snprintf(param, len, "%s", param1_);
         free(param1_);
-        argvs[idx++] = param1;
+        argvs[idx++] = param;
     }
 
     if(arguments.print) {
@@ -451,7 +459,7 @@ int main(int argc, char *argv[])
         MEM_MIN_BLOCK,
         MEM_SUPERBLOCK
     );
-    return yuneta_entry_point(
+    int ret = yuneta_entry_point(
         idx, argvs,
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
         fixed_config,
@@ -459,4 +467,6 @@ int main(int argc, char *argv[])
         register_yuno_and_more,
         NULL
     );
+    free(param);
+    return ret;
 }

@@ -24,8 +24,10 @@
  *          too, with an ERROR: C reads it up to the NUL, so the node was
  *          indexed under one name and saved with another (REV-CLOUD
  *          V23.4.2).
- *          And a NUL in a reference of an fkey column: refused by a create
- *          and by an update with its links (REV-CLOUD V24.4).
+ *          And a NUL in a reference of an fkey column: refused by every
+ *          write that reads one, a create, an update (its 'file' columns),
+ *          an update with its links, an autolink and a replace of links
+ *          (7.26.10).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -418,8 +420,9 @@ PRIVATE int test_nul_in_a_name_of_the_node(
 }
 
 /***************************************************************************
- *  A NUL in a reference of an fkey column, from C: refused by a create and
- *  by an update with its links, with an ERROR, and nothing written. C
+ *  A NUL in a reference of an fkey column, from C: refused by a create, an
+ *  update, an update with its links, an autolink and a replace of links,
+ *  with an ERROR, and nothing written. C
  *  reads a ref up to the NUL: "\0items^item-1^parts" was the empty ref,
  *  left out, and the create saved the part with no parent and no log; a
  *  ref with the NUL after its three parts linked the part to item-1
@@ -435,7 +438,10 @@ PRIVATE int test_nul_in_an_fkey_ref(
     time_measure_t time_measure;
     set_expected_results(
         test,
-        json_pack("[{s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+            "msg", "Invalid fkey reference: it holds a NUL",
+            "msg", "Invalid fkey reference: it holds a NUL",
+            "msg", "Invalid fkey reference: it holds a NUL",
             "msg", "Invalid fkey reference: it holds a NUL",
             "msg", "Invalid fkey reference: it holds a NUL",
             "msg", "Invalid fkey reference: it holds a NUL"
@@ -489,6 +495,52 @@ PRIVATE int test_nul_in_an_fkey_ref(
     if(kw_get_int(0, part, "__md_treedb__`g_rowid", 0, 0) != g_rowid ||
             !empty_string(kw_get_str(0, part, "item", "", 0))) {
         printf("%s  FAIL: a refused update with links touched the part%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*
+     *  The other writes that read an fkey ref of a kw: a parent that
+     *  exists (item-nul, left by the test above), so a ref read up to its
+     *  NUL links the part to it
+     */
+    if(!treedb_get_node(tranger, treedb_name, TOPIC_NAME, "item-nul")) {
+        printf("%s  FAIL: the parent of the links is missing%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_update_node(
+            tranger,
+            part,
+            json_pack("{s:s, s:s%}", "id", "part-nul3", "item", "items^item-nul^parts\0evil", (size_t)25),
+            TRUE
+        )) {
+        printf("%s  FAIL: an update with an fkey ref with a NUL was taken%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_autolink(
+            tranger,
+            part,
+            json_pack("{s:s%}", "item", "items^item-nul^parts\0evil", (size_t)25),
+            TRUE
+        ) == 0) {
+        printf("%s  FAIL: an autolink with an fkey ref with a NUL was taken%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_replace_links(
+            tranger,
+            part,
+            json_pack("{s:s%}", "item", "items^item-nul^parts\0evil", (size_t)25),
+            TRUE
+        ) == 0) {
+        printf("%s  FAIL: a replace of links with an fkey ref with a NUL was taken%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(kw_get_int(0, part, "__md_treedb__`g_rowid", 0, 0) != g_rowid ||
+            !empty_string(kw_get_str(0, part, "item", "", 0))) {
+        printf("%s  FAIL: a refused write of an fkey ref with a NUL linked the part: '%s'%s\n",
+            On_Red BWhite, kw_get_str(0, part, "item", "", 0), Color_Off);
         result += -1;
     }
 

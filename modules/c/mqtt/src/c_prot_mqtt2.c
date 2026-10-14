@@ -3579,11 +3579,13 @@ PRIVATE int send__connect(
             JSON_DECREF(will_properties);
             will_properties = parsed;
         } else {
+            char error_shown[JSON_ERROR_TEXT_LENGTH];
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Invalid mqtt_will_properties JSON, ignoring",
-                "error",        "%s", jerror.text,
+                "error",        "%s", parsed? "not a json object": json_error_for_log(&jerror, error_shown, sizeof(error_shown)),
+                "position",     "%d", parsed? 0: jerror.position,
                 NULL
             );
             JSON_DECREF(parsed);
@@ -8543,11 +8545,14 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             json_error_t jerror;
             outgoing_properties = json_loads(mqtt_connect_props_str, 0, &jerror);
             if(!outgoing_properties || !json_is_object(outgoing_properties)) {
+                char error_shown[JSON_ERROR_TEXT_LENGTH];
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Invalid mqtt_connect_properties JSON, ignoring",
-                    "error",        "%s", jerror.text,
+                    "error",        "%s", outgoing_properties? "not a json object":
+                        json_error_for_log(&jerror, error_shown, sizeof(error_shown)),
+                    "position",     "%d", outgoing_properties? 0: jerror.position,
                     NULL
                 );
                 JSON_DECREF(outgoing_properties);

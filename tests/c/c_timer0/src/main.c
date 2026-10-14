@@ -94,8 +94,8 @@ static int register_yuno_and_more(void)
 
     /*--------------------------*
      *  Check all gclass' FSM
+     *  (the core ones are registered by yuneta_entry_point())
      *--------------------------*/
-    yunetas_register_c_core();
     json_t *jn_gclasses = gclass_gclass_register();
     int idx; json_t *jn_gclass;
     json_array_foreach(jn_gclasses, idx, jn_gclass) {

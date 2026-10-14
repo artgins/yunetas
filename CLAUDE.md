@@ -268,9 +268,9 @@ Operational notes:
   module-level singleton (e.g. i18next's `t`) bind an uninitialized second
   copy and render blank.
 - Preserve backwards compatibility for existing consumers (hidraulia on
-  published v1; wattyzer, yunovatios, estadodelaire and the in-repo yunos on
-  published v2) and update the repo's `README.md` when the contract
-  changes.
+  published v1; wattyzer, yunovatios, estadodelaire, yunomusica and the
+  in-repo yunos on published v2) and update the repo's `README.md` when the
+  contract changes.
 
 ## ⚠️ CRITICAL: Memory allocation in C code
 
@@ -1008,10 +1008,25 @@ happens exclusively via events carrying JSON payloads (`json_t *kw`).
   from a user action, or have the producer **publish an event** the consumer
   subscribes to. Deliberate, user-approved exceptions are commented as such in
   the code — don't "fix" those.
-- **Never synchronously stop the publisher's tree from a subscriber callback.**
-  `gobj_publish_event` dispatches synchronously — the callback runs inside the
-  publisher's stack, and `gobj_stop_tree` there corrupts mid-iteration state.
-  Defer: set a `dying` flag + a short timeout and stop from the timer action.
+- **Never synchronously stop or destroy the publisher's tree from a subscriber
+  callback.** `gobj_publish_event` dispatches synchronously: the callback runs
+  inside the publisher's stack, and the publisher's own code goes on after the
+  publish returns. Destroying the publisher, or any ancestor of it (yourself,
+  when the publisher is your own child: a `C_TIMER`'s `EV_TIMEOUT`), frees it
+  under that code, and `gobj_stop_tree` there corrupts mid-iteration state.
+  Since 7.26.10 the kernel itself survives it -- it keeps a frame per dispatch
+  and never reads the gobj afterwards -- and says it: *"Destroying a gobj while
+  its tree is publishing"*, an ERROR with a stack. Defer with
+  `gobj_post_event()` to yourself and stop or destroy in that action, never
+  with a `C_TIMER0` (see *Explicit lifecycle*). The same holds further up your
+  own stack: never end a gobj from an inner dispatch while an outer action (or
+  `mt_start`/`mt_stop`) of it is still running -- a gclass whose end can be
+  decided inside one of its own calls (a result that arrives inside the job's
+  action) posts its end to itself; the kernel says it with *"Destroying a gobj
+  while one of its actions is still running"*. Two destroys are legal and raise
+  nothing: a gobj that destroys itself in the innermost code with nothing of it
+  further up the stack, and a host that destroys its transport in the
+  transport's `EV_STOPPED` (the stop contract: it is the transport's last act).
   Applies to C and JS alike.
 - **Main services start their work in `mt_play`, not `mt_create`/`mt_start`.**
   `mt_create` creates children; `mt_play` opens queues and starts what
@@ -1356,103 +1371,21 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   **The check is not a grep**: dump `title`/`aria-label` from the DEPLOYED DOM,
   resolve each control's name the way a reader does, then switch language and
   diff. A name written onto a widget's DOM is a race with the next render, and
-  only the page shows it. A key handed to a FUNCTION is read where it is
-  handed (gobj-ui 7.26.28+): at the key positions of every function in
-  gobj-ui's `I18N_KEY_FUNCTIONS` (`src/i18n_key_functions.js`),
-  `validate-locales` reads a string literal, a `const` bound to one, and
-  (7.26.29+) a call of a function whose every return is one -- of the same
-  module, or (7.26.32+) imported from a file it reads --, `String(x)`, a lone
-  `${x}`, a parameter's default. What a function returns is read ONCE and a
-  recursion is not followed (7.26.29 re-read it at every call: a helper
-  calling itself in three branches hung the build). DOM at a key
-  position is no key -- an array spec, `createElement2()` /
-  `createOneHtml()` / `html_markup()` of gobj-js, `text_node()`,
-  `document.createElement()`, or a const or `let` only ever given one --,
-  known by where it comes from, never by a variable's name. A translator is
-  `t`/`tr`, `.t`, i18next's `t` under any import name, a const or `.bind()`
-  alias, called as `t?.()` or `t.call()` too; an array handed to it is a list
-  of keys. The table is COMPLETE and CORRECT (7.26.32): gobj-ui's test finds
-  every library function that hands a parameter on (`opts.title`,
-  `opts?.title`, a destructuring, `arguments[1]`, a copy `{...opts}`) to a
-  translator, an `i18n` / `code` / `data-i18n*` value or a key position, and
-  fails until it is listed; it fails on a hand-off no position can name (a
-  transformed key, `k.toLowerCase()`, an `Object.entries(opts)` walk) until it
-  is restructured or marked; and an entry nothing forwards to fails. One that
-  nothing calls by name (an FSM action, a callback) marks its hand-off
-  instead. A key handed by table or variable is PUBLISHED by its module -- an
-  `export const` array of literals (never a `let`, never mutated: a `.push()`
-  hid keys), which may spread another const array of the module -- and the
-  call is marked
-  `/* i18n: <NAME>_I18N_KEYS */` (`/* i18n: data */` when what arrives is
-  data no locale can list: a topic name, a backend's comment); a `data`
-  marker over what the reader follows to keys fails, and so does one over a
-  call that MIXES keys and data, or over an array of string literals; a list
-  marker over a template (`` `monitor ${control}` ``) needs a key of the list
-  of that shape. **The rule is per call
-  in the APP's own code too** (7.26.29+): an app key position given an
-  unmarked `let`, an options variable, a concatenation or a parameter of its
-  own wrapper fails `validate-locales`, with the file and the line -- and so
-  does a TRANSLATED text, `t("k")` or any translator's, even marked: the
-  function translates it again and it never changes language, so hand it the
-  key. Since 7.26.42 a translated text fails wherever a key is READ, marked or
-  not: given to `t()` (`t(t("k") + "!")`), to an `i18n` / `code` /
-  `data-i18n*` value or to a `data-i18n*` attribute, and a `const` holding one
-  too. An app's
-  functions are in no table: a wrapper of its own marks what it hands on,
-  and its callers' literal keys are read only through a list the module
-  publishes. The validator follows a literal, a `const` (a const table too,
-  `t(LABELS[x])`) and a MARKED plain `let`: it reads everything the `let` is
-  given in its scope (initializer, `=`, `||=`, `??=`, `&&=`), asks the
-  locales for each literal and, under a list marker, fails one the list
-  lacks; a marked `let` that only ever holds literals fails with *"make it a
-  const"*. An UNMARKED plain `let` is followed too (gobj-ui 7.26.35+) when
-  EVERY write to it in its scope is one the reader reads (7.26.42 counts them
-  all: a destructuring loop head `for([k, label] of rows)`, a `var` declared
-  again, a direct `eval()`) and each is WRITTEN as a string literal, a const
-  bound to one, `null` or a branch of those: it can only hold those literals,
-  so they are asked for where `t()` / an `i18n` / a `data-i18n*` value reads
-  it (at a key position of a key function a `let` still fails the per-call
-  rule). **The rule is flow-INSENSITIVE, by design**: every literal the `let`
-  is given is asked for, also one an `if` keeps away from the read, so a
-  sentinel that is no key (`let key = "-"`) fails the build like a missing
-  key -- write the sentinel `null`, or give the key its own `const`. (7.26.35
-  said the rule failed nothing new; 7.26.42 withdrew it.) A translator handed
-  as a CALLBACK is read too, in exactly these forms: an iteration method
-  (`map`, `flatMap`, `forEach`, `filter`, `find`, `findIndex`, `findLast`,
-  `findLastIndex`, `some`, `every`) called on the array (`keys.map(t)`,
-  `keys?.map(t)`, `keys["map"](t)`) or by `.call()` / `.apply()` of the method
-  (`Array.prototype.map.call(keys, t)`), and `Array.from(keys, t)` /
-  `Array.fromAsync(keys, t)`, hand it each element as a key (an array the
-  reader cannot follow fails unless the call is marked); what `.then(t)` /
-  `.catch(t)` settles with is a key no source writes (marked, or it fails).
-  Nothing else is read as calling it (`keys.reduce(t)`, `keys.sort(t)`, an
-  alias of a method, `Reflect.apply()`). A `.bind()` with arguments is counted
-  (7.26.42+): what a call of `t.bind(null, k)` is handed is i18next's options,
-  never a key, and a KEY FUNCTION bound with its first arguments
-  (`yui_shell_show_info.bind(null, shell)`) is read at the right positions.
-  The `id` a nameless item is named by is a key it asks for (7.26.42+): the
-  library names a menu entry `name || aria_label || id`, a toolbar item
-  `aria_label || name || id` and a `C_YUI_NODE` node `label || id`, each as a
-  KEY. Sources are parsed, never run; a locale is parsed and then imported, so
-  its top-level code runs.
-  What stays invisible is a key that reaches `t()` (or an `i18n` /
-  `data-i18n*` value) through an UNMARKED `let` given anything but literals
-  (a property of a table, a call, a parameter, data, a `+=`: `let k =
-  LABELS[i]; t(k)`), a call the reader does not follow or a computed string
-  (`t("state " + s)`), a key stored on a DOM node or a heap object and read
-  back elsewhere, a translator or a key function reached through a parameter
-  or a `let`, and a window's `title` given as an attribute at `gobj_create`:
-  no check sees it and nothing fails. Left invisible by decision too
-  (REV-CLOUD V23.5, gobj-ui 7.26.35): a translator called through what is no
-  name of it (`(0, t)(k)`, `[t][0](k)`, `Reflect.apply(t, x, [k])`,
-  `Function.prototype.call.call(t, x, k)`), the key bound with it
-  (`t.bind(null, k)`: the key it binds is not read), a translator handed to a
-  function other than the iteration methods above, `Array.from()` /
-  `Array.fromAsync()` or `.then()`/`.catch()` (`{t: t}` is how gobj-ui takes
-  one), a parameter a closure returns (`const inner = () => key;
-  t(inner())`), a translated text held in a `let`, marked or not, and a
-  published list mutated through a function it is handed to or by
-  `Array.prototype.push.call()`. Check those on the page.
+  only the page shows it.
+
+  **Every key must be visible to `validate-locales`** (published by gobj-ui,
+  run by every SPA's `prebuild`): a key reaches `t()` -- or a key position of
+  a function in gobj-ui's `I18N_KEY_FUNCTIONS` -- as a string literal or a
+  `const` bound to one; a key handed by table or variable is published by its
+  module (`export const <NAME>_I18N_KEYS = [...]`) and the call is marked
+  `/* i18n: <NAME>_I18N_KEYS */` (`/* i18n: data */` for data no locale can
+  list); a translated text is never handed where a key is read. **The rule in
+  full lives in ONE place, gobj-ui's README ("Conventions": *A control without
+  a name is a bug*, *i18n: a string must be able to CHANGE language*)** --
+  what the validator follows, what it refuses, where it gives up, and what
+  stays invisible to it by decision (and must be checked on the page). This
+  file and gobj-ui's `CLAUDE.md` used to carry copies of it, and the three
+  drifted apart every round: change the rule in the README only.
 - **Every text goes through i18n — and must be able to CHANGE language.**
   Passing a string through `t()` once is NOT enough: `refresh_language()` only
   re-translates a node that **carries its key**, so anything composed at render

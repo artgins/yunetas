@@ -299,7 +299,102 @@ This function does not return a value.
 
 **Notes**
 
-['If the `hgobj` instance is currently playing, it will be paused before destruction.', 'If the `hgobj` instance is running, it will be stopped before destruction.', 'All child objects of the `hgobj` instance will be recursively destroyed.', 'All event subscriptions related to the `hgobj` instance will be removed.', 'If the `hgobj` instance is a registered service, it will be deregistered before destruction.']
+- A playing gobj is paused, and a running one stopped, before it is
+  destroyed, each with an ERROR: destroying a live gobj is the caller's bug
+  (call `gobj_stop_tree()` first).
+- Its subscriptions, both ways, are removed, a service is deregistered, its
+  children are destroyed (before its `mt_destroy()`), and the events it left
+  posted are dropped.
+
+**Destroyed inside a dispatch.** A gobj can be destroyed while an event is
+dispatched to it or published by it: an action that destroys its own gobj at
+the end of its work, a host that destroys a stopped transport in its
+`EV_STOPPED`. The kernel keeps a frame for each dispatch in progress
+([`gobj_send_event()`](events_state.md#gobj_send_event),
+[`gobj_publish_event()`](publish.md#gobj_publish_event)), and
+`gobj_destroy()` marks the frames of the gobj it destroys, and of each gobj of
+its subtree. After the action, or after each subscriber, the kernel asks the
+frame, never the gobj: a publication whose publisher is gone stops, and the
+freed gobj is not read. Up to 7.26.9 the kernel read the gobj's `obflag` for
+that, in freed memory.
+
+**A gobj must not be freed under code that is still running on it.** The
+kernel survives it (the frames), the gclass code does not: it goes on when the
+inner call returns, on a gobj that is gone. So when a destroy finds code still
+running on the gobj, or on a gobj of its subtree, further up the stack, it
+logs an ERROR with a stack, and destroys all the same:
+
+- *"Destroying a gobj while its tree is publishing"*: a subscriber destroyed
+  the publisher, or one of its ancestors, inside the publication
+  (`C_TIMER` reads its own data right after it publishes `EV_TIMEOUT`);
+- *"Destroying a gobj while one of its actions is still running"*: an inner
+  dispatch destroyed a gobj that an outer action, or framework method, of it
+  is still running on (a `C_TASK` whose result arrived inside the job's
+  action, up to 7.26.9).
+
+Both name the gobj destroyed (`destroying`), the gobj still running
+(`publisher` or `running`) and its `event` (or framework method), and the
+innermost code that destroys (`destroyer`, `inner_event`). Which code counts:
+every live frame of the subtree except
+
+- the innermost one: it is the code that destroys, and knows it. A gobj that
+  destroys itself in its own action, at the end of its work, with nothing of
+  it further up the stack, is legal;
+- those of a gobj whose innermost publication is its `EV_STOPPED`. By the stop
+  contract it is the last thing a gobj does with itself, and its host destroys
+  it there (`C_TCP`, `C_UDP_S`, `C_PTY`);
+- the kernel's own watch frames (the walks of `gobj_start_tree()` and
+  `gobj_stop_tree()`), which run no gclass code.
+
+The fix is to leave the stack: post an event to yourself with
+[`gobj_post_event()`](events_state.md#gobj_post_event), and destroy in its
+action. `C_TASK` ends so, always, and `C_COUNTER` when it expires (7.26.10):
+
+```C
+/*
+ *  Wrong: EV_TIMEOUT comes from the C_TIMER child, inside its publication,
+ *  and destroying this gobj destroys the timer under it.
+ */
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    gobj_stop(gobj);
+    gobj_destroy(gobj);     // ERROR: its tree is publishing
+    return 0;
+}
+
+/*
+ *  Right: the end runs on the next turn of the loop, from a clean stack.
+ *  EV_FINISH is an input event of the gclass, in its FSM and event_types.
+ */
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    gobj_post_event(gobj, EV_FINISH, 0, gobj);
+    return 0;
+}
+
+PRIVATE int ac_finish(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    gobj_stop(gobj);
+    gobj_destroy(gobj);     // its own action, outside any publication: legal
+    return 0;
+}
+```
+
+The host of a transport destroys it in its `EV_STOPPED`, and that is legal:
+
+```C
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(gobj_is_volatil(src)) {
+        gobj_destroy(src);  // the stop contract: EV_STOPPED is src's last act
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+```
 
 ---
 

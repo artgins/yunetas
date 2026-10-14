@@ -41,6 +41,12 @@ PRIVATE int load_files(
 PRIVATE json_t *x_legalstring2json(const char *reference, const char *bf, pe_flag_t quit);
 PRIVATE json_t *load_json_file(const char *path, pe_flag_t quit);
 PRIVATE json_t *nonx_legalstring2json(const char *reference, const char *bf, pe_flag_t quit);
+PRIVATE void print_json_config_error(
+    pe_flag_t quit,
+    const char *reference,
+    const char *bf,
+    const json_error_t *error
+);
 
 /***************************************************************************
  *  Load json config from a file '' or from files ['','']
@@ -122,6 +128,40 @@ PRIVATE int load_files(
 }
 
 /***************************************************************************
+ *  A config that does not parse, as the error shows it: masked
+ *  (mask_secrets_in_text(), a config carries passwords), and jansson's
+ *  error without the bytes it quotes near it (json_error_for_log())
+ ***************************************************************************/
+PRIVATE void print_json_config_error(
+    pe_flag_t quit,
+    const char *reference,
+    const char *bf,
+    const json_error_t *error
+)
+{
+    char error_shown[JSON_ERROR_TEXT_LENGTH];
+    size_t len = strlen(bf);
+    char *shown = gbmem_strndup(bf, len);
+    if(shown) {
+        mask_secrets_in_text(shown, len);
+    }
+    print_error(
+        quit,
+        "Cannot convert non-legal json string to json binary.\n"
+        "Reference: '%s'\n"
+        "Json string (masked):\n'%s'\n"
+        "Error: '%s'\n in line %d, column %d, position %d.\n",
+        reference,
+        shown? shown: "<not shown: no memory to mask it>",
+        json_error_for_log(error, error_shown, sizeof(error_shown)),
+        error->line,
+        error->column,
+        error->position
+    );
+    GBMEM_FREE(shown)
+}
+
+/***************************************************************************
  *  Convert any json string to json binary.
  ***************************************************************************/
 PRIVATE json_t *nonx_legalstring2json(const char *reference, const char *bf, pe_flag_t quit)
@@ -131,19 +171,7 @@ PRIVATE json_t *nonx_legalstring2json(const char *reference, const char *bf, pe_
 
     json_t *jn_msg = json_loads(bf, flags, &error);
     if(!jn_msg) {
-        print_error(
-            quit,
-            "Cannot convert non-legal json string to json binary.\n"
-            "Reference: '%s'\n"
-            "Json string:\n'%s'\n"
-            "Error: '%s'\n in line %d, column %d, position %d.\n",
-            reference,
-            bf,
-            error.text,
-            error.line,
-            error.column,
-            error.position
-        );
+        print_json_config_error(quit, reference, bf, &error);
     }
     return jn_msg;
 }
@@ -221,19 +249,7 @@ PRIVATE json_t *x_legalstring2json(const char *reference, const char *bf, pe_fla
          */
         gbuffer_decref(gbuf_src);
         gbuffer_decref(gbuf_dst);
-        print_error(
-            quit,
-            "Cannot convert non-legal json string to json binary.\n"
-            "Reference: '%s'\n"
-            "Json string:\n'%s'\n"
-            "Error: '%s'\n in line %d, column %d, position %d.\n",
-            reference,
-            bf,
-            error.text,
-            error.line,
-            error.column,
-            error.position
-        );
+        print_json_config_error(quit, reference, bf, &error);
         return NULL;
     }
 

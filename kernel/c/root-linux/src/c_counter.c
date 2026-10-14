@@ -1,6 +1,16 @@
 /***********************************************************************
  *          C_COUNTER.C
  *          Counter GClass.
+ *
+ *  The expiration does NOT publish the final count where it arrives. It
+ *  arrives inside the publication of the counter's own C_TIMER
+ *  (EV_TIMEOUT), and a volatile counter destroys itself, and that timer
+ *  with it, after its final count. So the expiration posts
+ *  EV_COUNT_EXPIRED to the counter (gobj_post_event()) and moves to
+ *  ST_WAIT_STOPPED; the final count is published in the next turn of the
+ *  loop, and a count that arrives in between does not count. Up to 7.26.9
+ *  the timer, and the kernel, read the freed timer afterwards.
+ *
  *          Copyright (c) 2014 Niyamaka.
  *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
@@ -23,6 +33,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+GOBJ_DECLARE_EVENT(EV_COUNT_EXPIRED);   // defined with the gclass, below
 
 
 /***************************************************************************
@@ -126,6 +137,8 @@ PRIVATE void mt_create(hgobj gobj)
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_change_state(gobj, ST_IDLE);   // a counter that expired is left in ST_WAIT_STOPPED
 
     /*
      *  Set timer if configured it.
@@ -298,7 +311,9 @@ PRIVATE void publish_finalcount(hgobj gobj)
 
     gobj_publish_event(gobj, priv->final_event_name, kw);
 
-    gobj_stop(gobj);
+    if(gobj_is_running(gobj)) { // its owner may stop it while an expiration waits its turn
+        gobj_stop(gobj);
+    }
     if(gobj_is_volatil(gobj)) {
         gobj_destroy(gobj);
     }
@@ -404,6 +419,11 @@ PRIVATE int ac_count(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  Arriving here is because the final count has not been reached.
+ *
+ *  The final count is NOT published here: this comes inside the publication
+ *  of the counter's own C_TIMER, and the end of a volatile counter destroys
+ *  that timer under it. It is published in the next turn of the loop
+ *  (ac_count_expired).
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -412,8 +432,41 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     clear_timeout(priv->timer);
     KW_DECREF(kw);
 
+    if(gobj_post_event(gobj, EV_COUNT_EXPIRED, 0, gobj) < 0) {
+        // Error already logged: a final count in place is better than none
+        publish_finalcount(gobj);
+        return 0;
+    }
+    gobj_change_state(gobj, ST_WAIT_STOPPED);
+    return 0;
+}
+
+/***************************************************************************
+ *  The final count of a counter that expired, in its own turn of the loop.
+ ***************************************************************************/
+PRIVATE int ac_count_expired(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw);
+
     // publish the output event and die!
     publish_finalcount(gobj);
+    return 0;
+}
+
+/***************************************************************************
+ *  The counter expired and its final count waits for its turn: a count
+ *  that arrives now is too late. Up to 7.26.9 the counter was destroyed by
+ *  then, and none reached it.
+ ***************************************************************************/
+PRIVATE int ac_late_count(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(gobj_trace_level(gobj) & TRACE_DEBUG) {
+        trace_msg0("count after the expiration, ignored: %s",
+            kw_get_str(gobj, kw, "__original_event_name__", "", 0)
+        );
+    }
+
+    KW_DECREF(kw);
     return 0;
 }
 
@@ -443,6 +496,7 @@ GOBJ_DEFINE_GCLASS(C_COUNTER);
  *------------------------*/
 GOBJ_DEFINE_EVENT(EV_COUNT);
 GOBJ_DEFINE_EVENT(EV_FINAL_COUNT);
+GOBJ_DEFINE_EVENT(EV_COUNT_EXPIRED);    // private: posted to itself, the end of an expiration
 
 /***************************************************************************
  *
@@ -469,9 +523,15 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT,    ac_timeout, 0},
         {0,0,0}
     };
+    ev_action_t st_wait_stopped[] = {
+        {EV_COUNT_EXPIRED,  ac_count_expired,   0},
+        {EV_COUNT,          ac_late_count,      0},
+        {0,0,0}
+    };
 
     states_t states[] = {
-        {ST_IDLE,       st_idle},
+        {ST_IDLE,           st_idle},
+        {ST_WAIT_STOPPED,   st_wait_stopped},
         {0, 0}
     };
 
@@ -479,6 +539,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_FINAL_COUNT,    EVF_OUTPUT_EVENT},
         {EV_COUNT,          0},
         {EV_TIMEOUT,        0},
+        {EV_COUNT_EXPIRED,  0},
         {0, 0}
     };
 

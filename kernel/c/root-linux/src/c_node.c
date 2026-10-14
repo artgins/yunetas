@@ -2871,9 +2871,18 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                 kw  // owned
             );
         }
-        jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), TRUE);
+        jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), FALSE);
         GBUFFER_DECREF(gbuf_content);
         if(!jn_content) {
+            PRIVATE_DATA *priv = gobj_priv_data(gobj);
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "content64 is not a json object or list, refused",
+                "treedb_name",  "%s", priv->treedb_name,
+                "topic_name",   "%s", topic_name,
+                NULL
+            );
             GBUFFER_DECREF(gbuf_files)
             return msg_iev_build_response(
                 gobj,
@@ -3052,9 +3061,18 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                 kw  // owned
             );
         }
-        jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), TRUE);
+        jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), FALSE);
         GBUFFER_DECREF(gbuf_content)
         if(!jn_content) {
+            PRIVATE_DATA *priv = gobj_priv_data(gobj);
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "content64 is not a json object or list, refused",
+                "treedb_name",  "%s", priv->treedb_name,
+                "topic_name",   "%s", topic_name,
+                NULL
+            );
             GBUFFER_DECREF(gbuf_files)
             return msg_iev_build_response(
                 gobj,

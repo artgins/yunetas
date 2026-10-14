@@ -1051,7 +1051,10 @@ int gbuffer_setlabel(gbuffer_t *gbuf, const char *label);
 // Conversions
 gbuffer_t *str2gbuf(const char *fmt, ...);
 gbuffer_t *json2gbuf(gbuffer_t *gbuf, json_t *jn, size_t flags);
-json_t    *gbuf2json(gbuffer_t *gbuf, int verbose);
+json_t    *gbuf2json(gbuffer_t *gbuf, int verbose);                  // json we wrote
+json_t    *gbuf2json_from_peer(hgobj gobj, gbuffer_t *gbuf, hgobj peer_gobj);   // json a peer sent: a WARNING
+json_t    *anystring2json_from_peer(hgobj gobj, const char *bf, size_t len, hgobj peer_gobj);
+const char *json_error_for_log(const json_error_t *error, char *bf, size_t bfsize); // without jansson's quote
 int        gbuf2file(hgobj gobj, gbuffer_t *gbuf, const char *path, int permission, BOOL overwrite);
 
 // Base64

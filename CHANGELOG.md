@@ -612,7 +612,8 @@ Out of the twenty-fourth review (V24):
   `Basic dXNlcjpwYXNz` are masked. The rule, with examples of both sides, is in
   `string_helper.md`.
 - **The false negatives of the masking by value** (V24.4.3): a JWT is `eyJ`,
-  base64url and a `.` -- a JWE (five parts) and a JWT a cap cut to fewer than
+  base64url and a `.` of its own (a header whose only dots end it,
+  `eyJhIjoxfQ.`, is none, but at the end of a dump) -- a JWE (five parts) and a JWT a cap cut to fewer than
   three were shown, its header and part of its payload --; `Basic` is a scheme
   wherever `Bearer` is (it was masked only as an `Authorization:` header at the
   start of a line of a dump); a `name: value` whose name is a secret's is
@@ -627,8 +628,9 @@ Out of the twenty-fourth review (V24):
   its bytes (it was judged up to the NUL, its value shown). The names, the
   schemes and the headers are compared in ASCII, whatever the locale. The
   twins of gobj-js follow the same rules (gobj-js 7.26.21, below): the C side
-  and the JS side answer the same on the tables of both test suites and on
-  30 000 generated texts.
+  and the JS side answer the same on the tables of both test suites, on
+  318 008 generated texts, 30 000 generated jsons with NULs and 286 445
+  names.
 - **The name of an event that is not public is masked** (V24.4.1), as its kw:
   a password or a JWT sent as the NAME was written in clear. Its WARNING says
   `frame_size`, the bytes received; its `kw_size` was the size of the masked,
@@ -670,14 +672,26 @@ Out of the twenty-fourth review (V24):
   none stops on a success; the 19 mains of the SDK that dropped those answers
   (the agents, `controlcenter`, `mqtt_broker`, `logcenter`, `emailsender`, the
   utils...) and the two templates of `yuno-skeleton` hand them back now. Test
-  `register_refused_gclass` (new).
+  `register_refused_gclass` (new). A second `yunetas_register_c_core()` -- the
+  entry point calls it before `register_yuno_and_more()` -- is refused with an
+  ERROR that says so (*"yunetas_register_c_core() called twice: ..."*); it
+  answered `-1` with no log, so a yuno that called it would have stopped naming
+  no cause. The tests `c_timer0` and `gobj_post_event` called it again and
+  dropped the answer: they do not any more (`register_refused_gclass` has a
+  second child for it).
 - **BREAKING: an fkey reference with a NUL is refused from C too** (V24.4,
-  `tr_treedb`), as the id and the pkey2 values: `treedb_create_node()` and
-  `treedb_update_node_and_links()` answer `NULL` with *"Invalid fkey
-  reference: it holds a NUL"*, an ERROR. C read the ref up to the NUL: the
-  create saved `""` with no log, or linked to the parent C read. A peer's
-  record never had one (`C_NODE` refuses a NUL in any of its texts). Test
-  `tr_treedb_update_instance`.
+  `tr_treedb`), as the id and the pkey2 values, by every write that reads one
+  from its kw: `treedb_create_node()`, `treedb_update_node()` (it links the
+  `file` columns of its kw) and `treedb_update_node_and_links()` answer `NULL`,
+  `treedb_autolink()` and `treedb_replace_links()` answer `-1`, with *"Invalid
+  fkey reference: it holds a NUL"*, an ERROR. C read the ref up to the NUL: the
+  create saved `""` with no log, or linked to the parent C read; an update of a
+  `file` column with `"\u0000junk"` unlinked its file, and with
+  `"<id>\u0000evil"` linked the asset `<id>`, both answered as a success. The
+  kw is walked for a NUL first, and the topic's columns are copied only when
+  one is there: a write without a NUL pays no copy. A peer's record never had
+  one (`C_NODE` refuses a NUL in any of its texts). Tests
+  `tr_treedb_update_instance`, `tr_treedb_files`.
 - `is_secret_name()`'s doc says its known effect, accepted: an ordinary name
   with a segment `pass`, `pin` or `otp` is a secret's too (`gpio_pin`, a `pass`
   that counts passes, `first_pass`, wattyzer's `sum_sla_pass`).
@@ -707,16 +721,21 @@ Out of the security review of those commits (V24, `2e8d0589f`):
   `;&)<>"'` too (`"password": <x>` showed `<x>`). Now the bytes to mask are
   MARKED, every rule on the bytes as they came, a run of them is one
   `********`; 7.26.9's reading of the parameters, and its rules of a dump, are
-  one pass each, whole; the word after a scheme is the word of 7.26.9's
-  Bearer (to a blank, a quote or one of `,;}]`), masked whole, its dots at the
-  end too. Measured against the libraries of 7.26.9 on 199 971 generated
-  texts: `2e8d0589f` showed what 7.26.9 hid -- beyond the trade-off of
-  V24.4.2 -- in 1 299 of the 30 107 twin texts inline and 1 753 in a dump; now
-  in none, on any of them. What shows now that 7.26.9 hid is only V24.4.2's
-  set: the word after a bare `Bearer` (not quoted, not after the scheme again,
-  not under a secret's name, not at the end of a dump) that is shorter than 8
-  characters, a word of prose of 8 to 23, or dots only -- 211 of the 30 107
-  texts inline, 111 in a dump. A word of prose is ASCII letters only now (a
+  one pass each, whole; the word after a scheme ends where the token after
+  `Bearer` ended in the agent's audit record of 7.26.9 (to a blank, a quote or
+  one of `,;}]`), masked whole, its dots at the
+  end too. Those figures were against the round before (V23, `932f24fca`, the
+  C twin of gobj-js 7.26.20), not against the tag. Against 7.26.9 the masking
+  still showed what 7.26.9 hid, in 66 of 232 444 generated texts inline and 56
+  in a dump: the value of a name of a segment (`pass`, `pin`), a name only
+  since this round, jumped over a `name=value` that 7.26.9 judged --
+  `db_pass='password'=hunter2` showed `hunter2`. Now 7.26.9's reading of the
+  parameters is kept whole too, inline and in a dump: its names, and no shape.
+  Measured position by position against the library of 7.26.9 on 318 008
+  generated texts, nothing it hid shows. Against V23 / gobj-js 7.26.20, only
+  V24.4.2's set shows: the word after a bare `Bearer` that is shorter than 8
+  characters, a word of prose of 8 to 23, or dots only (8 876 of the 232 444
+  texts inline, 8 448 in a dump). A word of prose is ASCII letters only now (a
   character that is no ASCII made a token look like prose), and `Basic`'s
   base64 is read as far as it goes (`(Basic dXNlcjpwYXNz)`).
 - **The end of a dump is where a cap cuts a credential**
@@ -734,12 +753,16 @@ Out of the security review of those commits (V24, `2e8d0589f`):
   event that is not public (`iev_create_from_gbuffer()`), the stats and the
   first word of a command out of session (`C_IEVENT_SRV`, `C_IEVENT_CLI`) and
   the log line of a peer's app (`EV_REMOTE_LOG`) were capped first, and a
-  token that the cap cut showed its first bytes, too short to be one.
+  token that the cap cut showed its first bytes, too short to be one. The copy
+  ends on a whole UTF-8 character also when it is shorter than the cap: the
+  window it was masked from could end inside one (28 bytes ending in `0xC3`).
 - **The error of a frame that is not json says where, not what**
   (`gbuf2json_from_peer()`, and `gbuf2json()` with `verbose`): jansson's text
   quotes the bytes near the error, and the WARNING showed the value of a
   secret its masked dump hid (`premature end of input near '"hunter2'`). It
-  says the error without them, and its `position`.
+  says the error without them, and its `position`. The function that drops
+  the quote is public, `json_error_for_log()`, and the SDK's other logs of a
+  jansson error use it (below).
 - **The agent's audit record redacts all that `mask_secrets_inline()`
   masks, with the same function** (new `mark_secrets_inline()`, of
   `helpers.h`): its own JWT was three parts exactly, so a JWE and a JWT of two
@@ -749,11 +772,20 @@ Out of the security review of those commits (V24, `2e8d0589f`):
   writes back decoded keeps what the text around it marks. Its own readings,
   stricter than the SDK's, stay on top (the word after `Bearer ` whatever it
   is: V24.4.2 does not reach the record). A record costs more: `run-yuno` 7.0
-  to 8.4 us, an `update-node` with a json text in its kw 8.3 to 11.5 us.
+  to 8.4 us, an `update-node` with a json text in its kw 8.3 to 11.5 us. A
+  masked run that ended a text of 8×N bytes read one byte past the map of
+  masked bytes (AddressSanitizer); `helpers/test_audit_record` runs whole
+  under it now.
 - `json_mask_secrets()`'s doc says its limit: a KEY is judged as a name, never
   as a value, so a key that is itself a credential is shown as it is.
-- The maskers stay linear: 7 to 12 ms for a MB of the hardest shapes (7.26.9:
-  1 to 4 ms; four passes inline, five in a dump, a map of bits).
+- The maskers stay linear. Measured with -O2 over 1 MB of each of 14 hard
+  shapes, the best of 9 runs: inline 7 to 31 ms (`abcd=` is the slowest), in
+  a dump 7 to 51 ms (`pin="`); 7.26.9 on the same shapes, 0 to 27 ms inline
+  and 1 to 40 ms in a dump. A reading that cannot read otherwise than the
+  reading of now is not run (7.26.9's when no name of a segment is met, gobj-js
+  7.26.20's when none of its shapes begins), and a name is compared only with
+  the words that begin with its letter. The first version of this round took
+  up to 56 ms inline and 66 ms in a dump.
 - Tests, red on the library of `2e8d0589f` and green on the new one:
   `secret_attrs/test_secret_attrs` (six lines that showed a secret; the marks
   of `mark_secrets_inline()` give the text `mask_secrets_inline()` gives, on
@@ -796,6 +828,181 @@ Out of the security review of those commits (V24, `2e8d0589f`):
   Bearer tok` (whose `tok` is masked now), and blanks, punctuation and
   parameter names: no credential. Every SPA on `^7.26.42` / `^7.26.21` and
   deployed.
+
+Out of the twenty-fifth review (V25), each finding checked before it was
+fixed:
+
+- **fix: the kernel read a gobj it had just destroyed, at the end of the
+  dispatch that destroyed it.** `gobj_send_event()` read `dst` after the
+  action, to print the return of the `machine` trace, and
+  `gobj_publish_event()` read the publisher's `obflag` after each subscriber,
+  to stop the publication when the publisher was gone: both read freed memory
+  once the action, or a subscriber, had destroyed that gobj. That happens on
+  the self-destroy at the end of work, which the lifecycle rules allow, and in
+  the stop contract: every host that destroys a volatile `C_TCP` in its
+  `EV_STOPPED` read the freed transport. When a subscriber destroyed the
+  publisher's parent, the loop went on with a freed publisher (a SegFault).
+  The kernel now keeps a frame per dispatch on the C stack, `gobj_destroy()`
+  marks the frames of what it destroys, and the kernel asks the frame, never
+  the gobj. The same applies to a change of state that destroys the gobj
+  before its action (the action is not run, and an ERROR says so), to the
+  walks of `gobj_start_tree()` / `gobj_stop_tree()` (they no longer go down
+  into a gobj that ended itself in its own `mt_start` / `mt_stop`), and to a
+  failing `mt_play()` that destroyed its gobj. Cost: +0.6 to 0.9 ns on an
+  empty `gobj_send_event()` (4.8 -> 5.7 ns median, 20 alternated rounds);
+  nothing measurable on a send with a kw (~170 ns) or on a publication to 4
+  subscribers (~820 ns). Test `gobj_dispatch`.
+- **The kernel says when a gobj is freed under code still running on it**,
+  with a stack: *"Destroying a gobj while its tree is publishing"* (a
+  subscriber destroyed its publisher, or an ancestor of it) and *"Destroying a
+  gobj while one of its actions is still running"* (an inner dispatch
+  destroyed a gobj that an outer action, or its `mt_start` / `mt_stop` /
+  `mt_play` / `mt_pause`, is still running on). Both name `destroying`, the
+  `publisher` or the `running` gobj, the `event`, the `destroyer` and the
+  `inner_event`, and say the fix (`gobj_post_event()`); the destroy goes on.
+  They do not fire for a gobj that destroys itself in the innermost code with
+  nothing of it further up the stack, nor for a host that destroys its
+  transport in the transport's `EV_STOPPED` (the documented stop contract).
+  Across the whole suite only `C_TASK` and `C_COUNTER` broke the rule.
+- **fix: `C_TASK` and `C_COUNTER` freed themselves under code still running
+  on them.** A job that timed out, or a counter that expired (the agent's
+  run/kill/play/pause-yuno counters), ended inside the `EV_TIMEOUT` of its own
+  `C_TIMER` child, and a volatile one destroyed the timer under its
+  publication (ASan: `c_auth_bff/test10_kc_silence`); and a result that
+  arrived inside the job's own action (a local service that answers in the
+  call) ended the task in the inner `ac_on_message`, and `execute_action()`
+  went on with the freed task (a SegFault). Every end of a `C_TASK` now runs on
+  the next turn of the loop (`EV_FINISH_TASK` posted to itself, `C_COUNTER`'s
+  `EV_COUNT_EXPIRED` likewise), from `ST_WAIT_STOPPED`, where a late answer or
+  count is not processed. `EV_END_TASK` keeps its kw and results and is
+  published once, but it arrives on the next turn for 0 and -1 too, not inside
+  the publication of `gobj_results` (none of its four users -- the BFF,
+  `C_TASK_AUTHENTICATE`, `C_IDP_KEYCLOAK`, `dba_postgres` -- depends on it).
+  Tests `c_task`, `c_counter`.
+- **fix: a value written to an attribute is read as the attribute's type, by
+  the parser's grammar** (`json2item()`, new `command_parameter_from_json()`):
+  a json string given to a `DTP_BOOLEAN`, `DTP_INTEGER`, `DTP_REAL`,
+  `DTP_LIST` or `DTP_DICT` attribute (a config, `gobj_write_attr()`,
+  `gobj_write_attrs()`, the persistent attrs) was read from its JSON dump,
+  quotes included: `"42"` was written 0, `"true"` and `"yes"` false, `"2.5"`
+  0.0, and a list or a dict given as text was always refused. It is read from
+  its text as a command parameter is, and a number or a boolean as the exact
+  type: an integer to a real is its real and a boolean to an integer 1 or 0
+  (both were refused), `2.0` to an integer 2. What does not read as the type
+  (`12abc`, `2.7` to an integer, an object to a number, a null, an empty text)
+  is not written: one ERROR, *"Attribute value of the wrong type, not
+  written"*, naming the attribute, its type and why, the value masked and
+  capped (a `SDF_SECRET` one never shown), and the attribute keeps its value;
+  a boolean given a null or an object was false with no log. Not BREAKING: a
+  value that changes meaning is one the old code could not have meant, and no
+  deployed config depends on it. gobj-js reads it the same way (7.26.22): a
+  table of 71 cases is read by the tests of both kernels, with the same
+  outcome. Test `attr_types/test_attr_types`.
+- **fix: a json null given to a string attribute is `""`, never the text
+  `"null"`** (`json2item()`: a config, `gobj_write_attr()`, the persistent
+  attrs). It was written as the 4-character text `"null"`, which
+  `empty_string()` reads as a value -- a null `jwt` was a token. `""` is the
+  default of a string attr and what gobj-js writes. `gobj_write_str_attr(NULL)`
+  still writes a json null (its doc says so). Test `attr_types/test_attr_types`.
+- **fix: the JSON body of an HTTP message that does not parse is a peer's
+  WARNING, never logged as it came** (`ghttp_parser`, new
+  `anystring2json_from_peer()`): a malformed body sent to the BFF's
+  `/auth/login` (`{"username":"bob","password":"hunter2",}`) or an IdP's
+  answer with its tokens was an ERROR with a stack and the whole body, in
+  clear, in a `"bf"` field. It is one WARNING (`MSGSET_PROTOCOL`, *"data of a
+  peer is not json"*): the peer, jansson's error without the bytes it quotes,
+  the position, at most 256 bytes dumped, masked.
+- **fix: `anystring2json()`, `string2json()`, `json_config_string2json()` and
+  `anyfile2json()` with `verbose` never log the text as it came**: the
+  `"bf"`/`"str"` field (the whole text, unmasked, uncapped) is gone; the error
+  is jansson's without the bytes it quotes near it (new public
+  `json_error_for_log()`), with line, column and position, and the text is
+  dumped masked. The quote is dropped too from the errors of the
+  persistent-attrs file, a timeranger2 record that is not json, a json file
+  loaded whole, the MQTT properties attrs, and a yuno's own config, which is
+  printed masked.
+- **fix: `json_config_string2json()` read freed memory** on a text that did
+  not parse (it logged it from the gbuffer it had just freed), and crashed on
+  a NULL text: the agent's `create-config` / `update-config` of a `content64`
+  that is not base64 was a SIGSEGV of the agent. They answer *"Invalid base64
+  in content64"*.
+- **fix: an inter-event without its routing is the peer's**
+  (`msg_iev_get_stack()` with `verbose`, `msg_iev_pop_stack()`): an ERROR with
+  a stack and the whole kw traced in clear (a server's frame in
+  `C_IEVENT_CLI`, a yuno's answer in the agent). One WARNING
+  (`MSGSET_PROTOCOL`), the kw masked and capped; `C_IEVENT_CLI`'s stats and
+  command requests add no ERROR of their own for it.
+- **fix: three more texts logged in clear.** A dict or list attribute written
+  as text that does not parse logged the text: only *"attr must be an
+  object/array"* and the attribute now. The agent's `read-json` of a file that
+  is not json logged its content with a stack: a WARNING with the file name
+  and where it breaks. A treedb `create-node` / `update-node` whose
+  `content64` is not json was an ERROR with a stack and the decoded text: a
+  WARNING, *"content64 is not a json object or list, refused"*.
+- **fix: a token in the query of a URL is masked** (`mask_secrets_inline()`,
+  `json_mask_secrets()`). The name of a `name=value` was only the word before
+  the `=`, and a URL's word holds its host and path, so `GET
+  https://my-file-server.com/get?token=abc&x=1` and `{"url":
+  "https://cdn.public.example/x?access_token=abc"}` showed the token (the
+  word held `file` or `public`). The run of name characters before the `=` is
+  judged too, as the dump already did (`mark_query_params()`); its value runs
+  to a blank or one of `&;,"'<>`. In 7.26.9 too. Test `secret_attrs`.
+- **fix: a GET with parameters lost the last character of its query**
+  (`C_PROT_HTTP_CL`). With `Content-Type: application/x-www-form-urlencoded` a
+  GET carries its form (`data` or `query`) in the query of its resource, and
+  the new resource had no room for the `?`: `GET /path?a=1&b=xyz` went out as
+  `/path?a=1&b=xy`, with no log. A GET with no form still gets no `?`. Every
+  allocation of `EV_SEND_MESSAGE` is checked now, and a `data` that is a json
+  string or number is sent as json (`JSON_ENCODE_ANY`): `json_dumps()` refused
+  it and the client crashed on the `NULL`, where its comment said "any JSON
+  value". No caller of the SDK sends a form in a GET. Test
+  `c_prot_http_cl/test1` (new).
+- **fix: `yuno-skeleton`, and every yuno its `yuno_standalone` template
+  generates, leaked at each run.** `find_skeleton()` returned an element of
+  the `__skeletons__.json` it loaded and never released the file (14 KB a
+  run), and `make_skeleton()` released the element it did not own; it returns
+  a reference of its own now. The template's `main()` never released the json
+  of its parameters nor the copy it hands to the entry point: 596 bytes at
+  every exit of a generated yuno. The six utils that share that `main()`
+  (`ycommand`, `ystats`, `ybatch`, `mqtt_tui`, `emu_device`, `ytests`) leaked
+  the same -- `ycommand`'s json holding the user's password and JWT -- and
+  `emu_device` read the dump of its parameters unchecked. Found and verified
+  with LeakSanitizer.
+- **Before upgrading a node to 7.26.10, check the schemas of its stores** with
+  the new `tools/treedb/check_store_schemas.py` (it ships in the packages; on
+  a node with an older one: `ssh <node> python3 - /yuneta/store <
+  tools/treedb/check_store_schemas.py`). Per persisted `*.treedb_schema.json`
+  and `*.msg2db_schema.json` it says what the SDK will log when a yuno opens
+  it, with the level of what the open does: a topic LEFT-OUT, a CRITICAL
+  (*"Cannot create topic of the schema"*), the ERROR a topic on disk is
+  opened with at every open (a pkey2 that is `id`, the tkey or named twice, a
+  pkey2 of no column, a `^` in a topic or hook name), the faults of the
+  `__system__` projection. A clean store prints only the count. See
+  `deploying-yunos.md` ("Upgrading to 7.26.10") and
+  `tools/check_store_schemas.md`.
+- Tests: `yev_events_tls/test_yevent_traffic_secure1` read the gbuffer that
+  `ytls_encrypt_data()` had released (heap-use-after-free under ASan); it
+  holds a reference of its own across the call, as `c_tcp` does.
+  `emailsender/bad_burst` measured the stack with the address of a local,
+  which ASan moves to its fake stack: it reads the frame address now, and
+  passes under ASan. New: `gobj_dispatch`, `c_task`, `c_counter`,
+  `attr_types`, `c_prot_http_cl`; more cases in `secret_attrs`,
+  `test_audit_record`, `tr_treedb_update_instance`, `tr_treedb_files`,
+  `c_node_commands`, `test_gbuffer_guards`, `register_refused_gclass`.
+  `scripts/api_index.py --help` rewrote the appendix: it prints its usage now,
+  and an unknown argument fails with it.
+- **docs:** `gobj_destroy()`, `gobj_send_event()` and `gobj_publish_event()`
+  say what a destroy inside a dispatch does, with the deferred pattern (and
+  GOBJ.md §6.3 no longer advises reading `obflag` on a raw pointer); the
+  `C_TASK` / `C_COUNTER` page is rewritten (its states, events, attribute
+  types and units were wrong); `treedb.md` says that a `%` is legal in a
+  treedb, topic or column name, `%s%n` included (no name goes through a format
+  string), with an example; the `C_PROT_HTTP_CL` page documents
+  `EV_SEND_MESSAGE` and its real states and events (it listed four states; the
+  gclass has two); `yunetas_register_c_core()` says it is called once, by the
+  entry point; `anystring2json_from_peer()`, `json_error_for_log()`,
+  `command_parameter_from_json()` and the json readers carry examples; the
+  masking pages say what each figure compares against.
 
 ## v7.26.9 (2026-10-11)
 

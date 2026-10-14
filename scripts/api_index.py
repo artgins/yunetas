@@ -15,8 +15,10 @@
 #
 #   Usage:
 #       scripts/api_index.py            rewrite the appendix
-#       scripts/api_index.py --check    exit 1 if it is stale
+#       scripts/api_index.py --check    exit 1 if it is stale, write nothing
+#       scripts/api_index.py --help     the usage; any other argument fails
 #
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -173,7 +175,16 @@ def build():
 
 
 def main():
-    check = "--check" in sys.argv[1:]
+    parser = argparse.ArgumentParser(
+        description="Write the C API appendix (docs/doc.yuneta.io/api/appendix_api_index.md) "
+                    "from the headers.",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="write nothing; exit 1 if the appendix is not what the headers say",
+    )
+    check = parser.parse_args().check   # -h prints the usage, an unknown argument fails: neither writes
     text = build()
     current = OUT.read_text(encoding="utf-8") if OUT.exists() else ""
     if text == current:

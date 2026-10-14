@@ -83,6 +83,7 @@ The flags of an attribute. Combine them with the bit-or operator.
 | `SDF_AUTHZ_P` | The subscription needs an authorization. |
 | `SDF_AUTHZ_S` | The statistics need an authorization. |
 | `SDF_AUTHZ_RS` | The reset of the statistics needs an authorization. |
+| `SDF_SECRET` | A secret (a password, a token). It is read and saved as usual, and a log never shows its value (7.26.22+). |
 
 ---
 
@@ -143,27 +144,121 @@ the functions above are the way to read an attribute.
 (js_gobj_write_attr)=
 ### [`gobj_write_attr(gobj, path, value, src)`](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3462)
 
-Writes an attribute of any type.
+Writes an attribute of any type. The value is read as the type of the
+attribute, as in C and as [`gobj_write_attrs()`](#js_gobj_write_attrs) reads it
+(7.26.22+). A refused value is not written, and the function returns a
+negative number. `undefined` for a boolean, integer, real, list or dict
+attribute is refused: this is an explicit write of nothing. Up to 7.26.21 the
+value was written as it was given.
 
 (js_gobj_write_attrs)=
 ### [`gobj_write_attrs(gobj, kw, include_flag, src)`](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3604)
 
 Writes every attribute of `kw` whose flags match `include_flag`.
 
+Each value is read as the type of its attribute, as in C (7.26.22+). The kw of
+[`gobj_create()`](lifecycle.md#js_gobj_create) and the loaded persistent attributes
+are read in the same way. The reader is
+[`command_parameter_from_json()`](#js_command_parameter_from_json):
+
+- A string for a `DTP_BOOLEAN`, `DTP_INTEGER`, `DTP_REAL`, `DTP_LIST` or
+  `DTP_DICT` attribute is read from its text: `"yes"` is `true`, `"42"` is
+  `42`, `"[1, 2]"` is a list.
+- A number or a boolean is read as the exact type: `3` for a real is `3`, and
+  `true` for an integer is `1`.
+- A key with the value `undefined` is an absent key. Nothing is written.
+
+If a value is not of the type (`"12abc"`, `2.7` for an integer, `"maybe"`),
+the attribute keeps its value. One `log_error` names the attribute, its type,
+the cause and the value. The value is masked and cut to 64 characters, and the
+value of a `SDF_SECRET` attribute is never shown. The function returns a
+negative number.
+
+```javascript
+gobj_write_attrs(gobj, {timeout: "1000", ratio: 3}, -1, gobj);   // 1000 and 3
+if(gobj_write_attrs(gobj, {timeout: "10s"}, -1, gobj) < 0) {
+    // Error already logged: timeout keeps 1000
+}
+```
+
+Up to 7.26.21, `parseInt("12abc")` wrote `12`, `Number("")` wrote `0`, and
+`"maybe"` wrote `false`.
+
+(js_command_parameter_from_json)=
+### `command_parameter_from_json(type, value)`
+
+Reads a value of `type` that is given as JSON, as the C command parser reads a
+parameter in a kw (`command_parameter_from_json()` of C, 7.26.22+). The
+grammar is the same in C and in JS. The test table
+`tests/fixtures/attr_types_parity.json` is read by the tests of the two
+kernels.
+
+- A string is read as [`command_parameter_from_text()`](#js_command_parameter_from_text)
+  reads a text. A string with a NUL in it is refused.
+- A number or a boolean is read as the exact type. `2.7` for an integer is
+  refused.
+- An object or a list must have the shape of the type.
+
+It returns `{value, refused}`. If `value` is `undefined`, `refused` gives the
+cause, and it never contains the value. If `refused` is `null` too, there is
+no value: a `null`, `undefined`, or an empty text for a number.
+
+```javascript
+command_parameter_from_json(data_type_t.DTP_INTEGER, "42");   // {value: 42, refused: null}
+command_parameter_from_json(data_type_t.DTP_INTEGER, 2.7);    // {value: undefined, refused: "a real with decimals"}
+command_parameter_from_json(data_type_t.DTP_BOOLEAN, "");     // {value: undefined, refused: null}
+```
+
+(js_command_parameter_from_text)=
+### `command_parameter_from_text(type, text)`
+
+Reads a value of `type` that is written as text, as the C command parser reads
+a parameter on the command line (7.26.22+):
+
+- A number has the JSON grammar, the whole text, and is in its range. `"007"`,
+  `"+5"`, `".5"` and `"nan"` are refused.
+- A boolean is `true`/`false`, `yes`/`no`, `on`/`off`, or an integer.
+- An object or a list is read from its JSON.
+- A `DTP_JSON` is read from its JSON. If the text is not JSON, it is the text
+  itself.
+- An empty text is `0` or `false`.
+
+It returns `{value, refused}`, as [`command_parameter_from_json()`](#js_command_parameter_from_json).
+
+```javascript
+command_parameter_from_text(data_type_t.DTP_BOOLEAN, "yes");    // {value: true, refused: null}
+command_parameter_from_text(data_type_t.DTP_INTEGER, "12abc");  // {value: undefined, refused: "a text that does not read as one"}
+```
+
 (js_gobj_write_bool_attr)=
 ### [`gobj_write_bool_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3629)
 
-Writes a boolean attribute.
+Writes a boolean attribute. The value is read as a boolean by the grammar of
+[`command_parameter_from_json()`](#js_command_parameter_from_json) (7.26.22+):
+`"yes"` and `1` are `true`. A value that is not a boolean (`"maybe"`, an
+object, `undefined`) is refused: one `log_error`, a negative return, and the
+attribute keeps its value. Up to 7.26.21, `"yes"` was written `false`.
 
 (js_gobj_write_integer_attr)=
 ### [`gobj_write_integer_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3657)
 
-Writes an integer attribute.
+Writes an integer attribute. The value is read as an integer, as
+[`gobj_write_bool_attr()`](#js_gobj_write_bool_attr) reads a boolean (7.26.22+):
+`"42"` is `42`, and `2.5`, `NaN`, `"12abc"` and `undefined` are refused. Up to
+7.26.21 `parseInt()` wrote `2` for `2.5` and `12` for `"12abc"`. A time for
+`set_timeout()` is rounded to whole milliseconds before it is written.
 
 (js_gobj_write_str_attr)=
 ### [`gobj_write_str_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3685)
 
-Writes a string attribute.
+Writes a string attribute. `null` and `undefined` are written as `""`, and
+any other value that is not a string as its JSON text (7.26.22+). Up to
+7.26.21 they were written as the texts `"null"` and `"undefined"`.
+
+```javascript
+gobj_write_integer_attr(gobj, "timeout", "1000");       // 1000
+gobj_write_str_attr(gobj, "username", kw.username);     // "" when kw has none
+```
 
 (js_gobj_reset_volatil_attrs)=
 ### [`gobj_reset_volatil_attrs(gobj)`](https://github.com/artgins/gobj-js/blob/7.26.21/src/gobj.js#L3592)

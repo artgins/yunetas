@@ -154,10 +154,52 @@ typedef struct posted_event_s {
     json_t *kw;             // owned
 } posted_event_t;
 
+/*
+ *  Code running on a gobj: an action of it (gobj_send_event), a publication
+ *  of it delivering to its subscribers (gobj_publish_event), one of its
+ *  framework methods (mt_start, mt_stop, mt_play, mt_pause); or a kernel
+ *  call that only watches whether a gobj survives what it calls. The frames
+ *  live on the C stack of those functions, chained innermost first, so they
+ *  cost no allocation and have no depth limit.
+ *
+ *  What runs after the action, or after each subscriber, may find its gobj
+ *  destroyed by then: an action that destroys itself at the end of its work
+ *  is legal, and a host destroys a stopped transport in its EV_STOPPED. So
+ *  gobj_destroy() marks every live frame of the gobj it destroys, and the
+ *  kernel asks its FRAME. Up to 7.26.9 it asked the gobj's obflag, in
+ *  memory that was freed already. The frames also say who is running when
+ *  a gobj is destroyed: see check_destroy_under_running_code().
+ */
+typedef enum {
+    FRAME_ACTION = 0,       // event: the event of the action
+    FRAME_PUBLICATION,      // event: the event published
+    FRAME_METHOD,           // event: the name of the framework method
+    FRAME_WATCH,            // event: what is called; no gclass code of its own
+} frame_kind_t;
+
+typedef struct dispatch_frame_s {
+    struct dispatch_frame_s *prev;
+    gobj_t *gobj;
+    gobj_event_t event;
+    frame_kind_t kind;
+    BOOL destroyed;         // gobj_destroy() of `gobj` ran while the frame was live
+} dispatch_frame_t;
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
 PRIVATE void purge_posted_events(gobj_t *gobj);
+PRIVATE void push_dispatch_frame(
+    dispatch_frame_t *frame,
+    gobj_t *gobj,
+    gobj_event_t event,
+    frame_kind_t kind
+);
+PRIVATE void pop_dispatch_frame(dispatch_frame_t *frame);
+PRIVATE void check_destroy_under_running_code(gobj_t *gobj);
+PRIVATE void mark_dispatch_frames_destroyed(gobj_t *gobj);
+PRIVATE BOOL start_destroys_it(gobj_t *gobj);
+PRIVATE BOOL stop_destroys_it(gobj_t *gobj);
 PRIVATE json_t *find_authzs(hgobj gobj, const char *authz, BOOL verbose);
 PRIVATE json_t *gobj_hsdata(hgobj gobj); // Return is NOT YOURS
 PRIVATE json_t *gobj_hsdata2(hgobj gobj, const char *name, gobj_t **gobj_found); // Return is NOT YOURS
@@ -253,6 +295,12 @@ PRIVATE int json2item(
     json_t *sdata,
     const sdata_desc_t *it,
     json_t *jn_value // not owned
+);
+PRIVATE void log_attr_value_refused(
+    gobj_t *gobj,
+    const sdata_desc_t *it,
+    json_t *value,
+    const char *refused
 );
 
 PRIVATE hgobj gobj_create_tree0(
@@ -373,6 +421,8 @@ PRIVATE dl_list_t dl_gclass = {0};
  */
 #define MAX_POSTED_EVENTS 10000
 PRIVATE dl_list_t dl_posted_events = {0};
+
+PRIVATE dispatch_frame_t *dispatch_top = NULL;  // innermost dispatch in progress
 
 PRIVATE json_t *__jn_services__ = 0;        // Dict "service": (json_int_t)(uintptr_t)gobj
 PRIVATE json_t *__jn_extra_global_vars__ = 0; // Extra entries merged into gobj_global_variables()
@@ -2498,6 +2548,17 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     }
 
     /*------------------------------------------------------------*
+     *  The dispatches in progress of this gobj learn it now, before
+     *  anything of it is dismantled. The check looks at the tree as
+     *  it is, once, from the root of what is destroyed: a child that
+     *  goes with its parent is part of that same destroy.
+     *------------------------------------------------------------*/
+    if(!(gobj->parent && (gobj->parent->obflag & obflag_destroying))) {
+        check_destroy_under_running_code(gobj);
+    }
+    mark_dispatch_frames_destroyed(gobj);
+
+    /*------------------------------------------------------------*
      *      Pause and Stop
      *
      *  BEFORE raising obflag_destroying, and that order is the
@@ -3356,6 +3417,62 @@ PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it)
 }
 
 /***************************************************************************
+ *  A value json2item() refuses: the attribute, its type and why, and the
+ *  value as a log may show it (a SDF_SECRET one never, any other masked and
+ *  capped)
+ ***************************************************************************/
+PRIVATE void log_attr_value_refused(
+    gobj_t *gobj,
+    const sdata_desc_t *it,
+    json_t *value,
+    const char *refused
+)
+{
+    const char *type = "a value of its type";
+    switch(it->type) {
+        case DTP_BOOLEAN:
+            type = "a boolean";
+            break;
+        case DTP_INTEGER:
+            type = "an integer";
+            break;
+        case DTP_REAL:
+            type = "a real";
+            break;
+        case DTP_LIST:
+            type = "a json array";
+            break;
+        case DTP_DICT:
+            type = "a json object";
+            break;
+        default:
+            break;
+    }
+
+    char shown[65];
+    if(it->flag & SDF_SECRET) {
+        snprintf(shown, sizeof(shown), "%s", "********");
+    } else if(json_is_string(value)) {
+        mask_secrets_inline_capped(shown, sizeof(shown), json_string_value(value), json_string_length(value));
+    } else {
+        char *s = value? json2uglystr(value) : NULL;
+        mask_secrets_inline_capped(shown, sizeof(shown), s? s : "", s? strlen(s) : 0);
+        GBMEM_FREE(s)
+    }
+
+    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "Attribute value of the wrong type, not written",
+        "attr",         "%s", it->name,
+        "type",         "%s", type,
+        "got",          "%s", refused? refused : "no value (a null, or an empty text)",
+        "value",        "%s", shown,
+        NULL
+    );
+}
+
+/***************************************************************************
  *  Set array values to sdata, from json or binary
  ***************************************************************************/
 PRIVATE int json2item(
@@ -3374,6 +3491,8 @@ PRIVATE int json2item(
         case DTP_STRING:
             if(json_is_string(jn_value_)) {
                 jn_value2 = json_incref(jn_value_);
+            } else if(json_is_null(jn_value_)) {
+                jn_value2 = json_string("");    // as the default of a string attr: the text "null" is not empty
             } else {
                 char *s = json2uglystr(jn_value_);
                 if(s) {
@@ -3383,89 +3502,18 @@ PRIVATE int json2item(
             }
             break;
         case DTP_BOOLEAN:
-            if(json_is_boolean(jn_value_)) {
-                jn_value2 = json_incref(jn_value_);
-            } else {
-                char *s = json2uglystr(jn_value_);
-                if(s) {
-                    if(strcasecmp(s, "TRUE")==0) {
-                        jn_value2 = json_true();
-                    } else if(strcasecmp(s, "FALSE")==0) {
-                        jn_value2 = json_false();
-                    } else {
-                        jn_value2 = atoi(s)? json_true(): json_false();
-                    }
-                    GBMEM_FREE(s)
-                }
-            }
-            break;
         case DTP_INTEGER:
-            if(json_is_integer(jn_value_)) {
-                jn_value2 = json_incref(jn_value_);
-            } else if(json_is_string(jn_value_)) {
-                char *s = json2uglystr(jn_value_);
-                if(s) {
-                    jn_value2 = json_integer(strtoll(s, NULL, 0));
-                    GBMEM_FREE(s)
-                }
-            }
-            break;
         case DTP_REAL:
-            if(json_is_real(jn_value_)) {
-                jn_value2 = json_incref(jn_value_);
-            } else if(json_is_string(jn_value_)) {
-                char *s = json2uglystr(jn_value_);
-                if(s) {
-                    jn_value2 = json_real(atof(s));
-                    GBMEM_FREE(s)
-                }
-            }
-            break;
         case DTP_LIST:
-            if(json_is_array(jn_value_)) {
-                jn_value2 = json_incref(jn_value_);
-            } else if(json_is_string(jn_value_)) {
-                char *s = json2uglystr(jn_value_);
-                if(s) {
-                    jn_value2 = string2json(s, TRUE);
-                    GBMEM_FREE(s)
-                }
-            }
-
-            if(!json_is_array(jn_value2)) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER,
-                    "msg",          "%s", "attr must be an array",
-                    "attr",         "%s", it->name,
-                    NULL
-                );
-                json_decref(jn_value2);
-                return -1;
-            }
-            break;
-
         case DTP_DICT:
-            if(json_is_object(jn_value_)) {
-                jn_value2 = json_incref(jn_value_);
-            } else if(json_is_string(jn_value_)) {
-                char *s = json2uglystr(jn_value_);
-                if(s) {
-                    jn_value2 = string2json(s, TRUE);
-                    GBMEM_FREE(s)
+            {
+                // A text read by its value, a number as the exact type: the parser's grammar
+                const char *refused = NULL;
+                jn_value2 = command_parameter_from_json(it->type, jn_value_, &refused);
+                if(!jn_value2) {
+                    log_attr_value_refused(gobj, it, jn_value_, refused);
+                    return -1;
                 }
-            }
-
-            if(!json_is_object(jn_value2)) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER,
-                    "msg",          "%s", "attr must be an object",
-                    "attr",         "%s", it->name,
-                    NULL
-                );
-                json_decref(jn_value2);
-                return -1;
             }
             break;
 
@@ -4948,7 +4996,10 @@ PUBLIC int gobj_start(hgobj gobj_)
 
     int ret = 0;
     if(gobj->gclass->gmt->mt_start) {
+        dispatch_frame_t frame;
+        push_dispatch_frame(&frame, gobj, "mt_start", FRAME_METHOD);
         ret = gobj->gclass->gmt->mt_start(gobj);
+        pop_dispatch_frame(&frame);
     }
     return ret;
 }
@@ -4986,6 +5037,35 @@ PUBLIC int gobj_start_children(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Start a gobj in a walk of its tree, and say whether that destroyed it.
+ *
+ *  A gclass may end itself in its own mt_start (a volatile C_TASK whose
+ *  first job fails) or mt_stop (a volatile C_PTY), and a walk of the tree
+ *  must not go down into the children of a gobj that is gone. The frame
+ *  says it; the gobj's memory, freed by then, cannot.
+ ***************************************************************************/
+PRIVATE BOOL start_destroys_it(gobj_t *gobj)
+{
+    dispatch_frame_t frame;
+    push_dispatch_frame(&frame, gobj, "gobj_start", FRAME_WATCH);
+    gobj_start(gobj);
+    pop_dispatch_frame(&frame);
+    return frame.destroyed;
+}
+
+/***************************************************************************
+ *  Stop a gobj in a walk of its tree, and say whether that destroyed it.
+ ***************************************************************************/
+PRIVATE BOOL stop_destroys_it(gobj_t *gobj)
+{
+    dispatch_frame_t frame;
+    push_dispatch_frame(&frame, gobj, "gobj_stop", FRAME_WATCH);
+    gobj_stop(gobj);
+    pop_dispatch_frame(&frame);
+    return frame.destroyed;
+}
+
+/***************************************************************************
  *  Start this gobj and all children tree of the gobj.
  ***************************************************************************/
 PRIVATE int cb_start_child_tree(hgobj child_, void *user_data, void *user_data2, void *user_data3)
@@ -5001,7 +5081,9 @@ PRIVATE int cb_start_child_tree(hgobj child_, void *user_data, void *user_data2,
         return 1;
     }
     if(!gobj_is_running(child)) {
-        gobj_start(child);
+        if(start_destroys_it(child)) {
+            return 1;   // gone: no children of it to walk
+        }
     }
     return 0;
 }
@@ -5031,7 +5113,9 @@ PUBLIC int gobj_start_tree(hgobj gobj_)
         return 0;
     } else {
         if(!gobj->running) {
-            gobj_start(gobj);
+            if(start_destroys_it(gobj)) {
+                return 0;   // gone: no children of it to walk
+            }
         }
     }
     return gobj_walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_start_child_tree, 0, 0, 0);
@@ -5098,7 +5182,10 @@ PUBLIC int gobj_stop(hgobj gobj_)
 
     int ret = 0;
     if(gobj->gclass->gmt->mt_stop) {
+        dispatch_frame_t frame;
+        push_dispatch_frame(&frame, gobj, "mt_stop", FRAME_METHOD);
         ret = gobj->gclass->gmt->mt_stop(gobj);
+        pop_dispatch_frame(&frame);
     }
 
     return ret;
@@ -5110,7 +5197,9 @@ PUBLIC int gobj_stop(hgobj gobj_)
 PRIVATE int cb_stop_child(hgobj child, void *user_data, void *user_data2, void *user_data3)
 {
     if(gobj_is_running(child)) {
-        gobj_stop(child);
+        if(stop_destroys_it(child)) {
+            return 1;   // gone: no children of it to walk
+        }
     }
     return 0;
 }
@@ -5169,7 +5258,9 @@ PUBLIC int gobj_stop_tree(hgobj gobj_)
     }
 
     if(gobj_is_running(gobj)) {
-        gobj_stop(gobj);
+        if(stop_destroys_it(gobj)) {
+            return 0;   // gone: no children of it to walk
+        }
     }
     return gobj_walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_stop_child, 0, 0, 0);
 }
@@ -5251,8 +5342,11 @@ PUBLIC int gobj_play(hgobj gobj_)
     gobj->playing = TRUE;
 
     if(gobj->gclass->gmt->mt_play) {
+        dispatch_frame_t frame;
+        push_dispatch_frame(&frame, gobj, "mt_play", FRAME_METHOD);
         int ret = gobj->gclass->gmt->mt_play(gobj);
-        if(ret < 0) {
+        pop_dispatch_frame(&frame);
+        if(ret < 0 && !frame.destroyed) {
             gobj->playing = FALSE;
         }
         return ret;
@@ -5309,7 +5403,11 @@ PUBLIC int gobj_pause(hgobj gobj_)
     gobj->playing = FALSE;
 
     if(gobj->gclass->gmt->mt_pause) {
-        return gobj->gclass->gmt->mt_pause(gobj);
+        dispatch_frame_t frame;
+        push_dispatch_frame(&frame, gobj, "mt_pause", FRAME_METHOD);
+        int ret = gobj->gclass->gmt->mt_pause(gobj);
+        pop_dispatch_frame(&frame);
+        return ret;
     } else {
         return 0;
     }
@@ -8123,7 +8221,16 @@ PUBLIC int gobj_send_event(
                     }
                 }
             }
-            return dst->gclass->gmt->mt_inject_event(dst, event, kw, src);
+
+            /*
+             *  A frame of its own too: nothing reads dst after the injection,
+             *  but a destroy it makes must know which gobj is running
+             */
+            dispatch_frame_t frame;
+            push_dispatch_frame(&frame, dst, event, FRAME_ACTION);
+            int ret = dst->gclass->gmt->mt_inject_event(dst, event, kw, src);
+            pop_dispatch_frame(&frame);
+            return ret;
         }
 
         if(tracea) {
@@ -8199,6 +8306,9 @@ PUBLIC int gobj_send_event(
         }
     }
 
+    dispatch_frame_t frame;
+    push_dispatch_frame(&frame, dst, event, FRAME_ACTION);
+
     /*
      *  IMPORTANT HACK
      *  Set new state BEFORE run 'action'
@@ -8207,12 +8317,28 @@ PUBLIC int gobj_send_event(
      *  If you don’t like this behavior, set the next-state to NULL
      *  and use change_state() to change the state inside the actions.
      */
+    BOOL destroyed_by_new_state = FALSE;
     if(event_action->next_state) {
         gobj_change_state(dst, event_action->next_state);
+        destroyed_by_new_state = frame.destroyed;
     }
 
     int ret = -1;
-    if(event_action->action) {
+    if(destroyed_by_new_state) {
+        /*
+         *  The change of state destroyed it (its mt_state_changed, or a
+         *  subscriber of its EV_STATE_CHANGED): no gobj left to run on
+         */
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "gobj destroyed by its change of state, action not run",
+            "state_name",   "%s", event_action->next_state,
+            "event",        "%s", event,
+            NULL
+        );
+        KW_DECREF(kw)
+    } else if(event_action->action) {
         // Execute the action
         ret = (*event_action->action)(dst, event, kw, src);
     } else {
@@ -8220,7 +8346,9 @@ PUBLIC int gobj_send_event(
         KW_DECREF(kw)
     }
 
-    if(tracea && !(dst->obflag & obflag_destroyed)) {
+    pop_dispatch_frame(&frame);
+
+    if(tracea && !frame.destroyed) {
         if(trace_machine_format==1) {
             // No trace return
         } else {
@@ -8503,6 +8631,144 @@ PRIVATE void purge_posted_events(gobj_t *gobj)
         dl_delete(&dl_posted_events, msg, 0);
         KW_DECREF(msg->kw)
         GBMEM_FREE(msg)
+    }
+}
+
+/***************************************************************************
+ *  A dispatch begins: its frame goes on top of the chain.
+ ***************************************************************************/
+PRIVATE void push_dispatch_frame(
+    dispatch_frame_t *frame,
+    gobj_t *gobj,
+    gobj_event_t event,
+    frame_kind_t kind
+) {
+    frame->prev = dispatch_top;
+    frame->gobj = gobj;
+    frame->event = event;
+    frame->kind = kind;
+    frame->destroyed = FALSE;
+    dispatch_top = frame;
+}
+
+/***************************************************************************
+ *  A dispatch ends. Frames end in the order they began: they live in the C
+ *  stack of the call that pushed them.
+ ***************************************************************************/
+PRIVATE void pop_dispatch_frame(dispatch_frame_t *frame)
+{
+    dispatch_top = frame->prev;
+}
+
+/***************************************************************************
+ *  Every dispatch in progress of `gobj` learns that it is destroyed.
+ *
+ *  Only its own frames: each child destroyed with it marks its own, in its
+ *  own gobj_destroy(), so a whole subtree is covered.
+ ***************************************************************************/
+PRIVATE void mark_dispatch_frames_destroyed(gobj_t *gobj)
+{
+    for(dispatch_frame_t *f = dispatch_top; f; f = f->prev) {
+        if(f->gobj == gobj) {
+            f->destroyed = TRUE;
+        }
+    }
+}
+
+/***************************************************************************
+ *  Is the innermost live publication of `gobj` its EV_STOPPED? Then the
+ *  stop contract holds for it: that is the last thing it does with itself.
+ ***************************************************************************/
+PRIVATE BOOL said_farewell(gobj_t *gobj)
+{
+    for(dispatch_frame_t *f = dispatch_top; f; f = f->prev) {
+        if(f->kind == FRAME_PUBLICATION && !f->destroyed && f->gobj == gobj) {
+            return (f->event == EV_STOPPED)? TRUE : FALSE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  A gobj must not be freed under code that is still running on it.
+ *
+ *  `gobj` is about to be destroyed, and with it its whole subtree. Every
+ *  live frame of a gobj of that subtree is code that goes on when the
+ *  destroy returns, on memory that is freed: the kernel no longer reads it
+ *  (the frames), but the gclass code does -- C_TIMER right after its
+ *  EV_TIMEOUT, an action that called something that ended its own gobj.
+ *  It is an ERROR, except for:
+ *
+ *  - the innermost frame: it is the code that destroys, and knows it (a
+ *    gobj that destroys itself in its action, at the end of its work);
+ *
+ *  - the frames of a gobj whose innermost publication is EV_STOPPED: by
+ *    the stop contract that is the last thing it does with itself, and its
+ *    host destroys it there (C_TCP, C_UDP_S, C_PTY, and their hosts);
+ *
+ *  - the watch frames of the kernel, which run no gclass code of their own.
+ *
+ *  Two messages, after the innermost frame that breaks it: a publication in
+ *  progress (a subscriber destroyed its publisher's tree) or an action or a
+ *  framework method in progress (an inner dispatch destroyed a gobj that an
+ *  outer one is still running on). The destroy goes on: this only says it,
+ *  once. The fix is to defer the destroy with gobj_post_event().
+ ***************************************************************************/
+PRIVATE void check_destroy_under_running_code(gobj_t *gobj)
+{
+    dispatch_frame_t *top = dispatch_top;
+    if(!top) {
+        return;
+    }
+
+    for(dispatch_frame_t *f = top->prev; f; f = f->prev) {
+        if(f->destroyed || f->kind == FRAME_WATCH) {
+            continue;
+        }
+
+        BOOL in_tree = FALSE;
+        for(gobj_t *p = f->gobj; p; p = p->parent) {
+            if(p == gobj) {
+                in_tree = TRUE;
+                break;
+            }
+        }
+        if(!in_tree) {
+            continue;
+        }
+
+        if(said_farewell(f->gobj)) {
+            continue;
+        }
+
+        if(f->kind == FRAME_PUBLICATION) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Destroying a gobj while its tree is publishing",
+                "msg2",         "%s", "Defer it with gobj_post_event(): a subscriber must not destroy the tree of its publisher synchronously",
+                "destroying",   "%s", gobj_full_name(gobj),
+                "publisher",    "%s", gobj_full_name(f->gobj),
+                "event",        "%s", f->event?f->event:"",
+                "destroyer",    "%s", top->destroyed? "(destroyed)" : gobj_full_name(top->gobj),
+                "inner_event",  "%s", top->event?top->event:"",
+                NULL
+            );
+        } else {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Destroying a gobj while one of its actions is still running",
+                "msg2",         "%s", "Defer it with gobj_post_event(): an inner dispatch must not destroy a gobj that an outer one is running on",
+                "destroying",   "%s", gobj_full_name(gobj),
+                "running",      "%s", gobj_full_name(f->gobj),
+                "event",        "%s", f->event?f->event:"",
+                "destroyer",    "%s", top->destroyed? "(destroyed)" : gobj_full_name(top->gobj),
+                "inner_event",  "%s", top->event?top->event:"",
+                NULL
+            );
+        }
+        return;
     }
 }
 
@@ -9992,6 +10258,9 @@ PUBLIC int gobj_publish_event(
     /*--------------------------------------------------------------*
      *      Default publication method
      *--------------------------------------------------------------*/
+    dispatch_frame_t frame;
+    push_dispatch_frame(&frame, publisher, event, FRAME_PUBLICATION);
+
     json_t *dl_subs = json_copy(publisher->dl_subscriptions); // Protect to inside deleted subs
     int sent_count = 0;
     int ret = 0;
@@ -10211,16 +10480,20 @@ PUBLIC int gobj_publish_event(
             }
             ret += ret_;
 
-            if(publisher->obflag & (obflag_destroying|obflag_destroyed)) {
+            if(frame.destroyed || (publisher->obflag & obflag_destroying)) {
                 /*
-                 *  break all, self publisher deleted
+                 *  The publisher is gone, or going: the rest of its
+                 *  subscribers do not get the event. Its frame says so, not
+                 *  its memory, which is freed when it is gone.
                  */
                 break;
             }
         }
     }
 
-    if(!sent_count) {
+    pop_dispatch_frame(&frame);
+
+    if(!sent_count && !frame.destroyed) {
         if(!ev || !(ev->event_flag & EVF_NO_WARN_SUBS)) {
             gobj_log_warning(publisher, 0,
                 "msgset",       "%s", MSGSET_INFO,

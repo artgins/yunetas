@@ -10,25 +10,82 @@ Async task execution, timers, and counters.
 (gclass-c-task)=
 ## C_TASK
 
-Task execution engine — orchestrates multi-step jobs with timeout and
-result handling.
+Task execution engine — runs a list of jobs, one after the other, each one
+an action and the result it waits for, with a timeout per job.
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_IDLE`, `ST_WAIT_RESPONSE` |
-| **Input events** | `EV_ON_MESSAGE`, `EV_TIMEOUT`, `EV_STOPPED` |
-| **Output events** | `EV_ON_MESSAGE` |
+| **States** | `ST_IDLE` (working), `ST_WAIT_STOPPED` (its end waits for the next turn of the loop) |
+| **Input events** | from `gobj_results`: `EV_ON_OPEN`, `EV_ON_MESSAGE`, `EV_ON_CLOSE`, `EV_STOPPED`; `EV_TIMEOUT` (its own `C_TIMER`, or sent from outside); `EV_FINISH_TASK` (private, posted to itself) |
+| **Output events** | `EV_END_TASK` |
 
 ### Key attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `jobs` | `json` | Job definitions (array of steps). |
-| `input_data` | `json` | Input data for jobs. |
-| `output_data` | `json` | Collected output data. |
-| `gobj_jobs` | `pointer` | Gobj that executes jobs. |
-| `gobj_results` | `pointer` | Gobj that receives results. |
-| `timeout` | `integer` | Action timeout in seconds. |
+| `jobs` | `json` | The jobs: a list of `{"exec_action", "exec_result", "exec_timeout"}`. The first two are names of local methods of `gobj_jobs`; `exec_timeout` is in milliseconds. |
+| `input_data` | `json` | Data for the jobs, as they want. |
+| `output_data` | `json` | Data the jobs leave, as they want. A timeout adds `"comment": "Task failed by timeout"`. |
+| `gobj_jobs` | `json` | The gobj that defines the jobs: a json integer with its `hgobj`, or the name of a service. |
+| `gobj_results` | `json` | The gobj that runs them and answers (an http client, a database client): an `hgobj` or a service name. It is the task's bottom gobj, and the task subscribes to everything it publishes. |
+| `timeout` | `integer` | Default `exec_timeout`, in milliseconds (`10000`). |
+
+### How it runs
+
+At its start the task runs the first action if `gobj_results` says it is
+`connected`, or waits for its `EV_ON_OPEN`. An action returns `0` to wait for
+the result (`CONTINUE_TASK()`; the job's timeout is armed) or `-1` to stop
+(`STOP_TASK()`). The result arrives as `EV_ON_MESSAGE` of `gobj_results`,
+and goes to the job's result method: `-1` stops, anything else goes on to the
+next job. The end is `EV_END_TASK`:
+
+| `result` | When |
+|---|---|
+| `0` | The last job answered. |
+| `-1` | An action or a result returned `-1`. |
+| `-2` | A job timed out (`output_data` says *"Task failed by timeout"*). |
+
+The kw is `{result, last_job, input_data, output_data}`. It is published on
+the turn of the loop after the end is decided (see below), and a volatile task
+destroys itself after it.
+
+```C
+json_t *kw_task = json_pack("{s:I, s:I, s:[{s:s, s:s, s:i}]}",
+    "gobj_jobs",    (json_int_t)(uintptr_t)gobj,            // its local methods run the jobs
+    "gobj_results", (json_int_t)(uintptr_t)priv->gobj_http, // the client that answers
+    "jobs",
+        "exec_action",  "action_get_token",
+        "exec_result",  "result_get_token",
+        "exec_timeout", 5000
+);
+hgobj task = gobj_create("auth", C_TASK, kw_task, gobj);
+gobj_subscribe_event(task, EV_END_TASK, 0, gobj);
+gobj_set_volatil(task, TRUE);   // destroys itself after EV_END_TASK
+gobj_start(task);
+```
+
+### The end runs in the next turn
+
+The end of a task is never run where it is decided. A timeout is decided
+inside the publication of the task's own `C_TIMER`, and a result can arrive
+inside the job's action (a local service that answers in the call), with that
+action still running on the task further up the stack: ending a volatile task
+there frees the timer, or the task, under code that goes on with it. So every
+end posts `EV_FINISH_TASK` to the task
+([`gobj_post_event()`](../gobj/events_state.md#gobj_post_event)), and
+`EV_END_TASK` is published from that action, on the next turn of the loop. A
+timeout sent from outside (`C_AUTH_BFF`'s watchdog sends `EV_TIMEOUT` to a task
+stuck connecting) takes the same path.
+
+In between, the task is in `ST_WAIT_STOPPED`, and what `gobj_results` says
+belongs to a job that is over: a late answer is not processed, and the end is
+published once. A job's action whose result came inside it leaves the task as
+that result left it (it arms no timeout, and does not end the task again).
+
+Up to 7.26.9 the task ended at once: the timer, or the task, was freed under
+code still running on it, and `C_TIMER`, `execute_action()` and the kernel
+read it afterwards (the kernel now says it with an ERROR, see
+[`gobj_destroy()`](../gobj/creation.md#gobj_destroy)). `tests/c/c_task`.
 
 ---
 
@@ -131,20 +188,55 @@ Same as [C_TIMER](#gclass-c-timer).
 (gclass-c-counter)=
 ## C_COUNTER
 
-Event counter — tracks incoming events until reaching a target count or
-a timeout, then fires a final event.
+Event counter — counts incoming events until it reaches a target count or
+it expires, then publishes a final event. The agent counts with it the
+yunos that answer a `run-yuno`, `kill-yuno`, `play-yuno` or `pause-yuno`.
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_IDLE`, `ST_WAIT_COUNT` |
-| **Input events** | `EV_ON_MESSAGE`, `EV_TIMEOUT` |
-| **Output events** | custom (`final_event_name`) |
+| **States** | `ST_IDLE` (counting), `ST_WAIT_STOPPED` (expired, its final count waits for the next turn of the loop) |
+| **Input events** | `EV_COUNT` (an event to count), `EV_TIMEOUT` (its own `C_TIMER`, or sent from outside), `EV_COUNT_EXPIRED` (private, posted to itself) |
+| **Output events** | `final_event_name` (default `EV_FINAL_COUNT`) |
 
 ### Key attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `max_count` | `integer` | Target event count. |
-| `expiration_timeout` | `integer` | Timeout in seconds (fires even if count not reached). |
-| `final_event_name` | `string` | Event name to fire on completion. |
-| `input_schema` | `json` | Schema for counted events. |
+| `expiration_timeout` | `integer` | Milliseconds until it expires, count reached or not. |
+| `final_event_name` | `string` | Event published at the end (`EV_FINAL_COUNT`), with `{info, max_count, cur_count}`. |
+| `input_schema` | `json` | What counts: a list of `{"event", "filters"}`. `event` is compared with the `__original_event_name__` of the kw, `filters` (optional) with the kw. |
+| `info` | `string` | Put in the final event. |
+
+The events reach it through a subscription renamed to `EV_COUNT`, which adds
+`__original_event_name__` to each kw:
+
+```C
+json_t *kw_counter = json_pack("{s:s, s:i, s:i, s:[{s:s}]}",
+    "info", "yunos to run",
+    "max_count", 3,
+    "expiration_timeout", 10000,
+    "input_schema",
+        "event", "EV_ON_OPEN"
+);
+hgobj counter = gobj_create_volatil("run", C_COUNTER, kw_counter, gobj);
+gobj_subscribe_event(gobj_input_side, EV_ON_OPEN,
+    json_pack("{s:{s:s}}", "__config__", "__rename_event_name__", EV_COUNT),
+    counter
+);
+gobj_subscribe_event(counter, EV_FINAL_COUNT, 0, gobj);
+gobj_start(counter);
+```
+
+A volatile counter destroys itself after its final count.
+
+### The expiration ends the counter in the next turn
+
+`EV_TIMEOUT` comes inside the publication of the counter's own `C_TIMER`, and
+a volatile counter destroys itself, and that timer with it, after its final
+count. So the expiration posts `EV_COUNT_EXPIRED` to the counter, and the
+final count is published from that action, on the next turn of the loop. A
+count that arrives in between does not count (`ST_WAIT_STOPPED`). The final
+count of a count reached is published where it happens, inside the last
+`EV_COUNT`. Up to 7.26.9 the expiration published and destroyed at once, and
+`C_TIMER` and the kernel read the freed timer afterwards. `tests/c/c_counter`.

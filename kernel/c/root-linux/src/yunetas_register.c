@@ -52,6 +52,12 @@ PUBLIC int yunetas_register_c_core(void)
 {
     static BOOL initialized = FALSE;
     if(initialized) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "yunetas_register_c_core() called twice: yuneta_entry_point() already registers the core gclasses, do not call it from register_yuno_and_more()",
+            NULL
+        );
         return -1;
     }
     int result = 0;

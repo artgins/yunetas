@@ -53,7 +53,9 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `tr_treedb_hook_rename` | Renaming a hook, and the derived `fkey` mark; a stale ref in a string fkey column is removed by a clean and a forced delete |
 | `tr_dt_unknown` | A topic on a filesystem whose `readdir()` gives no `d_type`: keys found with `lstat()`, a symbolic link is not a key, an unreadable key is flagged |
 | `gobj_post_event` | `gobj_post_event()`: delivery on the next cycle of the loop |
+| `gobj_dispatch` | A gobj destroyed while an event is dispatched to it or published by it: the kernel never reads it after; a gobj destroyed under code still running on it (a publication, an outer action) is an ERROR; a self-destroy, in an action or a framework method, and the `EV_STOPPED` of the stop contract are not |
 | `c_timer0`, `c_timer` | `C_TIMER0` / `C_TIMER` scheduling |
+| `c_counter` | `C_COUNTER`: an expiration publishes the final count on the next turn, late counts do not count |
 | `c_tcp`, `c_tcp2` | `C_TCP` client GClass (connect, I/O, timeouts); a write that does not start drops the connection (`test5`); the stop of a client already disconnected publishes `EV_STOPPED` and it starts again (`test6`) |
 | `c_tcps`, `c_tcps2` | `C_TCP_S` TLS client (handshake, OpenSSL + mbedTLS) |
 | `c_tcp_inactivity` | `C_TCP` `timeout_inactivity` |
@@ -95,6 +97,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `treedb_schema_fidelity` | Every real schema of the tree through `__system__` and back |
 | `c_mqtt` | Embedded MQTT broker + client round-trip; the ACL, `list-queues` / `clean-queues` of a store that cannot be listed, malformed packets, incoming QoS 2 messages queued at a session reload; the out window (the client's Receive Maximum), `list-queues qos=`, an ack of the wrong type; an MQTT client with persistent queues (a QoS 2 dup, an expired queued message) |
 | `c_auth_bff` | BFF HTTP auth flow (mock Keycloak + signed JWTs) |
+| `c_task` | `C_TASK`: every end runs on the next turn (a timeout -2, an answer 0, once), a late answer is not processed, an answer inside the job's action is processed once |
 | `c_task_authenticate` | `C_TASK_AUTHENTICATE`, the OIDC password-grant task |
 | `c_llhttp_parser` | The vendored llhttp and `ghttp_parser` |
 | `msg_interchange` | `msg_ievent` / `iev_msg` conversion |

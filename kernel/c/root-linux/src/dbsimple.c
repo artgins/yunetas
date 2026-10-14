@@ -619,13 +619,15 @@ PRIVATE json_t *load_json(
     json_t *jn_device = json_loadfd(fd, flags, &error);
     close(fd);
     if(!jn_device) {
+        char error_shown[JSON_ERROR_TEXT_LENGTH];
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "Persistent attrs file cannot be parsed: saves are refused until it is removed (its attrs go back to their defaults) or repaired",
             "path",         "%s", filename,
-            "error",        "%s", error.text,
+            "error",        "%s", json_error_for_log(&error, error_shown, sizeof(error_shown)),
             "line",         "%d", error.line,
+            "position",     "%d", error.position,
             NULL
         );
         if(failed) {

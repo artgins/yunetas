@@ -1277,7 +1277,7 @@ PUBLIC gbuffer_t *json2gbuf(
  *  what the json carried -- the value of a secret among them, whatever
  *  the dump of its bytes masks. Its position says where it is.
  ***************************************************************************/
-PRIVATE const char *json_error_shown(const json_error_t *error, char *bf, size_t bfsize)
+PUBLIC const char *json_error_for_log(const json_error_t *error, char *bf, size_t bfsize)
 {
     snprintf(bf, bfsize, "%s", error->text);
     char *near = strstr(bf, " near '");
@@ -1310,7 +1310,7 @@ PUBLIC json_t *gbuf2json(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_JSON,
                 "msg",          "%s", "json_load_callback() FAILED",
-                "error",        "%s", json_error_shown(&jn_error, error, sizeof(error)),
+                "error",        "%s", json_error_for_log(&jn_error, error, sizeof(error)),
                 "position",     "%d", jn_error.position,
                 NULL
             );
@@ -1333,11 +1333,43 @@ PUBLIC json_t *gbuf2json(
  *  a stack (see the decoder-severity rule of the yunetas CLAUDE.md). The
  *  dump is masked (mask_secrets_in_text()), and so is the error: its
  *  position, not the bytes jansson quotes near it ({"password": hunter2}
- *  said "invalid token near 'hunter2'": json_error_shown()).
+ *  said "invalid token near 'hunter2'": json_error_for_log()).
  *  gbuf is decref
  *  Return NULL if error
  ***************************************************************************/
 #define PEER_JSON_DUMP_SIZE (256)   // Cap the data dump added to logs, for very large packets
+
+PRIVATE void log_json_from_peer_failed(
+    hgobj gobj,
+    const char *function,
+    const char *msg,
+    const json_error_t *jn_error,
+    const char *bf,
+    size_t len,
+    hgobj peer_gobj
+)
+{
+    const char *peername = "";
+    if(peer_gobj && gobj_has_bottom_attr(peer_gobj, "peername")) {
+        peername = gobj_read_str_attr(peer_gobj, "peername");
+    }
+    char error[JSON_ERROR_TEXT_LENGTH];
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", function,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", msg,
+        "peername",     "%s", peername?peername:"",
+        "error",        "%s", json_error_for_log(jn_error, error, sizeof(error)),
+        "position",     "%d", jn_error->position,
+        "len",          "%d", (int)len,
+        NULL
+    );
+    gobj_trace_dump(gobj,
+        bf,
+        len < PEER_JSON_DUMP_SIZE? len: PEER_JSON_DUMP_SIZE,
+        "%s", msg
+    );
+}
 
 PUBLIC json_t *gbuf2json_from_peer(
     hgobj gobj,
@@ -1352,29 +1384,40 @@ PUBLIC json_t *gbuf2json_from_peer(
     json_t *jn_msg = json_loads(p, flags, &jn_error);
 
     if(!jn_msg) {
-        const char *peername = "";
-        if(peer_gobj && gobj_has_bottom_attr(peer_gobj, "peername")) {
-            peername = gobj_read_str_attr(peer_gobj, "peername");
-        }
-        char error[JSON_ERROR_TEXT_LENGTH];
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "frame is not json",
-            "peername",     "%s", peername?peername:"",
-            "error",        "%s", json_error_shown(&jn_error, error, sizeof(error)),
-            "position",     "%d", jn_error.position,
-            "len",          "%d", (int)len,
-            NULL
-        );
-        gobj_trace_dump(gobj,
-            p,
-            len < PEER_JSON_DUMP_SIZE? len: PEER_JSON_DUMP_SIZE,
-            "frame is not json"
-        );
+        log_json_from_peer_failed(gobj, __FUNCTION__, "frame is not json", &jn_error, p, len, peer_gobj);
     }
     gbuffer_decref(gbuf);
     return jn_msg;
+}
+
+/***************************************************************************
+ *  anystring2json() of bytes RECEIVED from a peer: the `len` bytes of
+ *  `bf`, any json value, NUL refused (as anystring2json()). A failure is
+ *  the peer's: logged as gbuf2json_from_peer() logs it.
+ *  Return NULL if error
+ ***************************************************************************/
+PUBLIC json_t *anystring2json_from_peer(
+    hgobj gobj,
+    const char *bf,
+    size_t len,
+    hgobj peer_gobj         // the channel it came through, NULL if unknown
+)
+{
+    if(!bf) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "bf NULL",
+            NULL
+        );
+        return NULL;
+    }
+    json_error_t jn_error;
+    json_t *jn = json_loadb(bf, len, JSON_DECODE_ANY, &jn_error);
+    if(!jn) {
+        log_json_from_peer_failed(gobj, __FUNCTION__, "data of a peer is not json", &jn_error, bf, len, peer_gobj);
+    }
+    return jn;
 }
 
 /***************************************************************************

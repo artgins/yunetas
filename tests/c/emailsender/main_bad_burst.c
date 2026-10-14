@@ -208,8 +208,8 @@ PRIVATE int capture_error_write(void *v, int priority, const char *bf, size_t le
     json_t *jn_log = string2json(bf, FALSE);
     const char *msg = kw_get_str(0, jn_log, "msg", "?", 0);
     if(strcmp(msg, "email NOT sent, moved to failed queue") == 0) {
-        volatile char probe = 0;
-        uintptr_t sp = (uintptr_t)&probe;
+        // the frame, not a local: under ASan a local can live on its fake stack
+        uintptr_t sp = (uintptr_t)__builtin_frame_address(0);
         if(!failed_logged || sp < stack_lowest) {
             stack_lowest = sp;
         }

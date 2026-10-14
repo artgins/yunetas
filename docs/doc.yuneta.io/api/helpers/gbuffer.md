@@ -84,6 +84,98 @@ if(!jn_msg) {
 
 ---
 
+(anystring2json_from_peer)=
+## `anystring2json_from_peer()`
+
+[`anystring2json()`](#anystring2json) for bytes RECEIVED from a peer that are not in a gbuffer of their own -- the JSON body of an HTTP request or response (7.26.10+). It reads the `len` bytes of `bf`, any JSON value, and refuses a NUL as `anystring2json()` does. A failure is logged as [`gbuf2json_from_peer()`](#gbuf2json_from_peer) logs it: one WARNING (`MSGSET_PROTOCOL`, *"data of a peer is not json"*) that names the peer, gives the parser's error WITHOUT the bytes it quotes ([`json_error_for_log()`](#json_error_for_log)), its `position` and the length, and dumps at most 256 bytes, masked. No stack trace.
+
+`ghttp_parser` reads every `application/json` body with it, so a malformed body sent to the BFF's `/auth/login` (`{"username":"bob","password":"hunter2",}`) and an IdP's answer with its tokens are a warning with the bytes masked. Up to 7.26.9 they went through `anystring2json(..., TRUE)`: an ERROR with a stack trace and the whole body, in clear, in a `"bf"` field.
+
+```C
+json_t *anystring2json_from_peer(
+    hgobj gobj,
+    const char *bf,
+    size_t len,
+    hgobj peer_gobj     // the channel it came through, NULL if unknown
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj that logs the warning. |
+| `bf` | `const char *` | The received bytes, not necessarily NUL-terminated. `NULL` is a caller's bug: an ERROR. |
+| `len` | `size_t` | How many bytes of `bf` to read. |
+| `peer_gobj` | `hgobj` | Any gobj above the transport the bytes came through. The `peername` of the transport under it goes into the warning. `NULL` if unknown. |
+
+**Returns**
+
+A `json_t *` (yours) if the bytes are JSON, `NULL` otherwise.
+
+**Example**
+
+The body of an HTTP message, as `ghttp_parser` reads it:
+
+```C
+char *body = gbuffer_cur_rd_pointer(parser->gbuf_body);
+size_t body_len = gbuffer_leftbytes(parser->gbuf_body);
+json_t *jn_body = anystring2json_from_peer(gobj, body, body_len, gobj);
+if(!jn_body) {
+    // Error already logged, as a warning: the bytes are the peer's
+}
+```
+
+---
+
+(json_error_for_log)=
+## `json_error_for_log()`
+
+The text of a jansson error as a log may show it (7.26.10+). jansson ends the text of a parse error with the bytes near it -- `premature end of input near '"hunter2'` -- and those bytes are what the JSON carried: the value of a secret among them, whatever the dump of the same bytes masks. This writes the text without them into `bf` and returns it. Log the error's `position` (and `line`, `column`) with it: they say where the error is.
+
+The SDK logs a jansson error through it wherever the JSON can carry a secret: [`gbuf2json()`](#gbuf2json), [`gbuf2json_from_peer()`](#gbuf2json_from_peer), [`anystring2json()`](#anystring2json), [`string2json()`](#string2json), [`anyfile2json()`](#anyfile2json), the persistent-attrs file, a timeranger2 record that is not JSON, the yuno's own config.
+
+```C
+const char *json_error_for_log(
+    const json_error_t *error,
+    char *bf,
+    size_t bfsize
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `error` | `const json_error_t *` | The error jansson filled. Not modified. |
+| `bf` | `char *` | Where the text is written. `JSON_ERROR_TEXT_LENGTH` bytes hold any. |
+| `bfsize` | `size_t` | The size of `bf`. |
+
+**Returns**
+
+`bf`.
+
+**Example**
+
+```C
+json_error_t error;
+json_t *jn = json_loads(text, 0, &error);
+if(!jn) {
+    char error_shown[JSON_ERROR_TEXT_LENGTH];
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_JSON,
+        "msg",          "%s", "Bad json",
+        "error",        "%s", json_error_for_log(&error, error_shown, sizeof(error_shown)),
+        "position",     "%d", error.position,
+        NULL
+    );
+    return -1;
+}
+```
+
+---
+
 (gbuffer_append)=
 ## [`gbuffer_append()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/gobj-c/src/gbuffer.c#L354)
 

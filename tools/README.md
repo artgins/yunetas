@@ -8,7 +8,8 @@ is absent — unlike `scripts/`, which is repo-only.
 It holds the CMake build infrastructure (`cmake/project.cmake`, included by
 every module to get a consistent compiler configuration, library definitions,
 and install paths driven by the Kconfig `.config` file) and operator-facing
-utilities meant to run against a live node (`agent/`, `sshd/`, `fail2ban/`).
+utilities meant to run against a live node (`agent/`, `sshd/`, `fail2ban/`,
+`treedb/`).
 
 ## Files
 
@@ -24,6 +25,8 @@ tools/
 ├── fail2ban/
 │   ├── install-probe-ban-escalation.sh # Make the bans of yuneta-nginx-probe grow for an address that returns
 │   └── make-fail2ban-log-readable.sh   # Let yuneta read fail2ban.log (root:adm 0640), as Debian ships it
+├── treedb/
+│   └── check_store_schemas.py  # Say what the schemas of a store make the SDK log at the open (read-only)
 └── sshd/
     ├── audit-sshd.sh                  # Report failures and improvements in what sshd runs with (read-only)
     ├── install-sshd-flood-guard.sh    # Keep sshd reachable under a connection flood (drop-in)
@@ -489,3 +492,46 @@ nobody looks as healthy as one that works. Debian ships the log `root:adm
 0640` with `yuneta` in `adm`; RHEL/Rocky ships it `root:root 0600`. After the
 script adds `yuneta` to `adm`, restart `yuneta_agent` and then the `webstats`
 yuno: a process keeps the groups it started with.
+
+## treedb/check_store_schemas.py
+
+Says what the treedb and msg2db schemas persisted in a store will make the SDK
+log when a yuno opens them. **Run it on every store of a node before upgrading
+its SDK**: since 7.26.10 a topic already on disk that breaks a rule of a new
+topic opens as it was, with an ERROR at every open, and a few faults leave a
+topic out or refuse it. Read-only; on a clean store it prints only the count
+of what it read (on stderr).
+
+```bash
+T=/yuneta/development/yunetas/tools/treedb
+
+python3 $T/check_store_schemas.py                       # every store under /yuneta/store
+python3 $T/check_store_schemas.py /yuneta/store/wattyzerdb   # one store
+
+# a node still on an older package: stream it over ssh
+ssh <node> python3 - /yuneta/store < tools/treedb/check_store_schemas.py
+```
+
+One line per fault, with the level of what the SDK does and the message it
+logs:
+
+```
+/yuneta/store/x/.../treedb_x.treedb_schema.json: ERROR items.id: a pkey2 cannot be the pkey 'id' -- "Topic on disk opened as it was, with bad pkey2s"
+/yuneta/store/x/.../treedb_x.treedb_schema.json: CRITICAL depts.users: a column both 'hook' and 'fkey' -- "A column cannot be both 'hook' and 'fkey'"
+```
+
+| Level | What the SDK does at the open |
+|---|---|
+| `NO-OPEN` | The treedb is not opened (*"No topics found"*). |
+| `LEFT-OUT` | The topic is not opened: its records stay on disk, unreachable. |
+| `CRITICAL` | *"Cannot create topic of the schema"*: a yuno whose `on_critical_error` exits, exits. |
+| `ERROR` | The topic opens as it was, and the ERROR is logged at every open. |
+| `PROJECTION` | The `__system__` projection (`C_TREEDB`, on the master) refuses the node. |
+| `CUT` | The `__assets__` hook of a `file` column is cut to `NAME_MAX`, with no log. |
+| `LIST` | The id of a list of an index is cut to `NAME_MAX` (ESTIMATED: it holds the name of the gobj that owns the tranger; `--list-ids-gobj` names it). |
+
+Exit status 0 when nothing is found, 1 when a fault is, 2 when a file cannot be
+read. It does not check the fields of a column against the column meta-schema
+(*"a column is not valid (see the log)"*): that one is derived from the
+`__system__` schema at run time.
+

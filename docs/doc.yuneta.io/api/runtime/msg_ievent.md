@@ -229,11 +229,26 @@ json_t *msg_iev_get_stack(
 | `gobj` | `hgobj` | GObject instance. |
 | `kw` | `json_t *` | Message kw (not owned). |
 | `stack` | `const char *` | Stack name. |
-| `verbose` | `BOOL` | `TRUE` to log errors when the stack is empty. |
+| `verbose` | `BOOL` | `TRUE` to log when the kw has no `__md_iev__` or no such stack. |
 
 **Returns**
 
 Top record (not owned — do not free), or `NULL` if not found.
+
+**Notes**
+
+The routing travels in the frame, so a kw without it is what the peer sent: with `verbose`, one WARNING (`MSGSET_PROTOCOL`, *"__md_iev__ NOT FOUND"* or *"__md_iev__ stack NOT FOUND"*) naming the stack and the peer, with the kw masked and capped to 256 bytes (7.26.10+). Up to 7.26.9 it was an ERROR with a stack trace and the whole kw traced in clear -- the frame of a server, a command's password among it, reached it in `C_IEVENT_CLI`. Without `verbose` nothing is logged: the caller decides.
+
+**Example**
+
+```C
+json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, FALSE);
+if(jn_ievent_id) {
+    // __RESPONSE__: the request this kw answers
+} else {
+    // __REQUEST__: the routing is pushed here
+}
+```
 
 ---
 
@@ -260,7 +275,18 @@ json_t *msg_iev_pop_stack(
 
 **Returns**
 
-Popped record (owned — caller must free), or `NULL` if not found.
+Popped record (owned — caller must free), or `NULL` if not found. A kw without `__md_iev__` or without the stack is logged as [`msg_iev_get_stack()`](#msg_iev_get_stack) with `verbose` logs it: a WARNING, the kw masked and capped (7.26.10+; it was an ERROR with the kw traced in clear).
+
+**Example**
+
+The agent forwarding the answer of a yuno to whoever asked:
+
+```C
+json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
+const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
+// ... route kw to dst_service ...
+JSON_DECREF(jn_ievent_id)
+```
 
 ---
 

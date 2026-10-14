@@ -551,6 +551,16 @@ json_t *kw = json_pack("{s:s}", "department_id", "departments^sales^units");
 treedb_autolink(tranger, admin, kw, TRUE);     // -1, nothing moved
 ```
 
+A ref with a NUL in it is refused before anything moves, *"Invalid fkey
+reference: it holds a NUL"*, as a create refuses it (7.26.10+, see
+[`treedb_create_node()`](<#treedb_create_node>)). Up to 7.26.9 the ref was
+read up to the NUL, and the node was linked to the parent named before it:
+
+```C
+json_t *kw = json_pack("{s:s%}", "departments", "departments^direction^users\0x", (size_t)29);
+treedb_autolink(tranger, alice, kw, TRUE);     // -1, nothing moved
+```
+
 It only ADDS links, and it stops at the first ref it cannot link. To make the links of a node equal to the ones a record names, use [`treedb_replace_links()`](<#treedb_replace_links>): it does not touch the links that do not change, and a bad ref does not stop the others. `C_NODE`'s `update-node` with `autolink` uses [`treedb_update_node_and_links()`](<#treedb_update_node_and_links>), which replaces the links as `treedb_replace_links()` does, not `treedb_clean_node()` + `treedb_autolink()`.
 
 ```C
@@ -789,16 +799,20 @@ treedb_update_node(tranger, node_g1,
     json_pack("{s:s%, s:s}", "id", "g1\0x", (size_t)4, "name", "G1"), TRUE);        // NULL
 ```
 
-**No NUL in an fkey reference either** (7.26.10+). A create, and an update
-with its links ([`treedb_update_node_and_links()`](#treedb_update_node_and_links),
-with fields or without), whose fkey column holds a reference with a NUL --
-a string, or a string of its list or dict -- is refused before anything moves,
-*"Invalid fkey reference: it holds a NUL"* with the `field`, an ERROR with a
-stack from C. C read the ref up to the NUL: `"\u0000users^u1^users"` was the
-empty ref, left out, and the create saved the node with no parent and no log;
-a ref with the NUL after its three parts linked the node to the parent C read.
-A plain [`treedb_update_node()`](#treedb_update_node) writes no fkey column, and
-does not ask. A link or an unlink takes nodes, not refs: no NUL reaches them.
+**No NUL in an fkey reference either** (7.26.10+). Every write that reads an
+fkey reference from its `kw` refuses one with a NUL -- a string, or a string of
+its list or dict -- before anything moves, *"Invalid fkey reference: it holds a
+NUL"* with the `field`, an ERROR with a stack from C. The writes that ask are a
+create, an update ([`treedb_update_node()`](#treedb_update_node): it links the
+`file` columns of its `kw`), an update with its links
+([`treedb_update_node_and_links()`](#treedb_update_node_and_links), with fields
+or without), an autolink ([`treedb_autolink()`](#treedb_autolink)) and a
+replace of links ([`treedb_replace_links()`](#treedb_replace_links)). C read
+the ref up to the NUL: `"\u0000users^u1^users"` was the empty ref, left out,
+and the create saved the node with no parent and no log; a ref with the NUL
+after its three parts linked the node to the parent C read; and an update of a
+`file` column with `"\u0000junk"` unlinked its file and answered success. A
+link or an unlink takes nodes, not refs: no NUL reaches them.
 
 ```C
 treedb_create_node(tranger, "my_db", "users",
@@ -808,6 +822,14 @@ treedb_update_node_and_links(tranger, node_u1,
     json_pack("{s:s, s:s%}", "id", "u1", "departments", "departments^direction^users\0x", (size_t)29),
     TRUE, NULL
 );                                                                                  // NULL
+treedb_update_node(tranger, node_dev1,
+    json_pack("{s:s, s:s%}", "id", "dev1", "foto", "\0junk", (size_t)5),           // a `file` column
+    TRUE
+);                                                                                  // NULL
+treedb_autolink(tranger, node_u1,
+    json_pack("{s:s%}", "departments", "departments^direction^users\0x", (size_t)29),
+    TRUE
+);                                                                                  // -1
 ```
 
 `C_NODE` refuses a peer's record with a NUL in ANY string of it, before the
@@ -2620,8 +2642,22 @@ static char treedb_schema_names[]= "\
 ";
 ```
 
-To check a store before an upgrade, ask its persisted schemas (the KEYS, not
-the values: a description may hold a `/`). They are `<treedb>.treedb_schema.json`
+**To check a store before an upgrade, run
+[`tools/treedb/check_store_schemas.py`](../../tools/check_store_schemas.md)**
+(7.26.10+; it ships with the packages, and needs only `python3`). It says, per
+persisted schema, everything the SDK will log when it opens it -- a name that
+breaks a rule, and the faults a topic already on disk is opened with, at
+every open -- with the level of what the open does and the message it logs.
+A clean store prints nothing but the count:
+
+```bash
+python3 /yuneta/development/yunetas/tools/treedb/check_store_schemas.py /yuneta/store
+# checked 126 schema files: 0 faults, 0 unreadable
+ssh <node> python3 - /yuneta/store < tools/treedb/check_store_schemas.py   # an older node
+```
+
+The names alone can be asked by hand too: ask the persisted schemas (the KEYS,
+not the values: a description may hold a `/`). They are `<treedb>.treedb_schema.json`
 (a `topics` list or dict) and, for a topic created at run time,
 `<treedb>-<topic>.treedb_schema.json` (one topic); the recipe reads both, and
 its `cols` as a dict or as a list. It prints one line per name that breaks a
@@ -2692,6 +2728,20 @@ A `.` in a name is fine for both rules: the treedb looks its topics, hooks and
 fkeys up by key ([`kwid_get_by_keys()`](<#kwid_get_by_keys>)), never through a
 `kwid_get()` path, which splits at `.` too (since SDK 7.26.9; before it a link
 by a hook `kids.all`, or to a topic `par.v1`, answered -1).
+
+A `%` is fine for both rules too, even in a name that reads as a format, such
+as `%s%n`. No name of a treedb, a topic or a column goes through a format
+string: the logs, the paths and the references take it as an argument. A
+treedb and a topic named `%s%n` open, take nodes and links, and open again
+after a close like any other (checked on SDK 7.26.10). Such a name is legal,
+but a tool that expands `%` on its own (a shell `printf`, a cron line) reads it
+as a format, so quote it there:
+
+```C
+json_t *db = treedb_open_db(tranger, "%s%n", jn_schema, "persistent");  // legal: a treedb "%s%n"
+json_t *n = treedb_create_node(tranger, "%s%n", "%s%n",                 // legal: its topic "%s%n"
+    json_pack("{s:s, s:s}", "id", "%s%n", "name", "%p%p%n"));           // and the data is data
+```
 
 A non-master open reads the mark from the persisted schema file, like the rest
 of the schema, so a reader that is not the master sees it too. A tool that
@@ -3145,6 +3195,18 @@ A column that `kw` does not carry is an **empty** column, and its links are remo
 - its parent does not exist: *"fkey reference: parent node not found"*;
 - it names the node itself: *"Cannot link self node"*;
 - the link would close a cycle in the hook: *"Cannot link, the link would close a cycle in the hook"*.
+
+A ref with a NUL in it refuses the whole call before anything moves, *"Invalid
+fkey reference: it holds a NUL"* (7.26.10+, see
+[`treedb_create_node()`](<#treedb_create_node>)): `-1`, no column replaced. Up
+to 7.26.9 the ref was read up to the NUL, and the node was linked to the
+parent named before it:
+
+```C
+json_t *kw = json_pack("{s:s, s:s%}",
+    "id", "alice", "departments", "departments^research^users\0x", (size_t)28);
+treedb_replace_links(tranger, alice, kw, TRUE);    // -1, alice keeps her links
+```
 
 Before, the old links were undone first and a refused new one failed after, so a node whose only parent was replaced by an impossible one was left with NO parent, on disk, `EV_TREEDB_NODE_UNLINKED` published. A refused column does not stop the other columns. The caller can still save the record, and repair the link later with [`treedb_link_nodes()`](<#treedb_link_nodes>).
 
@@ -3958,6 +4020,18 @@ anything is stored, as a create is (see [`treedb_create_node()`](#treedb_create_
 json_t *n = treedb_update_node(tranger, node,     // node "g1"
     json_pack("{s:s%, s:s}", "id", "g1\0x", (size_t)4, "name", "x"), TRUE);
 /*  n == NULL, "Invalid id or pkey2 value: it holds a NUL", node unchanged  */
+```
+
+So is an update whose fkey column holds a reference with a NUL (7.26.10+).
+The update writes no ordinary fkey, but it links the `file` columns of its
+`kw`, and up to 7.26.9 it read their reference up to the NUL: `"\u0000junk"`
+unlinked the file and `"<id>\u0000evil"` linked the asset `<id>`, both
+answered as a success:
+
+```C
+json_t *n = treedb_update_node(tranger, dev1,     // 'foto' is a `file` column
+    json_pack("{s:s, s:s%}", "id", "dev1", "foto", "\0junk", (size_t)5), TRUE);
+/*  n == NULL, "Invalid fkey reference: it holds a NUL", the foto still linked  */
 ```
 
 A saved update whose tkey time does not fit the md2 row (negative, or past

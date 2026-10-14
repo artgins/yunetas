@@ -70,6 +70,18 @@
  *
  *          HACK if gobj is volatil then will self auto-destroy on stop
  *
+ *  The end of a task does NOT run where it is decided. A timeout is decided
+ *  inside the publication of the task's own C_TIMER (EV_TIMEOUT), and a
+ *  result may arrive inside the job's action (a local service that answers
+ *  in the call), with that action still running on the task further up the
+ *  stack: the end of a volatile task would free the timer, or the task,
+ *  under code that goes on with it. So every end posts EV_FINISH_TASK to
+ *  the task (gobj_post_event()) and moves to ST_WAIT_STOPPED; the end runs
+ *  in the next turn of the loop, with the same EV_END_TASK as ever (result
+ *  0, -1 or -2). What gobj_results says in between is about a job that is
+ *  over, and it is ignored. Up to 7.26.9 the task ended at once, and C_TIMER,
+ *  execute_action() and the kernel read the freed memory afterwards.
+ *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
@@ -98,6 +110,8 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE int execute_action(hgobj gobj);
+PRIVATE int end_task(hgobj gobj, int result);
+GOBJ_DECLARE_EVENT(EV_FINISH_TASK);     // defined with the gclass, below
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -323,6 +337,7 @@ PRIVATE int mt_start(hgobj gobj)
      */
     gobj_subscribe_event(priv->gobj_results, NULL, 0, gobj);
 
+    gobj_change_state(gobj, ST_IDLE);   // a task that ended is left in ST_WAIT_STOPPED
     priv->idx_job = 0; // First job at start
     if(gobj_read_bool_attr(gobj, "connected")) {
         execute_action(gobj);
@@ -467,11 +482,27 @@ PRIVATE int stop_task(hgobj gobj, int result)
         EV_END_TASK,
         kw_task
     );
-    gobj_stop(gobj);
+    if(gobj_is_running(gobj)) { // its owner may stop it while its end waits its turn
+        gobj_stop(gobj);
+    }
 
     if(gobj_is_volatil(gobj)) {
         gobj_destroy(gobj);
     }
+    return 0;
+}
+
+/***************************************************************************
+ *  Decide the end of the task: it runs in the next turn of the loop
+ *  (ac_finish_task), never inside the dispatch that decides it.
+ ***************************************************************************/
+PRIVATE int end_task(hgobj gobj, int result)
+{
+    if(gobj_post_event(gobj, EV_FINISH_TASK, json_pack("{s:i}", "result", result), gobj) < 0) {
+        // Error already logged: an end in place is better than no end at all
+        return stop_task(gobj, result);
+    }
+    gobj_change_state(gobj, ST_WAIT_STOPPED);
     return 0;
 }
 
@@ -491,12 +522,12 @@ PRIVATE int execute_action(hgobj gobj)
             "max_job",      "%d", priv->max_job,
             NULL
         );
-        stop_task(gobj, -2); // -2 WARNING about incomplete task
+        end_task(gobj, -2); // -2 WARNING about incomplete task
         return 0;
     }
     json_t *jn_job_ = json_array_get(priv->jobs, priv->idx_job);
     if(!jn_job_) {
-        stop_task(gobj, 0);
+        end_task(gobj, 0);
         return 0;
     }
 
@@ -507,6 +538,7 @@ PRIVATE int execute_action(hgobj gobj)
         gobj_trace_msg(gobj, "💎💎Task ⏩ exec ACTION %s(%d '%s')", gobj_name(gobj), priv->idx_job, action);
     }
 
+    int idx_job = priv->idx_job;
     int ret = (int)(size_t)gobj_local_method(
         priv->gobj_jobs,
         action,
@@ -543,8 +575,12 @@ PRIVATE int execute_action(hgobj gobj)
         }
     }
 
+    if(priv->idx_job != idx_job || !gobj_in_this_state(gobj, ST_IDLE)) {
+        return 0;   // the result came inside the action: the task went on without this call
+    }
+
     if(ret < 0) {
-        stop_task(gobj, -1);
+        end_task(gobj, -1);
     } else {
         set_timeout(priv->timer, exec_timeout);
     }
@@ -640,7 +676,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     if(ret < 0) {
-        stop_task(gobj, -1);
+        end_task(gobj, -1);
     } else {
         priv->idx_job++;
         execute_action(gobj);
@@ -663,7 +699,8 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Timeout waiting result
+ *  Timeout waiting result. It comes inside the publication of the task's
+ *  own C_TIMER: the end runs in the next turn (end_task).
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -675,7 +712,36 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     );
 
     KW_DECREF(kw)
-    stop_task(gobj, -2); // -2 WARNING about incomplete task
+    end_task(gobj, -2); // -2 WARNING about incomplete task
+    return 0;
+}
+
+/***************************************************************************
+ *  The end of the task, in its own turn of the loop.
+ ***************************************************************************/
+PRIVATE int ac_finish_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    int result = (int)kw_get_int(gobj, kw, "result", -2, KW_REQUIRED);
+
+    KW_DECREF(kw)
+    stop_task(gobj, result);
+    return 0;
+}
+
+/***************************************************************************
+ *  The end of the task waits for its turn: what gobj_results says now is
+ *  about a job that is over. Up to 7.26.9 the task was destroyed by then,
+ *  and none of this reached it.
+ ***************************************************************************/
+PRIVATE int ac_late_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(gobj_trace_level(gobj) & (TRACE_MESSAGES|TRACE_MESSAGES2)) {
+        gobj_trace_msg(gobj, "💎💎Task ⏳ %s after its end, ignored, gobj %s",
+            event, gobj_name(gobj)
+        );
+    }
+
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -706,6 +772,7 @@ GOBJ_DEFINE_GCLASS(C_TASK);
  *      Events
  *------------------------*/
 GOBJ_DEFINE_EVENT(EV_END_TASK);
+GOBJ_DEFINE_EVENT(EV_FINISH_TASK);  // private: posted to itself, the end of the task
 
 
 /***************************************************************************
@@ -736,8 +803,18 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_STOPPED,                ac_stopped,             0},
         {0,0,0}
     };
+    ev_action_t st_wait_stopped[] = {
+        {EV_FINISH_TASK,            ac_finish_task,         0},
+        {EV_ON_MESSAGE,             ac_late_event,          0},
+        {EV_ON_OPEN,                ac_late_event,          0},
+        {EV_ON_CLOSE,               ac_late_event,          0},
+        {EV_TIMEOUT,                ac_late_event,          0},
+        {EV_STOPPED,                ac_late_event,          0},
+        {0,0,0}
+    };
     states_t states[] = {
-        {ST_IDLE,       st_idle},
+        {ST_IDLE,           st_idle},
+        {ST_WAIT_STOPPED,   st_wait_stopped},
         {0, 0}
     };
 
@@ -749,6 +826,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_CLOSE,       0},
         {EV_TIMEOUT,        0},
         {EV_STOPPED,        0},
+        {EV_FINISH_TASK,    0},
 
         {0, 0}
     };

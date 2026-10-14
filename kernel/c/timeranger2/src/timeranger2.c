@@ -15817,6 +15817,7 @@ PRIVATE json_t *read_record_content(
          *  (see parse_failed_for_memory): the record can be good, and a
          *  yuno with a larger MEM_MAX_BLOCK reads it
          */
+        char error_shown[JSON_ERROR_TEXT_LENGTH];
         gobj_log_critical(gobj, 0, // Let continue, will be a message lost
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -15828,7 +15829,7 @@ PRIVATE json_t *read_record_content(
             "__t__",        "%lu", (unsigned long)md_record_ex->__t__,
             "__size__",     "%lu", (unsigned long)md_record_ex->__size__,
             "__offset__",   "%lu", (unsigned long)md_record_ex->__offset__,
-            "error",        "%s", error.text,
+            "error",        "%s", json_error_for_log(&error, error_shown, sizeof(error_shown)),
             "position",     "%d", error.position,
             NULL
         );

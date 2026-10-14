@@ -438,6 +438,11 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 
     const char *method = kw_get_str(gobj, kw, "method", "GET", 0);
     char *resource = gbmem_strdup(kw_get_str(gobj, kw, "resource", "/", 0));
+    if(!resource) {
+        // Error already logged
+        KW_DECREF(kw)
+        return -1;
+    }
     const char *query = kw_get_str(gobj, kw, "query", "", 0);
     json_t *jn_headers_ = kw_get_dict(gobj, kw, "headers", 0, 0);
     /*
@@ -481,7 +486,6 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     if(set_form_urlencoded) {
         if(!empty_string(query)) {
             content = gbmem_strdup(query);
-            content_length = strlen(content);
         } else {
             // for k in form_data:
             //     v = form_data[k]
@@ -492,6 +496,13 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 
             size_t ln = kw_content_size(jn_data_);
             gbuffer_t *gbuf = gbuffer_create(ln, ln);
+            if(!gbuf) {
+                // Error already logged
+                GBMEM_FREE(resource)
+                JSON_DECREF(jn_headers)
+                KW_DECREF(kw)
+                return -1;
+            }
             int more = 0;
             json_object_foreach(jn_data_, key, v) {
                 const char *value = json_string_value(v);
@@ -522,22 +533,53 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             }
             char *p = gbuffer_cur_rd_pointer(gbuf);
             content = gbmem_strdup(p);
-            content_length = strlen(content);
             GBUFFER_DECREF(gbuf)
         }
-        if (strcasecmp(method, "GET")==0) {
-            // parameters must be in resource
-            size_t l = strlen(resource) + content_length + 1;
-            char *new_resource = GBMEM_MALLOC(l);
-            snprintf(new_resource, l, "%s%s%s", resource, "?", content);
+        if(!content) {
+            // Error already logged
             GBMEM_FREE(resource)
-            resource = new_resource;
+            JSON_DECREF(jn_headers)
+            KW_DECREF(kw)
+            return -1;
+        }
+        content_length = strlen(content);
+        if (strcasecmp(method, "GET")==0) {
+            // parameters must be in resource: room for the '?' and the NUL
+            if(content_length > 0) {
+                size_t l = strlen(resource) + 1 + content_length + 1;
+                char *new_resource = GBMEM_MALLOC(l);
+                if(!new_resource) {
+                    // Error already logged
+                    GBMEM_FREE(resource)
+                    JSON_DECREF(jn_headers)
+                    GBMEM_FREE(content)
+                    KW_DECREF(kw)
+                    return -1;
+                }
+                snprintf(new_resource, l, "%s?%s", resource, content);
+                GBMEM_FREE(resource)
+                resource = new_resource;
+            }
             GBMEM_FREE(content)
+            content_length = 0;
         }
 
     } else {
         if(jn_data_) {
-            content = json_dumps(jn_data_, JSON_COMPACT|JSON_INDENT(0));
+            content = json_dumps(jn_data_, JSON_COMPACT|JSON_INDENT(0)|JSON_ENCODE_ANY);
+            if(!content) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "json_dumps() of the data FAILED",
+                    "url",          "%s", priv->url,
+                    NULL
+                );
+                GBMEM_FREE(resource)
+                JSON_DECREF(jn_headers)
+                KW_DECREF(kw)
+                return -1;
+            }
             content_length = strlen(content);
         }
     }

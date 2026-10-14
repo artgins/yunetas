@@ -723,6 +723,23 @@ PUBLIC json_t *command_parameter_from_text(
 }
 
 /***************************************************************************
+ *  A value of `type` given as json (see command_parser.h)
+ ***************************************************************************/
+PUBLIC json_t *command_parameter_from_json(
+    data_type_t type,
+    json_t *value,  // not owned
+    const char **refused
+)
+{
+    const char *why = NULL;
+    json_t *jn = kw2parameter(type, value, FALSE, &why);
+    if(refused) {
+        *refused = why;
+    }
+    return jn;
+}
+
+/***************************************************************************
  *  The value of a parameter given in kw. Return a new reference; NULL with
  *  *refused NULL is no value; NULL with *refused set is a value of another
  *  shape, *refused says which. A text for a number, a boolean, an object or
@@ -1091,11 +1108,7 @@ PRIVATE const sdata_desc_t *find_command_desc(
 
     const sdata_desc_t *cnf_cmd = command_get_cmd_desc(cmd_table, cmd);
     if(!cnf_cmd) {
-        /*
-         *  The word is the caller's: `password=hunter2 user=x` or a JWT as
-         *  the first word was echoed in clear (REV-CLOUD V24.4.4)
-         */
-        char *cmd_masked = mask_secrets_inline(cmd);
+        char *cmd_masked = mask_secrets_inline(cmd);  // the caller's word: it can be a secret
         *jn_error = json_sprintf(
             "%s: command not available: '%s'. Try 'help' command.",
             gobj_short_name(gobj),
@@ -1465,10 +1478,7 @@ PRIVATE json_t *build_cmd_kw(
             if(wild_command) {
                 jn_param = json_string(value);
             } else {
-                /*
-                 *  The key is the caller's: a JWT written as a key
-                 *  (`plain <jwt>=1`) was echoed in clear (REV-CLOUD V24.4.4)
-                 */
+                // The key is the caller's: it can be a secret (a JWT written as a key)
                 *result = -1;
                 JSON_DECREF(kw_cmd);
                 JSON_DECREF(jn_refused);

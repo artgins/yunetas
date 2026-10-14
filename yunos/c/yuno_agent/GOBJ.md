@@ -455,9 +455,12 @@ You do not allocate it. The framework allocates it, with the size that the
 | `obflag_destroying`  | `gobj_destroy` started. Do not subscribe or send.        |
 | `obflag_destroyed`   | `mt_destroy` returned. Object inert.                     |
 
-If you hold a raw pointer and you need safety, check
-`gobj->obflag & obflag_destroyed`. The better answer is *do not hold raw
-pointers across lifecycle boundaries*. See §8.5.
+`obflag_destroyed` is raised just before the memory of the gobj is freed, so
+it is NOT a guard for a raw pointer held across a destroy: once the gobj is
+destroyed, reading its `obflag` is reading freed memory. The kernel made that
+mistake itself, after an action and after each subscriber of a publication,
+until 7.26.10; it keeps a frame per dispatch now (§8.8). The answer is *do
+not hold raw pointers across lifecycle boundaries*. See §8.5.
 
 ---
 
@@ -675,7 +678,7 @@ blocking `read(STDIN_FILENO)` from inside a `yev_loop` callback. The same
 applies to any blocking syscall. The loop has one thread, and a block on
 that thread kills the yuno.
 
-### 8.8 No sync stop in a published-event callback
+### 8.8 No sync stop or destroy of the publisher in a published-event callback
 
 Memory
 `feedback_no_sync_stop_in_pub_callback`:
@@ -683,6 +686,67 @@ Memory
 the publisher mid-iteration. Defer it: post the continuation to yourself
 with [`gobj_post_event`](#post-message)
 and do the stop in that action.
+
+**Destroying is worse, and the kernel says it.** A subscriber that destroys
+the publisher, or one of its ancestors, frees the publisher while it is still
+inside `gobj_publish_event()`. The kernel is safe from that since 7.26.10:
+`gobj_send_event()` and `gobj_publish_event()` keep a frame per dispatch on
+the C stack, `gobj_destroy()` marks the frames of what it destroys, and after
+an action, or after each subscriber, the kernel asks its frame instead of the
+freed gobj (up to 7.26.9 it read the gobj's `obflag` in freed memory, and a
+publication could go on with a freed publisher). The publisher's own code is
+not safe: it goes on after the publish returns. The same holds for any code
+further up the stack: an action of the gobj that called something whose inner
+dispatch destroyed it. So `gobj_destroy()` logs an ERROR with a stack and
+destroys all the same: *"Destroying a gobj while its tree is publishing"* or
+*"Destroying a gobj while one of its actions is still running"* (`destroying`,
+`publisher`/`running`, `event`, `destroyer`, `inner_event`).
+
+Which frames count: every live frame of the gobj destroyed, or of its subtree,
+except the innermost one (the code that destroys), those of a gobj whose
+innermost publication is its `EV_STOPPED`, and the kernel's watch frames:
+
+| Case | ERROR? |
+|---|---|
+| A gobj destroys itself in its own action, nothing of it further up | No |
+| A gobj publishes its last event, then destroys itself | No: its publication is over |
+| A host destroys its transport in the transport's `EV_STOPPED` | No: the stop contract |
+| A gobj destroys itself in its own `mt_start` / `mt_stop` / `mt_play` | No |
+| A subscriber destroys the publisher | Yes, *"its tree is publishing"* |
+| A subscriber destroys an ancestor of the publisher (its parent, or itself when the publisher is its child) | Yes, *"its tree is publishing"* |
+| A subscriber sends the publisher an event, and the publisher's action destroys itself | Yes: the publication is still running |
+| An action of the gobj calls something whose inner dispatch destroys the gobj | Yes, *"one of its actions is still running"* |
+
+The two usual cases: a gclass that ends itself in the `EV_TIMEOUT` of its own
+`C_TIMER` child (`C_TASK` and `C_COUNTER` until 7.26.10), and a gclass whose
+end comes inside one of its own calls (`C_TASK`, when a job's result arrives
+inside the job's action). Both post an event to themselves now and end in its
+action; `C_TASK` does it for every end:
+
+```c
+PRIVATE int end_task(hgobj gobj, int result)
+{
+    /*
+     *  Not here: this may run inside the publication of the C_TIMER child,
+     *  or inside a job's action that is still running on the task.
+     */
+    gobj_post_event(gobj, EV_FINISH_TASK, json_pack("{s:i}", "result", result), gobj);
+    gobj_change_state(gobj, ST_WAIT_STOPPED);   // late events are not the job's any more
+    return 0;
+}
+
+PRIVATE int ac_finish_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    int result = (int)kw_get_int(gobj, kw, "result", -2, KW_REQUIRED);
+    KW_DECREF(kw)
+    stop_task(gobj, result);    // publishes EV_END_TASK, stops, destroys a volatile task
+    return 0;
+}
+```
+
+The posted event is an INPUT event of the gclass, declared in its FSM and in
+its `event_types`. Never an output event: a new output event of a gclass that
+is hosted as a child is a breaking change for every host.
 
 ### 8.9 A gclass `.h` exposes only `register_*` + `GOBJ_DECLARE_GCLASS`
 

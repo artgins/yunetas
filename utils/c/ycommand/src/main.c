@@ -471,6 +471,7 @@ int main(int argc, char *argv[])
     /*
      *  Put configuration
      */
+    char *param = NULL;     // in argvs while the yuno runs, freed when it ends
     {
         json_t *kw_utility = json_pack(
             "{s:{s:b, s:s, s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:s, s:s, s:b}}",
@@ -499,18 +500,21 @@ int main(int argc, char *argv[])
         );
 
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);
+        json_decref(kw_utility);    // here: jansson still allocates with libc
         if(!param1_) {
             printf("Some parameter is wrong\n");
             exit(-1);
         }
         int len = (int)strlen(param1_) + 3;
-        char *param1 = malloc(len);
-        if(param1) {
-            memset(param1, 0, len);
-            snprintf(param1, len, "%s", param1_);
+        param = malloc(len);
+        if(!param) {
+            printf("No memory for the parameters\n");
+            exit(-1);
         }
+        memset(param, 0, len);
+        snprintf(param, len, "%s", param1_);
         free(param1_);
-        argvs[idx++] = param1;
+        argvs[idx++] = param;
     }
 
     if(arguments.print) {
@@ -551,7 +555,7 @@ int main(int argc, char *argv[])
         MEM_MIN_BLOCK,
         MEM_SUPERBLOCK
     );
-    return yuneta_entry_point(
+    int ret = yuneta_entry_point(
         idx, argvs,
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
         fixed_config,
@@ -559,4 +563,6 @@ int main(int argc, char *argv[])
         register_yuno_and_more,
         NULL
     );
+    free(param);
+    return ret;
 }

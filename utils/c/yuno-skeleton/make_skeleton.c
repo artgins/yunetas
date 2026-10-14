@@ -3,6 +3,7 @@
  *          Make a skeleton
  *
  *          Copyright (c) 2015 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <dirent.h>
@@ -377,6 +378,11 @@ json_t *find_skeleton(
         exit(-1);
     }
 
+    /*
+     *  The answer is a reference of its own: jn_skeletons, the file, is
+     *  released here whatever is found
+     */
+    json_t *found = 0;
     json_array_foreach(jn_skeletons, index, jn_skeleton) {
         if(!json_is_object(jn_skeleton)) {
             continue;
@@ -385,7 +391,8 @@ json_t *find_skeleton(
         const char *type = json_string_value(json_object_get(jn_skeleton, "type"));
         if(strcasecmp(type, "skeleton-dir")==0) {
             snprintf(path, sizeof(path), "%s/%s", base, name_);
-            return find_skeleton(fullname, fullname_size, path, file, skeleton);
+            found = find_skeleton(fullname, fullname_size, path, file, skeleton);
+            break;
 
         } else {
             if(strcmp(name_, skeleton)==0) {
@@ -394,11 +401,13 @@ json_t *find_skeleton(
                     fprintf(stderr, "Cannot find %s directory\n", fullname);
                     exit(-1);
                 }
-                return jn_skeleton;
+                found = json_incref(jn_skeleton);
+                break;
             }
         }
     }
-    return 0;
+    json_decref(jn_skeletons);
+    return found;
 }
 
 /***************************************************************************

@@ -192,6 +192,15 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   record keeps its stricter reading (any word after `Bearer `). Rule and
   examples: `string_helper.md`; to undo it, `scheme_credential()` in C and its
   twin in gobj-js.
+- **A name is judged by its last 128 bytes** (C, and gobj-js since 7.26.22;
+  up to 7.26.21 gobj-js judged the last 128 UTF-16 units): a name over 128
+  bytes whose secret part lies before them shows its value (`password_` +
+  120×`é` + `_x=hunter2`). Its case is folded in ASCII, so a letter that is no
+  ASCII makes no secret's name (`toKen` with the Kelvin sign `K`).
+- **The name of a query string masks its value only up to a blank or one of
+  `&;,"'<>`** (the run of name characters before the `=`): `?password=correct
+  horse` shows `horse`, unless the whole word before the `=` is a secret's
+  name.
 - **A json KEY is judged as a name, never as a value**: a key that is itself a
   credential (a dict keyed by tokens, `{"eyJ...": 1}`) is shown as it is
   (`json_mask_secrets()`, C and JS).

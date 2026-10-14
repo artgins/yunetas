@@ -390,6 +390,71 @@ attribute's type is refused, `-1`, and nothing is written.
 
 ---
 
+(command_parameter_from_json)=
+## `command_parameter_from_json()`
+
+A value of `type` given as JSON, read exactly as [`command_parser()`](#command_parser)
+reads a parameter given in kw (7.26.10+): a string as
+[`command_parameter_from_text()`](#command_parameter_from_text) reads a text (a
+string with a NUL inside is refused), a number or a boolean as the EXACT type
+(an integer to a `DTP_REAL` is its real, a boolean to a `DTP_INTEGER` 1 or 0,
+`2.0` to a `DTP_INTEGER` 2, `2.7` refused), an object or a list of its shape as
+it is, any other shape refused. It is for a writer of a typed value that is not
+a command: every attribute written from json (`gobj_create()` from the config,
+[`gobj_write_attr()`](#gobj_write_attr), [`gobj_write_attrs()`](#gobj_write_attrs),
+the persistent attributes loaded) reads a `DTP_BOOLEAN`, `DTP_INTEGER`,
+`DTP_REAL`, `DTP_LIST` or `DTP_DICT` value through it.
+
+```C
+json_t *command_parameter_from_json(
+    data_type_t type,
+    json_t *value,          // not owned
+    const char **refused
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `type` | `data_type_t` | The type to read the value as: `DTP_STRING`, `DTP_INTEGER`, `DTP_REAL`, `DTP_BOOLEAN`, `DTP_DICT`, `DTP_LIST` or `DTP_JSON`. |
+| `value` | `json_t *` | The value, not owned. |
+| `refused` | `const char **` | Out, may be `NULL`: why the value was refused, a short phrase (`"a text that does not read as one"`, `"a real with decimals"`, `"an object"`), never the value -- it may be a secret. `NULL` when it was read, and when there is no value. |
+
+**Returns**
+
+A NEW reference to the value, of the exact json type of `type`. `NULL` with
+`*refused` set when the value does not read as one; `NULL` with `*refused`
+`NULL` when there is NO value: a `null`, or an empty text given to a number.
+
+**Example**
+
+```C
+const char *why = NULL;
+json_t *jn_value = json_string("42");
+json_t *jn = command_parameter_from_json(DTP_INTEGER, jn_value, &why);  /* 42 */
+JSON_DECREF(jn)
+JSON_DECREF(jn_value)
+
+jn_value = json_real(2.7);
+jn = command_parameter_from_json(DTP_INTEGER, jn_value, &why);
+/*  NULL, why: "a real with decimals"  */
+JSON_DECREF(jn_value)
+```
+
+**Notes**
+
+An attribute written a value that does not read as its type is not written:
+one ERROR, *"Attribute value of the wrong type, not written"*, with the
+`attr`, its `type`, why (`got`) and the `value` masked and capped to 64 bytes
+(a `SDF_SECRET` attribute's never shown), and the attribute keeps its value.
+Up to 7.26.9 a json string given to such an attribute was read from its JSON
+dump, quotes included: `"42"` was written 0, `"true"` false, `"2.5"` 0.0, a
+list or a dict given as text was always refused, and an integer given to a
+real attribute, or a boolean to an integer one, was refused.
+
+---
+
 (command_mask_secret_kw)=
 ## [`command_mask_secret_kw()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/gobj-c/src/command_parser.c#L403)
 

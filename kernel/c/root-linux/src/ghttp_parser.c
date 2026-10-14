@@ -354,7 +354,7 @@ PRIVATE int on_message_complete(llhttp_t* llhttp)
                 );
             }
             if(strcasestr(content_type, "application/json")) {
-                json_t *jn_body = anystring2json(body, body_len, TRUE);
+                json_t *jn_body = anystring2json_from_peer(gobj, body, body_len, gobj);
                 json_object_set_new(kw_http, "body", jn_body);
             } else {
                 json_object_set_new(kw_http, "gbuffer", json_integer((json_int_t)(uintptr_t)parser->gbuf_body));
