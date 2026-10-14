@@ -2604,10 +2604,42 @@ PRIVATE void mark_query_params(const char *bf, const char *end, name_reading_t r
  *  runs to a byte of URL_AUTHORITY_STOPS, an end of line or a NUL, so the
  *  scans from two "://" never overlap. Where the text may have been cut
  *  (`end_is_cut`: a dump, a window), an authority that reaches its end is
- *  marked from its first ':' to the end, '@' or not: the '@' that ends the
- *  password may be past the cut (a port there is masked too).
+ *  marked from its first ':' to the end, '@' or not: the userinfo ends at
+ *  the LAST '@', and the one that ends the password may be past the cut
+ *  (a password written with a raw '@', "p@ss", or a user that is an email
+ *  address). A port there, and a host after a whole userinfo, are masked
+ *  too: the bytes do not say they are not a password's. The colons of an
+ *  IP literal followed by a port ("[2001:db8::1]:8080") are no password's
+ *  there: it is marked from the ':' after the literal.
  */
 #define URL_AUTHORITY_STOPS "/?#\"'<> \t"
+
+/*
+ *  The ':' after the IP literal that begins the authority at `host` and is
+ *  followed by a port ("[2001:db8::1]:8080", "[fe80::1%25eth0]:80"), or,
+ *  when it does not begin with one, the first ':' of the authority (up to
+ *  `e`): a literal that reaches `e` may still be the start of a userinfo
+ */
+PRIVATE const char *colon_after_ip_literal(const char *host, const char *e)
+{
+    if(host < e && *host == '[') {
+        BOOL zone = FALSE;
+        const char *q = host + 1;
+        while(q < e && *q != ']') {
+            if(*q == '%') {
+                zone = TRUE;
+            } else if(!(hex_digit_value(*q) >= 0 || *q == ':' || *q == '.' ||
+                    (zone && (is_ascii_alnum(*q) || *q == '-' || *q == '_' || *q == '~')))) {
+                break;
+            }
+            q++;
+        }
+        if(q + 1 < e && *q == ']' && q[1] == ':') {
+            return q + 1;
+        }
+    }
+    return memchr(host, ':', (size_t)(e - host));
+}
 
 PRIVATE void mark_url_passwords(const char *bf, const char *end, BOOL end_is_cut, uint8_t *marks)
 {
@@ -2615,9 +2647,10 @@ PRIVATE void mark_url_passwords(const char *bf, const char *end, BOOL end_is_cut
         if(p[0] != ':' || p[1] != '/' || p[2] != '/' || !is_ascii_alnum(p[-1])) {
             continue;
         }
+        const char *host = p + 3;
         const char *colon = NULL;
         const char *at = NULL;
-        const char *e = p + 3;
+        const char *e = host;
         while(e < end && *e && *e != '\r' && *e != '\n' && !strchr(URL_AUTHORITY_STOPS, *e)) {
             if(*e == '@') {
                 at = e;
@@ -2627,7 +2660,8 @@ PRIVATE void mark_url_passwords(const char *bf, const char *end, BOOL end_is_cut
             e++;
         }
         if(colon && end_is_cut && e >= end) {
-            mark_range(marks, (size_t)(colon + 1 - bf), (size_t)(end - bf));
+            const char *from = colon_after_ip_literal(host, e);
+            mark_range(marks, (size_t)(from + 1 - bf), (size_t)(end - bf));
         } else if(colon && at && colon < at) {
             mark_range(marks, (size_t)(colon + 1 - bf), (size_t)(at - bf));
         }

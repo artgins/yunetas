@@ -26,6 +26,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define RECONNECT_FLOOR_MS  1000    // the least time between connections (0 is raised to it)
 
 /***************************************************************
  *              Structures
@@ -42,6 +43,7 @@ typedef enum serial_parity {
 PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE void set_disconnected(hgobj gobj, const char *cause);
 PRIVATE int yev_callback(yev_event_h yev_event);
+PRIVATE json_int_t time_to_reconnect(hgobj gobj);
 
 /***************************************************************
  *              Data
@@ -103,6 +105,7 @@ typedef struct _PRIVATE_DATA {
     int tty_fd;
     yev_event_h yev_client_rx;
     char inform_disconnection;
+    BOOL reconnect_floor_said;  // the warning of a 0 between connections, once per gobj
 } PRIVATE_DATA;
 
 
@@ -798,6 +801,32 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 }
 
 /***************************************************************************
+ *  The time to wait before connecting again. 0 is raised to a floor, said
+ *  once: a timer of 0 is no timer (C_TIMER stops), so 0 never reconnected,
+ *  and said nothing. -1 keeps meaning no timer.
+ ***************************************************************************/
+PRIVATE json_int_t time_to_reconnect(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t msec = gobj_read_integer_attr(gobj, "timeout_between_connections");
+    if(msec == 0) {
+        if(!priv->reconnect_floor_said) {
+            priv->reconnect_floor_said = TRUE;
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "timeout_between_connections 0 never reconnects, the floor is used",
+                "floor_ms",     "%d", RECONNECT_FLOOR_MS,
+                NULL
+            );
+        }
+        msec = RECONNECT_FLOOR_MS;
+    }
+    return msec;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void set_disconnected(hgobj gobj, const char *cause)
@@ -808,10 +837,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 
     if(gobj_current_state(gobj)==ST_DISCONNECTED) {
         if(gobj_is_running(gobj)) {
-            set_timeout(
-                priv->gobj_timer,
-                gobj_read_integer_attr(gobj, "timeout_between_connections")
-            );
+            set_timeout(priv->gobj_timer, time_to_reconnect(gobj));
         }
         return;
     }
@@ -854,10 +880,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
     }
 
     if(gobj_is_running(gobj)) {
-        set_timeout(
-            priv->gobj_timer,
-            gobj_read_integer_attr(gobj, "timeout_between_connections")
-        );
+        set_timeout(priv->gobj_timer, time_to_reconnect(gobj));
     }
 
     /*

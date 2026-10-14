@@ -456,8 +456,28 @@ PRIVATE void check_received_dump(void)
         {"GET https://u:cut-hunter2", "GET https://u:***********"},
         {"GET https://u:p@cut-hunter2", "GET https://u:*************"},
         {"url=https%3A%2F%2Fbob%3Acut-hunter2", "url=https%3A%2F%2Fbob%3A***********"},
-        {"to http://host:8080", "to http://host:****"},
-        {"to http://host:8080/\r\n", "to http://host:8080/\r\n"},
+        {"to http://host:80", "to http://host:**"},
+        {"to http://host:80/\r\n", "to http://host:80/\r\n"},
+
+        /*
+         *  ... '@' or not, because the userinfo ends at the LAST '@': a
+         *  password written with a raw '@' and a user that is an email
+         *  address leave an '@' before the one that ends the password
+         */
+        {"x https://u:hunter2@host:80", "x https://u:***************"},
+        {"GET imap://bob@example.com:cut-hunter2", "GET imap://bob@example.com:***********"},
+
+        /*
+         *  The colons of an IP literal followed by a port are no password's:
+         *  only the port is masked (from its first ':' they showed "[:")
+         */
+        {"see http://[::1]:80", "see http://[::1]:**"},
+        {"url=http://[2001:db8::1]:80", "url=http://[2001:db8::1]:**"},
+        {"to http://[fe80::1%25eth0]:80", "to http://[fe80::1%25eth0]:**"},
+        {"url=http%3A%2F%2F%5B2001%3Adb8%3A%3A1%5D%3A80", "url=http%3A%2F%2F%5B2001%3Adb8%3A%3A1%5D%3A**"},
+        {"see http://[::1]:80/x\r\n", "see http://[::1]:80/x\r\n"},
+        {"see http://[2001:db8::1", "see http://[2001:******"},    // cut inside it: it may be a userinfo
+        {"see http://[::1]x:cut-hunter2", "see http://[:****************"},   // no literal followed by a port
         {"url=https%3A%2F%2Fbob%3Anx2-hunter2%40host&x=1",  // decoded, '&' is no end of an authority
          "url=https%3A%2F%2Fbob%3A**********************"},
         {0, 0}

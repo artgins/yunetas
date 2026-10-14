@@ -84,6 +84,12 @@
  *                 `__md_iev__`, 50 KB): a warning, capped, and her channel
  *                 is closed. Up to 7.25.4 each such frame logged an error
  *                 with a stack and the whole kw, and was processed.
+ *              8. The server sends `bob` two events of its own, through the
+ *                 gate of his channel: with no __service__ it reaches the
+ *                 subscribers of his transport (the service of his identity
+ *                 card), with __service__ the service named. Up to 7.26.9 both
+ *                 closed his channel: the gate addressed an anonymous yuno by
+ *                 its own label for it ("It's not my name").
  *
  *          A wrong result is logged as an error, which the expected-logs
  *          check of main.c does not expect.
@@ -129,6 +135,7 @@ PRIVATE int count_subscriptions_of(hgobj gobj, hgobj publisher, gobj_event_t eve
 PRIVATE void record_feed(const char *name, json_t *kw);
 PRIVATE void check_stamped(hgobj gobj, const char *what);
 PRIVATE void record_bin(hgobj gobj, const char *name, json_t *kw);
+PRIVATE hgobj find_gate_of(hgobj gobj, const char *username);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -188,6 +195,8 @@ typedef struct _PRIVATE_DATA {
     int opened;
     int step;
     int opens_to_alice;
+    int unaddressed_to_bob;     // 8. heard through bob's transport, sent with no __service__
+    int addressed_to_bob;       // 8. delivered by name, with __service__
     hgobj sink_strip;
     hgobj sink_local;
 } PRIVATE_DATA;
@@ -500,6 +509,23 @@ PRIVATE void check_stamped(hgobj gobj, const char *what)
 }
 
 /***************************************************************************
+ *  The C_IEVENT_SRV of the channel of `username`, on the server side
+ ***************************************************************************/
+PRIVATE hgobj find_gate_of(hgobj gobj, const char *username)
+{
+    hgobj input_side = gobj_find_service("__input_side__", TRUE);
+    for(hgobj channel = gobj_first_child(input_side); channel; channel = gobj_next_child(channel)) {
+        for(hgobj child = gobj_first_child(channel); child; child = gobj_next_child(child)) {
+            if(gobj_typeof_gclass(child, C_IEVENT_SRV) &&
+                    strcmp(gobj_read_str_attr(child, "__username__"), username)==0) {
+                return child;
+            }
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
  *  Keep a copy of the EV_TEST_FEED that `name` got
  ***************************************************************************/
 PRIVATE void record_feed(const char *name, json_t *kw)
@@ -624,6 +650,15 @@ PRIVATE int ac_test_feed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(src == priv->cli_alice) {
             priv->opens_to_alice++;
             check(gobj, "no gbuffer in alice's EV_TEST_OPEN", !kw_has_key(kw, "gbuffer"));
+        } else if(src == priv->cli_bob) {
+            const char *what = kw_get_str(gobj, kw, "what", "", 0);
+            if(strcmp(what, "unaddressed")==0) {
+                priv->unaddressed_to_bob++;
+            } else if(strcmp(what, "addressed")==0) {
+                priv->addressed_to_bob++;
+            } else {
+                check(gobj, "bob hears only the two events sent to him", FALSE);
+            }
         }
         JSON_DECREF(kw)
         return 0;
@@ -890,6 +925,25 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_send_event(priv->publisher, EV_TEST_EMIT,
                 json_pack("{s:s}", "event", "bin"), gobj
             );
+
+            /*
+             *  8. The server sends bob an event of its own, as an app does:
+             *  to the gate of his channel. With no __service__ it goes to the
+             *  service of his identity card, his transport itself.
+             */
+            {
+                hgobj gate_bob = find_gate_of(gobj, "bob");
+                check(gobj, "the gate of bob's channel", gate_bob != NULL);
+                if(gate_bob) {
+                    gobj_send_event(gate_bob, EV_TEST_OPEN,
+                        json_pack("{s:s}", "what", "unaddressed"), gobj
+                    );
+                    gobj_send_event(gate_bob, EV_TEST_OPEN,
+                        json_pack("{s:s, s:s}", "what", "addressed", "__service__", "tester"),
+                        gobj
+                    );
+                }
+            }
             set_timeout(priv->timer, 300);
             break;
 
@@ -909,6 +963,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
             check(gobj, "a repeated subscription is kept as it is",
                 bin_subscriptions_added == bin_added_before_repeat
+            );
+            check(gobj, "an event the server sends with no __service__ reaches the subscribers of the transport",
+                priv->unaddressed_to_bob == 1
+            );
+            check(gobj, "an event the server sends with __service__ reaches that service",
+                priv->addressed_to_bob == 1
             );
             check(gobj, "alice still holds max_subscriptions",
                 count_subscriptions_of(gobj, priv->publisher, NULL, "alice") == 4

@@ -48,6 +48,7 @@ blob        =>  text
 object ...  =>  text
 
  *          Copyright (c) 2021 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -67,6 +68,7 @@ object ...  =>  text
 #define TEXTOID         25      // text             my string
 #define NUMERICOID      1700    // numeric          NaN and infinity values are disallowed
 #define JSONOID         114     // json
+#define RECONNECT_FLOOR_MS  1000    // the least time between connections (0 is raised to it)
 
 /***************************************************************************
  *              Structures
@@ -81,6 +83,7 @@ object ...  =>  text
 // PRIVATE int publish_result(hgobj gobj, json_t *kw);
 PRIVATE int pull_queue(hgobj gobj);
 PRIVATE int send_cur_query(hgobj gobj);
+PRIVATE json_int_t time_to_reconnect(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -172,6 +175,7 @@ typedef struct _PRIVATE_DATA {
 
     json_t *dl_queries;
     json_t *cur_query;
+    BOOL reconnect_floor_said;  // the warning of a 0 between connections, once per gobj
 } PRIVATE_DATA;
 
 
@@ -386,6 +390,32 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
 
 
+
+/***************************************************************************
+ *  The time to wait before connecting again. 0 is raised to a floor, said
+ *  once: a timer of 0 is no timer (C_TIMER stops), so 0 never reconnected,
+ *  and said nothing. -1 keeps meaning no timer.
+ ***************************************************************************/
+PRIVATE json_int_t time_to_reconnect(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t msec = gobj_read_integer_attr(gobj, "timeout_between_connections");
+    if(msec == 0) {
+        if(!priv->reconnect_floor_said) {
+            priv->reconnect_floor_said = TRUE;
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "timeout_between_connections 0 never reconnects, the floor is used",
+                "floor_ms",     "%d", RECONNECT_FLOOR_MS,
+                NULL
+            );
+        }
+        msec = RECONNECT_FLOOR_MS;
+    }
+    return msec;
+}
 
 /***************************************************************************
  *
@@ -1097,10 +1127,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_is_running(gobj)) {
-        set_timeout(
-            priv->timer,
-            gobj_read_integer_attr(gobj, "timeout_between_connections")
-        );
+        set_timeout(priv->timer, time_to_reconnect(gobj));
     }
 
     if(priv->inform_disconnected) {
@@ -1119,10 +1146,7 @@ PRIVATE int ac_timeout_wait_connected(hgobj gobj, gobj_event_t event, json_t *kw
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    set_timeout(
-        priv->timer,
-        gobj_read_integer_attr(gobj, "timeout_between_connections")
-    );
+    set_timeout(priv->timer, time_to_reconnect(gobj));
 
     KW_DECREF(kw);
     return 0;

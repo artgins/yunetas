@@ -209,6 +209,13 @@ typedef struct dispatch_frame_s {
  *  that stops it a new child to stop for ever. gobj_destroy_children()
  *  too: no new child can come to a gobj being destroyed (gobj_create2()
  *  refuses it), and those of a live one live on.
+ *
+ *  gobj_destroy() is the one place a child leaves a list, so it is the one
+ *  caller of move_walk_frames_off(). A gobj_change_parent() (declared, not
+ *  implemented in C) would be a second: it must call move_walk_frames_off()
+ *  before its dl_delete(), and give the child a new `__id__` in its new list
+ *  (dl_add() does), or a walk of the new parent that began before the move
+ *  would take it for a child it had when it began.
  */
 typedef struct {
     dispatch_frame_t owner;     // the gobj whose children are walked
@@ -6686,10 +6693,12 @@ PRIVATE int rc_walk_by_level(
     while(child) {
         walk_watch_step(&watch, child, backwards);
 
-        dl_list_t *dl_child_list = &child->dl_children;
-        ret = rc_walk_by_level(
-            dl_child_list, walk_type, cb_walking, user_data, user_data2, user_data3
-        );
+        ret = 0;
+        if(dl_first(&child->dl_children)) {     // a leaf costs no call (see rc_walk_by_tree())
+            ret = rc_walk_by_level(
+                &child->dl_children, walk_type, cb_walking, user_data, user_data2, user_data3
+            );
+        }
 
         child = walk_watch_next(&watch);
         if(ret < 0) {
@@ -6745,21 +6754,25 @@ PRIVATE int rc_walk_by_tree(
     while(child) {
         walk_watch_step(&watch, child, backwards);
 
-        int ret;
+        /*
+         *  A leaf is not descended into: the call would only find its list
+         *  empty, and with the watch it carries it costs more than the visit.
+         */
+        int ret = 0;
         if(walk_type & WALK_BOTTOM2TOP) {
-            dl_list_t *dl_child_list = &child->dl_children;
-            ret = rc_walk_by_tree(
-                dl_child_list, walk_type, cb_walking, user_data, user_data2, user_data3
-            );
+            if(dl_first(&child->dl_children)) {
+                ret = rc_walk_by_tree(
+                    &child->dl_children, walk_type, cb_walking, user_data, user_data2, user_data3
+                );
+            }
             if(ret >= 0 && !watch.cur.destroyed) {
                 ret = (cb_walking)(child, user_data, user_data2, user_data3);
             }
         } else {
             ret = (cb_walking)(child, user_data, user_data2, user_data3);
-            if(ret == 0 && !watch.cur.destroyed) {
-                dl_list_t *dl_child_list = &child->dl_children;
+            if(ret == 0 && !watch.cur.destroyed && dl_first(&child->dl_children)) {
                 ret = rc_walk_by_tree(
-                    dl_child_list, walk_type, cb_walking, user_data, user_data2, user_data3
+                    &child->dl_children, walk_type, cb_walking, user_data, user_data2, user_data3
                 );
             }
             // positive: the branch is skipped, continue next

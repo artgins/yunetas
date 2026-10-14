@@ -30,8 +30,9 @@ path.
 | test2 | secure (TLS)   | `tcps://127.0.0.1:7780`   | same flow across the TLS handshake                     |
 | test3 | clear (no TLS) | `tcp://127.0.0.1:7781`    | retry-with-backoff after a FAILED connect              |
 | test4 | clear (no TLS) | `tcp://127.0.0.1:7782`    | the pending tx queue survives FAILED reconnects        |
+| test5 | clear (no TLS) | `tcp://127.0.0.1:7783`    | `timeout_between_connections` 0 still reconnects       |
 
-All four use a real `timeout_inactivity` of 20000 ms (OVH idle-drops at ~55 s;
+test1 to test4 use a real `timeout_inactivity` of 20000 ms (OVH idle-drops at ~55 s;
 the prod timeout is 30 s). Sub-second values are pointless here: the auto-retry
 already runs ~2 s apart and `C_TIMER` has ~1 s resolution.
 
@@ -50,6 +51,15 @@ the first connects are refused, then bring the echo server up late:
   survive the failed reconnects (the queue used to be flushed on every
   disconnect, silently losing the message). Asserts the queued bytes are flushed
   and echoed once a retry finally connects.
+
+- **test5** — a client with `timeout_between_connections` **0** (no
+  inactivity) whose connects are refused. Up to 7.26.9 the 0 was written to the
+  reconnect timer, `C_TIMER` stops on a timeout <= 0, and the client never
+  connected again, with no log. It now retries at a floor of 1000 ms, with ONE
+  warning (*"timeout_between_connections 0 never reconnects, the floor is
+  used"*) however many retries it makes; the server comes up after 4 s and the
+  client connects. `-1` is untouched: it is the documented "no timer" (every
+  connection waits for an `EV_CONNECT` of the owner).
 
 ## Flow (event-driven, test1/test2)
 
@@ -78,4 +88,5 @@ cd build && make
 ./test_tcp_inactivity_test2
 ./test_tcp_inactivity_test3
 ./test_tcp_inactivity_test4
+./test_tcp_inactivity_test5
 ```

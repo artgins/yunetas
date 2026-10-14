@@ -20,18 +20,18 @@
  *                 EV_ON_OPEN and EV_ON_CLOSE (events of the transport
  *                 itself, which C_PROT_HTTP_SR declares public), the ACK
  *                 again, a stats and a command request for a service that
- *                 does not exist, and EV_TREEDB_NODE_UPDATED three times:
+ *                 does not exist, and EV_TREEDB_NODE_UPDATED four times:
  *                 with a dst_service that is no service, with this service
- *                 (which does not have it as public) and with no
- *                 dst_service. The first three are refused (a WARNING each,
+ *                 (which does not have it as public), with the client's own
+ *                 name and with no dst_service. The first three are refused (a WARNING each,
  *                 the channel stays, the app hears nothing); the requests
  *                 are answered with an error (a WARNING each, the name
- *                 masked: up to 7.26.9 in clear); of the last three the
+ *                 masked: up to 7.26.9 in clear); of the last four the
  *                 first two are dropped with a WARNING each (up to 7.26.9
  *                 both were published, the unknown name with an ERROR and
- *                 a stack) and the third, with no destination, is
- *                 published: it is the only one heard, and it ends the
- *                 test.
+ *                 a stack) and the other two, addressed to the client
+ *                 itself, are published: the only ones heard, and the last
+ *                 ends the test.
  *
  *          The names the server writes (dst_role, dst_yuno, dst_service,
  *          the service of a request) carry a credential. Each fault is the
@@ -233,6 +233,7 @@ PRIVATE int send_frame(hgobj gobj, hgobj channel, gobj_event_t event, json_t *kw
  ***************************************************************************/
 PRIVATE int answer_card(hgobj gobj, hgobj channel, int step)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *role = gobj_yuno_role();
 
     if(step == 0) {
@@ -285,6 +286,9 @@ PRIVATE int answer_card(hgobj gobj, hgobj channel, int step)
     send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED,
         frame_kw("__message__", "", role, gobj_name(gobj))
     );
+    json_t *kw_own = frame_kw("__message__", "", role, gobj_name(priv->gobj_cli));
+    json_object_set_new(kw_own, "which", json_string("the client's own name"));
+    send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED, kw_own);
     json_t *kw_last = frame_kw("__message__", "", role, "");
     json_object_set_new(kw_last, "which", json_string("no dst_service"));
     return send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED, kw_last);
@@ -333,18 +337,24 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  An event of the server the client publishes (no service of its name):
- *  after the second one, the test is done
+ *  An event of the server the client publishes (no service of the client
+ *  as destination): after the last one, the test is done
  ***************************************************************************/
 PRIVATE int ac_forwarded(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(src == priv->gobj_cli) {
-        priv->forwarded++;
-        check(gobj, "only the event with no dst_service was published",
-            strcmp(kw_get_str(gobj, kw, "which", "", 0), "no dst_service")==0);
-        if(priv->forwarded == 1) {
+        /*
+         *  The two with no service of the client as destination, in order:
+         *  its own name (what its identity card gave the server) and none
+         */
+        const char *which = kw_get_str(gobj, kw, "which", "", 0);
+        const char *expected = (++priv->forwarded == 1)? "the client's own name" : "no dst_service";
+        check(gobj, "only the events with no service of the client as destination were published",
+            strcmp(which, expected)==0);
+        if(strcmp(which, "no dst_service")==0) {    // the last frame of the server
+            check(gobj, "both were published", priv->forwarded == 2);
             check(gobj, "the last card was answered", priv->step > LAST_STEP);
             check(gobj, "each fault closed the channel, and the transport's own events were not heard",
                 priv->client_closes == LAST_STEP);

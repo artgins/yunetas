@@ -208,8 +208,9 @@ kernels.
   all the way down (7.26.25): no cycle, `BigInt`, `Map`, `Set`, `Date`, typed
   array or instance of a class anywhere inside. Its JSON text must also give
   the same value (7.26.26), so these are refused too: an object with a
-  `toJSON()`, `NaN` or `Infinity` inside, a function, `undefined` or a symbol
-  inside an array, and a value nested deeper than 2048 levels. A getter or a
+  `toJSON()`, `NaN` or `Infinity` inside, a function, `undefined`, a symbol or a
+  hole inside an array (`[1, , 3]`), and a value nested deeper than 2048
+  levels. Every version before 7.26.26 accepted them. A getter or a
   `Proxy` trap that throws gives a refusal, not an exception. A key whose value
   is `undefined` or a function is an absent key. A plain object of another
   realm (a `vm` context, an iframe) is a plain object. The cause is
@@ -269,6 +270,32 @@ It returns `{value, refused}`, as [`command_parameter_from_json()`](#js_command_
 ```javascript
 command_parameter_from_text(data_type_t.DTP_BOOLEAN, "yes");    // {value: true, refused: null}
 command_parameter_from_text(data_type_t.DTP_INTEGER, "12abc");  // {value: undefined, refused: "a text that does not read as one"}
+```
+
+(js_json_text_of)=
+### `json_text_of(value)`
+
+Gives the JSON text of `value`, or `undefined` when the value has no JSON text
+that says the same value (7.26.27). The rules are the rules of
+[`command_parameter_from_json()`](#js_command_parameter_from_json) for an object
+or a list. A string attribute and
+[`kw_set_local_storage_value()`](helpers_kw.md#js_kw_set_local_storage_value)
+use it, so the two refuse the same values.
+
+- A string, a finite number, a boolean, `null`, and a plain object or array of
+  them have a text.
+- These have no text: `undefined`, a function, a symbol, a `BigInt`, `NaN`,
+  `Infinity`, a cycle, a `Map`, a `Set`, a `Date`, an instance of a class, an
+  object with a `toJSON()`, a function, `undefined` or a hole inside an array,
+  a value nested deeper than 2048 levels, and a getter that throws.
+- A key whose value is `undefined` or a function is an absent key.
+
+```javascript
+json_text_of({a: 1, b: undefined});   // '{"a":1}'
+json_text_of("text");                 // '"text"'
+json_text_of({w: NaN});               // undefined: its text would say {"w":null}
+json_text_of([1, , 3]);               // undefined: a hole
+json_text_of(new Date(0));            // undefined: its text would be a string
 ```
 
 (js_gobj_write_bool_attr)=

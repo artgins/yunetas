@@ -755,8 +755,18 @@ would otherwise give `gobj_stop_children()` a new transport to stop, for ever.
 runs live on (the gobj lives), and a gobj being destroyed cannot get new
 children at all — `gobj_create()` refuses a parent that is being destroyed,
 with an ERROR (*"Cannot create a child of a gobj that is being destroyed"*):
-the child would be freed with it, or never destroyed. This is what the gobj-js
-walks do too: they walk a copy of the list taken when they begin.
+the child would be freed with it, or never destroyed. The gobj-js walks give
+the same children, from a copy of the list taken when they begin, and step
+over a child an earlier callback destroyed, as C does (gobj-js 7.26.27; up to
+7.26.26 the copy handed it to the callback, and a first-level walk over the
+live list skipped or repeated a sibling). They still differ from C in two
+things:
+
+| | C | gobj-js |
+|---|---|---|
+| `gobj_create()` under a parent being destroyed | Refused, ERROR, NULL | Created |
+| A walk of a gobj being destroyed | Refused (ERROR) by `gobj_walk_gobj_children()`, `gobj_stop_children()`, `gobj_stop_tree()`; walked by `gobj_walk_gobj_children_tree()`, `gobj_start_tree()` | Refused (ERROR) by all of them |
+
 
 ```C
 gobj_stop_children(host);       // stops the children it had; the pair its

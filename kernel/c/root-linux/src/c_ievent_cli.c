@@ -1252,17 +1252,21 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *-------------------------*/
     /*
      *  An empty dst_service names no service: the event belongs to whoever
-     *  subscribed to this transport, and is published. A name that is no
-     *  service (a view gone with its frames still on the wire), or a
-     *  service that does not have the event as public, is the server's
-     *  mistake: a WARNING with the names masked, the event dropped, the
-     *  channel kept -- as gobj-js does. Up to 7.26.9 both were published to
-     *  the subscribers (the unknown name with an ERROR and a stack, the
-     *  other silently); no consumer received anything that way (7.26.10:
-     *  the logs of every node, and every C client of the tree read).
+     *  subscribed to this transport, and is published. So does the name of
+     *  this transport: it is the service its identity card gave, which the
+     *  server addresses everything it sends on its own to (C_IEVENT_SRV with
+     *  no `__service__`). A name that is no service (a view gone with its
+     *  frames still on the wire), or a service that does not have the event
+     *  as public, is the server's mistake: a WARNING with the names masked,
+     *  the event dropped, the channel kept -- as gobj-js does. Up to 7.26.9
+     *  both were published to the subscribers (the unknown name with an
+     *  ERROR and a stack, the other silently).
      */
     if(!empty_string(iev_dst_service)) {
         hgobj gobj_service = gobj_find_service(iev_dst_service, FALSE);
+        if(!gobj_service && strcmp(iev_dst_service, gobj_name(gobj))==0) {
+            gobj_service = gobj;    // a transport that is not a service
+        }
         if(!gobj_service) {
             mask_secrets_inline_capped(shown, sizeof(shown), iev_dst_service, strlen(iev_dst_service));
             gobj_log_warning(gobj, 0,
@@ -1277,22 +1281,24 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             KW_DECREF(kw)
             return -1;
         }
-        if(!gobj_has_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PROTOCOL,
-                "msg",          "%s", "event not public in its service, event dropped",
-                "service",      "%s", gobj_short_name(gobj_service),
-                "event",        "%s", iev_event,
-                NULL
-            );
-            KW_DECREF(iev_kw)
+        if(gobj_service != gobj) {
+            if(!gobj_has_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PROTOCOL,
+                    "msg",          "%s", "event not public in its service, event dropped",
+                    "service",      "%s", gobj_short_name(gobj_service),
+                    "event",        "%s", iev_event,
+                    NULL
+                );
+                KW_DECREF(iev_kw)
+                KW_DECREF(kw)
+                return -1;
+            }
+            gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
             KW_DECREF(kw)
-            return -1;
+            return 0;
         }
-        gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
-        KW_DECREF(kw)
-        return 0;
     }
 
     gobj_publish_event(gobj, iev_event, iev_kw);

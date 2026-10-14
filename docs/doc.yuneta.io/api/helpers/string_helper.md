@@ -1007,7 +1007,12 @@ by what a peer sent); a credential that reaches their end is masked whatever
 its shape, and the `value=` of a write-attr is judged by the whole text. So is
 the password of a URL whose authority reaches their end: from its first `:` to
 their end, `@` or not, since the `@` that ends it may lie past them
-(7.26.10+). A masked value is shorter than the bytes it hides, so the end of
+(7.26.10+), as at the end of a dump
+([`mask_secrets_in_text()`](#mask_secrets_in_text)): the userinfo ends at the
+LAST `@`, and an IP literal followed by a port keeps its colons. The 256 bytes
+past the cap keep this away from what is shown unless the authority runs from
+inside the cap to 256 bytes past it: `url=http://[2001:db8::1]:8080/p` with a
+cap of 20 is `url=http://[2001:db`, as cut. A masked value is shorter than the bytes it hides, so the end of
 the bytes judged can be in the copy shown: with a cap of 18,
 `url=https://bob:` and 300 `P` and `@host/p` showed `url=https://bob:P`.
 
@@ -1111,11 +1116,20 @@ dump stay as they were):
 - the password of the userinfo of a URL, `scheme://user:password@host`
   (7.26.10+), and, from its first `:` to the end, an authority that reaches
   the END of the bytes, `@` or not: the `@` may come in the next read
-  (`GET https://u:hunter2` is `GET https://u:*******`). A port there is
-  masked too (`to http://host:8080` is `to http://host:****`), and so is what
-  follows the `@` of a URL `%`-encoded inside a value, read decoded: a `&` is
-  no end of an authority (`url=https%3A%2F%2Fbob%3Ax%40host&x=1` at the end
-  of the bytes masks `x%40host&x=1`);
+  (`GET https://u:hunter2` is `GET https://u:*******`), and the userinfo ends
+  at the LAST `@`, so an `@` already in the bytes does not end it -- a
+  password written with a raw `@` (`https://u:p@ss@host`), a user that is an
+  email address (`GET imap://bob@example.com:hunter2` is
+  `GET imap://bob@example.com:*******`). A port there is masked too (`to
+  http://host:8080` is `to http://host:****`), and so is a host after a whole
+  userinfo (`x https://u:hunter2@host:8080` is `x https://u:*****************`):
+  the bytes do not say they are not a password's. The colons of an IP literal
+  followed by a port are no password's: `see http://[::1]:8080` is
+  `see http://[::1]:****` (a literal cut before its `]`, or followed by
+  something else, may still be a userinfo: from its first `:`). What follows
+  the `@` of a URL `%`-encoded inside a value, read decoded, is masked too: a
+  `&` is no end of an authority (`url=https%3A%2F%2Fbob%3Ax%40host&x=1` at the
+  end of the bytes masks `x%40host&x=1`);
 - the value of a json `"name": value` -- and of a `'name': value`, a Python
   dict or a log of one (7.26.10+) --, and of a `name: value` -- another
   header, a label: `X-Auth-Token: x`, `bearer: tok`, `user[password]: x`

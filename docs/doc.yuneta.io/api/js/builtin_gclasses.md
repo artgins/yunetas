@@ -159,6 +159,11 @@ at once is not tried again at the first delay forever (7.26.25). But a session
 that lived longer than `timeout_retry_max` counts: its fault starts the delay
 again from `timeout_retry` (7.26.26).
 
+The first delay is at least 1000 ms (7.26.27). A lower `timeout_retry` is
+raised to 1000, with one WARNING. Before 7.26.27, a `timeout_retry` of 0 stayed
+0, because 0 doubled is 0. Then a server that closed the link before the ack
+got hundreds of connections a second.
+
 ```javascript
 gobj_create_service("backend", "C_IEVENT_CLI", {
     url:                "wss://backend.example.com:1991",

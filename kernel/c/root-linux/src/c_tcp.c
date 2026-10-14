@@ -116,6 +116,13 @@
 #define IS_CLI      (!empty_string(priv->url))
 #define IS_CLISRV   (priv->__clisrv__)
 
+/*
+ *  The least time between connections when timeout_between_connections is
+ *  0: a timer of 0 is no timer (C_TIMER stops), so 0 never reconnected, and
+ *  said nothing. The same floor as gobj-js's C_IEVENT_CLI (RETRY_FLOOR_MS).
+ */
+#define RECONNECT_FLOOR_MS  1000
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
@@ -230,6 +237,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t reconnect_backoff;   // current exponential-backoff delay (ms); 0 = reset to base on next use
     BOOL inform_disconnection;
     BOOL idle_closed;           // TRUE when the disconnect is an inactivity idle-close (don't auto-reconnect)
+    BOOL reconnect_floor_said;  // the warning of a 0 between connections, once per gobj
 
     json_int_t connxs;
     json_int_t txMsgs;
@@ -1121,6 +1129,24 @@ PRIVATE void set_disconnected(hgobj gobj)
                  */
                 json_int_t base = gobj_read_integer_attr(gobj, "timeout_between_connections");
                 json_int_t maxbo = gobj_read_integer_attr(gobj, "timeout_between_connections_max");
+                if(base == 0) {
+                    /*
+                     *  -1 is "no timer" on purpose (each connection waits for
+                     *  an EV_CONNECT of the owner); 0 says nothing of the kind
+                     */
+                    if(!priv->reconnect_floor_said) {
+                        priv->reconnect_floor_said = TRUE;
+                        gobj_log_warning(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_PARAMETER,
+                            "msg",          "%s", "timeout_between_connections 0 never reconnects, the floor is used",
+                            "floor_ms",     "%d", RECONNECT_FLOOR_MS,
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            NULL
+                        );
+                    }
+                    base = RECONNECT_FLOOR_MS;
+                }
                 json_int_t delay = base;
                 if(maxbo > base) {
                     /*

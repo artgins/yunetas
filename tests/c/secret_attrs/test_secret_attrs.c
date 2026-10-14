@@ -1844,7 +1844,8 @@ PRIVATE void check_secret_values(hgobj gobj)
      *  The password of a URL whose '@' lies past the window judged: the
      *  authority reaches the cut, so it is masked from its first ':' to the
      *  cut, at every cap -- plain, %-encoded, with an '@' of the password
-     *  in the window, and after a value masked short, which leaves the end
+     *  or of the user (an email address) in the window: the userinfo ends
+     *  at the LAST '@' --, and after a value masked short, which leaves the end
      *  of the window inside the copy shown
      */
     {
@@ -1854,6 +1855,7 @@ PRIVATE void check_secret_values(hgobj gobj)
             {"url=https://bob:", "P", "@host/p", "plain"},
             {"url=https%3A%2F%2Fbob%3A", "%50", "%40host", "%-encoded"},
             {"url=https://bob:p@", "P", "@host/p", "an '@' of the password in the window"},
+            {"url=imap://bob@example.com:", "P", "@mail/p", "an '@' of the user in the window"},
             {"password=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx url=https://bob:",
              "P", "@host/p", "after a value masked short"},
         };

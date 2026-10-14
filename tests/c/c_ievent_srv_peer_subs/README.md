@@ -73,6 +73,15 @@ test writes by hand, as a hostile peer would, and `bob`, a plain client.
    to 7.25.4 each such frame logged an error with a stack trace and the
    whole kw, and the frame without routing was processed.
 
+9. The server sends `bob` (an anonymous yuno: no `yuno_name`) two events of
+   its own, `EV_TEST_OPEN`, through the `C_IEVENT_SRV` of his channel, as an
+   app does: with no `__service__` the gate addresses it to the service of his
+   identity card, his transport, which publishes it to its subscribers (the
+   `tester`, which is not that service); with `__service__: tester` it goes to
+   `tester` by name. Each arrives once. Up to 7.26.9 both closed bob's channel:
+   the gate wrote its own label for an anonymous yuno (`^peer-sock`) as
+   `dst_yuno`, and the client refused it (*"It's not my name"*).
+
 `main.c` counts the lines of each of these logs and measures them.
 
 ## Run

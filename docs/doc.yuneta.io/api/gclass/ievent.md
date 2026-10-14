@@ -394,6 +394,7 @@ masked and capped).
 | In session, an event of another gclass whose `dst_service` is no service | Drops it; the channel stays (a view gone with its frames still on the wire). Up to 7.26.9 it was published to the client's subscribers, with an ERROR and a stack, the name in clear. | *"service of the event not found, event dropped"* |
 | In session, an event whose `dst_service` is a service that does not have it as public | Drops it; the channel stays. Up to 7.26.9 it was published to the client's subscribers, with no log. | *"event not public in its service, event dropped"* |
 | In session, an event with an empty `dst_service` | Publishes it to the client's subscribers: it names no destination, so it belongs to whoever subscribed. Up to 7.26.9 also an ERROR with a stack, *"service EMPTY"*. | None |
+| In session, an event whose `dst_service` is the client's own name (the `src_service` of its identity card: what the server sends on its own, with no `__service__`) | Publishes it to the client's subscribers, as an empty one (7.26.10). | None |
 | In session, `EV_MT_STATS` / `EV_MT_COMMAND` whose `service` is no service | Answers with an error (*"Service not found: '...'"*); the channel stays. | *"Service not found"*, `MSGSET_PARAMETER`, the name masked and capped (7.26.10; up to 7.26.9 in clear) |
 
 `tests/c/c_ievent_cli_peer_faults`.
@@ -403,7 +404,7 @@ masked and capped).
 The gobj-js `C_IEVENT_CLI` (the browser's) reads its server with the same
 severity, one WARNING without a stack and the server's names masked, but it
 does not always do the same with the frame. The differences, checked in
-`c_ievent_cli.c` and gobj-js `src/c_ievent_cli.js` (7.26.25):
+`c_ievent_cli.c` and gobj-js `src/c_ievent_cli.js` (7.26.26):
 
 | The frame | C `C_IEVENT_CLI` | gobj-js `C_IEVENT_CLI` |
 |-----------|------------------|------------------------|
@@ -412,6 +413,7 @@ does not always do the same with the frame. The differences, checked in
 | `__subscribing__` / `__unsubscribing__` | WARNING; closes the channel | WARNING; drops the frame, the channel stays |
 | `dst_service` names no service | WARNING; drops it (7.26.10; up to 7.26.9 it published it) | WARNING; drops it |
 | `dst_service` is a service that does not have the event as public | WARNING; drops it (7.26.10; up to 7.26.9 it published it, no log) | WARNING; drops it |
+| What the server sends on its own, with no `__service__` (addressed to the `src_service` of the identity card) | Its card names the transport itself: published to its subscribers | Its card names the transport's PARENT: delivered to that service if it has the event as public, else dropped with a WARNING |
 | `EV_MT_STATS` / `EV_MT_COMMAND` | Served: the stats or the command of the service named, and the answer | Not served: a browser does not run what its server asks |
 | How a fault closes the channel (an event before the session, another `dst_role` / `dst_yuno`) | `EV_DROP` to the transport: the TCP connection is cut, with no WebSocket close frame | The WebSocket is closed with code 4002, which `EV_ON_CLOSE` carries |
 
@@ -419,7 +421,22 @@ Since 7.26.10 the two clients do the same with a `dst_service` they cannot
 deliver to: they drop the event. The C one published it until then; no node
 logged it in a week of logs, and no C client of the tree receives anything
 that way (each one is the `src_service` of what it asks, and declares the
-answers public). Both keep the session
+answers public). What a server sends on its own is the other case: an app
+that sends an event to the `C_IEVENT_SRV` of a channel, with no `__service__`
+in the kw, addresses it to the service the client's identity card gave --
+the C client's transport, which publishes it to its subscribers, as an empty
+`dst_service`. Name a service to reach it instead:
+
+```c
+gobj_send_event(gobj_channel_srv, EV_ALARM,        // to the subscribers of the client's transport
+    json_pack("{s:s}", "device", "dev1"), gobj);
+gobj_send_event(gobj_channel_srv, EV_ALARM,        // to the client's service `monitor`, which has EV_ALARM public
+    json_pack("{s:s, s:s}", "device", "dev1", "__service__", "monitor"), gobj);
+```
+
+To an anonymous client (no `yuno_name`) the gate writes no `dst_yuno`
+(7.26.10): its `^peer-sock` name is the gate's label, and up to 7.26.9 the
+client refused it (*"It's not my name"*) and the channel was closed. Both keep the session
 when an event of the transport itself arrives (*"event of the transport
 itself, or out of its place"*), so a hostile server can make either write one
 WARNING per frame.

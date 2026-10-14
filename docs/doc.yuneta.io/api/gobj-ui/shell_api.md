@@ -201,12 +201,33 @@ views stop. Give it when `handler` can refuse to close (a `before_close` that
 asks). Without it, the overlay and its focus trap stay after the shell is gone.
 
 A shell that stops does not move the browser history (since gobj-ui 7.26.47).
-The history entries of the overlays that it closes stay in place, with no
-effect: a later Back lands on one of them and does nothing. In 7.26.46 the stop
-removed them with `history.back()`. That call is asynchronous, and a stopped
-shell does not see where it lands: after a logout and a new login in the same
-turn, it removed the entry of the first window of the new shell, and the next
-Back left the application. A question that is open at the stop gets the answer
+In 7.26.46 the stop removed the history entries of its overlays with
+`history.back()`. That call is asynchronous, and a stopped shell does not see
+where it lands: after a logout and a new login in the same turn, it removed the
+entry of the first window of the new shell, and the next Back left the
+application.
+
+The next shell removes those entries (since gobj-ui 7.26.49). The entries of
+the overlays that the stop closed, and the entry of a `stay` action route under
+one of them, are dead: a Back onto one of them closes nothing. The stopped shell
+gives them to the next shell. When the next shell starts with `use_hash` (the
+default), it
+removes them with one `history.go(-n)`, and it waits for the landing as for a
+`back()` of its own: an overlay that it opens in the meantime gets its entry
+after the landing. In 7.26.47 and 7.26.48 the entries stayed, and each logout
+with an overlay open added dead Backs. The shell finds the entries by their key
+in the Navigation API; a browser without that API keeps them, as before. A
+reload keeps the keys in `sessionStorage` for the first shell of the new page.
+
+```javascript
+// a logout with a dialog open, then a new login
+gobj_stop_tree(old_shell);
+gobj_destroy(old_shell);
+let shell = gobj_create_pure_child("shell", "C_YUI_SHELL", {config: config, subscriber: app}, app);
+gobj_start_tree(shell);     // removes the dead entries: one Back closes, the next leaves
+```
+
+A question that is open at the stop gets the answer
 of Escape: `false` for a yes/no or danger question, `"cancel"` for
 yes/no/cancel. A `yui_shell_confirm_ok()` resolves as it does on every close:
 code that waits for it runs after the stop, and must not use the old shell.

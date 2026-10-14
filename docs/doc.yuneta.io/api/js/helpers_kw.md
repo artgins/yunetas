@@ -469,9 +469,20 @@ These cases give the default value (7.26.26):
 - The entry holds a JSON `null`. A `null` is no value, as `json_absent()` in C.
 - The entry does not hold JSON (a corrupt or foreign write). The function logs
   one WARNING, which does not show the text, and removes the entry. The next
-  read finds no entry, so it does not warn again. Before 7.26.26, each read
-  wrote the error to the console.
-- The store cannot be read. The function logs one WARNING for each key.
+  read finds no entry, so it does not warn again. A new corrupt entry in the
+  same key gives a new WARNING (7.26.27). Before 7.26.26, each read wrote the
+  error to the console.
+- The store cannot be read. The function logs one WARNING for each key, until
+  a read of that key succeeds again. It does not write the default to that
+  store, also with `create`. This includes a browser that blocks the data of
+  the site (cookies blocked in Chrome, a sandboxed iframe): there, the read of
+  `window.localStorage` itself throws a `SecurityError`. Before 7.26.27, that
+  error went out of the function, so an app that reads its locale at start did
+  not start.
+
+These answers are BREAKING in 7.26.26: an older version answered `null` for an
+absent entry or a JSON `null`, and `undefined` outside a browser, and it kept an
+entry that is not JSON.
 
 ```javascript
 kw_get_local_storage_value("theme", "light", true);   // "light", and written if absent
@@ -486,10 +497,24 @@ Writes an attribute to the local storage. Returns `0` on success, and `-1` when
 the value did not reach the store. An older version returned nothing and only
 wrote to the console, so no caller saw the failure.
 
+A value with no JSON text is refused with an ERROR and `-1`, as a typed attribute
+writer refuses it (7.26.27): a function, a symbol, a `BigInt`, a cycle, `NaN` or
+`Infinity`, a `Date`, a `Map`, an object with a `toJSON()`, and a function,
+`undefined` or a hole inside an array. Before 7.26.27, a function was stored as
+the text `"undefined"`, and `{w: NaN}` as `{"w":null}`. A key whose value is
+`undefined` is an absent key, as in `JSON.stringify()`.
+
+```javascript
+kw_set_local_storage_value("rect", {x: 1, y: 2});     // 0
+kw_set_local_storage_value("rect", {x: 1, y: NaN});   // -1, ERROR "a value with no json text"
+kw_set_local_storage_value("rect", () => 1);          // -1, nothing stored
+```
+
 (js_kw_remove_local_storage_value)=
 ### [`kw_remove_local_storage_value(key)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/helpers.js#L4031)
 
-Deletes an attribute from the local storage.
+Deletes an attribute from the local storage. A store that refuses the removal
+gives a WARNING (7.26.27; before, a message on the console).
 
 ---
 

@@ -212,12 +212,34 @@ the editor open, with a red outline and `aria-invalid`, until the date is
 complete or the reader presses Escape. When the reader leaves the cell, the
 edit is cancelled and the cell keeps its time. Before, one Backspace and Enter
 erased the stored time. To clear a time, clear all the parts of the box: an
-empty box writes `null`.
+empty box writes `null`. When the last part is clear, the box is valid again
+and `aria-invalid` goes (since gobj-ui 7.26.49). In the box, the Left and Right
+arrows move between the parts. Tab belongs to the table: it leaves the cell and
+opens the editor of the next cell.
+
+Enter on a time that the reader did not change cancels the edit, also on the
+hour (since gobj-ui 7.26.49). The browser writes `2026-10-25T02:30:00` back as
+`2026-10-25T02:30`. Before, the text did not match, and in the hour that occurs
+two times in autumn the form wrote the earlier hour: -3600 s.
 
 The time field of the form reads and writes a column as the cell editor does
 (since gobj-ui 7.26.47). A column with no time shows an empty box; before, the
 field showed January 1970 and a save wrote `0`. A `string` column is read and
 written as ISO text; before, the field read it as a number and wrote an epoch.
+A template field with no real type is an epoch (since gobj-ui 7.26.49). In
+7.26.47 and 7.26.48 the field showed no time and a save wrote `null`:
+
+```js
+const template = {
+    appointment: "time.writable",           // an epoch in seconds
+    since:       "string.time.writable",    // an ISO text
+};
+```
+
+A field that Save refuses (an empty required box, a date with a part cleared)
+has a red outline and `aria-invalid="true"`, and the line under the box is its
+`aria-describedby` (since gobj-ui 7.26.49). Before, only the outline showed the
+error, and a screen reader does not see an outline.
 
 ```js
 const kw = {abort_close: false};
@@ -245,7 +267,9 @@ not selectable, the column is hidden (gobj-ui 7.26.46): the row checkbox of
 Tabulator shows a tick even when the selection is refused, and the header
 checkbox selects all rows without a check. The column follows each write of
 `selectable`, in every table (since gobj-ui 7.26.47; in 7.26.46 the value at
-the build of the table stayed). The header checkbox is named "select all
+the build of the table stayed). When `selectable` becomes `false`, the selected
+rows are deselected (since gobj-ui 7.26.49). Before, they stayed selected, and
+the reader had no checkbox and no click to remove the selection. The header checkbox is named "select all
 rows" and a row checkbox "select row"; both change language with the form. A
 click in a nested table selects only in that table.
 

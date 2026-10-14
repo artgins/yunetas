@@ -243,6 +243,7 @@ typedef struct _PRIVATE_DATA {
     BOOL inform_on_close;
 
     const char *client_yuno_name;
+    BOOL client_yuno_anonymous;     // client_yuno_name is a label of this gate, the client gave none
     const char *client_yuno_role;
     const char *client_yuno_service;
     const char *this_service;
@@ -602,6 +603,14 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 
 /***************************************************************************
  *  __MESSAGE__
+ *
+ *  The routing of what this gate sends on its own (not an answer): to the
+ *  client as its identity card named it. Its `src_service` when no service
+ *  is asked (the transport of a C client, which publishes the event to its
+ *  subscribers); and no yuno name when the client gave none: the "^peer-
+ *  sock" name of an anonymous client is this gate's label for it, and a
+ *  client refuses a `dst_yuno` that is not its own name (up to 7.26.9 an
+ *  anonymous client dropped the channel, "It's not my name").
  ***************************************************************************/
 PRIVATE json_t *build_srv_ievent_request(
     hgobj gobj,
@@ -613,7 +622,7 @@ PRIVATE json_t *build_srv_ievent_request(
         dst_service = priv->client_yuno_service;
     }
     json_t *jn_ievent_chain = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
-        "dst_yuno", priv->client_yuno_name,
+        "dst_yuno", priv->client_yuno_anonymous? "" : priv->client_yuno_name,
         "dst_role", priv->client_yuno_role,
         "dst_service", dst_service,
 
@@ -1064,7 +1073,8 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     gobj_write_bool_attr(gobj, "authenticated", TRUE);
     gobj_write_str_attr(gobj, "client_yuno_role", iev_src_role);
     gobj_write_str_attr(gobj, "client_yuno_service", iev_src_service);
-    if(empty_string(iev_src_yuno)) {
+    priv->client_yuno_anonymous = empty_string(iev_src_yuno);
+    if(priv->client_yuno_anonymous) {
         // anonymous yuno name
         char temp[80];
         snprintf(temp, sizeof(temp), "^%s-%s", peername, sockname);

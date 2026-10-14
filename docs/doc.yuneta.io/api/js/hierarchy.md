@@ -171,9 +171,26 @@ The order the two walks take. One of `WALK_TOP2BOTTOM`, `WALK_BOTTOM2TOP` or
 ### [`gobj_walk_gobj_children(gobj, walk_type, cb_walking, user_data, user_data2)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L3476)
 
 Calls `cb_walking(gobj, user_data, user_data2)` for each child. `walk_type`
-chooses the order. A callback that gives a value that is not `0` stops the walk.
+chooses the order. A callback that gives a negative value stops the walk, and
+the walk gives that value. `0` or a positive value goes on to the next child.
+
+The callback can destroy any gobj, also the current one. The walk does not give
+a destroyed gobj to the callback, and it does not skip or repeat a live one
+(7.26.27).
 
 (js_gobj_walk_gobj_children_tree)=
 ### [`gobj_walk_gobj_children_tree(gobj, walk_type, cb_walking, user_data, user_data2)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L3494)
 
-The same walk, and it goes down to every depth.
+The same walk, and it goes down to every depth. With `WALK_TOP2BOTTOM`, a
+positive value from the callback skips the children of that gobj. The walk does
+not go into the children of a gobj that the callback destroyed.
+
+```javascript
+gobj_walk_gobj_children_tree(gobj, walk_type_t.WALK_TOP2BOTTOM, (child) => {
+    if(gobj_is_disabled(child)) {
+        return 1;           // skip its children
+    }
+    log_info(gobj_short_name(child));
+    return 0;               // go on, and down into its children
+}, 0, 0);
+```
