@@ -1004,8 +1004,8 @@ fixed:
   `command_parameter_from_json()` and the json readers carry examples; the
   masking pages say what each figure compares against.
 
-- **JS layer: gobj-ui 7.26.43, gobj-js 7.26.22, gui_agent 0.29.54,
-  gui_treedb 0.17.120** (the twenty-fifth review). gobj-js: the masking above
+- **JS layer: gobj-ui 7.26.43 and 7.26.44, gobj-js 7.26.22 and 7.26.23,
+  gui_agent 0.29.54, gui_treedb 0.17.120** (the twenty-fifth review). gobj-js: the masking above
   (a URL query token; 7.26.19's reading kept whole; a name judged like C, in
   ASCII case and by its last 128 UTF-8 bytes; an eyJ header with no dot of
   its own; no server text logged unmasked by `C_IEVENT_CLI`; as fast as
@@ -1024,7 +1024,14 @@ fixed:
   `.bind()`, declares `fallbacks`, and FAILS where it gives up (it stopped in
   silence at 24 steps); `deploy-round` leaves a refused app as it was and never
   lowers a range. The yunos: three transports and timers taken down on the
-  next turn.
+  next turn. gobj-ui 7.26.44: a click on a row of a form's table WROTE its
+  `selectable` attr with no value instead of reading it (since v1); gobj-js
+  7.26.22 refuses that write, and the console check of the deployed
+  estadodelaire found the click throwing -- the library's own suite ran
+  against gobj-js 7.26.3 and runs against `^7.26.22` now. gobj-js 7.26.23:
+  `C_IEVENT_CLI` warned on every close of its websocket, the clean one of a
+  logout included (the C transport logs an ended session nowhere: it is
+  `EV_ON_CLOSE`), and the reason of a failed open was logged unmasked.
 
 ## v7.26.9 (2026-10-11)
 
