@@ -19,17 +19,21 @@
  *              5. the ACK: the session opens; then, in the session,
  *                 EV_ON_OPEN and EV_ON_CLOSE (events of the transport
  *                 itself, which C_PROT_HTTP_SR declares public), the ACK
- *                 again, and EV_TREEDB_NODE_UPDATED twice: with no
+ *                 again, a stats and a command request for a service that
+ *                 does not exist, and EV_TREEDB_NODE_UPDATED twice: with no
  *                 dst_service, and with a dst_service that is no service.
  *                 The first three are refused (a WARNING each, the channel
- *                 stays, the app hears nothing); the last two are
- *                 published, as ever, the empty name without a log and the
- *                 unknown one with a WARNING. The second ends the test.
+ *                 stays, the app hears nothing); the requests are answered
+ *                 with an error (a WARNING each, the name masked: up to
+ *                 7.26.9 in clear); the last two are published, as ever,
+ *                 the empty name without a log and the unknown one with a
+ *                 WARNING. The second ends the test.
  *
- *          The names the server writes (dst_role, dst_yuno, dst_service)
- *          carry a credential. Each fault is the server's: ONE warning, no
- *          stack, its names masked and capped (main.c counts the lines,
- *          their priority, and looks for the credentials). Up to 7.26.9
+ *          The names the server writes (dst_role, dst_yuno, dst_service,
+ *          the service of a request) carry a credential. Each fault is the
+ *          server's: ONE warning, no stack, its names masked and capped
+ *          (main.c counts the lines, their priority, and looks for the
+ *          credentials). Up to 7.26.9
  *          each was an ERROR with the names in clear, and the session event
  *          before the session raised "Event NOT DEFINED in state" (an ERROR
  *          with a stack) before its own; EV_ON_OPEN and EV_ON_CLOSE of the
@@ -263,6 +267,14 @@ PRIVATE int answer_card(hgobj gobj, hgobj channel, int step)
     json_t *kw_ack2 = frame_kw("__answer__", "", role, "cli");
     json_object_set_new(kw_ack2, "result", json_integer(0));
     send_frame(gobj, channel, EV_IDENTITY_CARD_ACK, kw_ack2);
+    json_t *kw_stats = frame_kw("__stats__", "", role, "cli");
+    json_object_set_new(kw_stats, "service", json_string("nobody token=tester-secret-stats"));
+    json_object_set_new(kw_stats, "__stats__", json_string("stats"));
+    send_frame(gobj, channel, EV_MT_STATS, kw_stats);
+    json_t *kw_command = frame_kw("__command__", "", role, "cli");
+    json_object_set_new(kw_command, "service", json_string("nobody token=tester-secret-command"));
+    json_object_set_new(kw_command, "__command__", json_string("help"));
+    send_frame(gobj, channel, EV_MT_COMMAND, kw_command);
     send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED, frame_kw("__message__", "", role, ""));
     return send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED,
         frame_kw("__message__", "", role, "nobody password=tester-secret-service")

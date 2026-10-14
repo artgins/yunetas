@@ -2602,11 +2602,14 @@ PRIVATE void mark_query_params(const char *bf, const char *end, name_reading_t r
  *  marked: from the first ':' of the authority to its last '@' (the
  *  userinfo ends at the last one, as a browser reads it). The authority
  *  runs to a byte of URL_AUTHORITY_STOPS, an end of line or a NUL, so the
- *  scans from two "://" never overlap.
+ *  scans from two "://" never overlap. Where the text may have been cut
+ *  (`end_is_cut`: a dump, a window), an authority that reaches its end is
+ *  marked from its first ':' to the end, '@' or not: the '@' that ends the
+ *  password may be past the cut (a port there is masked too).
  */
 #define URL_AUTHORITY_STOPS "/?#\"'<> \t"
 
-PRIVATE void mark_url_passwords(const char *bf, const char *end, uint8_t *marks)
+PRIVATE void mark_url_passwords(const char *bf, const char *end, BOOL end_is_cut, uint8_t *marks)
 {
     for(const char *p = bf + 1; p + 2 < end; p++) {
         if(p[0] != ':' || p[1] != '/' || p[2] != '/' || !is_ascii_alnum(p[-1])) {
@@ -2623,7 +2626,9 @@ PRIVATE void mark_url_passwords(const char *bf, const char *end, uint8_t *marks)
             }
             e++;
         }
-        if(colon && at && colon < at) {
+        if(colon && end_is_cut && e >= end) {
+            mark_range(marks, (size_t)(colon + 1 - bf), (size_t)(end - bf));
+        } else if(colon && at && colon < at) {
             mark_range(marks, (size_t)(colon + 1 - bf), (size_t)(at - bf));
         }
         p = e - 2;  // the ':' of the next "://" may be the last byte scanned
@@ -2704,7 +2709,7 @@ PRIVATE void mark_inline_rules_of_now(const char *str, size_t len, BOOL end_is_c
     mark_params(str, len, value_is_secret, READ_NOW, marks);
     mark_query_params(str, str + len, NAME_PLAIN, marks);
     mark_query_params(str, str + len, NAME_WRITTEN, marks);
-    mark_url_passwords(str, str + len, marks);
+    mark_url_passwords(str, str + len, end_is_cut, marks);
     mark_shapes(str, len, end_is_cut, marks);
     mark_labels(str, len, marks);
 }
@@ -2747,7 +2752,7 @@ PRIVATE void mark_inline_secrets(
     }
     mark_query_params(str, str + len, NAME_PLAIN, marks);
     mark_query_params(str, str + len, NAME_WRITTEN, marks);
-    mark_url_passwords(str, str + len, marks);
+    mark_url_passwords(str, str + len, end_is_cut, marks);
     mark_shapes(str, len, end_is_cut, marks);
     mark_labels(str, len, marks);
     mark_decoded_view(str, len, RULES_OF_INLINE, end_is_cut, 0, marks);
@@ -3274,7 +3279,7 @@ PRIVATE void mark_dump_rules_of_now(const char *bf, const char *end, uint8_t *ma
     mark_dump_shapes(bf, end, marks);
     mark_query_params(bf, end, NAME_PLAIN, marks);
     mark_query_params(bf, end, NAME_WRITTEN, marks);
-    mark_url_passwords(bf, end, marks);
+    mark_url_passwords(bf, end, TRUE, marks);   // the end of a dump may cut a frame
     mark_dump_json_members(bf, end, marks);
     mark_dump_labels(bf, end, NAME_PLAIN, marks);
     mark_dump_labels(bf, end, NAME_WRITTEN, marks);
@@ -3382,7 +3387,8 @@ PRIVATE void mark_decoded_view(
  *    - the value of "name=value" whose name is a secret's (is_secret_name()),
  *      as in a query string, a form body or a command line, its name read
  *      as a run of name bytes and as a form writes it (name_reading_t);
- *    - the password of the userinfo of a URL (mark_url_passwords());
+ *    - the password of the userinfo of a URL (mark_url_passwords()), and
+ *      from its first ':' an authority that reaches the end of the bytes;
  *    - in a URL or a query %-encoded inside a value, what these rules mask
  *      in it read decoded (mark_decoded_view());
  *    - the value of a json "name": value (or 'name': value), and of a

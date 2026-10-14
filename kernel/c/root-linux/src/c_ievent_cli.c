@@ -991,8 +991,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         /*
          *  An event no gclass has as public: iev_create_from_gbuffer() said
          *  it, a WARNING with the name and the kw masked, capped -- the only
-         *  one that knows the name the frame gave. The whole kw was traced
-         *  here raw (REV-CLOUD V23.4.1). The channel goes.
+         *  one that knows the name the frame gave. Up to 7.26.9 the whole kw
+         *  was traced here raw. The channel goes.
          */
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
         KW_DECREF(iev_kw)
@@ -1254,8 +1254,9 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  An empty dst_service names no service; a name that is no service
      *  is the server's mistake, a WARNING with the name masked (it was an
      *  ERROR with a stack, the name in clear). Either way the event is
-     *  published below, as it always was: whether it should be dropped
-     *  instead is an open decision (the same TODO as gobj-js).
+     *  published below, as it always was, and so is one the service found
+     *  does not have as public. gobj-js drops both (a view gone with its
+     *  frames in flight); which of the two is right is an open decision.
      */
     hgobj gobj_service = NULL;
     if(!empty_string(iev_dst_service)) {
@@ -1340,11 +1341,13 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_service = gobj_find_service(service, FALSE);
         if(!gobj_service) {
+            char shown[PEER_NAME_SHOWN];
+            mask_secrets_inline_capped(shown, sizeof(shown), service, strlen(service));
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Service not found",
-                "service",      "%.128s", service,
+                "service",      "%s", shown,
                 "event",        "%s", event,
                 NULL
             );
@@ -1443,11 +1446,13 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_service = gobj_find_service(service, FALSE);
         if(!gobj_service) {
+            char shown[PEER_NAME_SHOWN];
+            mask_secrets_inline_capped(shown, sizeof(shown), service, strlen(service));
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Service not found",
-                "service",      "%.128s", service,
+                "service",      "%s", shown,
                 "event",        "%s", event,
                 NULL
             );
@@ -1467,7 +1472,7 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
 
             return send_static_iev(gobj,
-                EV_MT_COMMAND_ANSWER,   // it went as EV_MT_STATS_ANSWER (REV-CLOUD V22.4.7)
+                EV_MT_COMMAND_ANSWER,   // up to 7.26.9 it went as EV_MT_STATS_ANSWER
                 kw_response,
                 src
             );

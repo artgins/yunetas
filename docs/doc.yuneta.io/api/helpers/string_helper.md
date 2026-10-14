@@ -1004,7 +1004,12 @@ of an event that is not public, the stats and the first word of a command out
 of session, and the log line of a peer's app (`EV_REMOTE_LOG`) wrote it. The
 bytes judged are the cap and 256 more (the work stays bounded by the cap, not
 by what a peer sent); a credential that reaches their end is masked whatever
-its shape, and the `value=` of a write-attr is judged by the whole text.
+its shape, and the `value=` of a write-attr is judged by the whole text. So is
+the password of a URL whose authority reaches their end: from its first `:` to
+their end, `@` or not, since the `@` that ends it may lie past them
+(7.26.10+). A masked value is shorter than the bytes it hides, so the end of
+the bytes judged can be in the copy shown: with a cap of 18,
+`url=https://bob:` and 300 `P` and `@host/p` showed `url=https://bob:P`.
 
 ```C
 size_t mask_secrets_inline_capped(
@@ -1036,6 +1041,11 @@ mask_secrets_inline_capped(name, sizeof(name), event_, strlen(event_));
 // "EV_X Bearer abcdefghij12345" in 17 bytes: "EV_X Bearer ****", never "EV_X Bearer abcd"
 gobj_log_warning(gobj, 0, "msg", "%s", "Frame of an event that is not public, refused",
     "event", "%s", name, NULL);
+
+char shown[18];
+mask_secrets_inline_capped(shown, sizeof(shown), url_text, strlen(url_text));
+// "url=https://bob:" + 300 x "P" + "@host/p", its '@' past the 273 bytes judged:
+// "url=https://bob:*", never "url=https://bob:P"
 ```
 
 ---
@@ -1099,7 +1109,13 @@ dump stay as they were):
   decoded: `user[password]=x`, `user%5Bpassword%5D=x`, `'password'=x`,
   `t%6Fken=x` (7.26.10+; up to then a dump showed them);
 - the password of the userinfo of a URL, `scheme://user:password@host`
-  (7.26.10+);
+  (7.26.10+), and, from its first `:` to the end, an authority that reaches
+  the END of the bytes, `@` or not: the `@` may come in the next read
+  (`GET https://u:hunter2` is `GET https://u:*******`). A port there is
+  masked too (`to http://host:8080` is `to http://host:****`), and so is what
+  follows the `@` of a URL `%`-encoded inside a value, read decoded: a `&` is
+  no end of an authority (`url=https%3A%2F%2Fbob%3Ax%40host&x=1` at the end
+  of the bytes masks `x%40host&x=1`);
 - the value of a json `"name": value` -- and of a `'name': value`, a Python
   dict or a log of one (7.26.10+) --, and of a `name: value` -- another
   header, a label: `X-Auth-Token: x`, `bearer: tok`, `user[password]: x`

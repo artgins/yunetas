@@ -207,6 +207,8 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   name.
 - **A %-encoded URL or query is read decoded twice at most** (C and JS): a value encoded three times shows (`next=https%25253A%25252F%25252Fh%25253Fpassword%25253Dhunter2`), and a `%XX` of a byte over 0x7F stays encoded. Each decoding is one more pass of the rules; the bound keeps the masking linear. A json KEY is judged as written, never decoded: `{"t%6Fken": "x"}` as a dict shows `x` (no producer encodes a json key; as text, inline or in a dump, it is masked).
 - **A URL password with an unencoded `/`, `?`, `#` or blank shows** (`https://u:a/b@h`, C and JS): the authority ends at the first of them, as RFC 3986 and a browser read it -- such a password is no userinfo.
+- **A `#fragment` after a secret's value is masked with it** (C and JS, as in 7.26.9): the value runs to the end of the run of value bytes, and `#` is one of them, so `?token=abc#section` is `?token=********`.
+- **A URL authority that reaches the end of the bytes judged is masked from its first `:`** (the window of `mask_secrets_inline_capped()`, the end of a dump; C and JS), `@` or not: a port there is masked too. A decoded `&` ends no authority.
 - **A json KEY is judged as a name, never as a value**: a key that is itself a
   credential (a dict keyed by tokens, `{"eyJ...": 1}`) is shown as it is
   (`json_mask_secrets()`, C and JS).
@@ -216,7 +218,8 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   or `Basic` that can be a credential); the rest of a credential cut between
   two reads (the masking of received bytes is per buffer: a JWT or the word
   after a scheme that reaches the END of a buffer is masked whatever its
-  shape, but what the next read brings is not); and a parameter of a command
+  shape (and a URL authority, from its first `:`), but what the next read
+  brings is not); and a parameter of a command
   for a REMOTE service whose name is not a secret's name (no command table at
   hand says it is `SDF_SECRET`); a credential under a name that is no
   secret's, of a protocol the SDK does not speak: OAuth's `code=` (single use,

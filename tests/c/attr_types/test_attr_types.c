@@ -28,6 +28,10 @@
  *          A null given to a DTP_STRING is "", the convention of the
  *          default of a string attr and of empty_string() (and of gobj-js):
  *          it was the text "null", which empty_string() reads as a value.
+ *          A DEFAULT is read by the same grammar (set_default()): one that
+ *          does not read ("1e999" or "nan" to a real, "5 " or "0660" to an
+ *          integer, " 1" to a boolean) is the zero of its type, with an
+ *          ERROR, and "yes" is true.
  *          Up to 7.26.9 a string was read from its JSON dump, quotes
  *          included: "42" was 0, "true" false, "2.5" 0.0, and a list or a
  *          dict given as text was always refused; an integer to a real, a
@@ -58,6 +62,7 @@
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
 #define REFUSED "Attribute value of the wrong type, not written"
+#define BAD_DEFAULT "default_value of the attribute does not read as its type, its zero used"
 
 #define SKIP_RETURN_CODE        77      // the same in CMakeLists.txt
 
@@ -69,6 +74,7 @@
  *              Data
  ***************************************************************/
 GOBJ_DEFINE_GCLASS(C_TEST_ATTR_TYPES);
+GOBJ_DEFINE_GCLASS(C_TEST_BAD_DEFAULTS);
 
 typedef struct {
     hgobj   timer;
@@ -257,6 +263,28 @@ PRIVATE void check_parity_table(void)
     JSON_DECREF(jn_table)
 }
 
+/*
+ *  Defaults that do not read as their type: the zero of the type, with an
+ *  ERROR each, at every instance. Up to 7.26.9 atof() made "1e999" an inf
+ *  and "nan" a nan, strtoll() read "5 " as 5 and "0660" as 432, atoi() made
+ *  " 1" true; "yes" was false
+ */
+PRIVATE void check_bad_defaults(hgobj gobj)
+{
+    hgobj bad = gobj_create_pure_child("bad_defaults", C_TEST_BAD_DEFAULTS, 0, gobj);
+    if(!bad) {
+        check(FALSE, "a gobj with bad defaults is created");
+        return;
+    }
+    check_json(bad, "huge", "0.0", "default '1e999' to a real: 0.0, not inf");
+    check_json(bad, "not_a_number", "0.0", "default 'nan' to a real: 0.0, not nan");
+    check_json(bad, "trailing", "0", "default '5 ' to an integer: 0, not 5");
+    check_json(bad, "octal", "0", "default '0660' to an integer: 0, not 432");
+    check_json(bad, "said_yes", "true", "default 'yes' to a boolean: true");
+    check_json(bad, "spaced_one", "false", "default ' 1' to a boolean: false");
+    gobj_destroy(bad);
+}
+
 PRIVATE void run_checks(hgobj gobj)
 {
     check_parity_table();
@@ -310,6 +338,8 @@ PRIVATE void run_checks(hgobj gobj)
     check_refused(gobj, "pin", json_string("pin-hunter2"), "a text to a secret integer: refused");
     check_refused(gobj, "settings", json_string("{\"password\": \"cut-hunter2"),
         "a dict cut short: refused");
+
+    check_bad_defaults(gobj);
 
     check(secret_seen == 0, "no value of a secret in the log");
 }
@@ -389,6 +419,52 @@ SDATA (DTP_STRING,      "name",             SDF_WR,                 "x",    "A s
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t bad_defaults_table[] = {
+/*-ATTR-type------------name----------------flag--------------------default-description---------- */
+SDATA (DTP_REAL,        "huge",             SDF_RD,                 "1e999", "Out of the range of a double"),
+SDATA (DTP_REAL,        "not_a_number",     SDF_RD,                 "nan",  "No JSON number"),
+SDATA (DTP_INTEGER,     "trailing",         SDF_RD,                 "5 ",   "Not the whole text"),
+SDATA (DTP_INTEGER,     "octal",            SDF_RD,                 "0660", "No JSON integer"),
+SDATA (DTP_BOOLEAN,     "said_yes",         SDF_RD,                 "yes",  "A boolean word"),
+SDATA (DTP_BOOLEAN,     "spaced_one",       SDF_RD,                 " 1",   "Not the whole text"),
+SDATA_END()
+};
+
+PRIVATE int register_c_test_bad_defaults(void)
+{
+    static const GMETHODS gmt = {
+        .mt_create = 0,
+    };
+
+    event_type_t event_types[] = {
+        {0, 0}
+    };
+
+    ev_action_t st_idle[] = {
+        {0, 0, 0}
+    };
+
+    states_t states[] = {
+        {ST_IDLE,   st_idle},
+        {0, 0}
+    };
+
+    hgclass gc = gclass_create(
+        C_TEST_BAD_DEFAULTS,
+        event_types,
+        states,
+        &gmt,
+        0,                          // lmt
+        bad_defaults_table,
+        0,                          // priv_size
+        0,                          // authz_table
+        0,                          // command_table
+        0,                          // s_user_trace_level
+        0                           // gclass_flag
+    );
+    return gc ? 0 : -1;     // Error already logged
+}
+
 PRIVATE int register_c_test_attr_types(void)
 {
     static const GMETHODS gmt = {
@@ -443,6 +519,7 @@ PRIVATE int watch_secret(void *h, int priority, const char *bf, size_t len)
 PRIVATE int register_yuno_and_more(void)
 {
     int ret = register_c_test_attr_types();
+    ret += register_c_test_bad_defaults();
 
     /*
      *  Each refusal is an ERROR naming the attribute; the value as a log
@@ -454,6 +531,8 @@ PRIVATE int register_yuno_and_more(void)
             "{s:s, s:s, s:s, s:s}, {s:s, s:s, s:s, s:s}, {s:s, s:s, s:s, s:s}, {s:s, s:s, s:s, s:s}, "
             "{s:s, s:s, s:s, s:s}, {s:s, s:s, s:s, s:s}, {s:s, s:s, s:s, s:s}, {s:s, s:s, s:s, s:s}, "
             "{s:s, s:s, s:s, s:s}, {s:s, s:s, s:s, s:s}, {s:s, s:s, s:s, s:s}, {s:s, s:s, s:s}, "
+            "{s:s, s:s, s:s, s:s}, {s:s, s:s, s:s, s:s}, {s:s, s:s, s:s, s:s}, "
+            "{s:s, s:s, s:s, s:s}, {s:s, s:s, s:s, s:s}, "
             "{s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", REFUSED, "attr", "cfg_bad", "value", "12abc", "__priority__", "ERROR",
@@ -470,6 +549,11 @@ PRIVATE int register_yuno_and_more(void)
             "msg", REFUSED, "attr", "count", "value", "null", "__priority__", "ERROR",
             "msg", REFUSED, "attr", "pin", "value", "********", "__priority__", "ERROR",
             "msg", REFUSED, "attr", "settings", "__priority__", "ERROR",
+            "msg", BAD_DEFAULT, "attr", "huge", "value", "1e999", "__priority__", "ERROR",
+            "msg", BAD_DEFAULT, "attr", "not_a_number", "value", "nan", "__priority__", "ERROR",
+            "msg", BAD_DEFAULT, "attr", "trailing", "value", "5 ", "__priority__", "ERROR",
+            "msg", BAD_DEFAULT, "attr", "octal", "value", "0660", "__priority__", "ERROR",
+            "msg", BAD_DEFAULT, "attr", "spaced_one", "value", " 1", "__priority__", "ERROR",
             "msg", "attr types: checks ok",
             "msg", "Exit to die",
             "msg", "Pausing yuno",

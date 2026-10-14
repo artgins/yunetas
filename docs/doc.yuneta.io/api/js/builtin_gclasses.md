@@ -5,7 +5,7 @@ uses. They must be registered explicitly before any GObject of that
 type can be created.
 
 (js_register_c_yuno)=
-## [`C_YUNO`](https://github.com/artgins/gobj-js/blob/7.26.25/src/c_yuno.js#L556)
+## [`C_YUNO`](https://github.com/artgins/gobj-js/blob/7.26.26/src/c_yuno.js#L556)
 
 The application root. Always the first GClass registered.
 `register_c_yuno()` registers it.
@@ -22,7 +22,7 @@ register_c_yuno();
 `node_uuid`, `__username__`.
 
 (js_register_c_timer)=
-## [`C_TIMER`](https://github.com/artgins/gobj-js/blob/7.26.25/src/c_timer.js#L326)
+## [`C_TIMER`](https://github.com/artgins/gobj-js/blob/7.26.26/src/c_timer.js#L326)
 
 Manages timeouts and periodic timers. Delivers `EV_TIMEOUT` (one-shot)
 or `EV_TIMEOUT_PERIODIC` to its subscriber. `register_c_timer()` registers it.
@@ -68,17 +68,17 @@ set_timeout(timer, 15000);
 ```
 
 (js_set_timeout)=
-### [`set_timeout(gobj, msec)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/c_timer.js#L355)
+### [`set_timeout(gobj, msec)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/c_timer.js#L355)
 
 Arms a timer of one shot. It publishes `EV_TIMEOUT` when the time passes.
 
 (js_set_timeout_periodic)=
-### [`set_timeout_periodic(gobj, msec)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/c_timer.js#L373)
+### [`set_timeout_periodic(gobj, msec)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/c_timer.js#L373)
 
 Arms a periodic timer. It publishes `EV_TIMEOUT_PERIODIC` at each period.
 
 (js_clear_timeout)=
-### [`clear_timeout(gobj)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/c_timer.js#L391)
+### [`clear_timeout(gobj)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/c_timer.js#L391)
 
 Stops the timer.
 
@@ -95,7 +95,7 @@ Refresh from an action of the user, or subscribe to an event of the producer.
 :::
 
 (js_register_c_ievent_cli)=
-## [`C_IEVENT_CLI`](https://github.com/artgins/gobj-js/blob/7.26.25/src/c_ievent_cli.js#L1739)
+## [`C_IEVENT_CLI`](https://github.com/artgins/gobj-js/blob/7.26.26/src/c_ievent_cli.js#L1763)
 
 Inter-event client. It carries a remote Yuneta service over a websocket, so it
 looks like a local gobj. It is the way to speak to a backend yuno.
@@ -125,18 +125,53 @@ same way you will to any local GObject.
 
 A message that names a service goes to that service, if the service takes the
 event as public. A message that names no service is published only if a
-registered gclass declares its event
-([`gobj_find_event_type()`](state_machine.md#js_gobj_find_event_type)). The
-transport drops any other message with a WARNING, and masks the name of the
-event (7.26.24). An error of the server is a WARNING, not an ERROR, and these
-errors also close the channel, as in the C transport:
+registered gclass declares its event PUBLIC
+([`gobj_find_event_type()`](state_machine.md#js_gobj_find_event_type) with
+`EVF_PUBLIC_EVENT`; 7.26.24 took any declaration, 7.26.25 requires it public).
+The transport drops any other message with a WARNING, and masks the name of the
+event. The events that the transport says itself (`EV_ON_OPEN`, `EV_ON_CLOSE`,
+`EV_ON_OPEN_ERROR`, `EV_ON_ID_NAK`, `EV_TIMEOUT`, `EV_ON_MESSAGE`, and
+`EV_IDENTITY_CARD_ACK` in the session) are never taken from the server
+(7.26.25). An error of the server is a WARNING, not an ERROR, and these errors
+also close the channel, as in the C transport:
 
 - Before the session, an event that is not `EV_IDENTITY_CARD_ACK`.
 - A `dst_role` that is not the role of this yuno, or a `dst_yuno` that is not
   its name. An empty `dst_role` or `dst_yuno` is legal.
 
+The transport closes such a channel with the code **4002**, not 1000, so
+`EV_ON_CLOSE` tells that the session was cut (7.26.25). A browser can close a
+websocket only with 1000 or 3000-4999.
+
 An event that the named service does not take as public is dropped, and the
-session stays open.
+session stays open. So are `EV_MT_STATS` and `EV_MT_COMMAND` from the server:
+the C client runs them and answers, a browser client does not run what its
+server asks. Each one gives a WARNING that names what was asked, masked
+(7.26.26).
+
+### Reconnection
+
+A dropped link tries again after `timeout_retry` (5 s). The delay doubles up to
+`timeout_retry_max` (60 s), with ±20% jitter. The delay starts again from
+`timeout_retry` when a session is reached, and on `mt_start`. A session that the
+transport closes with 4002 does not count, so a server that breaks each session
+at once is not tried again at the first delay forever (7.26.25). But a session
+that lived longer than `timeout_retry_max` counts: its fault starts the delay
+again from `timeout_retry` (7.26.26).
+
+```javascript
+gobj_create_service("backend", "C_IEVENT_CLI", {
+    url:                "wss://backend.example.com:1991",
+    timeout_retry:      2000,       // first delay, ms
+    timeout_retry_max:  30000,      // longest delay, ms
+}, gobj_yuno());
+```
+
+A refused identity card (an ack with `result < 0`) publishes `EV_ON_ID_NAK`.
+Then the channel closes with 1000. No session was reached, so the close also
+gives `EV_ON_OPEN_ERROR` (one WARNING), and the link tries again, as in the C
+transport. If a subscriber shows the refusal on `EV_ON_ID_NAK`, it must not
+show a second error on the `EV_ON_OPEN_ERROR` that follows.
 
 ### The end of a session
 

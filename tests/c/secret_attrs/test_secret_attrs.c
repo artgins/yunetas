@@ -393,6 +393,112 @@ PRIVATE void check_str(const char *name, const char *got, const char *expected)
 }
 
 /*
+ *  Masking is linear, measured by its SLOPE, not by a time limit: a limit
+ *  failed under ASan with the machine loaded, and says nothing of the
+ *  shape of the cost. Each text is masked at 16 KB, 64 KB and 256 KB; the
+ *  slope of log(time) on log(size) over those three, equally spaced, is
+ *  log(t_256KB / t_16KB) / log(16): 1 for a linear masking, 2 for a
+ *  quadratic one. Below 1.15 it is linear, a ratio below 16^1.15 = 24.25,
+ *  the limit of gobj-js' test (secret_masking.test.js). A time is the best
+ *  of three passes, the three sizes taken in turn in each pass, so that a
+ *  load slows a pass and not one size; a call is repeated for 10 ms and
+ *  its time is the mean, so that the grain of the clock makes no slope. A
+ *  text is measured up to three times and fails only if every measure is
+ *  steep: under load a large text pays the cache that a small one does
+ *  not (with twelve memory-bound processes on eight cores one measure in
+ *  ten was steep, up to 51, and the next one was not; at 1 MB it was one
+ *  in five, and a run under ASan came close to the TIMEOUT of 60 s), and
+ *  a quadratic masking is steep every time. The masking gives 15 to 17
+ *  on an idle machine, plain and under ASan; a copy of it that also reads
+ *  the text to its end from every 25th byte (about the masking's cost at
+ *  256 KB) gives 24 to 46, and fails on 14 of the 17 texts; a quadratic
+ *  masking gives 256.
+ */
+#define MASKED_AS_TEXT  0   // mask_secrets_inline() and mask_secrets_in_text() of a copy
+#define MASKED_AS_JSON  1   // json_mask_secrets() of {"anything": text}
+#define LINEAR_RATIO    24.25
+
+PRIVATE double ms_of_masking(int how, const char *text, size_t len, char *work)
+{
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    int calls = 0;
+    double elapsed = 0;
+    do {
+        if(how == MASKED_AS_JSON) {
+            json_t *jn = json_pack("{s:s}", "anything", text);
+            json_t *jn_shown = json_mask_secrets(jn);
+            JSON_DECREF(jn_shown)
+            JSON_DECREF(jn)
+        } else {
+            char *m = mask_secrets_inline(text);
+            GBMEM_FREE(m)
+            memcpy(work, text, len);
+            mask_secrets_in_text(work, len);
+        }
+        calls++;
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        elapsed = (double)(t1.tv_sec - t0.tv_sec)*1000.0 + (double)(t1.tv_nsec - t0.tv_nsec)/1e6;
+    } while(elapsed < 10);
+    return elapsed / calls;
+}
+
+PRIVATE void check_masking_is_linear(const char *head, const char *unit, int how)
+{
+    size_t sizes[3] = {16*1024, 64*1024, 256*1024};
+    char *texts[3] = {0};
+    size_t lens[3] = {0};
+    char *work = gbmem_malloc(sizes[2] + 1);
+    size_t hl = strlen(head);
+    size_t ul = strlen(unit);
+    for(int s = 0; s < 3; s++) {
+        texts[s] = gbmem_malloc(sizes[s] + 1);
+        memcpy(texts[s], head, hl);
+        size_t n = hl;
+        while(n + ul <= sizes[s]) {
+            memcpy(texts[s] + n, unit, ul);
+            n += ul;
+        }
+        texts[s][n] = 0;
+        lens[s] = n;
+        ms_of_masking(how, texts[s], lens[s], work);    // the first calls warm the caches
+    }
+
+    double best[3];
+    double ratio = 0;
+    char seen[256] = "";
+    for(int attempt = 0; attempt < 3; attempt++) {
+        best[0] = best[1] = best[2] = 1e12;
+        for(int pass = 0; pass < 3; pass++) {
+            for(int s = 0; s < 3; s++) {
+                double ms = ms_of_masking(how, texts[s], lens[s], work);
+                if(ms < best[s]) {
+                    best[s] = ms;
+                }
+            }
+        }
+        ratio = best[2] / best[0];
+        size_t used = strlen(seen);
+        snprintf(seen + used, sizeof(seen) - used, "%s%.1f (%.2f / %.2f / %.2f ms)",
+            attempt? ", " : "", ratio, best[0], best[1], best[2]);
+        if(ratio < LINEAR_RATIO) {
+            break;
+        }
+    }
+
+    char what[256];
+    snprintf(what, sizeof(what), "%s of '%s%s': linear, 256 KB / 16 KB = %s",
+        how == MASKED_AS_JSON? "json_mask_secrets()" : "mask_secrets_inline() + mask_secrets_in_text()",
+        head, unit, seen);
+    check_true(what, ratio < LINEAR_RATIO);
+
+    for(int s = 0; s < 3; s++) {
+        GBMEM_FREE(texts[s])
+    }
+    GBMEM_FREE(work)
+}
+
+/*
  *  A log handler that only looks: the create_delete2 trace goes through
  *  the log handlers, so what it prints can be searched here.
  */
@@ -1220,9 +1326,10 @@ PRIVATE void check_log_dumps(hgobj gobj)
     check_true("authorization_header is a secret's name", is_secret_name("authorization_header", 20));
 
     /*
-     *  Masking is linear and capped: a 1 MB "a=a=a=..." word, a 1 MB
-     *  secret value and a 1 MB received text take milliseconds (it was
-     *  quadratic: seconds for 60 KB); 5 MB is not shown at all
+     *  Masking is linear (check_masking_is_linear(): by its slope, it was
+     *  quadratic: seconds for 60 KB) and capped: a 1 MB "a=a=a=..." word, a
+     *  1 MB secret value, and the shapes that each round found quadratic;
+     *  5 MB is not shown at all
      */
     {
         size_t big_len = 1024*1024;
@@ -1232,26 +1339,23 @@ PRIVATE void check_log_dumps(hgobj gobj)
         }
         big[big_len] = 0;
 
-        uint64_t t0 = time_in_milliseconds_monotonic();
         char *m = mask_secrets_inline(big);
         check_true("a 1 MB a=a=... word has nothing to mask", m == NULL);
         GBMEM_FREE(m)
-        json_t *jn_big = json_pack("{s:s}", "anything", big);
-        json_t *jn_shown = json_mask_secrets(jn_big);
-        JSON_DECREF(jn_shown)
-        JSON_DECREF(jn_big)
-        mask_secrets_in_text(big, big_len);
-        uint64_t t1 = time_in_milliseconds_monotonic();
-        check_true("a 1 MB a=a=... word is masked in under 500 ms (quadratic: minutes)", t1 - t0 < 500);
 
         memcpy(big, "password=", 9);
         memset(big + 9, 'x', big_len - 9);
-        t0 = time_in_milliseconds_monotonic();
         m = mask_secrets_inline(big);
         check_str("a 1 MB secret value is masked whole", m, "password=********");
         GBMEM_FREE(m)
-        t1 = time_in_milliseconds_monotonic();
-        check_true("a 1 MB secret value is masked in under 500 ms", t1 - t0 < 500);
+        GBMEM_FREE(big)
+
+        const char *words[] = {"a=", "abcd=", " attribute=", "pin=\"", "abc?token=x&", 0};
+        for(int k=0; words[k]; k++) {
+            check_masking_is_linear("", words[k], MASKED_AS_TEXT);
+            check_masking_is_linear("", words[k], MASKED_AS_JSON);
+        }
+        check_masking_is_linear("password=", "x", MASKED_AS_TEXT);
 
         /*
          *  And the shapes of V24.4: a scheme word repeated ("Bearer Bearer
@@ -1266,22 +1370,11 @@ PRIVATE void check_log_dumps(hgobj gobj)
             "p%3Dx%26", "%2541", "%25253D", 0
         };
         for(int k=0; patterns[k]; k++) {
-            size_t pl = strlen(patterns[k]);
-            for(size_t i=0; i + pl < big_len; i += pl) {
-                memcpy(big + i, patterns[k], pl);
-            }
-            big[big_len - (big_len % pl)] = 0;
-            t0 = time_in_milliseconds_monotonic();
-            m = mask_secrets_inline(big);
-            GBMEM_FREE(m)
-            mask_secrets_in_text(big, strlen(big));
-            t1 = time_in_milliseconds_monotonic();
-            char what[96];
-            snprintf(what, sizeof(what), "1 MB of '%s' is masked in under 500 ms", patterns[k]);
-            check_true(what, t1 - t0 < 500);
+            check_masking_is_linear("", patterns[k], MASKED_AS_TEXT);
         }
-        GBMEM_FREE(big)
 
+        uint64_t t0, t1;
+        json_t *jn_shown;
         size_t huge_len = 5*1024*1024;
         char *huge = gbmem_malloc(huge_len + 1);
         memset(huge, 'x', huge_len);
@@ -1746,6 +1839,47 @@ PRIVATE void check_secret_values(hgobj gobj)
     check_str("a masked copy shorter than the cap ends on a whole character",
         cut_bf, "EV_pin=******** next=1 \xC3\xA9\xC3\xA9");
     check_int("its length", (int)cut_n, 27);
+
+    /*
+     *  The password of a URL whose '@' lies past the window judged: the
+     *  authority reaches the cut, so it is masked from its first ':' to the
+     *  cut, at every cap -- plain, %-encoded, with an '@' of the password
+     *  in the window, and after a value masked short, which leaves the end
+     *  of the window inside the copy shown
+     */
+    {
+        char url_text[1024];
+        char url_bf[512];
+        const char *url_shapes[][4] = {
+            {"url=https://bob:", "P", "@host/p", "plain"},
+            {"url=https%3A%2F%2Fbob%3A", "%50", "%40host", "%-encoded"},
+            {"url=https://bob:p@", "P", "@host/p", "an '@' of the password in the window"},
+            {"password=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx url=https://bob:",
+             "P", "@host/p", "after a value masked short"},
+        };
+        for(size_t k = 0; k < sizeof(url_shapes)/sizeof(url_shapes[0]); k++) {
+            size_t ul = (size_t)snprintf(url_text, sizeof(url_text), "%s", url_shapes[k][0]);
+            size_t unit = strlen(url_shapes[k][1]);
+            while(ul + unit + strlen(url_shapes[k][2]) < 300 + strlen(url_shapes[k][0])) {
+                memcpy(url_text + ul, url_shapes[k][1], unit);
+                ul += unit;
+            }
+            ul += (size_t)snprintf(url_text + ul, sizeof(url_text) - ul, "%s", url_shapes[k][2]);
+            size_t leaks = 0;
+            for(size_t bfsize = 2; bfsize <= sizeof(url_bf); bfsize++) {
+                mask_secrets_inline_capped(url_bf, bfsize, url_text, ul);
+                if(strchr(url_bf, 'P') || strstr(url_bf, "%5")) {
+                    if(leaks++ == 0) {
+                        printf("     cap %zu shows %s\n", bfsize, url_bf);
+                    }
+                }
+            }
+            char what[160];
+            snprintf(what, sizeof(what), "a URL password cut by the window is masked at every cap (%s)",
+                url_shapes[k][3]);
+            check_true(what, leaks == 0);
+        }
+    }
 
     json_t *kw = json_pack("{s:s, s:s, s:I, s:s, s:s, s:s%, s:s}",
         "note", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.jwtnote-hunter2",

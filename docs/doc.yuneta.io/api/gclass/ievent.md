@@ -391,9 +391,34 @@ masked and capped).
 | For another yuno (`dst_role`, `dst_yuno`) | Closes the channel. | *"It's not my role"* / *"It's not my name"* |
 | A subscription or a withdrawal (`__subscribing__`, `__unsubscribing__`) | Closes the channel: a client is not subscribed to. | *"subscription event ignored, I'm client"* / *"unsubscription event ignored, I'm client"* |
 | In session, an event of the client itself that is not public (`EV_ON_OPEN`, `EV_ON_CLOSE`, `EV_DROP`...: another gclass, `C_PROT_HTTP_SR`, declares them public, so the frame reads), or the ACK again | Drops the frame; the channel stays. Up to 7.26.9 `EV_ON_OPEN` and `EV_ON_CLOSE` reached the app as the client's own open and close, with the kw the server chose, and the ACK was sent back to the server. | *"event of the transport itself, or out of its place, refused"* |
-| In session, an event of another gclass whose `dst_service` is no service | Publishes it to the client's subscribers, as an empty `dst_service` does (whether it should be dropped is an open decision, the same in gobj-js). Up to 7.26.9 an ERROR with a stack, the name in clear (and *"service EMPTY"* for an empty one). | *"service of the event not found, published to the subscribers"* |
+| In session, an event of another gclass whose `dst_service` is no service | Publishes it to the client's subscribers, as an empty `dst_service` does. Up to 7.26.9 an ERROR with a stack, the name in clear (and *"service EMPTY"* for an empty one). | *"service of the event not found, published to the subscribers"* |
+| In session, an event whose `dst_service` is a service that does not have it as public | Publishes it to the client's subscribers. | None |
+| In session, `EV_MT_STATS` / `EV_MT_COMMAND` whose `service` is no service | Answers with an error (*"Service not found: '...'"*); the channel stays. | *"Service not found"*, `MSGSET_PARAMETER`, the name masked and capped (7.26.10; up to 7.26.9 in clear) |
 
 `tests/c/c_ievent_cli_peer_faults`.
+
+### The C client and the gobj-js client refuse differently
+
+The gobj-js `C_IEVENT_CLI` (the browser's) reads its server with the same
+severity, one WARNING without a stack and the server's names masked, but it
+does not always do the same with the frame. The differences, checked in
+`c_ievent_cli.c` and gobj-js `src/c_ievent_cli.js` (7.26.25):
+
+| The frame | C `C_IEVENT_CLI` | gobj-js `C_IEVENT_CLI` |
+|-----------|------------------|------------------------|
+| Not json, or not an inter-event | WARNING; closes the channel | WARNING; drops the frame, the channel stays |
+| An event no gclass has as public | WARNING; closes the channel | WARNING; drops the frame, the channel stays |
+| `__subscribing__` / `__unsubscribing__` | WARNING; closes the channel | WARNING; drops the frame, the channel stays |
+| `dst_service` names no service | WARNING; publishes it to the subscribers | WARNING; drops it (a view gone with its frames still on the wire) |
+| `dst_service` is a service that does not have the event as public | Publishes it to the subscribers, no log | WARNING; drops it |
+| `EV_MT_STATS` / `EV_MT_COMMAND` | Served: the stats or the command of the service named, and the answer | Not served: a browser does not run what its server asks |
+| How a fault closes the channel (an event before the session, another `dst_role` / `dst_yuno`) | `EV_DROP` to the transport: the TCP connection is cut, with no WebSocket close frame | The WebSocket is closed with code 4002, which `EV_ON_CLOSE` carries |
+
+Which of the two is right for an unknown `dst_service`, publish or drop, is an
+open decision; neither side changes until it is taken. Both keep the session
+when an event of the transport itself arrives (*"event of the transport
+itself, or out of its place"*), so a hostile server can make either write one
+WARNING per frame.
 
 ### An identity card the gate refuses
 

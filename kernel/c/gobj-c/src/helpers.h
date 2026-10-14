@@ -348,8 +348,9 @@ PUBLIC size_t mark_secrets_inline(const char *text, size_t len, uint8_t *marks);
  *  whole UTF-8 character) into `bf`. Capped first, a credential that the
  *  cap cut lost its shape and showed ("Bearer abcdefg" of "Bearer
  *  abcdefghijk"). The bytes judged are the cap and 256 more, a credential
- *  that reaches their end masked whatever its shape; the "value" of a
- *  write-attr is judged by the whole text. Return strlen(bf).
+ *  that reaches their end masked whatever its shape (a URL authority from
+ *  its first ':', '@' or not); the "value" of a write-attr is judged by the
+ *  whole text. Return strlen(bf).
 **rst**/
 PUBLIC size_t mask_secrets_inline_capped(char *bf, size_t bfsize, const char *text, size_t len);
 
@@ -391,8 +392,9 @@ PUBLIC json_t *json_mask_secrets_capped(json_t *jn, size_t max_bytes);
  *  URL or a query %-encoded inside a value too, read decoded, twice at
  *  most --, and a JWT or the credential after "Bearer " or "Basic "
  *  wherever they are, as mask_secrets_inline() tells them -- at the END of
- *  the bytes whatever its shape: a dump is the first bytes of a frame, and
- *  its end may cut one.
+ *  the bytes whatever its shape, and a URL authority that reaches it from
+ *  its first ':' ('@' or not, a port too): a dump is the first bytes of a
+ *  frame, and its end may cut one.
  *  Each rule judges the bytes as they came.
  *  Work on a COPY of what you dump. Return the bytes masked.
 **rst**/

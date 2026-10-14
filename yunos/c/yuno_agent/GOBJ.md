@@ -732,25 +732,40 @@ publication runs inside its own `mt_stop` or action.
 | An action of the gobj calls something whose inner dispatch destroys the gobj | Yes, *"one of its actions is still running"* |
 
 **The walks of the tree are watched too** (7.26.10): `gobj_start_tree()`,
-`gobj_stop_tree()`, `gobj_stop_children()`, `gobj_walk_gobj_children*()` and
-`gobj_destroy_children()` take the next child AFTER the callback, from frames
-on the child, the next one and the gobj whose children are walked. A callback
-may destroy the child it was given (a gobj that ends itself in its `mt_stop`),
-the next sibling (the stop of a child destroys it) or the root of the walk (a
-host that ends itself in a child's `EV_STOPPED`): the walk goes on from what
-is left, or ends when the root is gone. A walk loses its place when the child
-AND the next one are destroyed, the root alive. Then:
+`gobj_start_children()`, `gobj_stop_tree()`, `gobj_stop_children()`,
+`gobj_walk_gobj_children*()` and `gobj_destroy_children()` take the next child
+AFTER the callback, from a frame that keeps the walk's place. A callback may
+destroy the child it was given (a gobj that ends itself in its `mt_stop`), the
+next sibling (the stop of a child destroys it), any other sibling, or the root
+of the walk (a host that ends itself in a child's `EV_STOPPED`). When a child
+leaves the list, the frame that held it as the next one moves to the child
+after it, so:
 
-| Walk | What it does |
-|---|---|
-| `gobj_destroy_children()` | Starts again from the first child left |
-| `gobj_start_children()`, `gobj_start_tree()`, `gobj_stop_children()`, `gobj_stop_tree()` | Start again from the first child left: a child already started, or stopped, is skipped, so a child is never started or stopped twice and none is left out |
-| `gobj_walk_gobj_children()`, `gobj_walk_gobj_children_tree()` | End there with an ERROR, *"A walk of the children lost its place"*: the kernel does not know whether YOUR callback can be given a child twice |
+- the walk goes on from the first child left after the one it gave, and ends
+  when the root is gone;
+- it only goes forward: no child is given twice (so none is started or stopped
+  twice), and none that is left is skipped;
+- a step costs the same however many children were destroyed.
 
-So a callback of your own whose work may destroy the child it is given AND the
-next one must not rely on the walk going on: it defers that work with
-`gobj_post_event()` to the child, and the destroys run after the walk. Up to 7.26.9
-each walk took the next child before the callback and went on with it freed.
+**A walk gives the children that existed when it began.** A child created
+during the walk is not given: a host that renews its transport when it stops
+(destroys the old pair in its `EV_STOPPED`, creates and starts a new one)
+would otherwise give `gobj_stop_children()` a new transport to stop, for ever.
+`gobj_destroy_children()` too: on a LIVE gobj the children created while it
+runs live on (the gobj lives), and a gobj being destroyed cannot get new
+children at all — `gobj_create()` refuses a parent that is being destroyed,
+with an ERROR (*"Cannot create a child of a gobj that is being destroyed"*):
+the child would be freed with it, or never destroyed. This is what the gobj-js
+walks do too: they walk a copy of the list taken when they begin.
+
+```C
+gobj_stop_children(host);       // stops the children it had; the pair its
+                                // EV_STOPPED created is left running
+gobj_destroy_children(host);    // the same: the new pair lives on
+```
+
+Up to 7.26.9 each walk took the next child before the callback and went on
+with it freed.
 
 The two usual cases: a gclass that ends itself in the `EV_TIMEOUT` of its own
 `C_TIMER` child (`C_TASK` and `C_COUNTER` until 7.26.10), and a gclass whose

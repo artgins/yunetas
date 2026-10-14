@@ -894,12 +894,34 @@ PRIVATE BOOL kw_names_secret_attribute(json_t *kw)
     return FALSE;
 }
 
+/*
+ *  The first `word` (lower case, ASCII case folded) from `p`, whole before
+ *  `end`. Not strcasestr(): it reads to the NUL, and a sanitizer reads it
+ *  to the NUL at each call, which made the scan below quadratic.
+ */
+PRIVATE const char *find_word_nocase(const char *p, const char *end, const char *word, size_t word_len)
+{
+    for(; p + word_len <= end; p++) {
+        if(ascii_lower(*p) != word[0]) {
+            continue;
+        }
+        size_t i = 1;
+        while(i < word_len && ascii_lower(p[i]) == word[i]) {
+            i++;
+        }
+        if(i == word_len) {
+            return p;
+        }
+    }
+    return NULL;
+}
+
 PRIVATE BOOL text_names_secret_attribute(const char *text, size_t len)
 {
     size_t key_len = strlen(ATTRIBUTE_KEY);
-    const char *end = text + strnlen(text, len);   // strcasestr() stops at a nul
+    const char *end = text + strnlen(text, len);   // a nul ends the text
     const char *p = text;
-    while(p + key_len <= end && (p = strcasestr(p, ATTRIBUTE_KEY)) != NULL) {
+    while(p + key_len <= end && (p = find_word_nocase(p, end, ATTRIBUTE_KEY, key_len)) != NULL) {
         const char *v = p + key_len;
         while(v < end && strchr(ATTRIBUTE_AROUND, *v)) {
             v++;

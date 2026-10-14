@@ -78,7 +78,19 @@ If the `gobj` is a Yuno, it is stored as the global Yuno instance.
 The function checks for required attributes and applies global configuration variables.
 If the `gobj` has a [`mt_create2`](#mt_create2) method, it is called with the provided attributes.
 
-If the `gobj` has a parent, it is added to the parent's child list.
+If the `gobj` has a parent, it is added to the parent's child list. A parent that is being destroyed is refused, with an ERROR (*"Cannot create a child of a gobj that is being destroyed"*), and the answer is `NULL` (7.26.10): its children are being destroyed or are gone, so the new one would be freed with it, or never destroyed. It is what a child's `mt_stop` or `mt_destroy` meets when it creates a sibling while its parent is destroyed:
+
+```C
+PRIVATE int mt_stop(hgobj gobj)
+{
+    hgobj next = gobj_create("next", C_WORKER, 0, gobj_parent(gobj));
+    if(!next) {
+        return 0;   // Error already logged: the parent is going too
+    }
+    gobj_start(next);
+    return 0;
+}
+```
 
 ---
 
@@ -310,7 +322,9 @@ This function does not return a value.
   in any case.
 - Its children are destroyed one by one, watched the same way: when the
   destroy of one child destroys the next (its stop, for a running one), it
-  goes on from the first child left.
+  goes on from the first child left after it. No child can be created
+  meanwhile: from the moment its children are destroyed, `gobj_create()`
+  refuses it as a parent, with an ERROR (7.26.10).
 - Its subscriptions, both ways, are removed, a service is deregistered, its
   children are destroyed (before its `mt_destroy()`), and the events it left
   posted are dropped.
@@ -434,7 +448,12 @@ This function does not return a value.
 
 **Notes**
 
-Each child object is destroyed using [`gobj_destroy()`](#gobj_destroy). If a child is already destroyed or in the process of being destroyed, an error is logged.
+Each child object is destroyed using [`gobj_destroy()`](#gobj_destroy). If a child is already destroyed or in the process of being destroyed, an error is logged. The destroy of one child may destroy others (its stop, for a running one): the walk goes on from the first child left after it. It destroys the children `gobj` has when it begins: a child created while it runs (a host that renews its transport in the transport's `EV_STOPPED`) lives on, as `gobj` does (7.26.10).
+
+```C
+gobj_destroy_children(host);    // the old children are gone; what host's
+                                // EV_STOPPED created meanwhile is left
+```
 
 ---
 
@@ -488,11 +507,15 @@ int gobj_destroy_named_children(
 
 **Returns**
 
-Returns `0` on success, or `-1` if `gobj` is `NULL`.
+Returns `0` on success, or `-1` with an ERROR if `gobj` is `NULL`, or `name` is `NULL` or empty (7.26.10; up to 7.26.9 a `NULL` name crashed).
 
 **Notes**
 
 Matching children are automatically paused and stopped before being destroyed. Only first-level children are considered (not recursive).
+
+```C
+gobj_destroy_named_children(priv->gobj_toolbar, "clock");    // every child named "clock"
+```
 
 ---
 

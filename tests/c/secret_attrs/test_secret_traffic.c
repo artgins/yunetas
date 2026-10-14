@@ -440,11 +440,26 @@ PRIVATE void check_received_dump(void)
          */
         {"GET /cb?next=%2Flogin%3Fpassword%3Dnx1-hunter2 HTTP/1.1\r\n",
          "GET /cb?next=%2Flogin%3Fpassword%3D*********** HTTP/1.1\r\n"},
-        {"url=https%3A%2F%2Fbob%3Anx2-hunter2%40host&x=1", "url=https%3A%2F%2Fbob%3A***********%40host&x=1"},
+        {"url=https%3A%2F%2Fbob%3Anx2-hunter2%40host&x=1 HTTP/1.1",
+         "url=https%3A%2F%2Fbob%3A***********%40host&x=1 HTTP/1.1"},
         {"redirect_uri=https%3A%2F%2Fapp%2Fcb%3Ftoken%3Dnx3-hunter2&state=1",
          "redirect_uri=https%3A%2F%2Fapp%2Fcb%3Ftoken%3D***********&state=1"},
         {"%2570assword=nx4-hunter2", "%2570assword=***********"},
         {"GET /search?q=boarding+pass&lang=es", "GET /search?q=boarding+pass&lang=es"},
+
+        /*
+         *  7.26.10: a URL whose authority reaches the end of the bytes is
+         *  masked from its first ':' to the end, '@' or not -- a dump is the
+         *  first bytes of a frame, the '@' that ends the password may come
+         *  in the next read --, and so is a port there
+         */
+        {"GET https://u:cut-hunter2", "GET https://u:***********"},
+        {"GET https://u:p@cut-hunter2", "GET https://u:*************"},
+        {"url=https%3A%2F%2Fbob%3Acut-hunter2", "url=https%3A%2F%2Fbob%3A***********"},
+        {"to http://host:8080", "to http://host:****"},
+        {"to http://host:8080/\r\n", "to http://host:8080/\r\n"},
+        {"url=https%3A%2F%2Fbob%3Anx2-hunter2%40host&x=1",  // decoded, '&' is no end of an authority
+         "url=https%3A%2F%2Fbob%3A**********************"},
         {0, 0}
     };
     for(int i=0; dumps[i].in; i++) {

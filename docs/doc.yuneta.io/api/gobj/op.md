@@ -62,7 +62,7 @@ Returns `0` on success, or `-1` if an error occurs (for example if `gobj` or `go
 This function makes sure that the object hierarchy remains consistent when changing parents. It is useful for dynamically restructuring the object tree.
 
 :::{warning}
-In C it is only **declared** in `gobj.h`: there is no definition in `gobj.c`, so a C caller does not link. It is implemented in gobj-js ([`gobj_change_parent()`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L4373)).
+In C it is only **declared** in `gobj.h`: there is no definition in `gobj.c`, so a C caller does not link. It is implemented in gobj-js ([`gobj_change_parent()`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L4447)).
 :::
 
 ---
@@ -877,7 +877,7 @@ Returns 0 on success.
 
 **Notes**
 
-This function only starts the direct children of [`gobj`](#gobj). It does not recursively start the entire tree of child objects. To start all descendants, use [`gobj_start_tree()`](#gobj_start_tree). A child's start or stop may destroy more than the child (its next sibling): the walk then starts again from the first child left, and skips each child already running, so none is started twice and none is left out (7.26.10).
+This function only starts the direct children of [`gobj`](#gobj). It does not recursively start the entire tree of child objects. To start all descendants, use [`gobj_start_tree()`](#gobj_start_tree). A child's start may destroy more than the child (its next sibling): the walk goes on from the first child left after it, so none is started twice and none that is left is skipped. The children created during the walk are not started by it (7.26.10).
 
 ---
 
@@ -904,7 +904,7 @@ Returns 0 on success, or a negative value if an error occurs.
 
 **Notes**
 
-If a child object has the `gcflag_manual_start` flag set, it will not be started automatically. A child's start or stop may destroy more than the child (its next sibling): the walk then starts again from the first child left, and skips each child already running, so none is started twice and none is left out (7.26.10).
+If a child object has the `gcflag_manual_start` flag set, it will not be started automatically. A child's start may destroy more than the child (its next sibling): the walk goes on from the first child left after it, so none is started twice and none that is left is skipped. The children created during the walk are not started by it (7.26.10).
 
 ---
 
@@ -958,7 +958,7 @@ Returns 0 on success, or -1 if an error occurs (for example if `gobj` is `NULL` 
 
 **Notes**
 
-This function only stops the direct children of `gobj`, not the entire hierarchy. To stop all descendants, use [`gobj_stop_tree()`](#gobj_stop_tree). A child's start or stop may destroy more than the child (its next sibling): the walk then starts again from the first child left, and skips each child already stopped, so none is stopped twice and none is left out (7.26.10).
+This function only stops the direct children of `gobj`, not the entire hierarchy. To stop all descendants, use [`gobj_stop_tree()`](#gobj_stop_tree). A child's stop may destroy more than the child (its next sibling): the walk goes on from the first child left after it, so none is stopped twice and none that is left is skipped. The children created during the walk are not stopped by it: a host that renews its transport in the transport's `EV_STOPPED` keeps the new one running (7.26.10).
 
 ---
 
@@ -986,7 +986,7 @@ Returns 0 on success, or -1 if an error occurs (for example `gobj` is NULL or be
 **Notes**
 
 If the `gobj` is already being destroyed, an error is logged and the function returns -1.
-This function first stops the given `gobj` and then recursively stops all its child objects. A child's start or stop may destroy more than the child (its next sibling): the walk then starts again from the first child left, and skips each child already stopped, so none is stopped twice and none is left out (7.26.10).
+This function first stops the given `gobj` and then recursively stops all its child objects. A child's stop may destroy more than the child (its next sibling): the walk goes on from the first child left after it, so none is stopped twice and none that is left is skipped. The children created during the walk are not stopped by it: a host that renews its transport in the transport's `EV_STOPPED` keeps the new one running (7.26.10).
 Uses [`gobj_walk_gobj_children_tree()`](#gobj_walk_gobj_children_tree) to traverse the child objects.
 
 **Not from inside a publication of the tree.** A subscriber that stops the tree of its publisher stops it under the publication still going on, and under the publisher's own code after it. The kernel does not check it (it does check a destroy, see [`gobj_destroy()`](creation.md#gobj_destroy)); defer the stop with [`gobj_post_event()`](events_state.md#gobj_post_event):
@@ -1043,16 +1043,20 @@ Returns 0 on success, or a negative value if an error occurs.
 
 This function only traverses the direct children of the given `hgobj`. To traverse the entire hierarchy, use [`gobj_walk_gobj_children_tree()`](#gobj_walk_gobj_children_tree).
 
-The callback may destroy the child it is given, and more: the next child is taken after it returns, by what the kernel saw destroyed (7.26.10; up to 7.26.9 it was taken before, and a callback that destroyed the next sibling left the walk on freed memory). When `gobj` itself is destroyed by the callback the walk ends; when the child AND the next one are destroyed, it ends with an ERROR, *"A walk of the children lost its place"*: the kernel does not know whether your callback can be given a child twice, so it does not start again (the starts and the stops of the kernel do, they skip what is done). A callback whose work may destroy more than its child defers that work, so the destroys run after the walk (an event posted to a gobj destroyed in between is dropped):
+The walk gives the children that `gobj` has when it begins: a child created during the walk is not given. The callback may destroy the child it is given, and any other: the walk keeps its place, and goes on from the first child left after the one it gave (when a child leaves the list, the kernel moves the walk's place past it). No child is given twice, none that is left is skipped, and the walk ends when `gobj` itself is destroyed (7.26.10; up to 7.26.9 the next child was taken before the callback, and a callback that destroyed it left the walk on freed memory):
 
 ```C
-PRIVATE int cb_drop(hgobj child, void *user_data, void *user_data2, void *user_data3)
+PRIVATE int cb_drop_pair(hgobj child, void *user_data, void *user_data2, void *user_data3)
 {
-    gobj_post_event(child, EV_DROP, 0, user_data);  // its end may take its siblings with it
+    hgobj partner = gobj_read_pointer_attr(child, "partner");
+    if(partner) {
+        gobj_destroy(partner);  // the next child: the walk goes on after it
+    }
+    gobj_destroy(child);
     return 0;
 }
 
-gobj_walk_gobj_children(gobj, WALK_FIRST2LAST, cb_drop, gobj, 0, 0);
+gobj_walk_gobj_children(gobj, WALK_FIRST2LAST, cb_drop_pair, 0, 0, 0);
 ```
 
 ---
@@ -1091,7 +1095,7 @@ Returns 0 on success or a negative value if an error occurs.
 
 The callback function must return 0 to continue traversal, a negative value to stop traversal, or a positive value to skip the current branch when using `WALK_TOP2BOTTOM`.
 
-The callback may destroy the child it is given, its next sibling, or `gobj` itself (a host that ends itself in the `EV_STOPPED` of a child it stops): the walk does not go into the children of a child destroyed, goes on from the child that follows the one given, and ends when `gobj` is gone (7.26.10; up to 7.26.9 it went on with freed gobjs). As in [`gobj_walk_gobj_children()`](#gobj_walk_gobj_children), a walk that loses its place ends with an ERROR.
+The callback may destroy the child it is given, its next sibling, or `gobj` itself (a host that ends itself in the `EV_STOPPED` of a child it stops): the walk does not go into the children of a child destroyed, goes on from the first child left after the one given, and ends when `gobj` is gone (7.26.10; up to 7.26.9 it went on with freed gobjs). As in [`gobj_walk_gobj_children()`](#gobj_walk_gobj_children), each list of children is walked as it was when its walk began: no child is given twice, and a child created during the walk is not given.
 
 ---
 

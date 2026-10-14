@@ -18,20 +18,25 @@ again and sends its card again:
 4. the ACK, then an unsubscription (`__unsubscribing__`);
 5. the ACK: the session opens; then, in it, `EV_ON_OPEN` and `EV_ON_CLOSE`
    (events of the transport itself, which `C_PROT_HTTP_SR` declares public),
-   the ACK again, and `EV_TREEDB_NODE_UPDATED` twice, with no `dst_service`
-   and with one that is no service. The first three are refused (one warning
-   each, the channel stays, the app hears nothing); the last two are
-   published as before, the empty name with no log, the unknown one with one
-   warning. The second one ends the test.
+   the ACK again, an `EV_MT_STATS` and an `EV_MT_COMMAND` whose `service` is
+   no service, and `EV_TREEDB_NODE_UPDATED` twice, with no `dst_service` and
+   with one that is no service. The first three are refused (one warning
+   each, the channel stays, the app hears nothing); the two requests are
+   answered with an error (*"Service not found"*, one warning each; the raw
+   server, which declares no answer public, says *"Frame of an event that is
+   not public, refused"* of each answer); the last two are published as
+   before, the empty name with no log, the unknown one with one warning. The
+   second one ends the test.
 
-The names the server writes (`dst_role`, `dst_yuno`, `dst_service`) carry a
-credential (`password=...`, `token=...`). Each fault is the server's, so it is
+The names the server writes (`dst_role`, `dst_yuno`, `dst_service`, the
+`service` of a request) carry a credential (`password=...`, `token=...`). Each fault is the server's, so it is
 ONE warning (`MSGSET_PROTOCOL`, no stack), its names masked and capped, and no
 credential reaches the log (`main.c` counts the lines of each, their priority,
 and looks for the credentials in every line). A fault before the session also
 gives the client's own warning, *"EV_ON_OPEN_ERROR: cannot open connection"*.
 
-Up to 7.26.9 each fault was an error with the names in clear; both
+Up to 7.26.9 each fault was an error with the names in clear (the `service`
+of a request, a warning in clear); both
 subscriptions said *"subscription event ignored"*; and the session event
 before the session went to `mt_inject_event()` (*"Not in session"*, an error)
 before its own error.

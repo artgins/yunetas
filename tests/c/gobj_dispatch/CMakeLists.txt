@@ -86,6 +86,7 @@ target_link_libraries(${PROJECT_NAME}
 #   Test
 ##############################################
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+set_tests_properties(${PROJECT_NAME} PROPERTIES TIMEOUT 60)   # a walk that never ends fails here
 
 ##############################################
 #   Installation

@@ -10,7 +10,7 @@ description: >-
 A gclass declares its attributes in a table. Each attribute has a type, a name,
 a set of flags, a default value and a description.
 
-**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js)
+**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js)
 
 ```javascript
 import { SDATA, SDATA_END, data_type_t, sdata_flag_t } from "@yuneta/gobj-js";
@@ -35,13 +35,13 @@ registration, and the first creation of an instance fails.
 ## Declare
 
 (js_SDATA)=
-### [`SDATA(type, name, flag, default_value, description)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L182)
+### [`SDATA(type, name, flag, default_value, description)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L182)
 
 Declares one attribute. The table finishes with
 [`SDATA_END()`](commands.md#js_SDATA_END).
 
 (js_data_type_t)=
-### [`data_type_t`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L109)
+### [`data_type_t`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L109)
 
 The types of an attribute.
 
@@ -57,7 +57,7 @@ The types of an attribute.
 | `DTP_POINTER` | A value that is not JSON, such as a gobj or a DOM node. |
 
 (js_sdata_flag_t)=
-### [`sdata_flag_t`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L133)
+### [`sdata_flag_t`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L133)
 
 The flags of an attribute. Combine them with the bit-or operator.
 
@@ -95,44 +95,44 @@ A `path` accepts the back-tick to reach an attribute of a child gobj:
 :::
 
 (js_gobj_has_attr)=
-### [`gobj_has_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L3847)
+### [`gobj_has_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L3921)
 
 Tells if a gobj has an attribute with that name.
 
 (js_gobj_read_attr)=
-### [`gobj_read_attr(gobj, name, src)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L3858)
+### [`gobj_read_attr(gobj, name, src)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L3932)
 
 Reads an attribute of any type. `src` names the gobj that asks, for the
 authorization and for the log.
 
 (js_gobj_read_attrs)=
-### [`gobj_read_attrs(gobj, include_flag, src)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L3881)
+### [`gobj_read_attrs(gobj, include_flag, src)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L3955)
 
 Reads every attribute whose flags match `include_flag`, as one object.
 
 (js_gobj_read_bool_attr)=
-### [`gobj_read_bool_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L3917)
+### [`gobj_read_bool_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L3991)
 
 Reads a boolean attribute.
 
 (js_gobj_read_integer_attr)=
-### [`gobj_read_integer_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L3948)
+### [`gobj_read_integer_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L4022)
 
 Reads an integer attribute.
 
 (js_gobj_read_str_attr)=
-### [`gobj_read_str_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L3971)
+### [`gobj_read_str_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L4045)
 
 Reads a string attribute.
 
 (js_gobj_read_pointer_attr)=
-### [`gobj_read_pointer_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L3994)
+### [`gobj_read_pointer_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L4068)
 
 Reads an attribute that holds a value which is not JSON. The `subscriber`
 attribute of the subscription model uses it.
 
 (js_gobj_hsdata)=
-### [`gobj_hsdata(gobj)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L1620)
+### [`gobj_hsdata(gobj)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L1694)
 
 Gives the whole store of the attributes of a gobj. It is an internal handle, and
 the functions above are the way to read an attribute.
@@ -142,7 +142,7 @@ the functions above are the way to read an attribute.
 ## Write
 
 (js_gobj_write_attr)=
-### [`gobj_write_attr(gobj, path, value, src)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L4013)
+### [`gobj_write_attr(gobj, path, value, src)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L4087)
 
 Writes an attribute of any type. The value is read as the type of the
 attribute, as in C and as [`gobj_write_attrs()`](#js_gobj_write_attrs) reads it
@@ -159,7 +159,7 @@ gobj_write_attr(gobj, "ratio", "2.5");  // 2.5
 ```
 
 (js_gobj_write_attrs)=
-### [`gobj_write_attrs(gobj, kw, include_flag, src)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L4180)
+### [`gobj_write_attrs(gobj, kw, include_flag, src)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L4254)
 
 Writes every attribute of `kw` whose flags match `include_flag`.
 
@@ -204,18 +204,34 @@ kernels.
   reads a text. A string with a NUL in it is refused.
 - A number or a boolean is read as the exact type. `2.7` for an integer is
   refused.
-- An object or a list must have the shape of the type.
+- An object or a list must have the shape of the type, and it must be JSON
+  all the way down (7.26.25): no cycle, `BigInt`, `Map`, `Set`, `Date`, typed
+  array or instance of a class anywhere inside. Its JSON text must also give
+  the same value (7.26.26), so these are refused too: an object with a
+  `toJSON()`, `NaN` or `Infinity` inside, a function, `undefined` or a symbol
+  inside an array, and a value nested deeper than 2048 levels. A getter or a
+  `Proxy` trap that throws gives a refusal, not an exception. A key whose value
+  is `undefined` or a function is an absent key. A plain object of another
+  realm (a `vm` context, an iframe) is a plain object. The cause is
+  `"a value with no json text"`.
 - A JSON text that the C parser refuses is refused in JS too (7.26.24),
   although `JSON.parse()` reads it: an escaped NUL (`"\u0000"`), a lone
   surrogate (`"\ud800"`), an integer out of int64, a real that overflows
   (`1e309`). For a `DTP_JSON` such a text stays the text: `"1e309"` is the
   string `"1e309"`, not `Infinity`.
 
-Two cases cannot be the same in JS, because a JS number cannot carry them: an
-integer beyond 2^53 is rounded (`"9007199254740993"` is `9007199254740992`),
-and `2.0` is the integer `2` (so `2.0` for a dict is refused as `"an integer"`,
-where C says `"a real"`). The test table has both cases, with the result of
-each kernel.
+Three cases cannot be the same in JS, because a JS number cannot carry them:
+
+- An integer beyond 2^53 is rounded (`"9007199254740993"` is
+  `9007199254740992`).
+- `2.0` is the integer `2` (so `2.0` for a dict is refused as `"an integer"`,
+  where C says `"a real"`).
+- The last 512 integers of int64 round up to 2^63, which is out of int64. An
+  integer refuses them as text and as a number (7.26.26): the int64 maximum
+  `"9223372036854775807"` is `"a number out of its range"` in JS, because its
+  JS number is 2^63, and C refuses the text of 2^63 ("too big integer").
+
+The test table has these cases, with the result of each kernel.
 
 It returns `{value, refused}`. If `value` is `undefined`, `refused` gives the
 cause, and it never contains the value. If `refused` is `null` too, there is
@@ -228,6 +244,10 @@ command_parameter_from_json(data_type_t.DTP_BOOLEAN, "");     // {value: undefin
 command_parameter_from_json(data_type_t.DTP_JSON, "1e309");   // {value: "1e309", refused: null}
 command_parameter_from_json(data_type_t.DTP_DICT, '{"a": "x\\u0000"}');
                                     // {value: undefined, refused: "a text that does not read as one"}
+command_parameter_from_json(data_type_t.DTP_DICT, {ratio: NaN});
+                                    // {value: undefined, refused: "a value with no json text"}
+command_parameter_from_json(data_type_t.DTP_INTEGER, 9223372036854775807);
+                                    // {value: undefined, refused: "a number out of its range"}
 ```
 
 (js_command_parameter_from_text)=
@@ -252,7 +272,7 @@ command_parameter_from_text(data_type_t.DTP_INTEGER, "12abc");  // {value: undef
 ```
 
 (js_gobj_write_bool_attr)=
-### [`gobj_write_bool_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L4205)
+### [`gobj_write_bool_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L4279)
 
 Writes a boolean attribute. The value is read as a boolean by the grammar of
 [`command_parameter_from_json()`](#js_command_parameter_from_json) (7.26.22+):
@@ -276,7 +296,7 @@ gobj_write_bool_attr(gobj, "selectable", kw.selectable === true);   // false
 ```
 
 (js_gobj_write_integer_attr)=
-### [`gobj_write_integer_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L4237)
+### [`gobj_write_integer_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L4311)
 
 Writes an integer attribute. The value is read as an integer, as
 [`gobj_write_bool_attr()`](#js_gobj_write_bool_attr) reads a boolean (7.26.22+):
@@ -285,7 +305,7 @@ Writes an integer attribute. The value is read as an integer, as
 `set_timeout()` is rounded to whole milliseconds before it is written.
 
 (js_gobj_write_str_attr)=
-### [`gobj_write_str_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L4269)
+### [`gobj_write_str_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L4343)
 
 Writes a string attribute. `null` and `undefined` are written as `""`, and
 any other value that is not a string as its JSON text (7.26.22+). Up to
@@ -294,7 +314,10 @@ any other value that is not a string as its JSON text (7.26.22+). Up to
 A value that has no JSON text (a circular object, such as a gobj or a DOM
 node, or a `BigInt`) is refused: one `log_error`, `-1`, and the attribute keeps
 its value (7.26.24). In 7.26.22 and 7.26.23 the function threw the exception
-of `JSON.stringify()`. [`gobj_write_attr()`](#js_gobj_write_attr) and
+of `JSON.stringify()`. A value whose JSON text gives another value is refused
+too (7.26.26): `NaN` and `Infinity` were the text `"null"`. The full list is in
+[`command_parameter_from_json()`](#js_command_parameter_from_json).
+[`gobj_write_attr()`](#js_gobj_write_attr) and
 [`gobj_write_attrs()`](#js_gobj_write_attrs) do the same for a string
 attribute.
 
@@ -304,7 +327,7 @@ gobj_write_str_attr(gobj, "username", kw.username);     // "" when kw has none
 ```
 
 (js_gobj_reset_volatil_attrs)=
-### [`gobj_reset_volatil_attrs(gobj)`](https://github.com/artgins/gobj-js/blob/7.26.25/src/gobj.js#L4168)
+### [`gobj_reset_volatil_attrs(gobj)`](https://github.com/artgins/gobj-js/blob/7.26.26/src/gobj.js#L4242)
 
 Writes the default value in every attribute that carries `SDF_VOLATIL`.
 
