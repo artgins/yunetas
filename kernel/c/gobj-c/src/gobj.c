@@ -241,6 +241,7 @@ PRIVATE void walk_watch_begin(walk_watch_t *watch, gobj_t *owner, BOOL backwards
 PRIVATE void walk_watch_step(walk_watch_t *watch, gobj_t *child, BOOL backwards);
 PRIVATE gobj_t *walk_watch_next(walk_watch_t *watch);
 PRIVATE gobj_t *walk_watch_first(walk_watch_t *watch, dl_list_t *children, BOOL backwards);
+PRIVATE gobj_t *walk_watch_after_leaf(walk_watch_t *watch, gobj_t *leaf, BOOL backwards);
 PRIVATE void walk_watch_end(walk_watch_t *watch);
 PRIVATE void move_walk_frames_off(gobj_t *gobj);
 PRIVATE BOOL start_destroys_it(gobj_t *gobj);
@@ -6691,14 +6692,19 @@ PRIVATE int rc_walk_by_level(
      */
     child = walk_watch_first(&watch, iter, backwards);
     while(child) {
+        if(!dl_first(&child->dl_children)) {
+            /*
+             *  A leaf costs no call (see rc_walk_by_tree()), and no step:
+             *  no code runs on it in this pass, so the list cannot change.
+             */
+            child = walk_watch_after_leaf(&watch, child, backwards);
+            continue;
+        }
         walk_watch_step(&watch, child, backwards);
 
-        ret = 0;
-        if(dl_first(&child->dl_children)) {     // a leaf costs no call (see rc_walk_by_tree())
-            ret = rc_walk_by_level(
-                &child->dl_children, walk_type, cb_walking, user_data, user_data2, user_data3
-            );
-        }
+        ret = rc_walk_by_level(
+            &child->dl_children, walk_type, cb_walking, user_data, user_data2, user_data3
+        );
 
         child = walk_watch_next(&watch);
         if(ret < 0) {
@@ -8865,6 +8871,21 @@ PRIVATE gobj_t *walk_watch_next(walk_watch_t *watch)
         return NULL;
     }
     gobj_t *child = watch->next.gobj;
+    if(child && child->__id__ > watch->last_id) {
+        return NULL;
+    }
+    return child;
+}
+
+/***************************************************************************
+ *  The child after `leaf` in a pass that runs no code on `leaf`
+ *  (rc_walk_by_level()): nothing moved since the last step, so it is read
+ *  from the list, with the end of walk_watch_next(): a child created after
+ *  the walk began is not given.
+ ***************************************************************************/
+PRIVATE gobj_t *walk_watch_after_leaf(walk_watch_t *watch, gobj_t *leaf, BOOL backwards)
+{
+    gobj_t *child = backwards? dl_prev(leaf) : dl_next(leaf);
     if(child && child->__id__ > watch->last_id) {
         return NULL;
     }

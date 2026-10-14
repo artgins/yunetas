@@ -66,7 +66,7 @@ The flags of an attribute. Combine them with the bit-or operator.
 | `SDF_NOTACCESS` | Not reachable from outside. |
 | `SDF_RD` | A reader can read it. |
 | `SDF_WR` | A writer can write it. |
-| `SDF_REQUIRED` | The creation must give a value. |
+| `SDF_REQUIRED` | The attribute must have a value before the start: [`gobj_start()`](lifecycle.md#js_gobj_start) refuses an empty one (gobj-js 7.26.28). |
 | `SDF_PERSIST` | The framework saves it and loads it again. |
 | `SDF_VOLATIL` | [`gobj_reset_volatil_attrs()`](#js_gobj_reset_volatil_attrs) clears it. |
 | `SDF_RESOURCE` | A resource. |

@@ -51,30 +51,38 @@ SET (YUNO_HDRS
 )
 
 ##############################################
-#   Binary
+#   Binaries
+#   The client as a service, and (CLI_AS_CHILD) as a child that is no
+#   service, each on its own port (ctest -j runs them at once)
 ##############################################
-add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
+foreach(binary ${PROJECT_NAME} ${PROJECT_NAME}_child)
+    add_yuno_executable(${binary} ${YUNO_SRCS} ${YUNO_HDRS})
 
-if(CONFIG_FULLY_STATIC)
-    set_target_properties(${PROJECT_NAME} PROPERTIES
-        LINK_SEARCH_START_STATIC TRUE
-        LINK_SEARCH_END_STATIC TRUE
+    if(binary STREQUAL "${PROJECT_NAME}_child")
+        target_compile_definitions(${binary} PRIVATE CLI_AS_CHILD)
+    endif()
+
+    if(CONFIG_FULLY_STATIC)
+        set_target_properties(${binary} PROPERTIES
+            LINK_SEARCH_START_STATIC TRUE
+            LINK_SEARCH_END_STATIC TRUE
+        )
+    endif()
+
+    target_link_libraries(${binary}
+        ${YUNETAS_KERNEL_LIBS}
+        ${YUNETAS_EXTERNAL_LIBS}
+        ${YUNETAS_PCRE_LIBS}
+        ${JWT_LIBS}
+        ${OPENSSL_LIBS}
+        ${MBEDTLS_LIBS}
+        ${DEBUG_LIBS}
     )
-endif()
 
-target_link_libraries(${PROJECT_NAME}
-    ${YUNETAS_KERNEL_LIBS}
-    ${YUNETAS_EXTERNAL_LIBS}
-    ${YUNETAS_PCRE_LIBS}
-    ${JWT_LIBS}
-    ${OPENSSL_LIBS}
-    ${MBEDTLS_LIBS}
-    ${DEBUG_LIBS}
-)
-
-##############################################
-#   Test
-##############################################
-add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
-# a hang must not hang the suite
-set_tests_properties(${PROJECT_NAME} PROPERTIES TIMEOUT 60)
+    ##############################################
+    #   Test
+    ##############################################
+    add_test(NAME ${binary} COMMAND ${binary})
+    # a hang must not hang the suite
+    set_tests_properties(${binary} PROPERTIES TIMEOUT 60)
+endforeach()

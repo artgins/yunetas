@@ -19,20 +19,28 @@ again and sends its card again:
 5. the ACK: the session opens; then, in it, `EV_ON_OPEN` and `EV_ON_CLOSE`
    (events of the transport itself, which `C_PROT_HTTP_SR` declares public),
    the ACK again, an `EV_MT_STATS` and an `EV_MT_COMMAND` whose `service` is
-   no service, and `EV_TREEDB_NODE_UPDATED` four times: with a
+   no service, and `EV_TREEDB_NODE_UPDATED` five times: with a
    `dst_service` that is no service, with the test's own service (which does
    not have it as public), with the client's own name (the service its
    identity card gives, where a server addresses what it sends on its own),
-   and with no `dst_service`. The first three are
+   with that name in capitals, and with no `dst_service`. The first three are
    refused (one warning each, the channel stays, the app hears nothing); the
    two requests are answered with an error (*"Service not found"*, one warning
    each; the raw server, which declares no answer public, says *"Frame of an
-   event that is not public, refused"* of each answer); of the last four the
+   event that is not public, refused"* of each answer); of the last five the
    first two are dropped with one warning each (*"service of the event not
    found, event dropped"*, *"event not public in its service, event
-   dropped"*; up to 7.26.9 both were published) and the other two, addressed
-   to the client itself, are published: they are the only ones heard, in
-   order, and the last ends the test.
+   dropped"*; up to 7.26.9 both were published) and the other three,
+   addressed to the client itself, are published: they are the only ones
+   heard, in order, and the last ends the test.
+
+The test is built twice. In `test_c_ievent_cli_peer_faults` the client is a
+service; in `test_c_ievent_cli_peer_faults_child` (`CLI_AS_CHILD`, port 7888)
+it is a child of the tester with no `as_service`, so `gobj_find_service()`
+does not find its own name and the client compares the name itself,
+case-blind as the service lookup is. A case-sensitive comparison drops the
+name in capitals in the child only (*"service of the event not found"*), and
+without the comparison the child drops both frames addressed to it.
 
 The names the server writes (`dst_role`, `dst_yuno`, `dst_service`, the
 `service` of a request) carry a credential (`password=...`, `token=...`). Each fault is the server's, so it is
@@ -50,5 +58,5 @@ before its own error.
 ## Run
 
 ```bash
-ctest -R test_c_ievent_cli_peer_faults --output-on-failure --test-dir build
+ctest -R test_c_ievent_cli_peer_faults --output-on-failure --test-dir build   # both binaries
 ```

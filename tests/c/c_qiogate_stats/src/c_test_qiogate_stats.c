@@ -16,6 +16,9 @@
  *          - Send N_MSGS messages to the C_MQIOGATE: N_MSGS in each queue
  *          - The stats of the C_MQIOGATE say msgs_in_queue N_MSGS for each
  *            child, and pending_acks 0; so does each child's attr
+ *          - A timeout_poll of 0 or less (-5 in one gate, 0 in the other)
+ *            is raised to 1000 ms, with a WARNING: a timer of 0 is no
+ *            timer, and the gate never resent what waits for its ack
  *          - The stats of a C_QIOGATE, and of its C_IOGATE, asked directly
  *            (what `stats-yuno service=<it>` does) are the response
  *            envelope, result 0 and the data in `data`: up to 7.25.21 both
@@ -234,6 +237,11 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     );
                 }
                 check(gobj, "two C_QIOGATE children in the stats", children == 2);
+
+                check(gobj, "a timeout_poll of -5 and one of 0 are raised to the floor",
+                    gobj_read_integer_attr(gobj_find_service("output-q1", TRUE), "timeout_poll") == 1000 &&
+                    gobj_read_integer_attr(gobj_find_service("output-q2", TRUE), "timeout_poll") == 1000
+                );
 
                 json_t *jn_q = gobj_stats(gobj_find_service("output-q1", TRUE), "", 0, gobj);
                 check(gobj, "the stats of a C_QIOGATE are the envelope: result 0",

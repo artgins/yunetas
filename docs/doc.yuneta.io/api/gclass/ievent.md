@@ -394,7 +394,7 @@ masked and capped).
 | In session, an event of another gclass whose `dst_service` is no service | Drops it; the channel stays (a view gone with its frames still on the wire). Up to 7.26.9 it was published to the client's subscribers, with an ERROR and a stack, the name in clear. | *"service of the event not found, event dropped"* |
 | In session, an event whose `dst_service` is a service that does not have it as public | Drops it; the channel stays. Up to 7.26.9 it was published to the client's subscribers, with no log. | *"event not public in its service, event dropped"* |
 | In session, an event with an empty `dst_service` | Publishes it to the client's subscribers: it names no destination, so it belongs to whoever subscribed. Up to 7.26.9 also an ERROR with a stack, *"service EMPTY"*. | None |
-| In session, an event whose `dst_service` is the client's own name (the `src_service` of its identity card: what the server sends on its own, with no `__service__`) | Publishes it to the client's subscribers, as an empty one (7.26.10). | None |
+| In session, an event whose `dst_service` is the client's own name (the `src_service` of its identity card: what the server sends on its own, with no `__service__`) | Publishes it to the client's subscribers, as an empty one (7.26.10). The name is compared without case, as `gobj_find_service()` compares it: a client created as a plain child (no `as_service`; every client of the tree is a service) does with `"CLI"` for `cli` what a service does. | None |
 | In session, `EV_MT_STATS` / `EV_MT_COMMAND` whose `service` is no service | Answers with an error (*"Service not found: '...'"*); the channel stays. | *"Service not found"*, `MSGSET_PARAMETER`, the name masked and capped (7.26.10; up to 7.26.9 in clear) |
 
 `tests/c/c_ievent_cli_peer_faults`.
@@ -404,7 +404,7 @@ masked and capped).
 The gobj-js `C_IEVENT_CLI` (the browser's) reads its server with the same
 severity, one WARNING without a stack and the server's names masked, but it
 does not always do the same with the frame. The differences, checked in
-`c_ievent_cli.c` and gobj-js `src/c_ievent_cli.js` (7.26.26):
+`c_ievent_cli.c` and gobj-js `src/c_ievent_cli.js` (7.26.27):
 
 | The frame | C `C_IEVENT_CLI` | gobj-js `C_IEVENT_CLI` |
 |-----------|------------------|------------------------|

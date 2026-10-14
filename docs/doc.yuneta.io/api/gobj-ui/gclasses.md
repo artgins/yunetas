@@ -236,6 +236,23 @@ const template = {
 };
 ```
 
+A time field that the reader did not change is saved with the value of the
+record (since gobj-ui 7.26.51), as the cell is. The form keeps the value that
+filled the box and the text that the box gives back. When the box still shows
+that text, the save uses that value. Before, the save converted the box again.
+In the hour that occurs two times in autumn, a time of the second pass went
+back -3600 s, also when the reader changed only another field:
+
+```js
+// Europe/Madrid: 01:30Z on 2026-10-25 is 02:30 of the second pass
+record:          {when: 1792891800}
+box:             2026-10-25T02:30
+save, no change: {when: 1792891800}      // 7.26.50: 1792888200
+```
+
+A wall time that the reader types in that hour is the first pass. That limit
+stays: the box holds no offset.
+
 A field that Save refuses (an empty required box, a date with a part cleared)
 has a red outline and `aria-invalid="true"`, and the line under the box is its
 `aria-describedby` (since gobj-ui 7.26.49). Before, only the outline showed the

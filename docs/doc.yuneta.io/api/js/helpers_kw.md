@@ -479,6 +479,10 @@ These cases give the default value (7.26.26):
   `window.localStorage` itself throws a `SecurityError`. Before 7.26.27, that
   error went out of the function, so an app that reads its locale at start did
   not start.
+- With `create`, the store can be read but not written (it is full). The
+  function logs one WARNING for each key, until a read of that key succeeds
+  again. Before 7.26.28, each read logged an ERROR, because each read tried to
+  write the default again.
 
 These answers are BREAKING in 7.26.26: an older version answered `null` for an
 absent entry or a JSON `null`, and `undefined` outside a browser, and it kept an

@@ -216,8 +216,43 @@ removes them with one `history.go(-n)`, and it waits for the landing as for a
 `back()` of its own: an overlay that it opens in the meantime gets its entry
 after the landing. In 7.26.47 and 7.26.48 the entries stayed, and each logout
 with an overlay open added dead Backs. The shell finds the entries by their key
-in the Navigation API; a browser without that API keeps them, as before. A
-reload keeps the keys in `sessionStorage` for the first shell of the new page.
+in the Navigation API. A reload keeps the keys in `sessionStorage` for the
+first shell of the new page.
+
+The shell does not go past the first entry of the current page (since gobj-ui
+7.26.51). A `location.replace()` to another page keeps the key of the entry
+that it replaces. Thus a later load of the application can be on the key of a
+dead entry, above the entries of the earlier load. In 7.26.49 and 7.26.50 the
+shell went back into those entries, and the browser loaded the earlier page
+again. After a reload, all the entries belong to the new page
+(`sameDocument`), and the shell removes the dead ones.
+
+Dead entries below an entry of the reader are removed when a Back of the
+reader lands on them (since gobj-ui 7.26.51). This occurs when the reader
+moves while the login page is shown. The shell continues the Back with one
+`history.go(-n)` to the first live entry below them. A Forward onto them
+continues to the first live entry above them; when there is none, the shell
+does not move. The shell gets the direction from the `currententrychange`
+event of the Navigation API. Thus the shell can move the history by itself:
+at its start, and after a Back or a Forward of the reader. An application with
+its own `popstate` or `hashchange` listener receives that traversal.
+
+```javascript
+// session history: /windows, /history, [dead marker], [dead marker], /history/pos-9
+// a Back of the reader from /history/pos-9 lands on a dead marker:
+//   the shell continues with history.go(-2) and lands on /history
+// a Forward from /history lands on a dead marker:
+//   the shell continues with history.go(2) and lands on /history/pos-9
+```
+
+Two limits stay. A page with no next shell keeps the dead entries: with a
+question over a panel, two Backs change nothing while the login page is shown.
+The next shell removes them. A browser without the Navigation API keeps the
+dead entries, as in 7.26.48: each logout with a question over a panel adds two
+entries and two dead Backs. Each logout with the preferences open on their
+action route (`/prefs`, `stay`) keeps the action entry below their marker,
+because `yui_shell_unpark_route()` changes only the current entry. A Back onto
+that entry opens the preferences again, one time for each such logout.
 
 ```javascript
 // a logout with a dialog open, then a new login

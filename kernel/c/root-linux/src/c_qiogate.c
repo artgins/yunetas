@@ -29,6 +29,13 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+/*
+ *  The least poll when timeout_poll is 0 or less: a timer of 0 is no timer
+ *  (C_TIMER stops), so the gate never resent what waits for its ack, nor
+ *  checked its backup, and said nothing. The same floor as the reconnection
+ *  of C_TCP.
+ */
+#define POLL_FLOOR_MS   1000
 
 /***************************************************************************
  *              Structures
@@ -79,7 +86,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
-SDATA (DTP_INTEGER,     "timeout_poll",     SDF_RD,             "1000",     "Timeout polling, in milliseconds"),
+SDATA (DTP_INTEGER,     "timeout_poll",     SDF_RD,             "1000",     "Timeout polling, in milliseconds (resend of what waits for its ack, check of the backup). 0 or less: 1000"),
 SDATA (DTP_INTEGER,     "timeout_backup",   SDF_RD,             "1",        "Timeout to check backup, in seconds"),
 
 SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "",         "tranger path"),
@@ -237,6 +244,17 @@ PRIVATE int mt_start(hgobj gobj)
             NULL
         );
         priv->timeout_ack = 60;
+    }
+    if(priv->timeout_poll <= 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "timeout_poll 0 or less never polls, the floor is used",
+            "timeout_poll", "%ld", (long)priv->timeout_poll,
+            "floor_ms",     "%d", POLL_FLOOR_MS,
+            NULL
+        );
+        gobj_write_integer_attr(gobj, "timeout_poll", POLL_FLOOR_MS);
     }
 
     /*--------------------------------*

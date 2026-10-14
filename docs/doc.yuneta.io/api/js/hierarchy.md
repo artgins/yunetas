@@ -108,7 +108,20 @@ Gives the parent of a gobj.
 (js_gobj_change_parent)=
 ### [`gobj_change_parent(gobj, parent)`](https://github.com/artgins/gobj-js/blob/7.26.27/src/gobj.js#L4467)
 
-Moves a gobj to another parent.
+Moves a gobj to another parent. A walk of the tree that is in progress gives
+the gobj in its new place, not in its old place (gobj-js 7.26.28; see
+[`gobj_walk_gobj_children()`](#js_gobj_walk_gobj_children)).
+
+```javascript
+// c1, c2 and c3 are children of root; c1 has the child g1, c2 the child g2.
+gobj_walk_gobj_children_tree(root, walk_type_t.WALK_TOP2BOTTOM, (child) => {
+    if(child === c1) {
+        gobj_change_parent(c2, c3);
+    }
+    return 0;
+}, 0, 0);
+// The callback gets: c1, g1, c3, c2, g2 (7.26.27 gave c1, g1, c2, g2, c3, c2, g2)
+```
 
 (js_gobj_bottom_gobj)=
 ### [`gobj_bottom_gobj(gobj)`](https://github.com/artgins/gobj-js/blob/7.26.27/src/gobj.js#L3428)
@@ -178,12 +191,25 @@ The callback can destroy any gobj, also the current one. The walk does not give
 a destroyed gobj to the callback, and it does not skip or repeat a live one
 (7.26.27).
 
+The callback can also move a gobj with
+[`gobj_change_parent()`](#js_gobj_change_parent). The walk gives each gobj to
+the callback one time at most (gobj-js 7.26.28):
+
+- A gobj that left the list before the walk got to it is not given there. The
+  walk gives it under its new parent, if the walk gets to that parent later.
+- A gobj that was given, and then moved to a parent that the walk gets to
+  later, is not given again there. Its children are not given again either.
+
+Before 7.26.28, the walk gave a moved gobj two times: in its old place and in
+its new place.
+
 (js_gobj_walk_gobj_children_tree)=
 ### [`gobj_walk_gobj_children_tree(gobj, walk_type, cb_walking, user_data, user_data2)`](https://github.com/artgins/gobj-js/blob/7.26.27/src/gobj.js#L3494)
 
 The same walk, and it goes down to every depth. With `WALK_TOP2BOTTOM`, a
 positive value from the callback skips the children of that gobj. The walk does
-not go into the children of a gobj that the callback destroyed.
+not go into the children of a gobj that the callback destroyed. A gobj that the
+callback moves is given one time at most, as above.
 
 ```javascript
 gobj_walk_gobj_children_tree(gobj, walk_type_t.WALK_TOP2BOTTOM, (child) => {

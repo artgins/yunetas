@@ -384,7 +384,7 @@ Navigation helpers ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.26.9/ke
 | `gobj_child_by_index(gobj, idx)`    | 1-based index.                                          |
 | `gobj_first_child(gobj)` / `gobj_next_child(child)` | Iterate linearly.                       |
 | `gobj_child_size(gobj)`             | Count.                                                  |
-| `gobj_walk_gobj_children(gobj, walk_type, cb, ud, ud2, ud3)` | Tree walk with callback.       |
+| `gobj_walk_gobj_children(gobj, walk_type, cb, ud, ud2, ud3)` | The direct children, with a callback (`WALK_FIRST2LAST` / `WALK_LAST2FIRST`). `gobj_walk_gobj_children_tree()` walks the subtree (`WALK_TOP2BOTTOM`, `WALK_BOTTOM2TOP`, `WALK_BYLEVEL`). |
 | `gobj_find_gobj(path)`              | Lookup by full path, for example `"__yuno__\`auth\`bff"`.      |
 | `gobj_bottom_gobj(gobj)` / `gobj_set_bottom_gobj` | The downward layering pointer (see [`IPC.md`](IPC.md) §6.5). |
 
@@ -1114,11 +1114,15 @@ PRIVATE int my_walker(hgobj child, void *ud, void *ud2, void *ud3)
 {
     gobj_log_info(child, 0, "msgset", "%s", "BROWSE", "msg", "%s",
                   gobj_short_name(child), NULL);
-    return 0; // keep walking; return non-0 to stop
+    return 0;   // 0: go on; negative: stop the walk;
+                // positive: skip this child's subtree (WALK_TOP2BOTTOM only)
 }
 
-gobj_walk_gobj_children(gobj_yuno(), WALK_FIRST2LAST, my_walker, NULL, NULL, NULL);
+gobj_walk_gobj_children_tree(gobj_yuno(), WALK_TOP2BOTTOM, my_walker, NULL, NULL, NULL);
 ```
+
+`gobj_walk_gobj_children()` walks only the direct children, and only a
+negative return stops it.
 
 ### 9.5 Add a periodic timer
 

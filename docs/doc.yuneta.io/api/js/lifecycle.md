@@ -148,6 +148,36 @@ function ac_timer_done(gobj, event, kw, src)
 
 Starts a gobj, and calls its `mt_start` method.
 
+The function refuses to start a gobj that has an empty `SDF_REQUIRED` attribute,
+as `gobj_start()` in C does (gobj-js 7.26.28, BREAKING). It logs one ERROR with
+the names of the empty attributes, gives `-1`, and does not call `mt_start`.
+These values are empty:
+
+- `DTP_STRING`: `""`.
+- `DTP_LIST`, `DTP_DICT`, `DTP_JSON`: a value with nothing in it, as
+  [`empty_json()`](helpers_json.md#js_empty_json) tells: `null`, `{}`, `[]`,
+  `""`, or a scalar.
+- `DTP_POINTER`: `null`.
+
+A `DTP_BOOLEAN`, `DTP_INTEGER` or `DTP_REAL` is never empty.
+
+```javascript
+const attrs_table = [
+SDATA(data_type_t.DTP_STRING, "url", sdata_flag_t.SDF_RD|sdata_flag_t.SDF_REQUIRED, "", "Backend url"),
+SDATA_END()
+];
+// ...
+const gobj = gobj_create("backend", "C_MY_LINK", {}, parent);
+gobj_start(gobj);   // -1, ERROR: "Cannot start without all required attributes: ["url"]"
+
+const gobj2 = gobj_create("backend2", "C_MY_LINK", {url: "wss://example.com:1991"}, parent);
+gobj_start(gobj2);  // 0
+```
+
+[`gobj_start_tree()`](#js_gobj_start_tree) does not start such a gobj, and it
+starts its children, as in C. Before 7.26.28 the check was not in JS, and the
+gobj started without the attribute.
+
 (js_gobj_stop)=
 ### [`gobj_stop(gobj)`](https://github.com/artgins/gobj-js/blob/7.26.27/src/gobj.js#L3038)
 

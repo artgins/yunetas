@@ -86,6 +86,7 @@ PRIVATE char variable_config[]= "\
                     'kw': {                                         \n\
                         'tranger_path': '" QUEUES_PATH "',          \n\
                         'tranger_database': 'q1',                   \n\
+                        'timeout_poll': -5,                            \n\
                         'topic_name': 'msgs',                       \n\
                         'tkey': 'tm',                               \n\
                         'system_flag': 'sf_string_key'              \n\
@@ -126,6 +127,7 @@ PRIVATE char variable_config[]= "\
                     'kw': {                                         \n\
                         'tranger_path': '" QUEUES_PATH "',          \n\
                         'tranger_database': 'q2',                   \n\
+                        'timeout_poll': 0,                             \n\
                         'topic_name': 'msgs',                       \n\
                         'tkey': 'tm',                               \n\
                         'system_flag': 'sf_string_key'              \n\
@@ -205,9 +207,13 @@ static int register_yuno_and_more(void)
      *  Start test
      *------------------------------*/
     /*
-     *  The warnings and errors, in order: none
+     *  The warnings and errors, in order: the floor of timeout_poll, for
+     *  each C_QIOGATE (-5 and 0)
      */
-    json_t *errors_list = json_array();
+    json_t *errors_list = json_pack("[{s:s}, {s:s}]",
+        "msg", "timeout_poll 0 or less never polls, the floor is used",
+        "msg", "timeout_poll 0 or less never polls, the floor is used"
+    );
 
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name

@@ -130,7 +130,27 @@ Gives a name without the characters that a name must not hold.
 (js_node_uuid)=
 ### [`node_uuid()`](https://github.com/artgins/gobj-js/blob/7.26.27/src/helpers.js#L5852)
 
-Builds a unique identifier for this browser, and keeps it.
+Gives the unique identifier of this browser (a uuid). The function gives the
+same uuid for all the life of the page (gobj-js 7.26.28). The yuno writes it in
+its `node_uuid` attribute, and [`C_IEVENT_CLI`](builtin_gclasses.md) sends it as
+the id of the identity card and as the `host` of each message.
+
+- The local storage keeps the uuid in the key `host_uuid`. The first page makes
+  it and writes it there. The next pages read it.
+- When the store cannot keep the uuid (the data of the site is blocked, the
+  store is full, there is no `localStorage`, or there is no browser), the page
+  makes a uuid and keeps it in memory. The function logs one WARNING.
+- Without `crypto.randomUUID()` (a page on `http` without TLS is not a secure
+  context), the function makes a uuid v4 with `crypto.getRandomValues()`.
+  Without `crypto`, it uses `Math.random()`.
+
+Before 7.26.28, the function gave a new uuid on each call when the store could
+not keep it, and `null` without `crypto.randomUUID()`.
+
+```javascript
+const a = node_uuid();   // "3f2c9a6e-0d4b-4c1e-9a7f-5b8e2d1c4a90"
+const b = node_uuid();   // the same uuid, also with the store blocked
+```
 
 (js_debounce)=
 ### [`debounce(func, wait, immediate)`](https://github.com/artgins/gobj-js/blob/7.26.27/src/helpers.js#L5923)

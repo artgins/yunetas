@@ -20,18 +20,25 @@
  *                 EV_ON_OPEN and EV_ON_CLOSE (events of the transport
  *                 itself, which C_PROT_HTTP_SR declares public), the ACK
  *                 again, a stats and a command request for a service that
- *                 does not exist, and EV_TREEDB_NODE_UPDATED four times:
+ *                 does not exist, and EV_TREEDB_NODE_UPDATED five times:
  *                 with a dst_service that is no service, with this service
  *                 (which does not have it as public), with the client's own
- *                 name and with no dst_service. The first three are refused (a WARNING each,
- *                 the channel stays, the app hears nothing); the requests
- *                 are answered with an error (a WARNING each, the name
- *                 masked: up to 7.26.9 in clear); of the last four the
- *                 first two are dropped with a WARNING each (up to 7.26.9
- *                 both were published, the unknown name with an ERROR and
- *                 a stack) and the other two, addressed to the client
- *                 itself, are published: the only ones heard, and the last
- *                 ends the test.
+ *                 name, with that name in capitals (a service name is
+ *                 found whatever its case) and with no dst_service. The
+ *                 first three are refused (a WARNING each, the channel
+ *                 stays, the app hears nothing); the requests are answered
+ *                 with an error (a WARNING each, the name masked: up to
+ *                 7.26.9 in clear); of the last five the first two are
+ *                 dropped with a WARNING each (up to 7.26.9 both were
+ *                 published, the unknown name with an ERROR and a stack)
+ *                 and the other three, addressed to the client itself, are
+ *                 published: the only ones heard, and the last ends the
+ *                 test.
+ *
+ *          The client is a service, or (CLI_AS_CHILD) a child of this
+ *          gobj that is no service: then gobj_find_service() does not find
+ *          its own name, and the client must recognize it by itself, in any
+ *          case, as the service lookup does.
  *
  *          The names the server writes (dst_role, dst_yuno, dst_service,
  *          the service of a request) carry a credential. Each fault is the
@@ -51,6 +58,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
+#include <limits.h>
 #include <string.h>
 #include "c_test_cli_peer.h"
 
@@ -153,8 +161,25 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_subscribe_event(priv->gobj_input_side, NULL, 0, gobj);
     gobj_start_tree(priv->gobj_input_side);
 
+#ifdef CLI_AS_CHILD
+    /*
+     *  A child of a tree: it has this gobj as its subscriber already
+     */
+    priv->gobj_cli = gobj_child_by_name(gobj, "cli");
+    if(!priv->gobj_cli || gobj_is_service(priv->gobj_cli)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "the client must be a child that is no service",
+            NULL
+        );
+        test_cli_peer_failed++;
+        return -1;
+    }
+#else
     priv->gobj_cli = gobj_find_service("cli", TRUE);
     gobj_subscribe_event(priv->gobj_cli, NULL, 0, gobj);
+#endif
     gobj_start_tree(priv->gobj_cli);
     return 0;
 }
@@ -164,6 +189,11 @@ PRIVATE int mt_play(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_pause(hgobj gobj)
 {
+#ifdef CLI_AS_CHILD
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_stop_tree(priv->gobj_cli);     // a service is stopped by the yuno, a child by its host
+#endif
     return 0;
 }
 
@@ -289,6 +319,12 @@ PRIVATE int answer_card(hgobj gobj, hgobj channel, int step)
     json_t *kw_own = frame_kw("__message__", "", role, gobj_name(priv->gobj_cli));
     json_object_set_new(kw_own, "which", json_string("the client's own name"));
     send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED, kw_own);
+    char own_upper[NAME_MAX];
+    snprintf(own_upper, sizeof(own_upper), "%s", gobj_name(priv->gobj_cli));
+    strntoupper(own_upper, sizeof(own_upper));
+    json_t *kw_upper = frame_kw("__message__", "", role, own_upper);
+    json_object_set_new(kw_upper, "which", json_string("the client's own name in capitals"));
+    send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED, kw_upper);
     json_t *kw_last = frame_kw("__message__", "", role, "");
     json_object_set_new(kw_last, "which", json_string("no dst_service"));
     return send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED, kw_last);
@@ -346,15 +382,21 @@ PRIVATE int ac_forwarded(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(src == priv->gobj_cli) {
         /*
-         *  The two with no service of the client as destination, in order:
-         *  its own name (what its identity card gave the server) and none
+         *  The three with no service of the client as destination, in
+         *  order: its own name (what its identity card gave the server), in
+         *  its case and in capitals, and none
          */
+        const char *expected[] = {
+            "the client's own name",
+            "the client's own name in capitals",
+            "no dst_service"
+        };
         const char *which = kw_get_str(gobj, kw, "which", "", 0);
-        const char *expected = (++priv->forwarded == 1)? "the client's own name" : "no dst_service";
+        int idx = priv->forwarded++;
         check(gobj, "only the events with no service of the client as destination were published",
-            strcmp(which, expected)==0);
+            idx < 3 && strcmp(which, expected[idx])==0);
         if(strcmp(which, "no dst_service")==0) {    // the last frame of the server
-            check(gobj, "both were published", priv->forwarded == 2);
+            check(gobj, "the three were published", priv->forwarded == 3);
             check(gobj, "the last card was answered", priv->step > LAST_STEP);
             check(gobj, "each fault closed the channel, and the transport's own events were not heard",
                 priv->client_closes == LAST_STEP);

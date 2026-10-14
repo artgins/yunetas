@@ -478,6 +478,29 @@ PRIVATE void check_received_dump(void)
         {"see http://[::1]:80/x\r\n", "see http://[::1]:80/x\r\n"},
         {"see http://[2001:db8::1", "see http://[2001:******"},    // cut inside it: it may be a userinfo
         {"see http://[::1]x:cut-hunter2", "see http://[:****************"},   // no literal followed by a port
+        {"see http://[::ffff:192.0.2.1]:80", "see http://[::ffff:192.0.2.1]:**"},
+        {"to http://[fe80::1%eth0]:80", "to http://[fe80::1%eth0]:**"},
+        {"to http://[::2:3:4:5:6:7:8]:80", "to http://[::2:3:4:5:6:7:8]:**"},
+
+        /*
+         *  ... and only a literal followed by a port: an IPv6 address (two
+         *  to eight ':', three '.' at most, hex groups of four digits at
+         *  most, a zone with no ':') and one to five digits to the end. A
+         *  userinfo that begins with '[' showed its password
+         *  ("[a%x:SuperSecret1]:***")
+         */
+        {"x https://[a%x:SuperSecret1]:z@h", "x https://[a%x:*****************"},
+        {"x https://[dead:beef]:z@h", "x https://[dead:*********"},
+        {"x https://[a%x:SuperSecret1]:80", "x https://[a%x:****************"},
+        {"x https://[dead:beef]:80", "x https://[dead:********"},
+        {"x https://[deadbeef1::1]:80", "x https://[deadbeef1:******"},
+        {"x https://[1:2:3:4:5:6:7:8:9:a]:80", "x https://[1:*********************"},
+        {"x https://[::1.2.3.4.5]:80", "x https://[:**************"},
+        {"see http://[::1]:8o80", "see http://[:********"},
+        {"see http://[::1]:123456", "see http://[:**********"},
+        {"see http://[::1]:", "see http://[:****"},
+        {"url=http%3A%2F%2F%5Bdead%3Abeef%5D%3A80", "url=http%3A%2F%2F%5Bdead%3A************"},
+        {"x https://[::1%5D%3A80", "x https://[:**********"},     // an encoded "]:" ends no literal
         {"url=https%3A%2F%2Fbob%3Anx2-hunter2%40host&x=1",  // decoded, '&' is no end of an authority
          "url=https%3A%2F%2Fbob%3A**********************"},
         {0, 0}

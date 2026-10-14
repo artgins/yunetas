@@ -5,6 +5,10 @@
  *          Tests what C_IEVENT_CLI does with the faults of its server: each
  *          is logged as the peer's, a warning with its names masked
  *
+ *          Built twice: the client is a service, or (CLI_AS_CHILD,
+ *          test_c_ievent_cli_peer_faults_child) a child of the tester that is
+ *          no service: gobj_find_service() does not find its name then.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -15,7 +19,13 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_c_ievent_cli_peer_faults"
+#ifdef CLI_AS_CHILD
+    #define APP_NAME    "test_c_ievent_cli_peer_faults_child"
+    #define TEST_PORT   "7888"
+#else
+    #define APP_NAME    "test_c_ievent_cli_peer_faults"
+    #define TEST_PORT   "7887"
+#endif
 #define APP_DOC         "Test what C_IEVENT_CLI does with the faults of its server"
 
 #define APP_VERSION     "1.0.0"
@@ -39,6 +49,61 @@ PRIVATE char fixed_config[]= "\
     }                                                               \n\
 }                                                                   \n\
 ";
+/*
+ *  The client: a top service, or a child of the tester (CLI_AS_CHILD)
+ */
+#define CLI_TREE "\
+        {                                                           \n\
+            'name': 'cli',                                          \n\
+            'gclass': 'C_IEVENT_CLI',                               \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'kw': {                                                 \n\
+                'jwt': 'tester',                                    \n\
+                'remote_yuno_name': '',                             \n\
+                'remote_yuno_role': 'raw_server',                   \n\
+                'remote_yuno_service': 'raw'                        \n\
+            },                                                      \n\
+            'children': [                                           \n\
+                {                                                   \n\
+                    'name': 'cli_gate',                             \n\
+                    'gclass': 'C_IOGATE',                           \n\
+                    'as_service': true,                             \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'cli',                          \n\
+                            'gclass': 'C_CHANNEL',                  \n\
+                            'children': [                           \n\
+                                {                                   \n\
+                                    'name': 'cli',                  \n\
+                                    'gclass': 'C_WEBSOCKET',        \n\
+                                    'children': [                   \n\
+                                        {                           \n\
+                                            'name': 'cli',          \n\
+                                            'gclass': 'C_TCP',      \n\
+                                            'kw': {                 \n\
+                                    'url': 'ws://127.0.0.1:" TEST_PORT "', \n\
+                                    'timeout_between_connections': 100 \n\
+                                            }                       \n\
+                                        }                           \n\
+                                    ]                               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
+        }                                                           \n\
+"
+
+#ifdef CLI_AS_CHILD
+    #define CLI_AS_TESTER_CHILD CLI_TREE
+    #define CLI_AS_SERVICE      ""
+#else
+    #define CLI_AS_TESTER_CHILD ""
+    #define CLI_AS_SERVICE      "," CLI_TREE
+#endif
+
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
     'environment': {                                                \n\
@@ -64,7 +129,8 @@ PRIVATE char variable_config[]= "\
             'gclass': 'C_TEST_CLI_PEER',                            \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
-            'autoplay': false                                       \n\
+            'autoplay': false,                                      \n\
+            'children': [" CLI_AS_TESTER_CHILD "]                   \n\
         },                                                          \n\
         {                                                           \n\
             'name': '__input_side__',                               \n\
@@ -76,7 +142,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'server_port',                          \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'ws://127.0.0.1:7887',               \n\
+                        'url': 'ws://127.0.0.1:" TEST_PORT "',      \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -111,48 +177,7 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             }                                                       \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': 'cli',                                          \n\
-            'gclass': 'C_IEVENT_CLI',                               \n\
-            'autostart': false,                                     \n\
-            'autoplay': false,                                      \n\
-            'kw': {                                                 \n\
-                'jwt': 'tester',                                    \n\
-                'remote_yuno_name': '',                             \n\
-                'remote_yuno_role': 'raw_server',                   \n\
-                'remote_yuno_service': 'raw'                        \n\
-            },                                                      \n\
-            'children': [                                           \n\
-                {                                                   \n\
-                    'name': 'cli_gate',                             \n\
-                    'gclass': 'C_IOGATE',                           \n\
-                    'as_service': true,                             \n\
-                    'children': [                                   \n\
-                        {                                           \n\
-                            'name': 'cli',                          \n\
-                            'gclass': 'C_CHANNEL',                  \n\
-                            'children': [                           \n\
-                                {                                   \n\
-                                    'name': 'cli',                  \n\
-                                    'gclass': 'C_WEBSOCKET',        \n\
-                                    'children': [                   \n\
-                                        {                           \n\
-                                            'name': 'cli',          \n\
-                                            'gclass': 'C_TCP',      \n\
-                                            'kw': {                 \n\
-                                    'url': 'ws://127.0.0.1:7887',   \n\
-                                    'timeout_between_connections': 100 \n\
-                                            }                       \n\
-                                        }                           \n\
-                                    ]                               \n\
-                                }                                   \n\
-                            ]                                       \n\
-                        }                                           \n\
-                    ]                                               \n\
-                }                                                   \n\
-            ]                                                       \n\
-        }                                                           \n\
+        }" CLI_AS_SERVICE "                                         \n\
     ]                                                               \n\
 }                                                                   \n\
 ";

@@ -2615,30 +2615,61 @@ PRIVATE void mark_query_params(const char *bf, const char *end, name_reading_t r
 #define URL_AUTHORITY_STOPS "/?#\"'<> \t"
 
 /*
- *  The ':' after the IP literal that begins the authority at `host` and is
- *  followed by a port ("[2001:db8::1]:8080", "[fe80::1%25eth0]:80"), or,
- *  when it does not begin with one, the first ':' of the authority (up to
- *  `e`): a literal that reaches `e` may still be the start of a userinfo
+ *  The ':' after the IP literal that begins the authority at `host` when
+ *  all the rest of the authority, up to `e`, is its port
+ *  ("[2001:db8::1]:8080", "[fe80::1%25eth0]:80"); else the first ':' of
+ *  the authority. The literal is an IPv6 address -- two to eight ':', hex
+ *  groups of four digits at most, a dotted IPv4 tail -- with an optional
+ *  zone ('%' and unreserved bytes, no ':'), and the port is one to five
+ *  digits: a userinfo can begin with '[' ("[a%x:pass]:z@h"), and anything
+ *  else after a "]:" may be its password. A literal that reaches `e` may
+ *  still be the start of a userinfo.
  */
 PRIVATE const char *colon_after_ip_literal(const char *host, const char *e)
 {
-    if(host < e && *host == '[') {
-        BOOL zone = FALSE;
-        const char *q = host + 1;
-        while(q < e && *q != ']') {
-            if(*q == '%') {
-                zone = TRUE;
-            } else if(!(hex_digit_value(*q) >= 0 || *q == ':' || *q == '.' ||
-                    (zone && (is_ascii_alnum(*q) || *q == '-' || *q == '_' || *q == '~')))) {
-                break;
-            }
-            q++;
-        }
-        if(q + 1 < e && *q == ']' && q[1] == ':') {
-            return q + 1;
+    const char *first_colon = memchr(host, ':', (size_t)(e - host));
+    if(host >= e || *host != '[') {
+        return first_colon;
+    }
+    int colons = 0;
+    int dots = 0;
+    int group = 0;
+    const char *q = host + 1;
+    for(; q < e && *q != ']' && *q != '%'; q++) {
+        if(*q == ':') {
+            colons++;
+            group = 0;
+        } else if(*q == '.') {
+            dots++;
+            group = 0;
+        } else if(hex_digit_value(*q) >= 0 && group < 4) {
+            group++;
+        } else {
+            return first_colon;
         }
     }
-    return memchr(host, ':', (size_t)(e - host));
+    if(colons < 2 || colons > 8 || dots > 3) {
+        return first_colon;
+    }
+    if(q < e && *q == '%') {
+        const char *zone = ++q;
+        while(q < e && (is_ascii_alnum(*q) || *q == '%' || *q == '-' || *q == '.' ||
+                *q == '_' || *q == '~')) {
+            q++;
+        }
+        if(q == zone) {
+            return first_colon;
+        }
+    }
+    if(q + 2 >= e || *q != ']' || q[1] != ':' || e - (q + 2) > 5) {
+        return first_colon;
+    }
+    for(const char *d = q + 2; d < e; d++) {
+        if(*d < '0' || *d > '9') {
+            return first_colon;
+        }
+    }
+    return q + 1;
 }
 
 PRIVATE void mark_url_passwords(const char *bf, const char *end, BOOL end_is_cut, uint8_t *marks)

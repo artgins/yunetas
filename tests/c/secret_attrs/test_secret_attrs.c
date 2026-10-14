@@ -1846,18 +1846,22 @@ PRIVATE void check_secret_values(hgobj gobj)
      *  cut, at every cap -- plain, %-encoded, with an '@' of the password
      *  or of the user (an email address) in the window: the userinfo ends
      *  at the LAST '@' --, and after a value masked short, which leaves the end
-     *  of the window inside the copy shown
+     *  of the window inside the copy shown. A userinfo that begins with '['
+     *  is no IP literal followed by a port: its password is masked too
      */
     {
         char url_text[1024];
         char url_bf[512];
-        const char *url_shapes[][4] = {
-            {"url=https://bob:", "P", "@host/p", "plain"},
-            {"url=https%3A%2F%2Fbob%3A", "%50", "%40host", "%-encoded"},
-            {"url=https://bob:p@", "P", "@host/p", "an '@' of the password in the window"},
-            {"url=imap://bob@example.com:", "P", "@mail/p", "an '@' of the user in the window"},
+        const char *url_shapes[][5] = {
+            {"url=https://bob:", "P", "@host/p", "plain", "P"},
+            {"url=https%3A%2F%2Fbob%3A", "%50", "%40host", "%-encoded", "%5"},
+            {"url=https://bob:p@", "P", "@host/p", "an '@' of the password in the window", "P"},
+            {"url=imap://bob@example.com:", "P", "@mail/p", "an '@' of the user in the window", "P"},
             {"password=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx url=https://bob:",
-             "P", "@host/p", "after a value masked short"},
+             "P", "@host/p", "after a value masked short", "P"},
+            {"x https://[a%x:SuperSecret1]:", "z", "@h/p", "a userinfo [a%x:password]:", "Secret"},
+            {"x https://[dead:beef]:", "z", "@h/p", "a userinfo [user:password]:", "beef"},
+            {"x https://[::1]:", "1", "@h/p", "a userinfo [::1]:digits, more than a port", "1]"},
         };
         for(size_t k = 0; k < sizeof(url_shapes)/sizeof(url_shapes[0]); k++) {
             size_t ul = (size_t)snprintf(url_text, sizeof(url_text), "%s", url_shapes[k][0]);
@@ -1870,7 +1874,7 @@ PRIVATE void check_secret_values(hgobj gobj)
             size_t leaks = 0;
             for(size_t bfsize = 2; bfsize <= sizeof(url_bf); bfsize++) {
                 mask_secrets_inline_capped(url_bf, bfsize, url_text, ul);
-                if(strchr(url_bf, 'P') || strstr(url_bf, "%5")) {
+                if(strstr(url_bf, url_shapes[k][4])) {
                     if(leaks++ == 0) {
                         printf("     cap %zu shows %s\n", bfsize, url_bf);
                     }

@@ -1109,7 +1109,8 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    if (gobj_read_bool_attr(gobj, "manual")) {
+    if(gobj_read_bool_attr(gobj, "manual")) {
+        KW_DECREF(kw);
         return 0;
     }
 

@@ -23,6 +23,15 @@ Requires `libpq-dev` and `CONFIG_MODULE_POSTGRES=y`.
 
 Queries are queued and run asynchronously over one or more connection channels.
 
+:::{warning}
+`C_POSTGRES` does not connect in this version. The code that polled the libpq
+socket (`PQconnectPoll()`, `PQconsumeInput()`) and sent `EV_CONNECTED` was
+written for libuv and is commented out since the port to `yev_loop`: the
+gclass opens a connection with `PQconnectStart()` and never reads it, so it
+never reaches `ST_CONNECTED` and runs no query. `dba_postgres`, its one
+consumer, is built by no configuration (`CONFIG_DBA_POSTGRES` is off).
+:::
+
 **Commands:** `list-size` / `list-queue` (pending-query queue), `view-channels`,
 `authzs`. **Trace levels:** `messages`.
 

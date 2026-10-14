@@ -1009,7 +1009,8 @@ the password of a URL whose authority reaches their end: from its first `:` to
 their end, `@` or not, since the `@` that ends it may lie past them
 (7.26.10+), as at the end of a dump
 ([`mask_secrets_in_text()`](#mask_secrets_in_text)): the userinfo ends at the
-LAST `@`, and an IP literal followed by a port keeps its colons. The 256 bytes
+LAST `@`, and an IPv6 literal followed by a port (only digits to that end)
+keeps its colons. The 256 bytes
 past the cap keep this away from what is shown unless the authority runs from
 inside the cap to 256 bytes past it: `url=http://[2001:db8::1]:8080/p` with a
 cap of 20 is `url=http://[2001:db`, as cut. A masked value is shorter than the bytes it hides, so the end of
@@ -1125,8 +1126,14 @@ dump stay as they were):
   userinfo (`x https://u:hunter2@host:8080` is `x https://u:*****************`):
   the bytes do not say they are not a password's. The colons of an IP literal
   followed by a port are no password's: `see http://[::1]:8080` is
-  `see http://[::1]:****` (a literal cut before its `]`, or followed by
-  something else, may still be a userinfo: from its first `:`). What follows
+  `see http://[::1]:****`, `[fe80::1%25eth0]:80` and `[::ffff:192.0.2.1]:80`
+  keep their literal too. Only an IPv6 literal counts -- two to eight `:`,
+  hex groups of four digits at most, a zone with no `:` -- and only when one
+  to five digits run from its `]:` to the end: a userinfo can begin with `[`.
+  Anything else is masked from the first `:`: `x https://[dead:beef]:z@h` is
+  `x https://[dead:*********`, `x https://[a%x:pass]:80` is
+  `x https://[a%x:********`, `see http://[::1]:8o80` is
+  `see http://[:********`, and so is a literal cut before its `]`. What follows
   the `@` of a URL `%`-encoded inside a value, read decoded, is masked too: a
   `&` is no end of an authority (`url=https%3A%2F%2Fbob%3Ax%40host&x=1` at the
   end of the bytes masks `x%40host&x=1`);

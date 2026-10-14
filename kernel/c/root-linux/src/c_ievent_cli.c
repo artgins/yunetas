@@ -1264,8 +1264,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     if(!empty_string(iev_dst_service)) {
         hgobj gobj_service = gobj_find_service(iev_dst_service, FALSE);
-        if(!gobj_service && strcmp(iev_dst_service, gobj_name(gobj))==0) {
-            gobj_service = gobj;    // a transport that is not a service
+        if(!gobj_service && strcasecmp(iev_dst_service, gobj_name(gobj))==0) {
+            gobj_service = gobj;    // a transport that is no service; case-blind, as gobj_find_service()
         }
         if(!gobj_service) {
             mask_secrets_inline_capped(shown, sizeof(shown), iev_dst_service, strlen(iev_dst_service));

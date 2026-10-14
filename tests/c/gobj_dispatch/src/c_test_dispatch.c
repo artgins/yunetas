@@ -116,6 +116,13 @@
  *              (a child of a dying parent would be freed with it).
  *          Before, both took the new children too, and never ended.
  *
+ *          Phase 15 -- WALK_BYLEVEL over a tree of leaves and branches, in
+ *          both directions: each child given once, in its order, and a
+ *          sibling created during the walk (with a child of its own) is not
+ *          given, nor its child. The pass over the children's children
+ *          steps over a leaf without the watch: the end of the walk must
+ *          hold there too.
+ *
  *          And in phase 9, gobj_destroy_named_children() without a name
  *          fails with an ERROR.
  *
@@ -152,6 +159,8 @@ PRIVATE int run_phase11(hgobj gobj);
 PRIVATE int run_phase12(hgobj gobj);
 PRIVATE int run_phase13(hgobj gobj);
 PRIVATE int run_phase14(hgobj gobj);
+PRIVATE int run_phase15(hgobj gobj);
+PRIVATE int cb_note_and_grow(hgobj child, void *user_data, void *user_data2, void *user_data3);
 PRIVATE int cb_count_and_kill(hgobj child, void *user_data, void *user_data2, void *user_data3);
 PRIVATE uint64_t time_stop_children(hgobj gobj, int n);
 PRIVATE hgobj create_lost_place_trio(hgobj gobj, const char *name, BOOL on_start);
@@ -1297,6 +1306,99 @@ PRIVATE int run_phase14(hgobj gobj)
     return 0;
 }
 
+/***************************************************************************
+ *  A walk's callback: note the child's name in the list `user_data`, and
+ *  when it is the child named `user_data2`, create a sibling at the end of
+ *  its list, with a child of its own.
+ ***************************************************************************/
+PRIVATE int cb_note_and_grow(hgobj child, void *user_data, void *user_data2, void *user_data3)
+{
+    json_t *visits = user_data;
+    json_array_append_new(visits, json_string(gobj_name(child)));
+
+    if(strcmp(gobj_name(child), (const char *)user_data2)==0) {
+        hgobj late = gobj_create("late", C_TEST_NODE, 0, gobj_parent(child));
+        gobj_create("late1", C_TEST_NODE, 0, late);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Phase 15: WALK_BYLEVEL, both directions, over leaves and branches.
+ *
+ *      host
+ *        ├── a
+ *        ├── b
+ *        │   ├── b1
+ *        │   └── b2
+ *        │       └── b21
+ *        ├── c
+ *        ├── d
+ *        │   └── d1
+ *        └── e
+ *
+ *  The last child given in the first pass (`e` forwards, `a` backwards)
+ *  creates `late`, with `late1`, at the end of the host's list: neither is
+ *  given. Forwards `e` is a leaf AND the last child the walk began with, so
+ *  the pass over the children's children leaves the list at a leaf.
+ ***************************************************************************/
+PRIVATE int run_phase15(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->phase = 15;
+
+    struct {
+        walk_type_t walk_type;
+        const char *grower;
+        const char *expected;
+    } cases[] = {
+        {WALK_BYLEVEL|WALK_FIRST2LAST, "e", "[\"a\",\"b\",\"c\",\"d\",\"e\",\"b1\",\"b2\",\"b21\",\"d1\"]"},
+        {WALK_BYLEVEL|WALK_LAST2FIRST, "a", "[\"e\",\"d\",\"c\",\"b\",\"a\",\"d1\",\"b2\",\"b1\",\"b21\"]"},
+        {0, 0, 0}
+    };
+    for(int i=0; cases[i].walk_type; i++) {
+        hgobj host = gobj_create("host", C_TEST_NODE, 0, gobj);
+        gobj_create("a", C_TEST_NODE, 0, host);
+        hgobj b = gobj_create("b", C_TEST_NODE, 0, host);
+        gobj_create("b1", C_TEST_NODE, 0, b);
+        hgobj b2 = gobj_create("b2", C_TEST_NODE, 0, b);
+        gobj_create("b21", C_TEST_NODE, 0, b2);
+        gobj_create("c", C_TEST_NODE, 0, host);
+        hgobj d = gobj_create("d", C_TEST_NODE, 0, host);
+        gobj_create("d1", C_TEST_NODE, 0, d);
+        gobj_create("e", C_TEST_NODE, 0, host);
+
+        json_t *visits = json_array();
+        gobj_walk_gobj_children_tree(
+            host, cases[i].walk_type, cb_note_and_grow, visits, (void *)cases[i].grower, 0
+        );
+
+        json_t *expected = json_loads(cases[i].expected, 0, 0);
+        if(!json_equal(visits, expected) || !gobj_child_by_name(host, "late")) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "A walk by level gave a child out of order, twice, or one created after it began",
+                "walk_type",    "%d", (int)cases[i].walk_type,
+                "visits",       "%j", visits,
+                "expected",     "%j", expected,
+                NULL
+            );
+        }
+        JSON_DECREF(expected)
+        JSON_DECREF(visits)
+        gobj_destroy(host);
+    }
+
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "phase 15 ok",
+        NULL
+    );
+    return 0;
+}
+
 
 
 
@@ -1328,6 +1430,7 @@ PRIVATE int ac_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     run_phase12(gobj);
     run_phase13(gobj);
     run_phase14(gobj);
+    run_phase15(gobj);
 
     set_yuno_must_die();
     return 0;

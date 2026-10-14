@@ -158,7 +158,7 @@ backed by timeranger. Provides ack-based delivery with automatic retry.
 | `topic_name` | `string` | Queue topic name. |
 | `max_pending_acks` | `integer` | Maximum messages in flight without ack. |
 | `timeout_ack` | `integer` | Ack timeout in seconds. |
-| `timeout_poll` | `integer` | Queue poll interval in seconds. |
+| `timeout_poll` | `integer` | Poll of the queue, in milliseconds (default `1000`): it resends what waits for its ack and checks the backup. `0` or less is raised to 1000 ms with a WARNING at start (*"timeout_poll 0 or less never polls, the floor is used"*): up to 7.26.9 such a gate never resent anything. Example: `'kw': {'timeout_poll': 2000}`. |
 | `backup_queue_size` | `integer` | Backup retention size. |
 | `alert_queue_size` | `integer` | Queue size threshold for alerts. |
 | `msgs_in_queue` | `integer` (stats) | Messages in the queue, not acked yet: a gauge, read live. |
