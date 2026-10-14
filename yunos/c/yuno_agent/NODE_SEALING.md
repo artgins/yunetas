@@ -325,6 +325,15 @@ here is a candidate for promotion to Tier 1:
   Tier 1 (`dir-store`, `read-json`), but the check also asks whether each
   topic is on disk, so a `check-store-schemas` agent command is the Tier-1
   answer.
+- **Searching every log of a node for one message** (2026-10-14): to decide
+  whether any C client ever received an event for an unknown `dst_service`,
+  the five nodes were asked for *"service NOT FOUND"* with a `grep` over
+  `/yuneta/realms/*/*/logs/*` (the logcenter's collected `[1-7].log`
+  included: one file per weekday, 40 MB each on wattyzer). Tier 1 can read
+  one file (`dir-logs`, `read-file`), but a search means carrying every log
+  of the node over the channel to grep it elsewhere. A `search-logs` agent
+  command (a pattern, an optional realm/yuno, a cap on the lines answered)
+  is the Tier-1 answer.
 - Upgrading **the agent binary**. The agent is a standalone daemon, not a
   managed yuno: `update-binary` does not reach it, and it is restarted with
   `systemctl restart` of its unit (`--stop` then `--start` on a node without
