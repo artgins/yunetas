@@ -12,7 +12,9 @@
  *  the timer, and the kernel, read the freed timer afterwards. A counter
  *  its owner STOPS in between publishes no final count (a volatile one is
  *  destroyed all the same), and one STARTED again drops the expiration of
- *  the run before (each expiration names its run).
+ *  the run before (each expiration names its run). A counter stopped in
+ *  the middle of a run, with no expiration of THAT run waiting, is its
+ *  owner's to destroy, volatile or not -- also after a restart.
  *
  *          Copyright (c) 2014 Niyamaka.
  *          Copyright (c) 2025-2026, ArtGins.

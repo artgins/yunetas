@@ -725,13 +725,21 @@ names -- `pass`, `pin` and `otp` were none, so the value of a name of a
 segment jumped over no `name=value` after it: `db_pass='password'=hunter2` is
 `db_pass=********=********` --, and as gobj-js 7.26.20 read it, jumping over
 its shapes. Measured position by position against the library of 7.26.9, on
-318 008 generated texts: nothing that 7.26.9 masked shows, inline or in a
+438 008 generated texts: nothing that 7.26.9 masked shows, inline or in a
 dump. Against gobj-js 7.26.20, what shows is the word after a bare `Bearer`
-that cannot be a credential (below), and nothing else.
+that cannot be a credential (below), and the value of a parameter whose word
+holds `pass`, `pin` or `otp` only before its last `&`, `?` or `;` (next
+paragraph), and nothing else.
 
 The name of a `name=value` is the word before the `=` (since the last blank,
 or the last `=` of the word: `'password'=x`, `user[password]=x` are names
-too), and also the run of name characters just before the `=` -- letters,
+too). In that word `pass`, `pin` and `otp` count only after its last `&`, `?`
+or `;`: before it they are words of the value of another parameter, so
+`GET /search?q=boarding+pass&lang=es` is left as it is (in the first build of
+7.26.10 it was `lang=********`), while `?q=1&db_pass=x` is
+`?q=1&db_pass=********`. The other parts count in the whole word, as in
+7.26.9: `/static/token.png?v=2` is `/static/token.png?v=********`. The name is
+also the run of name characters just before the `=` -- letters,
 digits, `_`, `-`, `.` --, as in a query string (7.26.10+):
 `GET https://my-file-server.com/get?token=abc&x=1` is
 `GET https://my-file-server.com/get?token=********&x=1`. Its word holds
@@ -742,8 +750,35 @@ characters, brackets, quotes and `%` before the `=`, its `%XX` decoded, is a
 secret's when one of its parts between the brackets and the quotes is --
 `?user[password]=x`, `?user%5Bpassword%5D=x`, `?t%6Fken=x`, `'password'=x`
 (the trailing run of name characters after the last bracket or quote is the
-rule above's). Its value runs to the same stops. A part about a credential
-is no secret (`user[token_type]=bearer`, as `token_type`).
+rule above's). Its value runs to the same stops. For this reading a part about
+a credential is no secret's name (`token_type` of `user[token_type]`), but the
+word before the `=` still masks the value, as in 7.26.9: `user[token_type]`
+holds `token`, and `type]` is no segment about a credential (the segments are
+split by `_`, `-`, `.` and blanks), so `user[token_type]=bearer` is
+`user[token_type]=********`. A dump does not read that word
+([`mask_secrets_in_text()`](#mask_secrets_in_text)), and shows it as it is.
+
+A URL or a query `%`-encoded inside the value of a parameter is read decoded
+too (7.26.10+), as the `redirect_uri=`, `next=` or `state=` of an OAuth log
+carry one: the rules are run again on a view of the text with each `%XX` of
+an ASCII character decoded (not `%00`, and not `%C3%A9`: a byte over `0x7F`
+stays encoded), and what they mask in the view is masked on the characters it
+came from, a `%XX` whole. The view is decoded twice at most, so a value
+encoded inside an encoded value (`%253D`, a name encoded twice:
+`%2570assword`) is read too; a third level is not.
+
+| Text | Shown |
+|---|---|
+| `GET /cb?next=%2Flogin%3Fpassword%3Dhunter2` | `GET /cb?next=%2Flogin%3Fpassword%3D********` |
+| `url=https%3A%2F%2Fbob%3Ahunter2%40host` | `url=https%3A%2F%2Fbob%3A********%40host` |
+| `redirect_uri=https%3A%2F%2Fapp%2Fcb%3Ftoken%3Dabc123&state=1` | `redirect_uri=https%3A%2F%2Fapp%2Fcb%3Ftoken%3D********` |
+| `state=%7B%22token%22%3A%22abc123%22%7D` | `state=%7B%22token%22%3A********%7D` |
+| `%2570assword=hunter2` | `%2570assword=********` |
+
+In the third row the value of `token=` runs, decoded, to the next blank: a
+`name=value` of a command line runs to the next `word=` (below), so
+`&state=1` goes with it. 7.26.9 masked `state` there already (the word before
+its `=` holds `token`), and showed the token.
 
 The password of the userinfo of a URL, `scheme://user:password@host`, is
 masked too (7.26.10+): from the first `:` after the `://` to the last `@`
@@ -751,7 +786,8 @@ before a `/`, `?`, `#`, a blank, a quote, `<`, `>` or an end of line --
 `https://bob:hunter2@git.example/x` is `https://bob:********@git.example/x`.
 A user alone (`ssh://git@host`) and a port (`http://[::1]:8080/`) are kept.
 The name of a `name: value` is the word before the `:` (since the last
-blank, `=` or `:`: `{"password": x`, `password12:30` are names too). Each is
+blank, `=` or `:`: `{"password": x`, `password12:30` are names too; `pass`,
+`pin` and `otp` count after its last `&`, `?` or `;`, as above). Each is
 judged by its last 128 bytes; a text over 4 MB, or one whose masked copy
 cannot be allocated, is `"<not shown: too large to mask>"`: it is linear, and
 fails safe. An unquoted value of a `name=value` runs to the next `word=` (or
@@ -1068,6 +1104,10 @@ dump stay as they were):
   dict or a log of one (7.26.10+) --, and of a `name: value` -- another
   header, a label: `X-Auth-Token: x`, `bearer: tok`, `user[password]: x`
   (7.26.10+) -- whose name is a secret's;
+- a URL or a query `%`-encoded inside a value, read decoded by the rules above,
+  twice at most, as [`mask_secrets_inline()`](#mask_secrets_inline) reads it
+  (7.26.10+): `GET /cb?next=%2Flogin%3Fpassword%3Dhunter2 HTTP/1.1` is
+  `GET /cb?next=%2Flogin%3Fpassword%3D******* HTTP/1.1`;
 - under such a name a value that is a scheme and its credential is masked
   WHOLE: `token=Bearer abc`, `"password": Bearer abc`, `password=Basic xyz`.
   Up to 7.26.9 only the scheme was masked, and the token after it showed;
@@ -1085,7 +1125,7 @@ by one rule hid the name or the `=` of another (the label `x-auth-token:
 u?password="x"` showed the quoted value of `password=`), and the value of a
 `pin=` -- a secret's name since 7.26.10 -- hid the `=` after it from the rule
 that masked it in 7.26.9 (`pin=1234Authorizationcommand='x'` showed `x`).
-Measured position by position against the library of 7.26.9 on 318 008
+Measured position by position against the library of 7.26.9 on 438 008
 generated texts, nothing that its dump masked shows. A JWT header whose only
 dots end it is no JWT (`eyJhIjoxfQ. x` shows as it is), but at the end of the
 bytes, where a cap may have cut it (`cut eyJhIjoxfQ.` is `cut **********.`).

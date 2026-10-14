@@ -32,10 +32,13 @@
  *
  *          Phase 4 -- a gobj that ends itself in its own mt_start, inside
  *          gobj_start_tree(), in its own mt_stop, inside gobj_stop_tree(),
- *          and in its own mt_play, which then fails. The walks do not go
- *          down into the children of the gobj that is gone, and the failed
- *          play does not write into it (up to 7.26.9 both read or wrote
- *          freed memory). No ERROR: each one is the gobj's own code.
+ *          and in its own mt_play, which returns 0. The walks do not go
+ *          down into the children of the gobj that is gone, and the play
+ *          does not write into it (up to 7.26.9 both read or wrote freed
+ *          memory) and fails: nothing is playing. No ERROR: each one is the
+ *          gobj's own code. And a gobj played without a start, whose start
+ *          is refused (a required attribute is empty): the play fails too,
+ *          the gobj is not left playing (up to 7.26.9 it was, not running).
  *
  *          Phase 5 -- a gobj destroyed by an inner dispatch while an outer
  *          one is still running on it. Both are an ERROR, and the outer code
@@ -74,6 +77,19 @@
  *          actions is still running): the farewell excuses only the code
  *          it runs inside of.
  *
+ *          Phase 9 -- a gobj whose own action walks its parent's children,
+ *          and the walk destroys it: the walk's callback, a
+ *          gobj_destroy_children() and a gobj_destroy_named_children(). No
+ *          ERROR: the action is the innermost code that destroys, the
+ *          watch frames of the walk above it run no code of a gclass.
+ *
+ *          Phase 10 -- a walk that loses its place (the child it was given
+ *          AND the next one are destroyed), in gobj_start_tree(),
+ *          gobj_start_children(), gobj_stop_tree() and gobj_stop_children().
+ *          Starting and stopping are idempotent, so these walks start again
+ *          from the first child left: the third child is started or stopped
+ *          all the same, and there is no ERROR.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -101,6 +117,9 @@ PRIVATE int run_phase5(hgobj gobj);
 PRIVATE int run_phase6(hgobj gobj);
 PRIVATE int run_phase7(hgobj gobj);
 PRIVATE int run_phase8(hgobj gobj);
+PRIVATE int run_phase9(hgobj gobj);
+PRIVATE int run_phase10(hgobj gobj);
+PRIVATE hgobj create_lost_place_trio(hgobj gobj, const char *name, BOOL on_start);
 PRIVATE hgobj create_killer_pair(hgobj gobj, const char *name);
 PRIVATE int cb_stop_running(hgobj child, void *user_data, void *user_data2, void *user_data3);
 PRIVATE int check_gone(hgobj gobj, const char *name, const char *phase);
@@ -391,7 +410,9 @@ PRIVATE int run_phase3(hgobj gobj)
  *        │     └── grandchild
  *        └── sibling           must be stopped all the same
  *
- *      player                  destroys itself in its mt_play, and fails
+ *      player                  destroys itself in its mt_play
+ *
+ *      unstartable             played without a start, which is refused
  ***************************************************************************/
 PRIVATE int run_phase4(hgobj gobj)
 {
@@ -446,8 +467,29 @@ PRIVATE int run_phase4(hgobj gobj)
         gobj
     );
     gobj_start(player);
-    gobj_play(player);
+    if(gobj_play(player) != -1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "A play that destroyed its gobj did not fail",
+            NULL
+        );
+    }
     check_gone(gobj, "player", "phase 4");            // Error already logged
+
+    hgobj unstartable = gobj_create("unstartable", C_TEST_NODE,
+        json_pack("{s:s}", "must_have", ""),
+        gobj
+    );
+    if(gobj_play(unstartable) != -1 || gobj_is_playing(unstartable)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "A gobj whose start was refused is playing",
+            NULL
+        );
+    }
+    gobj_destroy(unstartable);
 
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_INFO,
@@ -688,6 +730,142 @@ PRIVATE int run_phase8(hgobj gobj)
     return 0;
 }
 
+/***************************************************************************
+ *  Phase 9: a walk run by a gobj's own action destroys the gobj.
+ *
+ *      group
+ *        ├── c1        its action walks the children of `group`
+ *        ├── c2
+ *        └── c3
+ ***************************************************************************/
+PRIVATE int run_phase9(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->phase = 9;
+
+    const char *hows[] = {"walk", "children", "named", 0};
+    for(int i=0; hows[i]; i++) {
+        hgobj group = gobj_create("group", C_TEST_NODE, 0, gobj);
+        hgobj c1 = gobj_create("c1", C_TEST_NODE, 0, group);
+        hgobj c2 = gobj_create("c2", C_TEST_NODE, 0, group);
+        hgobj c3 = gobj_create("c3", C_TEST_NODE, 0, group);
+        if(!group || !c1 || !c2 || !c3) {
+            // Error already logged
+            return -1;
+        }
+
+        gobj_send_event(c1, EV_TEST_WALK_DIE, json_pack("{s:s}", "how", hows[i]), gobj);
+        check_gone(group, "c1", "phase 9");     // Error already logged
+
+        int left = gobj_child_size(group);
+        int expected = strcmp(hows[i], "children")==0? 0 : 2;
+        if(left != expected) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "The walk destroyed what it should not, or not what it should",
+                "how",          "%s", hows[i],
+                "left",         "%d", left,
+                "expected",     "%d", expected,
+                NULL
+            );
+        }
+        gobj_destroy(group);
+    }
+
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "phase 9 ok",
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
+ *  A gobj with three children: `c1`, whose start (on_start) or stop ends
+ *  itself after destroying `c2`, and `c3`.
+ ***************************************************************************/
+PRIVATE hgobj create_lost_place_trio(hgobj gobj, const char *name, BOOL on_start)
+{
+    hgobj host = gobj_create(name, C_TEST_NODE, 0, gobj);
+    hgobj c1 = gobj_create("c1", C_TEST_NODE,
+        json_pack("{s:b}", on_start? "die_on_start" : "die_on_stop", 1),
+        host
+    );
+    hgobj c2 = gobj_create("c2", C_TEST_NODE, 0, host);
+    hgobj c3 = gobj_create("c3", C_TEST_NODE, 0, host);
+    if(!host || !c1 || !c2 || !c3) {
+        // Error already logged
+        return NULL;
+    }
+    gobj_write_pointer_attr(c1, "victim", c2);
+    return host;
+}
+
+/***************************************************************************
+ *  Phase 10: the walks of start and stop lose their place, and go on.
+ *
+ *      host
+ *        ├── c1        destroys c2, then itself, in its mt_start / mt_stop
+ *        ├── c2        the next child of the walk (not running: its
+ *                      destroy is not the point)
+ *        └── c3        must be started / stopped all the same
+ ***************************************************************************/
+PRIVATE int run_phase10(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->phase = 10;
+
+    const char *walks[] = {"start_tree", "start_children", "stop_tree", "stop_children", 0};
+    for(int i=0; walks[i]; i++) {
+        BOOL on_start = strncmp(walks[i], "start", 5)==0;
+        hgobj host = create_lost_place_trio(gobj, walks[i], on_start);
+        if(!host) {
+            // Error already logged
+            return -1;
+        }
+        hgobj c3 = gobj_child_by_name(host, "c3");
+
+        if(strcmp(walks[i], "start_tree")==0) {
+            gobj_start_tree(host);
+        } else if(strcmp(walks[i], "start_children")==0) {
+            gobj_start_children(host);
+        } else {
+            gobj_start(gobj_child_by_name(host, "c1"));
+            gobj_start(c3);
+            if(strcmp(walks[i], "stop_tree")==0) {
+                gobj_start(host);
+                gobj_stop_tree(host);
+            } else {
+                gobj_stop_children(host);
+            }
+        }
+        check_gone(host, "c1", "phase 10");     // Error already logged
+        check_gone(host, "c2", "phase 10");     // Error already logged
+
+        if(gobj_is_running(c3) != on_start) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "A walk that lost its place left a child unvisited",
+                "walk",         "%s", walks[i],
+                NULL
+            );
+        }
+        gobj_stop_tree(host);
+        gobj_destroy(host);
+    }
+
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "phase 10 ok",
+        NULL
+    );
+    return 0;
+}
+
 
 
 
@@ -713,6 +891,8 @@ PRIVATE int ac_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     run_phase6(gobj);
     run_phase7(gobj);
     run_phase8(gobj);
+    run_phase9(gobj);
+    run_phase10(gobj);
 
     set_yuno_must_die();
     return 0;

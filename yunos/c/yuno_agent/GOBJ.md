@@ -706,8 +706,9 @@ destroys all the same: *"Destroying a gobj while its tree is publishing"* or
 `publisher`/`running`, `event`, `destroyer`, `inner_event`).
 
 Which frames count: every live frame of the gobj destroyed, or of its subtree,
-except the innermost one (the code that destroys), the kernel's watch frames,
-and the farewell of the stop contract: the `EV_STOPPED` publication of a gobj
+except the innermost one that is not a watch (the code that destroys, also when
+it destroys through a kernel call that watches, such as a walk of its parent's
+children), the kernel's watch frames, and the farewell of the stop contract: the `EV_STOPPED` publication of a gobj
 **and the frames of that gobj it runs inside of** (the `mt_stop` or the action
 that published it, an outer publication of it), because `EV_STOPPED` is the
 last thing the gobj does with itself and the code it returns to returns at
@@ -719,6 +720,7 @@ publication runs inside its own `mt_stop` or action.
 | Case | ERROR? |
 |---|---|
 | A gobj destroys itself in its own action, nothing of it further up | No |
+| A gobj's action walks its parent's children (`gobj_walk_gobj_children()`, `gobj_destroy_children()`, `gobj_destroy_named_children()`) and the walk destroys the gobj | No: the action is the code that destroys, the walk only watches |
 | A gobj publishes its last event, then destroys itself | No: its publication is over |
 | A host destroys its transport in the transport's `EV_STOPPED` | No: the stop contract |
 | A host destroys a RUNNING transport, whose `mt_stop` publishes `EV_STOPPED` at once, and destroys it again in that `EV_STOPPED` | Only *"Destroying a RUNNING gobj"*: the inner destroy frees it, the outer returns (7.26.10; up to 7.26.9 the outer went on with the freed gobj) |
@@ -736,11 +738,19 @@ on the child, the next one and the gobj whose children are walked. A callback
 may destroy the child it was given (a gobj that ends itself in its `mt_stop`),
 the next sibling (the stop of a child destroys it) or the root of the walk (a
 host that ends itself in a child's `EV_STOPPED`): the walk goes on from what
-is left, or ends when the root is gone. A walk that loses its place (the child
-AND the next one destroyed, the root alive) ends with an ERROR, *"A walk of the
-children lost its place"*; `gobj_destroy_children()` starts again from the
-first child left instead. Up to 7.26.9 each walk took the next child before
-the callback and went on with it freed.
+is left, or ends when the root is gone. A walk loses its place when the child
+AND the next one are destroyed, the root alive. Then:
+
+| Walk | What it does |
+|---|---|
+| `gobj_destroy_children()` | Starts again from the first child left |
+| `gobj_start_children()`, `gobj_start_tree()`, `gobj_stop_children()`, `gobj_stop_tree()` | Start again from the first child left: a child already started, or stopped, is skipped, so a child is never started or stopped twice and none is left out |
+| `gobj_walk_gobj_children()`, `gobj_walk_gobj_children_tree()` | End there with an ERROR, *"A walk of the children lost its place"*: the kernel does not know whether YOUR callback can be given a child twice |
+
+So a callback of your own whose work may destroy the child it is given AND the
+next one must not rely on the walk going on: it defers that work with
+`gobj_post_event()` to the child, and the destroys run after the walk. Up to 7.26.9
+each walk took the next child before the callback and went on with it freed.
 
 The two usual cases: a gclass that ends itself in the `EV_TIMEOUT` of its own
 `C_TIMER` child (`C_TASK` and `C_COUNTER` until 7.26.10), and a gclass whose

@@ -169,12 +169,24 @@ yui_shell_pop_escape(shell, close_fn);
 ```
 
 (js_yui_shell_push_escape)=
-### [`yui_shell_push_escape(shell_gobj, layer, handler)`](https://github.com/artgins/gobj-ui.js/blob/7.26.45/src/c_yui_shell.js#L4456)
+### [`yui_shell_push_escape(shell_gobj, layer, handler, teardown)`](https://github.com/artgins/gobj-ui.js/blob/7.26.45/src/c_yui_shell.js#L4456)
 
 Puts a handler on the chain. `layer` is a free tag, such as `"modal"`,
 `"popup"` or `"overlay"`. Today it is information only: the order of the stack
 decides the priority, and that order matches the layers of the z-index that most
 applications use.
+
+`teardown` (optional, gobj-ui 7.26.46) is the close of the overlay that never
+refuses. The shell calls it when it stops while the overlay is still open (a
+logout, a session cut). It closes such overlays from the top down, before its
+views stop. Give it when `handler` can refuse to close (a `before_close` that
+asks). Without it, the overlay and its focus trap stay after the shell is gone.
+
+```javascript
+let ask_then_close = () => my_modal.request_close();   // can refuse
+let close_now      = () => my_modal.close();           // never refuses
+yui_shell_push_escape(shell, "modal", ask_then_close, close_now);
+```
 
 (js_yui_shell_pop_escape)=
 ### [`yui_shell_pop_escape(shell_gobj, handler)`](https://github.com/artgins/gobj-ui.js/blob/7.26.45/src/c_yui_shell.js#L4460)

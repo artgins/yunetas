@@ -35,6 +35,7 @@ GOBJ_DECLARE_EVENT(EV_TEST_STOP_ME);    // in: publish EV_STOPPED, the farewell 
 GOBJ_DECLARE_EVENT(EV_TEST_MOVE);       // in: go to ST_TEST_MOVED, set by the FSM before the action
 GOBJ_DECLARE_EVENT(EV_TEST_RELAY);      // in: send EV_TEST_BOUNCE to the "peer"
 GOBJ_DECLARE_EVENT(EV_TEST_BOUNCE);     // in: send EV_TEST_DIE back to whoever sent it
+GOBJ_DECLARE_EVENT(EV_TEST_WALK_DIE);   // in: destroy yourself from a walk of your parent's children
 
 /*------------------------*
  *      States

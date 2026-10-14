@@ -16,7 +16,15 @@
  *              2. the ACK, then a frame whose dst_yuno is another's
  *              3. the ACK, then a subscription (__subscribing__)
  *              4. the ACK, then an unsubscription (__unsubscribing__)
- *              5. the ACK: the session opens, the test is done
+ *              5. the ACK: the session opens; then, in the session,
+ *                 EV_ON_OPEN and EV_ON_CLOSE (events of the transport
+ *                 itself, which C_PROT_HTTP_SR declares public), the ACK
+ *                 again, and EV_TREEDB_NODE_UPDATED twice: with no
+ *                 dst_service, and with a dst_service that is no service.
+ *                 The first three are refused (a WARNING each, the channel
+ *                 stays, the app hears nothing); the last two are
+ *                 published, as ever, the empty name without a log and the
+ *                 unknown one with a WARNING. The second ends the test.
  *
  *          The names the server writes (dst_role, dst_yuno, dst_service)
  *          carry a credential. Each fault is the server's: ONE warning, no
@@ -24,7 +32,10 @@
  *          their priority, and looks for the credentials). Up to 7.26.9
  *          each was an ERROR with the names in clear, and the session event
  *          before the session raised "Event NOT DEFINED in state" (an ERROR
- *          with a stack) before its own.
+ *          with a stack) before its own; EV_ON_OPEN and EV_ON_CLOSE of the
+ *          server were published to the app as the client's own, the ACK
+ *          in session was "Event NOT DEFINED in state", and an empty or
+ *          unknown dst_service an ERROR with a stack.
  *
  *          A wrong result is logged as an error, which the expected-logs
  *          check of main.c does not expect.
@@ -87,6 +98,7 @@ typedef struct _PRIVATE_DATA {
     int step;               // the next fault, one per identity card
     int client_opens;       // sessions of the client
     int client_closes;
+    int forwarded;          // EV_TREEDB_NODE_UPDATED published by the client
 } PRIVATE_DATA;
 
 
@@ -243,8 +255,18 @@ PRIVATE int answer_card(hgobj gobj, hgobj channel, int step)
                 frame_kw("__unsubscribing__", "", role, "cli password=tester-secret-unsubscribing")
             );
         default:
-            return 0;
+            break;
     }
+
+    send_frame(gobj, channel, EV_ON_OPEN, frame_kw("__message__", "", role, "cli"));
+    send_frame(gobj, channel, EV_ON_CLOSE, frame_kw("__message__", "", role, "cli"));
+    json_t *kw_ack2 = frame_kw("__answer__", "", role, "cli");
+    json_object_set_new(kw_ack2, "result", json_integer(0));
+    send_frame(gobj, channel, EV_IDENTITY_CARD_ACK, kw_ack2);
+    send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED, frame_kw("__message__", "", role, ""));
+    return send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED,
+        frame_kw("__message__", "", role, "nobody password=tester-secret-service")
+    );
 }
 
 /***************************************************************************
@@ -283,9 +305,28 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(src == priv->gobj_cli) {
         priv->client_opens++;
-        if(priv->step > LAST_STEP) {
-            check(gobj, "each fault closed the channel", priv->client_closes == LAST_STEP);
-            check(gobj, "a session opened for each ACK", priv->client_opens == LAST_STEP);
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  An event of the server the client publishes (no service of its name):
+ *  after the second one, the test is done
+ ***************************************************************************/
+PRIVATE int ac_forwarded(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->gobj_cli) {
+        priv->forwarded++;
+        if(priv->forwarded == 2) {
+            check(gobj, "the last card was answered", priv->step > LAST_STEP);
+            check(gobj, "each fault closed the channel, and the transport's own events were not heard",
+                priv->client_closes == LAST_STEP);
+            check(gobj, "a session opened for each ACK, and the transport's own events were not heard",
+                priv->client_opens == LAST_STEP);
             set_yuno_must_die();
         }
     }
@@ -402,6 +443,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_CLOSE,               ac_on_close,                0},
         {EV_ON_OPEN_ERROR,          ac_on_close,                0},
         {EV_ON_MESSAGE,             ac_on_message,              0},
+        {EV_TREEDB_NODE_UPDATED,    ac_forwarded,               0},
         {EV_STOPPED,                ac_stopped,                 0},
         {0,0,0}
     };
@@ -416,6 +458,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_CLOSE,               0},
         {EV_ON_OPEN_ERROR,          0},
         {EV_ON_MESSAGE,             0},
+        {EV_TREEDB_NODE_UPDATED,    0},
         {EV_STOPPED,                0},
         {0, 0}
     };

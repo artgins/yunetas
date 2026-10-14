@@ -379,6 +379,22 @@ closing the channel, which left it connected and deaf.
 
 `tests/c/c_ievent_srv_peer_subs`.
 
+### What the client refuses from its server
+
+`C_IEVENT_CLI` reads the frames of its server the same way: its faults are the
+peer's, one WARNING each (`MSGSET_PROTOCOL`, no stack, the names it wrote
+masked and capped).
+
+| The frame | What the client does | Log |
+|-----------|----------------------|-----|
+| Any event but `EV_IDENTITY_CARD_ACK` before the session | Closes the channel. | *"event UNKNOWN in not-session state"* |
+| For another yuno (`dst_role`, `dst_yuno`) | Closes the channel. | *"It's not my role"* / *"It's not my name"* |
+| A subscription or a withdrawal (`__subscribing__`, `__unsubscribing__`) | Closes the channel: a client is not subscribed to. | *"subscription event ignored, I'm client"* / *"unsubscription event ignored, I'm client"* |
+| In session, an event of the client itself that is not public (`EV_ON_OPEN`, `EV_ON_CLOSE`, `EV_DROP`...: another gclass, `C_PROT_HTTP_SR`, declares them public, so the frame reads), or the ACK again | Drops the frame; the channel stays. Up to 7.26.9 `EV_ON_OPEN` and `EV_ON_CLOSE` reached the app as the client's own open and close, with the kw the server chose, and the ACK was sent back to the server. | *"event of the transport itself, or out of its place, refused"* |
+| In session, an event of another gclass whose `dst_service` is no service | Publishes it to the client's subscribers, as an empty `dst_service` does (whether it should be dropped is an open decision, the same in gobj-js). Up to 7.26.9 an ERROR with a stack, the name in clear (and *"service EMPTY"* for an empty one). | *"service of the event not found, published to the subscribers"* |
+
+`tests/c/c_ievent_cli_peer_faults`.
+
 ### An identity card the gate refuses
 
 Before its session a peer may send two things: its identity card

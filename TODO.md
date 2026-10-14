@@ -205,6 +205,8 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   `&;,"'<>`** (the run of name characters before the `=`): `?password=correct
   horse` shows `horse`, unless the whole word before the `=` is a secret's
   name.
+- **A %-encoded URL or query is read decoded twice at most** (C and JS): a value encoded three times shows (`next=https%25253A%25252F%25252Fh%25253Fpassword%25253Dhunter2`), and a `%XX` of a byte over 0x7F stays encoded. Each decoding is one more pass of the rules; the bound keeps the masking linear. A json KEY is judged as written, never decoded: `{"t%6Fken": "x"}` as a dict shows `x` (no producer encodes a json key; as text, inline or in a dump, it is masked).
+- **A URL password with an unencoded `/`, `?`, `#` or blank shows** (`https://u:a/b@h`, C and JS): the authority ends at the first of them, as RFC 3986 and a browser read it -- such a password is no userinfo.
 - **A json KEY is judged as a name, never as a value**: a key that is itself a
   credential (a dict keyed by tokens, `{"eyJ...": 1}`) is shown as it is
   (`json_mask_secrets()`, C and JS).

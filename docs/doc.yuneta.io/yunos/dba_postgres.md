@@ -27,8 +27,8 @@ The yuno also declares `emailsender` as a required service (for alerting).
 |-----------|---------|---------|
 | `master` | `1` | Only the master instance can write |
 | `filename_mask` | `%Y-%m` | Time-based table/file organization (monthly) |
-| `xpermission` | `02770` | Permission for created directories/executables |
-| `rpermission` | `0660` | Permission for created files |
+| `xpermission` | `1528` (`02770` in octal) | Permission for created directories/executables |
+| `rpermission` | `432` (`0660` in octal) | Permission for created files |
 | `exit_on_error` | `2` | Exit policy on error |
 | `timeout` | `1000` | Periodic tick (ms) |
 

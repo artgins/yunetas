@@ -14,6 +14,11 @@
  *          - EV_TEST_RELAY     sends EV_TEST_BOUNCE to its "peer", from
  *                              inside its own action
  *          - EV_TEST_BOUNCE    sends EV_TEST_DIE back to the sender
+ *          - EV_TEST_WALK_DIE  destroys itself from inside a walk of its
+ *                              parent's children, run by its own action:
+ *                              kw `how` = "walk" (its callback destroys it),
+ *                              "children" (gobj_destroy_children()) or
+ *                              "named" (gobj_destroy_named_children())
  *
  *          and, by attribute, it ends itself in its own mt_start, mt_stop or
  *          mt_play, as a volatile C_TASK whose first job fails does in its
@@ -43,6 +48,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int cb_destroy_me(hgobj child, void *user_data, void *user_data2, void *user_data3);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -56,11 +62,12 @@ SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "Sub
 SDATA (DTP_INTEGER,     "pings",            SDF_RD,             "0",        "EV_TEST_PING received"),
 SDATA (DTP_BOOLEAN,     "die_on_start",     SDF_RD,             "0",        "Destroy itself in its mt_start"),
 SDATA (DTP_BOOLEAN,     "die_on_stop",      SDF_RD,             "0",        "Destroy itself in its mt_stop"),
-SDATA (DTP_BOOLEAN,     "die_on_play",      SDF_RD,             "0",        "Destroy itself in its mt_play, which then fails"),
+SDATA (DTP_BOOLEAN,     "die_on_play",      SDF_RD,             "0",        "Destroy itself in its mt_play, which returns 0 all the same"),
 SDATA (DTP_POINTER,     "peer",             0,                  0,          "Where EV_TEST_RELAY sends EV_TEST_BOUNCE"),
 SDATA (DTP_BOOLEAN,     "farewell_on_stop", SDF_RD,             "0",        "Publish EV_STOPPED in its mt_stop, as a transport with nothing in flight does"),
 SDATA (DTP_POINTER,     "victim",           0,                  0,          "A gobj its mt_stop destroys"),
 SDATA (DTP_BOOLEAN,     "die_on_child_stopped",SDF_RD,          "0",        "Destroy itself in the EV_STOPPED of a child"),
+SDATA (DTP_STRING,      "must_have",        SDF_RD|SDF_REQUIRED,"yes",      "A required attribute: empty, the gobj cannot start"),
 SDATA_END()
 };
 
@@ -159,7 +166,6 @@ PRIVATE int mt_play(hgobj gobj)
         gobj_pause(gobj);
         gobj_stop(gobj);
         gobj_destroy(gobj);
-        return -1;
     }
     return 0;
 }
@@ -178,6 +184,20 @@ PRIVATE int mt_pause(hgobj gobj)
                     /***************************
                      *      Local Methods
                      ***************************/
+
+
+
+
+/***************************************************************************
+ *  A walk's callback: destroy the child when it is `user_data`.
+ ***************************************************************************/
+PRIVATE int cb_destroy_me(hgobj child, void *user_data, void *user_data2, void *user_data3)
+{
+    if(child == user_data) {
+        gobj_destroy(child);
+    }
+    return 0;
+}
 
 
 
@@ -272,6 +292,37 @@ PRIVATE int ac_child_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 }
 
 /***************************************************************************
+ *  The self-destroy at the end of the work, done by a walk of the parent's
+ *  children that its own action runs: the walk's frames are not code of
+ *  the gobj, its action is the innermost code that destroys.
+ ***************************************************************************/
+PRIVATE int ac_walk_die(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    char how[NAME_MAX];
+    snprintf(how, sizeof(how), "%s", kw_get_str(gobj, kw, "how", "", KW_REQUIRED));
+    KW_DECREF(kw)
+
+    hgobj parent = gobj_parent(gobj);
+    if(strcmp(how, "walk")==0) {
+        gobj_walk_gobj_children(parent, WALK_FIRST2LAST, cb_destroy_me, gobj, 0, 0);
+    } else if(strcmp(how, "children")==0) {
+        gobj_destroy_children(parent);
+    } else if(strcmp(how, "named")==0) {
+        gobj_destroy_named_children(parent, gobj_name(gobj));
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Unknown way to die",
+            "how",          "%s", how,
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  Must not run when the change of state destroyed the gobj.
  ***************************************************************************/
 PRIVATE int ac_move(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -324,6 +375,7 @@ GOBJ_DEFINE_EVENT(EV_TEST_STOP_ME);
 GOBJ_DEFINE_EVENT(EV_TEST_MOVE);
 GOBJ_DEFINE_EVENT(EV_TEST_RELAY);
 GOBJ_DEFINE_EVENT(EV_TEST_BOUNCE);
+GOBJ_DEFINE_EVENT(EV_TEST_WALK_DIE);
 
 /***************************************************************************
  *          Create the GClass
@@ -354,6 +406,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TEST_MOVE,              ac_move,                ST_TEST_MOVED},
         {EV_TEST_RELAY,             ac_relay,               0},
         {EV_TEST_BOUNCE,            ac_bounce,              0},
+        {EV_TEST_WALK_DIE,          ac_walk_die,            0},
         {EV_STOPPED,                ac_child_stopped,       0},
         {0,0,0}
     };
@@ -383,6 +436,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TEST_MOVE,              0},
         {EV_TEST_RELAY,             0},
         {EV_TEST_BOUNCE,            0},
+        {EV_TEST_WALK_DIE,          0},
         {NULL, 0}
     };
 

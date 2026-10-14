@@ -182,17 +182,27 @@ the `=`, as in a query string (gobj-js 7.26.22+):
 `GET https://my-file-server.com/get?token=********&x=1`; and the name as a
 form writes it, a part of it in brackets or quotes, its `%XX` decoded
 (`user[password]=x`, `user%5Bpassword%5D=x`, `t%6Fken=x`; gobj-js 7.26.24+).
+In the word before the `=`, `pass`, `pin` and `otp` count only after its last
+`&`, `?` or `;` (gobj-js 7.26.25+; 7.26.22 to 7.26.24 gave
+`GET /search?q=boarding+pass&lang=********`). A URL or a query `%`-encoded
+inside a value is read decoded too, twice at most (gobj-js 7.26.25+):
+`GET /cb?next=%2Flogin%3Fpassword%3Dhunter2` is
+`GET /cb?next=%2Flogin%3Fpassword%3D********`, and
+`url=https%3A%2F%2Fbob%3Ahunter2%40host` is
+`url=https%3A%2F%2Fbob%3A********%40host`.
 The password of the userinfo of a URL is masked too
 (`https://bob:hunter2@host` is `https://bob:********@host`, 7.26.24+). A JWT
 header whose only dots end it is no JWT (`eyJhIjoxfQ.`, 7.26.22+). Each rule judges the
 text as it came, and a run of characters to mask is one `********`; the
 readings of the parameters of gobj-js 7.26.19 and 7.26.20 are rules of their
-own, whole: measured position by position on 318 008 generated texts, nothing
+own, whole: measured position by position on 438 008 generated texts, nothing
 that 7.26.19 masked shows but where a name is judged as C judges it (its last
 128 bytes, its case in ASCII), and nothing that 7.26.20 masked shows but the
-word after a bare `Bearer` that cannot be a credential. The rest is kept. It
+word after a bare `Bearer` that cannot be a credential and, since 7.26.25, the
+value of a parameter whose word holds `pass`, `pin` or `otp` only before its
+last `&`, `?` or `;`. The rest is kept. It
 answers `null` when there was nothing to mask. The C kernel and gobj-js
-answer the same on the tables of both test suites, on 318 008 generated
+answer the same on the tables of both test suites, on 438 008 generated
 texts and on 30 000 generated jsons (since gobj-js 7.26.21: up to 7.26.20 the
 word after `bearer` was masked whatever it was, and `Basic`, a JWE, a cut JWT
 and a `name: value` were not).
@@ -213,6 +223,9 @@ mask_secrets_inline("GET https://my-file-server.com/get?user%5Bpassword%5D=abc")
 // "GET https://my-file-server.com/get?user%5Bpassword%5D=********"
 mask_secrets_inline("clone https://bob:hunter2@git.example/x.git");
 // "clone https://bob:********@git.example/x.git"
+mask_secrets_inline("GET /cb?next=%2Flogin%3Fpassword%3Dhunter2");
+// "GET /cb?next=%2Flogin%3Fpassword%3D********"
+mask_secrets_inline("GET /search?q=boarding+pass&lang=es");    // null
 mask_secrets_inline("the header eyJhIjoxfQ.");      // null: its only dot ends it
 mask_secrets_inline("list-yunos");      // null
 ```

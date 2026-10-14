@@ -19,9 +19,12 @@
  *          And the table of what a value given as json becomes, which
  *          gobj-js reads too (kernel/js/gobj-js/tests/fixtures/
  *          attr_types_parity.json): C and JS read an attribute value the
- *          same way. A tree without the gobj-js submodule (a tarball of
- *          yunetas alone) has no table: that check is SKIPPED, said on the
- *          output, and the others run.
+ *          same way. The table is read from the source tree this test was
+ *          built from (ATTR_TYPES_PARITY_TABLE, set by its CMakeLists.txt),
+ *          not from wherever YUNETAS_BASE points. A tree without the
+ *          gobj-js submodule (a tarball of yunetas alone) has no table: the
+ *          other checks run, and then the test exits SKIP_RETURN_CODE (77),
+ *          which ctest reports as Skipped, not as Passed.
  *          A null given to a DTP_STRING is "", the convention of the
  *          default of a string attr and of empty_string() (and of gobj-js):
  *          it was the text "null", which empty_string() reads as a value.
@@ -56,6 +59,12 @@
 
 #define REFUSED "Attribute value of the wrong type, not written"
 
+#define SKIP_RETURN_CODE        77      // the same in CMakeLists.txt
+
+#ifndef ATTR_TYPES_PARITY_TABLE
+    #error "ATTR_TYPES_PARITY_TABLE must be defined by CMakeLists.txt"
+#endif
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -66,6 +75,7 @@ typedef struct {
 } PRIVATE_DATA;
 
 PRIVATE int result = 0;
+PRIVATE BOOL parity_skipped = FALSE;
 PRIVATE int checks_failed = 0;
 PRIVATE int secret_seen = 0;    // "hunter2" in any log line
 
@@ -171,19 +181,14 @@ PRIVATE void check_written(hgobj gobj, const char *attr, json_t *value, const ch
  */
 PRIVATE void check_parity_table(void)
 {
-    const char *base = getenv("YUNETAS_BASE");
-    char path[PATH_MAX];
-    build_path(path, sizeof(path),
-        empty_string(base)? "/yuneta/development/yunetas" : base,
-        "kernel/js/gobj-js/tests/fixtures/attr_types_parity.json",
-        NULL
-    );
+    const char *path = ATTR_TYPES_PARITY_TABLE;
     if(access(path, F_OK) != 0 && errno == ENOENT) {
         /*
          *  The table lives in the gobj-js submodule: a source tree without
          *  it (a tarball of yunetas alone) cannot compare C with JS
          */
         printf("SKIP the parity table of gobj-js: %s not found (the kernel/js/gobj-js submodule is not checked out)\n", path);
+        parity_skipped = TRUE;
         return;
     }
     json_error_t error;
@@ -530,6 +535,11 @@ int main(int argc, char *argv[])
 
     if(result<0) {
         printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP_NAME);
+        return -1;
     }
-    return result<0?-1:0;
+    if(parity_skipped) {
+        printf("<-- SKIPPED (the parity table with gobj-js): %s\n", APP_NAME);
+        return SKIP_RETURN_CODE;
+    }
+    return 0;
 }

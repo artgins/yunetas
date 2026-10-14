@@ -177,7 +177,22 @@ Tabulator 6.6.0.
 A reload, Undo, Clear or the close of the form with a cell editor open closes
 the editor first, and drops what is typed in it (since gobj-ui 7.26.45).
 Tabulator 6.6.0 throws when it wipes its rows with an editor open in any row
-but the first.
+but the first. What the reader types in a cell editor sets `edited` at once,
+before the editor commits (since gobj-ui 7.26.46), as a field of the form does.
+Thus a host that reads `edited` before it reloads or closes the form can ask
+first.
+
+```js
+if(gobj_read_bool_attr(form, "edited")) {
+    // the reader typed, maybe in a cell not committed yet: ask before the reload
+}
+```
+
+A `time` or `now` column of a table is edited in a `datetime-local` box, to the
+second, with the same conversion as the time field of the form: an epoch in
+seconds, or ISO text for a string column (since gobj-ui 7.26.46). Before, the
+editor of Tabulator needed luxon, which gobj-ui does not supply: it opened
+empty and failed when the reader confirmed the value.
 
 ```js
 const kw = {abort_close: false};
@@ -197,6 +212,20 @@ selected nothing with `selectableRows: true`, and selected a row with
 gobj_create("form", "C_YUI_FORM", {
     template:           template,
     tabulator_settings: {selectableRows: 1},    // a click selects one row
+}, parent);
+```
+
+The checkbox column (`with_checkbox`) also obeys `selectable`. When the form is
+not selectable, the column is not drawn (gobj-ui 7.26.46): the row checkbox of
+Tabulator shows a tick even when the selection is refused, and the header
+checkbox selects all rows without a check. A click in a nested table selects
+only in that table.
+
+```js
+gobj_create("form", "C_YUI_FORM", {
+    template:      template,
+    with_checkbox: true,       // a checkbox column ...
+    selectable:    false,      // ... is not drawn: nothing can be selected
 }, parent);
 ```
 

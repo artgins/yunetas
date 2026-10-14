@@ -2734,7 +2734,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     clear_timeout(priv->gobj_timer);    /* the task answered within its budget */
 
     if(src == priv->gobj_discovery_task) {
-        priv->gobj_discovery_task = NULL;  /* ac_stopped will destroy it */
+        priv->gobj_discovery_task = NULL;  /* volatile: it destroys itself after this end */
         int discovery_result = (int)kw_get_int(gobj, kw, "result", 0, 0);
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj,
@@ -2780,7 +2780,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return 0;
     }
 
-    priv->gobj_task = NULL;  /* ac_stopped will destroy it */
+    priv->gobj_task = NULL;  /* volatile: it destroys itself after this end */
     priv->processing = FALSE;
 
     int result = (int)kw_get_int(gobj, kw, "result", 0, 0);

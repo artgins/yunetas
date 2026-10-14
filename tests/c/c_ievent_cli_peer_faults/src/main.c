@@ -165,16 +165,19 @@ time_measure_t time_measure;
  ***************************************************************************/
 typedef struct {
     const char *mark;
+    int expected;
     int lines;
     int priority;
 } peer_log_count_t;
 peer_log_count_t peer_log_counts[] = {
-    {"event UNKNOWN in not-session state",          0, -1},
-    {"It's not my role",                            0, -1},
-    {"It's not my name",                            0, -1},
-    {"\"subscription event ignored, I'm client",    0, -1},
-    {"unsubscription event ignored, I'm client",    0, -1},
-    {0, 0, 0}
+    {"event UNKNOWN in not-session state",          1, 0, -1},
+    {"It's not my role",                            1, 0, -1},
+    {"It's not my name",                            1, 0, -1},
+    {"\"subscription event ignored, I'm client",    1, 0, -1},
+    {"unsubscription event ignored, I'm client",    1, 0, -1},
+    {"or out of its place, refused",                3, 0, -1},
+    {"service of the event not found",              1, 0, -1},
+    {0, 0, 0, 0}
 };
 
 int secret_logged = 0;  // lines that carry a credential of the server: none
@@ -216,13 +219,17 @@ static int register_yuno_and_more(void)
     set_expected_results(
         APP_NAME,
         /*  Strict FIFO of the warnings and errors: one warning per fault  */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "event UNKNOWN in not-session state",
             "msg", "EV_ON_OPEN_ERROR: cannot open connection",  // the client's own: no session yet
             "msg", "It's not my role",
             "msg", "It's not my name",
             "msg", "subscription event ignored, I'm client",
-            "msg", "unsubscription event ignored, I'm client"
+            "msg", "unsubscription event ignored, I'm client",
+            "msg", "event of the transport itself, or out of its place, refused",   // EV_ON_OPEN
+            "msg", "event of the transport itself, or out of its place, refused",   // EV_ON_CLOSE
+            "msg", "event of the transport itself, or out of its place, refused",   // the ACK in session
+            "msg", "service of the event not found, published to the subscribers"
         ),
         NULL,   // expected
         NULL,   // ignore_keys
@@ -247,12 +254,13 @@ static void cleaning(void)
 
     for(int i=0; peer_log_counts[i].mark; i++) {
         peer_log_count_t *c = &peer_log_counts[i];
-        if(c->lines != 1 || c->priority != LOG_WARNING) {
-            printf("%sERROR --> %s: '%s' lines %d (expected 1), priority %d (expected %d)%s\n",
+        if(c->lines != c->expected || c->priority != LOG_WARNING) {
+            printf("%sERROR --> %s: '%s' lines %d (expected %d), priority %d (expected %d)%s\n",
                 On_Red BWhite,
                 "a fault of the server is not ONE warning",
                 c->mark,
                 c->lines,
+                c->expected,
                 c->priority,
                 LOG_WARNING,
                 Color_Off

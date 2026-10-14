@@ -522,7 +522,11 @@ Out of the twenty-third review (V23):
   agent's audit record already redacted. A string with a NUL inside is masked
   past it. `is_secret_name()` takes `pass`, `pin` and `otp` as WHOLE segments
   (`db_pass`, `user-pin`, `sim_pin`; not `passive`, `ping`, `spinner`,
-  `otpx`); `key` and `cert` stay no secrets' names (a record key, a public
+  `otpx`; in the word before a `=` or a `:` they count only after its last
+  `&`, `?` or `;`, where the word is a query -- before it they are words of
+  another parameter's value: `GET /search?q=boarding+pass&lang=es` masked
+  `lang=********` in the first build of this cycle, and in gobj-js 7.26.22 to
+  7.26.24); `key` and `cert` stay no secrets' names (a record key, a public
   certificate), and its doc says so. The twins in gobj-js (`is_secret_name()`,
   `mask_secrets_inline()`, `json_mask_secrets()`) follow the same rule (gobj-js
   `main`, unreleased; `api/js/logging.md` and `api/js/traces.md` say it).
@@ -735,7 +739,8 @@ Out of the security review of those commits (V24, `2e8d0589f`):
   generated texts, nothing it hid shows. Against V23 / gobj-js 7.26.20, only
   V24.4.2's set shows: the word after a bare `Bearer` that is shorter than 8
   characters, a word of prose of 8 to 23, or dots only (8 876 of the 232 444
-  texts inline, 8 448 in a dump). A word of prose is ASCII letters only now (a
+  texts inline, 8 448 in a dump), and the value of a parameter whose word
+  holds `pass`, `pin` or `otp` only before its last `&`, `?` or `;` (above). A word of prose is ASCII letters only now (a
   character that is no ASCII made a token look like prose), and `Basic`'s
   base64 is read as far as it goes (`(Basic dXNlcjpwYXNz)`).
 - **The end of a dump is where a cap cuts a credential**
@@ -908,7 +913,7 @@ fixed:
   a boolean given a null or an object was false with no log. Not BREAKING: a
   value that changes meaning is one the old code could not have meant, and no
   deployed config depends on it. gobj-js reads it the same way (7.26.22): a
-  table of 92 cases is read by the tests of both kernels, with the same
+  table of 105 cases is read by the tests of both kernels, with the same
   outcome. Test `attr_types/test_attr_types`.
 - **fix: a json null given to a string attribute is `""`, never the text
   `"null"`** (`json2item()`: a config, `gobj_write_attr()`, the persistent
@@ -989,7 +994,7 @@ fixed:
   (*"Cannot create topic of the schema"*), the ERROR a topic on disk is
   opened with at every open (a pkey2 that is `id`, the tkey or named twice, a
   pkey2 of no column, a `^` in a topic or hook name), the faults of the
-  `__system__` projection. A clean store prints only the count. See
+  `__system__` projection. It reads a file's `schema_version` as the SDK does (`KW_WILD_NUMBER`: `"3"`, `3.0`). A clean store prints only the count. See
   `deploying-yunos.md` ("Upgrading to 7.26.10") and
   `tools/check_store_schemas.md`.
 - Tests: `yev_events_tls/test_yevent_traffic_secure1` read the gbuffer that
@@ -1049,11 +1054,23 @@ Out of the twenty-sixth review (V26), each finding checked before it was
 fixed:
 
 - **fix: destroying a RUNNING gobj whose stop says farewell at once freed it twice.** `gobj_destroy()` stops a running gobj before it raises `obflag_destroying`. When `mt_stop` published `EV_STOPPED` synchronously (a `C_TCP`, `C_UDP_S` or `C_PTY` with nothing in flight) and the host destroyed it there, the inner destroy freed it and the outer one went on with the freed gobj (ASan: use after free at its `obflag`; plain: *"Deleting item with DIFFERENT dl_list_t"*, abort). The pause and the stop are now watched, and the outer destroy returns. The same applies to the auto-pause of `gobj_stop()`, the auto-start of `gobj_play()` and `gobj_destroy_named_children()`. Test `gobj_dispatch` (phase 6).
-- **fix: the walks of the gobj tree went on with freed gobjs.** `gobj_stop_tree()`, `gobj_stop_children()`, `gobj_start_tree()`, `gobj_walk_gobj_children*()` (`WALK_BYLEVEL` included) and `gobj_destroy_children()` took the next child before the callback. A callback that destroyed the next sibling, or the gobj whose children were walked (a host that ends itself in a child's `EV_STOPPED`), left the walk on freed memory (ASan, five cases). The next child is now taken after the callback, from frames on the child, the next one and the owner. A walk that loses its place ends with an ERROR; `gobj_destroy_children()` starts again from the first child left. Test `gobj_dispatch` (phase 7).
+- **fix: the walks of the gobj tree went on with freed gobjs.** `gobj_stop_tree()`, `gobj_stop_children()`, `gobj_start_tree()`, `gobj_walk_gobj_children*()` (`WALK_BYLEVEL` included) and `gobj_destroy_children()` took the next child before the callback. A callback that destroyed the next sibling, or the gobj whose children were walked (a host that ends itself in a child's `EV_STOPPED`), left the walk on freed memory (ASan, five cases). The next child is now taken after the callback, from frames on the child, the next one and the owner. A walk that loses its place (the child AND the next one destroyed) starts again from the first child left in `gobj_destroy_children()` and in the starts and stops (`gobj_start_children/tree()`, `gobj_stop_children/tree()`, which skip a child already started or stopped, so none is left out); `gobj_walk_gobj_children*()` end there with an ERROR, the callback being the caller's. An action whose own walk destroys its gobj (a walk of its parent's children, `gobj_destroy_children()`, `gobj_destroy_named_children()`) is not reported: the frame excused is the innermost one that is not a kernel watch. Tests `gobj_dispatch` (phases 7, 9, 10).
 - **fix: a C_TASK abandoned by `C_AUTH_BFF` stayed a stopped child for ever.** On a browser close, and in `mt_stop`, the BFF stopped the task in flight but nothing destroyed it: a stopped task does not end itself, contrary to the comment there. One zombie per request the browser left. The BFF and `C_IDP_KEYCLOAK` now stop and destroy their tasks, and clear `processing`, which stayed TRUE after a stop. Test `c_auth_bff/test9_browser_cancel`.
-- **fix: an attribute default is read by the parser's grammar** (`set_default()`, via `command_parameter_from_text()`). `"yes"` and `"on"` were `false` (`atoi`), `"12abc"` was 12, and `"0660"` an octal 432 that no config could write. A default that does not read is an ERROR and the zero of its type. The seven octal or hex defaults of the tree are decimal now, same values: `xpermission` 1528 (02770), `rpermission` 432 (0660), `c_qiogate` `on_critical_error` 16.
+- **BREAKING: an attribute default is read by the parser's grammar** (`set_default()`, via `command_parameter_from_text()`), the way a config or a command reads the same text. Up to 7.26.9 the default of a `DTP_INTEGER` was read with `strtoll(..., 0)`, that of a `DTP_REAL` with `atof()` and that of a `DTP_BOOLEAN` with `atoi()` (or `TRUE`): `"yes"` and `"on"` were `false`, `"12abc"` was 12, and `"0660"` an octal 432 that no config could write. A default that does not read is now the zero of its type, with an ERROR and a stack at EVERY instance created (*"default_value of the attribute does not read as its type, its zero used"*). Nothing in the tree or in the apps changes value (the 1331 boolean and numeric defaults checked); the seven octal or hex defaults of the tree are decimal now, same values: `xpermission` 1528 (02770), `rpermission` 432 (0660), `c_qiogate` `on_critical_error` 16. **A gclass outside the tree** with one of these defaults changes value:
+
+    | Type | Default | 7.26.9 | Now |
+    |---|---|---|---|
+    | integer | `"0660"`, `"02770"`, `"007"` (octal) | 432, 1528, 7 | 0, ERROR |
+    | integer | `"0x10"` (hexadecimal) | 16 | 0, ERROR |
+    | integer | `"12abc"`, `" 5"`, `"+5"`, `"2.0"`, `"1e3"` | 12, 5, 5, 2, 1 | 0, ERROR |
+    | integer | `"18446744073709551615"` (out of range) | `LLONG_MAX` | 0, ERROR |
+    | real | `".5"`, `"5."`, `" 2.5"`, `"0x10"`, `"1,5"` | 0.5, 5.0, 2.5, 16.0, 1.0 | 0.0, ERROR |
+    | boolean | `"yes"`, `"on"` | false | **true** |
+    | boolean | `" 1"`, `"1.0"` | true | false, ERROR |
+
+    Write such a default as the decimal it means (`"432"`, with the octal `0660` in the description) and a boolean as `"true"`/`"false"` or `"1"`/`"0"`.
 - **fix: `C_IEVENT_CLI` says the faults of its server as the server's.** *"event UNKNOWN in not-session state"*, *"It's not my role"*, *"It's not my name"* and *"subscription/unsubscription event ignored, I'm client"* are one WARNING each (`MSGSET_PROTOCOL`, no stack, the names the server wrote masked and capped), not an ERROR with the names in clear. Before the session only `EV_IDENTITY_CARD_ACK` is taken; a session event went to `mt_inject_event()` (*"Not in session"*, an ERROR). Test `c_ievent_cli_peer_faults`.
-- `test_attr_types` skips its gobj-js parity check, and says so, when the `gobj-js` submodule is absent (a tarball); it reads the table's `json` cases (92 cases now).
+- `test_attr_types` reads the gobj-js parity table of the source tree it was built from (not of `YUNETAS_BASE`); without it (a tarball) it runs the other checks and exits 77, which ctest reports as Skipped (`SKIP_RETURN_CODE`), not Passed; it reads the table's `json` cases (105 cases now).
 - **fix: a dump showed a name as a form writes it, and no masking hid the
   password of a URL** (`mask_secrets_in_text()`, `mask_secrets_inline()`,
   `json_mask_secrets()`, and the agent's audit record through
@@ -1090,6 +1107,15 @@ fixed:
   reads computed `.bind`/`.call`/`.apply`, is no longer quadratic on many
   `let`s, and no longer cuts a long list at exit; `deploy-round` reads a
   range's history by value and refuses a shallow clone.
+
+Out of the twenty-seventh review (V27), each finding checked before it was
+fixed:
+
+- **fix: `gobj_play()` says when nothing is playing.** A play without a start, whose implicit start was refused (a required attribute empty), left the gobj `playing` and not running and answered 0; a gobj destroyed by its own `mt_play` answered what `mt_play` returned, 0 included. Both answer -1 now (the refused start is logged by `gobj_start()`). Test `gobj_dispatch` (phase 4).
+- **fix: `gobj_destroy_named_children()` read a freed name.** Called with the name of one of the children it destroys (`gobj_name(child)`, from the child's own action), it compared that freed name with every child after it (ASan: use after free in `strcmp`). It works on a copy now. Test `gobj_dispatch` (phase 9).
+- **fix: `C_IEVENT_CLI` takes from its server only what the server may send.** `C_PROT_HTTP_SR` and `C_POSTGRES` declare `EV_ON_OPEN` / `EV_ON_CLOSE` (and the first `EV_DROP`, `EV_ON_MESSAGE`) public, so a frame of the server with those names was read, and the client published them to its app as its own open and close, with the kw the server chose; the ACK in session was sent back to the server. In session an event of the client that is not public, or the ACK, is refused: ONE warning (*"event of the transport itself, or out of its place, refused"*, `MSGSET_PROTOCOL`), the frame dropped, the channel kept. An empty `dst_service` no longer logs *"service EMPTY"* (an ERROR with a stack), and one that is no service is a WARNING with the name masked (*"service of the event not found, published to the subscribers"*) instead of an ERROR with the name in clear; both are still published, as before. Test `c_ievent_cli_peer_faults`.
+- **fix: a URL or a query %-encoded inside a value was not masked** (`mask_secrets_inline()`, `json_mask_secrets()`, `mask_secrets_in_text()`, and the agent's audit record through `mark_secrets_inline()`). `%XX` was decoded only in a name before a literal `=`, so `GET /cb?next=%2Flogin%3Fpassword%3Dhunter2` and `url=https%3A%2F%2Fbob%3Ahunter2%40host` showed the password, and `redirect_uri=https%3A%2F%2Fapp%2Fcb%3Ftoken%3Dabc123&state=1` masked `state` and showed the token. The rules run again on a view of the text with each `%XX` of an ASCII character decoded, twice at most (a value encoded inside an encoded value, `%253D`; a name encoded twice, `%2570assword=`), and what they mask there is masked on the bytes it came from. In 7.26.9 too. Measured position by position against 7.26.9 on 438 008 generated texts (60 000 new ones built around nested encodings): nothing it hid shows, inline or in a dump; C and gobj-js 7.26.25 give the same text on all of them and on 30 000 jsons. Cost: about 8 % more over 232 444 generated texts (11 % in gobj-js); 1 MB of `t%6Fken=x&` takes 38 ms instead of 24. Tests `secret_attrs`.
+- **JS layer: gobj-ui 7.26.46, gobj-js 7.26.25.** gobj-js: an event with no service must be declared public, the transport's own events are refused from the peer, a peer fault closes with 4002 and keeps the backoff, non-json values are refused for dict/list/string attrs, and the encoded-URL masking above. gobj-ui: a stopped shell closes its overlays (their focus traps left later windows without focus), the checkbox column asks `selectable`, a nested click stays in its table, a time column is editable without luxon, typing in a cell is `edited`; `deploy-round` reads merges and renames by value; `validate-locales` no longer hangs on a locale's timer and reads const-named methods and written spreads.
 
 ## v7.26.9 (2026-10-11)
 

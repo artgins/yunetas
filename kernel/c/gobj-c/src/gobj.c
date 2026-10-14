@@ -199,6 +199,15 @@ typedef struct {
     dispatch_frame_t next;      // the child after it, when it was given
 } walk_watch_t;
 
+/*
+ *  A private bit of walk_type_t, kept out of the public values: when the
+ *  callback destroys the child it was given AND the next one, the walk takes
+ *  it again from the first child left (see walk_gobj_children()). A bit and
+ *  not a parameter: the walkers take six already, a seventh goes on the
+ *  stack at every step of every walk.
+ */
+#define WALK_RESTART_IF_LOST    0x10000
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
@@ -280,6 +289,34 @@ PRIVATE int rc_walk_by_level(
     void *user_data,
     void *user_data2,
     void *user_data3
+);
+PRIVATE int walk_list_watched(
+    walk_watch_t *watch,
+    gobj_t *child,
+    walk_type_t walk_type,
+    cb_walking_t cb_walking,
+    void *user_data,
+    void *user_data2,
+    void *user_data3
+);
+
+PRIVATE int walk_gobj_children(
+    gobj_t *gobj,
+    walk_type_t walk_type,
+    cb_walking_t cb_walking,
+    void *user_data,
+    void *user_data2,
+    void *user_data3,
+    BOOL restart
+);
+PRIVATE int walk_gobj_children_tree(
+    gobj_t *gobj,
+    walk_type_t walk_type,
+    cb_walking_t cb_walking,
+    void *user_data,
+    void *user_data2,
+    void *user_data3,
+    BOOL restart
 );
 
 PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it);
@@ -2826,9 +2863,19 @@ PUBLIC int gobj_destroy_named_children(hgobj gobj_, const char *name)
         );
     }
 
+    /*
+     *  A copy: the name may be the one of a child that goes, read again for
+     *  each child after it (gobj_name() of a child, from its own action)
+     */
+    char *name_ = gbmem_strdup(name);
+    if(!name_) {
+        // Error already logged
+        return -1;
+    }
     gobj_walk_gobj_children(
-        gobj, WALK_FIRST2LAST, cb_destroy_named_children, (void *)name, 0, 0
+        gobj, WALK_FIRST2LAST, cb_destroy_named_children, name_, 0, 0
     );
+    GBMEM_FREE(name_)
     return 0;
 }
 
@@ -5097,7 +5144,7 @@ PUBLIC int gobj_start_children(hgobj gobj)
         return -1;
     }
 
-    return gobj_walk_gobj_children(gobj, WALK_FIRST2LAST, cb_start_child, 0, 0, 0);
+    return walk_gobj_children(gobj, WALK_FIRST2LAST, cb_start_child, 0, 0, 0, TRUE);
 }
 
 /***************************************************************************
@@ -5182,7 +5229,7 @@ PUBLIC int gobj_start_tree(hgobj gobj_)
             }
         }
     }
-    return gobj_walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_start_child_tree, 0, 0, 0);
+    return walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_start_child_tree, 0, 0, 0, TRUE);
 }
 
 /***************************************************************************
@@ -5294,7 +5341,7 @@ PUBLIC int gobj_stop_children(hgobj gobj_)
         );
         return -1;
     }
-    return gobj_walk_gobj_children(gobj, WALK_FIRST2LAST, cb_stop_child, 0, 0, 0);
+    return walk_gobj_children(gobj, WALK_FIRST2LAST, cb_stop_child, 0, 0, 0, TRUE);
 }
 
 /***************************************************************************
@@ -5332,7 +5379,7 @@ PUBLIC int gobj_stop_tree(hgobj gobj_)
             return 0;   // gone: no children of it to walk
         }
     }
-    return gobj_walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_stop_child, 0, 0, 0);
+    return walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_stop_child, 0, 0, 0, TRUE);
 }
 
 /***************************************************************************
@@ -5390,6 +5437,9 @@ PUBLIC int gobj_play(hgobj gobj_)
             if(start_destroys_it(gobj)) {
                 return -1;  // its start ended it: nothing left to play
             }
+            if(!gobj->running) {
+                return -1;  // Error already logged: the start was refused
+            }
         } else {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -5418,7 +5468,10 @@ PUBLIC int gobj_play(hgobj gobj_)
         push_dispatch_frame(&frame, gobj, "mt_play", FRAME_METHOD);
         int ret = gobj->gclass->gmt->mt_play(gobj);
         pop_dispatch_frame(&frame);
-        if(ret < 0 && !frame.destroyed) {
+        if(frame.destroyed) {
+            return -1;  // its play ended it: nothing is playing
+        }
+        if(ret < 0) {
             gobj->playing = FALSE;
         }
         return ret;
@@ -6454,17 +6507,23 @@ PUBLIC hgobj gobj_search_path(hgobj gobj_, const char *path_)
 }
 
 /***************************************************************************
+ *  Walk the children of a gobj.
  *
+ *  `restart`: when the callback destroys the child it was given AND the
+ *  next one, the walk takes it again from the first child left. Only for a
+ *  callback that may be given a child twice with no harm: the starts and
+ *  the stops, which skip a child already in their state. Otherwise the walk
+ *  ends there, with an ERROR.
  ***************************************************************************/
-PUBLIC int gobj_walk_gobj_children(
-    hgobj gobj_,
+PRIVATE int walk_gobj_children(
+    gobj_t *gobj,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
     void *user_data,
     void *user_data2,
-    void *user_data3
+    void *user_data3,
+    BOOL restart
 ) {
-    gobj_t *gobj = gobj_;
     if(gobj_is_destroying(gobj)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -6475,23 +6534,40 @@ PUBLIC int gobj_walk_gobj_children(
         return 0;
     }
 
+    walk_type &= ~WALK_RESTART_IF_LOST;
+    if(restart) {
+        walk_type |= WALK_RESTART_IF_LOST;
+    }
     return rc_walk_by_list(
         &gobj->dl_children, walk_type, cb_walking, user_data, user_data2, user_data3
     );
 }
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int gobj_walk_gobj_children_tree(
-    hgobj gobj_,
+PUBLIC int gobj_walk_gobj_children(
+    hgobj gobj,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
     void *user_data,
     void *user_data2,
     void *user_data3
 ) {
-    gobj_t *gobj = gobj_;
+    return walk_gobj_children(
+        gobj, walk_type, cb_walking, user_data, user_data2, user_data3, FALSE
+    );
+}
+
+/***************************************************************************
+ *  Walk the tree of the children of a gobj. `restart`: as above, in each
+ *  list of children walked.
+ ***************************************************************************/
+PRIVATE int walk_gobj_children_tree(
+    gobj_t *gobj,
+    walk_type_t walk_type,
+    cb_walking_t cb_walking,
+    void *user_data,
+    void *user_data2,
+    void *user_data3,
+    BOOL restart
+) {
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -6502,15 +6578,59 @@ PUBLIC int gobj_walk_gobj_children_tree(
         return 0;
     }
 
+    walk_type &= ~WALK_RESTART_IF_LOST;
+    if(restart) {
+        walk_type |= WALK_RESTART_IF_LOST;
+    }
     return rc_walk_by_tree(
         &gobj->dl_children, walk_type, cb_walking, user_data, user_data2, user_data3
     );
+}
+PUBLIC int gobj_walk_gobj_children_tree(
+    hgobj gobj,
+    walk_type_t walk_type,
+    cb_walking_t cb_walking,
+    void *user_data,
+    void *user_data2,
+    void *user_data3
+) {
+    return walk_gobj_children_tree(
+        gobj, walk_type, cb_walking, user_data, user_data2, user_data3, FALSE
+    );
+}
+
+/***************************************************************
+ *  Walk a list of children, from `child`, with a watch that the
+ *  caller began.
+ ***************************************************************/
+PRIVATE int walk_list_watched(
+    walk_watch_t *watch,
+    gobj_t *child,
+    walk_type_t walk_type,
+    cb_walking_t cb_walking,
+    void *user_data,
+    void *user_data2,
+    void *user_data3
+) {
+    BOOL backwards = (walk_type & WALK_LAST2FIRST)? TRUE : FALSE;
+    BOOL restart = (walk_type & WALK_RESTART_IF_LOST)? TRUE : FALSE;
+    while(child) {
+        walk_watch_step(watch, child, backwards);
+
+        int ret = (cb_walking)(child, user_data, user_data2, user_data3);
+
+        child = walk_watch_next(watch, backwards, restart);
+        if(ret < 0) {
+            return ret;
+        }
+    }
+    return 0;
 }
 
 /***************************************************************
  *  Walking
  ***************************************************************/
-PUBLIC int rc_walk_by_list(
+PRIVATE int rc_walk_by_list(
     dl_list_t *iter,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
@@ -6530,20 +6650,10 @@ PUBLIC int rc_walk_by_list(
 
     walk_watch_t watch;
     walk_watch_begin(&watch, child->parent);
-    while(child) {
-        walk_watch_step(&watch, child, (walk_type & WALK_LAST2FIRST)? TRUE : FALSE);
-
-        int ret = (cb_walking)(child, user_data, user_data2, user_data3);
-
-        child = walk_watch_next(&watch, (walk_type & WALK_LAST2FIRST)? TRUE : FALSE, FALSE);
-        if(ret < 0) {
-            walk_watch_end(&watch);
-            return ret;
-        }
-    }
+    int ret = walk_list_watched(&watch, child, walk_type, cb_walking, user_data, user_data2, user_data3);
     walk_watch_end(&watch);
 
-    return 0;
+    return ret;
 }
 
 /***************************************************************
@@ -6567,38 +6677,34 @@ PRIVATE int rc_walk_by_level(
     if(!child) {
         return 0;
     }
+    BOOL backwards = (walk_type & WALK_LAST2FIRST)? TRUE : FALSE;
+    BOOL restart = (walk_type & WALK_RESTART_IF_LOST)? TRUE : FALSE;
 
     /*
      *  First my children. The walk of them may end the gobj whose children
-     *  they are, and `iter` with it: watched.
+     *  they are, and `iter` with it: one watch for both loops.
      */
-    dispatch_frame_t owner;
-    push_dispatch_frame(&owner, child->parent, "walk", FRAME_WATCH);
-    int ret = rc_walk_by_list(iter, walk_type, cb_walking, user_data, user_data2, user_data3);
-    pop_dispatch_frame(&owner);
-    if(ret < 0 || owner.destroyed) {
+    walk_watch_t watch;
+    walk_watch_begin(&watch, child->parent);
+    int ret = walk_list_watched(&watch, child, walk_type, cb_walking, user_data, user_data2, user_data3);
+    if(ret < 0 || watch.owner.destroyed) {
+        walk_watch_end(&watch);
         return ret;
     }
 
     /*
      *  Now child's children
      */
-    child = (walk_type & WALK_LAST2FIRST)? dl_last(iter) : dl_first(iter);
-    if(!child) {
-        return ret;
-    }
-
-    walk_watch_t watch;
-    walk_watch_begin(&watch, child->parent);
+    child = backwards? dl_last(iter) : dl_first(iter);
     while(child) {
-        walk_watch_step(&watch, child, (walk_type & WALK_LAST2FIRST)? TRUE : FALSE);
+        walk_watch_step(&watch, child, backwards);
 
         dl_list_t *dl_child_list = &child->dl_children;
         ret = rc_walk_by_level(
             dl_child_list, walk_type, cb_walking, user_data, user_data2, user_data3
         );
 
-        child = walk_watch_next(&watch, (walk_type & WALK_LAST2FIRST)? TRUE : FALSE, FALSE);
+        child = walk_watch_next(&watch, backwards, restart);
         if(ret < 0) {
             walk_watch_end(&watch);
             return ret;
@@ -6624,7 +6730,7 @@ PRIVATE int rc_walk_by_level(
  *          or
  *          WALK_LAST2FIRST
  ***************************************************************/
-PUBLIC int rc_walk_by_tree(
+PRIVATE int rc_walk_by_tree(
     dl_list_t *iter,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
@@ -6647,6 +6753,7 @@ PUBLIC int rc_walk_by_tree(
     }
 
     BOOL backwards = (walk_type & WALK_BOTTOM2TOP)? TRUE : FALSE;
+    BOOL restart = (walk_type & WALK_RESTART_IF_LOST)? TRUE : FALSE;
     walk_watch_t watch;
     walk_watch_begin(&watch, child->parent);
     while(child) {
@@ -6672,7 +6779,7 @@ PUBLIC int rc_walk_by_tree(
             // positive: the branch is skipped, continue next
         }
 
-        child = walk_watch_next(&watch, backwards, FALSE);
+        child = walk_watch_next(&watch, backwards, restart);
         if(ret < 0) {
             walk_watch_end(&watch);
             return ret;
@@ -8722,11 +8829,15 @@ PRIVATE void pop_dispatch_frame(dispatch_frame_t *frame)
 }
 
 /***************************************************************************
- *  A watched walk of the children of `owner` begins.
+ *  A watched walk of the children of `owner` begins. Its three frames stay
+ *  on the chain until the walk ends; each step only says which children
+ *  the last two watch: what the callback pushes is popped when it returns.
  ***************************************************************************/
 PRIVATE void walk_watch_begin(walk_watch_t *watch, gobj_t *owner)
 {
     push_dispatch_frame(&watch->owner, owner, "walk", FRAME_WATCH);
+    push_dispatch_frame(&watch->cur, NULL, "walk", FRAME_WATCH);
+    push_dispatch_frame(&watch->next, NULL, "walk", FRAME_WATCH);
 }
 
 /***************************************************************************
@@ -8735,9 +8846,10 @@ PRIVATE void walk_watch_begin(walk_watch_t *watch, gobj_t *owner)
  ***************************************************************************/
 PRIVATE void walk_watch_step(walk_watch_t *watch, gobj_t *child, BOOL backwards)
 {
-    gobj_t *next = backwards? dl_prev(child) : dl_next(child);
-    push_dispatch_frame(&watch->cur, child, "walk", FRAME_WATCH);
-    push_dispatch_frame(&watch->next, next, "walk", FRAME_WATCH);
+    watch->cur.gobj = child;
+    watch->cur.destroyed = FALSE;
+    watch->next.gobj = backwards? dl_prev(child) : dl_next(child);
+    watch->next.destroyed = FALSE;
 }
 
 /***************************************************************************
@@ -8750,9 +8862,6 @@ PRIVATE void walk_watch_step(walk_watch_t *watch, gobj_t *child, BOOL backwards)
  ***************************************************************************/
 PRIVATE gobj_t *walk_watch_next(walk_watch_t *watch, BOOL backwards, BOOL restart)
 {
-    pop_dispatch_frame(&watch->next);
-    pop_dispatch_frame(&watch->cur);
-
     if(watch->owner.destroyed) {
         return NULL;
     }
@@ -8782,6 +8891,8 @@ PRIVATE gobj_t *walk_watch_next(walk_watch_t *watch, BOOL backwards, BOOL restar
  ***************************************************************************/
 PRIVATE void walk_watch_end(walk_watch_t *watch)
 {
+    pop_dispatch_frame(&watch->next);
+    pop_dispatch_frame(&watch->cur);
     pop_dispatch_frame(&watch->owner);
 }
 
@@ -8833,8 +8944,11 @@ PRIVATE BOOL said_farewell(dispatch_frame_t *frame)
  *  EV_TIMEOUT, an action that called something that ended its own gobj.
  *  It is an ERROR, except for:
  *
- *  - the innermost frame: it is the code that destroys, and knows it (a
- *    gobj that destroys itself in its action, at the end of its work);
+ *  - the innermost frame that is not a watch: it is the code that
+ *    destroys, and knows it (a gobj that destroys itself in its action, at
+ *    the end of its work), also through a kernel call that watches on
+ *    top of it (a walk of the children of its parent,
+ *    gobj_destroy_children()): a watch frame is not the code that destroys;
  *
  *  - the EV_STOPPED publication of a gobj, and the frames of that gobj it
  *    runs inside of (the mt_stop or the action that published it, an outer
@@ -8855,6 +8969,9 @@ PRIVATE BOOL said_farewell(dispatch_frame_t *frame)
 PRIVATE void check_destroy_under_running_code(gobj_t *gobj)
 {
     dispatch_frame_t *top = dispatch_top;
+    while(top && top->kind == FRAME_WATCH) {
+        top = top->prev;
+    }
     if(!top) {
         return;
     }

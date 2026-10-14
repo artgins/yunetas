@@ -1650,6 +1650,33 @@ PRIVATE BOOL is_secret_name_tail(const char *name, size_t len, secret_names_t na
 }
 
 /*
+ *  Is the word before a '=' or a ':' (`name`, its last MASK_MAX_NAME bytes)
+ *  a secret's name, as `names` judges it? pass, pin and otp only in its
+ *  part after its last '&', '?' or ';': before it they are words of the
+ *  value of another parameter ("q=boarding+pass&lang=es" is no secret).
+ */
+PRIVATE BOOL is_query_separator(char c)
+{
+    return (c == '&' || c == '?' || c == ';')? TRUE : FALSE;
+}
+
+PRIVATE BOOL is_param_name_secret(const char *name, size_t len, secret_names_t names)
+{
+    size_t tail = len;
+    while(names == NAMES_NOW && tail > 0 && !is_query_separator(name[tail - 1])) {
+        tail--;
+    }
+    if(names != NAMES_NOW || tail == 0) {
+        return is_secret_name_by(name, len, names);
+    }
+    if(is_secret_name_by(name, len, NAMES_7_26_9)) {
+        return TRUE;
+    }
+    return (is_secret_name_by(name, len, NAMES_NOW) &&
+        secret_name_check(name + tail, len - tail, FALSE, TRUE))? TRUE : FALSE;
+}
+
+/*
  *  The name before the '=' at `eq`: the run of name characters just
  *  before it, no longer than MASK_MAX_NAME (for the bytes of a dump)
  */
@@ -2333,7 +2360,7 @@ PRIVATE BOOL mark_params(
         const char *name = ((size_t)(p - word) > MASK_MAX_NAME)? p - MASK_MAX_NAME : word;
         size_t name_len = (size_t)(p - name);
         word = p + 1;
-        BOOL secret = is_secret_name_by(name, name_len, names);
+        BOOL secret = is_param_name_secret(name, name_len, names);
         if(secret && names == NAMES_NOW && !not_7_26_9 && !is_secret_name_by(name, name_len, NAMES_7_26_9)) {
             not_7_26_9 = TRUE;
         }
@@ -2645,7 +2672,7 @@ PRIVATE void mark_labels(const char *str, size_t len, uint8_t *marks)
             continue;
         }
         const char *name = ((size_t)(p - word) > MASK_MAX_NAME)? p - MASK_MAX_NAME : word;
-        if(!is_secret_name(name, (size_t)(p - name))) {
+        if(!is_param_name_secret(name, (size_t)(p - name), NAMES_NOW)) {
             p++;
             word = p;
             continue;
@@ -2665,6 +2692,36 @@ PRIVATE void mark_labels(const char *str, size_t len, uint8_t *marks)
         word = p;
     }
 }
+
+/*
+ *  The rules of now of mask_secrets_inline() -- not the readings of
+ *  released versions -- on the `len` bytes of `str`: what a decoded view
+ *  of the text is judged by (mark_decoded_view())
+ */
+PRIVATE void mark_inline_rules_of_now(const char *str, size_t len, BOOL end_is_cut, uint8_t *marks)
+{
+    BOOL value_is_secret = inline_value_is_secret(str, len, NAMES_NOW);
+    mark_params(str, len, value_is_secret, READ_NOW, marks);
+    mark_query_params(str, str + len, NAME_PLAIN, marks);
+    mark_query_params(str, str + len, NAME_WRITTEN, marks);
+    mark_url_passwords(str, str + len, marks);
+    mark_shapes(str, len, end_is_cut, marks);
+    mark_labels(str, len, marks);
+}
+
+typedef enum {
+    RULES_OF_INLINE = 0,
+    RULES_OF_DUMP,
+} view_rules_t;
+
+PRIVATE void mark_decoded_view(
+    const char *str,
+    size_t len,
+    view_rules_t rules,
+    BOOL end_is_cut,
+    int decodings,
+    uint8_t *marks
+);
 
 /*
  *  The bytes of the text that mask_secrets_inline() masks, marked: the
@@ -2693,6 +2750,7 @@ PRIVATE void mark_inline_secrets(
     mark_url_passwords(str, str + len, marks);
     mark_shapes(str, len, end_is_cut, marks);
     mark_labels(str, len, marks);
+    mark_decoded_view(str, len, RULES_OF_INLINE, end_is_cut, 0, marks);
 }
 
 /*
@@ -2757,6 +2815,8 @@ PRIVATE char *mask_inline_secrets(const char *str, size_t len, size_t text_len, 
  *      string, and the name as a form writes it (mark_query_params(),
  *      name_reading_t: its value to a byte of &;,"'<> or a blank);
  *    - the password of the userinfo of a URL (mark_url_passwords());
+ *    - in a URL or a query %-encoded inside a value, what these rules mask
+ *      in it read decoded (mark_decoded_view());
  *    - the value of every "name: value" whose name is a secret's, its name
  *      in quotes or not (a json, a header, a label: "password": hunter2,
  *      Authorization: Basic x, bearer: tok);
@@ -2778,7 +2838,7 @@ PUBLIC char *mask_secrets_inline(const char *str)
     BOOL may_mask = FALSE;
     for(const char *p = str; *p; p++) {
         len++;
-        if(!may_mask && (*p == '=' || *p == ':' || may_begin_shape(p))) {
+        if(!may_mask && (*p == '=' || *p == ':' || *p == '%' || may_begin_shape(p))) {
             may_mask = TRUE;
         }
     }
@@ -3205,6 +3265,114 @@ PRIVATE void mark_dump_labels(const char *bf, const char *end, name_reading_t re
     }
 }
 
+/*
+ *  The rules of now of mask_secrets_in_text() -- not the dump of released
+ *  versions -- on the bytes from `bf` to `end`
+ */
+PRIVATE void mark_dump_rules_of_now(const char *bf, const char *end, uint8_t *marks)
+{
+    mark_dump_shapes(bf, end, marks);
+    mark_query_params(bf, end, NAME_PLAIN, marks);
+    mark_query_params(bf, end, NAME_WRITTEN, marks);
+    mark_url_passwords(bf, end, marks);
+    mark_dump_json_members(bf, end, marks);
+    mark_dump_labels(bf, end, NAME_PLAIN, marks);
+    mark_dump_labels(bf, end, NAME_WRITTEN, marks);
+}
+
+/*
+ *  A URL or a query %-encoded inside the value of a parameter
+ *  (redirect_uri=, next=, url=: "next=%2Flogin%3Fpassword%3Dx") is read
+ *  decoded too: a view of the `len` bytes of `str` with each %XX of an
+ *  ASCII byte (no NUL) decoded is judged by the rules of now (`rules`),
+ *  and what they mark in it is marked on the bytes it came from, a %XX
+ *  whole. Decoded MASK_MAX_DECODINGS times at most -- once, and once more
+ *  for a value encoded inside an encoded value ("%253D") --: each view is
+ *  a pass of the rules, so a bound keeps it linear ("%252525...41" would
+ *  ask for a view per "25").
+ */
+#define MASK_MAX_DECODINGS  2
+
+PRIVATE int encoded_ascii_at(const char *p, const char *end)
+{
+    if(end - p < 3 || p[0] != '%') {
+        return -1;
+    }
+    int hi = hex_digit_value(p[1]);
+    int lo = (hi >= 0)? hex_digit_value(p[2]) : -1;
+    if(lo < 0) {
+        return -1;
+    }
+    int c = hi*16 + lo;
+    return (c > 0 && c < 0x80)? c : -1;
+}
+
+PRIVATE void mark_decoded_view(
+    const char *str,
+    size_t len,
+    view_rules_t rules,
+    BOOL end_is_cut,
+    int decodings,
+    uint8_t *marks
+)
+{
+    if(decodings >= MASK_MAX_DECODINGS) {
+        return;
+    }
+    const char *end = str + len;
+    size_t view_len = len;
+    for(const char *p = str; p < end; p++) {
+        if(*p == '%' && encoded_ascii_at(p, end) >= 0) {
+            view_len -= 2;
+            p += 2;
+        }
+    }
+    if(view_len == len) {
+        return;     // nothing encoded
+    }
+
+    char *view = gbmem_malloc(view_len + 1);
+    size_t view_marks_size = (view_len + 7)/8;
+    uint8_t *view_marks = gbmem_malloc(view_marks_size + 1);
+    if(!view || !view_marks) {
+        // Error already logged. Fails safe: all of it
+        GBMEM_FREE(view)
+        GBMEM_FREE(view_marks)
+        mark_range(marks, 0, len);
+        return;
+    }
+    memset(view_marks, 0, view_marks_size + 1);
+    char *v = view;
+    for(const char *p = str; p < end; p++) {
+        int c = (*p == '%')? encoded_ascii_at(p, end) : -1;
+        if(c >= 0) {
+            *v++ = (char)c;
+            p += 2;
+        } else {
+            *v++ = *p;
+        }
+    }
+    *v = 0;
+
+    if(rules == RULES_OF_INLINE) {
+        mark_inline_rules_of_now(view, view_len, end_is_cut, view_marks);
+    } else {
+        mark_dump_rules_of_now(view, view + view_len, view_marks);
+    }
+    mark_decoded_view(view, view_len, rules, end_is_cut, decodings + 1, view_marks);
+
+    const char *p = str;
+    for(size_t i = 0; i < view_len; i++) {
+        size_t n = (*p == '%' && encoded_ascii_at(p, end) >= 0)? 3 : 1;
+        if(is_marked(view_marks, i)) {
+            mark_range(marks, (size_t)(p - str), (size_t)(p - str) + n);
+        }
+        p += n;
+    }
+    GBMEM_FREE(view_marks)
+    GBMEM_FREE(view)
+}
+
 /***************************************************************************
  *  The bytes of a traffic dump with the credentials that can be told
  *  soundly written as '*', in place, the length kept:
@@ -3215,6 +3383,8 @@ PRIVATE void mark_dump_labels(const char *bf, const char *end, name_reading_t re
  *      as in a query string, a form body or a command line, its name read
  *      as a run of name bytes and as a form writes it (name_reading_t);
  *    - the password of the userinfo of a URL (mark_url_passwords());
+ *    - in a URL or a query %-encoded inside a value, what these rules mask
+ *      in it read decoded (mark_decoded_view());
  *    - the value of a json "name": value (or 'name': value), and of a
  *      name: value (another header, a label: X-Auth-Token: x, bearer:
  *      tok), whose name is a secret's;
@@ -3257,13 +3427,8 @@ PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
     if(mark_dump_in_place(bf, copy, len, READ_AS_GOBJ_JS_7_26_20, marks)) {
         mark_dump_in_place(bf, copy, len, READ_AS_7_26_9, marks);
     }
-    mark_dump_shapes(bf, end, marks);
-    mark_query_params(bf, end, NAME_PLAIN, marks);
-    mark_query_params(bf, end, NAME_WRITTEN, marks);
-    mark_url_passwords(bf, end, marks);
-    mark_dump_json_members(bf, end, marks);
-    mark_dump_labels(bf, end, NAME_PLAIN, marks);
-    mark_dump_labels(bf, end, NAME_WRITTEN, marks);
+    mark_dump_rules_of_now(bf, end, marks);
+    mark_decoded_view(bf, len, RULES_OF_DUMP, TRUE, 0, marks);
 
     for(size_t i = 0; i < len; i++) {
         if(is_marked(marks, i) && bf[i] != '*') {

@@ -86,7 +86,11 @@
  *  publishes no EV_END_TASK (a volatile one is destroyed all the same), and
  *  a task it STARTS again drops the end of the previous run (each end names
  *  its run). An owner that keeps the task in a pointer compares `src` of an
- *  EV_END_TASK with it all the same.
+ *  EV_END_TASK with it all the same. A task stopped in the middle of a run,
+ *  with no end of THAT run waiting, is its owner's to destroy, volatile or
+ *  not, as it always was -- also after a restart, whose dropped end is of
+ *  the run before: the owner that started it again took it back, and may
+ *  keep it stopped to start it once more.
  *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.

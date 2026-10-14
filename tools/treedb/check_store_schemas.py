@@ -373,14 +373,63 @@ def check_main_topics(rep, path, topics):
         marked = tn
 
 
+INT64_MIN = -(1 << 63)
+INT64_MAX = (1 << 63) - 1
+
+
+def strtoll_base0(text):
+    """strtoll(text, 0, 0): leading blanks, a sign, then 0x/0X hexadecimal, a
+    leading 0 octal, else decimal; the longest prefix that reads, 0 if none,
+    clamped to the range of a json_int_t"""
+    i = 0
+    n = len(text)
+    while i < n and text[i] in " \t\n\v\f\r":
+        i += 1
+    sign = 1
+    if i < n and text[i] in "+-":
+        sign = -1 if text[i] == "-" else 1
+        i += 1
+    base = 10
+    digits = "0123456789"
+    if text[i:i + 2] in ("0x", "0X") and i + 2 < n and text[i + 2].lower() in "0123456789abcdef":
+        base = 16
+        digits = "0123456789abcdef"
+        i += 2
+    elif text[i:i + 1] == "0":
+        base = 8
+        digits = "01234567"
+    value = 0
+    while i < n and text[i].lower() in digits:
+        value = value * base + digits.index(text[i].lower())
+        i += 1
+    value *= sign
+    return max(INT64_MIN, min(INT64_MAX, value))
+
+
+def wild_int(value):
+    """kw_get_int(..., KW_WILD_NUMBER), the way treedb_open_db() reads the
+    schema_version of the file: an integer as it is, a real truncated, a
+    boolean 1 or 0, a string by strtoll() with base 0 ("3" is 3, "0x10" 16,
+    "010" 8, "3abc" 3), a null 0; a list or a dict is an error, 0"""
+    if isinstance(value, bool):
+        return 1 if value else 0
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if value != value or value >= 2.0 ** 63 or value < -2.0 ** 63:
+            return INT64_MIN    # what the cast of x86-64 gives out of range
+        return int(value)
+    if isinstance(value, str):
+        return strtoll_base0(value)
+    return 0
+
+
 def unless_replaced(data):
     """What lifts a NO-OPEN: treedb_open_db() opens with the persisted schema
     unless the yuno is the MASTER and its schema from C has another
     schema_version than the file's (a higher one, or any other when imposed)
     -- then the code's schema replaces the file at that open"""
-    v = data.get("schema_version", 0) if isinstance(data, dict) else 0
-    if not isinstance(v, int) or isinstance(v, bool):
-        v = 0
+    v = wild_int(data.get("schema_version", 0)) if isinstance(data, dict) else 0
     return (f" (unless a master opens it with a schema from C whose schema_version is not {v},"
             f" a higher one when not imposed: that one replaces this file)")
 

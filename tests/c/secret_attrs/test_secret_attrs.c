@@ -1258,11 +1258,12 @@ PRIVATE void check_log_dumps(hgobj gobj)
          *  ..." looked ahead from each of its words: quadratic), a text of
          *  ':' after secrets' names, and a container that does not close;
          *  and of 7.26.10: names in brackets, %-encoded, as labels, and the
-         *  userinfo of a URL
+         *  userinfo of a URL, and %-encoded queries read decoded, twice
          */
         const char *patterns[] = {
             "Bearer ", "basic ", "token:", "\"pin\": {[",
-            "[pin]=\"", "t%6Fken=x&", "x[pin]: ", "a://b:c@", 0
+            "[pin]=\"", "t%6Fken=x&", "x[pin]: ", "a://b:c@",
+            "p%3Dx%26", "%2541", "%25253D", 0
         };
         for(int k=0; patterns[k]; k++) {
             size_t pl = strlen(patterns[k]);
@@ -1651,6 +1652,23 @@ PRIVATE void check_secret_values(hgobj gobj)
         {"clone https://bob:wn3-hunter2@git.example/x.git", "clone https://bob:********@git.example/x.git"},
         {"redis://:wn4-hunter2@[::1]:6379/0", "redis://:********@[::1]:6379/0"},
         {"ssh://git@github.com:22/x http://[::1]:8080/y", NULL},    // a user, a port: no password
+
+        /*
+         *  7.26.10: a URL or a query %-encoded inside the value of a
+         *  parameter (redirect_uri=, next=, url=), and a name encoded twice,
+         *  are read decoded too; a word of a value is not the name of the
+         *  parameter after it
+         */
+        {"GET /cb?next=%2Flogin%3Fpassword%3Dnx1-hunter2", "GET /cb?next=%2Flogin%3Fpassword%3D********"},
+        {"url=https%3A%2F%2Fbob%3Anx2-hunter2%40host", "url=https%3A%2F%2Fbob%3A********%40host"},
+        {"redirect_uri=https%3A%2F%2Fapp%2Fcb%3Ftoken%3Dnx3-hunter2&state=1",
+         "redirect_uri=https%3A%2F%2Fapp%2Fcb%3Ftoken%3D********"},
+        {"%2570assword=nx4-hunter2", "%2570assword=********"},
+        {"state=%7B%22token%22%3A%22nx5-hunter2%22%7D", "state=%7B%22token%22%3A********%7D"},
+        {"next=https%253A%252F%252Fapp%252Fcb%253Fpassword%253Dnx6-hunter2",
+         "next=https%253A%252F%252Fapp%252Fcb%253Fpassword%253D********"},
+        {"GET /search?q=boarding+pass&lang=es", NULL},
+        {"GET /x?q=1&db_pass=nx7-hunter2", "GET /x?q=1&db_pass=********"},
         {0, 0}
     };
     for(int i=0; shapes[i].in; i++) {

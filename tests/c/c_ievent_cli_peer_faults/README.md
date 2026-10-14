@@ -16,7 +16,13 @@ again and sends its card again:
 2. the ACK, then a frame for another `dst_yuno`;
 3. the ACK, then a subscription (`__subscribing__`);
 4. the ACK, then an unsubscription (`__unsubscribing__`);
-5. the ACK alone: the session opens, and the test ends.
+5. the ACK: the session opens; then, in it, `EV_ON_OPEN` and `EV_ON_CLOSE`
+   (events of the transport itself, which `C_PROT_HTTP_SR` declares public),
+   the ACK again, and `EV_TREEDB_NODE_UPDATED` twice, with no `dst_service`
+   and with one that is no service. The first three are refused (one warning
+   each, the channel stays, the app hears nothing); the last two are
+   published as before, the empty name with no log, the unknown one with one
+   warning. The second one ends the test.
 
 The names the server writes (`dst_role`, `dst_yuno`, `dst_service`) carry a
 credential (`password=...`, `token=...`). Each fault is the server's, so it is

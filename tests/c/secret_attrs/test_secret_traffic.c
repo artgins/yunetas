@@ -433,6 +433,18 @@ PRIVATE void check_received_dump(void)
         {"user[token_type]=bearer", "user[token_type]=bearer"},    // about a credential
         {"user[password]: hunter2\r\n", "user[password]: *******\r\n"},
         {"GET https://u:hunter2@h/x?a=1 ssh://git@h:22/", "GET https://u:*******@h/x?a=1 ssh://git@h:22/"},
+
+        /*
+         *  7.26.10: a URL or a query %-encoded inside the value of a
+         *  parameter, and a name encoded twice, are read decoded too
+         */
+        {"GET /cb?next=%2Flogin%3Fpassword%3Dnx1-hunter2 HTTP/1.1\r\n",
+         "GET /cb?next=%2Flogin%3Fpassword%3D*********** HTTP/1.1\r\n"},
+        {"url=https%3A%2F%2Fbob%3Anx2-hunter2%40host&x=1", "url=https%3A%2F%2Fbob%3A***********%40host&x=1"},
+        {"redirect_uri=https%3A%2F%2Fapp%2Fcb%3Ftoken%3Dnx3-hunter2&state=1",
+         "redirect_uri=https%3A%2F%2Fapp%2Fcb%3Ftoken%3D***********&state=1"},
+        {"%2570assword=nx4-hunter2", "%2570assword=***********"},
+        {"GET /search?q=boarding+pass&lang=es", "GET /search?q=boarding+pass&lang=es"},
         {0, 0}
     };
     for(int i=0; dumps[i].in; i++) {

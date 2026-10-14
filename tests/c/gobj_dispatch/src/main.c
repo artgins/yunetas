@@ -119,7 +119,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
             "msg", "Starting yuno",
             "msg", "Playing yuno",
             "msg", "Destroying a gobj while its tree is publishing",
@@ -128,6 +128,8 @@ static int register_yuno_and_more(void)
             "msg", "Destroying a gobj while its tree is publishing",
             "msg", "gobj destroyed by its change of state, action not run",
             "msg", "phase 3 ok",
+            "msg", "GObj playing without previous start",
+            "msg", "Cannot start without all required attributes",
             "msg", "phase 4 ok",
             "msg", "Destroying a gobj while its tree is publishing",
             "msg", "Destroying a gobj while one of its actions is still running",
@@ -138,6 +140,8 @@ static int register_yuno_and_more(void)
             "msg", "phase 7 ok",
             "msg", "Destroying a gobj while one of its actions is still running",
             "msg", "phase 8 ok",
+            "msg", "phase 9 ok",
+            "msg", "phase 10 ok",
             "msg", "Exit to die",
             "msg", "Pausing yuno",
             "msg", "Yuno stopped, gobj end"

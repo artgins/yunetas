@@ -79,6 +79,13 @@ foreach(test ${SRCS})
     )
     target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 
+    # The parity table of the source tree that builds this test, not the one YUNETAS_BASE names
+    get_filename_component(_source_root "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
+    target_compile_definitions(${binary} PRIVATE
+        ATTR_TYPES_PARITY_TABLE="${_source_root}/kernel/js/gobj-js/tests/fixtures/attr_types_parity.json"
+    )
+
     add_test("${current_directory_name}/${test}" ${binary})
+    set_tests_properties("${current_directory_name}/${test}" PROPERTIES SKIP_RETURN_CODE 77)
 
 endforeach()

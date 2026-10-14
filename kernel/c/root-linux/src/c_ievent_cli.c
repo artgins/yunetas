@@ -1205,6 +1205,32 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*-------------------------------------------------------*
+     *  The events of this gobj the server may send: its public
+     *  ones, and in session not the ack. What the transport says
+     *  ITSELF (EV_ON_OPEN, EV_ON_CLOSE, EV_DROP...) is resolved
+     *  too when another gclass declares it public (C_PROT_HTTP_SR,
+     *  C_POSTGRES), and was published to the subscribers as if it
+     *  came from here, with the kw the server chose; the ack in
+     *  session was "Event NOT DEFINED in state", an ERROR the
+     *  server provoked. The channel stays: a WARNING, the frame
+     *  dropped.
+     *-------------------------------------------------------*/
+    if(gobj_has_event(gobj, iev_event, 0) &&
+            (!gobj_has_event(gobj, iev_event, EVF_PUBLIC_EVENT) ||
+            iev_event == EV_IDENTITY_CARD_ACK)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "event of the transport itself, or out of its place, refused",
+            "event",        "%s", iev_event,
+            NULL
+        );
+        KW_DECREF(iev_kw)
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    /*-------------------------------------------------------*
      *  Filter public events of this gobj
      *-------------------------------------------------------*/
     if(gobj_has_event(gobj, iev_event, EVF_PUBLIC_EVENT)) {
@@ -1224,7 +1250,28 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*-------------------------*
      *  Dispatch the event
      *-------------------------*/
-    hgobj gobj_service = gobj_find_service(iev_dst_service, TRUE);
+    /*
+     *  An empty dst_service names no service; a name that is no service
+     *  is the server's mistake, a WARNING with the name masked (it was an
+     *  ERROR with a stack, the name in clear). Either way the event is
+     *  published below, as it always was: whether it should be dropped
+     *  instead is an open decision (the same TODO as gobj-js).
+     */
+    hgobj gobj_service = NULL;
+    if(!empty_string(iev_dst_service)) {
+        gobj_service = gobj_find_service(iev_dst_service, FALSE);
+        if(!gobj_service) {
+            mask_secrets_inline_capped(shown, sizeof(shown), iev_dst_service, strlen(iev_dst_service));
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "service of the event not found, published to the subscribers",
+                "service",      "%s", shown,
+                "event",        "%s", iev_event,
+                NULL
+            );
+        }
+    }
     if(gobj_service) {
         if(gobj_has_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
             gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
