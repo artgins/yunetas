@@ -11,7 +11,7 @@ description: >-
 toolbar, the menus and the zones where the views go. These functions drive it
 from outside.
 
-**Source code:** [`src/c_yui_shell.js`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js)
+**Source code:** [`src/c_yui_shell.js`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js)
 
 The design is in [The declarative shell](../../../../kernel/js/gobj-ui/SHELL.md)
 and [Routing](../../../../kernel/js/gobj-ui/ROUTING.md). This page is the
@@ -28,7 +28,7 @@ parent is the node, and it is not the shell.
 ## Navigation
 
 (js_yui_shell_navigate)=
-## [`yui_shell_navigate(shell_gobj, route, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4406)
+## [`yui_shell_navigate(shell_gobj, route, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4417)
 
 Goes to a route.
 
@@ -39,7 +39,7 @@ Goes to a route.
 | `opts.push: true` | The default, written out. It stays valid, so a call site documents its intent. |
 
 (js_yui_shell_last_route_under)=
-## [`yui_shell_last_route_under(shell_gobj, route)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4166)
+## [`yui_shell_last_route_under(shell_gobj, route)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4177)
 
 Tells where the reader last was under a route. It returns the most recent route
 that the shell went to and that is `route` or is below it. When there is no
@@ -55,7 +55,7 @@ last 64 routes, does not store them, and does not apply them. Only a control
 that asks gets the answer.
 
 (js_yui_shell_last_route_outside)=
-## [`yui_shell_last_route_outside(shell_gobj, route)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4197)
+## [`yui_shell_last_route_outside(shell_gobj, route)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4208)
 
 Tells where the reader last was outside a route. It returns the most recent
 route that the shell went to and that is not `route` and is not below it. When
@@ -74,7 +74,7 @@ const before_details = yui_shell_last_route_outside(shell, "/devices/detail");
 This function reads the same memory as `yui_shell_last_route_under()`.
 
 (js_yui_shell_previous_route)=
-## [`yui_shell_previous_route(shell_gobj)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4229)
+## [`yui_shell_previous_route(shell_gobj)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4240)
 
 Tells which route the reader was on before the current one. It returns the most
 recent route that the shell went to and that is not the current route. When
@@ -104,7 +104,7 @@ A "←" that goes UP one level, and names the level it goes to, is a different
 control. Give it a fixed route.
 
 (js_yui_shell_set_sub_routes)=
-## [`yui_shell_set_sub_routes(shell_gobj, base_route, nodes)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4459)
+## [`yui_shell_set_sub_routes(shell_gobj, base_route, nodes)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4470)
 
 Declares the deep routes that a view owns, for the site map. `nodes` is an
 ordered array of `{route, label, icon?, children?}` with full routes.
@@ -113,14 +113,14 @@ Give an empty value to clear them, and do it when the view stops. A map that
 holds the children of a view that went away is a map that lies.
 
 (js_yui_shell_register_event_handler)=
-## [`yui_shell_register_event_handler(shell_gobj, event, gclass)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4479)
+## [`yui_shell_register_event_handler(shell_gobj, event, gclass)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4490)
 
 Declares that a gclass handles an action of the toolbar or of the account menu,
 so the site map shows where the action lives. Call it one time, next to the
 subscription. More than one gclass can handle the same event.
 
 (js_yui_shell_unpark_route)=
-## [`yui_shell_unpark_route(route)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4592)
+## [`yui_shell_unpark_route(route)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4612)
 
 Takes the URL off an action route that the application parked it on. Call it
 from the path that closes the overlay.
@@ -132,6 +132,24 @@ entries of the action, fires the action again, opens the overlay again, and
 takes the navigation that the user asked for. The function goes back only while
 the URL still sits on the route.
 
+When the close comes from a shell that stops, with the overlay still up (a
+logout), the function does not go back. It writes the resting route under the
+overlay over the URL in place, with `history.replaceState()`. A `back()` is
+asynchronous, and the stopped shell never hears where it lands. Up to gobj-ui
+7.26.47 that `back()` landed on the entry of the action, because the marker of
+the overlay stays in place when the shell stops. The URL stayed on the route,
+and a shell built in the same turn read it and opened the overlay again.
+
+```js
+yui_shell_show_modal(shell, $content, {
+    dialog: true,
+    title: "preferences",
+    on_close: function() {
+        yui_shell_unpark_route("/prefs");   // the route of `redirect: "stay"`
+    }
+});
+```
+
 ---
 
 ## Drawers
@@ -140,17 +158,17 @@ The three functions open and close the off-canvas navigation from outside, such
 as from a button in the toolbar. `menu_id` is optional.
 
 (js_yui_shell_open_drawer)=
-### [`yui_shell_open_drawer(shell_gobj, menu_id)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4493)
+### [`yui_shell_open_drawer(shell_gobj, menu_id)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4504)
 
 Opens the drawer.
 
 (js_yui_shell_close_drawer)=
-### [`yui_shell_close_drawer(shell_gobj, menu_id)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4498)
+### [`yui_shell_close_drawer(shell_gobj, menu_id)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4509)
 
 Closes the drawer.
 
 (js_yui_shell_toggle_drawer)=
-### [`yui_shell_toggle_drawer(shell_gobj, menu_id)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4503)
+### [`yui_shell_toggle_drawer(shell_gobj, menu_id)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4514)
 
 Opens the drawer when it is closed, and closes it when it is open.
 
@@ -169,7 +187,7 @@ yui_shell_pop_escape(shell, close_fn);
 ```
 
 (js_yui_shell_push_escape)=
-### [`yui_shell_push_escape(shell_gobj, layer, handler, teardown)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4526)
+### [`yui_shell_push_escape(shell_gobj, layer, handler, teardown)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4537)
 
 Puts a handler on the chain. `layer` is a free tag, such as `"modal"`,
 `"popup"` or `"overlay"`. Today it is information only: the order of the stack
@@ -200,13 +218,13 @@ yui_shell_push_escape(shell, "modal", ask_then_close, close_now);
 ```
 
 (js_yui_shell_pop_escape)=
-### [`yui_shell_pop_escape(shell_gobj, handler)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4530)
+### [`yui_shell_pop_escape(shell_gobj, handler)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4541)
 
 Takes a handler off the chain. Call it on **every** path that closes the
 overlay, and not only on the Escape key.
 
 (js_yui_shell_escape_order)=
-### [`yui_shell_escape_order(shell_gobj)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4547)
+### [`yui_shell_escape_order(shell_gobj)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4558)
 
 Returns the order of the top entry of the chain, or 0 when the chain is empty.
 Every entry gets an order when it is pushed, and the orders only grow. An
@@ -237,7 +255,7 @@ yui_shell_overlay_dismissed(shell, overlay);
 ```
 
 (js_yui_shell_register_overlay)=
-### [`yui_shell_register_overlay(shell_gobj, close_fn, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4570)
+### [`yui_shell_register_overlay(shell_gobj, close_fn, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4581)
 
 Declares an overlay. `close_fn` is what the Back button calls to take the
 overlay down.
@@ -250,7 +268,7 @@ outlives the view below it is the exception, and the exception asks for itself.
 A caller that receives `null` skips the call below.
 
 (js_yui_shell_overlay_dismissed)=
-### [`yui_shell_overlay_dismissed(shell_gobj, overlay)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4574)
+### [`yui_shell_overlay_dismissed(shell_gobj, overlay)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4585)
 
 Tells the shell that the overlay went away by a path that is not the Back
 button.
@@ -260,12 +278,12 @@ button.
 ## Avatars
 
 (js_yui_shell_set_avatar_provider)=
-### [`yui_shell_set_avatar_provider(shell_gobj, provider)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4609)
+### [`yui_shell_set_avatar_provider(shell_gobj, provider)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4655)
 
 Gives the function that the shell asks for the image of a user.
 
 (js_yui_shell_refresh_avatars)=
-### [`yui_shell_refresh_avatars(shell_gobj)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4619)
+### [`yui_shell_refresh_avatars(shell_gobj)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4665)
 
 Asks the provider again, and draws the avatars again.
 
@@ -274,7 +292,7 @@ Asks the provider again, and draws the avatars again.
 ## Language
 
 (js_yui_shell_set_translator)=
-### [`yui_shell_set_translator(shell_gobj, t)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4634)
+### [`yui_shell_set_translator(shell_gobj, t)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4680)
 
 Gives the translation function of the application to the shell.
 
@@ -301,7 +319,7 @@ yui_shell_icons_changed(shell);
 ## The toolbar
 
 (js_yui_shell_set_connection_state)=
-### [`yui_shell_set_connection_state(shell_gobj, connected)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4723)
+### [`yui_shell_set_connection_state(shell_gobj, connected)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4769)
 
 Draws the state of the connection in the toolbar. Since gobj-ui 7.25.5 it
 also publishes `EV_CONNECTION_STATE {connected}` from the shell on each
@@ -333,12 +351,12 @@ function ac_on_close(gobj, event, kw, src)
 ```
 
 (js_yui_shell_set_toolbar_item_icon)=
-### [`yui_shell_set_toolbar_item_icon(shell_gobj, item_id, icon_class)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4759)
+### [`yui_shell_set_toolbar_item_icon(shell_gobj, item_id, icon_class)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4805)
 
 Changes the icon of an item of the toolbar.
 
 (js_yui_shell_set_toolbar_item_badge)=
-### [`yui_shell_set_toolbar_item_badge(shell_gobj, item_id, value, tone)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4799)
+### [`yui_shell_set_toolbar_item_badge(shell_gobj, item_id, value, tone)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4845)
 
 Writes a badge on an item of the toolbar, such as a count of messages. `0`,
 `""` and `null` hide it, over 99 reads `99+`. The optional `tone` (since
@@ -353,7 +371,7 @@ yui_shell_set_toolbar_item_badge(shell, "alarms", 0);     // hidden
 ```
 
 (js_yui_shell_set_nav_item_badge)=
-### [`yui_shell_set_nav_item_badge(shell_gobj, item_id, value, tone)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4859)
+### [`yui_shell_set_nav_item_badge(shell_gobj, item_id, value, tone)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4905)
 
 The twin of the toolbar's, for an entry of a menu: of `app_config.json`, of a
 submenu, or one given to `yui_shell_set_submenu()`. It reaches every nav that
@@ -390,7 +408,7 @@ that names each item.
 ```
 
 (js_yui_shell_close_dropdown)=
-### [`yui_shell_close_dropdown(shell_gobj)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/c_yui_shell.js#L4906)
+### [`yui_shell_close_dropdown(shell_gobj)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/c_yui_shell.js#L4952)
 
 Closes the dropdown of the account.
 
@@ -399,7 +417,7 @@ Closes the dropdown of the account.
 ## The site map
 
 (js_yui_shell_show_route_map)=
-### [`yui_shell_show_route_map(shell, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.47/src/shell_route_map.js#L488)
+### [`yui_shell_show_route_map(shell, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.26.48/src/shell_route_map.js#L488)
 
 Opens the site map, which shows the whole surface of the navigation as a tree:
 the toolbar, each menu, the sub-routes that each view declared, and the routes
