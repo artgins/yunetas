@@ -232,9 +232,10 @@ no longer exists** stopped being published to every subscriber of the transport
 and started being dropped with a warning. That last one matters to any SPA: a
 destroyed view's in-flight frames were landing on the application gobj's
 catch-all subscription and raising *"Event NOT DEFINED in state"* once per
-frame. **The C side carries the identical open TODO and was left alone**, so a
-C client and a JS client still differ on what they do with an orphaned addressed
-event.
+frame. **The C side followed in 7.26.10**: it drops an event whose
+`dst_service` is no service, or a service that does not have it as public, with
+a WARNING (it published both; a week of logs on every node showed nobody
+relied on it). Only an EMPTY `dst_service` is still published, on both sides.
 To ship a new version: edit `kernel/js/gobj-js` directly, bump its `package.json`
 in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
 `npm publish`, then **bump this submodule pointer in yunetas**. (A gobj-js-only

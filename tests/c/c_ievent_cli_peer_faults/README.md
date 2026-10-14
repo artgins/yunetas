@@ -19,14 +19,18 @@ again and sends its card again:
 5. the ACK: the session opens; then, in it, `EV_ON_OPEN` and `EV_ON_CLOSE`
    (events of the transport itself, which `C_PROT_HTTP_SR` declares public),
    the ACK again, an `EV_MT_STATS` and an `EV_MT_COMMAND` whose `service` is
-   no service, and `EV_TREEDB_NODE_UPDATED` twice, with no `dst_service` and
-   with one that is no service. The first three are refused (one warning
-   each, the channel stays, the app hears nothing); the two requests are
-   answered with an error (*"Service not found"*, one warning each; the raw
-   server, which declares no answer public, says *"Frame of an event that is
-   not public, refused"* of each answer); the last two are published as
-   before, the empty name with no log, the unknown one with one warning. The
-   second one ends the test.
+   no service, and `EV_TREEDB_NODE_UPDATED` three times: with a
+   `dst_service` that is no service, with the test's own service (which does
+   not have it as public), and with no `dst_service`. The first three are
+   refused (one warning each, the channel stays, the app hears nothing); the
+   two requests are answered with an error (*"Service not found"*, one warning
+   each; the raw server, which declares no answer public, says *"Frame of an
+   event that is not public, refused"* of each answer); of the last three the
+   first two are dropped with one warning each (*"service of the event not
+   found, event dropped"*, *"event not public in its service, event
+   dropped"*; up to 7.26.9 both were published) and the third, with no
+   destination, is published: it is the only one heard, and it ends the
+   test.
 
 The names the server writes (`dst_role`, `dst_yuno`, `dst_service`, the
 `service` of a request) carry a credential (`password=...`, `token=...`). Each fault is the server's, so it is

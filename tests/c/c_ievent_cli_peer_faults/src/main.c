@@ -177,7 +177,8 @@ peer_log_count_t peer_log_counts[] = {
     {"unsubscription event ignored, I'm client",    1, 0, -1},
     {"or out of its place, refused",                3, 0, -1},
     {"\"Service not found\"",                       2, 0, -1},
-    {"service of the event not found",              1, 0, -1},
+    {"service of the event not found, event dropped", 1, 0, -1},
+    {"event not public in its service, event dropped", 1, 0, -1},
     {0, 0, 0, 0}
 };
 
@@ -220,7 +221,7 @@ static int register_yuno_and_more(void)
     set_expected_results(
         APP_NAME,
         /*  Strict FIFO of the warnings and errors: one warning per fault  */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "event UNKNOWN in not-session state",
             "msg", "EV_ON_OPEN_ERROR: cannot open connection",  // the client's own: no session yet
             "msg", "It's not my role",
@@ -234,7 +235,8 @@ static int register_yuno_and_more(void)
             "msg", "Frame of an event that is not public, refused", // its answer, read by the raw server
             "msg", "Service not found",     // EV_MT_COMMAND
             "msg", "Frame of an event that is not public, refused", // its answer, read by the raw server
-            "msg", "service of the event not found, published to the subscribers"
+            "msg", "service of the event not found, event dropped",
+            "msg", "event not public in its service, event dropped"
         ),
         NULL,   // expected
         NULL,   // ignore_keys

@@ -20,14 +20,18 @@
  *                 EV_ON_OPEN and EV_ON_CLOSE (events of the transport
  *                 itself, which C_PROT_HTTP_SR declares public), the ACK
  *                 again, a stats and a command request for a service that
- *                 does not exist, and EV_TREEDB_NODE_UPDATED twice: with no
- *                 dst_service, and with a dst_service that is no service.
- *                 The first three are refused (a WARNING each, the channel
- *                 stays, the app hears nothing); the requests are answered
- *                 with an error (a WARNING each, the name masked: up to
- *                 7.26.9 in clear); the last two are published, as ever,
- *                 the empty name without a log and the unknown one with a
- *                 WARNING. The second ends the test.
+ *                 does not exist, and EV_TREEDB_NODE_UPDATED three times:
+ *                 with a dst_service that is no service, with this service
+ *                 (which does not have it as public) and with no
+ *                 dst_service. The first three are refused (a WARNING each,
+ *                 the channel stays, the app hears nothing); the requests
+ *                 are answered with an error (a WARNING each, the name
+ *                 masked: up to 7.26.9 in clear); of the last three the
+ *                 first two are dropped with a WARNING each (up to 7.26.9
+ *                 both were published, the unknown name with an ERROR and
+ *                 a stack) and the third, with no destination, is
+ *                 published: it is the only one heard, and it ends the
+ *                 test.
  *
  *          The names the server writes (dst_role, dst_yuno, dst_service,
  *          the service of a request) carry a credential. Each fault is the
@@ -275,10 +279,15 @@ PRIVATE int answer_card(hgobj gobj, hgobj channel, int step)
     json_object_set_new(kw_command, "service", json_string("nobody token=tester-secret-command"));
     json_object_set_new(kw_command, "__command__", json_string("help"));
     send_frame(gobj, channel, EV_MT_COMMAND, kw_command);
-    send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED, frame_kw("__message__", "", role, ""));
-    return send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED,
+    send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED,
         frame_kw("__message__", "", role, "nobody password=tester-secret-service")
     );
+    send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED,
+        frame_kw("__message__", "", role, gobj_name(gobj))
+    );
+    json_t *kw_last = frame_kw("__message__", "", role, "");
+    json_object_set_new(kw_last, "which", json_string("no dst_service"));
+    return send_frame(gobj, channel, EV_TREEDB_NODE_UPDATED, kw_last);
 }
 
 /***************************************************************************
@@ -333,7 +342,9 @@ PRIVATE int ac_forwarded(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(src == priv->gobj_cli) {
         priv->forwarded++;
-        if(priv->forwarded == 2) {
+        check(gobj, "only the event with no dst_service was published",
+            strcmp(kw_get_str(gobj, kw, "which", "", 0), "no dst_service")==0);
+        if(priv->forwarded == 1) {
             check(gobj, "the last card was answered", priv->step > LAST_STEP);
             check(gobj, "each fault closed the channel, and the transport's own events were not heard",
                 priv->client_closes == LAST_STEP);
