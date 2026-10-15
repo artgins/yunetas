@@ -223,9 +223,10 @@ instead. A destroy there is an ERROR (see
 Plays a gobj, and calls its `mt_play` method.
 
 If the gobj is not running, `gobj_play()` starts it first, with a WARNING. If
-that start fails, or the gobj destroys itself in its `mt_start`,
-`gobj_play()` gives `-1` and does not call `mt_play` (gobj-js 7.26.29, as in
-C).
+that start is refused (an empty `SDF_REQUIRED` attribute), destroys the gobj,
+or leaves it not running, `gobj_play()` gives `-1` and does not call `mt_play`
+(gobj-js 7.26.29, as in C). A `mt_start` that returns `-1` and leaves the gobj
+running does not stop the play.
 
 ```javascript
 // "url" is SDF_REQUIRED and empty: the start is refused, so the play is too.

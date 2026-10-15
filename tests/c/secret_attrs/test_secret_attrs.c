@@ -1891,6 +1891,38 @@ PRIVATE void check_secret_values(hgobj gobj)
         }
     }
 
+    /*
+     *  The same userinfo shaped like a literal, %-encoded byte by byte once
+     *  and twice: the margin past the cap counts the bytes WRITTEN, three
+     *  times those of the literal per encoding
+     */
+    {
+        static char enc[2][2048];
+        static char enc_bf[1400];
+        size_t el = (size_t)snprintf(enc[0], sizeof(enc[0]),
+            "https://[ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255%%25%60s]:80@h/p", "");
+        memset(enc[0] + 57, 'z', 60);
+        const char *needles[2] = {"%3A%66", "%25%33%41%25%36%36"};    // ":f" after "[ffff"
+        for(int t = 0; t < 2; t++) {
+            char *src = enc[t & 1];
+            char *dst = enc[(t + 1) & 1];
+            size_t dl = (size_t)snprintf(dst, sizeof(enc[0]), "next=");
+            for(size_t i = (t == 0)? 0 : 5; i < el; i++) {
+                dl += (size_t)snprintf(dst + dl, sizeof(enc[0]) - dl, "%%%02X", (unsigned char)src[i]);
+            }
+            el = dl;
+            size_t leaks = 0;
+            for(size_t bfsize = 2; bfsize <= sizeof(enc_bf); bfsize++) {
+                mask_secrets_inline_capped(enc_bf, bfsize, dst, el);
+                if(strstr(enc_bf, needles[t]) && leaks++ == 0) {
+                    printf("     cap %zu shows %s\n", bfsize, enc_bf);
+                }
+            }
+            check_true(t == 0? "a URL password shaped like a literal, %-encoded, is masked at every cap" :
+                "a URL password shaped like a literal, %-encoded twice, is masked at every cap", leaks == 0);
+        }
+    }
+
     json_t *kw = json_pack("{s:s, s:s, s:I, s:s, s:s, s:s%, s:s}",
         "note", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.jwtnote-hunter2",
         "headers", "Authorization: Bearer hdr-hunter2",

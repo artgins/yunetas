@@ -487,7 +487,8 @@ PRIVATE void check_received_dump(void)
         /*
          *  ... and only a literal followed by a port: an IPv6 address (eight
          *  hex groups of four digits at most, one "::" in place of one or
-         *  more, a dotted IPv4 quad in place of the last two; a zone of 64
+         *  more, no ':' alone at its end, a dotted IPv4 quad with no
+         *  leading zero in place of the last two; a zone of 64
          *  bytes at most, with no ':') and one to five digits to the end. A
          *  userinfo that begins with '[' showed its password
          *  ("[a%x:SuperSecret1]:***")
@@ -523,6 +524,16 @@ PRIVATE void check_received_dump(void)
         {"see http://[::1%]:80", "see http://[:*******"},
         {"to http://[fe80::1%eth:0]:80", "to http://[fe80:************"},
         {"to http://[fe80::1%" Z16 Z16 Z16 Z16 "z]:80", "to http://[fe80:" S8 S8 S8 S8 S8 S8 S8 S8 S8},
+        {"to http://[fe80::1%25" Z16 Z16 Z16 "zzzzzzzzzzzzzz]:80",
+         "to http://[fe80::1%25" Z16 Z16 Z16 "zzzzzzzzzzzzzz]:**"},
+        {"to http://[fe80::1%25" Z16 Z16 Z16 "zzzzzzzzzzzzzzz]:80", "to http://[fe80:" S8 S8 S8 S8 S8 S8 S8 S8 S8},
+        {"x https://[1::2:3:4:5:6:7:8]:80", "x https://[1:******************"},
+        {"x https://[1::2:]:80", "x https://[1:*******"},
+        {"x https://[::01.2.3.4]:80", "x https://[:*************"},
+        {"x https://[::1.2.3.04]:80", "x https://[:*************"},
+        {"x https://[::0.2.3.4]:80", "x https://[::0.2.3.4]:**"},
+        {"url=%68%74%74%70%73%3A%2F%2F%5B%32%30%30%31%3A%64%62%38%3A%3A%31%5D%3A%38%30",
+         "url=%68%74%74%70%73%3A%2F%2F%5B%32%30%30%31%3A%64%62%38%3A%3A%31%5D%3A******"},
         {"url=https%3A%2F%2Fbob%3Anx2-hunter2%40host&x=1",  // decoded, '&' is no end of an authority
          "url=https%3A%2F%2Fbob%3A**********************"},
         {0, 0}

@@ -143,6 +143,9 @@ the id of the identity card and as the `host` of each message.
 - Without `crypto.randomUUID()` (a page on `http` without TLS is not a secure
   context), the function makes a uuid v4 with `crypto.getRandomValues()`.
   Without `crypto`, it uses `Math.random()`.
+- A stored value that is not a uuid (a foreign or corrupt write: `"garbage"`,
+  `"42"`) is replaced by a new uuid, written to the store, with one WARNING
+  (gobj-js 7.26.29).
 
 Before 7.26.28, the function gave a new uuid on each call when the store could
 not keep it, and `null` without `crypto.randomUUID()`.

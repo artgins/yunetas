@@ -2610,7 +2610,7 @@ PRIVATE void mark_query_params(const char *bf, const char *end, name_reading_t r
  *  address). A port there, and a host after a whole userinfo, are masked
  *  too: the bytes do not say they are not a password's. The colons of an
  *  IP literal followed by a port ("[2001:db8::1]:8080") are no password's
- *  there: it is marked from the ':' after the literal.
+ *  there, when `literal_at_cut`: it is marked from the ':' after the literal.
  */
 #define URL_AUTHORITY_STOPS "/?#\"'<> \t"
 
@@ -2633,8 +2633,8 @@ PRIVATE const char *ipv4_text_end(const char *s, const char *e)
             value = value*10 + (*q - '0');
             q++;
         }
-        if(q == d || value > 255) {
-            return NULL;
+        if(q == d || value > 255 || (*d == '0' && q - d > 1)) {
+            return NULL;    // RFC 3986 3.2.2: no leading zero ("01")
         }
     }
     return q;
@@ -2693,7 +2693,10 @@ PRIVATE const char *ipv6_text_end(const char *s, const char *e)
  *  The longest zone of an IP literal: an interface name (15 bytes on Linux)
  *  %-encoded whole fits. Unbounded, a long "zone" put the '[' of a userinfo
  *  that only looks like a literal and its "]:port" farther apart than the
- *  bytes judged past a cap, and the password showed.
+ *  bytes judged past a cap (MASK_CAP_MARGIN), and the password showed. The
+ *  bound holds for the bytes as WRITTEN: a literal read in a decoded view
+ *  takes up to three times its bytes per decoding, so there no literal is
+ *  granted at a cut (mark_inline_rules_of_now()).
  */
 #define IP_LITERAL_ZONE_MAX 64
 
@@ -2738,7 +2741,13 @@ PRIVATE const char *colon_after_ip_literal(const char *host, const char *e)
     return q + 1;
 }
 
-PRIVATE void mark_url_passwords(const char *bf, const char *end, BOOL end_is_cut, uint8_t *marks)
+PRIVATE void mark_url_passwords(
+    const char *bf,
+    const char *end,
+    BOOL end_is_cut,
+    BOOL literal_at_cut,
+    uint8_t *marks
+)
 {
     for(const char *p = bf + 1; p + 2 < end; p++) {
         if(p[0] != ':' || p[1] != '/' || p[2] != '/' || !is_ascii_alnum(p[-1])) {
@@ -2757,7 +2766,7 @@ PRIVATE void mark_url_passwords(const char *bf, const char *end, BOOL end_is_cut
             e++;
         }
         if(colon && end_is_cut && e >= end) {
-            const char *from = colon_after_ip_literal(host, e);
+            const char *from = literal_at_cut? colon_after_ip_literal(host, e) : colon;
             mark_range(marks, (size_t)(from + 1 - bf), (size_t)(end - bf));
         } else if(colon && at && colon < at) {
             mark_range(marks, (size_t)(colon + 1 - bf), (size_t)(at - bf));
@@ -2840,7 +2849,7 @@ PRIVATE void mark_inline_rules_of_now(const char *str, size_t len, BOOL end_is_c
     mark_params(str, len, value_is_secret, READ_NOW, marks);
     mark_query_params(str, str + len, NAME_PLAIN, marks);
     mark_query_params(str, str + len, NAME_WRITTEN, marks);
-    mark_url_passwords(str, str + len, end_is_cut, marks);
+    mark_url_passwords(str, str + len, end_is_cut, FALSE, marks);  // see IP_LITERAL_ZONE_MAX
     mark_shapes(str, len, end_is_cut, marks);
     mark_labels(str, len, marks);
 }
@@ -2883,7 +2892,7 @@ PRIVATE void mark_inline_secrets(
     }
     mark_query_params(str, str + len, NAME_PLAIN, marks);
     mark_query_params(str, str + len, NAME_WRITTEN, marks);
-    mark_url_passwords(str, str + len, end_is_cut, marks);
+    mark_url_passwords(str, str + len, end_is_cut, TRUE, marks);
     mark_shapes(str, len, end_is_cut, marks);
     mark_labels(str, len, marks);
     mark_decoded_view(str, len, RULES_OF_INLINE, end_is_cut, 0, marks);
@@ -3410,7 +3419,7 @@ PRIVATE void mark_dump_rules_of_now(const char *bf, const char *end, uint8_t *ma
     mark_dump_shapes(bf, end, marks);
     mark_query_params(bf, end, NAME_PLAIN, marks);
     mark_query_params(bf, end, NAME_WRITTEN, marks);
-    mark_url_passwords(bf, end, TRUE, marks);   // the end of a dump may cut a frame
+    mark_url_passwords(bf, end, TRUE, TRUE, marks);     // the end of a dump may cut a frame
     mark_dump_json_members(bf, end, marks);
     mark_dump_labels(bf, end, NAME_PLAIN, marks);
     mark_dump_labels(bf, end, NAME_WRITTEN, marks);

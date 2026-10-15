@@ -1128,9 +1128,11 @@ dump stay as they were):
   followed by a port are no password's: `see http://[::1]:8080` is
   `see http://[::1]:****`, `[fe80::1%25eth0]:80` and `[::ffff:192.0.2.1]:80`
   keep their literal too. Only an IPv6 literal counts -- eight hex groups of
-  four digits at most, one `::` in place of one or more, a dotted IPv4 quad in
-  place of the last two, a zone of 64 bytes at most with no `:` -- and only when one
-  to five digits run from its `]:` to the end: a userinfo can begin with `[`.
+  four digits at most, one `::` in place of one or more, a dotted IPv4 quad
+  with no leading zero in place of the last two, a zone of 64 bytes at most
+  with no `:` -- and only when one to five digits run from its `]:` to the
+  end: a userinfo can begin with `[`. In the `%`-encoded view of a capped line
+  no literal is kept at the cut: encoded, it takes up to three times its bytes.
   Anything else is masked from the first `:`: `x https://[dead:beef]:z@h` is
   `x https://[dead:*********`, `x https://[a%x:pass]:80` is
   `x https://[a%x:********`, `see http://[::1]:8o80` is
