@@ -91,6 +91,26 @@ backports the patches). Track upstream openresty.
 Same caveat as the previous CVEs: each deployed project must rebuild its
 own nginx / openresty copy.
 
+### OpenSSL 3.6.5, PCRE2 10.49, nginx 1.31.7 (configure-libs.sh v1.24)
+
+Security bumps made before the deploy of SDK 7.27.x (2026-10-15):
+
+- **OpenSSL** `openssl-3.6.3` -> `openssl-3.6.5`: 3.6.4 and 3.6.5 are
+  security releases (~25 CVEs, the worst "High": an out-of-bounds access
+  after `SSL_set_SSL_CTX()` during a handshake, DTLS 1.2 DoS, EC/SM2 timing
+  side channels, CMS, CMP, QUIC). Linked statically into every yuno.
+- **PCRE2** `pcre2-10.47` -> `pcre2-10.49`: seven GHSA advisories
+  (out-of-bounds reads and writes). Linked statically (timeranger2,
+  `c_tranger`, `json_replace_vars`).
+- **nginx** `release-1.31.2` -> `release-1.31.7`: CVE-2026-42533,
+  CVE-2026-60005, CVE-2026-56434 (1.31.3), CVE-2026-90439 (1.31.6),
+  CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629,
+  CVE-2026-97205 (1.31.7).
+
+⚠️ **openresty is still NOT covered**: there is no release after
+`1.31.1.1` (checked 2026-10-15), so its nginx 1.31.1 core is exposed to the
+CVEs of 1.31.2 to 1.31.7. Track upstream openresty.
+
 ### jansson: heap overflow in the lexer (patched)
 
 jansson (v2.15.1, and upstream master) ignored a failed save of a token

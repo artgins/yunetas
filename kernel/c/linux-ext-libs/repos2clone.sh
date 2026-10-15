@@ -9,8 +9,8 @@ declare -A REPOS
 TAG_JANSSON="v2.15.1"
 TAG_LIBURING="liburing-2.15"
 TAG_MBEDTLS="v4.2.0"
-TAG_OPENSSL="openssl-3.6.3"
-TAG_PCRE2="pcre2-10.47"
+TAG_OPENSSL="openssl-3.6.5"
+TAG_PCRE2="pcre2-10.49"
 TAG_ARGP_STANDALONE="v1.1.5"
 TAG_NCURSES="v6.4"
 TAG_OPENRESTY="1.31.1.1"    # nginx 1.31.1 core (was 1.29.2.5 / nginx 1.29.2); warning: without the initial 'v'
@@ -21,7 +21,7 @@ TAG_OPENRESTY="1.31.1.1"    # nginx 1.31.1 core (was 1.29.2.5 / nginx 1.29.2); w
 #   curl -sSL https://openresty.org/download/openresty-<tag>.tar.gz | sha256sum
 SHA256_OPENRESTY="65b78baadd3f0984055de89bf13f4a1932e5bfe9c31932037a134ea2b1a0ce42"
 TAG_NCURSES="v6.4"
-TAG_NGINX="release-1.31.2"  # CVE-2026-42530/42055/48142 (was release-1.30.2); mainline branch
+TAG_NGINX="release-1.31.7"  # CVEs of 1.31.3, 1.31.6, 1.31.7 (was release-1.31.2); mainline branch
 
 #------------------------------------------
 #   REPOS

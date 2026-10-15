@@ -223,7 +223,33 @@
 #       the scripts changed. Every node that builds from source must run
 #       `./extrae.sh && ./configure-libs.sh` again.
 
-VERSION="1.23"
+#   version 1.24
+#       Security bumps, before the deploy of SDK 7.27.x:
+#         - openssl-3.6.5 (was openssl-3.6.3): 3.6.4 (2026-08-25) and 3.6.5
+#           (2026-09-29) are security releases, ~25 CVEs, the worst "High"
+#           (an out-of-bounds access after SSL_set_SSL_CTX() in a handshake,
+#           DTLS 1.2 DoS, EC/SM2 timing side channels, CMS/CMP, QUIC).
+#           libssl.a / libcrypto.a are linked statically into every yuno.
+#           Kept on the 3.6 branch (4.0.x is a major).
+#         - pcre2-10.49 (was pcre2-10.47): 10.48 fixes six GHSA advisories
+#           (out-of-bounds reads/writes in DFA, invalid UTF, 32-bit compile,
+#           serialization), 10.49 one more (an out-of-bounds write with a
+#           growable JIT stack). libpcre2-8.a is linked statically
+#           (timeranger2, c_tranger, json_replace_vars). The API additions
+#           of 10.48 are unused here.
+#         - nginx release-1.31.7 (was release-1.31.2): CVE-2026-42533 (map
+#           regex heap overflow), CVE-2026-60005, CVE-2026-56434 (SSI UAF),
+#           CVE-2026-90439 (HTTP/3), CVE-2026-15176 (alias after rewrite),
+#           CVE-2026-93479 (string expressions), CVE-2026-95101 (HTTP/3 body),
+#           CVE-2026-97629 (session ticket keys), CVE-2026-97205 (SSI + AIO).
+#           A separate binary linked against the system's libs.
+#       openresty stays 1.31.1.1 (no newer upstream release, 2026-10-15): its
+#       nginx 1.31.1 core is still exposed to the CVEs of 1.31.2..1.31.7.
+#       No API/ABI change that a consumer sees: no header or CMakeLists change
+#       rides along. Every yuno must be rebuilt and relinked; every node that
+#       builds from source must run `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.24"
 
 
 source ./repos2clone.sh
