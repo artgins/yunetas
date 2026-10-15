@@ -31,6 +31,12 @@ Severity in parentheses where one was assigned.
   commented out since the libuv -> yev_loop port, so it never reaches
   `ST_CONNECTED`. Restore it with a yev poll event on `PQsocket()` (restore,
   don't redesign). Its consumer `dba_postgres` is built by no configuration.
+  **Left as it is, by decision (2026-10-15):** no project uses PostgreSQL;
+  everything stores in timeranger2/treedb. Restore it when a use appears:
+  `yev_create_poll_event()` on `PQsocket()` (no gclass uses that event in
+  production yet), the old `on_poll_cb` logic (`PQconnectPoll` while
+  connecting, `PQconsumeInput`/`PQflush` after), and the link of
+  `dba_postgres` (section 2).
 
 ### Projects (code outside this repo)
 
