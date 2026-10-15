@@ -209,8 +209,12 @@ the hours, the minutes and the seconds, with a clock of 24 hours. Give it the
 language of the application, which is `i18next.language`. Do not give it the
 language of the browser.
 
+Import it from `yui_date_text.js`. `yui_time.js` also exports it, but
+`validate-locales` follows the modules that an application imports, and
+`yui_time.js` makes the application owe every key of the period picker.
+
 ```js
-import {fmt_date_time, safe_locale} from "@yuneta/gobj-ui/src/yui_time.js";
+import {fmt_date_time, safe_locale} from "@yuneta/gobj-ui/src/yui_date_text.js";
 import i18next from "i18next";
 
 const d = new Date(2026, 9, 14, 15, 5, 9);
@@ -220,8 +224,15 @@ fmt_date_time(d, safe_locale(i18next.language));
 // "en-US"  -> "Oct 14, 2026, 15:05:09"     no AM or PM
 fmt_date_time(new Date(2026, 9, 14), "es");    // "14 oct 2026, 00:00:00"
 fmt_date_time(null, "es");                     // ""
-fmt_date_time(d, "xx_YY");                     // "2026-10-14 15:05:09"
+fmt_date_time(d, "xx_YY");                     // the language of the environment
 ```
+
+The text is in the time zone of the browser, and it shows no zone and no offset.
+
+A locale that `Intl` does not know (`xx`, `cimode`) writes in the language of the
+environment. A locale that `Intl` refuses (`xx_YY`, `en_US`) does the same, and
+a WARNING says it, one time for each locale. The ticks of a time axis of
+`C_YUI_UPLOT` use the same fallback.
 
 The time cells of `C_YUI_FORM` and of `C_YUI_TREEDB_TOPIC_WITH_FORM`, the time
 that `C_YUI_JSON` writes next to a time field, and the legend of `C_YUI_UPLOT`

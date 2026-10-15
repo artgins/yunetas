@@ -2615,15 +2615,97 @@ PRIVATE void mark_query_params(const char *bf, const char *end, name_reading_t r
 #define URL_AUTHORITY_STOPS "/?#\"'<> \t"
 
 /*
+ *  The end of the dotted IPv4 quad written at `s`, or NULL
+ */
+PRIVATE const char *ipv4_text_end(const char *s, const char *e)
+{
+    const char *q = s;
+    for(int octet = 0; octet < 4; octet++) {
+        if(octet > 0) {
+            if(q == e || *q != '.') {
+                return NULL;
+            }
+            q++;
+        }
+        const char *d = q;
+        int value = 0;
+        while(q < e && q - d < 3 && *q >= '0' && *q <= '9') {
+            value = value*10 + (*q - '0');
+            q++;
+        }
+        if(q == d || value > 255) {
+            return NULL;
+        }
+    }
+    return q;
+}
+
+/*
+ *  The end of the IPv6 address written at `s` (RFC 4291 2.2: eight hex
+ *  groups of four digits at most, one "::" in place of one group or more,
+ *  a dotted IPv4 quad in place of the last two), or NULL. The end is the
+ *  first byte that cannot continue it; the caller says what may follow.
+ */
+PRIVATE const char *ipv6_text_end(const char *s, const char *e)
+{
+    int groups = 0;
+    BOOL elided = FALSE;
+    const char *q = s;
+    if(e - q >= 2 && q[0] == ':' && q[1] == ':') {
+        elided = TRUE;
+        q += 2;
+    }
+    while(q < e && hex_digit_value(*q) >= 0) {
+        const char *g = q;
+        while(q < e && q - g < 4 && hex_digit_value(*q) >= 0) {
+            q++;
+        }
+        if(q < e && *q == '.') {
+            q = ipv4_text_end(g, e);
+            if(!q) {
+                return NULL;
+            }
+            groups += 2;
+            break;
+        }
+        groups++;
+        if(q == e || *q != ':') {
+            break;
+        }
+        q++;
+        if(q < e && *q == ':') {
+            if(elided) {
+                return NULL;
+            }
+            elided = TRUE;
+            q++;
+        } else if(q == e || hex_digit_value(*q) < 0) {
+            return NULL;    // a single ':' that ends it
+        }
+    }
+    if(elided? groups > 7 : groups != 8) {
+        return NULL;
+    }
+    return q;
+}
+
+/*
+ *  The longest zone of an IP literal: an interface name (15 bytes on Linux)
+ *  %-encoded whole fits. Unbounded, a long "zone" put the '[' of a userinfo
+ *  that only looks like a literal and its "]:port" farther apart than the
+ *  bytes judged past a cap, and the password showed.
+ */
+#define IP_LITERAL_ZONE_MAX 64
+
+/*
  *  The ':' after the IP literal that begins the authority at `host` when
  *  all the rest of the authority, up to `e`, is its port
  *  ("[2001:db8::1]:8080", "[fe80::1%25eth0]:80"); else the first ':' of
- *  the authority. The literal is an IPv6 address -- two to eight ':', hex
- *  groups of four digits at most, a dotted IPv4 tail -- with an optional
- *  zone ('%' and unreserved bytes, no ':'), and the port is one to five
- *  digits: a userinfo can begin with '[' ("[a%x:pass]:z@h"), and anything
- *  else after a "]:" may be its password. A literal that reaches `e` may
- *  still be the start of a userinfo.
+ *  the authority. The literal is an IPv6 address (ipv6_text_end()) with an
+ *  optional zone ('%' and 1 to IP_LITERAL_ZONE_MAX unreserved bytes, no
+ *  ':'), and the port is one to five digits: a userinfo can begin with '['
+ *  ("[a%x:pass]:z@h"), and anything else after a "]:" may be its password.
+ *  A literal that reaches `e` may still be the start of a userinfo.
  */
 PRIVATE const char *colon_after_ip_literal(const char *host, const char *e)
 {
@@ -2631,37 +2713,21 @@ PRIVATE const char *colon_after_ip_literal(const char *host, const char *e)
     if(host >= e || *host != '[') {
         return first_colon;
     }
-    int colons = 0;
-    int dots = 0;
-    int group = 0;
-    const char *q = host + 1;
-    for(; q < e && *q != ']' && *q != '%'; q++) {
-        if(*q == ':') {
-            colons++;
-            group = 0;
-        } else if(*q == '.') {
-            dots++;
-            group = 0;
-        } else if(hex_digit_value(*q) >= 0 && group < 4) {
-            group++;
-        } else {
-            return first_colon;
-        }
-    }
-    if(colons < 2 || colons > 8 || dots > 3) {
+    const char *q = ipv6_text_end(host + 1, e);
+    if(!q) {
         return first_colon;
     }
     if(q < e && *q == '%') {
         const char *zone = ++q;
-        while(q < e && (is_ascii_alnum(*q) || *q == '%' || *q == '-' || *q == '.' ||
-                *q == '_' || *q == '~')) {
+        while(q < e && q - zone < IP_LITERAL_ZONE_MAX && (is_ascii_alnum(*q) || *q == '%' ||
+                *q == '-' || *q == '.' || *q == '_' || *q == '~')) {
             q++;
         }
         if(q == zone) {
             return first_colon;
         }
     }
-    if(q + 2 >= e || *q != ']' || q[1] != ':' || e - (q + 2) > 5) {
+    if(e - q <= 2 || *q != ']' || q[1] != ':' || e - (q + 2) > 5) {
         return first_colon;
     }
     for(const char *d = q + 2; d < e; d++) {

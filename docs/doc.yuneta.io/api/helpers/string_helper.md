@@ -1127,8 +1127,9 @@ dump stay as they were):
   the bytes do not say they are not a password's. The colons of an IP literal
   followed by a port are no password's: `see http://[::1]:8080` is
   `see http://[::1]:****`, `[fe80::1%25eth0]:80` and `[::ffff:192.0.2.1]:80`
-  keep their literal too. Only an IPv6 literal counts -- two to eight `:`,
-  hex groups of four digits at most, a zone with no `:` -- and only when one
+  keep their literal too. Only an IPv6 literal counts -- eight hex groups of
+  four digits at most, one `::` in place of one or more, a dotted IPv4 quad in
+  place of the last two, a zone of 64 bytes at most with no `:` -- and only when one
   to five digits run from its `]:` to the end: a userinfo can begin with `[`.
   Anything else is masked from the first `:`: `x https://[dead:beef]:z@h` is
   `x https://[dead:*********`, `x https://[a%x:pass]:80` is

@@ -384,7 +384,7 @@ Navigation helpers ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.26.9/ke
 | `gobj_child_by_index(gobj, idx)`    | 1-based index.                                          |
 | `gobj_first_child(gobj)` / `gobj_next_child(child)` | Iterate linearly.                       |
 | `gobj_child_size(gobj)`             | Count.                                                  |
-| `gobj_walk_gobj_children(gobj, walk_type, cb, ud, ud2, ud3)` | The direct children, with a callback (`WALK_FIRST2LAST` / `WALK_LAST2FIRST`). `gobj_walk_gobj_children_tree()` walks the subtree (`WALK_TOP2BOTTOM`, `WALK_BOTTOM2TOP`, `WALK_BYLEVEL`). |
+| `gobj_walk_gobj_children(gobj, walk_type, cb, ud, ud2, ud3)` | The direct children, with a callback (`WALK_FIRST2LAST` / `WALK_LAST2FIRST`); it refuses (ERROR) a gobj being destroyed. `gobj_walk_gobj_children_tree()` walks the subtree (`WALK_TOP2BOTTOM`, `WALK_BOTTOM2TOP`, or `WALK_BYLEVEL` together with `WALK_FIRST2LAST` or `WALK_LAST2FIRST`: `WALK_BYLEVEL\|WALK_FIRST2LAST`), and walks a gobj being destroyed too. |
 | `gobj_find_gobj(path)`              | Lookup by full path, for example `"__yuno__\`auth\`bff"`.      |
 | `gobj_bottom_gobj(gobj)` / `gobj_set_bottom_gobj` | The downward layering pointer (see [`IPC.md`](IPC.md) §6.5). |
 

@@ -18,7 +18,8 @@
  *            child, and pending_acks 0; so does each child's attr
  *          - A timeout_poll of 0 or less (-5 in one gate, 0 in the other)
  *            is raised to 1000 ms, with a WARNING: a timer of 0 is no
- *            timer, and the gate never resent what waits for its ack
+ *            timer, and the gate never resent what waits for its ack. So
+ *            is one written once the gate runs
  *          - The stats of a C_QIOGATE, and of its C_IOGATE, asked directly
  *            (what `stats-yuno service=<it>` does) are the response
  *            envelope, result 0 and the data in `data`: up to 7.25.21 both
@@ -241,6 +242,10 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 check(gobj, "a timeout_poll of -5 and one of 0 are raised to the floor",
                     gobj_read_integer_attr(gobj_find_service("output-q1", TRUE), "timeout_poll") == 1000 &&
                     gobj_read_integer_attr(gobj_find_service("output-q2", TRUE), "timeout_poll") == 1000
+                );
+                gobj_write_integer_attr(gobj_find_service("output-q1", TRUE), "timeout_poll", 0);
+                check(gobj, "and so is a timeout_poll of 0 written once started",
+                    gobj_read_integer_attr(gobj_find_service("output-q1", TRUE), "timeout_poll") == 1000
                 );
 
                 json_t *jn_q = gobj_stats(gobj_find_service("output-q1", TRUE), "", 0, gobj);

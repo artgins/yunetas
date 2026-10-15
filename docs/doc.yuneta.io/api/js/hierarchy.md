@@ -108,9 +108,17 @@ Gives the parent of a gobj.
 (js_gobj_change_parent)=
 ### [`gobj_change_parent(gobj, parent)`](https://github.com/artgins/gobj-js/blob/7.26.28/src/gobj.js#L4518)
 
-Moves a gobj to another parent. A walk of the tree that is in progress gives
-the gobj in its new place, not in its old place (gobj-js 7.26.28; see
-[`gobj_walk_gobj_children()`](#js_gobj_walk_gobj_children)).
+Moves a gobj to another parent, and gives `0`. A walk of the tree that is in
+progress gives the gobj in its new place, not in its old place (gobj-js
+7.26.28; see [`gobj_walk_gobj_children()`](#js_gobj_walk_gobj_children)).
+
+It gives `-1` with an ERROR, and moves nothing, when the gobj or the new parent
+is destroyed, when the new parent is not a gobj, or when the new parent is the
+gobj itself or one of its descendants (that makes a cycle; gobj-js 7.26.29).
+
+```javascript
+gobj_change_parent(a, a_child);   // -1: a gobj cannot be its own ancestor
+```
 
 ```javascript
 // c1, c2 and c3 are children of root; c1 has the child g1, c2 the child g2.
@@ -188,8 +196,7 @@ chooses the order. A callback that gives a negative value stops the walk, and
 the walk gives that value. `0` or a positive value goes on to the next child.
 
 The callback can destroy any gobj, also the current one. The walk does not give
-a destroyed gobj to the callback, and it does not skip or repeat a live one
-(7.26.27).
+a destroyed gobj to the callback (7.26.27).
 
 The callback can also move a gobj with
 [`gobj_change_parent()`](#js_gobj_change_parent). The walk gives each gobj to
@@ -197,6 +204,8 @@ the callback one time at most (gobj-js 7.26.28):
 
 - A gobj that left the list before the walk got to it is not given there. The
   walk gives it under its new parent, if the walk gets to that parent later.
+  If the walk has already passed the new parent, the walk does not give the
+  gobj or its children at all.
 - A gobj that was given, and then moved to a parent that the walk gets to
   later, is not given again there. Its children are not given again either.
 

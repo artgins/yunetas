@@ -380,6 +380,8 @@ PRIVATE void check_received_dump(void)
      *  credential, a doubled scheme, a JWE, a JWT cut by the window -- and
      *  prose is left as it is
      */
+#define Z16 "zzzzzzzzzzzzzzzz"
+#define S8  "********"
     struct {
         const char *in;
         const char *out;
@@ -483,9 +485,10 @@ PRIVATE void check_received_dump(void)
         {"to http://[::2:3:4:5:6:7:8]:80", "to http://[::2:3:4:5:6:7:8]:**"},
 
         /*
-         *  ... and only a literal followed by a port: an IPv6 address (two
-         *  to eight ':', three '.' at most, hex groups of four digits at
-         *  most, a zone with no ':') and one to five digits to the end. A
+         *  ... and only a literal followed by a port: an IPv6 address (eight
+         *  hex groups of four digits at most, one "::" in place of one or
+         *  more, a dotted IPv4 quad in place of the last two; a zone of 64
+         *  bytes at most, with no ':') and one to five digits to the end. A
          *  userinfo that begins with '[' showed its password
          *  ("[a%x:SuperSecret1]:***")
          */
@@ -501,6 +504,25 @@ PRIVATE void check_received_dump(void)
         {"see http://[::1]:", "see http://[:****"},
         {"url=http%3A%2F%2F%5Bdead%3Abeef%5D%3A80", "url=http%3A%2F%2F%5Bdead%3A************"},
         {"x https://[::1%5D%3A80", "x https://[:**********"},     // an encoded "]:" ends no literal
+        {"url=http://[2001:DB8::A]:80", "url=http://[2001:DB8::A]:**"},
+        {"see http://[::]:80", "see http://[::]:**"},
+        {"see http://[1::]:80", "see http://[1::]:**"},
+        {"see http://[::1]:99999", "see http://[::1]:*****"},
+        {"x https://[1:2:3:4:5:6:7::]:80", "x https://[1:2:3:4:5:6:7::]:**"},
+        {"x https://[1:2:3:4:5:6:1.2.3.4]:80", "x https://[1:2:3:4:5:6:1.2.3.4]:**"},
+        {"url=http%3A%2F%2F%5Bfe80%3A%3A1%2525eth0%5D%3A80", "url=http%3A%2F%2F%5Bfe80%3A%3A1%2525eth0%5D%3A**"},
+        {"to http://[fe80::1%" Z16 Z16 Z16 Z16 "]:80", "to http://[fe80::1%" Z16 Z16 Z16 Z16 "]:**"},
+        {"x https://[1:2:3:4:5:6:7:8:9]:80", "x https://[1:*******************"},
+        {"x https://[1:2:3:4:5:6:7]:80", "x https://[1:***************"},
+        {"x https://[1::2::3]:80", "x https://[1:*********"},
+        {"x https://[1.2.3::4]:80", "x https://[1.2.3:******"},
+        {"x https://[::1.2]:80", "x https://[:********"},
+        {"x https://[a.b.c.d::]:80", "x https://[a.b.c.d:*****"},
+        {"x https://[1:2:3:4:5:6:7:1.2.3.4]:80", "x https://[1:***********************"},
+        {"x https://[::ffff:1.2.3.256]:80", "x https://[:*******************"},
+        {"see http://[::1%]:80", "see http://[:*******"},
+        {"to http://[fe80::1%eth:0]:80", "to http://[fe80:************"},
+        {"to http://[fe80::1%" Z16 Z16 Z16 Z16 "z]:80", "to http://[fe80:" S8 S8 S8 S8 S8 S8 S8 S8 S8},
         {"url=https%3A%2F%2Fbob%3Anx2-hunter2%40host&x=1",  // decoded, '&' is no end of an authority
          "url=https%3A%2F%2Fbob%3A**********************"},
         {0, 0}

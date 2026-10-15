@@ -222,6 +222,17 @@ instead. A destroy there is an ERROR (see
 
 Plays a gobj, and calls its `mt_play` method.
 
+If the gobj is not running, `gobj_play()` starts it first, with a WARNING. If
+that start fails, or the gobj destroys itself in its `mt_start`,
+`gobj_play()` gives `-1` and does not call `mt_play` (gobj-js 7.26.29, as in
+C).
+
+```javascript
+// "url" is SDF_REQUIRED and empty: the start is refused, so the play is too.
+const ws = gobj_create("ws", "C_MY_CLIENT", {}, yuno);
+gobj_play(ws);  // -1; mt_play is not called, gobj_is_playing(ws) is false
+```
+
 (js_gobj_pause)=
 ### [`gobj_pause(gobj)`](https://github.com/artgins/gobj-js/blob/7.26.28/src/gobj.js#L3219)
 

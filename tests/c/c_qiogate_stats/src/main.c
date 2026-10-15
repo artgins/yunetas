@@ -208,9 +208,10 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     /*
      *  The warnings and errors, in order: the floor of timeout_poll, for
-     *  each C_QIOGATE (-5 and 0)
+     *  each C_QIOGATE (-5 and 0), and for the 0 written once started
      */
-    json_t *errors_list = json_pack("[{s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}]",
+        "msg", "timeout_poll 0 or less never polls, the floor is used",
         "msg", "timeout_poll 0 or less never polls, the floor is used",
         "msg", "timeout_poll 0 or less never polls, the floor is used"
     );

@@ -1847,7 +1847,10 @@ PRIVATE void check_secret_values(hgobj gobj)
      *  or of the user (an email address) in the window: the userinfo ends
      *  at the LAST '@' --, and after a value masked short, which leaves the end
      *  of the window inside the copy shown. A userinfo that begins with '['
-     *  is no IP literal followed by a port: its password is masked too
+     *  is no IP literal followed by a port: its password is masked too --
+     *  and so is one whose "zone" is longer than any, which put the start
+     *  of a literal and its port farther apart than the bytes judged past
+     *  the cap
      */
     {
         char url_text[1024];
@@ -1862,6 +1865,7 @@ PRIVATE void check_secret_values(hgobj gobj)
             {"x https://[a%x:SuperSecret1]:", "z", "@h/p", "a userinfo [a%x:password]:", "Secret"},
             {"x https://[dead:beef]:", "z", "@h/p", "a userinfo [user:password]:", "beef"},
             {"x https://[::1]:", "1", "@h/p", "a userinfo [::1]:digits, more than a port", "1]"},
+            {"x https://[fe80::1%25", "z", "]:80@h/p", "a userinfo [fe80::1%25zone]:80, a zone too long", "::1"},
         };
         for(size_t k = 0; k < sizeof(url_shapes)/sizeof(url_shapes[0]); k++) {
             size_t ul = (size_t)snprintf(url_text, sizeof(url_text), "%s", url_shapes[k][0]);

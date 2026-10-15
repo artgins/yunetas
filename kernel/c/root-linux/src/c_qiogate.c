@@ -46,6 +46,7 @@
  ***************************************************************************/
 PRIVATE int open_queue(hgobj gobj);
 PRIVATE int close_queue(hgobj gobj);
+PRIVATE void raise_timeout_poll_to_floor(hgobj gobj);
 
 
 /***************************************************************************
@@ -207,6 +208,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(timeout_poll,            gobj_read_integer_attr)
+        raise_timeout_poll_to_floor(gobj);
     ELIF_EQ_SET_PRIV(timeout_ack,           gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_backup,        gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(alert_queue_size,      gobj_read_integer_attr)
@@ -245,17 +247,7 @@ PRIVATE int mt_start(hgobj gobj)
         );
         priv->timeout_ack = 60;
     }
-    if(priv->timeout_poll <= 0) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "timeout_poll 0 or less never polls, the floor is used",
-            "timeout_poll", "%ld", (long)priv->timeout_poll,
-            "floor_ms",     "%d", POLL_FLOOR_MS,
-            NULL
-        );
-        gobj_write_integer_attr(gobj, "timeout_poll", POLL_FLOOR_MS);
-    }
+    raise_timeout_poll_to_floor(gobj);
 
     /*--------------------------------*
      *      Output queue
@@ -495,6 +487,27 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
 
 
 
+
+/***************************************************************************
+ *  The floor of timeout_poll, from the config (mt_start) and from a write
+ *  once started (mt_writing): the next re-arm of the timer takes the value
+ ***************************************************************************/
+PRIVATE void raise_timeout_poll_to_floor(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->timeout_poll <= 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "timeout_poll 0 or less never polls, the floor is used",
+            "timeout_poll", "%ld", (long)priv->timeout_poll,
+            "floor_ms",     "%d", POLL_FLOOR_MS,
+            NULL
+        );
+        gobj_write_integer_attr(gobj, "timeout_poll", POLL_FLOOR_MS);
+    }
+}
 
 /***************************************************************************
  *  Send alert
