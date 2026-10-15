@@ -1,6 +1,49 @@
 # **Changelog**
 
-## Unreleased
+## v7.27.0 (2026-10-15)
+
+A hardening release, out of nineteen more rounds of review (yunovatios
+`REV-CLOUD.md`, V17..V35; V31..V34 went into the entries of earlier rounds)
+of the C kernel and the JS layer. A minor version, because it changes
+contracts. What a user of the SDK has to know:
+
+- **Before upgrading a node, check the schemas of its stores** with
+  `tools/treedb/check_store_schemas.py` (below): an open now refuses or
+  leaves out what it used to take in silence.
+- **The command parser types every parameter** (BREAKING): a parameter is
+  its declared type or absent, text is read by the JSON grammar, a parameter
+  arrives under its declared name, and another shape is refused before the
+  handler. A parameter taken in several shapes must be declared `DTP_JSON`.
+- **An attribute default is read by the same grammar** (BREAKING), and a
+  gclass with an `SDF_SECRET` attribute that has no secret's name is refused.
+- **Events:** an inter-event addressed to a service that does not exist, or
+  that does not have it as public, is dropped with a WARNING (BREAKING, as
+  gobj-js 7.16.1); `C_IEVENT_CLI` drops what it cannot deliver.
+- **The gobj tree:** the walks give the children they began with and survive
+  a callback that destroys any of them; `gobj_create()` refuses a parent that
+  is being destroyed; `gobj_play()` answers -1 when nothing is playing; the
+  kernel reports a gobj destroyed under its own publication or action (all
+  BREAKING).
+- **treedb and timeranger2:** a NUL in an id, a pkey2 value, an fkey
+  reference or a string of a record is refused; a new topic refuses a `^` in
+  the id of a `file` column (BREAKING).
+- **Secrets in logs:** masked in more places -- the values of `%`-encoded
+  URLs and queries read decoded, the password of a URL's userinfo, a value
+  cut by a cap -- and never more than 7.26.9 hid.
+- **Transports:** a `timeout_between_connections` of 0 reconnects every
+  second (it never reconnected; `-1` is "never"), and a `C_QIOGATE` with a
+  `timeout_poll` of 0 or less polls every second (BREAKING).
+
+Performance against 7.26.9 (`performance/reports/7.27.0.html`; each release
+built from its own tree, run alternately, 16 rounds, 24 for the timeranger2
+tests): 30 of the 31 figures inside their noise -- the appends (+1.0%,
+t = 2.3), the reads, the opens of a store, the event loop, TCP and TLS through
+the gobj stack, the BFF logins, the agent audit. One price, with its cause: a
+treedb update in memory +6.5% of CPU (2.31 -> 2.46 us, t = 5.4), the NUL
+checks of every write (the id, the pkey2 values, the fkey references); with
+only those two checks taken out of the same `tr_treedb.c` it runs at 2.33 us,
+as 7.26.9 -- about 0.1 us per write, the saved update included. The yunos are
+1.3-1.4% larger (stripped).
 
 Out of the seventeenth review (yunovatios `REV-CLOUD.md`, V17), read while
 7.26.9 was being deployed.
@@ -144,8 +187,9 @@ Out of the twentieth review (V20):
   default alike. A `DTP_STRING` must be a string, a `DTP_DICT` an object, a
   `DTP_LIST` an array; a `DTP_INTEGER`/`DTP_REAL`/`DTP_BOOLEAN` takes a
   number or a boolean, never an object or an array; text is read AS the type
-  (`"5"` -> 5 by strtoll/strtod with the whole text consumed; a boolean as
-  true/false, yes/no, on/off or a number); a `null` is no value. Another shape
+  (`"5"` -> 5 by strtoll/strtod with the whole text consumed -- replaced by
+  the JSON grammar in V23.4.6, below; a boolean as true/false, yes/no, on/off
+  or a number); a `null` is no value. Another shape
   is refused BEFORE the handler (so before its authz check): `-1`, a WARNING
   when the kw carries `__username__` (a peer), an ERROR with a stack from C.
   The line has the last word over a refused kw value. A `DTP_JSON` takes
@@ -294,7 +338,7 @@ Out of the twenty-first review (V21):
   a number with no default is absent** (V21.3.4: `kw_update_missing()` passed
   the `""` on to the handler), and a value of kw that is refused does not
   reach the handler under its name when the line gives it in another case.
-  The list of what a caller gets `-1` for since 7.26.10 is in
+  The list of what a caller gets `-1` for since 7.27.0 is in
   `command_parser.md` (*What a caller must send*).
 - **The parser asks the per-command permission BEFORE the parameters**
   (V21.3.8): with `enable_command_authz`, a caller without the permission
@@ -535,7 +579,8 @@ Out of the twenty-third review (V23):
   repeats no extra text of a line that carries a secret (a secret parameter
   given on it, or anything `mask_secrets_inline()` masks in it); `system.md`
   sold it as solved. `write-attr` and the `set` of the trace commands read a
-  number as the parser does (the JSON grammar above). **The `content64` of the agent's `create-config` / `update-config` is
+  number as the parser does (the JSON grammar above). **The `content64` of the
+  agent's `create-config` / `update-config` is
   `SDF_SECRET`** (a configuration carries credentials). Out of session,
   `C_IEVENT_SRV` / `C_IEVENT_CLI` log the first word of a command masked:
   `password=hunter2 user=x` logged `password=hunter2`. **Limit**, written in
@@ -617,7 +662,8 @@ Out of the twenty-fourth review (V24):
   `string_helper.md`.
 - **The false negatives of the masking by value** (V24.4.3): a JWT is `eyJ`,
   base64url and a `.` of its own (a header whose only dots end it,
-  `eyJhIjoxfQ.`, is none, but at the end of a dump) -- a JWE (five parts) and a JWT a cap cut to fewer than
+  `eyJhIjoxfQ.`, is none, but at the end of a dump) -- a JWE (five parts) and
+  a JWT a cap cut to fewer than
   three were shown, its header and part of its payload --; `Basic` is a scheme
   wherever `Bearer` is (it was masked only as an `Authorization:` header at the
   start of a line of a dump); a `name: value` whose name is a secret's is
@@ -740,7 +786,8 @@ Out of the security review of those commits (V24, `2e8d0589f`):
   V24.4.2's set shows: the word after a bare `Bearer` that is shorter than 8
   characters, a word of prose of 8 to 23, or dots only (8 876 of the 232 444
   texts inline, 8 448 in a dump), and the value of a parameter whose word
-  holds `pass`, `pin` or `otp` only before its last `&`, `?` or `;` (above). A word of prose is ASCII letters only now (a
+  holds `pass`, `pin` or `otp` only before its last `&`, `?` or `;` (above). A
+  word of prose is ASCII letters only now (a
   character that is no ASCII made a token look like prose), and `Basic`'s
   base64 is read as far as it goes (`(Basic dXNlcjpwYXNz)`).
 - **The end of a dump is where a cap cuts a credential**
@@ -819,7 +866,8 @@ Out of the security review of those commits (V24, `2e8d0589f`):
   editor are named controls, and its topics table is a table; a gclass viewer
   goes where the window it was opened from goes, and the windows of a
   destroyed shell go to the shell still alive; a promise of a `before_close`
-  guard that settles with `true` closes the modal; `validate-locales` counts every write to an unmarked `let` (its
+  guard that settles with `true` closes the modal; `validate-locales` counts
+  every write to an unmarked `let` (its
   rule is flow-insensitive, by design: a sentinel that is no key fails),
   fails a translated text wherever a key is read, reads the iteration
   callbacks exactly and `.bind()`, and asks for the id a nameless item or node
@@ -985,7 +1033,7 @@ fixed:
   the same -- `ycommand`'s json holding the user's password and JWT -- and
   `emu_device` read the dump of its parameters unchecked. Found and verified
   with LeakSanitizer.
-- **Before upgrading a node to 7.26.10, check the schemas of its stores** with
+- **Before upgrading a node to 7.27.0, check the schemas of its stores** with
   the new `tools/treedb/check_store_schemas.py` (it ships in the packages; on
   a node with an older one: `ssh <node> python3 - /yuneta/store <
   tools/treedb/check_store_schemas.py`). Per persisted `*.treedb_schema.json`
@@ -994,8 +1042,9 @@ fixed:
   (*"Cannot create topic of the schema"*), the ERROR a topic on disk is
   opened with at every open (a pkey2 that is `id`, the tkey or named twice, a
   pkey2 of no column, a `^` in a topic or hook name), the faults of the
-  `__system__` projection. It reads a file's `schema_version` as the SDK does (`KW_WILD_NUMBER`: `"3"`, `3.0`). A clean store prints only the count. See
-  `deploying-yunos.md` ("Upgrading to 7.26.10") and
+  `__system__` projection. It reads a file's `schema_version` as the SDK does
+  (`KW_WILD_NUMBER`: `"3"`, `3.0`). A clean store prints only the count. See
+  `deploying-yunos.md` ("Upgrading to 7.27.0") and
   `tools/check_store_schemas.md`.
 - Tests: `yev_events_tls/test_yevent_traffic_secure1` read the gbuffer that
   `ytls_encrypt_data()` had released (heap-use-after-free under ASan); it
@@ -1053,10 +1102,93 @@ fixed:
 Out of the twenty-sixth review (V26), each finding checked before it was
 fixed:
 
-- **fix: destroying a RUNNING gobj whose stop says farewell at once freed it twice.** `gobj_destroy()` stops a running gobj before it raises `obflag_destroying`. When `mt_stop` published `EV_STOPPED` synchronously (a `C_TCP`, `C_UDP_S` or `C_PTY` with nothing in flight) and the host destroyed it there, the inner destroy freed it and the outer one went on with the freed gobj (ASan: use after free at its `obflag`; plain: *"Deleting item with DIFFERENT dl_list_t"*, abort). The pause and the stop are now watched, and the outer destroy returns. The same applies to the auto-pause of `gobj_stop()`, the auto-start of `gobj_play()` and `gobj_destroy_named_children()`. Test `gobj_dispatch` (phase 6).
-- **BREAKING: the walks of the gobj tree went on with freed gobjs; they now give the children they began with, and `gobj_create()` refuses a parent that is being destroyed.** `gobj_stop_tree()`, `gobj_stop_children()`, `gobj_start_tree()`, `gobj_walk_gobj_children*()` (`WALK_BYLEVEL` included) and `gobj_destroy_children()` took the next child before the callback. A callback that destroyed the next sibling, or the gobj whose children were walked (a host that ends itself in a child's `EV_STOPPED`), left the walk on freed memory (ASan, five cases). The next child is now taken after the callback, from a frame that keeps the walk's place: when a child leaves the list, the frame that holds it as the next one moves to the child after it. So a callback may destroy any number of children (the one given, the next, others) and the walk goes on from the first child left after the one it gave, only forward: no child is given twice (none started or stopped twice), none left is skipped, a step costs the same however many were destroyed. **What a consumer sees, two changes:** (1) `gobj_create()` -- and what is built on it: `gobj_create_service()`, `gobj_create_pure_child()`, a tree from json -- under a parent that is being destroyed returns NULL with an ERROR (*"Cannot create a child of a gobj that is being destroyed"*): its children are being destroyed or are gone, and up to 7.26.9 the new one was freed with it or never destroyed. (2) A child created in a list whose walk is in progress is not given to that walk: a sibling created by the `mt_start` / `mt_stop` / action of a child that `gobj_start_tree()`, `gobj_stop_children()`... is walking is not started or stopped by it, and one created during `gobj_destroy_children()` of a live gobj lives on; up to 7.26.9 it was given when the walk had not reached the last child yet. Whoever creates it starts it (`gobj_start()` / `gobj_start_tree()`). The children a gobj creates in its own `mt_create` / `mt_start` are still walked: the walk of its list begins after them. This is what lets a host that renews its transport in the transport's `EV_STOPPED` leave `gobj_stop_children()` and `gobj_destroy_children()` with nothing new to stop or destroy (the new pair lives on, as the host does). An action whose own walk destroys its gobj (a walk of its parent's children, `gobj_destroy_children()`, `gobj_destroy_named_children()`) is not reported: the frame excused is the innermost one that is not a kernel watch. **The cost, measured against 7.26.9** (a bench of the walks built against a 7.26.9 worktree and against this tree, with the SDK's flags for RelWithDebInfo, `-O2 -g`, gcc 15.2; cachegrind instructions per child visited, which no load changes, then time pinned to one core, 16 alternated rounds, on a loaded machine): each walk pushes three frames and each step moves two of them, the price of no double visit, no skip and the snapshot, and a tree walk no longer calls into a leaf (the call found an empty list and returned; with the watch it cost more than the visit). A list (`gobj_walk_gobj_children()`): 18 -> 27 instructions with 100 children, 40 -> 61 with 2; 5.0 -> 4.9 ns and 7.3 -> 8.2 ns (10 000 children). `WALK_TOP2BOTTOM` / `BOTTOM2TOP`: 55 -> 33 on a tree of 100 x 100 (99% leaves), 58 -> 68 on a binary tree of 13 levels; 6.8 -> 7.1 ns and 8.4 -> 10.9 ns. `WALK_BYLEVEL`, whose second pass (the children's children) steps over a leaf with no call and no step of the watch: 69 -> 41 on the tree of 100 x 100, 69 -> 81.5 (+18%) on the binary tree. The figures depend on the compiler: clang 21 at `-O2` gives 62 -> 33 and 62.5 -> 76.5, gcc 15.2 at `-O3` 61 -> 36 and 61 -> 74, and a review on another toolchain (gcc 13.3 `-O2 -g -DNDEBUG`) measured 68 -> 96.5 on the binary tree (98.5 before the leaf was skipped). `gobj_start_tree()` + `gobj_stop_tree()`: 892 -> 920 (+3%) and 897 -> 989 (+10%, most of it the frames of `gobj_start()` / `gobj_stop()`, not the walk); 80 -> 84 ns per gobj. Before the leaf was skipped the tree walks cost +37% (100 x 100) to +52% (binary) instructions over 7.26.9. Tests `gobj_dispatch` (phases 7, 9 to 15).
-- **fix: a C_TASK abandoned by `C_AUTH_BFF` stayed a stopped child for ever.** On a browser close, and in `mt_stop`, the BFF stopped the task in flight but nothing destroyed it: a stopped task does not end itself, contrary to the comment there. One zombie per request the browser left. The BFF and `C_IDP_KEYCLOAK` now stop and destroy their tasks, and clear `processing`, which stayed TRUE after a stop. Test `c_auth_bff/test9_browser_cancel`.
-- **BREAKING: an attribute default is read by the parser's grammar** (`set_default()`, via `command_parameter_from_text()`), the way a config or a command reads the same text. Up to 7.26.9 the default of a `DTP_INTEGER` was read with `strtoll(..., 0)`, that of a `DTP_REAL` with `atof()` and that of a `DTP_BOOLEAN` with `atoi()` (or `TRUE`): `"yes"` and `"on"` were `false`, `"12abc"` was 12, and `"0660"` an octal 432 that no config could write. A default that does not read is now the zero of its type, with an ERROR and a stack at EVERY instance created (*"default_value of the attribute does not read as its type, its zero used"*). Nothing in the tree or in the apps changes value (the 1331 boolean and numeric defaults checked); the seven octal or hex defaults of the tree are decimal now, same values: `xpermission` 1528 (02770), `rpermission` 432 (0660), `c_qiogate` `on_critical_error` 16. **A gclass outside the tree** with one of these defaults changes value:
+- **fix: destroying a RUNNING gobj whose stop says farewell at once freed it
+  twice.** `gobj_destroy()` stops a running gobj before it raises
+  `obflag_destroying`. When `mt_stop` published `EV_STOPPED` synchronously (a
+  `C_TCP`, `C_UDP_S` or `C_PTY` with nothing in flight) and the host destroyed
+  it there, the inner destroy freed it and the outer one went on with the
+  freed gobj (ASan: use after free at its `obflag`; plain: *"Deleting item
+  with DIFFERENT dl_list_t"*, abort). The pause and the stop are now watched,
+  and the outer destroy returns. The same applies to the auto-pause of
+  `gobj_stop()`, the auto-start of `gobj_play()` and
+  `gobj_destroy_named_children()`. Test `gobj_dispatch` (phase 6).
+- **BREAKING: the walks of the gobj tree went on with freed gobjs; they now
+  give the children they began with, and `gobj_create()` refuses a parent that
+  is being destroyed.** `gobj_stop_tree()`, `gobj_stop_children()`,
+  `gobj_start_tree()`, `gobj_walk_gobj_children*()` (`WALK_BYLEVEL` included)
+  and `gobj_destroy_children()` took the next child before the callback. A
+  callback that destroyed the next sibling, or the gobj whose children were
+  walked (a host that ends itself in a child's `EV_STOPPED`), left the walk on
+  freed memory (ASan, five cases). The next child is now taken after the
+  callback, from a frame that keeps the walk's place: when a child leaves the
+  list, the frame that holds it as the next one moves to the child after it.
+  So a callback may destroy any number of children (the one given, the next,
+  others) and the walk goes on from the first child left after the one it
+  gave, only forward: no child is given twice (none started or stopped twice),
+  none left is skipped, a step costs the same however many were destroyed.
+  **What a consumer sees, two changes:** (1) `gobj_create()` -- and what is
+  built on it: `gobj_create_service()`, `gobj_create_pure_child()`, a tree
+  from json -- under a parent that is being destroyed returns NULL with an
+  ERROR (*"Cannot create a child of a gobj that is being destroyed"*): its
+  children are being destroyed or are gone, and up to 7.26.9 the new one was
+  freed with it or never destroyed. (2) A child created in a list whose walk
+  is in progress is not given to that walk: a sibling created by the
+  `mt_start` / `mt_stop` / action of a child that `gobj_start_tree()`,
+  `gobj_stop_children()`... is walking is not started or stopped by it, and
+  one created during `gobj_destroy_children()` of a live gobj lives on; up to
+  7.26.9 it was given when the walk had not reached the last child yet.
+  Whoever creates it starts it (`gobj_start()` / `gobj_start_tree()`). The
+  children a gobj creates in its own `mt_create` / `mt_start` are still
+  walked: the walk of its list begins after them. This is what lets a host
+  that renews its transport in the transport's `EV_STOPPED` leave
+  `gobj_stop_children()` and `gobj_destroy_children()` with nothing new to
+  stop or destroy (the new pair lives on, as the host does). An action whose
+  own walk destroys its gobj (a walk of its parent's children,
+  `gobj_destroy_children()`, `gobj_destroy_named_children()`) is not reported:
+  the frame excused is the innermost one that is not a kernel watch. **The
+  cost, measured against 7.26.9** (a bench of the walks built against a 7.26.9
+  worktree and against this tree, with the SDK's flags for RelWithDebInfo,
+  `-O2 -g`, gcc 15.2; cachegrind instructions per child visited, which no load
+  changes, then time pinned to one core, 16 alternated rounds, on a loaded
+  machine): each walk pushes three frames and each step moves two of them, the
+  price of no double visit, no skip and the snapshot, and a tree walk no
+  longer calls into a leaf (the call found an empty list and returned; with
+  the watch it cost more than the visit). A list
+  (`gobj_walk_gobj_children()`): 18 -> 27 instructions with 100 children, 40
+  -> 61 with 2; 5.0 -> 4.9 ns and 7.3 -> 8.2 ns (10 000 children).
+  `WALK_TOP2BOTTOM` / `BOTTOM2TOP`: 55 -> 33 on a tree of 100 x 100 (99%
+  leaves), 58 -> 68 on a binary tree of 13 levels; 6.8 -> 7.1 ns and 8.4 ->
+  10.9 ns. `WALK_BYLEVEL`, whose second pass (the children's children) steps
+  over a leaf with no call and no step of the watch: 69 -> 41 on the tree of
+  100 x 100, 69 -> 81.5 (+18%) on the binary tree. The figures depend on the
+  compiler: clang 21 at `-O2` gives 62 -> 33 and 62.5 -> 76.5, gcc 15.2 at
+  `-O3` 61 -> 36 and 61 -> 74, and a review on another toolchain (gcc 13.3
+  `-O2 -g -DNDEBUG`) measured 68 -> 96.5 on the binary tree (98.5 before the
+  leaf was skipped). `gobj_start_tree()` + `gobj_stop_tree()`: 892 -> 920
+  (+3%) and 897 -> 989 (+10%, most of it the frames of `gobj_start()` /
+  `gobj_stop()`, not the walk); 80 -> 84 ns per gobj. Before the leaf was
+  skipped the tree walks cost +37% (100 x 100) to +52% (binary) instructions
+  over 7.26.9. Tests `gobj_dispatch` (phases 7, 9 to 15).
+- **fix: a C_TASK abandoned by `C_AUTH_BFF` stayed a stopped child for ever.**
+  On a browser close, and in `mt_stop`, the BFF stopped the task in flight but
+  nothing destroyed it: a stopped task does not end itself, contrary to the
+  comment there. One zombie per request the browser left. The BFF and
+  `C_IDP_KEYCLOAK` now stop and destroy their tasks, and clear `processing`,
+  which stayed TRUE after a stop. Test `c_auth_bff/test9_browser_cancel`.
+- **BREAKING: an attribute default is read by the parser's grammar**
+  (`set_default()`, via `command_parameter_from_text()`), the way a config or
+  a command reads the same text. Up to 7.26.9 the default of a `DTP_INTEGER`
+  was read with `strtoll(..., 0)`, that of a `DTP_REAL` with `atof()` and that
+  of a `DTP_BOOLEAN` with `atoi()` (or `TRUE`): `"yes"` and `"on"` were
+  `false`, `"12abc"` was 12, and `"0660"` an octal 432 that no config could
+  write. A default that does not read is now the zero of its type, with an
+  ERROR and a stack at EVERY instance created (*"default_value of the
+  attribute does not read as its type, its zero used"*). Nothing in the tree
+  or in the apps changes value (the 1331 boolean and numeric defaults
+  checked); the seven octal or hex defaults of the tree are decimal now, same
+  values: `xpermission` 1528 (02770), `rpermission` 432 (0660), `c_qiogate`
+  `on_critical_error` 16. **A gclass outside the tree** with one of these
+  defaults changes value:
 
     | Type | Default | 7.26.9 | Now |
     |---|---|---|---|
@@ -1069,9 +1201,20 @@ fixed:
     | boolean | `"yes"`, `"on"` | false | **true** |
     | boolean | `" 1"`, `"1.0"` | true | false, ERROR |
 
-    Write such a default as the decimal it means (`"432"`, with the octal `0660` in the description) and a boolean as `"true"`/`"false"` or `"1"`/`"0"`. Test `test_attr_types` (a gclass with six such defaults).
-- **fix: `C_IEVENT_CLI` says the faults of its server as the server's.** *"event UNKNOWN in not-session state"*, *"It's not my role"*, *"It's not my name"* and *"subscription/unsubscription event ignored, I'm client"* are one WARNING each (`MSGSET_PROTOCOL`, no stack, the names the server wrote masked and capped), not an ERROR with the names in clear. Before the session only `EV_IDENTITY_CARD_ACK` is taken; a session event went to `mt_inject_event()` (*"Not in session"*, an ERROR). Test `c_ievent_cli_peer_faults`.
-- `test_attr_types` reads the gobj-js parity table of the source tree it was built from (not of `YUNETAS_BASE`); without it (a tarball) it runs the other checks and exits 77, which ctest reports as Skipped (`SKIP_RETURN_CODE`), not Passed; it reads the table's `json` cases (111 cases now).
+    Write such a default as the decimal it means (`"432"`, with the octal
+    `0660` in the description) and a boolean as `"true"`/`"false"` or
+    `"1"`/`"0"`. Test `test_attr_types` (a gclass with six such defaults).
+- **fix: `C_IEVENT_CLI` says the faults of its server as the server's.**
+  *"event UNKNOWN in not-session state"*, *"It's not my role"*, *"It's not my
+  name"* and *"subscription/unsubscription event ignored, I'm client"* are one
+  WARNING each (`MSGSET_PROTOCOL`, no stack, the names the server wrote masked
+  and capped), not an ERROR with the names in clear. Before the session only
+  `EV_IDENTITY_CARD_ACK` is taken; a session event went to `mt_inject_event()`
+  (*"Not in session"*, an ERROR). Test `c_ievent_cli_peer_faults`.
+- `test_attr_types` reads the gobj-js parity table of the source tree it was
+  built from (not of `YUNETAS_BASE`); without it (a tarball) it runs the other
+  checks and exits 77, which ctest reports as Skipped (`SKIP_RETURN_CODE`),
+  not Passed; it reads the table's `json` cases (111 cases now).
 - **fix: a dump showed a name as a form writes it, and no masking hid the
   password of a URL** (`mask_secrets_in_text()`, `mask_secrets_inline()`,
   `json_mask_secrets()`, and the agent's audit record through
@@ -1134,35 +1277,161 @@ fixed:
 Out of the twenty-seventh review (V27), each finding checked before it was
 fixed:
 
-- **fix: `gobj_play()` says when nothing is playing.** A play without a start, whose implicit start was refused (a required attribute empty), left the gobj `playing` and not running and answered 0; a gobj destroyed by its own `mt_play` answered what `mt_play` returned, 0 included. Both answer -1 now (the refused start is logged by `gobj_start()`). Test `gobj_dispatch` (phase 4).
-- **fix: `gobj_destroy_named_children()` read a freed name.** Called with the name of one of the children it destroys (`gobj_name(child)`, from the child's own action), it compared that freed name with every child after it (ASan: use after free in `strcmp`). It works on a copy now. A `NULL` or empty name is refused with an ERROR (*"name NULL or empty"*), -1: up to 7.26.9 a `NULL` crashed in `strcmp`. Test `gobj_dispatch` (phase 9).
-- **fix: `C_IEVENT_CLI` takes from its server only what the server may send.** `C_PROT_HTTP_SR` and `C_POSTGRES` declare `EV_ON_OPEN` / `EV_ON_CLOSE` (and the first `EV_DROP`, `EV_ON_MESSAGE`) public, so a frame of the server with those names was read, and the client published them to its app as its own open and close, with the kw the server chose; the ACK in session was sent back to the server. In session an event of the client that is not public, or the ACK, is refused: ONE warning (*"event of the transport itself, or out of its place, refused"*, `MSGSET_PROTOCOL`), the frame dropped, the channel kept. An empty `dst_service` no longer logs *"service EMPTY"* (an ERROR with a stack), and is still published; one that is no service is dropped (see the BREAKING entry of V28 below). A stats or command request of the server for a service that does not exist (*"Service not found"*) logs the name masked and capped; it was in clear. What the C and the gobj-js clients do with a frame they refuse is not always the same (the C one closes the channel where gobj-js drops the frame): the table is in the `C_IEVENT_CLI` page. Test `c_ievent_cli_peer_faults`.
-- **fix: a URL or a query %-encoded inside a value was not masked** (`mask_secrets_inline()`, `json_mask_secrets()`, `mask_secrets_in_text()`, and the agent's audit record through `mark_secrets_inline()`). `%XX` was decoded only in a name before a literal `=`, so `GET /cb?next=%2Flogin%3Fpassword%3Dhunter2` and `url=https%3A%2F%2Fbob%3Ahunter2%40host` showed the password, and `redirect_uri=https%3A%2F%2Fapp%2Fcb%3Ftoken%3Dabc123&state=1` masked `state` and showed the token. The rules run again on a view of the text with each `%XX` of an ASCII character decoded, twice at most (a value encoded inside an encoded value, `%253D`; a name encoded twice, `%2570assword=`), and what they mask there is masked on the bytes it came from. In 7.26.9 too. Measured position by position against 7.26.9 on 438 008 generated texts (60 000 new ones built around nested encodings): nothing it hid shows, inline or in a dump; C and gobj-js 7.26.25 give the same text on all of them and on 30 000 jsons. Cost: one more pass of the rules over the decoded view, only for a text with a `%XX` that decodes, so it grows with the share of such texts: on 232 444 generated texts of which 9.7 % carry one, 11 % more inline and 12 % more as a dump (15 % in gobj-js); with 23 %, 24 % (31 %); a text that carries one costs 1.7 times as much (2 times in gobj-js), one that carries none nothing measurable (one core, alternated runs); 1 MB of `t%6Fken=x&` takes 41 ms inline and 30 ms as a dump instead of 31 and 21 without the view (114 ms instead of 92 in gobj-js). Tests `secret_attrs`.
-- **JS layer: gobj-ui 7.26.46, gobj-js 7.26.25.** gobj-js: an event with no service must be declared public, the transport's own events are refused from the peer, a peer fault closes with 4002 and keeps the backoff, non-json values are refused for dict/list/string attrs, and the encoded-URL masking above. gobj-ui: a stopped shell closes its overlays (their focus traps left later windows without focus), the checkbox column asks `selectable`, a nested click stays in its table, a time column is editable without luxon, typing in a cell is `edited`; `deploy-round` reads merges and renames by value; `validate-locales` no longer hangs on a locale's timer and reads const-named methods and written spreads.
+- **fix, BREAKING: `gobj_play()` says when nothing is playing.** A play
+  without a start, whose implicit start was refused (a required attribute
+  empty), left the gobj `playing` and not running and answered 0; a gobj
+  destroyed by its own `mt_play` answered what `mt_play` returned, 0 included.
+  Both answer -1 now (the refused start is logged by `gobj_start()`). Test
+  `gobj_dispatch` (phase 4).
+- **fix: `gobj_destroy_named_children()` read a freed name.** Called with the
+  name of one of the children it destroys (`gobj_name(child)`, from the
+  child's own action), it compared that freed name with every child after it
+  (ASan: use after free in `strcmp`). It works on a copy now. A `NULL` or
+  empty name is refused with an ERROR (*"name NULL or empty"*), -1: up to
+  7.26.9 a `NULL` crashed in `strcmp`. Test `gobj_dispatch` (phase 9).
+- **fix: `C_IEVENT_CLI` takes from its server only what the server may send.**
+  `C_PROT_HTTP_SR` and `C_POSTGRES` declare `EV_ON_OPEN` / `EV_ON_CLOSE` (and
+  the first `EV_DROP`, `EV_ON_MESSAGE`) public, so a frame of the server with
+  those names was read, and the client published them to its app as its own
+  open and close, with the kw the server chose; the ACK in session was sent
+  back to the server. In session an event of the client that is not public, or
+  the ACK, is refused: ONE warning (*"event of the transport itself, or out of
+  its place, refused"*, `MSGSET_PROTOCOL`), the frame dropped, the channel
+  kept. An empty `dst_service` no longer logs *"service EMPTY"* (an ERROR with
+  a stack), and is still published; one that is no service is dropped (see the
+  BREAKING entry of V28 below). A stats or command request of the server for a
+  service that does not exist (*"Service not found"*) logs the name masked and
+  capped; it was in clear. What the C and the gobj-js clients do with a frame
+  they refuse is not always the same (the C one closes the channel where
+  gobj-js drops the frame): the table is in the `C_IEVENT_CLI` page. Test
+  `c_ievent_cli_peer_faults`.
+- **fix: a URL or a query %-encoded inside a value was not masked**
+  (`mask_secrets_inline()`, `json_mask_secrets()`, `mask_secrets_in_text()`,
+  and the agent's audit record through `mark_secrets_inline()`). `%XX` was
+  decoded only in a name before a literal `=`, so `GET
+  /cb?next=%2Flogin%3Fpassword%3Dhunter2` and
+  `url=https%3A%2F%2Fbob%3Ahunter2%40host` showed the password, and
+  `redirect_uri=https%3A%2F%2Fapp%2Fcb%3Ftoken%3Dabc123&state=1` masked
+  `state` and showed the token. The rules run again on a view of the text with
+  each `%XX` of an ASCII character decoded, twice at most (a value encoded
+  inside an encoded value, `%253D`; a name encoded twice, `%2570assword=`),
+  and what they mask there is masked on the bytes it came from. In 7.26.9 too.
+  Measured position by position against 7.26.9 on 438 008 generated texts (60
+  000 new ones built around nested encodings): nothing it hid shows, inline or
+  in a dump; C and gobj-js 7.26.25 give the same text on all of them and on 30
+  000 jsons. Cost: one more pass of the rules over the decoded view, only for
+  a text with a `%XX` that decodes, so it grows with the share of such texts:
+  on 232 444 generated texts of which 9.7 % carry one, 11 % more inline and 12
+  % more as a dump (15 % in gobj-js); with 23 %, 24 % (31 %); a text that
+  carries one costs 1.7 times as much (2 times in gobj-js), one that carries
+  none nothing measurable (one core, alternated runs); 1 MB of `t%6Fken=x&`
+  takes 41 ms inline and 30 ms as a dump instead of 31 and 21 without the view
+  (114 ms instead of 92 in gobj-js). Tests `secret_attrs`.
+- **JS layer: gobj-ui 7.26.46, gobj-js 7.26.25.** gobj-js: an event with no
+  service must be declared public, the transport's own events are refused from
+  the peer, a peer fault closes with 4002 and keeps the backoff, non-json
+  values are refused for dict/list/string attrs, and the encoded-URL masking
+  above. gobj-ui: a stopped shell closes its overlays (their focus traps left
+  later windows without focus), the checkbox column asks `selectable`, a
+  nested click stays in its table, a time column is editable without luxon,
+  typing in a cell is `edited`; `deploy-round` reads merges and renames by
+  value; `validate-locales` no longer hangs on a locale's timer and reads
+  const-named methods and written spreads.
 
 Out of the twenty-eighth review (V28), each finding checked before it was
 fixed (most of it regressions of the V27 fixes, folded into their entries
 above: the walks of the tree, `gobj_destroy_named_children()`, the URL
 password under a cap, the stats/command `service` masked):
 
-- **BREAKING: `C_IEVENT_CLI` drops an event it cannot deliver to the service named** (`dst_service`), as gobj-js has done since 7.16.1. A `dst_service` that is no service (a service gone with its events still on the wire), or a service that does not have the event as public, was PUBLISHED to the client's subscribers: the first with an ERROR and a stack (the name in clear) up to 7.26.9, a WARNING since; the second with no log at all. Both are now one WARNING (`MSGSET_PROTOCOL`, *"service of the event not found, event dropped"* with the name masked, *"event not public in its service, event dropped"*), the event dropped, the channel kept. An empty `dst_service` names no destination and is still published. Nothing in the tree or in the apps changes: a week of logs on the five nodes holds no *"service NOT FOUND"* from a client, and every C client (`ycommand`, `ycli`, `ystats`, `ybatch`, `ytests`, the agent's link to the controlcenter, the `agent_client` of every yuno, the tests) is the `src_service` of what it asks and declares the answers public. **A C client outside the tree** that received, through its subscription to the transport, events addressed to another service name, or to its own service without declaring them public, no longer receives them: declare them `EVF_PUBLIC_EVENT` in the service they are addressed to. A `dst_service` that is the client's own name -- the `src_service` of its identity card, where `C_IEVENT_SRV` addresses what it sends on its own when the kw has no `__service__` -- is published to the subscribers like an empty one, the name compared without case as `gobj_find_service()` compares it, so a client created as a plain child (no `as_service`) does what a service does (without this, every such send to a C client was dropped). Tests `c_ievent_cli_peer_faults` (twice: the client a service, and a plain child), `c_ievent_srv_peer_subs`.
-- **fix: the agent's audit record was quadratic under AddressSanitizer** (`text_names_secret_attribute()`): `strcasestr()` is intercepted by ASan and rescans the whole text at each call, so 1 MB took 20 s against 0.24 s for 100 KB. It looks for the word with its own case-insensitive search now: the same answer on 42.5 million texts, 0.06 s for 1 MB under ASan. In 7.26.9 too (only its speed under ASan).
-- test: `secret_attrs` measures the masking's linearity by its slope (16, 64 and 256 KB; a ratio under 16^1.15) instead of 1 MB in under 500 ms, which failed on a loaded machine.
-- **JS layer: gobj-ui 7.26.47, gobj-js 7.26.26.** gobj-js: a value whose text says another thing (`NaN`, a `toJSON`, a function or `undefined` in an array, more than 2048 levels), a getter that throws, a revoked Proxy and a value of another realm are refused for a typed attribute; 2^63 is refused for an integer; the reconnection backoff resets after a long session; `EV_MT_*` from the peer are refused with a WARNING; a corrupt local-storage entry is one warning and removed; the masking's decoded view costs half. gobj-ui: a stopping shell no longer moves the browser history; a panel that only moves keeps its focus trap; an incomplete date no longer erases a stored time, and a time column is read and written in its own type; Enter in a form no longer adds a row or reloads the page; a cancelled cell edit is not `edited`; the checkbox column follows `selectable` written later; the header checkbox is `select all rows` (**new consumer key**); `deploy-round` survives a commit whose package.json was not json and follows a move git does not call a rename; `validate-locales` reads an element of a const array as that element and fails on an unhandled rejection.
+- **BREAKING: `C_IEVENT_CLI` drops an event it cannot deliver to the service
+  named** (`dst_service`), as gobj-js has done since 7.16.1. A `dst_service`
+  that is no service (a service gone with its events still on the wire), or a
+  service that does not have the event as public, was PUBLISHED to the
+  client's subscribers: the first with an ERROR and a stack (the name in
+  clear) up to 7.26.9, a WARNING since; the second with no log at all. Both
+  are now one WARNING (`MSGSET_PROTOCOL`, *"service of the event not found,
+  event dropped"* with the name masked, *"event not public in its service,
+  event dropped"*), the event dropped, the channel kept. An empty
+  `dst_service` names no destination and is still published. Nothing in the
+  tree or in the apps changes: a week of logs on the five nodes holds no
+  *"service NOT FOUND"* from a client, and every C client (`ycommand`, `ycli`,
+  `ystats`, `ybatch`, `ytests`, the agent's link to the controlcenter, the
+  `agent_client` of every yuno, the tests) is the `src_service` of what it
+  asks and declares the answers public. **A C client outside the tree** that
+  received, through its subscription to the transport, events addressed to
+  another service name, or to its own service without declaring them public,
+  no longer receives them: declare them `EVF_PUBLIC_EVENT` in the service they
+  are addressed to. A `dst_service` that is the client's own name -- the
+  `src_service` of its identity card, where `C_IEVENT_SRV` addresses what it
+  sends on its own when the kw has no `__service__` -- is published to the
+  subscribers like an empty one, the name compared without case as
+  `gobj_find_service()` compares it, so a client created as a plain child (no
+  `as_service`) does what a service does (without this, every such send to a C
+  client was dropped). Tests `c_ievent_cli_peer_faults` (twice: the client a
+  service, and a plain child), `c_ievent_srv_peer_subs`.
+- **fix: the agent's audit record was quadratic under AddressSanitizer**
+  (`text_names_secret_attribute()`): `strcasestr()` is intercepted by ASan and
+  rescans the whole text at each call, so 1 MB took 20 s against 0.24 s for
+  100 KB. It looks for the word with its own case-insensitive search now: the
+  same answer on 42.5 million texts, 0.06 s for 1 MB under ASan. In 7.26.9 too
+  (only its speed under ASan).
+- test: `secret_attrs` measures the masking's linearity by its slope (16, 64
+  and 256 KB; a ratio under 16^1.15) instead of 1 MB in under 500 ms, which
+  failed on a loaded machine.
+- **JS layer: gobj-ui 7.26.47, gobj-js 7.26.26.** gobj-js: a value whose text
+  says another thing (`NaN`, a `toJSON`, a function or `undefined` in an
+  array, more than 2048 levels), a getter that throws, a revoked Proxy and a
+  value of another realm are refused for a typed attribute; 2^63 is refused
+  for an integer; the reconnection backoff resets after a long session;
+  `EV_MT_*` from the peer are refused with a WARNING; a corrupt local-storage
+  entry is one warning and removed; the masking's decoded view costs half.
+  gobj-ui: a stopping shell no longer moves the browser history; a panel that
+  only moves keeps its focus trap; an incomplete date no longer erases a
+  stored time, and a time column is read and written in its own type; Enter in
+  a form no longer adds a row or reloads the page; a cancelled cell edit is
+  not `edited`; the checkbox column follows `selectable` written later; the
+  header checkbox is `select all rows` (**new consumer key**); `deploy-round`
+  survives a commit whose package.json was not json and follows a move git
+  does not call a rename; `validate-locales` reads an element of a const array
+  as that element and fails on an unhandled rejection.
 
 Out of the twenty-ninth review (V29), each finding checked before it was
 fixed (the walks of the tree are marked BREAKING above, with their measured
 cost):
 
-- **fix: `C_IEVENT_SRV` no longer closes the channel of an anonymous client when it sends it something on its own.** To a client with no `yuno_name` the gate wrote its own label for it (`^peer-sock`) as `dst_yuno`, and the client refused it (*"It's not my name"*) and dropped the channel; it now writes no `dst_yuno`. Agent-managed yunos are named and were not affected. Test `c_ievent_srv_peer_subs`.
-- **BREAKING: a `timeout_between_connections` of 0 never reconnected, silently; it now reconnects every second** (`C_TCP`, `C_UART`, `C_POSTGRES`): 0 was written to the reconnect `C_TIMER`, which stops on a timeout <= 0. It is now raised to 1000 ms (the gobj-js floor) with ONE warning per gobj (*"timeout_between_connections 0 never reconnects, the floor is used"*). A configuration that wrote 0 to never reconnect writes `-1`, its documented meaning: no timer, each connection waits for an `EV_CONNECT` (any negative value does the same, as up to 7.26.9). No configuration of the tree or of the apps writes 0. Test `c_tcp_inactivity/test5`.
+- **fix: `C_IEVENT_SRV` no longer closes the channel of an anonymous client
+  when it sends it something on its own.** To a client with no `yuno_name` the
+  gate wrote its own label for it (`^peer-sock`) as `dst_yuno`, and the client
+  refused it (*"It's not my name"*) and dropped the channel; it now writes no
+  `dst_yuno`. Agent-managed yunos are named and were not affected. Test
+  `c_ievent_srv_peer_subs`.
+- **BREAKING: a `timeout_between_connections` of 0 never reconnected,
+  silently; it now reconnects every second** (`C_TCP`, `C_UART`,
+  `C_POSTGRES`): 0 was written to the reconnect `C_TIMER`, which stops on a
+  timeout <= 0. It is now raised to 1000 ms (the gobj-js floor) with ONE
+  warning per gobj (*"timeout_between_connections 0 never reconnects, the
+  floor is used"*). A configuration that wrote 0 to never reconnect writes
+  `-1`, its documented meaning: no timer, each connection waits for an
+  `EV_CONNECT` (any negative value does the same, as up to 7.26.9). No
+  configuration of the tree or of the apps writes 0. Test
+  `c_tcp_inactivity/test5`.
 
 Out of the thirtieth review (V30), each finding checked before it was
 fixed (the walks' cost figures and the reconnection floor are corrected in
 their entries above):
 
-- **BREAKING: a `C_QIOGATE` with a `timeout_poll` of 0 or less never polled its queue, silently; it now polls every second.** The poll is a `C_TIMER`, which stops on a timeout <= 0: such a gate walked its queue only when its link opened or a message arrived (what waited -- a backlog over `max_pending_acks`, a message whose ack did not come -- waited for the next connection), and never checked its backup. It is raised to 1000 ms with ONE warning, at start and each time code writes it later (it is `SDF_RD`) (*"timeout_poll 0 or less never polls, the floor is used"*), and the attribute reads 1000. No configuration of the tree or of the apps writes it. Test `c_qiogate_stats`.
-- fix: `C_POSTGRES` in `manual` mode leaked the kw of each reconnection timeout (`ac_timeout_disconnected` returned without releasing it).
+- **BREAKING: a `C_QIOGATE` with a `timeout_poll` of 0 or less never polled
+  its queue, silently; it now polls every second.** The poll is a `C_TIMER`,
+  which stops on a timeout <= 0: such a gate walked its queue only when its
+  link opened or a message arrived (what waited -- a backlog over
+  `max_pending_acks`, a message whose ack did not come -- waited for the next
+  connection), and never checked its backup. It is raised to 1000 ms with ONE
+  warning, at start and each time code writes it later (it is `SDF_RD`)
+  (*"timeout_poll 0 or less never polls, the floor is used"*), and the
+  attribute reads 1000. No configuration of the tree or of the apps writes it.
+  Test `c_qiogate_stats`.
+- fix: `C_POSTGRES` in `manual` mode leaked the kw of each reconnection
+  timeout (`ac_timeout_disconnected` returned without releasing it).
 
 ## v7.26.9 (2026-10-11)
 

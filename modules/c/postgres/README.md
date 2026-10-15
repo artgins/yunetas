@@ -4,6 +4,12 @@ Optional PostgreSQL client GClasses, enabled with `CONFIG_MODULE_POSTGRES=y`. Wr
 
 Used by `yunos/c/dba_postgres`.
 
+> **It does not connect in this version.** The polling of the libpq socket
+> (`PQconnectPoll()`, `PQconsumeInput()`) was written for libuv and is
+> commented out since the port to `yev_loop`, so the gclass never reaches
+> `ST_CONNECTED`. Left as it is by decision until a project needs
+> PostgreSQL: see `TODO.md` §4 and `docs/doc.yuneta.io/modules/postgres.md`.
+
 **Build host requirements:** the `libpq` client dev headers — `libpq-dev`
 (Debian/Ubuntu) or `libpq-devel` (RHEL/Rocky/Alma). The source includes
 `<libpq-fe.h>` (not `<postgresql/libpq-fe.h>`): the header lives in

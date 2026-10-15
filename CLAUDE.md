@@ -216,7 +216,7 @@ for an app with no map — 1.5 MB).
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.26.9`, package **`7.26.29`** on npm since 2026-10-15)
+versioned to track `YUNETA_VERSION` (SDK `7.27.0`, package **`7.26.29`** on npm since 2026-10-15)
 and **published to npm**. It had drifted to 7.13.x while the SDK was at 7.16.2
 — a number that told a consumer nothing about which SDK it was built against —
 and jumped to `7.16.0` on 2026-08-28 to say it again; 7.14 and 7.15 were skipped
@@ -232,7 +232,7 @@ no longer exists** stopped being published to every subscriber of the transport
 and started being dropped with a warning. That last one matters to any SPA: a
 destroyed view's in-flight frames were landing on the application gobj's
 catch-all subscription and raising *"Event NOT DEFINED in state"* once per
-frame. **The C side followed in 7.26.10**: it drops an event whose
+frame. **The C side followed in 7.27.0**: it drops an event whose
 `dst_service` is no service, or a service that does not have it as public, with
 a WARNING (it published both; a week of logs on every node showed nobody
 relied on it). Only an EMPTY `dst_service` is still published, on both sides.
@@ -448,7 +448,7 @@ Corollaries:
   columns collide the same way. Check those columns before naming a parameter,
   and prefix yours (`report_date`, `<thing>_id`), keeping the bare name as a
   fallback the handler reads for direct callers.
-  (2) **The parser types every parameter (7.26.10+)**, from the line, kw or
+  (2) **The parser types every parameter (7.27.0+)**, from the line, kw or
   its default alike: a `DTP_STRING` is a string, a `DTP_DICT`/`DTP_LIST` an
   object/array, a number or boolean is never an object or array, and text is
   read as the type by the JSON grammar, the whole text and in its range: the
@@ -1021,7 +1021,7 @@ happens exclusively via events carrying JSON payloads (`json_t *kw`).
   publish returns. Destroying the publisher, or any ancestor of it (yourself,
   when the publisher is your own child: a `C_TIMER`'s `EV_TIMEOUT`), frees it
   under that code, and `gobj_stop_tree` there corrupts mid-iteration state.
-  Since 7.26.10 the kernel itself survives it -- it keeps a frame per dispatch
+  Since 7.27.0 the kernel itself survives it -- it keeps a frame per dispatch
   and never reads the gobj afterwards -- and says it: *"Destroying a gobj while
   its tree is publishing"*, an ERROR with a stack. It checks the DESTROY
   only: a `gobj_stop_tree()` there is not reported (the shape is too common),
@@ -2106,7 +2106,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 
 | File | Purpose |
 |------|---------|
-| `YUNETA_VERSION` | Current version (7.26.9) — used to generate `yuneta_version.h` |
+| `YUNETA_VERSION` | Current version (7.27.0) — used to generate `yuneta_version.h` |
 | `Kconfig` | Root Kconfig definition |
 | `TODO.md` | API renames/removals/additions between versions |
 | `CHANGELOG.md` | Release history |

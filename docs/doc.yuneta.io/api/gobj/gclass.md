@@ -301,7 +301,7 @@ An attribute flagged [`SDF_SECRET`](#SDF_SECRET) must have a secret's name
 ([`is_secret_name()`](#is_secret_name)), or the gclass is refused: one ERROR,
 *"A SDF_SECRET attribute must have a secret's name: elsewhere than its gclass
 it is masked by its name only"*, with `gclass` and `attribute`, and `NULL`
-(7.26.10+; up to 7.26.9 such a gclass was created). The flag masks the
+(7.27.0+; up to 7.26.9 such a gclass was created). The flag masks the
 attribute where its gclass is asked (`view-attrs`, `view-config`, the
 `create_delete2` trace); everywhere else a secret is told by its NAME -- the
 `machine` trace with `ev_kw` of a kw that carries it, a dump of a peer's kw --

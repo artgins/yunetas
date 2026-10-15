@@ -3,7 +3,7 @@
 check_store_schemas.py -- what the treedb and msg2db schemas persisted in a
 store will make the SDK say when a yuno opens them.
 
-Since 7.26.10 a topic already on disk that breaks a rule of a NEW topic is
+Since 7.27.0 a topic already on disk that breaks a rule of a NEW topic is
 opened as it was, and the treedb says so with an ERROR at EVERY open; a few
 faults leave the topic out, and one class refuses it (a CRITICAL, which exits
 a yuno whose on_critical_error asks for it). Run this on every store of a node

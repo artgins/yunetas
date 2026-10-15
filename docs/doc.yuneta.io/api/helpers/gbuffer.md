@@ -41,7 +41,7 @@ Use it for JSON that YOUR code wrote. For JSON received from a peer, use [`gbuf2
 (gbuf2json_from_peer)=
 ## [`gbuf2json_from_peer()`](https://github.com/artgins/yunetas/blob/7.26.9/kernel/c/gobj-c/src/gbuffer.c#L1321)
 
-Converts a [`gbuffer_t *`](#gbuffer_t) RECEIVED from a peer into a `json_t *`. Bytes that are not JSON are the peer's doing, not a broken invariant of ours, so the failure is one WARNING (`MSGSET_PROTOCOL`, *"frame is not json"*) that names the peer, gives the parser's error, its `position` and the length, and dumps at most 256 bytes, masked ([`mask_secrets_in_text()`](#mask_secrets_in_text)). No stack trace. The error is jansson's WITHOUT the bytes it quotes near it (7.26.10+): `{"password": "hunter2` said *"premature end of input near '"hunter2'"*, the secret the dump masked; it says *"premature end of input"* and `"position": 21` now. [`gbuf2json()`](#gbuf2json) logs its error the same way.
+Converts a [`gbuffer_t *`](#gbuffer_t) RECEIVED from a peer into a `json_t *`. Bytes that are not JSON are the peer's doing, not a broken invariant of ours, so the failure is one WARNING (`MSGSET_PROTOCOL`, *"frame is not json"*) that names the peer, gives the parser's error, its `position` and the length, and dumps at most 256 bytes, masked ([`mask_secrets_in_text()`](#mask_secrets_in_text)). No stack trace. The error is jansson's WITHOUT the bytes it quotes near it (7.27.0+): `{"password": "hunter2` said *"premature end of input near '"hunter2'"*, the secret the dump masked; it says *"premature end of input"* and `"position": 21` now. [`gbuf2json()`](#gbuf2json) logs its error the same way.
 
 ```C
 json_t *gbuf2json_from_peer(
@@ -87,7 +87,7 @@ if(!jn_msg) {
 (anystring2json_from_peer)=
 ## `anystring2json_from_peer()`
 
-[`anystring2json()`](#anystring2json) for bytes RECEIVED from a peer that are not in a gbuffer of their own -- the JSON body of an HTTP request or response (7.26.10+). It reads the `len` bytes of `bf`, any JSON value, and refuses a NUL as `anystring2json()` does. A failure is logged as [`gbuf2json_from_peer()`](#gbuf2json_from_peer) logs it: one WARNING (`MSGSET_PROTOCOL`, *"data of a peer is not json"*) that names the peer, gives the parser's error WITHOUT the bytes it quotes ([`json_error_for_log()`](#json_error_for_log)), its `position` and the length, and dumps at most 256 bytes, masked. No stack trace.
+[`anystring2json()`](#anystring2json) for bytes RECEIVED from a peer that are not in a gbuffer of their own -- the JSON body of an HTTP request or response (7.27.0+). It reads the `len` bytes of `bf`, any JSON value, and refuses a NUL as `anystring2json()` does. A failure is logged as [`gbuf2json_from_peer()`](#gbuf2json_from_peer) logs it: one WARNING (`MSGSET_PROTOCOL`, *"data of a peer is not json"*) that names the peer, gives the parser's error WITHOUT the bytes it quotes ([`json_error_for_log()`](#json_error_for_log)), its `position` and the length, and dumps at most 256 bytes, masked. No stack trace.
 
 `ghttp_parser` reads every `application/json` body with it, so a malformed body sent to the BFF's `/auth/login` (`{"username":"bob","password":"hunter2",}`) and an IdP's answer with its tokens are a warning with the bytes masked. Up to 7.26.9 they went through `anystring2json(..., TRUE)`: an ERROR with a stack trace and the whole body, in clear, in a `"bf"` field.
 
@@ -131,7 +131,7 @@ if(!jn_body) {
 (json_error_for_log)=
 ## `json_error_for_log()`
 
-The text of a jansson error as a log may show it (7.26.10+). jansson ends the text of a parse error with the bytes near it -- `premature end of input near '"hunter2'` -- and those bytes are what the JSON carried: the value of a secret among them, whatever the dump of the same bytes masks. This writes the text without them into `bf` and returns it. Log the error's `position` (and `line`, `column`) with it: they say where the error is.
+The text of a jansson error as a log may show it (7.27.0+). jansson ends the text of a parse error with the bytes near it -- `premature end of input near '"hunter2'` -- and those bytes are what the JSON carried: the value of a secret among them, whatever the dump of the same bytes masks. This writes the text without them into `bf` and returns it. Log the error's `position` (and `line`, `column`) with it: they say where the error is.
 
 The SDK logs a jansson error through it wherever the JSON can carry a secret: [`gbuf2json()`](#gbuf2json), [`gbuf2json_from_peer()`](#gbuf2json_from_peer), [`anystring2json()`](#anystring2json), [`string2json()`](#string2json), [`anyfile2json()`](#anyfile2json), the persistent-attrs file, a timeranger2 record that is not JSON, the yuno's own config.
 

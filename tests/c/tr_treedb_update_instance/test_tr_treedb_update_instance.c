@@ -27,7 +27,7 @@
  *          And a NUL in a reference of an fkey column: refused by every
  *          write that reads one, a create, an update (its 'file' columns),
  *          an update with its links, an autolink and a replace of links
- *          (7.26.10).
+ *          (7.27.0).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

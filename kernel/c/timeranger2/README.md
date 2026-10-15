@@ -389,7 +389,8 @@ CRITICAL exits the yuno, and the next start checks the file at its open (and
 flags it when the check still cannot run). `tests/c/timeranger2/test_torn_tail_check_fails.c`.
 
 A string of a record can hold NUL characters: `json_dumps()` writes each one as
-`\u0000`, and a read hands it back. A consumer that reads it with
+`\u0000`, and a read hands it back. A treedb refuses one in an `id`, a pkey2
+value or an fkey reference (7.27.0+, see `docs/doc.yuneta.io/api/timeranger2/treedb.md`). A consumer that reads it with
 `kw_get_str()` gets the C string up to the first NUL. A content that is not
 json when it is read logs *"Bad data, the content of the record is not json"*,
 with the jansson `error` and `position`. `tests/c/timeranger2/test_nul_escape_record.c`.
@@ -502,7 +503,8 @@ disk read when no audience of the key needs the body (fixed 2026-07-15; the
 
 A treedb is held in memory and timeranger2 rewrites the **whole record** on
 every update, so a photo cannot be a field of a node. A column flagged
-`['fkey','file']` is an fkey into `__assets__`, a system topic every treedb
+`['fkey','file']` is an fkey into `__assets__` (since 7.27.0 a NEW topic
+refuses a `file` column whose id holds a `^`), a system topic every treedb
 creates at open: the **index** lives in memory and the **content** on disk,
 under `<treedb dir>/.blobs/ab/cd/<sha256>.<ext>`. The id of an asset IS the
 sha256 of its bytes, so the same content stored twice is one asset and a

@@ -86,7 +86,7 @@ int yuneta_entry_point(
 | `APP_DATETIME` | `const char *` | Build date/time. |
 | `fixed_config` | `const char *` | Fixed configuration (JSON string). |
 | `variable_config` | `const char *` | Variable configuration (JSON string). |
-| `register_yuno_and_more` | `int (*)(void)` | Callback to register custom GClasses — executed after the environment is ready, but before yuno creation. It answers `0`, or the sum of what its `register_c_*()` answer: a NEGATIVE answer (a gclass refused) stops the yuno -- an ERROR and `exit(-1)`, before it runs, as a refused gclass of the core does (7.26.10+). |
+| `register_yuno_and_more` | `int (*)(void)` | Callback to register custom GClasses — executed after the environment is ready, but before yuno creation. It answers `0`, or the sum of what its `register_c_*()` answer: a NEGATIVE answer (a gclass refused) stops the yuno -- an ERROR and `exit(-1)`, before it runs, as a refused gclass of the core does (7.27.0+). |
 | `cleaning_fn` | `void (*)(void)` | Cleanup callback — executed after all resources are freed. |
 
 **Returns**
@@ -95,7 +95,7 @@ Process exit code.
 
 A gclass of the yuno that [`gclass_create()`](#gclass_create) refuses stops
 the yuno before it is created: *"register_yuno_and_more() FAILED: a gclass of
-the yuno was refused, the yuno exits"*, an ERROR, and `exit(-1)` (7.26.10+). Up
+the yuno was refused, the yuno exits"*, an ERROR, and `exit(-1)` (7.27.0+). Up
 to 7.26.9 the answer was added to the exit code and the yuno RAN: its services
 failed later with *"gclass NOT FOUND"*. So `register_yuno_and_more()` hands
 back what the registrations answer:

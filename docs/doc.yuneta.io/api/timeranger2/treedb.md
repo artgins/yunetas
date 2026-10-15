@@ -552,7 +552,7 @@ treedb_autolink(tranger, admin, kw, TRUE);     // -1, nothing moved
 ```
 
 A ref with a NUL in it is refused before anything moves, *"Invalid fkey
-reference: it holds a NUL"*, as a create refuses it (7.26.10+, see
+reference: it holds a NUL"*, as a create refuses it (7.27.0+, see
 [`treedb_create_node()`](<#treedb_create_node>)). Up to 7.26.9 the ref was
 read up to the NUL, and the node was linked to the parent named before it:
 
@@ -788,7 +788,7 @@ another. A create or an update ([`treedb_update_node()`](#treedb_update_node))
 whose `id`, or the value of one of the topic's `pkey2s`, holds a NUL is refused
 before anything is written, *"Invalid id or pkey2 value: it holds a NUL"* with
 the `field` -- an ERROR with a stack from C, a WARNING inside the window of a
-peer's data (7.26.10+). Up to 7.26.9 a create of `"dx\u0000evil"` took the key
+peer's data (7.27.0+). Up to 7.26.9 a create of `"dx\u0000evil"` took the key
 `dx`, and an update of `g1` with the id `"g1\u0000x"` saved that id under the
 key `g1`, kept after a reload, with no log:
 
@@ -799,7 +799,7 @@ treedb_update_node(tranger, node_g1,
     json_pack("{s:s%, s:s}", "id", "g1\0x", (size_t)4, "name", "G1"), TRUE);        // NULL
 ```
 
-**No NUL in an fkey reference either** (7.26.10+). Every write that reads an
+**No NUL in an fkey reference either** (7.27.0+). Every write that reads an
 fkey reference from its `kw` refuses one with a NUL -- a string, or a string of
 its list or dict -- before anything moves, *"Invalid fkey reference: it holds a
 NUL"* with the `field`, an ERROR with a stack from C. The writes that ask are a
@@ -935,7 +935,7 @@ json_t *treedb_create_topic(
 | `tranger` | `json_t *` | Pointer to the tranger instance managing the TreeDB. |
 | `treedb_name` | `const char *` | Name of the TreeDB where the topic will be created. |
 | `topic_name` | `const char *` | Name of the topic to be created. |
-| `topic_version` | `json_int_t` | Version number of the topic schema. 64 bits since SDK 7.26.10 (it was an `int`, and a version past 2147483647 was cut to a negative one); a caller that passes an `int` compiles unchanged. A version that comes from outside is at most [`TRANGER2_VERSION_MAX`](#timeranger2-version-max). |
+| `topic_version` | `json_int_t` | Version number of the topic schema. 64 bits since SDK 7.27.0 (it was an `int`, and a version past 2147483647 was cut to a negative one); a caller that passes an `int` compiles unchanged. A version that comes from outside is at most [`TRANGER2_VERSION_MAX`](#timeranger2-version-max). |
 | `topic_tkey` | `const char *` | Topic key used for indexing. |
 | `pkey2s` | `json_t *` | The secondary keys of the topic: a name, a list of names, or a dict keyed by them. An empty name is no key. See the rules below. |
 | `jn_cols` | `json_t *` | The columns of the topic: a dict keyed by column id, or a list of columns, each one a json object. See the rules below. |
@@ -1031,7 +1031,7 @@ undecodable (*"Wrong fkey (parent) reference"*); so was one in the id of a
 `file` column, and every link of a file failed (*"Cannot build the reference
 of a node: ... holds a '^'"*); a pkey2 of no column was
 taken, and its index held nothing -- the name of a `qualified` id, which is its
-first pkey2, could not be built. Before SDK 7.26.10 a column that was not a json object, a pkey2 of
+first pkey2, could not be built. Before SDK 7.27.0 a column that was not a json object, a pkey2 of
 `id` or of the tkey, and a pkey2 named twice were taken, and their index was
 built wrong (a node stored inside itself, two lists on one id); a list id
 that did not fit was cut, and two lists of the topic shared what was left.
@@ -1158,7 +1158,7 @@ inside the window of a peer's data
 each topic of a PEER's `open-treedb` schema, of a NEW topic that a PEER's
 `create-topic` makes, and of each topic of a schema that `save-schema` or
 `apply-schema` is about to publish, whoever asks (a WARNING for a peer, an
-ERROR for C code; since SDK 7.26.10). A C caller's `open-treedb` and
+ERROR for C code; since SDK 7.27.0). A C caller's `open-treedb` and
 `create-topic` are not asked it: they reach `treedb_create_topic()` as they
 always did.
 
@@ -1234,7 +1234,7 @@ own"*, with `why`, `topic_name` and `col`: an ERROR, and a WARNING inside the
 window of a peer's data ([`treedb_set_peer_data()`](<#treedb_set_peer_data>)).
 `C_TREEDB` asks it of the whole schema of a PEER's `open-treedb`, of
 `save-schema` and `apply-schema` (whoever asks), and in a PEER's
-`create-topic` against the hooks the open treedb has (since SDK 7.26.10). A
+`create-topic` against the hooks the open treedb has (since SDK 7.27.0). A
 C caller's `open-treedb` and `create-topic` are not asked it.
 
 ```C
@@ -2644,7 +2644,7 @@ static char treedb_schema_names[]= "\
 
 **To check a store before an upgrade, run
 [`tools/treedb/check_store_schemas.py`](../../tools/check_store_schemas.md)**
-(7.26.10+; it ships with the packages, and needs only `python3`). It says, per
+(7.27.0+; it ships with the packages, and needs only `python3`). It says, per
 persisted schema, everything the SDK will log when it opens it -- a name that
 breaks a rule, and the faults a topic already on disk is opened with, at
 every open -- with the level of what the open does and the message it logs.
@@ -2733,7 +2733,7 @@ A `%` is fine for both rules too, even in a name that reads as a format, such
 as `%s%n`. No name of a treedb, a topic or a column goes through a format
 string: the logs, the paths and the references take it as an argument. A
 treedb and a topic named `%s%n` open, take nodes and links, and open again
-after a close like any other (checked on SDK 7.26.10). Such a name is legal,
+after a close like any other (checked on SDK 7.27.0). Such a name is legal,
 but a tool that expands `%` on its own (a shell `printf`, a cron line) reads it
 as a format, so quote it there:
 
@@ -3197,7 +3197,7 @@ A column that `kw` does not carry is an **empty** column, and its links are remo
 - the link would close a cycle in the hook: *"Cannot link, the link would close a cycle in the hook"*.
 
 A ref with a NUL in it refuses the whole call before anything moves, *"Invalid
-fkey reference: it holds a NUL"* (7.26.10+, see
+fkey reference: it holds a NUL"* (7.27.0+, see
 [`treedb_create_node()`](<#treedb_create_node>)): `-1`, no column replaced. Up
 to 7.26.9 the ref was read up to the NUL, and the node was linked to the
 parent named before it:
@@ -3470,7 +3470,7 @@ one: a field required or of the wrong type, an fkey reference that cannot be
 linked, a link that would close a cycle or links a node to itself, an unlink
 of a child that does not hang from that parent, a create of an id that
 exists, a `pkey2` that is not a secondary index, a time of the tkey that the
-record cannot keep (since SDK 7.26.10). Since SDK 7.26.10 so is a
+record cannot keep (since SDK 7.27.0). Since SDK 7.27.0 so is a
 fault of the schema of a NEW topic, or of a schema that a peer hands: the
 columns, the pkey2s and the hooks
 ([`treedb_check_new_topic()`](<#treedb_check_new_topic>),
@@ -3500,7 +3500,7 @@ For a C caller a bad record is a broken contract, and the ERROR with its stack
 says where. For a peer -- a GUI, a remote command -- it is the peer's mistake,
 and an ERROR per mistake is noise that any user with the permission can make.
 `C_NODE` sets it around the treedb calls of its commands (create, update,
-delete, link, unlink, import-db), since SDK 7.26.10 -- see
+delete, link, unlink, import-db), since SDK 7.27.0 -- see
 [what a command names is the peer's data](#c-node-peer-data).
 
 The flag is process-wide, so the treedb turns it OFF wherever code that is
@@ -4022,7 +4022,7 @@ json_t *n = treedb_update_node(tranger, node,     // node "g1"
 /*  n == NULL, "Invalid id or pkey2 value: it holds a NUL", node unchanged  */
 ```
 
-So is an update whose fkey column holds a reference with a NUL (7.26.10+).
+So is an update whose fkey column holds a reference with a NUL (7.27.0+).
 The update writes no ordinary fkey, but it links the `file` columns of its
 `kw`, and up to 7.26.9 it read their reference up to the NUL: `"\u0000junk"`
 unlinked the file and `"<id>\u0000evil"` linked the asset `<id>`, both

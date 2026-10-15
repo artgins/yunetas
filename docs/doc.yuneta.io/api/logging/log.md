@@ -368,14 +368,14 @@ The function increments the global error count and formats the log message befor
 
 | Format | Logs | Since |
 |---|---|---|
-| `%s`, `%.64s`, `%.*s` | a string; the precision caps it (a peer's value, a dump), and a cap never cuts a UTF-8 character: it ends before the one that would not fit ([`utf8_prefix_len()`](<#utf8_prefix_len>)) | precision: SDK 7.26.9; whole characters: 7.26.10 |
+| `%s`, `%.64s`, `%.*s` | a string; the precision caps it (a peer's value, a dump), and a cap never cuts a UTF-8 character: it ends before the one that would not fit ([`utf8_prefix_len()`](<#utf8_prefix_len>)) | precision: SDK 7.26.9; whole characters: 7.27.0 |
 | `%d`, `%ld`, `%lld`, `%zd`, `%jd`, `%hd`, `%hhd` | a signed integer of that size | `z`, `j`, `t`, `h`, `hh`: SDK 7.26.9 |
 | `%u`, `%lu`, `%llu`, `%zu`, `%x`, `%o` | an unsigned integer of that size, as a json number (in decimal: `%x` and `%o` do not change the base); one above `LLONG_MAX` is logged as text | SDK 7.26.9 |
 | `%f`, `%g`, `%Lf` | a real number | |
 | `%p` | a pointer | |
 | `%j` | a `json_t *`, as compact json | |
 | no conversion (`"100%"`, `"%%"`) | the text itself, `%%` as `%`; nothing is consumed. `"50% done"` is NOT one: `"% d"` is a conversion, for `printf` too | SDK 7.26.9 |
-| `%m` | `strerror(errno)`, as glibc's `%m`: no argument is consumed. `errno` is the one the caller had when it called the log function. A precision is ignored (`%.3m` logs the whole message, glibc would cut it) | SDK 7.26.10 |
+| `%m` | `strerror(errno)`, as glibc's `%m`: no argument is consumed. `errno` is the one the caller had when it called the log function. A precision is ignored (`%.3m` logs the whole message, glibc would cut it) | SDK 7.27.0 |
 | a conversion the logger does not know (`%C`, `%b`, `%n`) | the format's text; one argument is consumed, so the keys after it stay aligned | |
 | a positional argument or a non-standard size (`%1$s`, `%qd`, `%I64d`) | the format's text, and one argument consumed, like a conversion the logger does not know: write `%s`, `%lld`. SDK 7.26.8 logged their value (what crashed it were the forms with `*` and `%j…`) | SDK 7.26.9 |
 

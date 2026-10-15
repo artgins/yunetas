@@ -128,7 +128,7 @@ What a frame gets wrong is the peer's, said ONCE, a WARNING (`MSGSET_PROTOCOL`,
 - with `verbose`, a frame that is not json is *"frame is not json"*
   ([`gbuf2json_from_peer()`](#gbuf2json_from_peer): the parser's error and its
   position -- not the bytes jansson quotes near it, which showed the value of
-  a secret (7.26.10+) --, the bytes, and a DEBUG dump of the first 256 masked
+  a secret (7.27.0+) --, the bytes, and a DEBUG dump of the first 256 masked
   as [`mask_secrets_in_text()`](#mask_secrets_in_text) masks them);
 - with `verbose`, a frame of json that is not an inter-event (no `"event"`
   string, no `"kw"` dict) is *"Frame is not an inter-event (an "event" string
@@ -147,7 +147,7 @@ What a frame gets wrong is the peer's, said ONCE, a WARNING (`MSGSET_PROTOCOL`,
 `frame_size` is the bytes of the frame RECEIVED. Up to 7.26.9 the WARNING of an
 event that is not public said a `kw_size` that was the size of the masked,
 capped copy (a kw of 900 KB said 101). `C_IEVENT_SRV` and `C_IEVENT_CLI` pass
-`1` (7.26.10+) and close the channel: they passed `0` and said *"Bad json"* for
+`1` (7.27.0+) and close the channel: they passed `0` and said *"Bad json"* for
 both refusals, a frame of json among them, with a dump of the frame's bytes
 raw, where a JWT under a plain key, cut by the window, showed its header. Up to
 7.26.9 the lookup of the event was silent and both callers traced the whole kw
@@ -237,7 +237,7 @@ Top record (not owned — do not free), or `NULL` if not found.
 
 **Notes**
 
-The routing travels in the frame, so a kw without it is what the peer sent: with `verbose`, one WARNING (`MSGSET_PROTOCOL`, *"__md_iev__ NOT FOUND"* or *"__md_iev__ stack NOT FOUND"*) naming the stack and the peer, with the kw masked and capped to 256 bytes (7.26.10+). Up to 7.26.9 it was an ERROR with a stack trace and the whole kw traced in clear -- the frame of a server, a command's password among it, reached it in `C_IEVENT_CLI`. Without `verbose` nothing is logged: the caller decides.
+The routing travels in the frame, so a kw without it is what the peer sent: with `verbose`, one WARNING (`MSGSET_PROTOCOL`, *"__md_iev__ NOT FOUND"* or *"__md_iev__ stack NOT FOUND"*) naming the stack and the peer, with the kw masked and capped to 256 bytes (7.27.0+). Up to 7.26.9 it was an ERROR with a stack trace and the whole kw traced in clear -- the frame of a server, a command's password among it, reached it in `C_IEVENT_CLI`. Without `verbose` nothing is logged: the caller decides.
 
 **Example**
 
@@ -275,7 +275,7 @@ json_t *msg_iev_pop_stack(
 
 **Returns**
 
-Popped record (owned — caller must free), or `NULL` if not found. A kw without `__md_iev__` or without the stack is logged as [`msg_iev_get_stack()`](#msg_iev_get_stack) with `verbose` logs it: a WARNING, the kw masked and capped (7.26.10+; it was an ERROR with the kw traced in clear).
+Popped record (owned — caller must free), or `NULL` if not found. A kw without `__md_iev__` or without the stack is logged as [`msg_iev_get_stack()`](#msg_iev_get_stack) with `verbose` logs it: a WARNING, the kw masked and capped (7.27.0+; it was an ERROR with the kw traced in clear).
 
 **Example**
 

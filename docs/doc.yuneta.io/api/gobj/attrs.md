@@ -2,7 +2,7 @@
 
 Read and write gobj attributes. Attributes are typed fields declared through the GClass's SData schema and can be marked writable, persistent, statistic and more.
 
-**The default value of an attribute** is the text in the fourth field of its `SDATA()`. A boolean, an integer or a real default is read by the same grammar as a config and a command parameter ([`command_parameter_from_text()`](../parsers/command_parser.md#command_parameter_from_text)): an empty text is `0` or `false`; `true`/`false`, `yes`/`no`, `on`/`off` for a boolean; a JSON number, the whole text. So a default can be copied into a config as it is. A default that does not read as its type is the gclass's bug: an ERROR when the gobj is created, and the zero of the type. Since 7.26.10; up to 7.26.9 a default had a grammar of its own (`atoi()`, `strtoll()` in base 0): `"yes"` and `"on"` were `false`, `"12abc"` was 12, and `"0660"` an octal 432 that no config could write.
+**The default value of an attribute** is the text in the fourth field of its `SDATA()`. A boolean, an integer or a real default is read by the same grammar as a config and a command parameter ([`command_parameter_from_text()`](../parsers/command_parser.md#command_parameter_from_text)): an empty text is `0` or `false`; `true`/`false`, `yes`/`no`, `on`/`off` for a boolean; a JSON number, the whole text. So a default can be copied into a config as it is. A default that does not read as its type is the gclass's bug: an ERROR when the gobj is created, and the zero of the type. Since 7.27.0; up to 7.26.9 a default had a grammar of its own (`atoi()`, `strtoll()` in base 0): `"yes"` and `"on"` were `false`, `"12abc"` was 12, and `"0660"` an octal 432 that no config could write.
 
 ```C
 SDATA (DTP_BOOLEAN,     "use_tls",          SDF_RD,     "yes",      "Use TLS"),
@@ -749,7 +749,7 @@ Returns 0 on success, or -1 if the attribute is not found or an error occurs.
 
 If the attribute does not exist, an error is logged. The function makes sure that the provided value is decremented after use.
 
-The value is read as the attribute's type by the grammar of the command parser ([`command_parameter_from_json()`](#command_parameter_from_json), 7.26.10+), and a json null given to a `DTP_STRING` is `""`; so is every value written from json -- [`gobj_write_attrs()`](#gobj_write_attrs), the config of `gobj_create()`, the persistent attributes loaded. A json string given to a boolean, an integer, a real, a list or a dict is read from its text; a number or a boolean as the exact type. A value that does not read as the type is not written: `-1`, one ERROR (*"Attribute value of the wrong type, not written"*) naming the attribute, its type and why, the value masked, and the attribute keeps its value. A `DTP_STRING` takes any json as its text, a `DTP_JSON` any json as it is.
+The value is read as the attribute's type by the grammar of the command parser ([`command_parameter_from_json()`](#command_parameter_from_json), 7.27.0+), and a json null given to a `DTP_STRING` is `""`; so is every value written from json -- [`gobj_write_attrs()`](#gobj_write_attrs), the config of `gobj_create()`, the persistent attributes loaded. A json string given to a boolean, an integer, a real, a list or a dict is read from its text; a number or a boolean as the exact type. A value that does not read as the type is not written: `-1`, one ERROR (*"Attribute value of the wrong type, not written"*) naming the attribute, its type and why, the value masked, and the attribute keeps its value. A `DTP_STRING` takes any json as its text, a `DTP_JSON` any json as it is.
 
 **Example**
 
@@ -1012,7 +1012,7 @@ Returns `0` on success, or `-1` if the attribute does not exist.
 
 If the attribute does not exist in the `hgobj`, a warning is logged. If the `hgobj` has a `mt_writing` method, it is called after updating the attribute.
 
-A `NULL` value writes a json null, and [`gobj_read_str_attr()`](#gobj_read_str_attr) then answers `NULL`; `empty_string()` reads it as empty. A json null given to a string attribute by [`gobj_write_attr()`](#gobj_write_attr), a config or the persistent attributes is the empty string `""`, as the default of a string attribute (7.26.10+; it was the text `"null"`, which `empty_string()` reads as a value).
+A `NULL` value writes a json null, and [`gobj_read_str_attr()`](#gobj_read_str_attr) then answers `NULL`; `empty_string()` reads it as empty. A json null given to a string attribute by [`gobj_write_attr()`](#gobj_write_attr), a config or the persistent attributes is the empty string `""`, as the default of a string attribute (7.27.0+; it was the text `"null"`, which `empty_string()` reads as a value).
 
 **Example**
 

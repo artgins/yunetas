@@ -3,7 +3,7 @@
 Says what the treedb and msg2db schemas persisted in a store will make the SDK
 log when a yuno opens them. Read-only, and it needs nothing but `python3`.
 
-**Run it on every store of a node before upgrading its SDK** (7.26.10+). A
+**Run it on every store of a node before upgrading its SDK** (7.27.0+). A
 topic already on disk that breaks a rule of a NEW topic is opened as it was,
 and the treedb says so with an ERROR at **every** open; a few faults leave a
 topic out, and one class refuses it with a CRITICAL. Fix what it prints first:

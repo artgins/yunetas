@@ -497,7 +497,7 @@ yuno: a process keeps the groups it started with.
 
 Says what the treedb and msg2db schemas persisted in a store will make the SDK
 log when a yuno opens them. **Run it on every store of a node before upgrading
-its SDK**: since 7.26.10 a topic already on disk that breaks a rule of a new
+its SDK**: since 7.27.0 a topic already on disk that breaks a rule of a new
 topic opens as it was, with an ERROR at every open, and a few faults leave a
 topic out or refuse it. Read-only; on a clean store it prints only the count
 of what it read (on stderr).

@@ -87,7 +87,7 @@ static int register_yuno_and_more(void)
     int result = 0;
     result += register_c_prot_mqtt2();
     result += register_c_mqtt_broker();
-    return result;  // a gclass refused stops the yuno (7.26.10+)
+    return result;  // a gclass refused stops the yuno (7.27.0+)
 }
 ```
 

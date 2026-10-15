@@ -191,7 +191,7 @@ if(ret < 0) {
 ```
 
 A gclass of the yuno that `gclass_create()` refuses stops it there, as one of
-the core does (7.26.10+): up to 7.26.9 the yuno ran, and its services failed
+the core does (7.27.0+): up to 7.26.9 the yuno ran, and its services failed
 later with *"gclass NOT FOUND"*. So `register_yuno_and_more()` answers the sum
 of what its `register_c_*()` answer.
 

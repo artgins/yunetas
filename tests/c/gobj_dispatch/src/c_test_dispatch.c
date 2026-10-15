@@ -92,18 +92,18 @@
  *          EV_STOPPED (destroys the pair, creates and starts a new one).
  *          gobj_stop_children() and gobj_stop_tree() stop the children they
  *          had and end: the new pair was created after the walk began. The
- *          first fix of 7.26.10 started again from the first child, and
+ *          first fix of 7.27.0 started again from the first child, and
  *          stopped the new pair for ever.
  *
  *          Phase 12 -- the same walks, with a child before the pair whose
  *          start is refused, or that stops itself in its mt_start, or that
  *          starts itself again in its mt_stop: none is started or stopped
- *          twice (the first fix of 7.26.10 started again from the first
+ *          twice (the first fix of 7.27.0 started again from the first
  *          child, and did it twice).
  *
  *          Phase 13 -- the walks of the callers, in the six walk types, whose
  *          callback destroys the child AND the next one: each child left is
- *          given once (up to the first fix of 7.26.10 they ended there with
+ *          given once (up to the first fix of 7.27.0 they ended there with
  *          an ERROR). And the time of gobj_stop_children() grows as the
  *          children do, not as their square.
  *
@@ -1015,7 +1015,7 @@ PRIVATE int run_phase11(hgobj gobj)
  *        ├── c2
  *        └── c3        must be stopped
  *
- *  Up to the first fix of 7.26.10 the walk started again from the first
+ *  Up to the first fix of 7.27.0 the walk started again from the first
  *  child: c0's start was refused twice (two ERRORs), c0b and s0 got two
  *  starts and two stops.
  ***************************************************************************/

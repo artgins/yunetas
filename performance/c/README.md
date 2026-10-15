@@ -773,6 +773,74 @@ releases (`timeranger2.c` changed only in its rt-disk rescan): code
 placement, as far as this method can tell; `test_topic_pkey_integer`, 24 rounds,
 moved +0.3%.
 
+### Oct-2026: 7.27.0 against 7.26.9 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
+
+Each release built from its own tree (a git worktree of the 7.26.9 tag, the
+same `.config` and compiler; only the kernel libraries, the modules,
+`performance/c/` and the three ctest binaries built there). `outputs_ext` was
+shared: linux-ext-libs did not change (1.23 at both tags). The two binaries of
+each benchmark run alternately, the order flipped every round, with a `sync`
+and a 3 s pause before each run: 16 rounds (8, then 8 more: other work on the
+machine during rounds 2 to 4 had widened the spreads); the three timeranger2
+ctest binaries 24 rounds, a 1 s pause. Mean +- standard deviation; the treedb
+figures are CPU time; |t| < 3 is noise. The report:
+[`performance/reports/7.27.0.html`](../reports/7.27.0.html).
+
+| Case | 7.26.9 | 7.27.0 | Change |
+|------|--------|--------|--------|
+| tr2.append_rate (appends/s) | 227,258 +- 3,329 | 229,502 +- 3,519 | +1.0% (t = +2.3) |
+| tr2.append_rate_rt (appends/s) | 192,422 +- 4,394 | 193,449 +- 4,224 | +0.5% (t = +0.8) |
+| tr2.build_appends (ms) | 1,576 +- 78 | 1,586 +- 74 | +0.7% (t = +0.4) |
+| tr2.tm_build_appends (ms) | 1,644 +- 84 | 1,639 +- 71 | -0.3% (t = -0.2) |
+| tr2.read_rate_iterator (records/s) | 218,766 +- 3,641 | 218,216 +- 3,899 | -0.3% (t = -0.5) |
+| tr2.read_rate_pages (records/s) | 192,687 +- 9,098 | 197,017 +- 2,635 | +2.2% (t = +2.2) |
+| tr2.open_master (ms) | 80.0 +- 2.8 | 82.2 +- 5.2 | +2.8% (t = +1.5) |
+| tr2.tm_query (ms) | 12.7 +- 0.7 | 12.8 +- 0.9 | +0.9% (t = +0.4) |
+| tr2.open_replica (ms) | 94.4 +- 6.0 | 94.5 +- 6.4 | +0.0% (t = +0.0) |
+| tr2.create_topic (ms) | 143.5 +- 19.5 | 136.2 +- 21.2 | -5.1% (t = -1.0) |
+| tr2.topic_version_change (ms) | 254.6 +- 27.4 | 261.3 +- 21.9 | +2.6% (t = +0.8) |
+| treedb.update_memory (us) | 2.312 +- 0.092 | 2.461 +- 0.063 | +6.5% (t = +5.4) **price** |
+| treedb.update_saved (us) | 7.548 +- 0.285 | 7.844 +- 0.638 | +3.9% (t = +1.7) |
+| treedb.link_unlink (us) | 7.608 +- 0.303 | 7.760 +- 0.306 | +2.0% (t = +1.4) |
+| treedb.create_link_half (us) | 65.8 +- 4.5 | 64.2 +- 2.0 | -2.4% (t = -1.3) |
+| treedb.reopen (us) | 289.7 +- 12.2 | 290.8 +- 9.9 | +0.4% (t = +0.3) |
+| treedb.delete_force (us) | 43.6 +- 2.3 | 42.7 +- 1.5 | -2.1% (t = -1.4) |
+| treedb.delete_parent (us) | 2,354 +- 212 | 2,316 +- 111 | -1.6% (t = -0.6) |
+| ctreedb.same_literal_release (s) | 0.372 +- 0.071 | 0.383 +- 0.071 | +2.9% (t = +0.4) |
+| ctreedb.seed (s) | 10.8 +- 0.7 | 10.6 +- 0.7 | -1.6% (t = -0.7) |
+| ctreedb.newer_literal (s) | 13.1 +- 0.9 | 13.0 +- 0.6 | -1.1% (t = -0.5) |
+| rotatory.audit_record (ns) | 587.5 +- 22.7 | 578.0 +- 25.7 | -1.6% (t = -1.1) |
+| rotatory.audit_record_flush (ns) | 1,256 +- 37 | 1,253 +- 45 | -0.2% (t = -0.2) |
+| rotatory.log_record (ns) | 380.8 +- 10.6 | 386.3 +- 14.5 | +1.4% (t = +1.2) |
+| net.yev_ping_pong (K msg/s) | 145.9 +- 4.1 | 144.9 +- 7.4 | -0.7% (t = -0.5) |
+| net.yev_ping_pong_persist (K msg/s) | 84.7 +- 2.1 | 85.4 +- 3.0 | +0.7% (t = +0.7) |
+| net.tcp_echo (round trips/s) | 38,367 +- 1,260 | 38,744 +- 1,063 | +1.0% (t = +0.9) |
+| net.tcp_echo_persist (round trips/s) | 30,346 +- 1,436 | 29,986 +- 1,020 | -1.2% (t = -0.8) |
+| net.tls_echo (round trips/s) | 28,832 +- 865 | 28,937 +- 1,500 | +0.4% (t = +0.2) |
+| net.tls_echo_persist (round trips/s) | 23,741 +- 1,237 | 23,506 +- 1,038 | -1.0% (t = -0.6) |
+| net.auth_bff_login (logins/s) | 8,338 +- 650 | 8,455 +- 286 | +1.4% (t = +0.7) |
+
+One price, `treedb.update_memory`: the NUL checks of every treedb write
+(`refuse_node_name_with_nul()`, the id and each pkey2 value;
+`refuse_fkey_ref_with_nul()`, a walk of the kw before any fkey reference is
+read). `perf` is not permitted on this machine, so it was attributed by
+relinking `perf_tr_treedb`, 16 alternated rounds each (CPU us per operation,
+mean +- standard deviation):
+
+| Case | 7.26.9 | 7.26.9 timeranger2 + 7.27.0 gobj-c | 7.27.0 |
+|------|--------|-----------------------------------|--------|
+| `update_memory` | 2.296 +- 0.037 | 2.186 +- 0.046 (-4.8%) | 2.438 +- 0.081 (+6.2%, t = 6.3) |
+| `update_saved` | 7.486 +- 0.153 | 7.301 +- 0.133 (-2.5%) | 7.655 +- 0.126 (+2.3%, t = 3.4) |
+
+| Case | 7.26.9 | 7.27.0 `tr_treedb.c` as an object | the same, the two NUL checks taken out |
+|------|--------|-----------------------------------|----------------------------------------|
+| `update_memory` | 2.327 +- 0.097 | 2.415 +- 0.052 (+3.8%, t = 3.2) | 2.328 +- 0.047 (+0.0%) |
+| `update_saved` | 7.529 +- 0.154 | 7.799 +- 0.189 (+3.6%, t = 4.4) | 7.502 +- 0.184 (-0.4%) |
+
+The gobj-c of 7.27.0 is not the cost (the hybrid is faster than 7.26.9); the
+two checks are all of it, about 0.1 us of CPU per write. The price of 7.26.9,
+`net.yev_ping_pong_persist`, is not there against 7.26.9 (+0.7%).
+
 ### Oct-2026: 7.26.9 against 7.26.8 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
 Each release built from its own tree (a git worktree of the 7.26.8 tag, the

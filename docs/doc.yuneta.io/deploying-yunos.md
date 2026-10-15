@@ -219,8 +219,8 @@ If the node runs SDK 7.25.4 or earlier, read
 and look for md2 files that are not whole rows before step 1: see
 [Before an upgrade from 7.25.4 or earlier](#dy-md2-scan).
 
-If the SDK goes to 7.26.10 or later, check the schemas of the node's stores
-before step 1: see [Upgrading to 7.26.10](#dy-upgrade-72610).
+If the SDK goes to 7.27.0 or later, check the schemas of the node's stores
+before step 1: see [Upgrading to 7.27.0](#dy-upgrade-7270).
 
 ```bash
 # 1. Build
@@ -506,10 +506,10 @@ without `SDF_WR` answers *"attr not writable"*. A script that set one at run
 time puts it in the yuno's config (`yunos/batches/<host>/<yuno>.json`), or uses
 the attribute's own command (`set-max-sessions`, `set-email-user`, ...).
 
-(dy-upgrade-72610)=
-### Upgrading to 7.26.10: check the schemas of the stores first
+(dy-upgrade-7270)=
+### Upgrading to 7.27.0: check the schemas of the stores first
 
-7.26.10 opens a topic already on disk that breaks a rule of a NEW topic as it
+7.27.0 opens a topic already on disk that breaks a rule of a NEW topic as it
 was, and says so with an ERROR at **every** open of its treedb; a few faults
 leave the topic out, and a few refuse it with a CRITICAL (*"Cannot create topic
 of the schema"*), which exits a yuno whose `on_critical_error` exits. Before the
@@ -517,7 +517,7 @@ upgrade, ask every store of the node what it will say, with
 [`check_store_schemas.py`](tools/check_store_schemas.md):
 
 ```bash
-# a node that has the tool (a source checkout, or a package of 7.26.10 or later)
+# a node that has the tool (a source checkout, or a package of 7.27.0 or later)
 python3 /yuneta/development/yunetas/tools/treedb/check_store_schemas.py /yuneta/store
 
 # a node on an older package: stream it from your checkout

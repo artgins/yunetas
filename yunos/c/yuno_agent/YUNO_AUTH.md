@@ -1406,7 +1406,7 @@ be able to pull all of it. `brief=0` asks for the full representation.
 **`update-idp-user` changes only what you pass.** `firstName`, `lastName`,
 `enabled`, `emailVerified` and `requiredActions`; a field you do not pass stays
 as it is. These parameters, `brief` of `list-idp-users` and `actions` of
-`send-idp-user-actions` are declared `DTP_JSON` (since SDK 7.26.10; they were
+`send-idp-user-actions` are declared `DTP_JSON` (since SDK 7.27.0; they were
 `DTP_STRING`, and the command parser now refuses a boolean or a list given to
 a string): the handler reads each one in more than one shape. A boolean is
 `true`/`false` from a SPA, or `1`/`0`, `true`, `yes` on the command line; a

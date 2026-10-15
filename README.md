@@ -91,6 +91,13 @@ A release that moves a lot of code ships a performance report: charts of what
 the release does on one machine, the release before measured the same way, and every loss with its
 reason.
 
+- **7.27.0** (against 7.26.9): a hardening release that holds its speed --
+  30 of 31 figures inside their noise; one price said with its cause (a
+  treedb update in memory, 6.5% more CPU, 2.31 -> 2.46 us: the NUL checks of
+  each write).
+  [Report](performance/reports/7.27.0.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.0/performance/reports/7.27.0.html) ·
+  [raw figures](performance/reports/7.27.0.json)
 - **7.26.9** (against 7.26.8): a hardening release that made the treedb
   faster -- a link or unlink 12% faster, deleting a parent 8.7%, a reopen
   6.2%; one price said with its number (the event loop echo that appends

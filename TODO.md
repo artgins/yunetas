@@ -26,17 +26,7 @@ Severity in parentheses where one was assigned.
 
 ## 1. Defects to fix
 
-- **`C_POSTGRES` does not connect** (found 2026-10-14): the libpq socket
-  polling (`PQconnectPoll` / `PQconsumeInput`, the only `EV_CONNECTED`) is
-  commented out since the libuv -> yev_loop port, so it never reaches
-  `ST_CONNECTED`. Restore it with a yev poll event on `PQsocket()` (restore,
-  don't redesign). Its consumer `dba_postgres` is built by no configuration.
-  **Left as it is, by decision (2026-10-15):** no project uses PostgreSQL;
-  everything stores in timeranger2/treedb. Restore it when a use appears:
-  `yev_create_poll_event()` on `PQsocket()` (no gclass uses that event in
-  production yet), the old `on_poll_cb` logic (`PQconnectPoll` while
-  connecting, `PQconsumeInput`/`PQflush` after), and the link of
-  `dba_postgres` (section 2).
+None open in this repo (2026-10-15).
 
 ### Projects (code outside this repo)
 
@@ -180,6 +170,20 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 - **Apply is off on every in-tree yuno**: the agent, the control center and
   `C_AUTHZ` force `impose_c_schema`, so gui_agent's Apply cannot act on any of
   them until one stops forcing it.
+
+### PostgreSQL
+
+- **`C_POSTGRES` does not connect** (found 2026-10-14): the libpq socket
+  polling (`PQconnectPoll` / `PQconsumeInput`, the only `EV_CONNECTED`) is
+  commented out since the libuv -> yev_loop port, so it never reaches
+  `ST_CONNECTED`. Restore it with a yev poll event on `PQsocket()` (restore,
+  don't redesign). Its consumer `dba_postgres` is built by no configuration.
+  **Left as it is, by decision (2026-10-15):** no project uses PostgreSQL;
+  everything stores in timeranger2/treedb. Restore it when a use appears:
+  `yev_create_poll_event()` on `PQsocket()` (no gclass uses that event in
+  production yet), the old `on_poll_cb` logic (`PQconnectPoll` while
+  connecting, `PQconsumeInput`/`PQflush` after), and the link of
+  `dba_postgres` (section 2).
 
 ### Traces and secrets
 

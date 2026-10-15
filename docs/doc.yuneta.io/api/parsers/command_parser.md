@@ -75,7 +75,7 @@ too often (*"BAD gbuf_decref()"*).
 | `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, never an object or an array | a number of the JSON grammar with nothing before or after it, in its range: a JSON integer for a `DTP_INTEGER`, a JSON number for a `DTP_REAL`; a boolean as `true`/`false`, `yes`/`no`, `on`/`off` or a JSON integer |
 | `DTP_JSON` | anything | its json, or the text itself as a string (a bare word, a date); a text that starts as json (`{`, `[`, `"`) and does not parse is refused -- on the command line or as a default. In `kw` a string is a json too, and stays as it came: `"{x"` given in `kw` arrives as that string |
 
-**The handler gets the EXACT type** (7.26.10+), so it can read a parameter
+**The handler gets the EXACT type** (7.27.0+), so it can read a parameter
 with the plain `kw_get_bool()` / `kw_get_int()` / `kw_get_real()` and no
 `KW_WILD_NUMBER`:
 
@@ -182,7 +182,7 @@ A handler that takes more than one shape on purpose declares `DTP_JSON` and
 reads what it gets (`C_NODE`'s `set-link-events set`, the keycloak
 `update-idp-user` flags, the `set` of the trace commands of the yuno).
 
-**What a caller must send (BREAKING, 7.26.10+).** Every parameter is typed,
+**What a caller must send (BREAKING, 7.27.0+).** Every parameter is typed,
 so a caller that relied on the handler's own reading gets `-1` now. Refused:
 
 - a number, a boolean, an object or an array given to a `DTP_STRING`
@@ -394,7 +394,7 @@ attribute's type is refused, `-1`, and nothing is written.
 ## `command_parameter_from_json()`
 
 A value of `type` given as JSON, read exactly as [`command_parser()`](#command_parser)
-reads a parameter given in kw (7.26.10+): a string as
+reads a parameter given in kw (7.27.0+): a string as
 [`command_parameter_from_text()`](#command_parameter_from_text) reads a text (a
 string with a NUL inside is refused), a number or a boolean as the EXACT type
 (an integer to a `DTP_REAL` is its real, a boolean to a `DTP_INTEGER` 1 or 0,
@@ -615,7 +615,7 @@ masked: `list-yunos foo` is refused with *"... extra parameters: 'foo'"*. Up to
 7.25.21 the positional one showed `'horse battery'`, and up to 7.26.9 the
 write-attr one did.
 
-What the masking takes includes, since 7.26.10, a `name: value` of a secret's
+What the masking takes includes, since 7.27.0, a `name: value` of a secret's
 name and the credential after `Basic`, so these lines are refused without
 their credential too (up to 7.26.9 each was repeated whole):
 

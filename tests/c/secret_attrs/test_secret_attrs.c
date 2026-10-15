@@ -1361,7 +1361,7 @@ PRIVATE void check_log_dumps(hgobj gobj)
          *  And the shapes of V24.4: a scheme word repeated ("Bearer Bearer
          *  ..." looked ahead from each of its words: quadratic), a text of
          *  ':' after secrets' names, and a container that does not close;
-         *  and of 7.26.10: names in brackets, %-encoded, as labels, and the
+         *  and of 7.27.0: names in brackets, %-encoded, as labels, and the
          *  userinfo of a URL, and %-encoded queries read decoded, twice
          */
         const char *patterns[] = {
@@ -1719,7 +1719,7 @@ PRIVATE void check_secret_values(hgobj gobj)
          "update-node x='{\\\"password\\\":********}'"},                     // a json text inside a json text
 
         /*
-         *  7.26.10: a secret's name in a query string, after a word that is
+         *  7.27.0: a secret's name in a query string, after a word that is
          *  no secret's name ("file" is about a credential); what 7.26.9
          *  masked after the value of a name of a segment (pass, pin); a
          *  scheme and its credential under a secret's name, whole
@@ -1733,7 +1733,7 @@ PRIVATE void check_secret_values(hgobj gobj)
         {"eyJhIjoxfQ. eyJhIjoxfQ..", NULL},  // headers whose dots end them
 
         /*
-         *  7.26.10: a query name as a form writes it -- in brackets,
+         *  7.27.0: a query name as a form writes it -- in brackets,
          *  %-encoded -- after a word that is no secret's name, and the
          *  password of the userinfo of a URL
          */
@@ -1747,7 +1747,7 @@ PRIVATE void check_secret_values(hgobj gobj)
         {"ssh://git@github.com:22/x http://[::1]:8080/y", NULL},    // a user, a port: no password
 
         /*
-         *  7.26.10: a URL or a query %-encoded inside the value of a
+         *  7.27.0: a URL or a query %-encoded inside the value of a
          *  parameter (redirect_uri=, next=, url=), and a name encoded twice,
          *  are read decoded too; a word of a value is not the name of the
          *  parameter after it

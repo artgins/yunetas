@@ -533,7 +533,7 @@ hgobj gobj_last_bottom_gobj(hgobj gobj);
 BOOL  gobj_is_bottom_gobj(hgobj gobj);
 
 // Re-parent
-int gobj_change_parent(hgobj gobj, hgobj gobj_new_parent);     // [JS]
+int gobj_change_parent(hgobj gobj, hgobj gobj_new_parent);     // [JS] declared, not implemented in C
 
 // Introspection
 json_t *gobj2json(hgobj gobj, json_t *jn_filter);
@@ -1799,7 +1799,7 @@ int yuneta_entry_point(
     const char *APP_DATETIME,
     const char *fixed_config,
     const char *variable_config,
-    int (*register_yuno_and_more)(void),    // 0; < 0: a gclass refused, the yuno exits (7.26.10+)
+    int (*register_yuno_and_more)(void),    // 0; < 0: a gclass refused, the yuno exits (7.27.0+)
     void (*cleaning_fn)(void)
 );
 

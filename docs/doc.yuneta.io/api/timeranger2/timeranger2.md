@@ -55,7 +55,7 @@ time than the name of its file. In seconds the last time is
 string tkey is a DATE with no year limit (`approxidate()` reads
 `"@99999999999999 +0000"` as that many seconds, times 1000 on an `sf_tm_ms`
 topic). [`tranger2_append_record()`](#tranger2_append_record) keeps a time
-that does not fit CUT, as it always did, and logs an ERROR since SDK 7.26.10.
+that does not fit CUT, as it always did, and logs an ERROR since SDK 7.27.0.
 A caller that takes times from outside asks first, with
 [`tranger2_record_tkey_time()`](<#tranger2_record_tkey_time>) for the tkey:
 `C_TRANGER`'s `add-record` (see [`C_TRANGER`](#c-tranger-peer-data)), and
@@ -85,7 +85,7 @@ and compares versions as `json_int_t`, whatever their size. It is asked by
 [`tranger2_topic_var_fault()`](<#tranger2_topic_var_fault>) and by
 `C_TREEDB`'s `open-treedb` and `create-topic` for a peer's schema, and a
 peer's `save-schema` is refused when it would raise the `schema_version` or
-a `topic_version` past it (since SDK 7.26.10). So a treedb a peer opens AT
+a `topic_version` past it (since SDK 7.27.0). So a treedb a peer opens AT
 the maximum cannot save an edit again: give a peer's schema versions far
 below it.
 
@@ -177,7 +177,7 @@ keeps 44 bits of `__t__` and of `__tm__` ([`TRANGER2_MAX_TIME`](#timeranger2-max
 the flags go over the rest. A `__t__`, or a time of the tkey
 ([`tranger2_record_tkey_time()`](<#tranger2_record_tkey_time>)), that does
 not fit is appended cut, as it always was, and logged as an ERROR (without a
-stack; since SDK 7.26.10, it was cut without a word): *"Record time past what
+stack; since SDK 7.27.0, it was cut without a word): *"Record time past what
 an md2 row keeps (44 bits): appended CUT"*, with `topic`, `key`, `__t__`,
 `__tm__` and `tm_wrapped` (the multiplication by 1000 of a date of an
 `sf_tm_ms` topic passed 64 bits). The append returns `0`. A caller that takes
@@ -468,7 +468,7 @@ back as a large unsigned value, and `*fits` is `FALSE`.
 The append keeps a time that does not fit CUT, and logs it as an ERROR; it
 does not refuse it. A caller that takes the record from a peer asks this
 first and refuses the record: `C_TRANGER`'s `add-record`, and the treedb
-before a create or a saved update of a node (since SDK 7.26.10).
+before a create or a saved update of a node (since SDK 7.27.0).
 
 **Example**
 
@@ -3161,7 +3161,7 @@ what the name was for. A topic that a C caller creates is not asked this:
 the system topics of a treedb, and the queues of the MQTT broker, named
 `<client_id>-IN` / `<client_id>-OUT` after a client id the client chose (a
 client `.foo` has the queues `.foo-IN` and `.foo-OUT`), are made by C code. `C_TRANGER` and `C_TREEDB` ask it of the new topics of a
-peer (since SDK 7.26.10).
+peer (since SDK 7.27.0).
 
 ```C
 const char *tranger2_reserved_name_fault(
@@ -3233,7 +3233,7 @@ else must be a dict that:
   more, when it has one.
 
 The function logs nothing; the caller says it. `C_TRANGER`'s `create-topic`
-asks it of a peer's `jn_var` (since SDK 7.26.10).
+asks it of a peer's `jn_var` (since SDK 7.27.0).
 
 ```C
 const char *tranger2_topic_var_fault(

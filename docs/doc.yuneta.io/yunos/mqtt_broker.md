@@ -76,11 +76,11 @@ NOT put `__username__` in the kw of the commands: for `C_TREEDB` a kw with a
 `__username__` is a command from outside, a peer's, and a peer's
 `impose_c_schema` is refused, and a peer's open is asked what an open by C
 code is not (see [What a peer hands C_TREEDB](#c-treedb-peer-data)). The
-broker passed it in the kw until SDK 7.26.10, when `C_TREEDB` started to
+broker passed it in the kw until SDK 7.27.0, when `C_TREEDB` started to
 tell the two apart.
 
 So the treedb is the code's, and no command from outside closes it, the
-broker paused or not, with `force` or without (since SDK 7.26.10): the broker
+broker paused or not, with `force` or without (since SDK 7.27.0): the broker
 holds its `C_NODE`, its tranger and the msg2db on that tranger, and a close
 of a paused broker was a use of freed memory at its next `play-yuno` or
 stop. A restart (`kill-yuno` + `run-yuno`) closes and opens it:

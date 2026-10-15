@@ -416,7 +416,7 @@ PRIVATE void check_received_dump(void)
         {"the bearer of this letter, a basic plan", "the bearer of this letter, a basic ****"},
 
         /*
-         *  7.26.10: what 7.26.9's dump masked after the value of a name of a
+         *  7.27.0: what 7.26.9's dump masked after the value of a name of a
          *  segment (pin) is masked; a JWT header whose only dot ends it is
          *  no JWT, but at the end of the bytes (a cap may have cut it)
          */
@@ -425,7 +425,7 @@ PRIVATE void check_received_dump(void)
         {"cut eyJhIjoxfQ.", "cut **********."},
 
         /*
-         *  7.26.10: a name as a form body writes it -- in brackets,
+         *  7.27.0: a name as a form body writes it -- in brackets,
          *  %-encoded, quoted -- and the password of the userinfo of a URL
          */
         {"POST /login user%5Bemail%5D=a%40b.c&user%5Bpassword%5D=hunter2",
@@ -437,7 +437,7 @@ PRIVATE void check_received_dump(void)
         {"GET https://u:hunter2@h/x?a=1 ssh://git@h:22/", "GET https://u:*******@h/x?a=1 ssh://git@h:22/"},
 
         /*
-         *  7.26.10: a URL or a query %-encoded inside the value of a
+         *  7.27.0: a URL or a query %-encoded inside the value of a
          *  parameter, and a name encoded twice, are read decoded too
          */
         {"GET /cb?next=%2Flogin%3Fpassword%3Dnx1-hunter2 HTTP/1.1\r\n",
@@ -450,7 +450,7 @@ PRIVATE void check_received_dump(void)
         {"GET /search?q=boarding+pass&lang=es", "GET /search?q=boarding+pass&lang=es"},
 
         /*
-         *  7.26.10: a URL whose authority reaches the end of the bytes is
+         *  7.27.0: a URL whose authority reaches the end of the bytes is
          *  masked from its first ':' to the end, '@' or not -- a dump is the
          *  first bytes of a frame, the '@' that ends the password may come
          *  in the next read --, and so is a port there

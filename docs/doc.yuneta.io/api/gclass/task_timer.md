@@ -82,7 +82,7 @@ belongs to a job that is over: a late answer is not processed, and the end is
 published once. A job's action whose result came inside it leaves the task as
 that result left it (it arms no timeout, and does not end the task again).
 
-The owner may act in that turn too, and it wins (7.26.10):
+The owner may act in that turn too, and it wins (7.27.0):
 
 - a task its owner STOPS publishes no `EV_END_TASK` (the owner left it), and
   a volatile one is destroyed all the same. A stopped task is destroyed by

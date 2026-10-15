@@ -124,7 +124,7 @@ Two things to know about a command of a C yuno that an operator calls through
 the agent. A parameter with the name of a field of the yuno record becomes a
 filter on that field, and the command answers *"Yuno not found"*. Give your
 parameter a name with a prefix. And the C parser types every parameter,
-`SDF_REQUIRED` or not, since SDK 7.26.10: a `DTP_INTEGER`, `DTP_REAL` or
+`SDF_REQUIRED` or not, since SDK 7.27.0: a `DTP_INTEGER`, `DTP_REAL` or
 `DTP_BOOLEAN` given as text is read as one (`"5"` is `5`), and a
 `DTP_STRING`, `DTP_DICT`, `DTP_LIST` or number of another shape is refused
 before the handler (see [`command_parser()`](#command_parser)). Only a

@@ -19,7 +19,7 @@
  *
  *      C) The job's result arrives: EV_END_TASK with result 0, once, on the
  *         next turn of the loop. Every end of a task runs there since
- *         7.26.10, not inside the publication of gobj_results.
+ *         7.27.0, not inside the publication of gobj_results.
  *
  *      D) The job's result arrives INSIDE the job's action (a local service
  *         that answers in the call). The task ends inside an inner dispatch

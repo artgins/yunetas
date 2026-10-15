@@ -126,7 +126,7 @@ If `verbose` is enabled, the function prints the test name to the console.
 The function initializes `expected_log_messages`, `unexpected_log_messages`, and `expected` as JSON arrays if they are not provided.
 
 An entry matches the keys it names. The captured log also carries its
-priority as `"__priority__"` (`"ERROR"`, `"WARNING"`, ...; since SDK 7.26.10),
+priority as `"__priority__"` (`"ERROR"`, `"WARNING"`, ...; since SDK 7.27.0),
 so an entry can assert the severity: `{"msg": "Cannot link self node",
 "__priority__": "WARNING"}` fails on the same message logged as an ERROR. An
 entry without it matches any priority.

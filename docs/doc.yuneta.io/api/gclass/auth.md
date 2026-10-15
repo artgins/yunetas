@@ -169,7 +169,7 @@ never goes into code or committed configuration.
 (the agent reads `id` as the yuno to address).
 
 `brief`, `enabled`, `emailVerified`, `requiredActions` and `actions` are
-`DTP_JSON` (since SDK 7.26.10; they were `DTP_STRING`, which the command
+`DTP_JSON` (since SDK 7.27.0; they were `DTP_STRING`, which the command
 parser now holds to a string): a boolean is taken as `true`/`false`, `1`/`0`
 or its text, a list as a json list, its text, or one bare word.
 

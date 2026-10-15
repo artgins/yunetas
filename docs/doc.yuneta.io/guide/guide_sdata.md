@@ -157,7 +157,7 @@ SDATA (DTP_INTEGER, "cert_sync_interval_sec",SDF_WR|SDF_PERSIST, "900", "config 
     NAME must be a secret's ([`is_secret_name()`](#is_secret_name):
     `password`, `client_secret`, `jwt`, `sim_pin`, ...), or
     [`gclass_create()`](#gclass_create) refuses the gclass, with an ERROR
-    naming the attribute (7.26.10+; not on the ESP32 port, whose code is
+    naming the attribute (7.27.0+; not on the ESP32 port, whose code is
     frozen): the flag masks it where its gclass is asked, and everywhere
     else a secret is told by its name. The
     attr is read, written and persisted exactly as without the flag (the

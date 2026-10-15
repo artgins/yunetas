@@ -459,7 +459,7 @@ You do not allocate it. The framework allocates it, with the size that the
 it is NOT a guard for a raw pointer held across a destroy: once the gobj is
 destroyed, reading its `obflag` is reading freed memory. The kernel made that
 mistake itself, after an action and after each subscriber of a publication,
-until 7.26.10; it keeps a frame per dispatch now (§8.8). The answer is *do
+until 7.27.0; it keeps a frame per dispatch now (§8.8). The answer is *do
 not hold raw pointers across lifecycle boundaries*. See §8.5.
 
 ---
@@ -692,7 +692,7 @@ it would land on running apps that work.
 
 **Destroying is worse, and the kernel says it.** A subscriber that destroys
 the publisher, or one of its ancestors, frees the publisher while it is still
-inside `gobj_publish_event()`. The kernel is safe from that since 7.26.10:
+inside `gobj_publish_event()`. The kernel is safe from that since 7.27.0:
 `gobj_send_event()` and `gobj_publish_event()` keep a frame per dispatch on
 the C stack, `gobj_destroy()` marks the frames of what it destroys, and after
 an action, or after each subscriber, the kernel asks its frame instead of the
@@ -723,7 +723,7 @@ publication runs inside its own `mt_stop` or action.
 | A gobj's action walks its parent's children (`gobj_walk_gobj_children()`, `gobj_destroy_children()`, `gobj_destroy_named_children()`) and the walk destroys the gobj | No: the action is the code that destroys, the walk only watches |
 | A gobj publishes its last event, then destroys itself | No: its publication is over |
 | A host destroys its transport in the transport's `EV_STOPPED` | No: the stop contract |
-| A host destroys a RUNNING transport, whose `mt_stop` publishes `EV_STOPPED` at once, and destroys it again in that `EV_STOPPED` | Only *"Destroying a RUNNING gobj"*: the inner destroy frees it, the outer returns (7.26.10; up to 7.26.9 the outer went on with the freed gobj) |
+| A host destroys a RUNNING transport, whose `mt_stop` publishes `EV_STOPPED` at once, and destroys it again in that `EV_STOPPED` | Only *"Destroying a RUNNING gobj"*: the inner destroy frees it, the outer returns (7.27.0; up to 7.26.9 the outer went on with the freed gobj) |
 | A host, in its transport's `EV_STOPPED`, sends the transport an event whose action ends in the transport's destroy further in | Yes, *"one of its actions is still running"*: that action began inside the farewell |
 | A gobj destroys itself in its own `mt_start` / `mt_stop` / `mt_play` | No |
 | A subscriber destroys the publisher | Yes, *"its tree is publishing"* |
@@ -731,7 +731,7 @@ publication runs inside its own `mt_stop` or action.
 | A subscriber sends the publisher an event, and the publisher's action destroys itself | Yes: the publication is still running |
 | An action of the gobj calls something whose inner dispatch destroys the gobj | Yes, *"one of its actions is still running"* |
 
-**The walks of the tree are watched too** (7.26.10): `gobj_start_tree()`,
+**The walks of the tree are watched too** (7.27.0): `gobj_start_tree()`,
 `gobj_start_children()`, `gobj_stop_tree()`, `gobj_stop_children()`,
 `gobj_walk_gobj_children*()` and `gobj_destroy_children()` take the next child
 AFTER the callback, from a frame that keeps the walk's place. A callback may
@@ -778,7 +778,7 @@ Up to 7.26.9 each walk took the next child before the callback and went on
 with it freed.
 
 The two usual cases: a gclass that ends itself in the `EV_TIMEOUT` of its own
-`C_TIMER` child (`C_TASK` and `C_COUNTER` until 7.26.10), and a gclass whose
+`C_TIMER` child (`C_TASK` and `C_COUNTER` until 7.27.0), and a gclass whose
 end comes inside one of its own calls (`C_TASK`, when a job's result arrives
 inside the job's action). Both post an event to themselves now and end in its
 action; `C_TASK` does it for every end:

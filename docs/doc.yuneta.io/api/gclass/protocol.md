@@ -42,7 +42,7 @@ Sent to the client once it is connected (after its `EV_ON_OPEN`). The kw:
 | `method` | `"GET"` | The HTTP method. |
 | `resource` | `"/"` | The path of the request. |
 | `headers` | — | A dict of headers, written over the defaults (`User-Agent`, `Connection`, `Accept`, `Host`, and `Content-Type: application/json` when there is `data`). |
-| `data` | — | The body. Any json value (7.26.10+ also a bare string or number), sent compact. |
+| `data` | — | The body. Any json value (7.27.0+ also a bare string or number), sent compact. |
 | `query` | `""` | With `Content-Type: application/x-www-form-urlencoded`, the form as text; empty, the form is built from `data` (a dict: `k1=v1&k2=v2`). |
 
 With `application/x-www-form-urlencoded` the form is the body, except in a

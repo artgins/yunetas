@@ -34,7 +34,7 @@ Returns a `json_t *` representing the parsed JSON object, or NULL if parsing fai
 
 **Notes**
 
-Uses `json_loadb()` with `JSON_DECODE_ANY` to support multiple JSON formats. If `verbose` is TRUE, a failure is an ERROR with a stack trace: use it for JSON that YOUR code wrote. The bytes are never logged as they came (7.26.10+): the error is jansson's text without the bytes it quotes near the error ([`json_error_for_log()`](#json_error_for_log)), with its `line`, `column` and `position`, and the dump of the `len` bytes is masked ([`mask_secrets_in_text()`](#mask_secrets_in_text)). Up to 7.26.9 the log carried the whole text in a `"bf"` field, a password among it. For bytes received from a peer (an HTTP body) use [`anystring2json_from_peer()`](#anystring2json_from_peer): a WARNING, no stack.
+Uses `json_loadb()` with `JSON_DECODE_ANY` to support multiple JSON formats. If `verbose` is TRUE, a failure is an ERROR with a stack trace: use it for JSON that YOUR code wrote. The bytes are never logged as they came (7.27.0+): the error is jansson's text without the bytes it quotes near the error ([`json_error_for_log()`](#json_error_for_log)), with its `line`, `column` and `position`, and the dump of the `len` bytes is masked ([`mask_secrets_in_text()`](#mask_secrets_in_text)). Up to 7.26.9 the log carried the whole text in a `"bf"` field, a password among it. For bytes received from a peer (an HTTP body) use [`anystring2json_from_peer()`](#anystring2json_from_peer): a WARNING, no stack.
 
 **Example**
 
@@ -447,7 +447,7 @@ A NEW json, `NULL` (and an ERROR) if `jn` is `NULL`:
 
 `jsons` is how many jsons were walked, each one once (`true`, `false` and `null` are not counted: they are singletons); `fault` is `"over_max"` or `"corrupted"`.
 
-**What it costs.** The walk remembers every json it meets and how many times it reached it -- a set of pointers and counts, kept half empty and doubled as it fills: 24 to 48 bytes per json, and up to 72 while it doubles, the old set and the new one held together -- and a frame of 32 bytes per dict or list for its place in the walk (a scalar takes none). Both are kept in chunks (768 KB and 512 KB), so no block grows with the json: `MAX_BLOCK` bounds none of them, the memory of the yuno does. Measured at its peak (7.26.10, the allocators of gbmem wrapped with `gbmem_set_allocators()`, the bytes each caller asks counted, the peak above what was held before the call):
+**What it costs.** The walk remembers every json it meets and how many times it reached it -- a set of pointers and counts, kept half empty and doubled as it fills: 24 to 48 bytes per json, and up to 72 while it doubles, the old set and the new one held together -- and a frame of 32 bytes per dict or list for its place in the walk (a scalar takes none). Both are kept in chunks (768 KB and 512 KB), so no block grows with the json: `MAX_BLOCK` bounds none of them, the memory of the yuno does. Measured at its peak (7.27.0, the allocators of gbmem wrapped with `gbmem_set_allocators()`, the bytes each caller asks counted, the peak above what was held before the call):
 
 | The json | jsons | Peak | Per json |
 |---|---|---|---|
@@ -496,7 +496,7 @@ JSON_DECREF(jn_report)
 
 **Notes**
 
-`check-json` of `C_TRANGER` and of the agent answer with it (since 7.26.10): `json_check_refcounts()` logged an ERROR for every json held more than `max_refcount` times, and with its default `1` that was every node of a treedb -- a reader filled the log. Their `-1` is a FAULT, a corrupted json or a walk cut short; the jsons held more than `max_refcount` times are the answer to what was asked, a `0`.
+`check-json` of `C_TRANGER` and of the agent answer with it (since 7.27.0): `json_check_refcounts()` logged an ERROR for every json held more than `max_refcount` times, and with its default `1` that was every node of a treedb -- a reader filled the log. Their `-1` is a FAULT, a corrupted json or a walk cut short; the jsons held more than `max_refcount` times are the answer to what was asked, a `0`.
 
 ---
 
@@ -540,7 +540,7 @@ JSON_DECREF(record)
 
 **Notes**
 
-`C_NODE` (create, update, delete, import) and `C_TRANGER` (`add-record`) refuse a peer's record with it (7.26.10+): an id `"dx\u0000evil"` took the key `"dx"`, and an update of `"g1"` with the id `"g1\u0000x"` saved that id under the key `"g1"`, with no log. The treedb asks it of the id and the pkey2 values of a create or an update, for a C caller too.
+`C_NODE` (create, update, delete, import) and `C_TRANGER` (`add-record`) refuse a peer's record with it (7.27.0+): an id `"dx\u0000evil"` took the key `"dx"`, and an update of `"g1"` with the id `"g1\u0000x"` saved that id under the key `"g1"`, with no log. The treedb asks it of the id and the pkey2 values of a create or an update, for a C caller too.
 
 ---
 
@@ -965,7 +965,7 @@ Returns a `json_t *` object if parsing is successful. Returns `NULL` if parsing 
 **Notes**
 
 - This function only accepts JSON objects (`{}`) or arrays (`[]`). For more flexible JSON parsing, use [`anystring2json()`](#anystring2json).
-- With `verbose`, a failure is logged as [`anystring2json()`](#anystring2json) logs it (7.26.10+): an ERROR without the text, which is dumped masked. Up to 7.26.9 the log carried the whole text in a `"str"` field. Pass `FALSE` when the caller says the failure itself, or when the text is not yours (a value a user wrote).
+- With `verbose`, a failure is logged as [`anystring2json()`](#anystring2json) logs it (7.27.0+): an ERROR without the text, which is dumped masked. Up to 7.26.9 the log carried the whole text in a `"str"` field. Pass `FALSE` when the caller says the failure itself, or when the text is not yours (a value a user wrote).
 - The returned `json_t *` must be freed using `json_decref()` to avoid memory leaks.
 
 **Example**
@@ -1028,7 +1028,7 @@ json_t *anyfile2json(
 | Key | Type | Description |
 |---|---|---|
 | `path` | `const char *` | The file path to load the JSON data from. |
-| `verbose` | `BOOL` | If TRUE, logs errors when the file cannot be opened or parsed. The error is jansson's without the bytes it quotes from the file ([`json_error_for_log()`](#json_error_for_log), 7.26.10+), with its `line`, `column` and `position`. |
+| `verbose` | `BOOL` | If TRUE, logs errors when the file cannot be opened or parsed. The error is jansson's without the bytes it quotes from the file ([`json_error_for_log()`](#json_error_for_log), 7.27.0+), with its `line`, `column` and `position`. |
 
 **Returns**
 
