@@ -1098,8 +1098,12 @@ fixed:
   `[1.2.3::4]`, `[::01.2.3.4]` are not), a zone (`%25` or a raw `%`) of 64
   bytes at most with no `:` and one to five digits from its `]:` to the cut
   (in the %-decoded view of a capped line, only a literal whose `[` is written
-  raw and whose bytes as written, from that `[` to the cut, are 118 at most:
-  encoded, it takes up to three times its bytes); anything else is masked
+  raw -- the rest of it may be written encoded, `[2001%3Adb8%3A%3A1]%3A80` --
+  and whose bytes as written, from that `[` to the cut, are 118 at most:
+  encoded, it takes up to three times its bytes. So a line with a `%XX`
+  shows at the cut what the same line without one shows, as it did before a
+  first fix of this round masked every literal there; a dump and a whole
+  text keep no map of the written bytes); anything else is masked
   from its first `:`, since a userinfo can
   begin with `[` (`x https://[dead:beef]:z@h` is `x https://[dead:*********`):
   with a cap, the `@` of a long password could lie past the window,

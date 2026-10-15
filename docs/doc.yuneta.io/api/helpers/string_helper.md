@@ -1017,8 +1017,10 @@ too, and there the literal is kept only when its `[` is written as it is (not
 ` url=https://[fe80::1%25eth0]:1600 ` and 300 `z`, with a cap of 86, is
 `password=******** url=https://[fe80::1%25eth0]:********`, and
 `next=https%3A%2F%2F%5B2001%3Adb8%3A%3A1%5D%3A1600` cut in its port is
-masked from `%3A` after `2001`. Encoded, a literal takes up to three times its
-bytes. The 256 bytes
+masked from `%3A` after `2001`. Only the `[` has to be written as it is: the
+rest may be encoded, so `url=https://[2001%3Adb8%3A%3A1]%3A1600` cut in its
+port keeps the literal and masks `%3A1600`. Encoded, a literal takes up to
+three times its bytes. The 256 bytes
 past the cap keep this away from what is shown unless the authority runs from
 inside the cap to 256 bytes past it: `url=http://[2001:db8::1]:8080/p` with a
 cap of 20 is `url=http://[2001:db`, as cut. A masked value is shorter than the bytes it hides, so the end of

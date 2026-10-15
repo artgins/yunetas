@@ -1947,6 +1947,21 @@ PRIVATE void check_secret_values(hgobj gobj)
              "password=******** url=https://[:********"},
             {"", " next=https%3A%2F%2F%5B2001%3Adb8%3A%3A1%5D%3A1600 ", 102,
              "password=******** next=https%3A%2F%2F%5B2001%3A********"},
+            /*  The bound, in the bytes as WRITTEN (here the colons and the zone are
+             *  %-encoded, so the raw bytes hold no ':' to mask from): from the '['
+             *  to the cut, 118 kept, 119 not  */
+            {"", " url=https://[2001%3Adb8%3A%3A1%25%65%74%68%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30]%3A16000 ", 185,
+             "password=******** url=https://[2001%3Adb8%3A%3A1%25%65%74%68%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30]%3A********"},
+            {"", " url=https://[2001%3Adb8%3A%3A1%25%65%74%68%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30%30]%3A16000 ", 186,
+             "password=******** url=https://[2001%3A********"},
+            /*  A '[' encoded twice is no raw '[' in the text as written: the map
+             *  composes through both decodings  */
+            {"", " url=https://%255B2001%253Adb8%253A%253A1%255D%253A1600 ", 108,
+             "password=******** url=https://%255B2001%253A********"},
+            /*  ... and a map of the first view only would point at a raw '[' of the
+             *  text twenty bytes earlier (ten %XX before it), and grant it  */
+            {"GET /a%20%20%20%20%20%20%20%20%20%20b ", "[xxxxxx url=https://%255B2001%253Adb8%253A%253A1%255D%253A1600 ", 153,
+             "GET /a%20%20%20%20%20%20%20%20%20%20b password=******** url=https://%255B2001%253A********"},
         };
         for(size_t k = 0; k < sizeof(at_cut)/sizeof(at_cut[0]); k++) {
             char cut_url[1024];
@@ -1960,6 +1975,26 @@ PRIVATE void check_secret_values(hgobj gobj)
             cut_url[hl] = 0;
             mask_secrets_inline_capped(cut_url_bf, at_cut[k].bfsize, cut_url, hl);
             check_str("an IP literal at the cut of a capped line", cut_url_bf, at_cut[k].out);
+        }
+    }
+
+    /*
+     *  A dump of a few MiB with a %XX is decoded with no map of where each
+     *  byte was written: only the cut of a capped line reads it, and at 8
+     *  bytes a byte its allocation failed and the whole dump was masked
+     */
+    {
+        size_t big_len = 3*1024*1024;
+        char *big = gbmem_malloc(big_len + 1);
+        if(big) {
+            memset(big, 'x', big_len);
+            memcpy(big, "GET /a%20b ", 11);
+            memcpy(big + big_len - 18, " password=hunter2 ", 18);
+            big[big_len] = 0;
+            size_t masked = mask_secrets_in_text(big, big_len);
+            check_true("a dump of 3 MiB with a %XX masks its password, not all of it",
+                masked < 100 && strncmp(big, "GET /a%20b xxx", 14) == 0 && !strstr(big, "hunter2"));
+            GBMEM_FREE(big)
         }
     }
 

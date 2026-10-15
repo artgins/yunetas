@@ -2611,8 +2611,9 @@ PRIVATE void mark_query_params(const char *bf, const char *end, name_reading_t r
  *  too: the bytes do not say they are not a password's. The colons of an
  *  IP literal followed by a port ("[2001:db8::1]:8080") are no password's
  *  there: it is marked from the ':' after the literal -- in a decoded view
- *  (`written` not NULL) only when the literal was written as it reads
- *  (written_literal_fits()).
+ *  (`written` not NULL) only when its '[' was written raw and its bytes as
+ *  written, to the cut, fit (written_literal_fits()); the rest of it may
+ *  have been written encoded ("[2001%3Adb8%3A%3A1]%3A80").
  */
 #define URL_AUTHORITY_STOPS "/?#\"'<> \t"
 
@@ -3527,8 +3528,12 @@ PRIVATE void mark_decoded_view(
     char *view = gbmem_malloc(view_len + 1);
     size_t view_marks_size = (view_len + 7)/8;
     uint8_t *view_marks = gbmem_malloc(view_marks_size + 1);
-    size_t *view_at = gbmem_malloc((view_len + 1) * sizeof(size_t));
-    if(!view || !view_marks || !view_at) {
+    /*  Only the cut of a capped line reads the map (8 bytes a byte): a dump
+     *  or a whole text of a few MiB would fail the allocation, and all of
+     *  it would be masked  */
+    BOOL map = (rules == RULES_OF_INLINE && end_is_cut)? TRUE : FALSE;
+    size_t *view_at = map? gbmem_malloc((view_len + 1) * sizeof(size_t)) : NULL;
+    if(!view || !view_marks || (map && !view_at)) {
         // Error already logged. Fails safe: all of it
         GBMEM_FREE(view)
         GBMEM_FREE(view_marks)
@@ -3539,8 +3544,10 @@ PRIVATE void mark_decoded_view(
     memset(view_marks, 0, view_marks_size + 1);
     char *v = view;
     for(const char *p = str; p < end; p++) {
-        size_t s = (size_t)(p - str);
-        view_at[v - view] = written? written->at[s] : s;
+        if(map) {
+            size_t s = (size_t)(p - str);
+            view_at[v - view] = written? written->at[s] : s;
+        }
         int c = (*p == '%')? encoded_ascii_at(p, end) : -1;
         if(c >= 0) {
             *v++ = (char)c;
@@ -3550,7 +3557,9 @@ PRIVATE void mark_decoded_view(
         }
     }
     *v = 0;
-    view_at[view_len] = written? written->at[len] : len;
+    if(map) {
+        view_at[view_len] = written? written->at[len] : len;
+    }
     written_map_t view_written = {
         .text = written? written->text : str,
         .len = written? written->len : len,
@@ -3558,11 +3567,13 @@ PRIVATE void mark_decoded_view(
     };
 
     if(rules == RULES_OF_INLINE) {
-        mark_inline_rules_of_now(view, view_len, end_is_cut, &view_written, view_marks);
+        mark_inline_rules_of_now(view, view_len, end_is_cut, map? &view_written : NULL, view_marks);
     } else {
         mark_dump_rules_of_now(view, view + view_len, view_marks);
     }
-    mark_decoded_view(view, view_len, rules, end_is_cut, decodings + 1, &view_written, view_marks);
+    mark_decoded_view(
+        view, view_len, rules, end_is_cut, decodings + 1, map? &view_written : NULL, view_marks
+    );
 
     const char *p = str;
     for(size_t i = 0; i < view_len; i++) {
