@@ -14,14 +14,14 @@ report is read with a bucket.
 
 `C_YUI_PERIOD` draws these, and every function here works without it.
 
-**Source code:** [`src/yui_time.js`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js)
+**Source code:** [`src/yui_time.js`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js)
 
 ---
 
 ## The catalog
 
 (js_YUI_PERIODS)=
-### [`YUI_PERIODS`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L66)
+### [`YUI_PERIODS`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L66)
 
 The periods that carry a name: `minute`, `5min`, `15min`, `hour`, `day`, `week`,
 `fortnight`, `month`, `bimester`, `quarter`, `semester`, `year` and `decade`.
@@ -32,13 +32,13 @@ bucket with a name gives a better label than a range: `"Q3 2026"` reads better
 than `"jul – sep 2026"`.
 
 (js_YUI_PERIODS_DEFAULT)=
-### [`YUI_PERIODS_DEFAULT`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L85)
+### [`YUI_PERIODS_DEFAULT`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L85)
 
 The set that a navigator takes by default: `["hour", "day", "week", "month",
 "year"]`. The rest of the catalog is one line of configuration away.
 
 (js_YUI_ROLLING)=
-### [`YUI_ROLLING`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L90)
+### [`YUI_ROLLING`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L90)
 
 The rolling windows: `1h`, `6h`, `24h`, `7d` and `30d`.
 
@@ -47,14 +47,14 @@ The rolling windows: `1h`, `6h`, `24h`, `7d` and `30d`.
 ## The algebra
 
 (js_period_spec)=
-### [`period_spec(period)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L300)
+### [`period_spec(period)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L300)
 
 Reads an identifier of the catalog, or a specification of its own, and gives
 `{id, unit, count}`. Returns `null` for anything that is not a bucket, such as
 the custom mode of a navigator.
 
 (js_period_start)=
-### [`period_start(period, anchor_ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L336)
+### [`period_start(period, anchor_ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L336)
 
 Gives the start of the bucket that holds a time, as a local date.
 
@@ -72,7 +72,7 @@ holds already.
 | year | The year 0. A decade begins in 2020, and not in 2021. |
 
 (js_period_shift)=
-### [`period_shift(period, anchor_ms, delta)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L383)
+### [`period_shift(period, anchor_ms, delta)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L383)
 
 Gives the start of the bucket that is `delta` buckets away. A negative `delta`
 goes back.
@@ -82,7 +82,7 @@ month carries the year by itself, and a step of one day across a change of
 summer time lands on the midnight again.
 
 (js_period_bounds)=
-### [`period_bounds(period, anchor_ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L420)
+### [`period_bounds(period, anchor_ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L420)
 
 Gives the bucket as `{from, to}` in milliseconds.
 
@@ -94,14 +94,14 @@ the edge, and it loses it in silence.
 :::
 
 (js_period_bounds_epoch)=
-### [`period_bounds_epoch(period, anchor_ms, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L436)
+### [`period_bounds_epoch(period, anchor_ms, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L436)
 
 The same bucket, in the unit that the consumer speaks. A topic of timeranger
 keeps its times in seconds, and its `system_flag` says when it keeps them in
 milliseconds. This is the function that a builder of a query calls.
 
 (js_rolling_bounds)=
-### [`rolling_bounds(rolling, ms, now_ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L453)
+### [`rolling_bounds(rolling, ms, now_ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L453)
 
 Gives a rolling window as `{from, to}`.
 
@@ -110,13 +110,13 @@ the records that arrive while the card is on the screen. An end that is pinned
 to now freezes the window at the instant of the click.
 
 (js_is_current_period)=
-### [`is_current_period(period, anchor_ms, now_ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L467)
+### [`is_current_period(period, anchor_ms, now_ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L467)
 
 Tells if this is the last bucket, which is the one that holds now. It is what
 makes the arrow of "next" grey, and what tells the navigator that it is at home.
 
 (js_infer_period)=
-### [`infer_period(from, to, candidates, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L495)
+### [`infer_period(from, to, candidates, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L495)
 
 Finds the bucket that a pair of ends describes, and gives `{period, anchor}`.
 Returns `null` when no candidate matches.
@@ -129,7 +129,7 @@ the unit that the consumer writes. `candidates` are tried in their order.
 ## Labels
 
 (js_period_name)=
-### [`period_name(period, t)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L526)
+### [`period_name(period, t)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L526)
 
 Gives the name of a granularity, which is what a segmented control shows. It
 takes the identifier of the specification as the key of the translation, so an
@@ -137,7 +137,7 @@ application that declares `{id: "quarter"}` gets its own word as soon as it adds
 the key.
 
 (js_period_label)=
-### [`period_label(period, anchor_ms, t, locale)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L552)
+### [`period_label(period, anchor_ms, t, locale)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L552)
 
 Gives the name of the bucket that a navigator sits on, which is the text between
 the two arrows.
@@ -157,7 +157,7 @@ The ones with a name have a name because a range reads worse. Everything that an
 application invents takes the range, which is always true.
 
 (js_safe_locale)=
-### [`safe_locale(locale)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_date_text.js#L25)
+### [`safe_locale(locale)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_date_text.js#L25)
 
 Gives a locale that `Intl` accepts.
 
@@ -173,28 +173,28 @@ its formatter at the time of the import took a whole bundle down that way.
 ## Conversions
 
 (js_epoch_to_ms)=
-### [`epoch_to_ms(value, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L161)
+### [`epoch_to_ms(value, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L161)
 
 Changes a time of the consumer into milliseconds. With `ms` set to `true` the
 value is in milliseconds already.
 
 (js_ms_to_epoch)=
-### [`ms_to_epoch(value_ms, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L169)
+### [`ms_to_epoch(value_ms, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L169)
 
 Changes milliseconds into the unit of the consumer.
 
 (js_epoch_to_local_input)=
-### [`epoch_to_local_input(value, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L183)
+### [`epoch_to_local_input(value, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L183)
 
 Changes a time into the form that an input of date and time takes.
 
 (js_local_input_to_epoch)=
-### [`local_input_to_epoch(v, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L194)
+### [`local_input_to_epoch(v, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L194)
 
 Changes the value of an input of date and time into a time.
 
 (js_fmt_epoch)=
-### [`fmt_epoch(value, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L212)
+### [`fmt_epoch(value, ms)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L212)
 
 Writes a time as `2026-10-14 15:05:09`, with the milliseconds when `ms` is
 `true` (`2026-10-14 15:05:09.250`). The text has no words, so it does not
@@ -202,7 +202,7 @@ change with the language. A view that shows a time as text uses
 [`fmt_date_time()`](#js_fmt_date_time).
 
 (js_fmt_date_time)=
-### [`fmt_date_time(date, locale)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_date_text.js#L61)
+### [`fmt_date_time(date, locale)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_date_text.js#L61)
 
 Writes a `Date` as text for a view: the day, the short month and the year, then
 the hours, the minutes and the seconds, with a clock of 24 hours. Give it the
@@ -240,7 +240,7 @@ They use [`fmt_epoch()`](#js_fmt_epoch), because they show the exact range of a
 query, with the milliseconds.
 
 (js_iso_week)=
-### [`iso_week(d)`](https://github.com/artgins/gobj-ui.js/blob/7.26.53/src/yui_time.js#L268)
+### [`iso_week(d)`](https://github.com/artgins/gobj-ui.js/blob/7.26.54/src/yui_time.js#L268)
 
 Gives the number of the week of a date, in the form of ISO 8601, with Monday as
 the first day.
