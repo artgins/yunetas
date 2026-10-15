@@ -1,5 +1,36 @@
 # **Changelog**
 
+## v7.27.1 (2026-10-15)
+
+A security release of the external libraries, made before 7.27.0 reached the
+nodes: no code of Yuneta changed. `kernel/c/linux-ext-libs` 1.24:
+
+- **OpenSSL `3.6.3` -> `3.6.5`** (linked statically into every yuno): 3.6.4
+  and 3.6.5 are security releases, about 25 CVEs, the worst "High" -- an
+  out-of-bounds access after `SSL_set_SSL_CTX()` during a handshake, a DTLS 1.2
+  DoS, EC and SM2 timing side channels, CMS, CMP and QUIC fixes. Kept on the
+  3.6 branch.
+- **PCRE2 `10.47` -> `10.49`** (linked statically: timeranger2, `c_tranger`,
+  `json_replace_vars`): seven GHSA advisories, out-of-bounds reads and writes.
+- **nginx `release-1.31.2` -> `release-1.31.7`** (the standalone binary,
+  linked against the system's libraries): CVE-2026-42533, CVE-2026-60005,
+  CVE-2026-56434, CVE-2026-90439, CVE-2026-15176, CVE-2026-93479,
+  CVE-2026-95101, CVE-2026-97629, CVE-2026-97205.
+- **openresty stays `1.31.1.1`**: upstream has no newer release (checked
+  2026-10-15), so its nginx 1.31.1 core is still exposed to the CVEs of nginx
+  1.31.2 to 1.31.7.
+
+Every node that builds from source runs `./extrae.sh && ./configure-libs.sh`
+again, and every yuno is rebuilt. Suite 309/309 on the dev machine and on
+wattyzer with the new libraries.
+
+Performance against 7.27.0 (each release built on its own `outputs_ext`, run
+alternately, 16 rounds; details in `performance/c/README.md`): TLS round trips
+through the gobj stack -0.9% (t = -0.6), +0.9% with an append per message (t =
++0.5), BFF logins -0.9% (t = -2.2), the plain TCP control +1.8% (t = +0.6):
+all inside the noise. The stripped yunos grow by 4-12 KiB (`yuneta_agent` +4
+KiB).
+
 ## v7.27.0 (2026-10-15)
 
 A hardening release, out of nineteen more rounds of review (yunovatios

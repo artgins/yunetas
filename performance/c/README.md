@@ -773,6 +773,35 @@ releases (`timeranger2.c` changed only in its rt-disk rescan): code
 placement, as far as this method can tell; `test_topic_pkey_integer`, 24 rounds,
 moved +0.3%.
 
+### Oct-2026: 7.27.1 against 7.27.0 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
+
+7.27.1 changes only the external libraries (`linux-ext-libs` 1.24: OpenSSL
+3.6.3 -> 3.6.5, PCRE2 10.47 -> 10.49; the standalone nginx is not linked into
+any yuno). The 7.27.0 side was built from a git worktree of the tag with its
+own `outputs_ext` (configure-libs 1.23, without nginx and openresty), the same
+`.config` and compiler; only the kernel libraries, the modules, the benchmarks
+below and three yunos were built there. The two binaries of each benchmark run
+alternately, the order flipped every round, with a `sync` and a 3 s pause
+before each run: 16 rounds (8 for `perf_auth_bff`). Mean +- standard
+deviation; |t| < 3 is noise. No html report: a library bump ships none.
+
+| Case | 7.27.0 | 7.27.1 | Change |
+|------|--------|--------|--------|
+| net.tcp_echo (round trips/s, control) | 34,873 +- 4,224 | 35,518 +- 1,771 | +1.8% (t = +0.6) |
+| net.tls_echo (round trips/s) | 27,494 +- 1,224 | 27,259 +- 1,111 | -0.9% (t = -0.6) |
+| net.tls_echo_persist (round trips/s) | 22,238 +- 1,099 | 22,436 +- 1,149 | +0.9% (t = +0.5) |
+| net.auth_bff_login (logins/s) | 7,544 +- 43 | 7,477 +- 74 | -0.9% (t = -2.2) |
+
+Stripped sizes (bytes): `auth_bff` 10,401,408 -> 10,409,600 (+8 KiB),
+`mqtt_broker` 10,703,296 -> 10,707,392 (+4 KiB), `sgateway` 10,401,856 ->
+10,414,144 (+12 KiB), `yuneta_agent` 10,747,040 -> 10,751,136 (+4 KiB).
+No figure of the reports runs PCRE2 on its measured path (it is used by
+`json_replace_vars()` at start-up, by the `rkey` filter of a timeranger2 list
+and by a regex filter of `C_TRANGER`), and jansson did not change, so no regex
+or json case was run.
+The absolute figures sit below those of 7.27.0's own report on both sides: a
+different moment of the same machine, not a change of either tree.
+
 ### Oct-2026: 7.27.0 against 7.26.9 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
 Each release built from its own tree (a git worktree of the 7.26.9 tag, the
