@@ -1010,7 +1010,15 @@ their end, `@` or not, since the `@` that ends it may lie past them
 (7.26.10+), as at the end of a dump
 ([`mask_secrets_in_text()`](#mask_secrets_in_text)): the userinfo ends at the
 LAST `@`, and an IPv6 literal followed by a port (only digits to that end)
-keeps its colons. The 256 bytes
+keeps its colons. When the bytes judged hold a `%XX`, they are read decoded
+too, and there the literal is kept only when its `[` is written as it is (not
+`%5B`) and its bytes as written, from that `[` to the end, are 118 at most
+(the longest literal and its port): `password=` and 300 `x`,
+` url=https://[fe80::1%25eth0]:1600 ` and 300 `z`, with a cap of 86, is
+`password=******** url=https://[fe80::1%25eth0]:********`, and
+`next=https%3A%2F%2F%5B2001%3Adb8%3A%3A1%5D%3A1600` cut in its port is
+masked from `%3A` after `2001`. Encoded, a literal takes up to three times its
+bytes. The 256 bytes
 past the cap keep this away from what is shown unless the authority runs from
 inside the cap to 256 bytes past it: `url=http://[2001:db8::1]:8080/p` with a
 cap of 20 is `url=http://[2001:db`, as cut. A masked value is shorter than the bytes it hides, so the end of
@@ -1131,9 +1139,7 @@ dump stay as they were):
   four digits at most, one `::` in place of one or more, a dotted IPv4 quad
   with no leading zero in place of the last two, a zone of 64 bytes at most
   with no `:` -- and only when one to five digits run from its `]:` to the
-  end: a userinfo can begin with `[`. In the `%`-encoded view of a capped line
-  no literal is kept at the cut: encoded, it takes up to three times its bytes.
-  Anything else is masked from the first `:`: `x https://[dead:beef]:z@h` is
+  end: a userinfo can begin with `[`. Anything else is masked from the first `:`: `x https://[dead:beef]:z@h` is
   `x https://[dead:*********`, `x https://[a%x:pass]:80` is
   `x https://[a%x:********`, `see http://[::1]:8o80` is
   `see http://[:********`, and so is a literal cut before its `]`. What follows

@@ -2610,7 +2610,9 @@ PRIVATE void mark_query_params(const char *bf, const char *end, name_reading_t r
  *  address). A port there, and a host after a whole userinfo, are masked
  *  too: the bytes do not say they are not a password's. The colons of an
  *  IP literal followed by a port ("[2001:db8::1]:8080") are no password's
- *  there, when `literal_at_cut`: it is marked from the ':' after the literal.
+ *  there: it is marked from the ':' after the literal -- in a decoded view
+ *  (`written` not NULL) only when the literal was written as it reads
+ *  (written_literal_fits()).
  */
 #define URL_AUTHORITY_STOPS "/?#\"'<> \t"
 
@@ -2694,11 +2696,46 @@ PRIVATE const char *ipv6_text_end(const char *s, const char *e)
  *  %-encoded whole fits. Unbounded, a long "zone" put the '[' of a userinfo
  *  that only looks like a literal and its "]:port" farther apart than the
  *  bytes judged past a cap (MASK_CAP_MARGIN), and the password showed. The
- *  bound holds for the bytes as WRITTEN: a literal read in a decoded view
- *  takes up to three times its bytes per decoding, so there no literal is
- *  granted at a cut (mark_inline_rules_of_now()).
+ *  bound holds for the bytes as WRITTEN: a literal read in the decoded view
+ *  of a capped line takes up to three times its bytes per decoding, so
+ *  there a literal is granted at the cut only when its '[' was written
+ *  raw and its bytes as written, to the cut, fit in IP_LITERAL_WRITTEN_MAX
+ *  (written_literal_fits()).
  */
 #define IP_LITERAL_ZONE_MAX 64
+
+/*
+ *  The longest literal followed by a port: '[', the longest IPv6 text
+ *  ("ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"), '%' and its zone,
+ *  "]:" and five digits
+ */
+#define IP_LITERAL_WRITTEN_MAX  (1 + 45 + 1 + IP_LITERAL_ZONE_MAX + 2 + 5)
+
+/*
+ *  Where each byte of a decoded view was written: the text as it came
+ *  (`text`, `len` bytes, its end the cut of a capped line) and, for each
+ *  byte of the view, the offset in it of the first byte it came from
+ *  (`at`, one entry more for the end of the view)
+ */
+typedef struct {
+    const char *text;
+    size_t len;
+    const size_t *at;
+} written_map_t;
+
+/*
+ *  TRUE when the IP literal whose '[' is the byte `i` of a decoded view
+ *  was written raw, and its bytes as written, from that '[' to the cut,
+ *  are no more than those of the longest one
+ */
+PRIVATE BOOL written_literal_fits(const written_map_t *written, size_t i)
+{
+    size_t w = written->at[i];
+    if(w >= written->len || written->text[w] != '[') {
+        return FALSE;
+    }
+    return (written->len - w <= IP_LITERAL_WRITTEN_MAX)? TRUE : FALSE;
+}
 
 /*
  *  The ':' after the IP literal that begins the authority at `host` when
@@ -2745,7 +2782,7 @@ PRIVATE void mark_url_passwords(
     const char *bf,
     const char *end,
     BOOL end_is_cut,
-    BOOL literal_at_cut,
+    const written_map_t *written,   // NULL: the bytes are the ones written
     uint8_t *marks
 )
 {
@@ -2766,7 +2803,10 @@ PRIVATE void mark_url_passwords(
             e++;
         }
         if(colon && end_is_cut && e >= end) {
-            const char *from = literal_at_cut? colon_after_ip_literal(host, e) : colon;
+            const char *from = colon_after_ip_literal(host, e);
+            if(from != colon && written && !written_literal_fits(written, (size_t)(host - bf))) {
+                from = colon;
+            }
             mark_range(marks, (size_t)(from + 1 - bf), (size_t)(end - bf));
         } else if(colon && at && colon < at) {
             mark_range(marks, (size_t)(colon + 1 - bf), (size_t)(at - bf));
@@ -2843,13 +2883,19 @@ PRIVATE void mark_labels(const char *str, size_t len, uint8_t *marks)
  *  released versions -- on the `len` bytes of `str`: what a decoded view
  *  of the text is judged by (mark_decoded_view())
  */
-PRIVATE void mark_inline_rules_of_now(const char *str, size_t len, BOOL end_is_cut, uint8_t *marks)
+PRIVATE void mark_inline_rules_of_now(
+    const char *str,
+    size_t len,
+    BOOL end_is_cut,
+    const written_map_t *written,
+    uint8_t *marks
+)
 {
     BOOL value_is_secret = inline_value_is_secret(str, len, NAMES_NOW);
     mark_params(str, len, value_is_secret, READ_NOW, marks);
     mark_query_params(str, str + len, NAME_PLAIN, marks);
     mark_query_params(str, str + len, NAME_WRITTEN, marks);
-    mark_url_passwords(str, str + len, end_is_cut, FALSE, marks);  // see IP_LITERAL_ZONE_MAX
+    mark_url_passwords(str, str + len, end_is_cut, written, marks);    // see IP_LITERAL_ZONE_MAX
     mark_shapes(str, len, end_is_cut, marks);
     mark_labels(str, len, marks);
 }
@@ -2865,6 +2911,7 @@ PRIVATE void mark_decoded_view(
     view_rules_t rules,
     BOOL end_is_cut,
     int decodings,
+    const written_map_t *written,
     uint8_t *marks
 );
 
@@ -2892,10 +2939,10 @@ PRIVATE void mark_inline_secrets(
     }
     mark_query_params(str, str + len, NAME_PLAIN, marks);
     mark_query_params(str, str + len, NAME_WRITTEN, marks);
-    mark_url_passwords(str, str + len, end_is_cut, TRUE, marks);
+    mark_url_passwords(str, str + len, end_is_cut, NULL, marks);
     mark_shapes(str, len, end_is_cut, marks);
     mark_labels(str, len, marks);
-    mark_decoded_view(str, len, RULES_OF_INLINE, end_is_cut, 0, marks);
+    mark_decoded_view(str, len, RULES_OF_INLINE, end_is_cut, 0, NULL, marks);
 }
 
 /*
@@ -3419,7 +3466,7 @@ PRIVATE void mark_dump_rules_of_now(const char *bf, const char *end, uint8_t *ma
     mark_dump_shapes(bf, end, marks);
     mark_query_params(bf, end, NAME_PLAIN, marks);
     mark_query_params(bf, end, NAME_WRITTEN, marks);
-    mark_url_passwords(bf, end, TRUE, TRUE, marks);     // the end of a dump may cut a frame
+    mark_url_passwords(bf, end, TRUE, NULL, marks);     // the end of a dump may cut a frame
     mark_dump_json_members(bf, end, marks);
     mark_dump_labels(bf, end, NAME_PLAIN, marks);
     mark_dump_labels(bf, end, NAME_WRITTEN, marks);
@@ -3458,6 +3505,7 @@ PRIVATE void mark_decoded_view(
     view_rules_t rules,
     BOOL end_is_cut,
     int decodings,
+    const written_map_t *written,   // NULL: `str` is the text as written
     uint8_t *marks
 )
 {
@@ -3479,16 +3527,20 @@ PRIVATE void mark_decoded_view(
     char *view = gbmem_malloc(view_len + 1);
     size_t view_marks_size = (view_len + 7)/8;
     uint8_t *view_marks = gbmem_malloc(view_marks_size + 1);
-    if(!view || !view_marks) {
+    size_t *view_at = gbmem_malloc((view_len + 1) * sizeof(size_t));
+    if(!view || !view_marks || !view_at) {
         // Error already logged. Fails safe: all of it
         GBMEM_FREE(view)
         GBMEM_FREE(view_marks)
+        GBMEM_FREE(view_at)
         mark_range(marks, 0, len);
         return;
     }
     memset(view_marks, 0, view_marks_size + 1);
     char *v = view;
     for(const char *p = str; p < end; p++) {
+        size_t s = (size_t)(p - str);
+        view_at[v - view] = written? written->at[s] : s;
         int c = (*p == '%')? encoded_ascii_at(p, end) : -1;
         if(c >= 0) {
             *v++ = (char)c;
@@ -3498,13 +3550,19 @@ PRIVATE void mark_decoded_view(
         }
     }
     *v = 0;
+    view_at[view_len] = written? written->at[len] : len;
+    written_map_t view_written = {
+        .text = written? written->text : str,
+        .len = written? written->len : len,
+        .at = view_at
+    };
 
     if(rules == RULES_OF_INLINE) {
-        mark_inline_rules_of_now(view, view_len, end_is_cut, view_marks);
+        mark_inline_rules_of_now(view, view_len, end_is_cut, &view_written, view_marks);
     } else {
         mark_dump_rules_of_now(view, view + view_len, view_marks);
     }
-    mark_decoded_view(view, view_len, rules, end_is_cut, decodings + 1, view_marks);
+    mark_decoded_view(view, view_len, rules, end_is_cut, decodings + 1, &view_written, view_marks);
 
     const char *p = str;
     for(size_t i = 0; i < view_len; i++) {
@@ -3514,6 +3572,7 @@ PRIVATE void mark_decoded_view(
         }
         p += n;
     }
+    GBMEM_FREE(view_at)
     GBMEM_FREE(view_marks)
     GBMEM_FREE(view)
 }
@@ -3574,7 +3633,7 @@ PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
         mark_dump_in_place(bf, copy, len, READ_AS_7_26_9, marks);
     }
     mark_dump_rules_of_now(bf, end, marks);
-    mark_decoded_view(bf, len, RULES_OF_DUMP, TRUE, 0, marks);
+    mark_decoded_view(bf, len, RULES_OF_DUMP, TRUE, 0, NULL, marks);
 
     for(size_t i = 0; i < len; i++) {
         if(is_marked(marks, i) && bf[i] != '*') {

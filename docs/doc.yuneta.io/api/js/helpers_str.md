@@ -137,9 +137,10 @@ the id of the identity card and as the `host` of each message.
 
 - The local storage keeps the uuid in the key `host_uuid`. The first page makes
   it and writes it there. The next pages read it.
-- When the store cannot keep the uuid (the data of the site is blocked, the
-  store is full, there is no `localStorage`, or there is no browser), the page
-  makes a uuid and keeps it in memory. The function logs one WARNING.
+- When the store cannot keep the uuid, the page makes a uuid and keeps it in
+  memory. When the data of the site is blocked or the store is full, the
+  function logs one WARNING. When there is no `localStorage` or no browser (a
+  test under node), it logs nothing.
 - Without `crypto.randomUUID()` (a page on `http` without TLS is not a secure
   context), the function makes a uuid v4 with `crypto.getRandomValues()`.
   Without `crypto`, it uses `Math.random()`.

@@ -1923,6 +1923,46 @@ PRIVATE void check_secret_values(hgobj gobj)
         }
     }
 
+    /*
+     *  An IP literal followed by a port at the cut of a capped line ("password=",
+     *  300 x, the URL, 300 z) is kept, the port masked: in the bytes as
+     *  written, and in the decoded view built when the window holds a %XX
+     *  elsewhere, or in the zone (RFC 6874 "%25"). A literal whose own bytes
+     *  are %-encoded, and an IPv4 quad with a leading zero, are not kept.
+     */
+    {
+        struct {
+            const char *head;
+            const char *url;
+            size_t bfsize;
+            const char *out;
+        } at_cut[] = {
+            {"", " url=https://[2001:db8::1]:8080 ", 82,
+             "password=******** url=https://[2001:db8::1]:********"},
+            {"GET /a%20b ", " url=https://[2001:db8::1]:1600 ", 94,
+             "GET /a%20b password=******** url=https://[2001:db8::1]:********"},
+            {"", " url=https://[fe80::1%25eth0]:1600 ", 86,
+             "password=******** url=https://[fe80::1%25eth0]:********"},
+            {"", " url=https://[::01.2.3.4]:8080 ", 82,
+             "password=******** url=https://[:********"},
+            {"", " next=https%3A%2F%2F%5B2001%3Adb8%3A%3A1%5D%3A1600 ", 102,
+             "password=******** next=https%3A%2F%2F%5B2001%3A********"},
+        };
+        for(size_t k = 0; k < sizeof(at_cut)/sizeof(at_cut[0]); k++) {
+            char cut_url[1024];
+            char cut_url_bf[256];
+            size_t hl = (size_t)snprintf(cut_url, sizeof(cut_url), "%spassword=", at_cut[k].head);
+            memset(cut_url + hl, 'x', 300);
+            hl += 300;
+            hl += (size_t)snprintf(cut_url + hl, sizeof(cut_url) - hl, "%s", at_cut[k].url);
+            memset(cut_url + hl, 'z', 300);
+            hl += 300;
+            cut_url[hl] = 0;
+            mask_secrets_inline_capped(cut_url_bf, at_cut[k].bfsize, cut_url, hl);
+            check_str("an IP literal at the cut of a capped line", cut_url_bf, at_cut[k].out);
+        }
+    }
+
     json_t *kw = json_pack("{s:s, s:s, s:I, s:s, s:s, s:s%, s:s}",
         "note", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.jwtnote-hunter2",
         "headers", "Authorization: Bearer hdr-hunter2",

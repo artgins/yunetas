@@ -1096,8 +1096,9 @@ fixed:
   four digits at most, one `::` in place of one or more, a dotted IPv4 quad
   with no leading zero in place of the last two; `[1:2:3:4:5:6:7:8:9]`,
   `[1.2.3::4]`, `[::01.2.3.4]` are not), a zone (`%25` or a raw `%`) of 64
-  bytes at most with no `:` and one to five digits from its `]:` to the cut,
-  (in the %-encoded view of a capped line no literal is granted at the cut:
+  bytes at most with no `:` and one to five digits from its `]:` to the cut
+  (in the %-decoded view of a capped line, only a literal whose `[` is written
+  raw and whose bytes as written, from that `[` to the cut, are 118 at most:
   encoded, it takes up to three times its bytes); anything else is masked
   from its first `:`, since a userinfo can
   begin with `[` (`x https://[dead:beef]:z@h` is `x https://[dead:*********`):
