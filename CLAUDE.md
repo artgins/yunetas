@@ -196,11 +196,11 @@ The standalone repo carries **two maintained lines**, and they are consumed in
 - **`v1` branch** (latest tag `1.0.4`, npm dist-tag `legacy`) — the **frozen**
   legacy GClass GUI stack (`C_YUI_MAIN/WINDOW/TABS/ROUTING` + TreeDB editors +
   charts/maps). `v1` is **maintenance-only** — do not land feature work here.
-  hidraulia (`^1.0.4`) consumes it from the **npm registry** (the
-  **published** package, **not** this local checkout) — check the consumer's
-  own `package.json` rather than assuming it matches. **estadodelaire left v1
-  for v2 on 2026-10-13** (its plan, decisions and the gaps it found in
-  `estadodelaire/gui/MIGRACION_V2.md`); hidraulia is next, with the same plan. The local
+  **It has no consumer left**: estadodelaire left it for v2 on 2026-10-13
+  (its plan, decisions and the gaps it found in
+  `estadodelaire/gui/MIGRACION_V2.md`), and hidraulia, the last one, on
+  2026-10-15 (GUI 2.0.0, on estadodelaire's code: `hidraulia/gui/MIGRACION_V2.md`).
+  Each keeps its v1 in a `gui-v1-final` tag. The local
   `kernel/js/gobj-ui` checkout is **no longer `v1`** — do not point a
   dependency at it for a v1 consumer. (The in-repo
   `yunos/js/gui_treedb` was migrated to **v2** — it is **not** a v1 consumer.)
@@ -246,7 +246,7 @@ registry — estadodelaire, hidraulia, wattyzer, yunomusica, the three yunovatio
 GUIs and the in-repo `yunos/js/*` yunos — but they do **not** all declare the
 same floor, and assuming they do has been wrong since the in-repo yunos moved
 ahead: `yunos/js/*`, the yunovatios GUIs, wattyzer's gui, yunomusica and
-estadodelaire are on `^7.27.0` (2026-10-15). Check the consumer's own
+estadodelaire and hidraulia are on `^7.27.0` (2026-10-15). Check the consumer's own
 `package.json` rather than this line. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
 `src/`.
@@ -260,13 +260,11 @@ Operational notes:
   this when touching `kernel/js/gobj-ui/**`.
 - `dist/` is no longer on any consumer's critical path: the v2 consumers import
   source files by specifier (`src/` ships in the published tarball too, so
-  wattyzer does the same from the registry), and hidraulia (v1) pulls
-  `dist/` from the **published** npm tarball. Still run `npm run build` to
+  wattyzer does the same from the registry). Still run `npm run build` to
   validate, and before publishing.
-- To ship a new **v1** release for hidraulia: from a **v1**
-  checkout of the standalone repo, `npm run build` + `npm publish`, then bump
-  its `@yuneta/gobj-ui` `^1.x` range -- hidraulia is the last v1 consumer.
-  (This local submodule stays on `main`.)
+- A **v1** release would be cut from a **v1** checkout of the standalone repo
+  (`npm run build` + `npm publish`; this local submodule stays on `main`), but
+  no app consumes v1 since 2026-10-15.
 - gobj-ui installs its own copies of shared third-party libs (i18next,
   @antv/g6, maplibre-gl, tabulator-tables, tom-select, uplot,
   vanilla-jsoneditor). Any consumer that also depends on one of them must add
@@ -274,9 +272,9 @@ Operational notes:
   wattyzer's, the reference v2 consumer) — otherwise components importing a
   module-level singleton (e.g. i18next's `t`) bind an uninitialized second
   copy and render blank.
-- Preserve backwards compatibility for existing consumers (hidraulia on
-  published v1; wattyzer, yunovatios, estadodelaire, yunomusica and the
-  in-repo yunos on published v2) and update the repo's `README.md` when the
+- Preserve backwards compatibility for existing consumers (wattyzer,
+  yunovatios, estadodelaire, hidraulia, yunomusica and the in-repo yunos, all
+  on published v2) and update the repo's `README.md` when the
   contract changes.
 
 ## ⚠️ CRITICAL: Memory allocation in C code
@@ -1245,10 +1243,11 @@ Examples: `c_yui_main.js` (`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
   declare it). So do wattyzer, yunomusica and the
   `js_gui` scaffold (which takes gobj-ui from npm since 2026-10-11; it used
   to vendor lib-yui). **The default does not flip in 7.x, by decision
-  (2026-10-11):** hidraulia is frozen on gobj-ui v1, whose markup is plain
-  strings, and takes gobj-js through `^7.22.2` -- a flipped default would
-  reach it by its range and break it (estadodelaire, on v2 since 2026-10-13,
-  opts in like every v2 app). Every v2 app opts
+  (2026-10-11):** the reason was hidraulia, then frozen on gobj-ui v1, whose
+  markup is plain strings, taking gobj-js through `^7.22.2` -- a flipped
+  default would have reached it by its range and broken it. Since 2026-10-15
+  hidraulia is on v2 too and opts in like every v2 app, so that reason is
+  gone; flipping the default is the user's call. Every v2 app opts
   in at startup instead. **The static check is not enough to turn the mode
   on:** it cannot see markup a helper RETURNS (`svg(path, size)` in
   yunomusica drew every icon as text under the mode and failed 11 of 30
