@@ -20,6 +20,16 @@
   gui_treedb 0.17.155; every SPA on `^7.27.18` and deployed, hidraulia after
   estadodelaire was validated in staging.
 
+- **JS layer: gobj-ui 7.27.19, the treedb topic table.** Three faults found
+  on the yunovatios central. Tabulator's `autoResize` took a hidden tab
+  (`display:none`, 0x0) for a resize and redrew a table with no layout, so
+  every visit to another tab moved the reader a dozen rows up; the table now
+  watches its own size (`EV_TABLE_RESIZED`) and redraws when seen again or
+  really resized. A click on an `array` fkey (several parents) opened nothing:
+  the row click asked the column's real type. In edition mode the Op buttons
+  made rows 55px beside 41px, and the selection outlived edition. gui_agent
+  0.29.91, gui_treedb 0.17.156; every SPA on `^7.27.19` and deployed.
+
 ## v7.27.1 (2026-10-15)
 
 A security release of the external libraries, made before 7.27.0 reached the
