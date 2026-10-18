@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **gobj-ui submodule: maplibre-gl 6.15.0** (lockfile and test-app only, no
+  gobj-ui release; peer floor stays `^6.14.0`). No breaking change and no
+  change of the worker protocol; it fixes `load`/`idle` firing early when a
+  tile fails and Safari 26.6+ stalling tiles after the page was in the
+  background. Every SPA that mounts a map (test-app, both yunovatios GUIs,
+  estadodelaire, hidraulia) raised and deployed; worker 6.15.0 served.
+
 - **JS layer: gobj-ui 7.27.1 -> 7.27.18, the icon round.** Every SPA and
   the library were reviewed for icons, one app at a time, against two rules:
   follow the market's convention for a meaning (About = `yi-circle-info`,
