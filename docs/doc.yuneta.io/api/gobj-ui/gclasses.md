@@ -554,6 +554,36 @@ Before, the cell used the language of the browser and a clock of 12 hours
 (`14 oct 2026, 03:05:09 p. m.`), and the language button of the application did
 not change it.
 
+**A table under a hidden tab keeps its place** (gobj-ui 7.27.19 and 7.27.20).
+`C_YUI_TREEDB_TOPICS` hides the tables of the other topics with
+`display:none`. When you go back to a tab, the table shows the same rows at the
+same scroll position. The table watches its own size (`EV_TABLE_RESIZED`). It
+does not draw while it is hidden. It draws again when you see it, and it puts
+back the scroll position. Thus the option `autoResize` of Tabulator is always
+off, and the table ignores a value in `tabulator_settings`:
+
+```js
+gobj_create_pure_child(name, "C_YUI_TREEDB_TOPIC_WITH_FORM", {
+    tabulator_settings: {autoResize: true},     // ignored: the table watches its size
+}, parent);
+```
+
+Before, each visit to another tab moved the table approximately 12 rows up.
+In 7.27.19 the table came back empty under a `C_YUI_NODE` tree. A route change
+removed the table from the document and added it again, and the browser set the
+scroll to 0. Since 7.27.20, `C_YUI_NODE` does not move a child that is on the
+screen.
+
+**Other changes in 7.27.19:**
+
+- A click on a cell of an fkey to many parents (`'type': 'array'` with the
+  flag `fkey`) opens the record, as a click on any other cell of data.
+- In edition mode the rows keep their height. The buttons of the column
+  **Operations** are as high as a line of text.
+- When you stop edition mode, the table clears the selection. The checkbox
+  column is hidden outside edition mode, so you cannot see or clear a selection
+  there.
+
 (js_register_c_g6_nodes_tree)=
 ### [`register_c_g6_nodes_tree()`](https://github.com/artgins/gobj-ui.js/blob/7.27.20/src/c_g6_nodes_tree.js#L13333)
 
