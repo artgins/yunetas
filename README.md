@@ -33,6 +33,25 @@ Versions in **C** (the reference implementation) and **JavaScript** (browser/Nod
 
 For more details, see [doc.yuneta.io](https://doc.yuneta.io)
 
+## See it running
+
+The JavaScript version in the browser, live, with no backend and no login:
+
+- [demo.yuneta.io](https://demo.yuneta.io) — the UI library itself: every
+  `C_YUI_NAV` layout and the per-zone responsive model, declared in one JSON
+  file and built by the shell.
+- [yunomusica.com](https://yunomusica.com) — a shipped app, not a demo: it
+  plays the music already on your phone. You authorise a folder, it is read on
+  the device, and nothing is copied or uploaded. Installable, offline, ten
+  languages.
+- [yunovideo.com](https://yunovideo.com) — the same app for video: the films,
+  series and recordings on your phone or computer. Every video remembers where
+  you left it, subtitles are found beside the file, and episodes are grouped
+  by show and season.
+
+All three run on the same shell (`C_YUI_SHELL` + `C_YUI_NAV`), and every tap
+reaches a state machine as an event.
+
 ## Install
 
 > [!IMPORTANT]
