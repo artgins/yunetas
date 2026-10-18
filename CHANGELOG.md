@@ -1,5 +1,25 @@
 # **Changelog**
 
+## Unreleased
+
+- **JS layer: gobj-ui 7.27.1 -> 7.27.18, the icon round.** Every SPA and
+  the library were reviewed for icons, one app at a time, against two rules:
+  follow the market's convention for a meaning (About = `yi-circle-info`,
+  help = `yi-question`, logout = `yi-right-from-bracket`, raw JSON =
+  `yi-code`, CSV export = `yi-file-csv`, JSON export = `yi-file-code`,
+  authorizations = `yi-user-shield`, tree view = `yi-folder-tree`, site map =
+  `yi-sitemap`), and keep ONE shape per meaning across all of them. The mask
+  set grew by the glyphs that were missing (`yi-map`, `yi-list`,
+  `yi-file-csv`, `yi-file-code`, `yi-bell`, `yi-filter`, the three charts,
+  `yi-house`, `yi-key`, `yi-microchip`, `yi-server`, `yi-folder-tree`,
+  `yi-user-shield`, `yi-circle-check`, `yi-message`, ...), and the G6 sprite
+  by `g6-icon-chevron-down/up` for the context menu's expand/collapse. A
+  theme toggle shows the CURRENT theme (moon in dark, sun in light), with a
+  menu or without one; its tooltip names the action. A final audit counted
+  755 icon uses, none undefined. No behaviour changed. gui_agent 0.29.90,
+  gui_treedb 0.17.155; every SPA on `^7.27.18` and deployed, hidraulia after
+  estadodelaire was validated in staging.
+
 ## v7.27.1 (2026-10-15)
 
 A security release of the external libraries, made before 7.27.0 reached the
