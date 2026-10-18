@@ -20,6 +20,15 @@
   gui_treedb 0.17.155; every SPA on `^7.27.18` and deployed, hidraulia after
   estadodelaire was validated in staging.
 
+- **JS layer: gobj-ui 7.27.20, the topic table came back empty.** After
+  7.27.19 a topic tab could return blank at a deep scroll: every route change
+  below a `C_YUI_NODE` re-hung its active child, taking the subtree out of the
+  document, and the browser dropped the table's scroll while its virtual rows
+  stayed drawn for the bottom. `C_YUI_NODE` now rebuilds only its chrome when
+  the child already hangs in its body, and the table gives its scroll back on
+  its next sight. gui_agent 0.29.92, gui_treedb 0.17.157; every SPA on
+  `^7.27.20` and deployed; yunovatios QA `--check tabreturn` green on the
+  deployed central.
 - **JS layer: gobj-ui 7.27.19, the treedb topic table.** Three faults found
   on the yunovatios central. Tabulator's `autoResize` took a hidden tab
   (`display:none`, 0x0) for a resize and redrew a table with no layout, so
