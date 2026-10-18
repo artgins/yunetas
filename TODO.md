@@ -447,6 +447,53 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   `jtree`, whose ready-made tree with `__path__` is ignored in favour of a
   flat `nodes` list).
 
+### gobj-ui and gobj-js (found from yunovideo and yunomusica, 2026-10-18)
+
+Seen while reviewing two app SPAs; the apps were fixed on their side, the
+kernel was not touched.
+
+- **The developer panel has no chips for an app's own trace levels.**
+  `yui_dev.js` offers fixed chips for the framework's levels (automata,
+  creation, traffic…) and nothing for a gclass's `s_user_trace_level`. An app
+  that traces what happens outside its automata (yunovideo and yunomusica
+  trace their stores under the root gclass's `stores` / `stores-time`) has to
+  draw its own chips in its own sheet, calling `set-gclass-trace` itself. A
+  generic section listing the user levels of the app's gclasses, set through
+  the same yuno command (so they persist), would serve every app.
+- **Tracing what is not a gobj.** Both apps grew the same `trace.js`: a
+  module-level tracer bound to a gobj's user level, a `traced(store, name,
+  fn)` wrapper for the functions an interface calls, a trace of each channel a
+  store emits and of each browser callback it answers directly. A plain module
+  close to the browser is a legitimate low-level layer; what makes it
+  acceptable is that it is not a blind spot. A small gobj-js facility for it
+  (named module, level, briefed arguments) would keep every app from copying
+  it.
+- **`yui_shell_register_overlay()` buys Back but not Escape.** Escape is a
+  separate stack (`yui_shell_push_escape` / `yui_shell_pop_escape`), and
+  forgetting it is silent: yunomusica's four dialogs (welcome, install, the
+  replace question, a track's card) never closed with Escape. Either let the
+  overlay registration take the Escape handler too, or make the pairing
+  impossible to miss in the README's dialog section.
+- **No `EV_VIEW_HIDDEN`, and no "is this view shown?" query.** A
+  `keep_alive` view stays subscribed to whatever feeds it while hidden, and
+  rebuilding there was the root of a memory leak and lost focus/scroll in
+  both apps. Each view now tracks `shown` from `EV_ROUTE_CHANGED` by comparing
+  the route with its own constant. `EV_VIEW_SHOWN` exists (sent on a
+  re-show); its counterpart, or `yui_shell_view_is_shown(gobj)`, would replace
+  that bookkeeping.
+- **`validate-locales` cannot follow an app's own key helpers.** An app that
+  names its controls through a helper (`named(key)`, `named_for(key, id)`)
+  cannot mark a key it hands to one: the marker is refused unless the
+  function is in gobj-ui's `I18N_KEY_FUNCTIONS`. Declaring app key functions
+  in `package.json` (next to `attr_keys` / `array_keys`) would let the check
+  see them.
+- **A plural noun cannot change language in place.** `refresh_language()`
+  re-translates by key and cannot pass a count, so the count nouns
+  (`t(key, {count})`) carry no key and their views re-render on
+  `EV_LANGUAGE_CHANGED`; a dialog open across a language change keeps the old
+  word. A `data-i18n-count` (read back by `refresh_language`) would make them
+  ordinary.
+
 ---
 
 ## 6. Operations and deployment
