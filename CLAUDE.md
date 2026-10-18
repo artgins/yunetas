@@ -1888,9 +1888,12 @@ equivalent.
   after `sync-binaries` — new runtime + stale config has caused a real
   incident.
 - **Batch configs** (`yunos/batches/<host>/<yuno>.json`): every edit bumps
-  `__version__` and rewrites `__description__` as **that version's changelog
-  entry** (what it changes + rollback caveat) — operators read it in
-  `list-configs`; rollback is config-row reassignment, not file reverts.
+  `__version__` and rewrites `__description__` as **ONE short line saying what
+  that version changes** — operators read it in `list-configs`, and a long one
+  is read by nobody. No chained history of earlier versions, no rationale, no
+  long rollback notes: those go in the commit and the CHANGELOG (yunovatios
+  descriptions had grown past 7,000 characters that way). Rollback is
+  config-row reassignment, not file reverts.
   ⚠️ **A bumped version does not reach the yuno on its own, and the reason is
   not the config's primary index — it is the YUNO's record.** `get_yuno_config()`
   in `c_agent.c` picks the config by `(id, name_version)`, where `name_version`
