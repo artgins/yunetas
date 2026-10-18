@@ -20,6 +20,13 @@
   gui_treedb 0.17.155; every SPA on `^7.27.18` and deployed, hidraulia after
   estadodelaire was validated in staging.
 
+- **JS layer: gobj-ui 7.27.21, `EV_VIEW_SHOWN`.** A view that the shell
+  shows again after hiding it (`keep_alive`) is told so, if it declares the
+  event; `C_YUI_SERVICE_VIEW` hands it to its hosted view and `C_YUI_NODE`
+  down its path. It lets a view keep its state across navigation and still
+  read its data again. The yunovatios GUIs moved every route from
+  `lazy_destroy` to `keep_alive` on top of it (the map kept losing its camera).
+  gui_agent 0.29.93, gui_treedb 0.17.158; every SPA on `^7.27.21` and deployed.
 - **JS layer: gobj-ui 7.27.20, the topic table came back empty.** After
   7.27.19 a topic tab could return blank at a deep scroll: every route change
   below a `C_YUI_NODE` re-hung its active child, taking the subtree out of the
