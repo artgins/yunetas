@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **SPAs: source maps are no longer published.** Every SPA (gui_agent,
+  gui_treedb, wattyzer, estadodelaire, hidraulia, both yunovatios GUIs, and
+  the `js_gui` template) builds with `sourcemap: "hidden"`: the maps stay in
+  `dist/` to decode a stack from the remote log, the bundle carries no
+  `sourceMappingURL`, and the deploy rsync hides `*.map` (its `--delete`
+  removed the maps already served). A deployed map exposed the whole source
+  of the private repos. Page load is unchanged (a browser fetches a map only
+  with devtools open). All deployed, hidraulia after staging; QA clean.
+
 - **gobj-ui submodule: maplibre-gl 6.15.0** (lockfile and test-app only, no
   gobj-ui release; peer floor stays `^6.14.0`). No breaking change and no
   change of the worker protocol; it fixes `load`/`idle` firing early when a
