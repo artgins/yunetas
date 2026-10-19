@@ -8233,6 +8233,15 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
             gobj->gclass->command_table ? json_true() : json_false()
         );
     }
+    // Without them a running gobj that does not play is not paused
+    if(kw_find_str_in_list(gobj, jn_filter, "play_methods")!=-1 || !json_array_size(jn_filter)) {
+        json_object_set_new(
+            jn_dict,
+            "play_methods",
+            (gobj->gclass->gmt->mt_play || gobj->gclass->gmt->mt_pause)?
+                json_true() : json_false()
+        );
+    }
     if(kw_find_str_in_list(gobj, jn_filter, "gobj_trace_level")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,

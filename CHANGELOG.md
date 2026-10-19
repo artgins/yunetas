@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **`gobj2json()` answers `play_methods`**: `true` when the gobj's gclass
+  has an `mt_play` or an `mt_pause`. It is one of `view-gobj-tree`'s
+  default `options` too. Most gclasses have neither (15 of the 18 of a
+  db_history_ce), and a gobj of theirs that runs and does not play is not
+  paused: it is doing all it can. The gobj tree of gui_agent (gobj-ui
+  7.27.26) reads it to stop calling those gobjs paused. A yuno shows it
+  once it is rebuilt with this SDK.
+
 - **gobj-ui 7.27.24-7.27.25: G6 graphs centre their root, and a blank saved
   camera no longer sticks.** `@antv/g-lite` 2.7.0 dropped a camera
   coordinate of exactly 0 (`createVec3` read `x[1] || y`). gobj-ui now
