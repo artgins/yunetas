@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **gobj-ui 7.27.26: the gobj tree has a minimap, and stops calling paused
+  what has nothing to play.** The minimap appears from 20 cards on; its
+  frame and anchor are the treedb graph's, now one module
+  (`yui_graph_minimap.js`). A running gobj whose gclass has neither
+  `mt_play` nor `mt_pause` reads `● running` in green: from the gclass in
+  a local tree, from `play_methods` (below) in a remote one. Deployed by the
+  round to every SPA (gui_agent 0.29.100, gui_treedb 0.17.162, wattyzer
+  0.1.54, yunovatios central 0.7.99 / controlador 0.5.100, yunomusica
+  2.37.4, yunovideo 1.0.10, estadodelaire 2.0.64, the js_gui template and
+  the demo). Console checked on every host: clean but for G6's two usual
+  warnings. Hidraulia was not deployed.
+
 - **`gobj2json()` answers `play_methods`**: `true` when the gobj's gclass
   has an `mt_play` or an `mt_pause`. It is one of `view-gobj-tree`'s
   default `options` too. Most gclasses have neither (15 of the 18 of a
