@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Deploy round of gobj-ui 7.27.23 to every SPA.** gui_treedb, gui_agent,
+  wattyzer, both yunovatios GUIs, yunomusica, estadodelaire, the js_gui
+  template and the demo went through the round. yunovideo 1.0.7 and
+  hidraulia 2.0.17 (after its staging, estadodelaire 2.0.61) were deployed on
+  their own. Every app carries the new i18n keys of 7.27.22-7.27.23. The
+  console was checked on every deployed host: clean, apart from G6's two
+  usual warnings.
+
 - **gui_agent 0.29.95: the gobj tree of a yuno, with its traces.** Each card
   of the Scenarios live view opens the gobj tree of its yuno in a window:
   what every gobj is and is doing, and what it traces. A box per level turns
