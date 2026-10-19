@@ -14,8 +14,8 @@ all of them already deployed.
 
 No performance report and no A/B: nothing on a hot path changed. The
 external libraries were checked first (`kernel/c/linux-ext-libs` 1.24 is
-upstream's latest of each). Release suite on the dev machine and on
-wattyzer before the tag.
+upstream's latest of each). Suite 309/309 on the dev machine (clean build,
+`ulimit -Sn 1024`) and on wattyzer.
 
 - **gobj-ui 7.27.27: each trace scope where it belongs, and the gclass
   viewer reviewed.** The kernel's trace levels (`machine`, `create_delete`...)
