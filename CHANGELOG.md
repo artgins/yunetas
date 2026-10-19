@@ -1,5 +1,27 @@
 # **Changelog**
 
+## v7.27.3 (2026-10-19)
+
+An abbreviated release, one fix of the C runtime, tested on the dev machine
+only (the user's call): no suite, no wattyzer, no performance report.
+
+- **A gobj's trace is saved only for a named service, under its service
+  name** (`c_yuno.c`: `set-gobj-trace`, `set-gobj-no-trace`). At start up
+  `set_user_gobj_traces()` finds a gobj with `gobj_find_service()`, and the
+  trace was saved under the name the command was given: the gobj tree of
+  gui_agent gives the FULL name, so its traces were saved for nothing and the
+  next start logged *"GClass NOT FOUND: <full name>"* as an ERROR (seen on
+  gate_enchufe^2046 of wattyzer after the 7.27.2 deploy). Now a service's
+  trace survives a restart whatever name it was set by, and any other gobj's
+  lasts until the yuno ends, as the docs said. An entry saved by an older
+  release is dropped at the next start with a WARNING, *"Saved trace of no
+  gclass and no named gobj: dropped"* (the old message also said GClass for
+  a gobj and cut the name at 80 bytes). Tested live on the local logcenter:
+  the old binary saved the full name of a C_TIMER; the new one dropped it at
+  start with the warning, saved only `"logcenter"` for the service set by
+  its full name, re-applied it after a restart, and saved nothing for the
+  timer. `DEBUGGING.md` (Persistence) says so, with an example.
+
 ## v7.27.2 (2026-10-19)
 
 A small release. One change of the C runtime: `gobj2json()` answers

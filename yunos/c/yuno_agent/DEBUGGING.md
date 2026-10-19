@@ -219,13 +219,29 @@ and their `no-trace` counterparts on `no_trace_levels`:
 | `set-global-no-trace`   | `save_global_no_trace`                       | `__global_no_trace__` (in `no_trace_levels`) |
 | `set-global-trace`      | [`save_global_trace`](https://github.com/artgins/yunetas/blob/7.27.2/kernel/c/root-linux/src/c_yuno.c#L2358)  | `__global_trace__` |
 | `set-gclass-trace`      | [`save_user_trace`](https://github.com/artgins/yunetas/blob/7.27.2/kernel/c/root-linux/src/c_yuno.c#L2426)    | the gclass name    |
-| `set-gobj-trace`        | [`save_user_trace`](https://github.com/artgins/yunetas/blob/7.27.2/kernel/c/root-linux/src/c_yuno.c#L2426)    | the gobj name      |
+| `set-gobj-trace`        | [`save_user_trace`](https://github.com/artgins/yunetas/blob/7.27.2/kernel/c/root-linux/src/c_yuno.c#L2426)    | the service name (a service only) |
 | `set-gclass-no-trace`   | [`save_user_no_trace`](https://github.com/artgins/yunetas/blob/7.27.2/kernel/c/root-linux/src/c_yuno.c#L2470) | the gclass name    |
-| `set-gobj-no-trace`     | [`save_user_no_trace`](https://github.com/artgins/yunetas/blob/7.27.2/kernel/c/root-linux/src/c_yuno.c#L2470) | the gobj name      |
+| `set-gobj-no-trace`     | [`save_user_no_trace`](https://github.com/artgins/yunetas/blob/7.27.2/kernel/c/root-linux/src/c_yuno.c#L2470) | the service name (a service only) |
 
 They are re-applied on the next start: `set_user_gclass_traces()` and
 `set_user_gclass_no_traces()` run from `mt_create`, `set_user_gobj_traces()`
 right after the children are built.
+
+**A gobj's trace is saved only for a named service** (7.27.3+), under its
+service name whatever name the command was given. `set_user_gobj_traces()`
+finds a gobj with `gobj_find_service()`, so the trace of any other gobj -- a
+timer, a channel, a connection -- could never be found again: it lasts until
+the yuno ends. Up to 7.27.2 it was saved anyway, under the name given (the gobj
+tree of gui_agent gives the FULL name), and the next start logged *"GClass NOT
+FOUND: <name>"* as an ERROR. Such an entry is now dropped at the next start
+with a WARNING, *"Saved trace of no gclass and no named gobj: dropped"*.
+
+```bash
+# A service, by its full name: saved as "logcenter", re-applied at start
+ycommand -c 'command-yuno id=2 service=__yuno__ command=set-gobj-trace gobj=C_YUNO^artgins`C_LOGCENTER^logcenter level=start_stop set=1'
+# Not a service: set now, not saved, gone when the yuno restarts
+ycommand -c 'command-yuno id=2 service=__yuno__ command=set-gobj-trace gobj=C_YUNO^artgins`C_LOGCENTER^logcenter`C_TIMER^logcenter level=start_stop set=1'
+```
 
 **A saved scope REPLACES what is in force.** The global scope, the global
 no-trace scope and the scope of each gclass are saved **whole**, from the

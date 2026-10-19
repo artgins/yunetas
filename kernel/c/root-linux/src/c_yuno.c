@@ -3177,8 +3177,9 @@ PRIVATE json_t *cmd_set_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
 
     KW_INCREF(kw);
     int ret = gobj_set_gobj_trace(gobj2read, level, trace?1:0, kw);
-    if(ret == 0 || trace == 0) {
-        save_user_trace(gobj, gobj_name_, level, trace?1:0, TRUE);
+    // Only a named service is found again at start up (set_user_gobj_traces)
+    if((ret == 0 || trace == 0) && gobj_is_service(gobj2read)) {
+        save_user_trace(gobj, gobj_name(gobj2read), level, trace?1:0, TRUE);
     }
 
     json_t *jn_data = gobj_get_gobj_trace_level(gobj2read);
@@ -3258,8 +3259,9 @@ PRIVATE json_t *cmd_set_no_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, h
     }
 
     int ret = gobj_set_gobj_no_trace(gobj2read, level, trace);
-    if(ret == 0 || trace == 0) {
-        save_user_no_trace(gobj, gobj_name_, level, trace?1:0, TRUE);
+    // Only a named service is found again at start up (set_user_gobj_no_traces)
+    if((ret == 0 || trace == 0) && gobj_is_service(gobj2read)) {
+        save_user_no_trace(gobj, gobj_name(gobj2read), level, trace?1:0, TRUE);
     }
 
     json_t *jn_data = gobj_get_gobj_trace_no_level(gobj2read);
@@ -5466,15 +5468,11 @@ PRIVATE int set_user_gobj_traces(hgobj gobj)
         if(!gclass) { // Check gclass to check if no gclass and no gobj
             namedgobj = gobj_find_service(name, FALSE);
             if(!namedgobj) {
-                char temp[80];
-                snprintf(temp, sizeof(temp), "%s NOT FOUND: %s",
-                    gclass?"named-gobj":"GClass",
-                    name
-                );
-                gobj_log_error(gobj, 0,
+                // A name saved before 7.27.3 (a full name), or a service that is gone
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER,
-                    "msg",          "%s", temp,
+                    "msg",          "%s", "Saved trace of no gclass and no named gobj: dropped",
                     "name",         "%s", name,
                     NULL
                 );
@@ -5556,15 +5554,11 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
         if(!gclass) { // Check gclass to check if no gclass and no gobj
             namedgobj = gobj_find_service(name, FALSE);
             if(!namedgobj) {
-                char temp[80];
-                snprintf(temp, sizeof(temp), "%s NOT FOUND: %s",
-                    gclass?"named-gobj":"GClass",
-                    name
-                );
-                gobj_log_error(gobj, 0,
+                // A name saved before 7.27.3 (a full name), or a service that is gone
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER,
-                    "msg",          "%s", temp,
+                    "msg",          "%s", "Saved trace of no gclass and no named gobj: dropped",
                     "name",         "%s", name,
                     NULL
                 );
