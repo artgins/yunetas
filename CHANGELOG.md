@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **gobj-ui 7.27.24-7.27.25: G6 graphs centre their root, and a blank saved
+  camera no longer sticks.** `@antv/g-lite` 2.7.0 dropped a camera
+  coordinate of exactly 0 (`createVec3` read `x[1] || y`). gobj-ui now
+  declares the `@antv/g`, `g-canvas` and `g-plugin-dragndrop` releases that
+  pin 2.7.2. The gobj tree and the JSON graph awaited no centring on their
+  root (an unawaited async call tested as a boolean). The gobj tree saved
+  the camera of an empty graph, and restored it on every opening. gui_agent
+  0.29.98 carries it; the other apps get it from the next deploy round.
+
 - **Deploy round of gobj-ui 7.27.23 to every SPA.** gui_treedb, gui_agent,
   wattyzer, both yunovatios GUIs, yunomusica, estadodelaire, the js_gui
   template and the demo went through the round. yunovideo 1.0.7 and
