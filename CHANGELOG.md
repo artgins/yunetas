@@ -1,6 +1,21 @@
 # **Changelog**
 
-## Unreleased
+## v7.27.2 (2026-10-19)
+
+A small release. One change of the C runtime: `gobj2json()` answers
+`play_methods`, whether the gobj's gclass has an `mt_play` or an `mt_pause`,
+and it is one of `view-gobj-tree`'s default options -- a viewer needs it to
+stop calling paused a running gobj that has nothing to play (15 of the 18
+gclasses of a db_history_ce). The rest are the JS rounds since 7.27.1:
+gobj-ui 7.27.0 -> 7.27.27 (the icon round, the treedb topic table, the
+remote gobj tree of a yuno with its traces in three scopes, the minimap, the
+gclass viewer), gui_agent 0.29.79 -> 0.29.101 and the SPAs that took them,
+all of them already deployed.
+
+No performance report and no A/B: nothing on a hot path changed. The
+external libraries were checked first (`kernel/c/linux-ext-libs` 1.24 is
+upstream's latest of each). Release suite on the dev machine and on
+wattyzer before the tag.
 
 - **gobj-ui 7.27.27: each trace scope where it belongs, and the gclass
   viewer reviewed.** The kernel's trace levels (`machine`, `create_delete`...)

@@ -102,7 +102,7 @@ A JSON object containing the requested details of `gobj`. The caller owns the re
 | `disabled` | `disabled` | Disabled. |
 | `volatil` | `volatil` | Volatile. |
 | `commands` | `commands` | Its gclass has a command table. |
-| `play_methods` | `play_methods` | Its gclass has an `mt_play` or an `mt_pause` (added after 7.27.1). Without them, a gobj that runs and does not play is not paused: there is nothing to play. |
+| `play_methods` | `play_methods` | Its gclass has an `mt_play` or an `mt_pause` (7.27.2+). Without them, a gobj that runs and does not play is not paused: there is nothing to play. |
 | `gobj_trace_level` | `gobj_trace_level` | The levels it traces NOW, whatever scope set them (global, gclass or its own). |
 | `gobj_trace_no_level` | `gobj_trace_no_level` | The levels it must not trace. |
 
