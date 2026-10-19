@@ -1,5 +1,18 @@
 # **Changelog**
 
+## Unreleased
+
+- **SDK 7.27.3 deployed on every node** (local, wattyzer first, artgins,
+  yunovatios controlador and central by package, hidraulia), and **gobj-ui
+  7.27.28: the trace notes say what the yuno keeps.** A gobj card says that a
+  service's traces survive a restart, or that any other gobj's end with the
+  yuno; the gclass viewer that the gclass' survive. Every SPA took it in the
+  round (gui_agent 0.29.102, gui_treedb 0.17.164, wattyzer 0.1.56, yunovatios
+  central 0.7.104 / controlador 0.5.105, yunomusica 2.37.6, yunovideo
+  1.0.12, estadodelaire 2.0.66, the js_gui template and the demo), and
+  hidraulia 2.0.21 after its staging. Checked live: each note on a service
+  and on a timer of db_history_co^1630; console clean on every host.
+
 ## v7.27.3 (2026-10-19)
 
 An abbreviated release, one fix of the C runtime, tested on the dev machine
