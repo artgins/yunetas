@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **gui_agent 0.29.95: the gobj tree of a yuno, with its traces.** Each card
+  of the Scenarios live view opens the gobj tree of its yuno in a window:
+  what every gobj is and is doing, and what it traces. A box per level turns
+  a trace on or off for that gobj (`set-gobj-trace`) or for its gclass
+  (`set-gclass-trace`), and the GClass button describes the backend's class
+  (`view-gclass`). **gobj-ui 7.27.23** gives `C_YUI_GOBJ_TREE_JS` the
+  `remote` mode that makes this possible (the view publishes what it wants
+  and the host loads it) and `open_gobj_tree_view()`. Two facts of the C side
+  that the GUI says out loud: `view-gobj-tree`'s default `options` leave out
+  `gclass` and `fullname`, and a gobj trace is not re-applied when the yuno
+  starts (only gclass and global ones are), so it ends with the yuno.
+  Deployed to artgins.yunetacontrol.com, checked live (tree, trace on and off
+  on wattyzer, backend gclass).
+
 - **gui_agent 0.29.94: a live card can be paused, or read once.** In the cards
   mode of the Scenarios live view, each card has pause/resume and *read once*
   buttons. A paused yuno leaves its node's `watch-yuno-stats` (the watch is
