@@ -82,7 +82,48 @@ A JSON object containing the requested details of `gobj`. The caller owns the re
 
 **Notes**
 
-The `jn_filter` parameter allows selective inclusion of attributes such as `fullname`, `state`, `attrs`, and `gobj_flags`. If `jn_filter` is empty, all available attributes are included.
+`jn_filter` lists the fields to include, by name. An empty list (or `NULL`) includes every one of them, `attrs` and `user_data` too, which is heavy on a big tree.
+
+| Name in the filter | Key(s) in the answer | What it says |
+|---|---|---|
+| `fullname` | `fullname` | The full name, from the yuno down. |
+| `shortname` | `shortname` | `gclass^name`. |
+| `gclass` | `gclass` | The gclass name. |
+| `name` | `name` | The gobj name. |
+| `parent` | `parent` | The parent's short name. |
+| `attrs` | `attrs` | The public attributes, secrets masked. |
+| `user_data` | `user_data` | The user data. |
+| `gobj_flags` | `gobj_flags` | The `gobj_flag_*` names it was created with. |
+| `state` | `state` | The current state of its FSM. |
+| `running` | `running` | Started. |
+| `playing` | `playing` | Played. |
+| `service` | `service` | A service. |
+| `bottom_gobj` | `is_bottom_gobj`, `bottom_gobj` | Whether it is some gobj's bottom, and the short name of its own bottom. |
+| `disabled` | `disabled` | Disabled. |
+| `volatil` | `volatil` | Volatile. |
+| `commands` | `commands` | Its gclass has a command table. |
+| `play_methods` | `play_methods` | Its gclass has an `mt_play` or an `mt_pause` (added after 7.27.1). Without them, a gobj that runs and does not play is not paused: there is nothing to play. |
+| `gobj_trace_level` | `gobj_trace_level` | The levels it traces NOW, whatever scope set them (global, gclass or its own). |
+| `gobj_trace_no_level` | `gobj_trace_no_level` | The levels it must not trace. |
+
+**Example**
+
+```C
+json_t *jn = gobj2json(gobj, json_pack("[s,s,s,s]",
+    "fullname", "running", "playing", "play_methods"
+));
+/*  {"fullname": "C_YUNO^gate`C_TCP^tcp1", "running": true,
+ *   "playing": false, "play_methods": false}  */
+JSON_DECREF(jn)
+```
+
+The same names are the `options` of the `view-gobj-tree` command, which answers `gobj2json()` for every gobj of a tree:
+
+```bash
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=view-gobj-tree options=["fullname","state","running","playing","play_methods"]'
+```
+
+Its default `options` leave out `gclass` and `fullname`; ask for the fields by name.
 
 ---
 
