@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **gobj-ui 7.27.27: each trace scope where it belongs, and the gclass
+  viewer reviewed.** The kernel's trace levels (`machine`, `create_delete`...)
+  are valid for one gobj, for a gclass and for the whole yuno, and the
+  remote gobj tree mixed them up: its card grouped them as *Global* and
+  offered *all of the gclass* on every card, while the yuno's own scope
+  (`set-global-trace`) could be set nowhere. Now the card sets this gobj
+  only, the gclass viewer every gobj of the gclass, and the tree's new
+  *traces of the yuno* the whole yuno; a level a wider scope holds is
+  locked, saying which. The gclass viewer lays itself out by its own width
+  (it used the screen's, which cut the attributes table in half in a
+  720px window), puts the short zones first and the long tables across
+  the whole width, capped at 20 rows. gui_agent 0.29.101 sends
+  `set-global-trace`; every SPA took it in the round (gui_treedb 0.17.163,
+  wattyzer 0.1.55, yunovatios central 0.7.103 / controlador 0.5.104,
+  yunomusica 2.37.5, yunovideo 1.0.11, estadodelaire 2.0.65, the js_gui
+  template and the demo). Checked live in the three scopes (wattyzer: set
+  and put back); console clean on every host. Hidraulia carries the new
+  i18n keys in its repo, not deployed.
+
 - **gobj-ui 7.27.26: the gobj tree has a minimap, and stops calling paused
   what has nothing to play.** The minimap appears from 20 cards on; its
   frame and anchor are the treedb graph's, now one module
