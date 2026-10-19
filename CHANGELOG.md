@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **gui_agent 0.29.94: a live card can be paused, or read once.** In the cards
+  mode of the Scenarios live view, each card has pause/resume and *read once*
+  buttons. A paused yuno leaves its node's `watch-yuno-stats` (the watch is
+  asked again without it, or `stop=1` when no live yuno is left) and the
+  polling. Read once sends `list-yunos id=<id>` and the two `stats-yuno` of
+  that yuno only. **gobj-ui 7.27.22**: the Developer window's traffic has a
+  **Line** view again (one row per message). Together, a click on read once
+  shows three requests and three answers, and nothing else. Deployed to
+  artgins.yunetacontrol.com, checked live.
+
 - **SPAs: source maps are no longer published.** Every SPA (gui_agent,
   gui_treedb, wattyzer, estadodelaire, hidraulia, both yunovatios GUIs, and
   the `js_gui` template) builds with `sourcemap: "hidden"`: the maps stay in
