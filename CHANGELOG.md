@@ -18,8 +18,9 @@
   wattyzer 0.1.55, yunovatios central 0.7.103 / controlador 0.5.104,
   yunomusica 2.37.5, yunovideo 1.0.11, estadodelaire 2.0.65, the js_gui
   template and the demo). Checked live in the three scopes (wattyzer: set
-  and put back); console clean on every host. Hidraulia carries the new
-  i18n keys in its repo, not deployed.
+  and put back); console clean on every host. Hidraulia 2.0.20 followed
+  after its staging (estadodelaire 2.0.65): QA OK on the build and on
+  hidrauliaconnect.es.
 
 - **gobj-ui 7.27.26: the gobj tree has a minimap, and stops calling paused
   what has nothing to play.** The minimap appears from 20 cards on; its
