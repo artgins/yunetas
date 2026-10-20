@@ -12,10 +12,15 @@ sed -i "s|\*\*Current version: \[.*\](.*)\*\*|\*\*Current version: [${VERSION}](
 sed -i "s|\*Documentation updated: .*\*|\*Documentation updated: ${TODAY}\*|" get_started.md
 
 # Stamp the yunetas CLI (PyPI) version into installation.md from its single
-# source of truth (the package's __version__.py). Pattern matches the whole
-# "(currently …)" parenthetical, so it is idempotent across re-runs.
+# source of truth (the package's __version__.py). Idempotent across re-runs.
+# The sentence is checked after the stamp: a rewrite of the page once changed
+# it, the sed matched nothing, and the page went on naming an old version.
 CLI_VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$REPO_ROOT/utils/python/tui_yunetas/yunetas/__version__.py")
-sed -i "s|management/build CLI (currently [^)]*)|management/build CLI (currently ${CLI_VERSION})|" installation.md
+sed -i "s|Its current version is [0-9][0-9.]*[0-9]\.|Its current version is ${CLI_VERSION}.|" installation.md
+if ! grep -qF "Its current version is ${CLI_VERSION}." installation.md; then
+    echo "ERROR: installation.md has no 'Its current version is <x>.' sentence to stamp the CLI version ${CLI_VERSION} into." >&2
+    exit 1
+fi
 
 # A fenced block that does not close (text glued to its closing fence) turns
 # the rest of the page into code, and myst builds it without a word
