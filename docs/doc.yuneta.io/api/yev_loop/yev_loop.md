@@ -488,6 +488,12 @@ yev_event_h yev_create_accept_event(
 **Returns**
 
 Returns a `yev_event_h` handle to the newly created accept event, or `NULL` on failure.
+On failure `errno` is the errno of the `socket()`, `bind()` or `listen()` that
+failed, or `0` when it failed elsewhere (the url, the resolution). `EADDRINUSE`,
+the address taken, is logged as a WARNING with no stack and every other
+failure as an ERROR: whether a taken address is an error is the caller's to
+say ([`C_TCP_S`](#gclass-c-tcp-s) tries again for `listen_retry_msec`). Up to
+7.27.3 `errno` could be the one of the log written on the way out.
 
 ---
 

@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **`C_TCP_S` listens again when its address is in use at the start**, for
+  `listen_retry_msec` (new attribute, 5000 by default; 0: no retry), at each
+  tick of the yuno's periodic timeout. A yuno killed and launched at once
+  finds its port held by the dead one for a while: the io_uring ring of a
+  process is torn down after the process is gone, and the accept pending on
+  it holds the listening socket until then. Measured on the yunovatios
+  controller with a liburing program (SIGKILL, `waitpid()`, then `bind()`):
+  the port was held after the reap in 30 rounds of 30, 4-10 ms on an idle
+  VM, and none without io_uring. The agent's restart of a node
+  (`deactivate-snap`, the last step of every relay) kills every yuno and
+  launches them once their processes are gone. A yuno that binds its port
+  within ~120 ms (an `auth_bff`, an `emailsender`) met `EADDRINUSE`, exited
+  (`exitOnError`), and its watcher launched it again 2 s later with a
+  *"Daemon relaunched"* ERROR. That happened 17 times on that node between
+  2026-10-16 and 2026-10-20, each one ~2 s after a `deactivate-snap`. Now
+  the first refusal is a WARNING (*"Address in use: listening again"*), the
+  listen after it an INFO, and only a port still taken when the time is
+  over is an ERROR, which fails the start as before. To tell the case,
+  `yev_create_accept_event()` returns NULL with `errno` set to the errno of
+  the `socket()`, `bind()` or `listen()` that failed, or 0 when it failed
+  elsewhere: before, the log it writes could overwrite `errno`. And it logs
+  `EADDRINUSE` as a WARNING with no stack: whether a taken address is an
+  error is the caller's to say. `tests/c/c_tcp_s_addr_in_use`.
 - **The table tools measure a cell in characters, not bytes**
   (`ycommand`, `ycli`, `ybatch`, `mqtt_tui`, `msg2db_list`, `treedb_list`).
   They padded and cut with `"%-*.*s"`, which counts BYTES: each non-ASCII
@@ -17,7 +40,7 @@
   characters are not measured. Tested in `test_kw1`, and checked against the
   central's live `list-controllers`: the cell fills its 34 columns, and the
   next column sits under its header.
-- **SDK 7.27.3 deployed on every node** (local, wattyzer first, artgins,- **SDK 7.27.3 deployed on every node** (local, wattyzer first, artgins,
+- **SDK 7.27.3 deployed on every node** (local, wattyzer first, artgins,
   yunovatios controlador and central by package, hidraulia), and **gobj-ui
   7.27.28: the trace notes say what the yuno keeps.** A gobj card says that a
   service's traces survive a restart, or that any other gobj's end with the

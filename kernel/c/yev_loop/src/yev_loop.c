@@ -3848,6 +3848,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     );
     if(ret < 0) {
         // Error already logged
+        errno = 0;  // not a socket failure
         return NULL;
     }
     host_without_brackets(host);
@@ -3911,10 +3912,12 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             "gai_strerror", "%s", gai_strerror(ret),
             NULL
         );
+        errno = 0;  // not a socket failure
         return NULL;
     }
 
     int fd = -1;
+    int failed_errno = 0;   // of the socket(), bind() or listen() that failed
     for (rp = results; rp; rp = rp->ai_next) {
         print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
         if(trace_level & (TRACE_URING)) {
@@ -3940,6 +3943,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         );
 
         if (fd == -1) {
+            failed_errno = errno;
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBURING,
@@ -3967,16 +3971,38 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
 
         ret = bind(fd, rp->ai_addr, (socklen_t) rp->ai_addrlen);
         if (ret == -1) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBURING,
-                "msg",          "%s", "bind() FAILED",
-                "url",          "%s", listen_url,
-                "addrinfo",     "%s", saddr,
-                "errno",        "%d", errno,
-                "strerror",     "%s", strerror(errno),
-                NULL
-            );
+            failed_errno = errno;
+            if(failed_errno == EADDRINUSE) {
+                /*
+                 *  An address IN USE is a warning, with no stack: it is what
+                 *  a process launched again at once meets while the dead
+                 *  one's io_uring ring is torn down -- the accept pending on
+                 *  it holds the listening socket a while after the process
+                 *  is gone. The caller says whether it is an error (errno
+                 *  tells it): C_TCP_S listens again for a while.
+                 */
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_LIBURING,
+                    "msg",          "%s", "bind() FAILED",
+                    "url",          "%s", listen_url,
+                    "addrinfo",     "%s", saddr,
+                    "errno",        "%d", failed_errno,
+                    "strerror",     "%s", strerror(failed_errno),
+                    NULL
+                );
+            } else {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_LIBURING,
+                    "msg",          "%s", "bind() FAILED",
+                    "url",          "%s", listen_url,
+                    "addrinfo",     "%s", saddr,
+                    "errno",        "%d", failed_errno,
+                    "strerror",     "%s", strerror(failed_errno),
+                    NULL
+                );
+            }
             close(fd);
             break;
         }
@@ -3984,6 +4010,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         if(hints.ai_protocol == IPPROTO_TCP) {
             ret = listen(fd, backlog);
             if(ret == -1) {
+                failed_errno = errno;
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_LIBURING,
@@ -4033,6 +4060,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
 
     if(ret == -1) {
         freeaddrinfo(results);
+        errno = failed_errno;   // the cause, for the caller (see yev_loop.h)
         return NULL;
     }
 
@@ -4043,6 +4071,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     if(!yev_event) {
         // Error already logged
         freeaddrinfo(results);
+        errno = 0;  // not a socket failure
         return NULL;
     }
 
@@ -4068,6 +4097,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         );
         freeaddrinfo(results);
         yev_destroy_event(yev_event);
+        errno = 0;  // not a socket failure
         return NULL;
     }
 

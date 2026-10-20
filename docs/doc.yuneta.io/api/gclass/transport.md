@@ -200,6 +200,8 @@ Creates a child C_TCP (inside a C_CHANNEL) for each accepted client.
 | `shared` | `bool` | Enable port sharing (`SO_REUSEPORT`). |
 | `crypto` | `json` | TLS configuration for accepted connections. |
 | `only_allowed_ips` | `bool` | Accept only the peers in the yuno's `allowed_ips` list (whitelist mode). The `denied_ips` list applies with or without it. |
+| `exitOnError` | `integer` | Exit code of the yuno when the listen fails (default `-1`, which its watcher relaunches); `0`: the start fails and the yuno goes on. |
+| `listen_retry_msec` | `integer` | How long a listen whose address is in use (`EADDRINUSE`) is tried again before it fails as any other listen (default `5000`; `0`: no retry). See *Address in use at the start*. |
 | `connxs` | `integer` | Connections held now (stat): the connected clisrv `C_TCP`s of the channels this server serves whose `tcp_s` is this server, read when asked (up to 7.25.20 it read 0). |
 | `tconnxs` | `integer` | Connections accepted since the gobj was created (stat; a stop and a start do not reset it, as `connxs` of `C_TCP` is not): counted at the accept with `child_tree_filter`, or, with the new method, where each clisrv accepts by itself, the sum of the own `connxs` of the clisrvs whose `tcp_s` is this server (up to 7.25.20 it read 0). |
 | `refusedConnxs` | `integer` | Connections refused at accept by the ip lists (stat, since 7.25.5). |
@@ -302,6 +304,30 @@ a connection that lived across the stop was decrypted with freed memory.
 `tests/c/c_tcps` (`test6`).
 
 (tcp_s_ip_lists)=
+### Address in use at the start
+
+A listen whose address is in use is tried again, at each tick of the yuno's
+periodic timeout (`timeout_periodic`, 1 s by default), for
+`listen_retry_msec`. The server stays running in `ST_STOPPED` meanwhile, and
+goes to `ST_IDLE` when it listens. The first refusal is a WARNING (*"Address
+in use: listening again"*), each try writes the WARNING of
+[`yev_create_accept_event()`](#yev_create_accept_event) (*"bind() FAILED"*,
+`errno` 98), and the listen after them is an INFO (*"Listening: its address
+in use was released"*, with `listen_retries`). A port still taken when the
+time is over fails the start as any other listen: an ERROR,
+*"yev_create_accept_event() FAILED"* with `errno`, and `exitOnError`. A stop
+takes the retries back.
+
+It is what a yuno killed and launched at once meets: the agent's restart of
+a node (`deactivate-snap`) kills every yuno and launches them as soon as
+their processes are gone, and the io_uring ring of a process is torn down
+after the process, with the accept that holds its listening socket. A port
+is held after the reap for a few ms on an idle machine, and for more than
+100 ms with seven yunos killed at once on two CPUs. Up to 7.27.3 the start
+failed at the first refusal: a yuno that binds early (an `auth_bff`) exited,
+and its watcher launched it again 2 s later with a *"Daemon relaunched"*
+ERROR. `tests/c/c_tcp_s_addr_in_use`.
+
 ### IP lists at accept
 
 The yuno keeps two lists of peer ips: `denied_ips` and `allowed_ips`

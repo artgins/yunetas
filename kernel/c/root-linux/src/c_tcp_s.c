@@ -8,6 +8,7 @@
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <errno.h>
 #include <limits.h>
 #include <string.h>
 #include <time.h>
@@ -23,6 +24,7 @@
 #include "c_yuno.h"
 #include "c_channel.h"
 #include "c_tcp.h"
+#include "c_timer.h"
 #include "c_tcp_s.h"
 #include "msg_ievent.h"
 
@@ -37,6 +39,13 @@
  *  of the log. Timed on the monotonic clock (msectimer).
  */
 #define REFUSAL_LOG_MSEC        60000
+
+/*
+ *  A listen whose address is in use is tried again at each timeout of its
+ *  C_TIMER, for `listen_retry_msec` (listen_again_later()). The C_TIMER
+ *  fires at the yuno's periodic tick, so this is the soonest, not the when.
+ */
+#define LISTEN_RETRY_MSEC       100
 
 /***************************************************************************
  *              Structures
@@ -54,6 +63,7 @@ typedef enum {
 PRIVATE int yev_callback(yev_event_h yev_event);
 GOBJ_DECLARE_EVENT(EV_LISTEN_AGAIN);
 PRIVATE int start_listening(hgobj gobj);
+PRIVATE BOOL listen_again_later(hgobj gobj);
 PRIVATE void stop_clisrvs(hgobj gobj);
 PRIVATE BOOL stop_is_pending(hgobj gobj);
 PRIVATE void end_of_stop(hgobj gobj);
@@ -118,6 +128,7 @@ SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,             "FALSE",    
 SDATA (DTP_STRING,      "lHost",                SDF_RD,             0,              "Listening ip, got internally from url"),
 SDATA (DTP_STRING,      "lPort",                SDF_RD,             0,              "Listening port, got internally from url"),
 SDATA (DTP_INTEGER,     "exitOnError",          SDF_RD,             "-1",           "Exit if Listen failed"),
+SDATA (DTP_INTEGER,     "listen_retry_msec",    SDF_WR|SDF_PERSIST, "5000",         "How long a listen whose address is in use (EADDRINUSE) is tried again, at each tick of the yuno's periodic timeout, before it fails as any other listen (exitOnError). A yuno killed and launched at once finds its port held by the dead one for a while: the io_uring ring of a process is torn down after it is gone, with the accept that holds the socket. 0: no retry"),
 SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,             0,              "tree of children to create on new accept, legacy method"),
 
 SDATA (DTP_DICT,        "clisrv_kw",            SDF_RD,             0,              "kw of clisrv gobj"),
@@ -168,6 +179,10 @@ typedef struct _PRIVATE_DATA {
     uint64_t t_refusal_log[REFUSAL_CAUSES];         // next log of a cause (msectimer)
     json_int_t refused_since_log[REFUSAL_CAUSES];   // refused since the last log
 
+    hgobj gobj_timer;               // the retries of a listen whose address is in use
+    uint64_t t_listen_retry_end;    // msectimer: the retries end
+    int listen_retries;             // retries armed since the address was found in use
+
     yev_event_h yev_server_accept;
     int use_dups;
     yev_event_h *yev_dups;
@@ -210,6 +225,8 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(child_tree_filter, gobj_read_json_attr)
     SET_PRIV(use_dups,          (int)gobj_read_integer_attr)
     SET_PRIV(clisrv_kw,         gobj_read_json_attr)
+
+    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  CHILD subscription model
@@ -463,13 +480,21 @@ PRIVATE int start_listening(hgobj gobj)
     );
 
     if(!priv->yev_server_accept) {
+        int err = errno;    // the cause, set by yev_create_accept_event()
+        if(err == EADDRINUSE && listen_again_later(gobj)) {
+            return 0;   // it listens at a retry (EV_TIMEOUT)
+        }
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "yev_create_accept_event() FAILED",
             "url",          "%s", url,
+            "errno",        "%d", err,
+            "strerror",     "%s", strerror(err),
+            "listen_retries", "%d", priv->listen_retries,
             NULL
         );
+        priv->listen_retries = 0;
         if(priv->exitOnError) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -486,6 +511,18 @@ PRIVATE int start_listening(hgobj gobj)
             }
             return -1;
         }
+    }
+
+    if(priv->listen_retries > 0) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "Listening: its address in use was released",
+            "url",          "%s", url,
+            "listen_retries", "%d", priv->listen_retries,
+            NULL
+        );
+        priv->listen_retries = 0;
     }
 
     if(yev_get_flag(priv->yev_server_accept) & YEV_FLAG_USE_TLS) {
@@ -727,6 +764,8 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->start_pending = FALSE;
+    priv->listen_retries = 0;   // a stop takes back the retries of its start
+    clear_timeout(priv->gobj_timer);
 
     if(priv->yev_server_accept) {
         yev_stop_event(priv->yev_server_accept);
@@ -786,6 +825,50 @@ PRIVATE BOOL is_loopback_peer(const char *peername)
         }
     }
     return FALSE;
+}
+
+/***************************************************************************
+ *  The address of the listen is IN USE: try again at each timeout of the
+ *  timer, for `listen_retry_msec`. Return TRUE when a retry is armed.
+ *
+ *  A yuno killed and launched at once -- the agent's restart of a node
+ *  (`deactivate-snap`), a kill-yuno and a run-yuno -- finds its port held
+ *  by the dead one for a while: the io_uring ring of a process is torn
+ *  down after the process is gone, and the accept pending on it holds the
+ *  listening socket until then (measured 2026-10-20 with SIGKILL and
+ *  waitpid(): 4-10 ms on an idle 2-cpu VM, and more than 117 ms when the
+ *  agent killed seven yunos at once). Up to 7.27.3 the start failed at
+ *  once: the yuno exited (exitOnError), and its watcher launched it again
+ *  2 s later with a "Daemon relaunched" ERROR, which read as a crash.
+ *
+ *  Said on the transitions: the first refusal here, and the listen that
+ *  comes after it (start_listening()). Each try still writes the warning
+ *  of yev_create_accept_event().
+ ***************************************************************************/
+PRIVATE BOOL listen_again_later(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t retry_msec = gobj_read_integer_attr(gobj, "listen_retry_msec");
+    if(retry_msec <= 0) {
+        return FALSE;
+    }
+    if(priv->listen_retries == 0) {
+        priv->t_listen_retry_end = start_msectimer(retry_msec);
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "Address in use: listening again",
+            "url",          "%s", priv->url,
+            "listen_retry_msec", "%ld", (long)retry_msec,
+            NULL
+        );
+    } else if(test_msectimer(priv->t_listen_retry_end)) {
+        return FALSE;   // the wait is over: it fails as any other listen
+    }
+    priv->listen_retries++;
+    set_timeout(priv->gobj_timer, LISTEN_RETRY_MSEC);
+    return TRUE;
 }
 
 /***************************************************************************
@@ -1492,6 +1575,23 @@ PRIVATE int ac_listen_again(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
+ *  A retry of a listen whose address was in use (listen_again_later()).
+ *  A stop in between took it back.
+ ***************************************************************************/
+PRIVATE int ac_listen_retry(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->listen_retries > 0 && gobj_is_running(gobj) && gobj_in_this_state(gobj, ST_STOPPED)) {
+        if(start_listening(gobj) < 0) {
+            // Error already logged
+        }
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *                          FSM
  ***************************************************************************/
 /*---------------------------------------------*
@@ -1543,16 +1643,19 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_stopped[] = {
         {EV_STOPPED,            ac_clisrv_stopped,       0},
         {EV_LISTEN_AGAIN,       ac_listen_again,         0},
+        {EV_TIMEOUT,            ac_listen_retry,         0},
         {0,0,0}
     };
     ev_action_t st_wait_stopped[] = {
         {EV_STOPPED,            ac_clisrv_stopped,       0},
         {EV_LISTEN_AGAIN,       ac_listen_again,         0},
+        {EV_TIMEOUT,            ac_listen_retry,         0},
         {0,0,0}
     };
     ev_action_t st_idle[] = {
         {EV_STOPPED,            ac_clisrv_stopped,       0},
         {EV_LISTEN_AGAIN,       ac_listen_again,         0},
+        {EV_TIMEOUT,            ac_listen_retry,         0},
         {0,0,0}
     };
 
@@ -1566,6 +1669,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_STOPPED,        0},
         {EV_LISTEN_AGAIN,   0},
+        {EV_TIMEOUT,        0},
         {0, 0}
     };
 

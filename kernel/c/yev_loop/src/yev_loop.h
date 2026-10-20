@@ -370,6 +370,13 @@ PUBLIC int yev_rearm_connect_event( // re-create the socket to connect in yev_ev
     int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
 );
 
+/*
+ *  NULL on failure, with errno set to the errno of the socket(), bind() or
+ *  listen() that failed, or to 0 when it failed elsewhere (the url, the
+ *  resolution). EADDRINUSE, the address taken, is logged as a WARNING and
+ *  every other failure as an ERROR: whether a taken address is an error is
+ *  the caller's to say (C_TCP_S listens again for `listen_retry_msec`).
+ */
 PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in yev_event->fd
     yev_loop_h yev_loop,
     yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
