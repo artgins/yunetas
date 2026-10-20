@@ -291,6 +291,13 @@ here is a candidate for promotion to Tier 1:
   `write-file`**. Only binaries and configs have structured write commands. So
   certs, `/etc/security/limits.d/*.conf`, `resolv.conf`, nginx vhosts, secret
   overlays all fall here.
+- **Replacing a file a yuno seeds once** (2026-10-20). A yuno that copies a
+  built-in file into `/yuneta/store/resources/` when it is missing, and never
+  overwrites it after (the copy is the operator's from then on), only picks up
+  a newer built-in if the old copy is moved aside before it restarts: an `mv`
+  on the node, then the relay through the agent (Tier 1). Same gap as the
+  missing `write-file`; a `move-file`, or a command of the yuno itself that
+  re-seeds its copy, is the Tier-1 answer.
 - **Publishing a SPA bundle** into a vhost (`rsync dist/ → /yuneta/gui/<fqdn>/`).
   Same gap as above and today's most frequent one: every front-end release of
   yunovatios, wattyzer and the treedb GUI goes this way. It is also the one that
