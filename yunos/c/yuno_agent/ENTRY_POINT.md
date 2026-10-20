@@ -659,6 +659,16 @@ restart. The `signal_code`/`exit_code` fields tell you whether it was a
 crash (`signal_code != 0`) or a bad exit (`exit_code != 0`). Either way,
 the core in `/var/crash/` is from the previous incarnation.
 
+A bad exit is not always a fault: read what the yuno wrote just before it.
+Up to 7.27.3, an `exit_code -1` some 2 s after the agent restarted the node
+(`deactivate-snap`), preceded by *"bind() FAILED ... Address already in
+use"* and *"Exiting"* from a `C_TCP_S`, is a port still held by the
+instance just killed: its io_uring ring is torn down after the process is
+gone, with the accept that holds the socket. The yunos that bind early (an
+`auth_bff`, an `emailsender`) lost that race, and the watcher's relaunch
+won it. Since then `C_TCP_S` listens again for `listen_retry_msec` before it
+exits (see the transport gclasses, *Address in use at the start*).
+
 ---
 
 ## 9. Pitfalls (concrete)
