@@ -490,7 +490,7 @@ PRIVATE int start_listening(hgobj gobj)
             "msg",          "%s", "yev_create_accept_event() FAILED",
             "url",          "%s", url,
             "errno",        "%d", err,
-            "strerror",     "%s", strerror(err),
+            "strerror",     "%s", err? strerror(err) : "not a socket failure",
             "listen_retries", "%d", priv->listen_retries,
             NULL
         );

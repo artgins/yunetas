@@ -562,6 +562,8 @@ static int test_utf8_columns(void)
         }
     }
     if(utf8_prefix_columns(NULL, 10, NULL) != 0) {
+        printf("%sERROR --> %s utf8_prefix_columns(NULL) != 0\n",
+            On_Red BWhite, Color_Off);
         result += -1;
     }
 
