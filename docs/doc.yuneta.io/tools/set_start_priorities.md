@@ -57,14 +57,20 @@ usually need no action here.
 
 ## Usage
 
+Run it with the `yunetas` CLI (since CLI 0.22.0). The CLI forwards every
+argument to the tool:
+
 ```bash
-tools/agent/set_start_priorities.py             # interactive: show plan, ask, apply
-tools/agent/set_start_priorities.py -n          # dry-run: show the plan, write nothing
-tools/agent/set_start_priorities.py -a          # apply without asking
-tools/agent/set_start_priorities.py --show-all  # also list yunos already at target / with no rule
-tools/agent/set_start_priorities.py --rule 'gate_*=3' --rule 'reporter=2'
-tools/agent/set_start_priorities.py -u ws://127.0.0.1:1991   # target a specific agent
+yunetas set-start-priorities             # interactive: show plan, ask, apply
+yunetas set-start-priorities -n          # dry-run: show the plan, write nothing
+yunetas set-start-priorities -a          # apply without asking
+yunetas set-start-priorities --show-all  # also list yunos already at target / with no rule
+yunetas set-start-priorities --rule 'gate_*=3' --rule 'reporter=2'
+yunetas set-start-priorities -u ws://127.0.0.1:1991   # target a specific agent
+yunetas set-start-priorities -n --node prod           # a registered node
 ```
+
+The exit code is `1` when a write failed.
 
 ## See also
 

@@ -54,8 +54,10 @@ time in `$YUNETA_OAUTH_PASSW`. To use a token again, give it in
   version**. The push installs the new release next to the old one. It does not
   activate it.
 - **Config-only change?** Run `yunetas sync-configs -r`. The `-r` flag restarts
-  the yunos that use the config. Without `-r`, the push succeeds, but the yuno
-  keeps its old config until its next restart.
+  the yunos that use a changed config of the same version. Without `-r`, the
+  push succeeds, but the yuno keeps its old config until its next restart. A
+  config with a higher `__version__` needs `yunetas upgrade-yunos`, not a
+  restart.
 - **Brand-new yuno on this node?** The sync tools do not propose it. See
   [Recipe D](#dy-recipe-new-yuno).
 
@@ -550,7 +552,8 @@ Key facts, because configs behave differently from binaries:
   the yuno. Then you can believe that a change is live when it is not.
   `-r`/`--restart` restarts the affected yunos, scoped by id, in
   `start_priority` order, and keeps their run and play state. By default the
-  tool prints their ids as a reminder instead.
+  tool prints their ids as a reminder instead. `-r` restarts only the yunos
+  of an `UPDATE` (see the next item).
 - **The file name is the config id**: `auth_bff.1801.json` → id
   `auth_bff.1801`. **The version lives inside the file**, in its
   `__version__` field. A file without `__version__` is not deployable, and the
@@ -558,10 +561,18 @@ Key facts, because configs behave differently from binaries:
   batch helpers.
 - Same version and changed content give `UPDATE` (`update-config`), which
   overwrites in place. A higher `__version__` gives `BUMP` (`create-config`),
-  which writes a new record. If the yuno row pins config versions, a `BUMP`
-  needs the same promote step as a binary bump. Normally you raise the config
-  versions together with the binary versions, and
-  [Recipe B](#dy-recipe-bump) covers both.
+  which writes a new record. **A `BUMP` needs the same promote step as a
+  binary bump**: a yuno runs the config version of its own row
+  (`name_version`), and only `find-new-yunos create=1` + `deactivate-snap`
+  change that row. A restart brings the yuno back on the old version, so `-r`
+  does not restart it (since CLI 0.22.0). The tool prints a reminder to run
+  `yunetas upgrade-yunos`. Normally you raise the config versions together
+  with the binary versions, and [Recipe B](#dy-recipe-bump) covers both:
+
+  ```bash
+  yunetas sync-configs          # BUMP: create-config of the new version
+  yunetas upgrade-yunos         # find-new-yunos create=1 -> deactivate-snap
+  ```
 - **The tool never pushes a local version that is older than the version on
   the agent.** It reports the difference as `DOWNGRADE` and does nothing else.
   A stale version corrupts the version logic.
@@ -673,23 +684,35 @@ Details, including why snap-tagged binaries refuse deletion, in
 ## Remote nodes (wss + OAuth2)
 
 Everything above targets the **local** agent over `ws://127.0.0.1:1991`. To
-drive a remote agent (TLS port, OAuth2-gated) pass the url and credentials —
-the sync tools log in **once** and reuse the token on every underlying
-`ycommand` call:
+drive a remote agent (TLS port, OAuth2-gated), register it as a node once and
+give the password in the environment. The tools log in **once** and use the
+token again on every `ycommand` call:
 
 ```bash
-yunetas sync -n \
-    -u wss://<node>:1993 \
-    -I https://auth.example.com/realms/<realm> \
-    -Z <client_id> -x <user> -X '<password>'
+yunetas register-node prod --url wss://<node>:1993 \
+    --issuer https://auth.example.com/realms/<realm> \
+    --client-id <client_id> --user-id <user>
+export YUNETA_OAUTH_PASSW='<password>'     # or YUNETA_OAUTH_JWT="$JWT"
 
-# or with a token you already have:
-yunetas sync -n -u wss://<node>:1993 -j "$JWT"
+yunetas sync -n --node prod
+yunetas upgrade-yunos --node prod
 ```
 
-The same flags work on `sync-binaries`, `sync-configs` and `upgrade-yunos`
-(they are forwarded to the wrapped scripts). This is how a node with SSH
-disabled is still deployable.
+`--node` works on `sync`, `sync-binaries`, `sync-configs`, `upgrade-yunos` and
+`set-start-priorities`. The CLI does not put the password on a command line
+(since CLI 0.22.0). An `-X '<password>'` that you type is visible to every
+local user in `ps`, so prefer the environment variable.
+
+The push commands also take the url and the OAuth2 flags directly, and
+forward them to the tools. `upgrade-yunos` does not take these flags: give it
+`--node`.
+
+```bash
+yunetas sync -n -u wss://<node>:1993 \
+    -I https://auth.example.com/realms/<realm> -Z <client_id> -x <user>
+```
+
+This is how a node with SSH disabled is still deployable.
 
 ## Reading the sync tables
 

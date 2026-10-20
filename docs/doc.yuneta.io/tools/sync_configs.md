@@ -92,6 +92,22 @@ A yuno that is not running is left stopped (it reads the new config on its next
 start). NEW configs have no agent record yet (typically a yuno not created here),
 so they are never auto-restarted — their ids are printed as a reminder.
 
+**`--restart` restarts the yunos of an `UPDATE` only** (since CLI 0.22.0). A
+yuno runs the config version of its own row (`name_version`, read by
+`get_yuno_config()` in `c_agent.c`), and only `find-new-yunos create=1` +
+`deactivate-snap` change that row. So a restart after a `BUMP` brings the yuno
+back on the old version. For a `BUMP`, the tool prints a reminder to promote
+it instead:
+
+```
+Note: create-config stored a NEW version of auth_bff.1801.
+A yuno runs the config version of its own row, so a restart changes nothing.
+Promote it with:
+   yunetas upgrade-yunos              (shoot-snap -> find-new-yunos -> deactivate-snap)
+```
+
+The exit code is `1` when a push or a restart failed.
+
 The affected yunos are restarted in **ascending `start_priority`** order (read
 from their `*list-yunos` record), so the infrastructure starts before its
 dependents instead of in alphabetical id order. See

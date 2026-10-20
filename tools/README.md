@@ -19,9 +19,9 @@ tools/
 │   └── project.cmake           # Master build configuration (included by all modules)
 ├── agent/
 │   ├── audit-agents.sh         # Report whether both agents run the binaries that are on disk (read-only)
-│   ├── sync_binaries.py        # Compare built yunos vs the agent's installed set, push updates
-│   ├── sync_configs.py         # Compare a directory's configs vs the agent's installed set, push updates
-│   └── set_start_priorities.py # Assign each managed yuno's start_priority (launch tier) by role
+│   ├── sync_binaries.py        # DEPRECATED shim -> `yunetas sync-binaries`
+│   ├── sync_configs.py         # DEPRECATED shim -> `yunetas sync-configs`
+│   └── set_start_priorities.py # DEPRECATED shim -> `yunetas set-start-priorities`
 ├── fail2ban/
 │   ├── install-probe-ban-escalation.sh # Make the bans of yuneta-nginx-probe grow for an address that returns
 │   └── make-fail2ban-log-readable.sh   # Let yuneta read fail2ban.log (root:adm 0640), as Debian ships it
@@ -122,6 +122,12 @@ It matches by process NAME (`pgrep -x`) and never by command line: a `pgrep -f`
 pattern matches the shell running the script too, because its own command line
 holds the pattern. Several pids per agent are expected — a watcher plus the
 process it watches.
+
+**The three Python tools below ship inside the `yunetas` CLI**
+(`yunetas.agent_tools`, since CLI 0.17.0). The files in `tools/agent/` are
+deprecated shims that forward to the installed CLI. Run them as `yunetas
+sync-binaries`, `yunetas sync-configs` and `yunetas set-start-priorities`.
+Each one exits with `1` when a push failed (since CLI 0.22.0).
 
 ## agent/sync_binaries.py
 
@@ -277,11 +283,11 @@ like `gate_*`), matched **before** the built-ins. Same OAuth2-once + `-j`
 plumbing as the sync scripts, so it can drive a remote agent.
 
 ```bash
-tools/agent/set_start_priorities.py            # interactive: show plan, ask, apply
-tools/agent/set_start_priorities.py -n         # dry-run: show the plan, write nothing
-tools/agent/set_start_priorities.py -a         # apply without asking
-tools/agent/set_start_priorities.py --rule 'scheduler_wz=8' --rule 'agregador_wz=8'
-tools/agent/set_start_priorities.py --show-all # also list yunos already at target / with no rule
+yunetas set-start-priorities            # interactive: show plan, ask, apply
+yunetas set-start-priorities -n         # dry-run: show the plan, write nothing
+yunetas set-start-priorities -a         # apply without asking
+yunetas set-start-priorities --rule 'scheduler_wz=8' --rule 'agregador_wz=8'
+yunetas set-start-priorities --show-all # also list yunos already at target / with no rule
 ```
 
 ## project.cmake

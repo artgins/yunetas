@@ -819,9 +819,9 @@ The registry is user state of the local machine (`~/.yuneta/projects.json`).
 It stays outside the source tree.
 
 A deploy has **two steps. First push the artifacts. Then promote them.** The
-helpers below are an interface to `tools/agent/`. They forward the shared
-arguments without a change: `-n` for a dry run, `-a` for all, and the OAuth2
-options. [The `yunetas` CLI](yunetas-cli.md) gives the full CLI reference, with
+helpers below run the agent tools that ship inside the CLI package. They
+forward the shared arguments without a change: `-n` for a dry run, `-a` for
+all, and the OAuth2 options. [The `yunetas` CLI](yunetas-cli.md) gives the full CLI reference, with
 the build commands and the project-management commands:
 
 ```bash
@@ -839,7 +839,8 @@ time. A new binary must never go to a node without its new configuration.
 One example shows the risk. A new fail-closed runtime verifies TLS by default.
 Against an old configuration with no CA, the OIDC login fails. `sync` connects
 the two steps, thus you cannot forget one. If the push of the binaries fails,
-`sync` stops before the configurations. There is no half-deploy.
+`sync` stops before the configurations. There is no half-deploy. (Up to CLI
+0.21.2 a failed push did not stop `sync`: the tool exited with `0`.)
 
 The individual helpers stay available. Use them when you need one kind only, or
 a flag of one tool:

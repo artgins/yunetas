@@ -87,6 +87,10 @@ The **version-bump** path is still **not** automated: after an `install-binary`
 the script prints the `find-new-yunos create=1` + `deactivate-snap` reminder,
 because that is a node-wide bounce with broader side effects.
 
+The exit code is `1` when a push failed, or when the restart of a yuno that
+the script stopped failed (since CLI 0.22.0). `yunetas sync` reads it and does
+not push the configs after a failed binaries pass.
+
 See [Yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md) §6.
 
 ## Usage

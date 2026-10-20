@@ -1,5 +1,24 @@
 # **Changelog**
 
+## Unreleased
+
+- **The `yunetas` CLI 0.22.0** (`utils/python/tui_yunetas`, on PyPI):
+    - The deploy tools exit with `1` when a push failed. They exited `0`, so
+      `yunetas sync` pushed the configs after a failed binaries pass.
+    - `sync-configs -r` restarts the yunos of an `UPDATE` only. A yuno runs
+      the config version of its own row (`name_version`), so a restart after
+      a `BUMP` brought it back on the old version; the tool now says to run
+      `yunetas upgrade-yunos`.
+    - With `--node`, the password and the client secret no longer go on a
+      command line, where `ps` shows them to every local user. The tools read
+      them from `$YUNETA_OAUTH_PASSW` / `$YUNETA_OAUTH_CLIENT_SECRET`, and the
+      CLI's own `ycommand` calls log in once and send the token alone (which
+      also makes `$YUNETA_OAUTH_CLIENT_SECRET` and `$YUNETA_OAUTH_JWT` work for
+      `upgrade-yunos --node`).
+    - New command `yunetas set-start-priorities`, which the deprecated
+      `tools/agent/set_start_priorities.py` already pointed to. `venv`, a stub,
+      is removed.
+
 ## v7.27.4 (2026-10-20)
 
 A patch release with two fixes of the C runtime and tools. The yuno that the

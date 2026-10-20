@@ -38,8 +38,8 @@ source yunetas-env.sh
 | Build | `init`, `build`, `clean`, `test` |
 | Projects | `register-project`, `unregister-project`, `list-projects` |
 | Deploy targets | `register-node`, `unregister-node`, `list-nodes` |
-| Deploy | `sync`, `sync-binaries`, `sync-configs`, `upgrade-yunos` |
-| Misc | `venv`, `version` |
+| Deploy | `sync`, `sync-binaries`, `sync-configs`, `upgrade-yunos`, `set-start-priorities` |
+| Misc | `version` |
 
 `yunetas --help` documents every command and option in full (since CLI 0.18.0).
 bare `yunetas` prints just the list, and `yunetas <command> --help` the detail
@@ -50,12 +50,27 @@ of one.
 ```bash
 yunetas init      # create build dirs; read compiler/build-type from .config
 yunetas build     # make install: SDK + every registered project, in dep order
-yunetas test      # ctest
-yunetas clean     # wipe the build dirs
+yunetas test      # build the SDK and the root build/, then ctest
+yunetas clean     # make clean in the build dirs
 ```
 
 `init` regenerates `yuneta_version.h` / `yuneta_config.h` and runs `cmake` in
 each module's `build/`. `build` runs `make install` in dependency order.
+
+`build` and `test` run `make -j<N>`, where `N` is the number of cores that the
+process can use. `test` runs `ctest -j<N>` too, and writes the log of each run
+to `build/<date>.j<N>.txt`. Compare the times of two runs only when they have
+the same `N`:
+
+```bash
+yunetas build -j 4            # make -j4
+yunetas test -j 4             # make -j4, then ctest -j4
+yunetas test --serial         # ctest runs one test after the other
+yunetas test --clean          # make clean in the root build/ first
+```
+
+On an SDK older than 7.26.3, `test` runs ctest serially, because the suite of
+that SDK does not pass in parallel.
 
 **Re-run `init`:**
 
@@ -89,8 +104,12 @@ them.
 ## Deploy
 
 Deploy is **two steps: push the artifacts, then promote them.** The deploy
-subcommands wrap the agent helpers under
-[`tools/agent/`](tools.md) and talk to the local agent over `ycommand`.
+subcommands run the agent tools that ship inside the CLI package
+(`yunetas.agent_tools`). They talk to the local agent over `ycommand`, or to a
+[registered node](#cli-deploy-targets) with `--node`.
+
+Each deploy command exits with `1` when a push failed, or when a restart that
+the command did failed. A script can use that exit code.
 
 > 📘 **New to deploying?** Read
 > [Deploying yunos step by step](deploying-yunos.md) first — a scenario-driven
@@ -168,13 +187,39 @@ printed so a mixed result stays visible. So the safe recovery from any
 interrupted upgrade is to run `yunetas sync && yunetas upgrade-yunos` again.
 
 For a same-version **hot-patch** (no `APP_VERSION` bump) you can skip
-`upgrade-yunos`: `sync`, then bounce the affected yunos with
-[`ycommand`](utilities/ycommand.md) (`kill-yuno` + `run-yuno` / `play-yuno`).
+`upgrade-yunos`: `sync-binaries` stops each rebuilt yuno, overwrites its
+binary and starts it again (`--no-restart` to skip that).
 
-The wrapped scripts are documented under [Tools](tools.md):
+A config is applied in one of two ways:
+
+- **Same version, new content** (`UPDATE`): the yuno reads the config when it
+  starts. `sync-configs -r` restarts the yunos that use it.
+- **New version** (`BUMP`): a yuno runs the config version of its own row, and
+  only `find-new-yunos create=1` + `deactivate-snap` change that row. A restart
+  does not apply a `BUMP`, so `-r` does not restart these yunos. Run
+  `yunetas upgrade-yunos` (since CLI 0.22.0; before, `-r` restarted the yuno
+  on the old version).
+
+### Start priorities
+
+`set-start-priorities` sets the `start_priority` of each yuno (its launch tier,
+`0..9`) from its role. The agent starts the yunos in ascending order and stops
+them in descending order. Run it once per node: a version bump keeps the tier
+of each yuno.
+
+```bash
+yunetas set-start-priorities -n                         # show the plan, write nothing
+yunetas set-start-priorities -a                         # apply without asking
+yunetas set-start-priorities --rule 'scheduler_wz=8'    # add a rule for an app role
+yunetas set-start-priorities -n --node prod             # a registered node
+```
+
+The deploy tools are documented under [Tools](tools.md):
 [`sync_binaries.py`](tools/sync_binaries.md),
-[`sync_configs.py`](tools/sync_configs.md).
+[`sync_configs.py`](tools/sync_configs.md),
+[`set_start_priorities.py`](tools/set_start_priorities.md).
 
+(cli-deploy-targets)=
 ## Deploy targets
 
 A **node** is a registered deploy target, so a remote push is `--node <name>`
@@ -191,7 +236,19 @@ yunetas sync --node prod
 The registry (`~/.yuneta/nodes.json`, mode 600) stores **where** a node is and
 **which identity** you present — never a credential. Pass the secret at call
 time via `$YUNETA_OAUTH_PASSW`, `$YUNETA_OAUTH_CLIENT_SECRET` or
-`$YUNETA_OAUTH_JWT`.
+`$YUNETA_OAUTH_JWT`:
+
+```bash
+export YUNETA_OAUTH_PASSW="$(secret-tool lookup service yunetacontrol user me@example.com)"
+yunetas sync -n --node prod
+yunetas upgrade-yunos --node prod
+```
+
+The CLI never puts the password or the client secret on a command line, where
+every local user can read them with `ps` (since CLI 0.22.0). The deploy tools
+read them from the environment and log in once. The `ycommand` calls of the
+CLI itself, for example in `upgrade-yunos`, also log in once and send only the
+token.
 
 A credential that a yuno needs, such as the SMTP password of an emailsender,
 goes in its config file like any other value, and `sync-configs` pushes the file
@@ -216,8 +273,6 @@ placeholder itself.)
 ## Misc
 
 ```bash
-yunetas venv create <name>    # manage a Python virtualenv
-yunetas venv delete <name>
 yunetas version               # installed CLI version
 ```
 
@@ -225,6 +280,6 @@ yunetas version               # installed CLI version
 
 - [Installation](installation.md) — prerequisites and the one-time build setup.
 - [Activate the environment](#activate-environment) — `yunetas-env.sh`, in every shell.
-- [Tools](tools.md) — the `tools/agent/` scripts the deploy commands wrap.
+- [Tools](tools.md) — the agent tools that the deploy commands run.
 - [`ycommand`](utilities/ycommand.md) — the control-plane client used to talk
   to a running yuno.
