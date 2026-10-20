@@ -39,13 +39,13 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 ## 2. Missing tests
 
 - **`test_c_node_link_events` fails now and then** — twice on 2026-09-15,
-  both inside runs of several suites, never alone; no failure recorded since
-  2026-09-28. Its message was not kept. On 2026-10-03 one test of a
-  serial run of the 25 c_node/tr_treedb/c_treedb tests failed and its log
-  was overwritten by the rerun (three reruns green): it may have been this
-  one. Next time it fails, keep
-  `build/Testing/Temporary/LastTest.log` before running anything else (ctest
-  overwrites it).
+  both inside runs of several suites, never alone; not once in the 75 runs
+  logged in `build/` from 2026-09-28 to 2026-10-20. Its message was not
+  kept. On 2026-10-03 one test of a serial run of the 25
+  c_node/tr_treedb/c_treedb tests failed and its log was overwritten by the
+  rerun (three reruns green): it may have been this one. Next time it fails,
+  its output is in the run's `build/<date>.j<N>.txt` (`yunetas test` runs
+  ctest with `--output-on-failure` since CLI 0.21.2).
 - **Each test binary has a fixed port and a fixed directory under
   `~/tests_yuneta`**: two whole suites run at once on one machine collide
   (`ctest -j` within one run is safe since `scripts/check_test_ports.py`,
@@ -485,25 +485,6 @@ kernel was not touched.
 ---
 
 ## 6. Operations and deployment
-
-- **The agents' systemd units, still to verify through the packages.** The
-  units and `--pid-file` were checked by hand on wattyzer (Debian 13,
-  2026-10-02: crash relaunch, restart keeping the yunos, an agent outside its
-  unit moved in, a hand-run second agent leaving alone), not through a built
-  package. Before the release that ships them: build the `.deb` and upgrade a
-  node from the 7.25.21 package (the SysV generated unit "active (exited)",
-  agent22 outside); and the `.rpm` on yunovatios central (Rocky 9, the node
-  whose acceptance test asked for it, package only). wattyzer runs both
-  units now, with hand-installed unit files and agents built locally.
-- **xscripts start the agents with `systemctl`** once the units ship: the
-  `create-*.sh` of the operation repos (estadodelaire, yunovatios, artgins)
-  stop and start the agent by hand (`--stop` / `--start`), which puts it
-  outside its unit -- the case the units exist to end.
-- **a.com: deploy controlcenter config 7** (both planes, 1996 and 1997;
-  the artgins operation repo, `ce894df`): `__input_side__` not autostarted
-  nor autoplayed. With the controlcenter binary that carries the C_TIMER0
-  rate tick (next release); `update-config` of the row in use, or
-  `create-config` + `find-new-yunos create=1` + a restart of just those two.
 
 - **Per-command authz gate — production enablement.** **FUTURE** (user,
   2026-10-03: not now; do not raise it as pending until asked). NOT by
