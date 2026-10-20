@@ -297,7 +297,7 @@ PUBLIC json_t *find_new_yunos(
          *  Inherit the operator-set node placement from the prior primary row.
          *  Without this a version-bump deploy would reset start_priority /
          *  sched_priority / cpu_core to the schema defaults, collapsing the
-         *  launch tiers and forcing a re-run of tools/agent/set_start_priorities.py.
+         *  launch tiers and forcing a re-run of `yunetas set-start-priorities`.
          */
         json_t *jn_command = json_sprintf(
             "create-yuno id=%s realm_id=%s yuno_role=%s role_version=%s "

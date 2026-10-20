@@ -561,13 +561,13 @@ carrying the `util` tag — the same set `run_util_yunos` starts first — so
 framework utilities are born at the top tier without operator action. A
 genuinely new yuno otherwise takes the column default (5). No app role names are
 hard-coded in the agent. Assign the app tiers per node with
-[`tools/agent/set_start_priorities.py`](https://github.com/artgins/yunetas/blob/7.27.4/tools/agent/set_start_priorities.py).
+[`yunetas set-start-priorities`](https://doc.yuneta.io/set-start-priorities).
 
 **Inherited across version bumps.** A version-bump deploy (`find-new-yunos
 create=1`) does NOT reset placement: [`cmd_find_new_yunos`](https://github.com/artgins/yunetas/blob/7.27.4/yunos/c/yuno_agent/src/c_agent.c#L4523) copies
 `start_priority` / `sched_priority` / `cpu_core` from the prior primary row of
 the same id into the emitted `create-yuno`, so the operator-set tiers survive the
-bump. [`set_start_priorities.py`](https://github.com/artgins/yunetas/blob/7.27.4/tools/agent/set_start_priorities.py) is therefore a first-time-only step per node, not
+bump. [`yunetas set-start-priorities`](https://doc.yuneta.io/set-start-priorities) is therefore a first-time-only step per node, not
 a per-deploy chore. (Same-version `update-binary` hot-patches keep the existing
 row and were never affected.)
 
@@ -688,7 +688,7 @@ All examples assume [`ycommand`](#util-ycommand) is talking to the local agent.
 
 > **Bulk reconciliation.** To compare every binary the agent has installed
 > against the freshly built ones in `outputs/yunos` and push the differences in
-> one pass, use [`tools/agent/sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.27.4/tools/agent/sync_binaries.py). It drives from the agent's
+> one pass, use [`yunetas sync-binaries`](https://doc.yuneta.io/sync-binaries). It drives from the agent's
 > installed set. It proposes `install-binary` for version bumps, and
 > `update-binary` for same-version rebuilds. `-n` does a dry run. For a
 > same-version rebuild it also runs the per-role hot-patch cycle below (kill →

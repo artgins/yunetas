@@ -7,7 +7,8 @@ priority — so every tool below is runnable by name from any directory.
 **Source:** `utils/c/`
 
 See also [Tools](tools.md) for the build infrastructure (`tools/cmake/`) and the
-agent helper scripts (`tools/agent/`).
+operator scripts of a node, and [the `yunetas` CLI](yunetas-cli.md) for the
+deploy tools.
 
 Each tool has its own page (see the navigation sidebar). Grouped by area:
 

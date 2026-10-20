@@ -163,6 +163,10 @@ binary with:
 ONE AT A TIME, the main agent first and the spare only once the main one
 is confirmed healthy -- the order install.sh uses. Never both at once:
 the spare is the way back into a node whose main agent will not come up.
+An agent in its systemd unit is restarted with `systemctl restart` instead.
+
+`yunetas restart-agents` (CLI 0.23.0+) does all of it in that order, and
+keeps the running binary first.
 EOF
     fi
 

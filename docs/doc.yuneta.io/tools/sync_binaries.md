@@ -1,8 +1,9 @@
 (tool-sync_binaries)=
-# [`sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.27.4/tools/agent/sync_binaries.py)
+# `yunetas sync-binaries`
 
-Operator utility ([`tools/agent/sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.27.4/tools/agent/sync_binaries.py)) that reconciles the freshly
-built yuno binaries with what the local `yuneta_agent` already has installed,
+Operator tool of the [`yunetas` CLI](../yunetas-cli.md) (module
+`yunetas.agent_tools.sync_binaries`, [source](https://github.com/artgins/tui_yunetas.py/blob/0.23.0/yunetas/agent_tools/sync_binaries.py)) that
+reconciles the freshly built yuno binaries with what the local `yuneta_agent` already has installed,
 and — after confirmation — pushes the differences via `install-binary` /
 `update-binary`.
 
@@ -81,7 +82,7 @@ When several roles are pushed at once the restarts run in **ascending
 `start_priority`** order (read from the agent via `*list-yunos`), so a `REBUILD`
 brings infrastructure (logcenter/emailsender/auth_bff) back before gates and dba
 instead of alphabetically. It degrades to the previous order when the agent has
-no `start_priority` yet. See [`set_start_priorities.py`](set_start_priorities.md).
+no `start_priority` yet. See [`set-start-priorities`](set_start_priorities.md).
 
 The **version-bump** path is still **not** automated: after an `install-binary`
 the script prints the `find-new-yunos create=1` + `deactivate-snap` reminder,
@@ -96,13 +97,19 @@ See [Yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md) §6.
 ## Usage
 
 ```bash
-tools/agent/sync_binaries.py            # interactive: show table, ask, apply
-tools/agent/sync_binaries.py -n         # dry-run: print the commands, run nothing
-tools/agent/sync_binaries.py -a         # apply every candidate without asking
-tools/agent/sync_binaries.py --no-restart   # REBUILD: update-binary only, no kill/restart
-tools/agent/sync_binaries.py -u ws://127.0.0.1:1991   # target a specific agent
-tools/agent/sync_binaries.py --yunos-dir /path/to/yunos   # override the build dir
+yunetas sync-binaries                # interactive: show table, ask, apply
+yunetas sync-binaries -n             # dry-run: print the commands, run nothing
+yunetas sync-binaries -a             # apply every candidate without asking
+yunetas sync-binaries --role gate_x  # only this role (repeatable)
+yunetas sync-binaries --no-restart   # REBUILD: update-binary only, no kill/restart
+yunetas sync-binaries -u ws://127.0.0.1:1991     # target a specific agent
+yunetas sync-binaries -n --node prod             # a registered node
+yunetas sync-binaries --yunos-dir /path/to/yunos # override the build dir
 ```
+
+`--role` keeps only the roles you name. Without it, a change to one yuno can
+also propose every other binary that differs by a few bytes from the node's,
+because the local SDK is newer (since CLI 0.23.0).
 
 ## See also
 

@@ -339,7 +339,9 @@ here is a candidate for promotion to Tier 1:
   `systemctl restart` of its unit (`--stop` then `--start` on a node without
   the units). The intended
   agent-side answer is the twin (each agent can replace the other — never both
-  at once), but there is no command for it today.
+  at once), but there is no command for it today. `yunetas restart-agents`
+  (CLI 0.23.0) does the ordered restart (main, verify, then the spare), but it
+  runs ON the node, so through a shell: it stays here, in Tier 2.
 
 **Tier 2 is reachable — and it is root.** Resolved on `e.com` 2026-07-22:
 

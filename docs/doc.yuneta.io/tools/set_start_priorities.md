@@ -1,4 +1,8 @@
-# set_start_priorities.py
+# `yunetas set-start-priorities`
+
+Operator tool of the [`yunetas` CLI](../yunetas-cli.md) (module
+`yunetas.agent_tools.set_start_priorities`,
+[source](https://github.com/artgins/tui_yunetas.py/blob/0.23.0/yunetas/agent_tools/set_start_priorities.py)).
 
 Assigns each managed yuno's **`start_priority`** — the agent's per-yuno
 launch-order band `0..9` — by role, in one shot.
@@ -15,8 +19,8 @@ inherits `start_priority` / `sched_priority` / `cpu_core` from the prior release
 of each id, so the tiers survive bumps — re-running after every deploy is no
 longer needed (it remains idempotent if you do).
 
-It is the third agent helper alongside
-[`sync_binaries.py`](sync_binaries.md) and [`sync_configs.py`](sync_configs.md),
+It is the third agent tool alongside
+[`sync-binaries`](sync_binaries.md) and [`sync-configs`](sync_configs.md),
 and shares their OAuth2-once + `-j` plumbing, so it can drive a remote `wss://`
 agent.
 
@@ -37,7 +41,7 @@ roles (which are deployment-specific) are **not** built in — assign them with
 `--rule`:
 
 ```bash
-set_start_priorities.py --rule 'agregador_wz=8' --rule 'scheduler_wz=8'
+yunetas set-start-priorities --rule 'agregador_wz=8' --rule 'scheduler_wz=8'
 ```
 
 ## How it writes
@@ -76,7 +80,7 @@ The exit code is `1` when a write failed.
 
 - [Yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md) §4.8 — the three
   "priority" planes and the launch/shutdown ordering.
-- [`sync_binaries.py`](sync_binaries.md) / [`sync_configs.py`](sync_configs.md) —
+- [`sync-binaries`](sync_binaries.md) / [`sync-configs`](sync_configs.md) —
   the sibling agent helpers (their `--restart` honours `start_priority` too).
 - [Tools](../tools.md) — overview of `tools/` (build infrastructure + agent scripts).
 - [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.27.4/tools/README.md).

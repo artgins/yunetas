@@ -18,10 +18,7 @@ tools/
 ├── cmake/
 │   └── project.cmake           # Master build configuration (included by all modules)
 ├── agent/
-│   ├── audit-agents.sh         # Report whether both agents run the binaries that are on disk (read-only)
-│   ├── sync_binaries.py        # DEPRECATED shim -> `yunetas sync-binaries`
-│   ├── sync_configs.py         # DEPRECATED shim -> `yunetas sync-configs`
-│   └── set_start_priorities.py # DEPRECATED shim -> `yunetas set-start-priorities`
+│   └── audit-agents.sh         # Report whether both agents run the binaries that are on disk (read-only)
 ├── fail2ban/
 │   ├── install-probe-ban-escalation.sh # Make the bans of yuneta-nginx-probe grow for an address that returns
 │   └── make-fail2ban-log-readable.sh   # Let yuneta read fail2ban.log (root:adm 0640), as Debian ships it
@@ -123,172 +120,27 @@ pattern matches the shell running the script too, because its own command line
 holds the pattern. Several pids per agent are expected — a watcher plus the
 process it watches.
 
-**The three Python tools below ship inside the `yunetas` CLI**
-(`yunetas.agent_tools`, since CLI 0.17.0). The files in `tools/agent/` are
-deprecated shims that forward to the installed CLI. Run them as `yunetas
-sync-binaries`, `yunetas sync-configs` and `yunetas set-start-priorities`.
-Each one exits with `1` when a push failed (since CLI 0.22.0).
+## The deploy tools (in the `yunetas` CLI)
 
-## agent/sync_binaries.py
-
-Operator utility that reconciles the freshly built yuno binaries with what the
-local `yuneta_agent` already has installed, and (with confirmation) pushes the
-differences via `install-binary` / `update-binary`.
-
-It **drives from the agent's installed binaries**, not from `outputs/yunos`:
-only roles the agent already manages on this node are candidates, so it never
-proposes installing a role this node doesn't run.
-
-- Agent side: `ycommand -c '*list-binaries'` (the leading `*` makes ycommand
-  emit raw JSON instead of the table) for the **primary** (active) slot, plus
-  `ycommand -c '*list-binaries-instances'` for **every** installed version.
-  `*list-binaries` reports only the primary, so when a snap is active the primary
-  can be an OLD version while the freshly built one is already installed as a
-  non-primary slot. The instance list is the authoritative "is this version
-  already installed?" check that keeps a `BUMP` from firing a doomed
-  `install-binary` (which would fail "Node already exists").
-- Local side: each installed id is looked up in `$YUNETAS_BASE/outputs/yunos/`
-  (the exact directory the agent's `$$(<role>)` macro reads from on upload) and
-  queried with `--print-role` for its version.
-
-Classification per installed binary:
-
-| Status | Condition | Action |
-|--------|-----------|--------|
-| `BUMP` | local version not installed, > primary | `install-binary` |
-| `INSTALLED` | local version already an installed slot, but not the primary (snap active / pending promote) | skipped (promote with `yunetas upgrade-yunos`) |
-| `DOWNGRADE` | local version < agent version | `install-binary` (flagged red) |
-| `REBUILD` | same version, size changed **or** local file newer than the agent slot | `update-binary` |
-| `UP-TO-DATE` | same version, same size and not newer | skipped |
-| `NO-BUILD` | agent has it, no build in `outputs/yunos` | skipped (informational) |
-
-A rebuild that keeps the byte count identical (a one-char log edit, or a relink
-against a changed static lib) is still caught: `*list-binaries[-instances]`
-reports each binary's on-disk mtime as `time` (epoch) / `time_str` next to
-`size`, and a local file newer than the agent's slot is flagged `REBUILD` even
-when `Δsize` is 0 (the table notes it as "newer build"). Against an agent that
-predates the `time` field it falls back to the embedded build date (`date`).
-
-It shows the candidate table, asks what to apply (all / one-by-one / quit),
-then runs `install-binary` / `update-binary id=<role> content64=$$(<role>)` for
-each chosen role.
-
-For a same-version `REBUILD` the agent overwrites the slot the running yuno is
-executing from, so `update-binary` would hit `text-file-busy`. Once both
-confirmation gates are cleared the script runs the documented per-role hot-patch
-cycle itself, scoped by `yuno_role` (never node-wide): `kill-yuno` (only if
-running, orderly SIGQUIT) → poll `*list-yunos` until the process exits →
-`update-binary` → `run-yuno play=0` (if it was running) → `play-yuno` (if it was
-playing). Prior run/play state is read from `*list-yunos` and restored per role;
-`--no-restart` keeps the old print-only behaviour. The version-bump path
-(`find-new-yunos create=1` + `deactivate-snap`) is still **not** automated — that
-is a node-wide bounce, printed as a reminder. See
-`yunos/c/yuno_agent/YUNO_LIFECYCLE.md` §6.5/§6.6.
+`sync_binaries.py`, `sync_configs.py` and `set_start_priorities.py` lived in
+`tools/agent/` until SDK 7.8.5. They ship inside the `yunetas` CLI since then
+(`yunetas.agent_tools`, on PyPI), so the CLI and the tools it drives are
+always the same version. The forwarding shims that stayed here were removed
+after SDK 7.27.4. Run the tools through the CLI:
 
 ```bash
-tools/agent/sync_binaries.py            # interactive: show table, ask, apply
-tools/agent/sync_binaries.py -n         # dry-run: print the commands, run nothing
-tools/agent/sync_binaries.py -a         # apply every candidate without asking
-tools/agent/sync_binaries.py --no-restart   # REBUILD: update-binary only, no kill/restart
-tools/agent/sync_binaries.py -u ws://127.0.0.1:1991   # target a specific agent url
-tools/agent/sync_binaries.py --yunos-dir /path/to/yunos   # override the build dir
+yunetas sync-binaries [-n|-a|--role R|--no-restart|...]   # built yunos vs the agent
+yunetas sync-configs  [-n|-a|-r|--host H|...]              # batches/<host>/ configs vs the agent
+yunetas set-start-priorities [-n|-a|--rule P=N|...]        # launch tier of each yuno, by role
+yunetas restart-agents [-n|-y]      # agents that run a replaced binary: main, then spare
 ```
 
-## agent/sync_configs.py
-
-Config-side sibling of `sync_binaries.py`. Reconciles the yuno **configs in a
-directory** with what the local `yuneta_agent` already has installed, and (with
-confirmation) pushes the differences via `create-config` (alias `install-config`)
-/ `update-config`.
-
-Configs are **not centralized** like binaries — they live under each yuno's
-`batches/<host>/` directory — so this script **drives from the current
-directory**: you `cd` into the batches directory and run it.
-
-- A config's `id` is the **filename without `.json`** (`auth_bff.1801.json` → id
-  `auth_bff.1801`), matching the agent's config ids.
-- Its `version` is read from the `__version__` field **inside the file** (a file
-  without it is skipped); `_*.json` batch/deploy helpers are skipped too.
-- Agent side: `ycommand -c '*list-configs'` for the **primary** (id, version),
-  plus `ycommand -c '*list-configs-instances'` for **every** installed version
-  (same primary-vs-installed caveat as binaries: a freshly built config whose
-  version is already created as a non-primary record must not be offered to
-  `create-config`, which refuses to overwrite an existing `(id, version)`).
-  Content upload uses the same `content64=$$(<path>)` macro (absolute path,
-  resolves regardless of cwd).
-
-Classification per local config:
-
-| Status | Condition | Action |
-|--------|-----------|--------|
-| `NEW` | id not in the agent | `create-config` |
-| `BUMP` | local version not installed, > primary | `create-config` |
-| `INSTALLED` | local version already an installed record, but not the primary (pending promote) | skipped |
-| `UPDATE` | same version, content changed | `update-config` |
-| `UP-TO-DATE` | same version, identical content | skipped |
-| `DOWNGRADE` | local version < agent version | reported only, **not** pushed |
-| `agent-only` | agent has a config absent in the directory | skipped (informational) |
-
-A `DOWNGRADE` is never offered for install (seeding a stale version would break
-the version logic). `create-config` is the new-version install (it refuses to
-overwrite an existing `(id, version)`); `update-config` overwrites a same-version
-record. Installing a config does **not** need a kill (unlike `update-binary`,
-which hits `text-file-busy` while the yuno runs), so by default the script only
-pushes and prints the affected yuno ids (from the agent record's `yunos` field)
-as a `kill-yuno` + `run-yuno` reminder — a yuno reads its config only at
-(re)start. Pass `--restart` to also bounce the using yunos right away, scoped by
-yuno `id` (never node-wide): `kill-yuno` (only if running, orderly SIGQUIT) →
-poll `*list-yunos` until it exits → `run-yuno play=0` → `play-yuno` (if it was
-playing), preserving prior run/play state. A stopped yuno is left stopped; NEW
-configs (no agent record) are printed as a reminder.
-
-```bash
-cd yunos/c/auth_bff/batches/localhost          # stand in the configs directory
-tools/agent/sync_configs.py                    # interactive: show table, ask, apply
-tools/agent/sync_configs.py -n                 # dry-run: print the commands, run nothing
-tools/agent/sync_configs.py -a                 # apply every candidate without asking
-tools/agent/sync_configs.py --show-uptodate    # also list in-sync and agent-only configs
-tools/agent/sync_configs.py --restart          # push AND restart the using yunos to apply it
-tools/agent/sync_configs.py -u ws://127.0.0.1:1991   # target a specific agent url
-```
-
-When several roles are deployed at once the restarts run in ascending
-`start_priority` order (read from the agent via `*list-yunos`, lowest among a
-role's instances), so a `REBUILD` brings infrastructure
-(logcenter/emailsender/auth_bff) back before gates and dba instead of
-alphabetically. It degrades to the previous order when the agent has no
-`start_priority` yet.
-
-## agent/set_start_priorities.py
-
-Assigns each managed yuno's `start_priority` (the agent's per-yuno launch-order
-band 0..9) by role, in one shot. The agent launches yunos ascending (utilities
-first) and stops them descending (utilities last); a fresh agent leaves every
-yuno at the default 5, so the order is effectively insertion order until the
-tiers are assigned. This tool reads the yunos from `*list-yunos`, maps each role
-to a tier, and writes the differences via `update-node` (record base64'd into
-`content64` — the inline `record={...}` form is not coerced by the CLI).
-
-Default tiers (first match wins; lower starts earlier):
-
-| Tier | Roles |
-|------|-------|
-| 1 | `logcenter`, `emailsender`, `auth_bff` (utilities) |
-| 4 | `gate_*` |
-| 7 | `db_*` |
-| 5 | everything else — left untouched unless a rule matches |
-
-`--rule PATTERN=PRIO` adds/overrides a rule (PATTERN is an exact role or a glob
-like `gate_*`), matched **before** the built-ins. Same OAuth2-once + `-j`
-plumbing as the sync scripts, so it can drive a remote agent.
-
-```bash
-yunetas set-start-priorities            # interactive: show plan, ask, apply
-yunetas set-start-priorities -n         # dry-run: show the plan, write nothing
-yunetas set-start-priorities -a         # apply without asking
-yunetas set-start-priorities --rule 'scheduler_wz=8' --rule 'agregador_wz=8'
-yunetas set-start-priorities --show-all # also list yunos already at target / with no rule
-```
+Every one takes `--node <name>` to act on a registered node (except
+`restart-agents`, which acts on the node it runs on). The reference is on
+doc.yuneta.io: [The `yunetas` CLI](https://doc.yuneta.io/yunetas-cli),
+[sync-binaries](https://doc.yuneta.io/sync-binaries),
+[sync-configs](https://doc.yuneta.io/sync-configs),
+[set-start-priorities](https://doc.yuneta.io/set-start-priorities).
 
 ## project.cmake
 

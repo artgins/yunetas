@@ -424,18 +424,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 - **`EVF_AUTHZ_INJECT` is declared but not enforced**: no gate exists for
   `gobj_send_event` (`gobj.h` ~333).
 
-### Tools
-
-- **The `yunetas` CLI does not refresh the agents after a source build.** On
-  package nodes `install.sh` restarts `yuneta_agent22` once the main agent is
-  confirmed healthy on the new binary. On nodes that build from source both
-  agents are restarted by hand, and nothing says the spare is stale — which is
-  how it ran a fixed bug for five days on four nodes. The report half exists
-  (`tools/agent/audit-agents.sh`); left: after a build that replaced
-  `/yuneta/agent/*`, the CLI restarts the main agent, verifies it, then the
-  spare (never the spare first: it is the only way into a node whose main
-  agent is broken).
-
 ### gui_treedb
 
 - **Backend features with no UI** (the SPA uses 15 of ~45 C_NODE / C_TRANGER

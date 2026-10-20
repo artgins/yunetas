@@ -131,7 +131,7 @@ function(yuneta_check_libc_stamp)
             "\n"
             "  1. Do not compile on this machine. Build the yunos where the "
             "SDK itself was built and ship the binaries "
-            "(tools/agent/sync_binaries.py). This is the intended flow for "
+            "(yunetas sync-binaries). This is the intended flow for "
             "runtime nodes.\n"
             "\n"
             "  2. Build the whole SDK from source here, so archives and glibc "

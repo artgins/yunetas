@@ -18,6 +18,24 @@
     - New command `yunetas set-start-priorities`, which the deprecated
       `tools/agent/set_start_priorities.py` already pointed to. `venv`, a stub,
       is removed.
+- **The `yunetas` CLI 0.23.0**:
+    - New command `yunetas restart-agents`. A build from source installs both
+      agents into `/yuneta/agent` while the old processes go on running, and
+      nothing said so (a spare ran a fixed bug for five days on four nodes).
+      The command keeps the running binary, restarts the main agent, checks
+      that it answers, and only then restarts the spare; a failure leaves the
+      spare alone. `yunetas build` warns when an agent runs a replaced binary.
+      The restart is never automatic: the release suite builds on a node in a
+      worktree of its own.
+    - `yunetas sync-binaries --role <role>` pushes only those roles.
+    - The three deploy tools share one module for the login and the
+      connection flags they had copied.
+- **The forwarding shims `tools/agent/sync_binaries.py`, `sync_configs.py` and
+  `set_start_priorities.py` are removed (BREAKING for a runbook that calls
+  them).** The tools ship inside the `yunetas` CLI since 7.8.5 (CLI 0.17.0),
+  and the shims only forwarded to it. Run `yunetas sync-binaries`,
+  `yunetas sync-configs` and `yunetas set-start-priorities`.
+  `tools/agent/audit-agents.sh` stays, and now names `yunetas restart-agents`.
 
 ## v7.27.4 (2026-10-20)
 

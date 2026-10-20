@@ -395,11 +395,11 @@ project:
     - title: Tools
       file: tools.md
       children:
-        - title: sync_binaries.py
+        - title: sync-binaries
           file: tools/sync_binaries.md
-        - title: sync_configs.py
+        - title: sync-configs
           file: tools/sync_configs.md
-        - title: set_start_priorities.py
+        - title: set-start-priorities
           file: tools/set_start_priorities.md
         - title: sshd scripts
           file: tools/sshd.md

@@ -4802,7 +4802,7 @@ json_t* cmd_create_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
      *  Seed the launch tier for framework utilities: a 'util'-tagged yuno
      *  (the same set run_util_yunos starts first) is born at start_priority 1
      *  unless the caller passed one. App tiers are assigned per node with
-     *  tools/agent/set_start_priorities.py; no app role names belong here.
+     *  `yunetas set-start-priorities`; no app role names belong here.
      */
     if(!kw_has_key(kw, "start_priority")) {
         const char *yuno_tag = kw_get_str(gobj, kw, "yuno_tag", "", 0);

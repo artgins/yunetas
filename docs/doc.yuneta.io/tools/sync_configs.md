@@ -1,20 +1,23 @@
 (tool-sync_configs)=
-# [`sync_configs.py`](https://github.com/artgins/yunetas/blob/7.27.4/tools/agent/sync_configs.py)
+# `yunetas sync-configs`
 
-Operator utility ([`tools/agent/sync_configs.py`](https://github.com/artgins/yunetas/blob/7.27.4/tools/agent/sync_configs.py)) that reconciles the yuno
+Operator tool of the [`yunetas` CLI](../yunetas-cli.md) (module
+`yunetas.agent_tools.sync_configs`, [source](https://github.com/artgins/tui_yunetas.py/blob/0.23.0/yunetas/agent_tools/sync_configs.py)) that
+reconciles the yuno
 **configs in a directory** with what the local `yuneta_agent` already has
 installed, and — after confirmation — pushes the differences via `create-config`
 (alias `install-config`) / `update-config`.
 
-It is the config-side sibling of [`sync_binaries.py`](sync_binaries.md). The two
+It is the config-side sibling of [`sync-binaries`](sync_binaries.md). The two
 differ in how they discover work, because configs are **not centralized** the way
 binaries are:
 
-- [`sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.27.4/tools/agent/sync_binaries.py) drives from `$YUNETAS_BASE/outputs/yunos/` — every built
+- `sync-binaries` drives from `$YUNETAS_BASE/outputs/yunos/` — every built
   binary lives in one well-known directory.
-- Configs live scattered under each yuno's `batches/<host>/` directory, so
-  [`sync_configs.py`](https://github.com/artgins/yunetas/blob/7.27.4/tools/agent/sync_configs.py) **drives from the current directory**. You `cd` into the
-  batches directory holding the `*.json` configs you want to sync, then run it.
+- Configs live scattered under each project's `yunos/batches/<host>/`
+  directory, so the tool **drives from one directory**. The CLI walks the
+  registered projects and runs it once for each `batches/<host>/` directory
+  whose name is a realm of the agent (or the one given with `--host`).
 
 ## Identity and matching
 
@@ -69,7 +72,7 @@ each chosen config.
 
 Installing a config does **not** require stopping the yuno. This is the key
 difference from a binary: `update-binary` fails with `text-file-busy` while the
-yuno runs from that slot, so [`sync_binaries.py`](sync_binaries.md) must kill
+yuno runs from that slot, so [`sync-binaries`](sync_binaries.md) must kill
 first. A config push has no such constraint — it always succeeds on a running
 yuno, it just does not take effect until that yuno next **(re)starts**.
 
@@ -111,27 +114,27 @@ The exit code is `1` when a push or a restart failed.
 The affected yunos are restarted in **ascending `start_priority`** order (read
 from their `*list-yunos` record), so the infrastructure starts before its
 dependents instead of in alphabetical id order. See
-[`set_start_priorities.py`](set_start_priorities.md).
+[`set-start-priorities`](set_start_priorities.md).
 
 See [Yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md).
 
 ## Usage
 
 ```bash
-cd yunos/c/auth_bff/batches/localhost          # stand in the configs directory
-sync_configs.py                                # interactive: show table, ask, apply
-sync_configs.py -n                             # dry-run: print the commands, run nothing
-sync_configs.py -a                             # apply every candidate without asking
-sync_configs.py --show-uptodate                # also list in-sync and agent-only configs
-sync_configs.py --restart                      # push AND restart the using yunos to apply it
-sync_configs.py /path/to/batches/localhost     # point at a directory instead of cwd
-sync_configs.py -u ws://127.0.0.1:1991         # target a specific agent
+yunetas sync-configs                       # interactive: show table, ask, apply
+yunetas sync-configs -n                    # dry-run: print the commands, run nothing
+yunetas sync-configs -a                    # apply every candidate without asking
+yunetas sync-configs --show-uptodate       # also list in-sync and agent-only configs
+yunetas sync-configs -r                    # push AND restart the yunos of an UPDATE
+yunetas sync-configs --host my.host.com    # only that batches/<host>/ directory
+yunetas sync-configs -p myproject          # only that registered project
+yunetas sync-configs -n --node prod        # a registered node
 ```
 
 ## See also
 
 - [Deploying yunos step by step](../deploying-yunos.md) — the scenario-driven
   deploy guide (this script is its push engine for configs).
-- [`sync_binaries.py`](sync_binaries.md) — the binary-side sibling.
+- [`sync-binaries`](sync_binaries.md) — the binary-side sibling.
 - [Tools](../tools.md) — overview of `tools/` (build infrastructure + agent scripts).
 - [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.27.4/tools/README.md).

@@ -1102,8 +1102,9 @@ stress/c/*            ← stress test programs
 **The Python deploy tools live in the CLI, not in `tools/`** (since CLI
 0.17.0): `sync_binaries`, `sync_configs` and `set_start_priorities` are
 `yunetas.agent_tools.*`. They were one tool on two release channels — a
-`pipx` upgrade could hand a new flag to a script from an older SDK. The files
-under `tools/agent/` are deprecated forwarding shims; do not edit them.
+`pipx` upgrade could hand a new flag to a script from an older SDK. The
+forwarding shims left in `tools/agent/` were removed after 7.27.4; run them as
+`yunetas sync-binaries` / `sync-configs` / `set-start-priorities`.
 
 **`tools/` ships in the install packages; `scripts/` is repo-only.**
 Node-usable / operator-facing utilities go under `tools/` (grouped by
@@ -1938,7 +1939,10 @@ equivalent.
   ignored by design. Every node
   runs `yuneta_agent` + `yuneta_agent22` (minimal escape hatch) as deliberate
   redundancy — each can upgrade the other; **never stop or upgrade both at
-  once**.
+  once**. On a node that builds from source, `yunetas restart-agents` (CLI
+  0.23.0) restarts the agents a build replaced in that order (main, check it
+  answers, then agent22) and keeps the running binary first; `yunetas build`
+  warns when they are stale. It runs as the agents' owner, never automatically.
 
 ### 4. Deactivate traces when done
 

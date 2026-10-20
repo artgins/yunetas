@@ -39,6 +39,7 @@ source yunetas-env.sh
 | Projects | `register-project`, `unregister-project`, `list-projects` |
 | Deploy targets | `register-node`, `unregister-node`, `list-nodes` |
 | Deploy | `sync`, `sync-binaries`, `sync-configs`, `upgrade-yunos`, `set-start-priorities` |
+| This node | `restart-agents` |
 | Misc | `version` |
 
 `yunetas --help` documents every command and option in full (since CLI 0.18.0).
@@ -136,9 +137,14 @@ tools. For a tool-specific flag, use the individual command:
 
 ```bash
 yunetas sync-binaries -n      # outputs/yunos vs the local agent
+yunetas sync-binaries -n --role gate_x       # only that role (repeatable)
 yunetas sync-configs -n       # each project's yunos/batches/<host>/, auto-matched to local realms
 yunetas sync-configs -n --host my.host.com   # or target one batches dir explicitly
 ```
+
+Give `--role` when you changed one yuno: without it, `sync-binaries` also
+proposes every other binary that differs by a few bytes from the node's,
+because your SDK is newer than the node's (since CLI 0.23.0).
 
 `sync-configs` (and the configs pass of `sync`) walks the registered projects.
 Without `--host` it queries the local agent (`*list-realms`) and syncs every
@@ -218,6 +224,42 @@ The deploy tools are documented under [Tools](tools.md):
 [`sync_binaries.py`](tools/sync_binaries.md),
 [`sync_configs.py`](tools/sync_configs.md),
 [`set_start_priorities.py`](tools/set_start_priorities.md).
+
+(cli-restart-agents)=
+## The agents of this node
+
+A build from source installs `yuneta_agent` and `yuneta_agent22` straight into
+`/yuneta/agent`, while the old processes go on running the old binary.
+`yunetas build` then ends with a warning, and `restart-agents` restarts them
+in the safe order (since CLI 0.23.0):
+
+```bash
+yunetas restart-agents -n     # show the state of both agents and the plan
+yunetas restart-agents        # ask, then restart
+```
+
+```text
+  yuneta_agent     main   STALE: a restart gives 7.27.5  in its systemd unit
+  yuneta_agent22   spare  STALE: a restart gives 7.27.5  in its systemd unit
+```
+
+1. It keeps the binary that runs as `/yuneta/agent/<agent>.bak-running-<date>`.
+   After the restart, that binary exists nowhere else.
+2. It restarts the main agent, and checks that it runs the binary on disk and
+   answers a command.
+3. Only then does it restart the spare. The spare is the way into a node whose
+   main agent does not come up, so a failure leaves it alone.
+
+An agent that runs in its systemd unit is restarted with `sudo -n systemctl
+restart <unit>`. An agent that runs outside its unit (as on a development
+machine) is restarted with `--stop` and its own command line again: a
+`systemctl restart` there starts a second agent, which exits "already
+running" and leaves the old one. Run the command as the user that owns the
+agents.
+
+The restart is never automatic after a build. The release suite builds on a
+node in a worktree of its own, and an automatic restart would load that build
+into the node's agents.
 
 (cli-deploy-targets)=
 ## Deploy targets

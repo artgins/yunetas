@@ -4,8 +4,7 @@ Shared tooling that lives under `tools/` in the source tree. Two things matter
 about this directory:
 
 - It holds the **CMake build infrastructure** every module uses to compile, plus
-  **operator helper scripts** for talking to a running agent and for the
-  node's sshd.
+  **operator helper scripts** for the agents and the sshd of a node.
 - **`tools/` is packaged into the installation `.deb` and `.rpm`**, so
   everything here is available on a deployed node even when the yunetas source
   tree is absent — unlike `scripts/`, which is repo-only.
@@ -15,9 +14,7 @@ tools/
 ├── cmake/
 │   └── project.cmake     # master build configuration, included by every module
 ├── agent/
-│   ├── sync_binaries.py        # reconcile built yunos vs the agent's installed set
-│   ├── sync_configs.py         # reconcile a directory's configs vs the agent's installed set
-│   └── set_start_priorities.py # assign each managed yuno's start_priority by role
+│   └── audit-agents.sh   # do both agents run the binaries on disk? (read-only)
 ├── sshd/
 │   ├── audit-sshd.sh                  # report failures and improvements (read-only)
 │   ├── install-sshd-flood-guard.sh    # keep sshd reachable under a connection flood
@@ -71,18 +68,29 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 The full reference (every variable, the conditional library table, the manual
 CMake invocation) lives in `tools/README.md`.
 
-## `agent/` — operator helper scripts
+## `agent/` — the agents of a node
 
-Helpers for talking to a running `yuneta_agent`.
+- `audit-agents.sh` — say whether `yuneta_agent` and `yuneta_agent22` run the
+  binaries that are on disk, or a binary that a build or an upgrade replaced.
+  It changes nothing; [`yunetas restart-agents`](yunetas-cli.md) restarts them
+  in the safe order.
 
-- [`sync_binaries.py`](tools/sync_binaries.md) — reconcile the freshly built
-  yunos against the agent's installed set and push the differences via
+## The deploy tools — in the `yunetas` CLI
+
+The tools that talk to a running agent ship inside the
+[`yunetas` CLI](yunetas-cli.md) (`yunetas.agent_tools`), not in `tools/`: the
+CLI and the tools it drives are one package, one version. (They lived in
+`tools/agent/` until SDK 7.8.5; the forwarding shims that stayed there were
+removed after 7.27.4.)
+
+- [`yunetas sync-binaries`](tools/sync_binaries.md) — reconcile the freshly
+  built yunos against the agent's installed set and push the differences via
   `install-binary` / `update-binary`, with confirmation.
-- [`sync_configs.py`](tools/sync_configs.md) — reconcile the configs in the
-  current directory (`batches/<host>/`) against the agent's installed set and
-  push the differences via `create-config` (alias `install-config`) /
+- [`yunetas sync-configs`](tools/sync_configs.md) — reconcile the configs of
+  each project's `batches/<host>/` against the agent's installed set and push
+  the differences via `create-config` (alias `install-config`) /
   `update-config`, with confirmation.
-- [`set_start_priorities.py`](tools/set_start_priorities.md) — assign each
+- [`yunetas set-start-priorities`](tools/set_start_priorities.md) — assign each
   managed yuno's `start_priority` (its launch tier) by role, in one shot, via
   `update-node`.
 

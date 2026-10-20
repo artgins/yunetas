@@ -326,6 +326,12 @@ and with no difference of layout. The full inventory is in
 > sudo systemctl restart yuneta_agent
 > ```
 >
+> On a node that builds from source, `yunetas build` installs both agents
+> into `/yuneta/agent` and warns when they still run the old binary.
+> [`yunetas restart-agents`](#cli-restart-agents) restarts them in order: it
+> keeps the running binary, restarts the main agent, checks that it answers,
+> and only then restarts agent22.
+>
 > The unit is named like the SysV script (`/etc/init.d/yuneta_agent`), so
 > systemd uses it instead of the unit it generated from the script, and
 > `service yuneta_agent ...` reaches it too (the main agent's unit alone;
