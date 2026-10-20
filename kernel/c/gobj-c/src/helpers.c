@@ -1231,6 +1231,49 @@ PUBLIC int utf8_prefix_len(const char *s, int max_bytes)
 }
 
 /****************************************************************************
+ *  The columns of `s` on a terminal: its UTF-8 characters, counted by
+ *  their first byte (anything but a continuation byte, 10xxxxxx).
+ ****************************************************************************/
+PUBLIC int utf8_columns(const char *s)
+{
+    int columns = 0;
+    if(!s) {
+        return 0;
+    }
+    for(const unsigned char *p = (const unsigned char *)s; *p; p++) {
+        if((*p & 0xC0) != 0x80) {
+            columns++;
+        }
+    }
+    return columns;
+}
+
+/****************************************************************************
+ *  The bytes of the longest prefix of `s` that fits in `max_columns`
+ *  columns, ending on a character boundary; its columns go to `columns`.
+ ****************************************************************************/
+PUBLIC int utf8_prefix_columns(const char *s, int max_columns, int *columns)
+{
+    int cols = 0;
+    size_t n = 0;
+    if(s && max_columns > 0) {
+        while(s[n]) {
+            if((((unsigned char)s[n]) & 0xC0) != 0x80) {
+                if(cols == max_columns) {
+                    break;  // the next character does not fit
+                }
+                cols++;
+            }
+            n++;
+        }
+    }
+    if(columns) {
+        *columns = cols;
+    }
+    return (int)n;
+}
+
+/****************************************************************************
  *  Translate characters from the string 'from' to the string 'to'.
  *  Usage:
  *        char * translate_string(char *to,

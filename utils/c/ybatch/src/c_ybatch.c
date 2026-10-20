@@ -286,6 +286,18 @@ PRIVATE int do_authenticate_task(hgobj gobj)
 }
 
 /***************************************************************************
+ *  One cell `width` COLUMNS wide, and its separator: padded and cut by
+ *  UTF-8 characters and not by bytes, so a "·" or an "ñ" does not pull the
+ *  columns after it to the left (utf8_prefix_columns()).
+ ***************************************************************************/
+PRIVATE void append_cell(gbuffer_t *gbuf, const char *text, int width)
+{
+    int cols;
+    int bytes = utf8_prefix_columns(text, width, &cols);
+    gbuffer_printf(gbuf, "%.*s%*s ", bytes, text, width - cols, "");
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
@@ -301,7 +313,7 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
         const char *header = kw_get_str(gobj, jn_col, "header", "", 0);
         int fillspace = (int)kw_get_int(gobj, jn_col, "fillspace", 10, KW_WILD_NUMBER);
         if(fillspace > 0) {
-            gbuffer_printf(gbuf, "%-*.*s ", fillspace, fillspace, header);
+            append_cell(gbuf, header, fillspace);
         }
     }
     gbuffer_printf(gbuf, "\n");
@@ -336,9 +348,9 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
                 char *text = json2uglystr(jn_cell);
                 if(json_is_number(jn_cell) || json_is_boolean(jn_cell)) {
                     //gbuffer_printf(gbuf, "%*s ", fillspace, text);
-                    gbuffer_printf(gbuf, "%-*.*s ", fillspace, fillspace, text);
+                    append_cell(gbuf, text, fillspace);
                 } else {
-                    gbuffer_printf(gbuf, "%-*.*s ", fillspace, fillspace, text);
+                    append_cell(gbuf, text, fillspace);
                 }
                 GBMEM_FREE(text);
             }

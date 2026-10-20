@@ -2,7 +2,22 @@
 
 ## Unreleased
 
-- **SDK 7.27.3 deployed on every node** (local, wattyzer first, artgins,
+- **The table tools measure a cell in characters, not bytes**
+  (`ycommand`, `ycli`, `ybatch`, `mqtt_tui`, `msg2db_list`, `treedb_list`).
+  They padded and cut with `"%-*.*s"`, which counts BYTES: each non-ASCII
+  character of a cell pulled every column after it one place to the left.
+  `"Espana · A Coruna"` has two 2-byte dots, so in the `list-controllers` of
+  the yunovatios central the four columns after it were two places off. The
+  cut could also split a character. Headers were widened to their
+  `strlen()`, the same mistake. Commands had been writing their headers
+  without accents ("Ubicacion", "Al dia") to dodge it. Two helpers in
+  `gobj-c`, next to `utf8_prefix_len()`: `utf8_columns()` and
+  `utf8_prefix_columns()`. They count one column per character, which is
+  right for the Latin text these tables carry. Wide (CJK) and combining
+  characters are not measured. Tested in `test_kw1`, and checked against the
+  central's live `list-controllers`: the cell fills its 34 columns, and the
+  next column sits under its header.
+- **SDK 7.27.3 deployed on every node** (local, wattyzer first, artgins,- **SDK 7.27.3 deployed on every node** (local, wattyzer first, artgins,
   yunovatios controlador and central by package, hidraulia), and **gobj-ui
   7.27.28: the trace notes say what the yuno keeps.** A gobj card says that a
   service's traces survive a restart, or that any other gobj's end with the

@@ -1149,6 +1149,18 @@ PRIVATE int do_command(hgobj gobj, const char *command)
 }
 
 /***************************************************************************
+ *  One cell `width` COLUMNS wide, and its separator: padded and cut by
+ *  UTF-8 characters and not by bytes, so a "·" or an "ñ" does not pull the
+ *  columns after it to the left (utf8_prefix_columns()).
+ ***************************************************************************/
+PRIVATE void append_cell(gbuffer_t *gbuf, const char *text, int width)
+{
+    int cols;
+    int bytes = utf8_prefix_columns(text, width, &cols);
+    gbuffer_printf(gbuf, "%.*s%*s ", bytes, text, width - cols, "");
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
@@ -1164,12 +1176,14 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
     json_array_foreach(jn_schema, col, jn_col) {
         const char *header = kw_get_str(gobj, jn_col, "header", "", 0);
         int fillspace = (int)kw_get_int(gobj, jn_col, "fillspace", 10, KW_WILD_NUMBER);
-        if(fillspace && fillspace < strlen(header)) {
-            fillspace = (int)strlen(header);
+        if(fillspace && fillspace < utf8_columns(header)) {
+            fillspace = utf8_columns(header);
         }
         if(fillspace > 0) {
-            gbuffer_printf(gbuf, "%s%-*.*s%s ",
-                BCyan, fillspace, fillspace, header, Color_Off);
+            int cols;
+            int bytes = utf8_prefix_columns(header, fillspace, &cols);
+            gbuffer_printf(gbuf, "%s%.*s%*s%s ",
+                BCyan, bytes, header, fillspace - cols, "", Color_Off);
         }
     }
     gbuffer_printf(gbuf, "\n");
@@ -1181,8 +1195,8 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
     json_array_foreach(jn_schema, col, jn_col) {
         const char *header = kw_get_str(gobj, jn_col, "header", "", 0);
         int fillspace = (int)kw_get_int(gobj, jn_col, "fillspace", 10, KW_WILD_NUMBER);
-        if(fillspace && fillspace < strlen(header)) {
-            fillspace = (int)strlen(header);
+        if(fillspace && fillspace < utf8_columns(header)) {
+            fillspace = utf8_columns(header);
         }
         if(fillspace > 0) {
             gbuffer_printf(gbuf,
@@ -1207,17 +1221,17 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
             const char *id = kw_get_str(gobj, jn_col, "id", 0, 0);
             int fillspace = (int)kw_get_int(gobj, jn_col, "fillspace", 10, KW_WILD_NUMBER);
             const char *header = kw_get_str(gobj, jn_col, "header", "", 0);
-            if(fillspace && fillspace < strlen(header)) {
-                fillspace = (int)strlen(header);
+            if(fillspace && fillspace < utf8_columns(header)) {
+                fillspace = utf8_columns(header);
             }
             if(fillspace > 0) {
                 json_t *jn_cell = kw_get_dict_value(gobj, jn_row, id, 0, 0);
                 char *text = json2uglystr(jn_cell);
                 if(json_is_number(jn_cell) || json_is_boolean(jn_cell)) {
                     //gbuffer_printf(gbuf, "%*s ", fillspace, text);
-                    gbuffer_printf(gbuf, "%-*.*s ", fillspace, fillspace, text);
+                    append_cell(gbuf, text, fillspace);
                 } else {
-                    gbuffer_printf(gbuf, "%-*.*s ", fillspace, fillspace, text);
+                    append_cell(gbuf, text, fillspace);
                 }
                 GBMEM_FREE(text);
             }

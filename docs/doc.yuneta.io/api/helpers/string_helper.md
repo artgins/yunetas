@@ -1760,6 +1760,92 @@ return msg_iev_build_response(gobj,
 
 ---
 
+(utf8_columns)=
+## [`utf8_columns()`](https://github.com/artgins/yunetas/blob/7.27.3/kernel/c/gobj-c/src/helpers.c#L1237)
+
+The columns a string takes on a terminal: one per UTF-8 character, not one
+per byte.
+
+```C
+int utf8_columns(
+    const char *s
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `s` | `const char *` | The string to measure. `NULL` is 0. |
+
+**Returns**
+
+The number of characters of `s`: its bytes that are not a continuation byte
+(`10xxxxxx`).
+
+**Notes**
+
+`strlen()` is the width of an ASCII string only. A table that widens a
+column to its header measures the header with this:
+
+```C
+if(fillspace < utf8_columns(header)) {
+    fillspace = utf8_columns(header);
+}
+```
+
+`utf8_columns("Espa\xc3\xb1a")` is 6, and its `strlen()` is 7. One column per
+character is right for Latin text. Wide (CJK) and combining characters are
+not measured. See [`utf8_prefix_columns()`](#utf8_prefix_columns) to cut and
+pad a cell.
+
+---
+
+(utf8_prefix_columns)=
+## [`utf8_prefix_columns()`](https://github.com/artgins/yunetas/blob/7.27.3/kernel/c/gobj-c/src/helpers.c#L1255)
+
+The bytes of the longest prefix of `s` that fits in `max_columns` columns
+without cutting a character, and the columns that prefix takes.
+
+```C
+int utf8_prefix_columns(
+    const char *s,
+    int max_columns,
+    int *columns
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `s` | `const char *` | The text of the cell. `NULL` is 0. |
+| `max_columns` | `int` | The width of the cell, in columns. |
+| `columns` | `int *` | Out: the columns of the prefix. May be `NULL`. |
+
+**Returns**
+
+The length in bytes of the prefix: the whole string when it fits, else the
+characters that fit in `max_columns`.
+
+**Notes**
+
+`"%-*.*s"` pads and cuts by BYTES. Each non-ASCII character of a cell ("·",
+"ñ") then pulls every column after it one place to the left, and the cut can
+split a character. A cell is written with the two answers:
+
+```C
+int cols;
+int bytes = utf8_prefix_columns(text, fillspace, &cols);
+gbuffer_printf(gbuf, "%.*s%*s ", bytes, text, fillspace - cols, "");
+```
+
+The table tools (`ycommand`, `ycli`, `ybatch`, `mqtt_tui`, `msg2db_list`,
+`treedb_list`) write their cells this way. For `"a\xc2\xb7b"` (`a·b`, 4
+bytes) and a width of 2, it returns 3 bytes and 2 columns.
+
+---
+
 (translate_string)=
 ## [`translate_string()`](https://github.com/artgins/yunetas/blob/7.27.3/kernel/c/gobj-c/src/helpers.c#L1245)
 

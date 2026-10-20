@@ -400,6 +400,18 @@ PRIVATE int resolve_msg2db_path(
 }
 
 /***************************************************************************
+ *  One cell `width` COLUMNS wide, after `sep`: padded and cut by UTF-8
+ *  characters and not by bytes, so a "·" or an "ñ" does not pull the
+ *  columns after it to the left (utf8_prefix_columns()).
+ ***************************************************************************/
+PRIVATE void print_cell(const char *sep, const char *text, int width)
+{
+    int cols;
+    int bytes = utf8_prefix_columns(text, width, &cols);
+    printf("%s%.*s%*s", sep, bytes, text, width - cols, "");
+}
+
+/***************************************************************************
  *  Open a tranger database at path, open the named msg2db,
  *  and list its messages.
  ***************************************************************************/
@@ -487,9 +499,9 @@ PRIVATE int _list_messages(
 
                             len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), KW_WILD_NUMBER);
                             if(col == 0) {
-                                printf("%-*.*s", len, len, key);
+                                print_cell("", key, len);
                             } else {
-                                printf(" %-*.*s", len, len, key);
+                                print_cell(" ", key, len);
                             }
                             col++;
                         }
@@ -529,9 +541,9 @@ PRIVATE int _list_messages(
                         json_t *jn_value = kw_get_dict_value(gobj, node, key, 0, 0);
                         char *s = json2uglystr(jn_value);
                         if(col == 0) {
-                            printf("%-*.*s", len, len, s);
+                            print_cell("", s, len);
                         } else {
-                            printf(" %-*.*s", len, len, s);
+                            print_cell(" ", s, len);
                         }
                         GBMEM_FREE(s);
                         col++;

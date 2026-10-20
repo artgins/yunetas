@@ -243,6 +243,26 @@ PUBLIC char *strntolower(char* s, size_t n);
     built with it is refused (json_sprintf() checks UTF-8) or logged broken.
 **rst**/
 PUBLIC int utf8_prefix_len(const char *s, int max_bytes);
+
+/**rst**
+    The COLUMNS a string takes on a terminal: one per UTF-8 character, not
+    one per byte. `utf8_columns()` measures the whole string;
+    `utf8_prefix_columns()` returns the bytes of the longest prefix that
+    fits in `max_columns` without cutting a character, and writes in
+    `columns` (if not NULL) how many columns those bytes take. A table cell
+    is padded with the two answers:
+
+        int cols;
+        int bytes = utf8_prefix_columns(text, width, &cols);
+        printf("%.*s%*s", bytes, text, width - cols, "");
+
+    `"%-*.*s"` counts BYTES: each non-ASCII character of a cell ("·", "ñ")
+    pulls every column after it one place to the left, and its cut can split
+    a character. One column per character is right for the Latin text these
+    tables carry; wide (CJK) and combining characters are not measured.
+**rst**/
+PUBLIC int utf8_columns(const char *s);
+PUBLIC int utf8_prefix_columns(const char *s, int max_columns, int *columns);
 PUBLIC char *translate_string(
     char *to,
     int tolen,

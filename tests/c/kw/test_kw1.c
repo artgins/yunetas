@@ -531,6 +531,54 @@ static int test_utf8_cap(void)
 }
 
 /***************************************************************************
+ *  The table tools padded and cut a cell by BYTES ("%-*.*s"), so every
+ *  non-ASCII character pulled the columns after it one place to the left:
+ *  "Espana · A Coruna" took two places more than it showed (2026-10-20).
+ *  utf8_columns() and utf8_prefix_columns() measure characters.
+ ***************************************************************************/
+static int test_utf8_columns(void)
+{
+    int result = 0;
+    const char *s = "a\xc2\xb7" "b\xe2\x82\xac";    // a, middle dot (2 bytes), b, euro (3)
+
+    if(utf8_columns(s) != 4 || utf8_columns("") != 0 || utf8_columns(NULL) != 0) {
+        printf("%sERROR --> %s utf8_columns() = %d, expected 4\n",
+            On_Red BWhite, Color_Off, utf8_columns(s));
+        result += -1;
+    }
+
+    struct {int max; int bytes; int cols;} cases[] = {
+        {0, 0, 0}, {1, 1, 1}, {2, 3, 2}, {3, 4, 3}, {4, 7, 4}, {40, 7, 4}
+    };
+    for(size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
+        int cols = -1;
+        int bytes = utf8_prefix_columns(s, cases[i].max, &cols);
+        if(bytes != cases[i].bytes || cols != cases[i].cols) {
+            printf("%sERROR --> %s utf8_prefix_columns(max %d) = %d bytes, %d columns; "
+                "expected %d, %d\n",
+                On_Red BWhite, Color_Off, cases[i].max, bytes, cols,
+                cases[i].bytes, cases[i].cols);
+            result += -1;
+        }
+    }
+    if(utf8_prefix_columns(NULL, 10, NULL) != 0) {
+        result += -1;
+    }
+
+    /*  A cell padded with the two answers is as wide as an ASCII one  */
+    char cell[64];
+    int cols;
+    int bytes = utf8_prefix_columns(s, 6, &cols);
+    snprintf(cell, sizeof(cell), "%.*s%*s|", bytes, s, 6 - cols, "");
+    if(utf8_columns(cell) != 7 || strcmp(cell, "a\xc2\xb7" "b\xe2\x82\xac  |") != 0) {
+        printf("%sERROR --> %s a padded cell is %d columns wide, expected 7\n",
+            On_Red BWhite, Color_Off, utf8_columns(cell));
+        result += -1;
+    }
+    return result;
+}
+
+/***************************************************************************
  *  REV-CLOUD V14.4: a filter path too long for kw_match_simple() is said
  *  ONCE per process (the matchers run per publication and per record).
  ***************************************************************************/
@@ -1243,6 +1291,7 @@ PRIVATE int do_test(void)
     result += test_log_length_modifiers();
     result += test_log_percent_m_takes_no_argument();
     result += test_utf8_cap();
+    result += test_utf8_columns();
     result += test_match_simple_long_path_said_once();
     result += test_reg_f001_gbuffer_deserialize_null_data();
     result += test_reg_f001_gbuffer_deserialize_bad_base64();
