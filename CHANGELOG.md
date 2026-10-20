@@ -1,6 +1,13 @@
 # **Changelog**
 
-## Unreleased
+## v7.27.4 (2026-10-20)
+
+A patch release with two fixes of the C runtime and tools. The yuno that the
+agent launched again at once (a node restart) no longer exits because the
+dead yuno still holds its port. And the table tools align a cell that holds
+non-ASCII characters. A yuno takes the first fix when it is built again with
+this SDK. The suite passed 310 of 310 on the dev machine and on wattyzer.
+There is no performance report, because no hot path changed.
 
 - **`C_TCP_S` listens again when its address is in use at the start**, for
   `listen_retry_msec` (new attribute, 5000 by default; 0: no retry), at each
