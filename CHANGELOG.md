@@ -1,6 +1,16 @@
 # **Changelog**
 
-## Unreleased
+## v7.27.5 (2026-10-21)
+
+A release with one new capability of timeranger2: **retention**. A store can
+now delete the old files of a key and keep the `g_rowid` of every row that
+stays (`tranger2_delete_key_files()`, and the `delete-key-files` command of
+`C_TRANGER`). Followers hear the purge and apply it. Pages, iterators and
+indexes keep their positions across it. A store that is never purged is read
+as before, byte for byte. **The master and the followers of a topic upgrade
+together.** The release also fixes the unit of a date bound in timeranger2
+and `tr2list`, and ships the `yunetas` CLI 0.22.0 and 0.23.0. Every SPA now
+says when a new version is deployed.
 
 - **Retention: `tranger2_delete_key_files()` deletes the old files of a key
   and keeps every `g_rowid`** (timeranger2; design in
@@ -24,8 +34,8 @@
     - **A purge moves no page position.** An unfiltered iterator counts its
       positions from the base its key had at the open (the ones of the rows
       purged since come back empty), a filtered one keeps its index of
-      g_rowids and skips the rows purged; `tranger2_iterator_size()` counts
-      positions. Counted from the base of now, a client paging forward skipped
+      g_rowids and skips the rows purged; `tranger2_iterator_size()` of an
+      unfiltered iterator counts positions. Counted from the base of now, a client paging forward skipped
       live rows. In `C_TRANGER` the unfiltered parts of a multi-key iterator do
       the same, and one with a FILTERED part purged since its open is closed at
       its next `get-page`, saying so.

@@ -84,14 +84,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 ## 3. Decisions pending
 
-- **Retention: release and A/B** (implemented 2026-10-21,
-  `tranger2_delete_key_files()`, design in
-  [`kernel/c/timeranger2/DESIGN-retention.md`](kernel/c/timeranger2/DESIGN-retention.md)).
-  Left: the full release (every yuno links timeranger2; master and followers
-  of a topic upgrade together), with an A/B of the append path against
-  7.27.4 (one more lookup per append). The policy, the period to keep and
-  the slice of keys per tick, is the owner's: the project that asked for it
-  writes it in its own yunos.
 - **A failed delete of a key WITHOUT a base renumbers it** (pre-existing,
   found by the fourth review of the retention round, 2026-10-21; decide).
   `tranger2_delete_key()` removes a key with `rmrdir()`, file by file in
