@@ -66,7 +66,9 @@
       them. A replica whose numbering moves when it takes the master's base (it
       had flagged a file) moves the g_rowids its iterators hold by the same
       amount, and counts it in `renumbered` (`tranger2_topic_key_range()`),
-      which the multi-key parts of `C_TRANGER` subtract: no position moves. When the directory of a new base cannot be
+      which the multi-key parts of `C_TRANGER` subtract: no position moves. A
+      base it could not read once (the key flagged, its cells kept) is applied
+      the same way at the next read, and the flag goes with it. When the directory of a new base cannot be
       fsync'ed the purge is applied and the followers are told; the files
       stay until the next open.
 - **A date in `from_t` / `to_t` is taken to the unit of `t`** (timeranger2,

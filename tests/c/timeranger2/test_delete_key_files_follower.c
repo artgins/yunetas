@@ -47,6 +47,7 @@
 #define KEY2        "0000000000000000002"   // read by a follower with no feed
 #define KEY3        "0000000000000000003"   // a file flagged by a follower, then purged
 #define KEY5        "0000000000000000005"   // a feed callback that reads its key
+#define KEY6        "0000000000000000006"   // a base the follower fails to read once
 #define DAY1        946684800   // 2000-01-01
 #define DAY2        (DAY1 + 86400)
 #define DAY3        (DAY2 + 86400)
@@ -308,6 +309,7 @@ PRIVATE int do_test(void)
             append_one(tm, 2, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
             append_one(tm, 3, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
             append_one(tm, 5, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
+            append_one(tm, 6, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
             append_long(tm, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
         }
     }
@@ -446,7 +448,20 @@ PRIVATE int do_test(void)
         );
         result += test_json(NULL);
 
-        set_expected_results("purge follower: the page before the purge", NULL, NULL, NULL, 1);
+        set_expected_results(
+            "purge follower: the page before the purge",
+            json_pack("[{s:s}]",
+                "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built"
+            ),
+            NULL, NULL, 1
+        );
+        json_t *it3u = tranger2_open_iterator(
+            tf3, TOPIC_NAME, KEY3, json_object(), NULL, "pager_flagged_plain", "", NULL, NULL
+        );
+        json_t *page1u = tranger2_iterator_get_page(tf3, it3u, 1, 2, FALSE);
+        result += expect_int("unfiltered page 1 before the purge",
+            (json_int_t)json_array_size(json_object_get(page1u, "data")), 2);
+        JSON_DECREF(page1u)
         json_t *page1 = tranger2_iterator_get_page(tf3, it3f, 1, 2, FALSE);
         result += expect_int("page 1 before the purge: the 2 rows the follower counted",
             (json_int_t)json_array_size(json_object_get(page1, "data")), 2);
@@ -498,11 +513,69 @@ PRIVATE int do_test(void)
             }
             result += expect("page 2 after the purge", got3, "C1:5 C2:6");
             JSON_DECREF(page)
+
+            /*  The unfiltered pager: its positions stay too  */
+            page = tranger2_iterator_get_page(tf3, it3u, 3, 2, FALSE);
+            got3[0] = 0;
+            json_array_foreach(json_object_get(page, "data"), i3, rec) {
+                char item[32];
+                snprintf(item, sizeof(item), "%s%s:%ld", got3[0]? " ": "",
+                    kw_get_str(0, rec, "content", "?", 0),
+                    (long)kw_get_int(0, rec, "__md_tranger__`g_rowid", -1, 0));
+                strncat(got3, item, sizeof(got3) - strlen(got3) - 1);
+            }
+            result += expect("unfiltered page 2 after the purge", got3, "C1:5 C2:6");
+            JSON_DECREF(page)
+            tranger2_close_iterator(tf3, it3u);
+            json_t *range3 = tranger2_topic_key_range(tf3, TOPIC_NAME, KEY3);
+            result += expect_int("renumbered: the rows of the flagged file",
+                kw_get_int(0, range3, "renumbered", -1, 0), 2);
+            JSON_DECREF(range3)
             tranger2_close_iterator(tf3, it3f);
         }
         if(tf3) {
             tranger2_shutdown(tf3);
         }
+        result += test_json(NULL);
+    }
+
+    /*-------------------------------------*
+     *  A base the follower cannot read
+     *  once: the key is flagged, and whole
+     *  again at the next read
+     *-------------------------------------*/
+    if(geteuid() != 0) {
+        set_expected_results(
+            "purge follower: a base read failed once",
+            json_pack("[{s:s},{s:s}]",
+                "msg", "Cannot read the base of a purged key",
+                "msg", "The base of a purged key cannot be read: the key is flagged unlisted, every load of it says load_failed"
+            ),
+            NULL, NULL, 1
+        );
+        char purged6[PATH_MAX];
+        build_path(purged6, sizeof(purged6), path_database, TOPIC_NAME, "keys", KEY6, ".purged", NULL);
+        result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY6, DAY2), 2);
+        chmod(purged6, 0);
+        drain(20);
+        chmod(purged6, 0600);
+        result += test_json(NULL);
+
+        set_expected_results(
+            "purge follower: a base read failed once, read again",
+            json_pack("[{s:s}]",
+                "msg", "The base of a purged key read again: it is applied, and the key is not flagged"
+            ),
+            NULL, NULL, 1
+        );
+        json_t *data = json_array();
+        json_t *it = tranger2_open_iterator(
+            tf, TOPIC_NAME, KEY6, json_object(), NULL, "base_again", "", data, NULL
+        );
+        result += expect_int("its load does not fail", kw_get_bool(0, it, "load_failed", 0, 0), 0);
+        result += expect_int("and reads what is left", (json_int_t)json_array_size(data), 4);
+        tranger2_close_iterator(tf, it);
+        JSON_DECREF(data)
         result += test_json(NULL);
     }
 

@@ -5299,6 +5299,27 @@ PRIVATE void apply_purge_of_master(
     const char *upto = json_string_value(json_object_get(jn_purged, "upto"));
     json_int_t purged = json_integer_value(json_object_get(jn_purged, "rows"));
 
+    /*
+     *  A flag this function set when the base could not be read (it kept the
+     *  cells): the base is read now, and applied below with the cells -- the
+     *  key is whole again. A key flagged when its cache was built has no cell,
+     *  and is listed again instead (relist_key())
+     */
+    if(json_object_get(key_cache, "unlisted") &&
+            json_object_get(json_object_get(key_cache, "unlisted_state"), "purged_ctime") &&
+            json_array_size(json_object_get(key_cache, "files")) > 0) {
+        json_object_del(key_cache, "unlisted");
+        json_object_del(key_cache, "unlisted_state");
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "The base of a purged key read again: it is applied, and the key is not flagged",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+    }
+
     json_t *cache_files = json_object_get(key_cache, "files");
     json_t *cache_total = json_object_get(key_cache, "total");
     json_t *file_ids = json_array();
@@ -12221,6 +12242,22 @@ PRIVATE int relist_key(
     const char *key
 )
 {
+    /*
+     *  A replica flagged for a base it could not read, holding its cells
+     *  still: the base is applied first, the way every purge is
+     *  (apply_purge_of_master()), which moves the numbering of the iterators
+     *  and counts it in `renumbered`. Built again here from disk, the move
+     *  happened and nothing counted it
+     */
+    json_t *old_key_cache = json_object_get(json_object_get(topic, "cache"), key);
+    if(!json_is_true(json_object_get(tranger, "master")) &&
+            json_array_size(json_object_get(old_key_cache, "files")) > 0) {
+        apply_purge_of_master(gobj, tranger, topic, key);
+        if(!json_object_get(json_object_get(json_object_get(topic, "cache"), key), "unlisted")) {
+            return 0;   // the base read and applied: nothing to list again
+        }
+    }
+
     const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
     json_t *key_cache = load_key_cache_from_disk(
         gobj, topic_directory, key, json_is_true(json_object_get(tranger, "master"))
