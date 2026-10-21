@@ -446,11 +446,22 @@ PRIVATE int do_test(void)
         );
         result += test_json(NULL);
 
+        set_expected_results("purge follower: the page before the purge", NULL, NULL, NULL, 1);
+        json_t *page1 = tranger2_iterator_get_page(tf3, it3f, 1, 2, FALSE);
+        result += expect_int("page 1 before the purge: the 2 rows the follower counted",
+            (json_int_t)json_array_size(json_object_get(page1, "data")), 2);
+        JSON_DECREF(page1)
+        result += test_json(NULL);
+
         set_expected_results("purge follower: a flagged file purged, read", NULL, NULL, NULL, 1);
-        result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY3, DAY2), 2);
+        /*
+         *  The flagged file and one the follower counted: its g_rowids move
+         *  by the rows of the flagged one
+         */
+        result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY3, DAY3), 4);
         drain(20);
         served(tf3, TOPIC_NAME, KEY3, bf, sizeof(bf));
-        result += expect("the flagged follower reads", bf, "B1:3 B2:4 C1:5 C2:6");
+        result += expect("the flagged follower reads", bf, "C1:5 C2:6");
         {
             json_t *data = json_array();
             json_t *it = tranger2_open_iterator(
@@ -472,7 +483,20 @@ PRIVATE int do_test(void)
                     (long)kw_get_int(0, rec, "__md_tranger__`g_rowid", -1, 0));
                 strncat(got3, item, sizeof(got3) - strlen(got3) - 1);
             }
-            result += expect("the filtered pager opened over the flag", got3, "B1:3 B2:4 C1:5 C2:6");
+            result += expect("the filtered pager opened over the flag", got3, "C1:5 C2:6");
+            JSON_DECREF(page)
+
+            /*  The page after the one read before the purge: no row skipped  */
+            page = tranger2_iterator_get_page(tf3, it3f, 3, 2, FALSE);
+            got3[0] = 0;
+            json_array_foreach(json_object_get(page, "data"), i3, rec) {
+                char item[32];
+                snprintf(item, sizeof(item), "%s%s:%ld", got3[0]? " ": "",
+                    kw_get_str(0, rec, "content", "?", 0),
+                    (long)kw_get_int(0, rec, "__md_tranger__`g_rowid", -1, 0));
+                strncat(got3, item, sizeof(got3) - strlen(got3) - 1);
+            }
+            result += expect("page 2 after the purge", got3, "C1:5 C2:6");
             JSON_DECREF(page)
             tranger2_close_iterator(tf3, it3f);
         }

@@ -689,8 +689,12 @@ PRIVATE int do_test(void)
             const char *mask;
             BOOL sorts;
         } masks[] = {
-            {"tracks-%Y-%m-%d", TRUE}, {"series-1d-%Y", TRUE}, {"%Y", TRUE}, {"%s", TRUE},
+            {"tracks-%Y-%m-%d", TRUE}, {"series-1d-%Y", TRUE}, {"%Y", TRUE}, {"%Y-%m", TRUE},
             {"%FT%T", TRUE}, {"%G-W%V", TRUE}, {"%Y%m%d%H%M%S", TRUE}, {"%Y-%j", TRUE},
+            {"%G-W%V-%uT%H", TRUE}, {"%Y-%m-%dT%H", TRUE}, {"%EY-%Om", TRUE},
+            {"%s", FALSE}, {"%Y-%d", FALSE}, {"%Y%H", FALSE}, {"%Y-%m-%dT%M", FALSE},
+            {"%G-%j", FALSE}, {"%G-%d", FALSE}, {"%G-W%V-%d", FALSE}, {"%G-W%V%H", FALSE},
+            {"%G", FALSE}, {"%%", FALSE}, {"%Y-%m-%", FALSE},
             {"%Y-%m-%d_%R", TRUE}, {"%%%Y", TRUE},
             {"queue", FALSE}, {"%d-%m-%Y", FALSE}, {"%Y-%d-%m", FALSE}, {"%Y-%b", FALSE},
             {"%Y-%a", FALSE}, {"%m-%Y", FALSE}, {"%Y-%e", FALSE}, {"%G-%m", FALSE},
@@ -736,7 +740,7 @@ PRIVATE int do_test(void)
         set_expected_results(
             "delete key files: a failed delete of a key purged whole",
             json_pack("[{s:s},{s:s}]",
-                "msg", "Cannot delete key, rename() of its directory FAILED: the key stays, purged whole, with its base",
+                "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was, with its base",
                 "msg", "Cannot delete subdir key. rmrdir() FAILED"
             ),
             NULL, NULL, 1
@@ -748,6 +752,35 @@ PRIVATE int do_test(void)
         result += expect_int("the delete fails", tranger2_delete_key(tm, TOPIC_NAME, KEY), -1);
         chmod(key_dir, 0770);
         result += expect_int("the key goes on numbering", append_one(tm, TOPIC_NAME, 1, DAY4 + 86400 + 10, "H1"), 13);
+        result += test_json(NULL);
+    }
+
+    /*-------------------------------------*
+     *  A delete of a key with a base and
+     *  files that cannot move it out of
+     *  keys/ leaves it whole
+     *-------------------------------------*/
+    if(geteuid() != 0) {
+        set_expected_results(
+            "delete key files: a failed delete of a key with a base",
+            json_pack("[{s:s},{s:s}]",
+                "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was, with its base",
+                "msg", "Cannot delete subdir key. rmrdir() FAILED"
+            ),
+            NULL, NULL, 1
+        );
+        char keys_dir[PATH_MAX];
+        build_path(keys_dir, sizeof(keys_dir), path_database, TOPIC_NAME, "keys", NULL);
+        struct stat st;
+        stat(keys_dir, &st);
+        json_int_t rows_before = (json_int_t)tranger2_topic_key_size(tm, TOPIC_NAME, KEY2);
+        chmod(keys_dir, 0550);
+        result += expect_int("the delete fails", tranger2_delete_key(tm, TOPIC_NAME, KEY2), -1);
+        chmod(keys_dir, st.st_mode & 07777);
+        result += expect_int("every file of it stays",
+            (json_int_t)tranger2_topic_key_size(tm, TOPIC_NAME, KEY2), rows_before);
+        result += expect_int("with its base", key_file_exists(KEY2, ".purged"), 1);
+        result += expect_int("and goes on numbering", append_one(tm, TOPIC_NAME, 2, DAY4 + 20, "T1"), 8);
         result += test_json(NULL);
     }
 

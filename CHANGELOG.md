@@ -54,15 +54,17 @@
       for "unset". It said `fr_t`/`fr_tm` -1, the starting minimum of the sum.
     - Also refused: a mask whose ids do not sort as time, by one grammar
       (`tranger2_mask_sorts_as_time()`, new: numeric fixed-width fields, the
-      year first, in decreasing significance; `%d-%m-%Y`, `%Y-%d-%m`, `%Y-%b`
-      are refused), and a topic of a treedb or a msg2db (in the library, and
-      in `delete-key-files` for every caller: its keys are its nodes).
-    - `tranger2_delete_key()` removes a key with a base newest file first, then
-      moves its directory out of `keys/` and removes it (a leftover is swept at
-      the master's next open), and a failed delete keeps a key purged whole in
-      the cache: no failure leaves its files without their base. A replica
-      whose numbering moves when it takes the master's base (it had flagged a
-      file) rebuilds the indexes of its iterators. When the directory of a new base cannot be
+      year first, each the next one down; `%d-%m-%Y`, `%Y-%d-%m`, `%Y-%d`,
+      `%Y-%b` and `%s` are refused), and a topic of a treedb or a msg2db (in
+      the library, and in `delete-key-files` for every caller: its keys are its
+      nodes).
+    - `tranger2_delete_key()` moves the directory of a key with a base out of
+      `keys/`, whole, before it removes it (a leftover is swept at the master's
+      next open), and a failed delete keeps a key purged whole in the cache: no
+      failure leaves its files without their base, or the base without some of
+      them. A replica whose numbering moves when it takes the master's base (it
+      had flagged a file) moves the g_rowids its iterators hold by the same
+      amount: no position moves. When the directory of a new base cannot be
       fsync'ed the purge is applied and the followers are told; the files
       stay until the next open.
 - **A date in `from_t` / `to_t` is taken to the unit of `t`** (timeranger2,

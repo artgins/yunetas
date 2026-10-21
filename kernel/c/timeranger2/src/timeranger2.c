@@ -721,6 +721,7 @@ PRIVATE const char *long_key_of_ref(
 );
 PRIVATE BOOL key_is_publishing(json_t *topic, const char *key);
 PRIVATE void sweep_deleted_keys_left(hgobj gobj, const char *topic_dir);
+PRIVATE unsigned long long process_start_time(pid_t pid);
 PRIVATE BOOL parse_purge_signal(
     const char *name,
     char *ref,
@@ -5306,17 +5307,38 @@ PRIVATE void apply_purge_of_master(
     }
     JSON_DECREF(file_ids)
 
-    if(purged - old_purged == rows_removed) {
-        retake_segments_after_purge(gobj, tranger, topic, key);
-    } else {
+    json_int_t delta = (purged - old_purged) - rows_removed;
+    if(delta != 0) {
         /*
          *  The base of the master counts rows this replica never counted (a
-         *  file it flagged unreadable): its g_rowids move to the master's, and
-         *  an index of the old ones names other rows. Taken again, as an open
-         *  builds them
+         *  file it flagged unreadable): every g_rowid that stays moves by the
+         *  same delta to the master's (they all come after the files purged).
+         *  So do the g_rowids an index holds and the base an unfiltered
+         *  iterator counts its positions from: no position moves, and no
+         *  index names another row. Built again, an index lost the positions
+         *  of the rows purged, and a client paging forward skipped live rows
          */
-        retake_segments_of_key(gobj, tranger, topic, key);
+        json_t *iterators = json_object_get(topic, "iterators");
+        int idx; json_t *iterator;
+        json_array_foreach(iterators, idx, iterator) {
+            const char *key_ = json_string_value(json_object_get(iterator, "key"));
+            if(!key_ || strcmp(key_, key) != 0) {
+                continue;
+            }
+            json_t *index = json_object_get(iterator, "index");
+            if(index) {
+                size_t i; json_t *jn_rowid;
+                json_array_foreach(index, i, jn_rowid) {
+                    json_integer_set(jn_rowid, json_integer_value(jn_rowid) + delta);
+                }
+            } else {
+                json_object_set_new(iterator, "base_at_open", json_integer(
+                    json_integer_value(json_object_get(iterator, "base_at_open")) + delta
+                ));
+            }
+        }
     }
+    retake_segments_after_purge(gobj, tranger, topic, key);
 }
 
 /***************************************************************************
@@ -5629,27 +5651,23 @@ PRIVATE void mirror_key_purge_to_disks(
 
 /***************************************************************************
  *  The name of a key directory moved aside to be removed, in the topic's
- *  directory: `.deleted_key.<pid>.<n>`. No key and no topic file starts
+ *  directory: `.deleted_key.<pid>.<start>.<n>`. No key and no topic file starts
  *  with '.'; a master removes the ones left at its next open of the topic
  *  (sweep_deleted_keys_left()).
  ***************************************************************************/
 #define DELETED_KEY_PREFIX  ".deleted_key."
 
 /***************************************************************************
- *  Remove the directory of a key. A key with a base (`.purged`) is removed
- *  so that no failure leaves files of it without the base that numbers
- *  them -- they came back numbered from 1, under followers that still
- *  counted from the base:
- *    1. its files, the NEWEST first: a failure leaves an intact prefix of
- *       the key, with its base;
- *    2. the directory, holding only its base by then, moved out of keys/
- *       to a name of its own: a keys/ that cannot be written refuses it
- *       here, with the key whole (purged whole, with its base);
- *    3. that directory removed. A failure leaves it there, and the key is
- *       gone all the same (its name is): logged, and swept at the next open.
+ *  Remove the directory of a key. A key with a base (`.purged`) must not
+ *  lose files and keep its base, or lose its base and keep files: either
+ *  numbers its next records with g_rowids that followers and clients have
+ *  seen. So it is first moved out of keys/, whole, to a name of its own --
+ *  a rename() is atomic: the key is there whole, or its name is gone --
+ *  and then removed. A failure of the move leaves the key as it was; a
+ *  failure of the removal leaves the moved directory, and the key is gone
+ *  all the same (logged; swept at the master's next open).
  *  A key without a base: rmrdir(), as always.
- *  Return 0, or -1 (logged) with the key still numbered by its base. errno
- *  is the cause of the failure.
+ *  Return 0, or -1 (logged) with the key as it was. errno is the cause.
  ***************************************************************************/
 PRIVATE int remove_key_directory(hgobj gobj, const char *topic_dir, const char *path_key)
 {
@@ -5662,52 +5680,36 @@ PRIVATE int remove_key_directory(hgobj gobj, const char *topic_dir, const char *
     }
 
     /*
-     *  1. Its files, the newest first (the names sort as the ids)
-     */
-    dir_array_t da;
-    if(find_files_with_suffix_array(gobj, (char *)path_key, NULL, &da) < 0) {
-        return -1;  // Error already logged
-    }
-    dir_array_sort(&da);
-    for(int i = da.count - 1; i >= 0; i--) {
-        if(strcmp(da.items[i], PURGED_FILENAME) == 0) {
-            continue;
-        }
-        char path[PATH_MAX];
-        if(!build_path(path, sizeof(path), path_key, da.items[i], NULL) || unlink(path) < 0) {
-            int err = errno;
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot delete key, unlink() of a file of it FAILED: its older files and its base stay",
-                "path",         "%s", path,
-                "errno",        "%d", err,
-                "serrno",       "%s", strerror(err),
-                NULL
-            );
-            dir_array_free(&da);
-            errno = err;
-            return -1;
-        }
-    }
-    dir_array_free(&da);
-
-    /*
-     *  2. Out of keys/, with its base
+     *  Its name: the pid and the start of this process (a pid comes back
+     *  after a reboot), and a number of this process; one taken by a
+     *  leftover that could not be removed is passed over
      */
     static unsigned deleted_seq = 0;
-    char away_name[NAME_MAX];
+    unsigned long long started = process_start_time(getpid());
     char away[PATH_MAX];
-    snprintf(away_name, sizeof(away_name), DELETED_KEY_PREFIX "%d.%u", (int)getpid(), ++deleted_seq);
-    if(!build_path(away, sizeof(away), topic_dir, away_name, NULL)) {
-        return -1;  // Error already logged
+    int err = 0;
+    for(int tries = 0; tries < 100; tries++) {
+        char away_name[NAME_MAX];
+        snprintf(away_name, sizeof(away_name), DELETED_KEY_PREFIX "%d.%llu.%u",
+            (int)getpid(), started, ++deleted_seq
+        );
+        if(!build_path(away, sizeof(away), topic_dir, away_name, NULL)) {
+            return -1;  // Error already logged
+        }
+        if(rename(path_key, away) == 0) {
+            err = 0;
+            break;
+        }
+        err = errno;
+        if(err != EEXIST && err != ENOTEMPTY) {
+            break;
+        }
     }
-    if(rename(path_key, away) < 0) {
-        int err = errno;
+    if(err) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot delete key, rename() of its directory FAILED: the key stays, purged whole, with its base",
+            "msg",          "%s", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was, with its base",
             "path",         "%s", path_key,
             "errno",        "%d", err,
             "serrno",       "%s", strerror(err),
@@ -5717,9 +5719,6 @@ PRIVATE int remove_key_directory(hgobj gobj, const char *topic_dir, const char *
         return -1;
     }
 
-    /*
-     *  3. Removed
-     */
     if(rmrdir(away) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -5999,31 +5998,45 @@ PUBLIC int tranger2_delete_key(
  *  Do the file ids of a mask sort as time? (see timeranger2.h)
  *
  *  The ids are compared as strings (cmp_file_ids()), so every field must be
- *  numeric, of a fixed width, and come in decreasing significance, the year
- *  first, with literal text anywhere. Each conversion covers a range of
- *  ranks -- year 6, month or week 5, day 4, hour 3, minute 2, second 1 --
- *  and the highest of the next one must be below the lowest of the last:
- *      %Y %G (6)  %F (6-4)  %s (6-0: nothing after)  %m (5, not after %G)
- *      %V (5, only after %G)  %j (5-4)  %d (4)  %H (3)  %R (3-2)  %T (3-1)
- *      %M (2)  %S (1)
- *  "tracks-%Y-%m-%d" and "%Y" sort; "queue", "%d-%m-%Y", "%Y-%d-%m",
- *  "%Y-%b" and "%Y-%a" do not.
+ *  numeric, of a fixed width, the year first, and each one the NEXT field
+ *  down from the one before -- a field left out mixes the ones below it
+ *  (%Y-%d puts the 9th of March before the 10th of February). Literal text
+ *  goes anywhere. The fields that may follow each one:
+ *      start   %Y %G %F (%Y-%m-%d)
+ *      %Y      %m %j
+ *      %m      %d
+ *      %G      %V (the week of the year of the week)
+ *      %V      %u (its day)
+ *      %F %j %d %u     %H %R (%H:%M) %T (%H:%M:%S)
+ *      %H      %M
+ *      %M %R   %S
+ *  and any of them may end the mask, except %G. %s is refused: the epoch
+ *  has no fixed width (9 digits before 2001-09-09).
  ***************************************************************************/
 PUBLIC BOOL tranger2_mask_sorts_as_time(const char *filename_mask)
 {
     static const struct {
         char conv;
-        int high;
-        int low;
-    } ranks[] = {
-        {'Y', 6, 6}, {'G', 6, 6}, {'F', 6, 4}, {'s', 6, 0},
-        {'m', 5, 5}, {'V', 5, 5}, {'j', 5, 4}, {'d', 4, 4},
-        {'H', 3, 3}, {'R', 3, 2}, {'T', 3, 1}, {'M', 2, 2}, {'S', 1, 1},
-        {0, 0, 0}
+        const char *next;   // the conversions that may follow it
+        BOOL may_end;
+    } fields[] = {
+        {'Y', "mj",   TRUE},
+        {'G', "V",    FALSE},
+        {'F', "HRT",  TRUE},
+        {'m', "d",    TRUE},
+        {'j', "HRT",  TRUE},
+        {'d', "HRT",  TRUE},
+        {'V', "u",    TRUE},
+        {'u', "HRT",  TRUE},
+        {'H', "M",    TRUE},
+        {'R', "S",    TRUE},
+        {'M', "S",    TRUE},
+        {'T', "",     TRUE},
+        {'S', "",     TRUE},
+        {0, NULL, FALSE}
     };
-    int last_low = 7;       // nothing yet: a year must come first
-    char first = 0;
-    int conversions = 0;
+    const char *allowed = "YGF";    // what may come first
+    int last = -1;
     for(const char *p = filename_mask; p && *p; p++) {
         if(*p != '%') {
             continue;   // literal text
@@ -6035,31 +6048,15 @@ PUBLIC BOOL tranger2_mask_sorts_as_time(const char *filename_mask)
         if(*p == 'E' || *p == 'O') {
             p++;        // a modifier: %EY
         }
-        int i;
-        for(i = 0; ranks[i].conv; i++) {
-            if(ranks[i].conv == *p) {
-                break;
-            }
+        if(!*p || !strchr(allowed, *p)) {
+            return FALSE;   // not numeric, not of a fixed width, not the next field down, or unknown
         }
-        if(!ranks[i].conv) {
-            return FALSE;   // not numeric, not of a fixed width, or unknown
+        for(last = 0; fields[last].conv != *p; last++) {
+            // the field: strchr() above found it in `allowed`, a subset of them
         }
-        if(conversions == 0 && ranks[i].high != 6) {
-            return FALSE;   // the year first
-        }
-        if(ranks[i].high >= last_low) {
-            return FALSE;   // not below the last field
-        }
-        if((*p == 'V' && first != 'G') || (*p == 'm' && first == 'G')) {
-            return FALSE;   // a week goes with the year of the week, a month with the calendar year
-        }
-        if(conversions == 0) {
-            first = *p;
-        }
-        last_low = ranks[i].low;
-        conversions++;
+        allowed = fields[last].next;
     }
-    return (conversions > 0)? TRUE : FALSE;
+    return (last >= 0 && fields[last].may_end)? TRUE : FALSE;
 }
 
 /***************************************************************************
@@ -15331,14 +15328,21 @@ PRIVATE void retake_segments_of_key(
         if(!key_ || strcmp(key_, key) != 0) {
             continue;
         }
+        json_t *match_cond = json_object_get(iterator, "match_cond");
+        BOOL realtime;
         if(!json_object_get(iterator, "index")) {
-            json_object_set_new(iterator, "segments", json_array());
-            json_object_set_new(iterator, "segments_stamp", json_null());
+            /*
+             *  Taken now, not at its next page: its size is read from them
+             *  (tranger2_iterator_size()), and said 0 in between
+             */
+            json_object_set_new(iterator, "segments",
+                get_segments(gobj, tranger, topic, key, match_cond, &realtime)
+            );
+            json_object_set_new(iterator, "segments_stamp", key_cache_stamp(topic, key));
+            json_object_set_new(iterator, "purged_seen", json_integer(get_topic_key_purged(topic, key)));
             continue;
         }
 
-        json_t *match_cond = json_object_get(iterator, "match_cond");
-        BOOL realtime;
         json_t *segments = get_segments(gobj, tranger, topic, key, match_cond, &realtime);
         json_t *index = build_iterator_index(gobj, tranger, topic, key, segments, match_cond);
         if(!index) {

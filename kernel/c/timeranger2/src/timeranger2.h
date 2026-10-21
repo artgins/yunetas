@@ -808,13 +808,17 @@ PUBLIC json_int_t tranger2_delete_key_files(
 /*
     Do the file ids of a file name mask (strftime(), the `filename_mask` of a
     topic) sort as time? They are compared as strings, so only when every
-    field is numeric and of a fixed width, in decreasing significance, the
-    year FIRST, with literal text anywhere: %Y %G %F %s first, then %m (%V
-    after %G) %j %d %H %R %T %M %S, each below the last one.
-    TRUE: "tracks-%Y-%m-%d", "series-1d-%Y", "%Y", "%s", "%FT%T".
-    FALSE: "queue" (a tr_queue topic), "%d-%m-%Y", "%Y-%d-%m", "%Y-%b",
-    "%Y-%a", "%m-%Y". tranger2_delete_key_files() refuses a topic whose mask
-    does not, since it cannot tell which of its files are old.
+    field is numeric and of a fixed width, the year FIRST, and each field the
+    NEXT one down from the last, with literal text anywhere:
+        %Y -> %m -> %d,   %Y -> %j,   %G -> %V -> %u,   %F (%Y-%m-%d),
+        then (after %F %j %d %u) %H -> %M -> %S, or %R (%H:%M) -> %S, or %T,
+    any of them ending the mask but %G. %s is refused (the epoch has no fixed
+    width: 9 digits before 2001-09-09).
+    TRUE: "tracks-%Y-%m-%d", "series-1d-%Y", "%Y", "%Y-%m", "%FT%T",
+    "%G-W%V". FALSE: "queue" (a tr_queue topic), "%d-%m-%Y", "%Y-%d-%m",
+    "%Y-%d" (a field left out), "%Y-%b", "%s". tranger2_delete_key_files()
+    refuses a topic whose mask does not sort, since it cannot tell which of
+    its files are old.
 */
 PUBLIC BOOL tranger2_mask_sorts_as_time(
     const char *filename_mask

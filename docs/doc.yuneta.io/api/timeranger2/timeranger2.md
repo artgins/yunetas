@@ -1224,11 +1224,24 @@ whose id sorts BEFORE the id of the cut, comparing them as strings, so it
 refuses a topic whose mask fails this test: it could not tell which of its
 files are old.
 
-The ids sort as time when every field is numeric, of a fixed width, in
-decreasing significance, with the YEAR first and literal text anywhere. The
-first conversion is `%Y`, `%G`, `%F` (`%Y-%m-%d`) or `%s` (the epoch: nothing
-after it); then, each one below the last: `%m` (or `%V` after `%G`), `%j`,
-`%d`, `%H`, `%R` (`%H:%M`), `%T` (`%H:%M:%S`), `%M`, `%S`. `%%` is a literal.
+The ids sort as time when every field is numeric, of a fixed width, the
+YEAR first, and each field the NEXT one down from the last, with literal text
+anywhere: a field left out mixes the ones below it (`%Y-%d` puts the 9th of
+March before the 10th of February). The fields that may follow each one:
+
+| Field | May be followed by |
+|---|---|
+| (first) | `%Y`, `%G`, `%F` (`%Y-%m-%d`) |
+| `%Y` | `%m`, `%j` |
+| `%m` | `%d` |
+| `%G` (the year of the ISO week) | `%V` (and `%G` cannot end the mask) |
+| `%V` | `%u` |
+| `%F`, `%j`, `%d`, `%u` | `%H`, `%R` (`%H:%M`), `%T` (`%H:%M:%S`) |
+| `%H` | `%M` |
+| `%M`, `%R` | `%S` |
+
+`%%` is a literal. `%s` is refused: the epoch has no fixed width (9 digits
+before 2001-09-09).
 
 ```C
 BOOL tranger2_mask_sorts_as_time(
@@ -1253,6 +1266,8 @@ tranger2_mask_sorts_as_time("tracks-%Y-%m-%d");   // TRUE
 tranger2_mask_sorts_as_time("series-1d-%Y");      // TRUE
 tranger2_mask_sorts_as_time("%FT%T");             // TRUE
 tranger2_mask_sorts_as_time("%G-W%V");            // TRUE (the year of the week, then its week)
+tranger2_mask_sorts_as_time("%Y-%d");             // FALSE: the month left out
+tranger2_mask_sorts_as_time("%s");                // FALSE: the epoch has no fixed width
 tranger2_mask_sorts_as_time("queue");             // FALSE: a tr_queue topic, one file
 tranger2_mask_sorts_as_time("%d-%m-%Y");          // FALSE: the year last
 tranger2_mask_sorts_as_time("%Y-%d-%m");          // FALSE: the day before the month
