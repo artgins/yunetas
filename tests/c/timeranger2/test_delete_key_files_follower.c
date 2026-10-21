@@ -616,6 +616,58 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*-------------------------------------*
+     *  A file of a purged period still on
+     *  disk, whose link a follower hears:
+     *  its rows are in the base
+     *-------------------------------------*/
+    set_expected_results(
+        "purge follower: a link of a purged file",
+        json_pack("[{s:s}]",
+            "msg", "New records of a file of a purged period not read: the purge took them, they are in the base of the key"
+        ),
+        NULL, NULL, 1
+    );
+    {
+        char key_dir[PATH_MAX];
+        char src[PATH_MAX];
+        char dst[PATH_MAX];
+        char lnk[PATH_MAX];
+        build_path(key_dir, sizeof(key_dir), path_database, TOPIC_NAME, "keys", KEY, NULL);
+        const char *exts[] = {".json", ".md2", NULL};
+        for(int i = 0; exts[i]; i++) {
+            char name[64];
+            snprintf(name, sizeof(name), "2000-01-03%s", exts[i]);
+            build_path(src, sizeof(src), key_dir, name, NULL);
+            snprintf(name, sizeof(name), "2000-01-01%s", exts[i]);
+            build_path(dst, sizeof(dst), key_dir, name, NULL);
+            if(link(src, dst) < 0) {    // a file of day 1 back on disk (a purge whose files stayed)
+                printf("%sERROR%s --> cannot link %s\n", On_Red BWhite, Color_Off, dst);
+                result += -1;
+            }
+        }
+        build_path(lnk, sizeof(lnk), path_database, TOPIC_NAME, "disks", "rt_follower", KEY, "2000-01-01.md2", NULL);
+        mkrdir(lnk, 02770);
+        rmdir(lnk);
+        got[0] = 0;
+        if(link(dst, lnk) < 0) {    // its link, as a late row's
+            printf("%sERROR%s --> cannot link %s\n", On_Red BWhite, Color_Off, lnk);
+            result += -1;
+        }
+        drain(30);
+        result += expect("the feed got nothing", got, "");
+        cells_of(tf, TOPIC_NAME, KEY, bf, sizeof(bf));
+        result += expect("the follower's cells", bf, "2000-01-03");
+        for(int i = 0; exts[i]; i++) {
+            char name[64];
+            snprintf(name, sizeof(name), "2000-01-01%s", exts[i]);
+            build_path(dst, sizeof(dst), key_dir, name, NULL);
+            unlink(dst);
+        }
+        unlink(lnk);
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
      *  A feed callback reading its key
      *  while a purge waits, unheard
      *-------------------------------------*/

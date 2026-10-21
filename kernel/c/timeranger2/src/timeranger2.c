@@ -11050,6 +11050,32 @@ PRIVATE json_int_t update_new_records_from_disk(
         return 0;
     }
 
+    /*
+     *  A file of a purged period (its files still on disk: a base whose
+     *  directory could not be fsync'ed, an unlink that failed, a crash): its
+     *  rows are in the base of the key. Taken as a new cell, they were handed
+     *  again with the g_rowids of live rows, and every later row moved. The
+     *  master refuses an append there; a row of it heard here is a late one
+     *  the purge took
+     */
+    json_t *jn_purged_base = json_object_get(
+        json_object_get(json_object_get(topic, "cache"), key), "purged"
+    );
+    const char *purged_upto = json_string_value(json_object_get(jn_purged_base, "upto"));
+    if(purged_upto && cmp_file_ids(file_id_, purged_upto) <= 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "New records of a file of a purged period not read: the purge took them, they are in the base of the key",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "file_id",      "%s", file_id_,
+            "purged_upto",  "%s", purged_upto,
+            NULL
+        );
+        return 0;
+    }
+
     json_int_t file_base = 0;
     int insert_idx = 0;
     json_t *cur_cache_cell = find_cache_cell(
@@ -15101,14 +15127,27 @@ PUBLIC size_t tranger2_iterator_size(
         return json_array_size(index);
     }
 
-    /*
-     *  Its page positions, 1..size: up to the last row of its segments (or
-     *  the rows purged, on a key purged whole), counted from the base the key
-     *  had at the open (tranger2_iterator_get_page()). With no purge since
-     *  the open, the rows of its segments
-     */
     json_t *segments = json_object_get(iterator, "segments");
     size_t n = json_array_size(segments);
+    if(match_cond_selects_records(json_object_get(iterator, "match_cond"))) {
+        /*
+         *  A loading iterator with bounds and no index: its segments are the
+         *  part of the key it returns, so their rows (as before 7.27.5)
+         */
+        size_t rows = 0;
+        int idx; json_t *segment;
+        json_array_foreach(segments, idx, segment) {
+            rows += (size_t)json_integer_value(json_object_get(segment, "rows"));
+        }
+        return rows;
+    }
+
+    /*
+     *  Unfiltered: its page positions, 1..size: up to the last row of its
+     *  segments (or the rows purged, on a key purged whole), counted from the
+     *  base the key had at the open (tranger2_iterator_get_page()). With no
+     *  purge since the open, the rows of its segments
+     */
     json_int_t last_row = n? json_integer_value(
         json_object_get(json_array_get(segments, n - 1), "last_row")
     ) : 0;

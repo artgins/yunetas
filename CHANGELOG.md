@@ -46,6 +46,10 @@
     - **Downgrade** after a purge: an older SDK ignores `.purged` and numbers
       a purged key from 1 again. Nothing crashes, but every `g_rowid` of a
       purged key moves.
+    - A replica does not read again a file of a purged period it hears a
+      late link of (its files still on disk after a purge whose directory
+      fsync failed, or a crash): its rows are in the base, said with a
+      WARNING.
     - `C_TRANGER` command `delete-key-files topic_name= [key=] before=`
       (master-only, permission `delete`), for a purge by hand.
     - A store never purged is read as before, byte for byte.

@@ -374,6 +374,22 @@ PRIVATE int do_test(void)
     }
     served(tm, KEY, json_pack("{s:b}", "backward", 1), bf, sizeof(bf));
     result += expect("backward", bf, "D1:10 C3:9 C2:8 C1:7 B3:6 B2:5 B1:4");
+    {
+        /*
+         *  The size of a loading iterator with bounds and no index: the rows
+         *  of the files it reads (the last one, 4 rows), as in 7.27.4 -- not
+         *  the positions of the whole key (7)
+         */
+        json_t *data = json_array();
+        json_t *it = tranger2_open_iterator(
+            tm, TOPIC_NAME, KEY, json_pack("{s:I}", "from_rowid", (json_int_t)-2),
+            NULL, "bounded", "", data, NULL
+        );
+        result += expect_int("a bounded loading iterator: its rows", (json_int_t)json_array_size(data), 2);
+        result += expect_int("and its size", (json_int_t)tranger2_iterator_size(it), 4);
+        tranger2_close_iterator(tm, it);
+        JSON_DECREF(data)
+    }
     served(tm, KEY, json_pack("{s:b, s:I}", "backward", 1, "to_rowid", (json_int_t)5), bf, sizeof(bf));
     result += expect("backward to 5", bf, "B2:5 B1:4");
     result += test_json(NULL);
