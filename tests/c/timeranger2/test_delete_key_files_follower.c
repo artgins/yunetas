@@ -558,19 +558,26 @@ PRIVATE int do_test(void)
             tf, TOPIC_NAME, KEY6, NULL, on_feed_record, "rt_key6", "", NULL
         );
         drain(10);
+        /*  A late row of day 1, heard by the feed: it has a mark of that file  */
+        result += expect_int("a late row of day 1", append_one(tm, 6, DAY1 + 500, "A3"), 3);
+        drain(30);
+        result += expect_int("the feed has a mark of day 1",
+            json_object_get(json_object_get(json_object_get(rt6, "published"), KEY6), "2000-01-01")? 1 : 0, 1);
         char purged6[PATH_MAX];
         build_path(purged6, sizeof(purged6), path_database, TOPIC_NAME, "keys", KEY6, ".purged", NULL);
-        result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY6, DAY2), 2);
+        result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY6, DAY2), 3);
         chmod(purged6, 0);
         drain(20);
         /*  A new record while the base cannot be read: the master's g_rowid  */
         got[0] = 0;
-        result += expect_int("master append", append_one(tm, 6, DAY3 + 100, "C3"), 7);
+        result += expect_int("master append", append_one(tm, 6, DAY3 + 100, "C3"), 8);
         drain(30);
-        result += expect("the feed got it", got, "C3:7");
+        result += expect("the feed got it", got, "C3:8");
         /*  Read while it waits: the live rows, the files gone left out  */
         served(tf, TOPIC_NAME, KEY6, bf, sizeof(bf));
-        result += expect("read while the purge waits", bf, "B1:3 B2:4 C1:5 C2:6 C3:7");
+        result += expect("read while the purge waits", bf, "B1:4 B2:5 C1:6 C2:7 C3:8");
+        result += expect_int("the feed's mark of the file gone goes with it",
+            json_object_get(json_object_get(json_object_get(rt6, "published"), KEY6), "2000-01-01")? 1 : 0, 0);
         result += test_json(NULL);
 
         set_expected_results(
@@ -582,9 +589,9 @@ PRIVATE int do_test(void)
         );
         chmod(purged6, 0600);
         served(tf, TOPIC_NAME, KEY6, bf, sizeof(bf));
-        result += expect("the follower reads the master's numbering", bf, "B1:3 B2:4 C1:5 C2:6 C3:7");
+        result += expect("the follower reads the master's numbering", bf, "B1:4 B2:5 C1:6 C2:7 C3:8");
         json_t *range6 = tranger2_topic_key_range(tf, TOPIC_NAME, KEY6);
-        result += expect_int("its base", kw_get_int(0, range6, "purged", -1, 0), 2);
+        result += expect_int("its base", kw_get_int(0, range6, "purged", -1, 0), 3);
         JSON_DECREF(range6)
         tranger2_close_rt_disk(tf, rt6);
         drain(10);

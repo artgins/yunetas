@@ -721,6 +721,7 @@ PRIVATE const char *long_key_of_ref(
     const char *ref
 );
 PRIVATE BOOL key_is_publishing(json_t *topic, const char *key);
+PRIVATE void drop_feed_marks_upto(json_t *topic, const char *key, const char *upto);
 PRIVATE void drop_gone_head_cells(
     hgobj gobj,
     json_t *tranger,
@@ -5250,6 +5251,31 @@ PRIVATE int drop_flags_of_purged_files(json_t *key_cache, const char *upto)
 }
 
 /***************************************************************************
+ *  The marks of the feeds of a key (`published[key]`, one per file) of the
+ *  files at or before `upto`, gone with a purge: the marks of a key are no
+ *  more than its cells. Every path that takes files of a key out of its
+ *  cells calls it (the master's purge, a replica applying the base or
+ *  dropping the cells whose files are gone)
+ ***************************************************************************/
+PRIVATE void drop_feed_marks_upto(json_t *topic, const char *key, const char *upto)
+{
+    if(empty_string(upto)) {
+        return;
+    }
+    json_t *disks = json_object_get(topic, "disks");
+    int idx; json_t *disk;
+    json_array_foreach(disks, idx, disk) {
+        json_t *marks = json_object_get(json_object_get(disk, "published"), key);
+        const char *file_id; json_t *mark; void *tmp;
+        json_object_foreach_safe(marks, tmp, file_id, mark) {
+            if(cmp_file_ids(file_id, upto) <= 0) {
+                json_object_del(marks, file_id);
+            }
+        }
+    }
+}
+
+/***************************************************************************
  *  CLIENT: a purge whose base cannot be read: the cells at the head of the
  *  key whose md2 is gone go to its base (`total.purged`), as the purge
  *  takes them -- the rows they counted, so the numbering does not move --,
@@ -5269,6 +5295,7 @@ PRIVATE void drop_gone_head_cells(
     json_t *cache_files = json_object_get(key_cache, "files");
     const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
     json_int_t rows_gone = 0;
+    char last_gone[NAME_MAX] = "";
     while(json_array_size(cache_files) > 0) {
         json_t *cell = json_array_get(cache_files, 0);
         const char *file_id = json_string_value(json_object_get(cell, "id"));
@@ -5279,12 +5306,14 @@ PRIVATE void drop_gone_head_cells(
             break;  // there (or not known gone): the purge stops here
         }
         rows_gone += json_integer_value(json_object_get(cell, "rows"));
+        snprintf(last_gone, sizeof(last_gone), "%s", file_id);
         json_array_remove(cache_files, 0);
     }
-    close_fd_opened_files(gobj, topic, key);
     if(rows_gone == 0) {
         return;
     }
+    close_fd_opened_files(gobj, topic, key);
+    drop_feed_marks_upto(topic, key, last_gone);
     json_t *cache_total = json_object_get(key_cache, "total");
     json_object_set_new(cache_total, "purged", json_integer(
         json_integer_value(json_object_get(cache_total, "purged")) + rows_gone
@@ -5426,15 +5455,7 @@ PRIVATE void apply_purge_of_master(
     json_object_set_new(cache_total, "purged", json_integer(purged));
     update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
 
-    json_t *disks = json_object_get(topic, "disks");
-    int idx; json_t *disk;
-    json_array_foreach(disks, idx, disk) {
-        json_t *marks = json_object_get(json_object_get(disk, "published"), key);
-        int i; json_t *jn_file_id;
-        json_array_foreach(file_ids, i, jn_file_id) {
-            json_object_del(marks, json_string_value(jn_file_id));
-        }
-    }
+    drop_feed_marks_upto(topic, key, upto);     // the cells dropped meanwhile too (drop_gone_head_cells())
     JSON_DECREF(file_ids)
 
     json_int_t delta = (purged - old_purged) - rows_removed;
@@ -6476,15 +6497,7 @@ PUBLIC json_int_t tranger2_delete_key_files(
      *  The marks of the feeds count inside each file (one per file of a
      *  key): the ones of the files gone go with them
      */
-    json_t *disks = json_object_get(topic, "disks");
-    json_t *disk;
-    json_array_foreach(disks, idx, disk) {
-        json_t *marks = json_object_get(json_object_get(disk, "published"), key);
-        int i; json_t *jn_file_id;
-        json_array_foreach(file_ids, i, jn_file_id) {
-            json_object_del(marks, json_string_value(jn_file_id));
-        }
-    }
+    drop_feed_marks_upto(topic, key, json_string_value(json_array_get(file_ids, n_files - 1)));
 
     retake_segments_after_purge(gobj, tranger, topic, key);
 
