@@ -116,4 +116,4 @@ because the local SDK is newer (since CLI 0.23.0).
 - [Deploying yunos step by step](../deploying-yunos.md) — the scenario-driven
   deploy guide (this script is its push engine for binaries).
 - [Tools](../tools.md) — overview of `tools/` (build infrastructure + agent scripts).
-- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.27.4/tools/README.md).
+- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.27.5/tools/README.md).
