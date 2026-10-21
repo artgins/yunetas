@@ -34,6 +34,12 @@
     - `C_TRANGER` command `delete-key-files topic_name= [key=] before=`
       (master-only, permission `delete`), for a purge by hand.
     - A store never purged is read as before, byte for byte.
+- **A date in `from_t` / `to_t` is taken to the unit of `t`** (timeranger2,
+  `get_segments()`). It was multiplied by 1000 when the topic had `sf_tm_ms`,
+  the unit of `tm`: on a topic with `t` in milliseconds and `tm` in seconds a
+  date bound by `t` (`from_t=2026-01-01T00:00:00` in `open-list`,
+  `open-iterator`) selected nothing or everything, and the reverse on a topic
+  with `tm` in milliseconds. An integer bound was right.
 - **The `yunetas` CLI 0.22.0** (`utils/python/tui_yunetas`, on PyPI):
     - The deploy tools exit with `1` when a push failed. They exited `0`, so
       `yunetas sync` pushed the configs after a failed binaries pass.

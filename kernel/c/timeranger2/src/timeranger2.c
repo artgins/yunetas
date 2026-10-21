@@ -15220,7 +15220,7 @@ PRIVATE json_t *get_segments(
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_from_t));
             system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-            if(system_flag & sf_tm_ms) {
+            if(system_flag & sf_t_ms) {    // t's unit: up to 7.27.4 it asked sf_tm_ms
                 timestamp *= 1000;
             }
             from_t = (json_int_t)timestamp;
@@ -15270,7 +15270,7 @@ PRIVATE json_t *get_segments(
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_to_t));
             system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-            if(system_flag & sf_tm_ms) {
+            if(system_flag & sf_t_ms) {    // t's unit: up to 7.27.4 it asked sf_tm_ms
                 timestamp *= 1000;
             }
             to_t = (json_int_t)timestamp;
