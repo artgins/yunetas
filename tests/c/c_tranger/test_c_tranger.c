@@ -81,6 +81,7 @@
 #define TOPIC_NAME2 "topic_cmd2"    // closed under its open handles (UAF regression)
 #define TOPIC_NAME3 "topic_cmd3"    // deleted by command with force=1 as an integer
 #define TOPIC_NAME4 "topic_cmd4"    // a no_rt list outlives its topic (leak regression)
+#define TOPIC_NAME5 "topic_cmd5"    // one file a day: delete-key-files
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
 
 /*  key "A" gets 5 records, key "B" gets 3 records  */
@@ -3174,6 +3175,89 @@ PRIVATE int do_test(void)
     global_result += test_json(NULL);
     gobj_log_del_handler("test_capture");
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_ERROR, 0);
+
+    /*-------------------------------------------------*
+     *      delete-key-files: retention by hand. The old files of a key go,
+     *      the g_rowid of the rest stay. Its refusals, from a peer, are
+     *      WARNINGs (not captured here)
+     *-------------------------------------------------*/
+    set_expected_results("delete-key-files", NULL, NULL, NULL, 1);
+    {
+        json_t *topic5 = tranger2_create_topic(
+            tranger, TOPIC_NAME5, "id", "tm",
+            json_pack("{s:s}", "filename_mask", "%Y-%m-%d"),
+            sf_string_key,
+            json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
+            0
+        );
+        check_bool("topic of one file a day", topic5 != NULL, TRUE);
+        for(int d = 0; d < 3; d++) {
+            for(int j = 0; j < 2; j++) {
+                uint64_t t = BASE_T + (uint64_t)d*86400 + (uint64_t)j;
+                json_t *jn_record = json_pack("{s:s, s:I, s:s}",
+                    "id", "P", "tm", (json_int_t)t, "content", "day");
+                md2_record_ex_t md = {0};
+                tranger2_append_record(tranger, TOPIC_NAME5, t, 0, &md, jn_record);
+            }
+        }
+
+        r = gobj_command(yuno, "delete-key-files",
+            json_pack("{s:s, s:s, s:s}",
+                "topic_name", TOPIC_NAME5, "key", "P", "before", "2000-01-02T00:00:00+0000"
+            ), yuno);
+        check_int("delete-key-files by date", kw_get_int(0, r, "result", -999, 0), 0);
+        check_int("delete-key-files by date: rows", kw_get_int(0, r, "data`rows", -1, 0), 2);
+        JSON_DECREF(r)
+        check_int("the key keeps the rest",
+            (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME5, "P"), 4);
+
+        r = gobj_command(yuno, "delete-key-files",
+            json_pack("{s:s, s:I}",
+                "topic_name", TOPIC_NAME5, "before", (json_int_t)(BASE_T + 2*86400)
+            ), yuno);
+        check_int("delete-key-files of every key", kw_get_int(0, r, "result", -999, 0), 0);
+        check_int("delete-key-files of every key: rows", kw_get_int(0, r, "data`rows", -1, 0), 2);
+        check_int("delete-key-files of every key: keys", kw_get_int(0, r, "data`keys_purged", -1, 0), 1);
+        JSON_DECREF(r)
+
+        r = gobj_command(yuno, "open-list",
+            json_pack("{s:s, s:s, s:s, s:b}",
+                "list_id", "lstPurged", "topic_name", TOPIC_NAME5, "key", "P", "return_data", 1
+            ), yuno);
+        json_t *rows_left = kw_get_list(0, r, "data", 0, 0);
+        check_int("what is left", (json_int_t)json_array_size(rows_left), 2);
+        check_int("its first g_rowid", record_rowid(json_array_get(rows_left, 0)), 5);
+        JSON_DECREF(r)
+
+        r = gobj_command(yuno, "list-keys",
+            json_pack("{s:s}", "topic_name", TOPIC_NAME5), yuno);
+        check_int("list-keys says the rows purged",
+            find_key_field(kw_get_list(0, r, "data", 0, 0), "P", "purged"), 4);
+        JSON_DECREF(r)
+
+        r = gobj_command(yuno, "delete-key-files",
+            as_peer(json_pack("{s:s, s:s, s:I}",
+                "topic_name", TOPIC_NAME5, "key", "P",
+                "before", (json_int_t)time_in_seconds() + 86400
+            )), yuno);
+        check_refused("delete-key-files in the future", r);
+        r = gobj_command(yuno, "delete-key-files",
+            as_peer(json_pack("{s:s, s:s, s:s}",
+                "topic_name", TOPIC_NAME5, "key", "P", "before", "no date at all"
+            )), yuno);
+        check_refused("delete-key-files of a text that is no date", r);
+        r = gobj_command(yuno, "delete-key-files",
+            as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME5, "key", "P")), yuno);
+        check_refused("delete-key-files with no before", r);
+        r = gobj_command(yuno, "delete-key-files",
+            as_peer(json_pack("{s:s, s:s, s:I}",
+                "topic_name", TOPIC_NAME5, "key", "never_existed", "before", (json_int_t)BASE_T
+            )), yuno);
+        check_refused("delete-key-files of a key not there", r);
+        check_int("the refusals deleted nothing",
+            (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME5, "P"), 2);
+    }
+    global_result += test_json(NULL);
 
     /*-------------------------------------------------*
      *      A master that LOST its lock (another process took the store

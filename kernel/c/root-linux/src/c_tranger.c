@@ -26,6 +26,7 @@ Cursor pagination (open-iterator/get-page/close-iterator) and key listing:
 
 command-yuno id=1911 service=tranger command=list-keys topic_name=pp
 command-yuno id=1911 service=tranger command=delete-key topic_name=pp key=1 force=1
+command-yuno id=1911 service=tranger command=delete-key-files topic_name=pp key=1 before=2026-09-21T00:00:00
 command-yuno id=1911 service=tranger command=open-iterator iterator_id=it1 topic_name=pp key=1
 command-yuno id=1911 service=tranger command=get-page iterator_id=it1 from_rowid=1 limit=100
 command-yuno id=1911 service=tranger command=close-iterator iterator_id=it1
@@ -36,8 +37,19 @@ had no counterpart for — a topic could be listed key by key but never pruned,
 so a key born of a scan or a typo stayed in the topic for ever. A key that
 still holds records needs force=1; the refusal names the record count.
 
+delete-key-files is retention by hand: it deletes the old FILES of a key (of
+every key without key=), the ones whose records were all appended before
+`before` (an integer in the topic's unit of t, or a date), and keeps every
+g_rowid where it was (tranger2_delete_key_files(), DESIGN-retention.md). It is
+cut by file and by the time of the append: at least the period asked for is
+kept, and at most one file more. Master-only, permission `delete`. A topic
+whose filename_mask has no year (a queue) and a `before` that is not in the
+past are refused. Without key= it walks every key in this one call.
+
 list-keys returns, per key, its record count AND its time span taken from the
-topic's cache totals: {key, records, fr_t, to_t, fr_tm, to_tm}. A client can
+topic's cache totals: {key, records, fr_t, to_t, fr_tm, to_tm}, plus `purged`
+(the rows delete-key-files took, after which its g_rowids start) for a key
+that has it. A client can
 therefore bound a time picker to what the key actually holds, without reading
 one single record.
 
@@ -196,6 +208,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_open_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -365,6 +378,13 @@ SDATAPM (DTP_STRING,    "key",          0,              0,          "Key (primar
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete: required when the key holds records"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_delete_key_files[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "key",          0,              0,          "Key whose old files are deleted; empty: every key of the topic"),
+SDATAPM (DTP_JSON,      "before",       0,              0,          "Delete the files of the records appended before this time: an integer (topic unit of t), or a date string"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_add_record[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
@@ -487,6 +507,7 @@ SDATACM2 (DTP_SCHEMA,   "create-topic",     SDF_AUTHZ_X,    0,      pm_create_to
 SDATACM2 (DTP_SCHEMA,   "open-topic",       SDF_AUTHZ_X,    0,      pm_open_topic,    cmd_open_topic,   "Open topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic",     SDF_AUTHZ_X,    0,      pm_delete_topic,    cmd_delete_topic,   "Delete topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-key",       SDF_AUTHZ_X,    0,      pm_delete_key,      cmd_delete_key,     "Delete a whole key (primary key) and every record it holds. Irrecoverable, master-only; force=1 when the key is not empty"),
+SDATACM2 (DTP_SCHEMA,   "delete-key-files", SDF_AUTHZ_X,    0,      pm_delete_key_files, cmd_delete_key_files, "Delete the old files of a key (every key without key=): the records appended before `before`, with every g_rowid kept. Irrecoverable, master-only"),
 
 SDATACM2 (DTP_SCHEMA,   "open-list",        SDF_AUTHZ_X,    0,      pm_open_list,       cmd_open_list,      "Open list. With return_data=1 loads and returns the matching records, auto-closing (one-shot read); else the list stays open collecting appends until close-list"),
 SDATACM2 (DTP_SCHEMA,   "close-list",       SDF_AUTHZ_X,    0,      pm_close_list,      cmd_close_list,     "Close list"),
@@ -2591,6 +2612,264 @@ PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
+ *  The rule of tranger2_delete_key_files() (mask_sorts_as_time() in
+ *  timeranger2.c), asked here so that a command naming a topic whose files
+ *  do not sort as time is refused before the tranger logs an ERROR for it
+ ***************************************************************************/
+PRIVATE BOOL mask_has_year(const char *filename_mask)
+{
+    for(const char *p = filename_mask; p && *p; p++) {
+        if(*p != '%') {
+            continue;
+        }
+        p++;
+        if(*p == 'E' || *p == 'O') {
+            p++;
+        }
+        if(*p == 'Y' || *p == 'G' || *p == 'F' || *p == 's') {
+            return TRUE;
+        }
+        if(!*p) {
+            break;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Retention by hand: tranger2_delete_key_files() on one key, or on every
+ *  key of the topic. With every key it runs them all in this call, and the
+ *  yuno does nothing else meanwhile: about 1-2 ms per key purged on the
+ *  slowest node measured (DESIGN-retention.md §6). An owner that purges on
+ *  a timer does a slice of keys per tick instead.
+ ***************************************************************************/
+PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "delete";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    BOOL peer = command_is_external(kw);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    if(empty_string(topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    const char *key = kw_get_str(gobj, kw, "key", "", 0);
+
+    if(refuse_peer_topic_name(gobj, peer, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(topic_name, 64), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_key(gobj, peer, topic_name, key)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Invalid key: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(key, 64), key),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(refuse_peer_write_of_owned_topic(gobj, peer, "delete-key-files", topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: '%s' is a topic of a treedb or a msg2db: it is written through it, "
+                "not by delete-key-files", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
+    if(!topic) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot open topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*  Only the master deletes: the tranger refuses it with an ERROR  */
+    if(!gobj_read_bool_attr(gobj, "master")) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: tranger '%s' is READ-ONLY, this yuno is not its master: "
+                "delete-key-files runs on the master",
+                gobj_yuno_role_plus_name(), gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *filename_mask = json_string_value(json_object_get(topic, "filename_mask"));
+    if(empty_string(filename_mask)) {
+        filename_mask = json_string_value(json_object_get(priv->tranger, "filename_mask"));
+    }
+    if(!mask_has_year(filename_mask)) {
+        log_refusal(gobj, peer,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "topic whose files do not sort as time, refused",
+            "topic_name",   "%s", topic_name,
+            "filename_mask","%s", filename_mask? filename_mask : "",
+            NULL
+        );
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: the files of topic '%s' do not sort as time (filename_mask '%s' "
+                "has no year): its old files cannot be told apart",
+                gobj_yuno_role_plus_name(), topic_name, filename_mask? filename_mask : ""),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  `before`: an integer in the topic's unit of t, or a date
+     */
+    system_flag2_t system_flag = (system_flag2_t)json_integer_value(
+        json_object_get(topic, "system_flag")
+    );
+    json_t *jn_before = json_object_get(kw, "before");
+    json_int_t before = 0;
+    if(json_is_integer(jn_before)) {
+        before = json_integer_value(jn_before);
+    } else if(json_is_string(jn_before) && !empty_string(json_string_value(jn_before))) {
+        /*
+         *  A text approxidate() cannot read is NOW to it, which would cut
+         *  everything before today: careful, and refused below
+         */
+        int not_a_date = 0;
+        before = (json_int_t)approxidate_careful(json_string_value(jn_before), &not_a_date);
+        if(not_a_date) {
+            before = 0;
+        } else if(system_flag & sf_t_ms) {
+            before *= 1000;
+        }
+    }
+    json_int_t now = (system_flag & sf_t_ms)?
+        (json_int_t)time_in_milliseconds() : (json_int_t)time_in_seconds();
+    if(before <= 0 || before > now) {
+        log_refusal(gobj, peer,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "before that is no time in the past, refused",
+            "topic_name",   "%s", topic_name,
+            "before",       "%j", jn_before? jn_before : json_null(),
+            NULL
+        );
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: What before? A time in the past: an integer in the unit of t "
+                "of topic '%s', or a date", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  One key, or every key of the topic
+     */
+    json_t *jn_keys;
+    if(!empty_string(key)) {
+        json_t *range = tranger2_topic_key_range(priv->tranger, topic_name, key);
+        if(!range) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: Key not found in topic '%s': '%s'",
+                    gobj_yuno_role_plus_name(), topic_name, key),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        JSON_DECREF(range)
+        jn_keys = json_pack("[s]", key);
+    } else {
+        jn_keys = tranger2_list_keys(priv->tranger, topic_name);
+    }
+
+    json_int_t rows = 0;
+    json_int_t keys_purged = 0;
+    json_int_t keys_failed = 0;
+    int idx; json_t *jn_key;
+    json_array_foreach(jn_keys, idx, jn_key) {
+        json_int_t deleted = tranger2_delete_key_files(
+            priv->tranger, topic_name, json_string_value(jn_key), (uint64_t)before
+        );
+        if(deleted < 0) {
+            keys_failed++;     // Error already logged
+        } else if(deleted > 0) {
+            rows += deleted;
+            keys_purged++;
+        }
+    }
+    json_int_t keys_seen = (json_int_t)json_array_size(jn_keys);
+    JSON_DECREF(jn_keys)
+
+    return msg_iev_build_response(gobj,
+        keys_failed? -1 : 0,
+        keys_failed?
+            json_sprintf("%s: topic '%s': %ld rows deleted from %ld keys of %ld, "
+                "%ld keys failed (see the log)",
+                gobj_yuno_role_plus_name(), topic_name,
+                (long)rows, (long)keys_purged, (long)keys_seen, (long)keys_failed):
+            json_sprintf("%s: topic '%s': %ld rows deleted from %ld keys of %ld",
+                gobj_yuno_role_plus_name(), topic_name,
+                (long)rows, (long)keys_purged, (long)keys_seen),
+        0,
+        json_pack("{s:I, s:I, s:I, s:I}",
+            "rows", rows,
+            "keys_purged", keys_purged,
+            "keys", keys_seen,
+            "keys_failed", keys_failed
+        ),
+        kw  // owned
+    );
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -3747,6 +4026,15 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 v = (json_int_t)kw_get_int(gobj, range, range_keys[i2], 0, 0);
             }
             json_object_set_new(jn_row, range_keys[i2], json_integer(v));
+        }
+        /*
+         *  A key whose old files were deleted (delete-key-files) says how
+         *  many rows went: its g_rowids start after them. A key never
+         *  purged has no `purged`, as before
+         */
+        json_int_t purged = range? kw_get_int(gobj, range, "purged", 0, 0) : 0;
+        if(purged > 0) {
+            json_object_set_new(jn_row, "purged", json_integer(purged));
         }
         JSON_DECREF(range)
 
