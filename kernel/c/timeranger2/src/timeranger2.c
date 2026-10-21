@@ -13804,6 +13804,16 @@ PRIVATE json_int_t update_totals_of_key_cache(
 
         total_rows += rows;
     }
+    if(json_array_size(cache_files) == 0) {
+        /*
+         *  No file, no span: 0, what update_totals_of_key_cache2() and every
+         *  reader take for "unset". The starting minimum was left here, -1 as
+         *  a json integer: a key purged whole (tranger2_delete_key_files())
+         *  or unlisted told list-keys it began in 1969
+         */
+        global_from_t = 0;
+        global_from_tm = 0;
+    }
 
     json_t *total_range = json_object_get(
         json_object_get(

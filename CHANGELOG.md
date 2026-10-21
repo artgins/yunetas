@@ -34,6 +34,9 @@
     - `C_TRANGER` command `delete-key-files topic_name= [key=] before=`
       (master-only, permission `delete`), for a purge by hand.
     - A store never purged is read as before, byte for byte.
+    - A key with no file left (purged whole, or flagged unlisted) has a span of
+      0 in `tranger2_topic_key_range()` and `list-keys`, what every reader takes
+      for "unset". It said `fr_t`/`fr_tm` -1, the starting minimum of the sum.
 - **A date in `from_t` / `to_t` is taken to the unit of `t`** (timeranger2,
   `get_segments()`). It was multiplied by 1000 when the topic had `sf_tm_ms`,
   the unit of `tm`: on a topic with `t` in milliseconds and `tm` in seconds a

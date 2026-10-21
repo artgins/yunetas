@@ -457,6 +457,10 @@ PRIVATE int do_test(void)
     result += expect_int("rows deleted", tranger2_delete_key_files(tm, TOPIC_NAME, KEY, DAY4), 5);
     result += expect_int("key size", (json_int_t)tranger2_topic_key_size(tm, TOPIC_NAME, KEY), 0);
     result += expect_int("purged", key_range_int(tm, KEY, "purged"), 11);
+    result += expect_int("no file, no span: fr_t", key_range_int(tm, KEY, "fr_t"), 0);
+    result += expect_int("no file, no span: to_t", key_range_int(tm, KEY, "to_t"), 0);
+    result += expect_int("no file, no span: fr_tm", key_range_int(tm, KEY, "fr_tm"), 0);
+    result += expect_int("no file, no span: to_tm", key_range_int(tm, KEY, "to_tm"), 0);
     served(tm, KEY, json_object(), bf, sizeof(bf));
     result += expect("served", bf, "");
     result += expect_int("nothing more to delete", tranger2_delete_key_files(tm, TOPIC_NAME, KEY, DAY4), 0);
