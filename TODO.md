@@ -84,6 +84,17 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 ## 3. Decisions pending
 
+- **Retention: delete the old files of a key with `g_rowid` intact**
+  (proposed 2026-10-21, design in
+  [`kernel/c/timeranger2/DESIGN-retention.md`](kernel/c/timeranger2/DESIGN-retention.md)).
+  No store can free its old part today: `g_rowid` is a position computed from
+  the key's files, so deleting the first ones renumbers the rest, and a
+  follower is never told a file went away. The direction is decided (a
+  kernel function, `tranger2_delete_key_files()`, and a per-key base in
+  `keys/<key>/.purged`); **decide**: approve the design and its §11 open
+  questions, above all `fsync` per key or one barrier per batch, measured on
+  the slowest node. Needs a full release (every yuno links it). Asked for by
+  a project that must keep 30 days of readings.
 - **C_TRANGER handles opened through the agent are not reaped** (**FUTURE**,
   user 2026-10-03: not now, no stop-gap; do not raise it as pending) when the
   operator's session ends (documented in `api/gclass/data.md`). A
