@@ -2,13 +2,14 @@
 
 ## Unreleased
 
-- **The `yunetas` CLI 0.23.1** (on PyPI): `-n` asks nothing in
+- **The `yunetas` CLI 0.23.1 and 0.23.2** (on PyPI): `-n` asks nothing in
   `sync-binaries`, `sync-configs` and `yunetas sync`. A dry run ended with
   "Apply [a]ll, [s]elect one by one, or [q]uit?", which answered itself when
   stdin was at EOF; over ssh from a background job stdin is the open
   channel, and the dry run waited for ever (34 minutes on two nodes during
   the 7.27.6 deploy). It now shows the command of every candidate, runs none
-  and says so.
+  and says so, and its closing notes say what WOULD happen (they said the
+  yunos were killed and the slots made).
 
 ## v7.27.6 (2026-10-21)
 
