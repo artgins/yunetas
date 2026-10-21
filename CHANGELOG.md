@@ -1,5 +1,15 @@
 # **Changelog**
 
+## Unreleased
+
+- **The `yunetas` CLI 0.23.1** (on PyPI): `-n` asks nothing in
+  `sync-binaries`, `sync-configs` and `yunetas sync`. A dry run ended with
+  "Apply [a]ll, [s]elect one by one, or [q]uit?", which answered itself when
+  stdin was at EOF; over ssh from a background job stdin is the open
+  channel, and the dry run waited for ever (34 minutes on two nodes during
+  the 7.27.6 deploy). It now shows the command of every candidate, runs none
+  and says so.
+
 ## v7.27.6 (2026-10-21)
 
 A patch release with one fix of timeranger2. A delete of a key that fails

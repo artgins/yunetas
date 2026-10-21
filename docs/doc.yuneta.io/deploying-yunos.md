@@ -112,8 +112,10 @@ built the whole SDK from source, or it runs a package made for its own
 distribution.
 
 **Safety nets.** Every push tool shows you a classification table, and it asks
-you before it changes anything. `-n` does a dry run, and `-a` skips the
-questions. `upgrade-yunos` shoots a rollback **snap** before it changes anything, so one
+you before it changes anything. `-n` does a dry run: it shows the command of
+every candidate, runs none and asks nothing (since CLI 0.23.1; before, it
+asked at the end, and over ssh from a background job it waited for an answer).
+`-a` skips the questions. `upgrade-yunos` shoots a rollback **snap** before it changes anything, so one
 `activate-snap` command undoes a bad release
 ([Recipe E](#dy-recipe-rollback)). The whole flow is idempotent. If a deploy
 stops in the middle, run `sync` and `upgrade-yunos` again, and they finish the
