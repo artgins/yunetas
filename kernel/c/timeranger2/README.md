@@ -173,8 +173,12 @@ if(rows < 0) {
   leaves files the base already counts, and the next open of the master
   removes them. A replica skips them.
 - **A base that cannot be read is no base of 0** (that would number the key
-  from 1 again): the key is flagged `unlisted`, its loads say `load_failed`, and
-  an append reads it again first, or is refused.
+  from 1 again): when the cache of the key is built, the key is flagged
+  `unlisted`, its loads say `load_failed`, and an append reads it again first,
+  or is refused. A replica that already holds the cells of the key keeps them
+  instead: they sum the master's base, so its numbering stays the master's and
+  its new records keep coming; the purge is applied at the next read that can
+  read the base.
 - **Refused** (-1, logged, nothing deleted): a cut in the future (it would
   delete the file being written); a topic whose `filename_mask` gives ids that
   do not sort as time (`tranger2_mask_sorts_as_time()`: numeric fields of a

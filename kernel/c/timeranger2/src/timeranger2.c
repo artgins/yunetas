@@ -545,7 +545,8 @@ PRIVATE BOOL md2_path_of(
 );
 PRIVATE json_t *read_key_purged(
     hgobj gobj,
-    const char *key_directory
+    const char *key_directory,
+    BOOL say
 );
 PRIVATE void flag_key_purged_unreadable(
     hgobj gobj,
@@ -5289,36 +5290,56 @@ PRIVATE void apply_purge_of_master(
         }
         return;     // no base: the key deleted meanwhile (its delete is heard), or never purged
     }
-    json_t *jn_purged = read_key_purged(gobj, key_directory);
+    /*
+     *  A base that cannot be read now (EMFILE, EIO, a file being replaced)
+     *  leaves the key as it is: its cells sum the master's base, so the
+     *  numbering of its new records stays the master's, and the purge is
+     *  applied at the next try that reads it -- a load, a page, the next
+     *  signal. Flagged instead, the key would refuse its new records while
+     *  their links were consumed, and lose them. Said once per state of the
+     *  file, the retries are quiet
+     */
+    struct stat st_purged;
+    json_t *jn_state = NULL;
+    if(stat(purged_path, &st_purged) == 0) {
+        jn_state = json_pack("{s:I, s:I}",
+            "ctime", (json_int_t)st_purged.st_ctim.tv_sec * 1000000000LL + st_purged.st_ctim.tv_nsec,
+            "size", (json_int_t)st_purged.st_size
+        );
+    }
+    json_t *failed_state = json_object_get(key_cache, "purged_read_failed");
+    BOOL say = (!failed_state || !json_equal(failed_state, jn_state))? TRUE : FALSE;
+    json_t *jn_purged = read_key_purged(gobj, key_directory, say);
     if(!jn_purged) {
-        // Error already logged
-        flag_key_purged_unreadable(gobj, key_cache, topic_directory, key);
-        retake_segments_of_key(gobj, tranger, topic, key);
+        if(say) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "The base of a purged key cannot be read: the purge waits, the key keeps its cells and its numbering",
+                "topic",        "%s", tranger2_topic_name(topic),
+                "key",          "%s", key,
+                NULL
+            );
+            json_object_set_new(key_cache, "purged_read_failed", jn_state? jn_state : json_object());
+        } else {
+            JSON_DECREF(jn_state)
+        }
         return;
     }
-    const char *upto = json_string_value(json_object_get(jn_purged, "upto"));
-    json_int_t purged = json_integer_value(json_object_get(jn_purged, "rows"));
-
-    /*
-     *  A flag this function set when the base could not be read (it kept the
-     *  cells): the base is read now, and applied below with the cells -- the
-     *  key is whole again. A key flagged when its cache was built has no cell,
-     *  and is listed again instead (relist_key())
-     */
-    if(json_object_get(key_cache, "unlisted") &&
-            json_object_get(json_object_get(key_cache, "unlisted_state"), "purged_ctime") &&
-            json_array_size(json_object_get(key_cache, "files")) > 0) {
-        json_object_del(key_cache, "unlisted");
-        json_object_del(key_cache, "unlisted_state");
+    JSON_DECREF(jn_state)
+    if(failed_state) {
+        json_object_del(key_cache, "purged_read_failed");
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "The base of a purged key read again: it is applied, and the key is not flagged",
+            "msg",          "%s", "The base of a purged key read at last: the purge is applied",
             "topic",        "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
             NULL
         );
     }
+    const char *upto = json_string_value(json_object_get(jn_purged, "upto"));
+    json_int_t purged = json_integer_value(json_object_get(jn_purged, "rows"));
 
     json_t *cache_files = json_object_get(key_cache, "files");
     json_t *cache_total = json_object_get(key_cache, "total");
@@ -12242,22 +12263,6 @@ PRIVATE int relist_key(
     const char *key
 )
 {
-    /*
-     *  A replica flagged for a base it could not read, holding its cells
-     *  still: the base is applied first, the way every purge is
-     *  (apply_purge_of_master()), which moves the numbering of the iterators
-     *  and counts it in `renumbered`. Built again here from disk, the move
-     *  happened and nothing counted it
-     */
-    json_t *old_key_cache = json_object_get(json_object_get(topic, "cache"), key);
-    if(!json_is_true(json_object_get(tranger, "master")) &&
-            json_array_size(json_object_get(old_key_cache, "files")) > 0) {
-        apply_purge_of_master(gobj, tranger, topic, key);
-        if(!json_object_get(json_object_get(json_object_get(topic, "cache"), key), "unlisted")) {
-            return 0;   // the base read and applied: nothing to list again
-        }
-    }
-
     const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
     json_t *key_cache = load_key_cache_from_disk(
         gobj, topic_directory, key, json_is_true(json_object_get(tranger, "master"))
@@ -12420,7 +12425,8 @@ PRIVATE void cut_back_content(
  ***************************************************************************/
 PRIVATE json_t *read_key_purged(
     hgobj gobj,
-    const char *key_directory
+    const char *key_directory,
+    BOOL say        // FALSE: a failure said already, quiet
 )
 {
     char path[PATH_MAX];
@@ -12432,6 +12438,9 @@ PRIVATE json_t *read_key_purged(
     json_t *jn_purged = json_load_file(path, 0, &error);
     if(!jn_purged) {
         int last_errno = errno;
+        if(!say) {
+            return NULL;
+        }
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TRANGER,
@@ -12447,6 +12456,10 @@ PRIVATE json_t *read_key_purged(
     const char *upto = json_string_value(json_object_get(jn_purged, "upto"));
     json_t *jn_rows = json_object_get(jn_purged, "rows");
     if(empty_string(upto) || !json_is_integer(jn_rows) || json_integer_value(jn_rows) < 0) {
+        if(!say) {
+            JSON_DECREF(jn_purged)
+            return NULL;
+        }
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TRANGER,
@@ -12719,7 +12732,7 @@ PRIVATE json_t *load_key_cache_from_disk(
         }
     }
     if(key_file_listed(&da, PURGED_FILENAME)) {
-        json_t *jn_purged = read_key_purged(gobj, full_path);
+        json_t *jn_purged = read_key_purged(gobj, full_path, TRUE);
         if(!jn_purged) {
             // Error already logged
             dir_array_free(&da);

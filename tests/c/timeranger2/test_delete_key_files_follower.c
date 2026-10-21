@@ -540,42 +540,51 @@ PRIVATE int do_test(void)
     }
 
     /*-------------------------------------*
-     *  A base the follower cannot read
-     *  once: the key is flagged, and whole
-     *  again at the next read
+     *  A base the follower cannot read for
+     *  a while: the key keeps its cells and
+     *  its numbering, and its new records;
+     *  the purge is applied when it reads
      *-------------------------------------*/
     if(geteuid() != 0) {
         set_expected_results(
-            "purge follower: a base read failed once",
+            "purge follower: a base that cannot be read",
             json_pack("[{s:s},{s:s}]",
                 "msg", "Cannot read the base of a purged key",
-                "msg", "The base of a purged key cannot be read: the key is flagged unlisted, every load of it says load_failed"
+                "msg", "The base of a purged key cannot be read: the purge waits, the key keeps its cells and its numbering"
             ),
             NULL, NULL, 1
         );
+        json_t *rt6 = tranger2_open_rt_disk(
+            tf, TOPIC_NAME, KEY6, NULL, on_feed_record, "rt_key6", "", NULL
+        );
+        drain(10);
         char purged6[PATH_MAX];
         build_path(purged6, sizeof(purged6), path_database, TOPIC_NAME, "keys", KEY6, ".purged", NULL);
         result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY6, DAY2), 2);
         chmod(purged6, 0);
         drain(20);
-        chmod(purged6, 0600);
+        /*  A new record while the base cannot be read: the master's g_rowid  */
+        got[0] = 0;
+        result += expect_int("master append", append_one(tm, 6, DAY3 + 100, "C3"), 7);
+        drain(30);
+        result += expect("the feed got it", got, "C3:7");
         result += test_json(NULL);
 
         set_expected_results(
-            "purge follower: a base read failed once, read again",
+            "purge follower: a base read at last",
             json_pack("[{s:s}]",
-                "msg", "The base of a purged key read again: it is applied, and the key is not flagged"
+                "msg", "The base of a purged key read at last: the purge is applied"
             ),
             NULL, NULL, 1
         );
-        json_t *data = json_array();
-        json_t *it = tranger2_open_iterator(
-            tf, TOPIC_NAME, KEY6, json_object(), NULL, "base_again", "", data, NULL
-        );
-        result += expect_int("its load does not fail", kw_get_bool(0, it, "load_failed", 0, 0), 0);
-        result += expect_int("and reads what is left", (json_int_t)json_array_size(data), 4);
-        tranger2_close_iterator(tf, it);
-        JSON_DECREF(data)
+        chmod(purged6, 0600);
+        served(tf, TOPIC_NAME, KEY6, bf, sizeof(bf));
+        result += expect("the follower reads the master's numbering", bf, "B1:3 B2:4 C1:5 C2:6 C3:7");
+        json_t *range6 = tranger2_topic_key_range(tf, TOPIC_NAME, KEY6);
+        result += expect_int("its base", kw_get_int(0, range6, "purged", -1, 0), 2);
+        JSON_DECREF(range6)
+        tranger2_close_rt_disk(tf, rt6);
+        drain(10);
         result += test_json(NULL);
     }
 
