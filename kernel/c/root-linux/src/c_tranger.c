@@ -269,6 +269,7 @@ PRIVATE json_t *find_handle_by_identity(
 PRIVATE json_t *open_part(hgobj gobj, const char *iterator_id, json_t *entry, json_t *part);
 PRIVATE json_int_t key_purged(hgobj gobj, const char *topic_name, const char *key);
 PRIVATE json_int_t part_shift(hgobj gobj, json_t *entry, json_t *part);
+PRIVATE json_int_t key_range_int(hgobj gobj, const char *topic_name, const char *key, const char *field);
 PRIVATE const char *purged_key_of_iterator(hgobj gobj, const char *iterator_id);
 PRIVATE json_int_t topic_epoch(hgobj gobj, const char *topic_name);
 PRIVATE void watch_owner(hgobj gobj, hgobj src);
@@ -1620,13 +1621,19 @@ PRIVATE json_int_t part_rows(hgobj gobj, json_t *entry, json_t *part)
  ***************************************************************************/
 PRIVATE json_int_t part_shift(hgobj gobj, json_t *entry, json_t *part)
 {
-    json_int_t purged = key_purged(
-        gobj,
-        kw_get_str(gobj, entry, "topic_name", "", 0),
-        kw_get_str(gobj, part, "key", "", 0)
-    );
+    const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
+    const char *key = kw_get_str(gobj, part, "key", "", 0);
+    json_int_t purged = key_purged(gobj, topic_name, key);
     json_int_t base = kw_get_int(gobj, part, "base", 0, 0);
-    return (purged > base)? purged - base : 0;
+    /*
+     *  A replica whose numbering moved when it took the master's base (it
+     *  never counted a file it had flagged) moved every g_rowid of the key
+     *  by the same amount, `renumbered`: positions do not move with it
+     */
+    json_int_t moved = key_range_int(gobj, topic_name, key, "renumbered") -
+        kw_get_int(gobj, part, "renumbered", 0, 0);
+    json_int_t shift = purged - base - moved;
+    return (shift > 0)? shift : 0;
 }
 
 /***************************************************************************
@@ -1636,12 +1643,21 @@ PRIVATE json_int_t part_shift(hgobj gobj, json_t *entry, json_t *part)
  ***************************************************************************/
 PRIVATE json_int_t key_purged(hgobj gobj, const char *topic_name, const char *key)
 {
+    return key_range_int(gobj, topic_name, key, "purged");
+}
+
+/***************************************************************************
+ *  A field of the totals of a key (tranger2_topic_key_range()), 0 when it
+ *  has none
+ ***************************************************************************/
+PRIVATE json_int_t key_range_int(hgobj gobj, const char *topic_name, const char *key, const char *field)
+{
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *range = tranger2_topic_key_range(priv->tranger, topic_name, key);
-    json_int_t purged = kw_get_int(gobj, range, "purged", 0, 0);
+    json_int_t v = kw_get_int(gobj, range, field, 0, 0);
     JSON_DECREF(range)
-    return purged;
+    return v;
 }
 
 /***************************************************************************
@@ -4253,11 +4269,12 @@ PRIVATE json_t *open_multi_key_iterator(
         BOOL indexed = json_object_get(iterator, "index")? TRUE : FALSE;
         tranger2_close_iterator(priv->tranger, iterator);
         total_rows += rows;
-        json_array_append_new(parts, json_pack("{s:s, s:I, s:b, s:I}",
+        json_array_append_new(parts, json_pack("{s:s, s:I, s:b, s:I, s:I}",
             "key", key,
             "rows", rows,
             "indexed", indexed,
-            "base", key_purged(gobj, topic_name, key)   // where its positions count from
+            "base", key_purged(gobj, topic_name, key),  // where its positions count from
+            "renumbered", key_range_int(gobj, topic_name, key, "renumbered")
         ));
     }
     JSON_DECREF(jn_keys)

@@ -691,7 +691,8 @@ PRIVATE int do_test(void)
         } masks[] = {
             {"tracks-%Y-%m-%d", TRUE}, {"series-1d-%Y", TRUE}, {"%Y", TRUE}, {"%Y-%m", TRUE},
             {"%FT%T", TRUE}, {"%G-W%V", TRUE}, {"%Y%m%d%H%M%S", TRUE}, {"%Y-%j", TRUE},
-            {"%G-W%V-%uT%H", TRUE}, {"%Y-%m-%dT%H", TRUE}, {"%EY-%Om", TRUE},
+            {"%G-W%V-%uT%H", TRUE}, {"%Y-%m-%dT%H", TRUE},
+            {"%EY-%Om", FALSE}, {"%OY-%m-%d", FALSE}, {"%Y-%Em-%d", FALSE},
             {"%s", FALSE}, {"%Y-%d", FALSE}, {"%Y%H", FALSE}, {"%Y-%m-%dT%M", FALSE},
             {"%G-%j", FALSE}, {"%G-%d", FALSE}, {"%G-W%V-%d", FALSE}, {"%G-W%V%H", FALSE},
             {"%G", FALSE}, {"%%", FALSE}, {"%Y-%m-%", FALSE},

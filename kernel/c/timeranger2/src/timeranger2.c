@@ -720,6 +720,7 @@ PRIVATE const char *long_key_of_ref(
     const char *ref
 );
 PRIVATE BOOL key_is_publishing(json_t *topic, const char *key);
+PRIVATE void carry_renumbered(json_t *topic, const char *key, json_t *new_key_cache);
 PRIVATE void sweep_deleted_keys_left(hgobj gobj, const char *topic_dir);
 PRIVATE unsigned long long process_start_time(pid_t pid);
 PRIVATE BOOL parse_purge_signal(
@@ -5161,6 +5162,25 @@ PRIVATE BOOL parse_delete_signal(const char *name, json_int_t *seq, char *ref, s
 }
 
 /***************************************************************************
+ *  A cache of the key built again from disk (relist_key(), a failed delete)
+ *  keeps the `renumbered` of the one it replaces: it counts the moves of
+ *  the numbering of the key in this process (apply_purge_of_master()), and
+ *  whoever compares it with a value taken before must not see it go back.
+ ***************************************************************************/
+PRIVATE void carry_renumbered(json_t *topic, const char *key, json_t *new_key_cache)
+{
+    json_t *old_total = json_object_get(
+        json_object_get(json_object_get(topic, "cache"), key), "total"
+    );
+    json_int_t renumbered = json_integer_value(json_object_get(old_total, "renumbered"));
+    if(renumbered) {
+        json_object_set_new(json_object_get(new_key_cache, "total"), "renumbered",
+            json_integer(renumbered)
+        );
+    }
+}
+
+/***************************************************************************
  *  CLIENT: are the new records of `key` being handed to the feeds
  *  (update_new_records_from_disk())? A read from one of their callbacks
  *  must not change the cells of the key under that code.
@@ -5256,6 +5276,17 @@ PRIVATE void apply_purge_of_master(
         return;     // Error already logged
     }
     if(access(purged_path, F_OK) < 0) {
+        if(errno != ENOENT) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot look for the base of a purged key: the purge is applied at its next read",
+                "path",         "%s", purged_path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
         return;     // no base: the key deleted meanwhile (its delete is heard), or never purged
     }
     json_t *jn_purged = read_key_purged(gobj, key_directory);
@@ -5309,6 +5340,14 @@ PRIVATE void apply_purge_of_master(
 
     json_int_t delta = (purged - old_purged) - rows_removed;
     if(delta != 0) {
+        /*
+         *  Counted in the totals (`renumbered`, from tranger2_topic_key_range()):
+         *  whoever keeps positions of the key outside its iterators (the parts
+         *  of a multi-key iterator of C_TRANGER) moves them by it too
+         */
+        json_object_set_new(cache_total, "renumbered", json_integer(
+            json_integer_value(json_object_get(cache_total, "renumbered")) + delta
+        ));
         /*
          *  The base of the master counts rows this replica never counted (a
          *  file it flagged unreadable): every g_rowid that stays moves by the
@@ -5676,6 +5715,20 @@ PRIVATE int remove_key_directory(hgobj gobj, const char *topic_dir, const char *
         return -1;  // Error already logged
     }
     if(access(purged_path, F_OK) < 0) {
+        if(errno != ENOENT) {
+            int err = errno;
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot delete key, its base cannot be looked for: the key stays as it was",
+                "path",         "%s", purged_path,
+                "errno",        "%d", err,
+                "serrno",       "%s", strerror(err),
+                NULL
+            );
+            errno = err;
+            return -1;
+        }
         return rmrdir(path_key);
     }
 
@@ -5948,6 +6001,7 @@ PUBLIC int tranger2_delete_key(
                     json_array_size(json_object_get(key_cache, "unreadable")) > 0 ||
                     json_object_get(key_cache, "unlisted") ||
                     json_object_get(key_cache, "purged")) {     // a key purged whole: its base numbers it
+                carry_renumbered(topic, key, key_cache);
                 json_object_set_new(topic_cache, key, key_cache);
                 update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
             } else {
@@ -6011,7 +6065,9 @@ PUBLIC int tranger2_delete_key(
  *      %H      %M
  *      %M %R   %S
  *  and any of them may end the mask, except %G. %s is refused: the epoch
- *  has no fixed width (9 digits before 2001-09-09).
+ *  has no fixed width (9 digits before 2001-09-09). So is a modifier (%E,
+ *  %O): glibc prints most pairs as literal text ("%OY", "%Em"), and in
+ *  another LC_TIME the others give alternative digits.
  ***************************************************************************/
 PUBLIC BOOL tranger2_mask_sorts_as_time(const char *filename_mask)
 {
@@ -6046,7 +6102,7 @@ PUBLIC BOOL tranger2_mask_sorts_as_time(const char *filename_mask)
             continue;   // a literal '%'
         }
         if(*p == 'E' || *p == 'O') {
-            p++;        // a modifier: %EY
+            return FALSE;   // glibc prints most of them as text (%OY, %Em), and another locale its own digits
         }
         if(!*p || !strchr(allowed, *p)) {
             return FALSE;   // not numeric, not of a fixed width, not the next field down, or unknown
@@ -12183,6 +12239,7 @@ PRIVATE int relist_key(
         return -1;  // Error already logged
     }
 
+    carry_renumbered(topic, key, key_cache);
     json_object_set_new(json_object_get(topic, "cache"), key, key_cache);
     update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
     retake_segments_of_key(gobj, tranger, topic, key);

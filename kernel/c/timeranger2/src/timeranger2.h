@@ -456,7 +456,10 @@ PUBLIC uint64_t tranger2_topic_key_size(
    were deleted (tranger2_delete_key_files()) also has `"purged": n`, its
    base: the rows of the files deleted. Its live rowids are purged+1 ..
    purged+rows, and its last g_rowid is purged+rows. A key never purged has
-   no `purged`.
+   no `purged`. On a replica, `"renumbered": n` counts how far the g_rowids
+   of the key moved when it took a base of the master that counted rows it
+   had not (a file it had flagged unreadable): whoever keeps positions of the
+   key outside its iterators moves them by it.
 
    `t`/`tm` are in the topic's own unit: seconds, or milliseconds when the topic
    sets sf_t_ms / sf_tm_ms (see `system_flag` in the topic desc).
@@ -816,7 +819,8 @@ PUBLIC json_int_t tranger2_delete_key_files(
     width: 9 digits before 2001-09-09).
     TRUE: "tracks-%Y-%m-%d", "series-1d-%Y", "%Y", "%Y-%m", "%FT%T",
     "%G-W%V". FALSE: "queue" (a tr_queue topic), "%d-%m-%Y", "%Y-%d-%m",
-    "%Y-%d" (a field left out), "%Y-%b", "%s". tranger2_delete_key_files()
+    "%Y-%d" (a field left out), "%Y-%b", "%s", and any %E/%O modifier (glibc
+    prints most of them as text). tranger2_delete_key_files()
     refuses a topic whose mask does not sort, since it cannot tell which of
     its files are old.
 */

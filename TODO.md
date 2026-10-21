@@ -92,6 +92,16 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   7.27.4 (one more lookup per append). The policy, the period to keep and
   the slice of keys per tick, is the owner's: the project that asked for it
   writes it in its own yunos.
+- **A failed delete of a key WITHOUT a base renumbers it** (pre-existing,
+  found by the fourth review of the retention round, 2026-10-21; decide).
+  `tranger2_delete_key()` removes a key with `rmrdir()`, file by file in
+  readdir order: one that fails half way leaves some files, the cache is
+  read again from them, the rows after a hole move, and the next appends
+  reuse g_rowids followers and clients have seen. A key WITH a base is
+  already moved out of `keys/` whole first (`remove_key_directory()`); doing
+  the same for every key changes the delete path of every treedb, the
+  messages of the refused deletes the treedb tests pin, and the rmdir()
+  races test_delete_key_propagation provokes, so it waits for its own round.
 - **C_TRANGER handles opened through the agent are not reaped** (**FUTURE**,
   user 2026-10-03: not now, no stop-gap; do not raise it as pending) when the
   operator's session ends (documented in `api/gclass/data.md`). A
