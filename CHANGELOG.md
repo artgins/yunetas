@@ -1,6 +1,11 @@
 # **Changelog**
 
-## Unreleased
+## v7.27.6 (2026-10-21)
+
+A patch release with one fix of timeranger2. A delete of a key that fails
+no longer renumbers the key: every key is moved out of `keys/` whole before
+it is removed, so a failure leaves it as it was. The messages of a refused
+delete change.
 
 - **A failed delete of a key no longer renumbers it** (timeranger2,
   `tranger2_delete_key()`). A key without a base was removed in place, file
