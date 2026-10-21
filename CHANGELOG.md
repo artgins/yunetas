@@ -35,6 +35,22 @@
   gui_treedb 0.17.165 and every other SPA got a new third number, were
   deployed, and their consoles are clean. gobj-js and gobj-ui moved
   development dependencies only, so neither has a release.
+- **Every SPA says when a new version is deployed** (gobj-ui 7.27.29,
+  `C_YUI_UPDATE_WATCH`). Every route of the SPAs is a hash, and neither a
+  login nor a logout reloads the page, so a tab opened before a deploy ran the
+  old bundle until it was reloaded by hand. The build now writes a stamp into
+  `index.html` (a hash of the bundle's file names, so an identical rebuild
+  keeps it). The service compares the page's stamp with the one the server
+  hands out (the page fetched again, `no-store`), and when they differ it
+  shows a bar with the new version, a reload button and a ✕. It asks at start,
+  on focus or visibility, on `online`, on `vite:preloadError`, every hour (a
+  user-approved exception to *no polling*, for screens that never get the
+  focus) and on every backend `EV_ON_OPEN`. Wired into gui_agent 0.29.104,
+  gui_treedb 0.17.166, wattyzer, estadodelaire, hidraulia, the two yunovatios
+  GUIs and the `js_gui` template. All are deployed with QA OK. Every SPA
+  deploy script now uploads with `rsync --delete-after --delay-updates`, so a
+  page loaded during an upload never gets an `index.html` whose chunks are not
+  there yet.
 - **The forwarding shims `tools/agent/sync_binaries.py`, `sync_configs.py` and
   `set_start_priorities.py` are removed (BREAKING for a runbook that calls
   them).** The tools ship inside the `yunetas` CLI since 7.8.5 (CLI 0.17.0),
