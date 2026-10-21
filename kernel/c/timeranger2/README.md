@@ -175,10 +175,14 @@ if(rows < 0) {
 - **A base that cannot be read is no base of 0** (that would number the key
   from 1 again): when the cache of the key is built, the key is flagged
   `unlisted`, its loads say `load_failed`, and an append reads it again first,
-  or is refused. A replica that already holds the cells of the key keeps them
-  instead: they sum the master's base, so its numbering stays the master's and
-  its new records keep coming; the purge is applied at the next read that can
-  read the base.
+  or is refused. A replica that already holds the cells of the key is not
+  flagged: its cells sum the rows it counted of the files purged (the master's
+  base, unless it missed a late row of them), so its numbering stays the
+  master's and its new records keep coming; the cells whose files are gone go
+  to its base meanwhile (the live rows are served, the disk freed), and the
+  base is read again, quietly, at every read until it can be. A numbering that
+  then moves (rows it had missed) is said with a WARNING: the records handed
+  meanwhile had g_rowids below the master's.
 - **Refused** (-1, logged, nothing deleted): a cut in the future (it would
   delete the file being written); a topic whose `filename_mask` gives ids that
   do not sort as time (`tranger2_mask_sorts_as_time()`: numeric fields of a

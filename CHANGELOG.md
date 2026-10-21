@@ -67,10 +67,12 @@
       had flagged a file) moves the g_rowids its iterators hold by the same
       amount, and counts it in `renumbered` (`tranger2_topic_key_range()`),
       which the multi-key parts of `C_TRANGER` subtract: no position moves. A
-      replica that cannot read the master's base (EMFILE, EIO) keeps its cells
-      and its numbering, which is the master's, receives its new records, and
-      applies the purge at the next read that can (said once per state of the
-      file). When the directory of a new base cannot be
+      replica that cannot read the master's base (EMFILE, EIO) keeps its
+      numbering and its new records, serves the live rows (the cells whose
+      files are gone go to its base, their descriptors closed), and applies
+      the base at the next read that can (said once per state of the file; a
+      numbering that moves then, because it had missed rows of the files
+      purged, is said with a WARNING). When the directory of a new base cannot be
       fsync'ed the purge is applied and the followers are told; the files
       stay until the next open.
 - **A date in `from_t` / `to_t` is taken to the unit of `t`** (timeranger2,

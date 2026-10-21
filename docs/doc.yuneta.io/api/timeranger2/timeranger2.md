@@ -1201,8 +1201,13 @@ tranger2_delete_key_files(K, before_t = 2000-01-02T00:00:00)   -> 3
   before `upto`, closes their descriptors and takes the segments of its
   iterators again. One that did not hear it (an overflow, no feed, down) finds
   it before its next load or page of the key, with one `stat()` of the key's
-  first md2. Master and followers of a topic upgrade together: an older
-  follower ignores the signal.
+  first md2. A follower that cannot read the base (EMFILE, EIO) is not
+  flagged: it keeps its numbering (its cells sum the master's base, unless it
+  missed a late row of the files purged) and its new records, drops the
+  cells whose files are gone, and reads the base again at every read until it
+  can; a numbering that moves then is said with a WARNING. Master and
+  followers of a topic upgrade together: an older follower ignores the
+  signal.
 - **Cost.** One small file and two `fsync()` per key purged, and two or three
   unlinks per file: 0.9 to 1.8 ms per key on the two yunovatios VMs. The hard
   links `disks/<rt_id>/<key>/<id>.md2` that a dead feed left are removed too.

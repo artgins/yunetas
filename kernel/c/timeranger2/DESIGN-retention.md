@@ -199,6 +199,15 @@ barrier is what forbids it.
   skips it: it never writes.
 - **The base becomes `total.purged`.** `update_totals_of_key_cache()`
   (l. 12765) counts from it.
+- **On a replica that already holds the cells of the key** (as implemented,
+  after the reviews of 2026-10-21), a base it cannot read does NOT flag the
+  key: the cells sum the rows it counted of the files purged, which is the
+  master's base unless it missed a late row of them, so the numbering stays
+  the master's. It keeps receiving the new records, drops the cells whose
+  files are gone (as the purge would), and reads the base again at every
+  read; a numbering that moves when it can (the rows it missed) is said with
+  a WARNING. Flagging it lost the records whose links were consumed while
+  flagged. What follows is the case of a cache being BUILT.
 - **A `.purged` that cannot be read is damage, not a base of 0.** A base of 0
   would renumber the key in silence. The key is flagged **`"unlisted"`**
   (`flag_key_unlisted`, l. 10893), with its own error message, which names

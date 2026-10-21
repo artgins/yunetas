@@ -721,6 +721,12 @@ PRIVATE const char *long_key_of_ref(
     const char *ref
 );
 PRIVATE BOOL key_is_publishing(json_t *topic, const char *key);
+PRIVATE void drop_gone_head_cells(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+);
 PRIVATE void carry_renumbered(json_t *topic, const char *key, json_t *new_key_cache);
 PRIVATE void sweep_deleted_keys_left(hgobj gobj, const char *topic_dir);
 PRIVATE unsigned long long process_start_time(pid_t pid);
@@ -3798,7 +3804,7 @@ PRIVATE int get_topic_rd_fd(
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TRANGER,
                     "msg",          "%s", "Cannot open file to read",
-                    "reason",       "%s", "gone: its key deleted under the reader",
+                    "reason",       "%s", "gone: its key deleted under the reader, or the file purged",
                     "path",         "%s", full_path,
                     NULL
                 );
@@ -5244,6 +5250,50 @@ PRIVATE int drop_flags_of_purged_files(json_t *key_cache, const char *upto)
 }
 
 /***************************************************************************
+ *  CLIENT: a purge whose base cannot be read: the cells at the head of the
+ *  key whose md2 is gone go to its base (`total.purged`), as the purge
+ *  takes them -- the rows they counted, so the numbering does not move --,
+ *  their descriptors are closed, and the iterators take their segments
+ *  again. The live rows are served while the purge waits, and the disk of
+ *  the files gone is freed. The base, read later, corrects whatever these
+ *  cells missed (apply_purge_of_master()).
+ ***************************************************************************/
+PRIVATE void drop_gone_head_cells(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+)
+{
+    json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key);
+    json_t *cache_files = json_object_get(key_cache, "files");
+    const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
+    json_int_t rows_gone = 0;
+    while(json_array_size(cache_files) > 0) {
+        json_t *cell = json_array_get(cache_files, 0);
+        const char *file_id = json_string_value(json_object_get(cell, "id"));
+        char path[PATH_MAX];
+        struct stat st;
+        if(!file_id || !md2_path_of(path, sizeof(path), topic_directory, key, file_id) ||
+                stat(path, &st) == 0 || errno != ENOENT) {
+            break;  // there (or not known gone): the purge stops here
+        }
+        rows_gone += json_integer_value(json_object_get(cell, "rows"));
+        json_array_remove(cache_files, 0);
+    }
+    close_fd_opened_files(gobj, topic, key);
+    if(rows_gone == 0) {
+        return;
+    }
+    json_t *cache_total = json_object_get(key_cache, "total");
+    json_object_set_new(cache_total, "purged", json_integer(
+        json_integer_value(json_object_get(cache_total, "purged")) + rows_gone
+    ));
+    update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
+    retake_segments_after_purge(gobj, tranger, topic, key);
+}
+
+/***************************************************************************
  *  CLIENT: apply what the base of a key says (`keys/<key>/.purged`): the
  *  cells at or before its `upto` go, and its `rows` is the base the key
  *  counts from. Idempotent: a base already applied changes nothing, so the
@@ -5292,11 +5342,16 @@ PRIVATE void apply_purge_of_master(
     }
     /*
      *  A base that cannot be read now (EMFILE, EIO, a file being replaced)
-     *  leaves the key as it is: its cells sum the master's base, so the
-     *  numbering of its new records stays the master's, and the purge is
-     *  applied at the next try that reads it -- a load, a page, the next
-     *  signal. Flagged instead, the key would refuse its new records while
-     *  their links were consumed, and lose them. Said once per state of the
+     *  does not flag the key: its cells sum the rows it counted of the files
+     *  purged, which is the master's base unless it missed some of them (a
+     *  late row appended into a file and purged before this replica read
+     *  it), so the numbering of its new records stays the master's, and the
+     *  purge is applied at the next try that reads the base -- a load, a
+     *  page, the next signal. Flagged instead, the key would refuse its new
+     *  records while their links were consumed, and lose them. Meanwhile the
+     *  cells at its head whose files are gone go to its base, as the purge
+     *  would take them: the same numbering, the live rows served, and their
+     *  descriptors closed (they held the disk). Said once per state of the
      *  file, the retries are quiet
      */
     struct stat st_purged;
@@ -5324,9 +5379,11 @@ PRIVATE void apply_purge_of_master(
         } else {
             JSON_DECREF(jn_state)
         }
+        drop_gone_head_cells(gobj, tranger, topic, key);
         return;
     }
     JSON_DECREF(jn_state)
+    BOOL waited = failed_state? TRUE : FALSE;
     if(failed_state) {
         json_object_del(key_cache, "purged_read_failed");
         gobj_log_info(gobj, 0,
@@ -5382,6 +5439,23 @@ PRIVATE void apply_purge_of_master(
 
     json_int_t delta = (purged - old_purged) - rows_removed;
     if(delta != 0) {
+        if(waited) {
+            /*
+             *  The records this replica handed while the purge waited were
+             *  numbered without the rows it had missed of the files purged:
+             *  their g_rowids are `delta` below the master's (a consumer that
+             *  dedups by them may meet the same number twice)
+             */
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "The purge waited for its base and the numbering moved: the records handed meanwhile had g_rowids below the master's",
+                "topic",        "%s", tranger2_topic_name(topic),
+                "key",          "%s", key,
+                "delta",        "%ld", (long)delta,
+                NULL
+            );
+        }
         /*
          *  Counted in the totals (`renumbered`, from tranger2_topic_key_range()):
          *  whoever keeps positions of the key outside its iterators (the parts
@@ -5444,6 +5518,10 @@ PRIVATE void check_purge_before_read(
         return;     // a master purges itself; a key being published: its next read
     }
     json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key);
+    if(json_object_get(key_cache, "purged_read_failed")) {
+        apply_purge_of_master(gobj, tranger, topic, key);  // a base that could not be read: tried again, quiet
+        return;
+    }
     json_t *first_cell = json_array_get(json_object_get(key_cache, "files"), 0);
     const char *ids[2] = {
         json_string_value(json_object_get(first_cell, "id")),

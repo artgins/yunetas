@@ -568,6 +568,9 @@ PRIVATE int do_test(void)
         result += expect_int("master append", append_one(tm, 6, DAY3 + 100, "C3"), 7);
         drain(30);
         result += expect("the feed got it", got, "C3:7");
+        /*  Read while it waits: the live rows, the files gone left out  */
+        served(tf, TOPIC_NAME, KEY6, bf, sizeof(bf));
+        result += expect("read while the purge waits", bf, "B1:3 B2:4 C1:5 C2:6 C3:7");
         result += test_json(NULL);
 
         set_expected_results(
