@@ -1,8 +1,11 @@
 # Design: retention — deleting the old files of a key, with `g_rowid` intact
 
-Status: **APPROVED** (2026-10-21), not implemented yet. The open questions
-are decided (§11), and two guards were added to the proposal (§4.1). Line
-numbers are those of `timeranger2.c` at `ff48d4f75`.
+Status: **IMPLEMENTED** (2026-10-21, `bd3fdce51` the master, `83a771089` the
+followers, `ffee7cd3f` the `C_TRANGER` command), to be released. Approved the
+same day; the open questions are decided (§11), and two guards were added to
+the proposal (§4.1). Where the implementation differs from the proposal, the
+text says so (§4.5, §8). Line numbers are those of `timeranger2.c` at
+`ff48d4f75`, before the change.
 
 ## 1. The problem
 
@@ -222,10 +225,14 @@ record of what was heard, no overflow bookkeeping.
   `.purged` of the key, drops its cells, sets the base, and retakes the
   segments of its iterators. Without that it would serve stale cells until it
   restarts.
-- **The safety net** covers a lost signal: an overflow, or a follower that was
-  down. When a follower finds an md2 missing (`ENOENT`) while it reads a key,
-  it reads `.purged` before it flags the file. If the file is at or before
-  `upto`, it applies the purge and goes on, and nothing is flagged.
+- **The safety net** covers a lost signal: an overflow, a follower with no
+  feed, or one that was down. **As implemented**, it runs BEFORE every load
+  and page of a key on a replica (`check_purge_before_read()`), not on the
+  `ENOENT` inside the read as proposed: applied in the middle of a scan, the
+  purge would retake, and free, the segments the scan walks. A purge deletes
+  a prefix of the files of a key, so one `stat()` of the md2 of the first
+  cell tells whether one happened; when it is gone, the follower reads
+  `.purged` and applies it, and the read goes on with the right cells.
 - **The numbering of a follower is right even before it hears.** The base is
   exactly the sum of the rows of the cells the follower still holds, so its
   `file_base` for a new record is the master's.
@@ -252,7 +259,7 @@ that takes `total.rows` as the last rowid takes `purged + rows`.
 | `tranger2_match_metadata` (l. 14461) | the same resolution | the same change |
 | `first_segment_row` (l. 14703) | the same resolution, twice | the same change |
 | `tranger2_iterator_get_page`, unfiltered (l. 13727) | `from_rowid` is a global rowid in `1..total` | a **position** in `1..rows`, read as `g_rowid = purged + position`: what a filtered iterator already does with its index |
-| `key_cache_stamp` (l. 13875) | rows, files, last file | adds `purged`. The purge also calls the retake |
+| `key_cache_stamp` (l. 13875) | rows, files, last file | unchanged (as implemented): a purge always changes the files, and calls the retake itself. Adding `purged` changed the stamp of every key never purged |
 | `update_totals_of_key_cache` (l. 12765) | sums the cells | sums the cells. `purged` is kept apart |
 
 The four resolutions marked `WARNING adjust REPEATED` (l. 14134, 14477, 14712,
@@ -373,7 +380,7 @@ is possible later, once two owners have written the same loop.
 | `timeranger2.c` | `tranger2_delete_key_files()`; `.purged` in `load_key_cache_from_disk()`; `purged` in the totals; the rowid resolutions (§4.6) in one helper; the append refusal (§4.7); the `.p.` signal and the follower's handler; the `ENOENT` safety net |
 | `timeranger2.h` | the declaration and its contract |
 | `c_tranger.c` | `delete-key-files` |
-| `tr2keys`, `tr2list` | show `purged` |
+| `tr2keys`, `tr2list` | nothing (as implemented): `tr2keys` prints only the names of the keys, `tr2list` the records with their `g_rowid`, already right. `list-keys` of `C_TRANGER` gives `purged` |
 | Docs | README (the third row of *Two delete granularities*, the base, the followers); `YUNO_TREEDB.md` §2.3 (the contract does not change; the range of rowids does); doc.yuneta.io API pages; CHANGELOG |
 
 ## 9. Tests (`tests/c/timeranger2/`)

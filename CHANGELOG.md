@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- **Retention: `tranger2_delete_key_files()` deletes the old files of a key
+  and keeps every `g_rowid`** (timeranger2; design in
+  `kernel/c/timeranger2/DESIGN-retention.md`). No store could free its old
+  part: a `g_rowid` is a position computed from the files of a key, so
+  deleting the first ones renumbered the rest, against the documented
+  contract, and a follower was never told a file went away. Asked for by a
+  project that must keep 30 days of readings.
+    - The rows deleted go to the base of the key, `keys/<key>/.purged`,
+      written durable (an `fsync()` of the file and of its directory) BEFORE
+      any file is deleted. A crash leaves the key as it was, or purged, never
+      renumbered: the next open of the master removes the files the base
+      already counts.
+    - The cut is by file and by the time of the append: at least the period
+      asked for is kept, and at most one file more. Refused: a cut in the
+      future, a topic whose `filename_mask` has no year (a queue), a key
+      whose cells are not whole. An append into a purged period is refused.
+    - The rowid bounds of a match_cond and the positions of a page count
+      from the base. The four copies of the rowid resolution (`WARNING
+      adjust REPEATED`) are one pair of helpers.
+    - `tranger2_topic_key_range()` gives `"purged"`, and so does `list-keys`.
+    - Followers hear `disks/<rt_id>/.p.<key>` and apply the base: the cells
+      go, their descriptors are closed (they held the disk), the iterators
+      take their segments again. A signal not heard is made up for before
+      the next load or page (one `stat()` of the key's first file). **Master
+      and followers of a topic upgrade together**; an older follower ignores
+      the signal and reads the purged files as gone.
+    - **Downgrade** after a purge: an older SDK ignores `.purged` and numbers
+      a purged key from 1 again. Nothing crashes, but every `g_rowid` of a
+      purged key moves.
+    - `C_TRANGER` command `delete-key-files topic_name= [key=] before=`
+      (master-only, permission `delete`), for a purge by hand.
+    - A store never purged is read as before, byte for byte.
 - **The `yunetas` CLI 0.22.0** (`utils/python/tui_yunetas`, on PyPI):
     - The deploy tools exit with `1` when a push failed. They exited `0`, so
       `yunetas sync` pushed the configs after a failed binaries pass.

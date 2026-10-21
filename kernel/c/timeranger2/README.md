@@ -18,7 +18,10 @@ tranger2_topic_key_size(...) / tranger2_topic_key_range(...)
 
 Every call to `tranger2_append_record()` writes one record to disk,
 increments the per-key `g_rowid` (monotonic, never resets) and
-`i_rowid` (row in the md2 file). TreeDB relies on this for its
+`i_rowid` (row in the md2 file). A purge of the old files of a key
+(`tranger2_delete_key_files()`, below) keeps that promise: the records left
+keep their `g_rowid`, and the live rowids of the key start after the rows it
+took. TreeDB relies on this for its
 link/unlink semantics — see `CLAUDE.md` for the full rules.
 
 ## Two time axes: `t` and `tm`
@@ -106,7 +109,7 @@ for the full timeranger2 + treedb walkthrough (mental model, on-disk
 layout, master/non-master locking, snapshots, the cross-yuno
 `rt_by_disk` pattern, sharp edges and recipes).
 
-## Two delete granularities (record vs instance)
+## Three delete granularities (record, old files, instance)
 
 In timeranger2 the data model is **two-level**:
 
@@ -122,7 +125,79 @@ instances.
 | Granularity | API | What it does |
 |---|---|---|
 | Whole record (key + all instances) | **`tranger2_delete_key`** (was `tranger2_delete_record` before 2026-05-25; legacy alias kept in `timeranger2.h`) | `rmrdir` of `keys/<key>/` + drop from `topic_cache` + propagate to in-process subscribers + a delete signal `disks/<rt_id>/.d<seq>.<key>` (the topic's delete sequence) for `rt_by_disk` followers. Irrecoverable. |
+| The old files of a key | **`tranger2_delete_key_files`** (7.27.5) | Retention: deletes every file of the key whose id sorts before the file of `before_t`, and keeps every `g_rowid` where it was. The rows deleted go to the base of the key, `keys/<key>/.purged`, made durable before any file goes. Followers hear `disks/<rt_id>/.p.<key>`. Master-only. See [Retention](#retention-the-old-files-of-a-key) below. |
 | One instance | **`tranger2_delete_instance`** (2026-05-26) | Mutates the `.md2` row in place with `sf_deleted_instance = 0x0400` (inherited side, followers see the same tombstone). Optional `zero_payload` overwrites the matching bytes in the data `.json` for sensitive-data wipes. Read paths skip dead rows; rowids do NOT renumber. Master-only, idempotent. |
+
+### Retention: the old files of a key
+
+`tranger2_delete_key_files(tranger, topic, key, before_t)` frees the disk of
+the old part of a key while the topic is open, without renumbering it. It is
+what a retention period ("keep 30 days of readings") is made of. The design,
+and why it is made this way, is in [`DESIGN-retention.md`](DESIGN-retention.md).
+
+```c
+/*
+ *  Keep 30 days of `raw_tracks` of one device: delete the files whose
+ *  records were all appended before now - 30 days (a topic in seconds)
+ */
+json_int_t rows = tranger2_delete_key_files(
+    tranger, "raw_tracks", device_id, time_in_seconds() - 30*86400
+);
+if(rows < 0) {
+    // Error already logged: nothing deleted
+}
+```
+
+- **The cut is by file and by the time of the append.** A file goes when its id
+  sorts before the id of the file `before_t` would go to. No row is read, and
+  `tm` plays no part: at least the period asked for is kept, and at most one
+  file more (with `%Y-%m-%d`, "30 days" keeps 30 to 31).
+- **`g_rowid` does not move.** The rows deleted are counted in the base of the
+  key, `keys/<key>/.purged` (`{"upto": "<last file id deleted>", "rows": N,
+  "t": <when>}`). The live rowids of the key are `purged+1 .. purged+rows`;
+  `tranger2_topic_key_size()` counts the live rows, and
+  `tranger2_topic_key_range()` adds `"purged": N`. A rowid bound of a
+  match_cond counts from the base, and so do the positions of a page: position
+  N of an unfiltered iterator is `g_rowid = purged + N`.
+- **Crash-safe.** The base is written with an `fsync()` of the file and of its
+  directory BEFORE any file is deleted. A crash before it leaves the key as it
+  was (a `.purged.new` left is removed at the next open); a crash after it
+  leaves files the base already counts, and the next open of the master
+  removes them. A replica skips them.
+- **A base that cannot be read is no base of 0** (that would number the key
+  from 1 again): the key is flagged `unlisted`, its loads say `load_failed`, and
+  an append reads it again first, or is refused.
+- **Refused** (-1, logged, nothing deleted): a cut in the future (it would
+  delete the file being written), a topic whose `filename_mask` has no absolute
+  year (`%Y`, `%G`, `%F`, `%s`; a tr_queue topic is `"queue"`), and a key whose
+  cells are not whole (flagged unlisted, or an unreadable file in the period).
+  Afterwards an append whose `__t__` falls in a purged period is refused.
+- **A key purged whole** (silent for longer than the retention) keeps its
+  directory and its base, with 0 rows, and goes on numbering.
+  `tranger2_delete_key()` removes the base with the key.
+- **Followers.** The master makes and removes `disks/<rt_id>/.p.<key>` (`.q.<sha256>`
+  for a key too long for the name) in every feed directory. A follower that
+  hears it reads the base, drops the cells at or before `upto`, closes their
+  descriptors (they hold the disk) and takes the segments of its iterators
+  again. A signal it did not hear is made up for before its next load or page
+  of the key: a purge deletes a prefix of the files, so one `stat()` of the
+  first file tells. Master and followers of a topic upgrade together.
+- **Cost.** One small file and two `fsync()` per key purged, plus two or three
+  unlinks per file: about 1-2 ms per key on the slowest node measured. A topic
+  of thousands of keys is purged a slice of keys per tick by its owner, on its
+  own timer: timeranger2 has no timer, and the period to keep is the owner's
+  configuration.
+
+By hand, `C_TRANGER` has the command (master-only, permission `delete`):
+
+```
+command-yuno id=<yuno> service=tranger command=delete-key-files topic_name=raw_tracks key=<device> before=2026-09-21T00:00:00
+command-yuno id=<yuno> service=tranger command=delete-key-files topic_name=raw_tracks before=1790035200
+```
+
+Without `key=` it walks every key of the topic in one call. Tests:
+`tests/c/timeranger2/test_delete_key_files.c` (the master: numbering, bounds,
+pages, the guards, the crash cases) and `test_delete_key_files_follower.c`.
 
 ### Path-traversal hardening (since 7.6.0)
 
@@ -479,7 +554,7 @@ segments until 7.25.4), a filtered one pages an empty index.
 ### What a realtime feed hands its callback
 
 The rowid a feed delivers is the key's **global `g_rowid`** — the one that
-never resets — not the row's position in the `.md2` file it happens to live in
+never resets, not even when the old files of the key are purged — not the row's position in the `.md2` file it happens to live in
 (that one is `i_rowid`, and it restarts at 1 with every new file). A consumer
 may therefore dedupe or page by it across a file rotation.
 

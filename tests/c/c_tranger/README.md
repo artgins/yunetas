@@ -19,7 +19,10 @@ What it checks:
   refused to another (`-403`), and through the agent's one link a handle of
   one user refused to another user.
 - **Writes** -- `add-record` asks `write`, answers `-403` on a refusal, and
-  appends a dict or its json text; `delete-key` with `force`.
+  appends a dict or its json text; `delete-key` with `force`;
+  `delete-key-files` by date, by an integer and of every key, its `purged` in
+  `list-keys`, and its refusals (a `before` in the future, no date, none, a
+  key not there).
 - **A peer's data** (phases *"a peer's data is refused"* and *"more of a
   peer's data is refused"*). Each case is sent with a `__username__` in the
   kw, as `C_IEVENT_SRV` delivers a peer's command, and each refusal is

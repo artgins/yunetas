@@ -1080,6 +1080,133 @@ so existing callers keep compiling unchanged. New code must use
 
 ---
 
+(tranger2_delete_key_files)=
+## [`tranger2_delete_key_files()`](https://github.com/artgins/yunetas/blob/7.27.4/kernel/c/timeranger2/src/timeranger2.c#L5801)
+
+The `tranger2_delete_key_files()` function deletes the OLD FILES of a key and
+keeps the `g_rowid` of every record left. It is the third delete granularity,
+between a whole key ([`tranger2_delete_key()`](#tranger2_delete_key)) and one
+instance ([`tranger2_delete_instance()`](#tranger2_delete_instance)), and it is
+what a retention period is made of. Only the master can delete. The design is
+in `kernel/c/timeranger2/DESIGN-retention.md`.
+
+It deletes every file of the key whose id sorts **before** the id of the file
+that `before_t` would go to. The cut is by file and by the time of the append
+(`__t__`), never by `tm`, and no row is read: at least the period asked for is
+kept, and at most one file more. With `filename_mask` `%Y-%m-%d`, "30 days"
+keeps 30 to 31 days.
+
+The rows deleted go to the **base** of the key, `keys/<key>/.purged`:
+
+```json
+{"upto": "2026-09-20", "rows": 1823411, "t": 1792573238}
+```
+
+The base is written with an `fsync()` of the file and of its directory
+**before** any file is deleted, so a crash leaves the key as it was or purged,
+never renumbered. The live rowids of the key are then `purged+1 ..
+purged+rows`, and:
+
+- [`tranger2_topic_key_size()`](#tranger2_topic_key_size) counts the live rows;
+- [`tranger2_topic_key_range()`](#tranger2_topic_key_range) adds `"purged"`;
+- a `from_rowid` / `to_rowid` of a match_cond counts from the base (a positive
+  bound inside the purged rows is taken to the first live one), and a negative
+  one from the end, as before;
+- position N of a page of an unfiltered iterator is `g_rowid = purged + N`;
+- the next append gets `purged + rows + 1`.
+
+```C
+json_int_t tranger2_delete_key_files(
+    json_t      *tranger,
+    const char  *topic_name,
+    const char  *key,
+    uint64_t    before_t
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | A pointer to the TimeRanger database instance. It must be the master. |
+| `topic_name` | `const char *` | The topic of the key. Its `filename_mask` must have an absolute year (`%Y`, `%G`, `%F` or `%s`). |
+| `key` | `const char *` | The key whose old files are deleted. |
+| `before_t` | `uint64_t` | The cut, in the topic's unit of `t` (milliseconds with `sf_t_ms`). The files of the records appended before the period of `before_t` are deleted. |
+
+**Returns**
+
+The rows deleted, `0` when there was nothing to delete, or `-1` (logged) on
+error, with nothing deleted.
+
+**Example**
+
+```C
+/*
+ *  Retention of 30 days on a topic of one file a day (in seconds), a slice
+ *  of the keys per tick of the owner's timer
+ */
+uint64_t cut = time_in_seconds() - 30*86400;
+json_t *keys = tranger2_list_keys(tranger, "raw_tracks");
+size_t n = json_array_size(keys);
+for(size_t i = priv->purge_cursor; i < n && i < priv->purge_cursor + 100; i++) {
+    const char *key = json_string_value(json_array_get(keys, i));
+    if(tranger2_delete_key_files(tranger, "raw_tracks", key, cut) < 0) {
+        // Error already logged: this key is as it was
+    }
+}
+priv->purge_cursor += 100;
+if(priv->purge_cursor >= n) {
+    priv->purge_cursor = 0;     // the next tick starts the next round
+}
+JSON_DECREF(keys)
+```
+
+```text
+key K: files 2000-01-01 (rows 1-3), 2000-01-02 (4-6), 2000-01-03 (7-9)
+tranger2_delete_key_files(K, before_t = 2000-01-02T00:00:00)   -> 3
+    files left: 2000-01-02 (4-6), 2000-01-03 (7-9), base {upto 2000-01-01, rows 3}
+    tranger2_topic_key_size(K) -> 6, the next append -> g_rowid 10
+    from_rowid 1 or 3 -> from 4;  from_rowid -1 -> 10;  to_rowid 3 -> nothing
+```
+
+**Notes**
+
+- **Refused** with `-1`, logged, nothing deleted: a cut in the future (its file
+  sorts after the file of now: the file being written would go, and every
+  append of the period after); a `filename_mask` with no absolute year (the
+  `"queue"` of a tr_queue topic, a cyclic `%a`); a key flagged `unlisted`, or
+  with a file flagged unreadable in the period cut (its rows are in no cell,
+  and the base would miss them); a key not in the cache; a replica.
+- **An append into a purged period is refused** afterwards (*"Cannot append
+  record, it falls in a purged period of its key"*): its file would be taken
+  for a purged one at the next open. Appends with `__t__ = 0` (now) never meet
+  it.
+- **A key purged whole** keeps its directory and its base, with 0 rows, and a
+  new append continues the numbering. `tranger2_delete_key()` removes the base
+  with the key, and a key written again starts at 1.
+- **At the open**, the files at or before `upto` are not counted: the master
+  removes the ones a crash left behind (and a `.purged.new`, a purge that did
+  not happen), a replica skips them. A `.purged` that cannot be read flags the
+  key `unlisted` (*"The base of a purged key cannot be read"*): it is not a base
+  of 0, which would number the key from 1 again.
+- **Followers.** The master makes and removes `disks/<rt_id>/.p.<key>`
+  (`.q.<sha256>` for a key longer than NAME_MAX - 23 bytes) in every feed
+  directory. A follower that hears it reads the base, drops the cells at or
+  before `upto`, closes their descriptors and takes the segments of its
+  iterators again. One that did not hear it (an overflow, no feed, down) finds
+  it before its next load or page of the key, with one `stat()` of the key's
+  first md2. Master and followers of a topic upgrade together: an older
+  follower ignores the signal.
+- **Cost.** One small file and two `fsync()` per key purged, and two or three
+  unlinks per file: 0.9 to 1.8 ms per key on the two yunovatios VMs. The hard
+  links `disks/<rt_id>/<key>/<id>.md2` that a dead feed left are removed too.
+- When the directory of the base cannot be `fsync()`ed after its rename, the
+  cache is purged but the files stay until the next open, and the call answers
+  `-1`.
+- By hand: the `delete-key-files` command of [`C_TRANGER`](#gclass-c-tranger).
+
+---
+
 (tranger2_delete_instance)=
 ## [`tranger2_delete_instance()`](https://github.com/artgins/yunetas/blob/7.27.4/kernel/c/timeranger2/src/timeranger2.c#L5973)
 

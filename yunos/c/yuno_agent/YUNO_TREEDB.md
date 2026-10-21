@@ -155,7 +155,7 @@ Two rowids per record, both maintained **only** by timeranger2:
 
 | Name        | Meaning                                                              |
 |-------------|----------------------------------------------------------------------|
-| `g_rowid`   | Global rowid for that key — cumulative across all files, never reset |
+| `g_rowid`   | Global rowid for that key — cumulative across all files, never reset (not even when its old files are purged: the live ones are then `purged+1 .. purged+rows`, see `tranger2_delete_key_files()`) |
 | `i_rowid`   | Rowid within the current `.md2` file — `(offset / sizeof(md2_record_t)) + 1` |
 
 [`tranger2_append_record`](#tranger2_append_record) ([`timeranger2.c:2332`](https://github.com/artgins/yunetas/blob/7.27.4/kernel/c/timeranger2/src/timeranger2.c#L2332)) computes both and

@@ -84,18 +84,14 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 ## 3. Decisions pending
 
-- **Retention: delete the old files of a key with `g_rowid` intact**
-  (design **approved** 2026-10-21, to implement:
+- **Retention: release and A/B** (implemented 2026-10-21,
+  `tranger2_delete_key_files()`, design in
   [`kernel/c/timeranger2/DESIGN-retention.md`](kernel/c/timeranger2/DESIGN-retention.md)).
-  No store can free its old part today: `g_rowid` is a position computed from
-  the key's files, so deleting the first ones renumbers the rest, and a
-  follower is never told a file went away. The design:
-  `tranger2_delete_key_files()`, a per-key base in `keys/<key>/.purged`
-  with an `fsync` barrier per key (measured: at most 1.8 ms per key), an
-  unreadable base flags the key `unlisted`, and two guards (no cut in the
-  future, no mask without a year). Needs a full release (every yuno links
-  it) and an A/B of the append path. Asked for by a project that must keep
-  30 days of readings.
+  Left: the full release (every yuno links timeranger2; master and followers
+  of a topic upgrade together), with an A/B of the append path against
+  7.27.4 (one more lookup per append). The policy, the period to keep and
+  the slice of keys per tick, is the owner's: the project that asked for it
+  writes it in its own yunos.
 - **C_TRANGER handles opened through the agent are not reaped** (**FUTURE**,
   user 2026-10-03: not now, no stop-gap; do not raise it as pending) when the
   operator's session ends (documented in `api/gclass/data.md`). A
