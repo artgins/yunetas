@@ -1,0 +1,398 @@
+# Design: retention — deleting the old files of a key, with `g_rowid` intact
+
+Status: **PROPOSAL**, not implemented. Line numbers are those of
+`timeranger2.c` at `ff48d4f75`.
+
+## 1. The problem
+
+A timeranger2 store grows for ever. Nothing in the SDK can free the old part
+of a topic that is in use, and no project does it today: the history stores of
+the production yunos (`db_tracks`, `db_history`) keep every record they ever
+wrote. A telemetry node that appends a few hundred records per second fills its
+disk in days, and a retention period ("keep 30 days of readings") is a common
+requirement of such systems.
+
+What exists deletes either too much or too little:
+
+| Primitive | What it frees | Why it is not retention |
+|---|---|---|
+| `tranger2_backup_topic()` (from timeranger v1) | the whole topic: renamed to `.bak`, created again empty | it drops everything at once, so it cannot keep "the last N days". Queues use it (`trq_check_backup`), and so do the `frames` topics of some gates |
+| `tranger2_delete_key()` | one whole key | the key is the entity (a device, a user): it cannot go. `webstats` uses it because it makes one key per day |
+| `tranger2_delete_instance()` | nothing: it tombstones one row | no disk is freed |
+
+Retention needs a third granularity: **the old files of a key**.
+
+## 2. Why it cannot be done today: `g_rowid` is a position
+
+The global rowid of a record is not stored anywhere. It is computed as the rows
+of the files before its file plus its row in that file
+(`update_new_record_from_mem`, l. 12701; the followers, l. 10135). The files of
+a key are kept in the order of their names (`cmp_file_ids`, l. 10563).
+Removing the first files of a key therefore renumbers every record after them,
+as soon as the cache is built again.
+
+The SDK documents the opposite, and it is the right contract:
+
+- *"increments the per-key `g_rowid` (monotonic, never resets)"* (README,
+  l. 20);
+- *"may therefore dedupe or page by it across a file rotation"* (README,
+  l. 481);
+- *"cumulative across all files, never reset"* (`YUNO_TREEDB.md` §2.3).
+
+The contract holds today only because nothing deletes the first files of a
+key. Retention must keep it.
+
+What would break if `g_rowid` were renumbered:
+
+- **Iterators.** They keep segments in global rowids, and a filtered
+  iterator keeps an index of global rowids built at its open.
+  `key_cache_stamp` (l. 13875) assumes that *"while the key lives its cells
+  only grow"*.
+- **Paging by `(key, rowid)`.** `c_tranger`'s multi-key pages promise that an
+  append never makes a page skip a row, and a client dedups by that pair.
+- **Lists that keep a `g_rowid`** in memory (`trmsg_data_tree` in
+  `tr_msg.c`).
+- **Followers in another process.** They are never told that a file went
+  away: `client_fs_callback` ignores `FS_FILE_DELETED` (l. 8116). Their
+  cache keeps the cells, so their rowids differ from the master's, and a read
+  of a deleted file flags it unreadable (`load_failed`).
+
+What does not depend on it:
+
+- The rt_disk watermarks: they count inside each file (`i_rowid`, l.
+  10033-10076).
+- The flag, read and `delete_instance` calls: they take `(key, __t__,
+  i_rowid)`.
+- Negative rowids: they are resolved against the end, on every call.
+- Conditions on `t` and `tm`.
+- Queues and the MQTT store: they keep `first_rowid` in `topic_var.json`, but
+  their mask is `"queue"`, one file.
+- Treedb topics: they are not retention targets.
+
+## 3. Goals and non-goals
+
+Goals:
+
+1. Free the disk of the old part of a key while the topic is open, on a master
+   with live followers in other processes.
+2. **`g_rowid` keeps its contract**: cumulative, never reused, never moved.
+3. **Crash-safe**: a kill or a power cut at any point leaves the key either as
+   it was or purged, never renumbered.
+4. A store that was never purged is byte for byte what it is today, and is read
+   exactly as today.
+
+Non-goals:
+
+- **Retention by `tm`.** Files are cut by `__t__`, and a `tm` condition reads
+  every row (README, *Two time axes*). Retention is by the time of the append.
+- **Policy.** How long each topic keeps, and when the purge runs, belong to
+  the owner of the store (§7).
+- **Compaction or downsampling.** That is the application's job: it writes its
+  aggregates to another topic.
+- **Queues.** They rotate whole, by `trq_check_backup`.
+
+## 4. The design
+
+### 4.1 What is deleted: whole files, chosen by their name
+
+`tranger2_delete_key_files(tranger, topic, key, before_t)` deletes every file
+of the key whose id sorts **before** the id of the file that `before_t` would
+go to, `get_file_id(before_t)` (l. 3301). The order is `cmp_file_ids()`, the
+same order that numbers the rows.
+
+- **No row is read.** The file id says it all. The `to_t` of a cache cell
+  would not: it comes from the first and last rows, and a file with a late
+  record (`.unordered`) holds a `t` past its last row.
+- **It is exact for late records.** A record goes to the file of its own
+  `__t__`, so every record of a file before the cut has a `t` before the
+  period of `before_t`.
+- **The granularity is the file.** At least the period asked for is kept, and
+  at most one file more. With `%Y-%m-%d`, "30 days" keeps 30 to 31 days.
+- **It needs a mask whose ids sort as time.** The masks in use do:
+  `%Y-%m-%d`, `%Y-%m`, `%Y`, and a fixed prefix in front of any of them. A
+  mask like `%d-%m-%Y` sorts wrong already, and so do its rowids.
+- **A queue is safe by construction.** With the mask `"queue"` nothing sorts
+  before the cut, so nothing is deleted.
+
+### 4.2 The base of a key: `keys/<key>/.purged`
+
+The rows that a key has lost are recorded in a file of the key:
+
+```json
+{"upto": "tracks-2026-09-20", "rows": 1823411, "t": 1792573238}
+```
+
+- `upto` is the last file id deleted. A file whose id sorts at or before it
+  is gone, or about to be.
+- `rows` is how many rows those files held, as the cache counted them.
+- `t` is when the last purge happened. It is informational.
+
+In the cache, the key's totals get **`purged`**, the base. **`total.rows`
+stays the live count**: the rows that can be read, which is what
+`tranger2_topic_key_size()`, `tranger2_topic_size()`, `list-keys` and the
+page counts already mean by it. The last `g_rowid` of the key is `purged +
+rows`, and the live rowids are `purged+1 .. purged+rows`.
+
+The name starts with `.`. No file id can collide with it (a key cannot start
+with `.` either), the listing of a replica takes only `*.md2` (l. 11350), and
+the master's listing skips anything that is not `.md2` (l. 11365).
+`tranger2_delete_key()` removes it with the key, so a key that is written
+again starts from 1, as it does today.
+
+A key with no `.purged` has base 0: every store that exists today.
+
+### 4.3 The operation, step by step (master only)
+
+1. **Choose.** Walk the cells from the first while their id sorts before the
+   cut. If there are none, return 0. Add up their rows.
+2. **Decide.** Write the new base (`upto` = the last chosen id, `rows` = old
+   base + the sum) to `.purged.new`, `fsync()` it, `rename()` it to
+   `.purged`, and `fsync()` the directory. This is the same replacement as
+   `topic_var.json` (README, *`topic_var.json` is replaced*). **From here the
+   purge has happened.**
+3. **Delete.** Close the open fds of those files (`close_fd_opened_files`
+   does the key). For each chosen file, remove `<id>.json`, `<id>.md2` and
+   any `<id>.unordered`, and remove the hard links `disks/<rt_id>/<key>/<id>.md2`
+   that a feed has not consumed: a dead follower leaves them, and they would
+   keep the inode alive.
+4. **Cache.** Drop the cells, set `total.purged`, recompute the totals,
+   `retake_segments_of_key()` (l. 13926, the path that unreadable files
+   already use), and drop the rt_disk watermarks of the deleted files.
+5. **Tell the followers** (§4.5).
+
+The function returns the rows it deleted (0 when there was nothing to do), or
+-1, logged.
+
+**Crash safety.** Nothing is deleted before step 2 is durable.
+
+- A crash before the `rename()` leaves the key as it was. A left-over
+  `.purged.new` is removed at the next open.
+- A crash after it leaves a base that already counts files still on disk. The
+  open finishes the job (§4.4).
+
+The only state that could renumber the key — files gone, base not counting
+them — needs an unlink to reach the disk before the rename, and the fsync
+barrier is what forbids it.
+
+### 4.4 The open reads the base
+
+`load_key_cache_from_disk()` (l. 11320) reads `.purged` first.
+
+- **Every md2 whose id sorts at or before `upto` is not counted.** A master
+  removes it with its content, finishing a purge that a crash cut. A replica
+  skips it: it never writes.
+- **The base becomes `total.purged`.** `update_totals_of_key_cache()`
+  (l. 12765) counts from it.
+- **A `.purged` that cannot be read is damage, not a base of 0.** A base of 0
+  would renumber the key in silence. The key is flagged (`"unlisted"` or a
+  new flag), its loads say `load_failed`, and appends to it are refused, the
+  way an unreadable md2 is handled today.
+
+### 4.5 Followers: one signal, no sequence
+
+A purge is **idempotent and convergent**. The state of a purged key is
+entirely its `.purged`, and applying it means: drop every cell at or before
+`upto`, and take `rows` as the base. Applied twice, or late, it gives the same
+result. So unlike a key delete, it needs no delete sequence: no ordering, no
+record of what was heard, no overflow bookkeeping.
+
+- **The signal.** After step 4 the master creates and removes
+  `disks/<rt_id>/.p.<key>` in every feed directory, as `mirror_key_delete_to_disks()`
+  does with its delete signal. A key too long for the name uses the same
+  `.h`-style hash form as the delete signal.
+- **The follower** hears `FS_SUBDIR_DELETED_TYPE` of a `.p.` name, reads
+  `.purged` of the key, drops its cells, sets the base, and retakes the
+  segments of its iterators. Without that it would serve stale cells until it
+  restarts.
+- **The safety net** covers a lost signal: an overflow, or a follower that was
+  down. When a follower finds an md2 missing (`ENOENT`) while it reads a key,
+  it reads `.purged` before it flags the file. If the file is at or before
+  `upto`, it applies the purge and goes on, and nothing is flagged.
+- **The numbering of a follower is right even before it hears.** The base is
+  exactly the sum of the rows of the cells the follower still holds, so its
+  `file_base` for a new record is the master's.
+- **A follower from before this change** ignores a dot name it cannot parse
+  (*"no signal of ours"*, l. 7907). It works through the safety net only if it
+  has it. Without it, it flags the deleted files unreadable. **Master and
+  followers of a topic upgrade together**, as with the delete sequence of
+  7.26.0.
+
+### 4.6 Rowids in the readers
+
+Every place that takes `1` as the first rowid takes `purged + 1`. Every place
+that takes `total.rows` as the last rowid takes `purged + rows`.
+
+| Where | Today | With a base |
+|---|---|---|
+| `find_cell_in_key_cache` (l. 10621): fast path | `file_base = total.rows - last.rows` | adds `purged` |
+| `find_cell_in_key_cache`: walk from the first cell | `file_base = 0` | starts at `purged` |
+| `get_segments` (l. 14064): `from_rowid` 0, or below the first | `1` | `purged + 1` |
+| `get_segments`: negative bounds | `total + n + 1` | `purged + rows + n + 1`, clamped to `purged + 1` |
+| `get_segments`: positive bound past the end | `> total` | `> purged + rows` |
+| `get_segments`: forward walk (l. 14363) | `partial_rows2 = 1` | `purged + 1` |
+| `get_segments`: backward walk (l. 14395) | `partial_rows2 = total` | `purged + rows` |
+| `tranger2_match_metadata` (l. 14461) | the same resolution | the same change |
+| `first_segment_row` (l. 14703) | the same resolution, twice | the same change |
+| `tranger2_iterator_get_page`, unfiltered (l. 13727) | `from_rowid` is a global rowid in `1..total` | a **position** in `1..rows`, read as `g_rowid = purged + position`: what a filtered iterator already does with its index |
+| `key_cache_stamp` (l. 13875) | rows, files, last file | adds `purged`. The purge also calls the retake |
+| `update_totals_of_key_cache` (l. 12765) | sums the cells | sums the cells. `purged` is kept apart |
+
+The four resolutions marked `WARNING adjust REPEATED` (l. 14134, 14477, 14712,
+14764) are the same code repeated. The change is the moment to make them
+**one helper** that resolves `(from_rowid, to_rowid)` against
+`(purged, rows)`, so they cannot drift apart again.
+
+The pages keep their meaning for every caller. `c_tranger` counts positions
+from 1 with `tranger2_topic_key_size()` (`c_tranger.c:1580`, 1747), and a key
+never purged has `position == g_rowid`. Every record still carries its real
+`g_rowid` in `__md_tranger__`, so the dedup by `(key, rowid)` holds.
+
+`tranger2_topic_key_range()` adds `purged` to the copy of the totals it
+returns. `rows` keeps meaning the live count.
+
+### 4.7 Appends into a purged period are refused
+
+An append whose `__t__` maps to a file id at or before `upto` would write a
+file that the next open treats as purged and removes. Two choices:
+
+- refuse it with -1 and an error (*"the record falls in a purged period"*);
+- or accept it, which means lowering `upto` and moving the base back. That
+  breaks the base, and so the contract.
+
+**Refused.** Such a record would also be older than the retention, and the
+next purge would take it. Appends with `__t__ = 0` (now), the common case,
+never meet it.
+
+### 4.8 A key purged whole
+
+A key that stopped writing for longer than the retention loses every file. It
+keeps its directory and its `.purged`: rows 0, base N. `list-keys` shows it
+with 0 records, and a new append continues at `N + 1`. Removing such a key is
+the owner's decision, with `tranger2_delete_key()`.
+
+## 5. API
+
+```c
+/*
+ *  Delete the files of a key whose records were all appended before the
+ *  period of `before_t` (the topic's unit of t: ms with sf_t_ms).
+ *  The g_rowid of every remaining record is kept. Master only.
+ *  Return the rows deleted (0: nothing to do), -1 on error (logged).
+ */
+PUBLIC json_int_t tranger2_delete_key_files(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    uint64_t before_t
+);
+```
+
+The name follows `tranger2_delete_key()` and `tranger2_delete_instance()`:
+it is the third delete granularity, and the README table gets its row.
+
+`tranger2_topic_key_range()` gains `purged`. Nothing else changes signature.
+
+`C_TRANGER` gains the operator's command, the low-level one beside
+`delete-key`:
+
+```
+delete-key-files topic_name=<t> key=<k> before=<t|ISO date>
+```
+
+Master-only, under the same permission as `delete-key`. Without `key=` it
+walks every key of the topic, for a one-shot by hand, and it says that it
+blocks the yuno for as long as it takes.
+
+## 6. Cost
+
+- **The append path** gains one integer read (`purged`) in the fast path of
+  `find_cell_in_key_cache`. A store with no base reads 0. It is a hot path,
+  so the release carries an A/B against the last tag (rule of 2026-09-23).
+- **A purge** is one `.purged` write with two `fsync()` calls, plus two or
+  three unlinks per file. Once a day on a topic of a few thousand keys with
+  daily files, that is a few thousand fsyncs. They are cheap one by one and
+  not cheap together, on a yuno with one thread. So the owner purges **a slice
+  of keys per tick** (§7).
+- If the slices prove too slow, the durability barrier can be taken per
+  batch: write the `.purged` of N keys, one `syncfs()`, then delete their
+  files. Measure first.
+
+## 7. Policy belongs to the owner of the store
+
+timeranger2 has no timer, and its owners already run their own housekeeping:
+`webstats` purges past `keep_days` in its timer (`c_webstats.c:2204`), and the
+gates check `backup_queue_size` in theirs. Retention follows them:
+
+- The owner keeps one attribute per topic, the period to keep, in its config.
+  A sensible default is 0: keep everything.
+- On its timer it computes `before_t = now - period` and calls
+  `tranger2_delete_key_files()` on a slice of keys, carrying the cursor of
+  `tranger2_list_keys()` from tick to tick.
+
+A generic helper in `C_TRANGER` (an attribute per topic, a timer, the slices)
+is possible later, once two owners have written the same loop.
+
+## 8. What changes, by layer
+
+| Layer | Change |
+|---|---|
+| `timeranger2.c` | `tranger2_delete_key_files()`; `.purged` in `load_key_cache_from_disk()`; `purged` in the totals; the rowid resolutions (§4.6) in one helper; the append refusal (§4.7); the `.p.` signal and the follower's handler; the `ENOENT` safety net |
+| `timeranger2.h` | the declaration and its contract |
+| `c_tranger.c` | `delete-key-files` |
+| `tr2keys`, `tr2list` | show `purged` |
+| Docs | README (the third row of *Two delete granularities*, the base, the followers); `YUNO_TREEDB.md` §2.3 (the contract does not change; the range of rowids does); doc.yuneta.io API pages; CHANGELOG |
+
+## 9. Tests (`tests/c/timeranger2/`)
+
+1. **Purge and numbering.** Three day files, purge the first. The remaining
+   records keep their `g_rowid`. After a close and an open they still do. The
+   next append gets `last + 1`.
+2. **Crash between the base and the unlinks.** Write `.purged` by hand over
+   files still on disk. The master's open removes them and counts nothing
+   twice. A replica's open skips them.
+3. **`.purged.new` left over.** It is ignored and removed, and the key is as it
+   was.
+4. **A `.purged` that cannot be read.** It is not a base of 0: the key is
+   flagged, and appends to it are refused.
+5. **Iterators across a purge.** Open an unfiltered and a filtered iterator,
+   purge, and page. No rowid moves, and no page reads a deleted file.
+   Negative bounds still give the last N.
+6. **Rowid bounds.** `from_rowid` 0, 1, `purged`, `purged + 1`, `-1`,
+   `-(rows + 5)` and `to_rowid` past the end, before and after a purge.
+7. **Pages.** `get_page` positions `1..rows` give `g_rowid = purged + position`.
+   The multi-key pages of `c_tranger` neither skip nor repeat rows across a
+   purge.
+8. **Follower in another process.** It hears `.p.`, drops the cells, and keeps
+   reading. With the signal lost (follower stopped during the purge), the
+   `ENOENT` path applies it and flags nothing.
+9. **rt_disk.** Watermarks of deleted files are dropped. A record appended
+   after the purge reaches the feed with the master's `g_rowid`.
+10. **Hard links left by a dead feed** are removed with the files.
+11. **Late append into a purged period** is refused, and nothing is written.
+12. **Key purged whole**: rows 0, its base kept, the next append continues.
+13. **Mask `"queue"`** (a tr_queue topic): the purge deletes nothing.
+14. **`delete_key` after a purge** removes `.purged`, and a key written again
+    starts at 1.
+
+## 10. Compatibility
+
+- **A store never purged** has no `.purged`. It is read as today, with the
+  same rowids and pages.
+- **Upgrade.** Master and followers of a topic upgrade together (§4.5).
+- **Downgrade** after a purge: an older SDK ignores `.purged` and numbers the
+  key from 1. Nothing crashes, but every `g_rowid` of a purged key moves. The
+  CHANGELOG says so.
+- **Copying a store** with `cp -a` or rsync carries `.purged`, so its
+  numbering travels with it.
+
+## 11. Open questions
+
+1. **`fsync` per key, or a barrier per batch** (§6). Decide after measuring a
+   purge of a few thousand keys on the slowest node.
+2. **The flag for an unreadable `.purged`** (§4.4): reuse `unlisted`, or a new
+   flag that says what is wrong.
+3. **Should the open also read `.purged` of every cached key at an
+   overflow?** It costs one `stat()` per key. The lazy safety net (§4.5)
+   makes it unnecessary for correctness.
+4. **A generic retention helper in `C_TRANGER`** (§7): only after two owners
+   have written the loop.
