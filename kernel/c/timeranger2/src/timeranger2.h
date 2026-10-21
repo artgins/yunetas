@@ -452,6 +452,12 @@ PUBLIC uint64_t tranger2_topic_key_size(
 
         {"fr_t": t, "to_t": t, "fr_tm": tm, "to_tm": tm, "rows": n}
 
+   `rows` is the live count, the rows that can be read. A key whose old files
+   were deleted (tranger2_delete_key_files()) also has `"purged": n`, its
+   base: the rows of the files deleted. Its live rowids are purged+1 ..
+   purged+rows, and its last g_rowid is purged+rows. A key never purged has
+   no `purged`.
+
    `t`/`tm` are in the topic's own unit: seconds, or milliseconds when the topic
    sets sf_t_ms / sf_tm_ms (see `system_flag` in the topic desc).
    Return is yours. NULL (silent) if the topic or the key is unknown.
@@ -751,6 +757,48 @@ PUBLIC int tranger2_delete_key(
    keep compiling. New code should use `tranger2_delete_key`.
    Will be removed in a future major bump. */
 #define tranger2_delete_record tranger2_delete_key
+
+/*
+    Delete the OLD FILES of a key, with every g_rowid kept: the third
+    granularity of a delete, between a whole key (tranger2_delete_key())
+    and one instance (tranger2_delete_instance()). It is what retention is
+    made of: "keep the last 30 days" deletes, once a day, the files before
+    now - 30 days. Only the master can delete. Design and contract in
+    `kernel/c/timeranger2/DESIGN-retention.md`.
+
+    Deleted: every file of the key whose id sorts BEFORE the id of the file
+    that `before_t` would go to (`before_t` in the topic's unit of t: ms with
+    sf_t_ms). The cut is by file and by the time of the append (__t__), never
+    by tm: at least the period asked for is kept, and at most one file more.
+    No row is read.
+
+    The rows deleted go to the base of the key, `keys/<key>/.purged`, made
+    durable (fsync of the file and of its directory) BEFORE any file is
+    deleted. The remaining records keep their g_rowid, the next append gets
+    the next one, and a crash leaves the key as it was or purged, never
+    renumbered. A key purged whole keeps its directory and its base (rows 0),
+    and goes on numbering. `tranger2_topic_key_size()` counts the live rows.
+
+    Refused with -1 (logged, nothing deleted):
+      - a cut in the future (its file sorts after the file of now): the
+        file being written would go, and every append of the period after;
+      - a topic whose file name mask has no absolute year (%Y, %G, %F, %s):
+        its files do not sort as time (a tr_queue topic, a cyclic mask);
+      - a key flagged unlisted, or with an unreadable file in the period:
+        its rows are in no cell, and the base would miss them.
+
+    An append whose __t__ falls in a purged period is refused afterwards.
+
+    Return the rows deleted (0: nothing to do), -1 on error (logged).
+    Cost: one file and two fsync() per key purged, plus 2-3 unlinks per file
+    deleted. An owner purging thousands of keys does a slice per tick.
+*/
+PUBLIC json_int_t tranger2_delete_key_files(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    uint64_t before_t
+);
 
 /*
     Delete a single instance (one row of the per-key .md2 index).

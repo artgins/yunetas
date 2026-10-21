@@ -186,6 +186,13 @@ typedef struct {
 #define CONTENT_SCAN_PART       (64*1024)
 
 /*
+ *  The base of a key whose old files were deleted, in its directory
+ *  (tranger2_delete_key_files(), DESIGN-retention.md). No file id and no
+ *  key starts with '.', so the name cannot be taken for either.
+ */
+#define PURGED_FILENAME         ".purged"
+
+/*
  *  Did a parse of a record's content fail for MEMORY, not for its text?
  *  The allocator refused a block: the largest is MEM_MAX_BLOCK, set per
  *  yuno. A text smaller than that block can need more to parse: jansson
@@ -443,6 +450,7 @@ PRIVATE json_int_t update_totals_of_key_cache2(
 );
 
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
+PRIVATE json_int_t get_topic_key_purged(json_t *topic, const char *key);
 
 PRIVATE void *rkey_compile(hgobj gobj, const char *rkey);
 PRIVATE int rkey_arm(hgobj gobj, json_t *list, const char *key, json_t *match_cond);
@@ -526,6 +534,13 @@ PRIVATE json_int_t next_segment_row(
     json_int_t *rowid
 );
 PRIVATE BOOL segment_t_ordered(json_t *segment);
+PRIVATE int cmp_file_ids(const char *a, const char *b);
+PRIVATE int remove_purged_files(
+    hgobj gobj,
+    const char *topic_directory,
+    const char *key,
+    json_t *file_ids
+);
 PRIVATE json_t *key_cache_stamp(json_t *topic, const char *key);
 PRIVATE void forget_segments_of_key(json_t *topic, const char *key);
 PRIVATE void retake_segments_of_key(
@@ -536,6 +551,7 @@ PRIVATE void retake_segments_of_key(
 );
 PRIVATE BOOL tranger2_match_metadata(
     const match_cond_t *mc,
+    json_int_t purged,
     json_int_t total_rows,
     json_int_t rowid,
     md2_record_ex_t *md_record_ex,
@@ -1397,7 +1413,11 @@ PRIVATE BOOL rt_id_is_confined(
  *  which is safe against the death of the process and not against a power
  *  cut.
  *
- *  Return 0, or -1 (logged) with the old file untouched.
+ *  Return 0, or -1 (logged) with the old file untouched, or 1 (logged)
+ *  when the file was replaced but its directory could not be fsync'ed: the
+ *  new file is there, and may not survive a power cut. Only a caller that
+ *  needs the replacement to be durable before it goes on asks for the 1
+ *  (tranger2_delete_key_files()); for the rest it is a 0.
  ***************************************************************************/
 PRIVATE int replace_json_file(
     hgobj gobj,
@@ -1512,9 +1532,11 @@ PRIVATE int replace_json_file(
         return -1;
     }
 
+    int ret = 0;
     if(durable) {
         int dir_fd = open(directory, O_RDONLY|O_DIRECTORY|O_CLOEXEC);
         if(dir_fd < 0 || fsync(dir_fd) < 0) {
+            ret = 1;
             snprintf(msg, sizeof(msg), "%s replaced, but its directory cannot be fsync'ed", filename);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1530,7 +1552,7 @@ PRIVATE int replace_json_file(
             close(dir_fd);
         }
     }
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
@@ -4227,6 +4249,32 @@ PUBLIC int tranger2_append_record(
     }
 
     /*------------------------------------------------------*
+     *  A record of a purged period is refused: its file
+     *  would be taken for a purged one, and removed, at
+     *  the next open. Lowering the base to keep it would
+     *  move every g_rowid of the key.
+     *------------------------------------------------------*/
+    json_t *jn_purged = json_object_get(key_cache, "purged");
+    if(jn_purged) {
+        const char *purged_upto = json_string_value(json_object_get(jn_purged, "upto"));
+        if(purged_upto && cmp_file_ids(file_id, purged_upto) <= 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Cannot append record, it falls in a purged period of its key",
+                "topic",        "%s", topic_name,
+                "key",          "%s", key_value,
+                "file_id",      "%s", file_id,
+                "purged_upto",  "%s", purged_upto,
+                "__t__",        "%" PRIu64, (uint64_t)__t__,
+                NULL
+            );
+            JSON_DECREF(record)
+            return -1;
+        }
+    }
+
+    /*------------------------------------------------------*
      *  Save content, to file
      *------------------------------------------------------*/
     int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, TRUE, file_id, FALSE);
@@ -5430,6 +5478,278 @@ PUBLIC int tranger2_delete_key(
     fire_key_deleted_locally(gobj, tranger, topic, key);  // in-process non-watcher subs
 
     return 0;
+}
+
+/***************************************************************************
+ *  Does the file name mask of a topic give ids that sort as time? Only
+ *  with an absolute year in it: %Y, %G, %F (%Y-%m-%d) or %s (the epoch).
+ *  Without it -- the "queue" of a tr_queue topic, a cyclic %a -- no file
+ *  can be said to be older than another by its name.
+ ***************************************************************************/
+PRIVATE BOOL mask_sorts_as_time(const char *filename_mask)
+{
+    for(const char *p = filename_mask; p && *p; p++) {
+        if(*p != '%') {
+            continue;
+        }
+        p++;
+        if(*p == 'E' || *p == 'O') {
+            p++;    // a modifier: %EY
+        }
+        if(*p == 'Y' || *p == 'G' || *p == 'F' || *p == 's') {
+            return TRUE;
+        }
+        if(!*p) {
+            break;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+    Delete the old files of a key: every file whose id sorts before the id
+    of the file that `before_t` would go to, with g_rowid intact
+    (DESIGN-retention.md). Only the master can delete.
+
+    The rows of the files deleted go to the base of the key,
+    `keys/<key>/.purged`, written durable BEFORE any file is deleted: a
+    crash leaves the key as it was, or purged, never renumbered.
+    Refused (-1, logged, nothing deleted): a cut in the future (it would
+    delete the file being written, and every append of the current period
+    would be refused), a mask with no absolute year (mask_sorts_as_time()),
+    and a key whose cells are not whole (unlisted, or an unreadable file in
+    the period cut: its rows are in no cell, and the base would miss them).
+ ***************************************************************************/
+PUBLIC json_int_t tranger2_delete_key_files(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    uint64_t before_t
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    if(!tranger_is_master(gobj, tranger)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Only master can delete",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+
+    /*
+     *  The same key rule as tranger2_delete_key(): one directory component
+     */
+    if(empty_string(key) ||
+       strchr(key, '/') != NULL ||
+       key[0] == '.') {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Invalid key (path metacharacters not allowed)",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "tranger2_topic() failed",
+            "topic",        "%s", topic_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*-----------------------------------*
+     *  The guards
+     *-----------------------------------*/
+    const char *filename_mask = json_string_value(json_object_get(topic, "filename_mask"));
+    if(empty_string(filename_mask)) {
+        filename_mask = json_string_value(json_object_get(tranger, "filename_mask"));
+    }
+    if(!mask_sorts_as_time(filename_mask)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot delete the old files of a key, the file name mask of its topic has no year: its files do not sort as time",
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            "filename_mask","%s", filename_mask?filename_mask:"",
+            NULL
+        );
+        return -1;
+    }
+
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    char cut_id[NAME_MAX];
+    char now_id[NAME_MAX];
+    if(!get_file_id(cut_id, sizeof(cut_id), tranger, topic,
+            (system_flag & sf_t_ms)? before_t/1000 : before_t) ||
+       !get_file_id(now_id, sizeof(now_id), tranger, topic, time_in_seconds())) {
+        return -1;  // Error already logged
+    }
+    if(cmp_file_ids(cut_id, now_id) > 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot delete the old files of a key, the cut is in the future: the file being written would go",
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            "before_t",     "%" PRIu64, before_t,
+            "cut_file",     "%s", cut_id,
+            "now_file",     "%s", now_id,
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key);
+    if(!key_cache) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot delete the old files of a key, key not found",
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+    if(json_object_get(key_cache, "unlisted")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Cannot delete the old files of a key flagged unlisted: its files are not counted",
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+    json_t *unreadable = json_object_get(key_cache, "unreadable");
+    const char *first_unreadable = json_string_value(json_array_get(unreadable, 0));
+    if(first_unreadable && cmp_file_ids(first_unreadable, cut_id) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Cannot delete the old files of a key, a file of the period is flagged unreadable: its rows are in no cell, the base would miss them",
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            "file_id",      "%s", first_unreadable,
+            NULL
+        );
+        return -1;
+    }
+
+    /*-----------------------------------*
+     *  1. Choose
+     *-----------------------------------*/
+    json_t *cache_files = json_object_get(key_cache, "files");
+    json_t *file_ids = json_array();
+    json_int_t rows_deleted = 0;
+    int idx; json_t *cell;
+    json_array_foreach(cache_files, idx, cell) {
+        const char *file_id = json_string_value(json_object_get(cell, "id"));
+        if(!file_id || cmp_file_ids(file_id, cut_id) >= 0) {
+            break;
+        }
+        json_array_append_new(file_ids, json_string(file_id));
+        rows_deleted += json_integer_value(json_object_get(cell, "rows"));
+    }
+    size_t n_files = json_array_size(file_ids);
+    if(n_files == 0) {
+        JSON_DECREF(file_ids)
+        return 0;
+    }
+
+    /*-----------------------------------*
+     *  2. Decide: the base, durable.
+     *  From here the purge happened.
+     *-----------------------------------*/
+    json_t *cache_total = json_object_get(key_cache, "total");
+    json_int_t purged = json_integer_value(json_object_get(cache_total, "purged")) + rows_deleted;
+    json_t *jn_purged = json_pack("{s:s, s:I, s:I}",
+        "upto", json_string_value(json_array_get(file_ids, n_files - 1)),
+        "rows", purged,
+        "t", (json_int_t)time_in_seconds()
+    );
+
+    const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
+    char key_dir[PATH_MAX];
+    if(!build_path(key_dir, sizeof(key_dir), topic_dir, "keys", key, NULL)) {
+        JSON_DECREF(jn_purged)
+        JSON_DECREF(file_ids)
+        return -1;  // Error already logged
+    }
+    int written = replace_json_file(gobj, tranger, key_dir, PURGED_FILENAME, jn_purged, TRUE, FALSE);
+    if(written < 0) {
+        // Error already logged: nothing deleted, the key as it was
+        JSON_DECREF(jn_purged)
+        JSON_DECREF(file_ids)
+        return -1;
+    }
+
+    /*-----------------------------------*
+     *  3. The cache: what the base says
+     *-----------------------------------*/
+    close_fd_opened_files(gobj, topic, key);
+    for(size_t i = 0; i < n_files; i++) {
+        json_array_remove(cache_files, 0);
+    }
+    json_object_set_new(key_cache, "purged", jn_purged);
+    json_object_set_new(cache_total, "purged", json_integer(purged));
+    update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
+
+    /*
+     *  The marks of the feeds count inside each file (one per file of a
+     *  key): the ones of the files gone go with them
+     */
+    json_t *disks = json_object_get(topic, "disks");
+    json_t *disk;
+    json_array_foreach(disks, idx, disk) {
+        json_t *marks = json_object_get(json_object_get(disk, "published"), key);
+        int i; json_t *jn_file_id;
+        json_array_foreach(file_ids, i, jn_file_id) {
+            json_object_del(marks, json_string_value(jn_file_id));
+        }
+    }
+
+    retake_segments_of_key(gobj, tranger, topic, key);
+
+    if(written > 0) {
+        /*
+         *  The base is there, and may not survive a power cut: the files stay
+         *  (counted in it, and removed by the next open)
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Old files of the key purged in its base, but the base may not be durable: the files stay until the next open",
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        JSON_DECREF(file_ids)
+        return -1;
+    }
+
+    /*-----------------------------------*
+     *  4. Delete
+     *-----------------------------------*/
+    remove_purged_files(gobj, topic_dir, key, file_ids);   // Errors already logged: removed at the next open
+
+    JSON_DECREF(file_ids)
+    return rows_deleted;
 }
 
 /***************************************************************************
@@ -10595,7 +10915,8 @@ PRIVATE int cmp_file_ids(const char *a, const char *b)
  *  at the LAST cell, it got a second cell of the same file at the end, and
  *  the segments served the FIRST record of that file in its place.
  *
- *  *pfile_base: the rows of every file before this one.
+ *  *pfile_base: the rows of every file before this one, the purged ones
+ *  included (the key's base, DESIGN-retention.md).
  *  *pinsert_idx: where a new cell of this file must go.
  ***************************************************************************/
 PRIVATE json_t *find_cache_cell(
@@ -10626,6 +10947,13 @@ PRIVATE json_t *find_cell_in_key_cache(
 )
 {
     json_t *cache_files = json_object_get(key_cache, "files");
+    json_t *cache_total = json_object_get(key_cache, "total");
+
+    /*
+     *  The rows of the files purged from the key come before every cell
+     *  (tranger2_delete_key_files()): its numbering starts after them.
+     */
+    json_int_t purged = json_integer_value(json_object_get(cache_total, "purged"));
 
     /*
      *  The LAST cell first: it is where almost every record goes (the
@@ -10640,21 +10968,20 @@ PRIVATE json_t *find_cell_in_key_cache(
         const char *last_id = json_string_value(json_object_get(last_cell, "id"));
         int cmp = cmp_file_ids(last_id?last_id:"", file_id);
         if(cmp <= 0) {
-            json_int_t total_rows = json_integer_value(
-                json_object_get(json_object_get(key_cache, "total"), "rows")
-            );
+            json_int_t total_rows = json_integer_value(json_object_get(cache_total, "rows"));
             if(cmp == 0) {
-                *pfile_base = total_rows - json_integer_value(json_object_get(last_cell, "rows"));
+                *pfile_base = purged + total_rows -
+                    json_integer_value(json_object_get(last_cell, "rows"));
                 *pinsert_idx = (int)(n_cells - 1);
                 return last_cell;
             }
-            *pfile_base = total_rows;
+            *pfile_base = purged + total_rows;
             *pinsert_idx = (int)n_cells;
             return NULL;
         }
     }
 
-    json_int_t file_base = 0;
+    json_int_t file_base = purged;
     int insert_idx = (int)json_array_size(cache_files);
     json_t *found = NULL;
 
@@ -10837,6 +11164,25 @@ PRIVATE BOOL key_dir_flag_cause_gone(json_t *topic, const char *key)
     json_int_t ctime_ns = (json_int_t)st.st_ctim.tv_sec * 1000000000LL + st.st_ctim.tv_nsec;
     if(ctime_ns != json_integer_value(json_object_get(state, "ctime"))) {
         return TRUE;
+    }
+    if(json_object_get(state, "purged_ctime")) {
+        /*
+         *  Flagged for its base (flag_key_purged_unreadable()): tried again
+         *  when the base changed. The same file is not read again at every
+         *  load (an append still reads the key again: relist_key_before_append)
+         */
+        char purged_path[PATH_MAX];
+        struct stat st_purged;
+        if(build_path(purged_path, sizeof(purged_path), path, PURGED_FILENAME, NULL) &&
+                stat(purged_path, &st_purged) == 0) {
+            json_int_t purged_ctime_ns = (json_int_t)st_purged.st_ctim.tv_sec * 1000000000LL +
+                st_purged.st_ctim.tv_nsec;
+            if(purged_ctime_ns != json_integer_value(json_object_get(state, "purged_ctime")) ||
+                    (json_int_t)st_purged.st_size != json_integer_value(json_object_get(state, "purged_size"))) {
+                return TRUE;
+            }
+            return FALSE;
+        }
     }
     if(json_is_true(json_object_get(state, "open_failed"))) {
         DIR *dir = opendir(path);
@@ -11293,6 +11639,213 @@ PRIVATE void cut_back_content(
 }
 
 /***************************************************************************
+ *  The base of a key, `keys/<key>/.purged` (tranger2_delete_key_files()):
+ *      {"upto": "<the last file id deleted>", "rows": <the rows they held>,
+ *       "t": <when the last purge happened>}
+ *  Return it (owned), or NULL (logged) when it cannot be read or does not
+ *  say what a base says. Called only when the listing of the key has it.
+ ***************************************************************************/
+PRIVATE json_t *read_key_purged(
+    hgobj gobj,
+    const char *key_directory
+)
+{
+    char path[PATH_MAX];
+    if(!build_path(path, sizeof(path), key_directory, PURGED_FILENAME, NULL)) {
+        return NULL;    // Error already logged
+    }
+    json_error_t error;
+    errno = 0;
+    json_t *jn_purged = json_load_file(path, 0, &error);
+    if(!jn_purged) {
+        int last_errno = errno;
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Cannot read the base of a purged key",
+            "path",         "%s", path,
+            "text",         "%s", error.text,
+            "errno",        "%d", last_errno,
+            "serrno",       "%s", last_errno? strerror(last_errno): "",
+            NULL
+        );
+        return NULL;
+    }
+    const char *upto = json_string_value(json_object_get(jn_purged, "upto"));
+    json_t *jn_rows = json_object_get(jn_purged, "rows");
+    if(empty_string(upto) || !json_is_integer(jn_rows) || json_integer_value(jn_rows) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "The base of a purged key says no base: no 'upto' file id, or no 'rows'",
+            "path",         "%s", path,
+            "purged",       "%j", jn_purged,
+            NULL
+        );
+        JSON_DECREF(jn_purged)
+        return NULL;
+    }
+    return jn_purged;
+}
+
+/***************************************************************************
+ *  A key whose base (`.purged`) cannot be read. It is not a base of 0,
+ *  which would number the key from 1 again in silence: the key is flagged
+ *  unlisted, as a key whose directory cannot be listed -- every load of it
+ *  says load_failed, and an append into it reads the key again first, or
+ *  is refused. The state of the `.purged` is noted beside the directory's,
+ *  so a load tries again once it changed (key_dir_flag_cause_gone()).
+ ***************************************************************************/
+PRIVATE void flag_key_purged_unreadable(
+    hgobj gobj,
+    json_t *key_cache,
+    const char *topic_directory,
+    const char *key
+)
+{
+    gobj_log_error(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_TRANGER,
+        "msg",              "%s", "The base of a purged key cannot be read: the key is flagged unlisted, every load of it says load_failed",
+        "topic_directory",  "%s", topic_directory,
+        "key",              "%s", key,
+        NULL
+    );
+    json_object_set_new(key_cache, "unlisted", json_true());
+    note_unlisted_state(key_cache, topic_directory, key);
+
+    char path[PATH_MAX];
+    if(!build_path(path, sizeof(path), topic_directory, "keys", key, PURGED_FILENAME, NULL)) {
+        return; // Error already logged
+    }
+    json_t *state = json_object_get(key_cache, "unlisted_state");
+    struct stat st;
+    if(state && stat(path, &st) == 0) {
+        json_object_set_new(state, "purged_ctime",
+            json_integer((json_int_t)st.st_ctim.tv_sec * 1000000000LL + st.st_ctim.tv_nsec));
+        json_object_set_new(state, "purged_size", json_integer((json_int_t)st.st_size));
+    }
+}
+
+/***************************************************************************
+ *  Remove the files of a key that a purge deleted (`file_ids`): their
+ *  content, their md2, the markers of the md2, and the hard links of the
+ *  md2 that a feed has not consumed (`disks/<rt_id>/<key>/<id>.md2`: a
+ *  dead follower leaves them, and they keep the inode, and the disk, in
+ *  use). What is not there is not an error.
+ *  Return the files that could not be removed (logged), 0 when none.
+ ***************************************************************************/
+PRIVATE int remove_purged_files(
+    hgobj gobj,
+    const char *topic_directory,
+    const char *key,
+    json_t *file_ids    // not owned
+)
+{
+    static const char *suffixes[] = {".json", ".md2", ".unordered", ".tm_unordered", NULL};
+    int failed = 0;
+
+    char key_directory[PATH_MAX];
+    if(!build_path(key_directory, sizeof(key_directory), topic_directory, "keys", key, NULL)) {
+        return (int)json_array_size(file_ids);  // Error already logged
+    }
+
+    int idx; json_t *jn_file_id;
+    json_array_foreach(file_ids, idx, jn_file_id) {
+        const char *file_id = json_string_value(jn_file_id);
+        for(int i = 0; suffixes[i]; i++) {
+            char filename[NAME_MAX + 1];
+            char path[PATH_MAX];
+            if(snprintf(filename, sizeof(filename), "%s%s", file_id, suffixes[i]) >= (int)sizeof(filename)) {
+                continue;   // a name no file can have
+            }
+            if(!build_path(path, sizeof(path), key_directory, filename, NULL)) {
+                failed++;
+                continue;   // Error already logged
+            }
+            if(unlink(path) < 0 && errno != ENOENT) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot remove a file of a purged period, unlink() FAILED: it is removed at the next open",
+                    "path",         "%s", path,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+                failed++;
+            }
+        }
+    }
+
+    char disks_root[PATH_MAX];
+    if(!build_path(disks_root, sizeof(disks_root), topic_directory, "disks", NULL)) {
+        return failed + 1;  // Error already logged
+    }
+    DIR *dir = opendir(disks_root);
+    if(!dir) {
+        if(errno != ENOENT) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot remove the feeds' links of a purged period, opendir() of disks/ FAILED",
+                "path",         "%s", disks_root,
+                "key",          "%s", key,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            failed++;
+        }
+        return failed;
+    }
+    struct dirent *entry;
+    while((errno = 0, entry = readdir(dir)) != NULL) {
+        if(entry->d_name[0] == '.') {
+            continue;   // ".", "..", a signal, a feed being removed (no rt id starts with '.')
+        }
+        json_array_foreach(file_ids, idx, jn_file_id) {
+            char filename[NAME_MAX + 1];
+            char path[PATH_MAX];
+            if(snprintf(filename, sizeof(filename), "%s.md2", json_string_value(jn_file_id)) >= (int)sizeof(filename)) {
+                continue;   // a name no file can have
+            }
+            if(!build_path(path, sizeof(path), disks_root, entry->d_name, key, filename, NULL)) {
+                failed++;
+                continue;   // Error already logged
+            }
+            if(unlink(path) < 0 && errno != ENOENT && errno != ENOTDIR) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot remove a feed's link of a purged period, unlink() FAILED: the disk of the file is not freed",
+                    "path",         "%s", path,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+                failed++;
+            }
+        }
+    }
+    if(errno != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot remove every feed's link of a purged period, readdir() of disks/ FAILED",
+            "path",         "%s", disks_root,
+            "key",          "%s", key,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        failed++;
+    }
+    closedir(dir);
+    return failed;
+}
+
+/***************************************************************************
  *  Get range time of a key
  *
  *  A md2 file that cannot be counted is not a file of 0 rows: its rows
@@ -11336,18 +11889,18 @@ PRIVATE json_t *load_key_cache_from_disk(
      *  stat() per md2 file -- which made an open of a clean store slower
      *  than 7.25.4.
      *  Nobody else writes the store of a master, so the listing is still
-     *  true once the files are read. A replica lists only the md2 files
-     *  and looks for the markers on disk AFTER reading each one: the
-     *  master writes a marker before its row, so a row the replica read
-     *  has its marker there by then, and a listing taken before might not
-     *  have it.
+     *  true once the files are read. A replica looks for the markers on
+     *  disk AFTER reading each md2: the master writes a marker before its
+     *  row, so a row the replica read has its marker there by then, and a
+     *  listing taken before might not have it. A replica lists every file
+     *  too, for the base of the key (below), with no syscall more.
      */
     dir_array_t da;
 
     if(find_files_with_suffix_array(
         gobj,
         full_path,
-        master? NULL: ".md2",
+        NULL,
         &da
     ) < 0) {
         // Error already logged, the cause
@@ -11356,6 +11909,92 @@ PRIVATE json_t *load_key_cache_from_disk(
     }
 
     dir_array_sort(&da);
+
+    /*
+     *  The base of a key whose old files were deleted (DESIGN-retention.md,
+     *  tranger2_delete_key_files()). The files at or before its `upto` are
+     *  not counted: a master removes the ones still there, finishing a purge
+     *  that a crash cut after its base was written, and a replica skips
+     *  them. A base that cannot be read is not a base of 0, which would
+     *  number the key from 1 again: the key is flagged.
+     *  A `.purged.new` is a purge that did not happen (the crash came before
+     *  its rename): the master removes it.
+     */
+    const char *purged_upto = NULL;
+    if(master && key_file_listed(&da, PURGED_FILENAME ".new")) {
+        char path_new[PATH_MAX];
+        if(build_path(path_new, sizeof(path_new), full_path, PURGED_FILENAME ".new", NULL)) {
+            if(unlink(path_new) < 0 && errno != ENOENT) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot remove the base of a purge that did not happen, unlink() FAILED",
+                    "path",         "%s", path_new,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+            } else {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INFO,
+                    "msg",          "%s", "Base of a purge that did not happen removed: the key is as it was before it",
+                    "path",         "%s", path_new,
+                    NULL
+                );
+            }
+        }
+    }
+    if(key_file_listed(&da, PURGED_FILENAME)) {
+        json_t *jn_purged = read_key_purged(gobj, full_path);
+        if(!jn_purged) {
+            // Error already logged
+            dir_array_free(&da);
+            flag_key_purged_unreadable(gobj, key_cache, topic_directory, key);
+            return key_cache;
+        }
+        json_object_set_new(key_cache, "purged", jn_purged);
+        json_object_set_new(json_object_get(key_cache, "total"), "purged",
+            json_integer(json_integer_value(json_object_get(jn_purged, "rows")))
+        );
+        purged_upto = json_string_value(json_object_get(jn_purged, "upto"));
+    }
+
+    /*
+     *  The files a purge cut by a crash left behind, by their id: an md2,
+     *  and a content or a marker whose md2 went first
+     */
+    json_t *purge_left = NULL;
+    if(master && purged_upto) {
+        static const char *suffixes[] = {".md2", ".json", ".unordered", ".tm_unordered", NULL};
+        for(int i=0; i<da.count; i++) {
+            const char *filename = da.items[i];
+            if(filename[0] == '.') {
+                continue;   // the base itself: no file id starts with '.'
+            }
+            size_t filename_len = strlen(filename);
+            for(int j = 0; suffixes[j]; j++) {
+                size_t suffix_len = strlen(suffixes[j]);
+                if(filename_len <= suffix_len ||
+                        strcmp(filename + filename_len - suffix_len, suffixes[j]) != 0) {
+                    continue;
+                }
+                char file_id[NAME_MAX];
+                snprintf(file_id, sizeof(file_id), "%.*s", (int)(filename_len - suffix_len), filename);
+                if(cmp_file_ids(file_id, purged_upto) <= 0) {
+                    if(!purge_left) {
+                        purge_left = json_array();
+                    }
+                    size_t n = json_array_size(purge_left);
+                    const char *prev = n? json_string_value(json_array_get(purge_left, n - 1)) : NULL;
+                    if(!prev || strcmp(prev, file_id) != 0) {
+                        json_array_append_new(purge_left, json_string(file_id));
+                    }
+                }
+                break;
+            }
+        }
+    }
 
     for(int i=0; i<da.count; i++) {
         char *filename = da.items[i];
@@ -11369,6 +12008,10 @@ PRIVATE json_t *load_key_cache_from_disk(
         char *dot = strrchr(file_id, '.');
         if(dot) {
             *dot = 0;
+        }
+
+        if(purged_upto && cmp_file_ids(file_id, purged_upto) <= 0) {
+            continue;   // purged: its rows are in the base (a master removes it below)
         }
 
         char md2_name[NAME_MAX];    // a copy: the listing must stay sorted for key_file_listed()
@@ -11418,6 +12061,20 @@ PRIVATE json_t *load_key_cache_from_disk(
     }
 
     dir_array_free(&da);
+
+    if(purge_left) {
+        gobj_log_info(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INFO,
+            "msg",              "%s", "Files of a purged period still on disk, a purge cut by a crash: removed now",
+            "topic_directory",  "%s", topic_directory,
+            "key",              "%s", key,
+            "files",            "%j", purge_left,
+            NULL
+        );
+        remove_purged_files(gobj, topic_directory, key, purge_left);   // Errors already logged
+        JSON_DECREF(purge_left)
+    }
 
     return key_cache;
 }
@@ -13101,6 +13758,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         }
 
         json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
+        json_int_t purged = get_topic_key_purged(topic, key);
 
         /*
          *  A row whose metadata or whose content cannot be read ends the
@@ -13174,7 +13832,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 continue;
             }
             if(tranger2_match_metadata(
-                &mc, total_rows, rowid, &md_record_ex,
+                &mc, purged, total_rows, rowid, &md_record_ex,
                 sv.t_ordered, &end
             )) {
                 const char *file_id = sv.file_id;
@@ -13474,6 +14132,7 @@ PRIVATE json_t *build_iterator_index(
     seg_view_t sv = {0};
 
     json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
+    json_int_t purged = get_topic_key_purged(topic, key);
     json_t *index = json_array();
     md2_record_ex_t md_record_ex;
     md_block_t blk;
@@ -13494,7 +14153,7 @@ PRIVATE json_t *build_iterator_index(
                 continue;
             }
             if(tranger2_match_metadata(
-                &mc, total_rows, rowid, &md_record_ex,
+                &mc, purged, total_rows, rowid, &md_record_ex,
                 sv.t_ordered, &end
             )) {
                 json_array_append_new(index, json_integer(rowid));
@@ -13745,9 +14404,16 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         );
     }
 
+    /*
+     *  The page asks positions among the live rows, 1..total_rows: on a key
+     *  whose old files were purged its global rowids start after the base
+     *  (tranger2_delete_key_files()), and position N is rowid base+N. On
+     *  any other key the two are the same.
+     */
+    json_int_t purged = get_topic_key_purged(topic, key);
     json_t *match_cond = json_object();
-    json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
-    json_int_t to_rowid = from_rowid + (json_int_t)limit - 1;
+    json_object_set_new(match_cond, "from_rowid", json_integer(purged + from_rowid));
+    json_int_t to_rowid = purged + from_rowid + (json_int_t)limit - 1;
     json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
     json_object_set_new(match_cond, "backward", json_boolean(backward));
 
@@ -13822,7 +14488,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         }
 
         if(tranger2_match_metadata(
-            &mc, total_rows, rowid, &md_record_ex,
+            &mc, purged, total_rows, rowid, &md_record_ex,
             sv.t_ordered, &end
         )) {
             const char *file_id = sv.file_id;
@@ -13866,7 +14532,8 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
 
 /***************************************************************************
  *  What the segments of a key are taken from, in three numbers: the rows
- *  of the key, its files, and its last file. An append moves the rows, a
+ *  of the key, its files, and its last file. A purge of its old files
+ *  (tranger2_delete_key_files()) takes the segments again itself. An append moves the rows, a
  *  new file the count and the last id. While the key lives its cells only
  *  grow, so equal stamps are equal segments. A key deleted and written
  *  again can come back with the same three numbers: its delete drops the
@@ -14058,6 +14725,79 @@ PRIVATE json_int_t key_last_record_tm(
 }
 
 /***************************************************************************
+ *  The rowid bounds of a match_cond, resolved against the live rowids of a
+ *  key: `purged`+1 .. `purged`+`rows`, where `purged` is the base of a key
+ *  whose old files were deleted (tranger2_delete_key_files()), 0 for any
+ *  other key. A bound is:
+ *      0           the first live rowid (from), the last one (to)
+ *      positive    a global rowid; one outside the live rowids is taken to
+ *                  the nearest of them, or leaves no row
+ *      negative    counted from the end: -1 is the last live rowid
+ *  Return FALSE when the bound leaves no row: a from past the end, a to
+ *  before the first live rowid, a negative to past the first.
+ *
+ *  It was the same code in four places (get_segments,
+ *  tranger2_match_metadata, first_segment_row twice), each marked
+ *  "WARNING adjust REPEATED", and each assumed that a key starts at 1.
+ ***************************************************************************/
+PRIVATE BOOL resolve_from_rowid(
+    json_int_t from_rowid,
+    json_int_t purged,
+    json_int_t rows,
+    json_int_t *resolved
+)
+{
+    json_int_t first = purged + 1;
+    json_int_t last = purged + rows;
+
+    if(from_rowid == 0) {
+        *resolved = first;
+        return TRUE;
+    }
+    if(from_rowid > 0) {
+        if(from_rowid > last) {
+            return FALSE;   // past the end
+        }
+        *resolved = (from_rowid < first)? first : from_rowid;   // a purged row: from the first live one
+        return TRUE;
+    }
+    if(from_rowid < -rows) {
+        *resolved = first;  // more rows back than the key has: from its first
+        return TRUE;
+    }
+    *resolved = last + from_rowid + 1;
+    return TRUE;
+}
+
+PRIVATE BOOL resolve_to_rowid(
+    json_int_t to_rowid,
+    json_int_t purged,
+    json_int_t rows,
+    json_int_t *resolved
+)
+{
+    json_int_t first = purged + 1;
+    json_int_t last = purged + rows;
+
+    if(to_rowid == 0) {
+        *resolved = last;
+        return TRUE;
+    }
+    if(to_rowid > 0) {
+        if(to_rowid < first) {
+            return FALSE;   // every row up to it was purged
+        }
+        *resolved = (to_rowid > last)? last : to_rowid;
+        return TRUE;
+    }
+    if(to_rowid < -rows) {
+        return FALSE;   // before the first row
+    }
+    *resolved = last + to_rowid + 1;
+    return TRUE;
+}
+
+/***************************************************************************
  *  Return a list of segments that match conditions
  *  match_cond can be modified in (times in string)
  ***************************************************************************/
@@ -14104,6 +14844,7 @@ PRIVATE json_t *get_segments(
     json_int_t total_to_t = kw_get_int(gobj, cache_total, "to_t", 0, KW_REQUIRED);
     json_int_t total_to_tm = kw_get_int(gobj, cache_total, "to_tm", 0, KW_REQUIRED);
     json_int_t total_rows = kw_get_int(gobj, cache_total, "rows", 0, KW_REQUIRED);
+    json_int_t purged = json_integer_value(json_object_get(cache_total, "purged"));
 
     if(total_rows == 0) {
         // NO rows
@@ -14131,42 +14872,12 @@ PRIVATE json_t *get_segments(
         to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
     }
 
-    // WARNING adjust REPEATED
-    if(from_rowid == 0) {
-        from_rowid = 1;
-    } else if(from_rowid > 0) {
-        // positive offset
-        if(from_rowid > total_rows) {
-            // not exist
-            return jn_segments;
-        }
-    } else {
-        // negative offset
-        if(from_rowid < -total_rows) {
-            // out of range, begin at 0
-            from_rowid = 1;
-        } else {
-            from_rowid = total_rows + from_rowid + 1;
-        }
-    }
-
     if(to_rowid == 0) {
         realtime = TRUE;
-        to_rowid = total_rows;
-    } else if(to_rowid > 0) {
-        // positive offset
-        if(to_rowid > total_rows) {
-            // out of range, begin at 0
-            to_rowid = total_rows;
-        }
-    } else {
-        // negative offset
-        if(to_rowid < -total_rows) {
-            // not exist
-            return jn_segments;
-        } else {
-            to_rowid = total_rows + to_rowid + 1;
-        }
+    }
+    if(!resolve_from_rowid(from_rowid, purged, total_rows, &from_rowid) ||
+            !resolve_to_rowid(to_rowid, purged, total_rows, &to_rowid)) {
+        return jn_segments;
     }
 
     if(to_rowid < from_rowid) {
@@ -14360,7 +15071,7 @@ PRIVATE json_t *get_segments(
      *------------------------------------------*/
     if(!backward) {
         int idx; json_t *cache_file;
-        json_int_t partial_rows2 = 1;
+        json_int_t partial_rows2 = purged + 1;
 
         json_array_foreach(cache_files, idx, cache_file) {
             json_int_t rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
@@ -14392,7 +15103,7 @@ PRIVATE json_t *get_segments(
         }
     } else {
         int idx; json_t *cache_file;
-        json_int_t partial_rows2 = total_rows;
+        json_int_t partial_rows2 = purged + total_rows;
 
         json_array_backward(cache_files, idx, cache_file) {
             json_int_t rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
@@ -14458,6 +15169,7 @@ PRIVATE BOOL segment_t_ordered(json_t *segment)
  ***************************************************************************/
 PRIVATE BOOL tranger2_match_metadata(
     const match_cond_t *mc,
+    json_int_t purged,      // the key's base (get_topic_key_purged)
     json_int_t total_rows,
     json_int_t rowid,
     md2_record_ex_t *md_record_ex,
@@ -14471,46 +15183,12 @@ PRIVATE BOOL tranger2_match_metadata(
     /*--------------------------*
      *      Rowid
      *--------------------------*/
-    json_int_t from_rowid = mc->from_rowid;
-    json_int_t to_rowid = mc->to_rowid;
-
-    // WARNING adjust REPEATED
-    if(from_rowid == 0) {
-        from_rowid = 1;
-    } else if(from_rowid > 0) {
-        // positive offset
-        if(from_rowid > total_rows) {
-            // not exist
-            *end = TRUE;
-            return FALSE;
-        }
-    } else {
-        // negative offset
-        if(from_rowid < -total_rows) {
-            // out of range, begin at 0
-            from_rowid = 1;
-        } else {
-            from_rowid = total_rows + from_rowid + 1;
-        }
-    }
-
-    if(to_rowid == 0) {
-        to_rowid = total_rows;
-    } else if(to_rowid > 0) {
-        // positive offset
-        if(to_rowid > total_rows) {
-            // out of range, begin at 0
-            to_rowid = total_rows;
-        }
-    } else {
-        // negative offset
-        if(to_rowid < -total_rows) {
-            // not exist
-            *end = TRUE;
-            return FALSE;
-        } else {
-            to_rowid = total_rows + to_rowid + 1;
-        }
+    json_int_t from_rowid;
+    json_int_t to_rowid;
+    if(!resolve_from_rowid(mc->from_rowid, purged, total_rows, &from_rowid) ||
+            !resolve_to_rowid(mc->to_rowid, purged, total_rows, &to_rowid)) {
+        *end = TRUE;
+        return FALSE;
     }
 
     if(from_rowid != 0) {
@@ -14689,6 +15367,7 @@ PRIVATE json_int_t first_segment_row(
 //    json_int_t total_from_tm = json_integer_value(json_object_get(cache_total, "fr_tm"));
 //    json_int_t total_to_tm = json_integer_value(json_object_get(cache_total, "to_tm"));
     json_int_t total_rows = json_integer_value(json_object_get(cache_total, "rows"));
+    json_int_t purged = json_integer_value(json_object_get(cache_total, "purged"));
 
     *prowid = -1;
     size_t segments_size = json_array_size(segments);
@@ -14700,7 +15379,12 @@ PRIVATE json_int_t first_segment_row(
     json_int_t rowid;
     int idx; json_t *segment;
     if(!backward) {
-        json_int_t from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
+        json_int_t from_rowid;
+        if(!resolve_from_rowid(
+                json_integer_value(json_object_get(match_cond, "from_rowid")),
+                purged, total_rows, &from_rowid)) {
+            return -1;  // not exist
+        }
         json_int_t from_t = json_integer_value(json_object_get(match_cond, "from_t"));
 
         json_array_foreach(segments, idx, segment) {
@@ -14709,25 +15393,7 @@ PRIVATE json_int_t first_segment_row(
 
             json_int_t seg_last_t = json_integer_value(json_object_get(segment, "to_t"));
 
-            // WARNING adjust REPEATED
-            if(from_rowid == 0) {
-                rowid = seg_first_rowid;
-            } else if(from_rowid > 0) {
-                // positive offset
-                if(from_rowid > total_rows) {
-                    // not exist
-                    return -1;
-                }
-                rowid = from_rowid;
-            } else {
-                // negative offset
-                if(from_rowid < -total_rows) {
-                    // out of range, begin at 0
-                    rowid = seg_first_rowid;
-                } else {
-                    rowid = total_rows + from_rowid + 1;
-                }
-            }
+            rowid = from_rowid;
 
             do {
                 if(rowid > seg_last_rowid) {
@@ -14752,7 +15418,12 @@ PRIVATE json_int_t first_segment_row(
         }
 
     } else {
-        json_int_t to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
+        json_int_t to_rowid;
+        if(!resolve_to_rowid(
+                json_integer_value(json_object_get(match_cond, "to_rowid")),
+                purged, total_rows, &to_rowid)) {
+            return -1;  // not exist
+        }
         json_int_t to_t = json_integer_value(json_object_get(match_cond, "to_t"));
 
         json_array_backward(segments, idx, segment) {
@@ -14761,26 +15432,7 @@ PRIVATE json_int_t first_segment_row(
 
             json_int_t seg_first_t = json_integer_value(json_object_get(segment, "fr_t"));
 
-            // WARNING adjust REPEATED
-            if(to_rowid == 0) {
-                rowid = seg_last_rowid;
-            } else if(to_rowid > 0) {
-                // positive offset
-                if(to_rowid > total_rows) {
-                    // out of range, begin at 0
-                    rowid = seg_last_rowid;
-                } else {
-                    rowid = to_rowid;
-                }
-            } else {
-                // negative offset
-                if(to_rowid < -total_rows) {
-                    // not exist
-                    return -1;
-                } else {
-                    rowid = total_rows + to_rowid + 1;
-                }
-            }
+            rowid = to_rowid;
 
             do {
                 if(rowid < seg_first_rowid) {
@@ -15142,7 +15794,25 @@ PRIVATE BOOL list_wants_key(json_t *list, const char *key)
 }
 
 /***************************************************************************
- *  Get key rows (topic key size)
+ *  The base of a key: the rows of its files deleted by
+ *  tranger2_delete_key_files() (keys/<key>/.purged). Its live rowids are
+ *  base+1 .. base+rows. 0 for a key never purged.
+ ***************************************************************************/
+PRIVATE json_int_t get_topic_key_purged(json_t *topic, const char *key)
+{
+    return json_integer_value(
+        json_object_get(
+            json_object_get(
+                json_object_get(json_object_get(topic, "cache"), key),
+                "total"
+            ),
+            "purged"
+        )
+    );
+}
+
+/***************************************************************************
+ *  Get key rows (topic key size): the live rows, the purged ones not counted
  ***************************************************************************/
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key)
 {
