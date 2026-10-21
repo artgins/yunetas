@@ -760,8 +760,8 @@ PRIVATE int test_failed_deletes(json_t *tranger)
      */
     test = "refused delete, the key cannot be deleted: nothing changes";
     set_expected_results(test, json_pack("[{s:s}, {s:s}, {s:s}]",
-        "msg", "remove() FAILED",
-        "msg", "Cannot delete subdir key. rmrdir() FAILED",
+        "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was",
+        "msg", "Cannot delete subdir key: its directory cannot be moved out of keys/, the key stays as it was",
         "msg", "Cannot delete node"
     ), NULL, NULL, 1);
     events_told = 0;

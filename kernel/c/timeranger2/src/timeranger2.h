@@ -743,12 +743,20 @@ PUBLIC int tranger2_append_record(
     row in the .md2 index is marked dead and the payload bytes are
     optionally zeroed — irrecoverable, no resurrection).
 
+    The directory of the key is first moved out of `keys/`, whole (a
+    rename(), atomic: the key is there whole, or its name is gone), and
+    then removed. A moved directory that cannot be removed is the key
+    deleted all the same (0, logged; swept at the master's next open).
+
     Return 0, or -1 (logged): not master, a key with path metacharacters,
-    the topic cannot be opened, or the directory of the key cannot be
-    removed. Then NOTHING is announced (the propagation above runs only
-    after the directory is gone); the key's cache is read again from what
-    is left on disk, and its iterators take their segments again from it
-    (a filtered one rebuilds its index at once).
+    the topic cannot be opened, or the directory of the key cannot be moved
+    out of `keys/`. Then the key is on disk as it was, and NOTHING is
+    announced (the propagation above runs only after the key left
+    `keys/`); the key's cache is read again from the disk, and its
+    iterators take their segments again from it (a filtered one rebuilds
+    its index at once). Up to 7.27.5 a key without a base was removed in
+    place, file by file: a removal that failed half way left some of its
+    files, and the key read again from them numbered its rows anew.
 */
 PUBLIC int tranger2_delete_key(
     json_t *tranger,

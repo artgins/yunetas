@@ -1,5 +1,23 @@
 # **Changelog**
 
+## Unreleased
+
+- **A failed delete of a key no longer renumbers it** (timeranger2,
+  `tranger2_delete_key()`). A key without a base was removed in place, file
+  by file. A removal that failed half way (a file that could not be
+  unlinked) left some of its files, the key was read again from them, the
+  rows after the hole moved, and the next appends took `g_rowid`s that
+  followers and clients had seen. Every key is now moved out of `keys/`
+  first, whole (a `rename()`, atomic), as a key with a base already was
+  since 7.27.5, and then removed. A delete that cannot move the key answers
+  `-1` with the key as it was. A moved directory that cannot be removed is
+  the key deleted all the same (`0`, announced, logged), and the master
+  removes it at its next open of the topic. The message of a refused delete
+  changes: *"Cannot delete key, rename() of its directory out of keys/
+  FAILED: the key stays as it was"*, then *"Cannot delete subdir key: its
+  directory cannot be moved out of keys/, the key stays as it was"* (it was
+  *"remove() FAILED"*, then *"Cannot delete subdir key. rmrdir() FAILED"*).
+
 ## v7.27.5 (2026-10-21)
 
 A release with one new capability of timeranger2: **retention**. A store can

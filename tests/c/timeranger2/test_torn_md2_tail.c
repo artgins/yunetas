@@ -642,8 +642,8 @@ PRIVATE int test_delete_key_reload(void)
 
     set_expected_results("6. the delete fails, the key is read again and cut back",
         json_pack("[{s:s},{s:s},{s:s, s:s, s:s, s:i, s:i}]",
-            "msg", "remove() FAILED",
-            "msg", "Cannot delete subdir key. rmrdir() FAILED",
+            "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was",
+            "msg", "Cannot delete subdir key: its directory cannot be moved out of keys/, the key stays as it was",
             "msg", MSG_CUT,
             "key", "A",
             "file_id", "2000-01-02",

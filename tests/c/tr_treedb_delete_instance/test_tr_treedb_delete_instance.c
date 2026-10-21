@@ -1777,11 +1777,11 @@ PRIVATE int test_refused_forced_delete_puts_every_instance_back(void)
 
     set_expected_results(test,
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
-            "msg", "remove() FAILED",
-            "msg", "Cannot delete subdir key. rmrdir() FAILED",
+            "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was",
+            "msg", "Cannot delete subdir key: its directory cannot be moved out of keys/, the key stays as it was",
             "msg", "Cannot delete node",
-            "msg", "remove() FAILED",
-            "msg", "Cannot delete subdir key. rmrdir() FAILED",
+            "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was",
+            "msg", "Cannot delete subdir key: its directory cannot be moved out of keys/, the key stays as it was",
             "msg", "Cannot delete node"),
         NULL, NULL, 1);
 
@@ -2833,8 +2833,8 @@ PRIVATE int test_unrefs_are_taken_back(void)
      */
     set_expected_results(test,
         json_pack("[{s:s},{s:s},{s:s}]",
-            "msg", "remove() FAILED",
-            "msg", "Cannot delete subdir key. rmrdir() FAILED",
+            "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was",
+            "msg", "Cannot delete subdir key: its directory cannot be moved out of keys/, the key stays as it was",
             "msg", "Cannot delete node"),
         NULL, NULL, 1);
     result += l_check(treedb_unlink_nodes(tranger, "tags", P, a1) == 0, "cannot unlink P <- a/v1 (tags)");
@@ -2969,8 +2969,8 @@ PRIVATE int test_taken_back_delete_keeps_the_newest_record(void)
 
     set_expected_results(test,
         json_pack("[{s:s},{s:s},{s:s}]",
-            "msg", "remove() FAILED",
-            "msg", "Cannot delete subdir key. rmrdir() FAILED",
+            "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was",
+            "msg", "Cannot delete subdir key: its directory cannot be moved out of keys/, the key stays as it was",
             "msg", "Cannot delete node"),
         NULL, NULL, 1);
     json_t *P = l_create(tranger, L_PARENTS, "P", "v1");

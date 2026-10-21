@@ -124,7 +124,7 @@ instances.
 
 | Granularity | API | What it does |
 |---|---|---|
-| Whole record (key + all instances) | **`tranger2_delete_key`** (was `tranger2_delete_record` before 2026-05-25; legacy alias kept in `timeranger2.h`) | `rmrdir` of `keys/<key>/` + drop from `topic_cache` + propagate to in-process subscribers + a delete signal `disks/<rt_id>/.d<seq>.<key>` (the topic's delete sequence) for `rt_by_disk` followers. Irrecoverable. |
+| Whole record (key + all instances) | **`tranger2_delete_key`** (was `tranger2_delete_record` before 2026-05-25; legacy alias kept in `timeranger2.h`) | `keys/<key>/` moved out of `keys/` whole (a `rename()`), then removed + drop from `topic_cache` + propagate to in-process subscribers + a delete signal `disks/<rt_id>/.d<seq>.<key>` (the topic's delete sequence) for `rt_by_disk` followers. Irrecoverable. |
 | The old files of a key | **`tranger2_delete_key_files`** (7.27.5) | Retention: deletes every file of the key whose id sorts before the file of `before_t`, and keeps every `g_rowid` where it was. The rows deleted go to the base of the key, `keys/<key>/.purged`, made durable before any file goes. Followers hear `disks/<rt_id>/.p.<key>`. Master-only. See [Retention](#retention-the-old-files-of-a-key) below. |
 | One instance | **`tranger2_delete_instance`** (2026-05-26) | Mutates the `.md2` row in place with `sf_deleted_instance = 0x0400` (inherited side, followers see the same tombstone). Optional `zero_payload` overwrites the matching bytes in the data `.json` for sensitive-data wipes. Read paths skip dead rows; rowids do NOT renumber. Master-only, idempotent. |
 
@@ -194,11 +194,13 @@ if(rows < 0) {
   refused.
 - **A key purged whole** (silent for longer than the retention) keeps its
   directory and its base, with 0 rows and a span of 0, and goes on numbering.
-  `tranger2_delete_key()` removes a key with a base so that no failure leaves
-  its files without it, or it without some of its files: the directory is
-  first moved out of `keys/`, whole (a `rename()`, atomic), and then removed.
-  A delete that fails keeps the key as it was; a directory moved aside that
-  cannot be removed is swept at the master's next open.
+  `tranger2_delete_key()` removes every key so that no failure leaves some
+  of its files without the others, or its files without its base: the
+  directory is first moved out of `keys/`, whole (a `rename()`, atomic), and
+  then removed. A delete that fails keeps the key as it was; a directory
+  moved aside that cannot be removed is swept at the master's next open. Up
+  to 7.27.5 a key without a base was removed in place, file by file, and a
+  removal that failed half way renumbered it.
 - **Followers.** The master makes and removes `disks/<rt_id>/.p.<key>` (`.q.<sha256>`
   for a key too long for the name) in every feed directory. A follower that
   hears it reads the base, drops the cells at or before `upto`, closes their
@@ -384,7 +386,7 @@ and the md2 row is the commit point of an append, so that append was never
 acknowledged. A MASTER cuts the `.md2` back to its whole rows
 (`floor(size / 32) * 32`) when it first reads the file -- the cache build at
 the open, the count of a flagged file, or the read of the key again after a
-`tranger2_delete_key()` that could not remove the key's directory -- logs ONE
+`tranger2_delete_key()` that could not move the key's directory out of `keys/` -- logs ONE
 warning, and the key loads whole. The next append goes into the same file. The `.json` is left as
 it is: its bytes after the last row belong to no row.
 
@@ -536,10 +538,13 @@ tranger2_set_rt_key_deleted_callback(handle, cb, user_data);
 
 When the master calls `tranger2_delete_key()`:
 
-1. The live `keys/<key>/` directory is removed FIRST; the delete is
-   announced only once it is done. When it cannot be removed the call
-   answers `-1`, announces nothing, and reads the key's cache again
-   from what is left on disk. Then, in the directory of every feed,
+1. The live `keys/<key>/` directory is moved out of `keys/` FIRST, whole
+   (a `rename()`, atomic), and then removed; the delete is announced only
+   once the key left `keys/`. When it cannot be moved the call answers
+   `-1`, announces nothing, and reads the key's cache again from the disk,
+   where the key is as it was. A moved directory that cannot be removed is
+   the key deleted all the same (`0`, logged), swept at the master's next
+   open. Then, in the directory of every feed,
    `topic/disks/<rt_id>/<key>/` is removed if it exists, and the SIGNAL
    `disks/<rt_id>/.d<seq>.<key>` is created and removed at once
    (`.h<seq>.<sha256>` for a key too long for the name). `seq` is the

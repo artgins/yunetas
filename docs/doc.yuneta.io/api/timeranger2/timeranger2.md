@@ -1057,17 +1057,31 @@ key A, 3 rows; stat(keys/A) fails with EIO      -> -1, A keeps its 3 rows, no ca
 the same delete once keys/A can be stat'ed      -> 0, one callback
 ```
 
-A directory that cannot be removed answers `-1` and announces nothing,
-but it does NOT leave the memory as it was: some of the key's files may be gone
-already, so the cache of the key is read again from what is left on disk (the
-key leaves the cache if nothing is left), and its iterators take their segments
-again from it: an unfiltered one at its next page, a FILTERED one at once, its
-index built again as an open builds it:
+The directory of the key is first moved out of `keys/`, whole, to
+`<topic>/.deleted_key.<pid>.<start>.<n>` (a `rename()`, atomic: the key is
+there whole, or its name is gone), and then removed. So a delete never leaves
+some of a key's files without the others. Up to 7.27.5 a key without a base
+was removed in place, file by file: a removal that failed half way left some
+of its files, and the key, read again from them, numbered its rows anew --
+its next records took `g_rowid`s that followers and clients had seen.
+
+A directory that cannot be moved out answers `-1` (*"Cannot delete key,
+rename() of its directory out of keys/ FAILED: the key stays as it was"*) and
+announces nothing. The key is on disk as it was; its cache is read again from
+it, and its iterators take their segments again from it: an unfiltered one at
+its next page, a FILTERED one at once, its index built again as an open builds
+it. A moved directory that cannot be removed is the key deleted all the same:
+`0`, announced, logged (*"Key deleted, but its directory moved aside cannot be
+removed: it is swept at the next open of the topic"*), and removed at the
+master's next open of the topic:
 
 ```text
 key A, 3 rows; a filtered pager of A (from_t)    -> total_rows 3
-tranger2_delete_key(A), keys/A of mode 0550        -> -1, no file removed
+tranger2_delete_key(A), keys/A of mode 0550        -> -1, A keeps its 3 rows, no callback
 the same pager, next page                          -> total_rows 3
+keys/A holds a directory that cannot be emptied  -> 0, one callback, keys/A gone,
+                                                    <topic>/.deleted_key.* left
+the next open of the topic by the master         -> the directory left removed (a warning)
 ```
 
 The iterators of the key, in this process, lose what they took from it: see

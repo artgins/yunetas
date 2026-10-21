@@ -757,8 +757,8 @@ PRIVATE int do_test(void)
         set_expected_results(
             "delete key files: a failed delete of a key purged whole",
             json_pack("[{s:s},{s:s}]",
-                "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was, with its base",
-                "msg", "Cannot delete subdir key. rmrdir() FAILED"
+                "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was",
+                "msg", "Cannot delete subdir key: its directory cannot be moved out of keys/, the key stays as it was"
             ),
             NULL, NULL, 1
         );
@@ -781,8 +781,8 @@ PRIVATE int do_test(void)
         set_expected_results(
             "delete key files: a failed delete of a key with a base",
             json_pack("[{s:s},{s:s}]",
-                "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was, with its base",
-                "msg", "Cannot delete subdir key. rmrdir() FAILED"
+                "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was",
+                "msg", "Cannot delete subdir key: its directory cannot be moved out of keys/, the key stays as it was"
             ),
             NULL, NULL, 1
         );

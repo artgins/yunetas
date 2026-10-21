@@ -5843,41 +5843,21 @@ PRIVATE void mirror_key_purge_to_disks(
 #define DELETED_KEY_PREFIX  ".deleted_key."
 
 /***************************************************************************
- *  Remove the directory of a key. A key with a base (`.purged`) must not
- *  lose files and keep its base, or lose its base and keep files: either
- *  numbers its next records with g_rowids that followers and clients have
- *  seen. So it is first moved out of keys/, whole, to a name of its own --
- *  a rename() is atomic: the key is there whole, or its name is gone --
- *  and then removed. A failure of the move leaves the key as it was; a
- *  failure of the removal leaves the moved directory, and the key is gone
- *  all the same (logged; swept at the master's next open).
- *  A key without a base: rmrdir(), as always.
+ *  Remove the directory of a key. A key must not lose some of its files and
+ *  keep the others: its rows are numbered by position, so the rows after a
+ *  hole move, and its next records take g_rowids that followers and clients
+ *  have seen. Nor lose its base (`.purged`) and keep files, or the reverse.
+ *  So it is first moved out of keys/, whole, to a name of its own -- a
+ *  rename() is atomic: the key is there whole, or its name is gone -- and
+ *  then removed. A failure of the move leaves the key as it was; a failure
+ *  of the removal leaves the moved directory, and the key is gone all the
+ *  same (logged; swept at the master's next open). Up to 7.27.5 a key
+ *  without a base was removed in place, file by file, and a removal that
+ *  failed half way renumbered it.
  *  Return 0, or -1 (logged) with the key as it was. errno is the cause.
  ***************************************************************************/
 PRIVATE int remove_key_directory(hgobj gobj, const char *topic_dir, const char *path_key)
 {
-    char purged_path[PATH_MAX];
-    if(!build_path(purged_path, sizeof(purged_path), path_key, PURGED_FILENAME, NULL)) {
-        return -1;  // Error already logged
-    }
-    if(access(purged_path, F_OK) < 0) {
-        if(errno != ENOENT) {
-            int err = errno;
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot delete key, its base cannot be looked for: the key stays as it was",
-                "path",         "%s", purged_path,
-                "errno",        "%d", err,
-                "serrno",       "%s", strerror(err),
-                NULL
-            );
-            errno = err;
-            return -1;
-        }
-        return rmrdir(path_key);
-    }
-
     /*
      *  Its name: the pid and the start of this process (a pid comes back
      *  after a reboot), and a number of this process; one taken by a
@@ -5908,7 +5888,7 @@ PRIVATE int remove_key_directory(hgobj gobj, const char *topic_dir, const char *
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was, with its base",
+            "msg",          "%s", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was",
             "path",         "%s", path_key,
             "errno",        "%d", err,
             "serrno",       "%s", strerror(err),
@@ -5994,9 +5974,11 @@ PRIVATE void sweep_deleted_keys_left(hgobj gobj, const char *topic_dir)
     is done: then it mirrors the rmrdir into `topic/disks/<rt_id>/<key>/`
     so followers pick it up via inotify, and fires the in-process
     `key_deleted_callback`s on rt_mem / iterators / rt_disk subscribers.
-    When the key dir cannot be removed (-1), nothing is announced: the
-    cache of the key is read again from what is left on disk, and its
-    iterators take their segments again from it. When it cannot even be
+    The key dir is moved out of keys/ whole before it is removed, so a
+    delete that fails (-1) leaves the key as it was: nothing is announced,
+    the cache of the key is read again from the disk, and its iterators take
+    their segments again from it. A moved directory that cannot be removed
+    is the key deleted all the same (0), swept at the master's next open. When it cannot even be
     stat'ed (any errno but ENOENT), -1 with nothing done.
  ***************************************************************************/
 PUBLIC int tranger2_delete_key(
@@ -6126,19 +6108,20 @@ PUBLIC int tranger2_delete_key(
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", path_key,
                 "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot delete subdir key. rmrdir() FAILED",
+                "msg",          "%s", "Cannot delete subdir key: its directory cannot be moved out of keys/, the key stays as it was",
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
             /*
-             *  Some of its files may be gone: the cache of the key is read
-             *  again from what is left, and the iterators take their
-             *  segments again from it -- an unfiltered one at its next
-             *  page, a filtered one now, its index built again as an open
-             *  builds it. Nothing is announced. Up to 7.25.4 a filtered
-             *  iterator lost its index here, and read an EMPTY key that
-             *  was still on disk until it was opened again.
+             *  The key is on disk as it was (the move is atomic). Its cache
+             *  is read again from it all the same, as an open reads it, and
+             *  the iterators take their segments again from it -- an
+             *  unfiltered one at its next page, a filtered one now, its
+             *  index built again as an open builds it. Nothing is
+             *  announced. Up to 7.25.4 a filtered iterator lost its index
+             *  here, and read an EMPTY key that was still on disk until it
+             *  was opened again.
              */
             json_t *key_cache = load_key_cache_from_disk(
                 gobj, topic_dir, key, json_is_true(json_object_get(tranger, "master"))

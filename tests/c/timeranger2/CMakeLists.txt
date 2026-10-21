@@ -153,8 +153,9 @@ foreach(test ${SRCS})
     if(test STREQUAL "test_delete_key_propagation")
         # The test fails a stat(), an opendir() and a readdir() of one path in
         # its own __wrap_stat(), __wrap_opendir() and __wrap_readdir(), and
-        # holds the master's delete signals in __wrap_rmdir()
-        target_link_options(${binary} PRIVATE "-Wl,--wrap=stat,--wrap=opendir,--wrap=readdir,--wrap=rmdir")
+        # holds the master's delete signals in __wrap_rmdir(), and reads the
+        # delete sequence when a key leaves keys/ in __wrap_rename()
+        target_link_options(${binary} PRIVATE "-Wl,--wrap=stat,--wrap=opendir,--wrap=readdir,--wrap=rmdir,--wrap=rename")
     endif()
     if(test STREQUAL "test_rt_disk_unwatched_key")
         # The test fails the watch of one key directory (ENOSPC) in its own

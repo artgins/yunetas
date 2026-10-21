@@ -59,8 +59,9 @@
  *        just made forget it).
  *      - do_test_delete_seq_record: the record of the master's delete
  *        sequence (`<topic>/delete_seq.json`): made at the open, the
- *        sequence taken before the key leaves keys/ (a delete whose rmrdir()
- *        fails has taken it, and keeps it: never given back), a signal the
+ *        sequence taken before the key leaves keys/ (read at the rename()
+ *        that moves it out; a delete that fails has taken it, and keeps it:
+ *        never given back), a signal the
  *        master could not remove heard at its next open (an older one, followed by other deletes, removed
  *        unheard), an unreadable record refusing the delete and left as
  *        it is, a follower with no record saying that it hears no delete.
@@ -97,8 +98,13 @@
  *        it matches and of no other: an rt_mem feed of the master and an
  *        rt_disk feed of a follower. Up to 7.25.20 the delete looked at
  *        the exact `key` only, and an rkey feed heard every key deleted.
- *      - do_test_rmrdir_fails:        a key whose directory cannot be removed
- *        is NOT announced deleted: the notices go out after the rmrdir.
+ *      - do_test_rmrdir_fails:        a key that cannot be moved out of
+ *        keys/ is NOT deleted, nor announced: the notices go out after it
+ *        left. A key moved out whose directory cannot be emptied is deleted
+ *        all the same, announced once, and the directory left is swept at
+ *        the master's next open. Up to 7.27.5 a key without a base was
+ *        removed in place, and a removal that failed half way renumbered
+ *        it.
  *      - do_test_rmrdir_fails_filtered: a delete that fails with no file
  *        removed leaves a FILTERED paging iterator of the key its rows.
  *        Up to 7.25.4 the failure emptied its index (a filtered index
@@ -115,7 +121,8 @@
  *  The failures of stat(), opendir() and readdir() are made by the
  *  __wrap_*() below (the test links with --wrap=stat,opendir,readdir), for
  *  the one path each is told to fail; __wrap_rmdir() holds the master's
- *  delete signals for do_test_signal_dir_seen.
+ *  delete signals for do_test_signal_dir_seen, and __wrap_rename() reads the
+ *  delete sequence when a key leaves keys/.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -417,13 +424,40 @@ PRIVATE int expect_applied_pruned(const char *label, json_t *tf)
 
 /***************************************************************************
  *  do_test_rmrdir_fails
- *  The key directory holds a directory that cannot be emptied: the delete
- *  fails, and nobody hears it as done. Once it can be removed, the delete
- *  goes through and is heard once.
+ *  A key that cannot be moved out of keys/ (its directory is read-only):
+ *  the delete fails, nobody hears it as done, and the key keeps every
+ *  record. A key moved out whose directory cannot be emptied (it holds a
+ *  directory that cannot be): the key is deleted all the same, heard once,
+ *  and the directory left is swept at the master's next open. Up to 7.27.5
+ *  a key without a base was removed in place: the second case removed some
+ *  of its files and failed, and the key, read again from what was left,
+ *  numbered its rows anew. Skipped as root, who removes the files anyway.
  ***************************************************************************/
+PRIVATE int find_deleted_key_left(const char *path_topic, char *bf, size_t bfsize)
+{
+    bf[0] = 0;
+    DIR *dir = opendir(path_topic);
+    if(!dir) {
+        return -1;
+    }
+    struct dirent *entry;
+    while((entry = readdir(dir)) != NULL) {
+        if(strncmp(entry->d_name, ".deleted_key.", 13) == 0) {
+            build_path(bf, bfsize, path_topic, entry->d_name, NULL);
+            break;
+        }
+    }
+    closedir(dir);
+    return bf[0]? 0 : -1;
+}
+
 PRIVATE int do_test_rmrdir_fails(void)
 {
     int result = 0;
+    if(geteuid() == 0) {
+        printf("  rmrdir_fails: skipped as root\n");
+        return 0;
+    }
     char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
     build_paths(path_root, sizeof(path_root),
                 path_database, sizeof(path_database),
@@ -452,17 +486,47 @@ PRIVATE int do_test_rmrdir_fails(void)
     tranger2_set_rt_key_deleted_callback(rt, my_key_deleted_callback, NULL);
     result += test_json(NULL);
 
-    set_expected_results_unordered(
-        "rmrdir_fails: a delete that cannot remove the directory is not announced",
+    set_expected_results(
+        "rmrdir_fails: a key that cannot leave keys/ is not deleted, nor announced",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was",
+            "msg", "Cannot delete subdir key: its directory cannot be moved out of keys/, the key stays as it was"
+        ),
+        NULL, NULL, 1
+    );
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_topic, "keys", KEY_A, NULL);
+    chmod(key_dir, 0500);   // a directory without write permission cannot move to another parent
+    if(tranger2_delete_key(tranger, TOPIC_NAME, KEY_A) == 0) {
+        printf("%sERROR%s --> rmrdir_fails: the delete answered done\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    chmod(key_dir, 02700);
+    if(deleted_callback_count != 0) {
+        printf("%sERROR%s --> rmrdir_fails: a failed delete was announced %zu time(s)\n",
+            On_Red BWhite, Color_Off, deleted_callback_count);
+        result += -1;
+    }
+    json_t *range = tranger2_topic_key_range(tranger, TOPIC_NAME, KEY_A);
+    if(kw_get_int(0, range, "rows", -1, 0) != 3) {
+        printf("%sERROR%s --> rmrdir_fails: the key after the failed delete: %d rows, expected 3\n",
+            On_Red BWhite, Color_Off, (int)kw_get_int(0, range, "rows", -1, 0));
+        result += -1;
+    }
+    JSON_DECREF(range)
+    result += test_json(NULL);
+
+    set_expected_results(
+        "rmrdir_fails: a key moved out that cannot be emptied is deleted all the same",
         json_pack("[{s:s},{s:s}]",
             "msg", "remove() FAILED",
-            "msg", "Cannot delete subdir key. rmrdir() FAILED"
+            "msg", "Key deleted, but its directory moved aside cannot be removed: it is swept at the next open of the topic"
         ),
         NULL, NULL, 1
     );
     char blocker[PATH_MAX];
     char blocked[PATH_MAX];
-    build_path(blocker, sizeof(blocker), path_topic, "keys", KEY_A, "blocker", NULL);
+    build_path(blocker, sizeof(blocker), key_dir, "blocker", NULL);
     build_path(blocked, sizeof(blocked), blocker, "file", NULL);
     mkdir(blocker, 0700);
     FILE *f = fopen(blocked, "w");
@@ -470,21 +534,8 @@ PRIVATE int do_test_rmrdir_fails(void)
         fclose(f);
     }
     chmod(blocker, 0500);
-    if(tranger2_delete_key(tranger, TOPIC_NAME, KEY_A) == 0) {
-        printf("%sERROR%s --> rmrdir_fails: the delete answered done\n", On_Red BWhite, Color_Off);
-        result += -1;
-    }
-    if(deleted_callback_count != 0) {
-        printf("%sERROR%s --> rmrdir_fails: a failed delete was announced %zu time(s)\n",
-            On_Red BWhite, Color_Off, deleted_callback_count);
-        result += -1;
-    }
-    result += test_json(NULL);
-
-    set_expected_results("rmrdir_fails: the delete once it can be done", NULL, NULL, NULL, 1);
-    chmod(blocker, 0700);
     if(tranger2_delete_key(tranger, TOPIC_NAME, KEY_A) < 0) {
-        printf("%sERROR%s --> rmrdir_fails: the second delete failed\n", On_Red BWhite, Color_Off);
+        printf("%sERROR%s --> rmrdir_fails: the delete of a key moved out failed\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     if(deleted_callback_count != 1) {
@@ -492,7 +543,37 @@ PRIVATE int do_test_rmrdir_fails(void)
             On_Red BWhite, Color_Off, deleted_callback_count);
         result += -1;
     }
+    if(access(key_dir, F_OK) == 0) {
+        printf("%sERROR%s --> rmrdir_fails: the key is still in keys/\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    char left[PATH_MAX];
+    if(find_deleted_key_left(path_topic, left, sizeof(left)) < 0) {
+        printf("%sERROR%s --> rmrdir_fails: no directory of the deleted key is left\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
     tranger2_close_rt_mem(tranger, rt);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    set_expected_results(
+        "rmrdir_fails: the directory left is swept at the next open",
+        json_pack("[{s:s}]",
+            "msg", "A directory of a deleted key, left by a delete, was removed"
+        ),
+        NULL, NULL, 1
+    );
+    char left_blocker[PATH_MAX];
+    build_path(left_blocker, sizeof(left_blocker), left, "blocker", NULL);
+    chmod(left_blocker, 0700);
+    tranger = startup_master(path_root, FALSE);
+    if(!tranger || !tranger2_open_topic(tranger, TOPIC_NAME, TRUE)) {
+        result += -1;
+    }
+    if(access(left, F_OK) == 0) {
+        printf("%sERROR%s --> rmrdir_fails: the directory left is not swept\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
     tranger2_shutdown(tranger);
     result += test_json(NULL);
     return result;
@@ -551,14 +632,14 @@ PRIVATE int do_test_rmrdir_fails_filtered(void)
     set_expected_results(
         "rmrdir_fails_filtered: a delete that removes nothing fails",
         json_pack("[{s:s},{s:s}]",
-            "msg", "remove() FAILED",
-            "msg", "Cannot delete subdir key. rmrdir() FAILED"
+            "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was",
+            "msg", "Cannot delete subdir key: its directory cannot be moved out of keys/, the key stays as it was"
         ),
         NULL, NULL, 1
     );
     char key_dir[PATH_MAX];
     build_path(key_dir, sizeof(key_dir), path_topic, "keys", KEY_A, NULL);
-    chmod(key_dir, 0550);   // its files cannot be unlinked
+    chmod(key_dir, 0550);   // it cannot be moved out of keys/
     if(tranger2_delete_key(tranger, TOPIC_NAME, KEY_A) == 0) {
         printf("%sERROR%s --> rmrdir_fails_filtered: the delete answered done\n", On_Red BWhite, Color_Off);
         result += -1;
@@ -2956,8 +3037,9 @@ PRIVATE int seq_hold_signals = 0;
 PRIVATE int hold_delete_signal(const char *path, int *ret)
 {
     const char *name = strrchr(path, '/');
-    if(!seq_hold_signals || !name || strncmp(name, "/.d", 3) != 0) {
-        return FALSE;
+    if(!seq_hold_signals || !name || strncmp(name, "/.d", 3) != 0 ||
+            name[3] < '0' || name[3] > '9') {
+        return FALSE;   // a delete signal is `.d<seq>.<key>`; `.deleted_key.*` is no signal
     }
     errno = EIO;
     *ret = -1;
@@ -2968,12 +3050,14 @@ PRIVATE json_int_t read_seq_record(const char *path_topic);
 PRIVATE char seq_watch_key_dir[PATH_MAX] = "";  // the key directory whose rmdir() reads the record
 PRIVATE char seq_watch_topic[PATH_MAX] = "";
 PRIVATE json_int_t seq_seen_at_remove = -100;
-PRIVATE int read_record_at_key_remove(const char *path, int *ret)
+int __real_rename(const char *oldpath, const char *newpath);
+int __wrap_rename(const char *oldpath, const char *newpath);
+int __wrap_rename(const char *oldpath, const char *newpath)
 {
-    if(seq_watch_key_dir[0] && strcmp(path, seq_watch_key_dir) == 0) {
+    if(seq_watch_key_dir[0] && strcmp(oldpath, seq_watch_key_dir) == 0) {
         seq_seen_at_remove = read_seq_record(seq_watch_topic);
     }
-    return FALSE;   // the rmdir() is done as always
+    return __real_rename(oldpath, newpath);
 }
 
 PRIVATE json_int_t read_seq_record(const char *path_topic)
@@ -3051,24 +3135,17 @@ PRIVATE int do_test_delete_seq_record(void)
      *  gap): given back, the next delete would reuse a number a follower
      *  may have read at an overflow meanwhile
      */
-    set_expected_results_unordered(
-        "delete_seq: a delete whose rmrdir() fails keeps its sequence taken",
+    set_expected_results(
+        "delete_seq: a delete that fails keeps its sequence taken",
         json_pack("[{s:s},{s:s}]",
-            "msg", "remove() FAILED",
-            "msg", "Cannot delete subdir key. rmrdir() FAILED"
+            "msg", "Cannot delete key, rename() of its directory out of keys/ FAILED: the key stays as it was",
+            "msg", "Cannot delete subdir key: its directory cannot be moved out of keys/, the key stays as it was"
         ),
         NULL, NULL, 1
     );
-    char blocker[PATH_MAX];
-    char blocked[PATH_MAX];
-    build_path(blocker, sizeof(blocker), path_topic, "keys", KEY_A, "blocker", NULL);
-    build_path(blocked, sizeof(blocked), blocker, "file", NULL);
-    mkdir(blocker, 0700);
-    FILE *f = fopen(blocked, "w");
-    if(f) {
-        fclose(f);
-    }
-    chmod(blocker, 0500);
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_topic, "keys", KEY_A, NULL);
+    chmod(key_dir, 0500);   // it cannot be moved out of keys/
     if(tranger2_delete_key(tm, TOPIC_NAME, KEY_A) == 0) {
         printf("%sERROR%s --> delete_seq: the delete answered done\n", On_Red BWhite, Color_Off);
         result += -1;
@@ -3081,16 +3158,14 @@ PRIVATE int do_test_delete_seq_record(void)
     }
     /*
      *  The sequence is recorded BEFORE the key leaves keys/: read from the
-     *  rmdir() of the key's directory
+     *  rename() that moves the key's directory out
      */
-    chmod(blocker, 0700);
-    build_path(seq_watch_key_dir, sizeof(seq_watch_key_dir), path_topic, "keys", KEY_A, NULL);
+    chmod(key_dir, 02700);
+    snprintf(seq_watch_key_dir, sizeof(seq_watch_key_dir), "%s", key_dir);
     snprintf(seq_watch_topic, sizeof(seq_watch_topic), "%s", path_topic);
-    rmdir_hook = read_record_at_key_remove;
     if(tranger2_delete_key(tm, TOPIC_NAME, KEY_A) < 0) {
         result += -1;
     }
-    rmdir_hook = NULL;
     seq_watch_key_dir[0] = 0;
     drain(30);
     if(seq_seen_at_remove != 2) {
@@ -3294,7 +3369,7 @@ PRIVATE int do_test_delete_seq_record(void)
     char record[PATH_MAX];
     build_path(record, sizeof(record), path_topic, "delete_seq.json", NULL);
     chmod(record, 0600);
-    f = fopen(record, "w");
+    FILE *f = fopen(record, "w");
     if(f) {
         fputs("{\"not_a_sequence\": 7}", f);
         fclose(f);
