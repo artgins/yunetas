@@ -1112,7 +1112,10 @@ purged+rows`, and:
 - a `from_rowid` / `to_rowid` of a match_cond counts from the base (a positive
   bound inside the purged rows is taken to the first live one), and a negative
   one from the end, as before;
-- position N of a page of an unfiltered iterator is `g_rowid = purged + N`;
+- position N of a page of an unfiltered iterator is `g_rowid = purged + N`,
+  with the base the key had when the iterator opened: a purge since the open
+  moves no position (the ones of the rows it took come back empty), and a
+  filtered iterator keeps its index, skipping the rows purged;
 - the next append gets `purged + rows + 1`.
 
 ```C
@@ -1173,8 +1176,10 @@ tranger2_delete_key_files(K, before_t = 2000-01-02T00:00:00)   -> 3
 
 - **Refused** with `-1`, logged, nothing deleted: a cut in the future (its file
   sorts after the file of now: the file being written would go, and every
-  append of the period after); a `filename_mask` with no absolute year (the
-  `"queue"` of a tr_queue topic, a cyclic `%a`); a key flagged `unlisted`, or
+  append of the period after); a `filename_mask` whose first conversion is not
+  an absolute year (the `"queue"` of a tr_queue topic, a cyclic `%a`,
+  `%d-%m-%Y`; `"tracks-%Y-%m-%d"` is fine); a topic of a treedb or a msg2db
+  open on the tranger (its keys are their nodes); a key flagged `unlisted`, or
   with a file flagged unreadable in the period cut (its rows are in no cell,
   and the base would miss them); a key not in the cache; a replica.
 - **An append into a purged period is refused** afterwards (*"Cannot append
@@ -1201,8 +1206,10 @@ tranger2_delete_key_files(K, before_t = 2000-01-02T00:00:00)   -> 3
   unlinks per file: 0.9 to 1.8 ms per key on the two yunovatios VMs. The hard
   links `disks/<rt_id>/<key>/<id>.md2` that a dead feed left are removed too.
 - When the directory of the base cannot be `fsync()`ed after its rename, the
-  cache is purged but the files stay until the next open, and the call answers
-  `-1`.
+  purge is applied (the cache and the followers take it) but the files stay
+  until the next open, and the call answers `-1`.
+- `tranger2_delete_key()` removes the base the LAST of the files of the key: a
+  delete that fails half way keeps the key, numbered by its base.
 - By hand: the `delete-key-files` command of [`C_TRANGER`](#gclass-c-tranger).
 
 ---
@@ -1623,12 +1630,35 @@ json_t *page = tranger2_iterator_get_page(tranger, it, 1, 100, FALSE);
 /*  page["data"] holds the 3 new rows too; page["total_rows"] counts them  */
 ```
 
+A **purge of the old files of the key**
+([`tranger2_delete_key_files()`](#tranger2_delete_key_files)) moves no
+position. The positions of an unfiltered iterator count from the base the key
+had when it opened (position N is `g_rowid = base + N`), and the ones of the
+rows purged since come back empty; a filtered iterator keeps its index, which
+holds g_rowids, and skips the rows purged. Counted from the base of NOW, every
+position moved by the rows purged, and a client paging forward skipped live
+rows.
+
+```C
+// K: 2 rows a day, days 1-3 (g_rowids 1-6), pages of 2
+json_t *it = tranger2_open_iterator(tranger, "topic", "K", json_object(), NULL, "pager", "", NULL, NULL);
+tranger2_iterator_get_page(tranger, it, 1, 2, FALSE);  // A1:1 A2:2
+tranger2_delete_key_files(tranger, "topic", "K", day2); // the 2 rows of day 1
+tranger2_iterator_get_page(tranger, it, 3, 2, FALSE);  // B1:3 B2:4 -- the next page, nothing skipped
+tranger2_iterator_get_page(tranger, it, 1, 2, FALSE);  // empty: purged
+tranger2_iterator_size(it);                             // 6: its positions
+```
+
 ---
 
 (tranger2_iterator_size)=
 ## [`tranger2_iterator_size()`](https://github.com/artgins/yunetas/blob/7.27.4/kernel/c/timeranger2/src/timeranger2.c#L13538)
 
 `tranger2_iterator_size()` returns the number of records in the specified iterator.
+For a filtered iterator, the size of its index; for an unfiltered one, its
+page positions: on a key purged since the open
+([`tranger2_delete_key_files()`](#tranger2_delete_key_files)) they include the
+positions of the rows purged, which come back empty.
 
 ```C
 size_t tranger2_iterator_size(

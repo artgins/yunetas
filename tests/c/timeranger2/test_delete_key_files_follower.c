@@ -14,7 +14,13 @@
  *        with the master's g_rowid;
  *      - a follower that heard nothing (it has no feed: no watcher of
  *        disks/) finds the purge before its next read, and reads what the
- *        master reads, with no error.
+ *        master reads, with no error;
+ *      - a file the follower flagged unreadable and the master purged is
+ *        not a flag for ever: every load of the key failed;
+ *      - a signal left in a feed directory (a master that died between its
+ *        mkdir() and its rmdir()) does not stop the next ones;
+ *      - a feed callback that reads its key while a purge waits does not
+ *        apply it under the cell the new records are counted in.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -39,6 +45,8 @@
 #define TOPIC_LONG  "topic_delete_key_files_follower_long"
 #define KEY         "0000000000000000001"   // a follower with a feed
 #define KEY2        "0000000000000000002"   // read by a follower with no feed
+#define KEY3        "0000000000000000003"   // a file flagged by a follower, then purged
+#define KEY5        "0000000000000000005"   // a feed callback that reads its key
 #define DAY1        946684800   // 2000-01-01
 #define DAY2        (DAY1 + 86400)
 #define DAY3        (DAY2 + 86400)
@@ -49,6 +57,7 @@
 PRIVATE yev_loop_h yev_loop;
 PRIVATE char got[512] = "";
 PRIVATE char long_key[241];     // past what the name of a signal holds
+PRIVATE char got5[512] = "";
 
 /***************************************************************
  *              Prototypes
@@ -77,6 +86,38 @@ PRIVATE int on_feed_record(
     );
     strncat(got, item, sizeof(got) - strlen(got) - 1);
     JSON_DECREF(record)
+    return 0;
+}
+
+/*
+ *  A feed of KEY5 whose callback reads the key, as a consumer may
+ */
+PRIVATE int on_feed_reentrant(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    char item[64];
+    snprintf(item, sizeof(item), "%s%s:%ld",
+        got5[0]? " ": "",
+        record? kw_get_str(0, record, "content", "?", 0): "?",
+        (long)rowid
+    );
+    strncat(got5, item, sizeof(got5) - strlen(got5) - 1);
+    JSON_DECREF(record)
+
+    json_t *it = tranger2_open_iterator(
+        tranger, tranger2_topic_name(topic), key,
+        json_pack("{s:b}", "only_md", 1), NULL, "reentrant", "", NULL, NULL
+    );
+    if(it) {
+        tranger2_close_iterator(tranger, it);
+    }
     return 0;
 }
 
@@ -265,6 +306,8 @@ PRIVATE int do_test(void)
             snprintf(content, sizeof(content), "%s%d", contents[d], r + 1);
             append_one(tm, 1, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
             append_one(tm, 2, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
+            append_one(tm, 3, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
+            append_one(tm, 5, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
             append_long(tm, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
         }
     }
@@ -366,12 +409,115 @@ PRIVATE int do_test(void)
         drain(20);
         json_t *page = tranger2_iterator_get_page(tf, it, 1, 10, FALSE);
         result += expect_int("the page of a key purged whole", (json_int_t)json_array_size(json_object_get(page, "data")), 0);
-        result += expect_int("its total", kw_get_int(0, page, "total_rows", -1, 0), 0);
+        result += expect_int("its total: the positions it had, empty", kw_get_int(0, page, "total_rows", -1, 0), 2);
         JSON_DECREF(page)
         tranger2_close_iterator(tf, it);
     }
     tf = tf_feed;
     tranger2_shutdown(tf2);
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A file the follower flagged
+     *  unreadable, then purged by the
+     *  master: not a flag for ever
+     *-------------------------------------*/
+    if(geteuid() != 0) {
+        char md2_day1[PATH_MAX];
+        build_path(md2_day1, sizeof(md2_day1), path_database, TOPIC_NAME, "keys", KEY3, "2000-01-01.md2", NULL);
+        chmod(md2_day1, 0);
+        set_expected_results(
+            "purge follower: a flagged file purged",
+            json_pack("[{s:s},{s:s}]",
+                "msg", "Cannot open md2 file",
+                "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed"
+            ),
+            NULL, NULL, 1
+        );
+        json_t *tf3 = startup_tranger(FALSE);
+        if(!tf3 || !tranger2_open_topic(tf3, TOPIC_NAME, TRUE)) {
+            result += -1;
+        }
+        result += test_json(NULL);
+
+        set_expected_results("purge follower: a flagged file purged, read", NULL, NULL, NULL, 1);
+        result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY3, DAY2), 2);
+        drain(20);
+        served(tf3, TOPIC_NAME, KEY3, bf, sizeof(bf));
+        result += expect("the flagged follower reads", bf, "B1:3 B2:4 C1:5 C2:6");
+        {
+            json_t *data = json_array();
+            json_t *it = tranger2_open_iterator(
+                tf3, TOPIC_NAME, KEY3, json_object(), NULL, "flagged", "", data, NULL
+            );
+            result += expect_int("and its loads do not fail", kw_get_bool(0, it, "load_failed", 0, 0), 0);
+            tranger2_close_iterator(tf3, it);
+            JSON_DECREF(data)
+        }
+        if(tf3) {
+            tranger2_shutdown(tf3);
+        }
+        result += test_json(NULL);
+    }
+
+    /*-------------------------------------*
+     *  A signal left in a feed directory
+     *-------------------------------------*/
+    set_expected_results("purge follower: a signal left", NULL, NULL, NULL, 1);
+    {
+        char left[PATH_MAX];
+        build_path(left, sizeof(left), path_database, TOPIC_NAME, "disks", "rt_follower", ".p." KEY, NULL);
+        mkdir(left, 02770);
+        drain(10);
+        result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY, DAY3), 2);
+        drain(20);
+        result += expect_int("the signal left is gone", access(left, F_OK) == 0, 0);
+        cells_of(tf, TOPIC_NAME, KEY, bf, sizeof(bf));
+        result += expect("the follower heard it", bf, "2000-01-03");
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A feed callback reading its key
+     *  while a purge waits, unheard
+     *-------------------------------------*/
+    set_expected_results("purge follower: a read from a feed callback", NULL, NULL, NULL, 1);
+    {
+        json_t *rt5 = tranger2_open_rt_disk(
+            tf, TOPIC_NAME, KEY5, NULL, on_feed_reentrant, "rt_reentrant", "", NULL
+        );
+        drain(10);
+        /*
+         *  A purge the follower is not told of: its base and its files, by
+         *  hand (the master's own cache does not know, and numbers as before)
+         */
+        char key5_dir[PATH_MAX];
+        char path[PATH_MAX];
+        build_path(key5_dir, sizeof(key5_dir), path_database, TOPIC_NAME, "keys", KEY5, NULL);
+        build_path(path, sizeof(path), key5_dir, ".purged", NULL);
+        FILE *fp = fopen(path, "w");
+        if(fp) {
+            fputs("{\"upto\": \"2000-01-01\", \"rows\": 2, \"t\": 0}", fp);
+            fclose(fp);
+        }
+        build_path(path, sizeof(path), key5_dir, "2000-01-01.md2", NULL);
+        unlink(path);
+        build_path(path, sizeof(path), key5_dir, "2000-01-01.json", NULL);
+        unlink(path);
+
+        got5[0] = 0;
+        result += expect_int("master append", append_one(tm, 5, DAY3 + 86400 + 100, "D1"), 7);
+        drain(30);
+        result += expect("the feed got", got5, "D1:7");
+        cells_of(tf, TOPIC_NAME, KEY5, bf, sizeof(bf));
+        result += expect("the new file has its cell", bf, "2000-01-01 2000-01-02 2000-01-03 2000-01-04");
+        served(tf, TOPIC_NAME, KEY5, bf, sizeof(bf));
+        result += expect("the next read applies the purge", bf, "B1:3 B2:4 C1:5 C2:6 D1:7");
+        cells_of(tf, TOPIC_NAME, KEY5, bf, sizeof(bf));
+        result += expect("cells after", bf, "2000-01-02 2000-01-03 2000-01-04");
+        tranger2_close_rt_disk(tf, rt5);
+        drain(10);
+    }
     result += test_json(NULL);
 
     set_expected_results("purge follower: shutdown", NULL, NULL, NULL, 1);

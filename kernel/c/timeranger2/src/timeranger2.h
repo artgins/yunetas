@@ -782,14 +782,20 @@ PUBLIC int tranger2_delete_key(
     Refused with -1 (logged, nothing deleted):
       - a cut in the future (its file sorts after the file of now): the
         file being written would go, and every append of the period after;
-      - a topic whose file name mask has no absolute year (%Y, %G, %F, %s):
-        its files do not sort as time (a tr_queue topic, a cyclic mask);
+      - a topic whose file name mask does not START with an absolute year
+        (%Y, %G, %F, %s; literal text before it is fine): its files do not
+        sort as time (a tr_queue topic, a cyclic mask, %d-%m-%Y);
+      - a topic of a treedb or a msg2db open on the tranger: its keys are
+        their nodes, written through them;
       - a key flagged unlisted, or with an unreadable file in the period:
         its rows are in no cell, and the base would miss them.
 
     An append whose __t__ falls in a purged period is refused afterwards.
 
-    Return the rows deleted (0: nothing to do), -1 on error (logged).
+    Return the rows deleted (0: nothing to do), -1 on error (logged). One
+    -1 is a purge APPLIED: the base was written but its directory could not
+    be fsync'ed -- the cache and the followers took the purge, and the files
+    stay on disk until the next open of the master removes them.
     Cost: one file and two fsync() per key purged, plus 2-3 unlinks per file
     deleted. An owner purging thousands of keys does a slice per tick.
 */
@@ -1118,7 +1124,9 @@ PUBLIC json_t *tranger2_get_iterator_by_id( // Silence inside. Check out.
 /*
     Get the iterator size: the number of rows it will return.
     A FILTERED iterator answers with its index (the records matching
-    match_cond); an unfiltered one sums its segments. 0 if it has neither.
+    match_cond); an unfiltered one, its page positions: the rows of its
+    segments, plus the rows purged since its open (tranger2_delete_key_files()),
+    whose positions stay, empty. 0 if it has neither.
 */
 PUBLIC size_t tranger2_iterator_size(
     json_t *iterator
@@ -1129,6 +1137,13 @@ PUBLIC size_t tranger2_iterator_size(
     `from_rowid` (1-based) is a position among the rows the iterator RETURNS:
     a global rowid when it is unfiltered, a position among the matching
     records when it filters (see `Iterator match_cond` above).
+    On a key whose old files were purged (tranger2_delete_key_files()) the
+    positions of an unfiltered iterator count from the base the key had at
+    its OPEN: position N is g_rowid base+N. A purge since the open leaves
+    every position where it was, and the ones of the rows it took come back
+    empty: a client paging forward skips no live row. A filtered iterator
+    keeps its index across a purge (it holds g_rowids, which a purge does not
+    move), and its pages skip the rows purged.
     Return
         total_rows:     iterator size (nº of rows)
         pages:          number of pages with the required limit

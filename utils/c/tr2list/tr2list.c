@@ -581,7 +581,10 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
         BOOL tm_axis = (strcmp(bound, "from_tm") == 0 || strcmp(bound, "to_tm") == 0)? TRUE : FALSE;
         if(system_flag & (tm_axis? sf_tm_ms : sf_t_ms)) {
             json_int_t secs = json_integer_value(json_object_get(topic_cond, bound));
-            json_object_set_new(topic_cond, bound, json_integer(secs * 1000));
+            BOOL end_bound = (strncmp(bound, "to_", 3) == 0)? TRUE : FALSE;
+            json_object_set_new(topic_cond, bound,
+                json_integer(secs * 1000 + (end_bound? 999 : 0))     // an end bound takes its whole second
+            );
         }
     }
 

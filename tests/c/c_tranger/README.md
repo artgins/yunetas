@@ -22,7 +22,8 @@ What it checks:
   appends a dict or its json text; `delete-key` with `force`;
   `delete-key-files` by date, by an integer and of every key, its `purged` in
   `list-keys`, and its refusals (a `before` in the future, no date, none, a
-  key not there).
+  key not there); a multi-key page across a purge keeps its positions, and a
+  filtered multi-key iterator purged since its open is closed, saying so.
 - **A peer's data** (phases *"a peer's data is refused"* and *"more of a
   peer's data is refused"*). Each case is sent with a `__username__` in the
   kw, as `C_IEVENT_SRV` delivers a peer's command, and each refusal is

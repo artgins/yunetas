@@ -158,7 +158,15 @@ if(rows < 0) {
   `tranger2_topic_key_size()` counts the live rows, and
   `tranger2_topic_key_range()` adds `"purged": N`. A rowid bound of a
   match_cond counts from the base, and so do the positions of a page: position
-  N of an unfiltered iterator is `g_rowid = purged + N`.
+  N of an unfiltered iterator is `g_rowid = purged + N`, with the base the key
+  had when the iterator OPENED. A purge since the open moves no position: the
+  ones of the rows it took come back empty, so a client paging forward skips
+  no live row. A filtered iterator keeps its index (g_rowids, which a purge
+  does not move) and its pages skip the rows purged. In `C_TRANGER`, a
+  multi-key iterator with a FILTERED part whose key was purged since the open
+  is closed at its next `get-page` (*"old rows of its key ... were purged since
+  it opened: open it again"*): its index is built again per page, and nothing
+  kept how far its positions moved.
 - **Crash-safe.** The base is written with an `fsync()` of the file and of its
   directory BEFORE any file is deleted. A crash before it leaves the key as it
   was (a `.purged.new` left is removed at the next open); a crash after it
@@ -168,20 +176,31 @@ if(rows < 0) {
   from 1 again): the key is flagged `unlisted`, its loads say `load_failed`, and
   an append reads it again first, or is refused.
 - **Refused** (-1, logged, nothing deleted): a cut in the future (it would
-  delete the file being written), a topic whose `filename_mask` has no absolute
-  year (`%Y`, `%G`, `%F`, `%s`; a tr_queue topic is `"queue"`), and a key whose
-  cells are not whole (flagged unlisted, or an unreadable file in the period).
-  Afterwards an append whose `__t__` falls in a purged period is refused.
+  delete the file being written); a topic whose `filename_mask` does not START
+  with an absolute year (`%Y`, `%G`, `%F`, `%s`, with only literal text before
+  it: a tr_queue topic is `"queue"`, and `%d-%m-%Y` sorts wrong); a topic of a
+  treedb or a msg2db open on the tranger (its keys are their nodes); and a key
+  whose cells are not whole (flagged unlisted, or an unreadable file in the
+  period). Afterwards an append whose `__t__` falls in a purged period is
+  refused.
 - **A key purged whole** (silent for longer than the retention) keeps its
-  directory and its base, with 0 rows, and goes on numbering.
-  `tranger2_delete_key()` removes the base with the key.
+  directory and its base, with 0 rows and a span of 0, and goes on numbering.
+  `tranger2_delete_key()` removes the base with the key, the LAST of its
+  files: a delete that fails half way keeps the key, numbered by its base.
 - **Followers.** The master makes and removes `disks/<rt_id>/.p.<key>` (`.q.<sha256>`
   for a key too long for the name) in every feed directory. A follower that
   hears it reads the base, drops the cells at or before `upto`, closes their
   descriptors (they hold the disk) and takes the segments of its iterators
-  again. A signal it did not hear is made up for before its next load or page
-  of the key: a purge deletes a prefix of the files, so one `stat()` of the
-  first file tells. Master and followers of a topic upgrade together.
+  again; the flags of the files purged go too (a follower that listed the key
+  while it was purged flags the md2 it found gone, and such a flag failed
+  every load of the key). A signal it did not hear is made up for before its
+  next load or page of the key: a purge deletes a prefix of the files, so one
+  `stat()` of the first file (and of the first one flagged) tells -- but not
+  while the feeds of the key are told its new records: a callback that reads
+  the key then does not change the cells they are counted in. A signal left
+  in a feed directory (a master that died between its `mkdir()` and its
+  `rmdir()`) is signalled again by the next purge and removed at the master's
+  next open. Master and followers of a topic upgrade together.
 - **Cost.** One small file and two `fsync()` per key purged, plus two or three
   unlinks per file: about 1-2 ms per key on the slowest node measured. A topic
   of thousands of keys is purged a slice of keys per tick by its owner, on its

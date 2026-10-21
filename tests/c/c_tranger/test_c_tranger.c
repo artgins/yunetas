@@ -3256,6 +3256,66 @@ PRIVATE int do_test(void)
         check_refused("delete-key-files of a key not there", r);
         check_int("the refusals deleted nothing",
             (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME5, "P"), 2);
+
+        /*
+         *  The pages of a multi-key iterator across a purge: an unfiltered
+         *  part keeps its positions (no live row skipped); a filtered one
+         *  cannot, and the iterator is closed, saying so
+         */
+        const char *keys_qr[] = {"Q", "R"};
+        for(int k = 0; k < 2; k++) {
+            for(int d = 0; d < 3; d++) {
+                for(int j = 0; j < 2; j++) {
+                    uint64_t t = BASE_T + (uint64_t)d*86400 + (uint64_t)j;
+                    char content[8];
+                    snprintf(content, sizeof(content), "%s%c%d", keys_qr[k], 'a' + d, j + 1);
+                    md2_record_ex_t md = {0};
+                    tranger2_append_record(tranger, TOPIC_NAME5, t, 0, &md,
+                        json_pack("{s:s, s:I, s:s}", "id", keys_qr[k], "tm", (json_int_t)t, "content", content));
+                }
+            }
+        }
+        r = gobj_command(yuno, "open-iterator",
+            json_pack("{s:s, s:s, s:s}",
+                "topic_name", TOPIC_NAME5, "rkey", "^(Q|R)$", "iterator_id", "itQR"), yuno);
+        check_int("open-iterator Q|R", kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "open-iterator",
+            json_pack("{s:s, s:s, s:s, s:I}",
+                "topic_name", TOPIC_NAME5, "rkey", "^(Q|R)$", "iterator_id", "itQRf",
+                "from_t", (json_int_t)BASE_T), yuno);
+        check_int("open-iterator Q|R filtered", kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+
+        r = gobj_command(yuno, "delete-key-files",
+            json_pack("{s:s, s:I}", "topic_name", TOPIC_NAME5, "before", (json_int_t)(BASE_T + 86400)), yuno);
+        check_int("purge the first day of Q and R", kw_get_int(0, r, "data`rows", -1, 0), 4);
+        JSON_DECREF(r)
+
+        r = gobj_command(yuno, "get-page",
+            json_pack("{s:s, s:i, s:i}", "iterator_id", "itQR", "from_rowid", 5, "limit", 4), yuno);
+        check_int("multi-key page after the purge", kw_get_int(0, r, "result", -999, 0), 0);
+        json_t *qr = kw_get_list(0, r, "data`data", 0, 0);
+        char got_qr[128] = "";
+        int iq; json_t *rec;
+        json_array_foreach(qr, iq, rec) {
+            if(got_qr[0]) {
+                strncat(got_qr, " ", sizeof(got_qr) - strlen(got_qr) - 1);
+            }
+            strncat(got_qr, kw_get_str(0, rec, "content", "?", 0), sizeof(got_qr) - strlen(got_qr) - 1);
+        }
+        check_str("its positions stay: Q's last day, R's purged ones empty", got_qr, "Qc1 Qc2");
+        check_int("its total: the positions of the open", kw_get_int(0, r, "data`total_rows", -1, 0), 12);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "close-iterator", json_pack("{s:s}", "iterator_id", "itQR"), yuno);
+        JSON_DECREF(r)
+
+        r = gobj_command(yuno, "get-page",
+            json_pack("{s:s, s:i, s:i}", "iterator_id", "itQRf", "from_rowid", 1, "limit", 4), yuno);
+        check_int("a filtered multi-key page after the purge", kw_get_int(0, r, "result", -999, 0), -1);
+        check_bool("it says why",
+            strstr(kw_get_str(0, r, "comment", "", 0), "were purged since it opened") != NULL, TRUE);
+        JSON_DECREF(r)
     }
     global_result += test_json(NULL);
 

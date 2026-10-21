@@ -21,11 +21,26 @@
     - The rowid bounds of a match_cond and the positions of a page count
       from the base. The four copies of the rowid resolution (`WARNING
       adjust REPEATED`) are one pair of helpers.
+    - **A purge moves no page position.** An unfiltered iterator counts its
+      positions from the base its key had at the open (the ones of the rows
+      purged since come back empty), a filtered one keeps its index of
+      g_rowids and skips the rows purged; `tranger2_iterator_size()` counts
+      positions. Counted from the base of now, a client paging forward skipped
+      live rows. In `C_TRANGER` the unfiltered parts of a multi-key iterator do
+      the same, and one with a FILTERED part purged since its open is closed at
+      its next `get-page`, saying so.
     - `tranger2_topic_key_range()` gives `"purged"`, and so does `list-keys`.
     - Followers hear `disks/<rt_id>/.p.<key>` and apply the base: the cells
       go, their descriptors are closed (they held the disk), the iterators
-      take their segments again. A signal not heard is made up for before
-      the next load or page (one `stat()` of the key's first file). **Master
+      take their segments again, and the unreadable flags of the files purged
+      go too (a follower that listed the key while it was purged failed every
+      load of it). A signal not heard is made up for before the next load or
+      page (one `stat()` of the key's first file, and of its first flagged
+      one), but never while the key's feeds are told its new records: a
+      callback that read the key could apply a purge under the cell they are
+      counted in. A signal left by a master that died between its `mkdir()`
+      and `rmdir()` is signalled again by the next purge and swept at the
+      master's open. **Master
       and followers of a topic upgrade together**; an older follower ignores
       the signal and reads the purged files as gone.
     - **Downgrade** after a purge: an older SDK ignores `.purged` and numbers
@@ -37,12 +52,22 @@
     - A key with no file left (purged whole, or flagged unlisted) has a span of
       0 in `tranger2_topic_key_range()` and `list-keys`, what every reader takes
       for "unset". It said `fr_t`/`fr_tm` -1, the starting minimum of the sum.
+    - Also refused: a mask whose FIRST conversion is not the year
+      (`%d-%m-%Y`), and a topic of a treedb or a msg2db (in the library, and
+      in `delete-key-files` for every caller: its keys are its nodes).
+    - `tranger2_delete_key()` removes a key's base the last of its files, and a
+      failed delete keeps a key purged whole in the cache: either way the key
+      stays numbered by its base. When the directory of a new base cannot be
+      fsync'ed the purge is applied and the followers are told; the files
+      stay until the next open.
 - **A date in `from_t` / `to_t` is taken to the unit of `t`** (timeranger2,
   `get_segments()`). It was multiplied by 1000 when the topic had `sf_tm_ms`,
   the unit of `tm`: on a topic with `t` in milliseconds and `tm` in seconds a
   date bound by `t` (`from_t=2026-01-01T00:00:00` in `open-list`,
   `open-iterator`) selected nothing or everything, and the reverse on a topic
-  with `tm` in milliseconds. An integer bound was right. `tr2list` had the
+  with `tm` in milliseconds. An integer bound was right. An END bound given as
+  a date takes its whole second on an axis in milliseconds (`to_t`
+  `…T23:59:59` is `.999`): it lost the records of its last second. `tr2list` had the
   same fault on its own: a date in `--from-t`/`--to-t`/`--from-tm`/`--to-tm`
   stayed in seconds on a topic in milliseconds. It now takes it to the unit of
   each topic it lists (a `-r` listing crosses topics of different units).

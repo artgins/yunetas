@@ -267,6 +267,9 @@ PRIVATE json_t *find_handle_by_identity(
     json_t *registered_ptr
 );
 PRIVATE json_t *open_part(hgobj gobj, const char *iterator_id, json_t *entry, json_t *part);
+PRIVATE json_int_t key_purged(hgobj gobj, const char *topic_name, const char *key);
+PRIVATE json_int_t part_shift(hgobj gobj, json_t *entry, json_t *part);
+PRIVATE const char *purged_key_of_iterator(hgobj gobj, const char *iterator_id);
 PRIVATE json_int_t topic_epoch(hgobj gobj, const char *topic_name);
 PRIVATE void watch_owner(hgobj gobj, hgobj src);
 PRIVATE void stamp_owner_user(hgobj gobj, json_t *jn_entry, json_t *kw);
@@ -1598,11 +1601,71 @@ PRIVATE json_int_t part_rows(hgobj gobj, json_t *entry, json_t *part)
     if(kw_get_bool(gobj, part, "indexed", 0, 0)) {
         return kw_get_int(gobj, part, "rows", 0, 0);
     }
-    return (json_int_t)tranger2_topic_key_size(
-        priv->tranger,
+    /*
+     *  Its positions count from the base its key had at the open, as a
+     *  one-key iterator's do (tranger2_iterator_get_page): the rows purged
+     *  since (retention) keep their positions, empty
+     */
+    const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
+    const char *key = kw_get_str(gobj, part, "key", "", 0);
+    return part_shift(gobj, entry, part) +
+        (json_int_t)tranger2_topic_key_size(priv->tranger, topic_name, key);
+}
+
+/***************************************************************************
+ *  The rows purged from the key of an unfiltered part since its open: a
+ *  part is opened again for each page, so its own positions count from the
+ *  base of NOW, and the ones of the concatenation from the base of the
+ *  open. 0 when nothing was purged since.
+ ***************************************************************************/
+PRIVATE json_int_t part_shift(hgobj gobj, json_t *entry, json_t *part)
+{
+    json_int_t purged = key_purged(
+        gobj,
         kw_get_str(gobj, entry, "topic_name", "", 0),
         kw_get_str(gobj, part, "key", "", 0)
     );
+    json_int_t base = kw_get_int(gobj, part, "base", 0, 0);
+    return (purged > base)? purged - base : 0;
+}
+
+/***************************************************************************
+ *  The rows of a key taken by a purge of its old files (retention,
+ *  delete-key-files): its g_rowids start after them. 0 for a key never
+ *  purged.
+ ***************************************************************************/
+PRIVATE json_int_t key_purged(hgobj gobj, const char *topic_name, const char *key)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *range = tranger2_topic_key_range(priv->tranger, topic_name, key);
+    json_int_t purged = kw_get_int(gobj, range, "purged", 0, 0);
+    JSON_DECREF(range)
+    return purged;
+}
+
+/***************************************************************************
+ *  A FILTERED part of a multi-key iterator whose key was purged since the
+ *  open, or NULL. Its index is built again for each page, from what is
+ *  left, and its count is the open's: the positions after the rows purged
+ *  moved, by a number that nothing kept, and a page would skip live rows.
+ *  The iterator is closed instead, as for a key deleted (cmd_get_page).
+ *  An unfiltered part, and a one-key iterator of either kind, page across a
+ *  purge with their positions in place.
+ ***************************************************************************/
+PRIVATE const char *purged_key_of_iterator(hgobj gobj, const char *iterator_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *entry = json_object_get(priv->iterators, iterator_id);
+    json_t *parts = json_object_get(entry, "parts");
+    int idx; json_t *part;
+    json_array_foreach(parts, idx, part) {
+        if(kw_get_bool(gobj, part, "indexed", 0, 0) && part_shift(gobj, entry, part) > 0) {
+            return kw_get_str(gobj, part, "key", "", 0);
+        }
+    }
+    return NULL;
 }
 
 /***************************************************************************
@@ -1690,11 +1753,28 @@ PRIVATE json_t *get_multi_key_page(
                 return NULL;    // Error already logged
             }
 
+            /*
+             *  The part opened now counts from the base of NOW: the rows
+             *  purged since the open of the iterator are before its first
+             *  position
+             */
+            json_int_t shift = kw_get_bool(gobj, part, "indexed", 0, 0)?
+                0 : part_shift(gobj, entry, part);
+            json_int_t fresh_first = local_first - shift;
+            json_int_t fresh_last = local_last - shift;
+            if(fresh_first < 0) {
+                fresh_first = 0;
+            }
+            if(fresh_last <= fresh_first) {
+                tranger2_close_iterator(priv->tranger, iterator);
+                offset += rows;
+                continue;   // its positions in the page were all purged
+            }
             json_t *page = tranger2_iterator_get_page(
                 priv->tranger,
                 iterator,
-                local_first + 1,
-                (size_t)(local_last - local_first),
+                fresh_first + 1,
+                (size_t)(fresh_last - fresh_first),
                 FALSE
             );
             tranger2_close_iterator(priv->tranger, iterator);
@@ -1763,13 +1843,24 @@ PRIVATE json_t *get_single_key_page(
      *  A filtered iterator pages its index, which does not grow.
      */
     json_t *index = json_object_get(iterator, "index");
-    json_int_t total_rows = index?
-        (json_int_t)json_array_size(index) :
-        (json_int_t)tranger2_topic_key_size(
-            priv->tranger,
-            kw_get_str(gobj, iterator, "topic_name", "", 0),
-            kw_get_str(gobj, iterator, "key", "", 0)
-        );
+    json_int_t total_rows;
+    if(index) {
+        total_rows = (json_int_t)json_array_size(index);
+    } else {
+        /*
+         *  Its positions count from the base its key had at the open
+         *  (tranger2_iterator_get_page): the rows purged since keep theirs
+         */
+        const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", 0);
+        const char *key = kw_get_str(gobj, iterator, "key", "", 0);
+        json_int_t purged = key_purged(gobj, topic_name, key);
+        json_int_t base = kw_get_int(gobj, iterator, "base_at_open", 0, 0);
+        if(base > purged) {
+            base = purged;
+        }
+        total_rows = purged - base +
+            (json_int_t)tranger2_topic_key_size(priv->tranger, topic_name, key);
+    }
     if(!backward || from_rowid < 1 || from_rowid > total_rows || limit <= 0) {
         /*  Forward, or out of range: the library answers the totals  */
         return tranger2_iterator_get_page(
@@ -2623,15 +2714,13 @@ PRIVATE BOOL mask_has_year(const char *filename_mask)
             continue;
         }
         p++;
+        if(*p == '%') {
+            continue;   // a literal '%'
+        }
         if(*p == 'E' || *p == 'O') {
             p++;
         }
-        if(*p == 'Y' || *p == 'G' || *p == 'F' || *p == 's') {
-            return TRUE;
-        }
-        if(!*p) {
-            break;
-        }
+        return (*p == 'Y' || *p == 'G' || *p == 'F' || *p == 's')? TRUE : FALSE;  // the first conversion
     }
     return FALSE;
 }
@@ -2699,12 +2788,26 @@ PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hg
             kw  // owned
         );
     }
-    if(refuse_peer_write_of_owned_topic(gobj, peer, "delete-key-files", topic_name)) {
+    /*
+     *  Refused for EVERY caller, not only a peer: its keys are the nodes of
+     *  the treedb, and a purge of every key took every node whose last
+     *  record was older than the cut
+     */
+    const char *owner = schema_owner_of_topic(priv->tranger, topic_name);
+    if(owner) {
+        log_refusal(gobj, peer,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "purge of a topic of a treedb or a msg2db, refused",
+            "topic_name",   "%s", topic_name,
+            "owner",        "%s", owner,
+            NULL
+        );
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: '%s' is a topic of a treedb or a msg2db: it is written through it, "
-                "not by delete-key-files", gobj_yuno_role_plus_name(), topic_name),
+            json_sprintf("%s: '%s' is a topic of a %s: it is written through it, "
+                "not by delete-key-files", gobj_yuno_role_plus_name(), topic_name, owner),
             0,
             0,
             kw  // owned
@@ -2754,7 +2857,7 @@ PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hg
             gobj,
             -1,
             json_sprintf("%s: the files of topic '%s' do not sort as time (filename_mask '%s' "
-                "has no year): its old files cannot be told apart",
+                "does not start with a year): its old files cannot be told apart",
                 gobj_yuno_role_plus_name(), topic_name, filename_mask? filename_mask : ""),
             0,
             0,
@@ -4160,10 +4263,11 @@ PRIVATE json_t *open_multi_key_iterator(
         BOOL indexed = json_object_get(iterator, "index")? TRUE : FALSE;
         tranger2_close_iterator(priv->tranger, iterator);
         total_rows += rows;
-        json_array_append_new(parts, json_pack("{s:s, s:I, s:b}",
+        json_array_append_new(parts, json_pack("{s:s, s:I, s:b, s:I}",
             "key", key,
             "rows", rows,
-            "indexed", indexed
+            "indexed", indexed,
+            "base", key_purged(gobj, topic_name, key)   // where its positions count from
         ));
     }
     JSON_DECREF(jn_keys)
@@ -4505,6 +4609,22 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         json_t *comment = json_sprintf(
             "%s: iterator '%s' closed, its key '%s' was deleted: open it again",
             gobj_yuno_role_plus_name(), iterator_id, deleted_key
+        );
+        close_registered_iterator(gobj, iterator_id);   // Errors already logged
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            comment,
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    const char *purged_key = purged_key_of_iterator(gobj, iterator_id);
+    if(purged_key) {
+        json_t *comment = json_sprintf(
+            "%s: iterator '%s' closed, old rows of its key '%s' were purged since it opened: open it again",
+            gobj_yuno_role_plus_name(), iterator_id, purged_key
         );
         close_registered_iterator(gobj, iterator_id);   // Errors already logged
         return msg_iev_build_response(

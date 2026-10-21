@@ -258,7 +258,7 @@ that takes `total.rows` as the last rowid takes `purged + rows`.
 | `get_segments`: backward walk (l. 14395) | `partial_rows2 = total` | `purged + rows` |
 | `tranger2_match_metadata` (l. 14461) | the same resolution | the same change |
 | `first_segment_row` (l. 14703) | the same resolution, twice | the same change |
-| `tranger2_iterator_get_page`, unfiltered (l. 13727) | `from_rowid` is a global rowid in `1..total` | a **position** in `1..rows`, read as `g_rowid = purged + position`: what a filtered iterator already does with its index |
+| `tranger2_iterator_get_page`, unfiltered (l. 13727) | `from_rowid` is a global rowid in `1..total` | a **position**, read as `g_rowid = base + position` with the base the key had **at the open of the iterator** (as implemented, after the review of 2026-10-21: with the base of now, a purge between two pages moved every position and a client paging forward skipped live rows). The positions of the rows purged since the open come back empty. A filtered iterator keeps its index across a purge (g_rowids do not move) and skips the rows purged |
 | `key_cache_stamp` (l. 13875) | rows, files, last file | unchanged (as implemented): a purge always changes the files, and calls the retake itself. Adding `purged` changed the stamp of every key never purged |
 | `update_totals_of_key_cache` (l. 12765) | sums the cells | sums the cells. `purged` is kept apart |
 

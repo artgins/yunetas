@@ -23,6 +23,13 @@
  *        is finished by the open of the master, and skipped by a replica;
  *      - a `.purged.new` left behind is a purge that did not happen;
  *      - a `.purged` that cannot be read flags the key, it is no base of 0;
+ *      - the positions of the pages of an iterator, filtered or not, stay
+ *        where they were across a purge: the ones of the rows purged come
+ *        back empty, and no live row is skipped;
+ *      - a mask whose first conversion is not the year (%d-%m-%Y), and a
+ *        topic of a treedb, are refused;
+ *      - a delete of a key purged whole that fails keeps the key and its
+ *        base: its next record goes on numbering, not from 1;
  *      - tranger2_delete_key() takes the base with the key.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -50,6 +57,8 @@
 #define KEY         "0000000000000000001"
 #define KEY2        "0000000000000000002"   // a purge cut by a crash
 #define KEY3        "0000000000000000003"   // a .purged.new left, a .purged that cannot be read
+#define KEY4        "0000000000000000004"   // pages across a purge
+#define TOPIC_DMY   "topic_delete_key_files_dmy"
 #define DAY1        946684800   // 2000-01-01
 #define DAY2        (DAY1 + 86400)
 #define DAY3        (DAY2 + 86400)
@@ -312,7 +321,9 @@ PRIVATE int do_test(void)
     paged(tm, it_plain, 1, 100, bf, sizeof(bf));
     result += expect("unfiltered iterator, page 1", bf, "B1:4 B2:5 B3:6 C1:7 C2:8 C3:9");
     paged(tm, it_plain, 2, 2, bf, sizeof(bf));
-    result += expect("unfiltered iterator, positions 2-3", bf, "B2:5 B3:6");
+    result += expect("unfiltered iterator, positions 2-3: purged since its open", bf, "");
+    paged(tm, it_plain, 5, 2, bf, sizeof(bf));
+    result += expect("unfiltered iterator, positions 5-6: where they were", bf, "B2:5 B3:6");
     paged(tm, it_filtered, 1, 100, bf, sizeof(bf));
     result += expect("filtered iterator, page 1", bf, "B1:4 B2:5 B3:6 C1:7 C2:8 C3:9");
     tranger2_close_iterator(tm, it_plain);
@@ -408,8 +419,8 @@ PRIVATE int do_test(void)
             "msg", "Cannot delete the old files of a key, the cut is in the future: the file being written would go",
             "msg", "Creating topic",
             "msg", "Creating topic",
-            "msg", "Cannot delete the old files of a key, the file name mask of its topic has no year: its files do not sort as time",
-            "msg", "Cannot delete the old files of a key, the file name mask of its topic has no year: its files do not sort as time"
+            "msg", "Cannot delete the old files of a key, the file name mask of its topic does not start with a year: its files do not sort as time",
+            "msg", "Cannot delete the old files of a key, the file name mask of its topic does not start with a year: its files do not sort as time"
         ),
         NULL, NULL, 1
     );
@@ -602,6 +613,117 @@ PRIVATE int do_test(void)
     unlink(purged_path);
     result += expect_int("append after the base is put right", append_one(tm, TOPIC_NAME, 3, DAY4, "W1"), 7);
     result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  The pages of an iterator across a
+     *  purge: their positions stay
+     *-------------------------------------*/
+    set_expected_results("delete key files: pages across a purge", NULL, NULL, NULL, 1);
+    {
+        const char *contents4[3][2] = {{"A1", "A2"}, {"B1", "B2"}, {"C1", "C2"}};
+        for(int d = 0; d < 3; d++) {
+            for(int r = 0; r < 2; r++) {
+                append_one(tm, TOPIC_NAME, 4, DAY1 + (uint64_t)d*86400 + (uint64_t)r, contents4[d][r]);
+            }
+        }
+        json_t *it_p = tranger2_open_iterator(
+            tm, TOPIC_NAME, KEY4, json_object(), NULL, "pages_plain", "", NULL, NULL
+        );
+        json_t *it_f = tranger2_open_iterator(
+            tm, TOPIC_NAME, KEY4, json_pack("{s:I}", "from_t", (json_int_t)DAY1),
+            NULL, "pages_filtered", "", NULL, NULL
+        );
+        paged(tm, it_p, 1, 2, bf, sizeof(bf));
+        result += expect("unfiltered, page 1 before", bf, "A1:1 A2:2");
+        paged(tm, it_f, 1, 2, bf, sizeof(bf));
+        result += expect("filtered, page 1 before", bf, "A1:1 A2:2");
+
+        result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY4, DAY2), 2);
+
+        paged(tm, it_p, 3, 2, bf, sizeof(bf));
+        result += expect("unfiltered, page 2 after: no row skipped", bf, "B1:3 B2:4");
+        paged(tm, it_p, 1, 2, bf, sizeof(bf));
+        result += expect("unfiltered, the positions purged", bf, "");
+        result += expect_int("unfiltered, its size", (json_int_t)tranger2_iterator_size(it_p), 6);
+        paged(tm, it_f, 3, 2, bf, sizeof(bf));
+        result += expect("filtered, page 2 after: no row skipped", bf, "B1:3 B2:4");
+        paged(tm, it_f, 1, 2, bf, sizeof(bf));
+        result += expect("filtered, the positions purged", bf, "");
+        result += expect_int("filtered, its size", (json_int_t)tranger2_iterator_size(it_f), 6);
+        tranger2_close_iterator(tm, it_p);
+        tranger2_close_iterator(tm, it_f);
+
+        json_t *it_new = tranger2_open_iterator(
+            tm, TOPIC_NAME, KEY4, json_object(), NULL, "pages_new", "", NULL, NULL
+        );
+        paged(tm, it_new, 1, 2, bf, sizeof(bf));
+        result += expect("an iterator opened after, page 1", bf, "B1:3 B2:4");
+        result += expect_int("its size", (json_int_t)tranger2_iterator_size(it_new), 4);
+        tranger2_close_iterator(tm, it_new);
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  More guards: the year must come
+     *  first, and a treedb topic is its
+     *  treedb's
+     *-------------------------------------*/
+    set_expected_results(
+        "delete key files: the year first, a treedb topic",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "Creating topic",
+            "msg", "Cannot delete the old files of a key, the file name mask of its topic does not start with a year: its files do not sort as time",
+            "msg", "Cannot delete the old files of a key of a topic of a treedb or a msg2db: its keys are its nodes, written through it"
+        ),
+        NULL, NULL, 1
+    );
+    if(!create_topic(tm, TOPIC_DMY, "%d-%m-%Y")) {
+        result += -1;
+    }
+    append_one(tm, TOPIC_DMY, 1, DAY1, "M1");
+    result += expect_int("a mask with the year last",
+        tranger2_delete_key_files(tm, TOPIC_DMY, KEY, DAY4), -1);
+    {
+        /*  The topic as a treedb on the tranger names it  */
+        json_t *treedbs = json_object_get(tm, "treedbs");
+        BOOL made = FALSE;
+        if(!treedbs) {
+            treedbs = json_object();
+            json_object_set_new(tm, "treedbs", treedbs);
+            made = TRUE;
+        }
+        json_object_set_new(treedbs, "treedb_fake", json_pack("{s:{}}", TOPIC_NAME));
+        result += expect_int("a topic of a treedb",
+            tranger2_delete_key_files(tm, TOPIC_NAME, KEY4, DAY4), -1);
+        json_object_del(treedbs, "treedb_fake");
+        if(made) {
+            json_object_del(tm, "treedbs");
+        }
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A delete of a key purged whole that
+     *  fails keeps the key, and its base
+     *-------------------------------------*/
+    if(geteuid() != 0) {
+        set_expected_results(
+            "delete key files: a failed delete of a key purged whole",
+            json_pack("[{s:s},{s:s}]",
+                "msg", "remove() FAILED",
+                "msg", "Cannot delete subdir key. rmrdir() FAILED"
+            ),
+            NULL, NULL, 1
+        );
+        result += expect_int("purged whole again", tranger2_delete_key_files(tm, TOPIC_NAME, KEY, DAY4 + 86400), 1);
+        char key_dir[PATH_MAX];
+        build_path(key_dir, sizeof(key_dir), path_database, TOPIC_NAME, "keys", KEY, NULL);
+        chmod(key_dir, 0550);
+        result += expect_int("the delete fails", tranger2_delete_key(tm, TOPIC_NAME, KEY), -1);
+        chmod(key_dir, 0770);
+        result += expect_int("the key goes on numbering", append_one(tm, TOPIC_NAME, 1, DAY4 + 86400 + 10, "H1"), 13);
+        result += test_json(NULL);
+    }
 
     /*-------------------------------------*
      *  tranger2_delete_key() takes the

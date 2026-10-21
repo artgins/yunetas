@@ -7,6 +7,8 @@
  *  asked sf_tm_ms for the `t` bounds too: on a topic with t in ms and tm in
  *  seconds a date in from_t/to_t was compared as seconds against ms (it
  *  selected every row, or none), and the reverse on a topic with tm in ms.
+ *  An END bound takes its whole second: `to_t` 23:59:59 holds a record at
+ *  23:59:59.500 of an axis in ms (it was 23:59:59.000, and lost it).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -147,6 +149,17 @@ PRIVATE int do_test(void)
     for(int d = 0; d < 3; d++) {
         append_day(tranger, TOPIC_T_MS, TRUE, FALSE, d, contents[d]);
         append_day(tranger, TOPIC_TM_MS, FALSE, TRUE, d, contents[d]);
+        if(d == 1) {
+            /*  The last half second of day 2, on the axis in ms  */
+            uint64_t last = DAY1 + 2*DAY_SECS - 1;
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger, TOPIC_T_MS, last*1000 + 500, 0, &md,
+                json_pack("{s:I, s:I, s:s}", "id", (json_int_t)1, "tm", (json_int_t)last, "content", "D2b")
+            );
+            tranger2_append_record(tranger, TOPIC_TM_MS, last, 0, &md,
+                json_pack("{s:I, s:I, s:s}", "id", (json_int_t)1, "tm", (json_int_t)(last*1000 + 500), "content", "D2b")
+            );
+        }
     }
     result += test_json(NULL);
 
@@ -162,7 +175,7 @@ PRIVATE int do_test(void)
             bf, sizeof(bf)
         );
         snprintf(what, sizeof(what), "%s: a day by t", topics[i]);
-        result += expect(what, bf, "D2");
+        result += expect(what, bf, "D2 D2b");
 
         served(tranger, topics[i],
             json_pack("{s:s, s:s}",
@@ -172,14 +185,14 @@ PRIVATE int do_test(void)
             bf, sizeof(bf)
         );
         snprintf(what, sizeof(what), "%s: a day by tm", topics[i]);
-        result += expect(what, bf, "D2");
+        result += expect(what, bf, "D2 D2b");
 
         served(tranger, topics[i],
             json_pack("{s:s}", "from_t", "2000-01-02T00:00:00+0000"),
             bf, sizeof(bf)
         );
         snprintf(what, sizeof(what), "%s: from a day by t", topics[i]);
-        result += expect(what, bf, "D2 D3");
+        result += expect(what, bf, "D2 D2b D3");
     }
     result += test_json(NULL);
 

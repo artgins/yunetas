@@ -58,6 +58,7 @@ PRIVATE const char *topic_fields[] = {
     "delete_ref_keys",
     "long_key_refs",
     "long_key_hashes",
+    "publishing_key",   /*  the key whose new records the feeds are told     */
     "fs_event_master",
     "filename_mask",
     "xpermission",
@@ -566,6 +567,12 @@ PRIVATE void retake_segments_of_key(
     json_t *topic,
     const char *key
 );
+PRIVATE void retake_segments_after_purge(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+);
 PRIVATE BOOL tranger2_match_metadata(
     const match_cond_t *mc,
     json_int_t purged,
@@ -712,6 +719,7 @@ PRIVATE const char *long_key_of_ref(
     json_t *topic,
     const char *ref
 );
+PRIVATE BOOL key_is_publishing(json_t *topic, const char *key);
 PRIVATE BOOL parse_purge_signal(
     const char *name,
     char *ref,
@@ -5150,6 +5158,17 @@ PRIVATE BOOL parse_delete_signal(const char *name, json_int_t *seq, char *ref, s
 }
 
 /***************************************************************************
+ *  CLIENT: are the new records of `key` being handed to the feeds
+ *  (update_new_records_from_disk())? A read from one of their callbacks
+ *  must not change the cells of the key under that code.
+ ***************************************************************************/
+PRIVATE BOOL key_is_publishing(json_t *topic, const char *key)
+{
+    const char *publishing = json_string_value(json_object_get(topic, "publishing_key"));
+    return (publishing && strcmp(publishing, key) == 0)? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  CLIENT: `.p.<key>` or `.q.<sha256>` -> the ref of the key whose old
  *  files were purged (key_delete_ref()). FALSE: no purge signal.
  ***************************************************************************/
@@ -5169,6 +5188,35 @@ PRIVATE BOOL parse_purge_signal(const char *name, char *ref, size_t refsize)
     }
     snprintf(ref, refsize, "/%s", hex);
     return TRUE;
+}
+
+/***************************************************************************
+ *  CLIENT: the flags of the files a purge took (`unreadable`, and their
+ *  state). A file that is gone is never counted again, so its flag would
+ *  fail every load of the key for the life of the process: a replica that
+ *  listed the key while the master was purging it flags the md2 it found
+ *  gone. Return how many went.
+ ***************************************************************************/
+PRIVATE int drop_flags_of_purged_files(json_t *key_cache, const char *upto)
+{
+    json_t *unreadable = json_object_get(key_cache, "unreadable");
+    json_t *states = json_object_get(key_cache, "unreadable_state");
+    int dropped = 0;
+    for(size_t i = json_array_size(unreadable); i > 0; i--) {
+        const char *file_id = json_string_value(json_array_get(unreadable, i - 1));
+        if(file_id && cmp_file_ids(file_id, upto) <= 0) {
+            json_object_del(states, file_id);
+            json_array_remove(unreadable, i - 1);
+            dropped++;
+        }
+    }
+    if(unreadable && json_array_size(unreadable) == 0) {
+        json_object_del(key_cache, "unreadable");
+    }
+    if(states && json_object_size(states) == 0) {
+        json_object_del(key_cache, "unreadable_state");
+    }
+    return dropped;
 }
 
 /***************************************************************************
@@ -5230,7 +5278,8 @@ PRIVATE void apply_purge_of_master(
         json_array_append_new(file_ids, json_string(file_id));
         json_array_remove(cache_files, 0);
     }
-    if(json_array_size(file_ids) == 0 &&
+    int flags_dropped = drop_flags_of_purged_files(key_cache, upto);
+    if(json_array_size(file_ids) == 0 && flags_dropped == 0 &&
             json_integer_value(json_object_get(cache_total, "purged")) == purged) {
         JSON_DECREF(file_ids)
         JSON_DECREF(jn_purged)
@@ -5253,15 +5302,16 @@ PRIVATE void apply_purge_of_master(
     }
     JSON_DECREF(file_ids)
 
-    retake_segments_of_key(gobj, tranger, topic, key);
+    retake_segments_after_purge(gobj, tranger, topic, key);
 }
 
 /***************************************************************************
  *  CLIENT: before a read of a key, has the master purged old files of it
  *  that this replica still holds? A purge deletes a PREFIX of the files of
- *  a key, so it is enough to ask for the first one: gone, the base of the
- *  key is read and applied (apply_purge_of_master()). One stat() per load
- *  or page. It makes up for a purge signal this replica did not hear (an
+ *  a key, so it is enough to ask for the first one -- and for the first
+ *  file flagged unreadable, which has no cell: gone, the base of the key is
+ *  read and applied (apply_purge_of_master()). One stat() per load or page,
+ *  two on a key with a flagged file. It makes up for a purge signal this replica did not hear (an
  *  overflow, a follower down while the master purged), before the read
  *  and not in the middle of it: applied in the middle of a scan, it would
  *  free the segments the scan walks.
@@ -5273,25 +5323,31 @@ PRIVATE void check_purge_before_read(
     const char *key
 )
 {
-    if(json_is_true(json_object_get(tranger, "master"))) {
-        return;
+    if(json_is_true(json_object_get(tranger, "master")) || key_is_publishing(topic, key)) {
+        return;     // a master purges itself; a key being published: its next read
     }
     json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key);
     json_t *first_cell = json_array_get(json_object_get(key_cache, "files"), 0);
-    const char *file_id = json_string_value(json_object_get(first_cell, "id"));
-    if(!file_id) {
-        return;
+    const char *ids[2] = {
+        json_string_value(json_object_get(first_cell, "id")),
+        json_string_value(json_array_get(json_object_get(key_cache, "unreadable"), 0))  // it has no cell
+    };
+    for(int i = 0; i < 2; i++) {
+        if(!ids[i]) {
+            continue;
+        }
+        char path[PATH_MAX];
+        if(!md2_path_of(path, sizeof(path),
+                json_string_value(json_object_get(topic, "directory")), key, ids[i])) {
+            return;     // Error already logged
+        }
+        struct stat st;
+        if(stat(path, &st) < 0 && errno == ENOENT) {
+            apply_purge_of_master(gobj, tranger, topic, key);
+            return;
+        }
     }
-    char path[PATH_MAX];
-    if(!md2_path_of(path, sizeof(path),
-            json_string_value(json_object_get(topic, "directory")), key, file_id)) {
-        return;     // Error already logged
-    }
-    struct stat st;
-    if(stat(path, &st) == 0 || errno != ENOENT) {
-        return;     // there, or not a file gone: the read says what it is
-    }
-    apply_purge_of_master(gobj, tranger, topic, key);
+    // there, or not a file gone: the read says what it is
 }
 
 /***************************************************************************
@@ -5522,8 +5578,14 @@ PRIVATE void mirror_key_purge_to_disks(
         }
         char signal_path[PATH_MAX];
         build_path(signal_path, sizeof(signal_path), rt_path, signal_name, NULL);
-        if(mkdir(signal_path, json_integer_value(json_object_get(tranger, "xpermission")))<0 ||
-           rmdir(signal_path)<0) {
+        /*
+         *  A signal of this key left there (a master that died between the
+         *  two calls) is signalled by its rmdir(): a purge is idempotent, and
+         *  a follower that hears it late applies the base of now
+         */
+        BOOL made = (mkdir(signal_path, json_integer_value(json_object_get(tranger, "xpermission"))) == 0 ||
+            errno == EEXIST)? TRUE : FALSE;
+        if(!made || rmdir(signal_path) < 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
@@ -5549,6 +5611,77 @@ PRIVATE void mirror_key_purge_to_disks(
         );
     }
     closedir(dir);
+}
+
+/***************************************************************************
+ *  Remove the directory of a key, its base (`.purged`) the LAST: a delete
+ *  that fails half way, or a crash in the middle of it, must not leave files
+ *  of the key without the base that numbers them -- they came back numbered
+ *  from 1. Return 0, or -1 (logged by rmrdir()) with the base still there.
+ ***************************************************************************/
+PRIVATE int remove_key_directory(hgobj gobj, const char *path_key)
+{
+    char purged_path[PATH_MAX];
+    if(!build_path(purged_path, sizeof(purged_path), path_key, PURGED_FILENAME, NULL)) {
+        return -1;  // Error already logged
+    }
+    if(access(purged_path, F_OK) == 0) {
+        /*
+         *  Everything but the base first: a key directory holds only files
+         */
+        DIR *dir = opendir(path_key);
+        if(!dir) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot delete key, opendir() of its directory FAILED",
+                "path",         "%s", path_key,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            return -1;
+        }
+        int failed = 0;
+        struct dirent *entry;
+        while((errno = 0, entry = readdir(dir)) != NULL) {
+            if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 ||
+                    strcmp(entry->d_name, PURGED_FILENAME) == 0) {
+                continue;
+            }
+            char path[PATH_MAX];
+            if(!build_path(path, sizeof(path), path_key, entry->d_name, NULL) ||
+                    unlink(path) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot delete key, unlink() of a file of it FAILED: its base stays",
+                    "path",         "%s", path,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+                failed++;
+            }
+        }
+        if(errno != 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot delete key, readdir() of its directory FAILED: its base stays",
+                "path",         "%s", path_key,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            failed++;
+        }
+        closedir(dir);
+        if(failed) {
+            return -1;
+        }
+    }
+    return rmrdir(path_key);
 }
 
 /***************************************************************************
@@ -5687,7 +5820,7 @@ PUBLIC int tranger2_delete_key(
     }
 
     if(key_on_disk) {
-        if(rmrdir(path_key)<0) {
+        if(remove_key_directory(gobj, path_key)<0) {
             gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", path_key,
@@ -5711,7 +5844,8 @@ PUBLIC int tranger2_delete_key(
             );
             if(json_array_size(json_object_get(key_cache, "files")) > 0 ||
                     json_array_size(json_object_get(key_cache, "unreadable")) > 0 ||
-                    json_object_get(key_cache, "unlisted")) {
+                    json_object_get(key_cache, "unlisted") ||
+                    json_object_get(key_cache, "purged")) {     // a key purged whole: its base numbers it
                 json_object_set_new(topic_cache, key, key_cache);
                 update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
             } else {
@@ -5760,9 +5894,11 @@ PUBLIC int tranger2_delete_key(
 
 /***************************************************************************
  *  Does the file name mask of a topic give ids that sort as time? Only
- *  with an absolute year in it: %Y, %G, %F (%Y-%m-%d) or %s (the epoch).
- *  Without it -- the "queue" of a tr_queue topic, a cyclic %a -- no file
- *  can be said to be older than another by its name.
+ *  when its FIRST conversion is an absolute year -- %Y, %G, %F (%Y-%m-%d)
+ *  or %s (the epoch) -- with nothing but literal text before it
+ *  ("tracks-%Y-%m-%d"). Without a year (the "queue" of a tr_queue topic, a
+ *  cyclic %a), or with the year after the day or the month (%d-%m-%Y), no
+ *  file can be said to be older than another by its name.
  ***************************************************************************/
 PRIVATE BOOL mask_sorts_as_time(const char *filename_mask)
 {
@@ -5771,17 +5907,35 @@ PRIVATE BOOL mask_sorts_as_time(const char *filename_mask)
             continue;
         }
         p++;
+        if(*p == '%') {
+            continue;   // a literal '%'
+        }
         if(*p == 'E' || *p == 'O') {
             p++;    // a modifier: %EY
         }
-        if(*p == 'Y' || *p == 'G' || *p == 'F' || *p == 's') {
-            return TRUE;
-        }
-        if(!*p) {
-            break;
-        }
+        return (*p == 'Y' || *p == 'G' || *p == 'F' || *p == 's')? TRUE : FALSE;
     }
     return FALSE;
+}
+
+/***************************************************************************
+ *  Is the topic a topic of a treedb or a msg2db open on the tranger? They
+ *  are written through them: their nodes live in their keys.
+ ***************************************************************************/
+PRIVATE const char *schema_owner_of_topic(json_t *tranger, const char *topic_name)
+{
+    const char *name; json_t *jn_db;
+    json_object_foreach(json_object_get(tranger, "treedbs"), name, jn_db) {
+        if(json_is_object(json_object_get(jn_db, topic_name))) {
+            return "treedb";
+        }
+    }
+    json_object_foreach(json_object_get(tranger, "msg2dbs"), name, jn_db) {
+        if(json_is_object(json_object_get(jn_db, topic_name))) {
+            return "msg2db";
+        }
+    }
+    return NULL;
 }
 
 /***************************************************************************
@@ -5851,6 +6005,19 @@ PUBLIC json_int_t tranger2_delete_key_files(
     /*-----------------------------------*
      *  The guards
      *-----------------------------------*/
+    const char *owner = schema_owner_of_topic(tranger, topic_name);
+    if(owner) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot delete the old files of a key of a topic of a treedb or a msg2db: its keys are its nodes, written through it",
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            "owner",        "%s", owner,
+            NULL
+        );
+        return -1;
+    }
     const char *filename_mask = json_string_value(json_object_get(topic, "filename_mask"));
     if(empty_string(filename_mask)) {
         filename_mask = json_string_value(json_object_get(tranger, "filename_mask"));
@@ -5859,7 +6026,7 @@ PUBLIC json_int_t tranger2_delete_key_files(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Cannot delete the old files of a key, the file name mask of its topic has no year: its files do not sort as time",
+            "msg",          "%s", "Cannot delete the old files of a key, the file name mask of its topic does not start with a year: its files do not sort as time",
             "topic",        "%s", topic_name,
             "key",          "%s", key,
             "filename_mask","%s", filename_mask?filename_mask:"",
@@ -6002,7 +6169,7 @@ PUBLIC json_int_t tranger2_delete_key_files(
         }
     }
 
-    retake_segments_of_key(gobj, tranger, topic, key);
+    retake_segments_after_purge(gobj, tranger, topic, key);
 
     if(written > 0) {
         /*
@@ -6017,6 +6184,11 @@ PUBLIC json_int_t tranger2_delete_key_files(
             "key",          "%s", key,
             NULL
         );
+        /*
+         *  The purge is applied here: the followers apply it too, or they
+         *  serve the rows of the old files until the master opens again
+         */
+        mirror_key_purge_to_disks(gobj, tranger, topic, key);
         JSON_DECREF(file_ids)
         return -1;
     }
@@ -7729,10 +7901,15 @@ PRIVATE void sweep_left_delete_signals(hgobj gobj, json_t *topic, const char *fe
         return;
     }
     json_t *left = json_array();    // {seq, name}, by sequence
+    json_t *left_purges = json_array();
     struct dirent *entry;
     while((errno = 0, entry = readdir(dir)) != NULL) {
         json_int_t seq;
         char ref[NAME_MAX+2];
+        if(parse_purge_signal(entry->d_name, ref, sizeof(ref))) {
+            json_array_append_new(left_purges, json_string(entry->d_name));
+            continue;
+        }
         if(!parse_delete_signal(entry->d_name, &seq, ref, sizeof(ref))) {
             continue;
         }
@@ -7822,6 +7999,40 @@ PRIVATE void sweep_left_delete_signals(hgobj gobj, json_t *topic, const char *fe
         );
     }
     JSON_DECREF(left)
+
+    /*
+     *  A purge signal left (the master died between its mkdir() and its
+     *  rmdir()): removed in place, so the feed hears it now. A purge carries
+     *  no sequence and applying it twice changes nothing, so it is never old
+     *  (mirror_key_purge_to_disks()). Left there, every later purge of the
+     *  key found its mkdir() refused
+     */
+    json_array_foreach(left_purges, idx, jn) {
+        const char *name = json_string_value(jn);
+        char path[PATH_MAX];
+        build_path(path, sizeof(path), feed_path, name, NULL);
+        if(rmdir(path) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot remove a purge signal left by the master",
+                "path",         "%s", path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            continue;
+        }
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "A purge signal left by the master was removed: the feed hears it now",
+            "feed",         "%s", feed_path,
+            "signal",       "%s", name,
+            NULL
+        );
+    }
+    JSON_DECREF(left_purges)
 }
 
 PRIVATE void find_rt_disk(json_t *tranger, const char *path)
@@ -10545,6 +10756,13 @@ PRIVATE json_int_t update_new_records_from_disk(
 
     // Publish new data to iterator
     // TODO WARNING here publishing records without totals updated!!
+    /*
+     *  While the feeds are told, the cache of the key holds still: a
+     *  callback that reads the key (an iterator, a page) must not apply a
+     *  purge or count a flagged file again under the cell and the insert
+     *  index found above (key_is_publishing())
+     */
+    json_object_set_new(topic, "publishing_key", json_string(key));
     json_int_t rows_added = publish_new_rt_disk_records(
         gobj,
         tranger,
@@ -10555,6 +10773,7 @@ PRIVATE json_int_t update_new_records_from_disk(
         file_base,
         rt_id
     );
+    json_object_del(topic, "publishing_key");
 
     /*
      *  UPDATE CACHE from disk
@@ -11856,6 +12075,9 @@ PRIVATE void retry_key_flags(
     const char *key
 )
 {
+    if(key_is_publishing(topic, key)) {
+        return;     // its cache holds still while its feeds are told: the next load tries
+    }
     json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key);
     if(json_object_get(key_cache, "unlisted")) {
         if(!key_dir_flag_cause_gone(topic, key)) {
@@ -13999,6 +14221,11 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     json_object_set_new(iterator, "match_cond", match_cond);    // owned
     json_object_set_new(iterator, "segments", segments);        // owned
     json_object_set_new(iterator, "segments_stamp", key_cache_stamp(topic, key));
+    json_int_t base_at_open = get_topic_key_purged(topic, key);
+    if(base_at_open > 0) {
+        /*  Where its page positions count from (a key never purged: 1, and no field)  */
+        json_object_set_new(iterator, "base_at_open", json_integer(base_at_open));
+    }
 
     json_object_set_new(iterator, "cur_segment", json_integer(0));
     json_object_set_new(iterator, "cur_rowid", json_integer(0));
@@ -14520,8 +14747,9 @@ PRIVATE json_t *segment_of_rowid(json_t *segments, json_int_t rowid)
  *  Get Iterator size (nº of rows)
  *
  *  A FILTERED iterator answers with its index: the exact number of records
- *  matching match_cond. An unfiltered one sums its segments, which is the
- *  same thing when nothing is filtered out.
+ *  matching match_cond. An unfiltered one answers its page positions: the
+ *  rows of its segments, plus the rows purged since its open (whose
+ *  positions stay, empty).
  ***************************************************************************/
 PUBLIC size_t tranger2_iterator_size(
     json_t *iterator
@@ -14532,20 +14760,22 @@ PUBLIC size_t tranger2_iterator_size(
         return json_array_size(index);
     }
 
-    size_t rows = 0;
     json_t *segments = json_object_get(iterator, "segments");
-    if (json_array_size(segments) == 0) {
+    size_t n = json_array_size(segments);
+    if(n == 0) {
         return 0;
     }
 
-    int idx;
-    json_t *segment;
-    json_array_foreach(segments, idx, segment) {
-        json_int_t rows_ = json_integer_value(json_object_get(segment, "rows"));
-        rows += rows_;
-    }
-
-    return rows;
+    /*
+     *  Its page positions, 1..size: up to the last row of its segments,
+     *  counted from the base the key had at the open (tranger2_iterator_get_page()).
+     *  With no purge since the open, the rows of its segments
+     */
+    json_int_t last_row = json_integer_value(
+        json_object_get(json_array_get(segments, n - 1), "last_row")
+    );
+    json_int_t base = json_integer_value(json_object_get(iterator, "base_at_open"));
+    return (last_row > base)? (size_t)(last_row - base) : 0;
 }
 
 /***************************************************************************
@@ -14629,6 +14859,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         }
 
         json_t *data = json_array();
+        json_int_t purged = get_topic_key_purged(topic, key);
         if(from_rowid > 0 && from_rowid <= indexed_rows && limit > 0) {
             md2_record_ex_t md_record_ex;
             md_block_t blk;
@@ -14642,6 +14873,9 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
                     break;
                 }
                 json_int_t rowid = json_integer_value(json_array_get(index, pos));
+                if(rowid <= purged) {
+                    continue;   // purged since the index was built: its position stays, empty
+                }
                 json_t *segment = sv.segment;
                 if(!segment || rowid < sv.first_row || rowid > sv.last_row) {
                     segment = segment_of_rowid(segments, rowid);
@@ -14718,7 +14952,22 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         JSON_DECREF(stamp)
     }
 
-    json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
+    /*
+     *  The positions of the pages count from the base the key had when the
+     *  iterator opened: position N is g_rowid base_at_open+N, on a key never
+     *  purged the g_rowid itself. A purge since the open (retention,
+     *  tranger2_delete_key_files()) leaves the positions where they were,
+     *  and the ones of the rows it took come back empty: counted from the
+     *  base of NOW, every position moved by the rows purged, and a client
+     *  paging forward skipped live rows.
+     */
+    json_int_t live_rows = get_topic_key_rows(gobj, topic, key);
+    json_int_t live_purged = get_topic_key_purged(topic, key);
+    json_int_t base = json_integer_value(json_object_get(iterator, "base_at_open"));
+    if(base > live_purged) {
+        base = live_purged;     // the key was deleted and written again: its numbering too
+    }
+    json_int_t total_rows = live_purged - base + live_rows;
 
     /*
      *  `pages` is a property of the KEY and the requested page size, not of
@@ -14739,16 +14988,9 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         );
     }
 
-    /*
-     *  The page asks positions among the live rows, 1..total_rows: on a key
-     *  whose old files were purged its global rowids start after the base
-     *  (tranger2_delete_key_files()), and position N is rowid base+N. On
-     *  any other key the two are the same.
-     */
-    json_int_t purged = get_topic_key_purged(topic, key);
     json_t *match_cond = json_object();
-    json_object_set_new(match_cond, "from_rowid", json_integer(purged + from_rowid));
-    json_int_t to_rowid = purged + from_rowid + (json_int_t)limit - 1;
+    json_object_set_new(match_cond, "from_rowid", json_integer(base + from_rowid));
+    json_int_t to_rowid = base + from_rowid + (json_int_t)limit - 1;
     json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
     json_object_set_new(match_cond, "backward", json_boolean(backward));
 
@@ -14823,7 +15065,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         }
 
         if(tranger2_match_metadata(
-            &mc, purged, total_rows, rowid, &md_record_ex,
+            &mc, live_purged, live_rows, rowid, &md_record_ex,
             sv.t_ordered, &end
         )) {
             const char *file_id = sv.file_id;
@@ -14908,6 +15150,7 @@ PRIVATE void forget_segments_of_key(json_t *topic, const char *key)
         }
         json_object_set_new(iterator, "segments", json_array());
         json_object_set_new(iterator, "segments_stamp", json_null());
+        json_object_del(iterator, "base_at_open");    // a key written again numbers from 1
         if(json_object_get(iterator, "index")) {
             json_object_set_new(iterator, "index", json_array());
         }
@@ -14964,6 +15207,44 @@ PRIVATE void retake_segments_of_key(
         json_object_set_new(iterator, "segments", segments);
         json_object_set_new(iterator, "segments_stamp", key_cache_stamp(topic, key));
         json_object_set_new(iterator, "index", index);
+    }
+}
+
+/***************************************************************************
+ *  The old files of the key were purged (tranger2_delete_key_files(), or a
+ *  replica applying the master's base): their cells are gone, and no g_rowid
+ *  of the rest moved. An unfiltered iterator takes its segments again at its
+ *  next page (its positions count from its base_at_open). A filtered one
+ *  takes its segments again now and KEEPS its index: it holds g_rowids,
+ *  which a purge does not move, and the ones of the rows purged are skipped
+ *  by its pages. Built again, the index lost its first entries and every
+ *  position after them moved: a client paging forward skipped live rows.
+ ***************************************************************************/
+PRIVATE void retake_segments_after_purge(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+)
+{
+    json_t *iterators = json_object_get(topic, "iterators");
+    int idx; json_t *iterator;
+    json_array_foreach(iterators, idx, iterator) {
+        const char *key_ = json_string_value(json_object_get(iterator, "key"));
+        if(!key_ || strcmp(key_, key) != 0) {
+            continue;
+        }
+        if(!json_object_get(iterator, "index")) {
+            json_object_set_new(iterator, "segments", json_array());
+            json_object_set_new(iterator, "segments_stamp", json_null());
+            continue;
+        }
+        BOOL realtime;
+        json_t *segments = get_segments(
+            gobj, tranger, topic, key, json_object_get(iterator, "match_cond"), &realtime
+        );
+        json_object_set_new(iterator, "segments", segments);
+        json_object_set_new(iterator, "segments_stamp", key_cache_stamp(topic, key));
     }
 }
 
@@ -15281,7 +15562,7 @@ PRIVATE json_t *get_segments(
             timestamp = approxidate(json_string_value(jn_to_t));
             system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
             if(system_flag & sf_t_ms) {    // t's unit: up to 7.27.4 it asked sf_tm_ms
-                timestamp *= 1000;
+                timestamp = timestamp * 1000 + 999;     // an end bound takes its whole second
             }
             to_t = (json_int_t)timestamp;
         } else {
@@ -15368,7 +15649,7 @@ PRIVATE json_t *get_segments(
             timestamp = approxidate(json_string_value(jn_to_tm));
             system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
             if(system_flag & sf_tm_ms) {
-                timestamp *= 1000;
+                timestamp = timestamp * 1000 + 999;     // an end bound takes its whole second
             }
             to_tm = (json_int_t)timestamp;
         } else {
