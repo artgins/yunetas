@@ -1693,10 +1693,12 @@ PRIVATE json_t *get_multi_key_page(
     json_t *parts,
     json_int_t from_rowid,  // based 1
     json_int_t limit,
-    BOOL backward
+    BOOL backward,
+    const char **ppurged_key    // a filtered part found purged since the open, NULL page
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    *ppurged_key = NULL;
 
     /*
      *  Counted once for the whole page: both loops below must cut the
@@ -1751,6 +1753,17 @@ PRIVATE json_t *get_multi_key_page(
                 JSON_DECREF(live_rows)
                 JSON_DECREF(data)
                 return NULL;    // Error already logged
+            }
+            if(kw_get_bool(gobj, part, "indexed", 0, 0) && part_shift(gobj, entry, part) > 0) {
+                /*
+                 *  A replica that had not heard the purge applied it in the
+                 *  open of this part (purged_key_of_iterator() asked before)
+                 */
+                tranger2_close_iterator(priv->tranger, iterator);
+                JSON_DECREF(live_rows)
+                JSON_DECREF(data)
+                *ppurged_key = key;
+                return NULL;    // the caller closes the iterator, saying so
             }
 
             /*
@@ -2703,29 +2716,6 @@ PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
- *  The rule of tranger2_delete_key_files() (mask_sorts_as_time() in
- *  timeranger2.c), asked here so that a command naming a topic whose files
- *  do not sort as time is refused before the tranger logs an ERROR for it
- ***************************************************************************/
-PRIVATE BOOL mask_has_year(const char *filename_mask)
-{
-    for(const char *p = filename_mask; p && *p; p++) {
-        if(*p != '%') {
-            continue;
-        }
-        p++;
-        if(*p == '%') {
-            continue;   // a literal '%'
-        }
-        if(*p == 'E' || *p == 'O') {
-            p++;
-        }
-        return (*p == 'Y' || *p == 'G' || *p == 'F' || *p == 's')? TRUE : FALSE;  // the first conversion
-    }
-    return FALSE;
-}
-
-/***************************************************************************
  *  Retention by hand: tranger2_delete_key_files() on one key, or on every
  *  key of the topic. With every key it runs them all in this call, and the
  *  yuno does nothing else meanwhile: about 1-2 ms per key purged on the
@@ -2844,7 +2834,7 @@ PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hg
     if(empty_string(filename_mask)) {
         filename_mask = json_string_value(json_object_get(priv->tranger, "filename_mask"));
     }
-    if(!mask_has_year(filename_mask)) {
+    if(!tranger2_mask_sorts_as_time(filename_mask)) {
         log_refusal(gobj, peer,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
@@ -2856,8 +2846,8 @@ PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hg
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: the files of topic '%s' do not sort as time (filename_mask '%s' "
-                "does not start with a year): its old files cannot be told apart",
+            json_sprintf("%s: the files of topic '%s' do not sort as time (filename_mask '%s'): "
+                "its old files cannot be told apart",
                 gobj_yuno_role_plus_name(), topic_name, filename_mask? filename_mask : ""),
             0,
             0,
@@ -4652,6 +4642,7 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *page;
     json_t *parts = json_object_get(jn_ptr, "parts");
     if(parts) {
+        const char *purged_key_now = NULL;
         page = get_multi_key_page(
             gobj,
             iterator_id,
@@ -4659,8 +4650,24 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             parts,
             from_rowid,
             limit>0?limit:0,
-            backward
+            backward,
+            &purged_key_now
         );
+        if(!page && purged_key_now) {
+            json_t *comment = json_sprintf(
+                "%s: iterator '%s' closed, old rows of its key '%s' were purged since it opened: open it again",
+                gobj_yuno_role_plus_name(), iterator_id, purged_key_now
+            );
+            close_registered_iterator(gobj, iterator_id);   // Errors already logged
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                comment,
+                0,
+                0,
+                kw  // owned
+            );
+        }
     } else {
         page = get_single_key_page(
             gobj,

@@ -40,6 +40,8 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -419,8 +421,8 @@ PRIVATE int do_test(void)
             "msg", "Cannot delete the old files of a key, the cut is in the future: the file being written would go",
             "msg", "Creating topic",
             "msg", "Creating topic",
-            "msg", "Cannot delete the old files of a key, the file name mask of its topic does not start with a year: its files do not sort as time",
-            "msg", "Cannot delete the old files of a key, the file name mask of its topic does not start with a year: its files do not sort as time"
+            "msg", "Cannot delete the old files of a key, the file ids of the file name mask of its topic do not sort as time",
+            "msg", "Cannot delete the old files of a key, the file ids of the file name mask of its topic do not sort as time"
         ),
         NULL, NULL, 1
     );
@@ -639,6 +641,7 @@ PRIVATE int do_test(void)
         result += expect("filtered, page 1 before", bf, "A1:1 A2:2");
 
         result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY4, DAY2), 2);
+        result += expect_int("unfiltered, its size before any page", (json_int_t)tranger2_iterator_size(it_p), 6);
 
         paged(tm, it_p, 3, 2, bf, sizeof(bf));
         result += expect("unfiltered, page 2 after: no row skipped", bf, "B1:3 B2:4");
@@ -659,6 +662,10 @@ PRIVATE int do_test(void)
         paged(tm, it_new, 1, 2, bf, sizeof(bf));
         result += expect("an iterator opened after, page 1", bf, "B1:3 B2:4");
         result += expect_int("its size", (json_int_t)tranger2_iterator_size(it_new), 4);
+        result += expect_int("purged whole", tranger2_delete_key_files(tm, TOPIC_NAME, KEY4, DAY4), 4);
+        result += expect_int("its size: its 4 positions, empty", (json_int_t)tranger2_iterator_size(it_new), 4);
+        paged(tm, it_new, 1, 4, bf, sizeof(bf));
+        result += expect("its page", bf, "");
         tranger2_close_iterator(tm, it_new);
     }
     result += test_json(NULL);
@@ -672,11 +679,30 @@ PRIVATE int do_test(void)
         "delete key files: the year first, a treedb topic",
         json_pack("[{s:s},{s:s},{s:s}]",
             "msg", "Creating topic",
-            "msg", "Cannot delete the old files of a key, the file name mask of its topic does not start with a year: its files do not sort as time",
+            "msg", "Cannot delete the old files of a key, the file ids of the file name mask of its topic do not sort as time",
             "msg", "Cannot delete the old files of a key of a topic of a treedb or a msg2db: its keys are its nodes, written through it"
         ),
         NULL, NULL, 1
     );
+    {
+        struct {
+            const char *mask;
+            BOOL sorts;
+        } masks[] = {
+            {"tracks-%Y-%m-%d", TRUE}, {"series-1d-%Y", TRUE}, {"%Y", TRUE}, {"%s", TRUE},
+            {"%FT%T", TRUE}, {"%G-W%V", TRUE}, {"%Y%m%d%H%M%S", TRUE}, {"%Y-%j", TRUE},
+            {"%Y-%m-%d_%R", TRUE}, {"%%%Y", TRUE},
+            {"queue", FALSE}, {"%d-%m-%Y", FALSE}, {"%Y-%d-%m", FALSE}, {"%Y-%b", FALSE},
+            {"%Y-%a", FALSE}, {"%m-%Y", FALSE}, {"%Y-%e", FALSE}, {"%G-%m", FALSE},
+            {"%Y-%V", FALSE}, {"%s-%Y", FALSE}, {"%F-%m", FALSE}, {"", FALSE},
+            {0, 0}
+        };
+        for(int i = 0; masks[i].mask; i++) {
+            char what[64];
+            snprintf(what, sizeof(what), "mask '%s'", masks[i].mask);
+            result += expect_int(what, tranger2_mask_sorts_as_time(masks[i].mask), masks[i].sorts);
+        }
+    }
     if(!create_topic(tm, TOPIC_DMY, "%d-%m-%Y")) {
         result += -1;
     }
@@ -710,7 +736,7 @@ PRIVATE int do_test(void)
         set_expected_results(
             "delete key files: a failed delete of a key purged whole",
             json_pack("[{s:s},{s:s}]",
-                "msg", "remove() FAILED",
+                "msg", "Cannot delete key, rename() of its directory FAILED: the key stays, purged whole, with its base",
                 "msg", "Cannot delete subdir key. rmrdir() FAILED"
             ),
             NULL, NULL, 1
@@ -733,6 +759,23 @@ PRIVATE int do_test(void)
     result += expect_int("delete key", tranger2_delete_key(tm, TOPIC_NAME, KEY), 0);
     result += expect_int("a key written again starts at 1", append_one(tm, TOPIC_NAME, 1, DAY4, "G1"), 1);
     result += expect_int("with no base", key_file_exists(KEY, ".purged"), 0);
+    {
+        /*  The directory a delete of a key with a base moves aside is gone  */
+        char topic_dir[PATH_MAX];
+        build_path(topic_dir, sizeof(topic_dir), path_database, TOPIC_NAME, NULL);
+        DIR *dir = opendir(topic_dir);
+        int left = 0;
+        struct dirent *entry;
+        while(dir && (entry = readdir(dir)) != NULL) {
+            if(strncmp(entry->d_name, ".deleted_key.", 13) == 0) {
+                left++;
+            }
+        }
+        if(dir) {
+            closedir(dir);
+        }
+        result += expect_int("no directory left aside", left, 0);
+    }
     result += test_json(NULL);
 
     set_expected_results("delete key files: shutdown", NULL, NULL, NULL, 1);

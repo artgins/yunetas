@@ -428,9 +428,10 @@ PRIVATE int do_test(void)
         chmod(md2_day1, 0);
         set_expected_results(
             "purge follower: a flagged file purged",
-            json_pack("[{s:s},{s:s}]",
+            json_pack("[{s:s},{s:s},{s:s}]",
                 "msg", "Cannot open md2 file",
-                "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed"
+                "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
+                "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built"
             ),
             NULL, NULL, 1
         );
@@ -438,6 +439,11 @@ PRIVATE int do_test(void)
         if(!tf3 || !tranger2_open_topic(tf3, TOPIC_NAME, TRUE)) {
             result += -1;
         }
+        /*  A filtered pager of the key, opened over the flag  */
+        json_t *it3f = tranger2_open_iterator(
+            tf3, TOPIC_NAME, KEY3, json_pack("{s:I}", "from_t", (json_int_t)DAY1),
+            NULL, "pager_flagged", "", NULL, NULL
+        );
         result += test_json(NULL);
 
         set_expected_results("purge follower: a flagged file purged, read", NULL, NULL, NULL, 1);
@@ -453,6 +459,22 @@ PRIVATE int do_test(void)
             result += expect_int("and its loads do not fail", kw_get_bool(0, it, "load_failed", 0, 0), 0);
             tranger2_close_iterator(tf3, it);
             JSON_DECREF(data)
+        }
+        {
+            /*  Its numbering moved to the master's: its index taken again  */
+            json_t *page = tranger2_iterator_get_page(tf3, it3f, 1, 10, FALSE);
+            char got3[128] = "";
+            int i3; json_t *rec;
+            json_array_foreach(json_object_get(page, "data"), i3, rec) {
+                char item[32];
+                snprintf(item, sizeof(item), "%s%s:%ld", got3[0]? " ": "",
+                    kw_get_str(0, rec, "content", "?", 0),
+                    (long)kw_get_int(0, rec, "__md_tranger__`g_rowid", -1, 0));
+                strncat(got3, item, sizeof(got3) - strlen(got3) - 1);
+            }
+            result += expect("the filtered pager opened over the flag", got3, "B1:3 B2:4 C1:5 C2:6");
+            JSON_DECREF(page)
+            tranger2_close_iterator(tf3, it3f);
         }
         if(tf3) {
             tranger2_shutdown(tf3);

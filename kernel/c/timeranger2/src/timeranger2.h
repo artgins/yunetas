@@ -782,9 +782,8 @@ PUBLIC int tranger2_delete_key(
     Refused with -1 (logged, nothing deleted):
       - a cut in the future (its file sorts after the file of now): the
         file being written would go, and every append of the period after;
-      - a topic whose file name mask does not START with an absolute year
-        (%Y, %G, %F, %s; literal text before it is fine): its files do not
-        sort as time (a tr_queue topic, a cyclic mask, %d-%m-%Y);
+      - a topic whose file name mask gives ids that do not sort as time
+        (tranger2_mask_sorts_as_time(): a tr_queue topic, %d-%m-%Y, %Y-%b);
       - a topic of a treedb or a msg2db open on the tranger: its keys are
         their nodes, written through them;
       - a key flagged unlisted, or with an unreadable file in the period:
@@ -804,6 +803,21 @@ PUBLIC json_int_t tranger2_delete_key_files(
     const char *topic_name,
     const char *key,
     uint64_t before_t
+);
+
+/*
+    Do the file ids of a file name mask (strftime(), the `filename_mask` of a
+    topic) sort as time? They are compared as strings, so only when every
+    field is numeric and of a fixed width, in decreasing significance, the
+    year FIRST, with literal text anywhere: %Y %G %F %s first, then %m (%V
+    after %G) %j %d %H %R %T %M %S, each below the last one.
+    TRUE: "tracks-%Y-%m-%d", "series-1d-%Y", "%Y", "%s", "%FT%T".
+    FALSE: "queue" (a tr_queue topic), "%d-%m-%Y", "%Y-%d-%m", "%Y-%b",
+    "%Y-%a", "%m-%Y". tranger2_delete_key_files() refuses a topic whose mask
+    does not, since it cannot tell which of its files are old.
+*/
+PUBLIC BOOL tranger2_mask_sorts_as_time(
+    const char *filename_mask
 );
 
 /*
@@ -1006,7 +1020,9 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
         return exactly the matching records. In that case get_page's
         `from_rowid` is a position among the MATCHING records (1-based), not a
         global rowid; an UNFILTERED iterator builds no index (open stays
-        O(1) on the key size) and its positions are the global rowids.
+        O(1) on the key size) and its positions are the global rowids --
+        minus the base the key had at its open, on a key whose old files were
+        purged (tranger2_delete_key_files()).
 
     WARNING an unfiltered iterator counts its rows from the segment totals, so
     a deleted instance (tranger2_delete_instance) still adds to its total_rows

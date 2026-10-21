@@ -176,17 +176,21 @@ if(rows < 0) {
   from 1 again): the key is flagged `unlisted`, its loads say `load_failed`, and
   an append reads it again first, or is refused.
 - **Refused** (-1, logged, nothing deleted): a cut in the future (it would
-  delete the file being written); a topic whose `filename_mask` does not START
-  with an absolute year (`%Y`, `%G`, `%F`, `%s`, with only literal text before
-  it: a tr_queue topic is `"queue"`, and `%d-%m-%Y` sorts wrong); a topic of a
+  delete the file being written); a topic whose `filename_mask` gives ids that
+  do not sort as time (`tranger2_mask_sorts_as_time()`: numeric fields of a
+  fixed width, the year first, in decreasing significance -- a tr_queue topic
+  is `"queue"`, and `%d-%m-%Y` or `%Y-%b` sort wrong); a topic of a
   treedb or a msg2db open on the tranger (its keys are their nodes); and a key
   whose cells are not whole (flagged unlisted, or an unreadable file in the
   period). Afterwards an append whose `__t__` falls in a purged period is
   refused.
 - **A key purged whole** (silent for longer than the retention) keeps its
   directory and its base, with 0 rows and a span of 0, and goes on numbering.
-  `tranger2_delete_key()` removes the base with the key, the LAST of its
-  files: a delete that fails half way keeps the key, numbered by its base.
+  `tranger2_delete_key()` removes a key with a base so that no failure leaves
+  its files without it: its files the newest first, then the directory (with
+  only its base by then) moved out of `keys/` and removed. A delete that fails
+  keeps the key numbered by its base; a directory moved aside that cannot be
+  removed is swept at the master's next open.
 - **Followers.** The master makes and removes `disks/<rt_id>/.p.<key>` (`.q.<sha256>`
   for a key too long for the name) in every feed directory. A follower that
   hears it reads the base, drops the cells at or before `upto`, closes their

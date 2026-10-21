@@ -1176,9 +1176,10 @@ tranger2_delete_key_files(K, before_t = 2000-01-02T00:00:00)   -> 3
 
 - **Refused** with `-1`, logged, nothing deleted: a cut in the future (its file
   sorts after the file of now: the file being written would go, and every
-  append of the period after); a `filename_mask` whose first conversion is not
-  an absolute year (the `"queue"` of a tr_queue topic, a cyclic `%a`,
-  `%d-%m-%Y`; `"tracks-%Y-%m-%d"` is fine); a topic of a treedb or a msg2db
+  append of the period after); a `filename_mask` whose ids do not sort as time
+  ([`tranger2_mask_sorts_as_time()`](#tranger2_mask_sorts_as_time): the
+  `"queue"` of a tr_queue topic, `%d-%m-%Y`, `%Y-%b`; `"tracks-%Y-%m-%d"` is
+  fine); a topic of a treedb or a msg2db
   open on the tranger (its keys are their nodes); a key flagged `unlisted`, or
   with a file flagged unreadable in the period cut (its rows are in no cell,
   and the base would miss them); a key not in the cache; a replica.
@@ -1211,6 +1212,53 @@ tranger2_delete_key_files(K, before_t = 2000-01-02T00:00:00)   -> 3
 - `tranger2_delete_key()` removes the base the LAST of the files of the key: a
   delete that fails half way keeps the key, numbered by its base.
 - By hand: the `delete-key-files` command of [`C_TRANGER`](#gclass-c-tranger).
+
+---
+
+(tranger2_mask_sorts_as_time)=
+## [`tranger2_mask_sorts_as_time()`](https://github.com/artgins/yunetas/blob/7.27.4/kernel/c/timeranger2/src/timeranger2.c#L5909)
+
+Do the file ids of a `filename_mask` (a `strftime()` format) sort as time?
+[`tranger2_delete_key_files()`](#tranger2_delete_key_files) deletes the files
+whose id sorts BEFORE the id of the cut, comparing them as strings, so it
+refuses a topic whose mask fails this test: it could not tell which of its
+files are old.
+
+The ids sort as time when every field is numeric, of a fixed width, in
+decreasing significance, with the YEAR first and literal text anywhere. The
+first conversion is `%Y`, `%G`, `%F` (`%Y-%m-%d`) or `%s` (the epoch: nothing
+after it); then, each one below the last: `%m` (or `%V` after `%G`), `%j`,
+`%d`, `%H`, `%R` (`%H:%M`), `%T` (`%H:%M:%S`), `%M`, `%S`. `%%` is a literal.
+
+```C
+BOOL tranger2_mask_sorts_as_time(
+    const char *filename_mask
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `filename_mask` | `const char *` | The mask, as in the `filename_mask` of a topic. |
+
+**Returns**
+
+`TRUE` when the ids of the files it names sort as time.
+
+**Example**
+
+```C
+tranger2_mask_sorts_as_time("tracks-%Y-%m-%d");   // TRUE
+tranger2_mask_sorts_as_time("series-1d-%Y");      // TRUE
+tranger2_mask_sorts_as_time("%FT%T");             // TRUE
+tranger2_mask_sorts_as_time("%G-W%V");            // TRUE (the year of the week, then its week)
+tranger2_mask_sorts_as_time("queue");             // FALSE: a tr_queue topic, one file
+tranger2_mask_sorts_as_time("%d-%m-%Y");          // FALSE: the year last
+tranger2_mask_sorts_as_time("%Y-%d-%m");          // FALSE: the day before the month
+tranger2_mask_sorts_as_time("%Y-%b");             // FALSE: "Aug" sorts before "Jun"
+tranger2_mask_sorts_as_time("%Y-%e");             // FALSE: " 1" is not "01"
+```
 
 ---
 
