@@ -1,7 +1,8 @@
 # Design: retention — deleting the old files of a key, with `g_rowid` intact
 
-Status: **PROPOSAL**, not implemented. Line numbers are those of
-`timeranger2.c` at `ff48d4f75`.
+Status: **APPROVED** (2026-10-21), not implemented yet. The open questions
+are decided (§11), and two guards were added to the proposal (§4.1). Line
+numbers are those of `timeranger2.c` at `ff48d4f75`.
 
 ## 1. The problem
 
@@ -111,8 +112,19 @@ same order that numbers the rows.
 - **It needs a mask whose ids sort as time.** The masks in use do:
   `%Y-%m-%d`, `%Y-%m`, `%Y`, and a fixed prefix in front of any of them. A
   mask like `%d-%m-%Y` sorts wrong already, and so do its rowids.
-- **A queue is safe by construction.** With the mask `"queue"` nothing sorts
-  before the cut, so nothing is deleted.
+
+Two guards refuse a cut that would do damage. Each one returns -1 with an
+error in the log, and deletes nothing:
+
+- **A cut in the future is refused.** If the id of the cut sorts after
+  `get_file_id(now)`, the cut is refused. Without this guard, a `before_t`
+  later than now deletes the file that is being written. `upto` then names
+  the current period, and §4.7 refuses every append with `t = now` until the
+  period changes. Thus the file of the current period is never deleted.
+- **A mask with no absolute year is refused.** A mask that contains none of
+  `%Y`, `%G` or `%s` cannot sort as time. This includes the `"queue"` mask
+  of a tr_queue topic, and a cyclic mask such as `%a`. A call on such a topic
+  is a mistake of the caller, so it is an error in the log, not a silent 0.
 
 ### 4.2 The base of a key: `keys/<key>/.purged`
 
@@ -143,13 +155,14 @@ A key with no `.purged` has base 0: every store that exists today.
 
 ### 4.3 The operation, step by step (master only)
 
-1. **Choose.** Walk the cells from the first while their id sorts before the
-   cut. If there are none, return 0. Add up their rows.
+1. **Choose.** Apply the guards of §4.1. Walk the cells from the first while
+   their id sorts before the cut. If there are none, return 0. Add up their
+   rows.
 2. **Decide.** Write the new base (`upto` = the last chosen id, `rows` = old
    base + the sum) to `.purged.new`, `fsync()` it, `rename()` it to
    `.purged`, and `fsync()` the directory. This is the same replacement as
-   `topic_var.json` (README, *`topic_var.json` is replaced*). **From here the
-   purge has happened.**
+   `topic_var.json` (README, *`topic_var.json` is replaced*). The barrier is
+   per key (§6, §11). **From here the purge has happened.**
 3. **Delete.** Close the open fds of those files (`close_fd_opened_files`
    does the key). For each chosen file, remove `<id>.json`, `<id>.md2` and
    any `<id>.unordered`, and remove the hard links `disks/<rt_id>/<key>/<id>.md2`
@@ -184,9 +197,14 @@ barrier is what forbids it.
 - **The base becomes `total.purged`.** `update_totals_of_key_cache()`
   (l. 12765) counts from it.
 - **A `.purged` that cannot be read is damage, not a base of 0.** A base of 0
-  would renumber the key in silence. The key is flagged (`"unlisted"` or a
-  new flag), its loads say `load_failed`, and appends to it are refused, the
-  way an unreadable md2 is handled today.
+  would renumber the key in silence. The key is flagged **`"unlisted"`**
+  (`flag_key_unlisted`, l. 10893), with its own error message, which names
+  the `.purged`. The flag already does what is necessary: it marks the whole
+  key, every load of the key says `load_failed`, and the key is listed again
+  before each load (`retry_key_flags`) and before each append
+  (`relist_key_before_append`, l. 11241). The relist reads `.purged` again,
+  so a cause that went away (EIO, EMFILE) clears the flag, and a cause that
+  stays makes the append fail.
 
 ### 4.5 Followers: one signal, no sequence
 
@@ -313,9 +331,25 @@ blocks the yuno for as long as it takes.
   daily files, that is a few thousand fsyncs. They are cheap one by one and
   not cheap together, on a yuno with one thread. So the owner purges **a slice
   of keys per tick** (§7).
-- If the slices prove too slow, the durability barrier can be taken per
-  batch: write the `.purged` of N keys, one `syncfs()`, then delete their
-  files. Measure first.
+
+Measured on 2026-10-21: a purge of 3,058 keys (the yunovatios census), one
+`.purged` and three unlinks per key (small files):
+
+| Node | No barrier | `fsync` per key | Batch of 100 (`syncfs`) |
+|---|---|---|---|
+| yunovatios-central (Rocky 9, slow VM) | 1.0 s | **2.8 s** (0.9 ms/key) | 1.1 s |
+| yunovatios-controlador (Debian 13, VM) | 0.5 s | **5.6 s** (1.8 ms/key) | 0.7 s |
+| dev machine (NVMe) | 0.2 s | 3.9 s | 0.4 s |
+
+**The barrier is per key.** A slice of 100 keys blocks the yuno for at most
+about 180 ms on the slowest node, and the whole census is purged in about 30
+ticks, once a day. A batch is 3 to 8 times faster, but `syncfs()` flushes
+every dirty page of the filesystem, not only the purge's. On a node that
+appends hundreds of records per second, its time depends on what other
+processes write, so it has no bound. If a batch is ever necessary, it needs
+two barriers: write the `.new` files, `syncfs()`, rename them, `syncfs()`,
+then unlink. With one barrier only, a crash can leave a `.purged` that is
+empty (§4.4: the key is flagged, not renumbered, but it is damaged).
 
 ## 7. Policy belongs to the owner of the store
 
@@ -370,7 +404,10 @@ is possible later, once two owners have written the same loop.
 10. **Hard links left by a dead feed** are removed with the files.
 11. **Late append into a purged period** is refused, and nothing is written.
 12. **Key purged whole**: rows 0, its base kept, the next append continues.
-13. **Mask `"queue"`** (a tr_queue topic): the purge deletes nothing.
+13. **The guards of §4.1.** A cut in the future is refused, and the current
+    file stays. The mask `"queue"` (a tr_queue topic) and a mask with no year
+    are refused. In each case the function returns -1, logs an error, and
+    deletes nothing.
 14. **`delete_key` after a purge** removes `.purged`, and a key written again
     starts at 1.
 
@@ -385,14 +422,18 @@ is possible later, once two owners have written the same loop.
 - **Copying a store** with `cp -a` or rsync carries `.purged`, so its
   numbering travels with it.
 
-## 11. Open questions
+## 11. Decisions (2026-10-21)
 
-1. **`fsync` per key, or a barrier per batch** (§6). Decide after measuring a
-   purge of a few thousand keys on the slowest node.
-2. **The flag for an unreadable `.purged`** (§4.4): reuse `unlisted`, or a new
-   flag that says what is wrong.
-3. **Should the open also read `.purged` of every cached key at an
-   overflow?** It costs one `stat()` per key. The lazy safety net (§4.5)
-   makes it unnecessary for correctness.
-4. **A generic retention helper in `C_TRANGER`** (§7): only after two owners
-   have written the loop.
+These were the open questions of the proposal.
+
+1. **`fsync` per key, not a barrier per batch** (§6). Measured on both
+   yunovatios nodes: at most 1.8 ms per key, in slices of about 100 keys per
+   tick. The two-barrier batch stays available as an optimization.
+2. **An unreadable `.purged` flags the key `unlisted`** (§4.4), with its own
+   message. The existing retry paths read the `.purged` again.
+3. **An overflow does not read `.purged` of every cached key.** The lazy
+   safety net (§4.5) is sufficient for correctness.
+4. **No generic retention helper in `C_TRANGER` yet** (§7). It comes after two
+   owners have written the same loop.
+5. **Two guards were added** (§4.1): a cut in the future is refused, and so
+   is a mask with no absolute year.
