@@ -2,7 +2,7 @@
 # `yunetas sync-configs`
 
 Operator tool of the [`yunetas` CLI](../yunetas-cli.md) (module
-`yunetas.agent_tools.sync_configs`, [source](https://github.com/artgins/tui_yunetas.py/blob/0.23.0/yunetas/agent_tools/sync_configs.py)) that
+`yunetas.agent_tools.sync_configs`, [source](https://github.com/artgins/tui_yunetas.py/blob/0.23.2/yunetas/agent_tools/sync_configs.py)) that
 reconciles the yuno
 **configs in a directory** with what the local `yuneta_agent` already has
 installed, and — after confirmation — pushes the differences via `create-config`
@@ -122,7 +122,7 @@ See [Yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md).
 
 ```bash
 yunetas sync-configs                       # interactive: show table, ask, apply
-yunetas sync-configs -n                    # dry-run: print the commands, run nothing
+yunetas sync-configs -n                    # dry-run: print the commands, run nothing, ask nothing
 yunetas sync-configs -a                    # apply every candidate without asking
 yunetas sync-configs --show-uptodate       # also list in-sync and agent-only configs
 yunetas sync-configs -r                    # push AND restart the yunos of an UPDATE

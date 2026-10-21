@@ -2,7 +2,7 @@
 # `yunetas sync-binaries`
 
 Operator tool of the [`yunetas` CLI](../yunetas-cli.md) (module
-`yunetas.agent_tools.sync_binaries`, [source](https://github.com/artgins/tui_yunetas.py/blob/0.23.0/yunetas/agent_tools/sync_binaries.py)) that
+`yunetas.agent_tools.sync_binaries`, [source](https://github.com/artgins/tui_yunetas.py/blob/0.23.2/yunetas/agent_tools/sync_binaries.py)) that
 reconciles the freshly built yuno binaries with what the local `yuneta_agent` already has installed,
 and — after confirmation — pushes the differences via `install-binary` /
 `update-binary`.
@@ -98,7 +98,7 @@ See [Yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md) §6.
 
 ```bash
 yunetas sync-binaries                # interactive: show table, ask, apply
-yunetas sync-binaries -n             # dry-run: print the commands, run nothing
+yunetas sync-binaries -n             # dry-run: print the commands, run nothing, ask nothing
 yunetas sync-binaries -a             # apply every candidate without asking
 yunetas sync-binaries --role gate_x  # only this role (repeatable)
 yunetas sync-binaries --no-restart   # REBUILD: update-binary only, no kill/restart
