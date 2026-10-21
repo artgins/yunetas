@@ -30,6 +30,11 @@
     - `yunetas sync-binaries --role <role>` pushes only those roles.
     - The three deploy tools share one module for the login and the
       connection flags they had copied.
+- **Every SPA on i18next 26.5.4, tabulator-tables 6.7.0 and vite 8.3.5**
+  (within their majors; nothing the apps use changes). gui_agent 0.29.103,
+  gui_treedb 0.17.165 and every other SPA got a new third number, were
+  deployed, and their consoles are clean. gobj-js and gobj-ui moved
+  development dependencies only, so neither has a release.
 - **The forwarding shims `tools/agent/sync_binaries.py`, `sync_configs.py` and
   `set_start_priorities.py` are removed (BREAKING for a runbook that calls
   them).** The tools ship inside the `yunetas` CLI since 7.8.5 (CLI 0.17.0),
