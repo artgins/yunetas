@@ -31,9 +31,11 @@
 #define DOC \
     "List messages of TimeRanger2 database." \
     "\v" /* argp: everything after \v appears AFTER the options block */ \
-    "TIME values accept a Unix timestamp (seconds; values >= 1e11 are taken\n" \
-    "as milliseconds) or a natural-language string parsed by approxidate\n" \
-    "(git-style date parser). Accepted forms:\n" \
+    "TIME values accept an integer, taken as it is in the topic's own unit\n" \
+    "(seconds, or milliseconds for t on an sf_t_ms topic and for tm on an\n" \
+    "sf_tm_ms one), or a natural-language string parsed by approxidate\n" \
+    "(git-style date parser) and taken to that unit, topic by topic.\n" \
+    "Accepted forms:\n" \
     "  units    : seconds, minutes, hours, days, weeks, months, years\n" \
     "             with a count and optional 'ago'\n" \
     "             examples: '1.day', '3 hours', '2 weeks ago'\n" \
@@ -294,6 +296,7 @@ int time2exit = 10;
 int total_counter = 0;
 int partial_counter = 0;
 json_t *match_cond = 0;
+json_t *date_bounds = 0;    // the time bounds given as a date: in seconds in match_cond
 
 int verbose = 0;
 BOOL table_mode = FALSE;
@@ -564,8 +567,26 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
     }
     printf("Topic ===> '%s'\n", kw_get_str(0, jn_topic, "directory", "", KW_REQUIRED));
 
+    /*
+     *  A bound given as a date was read in seconds: it is taken to the unit
+     *  of its axis in THIS topic (a recursive listing crosses topics of
+     *  different units). Up to 7.27.4 it stayed in seconds, and on a topic
+     *  in milliseconds it selected nothing, or everything.
+     */
+    json_t *topic_cond = json_deep_copy(match_cond);
+    system_flag2_t system_flag = (system_flag2_t)kw_get_int(0, jn_topic, "system_flag", 0, KW_REQUIRED);
+    int idx; json_t *jn_bound;
+    json_array_foreach(date_bounds, idx, jn_bound) {
+        const char *bound = json_string_value(jn_bound);
+        BOOL tm_axis = (strcmp(bound, "from_tm") == 0 || strcmp(bound, "to_tm") == 0)? TRUE : FALSE;
+        if(system_flag & (tm_axis? sf_tm_ms : sf_t_ms)) {
+            json_int_t secs = json_integer_value(json_object_get(topic_cond, bound));
+            json_object_set_new(topic_cond, bound, json_integer(secs * 1000));
+        }
+    }
+
     json_object_set_new(
-        match_cond,
+        topic_cond,
         "load_record_callback",
         json_integer((json_int_t)(uintptr_t)load_record_callback)
     );
@@ -582,7 +603,7 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
         json_t *rt = tranger2_open_list(
             tranger,
             topic,
-            json_incref(match_cond), // owned
+            json_incref(topic_cond), // owned
             NULL,           // extra
             rt_id,          // rt_id
             TRUE,           // rt_by_disk
@@ -600,7 +621,7 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
             tranger,
             topic,
             arguments.key,
-            json_incref(match_cond), // owned
+            json_incref(topic_cond), // owned
             load_record_callback,
             NULL,   // rt_id
             NULL,   // creator
@@ -613,7 +634,7 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
         json_t *rt = tranger2_open_list(
             tranger,
             topic,
-            json_incref(match_cond), // owned
+            json_incref(topic_cond), // owned
             NULL,   // extra
             NULL,   // rt_id
             FALSE,  // rt_by_disk
@@ -621,6 +642,8 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
         );
         tranger2_close_list(tranger, rt);
     }
+
+    JSON_DECREF(topic_cond)
 
     /*-------------------------------*
      *  Free resources
@@ -956,6 +979,7 @@ int main(int argc, char *argv[])
      *  Match conditions from Arguments
      *----------------------------------*/
     match_cond = json_object();
+    date_bounds = json_array();
 
     if(arguments.from_t) {
         timestamp_t timestamp;
@@ -963,6 +987,7 @@ int main(int argc, char *argv[])
             timestamp = atoll(arguments.from_t);
         } else {
             timestamp = approxidate(arguments.from_t);
+            json_array_append_new(date_bounds, json_string("from_t"));
         }
         json_object_set_new(match_cond, "from_t", json_integer(timestamp));
     }
@@ -972,6 +997,7 @@ int main(int argc, char *argv[])
             timestamp = atoll(arguments.to_t);
         } else {
             timestamp = approxidate(arguments.to_t);
+            json_array_append_new(date_bounds, json_string("to_t"));
         }
         json_object_set_new(match_cond, "to_t", json_integer(timestamp));
     }
@@ -981,6 +1007,7 @@ int main(int argc, char *argv[])
             timestamp = atoll(arguments.from_tm);
         } else {
             timestamp = approxidate(arguments.from_tm);
+            json_array_append_new(date_bounds, json_string("from_tm"));
         }
         json_object_set_new(match_cond, "from_tm", json_integer(timestamp));
     }
@@ -990,6 +1017,7 @@ int main(int argc, char *argv[])
             timestamp = atoll(arguments.to_tm);
         } else {
             timestamp = approxidate(arguments.to_tm);
+            json_array_append_new(date_bounds, json_string("to_tm"));
         }
         json_object_set_new(match_cond, "to_tm", json_integer(timestamp));
     }
@@ -1116,7 +1144,8 @@ int main(int argc, char *argv[])
         /*
          *  Human-readable rendering of any time conditions present.
          *  Values entered as natural language ("1 hour ago") were already
-         *  resolved by approxidate() into a Unix timestamp (seconds).
+         *  resolved by approxidate() into a Unix timestamp (seconds); each
+         *  topic takes them to its own unit when it is listed.
          *  Numeric input passed through verbatim and may carry ms resolution,
          *  so flag anything implausibly large as milliseconds.
          */
@@ -1153,6 +1182,7 @@ int main(int argc, char *argv[])
         }
 
         json_decref(match_cond);
+        json_decref(date_bounds);
         gobj_end();
         return 0;
     }
@@ -1200,6 +1230,7 @@ int main(int argc, char *argv[])
     }
 
     json_decref(match_cond);
+    json_decref(date_bounds);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

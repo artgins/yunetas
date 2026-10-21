@@ -37,6 +37,29 @@ tr2list /yuneta/store/.../topic --follow                    # tail -f
 | `--list-databases` | List databases under the path |
 | `--verbose` / `-l` | Verbosity level |
 
+## Time bounds
+
+`--from-t`, `--to-t`, `--from-tm` and `--to-tm` take an integer or a date.
+An integer is used as it is, in the topic's own unit: seconds, or
+milliseconds for `t` on an `sf_t_ms` topic and for `tm` on an `sf_tm_ms` one.
+A date (any form `approxidate` reads: `"2026-10-01"`, `"2 days ago"`,
+`"yesterday"`) is read in seconds and taken to that unit, topic by topic, so
+one `-r` listing over topics of different units cuts them all at the same
+instant:
+
+```bash
+# the records appended on 2026-10-01 (UTC), whatever the unit of t
+tr2list /yuneta/store/x/topic1 --from-t="2026-10-01 00:00:00 +0000" --to-t="2026-10-01 23:59:59 +0000"
+
+# the same bound as an integer: seconds on a topic in seconds...
+tr2list /yuneta/store/x/topic1 --from-t=1790812800
+# ...milliseconds on an sf_t_ms topic
+tr2list /yuneta/store/x/topic_ms --from-t=1790812800000
+```
+
+Up to 7.27.4 a date stayed in seconds on a topic in milliseconds, and selected
+nothing or everything there. `--dry-run` shows the dates resolved in seconds.
+
 ## Filtering by field
 
 `--filter` takes a JSON dict. A record is listed when every key of the dict,

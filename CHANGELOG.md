@@ -39,7 +39,11 @@
   the unit of `tm`: on a topic with `t` in milliseconds and `tm` in seconds a
   date bound by `t` (`from_t=2026-01-01T00:00:00` in `open-list`,
   `open-iterator`) selected nothing or everything, and the reverse on a topic
-  with `tm` in milliseconds. An integer bound was right.
+  with `tm` in milliseconds. An integer bound was right. `tr2list` had the
+  same fault on its own: a date in `--from-t`/`--to-t`/`--from-tm`/`--to-tm`
+  stayed in seconds on a topic in milliseconds. It now takes it to the unit of
+  each topic it lists (a `-r` listing crosses topics of different units).
+  `stats_list` reads no topic (its listing is a stub in V7): nothing to fix.
 - **The `yunetas` CLI 0.22.0** (`utils/python/tui_yunetas`, on PyPI):
     - The deploy tools exit with `1` when a push failed. They exited `0`, so
       `yunetas sync` pushed the configs after a failed binaries pass.
