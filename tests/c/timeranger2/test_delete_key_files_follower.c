@@ -1,0 +1,434 @@
+/****************************************************************************
+ *          test_delete_key_files_follower.c
+ *
+ *  Retention, the followers: tranger2_delete_key_files() deletes the old
+ *  files of a key on the master, and a follower in another process holds
+ *  cells of those files. It must drop them and take the base of the key
+ *  (keys/<key>/.purged), or it serves rows that are gone and numbers the
+ *  next records differently from the master (DESIGN-retention.md §4.5).
+ *
+ *      - a follower with an rt_disk feed hears the signal the master
+ *        leaves in disks/<rt_id>/ (`.p.<key>`, `.q.<sha256>` for a key too
+ *        long for the name) and applies the base at once;
+ *      - its feed goes on: a record appended after the purge reaches it
+ *        with the master's g_rowid;
+ *      - a follower that heard nothing (it has no feed: no watcher of
+ *        disks/) finds the purge before its next read, and reads what the
+ *        master reads, with no error.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ****************************************************************************/
+#include <string.h>
+#include <signal.h>
+#include <limits.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <gobj.h>
+#include <kwid.h>
+#include <timeranger2.h>
+#include <helpers.h>
+#include <yev_loop.h>
+#include <testing.h>
+
+#define APP "test_delete_key_files_follower"
+
+#define DATABASE    "tr_delete_key_files_follower"
+#define TOPIC_NAME  "topic_delete_key_files_follower"
+#define TOPIC_LONG  "topic_delete_key_files_follower_long"
+#define KEY         "0000000000000000001"   // a follower with a feed
+#define KEY2        "0000000000000000002"   // read by a follower with no feed
+#define DAY1        946684800   // 2000-01-01
+#define DAY2        (DAY1 + 86400)
+#define DAY3        (DAY2 + 86400)
+
+/***************************************************************
+ *              Data
+ ***************************************************************/
+PRIVATE yev_loop_h yev_loop;
+PRIVATE char got[512] = "";
+PRIVATE char long_key[241];     // past what the name of a signal holds
+
+/***************************************************************
+ *              Prototypes
+ ***************************************************************/
+PRIVATE int expect(const char *what, const char *got, const char *expected);
+PRIVATE int expect_int(const char *what, json_int_t got, json_int_t expected);
+
+/***************************************************************
+ *              Helpers
+ ***************************************************************/
+PRIVATE int on_feed_record(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    char item[64];
+    snprintf(item, sizeof(item), "%s%s:%ld",
+        got[0]? " ": "",
+        record? kw_get_str(0, record, "content", "?", 0): "?",
+        (long)rowid
+    );
+    strncat(got, item, sizeof(got) - strlen(got) - 1);
+    JSON_DECREF(record)
+    return 0;
+}
+
+PRIVATE json_t *startup_tranger(BOOL master)
+{
+    char path_root[PATH_MAX];
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+    mkrdir(path_root, 02770);
+
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", master?1:0,
+        "on_critical_error", LOG_OPT_TRACE_STACK,
+        "filename_mask", "%Y",
+        "xpermission" , 02770,
+        "rpermission", 0600
+    );
+    return tranger2_startup(0, jn_tranger, yev_loop);
+}
+
+PRIVATE json_t *create_topic(json_t *tranger, const char *topic_name, system_flag2_t key_type)
+{
+    return tranger2_create_topic(
+        tranger, topic_name, "id", "tm",
+        json_pack("{s:i, s:s, s:i, s:i}",
+            "on_critical_error", 4,
+            "filename_mask", "%Y-%m-%d",
+            "xpermission" , 02700,
+            "rpermission", 0600
+        ),
+        key_type,
+        json_pack("{s:s, s:I, s:s}",
+            "id", "",
+            "tm", (json_int_t)0,
+            "content", ""
+        ),
+        0
+    );
+}
+
+PRIVATE json_int_t append_one(json_t *tranger, json_int_t id, uint64_t t, const char *content)
+{
+    json_t *record = json_pack("{s:I, s:I, s:s}",
+        "id", id,
+        "tm", (json_int_t)t,
+        "content", content
+    );
+    md2_record_ex_t md = {0};
+    if(tranger2_append_record(tranger, TOPIC_NAME, t, 0, &md, record) < 0) {
+        return -1;
+    }
+    return (json_int_t)md.g_rowid;
+}
+
+PRIVATE json_int_t append_long(json_t *tranger, uint64_t t, const char *content)
+{
+    json_t *record = json_pack("{s:s, s:I, s:s}",
+        "id", long_key,
+        "tm", (json_int_t)t,
+        "content", content
+    );
+    md2_record_ex_t md = {0};
+    if(tranger2_append_record(tranger, TOPIC_LONG, t, 0, &md, record) < 0) {
+        return -1;
+    }
+    return (json_int_t)md.g_rowid;
+}
+
+PRIVATE void drain(int turns)
+{
+    for(int i = 0; i < turns; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+}
+
+PRIVATE void served(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    char *bf,
+    size_t bfsize
+)
+{
+    bf[0] = 0;
+    json_t *data = json_array();
+    json_t *it = tranger2_open_iterator(
+        tranger, topic_name, key, json_object(), NULL, "served", "", data, NULL
+    );
+    int idx; json_t *record;
+    json_array_foreach(data, idx, record) {
+        char item[64];
+        snprintf(item, sizeof(item), "%s%s:%ld",
+            bf[0]? " ": "",
+            kw_get_str(0, record, "content", "?", 0),
+            (long)kw_get_int(0, record, "__md_tranger__`g_rowid", -1, 0)
+        );
+        strncat(bf, item, bfsize - strlen(bf) - 1);
+    }
+    if(it) {
+        tranger2_close_iterator(tranger, it);
+    }
+    JSON_DECREF(data)
+}
+
+/*
+ *  The cells the follower holds of a key, as "<file id> ..."
+ */
+PRIVATE void cells_of(json_t *tranger, const char *topic_name, const char *key, char *bf, size_t bfsize)
+{
+    bf[0] = 0;
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    json_t *cells = json_object_get(
+        json_object_get(json_object_get(topic, "cache"), key), "files"
+    );
+    int idx; json_t *cell;
+    json_array_foreach(cells, idx, cell) {
+        if(bf[0]) {
+            strncat(bf, " ", bfsize - strlen(bf) - 1);
+        }
+        strncat(bf, json_string_value(json_object_get(cell, "id")), bfsize - strlen(bf) - 1);
+    }
+}
+
+PRIVATE int expect(const char *what, const char *got_, const char *expected)
+{
+    if(strcmp(got_, expected) != 0) {
+        printf("%sERROR%s --> %s: '%s', expected '%s'\n",
+            On_Red BWhite, Color_Off, what, got_, expected);
+        return -1;
+    }
+    return 0;
+}
+
+PRIVATE int expect_int(const char *what, json_int_t got_, json_int_t expected)
+{
+    if(got_ != expected) {
+        printf("%sERROR%s --> %s: %ld, expected %ld\n",
+            On_Red BWhite, Color_Off, what, (long)got_, (long)expected);
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  do_test
+ ***************************************************************************/
+PRIVATE int do_test(void)
+{
+    int result = 0;
+    char bf[512];
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database),
+        getenv("HOME"), "tests_yuneta", DATABASE, NULL);
+    rmrdir(path_database);
+
+    memset(long_key, 'k', sizeof(long_key) - 1);
+    long_key[sizeof(long_key) - 1] = 0;
+
+    /*-------------------------------------*
+     *  A master with three days of two
+     *  keys, a follower with a feed of
+     *  one of them
+     *-------------------------------------*/
+    set_expected_results(
+        "purge follower: setup",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_tranger(TRUE);
+    if(!tm || !create_topic(tm, TOPIC_NAME, sf_int_key) ||
+            !create_topic(tm, TOPIC_LONG, sf_string_key)) {
+        if(tm) {
+            tranger2_shutdown(tm);
+        }
+        return -1;
+    }
+    const char *contents[3] = {"A", "B", "C"};
+    for(int d = 0; d < 3; d++) {
+        for(int r = 0; r < 2; r++) {
+            char content[8];
+            snprintf(content, sizeof(content), "%s%d", contents[d], r + 1);
+            append_one(tm, 1, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
+            append_one(tm, 2, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
+            append_long(tm, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
+        }
+    }
+
+    json_t *tf = startup_tranger(FALSE);
+    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE) || !tranger2_open_topic(tf, TOPIC_LONG, TRUE)) {
+        printf("%sERROR%s --> cannot open the follower\n", On_Red BWhite, Color_Off);
+        if(tf) {
+            tranger2_shutdown(tf);
+        }
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    json_t *tf_feed = tf;
+    json_t *rt = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, KEY, NULL, on_feed_record, "rt_follower", "", NULL
+    );
+    json_t *rt_long = tranger2_open_rt_disk(
+        tf, TOPIC_LONG, long_key, NULL, on_feed_record, "rt_follower_long", "", NULL
+    );
+    if(!rt || !rt_long) {
+        result += -1;
+    }
+    drain(10);
+    served(tf, TOPIC_NAME, KEY, bf, sizeof(bf));
+    result += expect("follower before", bf, "A1:1 A2:2 B1:3 B2:4 C1:5 C2:6");
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  The follower with a feed hears the
+     *  purge, and applies it at once
+     *-------------------------------------*/
+    set_expected_results("purge follower: the signal", NULL, NULL, NULL, 1);
+    result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY, DAY2), 2);
+    drain(20);
+    cells_of(tf, TOPIC_NAME, KEY, bf, sizeof(bf));
+    result += expect("follower cells", bf, "2000-01-02 2000-01-03");
+    json_t *range = tranger2_topic_key_range(tf, TOPIC_NAME, KEY);
+    result += expect_int("follower base", kw_get_int(0, range, "purged", -1, 0), 2);
+    JSON_DECREF(range)
+    served(tf, TOPIC_NAME, KEY, bf, sizeof(bf));
+    result += expect("follower after", bf, "B1:3 B2:4 C1:5 C2:6");
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  Its feed goes on with the
+     *  master's g_rowid
+     *-------------------------------------*/
+    set_expected_results("purge follower: the feed goes on", NULL, NULL, NULL, 1);
+    got[0] = 0;
+    result += expect_int("master append", append_one(tm, 1, DAY3 + 100, "D1"), 7);
+    drain(30);
+    result += expect("feed got", got, "D1:7");
+    served(tf, TOPIC_NAME, KEY, bf, sizeof(bf));
+    result += expect("follower after the append", bf, "B1:3 B2:4 C1:5 C2:6 D1:7");
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A key too long for the name of the
+     *  signal: `.q.<sha256>`
+     *-------------------------------------*/
+    set_expected_results("purge follower: a long key", NULL, NULL, NULL, 1);
+    result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_LONG, long_key, DAY3), 4);
+    drain(20);
+    cells_of(tf, TOPIC_LONG, long_key, bf, sizeof(bf));
+    result += expect("follower cells", bf, "2000-01-03");
+    served(tf, TOPIC_LONG, long_key, bf, sizeof(bf));
+    result += expect("follower after", bf, "C1:5 C2:6");
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A follower with no feed hears
+     *  nothing, and finds the purge before
+     *  its next read
+     *-------------------------------------*/
+    set_expected_results("purge follower: no signal heard", NULL, NULL, NULL, 1);
+    json_t *tf2 = startup_tranger(FALSE);
+    if(!tf2 || !tranger2_open_topic(tf2, TOPIC_NAME, TRUE)) {
+        printf("%sERROR%s --> cannot open the second follower\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY2, DAY3), 4);
+    drain(20);
+    cells_of(tf, TOPIC_NAME, KEY2, bf, sizeof(bf));
+    result += expect("the follower with a feed heard it", bf, "2000-01-03");
+    tf = tf2;   // the rest of the step reads with the deaf one
+    cells_of(tf, TOPIC_NAME, KEY2, bf, sizeof(bf));
+    result += expect("follower cells, nothing heard", bf, "2000-01-01 2000-01-02 2000-01-03");
+    served(tf, TOPIC_NAME, KEY2, bf, sizeof(bf));
+    result += expect("follower read", bf, "C1:5 C2:6");
+    cells_of(tf, TOPIC_NAME, KEY2, bf, sizeof(bf));
+    result += expect("follower cells after the read", bf, "2000-01-03");
+    {
+        /*  A page of an iterator opened before the purge was found  */
+        json_t *it = tranger2_open_iterator(
+            tf, TOPIC_NAME, KEY2, json_object(), NULL, "paged", "", NULL, NULL
+        );
+        result += expect_int("master purges again", tranger2_delete_key_files(tm, TOPIC_NAME, KEY2, DAY3 + 86400), 2);
+        drain(20);
+        json_t *page = tranger2_iterator_get_page(tf, it, 1, 10, FALSE);
+        result += expect_int("the page of a key purged whole", (json_int_t)json_array_size(json_object_get(page, "data")), 0);
+        result += expect_int("its total", kw_get_int(0, page, "total_rows", -1, 0), 0);
+        JSON_DECREF(page)
+        tranger2_close_iterator(tf, it);
+    }
+    tf = tf_feed;
+    tranger2_shutdown(tf2);
+    result += test_json(NULL);
+
+    set_expected_results("purge follower: shutdown", NULL, NULL, NULL, 1);
+    tranger2_close_rt_disk(tf, rt);
+    tranger2_close_rt_disk(tf, rt_long);
+    drain(10);
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    drain(10);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *              Main
+ ***************************************************************************/
+int main(int argc, char *argv[])
+{
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
+    gbmem_get_allocators(&malloc_func, &realloc_func, &calloc_func, &free_func);
+    json_set_alloc_funcs(malloc_func, free_func);
+
+    unsigned long memory_check_list[] = {0, 0};
+    set_memory_check_list(memory_check_list);
+
+    init_backtrace_with_backtrace(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_backtrace);
+
+    gobj_start_up(argc, argv, NULL, NULL, NULL, NULL, NULL, NULL);
+
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+    gobj_log_register_handler("testing", 0, capture_log_write, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
+
+    yev_loop_create(0, 2024, 10, NULL, &yev_loop);
+
+    int result = do_test();
+
+    yev_loop_stop(yev_loop);
+    yev_loop_destroy(yev_loop);
+
+    gobj_end();
+
+    if(get_cur_system_memory() != 0) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
+        print_track_mem();
+        result += -1;
+    }
+
+    if(result < 0) {
+        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
+    } else {
+        printf("<-- %sTEST OK%s: %s\n", On_Green BWhite, Color_Off, APP);
+    }
+    return result < 0? -1 : 0;
+}

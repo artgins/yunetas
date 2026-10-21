@@ -535,6 +535,23 @@ PRIVATE json_int_t next_segment_row(
 );
 PRIVATE BOOL segment_t_ordered(json_t *segment);
 PRIVATE int cmp_file_ids(const char *a, const char *b);
+PRIVATE BOOL md2_path_of(
+    char *bf,
+    size_t bfsize,
+    const char *topic_directory,
+    const char *key,
+    const char *file_id
+);
+PRIVATE json_t *read_key_purged(
+    hgobj gobj,
+    const char *key_directory
+);
+PRIVATE void flag_key_purged_unreadable(
+    hgobj gobj,
+    json_t *key_cache,
+    const char *topic_directory,
+    const char *key
+);
 PRIVATE int remove_purged_files(
     hgobj gobj,
     const char *topic_directory,
@@ -690,6 +707,27 @@ PRIVATE BOOL key_of_delete_ref(
     const char *ref,
     char *bf,
     size_t bfsize
+);
+PRIVATE const char *long_key_of_ref(
+    json_t *topic,
+    const char *ref
+);
+PRIVATE BOOL parse_purge_signal(
+    const char *name,
+    char *ref,
+    size_t refsize
+);
+PRIVATE void apply_purge_of_master(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+);
+PRIVATE void check_purge_before_read(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
 );
 PRIVATE void apply_delete_made_here(
     json_t *topic,
@@ -5112,6 +5150,151 @@ PRIVATE BOOL parse_delete_signal(const char *name, json_int_t *seq, char *ref, s
 }
 
 /***************************************************************************
+ *  CLIENT: `.p.<key>` or `.q.<sha256>` -> the ref of the key whose old
+ *  files were purged (key_delete_ref()). FALSE: no purge signal.
+ ***************************************************************************/
+PRIVATE BOOL parse_purge_signal(const char *name, char *ref, size_t refsize)
+{
+    if(name[0] != '.' || (name[1] != 'p' && name[1] != 'q') || name[2] != '.' ||
+            empty_string(name + 3)) {
+        return FALSE;
+    }
+    if(name[1] == 'p') {
+        snprintf(ref, refsize, "%s", name + 3);
+        return TRUE;
+    }
+    const char *hex = name + 3;
+    if(strlen(hex) != 64 || strspn(hex, "0123456789abcdef") != 64) {
+        return FALSE;
+    }
+    snprintf(ref, refsize, "/%s", hex);
+    return TRUE;
+}
+
+/***************************************************************************
+ *  CLIENT: apply what the base of a key says (`keys/<key>/.purged`): the
+ *  cells at or before its `upto` go, and its `rows` is the base the key
+ *  counts from. Idempotent: a base already applied changes nothing, so the
+ *  signal of every feed, and a check before every read, cost one read of
+ *  a small file. The descriptors of the files gone are closed (they hold
+ *  their disk), the marks of the feeds in them go, and the iterators of the
+ *  key take their segments again.
+ *  A master applies its own purges as it makes them: nothing to do here.
+ ***************************************************************************/
+PRIVATE void apply_purge_of_master(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+)
+{
+    if(json_is_true(json_object_get(tranger, "master"))) {
+        return;
+    }
+    json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key);
+    if(!key_cache) {
+        return;     // nothing of the key held here: its open reads the base
+    }
+    const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
+    char key_directory[PATH_MAX];
+    if(!build_path(key_directory, sizeof(key_directory), topic_directory, "keys", key, NULL)) {
+        return;     // Error already logged
+    }
+    char purged_path[PATH_MAX];
+    if(!build_path(purged_path, sizeof(purged_path), key_directory, PURGED_FILENAME, NULL)) {
+        return;     // Error already logged
+    }
+    if(access(purged_path, F_OK) < 0) {
+        return;     // no base: the key deleted meanwhile (its delete is heard), or never purged
+    }
+    json_t *jn_purged = read_key_purged(gobj, key_directory);
+    if(!jn_purged) {
+        // Error already logged
+        flag_key_purged_unreadable(gobj, key_cache, topic_directory, key);
+        retake_segments_of_key(gobj, tranger, topic, key);
+        return;
+    }
+    const char *upto = json_string_value(json_object_get(jn_purged, "upto"));
+    json_int_t purged = json_integer_value(json_object_get(jn_purged, "rows"));
+
+    json_t *cache_files = json_object_get(key_cache, "files");
+    json_t *cache_total = json_object_get(key_cache, "total");
+    json_t *file_ids = json_array();
+    while(json_array_size(cache_files) > 0) {
+        const char *file_id = json_string_value(
+            json_object_get(json_array_get(cache_files, 0), "id")
+        );
+        if(!file_id || cmp_file_ids(file_id, upto) > 0) {
+            break;
+        }
+        json_array_append_new(file_ids, json_string(file_id));
+        json_array_remove(cache_files, 0);
+    }
+    if(json_array_size(file_ids) == 0 &&
+            json_integer_value(json_object_get(cache_total, "purged")) == purged) {
+        JSON_DECREF(file_ids)
+        JSON_DECREF(jn_purged)
+        return;     // applied already
+    }
+
+    close_fd_opened_files(gobj, topic, key);
+    json_object_set_new(key_cache, "purged", jn_purged);
+    json_object_set_new(cache_total, "purged", json_integer(purged));
+    update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
+
+    json_t *disks = json_object_get(topic, "disks");
+    int idx; json_t *disk;
+    json_array_foreach(disks, idx, disk) {
+        json_t *marks = json_object_get(json_object_get(disk, "published"), key);
+        int i; json_t *jn_file_id;
+        json_array_foreach(file_ids, i, jn_file_id) {
+            json_object_del(marks, json_string_value(jn_file_id));
+        }
+    }
+    JSON_DECREF(file_ids)
+
+    retake_segments_of_key(gobj, tranger, topic, key);
+}
+
+/***************************************************************************
+ *  CLIENT: before a read of a key, has the master purged old files of it
+ *  that this replica still holds? A purge deletes a PREFIX of the files of
+ *  a key, so it is enough to ask for the first one: gone, the base of the
+ *  key is read and applied (apply_purge_of_master()). One stat() per load
+ *  or page. It makes up for a purge signal this replica did not hear (an
+ *  overflow, a follower down while the master purged), before the read
+ *  and not in the middle of it: applied in the middle of a scan, it would
+ *  free the segments the scan walks.
+ ***************************************************************************/
+PRIVATE void check_purge_before_read(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+)
+{
+    if(json_is_true(json_object_get(tranger, "master"))) {
+        return;
+    }
+    json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key);
+    json_t *first_cell = json_array_get(json_object_get(key_cache, "files"), 0);
+    const char *file_id = json_string_value(json_object_get(first_cell, "id"));
+    if(!file_id) {
+        return;
+    }
+    char path[PATH_MAX];
+    if(!md2_path_of(path, sizeof(path),
+            json_string_value(json_object_get(topic, "directory")), key, file_id)) {
+        return;     // Error already logged
+    }
+    struct stat st;
+    if(stat(path, &st) == 0 || errno != ENOENT) {
+        return;     // there, or not a file gone: the read says what it is
+    }
+    apply_purge_of_master(gobj, tranger, topic, key);
+}
+
+/***************************************************************************
  *  Mirror the key deletion into the directory of EVERY feed, followers
  *  watching their `disks/<rt_id>/` hear it:
  *
@@ -5271,6 +5454,101 @@ PRIVATE json_int_t mirror_key_delete_to_disks(
     }
     closedir(dir);
     return named? seq : 0;
+}
+
+/***************************************************************************
+ *  Tell EVERY feed that the old files of a key were purged
+ *  (tranger2_delete_key_files()): a directory `.p.<key>` (`.q.<sha256>`
+ *  for a key too long, key_delete_ref()) made and removed at once in
+ *  `disks/<rt_id>/`, the way a delete is signalled.
+ *
+ *  It carries no sequence: a purge is idempotent and convergent. The state
+ *  of a purged key is its `.purged`, and applying it -- drop every cell at
+ *  or before its `upto`, take its `rows` as the base -- gives the same
+ *  result applied twice, or late (apply_purge_of_master()). A signal lost
+ *  (an overflow, a follower that was down) is made up for before the next
+ *  read of the key (check_purge_before_read()).
+ *
+ *  A follower from before this signal ignores it: a dot name it cannot
+ *  parse. Master and followers of a topic upgrade together.
+ ***************************************************************************/
+PRIVATE void mirror_key_purge_to_disks(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+)
+{
+    const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
+    char disks_root[PATH_MAX];
+    if(!topic_dir || !build_path(disks_root, sizeof(disks_root), topic_dir, "disks", NULL)) {
+        return;     // Error already logged
+    }
+
+    DIR *dir = opendir(disks_root);
+    if(!dir) {
+        if(errno == ENOENT) {
+            return;     // No disks/, no feed to tell
+        }
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot tell the rt_disk feeds that old files of a key were purged, opendir() of disks/ FAILED",
+            "path",         "%s", disks_root,
+            "key",          "%s", key,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return;
+    }
+
+    char ref[NAME_MAX+2];
+    key_delete_ref(key, ref, sizeof(ref));
+    char signal_name[NAME_MAX+32];
+    snprintf(signal_name, sizeof(signal_name), ".%c.%s",
+        ref[0] == '/'? 'q' : 'p', ref[0] == '/'? ref + 1 : ref
+    );
+
+    struct dirent *entry;
+    while((errno = 0, entry = readdir(dir)) != NULL) {   // errno tells the end from a failure
+        if(entry->d_name[0] == '.') {
+            continue;   // ".", "..", and a feed being removed (no rt id starts with '.')
+        }
+        char rt_path[PATH_MAX];
+        build_path(rt_path, sizeof(rt_path), disks_root, entry->d_name, NULL);
+        if(!is_directory(rt_path)) {
+            continue;
+        }
+        char signal_path[PATH_MAX];
+        build_path(signal_path, sizeof(signal_path), rt_path, signal_name, NULL);
+        if(mkdir(signal_path, json_integer_value(json_object_get(tranger, "xpermission")))<0 ||
+           rmdir(signal_path)<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "cannot signal the purge of old files of a key in disks/<rt_id>/: its follower finds it before its next read",
+                "path",         "%s", signal_path,
+                "key",          "%s", key,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
+    }
+    if(errno != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot tell every rt_disk feed that old files of a key were purged, readdir() of disks/ FAILED",
+            "path",         "%s", disks_root,
+            "key",          "%s", key,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+    closedir(dir);
 }
 
 /***************************************************************************
@@ -5747,6 +6025,11 @@ PUBLIC json_int_t tranger2_delete_key_files(
      *  4. Delete
      *-----------------------------------*/
     remove_purged_files(gobj, topic_dir, key, file_ids);   // Errors already logged: removed at the next open
+
+    /*-----------------------------------*
+     *  5. Tell the followers
+     *-----------------------------------*/
+    mirror_key_purge_to_disks(gobj, tranger, topic, key);
 
     JSON_DECREF(file_ids)
     return rows_deleted;
@@ -8223,6 +8506,31 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 }
                 json_int_t seq;
                 char ref[NAME_MAX+2];
+                if(parse_purge_signal(name, ref, sizeof(ref))) {
+                    /*
+                     *  `.p.<key>` / `.q.<sha256>`: the master purged old
+                     *  files of the key (mirror_key_purge_to_disks()).
+                     *  Every feed hears it: applied once, the rest find
+                     *  nothing to do
+                     */
+                    const char *purged_key = (ref[0] == '/')?
+                        long_key_of_ref(watched_topic, ref) : ref;
+                    if(gobj_global_trace_level() & TRACE_FS) {
+                        gobj_log_debug(gobj, 0,
+                            "function",         "%s", __FUNCTION__,
+                            "msgset",           "%s", MSGSET_YEV_LOOP,
+                            "msg",              "%s", "CLIENT: Key purge signal",
+                            "msg2",             "%s", "💾🔶 CLIENT: Key purge signal",
+                            "ref",              "%s", ref,
+                            "full_path",        "%s", full_path,
+                            NULL
+                        );
+                    }
+                    if(purged_key) {
+                        apply_purge_of_master(gobj, tranger, watched_topic, purged_key);
+                    }
+                    break;
+                }
                 if(!parse_delete_signal(name, &seq, ref, sizeof(ref))) {
                     break;  // no signal of ours
                 }
@@ -9158,12 +9466,25 @@ PRIVATE BOOL key_of_delete_ref(json_t *topic, const char *ref, char *bf, size_t 
         snprintf(bf, bfsize, "%s", named);
         return TRUE;
     }
-    /*
-     *  The refs of the long keys of the cache (`long_key_refs`, {ref: key}),
-     *  made again from the cache when a ref is not among them -- each key
-     *  hashed once in its life (`long_key_hashes`, {key: ref}), not once per
-     *  signal; the keys gone from the cache leave both with the remake
-     */
+    const char *key = long_key_of_ref(topic, ref);
+    if(!key) {
+        return FALSE;
+    }
+    snprintf(bf, bfsize, "%s", key);
+    name_delete_ref(topic, ref, key);
+    return TRUE;
+}
+
+/***************************************************************************
+ *  CLIENT: the long key of the cache that a `/<sha256>` ref names, NULL
+ *  when none does. The refs of the long keys of the cache
+ *  (`long_key_refs`, {ref: key}) are made again from the cache when a ref
+ *  is not among them -- each key hashed once in its life
+ *  (`long_key_hashes`, {key: ref}), not once per signal; the keys gone
+ *  from the cache leave both with the remake.
+ ***************************************************************************/
+PRIVATE const char *long_key_of_ref(json_t *topic, const char *ref)
+{
     json_t *cache = json_object_get(topic, "cache");
     json_t *index = json_object_get(topic, "long_key_refs");
     const char *key = json_string_value(json_object_get(index, ref));
@@ -9190,12 +9511,7 @@ PRIVATE BOOL key_of_delete_ref(json_t *topic, const char *ref, char *bf, size_t 
         json_object_set_new(topic, "long_key_hashes", new_hashes);
         key = json_string_value(json_object_get(new_index, ref));
     }
-    if(!key) {
-        return FALSE;
-    }
-    snprintf(bf, bfsize, "%s", key);
-    name_delete_ref(topic, ref, key);
-    return TRUE;
+    return key;
 }
 
 /***************************************************************************
@@ -13641,8 +13957,11 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     }
 
     /*
-     *  A flag whose cause is gone goes before the load (retry_key_flags)
+     *  A purge of the master this replica did not hear goes before the
+     *  load (check_purge_before_read), and so does a flag whose cause is
+     *  gone (retry_key_flags)
      */
+    check_purge_before_read(gobj, tranger, topic, key);
     json_t *key_cache_ = json_object_get(json_object_get(topic, "cache"), key);
     if(json_object_get(key_cache_, "unlisted") ||
             json_array_size(json_object_get(key_cache_, "unreadable")) > 0) {
@@ -14276,6 +14595,12 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED)
     );
     const char *key = json_string_value(json_object_get(iterator, "key"));
+
+    /*
+     *  A purge of the master this replica did not hear goes before the page
+     *  (it takes the segments, and the index, again)
+     */
+    check_purge_before_read(gobj, tranger, topic, key);
     json_t *segments = json_object_get(iterator, "segments");
 
     /*

@@ -63,6 +63,7 @@ set(SRCS
     test_delete_instance
     test_delete_key_propagation
     test_delete_key_files
+    test_delete_key_files_follower
     test_rt_disk_multi_feed
     test_rt_disk_overflow
     test_fs_watcher_overflow
