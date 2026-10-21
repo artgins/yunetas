@@ -5445,8 +5445,13 @@ PRIVATE void apply_purge_of_master(
     int flags_dropped = drop_flags_of_purged_files(key_cache, upto);
     if(json_array_size(file_ids) == 0 && flags_dropped == 0 &&
             json_integer_value(json_object_get(cache_total, "purged")) == purged) {
+        /*
+         *  Kept all the same: a purge that waited for its base had its cells
+         *  dropped already (drop_gone_head_cells()), and without its `upto`
+         *  a late link of a file of the purged period was taken as new rows
+         */
+        json_object_set_new(key_cache, "purged", jn_purged);
         JSON_DECREF(file_ids)
-        JSON_DECREF(jn_purged)
         return;     // applied already
     }
 
@@ -11029,6 +11034,33 @@ PRIVATE json_int_t update_new_records_from_disk(
     }
 
     /*
+     *  A file of a purged period (its files still on disk: a base whose
+     *  directory could not be fsync'ed, an unlink that failed, a crash): its
+     *  rows are in the base of the key. Taken as a new cell, they were handed
+     *  again with the g_rowids of live rows, and every later row moved. The
+     *  master refuses an append there; a row of it heard here is a late one
+     *  the purge took. Asked before the life of the link, which opens the
+     *  files it reads and keeps them open
+     */
+    json_t *jn_purged_base = json_object_get(
+        json_object_get(json_object_get(topic, "cache"), key), "purged"
+    );
+    const char *purged_upto = json_string_value(json_object_get(jn_purged_base, "upto"));
+    if(purged_upto && cmp_file_ids(file_id_, purged_upto) <= 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "New records of a file of a purged period not read: the purge took them, they are in the base of the key",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "file_id",      "%s", file_id_,
+            "purged_upto",  "%s", purged_upto,
+            NULL
+        );
+        return 0;
+    }
+
+    /*
      *  The life of the link: keys/<key>/ is that life, and so are the files
      *  the records are read from. Another one (the key deleted and written
      *  again since the link was made): not read, its delete is heard, and
@@ -11047,32 +11079,6 @@ PRIVATE json_int_t update_new_records_from_disk(
                 NULL
             );
         }
-        return 0;
-    }
-
-    /*
-     *  A file of a purged period (its files still on disk: a base whose
-     *  directory could not be fsync'ed, an unlink that failed, a crash): its
-     *  rows are in the base of the key. Taken as a new cell, they were handed
-     *  again with the g_rowids of live rows, and every later row moved. The
-     *  master refuses an append there; a row of it heard here is a late one
-     *  the purge took
-     */
-    json_t *jn_purged_base = json_object_get(
-        json_object_get(json_object_get(topic, "cache"), key), "purged"
-    );
-    const char *purged_upto = json_string_value(json_object_get(jn_purged_base, "upto"));
-    if(purged_upto && cmp_file_ids(file_id_, purged_upto) <= 0) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TRANGER,
-            "msg",          "%s", "New records of a file of a purged period not read: the purge took them, they are in the base of the key",
-            "topic_name",   "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            "file_id",      "%s", file_id_,
-            "purged_upto",  "%s", purged_upto,
-            NULL
-        );
         return 0;
     }
 

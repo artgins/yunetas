@@ -66,6 +66,54 @@ PRIVATE char got5[512] = "";
 PRIVATE int expect(const char *what, const char *got, const char *expected);
 PRIVATE int expect_int(const char *what, json_int_t got, json_int_t expected);
 
+/***************************************************************************
+ *  A file of day 1 back on disk (a purge whose files stayed: a copy of day
+ *  3), and its link in a feed directory, as a late row's
+ ***************************************************************************/
+PRIVATE int link_back_purged_file(const char *path_database, const char *key, const char *rt_name)
+{
+    int ret = 0;
+    char key_dir[PATH_MAX];
+    char src[PATH_MAX];
+    char dst[PATH_MAX];
+    char lnk[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_database, TOPIC_NAME, "keys", key, NULL);
+    const char *exts[] = {".json", ".md2", NULL};
+    for(int i = 0; exts[i]; i++) {
+        char name[NAME_MAX];
+        snprintf(name, sizeof(name), "2000-01-03%s", exts[i]);
+        build_path(src, sizeof(src), key_dir, name, NULL);
+        snprintf(name, sizeof(name), "2000-01-01%s", exts[i]);
+        build_path(dst, sizeof(dst), key_dir, name, NULL);
+        if(link(src, dst) < 0) {
+            printf("%sERROR%s --> cannot link %s\n", On_Red BWhite, Color_Off, dst);
+            ret += -1;
+        }
+    }
+    build_path(lnk, sizeof(lnk), path_database, TOPIC_NAME, "disks", rt_name, key, "2000-01-01.md2", NULL);
+    mkrdir(lnk, 02770);
+    rmdir(lnk);
+    if(link(dst, lnk) < 0) {
+        printf("%sERROR%s --> cannot link %s\n", On_Red BWhite, Color_Off, lnk);
+        ret += -1;
+    }
+    return ret;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void unlink_purged_file(const char *path_database, const char *key, const char *rt_name)
+{
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), path_database, TOPIC_NAME, "keys", key, "2000-01-01.json", NULL);
+    unlink(path);
+    build_path(path, sizeof(path), path_database, TOPIC_NAME, "keys", key, "2000-01-01.md2", NULL);
+    unlink(path);
+    build_path(path, sizeof(path), path_database, TOPIC_NAME, "disks", rt_name, key, "2000-01-01.md2", NULL);
+    unlink(path);
+}
+
 /***************************************************************
  *              Helpers
  ***************************************************************/
@@ -593,6 +641,23 @@ PRIVATE int do_test(void)
         json_t *range6 = tranger2_topic_key_range(tf, TOPIC_NAME, KEY6);
         result += expect_int("its base", kw_get_int(0, range6, "purged", -1, 0), 3);
         JSON_DECREF(range6)
+        result += test_json(NULL);
+
+        /*  The base it waited for guards the purged period too  */
+        set_expected_results(
+            "purge follower: a link of a purged file, after the wait",
+            json_pack("[{s:s}]",
+                "msg", "New records of a file of a purged period not read: the purge took them, they are in the base of the key"
+            ),
+            NULL, NULL, 1
+        );
+        got[0] = 0;
+        result += link_back_purged_file(path_database, KEY6, "rt_key6");
+        drain(30);
+        result += expect("the feed got nothing", got, "");
+        served(tf, TOPIC_NAME, KEY6, bf, sizeof(bf));
+        result += expect("the numbering stays the master's", bf, "B1:4 B2:5 C1:6 C2:7 C3:8");
+        unlink_purged_file(path_database, KEY6, "rt_key6");
         tranger2_close_rt_disk(tf, rt6);
         drain(10);
         result += test_json(NULL);
@@ -628,42 +693,18 @@ PRIVATE int do_test(void)
         NULL, NULL, 1
     );
     {
-        char key_dir[PATH_MAX];
-        char src[PATH_MAX];
-        char dst[PATH_MAX];
-        char lnk[PATH_MAX];
-        build_path(key_dir, sizeof(key_dir), path_database, TOPIC_NAME, "keys", KEY, NULL);
-        const char *exts[] = {".json", ".md2", NULL};
-        for(int i = 0; exts[i]; i++) {
-            char name[64];
-            snprintf(name, sizeof(name), "2000-01-03%s", exts[i]);
-            build_path(src, sizeof(src), key_dir, name, NULL);
-            snprintf(name, sizeof(name), "2000-01-01%s", exts[i]);
-            build_path(dst, sizeof(dst), key_dir, name, NULL);
-            if(link(src, dst) < 0) {    // a file of day 1 back on disk (a purge whose files stayed)
-                printf("%sERROR%s --> cannot link %s\n", On_Red BWhite, Color_Off, dst);
-                result += -1;
-            }
-        }
-        build_path(lnk, sizeof(lnk), path_database, TOPIC_NAME, "disks", "rt_follower", KEY, "2000-01-01.md2", NULL);
-        mkrdir(lnk, 02770);
-        rmdir(lnk);
         got[0] = 0;
-        if(link(dst, lnk) < 0) {    // its link, as a late row's
-            printf("%sERROR%s --> cannot link %s\n", On_Red BWhite, Color_Off, lnk);
-            result += -1;
-        }
+        result += link_back_purged_file(path_database, KEY, "rt_follower");
         drain(30);
         result += expect("the feed got nothing", got, "");
         cells_of(tf, TOPIC_NAME, KEY, bf, sizeof(bf));
         result += expect("the follower's cells", bf, "2000-01-03");
-        for(int i = 0; exts[i]; i++) {
-            char name[64];
-            snprintf(name, sizeof(name), "2000-01-01%s", exts[i]);
-            build_path(dst, sizeof(dst), key_dir, name, NULL);
-            unlink(dst);
-        }
-        unlink(lnk);
+        json_t *rd_fds = json_object_get(
+            json_object_get(tranger2_topic(tf, TOPIC_NAME), "rd_fd_files"), KEY
+        );
+        result += expect_int("no descriptor left open on the file refused",
+            json_object_get(rd_fds, "2000-01-01.md2") || json_object_get(rd_fds, "2000-01-01.json"), 0);
+        unlink_purged_file(path_database, KEY, "rt_follower");
     }
     result += test_json(NULL);
 
