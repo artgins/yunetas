@@ -31,6 +31,11 @@
   saved camera comes back right at a zoom other than 1; the counted words of
   the gclass viewer change language; and `yui_update_watch_language_changed()`
   lets a login with no shell re-translate the "new version" bar.
+- **gobj-ui 7.27.34** (npm; deployed to every consumer): a gclass viewer of
+  the gobj tree no longer stays locked when a newer trace set of the gclass
+  it waits for overtakes the read it waited for (gui_agent replaces such a
+  read); a code block of the README is closed again. gui_agent 0.29.109:
+  its QA fails on a console message of concern.
 - **gobj-ui 7.27.33** (npm; deployed to every consumer): an element looked
   up by a name or a value that comes from data no longer goes through a CSS
   selector built from it -- `find_by_id()` and `css_string()`
