@@ -6231,6 +6231,49 @@ PUBLIC size_t gobj_child_size2(
 }
 
 /***************************************************************************
+ *  Which of the keys that name the gobj, in the order gobj_match_gobj()
+ *  reads them, a filter may hold. A dict is walked once (a filter has a few
+ *  keys) and a key that is not there is not read: kw_get_str() answers 0 for
+ *  it, with no log, and kw_has_key() FALSE. A key that is there is read with
+ *  the reader of before, so a value of another type logs as it did. A filter
+ *  that is not a dict may hold any of them: all are read, as before.
+ ***************************************************************************/
+#define MATCH_GOBJ_KEYS 6
+PRIVATE void which_match_gobj_keys(json_t *jn_filter, BOOL in_filter[MATCH_GOBJ_KEYS])
+{
+    static const char *names[MATCH_GOBJ_KEYS] = {
+        "__inherited_gclass_name__",
+        "__gclass_name__",
+        "__state__",
+        "__gobj_name__",
+        "__prefix_gobj_name__",
+        "__disabled__"
+    };
+
+    BOOL is_dict = json_is_object(jn_filter);
+    for(int i=0; i<MATCH_GOBJ_KEYS; i++) {
+        in_filter[i] = is_dict? FALSE : TRUE;
+    }
+    if(!is_dict) {
+        return;
+    }
+
+    const char *key;
+    json_t *jn_value;
+    json_object_foreach(jn_filter, key, jn_value) {
+        if(key[0] != '_' || key[1] != '_') {
+            continue;
+        }
+        for(int i=0; i<MATCH_GOBJ_KEYS; i++) {
+            if(strcmp(key, names[i])==0) {
+                in_filter[i] = TRUE;
+                break;
+            }
+        }
+    }
+}
+
+/***************************************************************************
  *  Match child.
  ***************************************************************************/
 PUBLIC BOOL gobj_match_gobj(
@@ -6249,13 +6292,20 @@ PUBLIC BOOL gobj_match_gobj(
      *  when it was deleted: a string was read for it (a key of another type
      *  stays an attribute to compare, as it did), or it is __disabled__.
      */
-    const char *__inherited_gclass_name__ =  kw_get_str(
+    BOOL in_filter[MATCH_GOBJ_KEYS];
+    which_match_gobj_keys(jn_filter, in_filter);
+
+    const char *__inherited_gclass_name__ = !in_filter[0]? 0 : kw_get_str(
         gobj, jn_filter, "__inherited_gclass_name__", 0, 0
     );
-    const char * __gclass_name__ = kw_get_str(gobj, jn_filter, "__gclass_name__", 0, 0);
-    const char * __state__ = kw_get_str(gobj, jn_filter, "__state__", 0, 0);
-    const char *__gobj_name__ = kw_get_str(gobj, jn_filter, "__gobj_name__", 0, 0);
-    const char *__prefix_gobj_name__ = kw_get_str(gobj, jn_filter, "__prefix_gobj_name__", 0, 0);
+    const char * __gclass_name__ = !in_filter[1]? 0 :
+        kw_get_str(gobj, jn_filter, "__gclass_name__", 0, 0);
+    const char * __state__ = !in_filter[2]? 0 :
+        kw_get_str(gobj, jn_filter, "__state__", 0, 0);
+    const char *__gobj_name__ = !in_filter[3]? 0 :
+        kw_get_str(gobj, jn_filter, "__gobj_name__", 0, 0);
+    const char *__prefix_gobj_name__ = !in_filter[4]? 0 :
+        kw_get_str(gobj, jn_filter, "__prefix_gobj_name__", 0, 0);
 
     if(__inherited_gclass_name__) {
         if(!gobj_typeof_inherited_gclass(gobj, __inherited_gclass_name__)) {
@@ -6277,7 +6327,7 @@ PUBLIC BOOL gobj_match_gobj(
         }
     }
 
-    BOOL has_disabled = kw_has_key(jn_filter, "__disabled__");
+    BOOL has_disabled = in_filter[5] && kw_has_key(jn_filter, "__disabled__");
     if(has_disabled) {
         BOOL disabled = kw_get_bool(gobj, jn_filter, "__disabled__", 0, 0);
         if(disabled && !gobj_is_disabled(gobj)) {
