@@ -445,6 +445,17 @@ PRIVATE void mt_create(hgobj gobj)
         free_func
     );
 
+    /*
+     *  jwt_set_alloc() points jansson too at libjwt's wrappers of these same
+     *  functions (jwt_malloc() -> malloc_func): every json allocated and
+     *  freed by the yuno paid one more call. Back to them directly, as
+     *  entry_point.c had set it.
+     */
+    json_set_alloc_funcs(
+        malloc_func,
+        free_func
+    );
+
 #if defined(__linux__)
 #if defined(CONFIG_HAVE_MBEDTLS)
     /* Safe to call alongside OpenSSL — PSA and OpenSSL use independent state */
