@@ -224,6 +224,17 @@ typedef struct {
     size_t last_id;             // the `__id__` of the last child when the walk began
 } walk_watch_t;
 
+/*
+ *  What the kw of a (un)subscription asks a subscription to hold: read once
+ *  per search of the subscriptions, not once per subscription
+ */
+typedef struct {
+    json_t *__config__;
+    json_t *__global__;
+    json_t *__local__;
+    json_t *__filter__;
+} subs_match_kw_t;
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
@@ -9382,6 +9393,40 @@ PUBLIC const sdata_desc_t *gobj_subs_desc(void)
 }
 
 /***************************************************************************
+ *  A field of a subscription, read on every publication. A subscription is
+ *  a dict whose keys are the literals of subscription_desc, so
+ *  json_object_get() finds what the path of kw_get_int() finds, without
+ *  the path. Any other shape goes to kw_get_int(), which converts and logs
+ *  as it always did.
+ ***************************************************************************/
+PRIVATE json_int_t subs_get_int(
+    gobj_t *gobj,
+    json_t *subs,
+    const char *key,
+    kw_flag_t flag
+)
+{
+    json_t *jn_value = json_object_get(subs, key);
+    if(json_is_integer(jn_value)) {
+        return json_integer_value(jn_value);
+    }
+    return kw_get_int(gobj, subs, key, 0, flag);
+}
+
+/***************************************************************************
+ *  The dict of a subscription field, or NULL: what kw_get_dict() with no
+ *  default and no flag answers, without the path.
+ ***************************************************************************/
+PRIVATE json_t *subs_get_dict(json_t *subs, const char *key)
+{
+    json_t *jn_value = json_object_get(subs, key);
+    if(json_is_object(jn_value)) {
+        return jn_value;
+    }
+    return NULL;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t * _create_subscription(
@@ -9547,6 +9592,17 @@ PRIVATE json_t *_subscription_match_kw(
 }
 
 /***************************************************************************
+ *  What the kw of a (un)subscription asks a subscription to hold
+ ***************************************************************************/
+PRIVATE void read_subs_match_kw(gobj_t *publisher, json_t *kw, subs_match_kw_t *match)
+{
+    match->__config__ = kw_get_dict(publisher, kw, "__config__", 0, 0);
+    match->__global__ = kw_get_dict(publisher, kw, "__global__", 0, 0);
+    match->__local__ = kw_get_dict(publisher, kw, "__local__", 0, 0);
+    match->__filter__ = kw_get_dict_value(publisher, kw, "__filter__", 0, 0);
+}
+
+/***************************************************************************
  *  Match subscription
  ***************************************************************************/
 PRIVATE BOOL _match_subscription(
@@ -9554,38 +9610,38 @@ PRIVATE BOOL _match_subscription(
     gobj_t *publisher,
     gobj_event_t event,
     gobj_event_t renamed_event, // NULL: any
-    json_t *kw, // NOT owned
+    const subs_match_kw_t *match, // what the kw to match asks for
     gobj_t *subscriber
 ) {
-    json_t *__config__ = kw_get_dict(publisher, kw, "__config__", 0, 0);
-    json_t *__global__ = kw_get_dict(publisher, kw, "__global__", 0, 0);
-    json_t *__local__ = kw_get_dict(publisher, kw, "__local__", 0, 0);
-    json_t *__filter__ = kw_get_dict_value(publisher, kw, "__filter__", 0, 0);
+    json_t *__config__ = match->__config__;
+    json_t *__global__ = match->__global__;
+    json_t *__local__ = match->__local__;
+    json_t *__filter__ = match->__filter__;
 
     if(publisher) {
-        gobj_t *publisher_ = (gobj_t *)(uintptr_t)kw_get_int(0, subs, "publisher", 0, KW_REQUIRED);
+        gobj_t *publisher_ = (gobj_t *)(uintptr_t)subs_get_int(0, subs, "publisher", KW_REQUIRED);
         if(publisher != publisher_) {
             return FALSE;
         }
     }
 
     if(subscriber) {
-        gobj_t *subscriber_ = (gobj_t *)(uintptr_t)kw_get_int(0, subs, "subscriber", 0, KW_REQUIRED);
+        gobj_t *subscriber_ = (gobj_t *)(uintptr_t)subs_get_int(0, subs, "subscriber", KW_REQUIRED);
         if(subscriber != subscriber_) {
             return FALSE;
         }
     }
 
     if(event) {
-        gobj_event_t event_ = (gobj_event_t)(uintptr_t)kw_get_int(0, subs, "event", 0, KW_REQUIRED);
+        gobj_event_t event_ = (gobj_event_t)(uintptr_t)subs_get_int(0, subs, "event", KW_REQUIRED);
         if(event != event_) {
             return FALSE;
         }
     }
 
     if(renamed_event) {
-        gobj_event_t renamed_event_ = (gobj_event_t)(uintptr_t)kw_get_int(
-            0, subs, "renamed_event", 0, 0
+        gobj_event_t renamed_event_ = (gobj_event_t)(uintptr_t)subs_get_int(
+            0, subs, "renamed_event", 0
         );
         if(renamed_event != renamed_event_) {
             return FALSE;
@@ -9593,7 +9649,7 @@ PRIVATE BOOL _match_subscription(
     }
 
     if(json_size(__config__)>0) {
-        json_t *kw_config = kw_get_dict(0, subs, "__config__", 0, 0);
+        json_t *kw_config = subs_get_dict(subs, "__config__");
         if(json_size(kw_config)>0) {
             if(!json_is_identical(kw_config, __config__)) {
                 return FALSE;
@@ -9603,7 +9659,7 @@ PRIVATE BOOL _match_subscription(
         }
     }
     if(json_size(__global__)>0) {
-        json_t *kw_global = kw_get_dict(0, subs, "__global__", 0, 0);
+        json_t *kw_global = subs_get_dict(subs, "__global__");
         if(json_size(kw_global)>0) {
             if(!json_is_identical(kw_global, __global__)) {
                 return FALSE;
@@ -9613,7 +9669,7 @@ PRIVATE BOOL _match_subscription(
         }
     }
     if(json_size(__local__)>0) {
-        json_t *kw_local = kw_get_dict(0, subs, "__local__", 0, 0);
+        json_t *kw_local = subs_get_dict(subs, "__local__");
         if(json_size(kw_local)>0) {
             if(!json_is_identical(kw_local, __local__)) {
                 return FALSE;
@@ -9623,7 +9679,7 @@ PRIVATE BOOL _match_subscription(
         }
     }
     if(json_size(__filter__)>0) {
-        json_t *kw_filter = kw_get_dict_value(0, subs, "__filter__", 0, 0);
+        json_t *kw_filter = json_object_get(subs, "__filter__");
         if(json_size(kw_filter)>0) {
             if(!json_is_identical(kw_filter, __filter__)) {
                 return FALSE;
@@ -9654,14 +9710,28 @@ PRIVATE json_t * _find_subscriptions(
 ) {
     json_t *iter = json_array();
 
+    /*
+     *  What kw asks for does not depend on the subscription: read once, not
+     *  once per subscription. A kw that is not a dict or a list (each read
+     *  logs) is read per subscription, as it always was.
+     */
+    BOOL kw_readable = json_is_object(kw) || json_is_array(kw);
+    subs_match_kw_t match;
+    if(kw_readable) {
+        read_subs_match_kw(publisher, kw, &match);
+    }
+
     size_t idx; json_t *subs;
     json_array_foreach(dl_subs, idx, subs) {
+        if(!kw_readable) {
+            read_subs_match_kw(publisher, kw, &match);
+        }
         if(_match_subscription(
             subs,
             publisher,
             event,
             renamed_event,
-            kw, // NOT owned
+            &match,
             subscriber
         )) {
             json_array_append(iter, subs);
@@ -9705,10 +9775,10 @@ PRIVATE int _delete_subscription(
     BOOL force,
     BOOL not_inform
 ) {
-    gobj_t *publisher = (gobj_t *)(uintptr_t)kw_get_int(gobj, subs, "publisher", 0, KW_REQUIRED);
-    gobj_t *subscriber = (gobj_t *)(uintptr_t)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
-    gobj_event_t event = (gobj_event_t)(uintptr_t)kw_get_int(gobj, subs, "event", 0, KW_REQUIRED);
-    subs_flag_t subs_flag = (subs_flag_t)kw_get_int(gobj, subs, "subs_flag", 0, KW_REQUIRED);
+    gobj_t *publisher = (gobj_t *)(uintptr_t)subs_get_int(gobj, subs, "publisher", KW_REQUIRED);
+    gobj_t *subscriber = (gobj_t *)(uintptr_t)subs_get_int(gobj, subs, "subscriber", KW_REQUIRED);
+    gobj_event_t event = (gobj_event_t)(uintptr_t)subs_get_int(gobj, subs, "event", KW_REQUIRED);
+    subs_flag_t subs_flag = (subs_flag_t)subs_get_int(gobj, subs, "subs_flag", KW_REQUIRED);
     BOOL hard_subscription = (subs_flag & __hard_subscription__)?1:0;
 
     /*-------------------------------------------------*
@@ -10595,8 +10665,8 @@ PUBLIC int gobj_publish_event(
                 continue;
             }
         }
-        gobj_t *subscriber = (gobj_t *)(uintptr_t)kw_get_int(
-            publisher, subs, "subscriber", 0, KW_REQUIRED
+        gobj_t *subscriber = (gobj_t *)(uintptr_t)subs_get_int(
+            publisher, subs, "subscriber", KW_REQUIRED
         );
         if(!(subscriber && !(subscriber->obflag & (obflag_destroying|obflag_destroyed)))) {
             continue;
@@ -10605,28 +10675,27 @@ PUBLIC int gobj_publish_event(
         /*
          *  Check if event null or event in event_list
          */
-        subs_flag_t subs_flag = (subs_flag_t)kw_get_int(
-            publisher, subs, "subs_flag", 0, KW_REQUIRED
+        subs_flag_t subs_flag = (subs_flag_t)subs_get_int(
+            publisher, subs, "subs_flag", KW_REQUIRED
         );
 
-        gobj_event_t event_ = (gobj_event_t)(uintptr_t)kw_get_int(
-            publisher, subs, "event", 0, KW_REQUIRED
+        gobj_event_t event_ = (gobj_event_t)(uintptr_t)subs_get_int(
+            publisher, subs, "event", KW_REQUIRED
         );
 
         if(empty_string(event_) || event_ == event) { // WARNING old strcasecmp(event_, event)==0
-            json_t *__config__ = kw_get_dict(publisher, subs, "__config__", 0, 0);
-            json_t *__global__ = kw_get_dict(publisher, subs, "__global__", 0, 0);
-            json_t *__local__ = kw_get_dict(publisher, subs, "__local__", 0, 0);
-            json_t *__filter__ = kw_get_dict_value(publisher, subs, "__filter__", 0, 0);
+            json_t *__config__ = subs_get_dict(subs, "__config__");
+            json_t *__global__ = subs_get_dict(subs, "__global__");
+            json_t *__local__ = subs_get_dict(subs, "__local__");
+            json_t *__filter__ = json_object_get(subs, "__filter__");
 
             /*
              *  Check renamed_event
              */
-            gobj_event_t event_name = (gobj_event_t)(uintptr_t)kw_get_int(
+            gobj_event_t event_name = (gobj_event_t)(uintptr_t)subs_get_int(
                 publisher,
                 subs,
                 "renamed_event",
-                0,
                 0
             );
             if(empty_string(event_name)) {
