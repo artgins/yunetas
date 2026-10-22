@@ -10,6 +10,29 @@
   the 7.27.6 deploy). It now shows the command of every candidate, runs none
   and says so, and its closing notes say what WOULD happen (they said the
   yunos were killed and the slots made).
+- **The `yunetas` CLI 0.23.3** (on PyPI): `restart-agents` refuses to
+  restart the main agent while the spare does not run (`--without-spare`
+  accepts the risk), since a main agent that did not come up then left the
+  node with no agent at all; and an agent it restarts outside its unit no
+  longer inherits the operator's `YUNETA_OAUTH_*` credentials.
+  `sync-binaries --role R` of a role with no local build is an error (exit
+  2), not "Everything is up to date", and the closing note of `-n` shows the
+  promote commands it announces.
+- **gobj-ui 7.27.30** (npm; deployed to every consumer): a `keep_alive`
+  `C_YUI_NODE` tree tells its content `EV_VIEW_SHOWN` once, not twice, when
+  the shell shows it again (`C_YUI_NODE` no longer declares the event); the
+  gobj tree's gclass viewer is locked only by a trace set that concerns its
+  gclass, and only the answer it waits for unlocks it; the gobj tree's
+  saved camera comes back right at a zoom other than 1; the counted words of
+  the gclass viewer change language; and `yui_update_watch_language_changed()`
+  lets a login with no shell re-translate the "new version" bar.
+- **gui_agent 0.29.105, gui_treedb 0.17.167** (deployed): an open gobj tree
+  is closed when its `key` names another yuno after a change of scenario, and
+  its commands go to the node of its own yuno (they went to the node of the
+  new yuno with that key); two cards of one yuno get a window each; a paused
+  yuno says so in the graph mode too; the four times of gui_agent use the
+  24-hour format of the app's language; the Rows card of gui_treedb reopens
+  on `C_TRANGER`'s "purged since it opened: open it again".
 
 - **A filtered iterator with a negative rowid bound keeps its rows across a
   purge** (timeranger2; appeared in 7.27.5). An iterator opened with
