@@ -249,7 +249,22 @@
 #       rides along. Every yuno must be rebuilt and relinked; every node that
 #       builds from source must run `./extrae.sh && ./configure-libs.sh` again.
 
-VERSION="1.24"
+#   version 1.25
+#       upgrade to nginx release-1.31.8 (was release-1.31.7): no security
+#       fix. Bug fixes: HTTP/3 SIGBUS on strict-alignment platforms, false
+#       "recv() failed (5: Input/output error)" alerts with kernel TLS and
+#       OpenSSL >= 3.2, workers that exited on an invalid
+#       "working_directory". One change of behaviour: a relative
+#       "working_directory" is now relative to the nginx prefix, not to the
+#       current directory. No nginx.conf of the tree or of the nodes uses
+#       that directive (checked 2026-10-22). A separate binary linked
+#       against the system's libs: no yuneta consumer, header or CMakeLists
+#       change rides along, and no yuno needs a relink. openresty stays
+#       1.31.1.1 (no newer upstream release, 2026-10-22). Every node that
+#       builds from source must run `./extrae.sh && ./configure-libs.sh`
+#       again.
+
+VERSION="1.25"
 
 
 source ./repos2clone.sh

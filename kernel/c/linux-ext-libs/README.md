@@ -111,6 +111,15 @@ Security bumps made before the deploy of SDK 7.27.x (2026-10-15):
 `1.31.1.1` (checked 2026-10-15), so its nginx 1.31.1 core is exposed to the
 CVEs of 1.31.2 to 1.31.7. Track upstream openresty.
 
+### nginx 1.31.8 (configure-libs.sh v1.25)
+
+- **nginx** `release-1.31.7` -> `release-1.31.8` (2026-10-21): bug fixes,
+  no CVE. A relative path in `working_directory` is now relative to the
+  nginx prefix, not to the current directory; no configuration of the tree
+  or of the nodes uses that directive.
+
+openresty stays `1.31.1.1` (no newer release, checked 2026-10-22).
+
 ### jansson: heap overflow in the lexer (patched)
 
 jansson (v2.15.1, and upstream master) ignored a failed save of a token

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **nginx `release-1.31.7` -> `release-1.31.8`** (the standalone binary,
+  `linux-ext-libs` 1.25). No security fix: bug fixes for HTTP/3 on
+  strict-alignment platforms, kernel TLS alerts with OpenSSL >= 3.2, and
+  workers that exited on an invalid `working_directory`. A relative
+  `working_directory` is now relative to the nginx prefix; no configuration
+  of the tree or of the nodes uses it. openresty stays `1.31.1.1` (no newer
+  release). Nothing that links the yunos changes; nodes that build from
+  source rerun `./extrae.sh && ./configure-libs.sh`.
+
 - **The performance studies of 7.27.5 and 7.26.9, redone against the last
   release with a study** (`performance/reports/7.27.5.*` and `7.26.9.*`
   replaced). Both had been made against the tag before them, which nobody
