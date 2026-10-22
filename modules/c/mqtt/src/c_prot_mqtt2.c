@@ -8501,6 +8501,42 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
     return ret;
 }
 
+/***************************************************************************
+ *  The payload of the frame whose header was just read is already whole in
+ *  `gbuf`: the payload timer would be armed here and cleared by
+ *  ac_process_payload_data() -- the EV_RX_DATA this action sends to itself
+ *  next -- inside this same call, with no turn of the loop to fire it. Armed
+ *  and cleared, a C_TIMER starts and stops, subscribing to the yuno and
+ *  unsubscribing (C_PROT_TCP4H measured it as the biggest cost of a frame).
+ *  It is not armed when that changes nothing: the timer stopped, enabled,
+ *  at 0 and not periodic (as the clear of the header left it), the gobj in
+ *  ST_WAIT_PAYLOAD (the payload action is the one that runs next), and no
+ *  trace on, of any level, on the timer or on the yuno (they would show the
+ *  start, the stop and the two subscriptions).
+ ***************************************************************************/
+PRIVATE BOOL payload_timer_is_needless(hgobj gobj, gbuffer_t *gbuf, size_t frame_length)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    hgobj timer = priv->gobj_timer;
+
+    if(gbuffer_leftbytes(gbuf) < frame_length) {
+        return FALSE;
+    }
+    if(gobj_is_destroying(gobj) || !gobj_in_this_state(gobj, ST_WAIT_PAYLOAD)) {
+        return FALSE;
+    }
+    if(!timer || gobj_is_destroying(timer) || gobj_is_running(timer) || gobj_is_disabled(timer)) {
+        return FALSE;
+    }
+    if(gobj_read_integer_attr(timer, "msec") != 0 || gobj_read_bool_attr(timer, "periodic")) {
+        return FALSE;
+    }
+    if(gobj_is_level_tracing(timer, (uint32_t)-1) || gobj_is_level_tracing(gobj_yuno(), (uint32_t)-1)) {
+        return FALSE;
+    }
+    return TRUE;
+}
+
 
 
 
@@ -8912,7 +8948,9 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
                 istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
 
                 gobj_change_state(gobj, ST_WAIT_PAYLOAD);
-                set_timeout(priv->gobj_timer, priv->timeout_payload);
+                if(!payload_timer_is_needless(gobj, gbuf, frame_length)) {
+                    set_timeout(priv->gobj_timer, priv->timeout_payload);
+                }
 
                 return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
 
