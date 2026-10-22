@@ -1754,9 +1754,8 @@ PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf)
         gobj_trace_dump_gbuf(gobj, gbuf, "decrypted data");
     }
 
-    json_t *kw = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(uintptr_t)gbuf
-    );
+    json_t *kw = json_object();
+    json_object_set_new(kw, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));
     return gobj_publish_event(gobj, EV_RX_DATA, kw);
 }
 
@@ -1772,9 +1771,8 @@ PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf)
         gobj_trace_dump_gbuf(gobj, gbuf, "encrypted data");
     }
 
-    json_t *kw = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(uintptr_t)gbuf
-    );
+    json_t *kw = json_object();
+    json_object_set_new(kw, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));
     return gobj_send_event(gobj, EV_SEND_ENCRYPTED_DATA, kw, gobj);
 }
 
@@ -1882,9 +1880,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
                     } else {
                         GBUFFER_INCREF(gbuf)
-                        json_t *kw = json_pack("{s:I}",
-                            "gbuffer", (json_int_t)(uintptr_t)gbuf
-                        );
+                        json_t *kw = json_object();
+                        json_object_set_new(kw, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));
                         ret = gobj_publish_event(gobj, EV_RX_DATA, kw);
                         if(!marker.alive) {
                             break;  // the gobj is gone

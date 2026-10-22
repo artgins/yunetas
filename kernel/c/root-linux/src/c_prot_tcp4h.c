@@ -461,9 +461,8 @@ PRIVATE int frame_completed(hgobj gobj)
     istream_destroy(priv->istream_payload);
     priv->istream_payload = NULL;
 
-    json_t *kw_tx = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(uintptr_t)gbuf
-    );
+    json_t *kw_tx = json_object();
+    json_object_set_new(kw_tx, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));
     gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
 
     /*
@@ -825,9 +824,8 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     );
     gbuffer_append_gbuf(new_gbuf, gbuf);
 
-    json_t *kw_tx = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(uintptr_t)new_gbuf
-    );
+    json_t *kw_tx = json_object();
+    json_object_set_new(kw_tx, "gbuffer", json_integer((json_int_t)(uintptr_t)new_gbuf));
     int ret = gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_tx, gobj);
 
     if(internal_gbuf) {
