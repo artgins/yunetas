@@ -2049,10 +2049,25 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   nobody looked at: 7.27.5 was compared with 7.27.4 while the last study was
   7.27.0, and 7.26.9 with 7.26.8 while the last was 7.26.0. The `previous` of
   a report's json names that studied release.
+- **Every release that changes `.c` files carries a study, and a loss is
+  located by release** (rule of 2026-10-22). The A/B against the previous
+  release, its raw `performance/reports/<version>.json`, a section and a row
+  of the trend on the docs' performance page; the selling `.html` (below)
+  only when the change is large. So from now on the previous release is the
+  last studied one, and no study spans unmeasured releases. A release that
+  changes no `.c` (JS, tests, packaging) needs none: it cannot move a C
+  figure. And where a study does span releases (the gaps left before this
+  rule), every figure that got slower outside its noise is BISECTED BY TAG:
+  build the releases in between, measure only that figure on each,
+  alternated, until the release where it appears is named -- then the commit
+  when cheap -- and the report says it ("appeared in 7.27.3, commit ...").
+  Why: the user, 2026-10-22: with several releases in between, nobody can
+  say in which one a loss appeared.
 - **A release with a large change in the `.c` files ships a performance
   report: an `.html` with charts that SELLS the release** (rule of 2026-09-23,
-  narrowed 2026-09-25: a release of small fixes, tests and packaging -- 7.25.6
-  -- ships none, and adds no row to the performance page). When such a version is generated,
+  narrowed 2026-09-25 for the `.html`: a release of small fixes ships no
+  `.html` -- since 2026-10-22 it still carries its study and its row when it
+  changes `.c` files, see above). When such a version is generated,
   collect the performance figures (the A/B against the last studied release, the
   timing tests of `build/*.txt`, the benchmarks under `performance/c/` —
   appends/s, TLS round-trips, message rates, binary sizes) and build a
