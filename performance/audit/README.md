@@ -13,7 +13,7 @@ gained, measured, and what was found and not done.
 
 | Round | Scope | Document |
 |-------|-------|----------|
-| 1 | `gobj-c`: the allocator, the publication of events, subscriptions, `gobj_change_state()`, `gobj_match_gobj()` | [round-1-gobj-core.md](round-1-gobj-core.md) |
+| 1 | `gobj-c`: the allocator, the publication of events, subscriptions, `gobj_change_state()`, `gobj_match_gobj()`. TCP echo **+32%**, TLS echo +26%, BFF logins +12% | [round-1-gobj-core.md](round-1-gobj-core.md) |
 | 2 | `timeranger2` and `tr_treedb` | (pending) |
 | 3 | The network path: `yev_loop`, `C_TCP`, the protocols, TLS | (pending) |
 
