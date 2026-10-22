@@ -132,9 +132,19 @@ typedef struct sskt_s {
     char sockname[64];
 } sskt_t;
 
+/*
+ *  Where flush_clear_data() reads: one buffer for the whole process (a yuno
+ *  has no threads), grown to the largest rx_buffer_size asked, freed with
+ *  the last ytls. See get_rx_scratch().
+ */
+PRIVATE char *rx_scratch = NULL;
+PRIVATE size_t rx_scratch_size = 0;
+PRIVATE size_t ytls_count = 0;
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE char *get_rx_scratch(size_t size);
 PRIVATE int flush_clear_data(sskt_t *sskt);
 
 /***************************************************************
@@ -767,6 +777,7 @@ PRIVATE hytls init(
         return 0;
     }
 
+    ytls_count++;
     return (hytls)ytls;
 }
 
@@ -900,6 +911,13 @@ PRIVATE void cleanup(hytls ytls_)
 
     if(ytls && ytls->ctx) {
         SSL_CTX_free(ytls->ctx);
+    }
+    if(ytls && ytls_count > 0) {
+        ytls_count--;
+        if(ytls_count == 0) {
+            GBMEM_FREE(rx_scratch)
+            rx_scratch_size = 0;
+        }
     }
 
     GBMEM_FREE(ytls)
@@ -1454,6 +1472,33 @@ PRIVATE int encrypt_data(
 }
 
 /***************************************************************************
+ *  The scratch where flush_clear_data() reads, at least `size` bytes, or
+ *  NULL to read into a gbuffer as before: with the global trace of
+ *  gbuffers on (it shows every gbuffer created and deleted), or for a size
+ *  that is 0 or near the largest block (its failures keep their logs).
+ *  Allocated (zeroed) once, as the gbuffer of every read was.
+ ***************************************************************************/
+PRIVATE char *get_rx_scratch(size_t size)
+{
+    if(gobj_global_trace_level() & TRACE_GBUFFERS) {
+        return NULL;
+    }
+    if(size == 0 || size > gbmem_get_maximum_block()/2) {
+        return NULL;
+    }
+    if(size > rx_scratch_size) {
+        GBMEM_FREE(rx_scratch)
+        rx_scratch_size = 0;
+        rx_scratch = GBMEM_MALLOC(size);
+        if(!rx_scratch) {
+            return NULL;
+        }
+        rx_scratch_size = size;
+    }
+    return rx_scratch;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int flush_clear_data(sskt_t *sskt)
@@ -1468,19 +1513,33 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
         gobj_trace_msg(gobj, "------- flush_clear_data(), userp %p", sskt->user_data);
     }
     while(sskt->ssl) {
-        gbuffer_t *gbuf = gbuffer_create(sskt->ytls->rx_buffer_size, sskt->ytls->rx_buffer_size);
-        if(!gbuf) {
-            gobj_log_error(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_MEMORY,
-                "msg",              "%s", "Failed to create gbuffer",
-                "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
-                NULL
-            );
-            alive_pop(sskt, &marker);
-            return -1;
+        /*
+         *  With the scratch, SSL_read() reads there and the gbuffer is
+         *  created only when something was read: up to 7.27.7 every read
+         *  took a gbuffer of rx_buffer_size (zeroed), the last one of every
+         *  flush too, the one that answers WANT_READ and is thrown away. The
+         *  gbuffer handed to the callback is the same (rx_buffer_size, the
+         *  same bytes), and it is filled before the callback: a flush nested
+         *  in it reads into the scratch again, harmlessly.
+         */
+        char *scratch = get_rx_scratch(sskt->ytls->rx_buffer_size);
+        gbuffer_t *gbuf = NULL;
+        char *p = scratch;
+        if(!scratch) {
+            gbuf = gbuffer_create(sskt->ytls->rx_buffer_size, sskt->ytls->rx_buffer_size);
+            if(!gbuf) {
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_MEMORY,
+                    "msg",              "%s", "Failed to create gbuffer",
+                    "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
+                    NULL
+                );
+                alive_pop(sskt, &marker);
+                return -1;
+            }
+            p = gbuffer_cur_wr_pointer(gbuf);
         }
-        char *p = gbuffer_cur_wr_pointer(gbuf);
         ERR_clear_error(); // see do_handshake() note on stale error-queue entries
         int nread = SSL_read(sskt->ssl, p, sskt->ytls->rx_buffer_size);
         if(sskt->ytls->trace_tls) {
@@ -1516,6 +1575,21 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
         }
 
         // Callback clear data
+        if(scratch) {
+            gbuf = gbuffer_create(sskt->ytls->rx_buffer_size, sskt->ytls->rx_buffer_size);
+            if(!gbuf) {
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_MEMORY,
+                    "msg",              "%s", "Failed to create gbuffer",
+                    "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
+                    NULL
+                );
+                alive_pop(sskt, &marker);
+                return -1;
+            }
+            memcpy(gbuffer_cur_wr_pointer(gbuf), scratch, (size_t)nread);
+        }
         gbuffer_set_wr(gbuf, nread);
         int cb_ret = sskt->on_clear_data_cb(sskt->user_data, gbuf);
         if(!marker.alive) {
