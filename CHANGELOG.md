@@ -28,6 +28,13 @@
   saved camera comes back right at a zoom other than 1; the counted words of
   the gclass viewer change language; and `yui_update_watch_language_changed()`
   lets a login with no shell re-translate the "new version" bar.
+- **gobj-ui 7.27.32** (npm; deployed to every consumer): the two built-in G6
+  behaviors gobj-ui replaces on purpose (`drag-canvas`, `zoom-canvas`) are
+  written into G6's live registry and checked, so G6 no longer warns "has
+  been registered before" twice on every page load of every app that draws
+  a graph; the gui_agent QA on the deployed plane passes again (0 messages
+  of concern). gui_agent 0.29.107, gui_treedb 0.17.169 and every other SPA
+  took it, with no code change.
 - **gobj-ui 7.27.31** (npm; deployed to every consumer): a gclass viewer of
   the gobj tree reopened while a trace set of its gclass (or of the yuno's
   scope) is in flight opens locked until the answer, as before 7.27.30; and
