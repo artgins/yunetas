@@ -131,6 +131,8 @@ typedef struct _PRIVATE_DATA {
 
     uint64_t last_ms;
 
+    json_t *jn_destination_filter;  // the channels a message can go to, see get_next_destination()
+
 } PRIVATE_DATA;
 
 
@@ -167,6 +169,27 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(send_type,                 gobj_read_integer_attr)
+
+    /*
+     *  Built once: get_next_destination() matched every channel with a
+     *  filter packed again for every message sent. gobj_match_gobj() does
+     *  not modify it.
+     */
+    priv->jn_destination_filter = json_pack("{s:s, s:b, s:b}",
+        "__gclass_name__", C_CHANNEL,
+        "opened", 1,
+        "__disabled__", 0
+    );
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    JSON_DECREF(priv->jn_destination_filter)
 }
 
 /***************************************************************************
@@ -765,11 +788,7 @@ PRIVATE hgobj get_next_destination(hgobj gobj)
 
     size_t count = gobj_child_size(gobj);
 
-    json_t *jn_filter = json_pack("{s:s, s:b, s:b}",
-        "__gclass_name__", C_CHANNEL,
-        "opened", 1,
-        "__disabled__", 0
-    );
+    json_t *jn_filter = priv->jn_destination_filter;
 
     hgobj child = priv->cur_channel;
     if(!child) {
@@ -780,7 +799,6 @@ PRIVATE hgobj get_next_destination(hgobj gobj)
     while(i<count) {
         if(gobj_match_gobj(child, json_incref(jn_filter))) {
             priv->cur_channel = child;
-            JSON_DECREF(jn_filter)
             return priv->cur_channel;
         }
         child = gobj_next_child(child);
@@ -790,7 +808,6 @@ PRIVATE hgobj get_next_destination(hgobj gobj)
         i++;
     }
 
-    JSON_DECREF(jn_filter)
     return 0;
 }
 
@@ -1357,6 +1374,7 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
+    .mt_destroy = mt_destroy,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
     .mt_stats = mt_stats,
