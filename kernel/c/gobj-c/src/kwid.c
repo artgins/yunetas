@@ -774,6 +774,28 @@ PUBLIC int kw_set_dict_value(
         }
     }
 
+    /*
+     *  A path of one segment is the key itself: what split2() answers for
+     *  it, without copying it four times. The same json_object_set() and
+     *  the same log if it fails.
+     */
+    if(!empty_string(path) && !search_delimiter(path, delimiter[0])) {
+        int ret = 0;
+        if(json_object_set(kw, path, value)<0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "json_object_set() FAILED",
+                "path",         "%s", path,
+                "segment",      "%s", path,
+                NULL
+            );
+            ret = -1;
+        }
+        JSON_DECREF(value)
+        return ret;
+    }
+
     int list_size = 0;
     const char **segments = split2(path?path:"", delimiter, &list_size);
     if(list_size <= 0) {
