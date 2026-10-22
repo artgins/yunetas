@@ -64,7 +64,12 @@ Clone yunetas with `--recurse-submodules` (or run `git submodule update --init`)
 **Every SPA consumes `@yuneta/gobj-js` / `@yuneta/gobj-ui` from the npm
 registry** — since 2026-08-03 there are no `file:` consumers left (wattyzer
 moved on 2026-07-25, the in-repo `yunos/js/*` yunos followed). So library work
-reaches an app only once published, and each SPA builds standalone. To edit a
+reaches an app only once published, and each SPA builds standalone. **Every
+app commits its `package-lock.json`** (since 2026-10-22; until then all of
+them ignored it, so one commit could build two bundles): a fresh checkout
+installs with `npm ci`, and a range raised by hand or by the deploy round is
+an `npm install` whose rewritten lockfile goes into the same commit as the
+`package.json`. To edit a
 JS yuno: work in `yunos/js` directly, commit on `main` in the `yunos-js` repo,
 then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 
