@@ -144,7 +144,9 @@ json_int_t rows = tranger2_delete_key_files(
     tranger, "raw_tracks", device_id, time_in_seconds() - 30*86400
 );
 if(rows < 0) {
-    // Error already logged: nothing deleted
+    // Error already logged: refused, nothing deleted -- or the purge applied
+    // with its base not durable (its directory not fsync'ed): the files stay
+    // until the next open of the master
 }
 ```
 

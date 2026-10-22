@@ -239,7 +239,8 @@ says when a new version is deployed.
   (within their majors; nothing the apps use changes). gui_agent 0.29.103,
   gui_treedb 0.17.165 and every other SPA got a new third number, were
   deployed, and their consoles are clean. gobj-js and gobj-ui moved
-  development dependencies only, so neither has a release.
+  development dependencies only, so this round published neither (gobj-ui
+  7.27.29, next, was published for the update watch).
 - **Every SPA says when a new version is deployed** (gobj-ui 7.27.29,
   `C_YUI_UPDATE_WATCH`). Every route of the SPAs is a hash, and neither a
   login nor a logout reloads the page, so a tab opened before a deploy ran the

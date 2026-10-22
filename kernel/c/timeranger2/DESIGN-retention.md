@@ -1,7 +1,7 @@
 # Design: retention — deleting the old files of a key, with `g_rowid` intact
 
 Status: **IMPLEMENTED** (2026-10-21, `bd3fdce51` the master, `83a771089` the
-followers, `ffee7cd3f` the `C_TRANGER` command), to be released. Approved the
+followers, `ffee7cd3f` the `C_TRANGER` command), released in 7.27.5. Approved the
 same day; the open questions are decided (§11), and two guards were added to
 the proposal (§4.1). Where the implementation differs from the proposal, the
 text says so (§4.5, §8). Line numbers are those of `timeranger2.c` at
@@ -124,10 +124,15 @@ error in the log, and deletes nothing:
   later than now deletes the file that is being written. `upto` then names
   the current period, and §4.7 refuses every append with `t = now` until the
   period changes. Thus the file of the current period is never deleted.
-- **A mask with no absolute year is refused.** A mask that contains none of
-  `%Y`, `%G` or `%s` cannot sort as time. This includes the `"queue"` mask
-  of a tr_queue topic, and a cyclic mask such as `%a`. A call on such a topic
-  is a mistake of the caller, so it is an error in the log, not a silent 0.
+- **A mask whose file ids do not sort as time is refused**
+  (`tranger2_mask_sorts_as_time()`, since `8d404db485`). The ids are compared
+  as strings, so every field must be numeric and of a fixed width, the year
+  FIRST, and each field the next one down from the last. This refuses the
+  `"queue"` mask of a tr_queue topic, a cyclic mask such as `%a`, `%s` (the
+  epoch has no fixed width), a `%G` that ends the mask, `%Y-%d` (a field left
+  out), `%d-%m-%Y`, `%Y-%b`, and the `%E`/`%O` modifiers. (The proposal only
+  asked for an absolute year: `%Y`, `%G` or `%s`.) A call on such a topic is a
+  mistake of the caller, so it is an error in the log, not a silent 0.
 
 ### 4.2 The base of a key: `keys/<key>/.purged`
 
@@ -167,10 +172,13 @@ A key with no `.purged` has base 0: every store that exists today.
    `topic_var.json` (README, *`topic_var.json` is replaced*). The barrier is
    per key (§6, §11). **From here the purge has happened.**
 3. **Delete.** Close the open fds of those files (`close_fd_opened_files`
-   does the key). For each chosen file, remove `<id>.json`, `<id>.md2` and
-   any `<id>.unordered`, and remove the hard links `disks/<rt_id>/<key>/<id>.md2`
-   that a feed has not consumed: a dead follower leaves them, and they would
-   keep the inode alive.
+   does the key). For each chosen file, remove the hard links
+   `disks/<rt_id>/<key>/<id>.md2` that a feed has not consumed (a dead
+   follower leaves them, and they would keep the inode alive), THEN
+   `<id>.json`, `<id>.md2` and any `<id>.unordered`. The open of the master
+   finishes a removal cut half way from what it finds in `keys/`, so while a
+   link cannot be removed the files of `keys/` stay too (as implemented
+   after 7.27.6; the files went first, and a link left was never retried).
 4. **Cache.** Drop the cells, set `total.purged`, recompute the totals,
    `retake_segments_of_key()` (l. 13926, the path that unreadable files
    already use), and drop the rt_disk watermarks of the deleted files.
@@ -216,7 +224,10 @@ barrier is what forbids it.
   before each load (`retry_key_flags`) and before each append
   (`relist_key_before_append`, l. 11241). The relist reads `.purged` again,
   so a cause that went away (EIO, EMFILE) clears the flag, and a cause that
-  stays makes the append fail.
+  stays makes the append fail. A load lists the key again when the directory
+  or the `.purged` changed, or when the read failed with a passing errno
+  (EMFILE, ENFILE, ENOMEM, EIO, EINTR, EAGAIN), which the flag keeps: until
+  7.27.6 only a change was a retry, and a passing error kept the key flagged.
 
 ### 4.5 Followers: one signal, no sequence
 
@@ -452,4 +463,5 @@ These were the open questions of the proposal.
 4. **No generic retention helper in `C_TRANGER` yet** (§7). It comes after two
    owners have written the same loop.
 5. **Two guards were added** (§4.1): a cut in the future is refused, and so
-   is a mask with no absolute year.
+   is a mask whose file ids do not sort as time
+   (`tranger2_mask_sorts_as_time()`; first a mask with no absolute year).

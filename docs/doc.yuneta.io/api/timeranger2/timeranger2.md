@@ -1146,14 +1146,17 @@ json_int_t tranger2_delete_key_files(
 | Key | Type | Description |
 |---|---|---|
 | `tranger` | `json_t *` | A pointer to the TimeRanger database instance. It must be the master. |
-| `topic_name` | `const char *` | The topic of the key. Its `filename_mask` must have an absolute year (`%Y`, `%G`, `%F` or `%s`). |
+| `topic_name` | `const char *` | The topic of the key. The file ids of its `filename_mask` must sort as time ([`tranger2_mask_sorts_as_time()`](#tranger2_mask_sorts_as_time): the year first, numeric fields of a fixed width; `%s`, a `%G` that ends the mask, `%Y-%d` and the `%E`/`%O` modifiers are refused). |
 | `key` | `const char *` | The key whose old files are deleted. |
 | `before_t` | `uint64_t` | The cut, in the topic's unit of `t` (milliseconds with `sf_t_ms`). The files of the records appended before the period of `before_t` are deleted. |
 
 **Returns**
 
-The rows deleted, `0` when there was nothing to delete, or `-1` (logged) on
-error, with nothing deleted.
+The rows deleted, `0` when there was nothing to delete, or `-1` (logged). A
+`-1` is almost always a refusal, with nothing deleted. One `-1` is a purge
+APPLIED: the base was written but its directory could not be `fsync()`ed, so
+the cache and the followers took the purge, and the files stay on disk until
+the next open of the master removes them (see the notes below).
 
 **Example**
 
@@ -1168,7 +1171,8 @@ size_t n = json_array_size(keys);
 for(size_t i = priv->purge_cursor; i < n && i < priv->purge_cursor + 100; i++) {
     const char *key = json_string_value(json_array_get(keys, i));
     if(tranger2_delete_key_files(tranger, "raw_tracks", key, cut) < 0) {
-        // Error already logged: this key is as it was
+        // Error already logged: refused, the key as it was -- or the purge
+        // applied with its base not durable, the files removed at the next open
     }
 }
 priv->purge_cursor += 100;
@@ -1244,8 +1248,11 @@ tranger2_delete_key_files(K, before_t = 2000-01-02T00:00:00)   -> 3
 - When the directory of the base cannot be `fsync()`ed after its rename, the
   purge is applied (the cache and the followers take it) but the files stay
   until the next open, and the call answers `-1`.
-- `tranger2_delete_key()` removes the base the LAST of the files of the key: a
-  delete that fails half way keeps the key, numbered by its base.
+- `tranger2_delete_key()` moves the directory of the key out of `keys/` whole
+  (a `rename()`, atomic) before it removes it, base included (since 7.27.6): a
+  delete that cannot move it answers `-1` with the key as it was, numbered by
+  its base, and a moved directory that cannot be removed is the key deleted all
+  the same (`0`), swept at the master's next open.
 - By hand: the `delete-key-files` command of [`C_TRANGER`](#gclass-c-tranger).
 
 ---
@@ -3423,7 +3430,31 @@ A JSON object, **yours** to decref:
 {"fr_t": t, "to_t": t, "fr_tm": tm, "to_tm": tm, "rows": n}
 ```
 
-`NULL` (silent) if the topic or the key is unknown.
+`rows` is the LIVE count, the rows that can be read. A key whose old files were
+deleted ([`tranger2_delete_key_files()`](#tranger2_delete_key_files)) also has
+`"purged": n`, its base: the rows of the files deleted. Its live `g_rowid`s are
+`purged+1 .. purged+rows`, so its LAST `g_rowid` is `purged + rows`, not
+`rows`. A key never purged has no `purged`. On a replica, `"renumbered": n`
+says how far the `g_rowid`s of the key moved when it took a base of the master
+that counted rows it had not (a file it had flagged unreadable): whoever keeps
+positions of the key outside its iterators moves them by it.
+
+`NULL` if the topic (logged) or the key (silent) is unknown.
+
+**Example**
+
+```C
+/*
+ *  The last g_rowid of a key, to page it by g_rowid: a key of 1823411 rows
+ *  purged and 4000 live answers {"rows": 4000, "purged": 1823411, ...}
+ */
+json_t *range = tranger2_topic_key_range(tranger, "raw_tracks", "dev1");
+if(range) {
+    json_int_t last_rowid = kw_get_int(gobj, range, "purged", 0, 0) +
+                            kw_get_int(gobj, range, "rows", 0, 0);   // 1827411
+    JSON_DECREF(range)
+}
+```
 
 **Notes**
 
