@@ -157,6 +157,18 @@ typedef struct {
     BOOL t_ordered;
 } seg_view_t;
 
+/*
+ *  The five integers of a cache cell or of a key's totals, looked up once:
+ *  an append reads and rewrites them, and each lookup hashes its key
+ */
+typedef struct {
+    json_t *fr_t;
+    json_t *to_t;
+    json_t *fr_tm;
+    json_t *to_tm;
+    json_t *rows;
+} cache_range_t;
+
 #define TIME_FLAG_MASK  TRANGER2_MAX_TIME      /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
 #define USER_FLAG_MASK  0x0FFFF00000000000ULL
 
@@ -326,6 +338,8 @@ PRIVATE json_t *get_key_cache(
 );
 PRIVATE json_t *create_cache_key(void);
 PRIVATE void set_cache_int(json_t *dict, const char *key, json_int_t value);
+PRIVATE void get_cache_range(json_t *dict, cache_range_t *range);
+PRIVATE void put_cache_int(json_t *dict, const char *key, json_t **pjn_value, json_int_t value);
 PRIVATE json_t *find_cache_cell(
     json_t *topic,
     const char *key,
@@ -13840,10 +13854,39 @@ PRIVATE json_t *load_key_cache_from_disk(
 PRIVATE void set_cache_int(json_t *dict, const char *key, json_int_t value)
 {
     json_t *jn_value = json_object_get(dict, key);
-    if(json_is_integer(jn_value)) {
-        json_integer_set(jn_value, value);
+    put_cache_int(dict, key, &jn_value, value);
+}
+
+/***************************************************************************
+ *  The five integers of a cache cell or of a key's totals (NULL those it
+ *  has not), to read and to write with put_cache_int() without looking
+ *  them up again
+ ***************************************************************************/
+PRIVATE void get_cache_range(json_t *dict, cache_range_t *range)
+{
+    range->fr_t = json_object_get(dict, "fr_t");
+    range->to_t = json_object_get(dict, "to_t");
+    range->fr_tm = json_object_get(dict, "fr_tm");
+    range->to_tm = json_object_get(dict, "to_tm");
+    range->rows = json_object_get(dict, "rows");
+}
+
+/***************************************************************************
+ *  set_cache_int() of a value already looked up: `*pjn_value` is what
+ *  `key` holds in `dict` (NULL if nothing), and is left pointing to what
+ *  it holds after the write
+ ***************************************************************************/
+PRIVATE void put_cache_int(json_t *dict, const char *key, json_t **pjn_value, json_int_t value)
+{
+    if(json_is_integer(*pjn_value)) {
+        json_integer_set(*pjn_value, value);
     } else {
-        json_object_set_new(dict, key, json_integer(value));
+        json_t *jn_value = json_integer(value);
+        if(json_object_set_new(dict, key, jn_value) == 0) {
+            *pjn_value = jn_value;  // the dict holds it
+        } else {
+            *pjn_value = NULL;      // spent by the failed set
+        }
     }
 }
 
@@ -13868,16 +13911,18 @@ PRIVATE json_t *update_cache_cell(
     uint64_t file_from_tm = (uint64_t)(-1);
     uint64_t file_to_tm = 0;
     uint64_t rows = 0;
+    cache_range_t range = {0};
 
     if(!file_cache) {
         file_cache = json_object();
         json_object_set_new(file_cache, "id", json_string(file_id));
     } else {
-        file_from_t = json_integer_value(json_object_get(file_cache, "fr_t"));
-        file_to_t = json_integer_value(json_object_get(file_cache, "to_t"));
-        file_from_tm = json_integer_value(json_object_get(file_cache, "fr_tm"));
-        file_to_tm = json_integer_value(json_object_get(file_cache, "to_tm"));
-        rows = json_integer_value(json_object_get(file_cache, "rows"));
+        get_cache_range(file_cache, &range);
+        file_from_t = json_integer_value(range.fr_t);
+        file_to_t = json_integer_value(range.to_t);
+        file_from_tm = json_integer_value(range.fr_tm);
+        file_to_tm = json_integer_value(range.to_tm);
+        rows = json_integer_value(range.rows);
     }
 
     if(operation > 0) {
@@ -13917,11 +13962,11 @@ PRIVATE json_t *update_cache_cell(
         file_to_tm = record_tm;
     }
 
-    set_cache_int(file_cache, "fr_t", (json_int_t)file_from_t);
-    set_cache_int(file_cache, "to_t", (json_int_t)file_to_t);
-    set_cache_int(file_cache, "fr_tm", (json_int_t)file_from_tm);
-    set_cache_int(file_cache, "to_tm", (json_int_t)file_to_tm);
-    set_cache_int(file_cache, "rows", (json_int_t)rows);
+    put_cache_int(file_cache, "fr_t", &range.fr_t, (json_int_t)file_from_t);
+    put_cache_int(file_cache, "to_t", &range.to_t, (json_int_t)file_to_t);
+    put_cache_int(file_cache, "fr_tm", &range.fr_tm, (json_int_t)file_from_tm);
+    put_cache_int(file_cache, "to_tm", &range.to_tm, (json_int_t)file_to_tm);
+    put_cache_int(file_cache, "rows", &range.rows, (json_int_t)rows);
 
     return file_cache;
 }
@@ -15280,12 +15325,14 @@ PRIVATE json_int_t update_totals_of_key_cache2(
     json_int_t rows_added
 ) {
     json_t *total_range = json_object_get(key_cache, "total");
+    cache_range_t total = {0};
+    get_cache_range(total_range, &total);
 
-    json_int_t total_rows = json_integer_value(json_object_get(total_range, "rows"));
-    uint64_t global_from_t = json_integer_value(json_object_get(total_range, "fr_t"));
-    uint64_t global_to_t = json_integer_value(json_object_get(total_range, "to_t"));
-    uint64_t global_from_tm = json_integer_value(json_object_get(total_range, "fr_tm"));
-    uint64_t global_to_tm = json_integer_value(json_object_get(total_range, "to_tm"));
+    json_int_t total_rows = json_integer_value(total.rows);
+    uint64_t global_from_t = json_integer_value(total.fr_t);
+    uint64_t global_to_t = json_integer_value(total.to_t);
+    uint64_t global_from_tm = json_integer_value(total.fr_tm);
+    uint64_t global_to_tm = json_integer_value(total.to_tm);
 
     if(global_from_t == 0) {
         global_from_t = (uint64_t)(-1);
@@ -15326,11 +15373,11 @@ PRIVATE json_int_t update_totals_of_key_cache2(
 
     total_rows += rows_added;
 
-    set_cache_int(total_range, "fr_t", (json_int_t)global_from_t);
-    set_cache_int(total_range, "to_t", (json_int_t)global_to_t);
-    set_cache_int(total_range, "fr_tm", (json_int_t)global_from_tm);
-    set_cache_int(total_range, "to_tm", (json_int_t)global_to_tm);
-    set_cache_int(total_range, "rows", (json_int_t)total_rows);
+    put_cache_int(total_range, "fr_t", &total.fr_t, (json_int_t)global_from_t);
+    put_cache_int(total_range, "to_t", &total.to_t, (json_int_t)global_to_t);
+    put_cache_int(total_range, "fr_tm", &total.fr_tm, (json_int_t)global_from_tm);
+    put_cache_int(total_range, "to_tm", &total.to_tm, (json_int_t)global_to_tm);
+    put_cache_int(total_range, "rows", &total.rows, (json_int_t)total_rows);
 
     return total_rows;
 }
