@@ -15,7 +15,7 @@ gained, measured, and what was found and not done.
 |-------|-------|----------|
 | 1 | `gobj-c`: the allocator, the publication of events, subscriptions, `gobj_change_state()`, `gobj_match_gobj()`. TCP echo **+32%**, TLS echo +26%, BFF logins +12% | [round-1-gobj-core.md](round-1-gobj-core.md) |
 | 2 | `timeranger2` and `tr_treedb`: the cache of the keys, file names, `pread()`, the cols of a topic, `md2json()`, the start time of the process. Appends **+16%**, reads +13%, treedb writes -13%, forced deletes -18%. Proposal, not applied: a jansson patch, record reads **x2**, appends +25% | [round-2-timeranger2-treedb.md](round-2-timeranger2-treedb.md) |
-| 3 | The network path: `yev_loop`, `C_TCP`, the protocols, TLS | (pending) |
+| 3 | The network path: the payload timer of every frame (`C_PROT_TCP4H`, `C_WEBSOCKET`, `C_PROT_MQTT2`), the TLS read buffer, `json_pack()` per message, `C_IOGATE`, the websocket unmask. TCP echo **+45%**, TLS echo **+36%**, with an append +27/+28% | [round-3-network.md](round-3-network.md) |
 
 ## Method
 
@@ -36,3 +36,27 @@ gained, measured, and what was found and not done.
   its standard error, |t| < 3 is noise). This VM is noisy, so the instruction
   count is the steadier figure and the wall-clock A/B confirms its direction.
 - **That nothing changed**: the whole ctest suite, before and after.
+
+## Proposals waiting for a decision
+
+What the rounds found and did not apply, because it changes behaviour,
+format or API, touches a third-party library, or needs a structure a
+consolidated module does not have yet. Each one is described, with its
+expected gain, in the round that found it.
+
+| Proposal | Gain | Why it waits | Round |
+|----------|------|--------------|-------|
+| jansson patch: fast paths for ASCII (dump, UTF-8 check, lexer), a ready patch | record reads **x2**, appends +25%, BFF +15% | a patch of a third-party library (`linux-ext-libs` VERSION bump) | [2](round-2-timeranger2-treedb.md) |
+| The gbuffer of a TLS read sized to what was read | most of what is left of a TLS read (zeroing 32 KB per message), and 32 KB per message kept by a consumer | the free space of the buffer handed up changes | [3](round-3-network.md) |
+| Subscriptions as C structs | ~16% of a TCP echo (hash lookups per publication) | `gobj_find_subscriptions()` returns json: API | [1](round-1-gobj-core.md), [3](round-3-network.md) |
+| A faster seeded hash in jansson | part of the 10-14% of `hashlittle` | a patch of a third-party library | [1](round-1-gobj-core.md) |
+| A `C_TIMER` keeps its subscription to the yuno for its life | every timer start/stop (the per-frame case is solved in round 3) | the list of subscriptions anybody can see changes | [1](round-1-gobj-core.md) |
+| treedb realtime lists marked `only_md` | ~5 000 instructions per treedb save | `only_md` shows in the list and its callback gets NULL | [2](round-2-timeranger2-treedb.md) |
+| treedb open in O(keys), not O(history) | the open of a treedb with a long history | a damaged older record is no longer detected at open | [2](round-2-timeranger2-treedb.md) |
+| Hooks rebuilt at load without the O(children^2) scan | ~0.5 s of start-up for a parent with 3 000 children | a new structure in a consolidated module | [2](round-2-timeranger2-treedb.md) |
+| One `io_uring_submit()` per turn of the loop; `TCP_NODELAY` | syscalls per operation; latency of small writes | when an operation reaches the kernel; what goes on the wire | [3](round-3-network.md) |
+| The same TLS change in mbedTLS | as OpenSSL's | not built here: to be built and tested where mbedTLS is | [3](round-3-network.md) |
+
+And one finding that is not about speed: **the masking key of a websocket
+client is predictable** (`srand(time(0))` per frame), against RFC 6455
+§5.3: a security fix, for its own commit ([round 3](round-3-network.md)).
