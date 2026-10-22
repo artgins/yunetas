@@ -338,6 +338,7 @@ PRIVATE json_t *get_key_cache(
 );
 PRIVATE json_t *create_cache_key(void);
 PRIVATE void set_cache_int(json_t *dict, const char *key, json_int_t value);
+PRIVATE void build_int_key(char *bf, size_t bfsize, uint64_t i);
 PRIVATE void get_cache_range(json_t *dict, cache_range_t *range);
 PRIVATE void put_cache_int(json_t *dict, const char *key, json_t **pjn_value, json_int_t value);
 PRIVATE json_t *find_cache_cell(
@@ -3637,6 +3638,59 @@ PRIVATE int create_file(
 }
 
 /***************************************************************************
+ *  The key of a record of an integer key topic, as
+ *  snprintf(bf, bfsize, "%0*"PRIu64, 19, i) writes it (at least 19 digits,
+ *  zeros on the left, cut at bfsize-1 bytes), without the formatter: it is
+ *  built on every append
+ ***************************************************************************/
+PRIVATE void build_int_key(char *bf, size_t bfsize, uint64_t i)
+{
+    char digits[24];    // uint64_t has 20 digits at most
+    size_t n = 0;
+    do {
+        digits[n++] = (char)('0' + (i % 10));
+        i /= 10;
+    } while(i);
+    while(n < 19) {
+        digits[n++] = '0';
+    }
+
+    if(bfsize == 0) {
+        return;
+    }
+    size_t len = MIN(n, bfsize - 1);
+    for(size_t k = 0; k < len; k++) {
+        bf[k] = digits[n - 1 - k];
+    }
+    bf[len] = 0;
+}
+
+/***************************************************************************
+ *  "<file_id>.<ext>" in bf, as snprintf(bf, bfsize, "%s.%s", file_id, ext)
+ *  writes it (cut at bfsize-1 bytes, a NULL file_id as "(null)"), without
+ *  the formatter: an append names two files, a read of a record one
+ ***************************************************************************/
+PRIVATE void build_file_name(char *bf, size_t bfsize, const char *file_id, const char *ext)
+{
+    if(bfsize == 0) {
+        return;
+    }
+    if(!file_id) {
+        file_id = "(null)";
+    }
+    size_t room = bfsize - 1;
+    size_t n = MIN(strlen(file_id), room);
+    memcpy(bf, file_id, n);
+    if(n < room) {
+        bf[n++] = '.';
+        size_t m = MIN(strlen(ext), room - n);
+        memcpy(bf + n, ext, m);
+        n += m;
+    }
+    bf[n] = 0;
+}
+
+/***************************************************************************
  *  Called only from master
  ***************************************************************************/
 PRIVATE int get_topic_wr_fd( // optimized
@@ -3656,7 +3710,7 @@ PRIVATE int get_topic_wr_fd( // optimized
     /*-----------------------------*
      *      Check file
      *-----------------------------*/
-    snprintf(filename, sizeof(filename), "%s.%s", file_id, for_data?"json":"md2");
+    build_file_name(filename, sizeof(filename), file_id, for_data?"json":"md2");
 
     /*------------------------------------------*
      *  Open content file fd,
@@ -3769,7 +3823,7 @@ PRIVATE int get_topic_rd_fd(
      *      Check file
      *-----------------------------*/
     //const char *file_id = json_string_value(json_object_get(segment, "id"));
-    snprintf(filename, sizeof(filename), "%s.%s", file_id, for_data?"json":"md2");
+    build_file_name(filename, sizeof(filename), file_id, for_data?"json":"md2");
 
     int fd = (int)json_integer_value(
         json_object_get(
@@ -4242,7 +4296,7 @@ PUBLIC int tranger2_append_record(
         case sf_int_key:
             {
                 uint64_t i = json_integer_value(json_object_get(record, pkey));
-                snprintf(key_int, sizeof(key_int), "%0*"PRIu64, 19, i);
+                build_int_key(key_int, sizeof(key_int), i);
                 key_value = key_int;
             }
             break;
@@ -6273,8 +6327,7 @@ PUBLIC BOOL tranger2_record_in_purged_period(
             {
                 json_t *jn_key = json_object_get(record, pkey? pkey : "");
                 if(json_is_integer(jn_key)) {
-                    snprintf(key_int, sizeof(key_int), "%0*"PRIu64, 19,
-                        (uint64_t)json_integer_value(jn_key));
+                    build_int_key(key_int, sizeof(key_int), (uint64_t)json_integer_value(jn_key));
                     key = key_int;
                 }
             }
