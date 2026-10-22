@@ -38,22 +38,6 @@
 /***************************************************************
  *              Data
  ***************************************************************/
-static const json_desc_t json_mqtt_desc[] = {
-// Name             Type        Defaults    Fillspace
-{"topic",           "string",   "",         "40"},  // the mqtt 'topic'. First item is the pkey
-{"tm",              "time",     "",         "20"},  // timestamp
-{"mid",             "int",      "",         "20"},
-{"qos",             "int",      "",         "20"},
-{"expiry_interval", "int",      "",         "20"},
-{"retain",          "bool",     "",         "20"},
-{"properties",      "dict",     "{}",       "20"},
-{"gbuffer",         "int",      "",         "20"},  // payload
-
-// these are volatiles
-{"dup",             "bool",     "",         "20"},
-{"state",           "int",      "",         "20"},
-{0}
-};
 
 /***************************************************************************
  *
@@ -452,6 +436,24 @@ PUBLIC int mqtt_validate_utf8(const char *str, int len)
 
 /***************************************************************************
  *  Used by client and broker
+ *
+ *  The fields of a message, in the order of its json:
+ *      topic               the mqtt 'topic'. First item is the pkey
+ *      tm                  timestamp
+ *      mid
+ *      qos
+ *      expiry_interval
+ *      retain
+ *      properties          {} when there are none
+ *      gbuffer             payload, 0 when there is none
+ *      dup                 volatile
+ *      state               volatile, 0
+ *      client_id
+ *  Built with their values: up to 7.27.7 a record of their defaults was
+ *  built from a table (create_json_record(), parsing the type and the
+ *  default of each field) and eight of the ten were overwritten at once.
+ *  A topic that is not a string (NULL, not UTF-8) stays "", and such a
+ *  client_id is left out, as when they were overwritten.
  ***************************************************************************/
 PUBLIC json_t *new_mqtt_message(
     hgobj gobj,
@@ -466,7 +468,7 @@ PUBLIC json_t *new_mqtt_message(
     uint32_t expiry_interval,
     json_int_t t
 ) {
-    json_t *kw_mqtt_msg = create_json_record(gobj, json_mqtt_desc);
+    json_t *kw_mqtt_msg = json_object();
     if(!kw_mqtt_msg) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -480,24 +482,22 @@ PUBLIC json_t *new_mqtt_message(
         return NULL;
     }
 
-    json_object_set_new(kw_mqtt_msg, "topic", json_string(topic));
-    json_object_set_new(kw_mqtt_msg, "tm", json_integer(t));
+    json_t *jn_topic = json_string(topic);
+    json_object_set_new_nocheck(kw_mqtt_msg, "topic", jn_topic? jn_topic : json_string(""));
+    json_object_set_new_nocheck(kw_mqtt_msg, "tm", json_integer(t));
+    json_object_set_new_nocheck(kw_mqtt_msg, "mid", json_integer(mid));
+    json_object_set_new_nocheck(kw_mqtt_msg, "qos", json_integer(qos));
+    json_object_set_new_nocheck(kw_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
+    json_object_set_new_nocheck(kw_mqtt_msg, "retain", json_boolean(retain));
+    json_object_set_new_nocheck(kw_mqtt_msg, "properties", properties? properties : json_object());
+    json_object_set_new_nocheck(
+        kw_mqtt_msg,
+        "gbuffer",
+        json_integer((json_int_t)(uintptr_t)gbuf_payload)
+    );
+    json_object_set_new_nocheck(kw_mqtt_msg, "dup", json_boolean(dup));
+    json_object_set_new_nocheck(kw_mqtt_msg, "state", json_integer(0));
     json_object_set_new(kw_mqtt_msg, "client_id", json_string(client_id));
-    json_object_set_new(kw_mqtt_msg, "qos", json_integer(qos));
-    json_object_set_new(kw_mqtt_msg, "mid", json_integer(mid));
-    json_object_set_new(kw_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
-    json_object_set_new(kw_mqtt_msg, "retain", json_boolean(retain));
-    json_object_set_new(kw_mqtt_msg, "dup", json_boolean(dup));
-    if(properties) {
-        json_object_set_new(kw_mqtt_msg, "properties", properties);
-    }
-    if(gbuf_payload) {
-        json_object_set_new(
-            kw_mqtt_msg,
-            "gbuffer",
-            json_integer((json_int_t)(uintptr_t)gbuf_payload)
-        );
-    }
 
     return kw_mqtt_msg;
 }
