@@ -314,6 +314,25 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 ### timeranger2 and C_TRANGER
 
+- **Cache `process_start_time()` once per process (next release).** A forced
+  treedb delete costs +21% of CPU since 7.27.6 (43.6 -> 52.8 us, study of
+  7.27.7). Each deleted key is moved out of `keys/` to
+  `.deleted_key.<pid>.<start>.<n>`, and `process_start_time()` reads
+  `/proc/self/stat` at EVERY delete to build that name. The start time of a
+  process does not change, so read it once. An attribution build that did
+  this ran the delete in 47.7 us: about 5 us of the 9 us come back. The
+  other 4 us are the `rename()` itself, and that is the price of the fix.
+  Verify with an A/B against 7.27.7 (`perf_tr_treedb`, the forced delete).
+- **A replica pays about 1 us per iterator open and per page for
+  `check_purge_before_read()`** (since 7.27.5, `83a771089`; study of 7.27.5
+  against 7.27.0). A page of 1 row: 5.25 -> 6.20 us (+18%); a filtered page
+  +22%; an open +7%; a filtered open +9%. The cause: before each open and
+  each page, the replica does a `stat()` of the first md2 file of the key, to
+  notice a purge whose signal it did not hear. This is a correctness price,
+  so keep the check. The candidates are cheaper ways to do it: one check per
+  open and not per page, or skip it while nothing changed on the key. Each
+  candidate needs a test that removes the signal, and an A/B on the read
+  phase of `perf_timeranger2`.
 - **A follower re-reads the first row of the md2 on every notification.**
   Profiled 2026-09-27 on yunovatios' `db_history_ce`: 10.9 % of its work was
   `load_cache_cell_from_disk()` → `load_first_and_last_record_md()`.
