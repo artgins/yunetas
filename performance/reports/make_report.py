@@ -535,9 +535,10 @@ def build_html(rep, reports):
 
     # ---- absolute figures
     H.append('<h2>What one machine does with %s</h2>' % esc(version))
-    H.append('<p class="sub">Absolute figures of the %s build, measured at tag time on the laptop above: '
+    H.append('<p class="sub">%s</p>' % (md_code(story['abs_sub']) if story.get('abs_sub') else
+             'Absolute figures of the %s build, measured at tag time on the laptop above: '
              'one process, one core for the event loop (Yuneta scales by running one yuno per core). '
-             'Mean of the rounds; the spread and the rounds are in the table at the end.</p>' % esc(version))
+             'Mean of the rounds; the spread and the rounds are in the table at the end.' % esc(version)))
     t2 = []
 
     def tile_fig(i, label, rate=False, unit=None, note=''):
@@ -706,6 +707,8 @@ def build_html(rep, reports):
         H.append('<div class="card">%s</div>' % '\n'.join(out))
 
     # ---- method
+    # the tree the links name: the tag, or `source_ref` for a report written after its tag
+    ref = rep.get('source_ref', version)
     H.append('<h2>How it was measured</h2>')
     H.append('<div class="card"><p><b>%s against %s.</b> %s</p><p><b>Absolute figures.</b> %s</p>'
              '<p><b>Machine.</b> %s. %s. %s.</p>'
@@ -717,8 +720,8 @@ def build_html(rep, reports):
                  esc(version), esc(prev), md_code(rep['method']['ab']), md_code(rep['method']['tag_run']),
                  esc(machine_line), esc(m['model']), esc(m.get('shared', '')),
                  esc(b['build_type']), esc(b['compiler']), 'yes' if b['fully_static'] else 'no', esc(b['tls']), esc(b['note']),
-                 GITHUB, esc(version), GITHUB, esc(version), esc(version), esc(version),
-                 GITHUB, esc(version), GITHUB, esc(version)))
+                 GITHUB, esc(ref), GITHUB, esc(ref), esc(version), esc(version),
+                 GITHUB, esc(ref), GITHUB, esc(ref)))
 
     # ---- tables
     H.append('<details><summary>Every A/B figure (%d)</summary><div class="tablewrap"><table>'

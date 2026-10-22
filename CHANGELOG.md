@@ -121,6 +121,26 @@
   timeranger2 as it is: the last day of every key. `--dry-run` says a
   negative bound is relative to the last record, and an integer out of range
   is refused.
+- **What 7.27.5 costs a replica to read, measured, and its performance
+  report** (timeranger2; 7.27.5 shipped with only an append A/B). Before
+  every iterator open and every page a replica `stat()`s the first md2 file
+  of the key (`check_purge_before_read()`), purged or not, to notice a purge
+  of the master whose signal it did not hear before the read meets files
+  that are gone. Measured with the new `read` phase of `perf_timeranger2`
+  (one key of 10 000 rows), 24 alternated rounds, 7.27.4 against 7.27.5:
+  about 1 us per call on a replica -- a page of 1 row 5.11 -> 6.08 us
+  (+19%), a filtered page of 1 row 3.98 -> 4.86 us (+22%), an iterator open
+  16.1 -> 17.3 us (+8%), a filtered open 11.5 -> 12.7 us (+11%); a page of
+  100 rows +0.8% (noise), and nothing on the master. The main tree reads as
+  7.27.5 does, and with the check taken out at 7.27.4's speed: the check is
+  all of it. It stays, as the price of that detection: skipping it while
+  the replica seems to have missed nothing leaves a window (a signal not
+  yet read from the event queue, a replica with no follower) in which a
+  read opens a deleted file. Also a price of 7.27.5: a forced treedb delete
+  +3.8% of CPU (one `access()` of the key's base before its directory is
+  removed). The report, written after the release:
+  `performance/reports/7.27.5.html`; the figures in
+  `performance/c/README.md` and on the performance page of the docs.
 
 ## v7.27.6 (2026-10-21)
 

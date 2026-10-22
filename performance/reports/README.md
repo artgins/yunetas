@@ -16,6 +16,7 @@ The same figures, release after release, are charted on
 
 | Release | Against | Report | Rendered | Raw figures |
 |---------|---------|--------|----------|-------------|
+| 7.27.5 | 7.27.4 | [7.27.5.html](7.27.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.27.5.html) | [7.27.5.json](7.27.5.json) |
 | 7.27.0 | 7.26.9 | [7.27.0.html](7.27.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.0/performance/reports/7.27.0.html) | [7.27.0.json](7.27.0.json) |
 | 7.26.9 | 7.26.8 | [7.26.9.html](7.26.9.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.26.9/performance/reports/7.26.9.html) | [7.26.9.json](7.26.9.json) |
 | 7.26.0 | 7.25.22 | [7.26.0.html](7.26.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.26.0/performance/reports/7.26.0.html) | [7.26.0.json](7.26.0.json) |
@@ -23,6 +24,10 @@ The same figures, release after release, are charted on
 | 7.25.21 | 7.25.20 | [7.25.21.html](7.25.21.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.21/performance/reports/7.25.21.html) | [7.25.21.json](7.25.21.json) |
 | 7.25.20 | 7.25.5 | [7.25.20.html](7.25.20.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.20/performance/reports/7.25.20.html) | [7.25.20.json](7.25.20.json) |
 | 7.25.5 | 7.25.4 | [7.25.5.html](7.25.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.5/performance/reports/7.25.5.html) | [7.25.5.json](7.25.5.json) |
+
+7.27.5 shipped without its report; it was written the day after the release
+(the 7.27.5 side of an A/B against 7.27.4, not a tag-time run), so its links
+name `main`, not the tag.
 
 ## Make the report of a release
 
@@ -120,6 +125,7 @@ unit or its `id` between releases.
 |-------|---------|
 | `schema` | `yuneta-perf-report/<n>`. A change that breaks a reader raises `<n>`. |
 | `version`, `previous` | The release measured, and the release its A/B figures compare against. |
+| `source_ref` | Optional: the git ref the page links to (the benchmarks, the json, the CHANGELOG). Default: `version`, the tag. A report written after its tag names `main`. |
 | `machine`, `build` | Where and how it was measured. Absolute figures compare only between reports of the same machine. |
 | `method.ab`, `method.tag_run` | How the two kinds of figures were measured, in words. |
 | `ab[]` | One A/B figure: the same benchmark on `previous` and on `version`. |
@@ -135,5 +141,5 @@ unit or its `id` between releases.
 | `ab[].commit` | For `scope: change`, the commit measured. |
 | `ab[].change_pct` | `(current - previous) / previous x 100` of the means, in the figure's own unit. |
 | `figures[]` | One absolute figure of `version`, measured at tag time: `mean`, `sd`, `median`, `min`, `max`, `n`. `derived` says how a rate was computed from a benchmark's output. `headline` marks the figures shown first. |
-| `story` | Optional: the words of the page, which differ from release to release. `title`, `lead`, `hero` (`value`, `text`), `tiles` (`[id, label]` pairs of A/B figures), `append_note`, `ab_sub`, `ab_order` (the ids of the A/B chart, also used for the docs chart), `prices_sub`, `prices` (`[id, title]` pairs; `[]` for none) and `no_prices` (the text shown when `prices` is empty). Without it the page takes the words of the 7.25.5 report. |
+| `story` | Optional: the words of the page, which differ from release to release. `title`, `lead`, `hero` (`value`, `text`), `tiles` (`[id, label]` pairs of A/B figures), `append_note`, `ab_sub`, `ab_order` (the ids of the A/B chart, also used for the docs chart), `prices_sub`, `prices` (`[id, title]` pairs; `[]` for none), `no_prices` (the text shown when `prices` is empty) and `abs_sub` (the line above the absolute figures, which otherwise says they were measured at tag time). Without it the page takes the words of the 7.25.5 report. |
 | `binaries[]` | Size of each static executable: `bytes` on disk (with debug information), `stripped_bytes`, and the `text` / `data` / `bss` of `size`. |

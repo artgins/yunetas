@@ -95,11 +95,11 @@ upstream.
 
 Source: `main_perf_auth_bff.c`, `c_perf_auth_bff.c`
 
-### perf_timeranger2 -- timeranger2 open, topic create, tm query
+### perf_timeranger2 -- timeranger2 open, topic create, tm query, iterator reads
 
 **Binary:** `perf_timeranger2`
 
-timeranger2 alone: the open of a store of 20 000 md2 files as a master and as a replica, the create of 10 topics and 10 `topic_version` changes, and a tm query of one minute. See [`perf_timeranger2/README.md`](perf_timeranger2/README.md).
+timeranger2 alone: the open of a store of 20 000 md2 files as a master and as a replica, the create of 10 topics and 10 `topic_version` changes, a tm query of one minute, and the read path of an iterator (open, pages of 1 and 100 rows, unfiltered and filtered) as a master and as a replica. See [`perf_timeranger2/README.md`](perf_timeranger2/README.md).
 
 Source: `src/perf_timeranger2.c` (single file, no GClasses)
 
@@ -772,6 +772,96 @@ callback, which switches on the key once per record.
 releases (`timeranger2.c` changed only in its rt-disk rescan): code
 placement, as far as this method can tell; `test_topic_pkey_integer`, 24 rounds,
 moved +0.3%.
+
+### Oct-2026: 7.27.5 against 7.27.4 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
+
+Written on 2026-10-22, the day after the release: 7.27.5 shipped with only an
+append A/B, and a review found that the read path of a replica was not
+measured. Each release built from a git worktree of its tag (same `.config`
+and compiler, `outputs_ext` shared: linux-ext-libs 1.24 at both tags); the
+`read` phase of `perf_timeranger2`, new, compiled into both (public API only).
+The two binaries of each benchmark run alternately, the order flipped every
+round, a `sync` and a 3 s pause before each run (1 s for the three ctest
+binaries): 8 rounds, then 16 more for `perf_tr_treedb`, `perf_tcp_test4`,
+`perf_tcps_test4` and `perf_yev_ping_pong2`. Mean +- standard deviation;
+treedb figures are CPU time; |t| < 3 is noise. The report:
+[`performance/reports/7.27.5.html`](../reports/7.27.5.html).
+
+| Case | 7.27.4 | 7.27.5 | Change |
+|------|--------|--------|--------|
+| tr2.append_rate (appends/s) | 230,632 +- 2,808 | 231,470 +- 3,242 | +0.4% (t = +0.6) |
+| tr2.append_rate_rt (appends/s) | 193,872 +- 2,911 | 195,656 +- 2,766 | +0.9% (t = +1.3) |
+| tr2.build_appends (ms) | 1,570 +- 17.2 | 1,585 +- 16.3 | +1.0% (t = +1.8) |
+| tr2.tm_build_appends (ms) | 1,679 +- 32.7 | 1,655 +- 28.1 | -1.4% (t = -1.6) |
+| tr2.read_rate_iterator (records/s) | 219,068 +- 5,296 | 220,261 +- 4,796 | +0.5% (t = +0.5) |
+| tr2.read_rate_pages (records/s) | 196,432 +- 5,124 | 194,505 +- 3,880 | -1.0% (t = -0.8) |
+| tr2.open_master (ms) | 78.8 +- 1.240 | 79.4 +- 1.221 | +0.8% (t = +1.0) |
+| tr2.tm_query (ms) | 12.3 +- 0.366 | 12.7 +- 0.247 | +3.3% (t = +2.6) |
+| tr2.open_replica (ms) | 91.5 +- 1.357 | 93.2 +- 1.404 | +1.8% (t = +2.4) |
+| tr2.create_topic (ms) | 133.6 +- 16.1 | 145.9 +- 18.8 | +9.2% (t = +1.4) |
+| tr2.topic_version_change (ms) | 253.3 +- 29.7 | 249.7 +- 24.8 | -1.4% (t = -0.3) |
+| treedb.update_memory (us) | 2.377 +- 0.060 | 2.346 +- 0.045 | -1.3% (t = -2.0) |
+| treedb.update_saved (us) | 7.572 +- 0.181 | 7.595 +- 0.204 | +0.3% (t = +0.4) |
+| treedb.link_unlink (us) | 7.538 +- 0.185 | 7.467 +- 0.283 | -0.9% (t = -1.0) |
+| treedb.create_link_half (us) | 63.84 +- 2.324 | 63.49 +- 1.672 | -0.5% (t = -0.6) |
+| treedb.reopen (us) | 284.7 +- 9.406 | 283.9 +- 10.24 | -0.3% (t = -0.3) |
+| treedb.delete_force (us) | 42.33 +- 1.977 | 43.92 +- 1.416 | +3.8% (t = +3.2) **price** |
+| treedb.delete_parent (us) | 2,300 +- 138.8 | 2,284 +- 91.34 | -0.7% (t = -0.5) |
+| ctreedb.same_literal_release (s) | 0.342 +- 0.005 | 0.350 +- 0.009 | +2.3% (t = +2.2) |
+| ctreedb.seed (s) | 10.6 +- 0.329 | 10.8 +- 0.385 | +1.1% (t = +0.7) |
+| ctreedb.newer_literal (s) | 13.6 +- 0.493 | 13.2 +- 0.666 | -2.6% (t = -1.2) |
+| rotatory.audit_record (ns) | 557.6 +- 19.5 | 562.2 +- 19.1 | +0.8% (t = +0.5) |
+| rotatory.audit_record_flush (ns) | 1,238 +- 7.639 | 1,242 +- 9.341 | +0.3% (t = +0.9) |
+| rotatory.log_record (ns) | 372.8 +- 3.171 | 377.6 +- 5.035 | +1.3% (t = +2.3) |
+| net.yev_ping_pong (K msg/s) | 147.5 +- 1.055 | 147.7 +- 0.755 | +0.1% (t = +0.5) |
+| net.yev_ping_pong_persist (K msg/s) | 85.9 +- 1.976 | 84.2 +- 1.601 | -2.0% (t = -3.3) **price** |
+| net.tcp_echo (round trips/s) | 39,947 +- 724.0 | 38,984 +- 574.7 | -2.4% (t = -5.1) **price** |
+| net.tcp_echo_persist (round trips/s) | 31,138 +- 458.4 | 30,945 +- 405.7 | -0.6% (t = -0.9) |
+| net.tls_echo (round trips/s) | 29,963 +- 579.6 | 29,197 +- 626.2 | -2.5% (t = -4.4) **price** |
+| net.tls_echo_persist (round trips/s) | 24,118 +- 429.4 | 24,230 +- 434.6 | +0.5% (t = +0.5) |
+| net.auth_bff_login (logins/s) | 8,500 +- 145.6 | 8,588 +- 142.1 | +1.0% (t = +1.2) |
+
+**The read path** (`perf_timeranger2 read`: one key of 10 000 rows in 10
+daily files; us per operation). 24 rounds, four binaries in rotation, a
+`sync` and a 1 s pause before each run: 7.27.4, 7.27.5, the main tree at
+`24da06bc8` (after 7.27.6), and that tree with `check_purge_before_read()`
+made to return at once (an attribution build, never shipped).
+
+| Case | 7.27.4 | 7.27.5 | main (24da06bc8) | main, no check |
+|------|--------|--------|------------------|----------------|
+| `read_open_master` | 15.762 +- 0.672 | 16.091 +- 0.474 (+2.1%) | 15.956 +- 0.622 (+1.2%) | 15.970 +- 0.352 (+1.3%) |
+| `read_open_filtered_master` | 11.279 +- 0.345 | 11.596 +- 0.414 (+2.8%) | 11.586 +- 0.303 (+2.7%) | 11.435 +- 0.519 (+1.4%) |
+| `read_page1_master` | 5.108 +- 0.153 | 5.129 +- 0.100 (+0.4%) | 5.178 +- 0.287 (+1.4%) | 5.075 +- 0.095 (-0.6%) |
+| `read_page1_filtered_master` | 3.967 +- 0.084 | 4.056 +- 0.123 (+2.2%) | 4.046 +- 0.124 (+2.0%) | 3.979 +- 0.066 (+0.3%) |
+| `read_page100_master` | 260.547 +- 7.277 | 262.755 +- 7.135 (+0.8%) | 264.113 +- 5.839 (+1.4%) | 262.729 +- 7.005 (+0.8%) |
+| `read_open_replica` | 16.054 +- 0.781 | 17.335 +- 0.408 (+8.0%) | 17.372 +- 0.735 (+8.2%) | 16.510 +- 0.586 (+2.8%) |
+| `read_open_filtered_replica` | 11.465 +- 0.319 | 12.685 +- 0.302 (+10.6%) | 12.787 +- 0.365 (+11.5%) | 11.700 +- 0.362 (+2.1%) |
+| `read_page1_replica` | 5.114 +- 0.088 | 6.078 +- 0.137 (+18.9%) | 6.009 +- 0.122 (+17.5%) | 5.114 +- 0.113 (-0.0%) |
+| `read_page1_filtered_replica` | 3.979 +- 0.082 | 4.859 +- 0.080 (+22.1%) | 4.850 +- 0.098 (+21.9%) | 3.998 +- 0.072 (+0.5%) |
+| `read_page100_replica` | 261.981 +- 5.296 | 264.061 +- 4.890 (+0.8%) | 267.865 +- 8.716 (+2.2%) | 264.133 +- 6.187 (+0.8%) |
+
+The price is `check_purge_before_read()`: a replica `stat()`s the first md2
+file of the key before every iterator open and every page, purged or not, to
+notice a purge of the master whose signal it did not hear (an overflow of its
+watch, a follower down while the master purged, a replica without a
+follower) before the read meets files that are gone. About 1 us per call on
+this machine: +19% on a page of 1 row, +22% on a filtered one, +8-11% on an
+open, inside the noise on a page of 100 rows, nothing on the master. Without
+the check the main tree reads at 7.27.4's speed. It stays: skipping it while
+the replica seems to have missed nothing leaves a window (a signal not yet
+read from the event queue) in which a read opens a deleted file. The review
+measured +22% / +75% / +15-18% in a container, where a `stat()` costs more;
+the cost per call is the same order.
+
+`treedb.delete_force` (+3.8%, ~1.6 us of CPU): a key delete looks for the
+key's base (`.purged`, one `access()`) before it removes the directory, so a
+key with a base is moved out of `keys/` whole (`remove_key_directory()`).
+`net.tcp_echo`, `net.tls_echo` and `net.yev_ping_pong_persist` (-2.0 to -2.5%,
+t = -3.3 to -5.1 over 24 rounds): no code on their path changed (7.27.5
+changed only `timeranger2.c` and `c_tranger.c`, linked in and not run; the
+appends alone are +0.4%), so placement, said as measured. Not measured:
+the open of a store that was purged (7.27.4 cannot purge); the review gives
++5.5% of wall time on the master.
 
 ### Oct-2026: 7.27.1 against 7.27.0 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
