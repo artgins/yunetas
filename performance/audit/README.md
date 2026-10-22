@@ -16,6 +16,7 @@ gained, measured, and what was found and not done.
 | 1 | `gobj-c`: the allocator, the publication of events, subscriptions, `gobj_change_state()`, `gobj_match_gobj()`. TCP echo **+32%**, TLS echo +26%, BFF logins +12% | [round-1-gobj-core.md](round-1-gobj-core.md) |
 | 2 | `timeranger2` and `tr_treedb`: the cache of the keys, file names, `pread()`, the cols of a topic, `md2json()`, the start time of the process. Appends **+16%**, reads +13%, treedb writes -13%, forced deletes -18%. Proposal, not applied: a jansson patch, record reads **x2**, appends +25% | [round-2-timeranger2-treedb.md](round-2-timeranger2-treedb.md) |
 | 3 | The network path: the payload timer of every frame (`C_PROT_TCP4H`, `C_WEBSOCKET`, `C_PROT_MQTT2`), the TLS read buffer, `json_pack()` per message, `C_IOGATE`, the websocket unmask. TCP echo **+45%**, TLS echo **+36%**, with an append +27/+28% | [round-3-network.md](round-3-network.md) |
+| 4 | Inter-yuno messages (`C_IEVENT_*` over websocket), HTTP (the BFF), MQTT, with two benchmarks written for it: the MQTT message builder, the flags of a treedb node view, the event of an inter-event found by name, `kw_set_dict_value()`, `json2gbuf()`, jansson's allocator under `C_AUTHZ`. MQTT **+18%**; an inter-event is jansson's (2%) | [round-4-inter-yuno-http-mqtt.md](round-4-inter-yuno-http-mqtt.md) |
 
 ## Method
 
@@ -54,6 +55,8 @@ expected gain, in the round that found it.
 | treedb realtime lists marked `only_md` | ~5 000 instructions per treedb save | `only_md` shows in the list and its callback gets NULL | [2](round-2-timeranger2-treedb.md) |
 | treedb open in O(keys), not O(history) | the open of a treedb with a long history | a damaged older record is no longer detected at open | [2](round-2-timeranger2-treedb.md) |
 | Hooks rebuilt at load without the O(children^2) scan | ~0.5 s of start-up for a parent with 3 000 children | a new structure in a consolidated module | [2](round-2-timeranger2-treedb.md) |
+| `C_WEBSOCKET` as a server: a frame in one write, not two | 8% of an inter-yuno round trip (the peer's payload timer), a write and a read per frame | `C_TCP`'s `txMsgs` counts one message where it counted two | [4](round-4-inter-yuno-http-mqtt.md) |
+| The MQTT broker reads the subscriber's session without copying it | 19% of an MQTT publication | a change in the consolidated broker | [4](round-4-inter-yuno-http-mqtt.md) |
 | One `io_uring_submit()` per turn of the loop; `TCP_NODELAY` | syscalls per operation; latency of small writes | when an operation reaches the kernel; what goes on the wire | [3](round-3-network.md) |
 | The same TLS change in mbedTLS | as OpenSSL's | not built here: to be built and tested where mbedTLS is | [3](round-3-network.md) |
 
