@@ -1254,7 +1254,17 @@ PRIVATE int dump2gbuf(const char *buffer, size_t size, void *data)
     gbuffer_t *gbuf = data;
 
     if(size > 0) {
-        gbuffer_append(gbuf, (void *)buffer, size);
+        if(gbuf && buffer && size <= gbuffer_freebytes(gbuf)) {
+            /*
+             *  jansson hands the dump a token at a time: what
+             *  gbuffer_append() does when the bytes fit, without its calls
+             */
+            memmove(gbuf->data + gbuf->tail, buffer, size);
+            gbuf->tail += size;
+            *(gbuf->data + gbuf->tail) = 0;
+        } else {
+            gbuffer_append(gbuf, (void *)buffer, size);
+        }
     }
     return 0;
 }
