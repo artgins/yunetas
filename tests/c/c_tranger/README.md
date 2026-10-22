@@ -22,8 +22,13 @@ What it checks:
   appends a dict or its json text; `delete-key` with `force`;
   `delete-key-files` by date, by an integer and of every key, its `purged` in
   `list-keys`, and its refusals (a `before` in the future, no date, none, a
-  key not there); a multi-key page across a purge keeps its positions, and a
-  filtered multi-key iterator purged since its open is closed, saying so.
+  key not there, answered with no log; a key that is a path, answered as the
+  other commands answer it; a topic of a treedb and a mask whose ids do not
+  sort as time, from C code too); an `add-record` whose `__t__` falls in a
+  purged period, refused BEFORE the tranger with the cause in the answer
+  (`tranger2_record_in_purged_period()`); a multi-key page across a purge
+  keeps its positions, and a filtered multi-key iterator purged since its open
+  is closed, saying so.
 - **A peer's data** (phases *"a peer's data is refused"* and *"more of a
   peer's data is refused"*). Each case is sent with a `__username__` in the
   kw, as `C_IEVENT_SRV` delivers a peer's command, and each refusal is
@@ -72,6 +77,20 @@ What it checks:
 - **A replica** -- a master that lost its lock reads as a replica, and
   `delete-key`, `delete-topic` and the `create-topic` of a new topic answer
   READ-ONLY with no ERROR.
+
+`test_c_tranger_replica` is a `C_TRANGER` that IS a replica (`master=0`) of
+a store a master in the same process purges, with no loop (it hears no
+signal, and finds each purge before its next read):
+
+- a filtered multi-key iterator whose key was purged after its open: the
+  replica applies the purge inside the open of the part, and the page closes
+  that part before it answers that the iterator was closed (a part left open
+  stayed in the topic's iterators);
+- an unfiltered multi-key iterator over a key the replica numbered short (a
+  md2 it could not read when it built the key's cache; not as root): the
+  purge renumbers the key (`renumbered` 2), and the positions of the page do
+  not move with it;
+- `delete-key-files` on a replica answers READ-ONLY.
 
 The commands and their answers are documented in
 [`docs/doc.yuneta.io/api/gclass/data.md`](../../../docs/doc.yuneta.io/api/gclass/data.md)

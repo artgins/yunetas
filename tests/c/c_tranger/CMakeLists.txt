@@ -52,6 +52,7 @@ endif()
 ##############################################
 set(SRCS
     test_c_tranger
+    test_c_tranger_replica
 )
 
 ##############################################
@@ -77,7 +78,7 @@ foreach(test ${SRCS})
         ${MBEDTLS_LIBS}
         ${DEBUG_LIBS}
     )
-    target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
+    target_link_options(${binary} PUBLIC LINKER:-Map=${binary}.map)
 
     add_test("${current_directory_name}/${test}" ${binary})
 

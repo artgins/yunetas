@@ -1312,6 +1312,65 @@ tranger2_mask_sorts_as_time("%Y-%e");             // FALSE: " 1" is not "01"
 
 ---
 
+(tranger2_record_in_purged_period)=
+## [`tranger2_record_in_purged_period()`](https://github.com/artgins/yunetas/blob/7.27.6/kernel/c/timeranger2/src/timeranger2.c#L6189)
+
+Does a record fall in a purged period of its key? `TRUE` when
+[`tranger2_append_record()`](#tranger2_append_record) would refuse it for that
+(*"Cannot append record, it falls in a purged period of its key"*): its `__t__`
+names a file at or before the `upto` of the key's base
+([`tranger2_delete_key_files()`](#tranger2_delete_key_files)). The append logs
+that refusal as an ERROR; a caller that must give the cause to a PEER asks
+first, and answers it. [`C_TRANGER`](#gclass-c-tranger)'s `add-record` does:
+*"record refused by topic 'raw_tracks': a __t__ in a purged period of its key:
+its old files were deleted"*.
+
+`__t__` and `record` are the ones the append takes. `FALSE` for `__t__ = 0`
+(now: no purge reaches it), a key with no base, a key not in the topic, and a
+record whose key or time cannot be read (the append says why). Silent, but for
+a topic that does not exist (logged).
+
+```C
+BOOL tranger2_record_in_purged_period(
+    json_t      *tranger,
+    const char  *topic_name,
+    uint64_t    __t__,
+    json_t      *record     // not owned
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | The TimeRanger database. |
+| `topic_name` | `const char *` | The topic of the record. |
+| `__t__` | `uint64_t` | The time of the append, in the topic's unit of `t` (milliseconds with `sf_t_ms`); `0` is now. |
+| `record` | `json_t *` | The record, with the topic's `pkey`. Not owned. |
+
+**Returns**
+
+`TRUE` when the record falls in a purged period of its key.
+
+**Example**
+
+```C
+/*
+ *  Key "dev1" of a topic of one file a day, purged up to 2026-09-22
+ *  (tranger2_delete_key_files(tranger, "raw_tracks", "dev1", <2026-09-23>))
+ */
+json_t *record = json_pack("{s:s, s:I}", "id", "dev1", "tm", (json_int_t)1790035200);
+if(tranger2_record_in_purged_period(tranger, "raw_tracks", 1790035200, record)) {
+    // 2026-09-22: refused, say so to whoever sent it
+} else {
+    md2_record_ex_t md;
+    tranger2_append_record(tranger, "raw_tracks", 1790035200, 0, &md, json_incref(record));
+}
+JSON_DECREF(record)
+```
+
+---
+
 (tranger2_delete_instance)=
 ## [`tranger2_delete_instance()`](https://github.com/artgins/yunetas/blob/7.27.6/kernel/c/timeranger2/src/timeranger2.c#L7066)
 

@@ -837,6 +837,25 @@ PUBLIC BOOL tranger2_mask_sorts_as_time(
 );
 
 /*
+    Does a record fall in a purged period of its key? TRUE when
+    tranger2_append_record() would refuse it for that ("Cannot append record,
+    it falls in a purged period of its key"): its __t__ names a file at or
+    before the `upto` of the key's base (tranger2_delete_key_files()). Asked
+    BEFORE the append by whoever must answer the cause to a peer instead of
+    leaving an ERROR in the log (C_TRANGER's add-record).
+    `__t__` and `record` as tranger2_append_record() takes them (0: now, which
+    no purge reaches). FALSE for a key with no base, a key not in the topic,
+    and a record whose key or time cannot be read: the append says why.
+    Silence inside, but a topic that does not exist (logged).
+*/
+PUBLIC BOOL tranger2_record_in_purged_period(
+    json_t *tranger,
+    const char *topic_name,
+    uint64_t __t__,
+    json_t *record      // not owned
+);
+
+/*
     Delete a single instance (one row of the per-key .md2 index).
 
     The .md2 row is mutated in place: `sf_deleted_instance` is OR'd

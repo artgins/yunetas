@@ -82,6 +82,7 @@
 #define TOPIC_NAME3 "topic_cmd3"    // deleted by command with force=1 as an integer
 #define TOPIC_NAME4 "topic_cmd4"    // a no_rt list outlives its topic (leak regression)
 #define TOPIC_NAME5 "topic_cmd5"    // one file a day: delete-key-files
+#define TOPIC_NAME6 "topic_cmd6"    // a file name mask that does not sort as time
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
 
 /*  key "A" gets 5 records, key "B" gets 3 records  */
@@ -3179,9 +3180,18 @@ PRIVATE int do_test(void)
     /*-------------------------------------------------*
      *      delete-key-files: retention by hand. The old files of a key go,
      *      the g_rowid of the rest stay. Its refusals, from a peer, are
-     *      WARNINGs (not captured here)
+     *      WARNINGs (not captured here), but a key not there: it is no
+     *      malformed data, and is answered with no log (as delete-key)
      *-------------------------------------------------*/
-    set_expected_results("delete-key-files", NULL, NULL, NULL, 1);
+    set_expected_results(
+        "delete-key-files",
+        json_pack("[{s:s}, {s:s}, {s:s}]",
+            "msg", "record of a purged period of its key, refused",    // the C caller's add-record
+            "msg", "purge of a topic of a treedb or a msg2db, refused", // from C too
+            "msg", "topic whose files do not sort as time, refused"     // from C
+        ),
+        NULL, NULL, 1
+    );
     {
         json_t *topic5 = tranger2_create_topic(
             tranger, TOPIC_NAME5, "id", "tm",
@@ -3253,9 +3263,107 @@ PRIVATE int do_test(void)
             as_peer(json_pack("{s:s, s:s, s:I}",
                 "topic_name", TOPIC_NAME5, "key", "never_existed", "before", (json_int_t)BASE_T
             )), yuno);
+        check_bool("delete-key-files of a key not there: Key not found",
+            strstr(kw_get_str(0, r, "comment", "", 0), "Key not found in topic") != NULL, TRUE);
         check_refused("delete-key-files of a key not there", r);
+        r = gobj_command(yuno, "delete-key-files",
+            as_peer(json_pack("{s:s, s:s, s:I}",
+                "topic_name", TOPIC_NAME5, "key", "../x", "before", (json_int_t)BASE_T
+            )), yuno);
+        check_bool("delete-key-files of a key that is a path: the answer of the other commands",
+            strstr(kw_get_str(0, r, "comment", "", 0), "is not one directory component") != NULL, TRUE);
+        check_refused("delete-key-files of a key that is a path", r);
         check_int("the refusals deleted nothing",
             (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME5, "P"), 2);
+
+        /*
+         *  A record of a purged period is refused BEFORE the tranger: the
+         *  cause in the answer, a WARNING for a peer (not captured here), an
+         *  ERROR for a C caller -- not the tranger's ERROR and "see the log"
+         */
+        r = gobj_command(yuno, "add-record",
+            as_peer(json_pack("{s:s, s:I, s:{s:s, s:I, s:s}}",
+                "topic_name", TOPIC_NAME5, "__t__", (json_int_t)(BASE_T + 10),
+                "record", "id", "P", "tm", (json_int_t)(BASE_T + 10), "content", "late"
+            )), yuno);
+        check_int("add-record of a purged period", kw_get_int(0, r, "result", -999, 0), -1);
+        check_bool("it says why",
+            strstr(kw_get_str(0, r, "comment", "", 0), "purged period") != NULL, TRUE);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "add-record",
+            json_pack("{s:s, s:I, s:{s:s, s:I, s:s}}",
+                "topic_name", TOPIC_NAME5, "__t__", (json_int_t)(BASE_T + 86400 + 10),
+                "record", "id", "P", "tm", (json_int_t)(BASE_T + 86400 + 10), "content", "late"
+            ), yuno);
+        check_int("add-record of a purged period, from C", kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
+        {
+            json_t *record_p = json_pack("{s:s}", "id", "P");
+            check_bool("tranger2_record_in_purged_period(): day 2, purged",
+                tranger2_record_in_purged_period(tranger, TOPIC_NAME5, BASE_T + 86400, record_p), TRUE);
+            check_bool("tranger2_record_in_purged_period(): day 3, kept",
+                tranger2_record_in_purged_period(tranger, TOPIC_NAME5, BASE_T + 2*86400, record_p), FALSE);
+            check_bool("tranger2_record_in_purged_period(): now",
+                tranger2_record_in_purged_period(tranger, TOPIC_NAME5, 0, record_p), FALSE);
+            JSON_DECREF(record_p)
+        }
+        r = gobj_command(yuno, "add-record",
+            as_peer(json_pack("{s:s, s:I, s:{s:s, s:I, s:s}}",
+                "topic_name", TOPIC_NAME5, "__t__", (json_int_t)(BASE_T + 2*86400 + 10),
+                "record", "id", "P", "tm", (json_int_t)(BASE_T + 2*86400 + 10), "content", "day3"
+            )), yuno);
+        check_int("add-record of the day after the purge", kw_get_int(0, r, "result", -999, 0), 0);
+        check_int("its g_rowid follows the base", kw_get_int(0, r, "data`rowid", -1, 0), 7);
+        JSON_DECREF(r)
+
+        /*
+         *  Refused before the tranger from a C caller too: a topic of a
+         *  treedb (its keys are its nodes), and a file name mask whose ids do
+         *  not sort as time
+         */
+        {
+            json_t *treedbs = json_object_get(tranger, "treedbs");
+            BOOL made = FALSE;
+            if(!treedbs) {
+                treedbs = json_object();
+                json_object_set_new(tranger, "treedbs", treedbs);
+                made = TRUE;
+            }
+            json_object_set_new(treedbs, "treedb_fake", json_pack("{s:{}}", TOPIC_NAME5));
+            r = gobj_command(yuno, "delete-key-files",
+                json_pack("{s:s, s:s, s:I}",
+                    "topic_name", TOPIC_NAME5, "key", "P", "before", (json_int_t)(BASE_T + 3*86400)
+                ), yuno);
+            check_bool("delete-key-files of a treedb's topic, from C: it says why",
+                strstr(kw_get_str(0, r, "comment", "", 0), "is a topic of a treedb") != NULL, TRUE);
+            check_refused("delete-key-files of a treedb's topic, from C", r);
+            json_object_del(treedbs, "treedb_fake");
+            if(made) {
+                json_object_del(tranger, "treedbs");
+            }
+        }
+        json_t *topic6 = tranger2_create_topic(
+            tranger, TOPIC_NAME6, "id", "tm",
+            json_pack("{s:s}", "filename_mask", "%d-%m-%Y"),
+            sf_string_key,
+            json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
+            0
+        );
+        check_bool("topic of a mask that does not sort", topic6 != NULL, TRUE);
+        {
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger, TOPIC_NAME6, BASE_T, 0, &md,
+                json_pack("{s:s, s:I, s:s}", "id", "M", "tm", (json_int_t)BASE_T, "content", "m"));
+        }
+        r = gobj_command(yuno, "delete-key-files",
+            json_pack("{s:s, s:s, s:I}",
+                "topic_name", TOPIC_NAME6, "key", "M", "before", (json_int_t)(BASE_T + 3*86400)
+            ), yuno);
+        check_bool("delete-key-files of a mask that does not sort: it says why",
+            strstr(kw_get_str(0, r, "comment", "", 0), "do not sort as time") != NULL, TRUE);
+        check_refused("delete-key-files of a mask that does not sort", r);
+        check_int("the refused purges deleted nothing",
+            (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME6, "M"), 1);
 
         /*
          *  The pages of a multi-key iterator across a purge: an unfiltered

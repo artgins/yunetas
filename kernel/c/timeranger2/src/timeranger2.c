@@ -6184,6 +6184,73 @@ PUBLIC int tranger2_delete_key(
 }
 
 /***************************************************************************
+ *  Does a record fall in a purged period of its key? (see the header)
+ ***************************************************************************/
+PUBLIC BOOL tranger2_record_in_purged_period(
+    json_t *tranger,
+    const char *topic_name,
+    uint64_t __t__,
+    json_t *record      // not owned
+)
+{
+    if(__t__ == 0) {
+        return FALSE;   // now: a cut in the future is refused, so no purge reaches it
+    }
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        return FALSE;   // Error already logged
+    }
+    system_flag2_t system_flag = (system_flag2_t)json_integer_value(json_object_get(topic, "system_flag"));
+    const char *pkey = json_string_value(json_object_get(topic, "pkey"));
+    char key_int[64];
+    const char *key = NULL;
+    switch(system_flag & KEY_TYPE_MASK2) {
+        case sf_string_key:
+            key = json_string_value(json_object_get(record, pkey? pkey : ""));
+            break;
+        case sf_int_key:
+            {
+                json_t *jn_key = json_object_get(record, pkey? pkey : "");
+                if(json_is_integer(jn_key)) {
+                    snprintf(key_int, sizeof(key_int), "%0*"PRIu64, 19,
+                        (uint64_t)json_integer_value(jn_key));
+                    key = key_int;
+                }
+            }
+            break;
+        case sf_rowid_key:
+            key = "__rowid__";
+            break;
+        default:
+            break;
+    }
+    if(empty_string(key)) {
+        return FALSE;   // the append says why
+    }
+
+    json_t *jn_purged = json_object_get(
+        json_object_get(json_object_get(topic, "cache"), key), "purged"
+    );
+    const char *purged_upto = json_string_value(json_object_get(jn_purged, "upto"));
+    if(!purged_upto) {
+        return FALSE;   // never purged
+    }
+    if(__t__ > TRANGER2_MAX_TIME) {
+        return FALSE;   // the append says why
+    }
+    time_t secs = (time_t)((system_flag & sf_t_ms)? __t__/1000 : __t__);
+    struct tm tm_;
+    if(!gmtime_r(&secs, &tm_)) {
+        return FALSE;   // the append says why
+    }
+    char file_id[NAME_MAX];
+    if(!get_file_id(file_id, sizeof(file_id), tranger, topic, (uint64_t)secs)) {
+        return FALSE;   // Error already logged
+    }
+    return (cmp_file_ids(file_id, purged_upto) <= 0)? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  Do the file ids of a mask sort as time? (see timeranger2.h)
  *
  *  The ids are compared as strings (cmp_file_ids()), so every field must be

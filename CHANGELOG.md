@@ -53,6 +53,27 @@
   moved to the master's: the records handed before had g_rowids below the
   master's"* and its `cause` and `delta`; it was said only when the purge
   had waited for its base.
+- **`add-record` of a record in a purged period is refused before the
+  tranger** (`C_TRANGER`, new `tranger2_record_in_purged_period()`; appeared
+  in 7.27.5). A peer's `__t__` that fell in a purged period of its key
+  reached `tranger2_append_record()`, which refused it with an ERROR, and the
+  peer read *"cannot add the record ... (see the log)"*; every retry left
+  another ERROR. It is now refused with the rest of a record's checks:
+  `-1` *"record refused by topic '\<topic>': a __t__ in a purged period of
+  its key: its old files were deleted"*, and the WARNING *"record of a
+  purged period of its key, refused"* (an ERROR from C code), as the
+  contract of the gclass says.
+- **`delete-key-files` answers a key that is a path as the other commands
+  do** (`C_TRANGER`; appeared in 7.27.5): *"key '\<key>' is not one
+  directory component"*, as `open-list`, `open-iterator` and `open-rt`, and
+  as documented; it answered *"Invalid key: '\<key>'"*.
+- **Tests: `C_TRANGER` as a replica across a purge** (new
+  `test_c_tranger_replica`): the close of a filtered part in which a replica
+  applied a purge, and the `renumbered` correction of the positions of an
+  unfiltered part, were not pinned by any test (both could be mutated with
+  `test_c_tranger` green). `test_c_tranger` adds the refusals of
+  `delete-key-files` from C code (a topic of a treedb, a mask whose ids do
+  not sort as time).
 
 ## v7.27.6 (2026-10-21)
 

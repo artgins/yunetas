@@ -109,7 +109,9 @@ topic of a treedb or a msg2db open on the tranger -- its schema is theirs --,
 or over a topic with columns without its jn_cols, which wrote its columns
 empty), a record that is not a dict or whose pkey or times the topic cannot
 take (__t__ and the tkey's time: 44 bits, what the md2 row keeps,
-TRANGER2_MAX_TIME), a key that is not one directory component, a bad rkey, and
+TRANGER2_MAX_TIME) or whose __t__ falls in a purged period of its key
+(tranger2_record_in_purged_period()), a key that is not one directory
+component, a bad rkey, and
 a time bound of open-list that is neither an integer nor a string. From a peer
 also: a write (add-record, delete-key, delete-topic) into a topic of a treedb
 or a msg2db open on the tranger, which are written through them; a NEW topic in
@@ -1104,9 +1106,11 @@ PRIVATE json_t *refuse_peer_new_topic(
  *  not an integer was appended in silence under the key 0. And no string
  *  of it holds a NUL (json_nul_fault(), at any depth): a frame is decoded
  *  with JSON_ALLOW_NUL, and C reads a string up to its NUL, a pkey among
- *  them (REV-CLOUD V23.4.2). The cause when refused, said in a WARNING for
- *  a peer, an ERROR for a C caller (log_refusal()); NULL when it can be
- *  appended.
+ *  them (REV-CLOUD V23.4.2). Nor does its `__t__` fall in a purged period
+ *  of its key (tranger2_record_in_purged_period()): the tranger refused it
+ *  with an ERROR, and the peer read "see the log". The cause when refused,
+ *  said in a WARNING for a peer, an ERROR for a C caller (log_refusal());
+ *  NULL when it can be appended.
  ***************************************************************************/
 PRIVATE const char *refuse_peer_record(
     hgobj gobj,
@@ -1179,6 +1183,15 @@ PRIVATE const char *refuse_peer_record(
             why = "a time in its tkey that a record cannot keep (negative, or past 44 bits)";
         }
     }
+    const char *msg = "record of a wrong shape, refused";
+    if(!why && tranger2_record_in_purged_period(priv->tranger, topic_name, (uint64_t)__t__, record)) {
+        /*
+         *  The tranger refuses it with an ERROR, and the peer was told "see
+         *  the log": asked here, it is the peer's data, said to the peer
+         */
+        why = "a __t__ in a purged period of its key: its old files were deleted";
+        msg = "record of a purged period of its key, refused";
+    }
 
     if(!why) {
         return NULL;
@@ -1186,7 +1199,7 @@ PRIVATE const char *refuse_peer_record(
     log_refusal(gobj, peer,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_PARAMETER,
-        "msg",          "%s", "record of a wrong shape, refused",
+        "msg",          "%s", msg,
         "why",          "%s", why,
         "topic_name",   "%s", topic_name,
         "pkey",         "%s", pkey? pkey : "",
@@ -2787,7 +2800,7 @@ PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hg
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: Invalid key: '%.*s'",
+            json_sprintf("%s: key '%.*s' is not one directory component",
                 gobj_yuno_role_plus_name(), utf8_prefix_len(key, 64), key),
             0,
             0,
