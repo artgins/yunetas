@@ -1372,7 +1372,10 @@ its old files were deleted"*.
 
 `__t__` and `record` are the ones the append takes. `FALSE` for `__t__ = 0`
 (now: no purge reaches it), a key with no base, a key not in the topic, and a
-record whose key or time cannot be read (the append says why). Silent, but for
+record whose key or time cannot be read (the append says why). A key flagged
+`unlisted` (its `.purged`, or its directory, could not be read when the topic
+opened) has no base in its cache: its base is read from the disk, as the
+append reads it when it lists the key again, so the two agree. Silent, but for
 a topic that does not exist (logged).
 
 ```C
@@ -2416,6 +2419,16 @@ json_t *page = tranger2_iterator_get_page(tranger, it, 1, 10, FALSE);
 In 7.27.5 and 7.27.6 the bound was resolved again when a purge took the
 segments again: with rows appended since the open, the pages came back empty
 with *"indexed rowid without segment"*.
+
+A replica whose numbering of the key moves to the master's (the master purged
+rows it had not counted, a md2 file it flagged unreadable: the WARNING *"The
+numbering of the key moved to the master's"*) moves by the same delta the
+index of its filtered iterators AND the absolute rowid bounds of their
+`match_cond`, positive ones included: a pager opened with `from_rowid=4,
+to_rowid=6` over rows `C2 D1 D2` of the replica pages `C2 D1 D2` after the
+purge, numbered `6..8`. In 7.27.5 and 7.27.6 a positive `to_rowid` stayed
+behind the index, and the page held one row, with *"indexed rowid without
+segment"*.
 
 The two axes are not ordered the same way, and the scan knows it:
 

@@ -26,7 +26,9 @@ What it checks:
   other commands answer it; a topic of a treedb and a mask whose ids do not
   sort as time, from C code too); an `add-record` whose `__t__` falls in a
   purged period, refused BEFORE the tranger with the cause in the answer
-  (`tranger2_record_in_purged_period()`); a multi-key page across a purge
+  (`tranger2_record_in_purged_period()`), also for a key flagged `unlisted`
+  (its `.purged` unreadable when the topic opened; not as root); a multi-key
+  page across a purge
   keeps its positions, and a filtered multi-key iterator purged since its open
   is closed, saying so.
 - **A peer's data** (phases *"a peer's data is refused"* and *"more of a

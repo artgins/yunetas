@@ -846,6 +846,9 @@ PUBLIC BOOL tranger2_mask_sorts_as_time(
     `__t__` and `record` as tranger2_append_record() takes them (0: now, which
     no purge reaches). FALSE for a key with no base, a key not in the topic,
     and a record whose key or time cannot be read: the append says why.
+    A key flagged unlisted (its `.purged` or its directory could not be read
+    at the open) has no base in its cache: its base is read from the disk,
+    as the append reads it when it lists the key again.
     Silence inside, but a topic that does not exist (logged).
 */
 PUBLIC BOOL tranger2_record_in_purged_period(
@@ -1052,7 +1055,11 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     the open, and stays those rows when the key grows or its old files are
     purged (the iterator's match_cond holds the absolute value). The same for
     `to_rowid`, and for `from_t` / `to_t` / `from_tm` / `to_tm`, relative to
-    the t / tm of the key's last record.
+    the t / tm of the key's last record. A replica whose numbering of the key
+    moves to the master's (a purge of rows it had not counted: the WARNING
+    "The numbering of the key moved to the master's") moves the absolute
+    rowid bounds of its iterators with it, positive ones included: they name
+    the same rows.
 
     Every condition above is honored per RECORD, in both modes of the iterator:
       - LOADING (a load_record_callback and/or `data`): each record is matched

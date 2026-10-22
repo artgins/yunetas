@@ -5518,7 +5518,12 @@ PRIVATE void apply_purge_of_master(
          *  So do the g_rowids an index holds and the base an unfiltered
          *  iterator counts its positions from: no position moves, and no
          *  index names another row. Built again, an index lost the positions
-         *  of the rows purged, and a client paging forward skipped live rows
+         *  of the rows purged, and a client paging forward skipped live rows.
+         *  So do the absolute rowid bounds of its match_cond (a positive one,
+         *  or a negative one resolved at the open): the segments are taken
+         *  again with them below, and a bound left behind cut the rows its
+         *  index had moved out of every segment ("indexed rowid without
+         *  segment")
          */
         json_t *iterators = json_object_get(topic, "iterators");
         int idx; json_t *iterator;
@@ -5526,6 +5531,17 @@ PRIVATE void apply_purge_of_master(
             const char *key_ = json_string_value(json_object_get(iterator, "key"));
             if(!key_ || strcmp(key_, key) != 0) {
                 continue;
+            }
+            json_t *match_cond = json_object_get(iterator, "match_cond");
+            const char *bounds[] = {"from_rowid", "to_rowid", NULL};
+            for(int b = 0; bounds[b]; b++) {
+                json_t *jn_bound = json_object_get(match_cond, bounds[b]);
+                if(json_is_integer(jn_bound) && json_integer_value(jn_bound) > 0) {
+                    json_int_t moved = json_integer_value(jn_bound) + delta;
+                    json_object_set_new(match_cond, bounds[b],
+                        json_integer((moved > 0)? moved : 1)   // 0 or negative would be another bound
+                    );
+                }
             }
             json_t *index = json_object_get(iterator, "index");
             if(index) {
@@ -6208,6 +6224,7 @@ PUBLIC BOOL tranger2_record_in_purged_period(
     json_t *record      // not owned
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     if(__t__ == 0) {
         return FALSE;   // now: a cut in the future is refused, so no purge reaches it
     }
@@ -6217,7 +6234,7 @@ PUBLIC BOOL tranger2_record_in_purged_period(
     }
     system_flag2_t system_flag = (system_flag2_t)json_integer_value(json_object_get(topic, "system_flag"));
     const char *pkey = json_string_value(json_object_get(topic, "pkey"));
-    char key_int[64];
+    char key_int[NAME_MAX+1];   // as the append names it
     const char *key = NULL;
     switch(system_flag & KEY_TYPE_MASK2) {
         case sf_string_key:
@@ -6243,13 +6260,6 @@ PUBLIC BOOL tranger2_record_in_purged_period(
         return FALSE;   // the append says why
     }
 
-    json_t *jn_purged = json_object_get(
-        json_object_get(json_object_get(topic, "cache"), key), "purged"
-    );
-    const char *purged_upto = json_string_value(json_object_get(jn_purged, "upto"));
-    if(!purged_upto) {
-        return FALSE;   // never purged
-    }
     if(__t__ > TRANGER2_MAX_TIME) {
         return FALSE;   // the append says why
     }
@@ -6258,11 +6268,38 @@ PUBLIC BOOL tranger2_record_in_purged_period(
     if(!gmtime_r(&secs, &tm_)) {
         return FALSE;   // the append says why
     }
+
+    json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key);
+    json_t *jn_purged = json_object_get(key_cache, "purged");
+    json_t *jn_purged_read = NULL;
+    if(!jn_purged && json_object_get(key_cache, "unlisted")) {
+        /*
+         *  A key flagged unlisted has no base in its cache (its .purged, or
+         *  its directory, could not be read at the open): the append lists
+         *  it again first (relist_key_before_append) and refuses with the
+         *  base it finds. Read here the base it would find, quietly -- one
+         *  that cannot be read now is the append's to say
+         */
+        char key_directory[PATH_MAX];
+        if(build_path(key_directory, sizeof(key_directory),
+                json_string_value(json_object_get(topic, "directory")), "keys", key, NULL)) {
+            jn_purged_read = read_key_purged(gobj, key_directory, FALSE, NULL);
+        }
+        jn_purged = jn_purged_read;
+    }
+    const char *purged_upto = json_string_value(json_object_get(jn_purged, "upto"));
+    if(!purged_upto) {
+        JSON_DECREF(jn_purged_read)
+        return FALSE;   // never purged
+    }
     char file_id[NAME_MAX];
     if(!get_file_id(file_id, sizeof(file_id), tranger, topic, (uint64_t)secs)) {
+        JSON_DECREF(jn_purged_read)
         return FALSE;   // Error already logged
     }
-    return (cmp_file_ids(file_id, purged_upto) <= 0)? TRUE : FALSE;
+    BOOL in_purged = (cmp_file_ids(file_id, purged_upto) <= 0)? TRUE : FALSE;
+    JSON_DECREF(jn_purged_read)
+    return in_purged;
 }
 
 /***************************************************************************

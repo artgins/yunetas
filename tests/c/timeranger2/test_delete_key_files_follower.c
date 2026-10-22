@@ -24,7 +24,10 @@
  *        apply it under the cell the new records are counted in;
  *      - a filtered pager of the follower opened with a NEGATIVE rowid
  *        bound keeps what it indexed when the key grows and the master
- *        then purges it.
+ *        then purges it;
+ *      - filtered pagers with rowid bounds (negative and positive) keep
+ *        their rows when a purge renumbers the follower's key: the bounds
+ *        move with the index.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -53,6 +56,7 @@
 #define KEY5        "0000000000000000005"   // a feed callback that reads its key
 #define KEY6        "0000000000000000006"   // a base the follower fails to read once
 #define KEY7        "0000000000000000007"   // a negative rowid bound across appends and a purge
+#define KEY8        "0000000000000000008"   // rowid bounds across a purge that renumbers
 #define DAY1        946684800   // 2000-01-01
 #define DAY2        (DAY1 + 86400)
 #define DAY3        (DAY2 + 86400)
@@ -275,6 +279,26 @@ PRIVATE void served(
         tranger2_close_iterator(tranger, it);
     }
     JSON_DECREF(data)
+}
+
+/*
+ *  The first page of an iterator, as "<content>:<g_rowid> ..."
+ */
+PRIVATE void page_of(json_t *tranger, json_t *iterator, char *bf, size_t bfsize)
+{
+    bf[0] = 0;
+    json_t *page = tranger2_iterator_get_page(tranger, iterator, 1, 10, FALSE);
+    int idx; json_t *record;
+    json_array_foreach(json_object_get(page, "data"), idx, record) {
+        char item[64];
+        snprintf(item, sizeof(item), "%s%s:%ld",
+            bf[0]? " ": "",
+            kw_get_str(0, record, "content", "?", 0),
+            (long)kw_get_int(0, record, "__md_tranger__`g_rowid", -1, 0)
+        );
+        strncat(bf, item, bfsize - strlen(bf) - 1);
+    }
+    JSON_DECREF(page)
 }
 
 /*
@@ -650,6 +674,76 @@ PRIVATE int do_test(void)
         }
         if(tf3) {
             tranger2_shutdown(tf3);
+        }
+        result += test_json(NULL);
+    }
+
+    /*-------------------------------------*
+     *  Filtered pagers with rowid bounds,
+     *  negative and positive, over a file
+     *  the follower flagged: the purge
+     *  renumbers the key, and the bounds
+     *  move with its index
+     *-------------------------------------*/
+    if(geteuid() != 0) {
+        const char *contents8[4] = {"A", "B", "C", "D"};
+        for(int d = 0; d < 4; d++) {
+            for(int r = 0; r < 2; r++) {
+                char content[8];
+                snprintf(content, sizeof(content), "%s%d", contents8[d], r + 1);
+                append_one(tm, 8, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
+            }
+        }
+        char md2_day1[PATH_MAX];
+        build_path(md2_day1, sizeof(md2_day1), path_database, TOPIC_NAME, "keys", KEY8, "2000-01-01.md2", NULL);
+        chmod(md2_day1, 0);
+        set_expected_results(
+            "purge follower: rowid bounds over a flagged file",
+            json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+                "msg", "Cannot open md2 file",
+                "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
+                "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
+                "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built"
+            ),
+            NULL, NULL, 1
+        );
+        json_t *tf4 = startup_tranger(FALSE);
+        if(!tf4 || !tranger2_open_topic(tf4, TOPIC_NAME, TRUE)) {
+            result += -1;
+        }
+        json_t *it8n = tranger2_open_iterator(
+            tf4, TOPIC_NAME, KEY8,
+            json_pack("{s:I, s:I}", "from_rowid", (json_int_t)-3, "to_rowid", (json_int_t)-1),
+            NULL, "neg_bounds", "", NULL, NULL
+        );
+        json_t *it8p = tranger2_open_iterator(
+            tf4, TOPIC_NAME, KEY8,
+            json_pack("{s:I, s:I}", "from_rowid", (json_int_t)4, "to_rowid", (json_int_t)6),
+            NULL, "pos_bounds", "", NULL, NULL
+        );
+        page_of(tf4, it8n, bf, sizeof(bf));
+        result += expect("-3..-1 before the purge: the rows the follower counted", bf, "C2:4 D1:5 D2:6");
+        page_of(tf4, it8p, bf, sizeof(bf));
+        result += expect("4..6 before the purge", bf, "C2:4 D1:5 D2:6");
+        result += test_json(NULL);
+
+        set_expected_results(
+            "purge follower: rowid bounds across a renumber",
+            json_pack("[{s:s}]",
+                "msg", "The numbering of the key moved to the master's: the records handed before had g_rowids below the master's"
+            ),
+            NULL, NULL, 1
+        );
+        result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY8, DAY2), 2);
+        drain(20);
+        page_of(tf4, it8n, bf, sizeof(bf));
+        result += expect("-3..-1 after the renumber: the same rows", bf, "C2:6 D1:7 D2:8");
+        page_of(tf4, it8p, bf, sizeof(bf));
+        result += expect("4..6 after the renumber: the same rows", bf, "C2:6 D1:7 D2:8");
+        tranger2_close_iterator(tf4, it8n);
+        tranger2_close_iterator(tf4, it8p);
+        if(tf4) {
+            tranger2_shutdown(tf4);
         }
         result += test_json(NULL);
     }

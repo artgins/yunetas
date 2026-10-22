@@ -57,6 +57,8 @@
  *        (system_topic, last_rowid_id "x", directory, topic_version "2");
  *        a topic with no columns by design takes a new topic_version with
  *        an empty jn_cols, and without jn_cols it is refused
+ *      - add-record of a purged period is refused before the tranger for a
+ *        key flagged unlisted too (its base unreadable at the open)
  *
  *  The C_TRANGER gobj is created as a master yuno; its own tranger handle is
  *  borrowed to create a topic and append records, then the commands are
@@ -83,6 +85,7 @@
 #define TOPIC_NAME4 "topic_cmd4"    // a no_rt list outlives its topic (leak regression)
 #define TOPIC_NAME5 "topic_cmd5"    // one file a day: delete-key-files
 #define TOPIC_NAME6 "topic_cmd6"    // a file name mask that does not sort as time
+#define TOPIC_NAME7 "topic_cmd7"    // a key flagged unlisted: add-record of a purged period
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
 
 /*  key "A" gets 5 records, key "B" gets 3 records  */
@@ -3426,6 +3429,97 @@ PRIVATE int do_test(void)
         JSON_DECREF(r)
     }
     global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
+     *      A record of a purged period of a key flagged unlisted (its
+     *      base could not be read when the topic opened, and can be now)
+     *      is refused before the tranger too. Its cache has no base, and
+     *      tranger2_record_in_purged_period() said FALSE: the append
+     *      listed the key again, found the base, and the record reached
+     *      the tranger's ERROR ("see the log").
+     *-------------------------------------------------*/
+    if(geteuid() != 0) {
+        set_expected_results(
+            "a purged period of a key flagged unlisted",
+            json_pack("[{s:s}, {s:s}, {s:s}]",
+                "msg", "Cannot read the base of a purged key",   // the open
+                "msg", "The base of a purged key cannot be read: the key is flagged unlisted, every load of it says load_failed",
+                "msg", "record of a purged period of its key, refused"  // the C caller's add-record
+            ),
+            NULL, NULL, 1
+        );
+        json_t *topic7 = tranger2_create_topic(
+            tranger, TOPIC_NAME7, "id", "tm",
+            json_pack("{s:s}", "filename_mask", "%Y-%m-%d"),
+            sf_string_key,
+            json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
+            0
+        );
+        check_bool("topic of the unlisted key", topic7 != NULL, TRUE);
+        for(int d = 0; d < 3; d++) {
+            for(int j = 0; j < 2; j++) {
+                uint64_t t = BASE_T + (uint64_t)d*86400 + (uint64_t)j;
+                md2_record_ex_t md = {0};
+                tranger2_append_record(tranger, TOPIC_NAME7, t, 0, &md,
+                    json_pack("{s:s, s:I, s:s}", "id", "U", "tm", (json_int_t)t, "content", "day"));
+            }
+        }
+        r = gobj_command(yuno, "delete-key-files",
+            json_pack("{s:s, s:s, s:I}",
+                "topic_name", TOPIC_NAME7, "key", "U", "before", (json_int_t)(BASE_T + 86400)
+            ), yuno);
+        check_int("purge the first day of U", kw_get_int(0, r, "data`rows", -1, 0), 2);
+        JSON_DECREF(r)
+
+        char purged_u[PATH_MAX];
+        build_path(purged_u, sizeof(purged_u), path_database, TOPIC_NAME7, "keys", "U", ".purged", NULL);
+        tranger2_close_topic(tranger, TOPIC_NAME7);
+        chmod(purged_u, 0);
+        topic7 = tranger2_open_topic(tranger, TOPIC_NAME7, TRUE);
+        chmod(purged_u, 0600);
+        check_bool("the key is flagged unlisted",
+            json_is_true(json_object_get(
+                json_object_get(json_object_get(topic7, "cache"), "U"), "unlisted"
+            )), TRUE);
+
+        {
+            json_t *record_u = json_pack("{s:s}", "id", "U");
+            check_bool("tranger2_record_in_purged_period(): day 1 of a key unlisted, purged",
+                tranger2_record_in_purged_period(tranger, TOPIC_NAME7, BASE_T + 10, record_u), TRUE);
+            check_bool("tranger2_record_in_purged_period(): day 2 of a key unlisted, kept",
+                tranger2_record_in_purged_period(tranger, TOPIC_NAME7, BASE_T + 86400, record_u), FALSE);
+            JSON_DECREF(record_u)
+        }
+        r = gobj_command(yuno, "add-record",
+            as_peer(json_pack("{s:s, s:I, s:{s:s, s:I, s:s}}",
+                "topic_name", TOPIC_NAME7, "__t__", (json_int_t)(BASE_T + 10),
+                "record", "id", "U", "tm", (json_int_t)(BASE_T + 10), "content", "late"
+            )), yuno);
+        check_int("add-record of a purged period, key unlisted", kw_get_int(0, r, "result", -999, 0), -1);
+        check_bool("it says why, key unlisted",
+            strstr(kw_get_str(0, r, "comment", "", 0), "purged period") != NULL, TRUE);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "add-record",
+            json_pack("{s:s, s:I, s:{s:s, s:I, s:s}}",
+                "topic_name", TOPIC_NAME7, "__t__", (json_int_t)(BASE_T + 20),
+                "record", "id", "U", "tm", (json_int_t)(BASE_T + 20), "content", "late"
+            ), yuno);
+        check_int("add-record of a purged period, key unlisted, from C", kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
+        check_bool("the refusals left the key as it was: unlisted",
+            json_is_true(json_object_get(
+                json_object_get(json_object_get(topic7, "cache"), "U"), "unlisted"
+            )), TRUE);
+        r = gobj_command(yuno, "add-record",
+            as_peer(json_pack("{s:s, s:I, s:{s:s, s:I, s:s}}",
+                "topic_name", TOPIC_NAME7, "__t__", (json_int_t)(BASE_T + 2*86400 + 10),
+                "record", "id", "U", "tm", (json_int_t)(BASE_T + 2*86400 + 10), "content", "day3"
+            )), yuno);
+        check_int("add-record after the purge, key unlisted", kw_get_int(0, r, "result", -999, 0), 0);
+        check_int("its g_rowid follows the base", kw_get_int(0, r, "data`rowid", -1, 0), 7);
+        JSON_DECREF(r)
+        global_result += test_json(NULL);
+    }
 
     /*-------------------------------------------------*
      *      A master that LOST its lock (another process took the store

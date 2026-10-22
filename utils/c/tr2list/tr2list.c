@@ -31,11 +31,13 @@
 #define DOC \
     "List messages of TimeRanger2 database." \
     "\v" /* argp: everything after \v appears AFTER the options block */ \
-    "TIME values accept an integer, taken as it is in the topic's own unit\n" \
-    "(seconds, or milliseconds for t on an sf_t_ms topic and for tm on an\n" \
-    "sf_tm_ms one; a negative one counts back from the key's last record:\n" \
-    "--from-t=-86400 is its last day), or a natural-language string parsed by approxidate\n" \
-    "(git-style date parser) and taken to that unit, topic by topic.\n" \
+    "TIME values accept an integer (-?[0-9]+), taken as it is in the topic's\n" \
+    "own unit (seconds, or milliseconds for t on an sf_t_ms topic and for tm\n" \
+    "on an sf_tm_ms one; a negative one counts back from the key's last\n" \
+    "record: --from-t=-86400 is its last day), or a natural-language string\n" \
+    "parsed by approxidate (git-style date parser) and taken to that unit,\n" \
+    "topic by topic. A sign with no digits, a '+', or spaces around an\n" \
+    "integer are refused, not read as a date.\n" \
     "Accepted forms:\n" \
     "  units    : seconds, minutes, hours, days, weeks, months, years\n" \
     "             with a count and optional 'ago'\n" \
@@ -903,10 +905,39 @@ PRIVATE void delete_right_slash(char *s)
 }
 
 /***************************************************************************
+ *  A TIME that looks like an integer and is not -?[0-9]+: spaces, a sign
+ *  and digits only (an empty text, "-", "+5", " -5", "--5", "5 ").
+ *  approxidate() read every one of them as a date in silence ("+5" as the
+ *  5th of this month, "-" as NOW). A date has other characters ("2026-10-01"
+ *  a '-' between digits, "1.day" a letter).
+ ***************************************************************************/
+PRIVATE BOOL looks_like_integer(const char *text)
+{
+    const char *p = text;
+    while(*p == ' ' || *p == '\t') {
+        p++;
+    }
+    while(*p == '-' || *p == '+') {
+        p++;
+    }
+    while(*p == ' ' || *p == '\t') {
+        p++;
+    }
+    while(*p >= '0' && *p <= '9') {
+        p++;
+    }
+    while(*p == ' ' || *p == '\t') {
+        p++;
+    }
+    return (*p == 0)? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  A TIME given as an integer: the whole text is -?[0-9]+, in the range of
  *  a json integer. A negative one is relative to the key's last record, as
  *  timeranger2 reads it: up to 7.27.6 all_numbers() refused its '-' and
- *  approxidate() read "-86400" as NOW, in silence.
+ *  approxidate() read "-86400" as NOW, in silence. A text that looks like
+ *  an integer and is not one is refused (looks_like_integer()).
  ***************************************************************************/
 PRIVATE BOOL time_integer(const char *text, json_int_t *value)
 {
@@ -914,13 +945,19 @@ PRIVATE BOOL time_integer(const char *text, json_int_t *value)
     if(*p == '-') {
         p++;
     }
-    if(!*p) {
-        return FALSE;
-    }
+    BOOL digits = (*p)? TRUE : FALSE;
     for(; *p; p++) {
         if(*p < '0' || *p > '9') {
-            return FALSE;   // a date: approxidate() reads it
+            digits = FALSE;
+            break;
         }
+    }
+    if(!digits) {
+        if(looks_like_integer(text)) {
+            fprintf(stderr, "TIME is not an integer -?[0-9]+ nor a date: '%s'\n\n", text);
+            exit(-1);
+        }
+        return FALSE;   // a date: approxidate() reads it
     }
     errno = 0;
     char *end = NULL;

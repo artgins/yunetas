@@ -72,6 +72,17 @@ the month), with no word. `--dry-run` shows the dates resolved in seconds, and
 a negative bound as relative to the last record of each key; an integer out
 of range is refused (*"TIME out of range"*).
 
+An integer TIME is exactly `-?[0-9]+`. A text of spaces, signs and digits
+only that is not one is refused, not read as a date: up to 7.27.6
+`approxidate` read `+5` and `" -5"` as the 5th of this month, and a lone `-`
+or an empty TIME as NOW, with no word. A date keeps working (`2026-10-01`
+has a `-` between digits, `1.day` a letter):
+
+```bash
+tr2list /yuneta/store/x/topic1 --from-t=+5
+# -> TIME is not an integer -?[0-9]+ nor a date: '+5'
+```
+
 ## Filtering by field
 
 `--filter` takes a JSON dict. A record is listed when every key of the dict,

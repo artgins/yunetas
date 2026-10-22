@@ -44,7 +44,20 @@
   *"indexed rowid without segment"*, on the master and on a replica. The
   row view of gui_treedb opens with `from_rowid=-100`. A negative rowid
   bound is now resolved once, at the open, and written back into the
-  iterator's match_cond, as a negative `from_t` already was.
+  iterator's match_cond, as a negative `from_t` already was; a replica whose
+  numbering a purge moves to the master's moves that absolute bound with its
+  index (see the next point).
+- **The rowid bounds of an iterator on a replica move with its numbering**
+  (timeranger2; appeared in 7.27.5). When the master purges rows a replica
+  had not counted (a md2 file it flagged unreadable), the replica takes the
+  master's numbering: the WARNING *"The numbering of the key moved to the
+  master's"*, and every g_rowid of the index of its filtered iterators moves
+  by the same `delta`. The `from_rowid` / `to_rowid` of their match_cond did
+  not, and the segments were taken again with them: a pager opened with
+  `from_rowid=4, to_rowid=6` over `C2 D1 D2` paged `C2` alone after the
+  purge, with an ERROR *"indexed rowid without segment"* per page. The
+  absolute bounds now move with the index. (A negative bound, resolved at the
+  open since the point above, failed the same way before this fix.)
 - **A link of a dead feed that cannot be removed is retried** (timeranger2,
   `tranger2_delete_key_files()`; appeared in 7.27.5). The purge removed the
   files of `keys/<key>/` first and the hard links in `disks/<rt_id>/<key>/`
@@ -101,7 +114,11 @@
   `-1` *"record refused by topic '\<topic>': a __t__ in a purged period of
   its key: its old files were deleted"*, and the WARNING *"record of a
   purged period of its key, refused"* (an ERROR from C code), as the
-  contract of the gclass says.
+  contract of the gclass says. A key flagged `unlisted` (its `.purged`
+  could not be read when the topic opened) has no base in its cache:
+  `tranger2_record_in_purged_period()` reads it from the disk, quietly, as
+  the append reads it when it lists the key again (it answered FALSE, and
+  the record reached the tranger's ERROR).
 - **`delete-key-files` answers a key that is a path as the other commands
   do** (`C_TRANGER`; appeared in 7.27.5): *"key '\<key>' is not one
   directory component"*, as `open-list`, `open-iterator` and `open-rt`, and
@@ -120,7 +137,10 @@
   now `-?[0-9]+`, read whole with `strtoll()`, and a negative one reaches
   timeranger2 as it is: the last day of every key. `--dry-run` says a
   negative bound is relative to the last record, and an integer out of range
-  is refused.
+  is refused. A text of spaces, signs and digits only that is not
+  `-?[0-9]+` is refused too, not read as a date: `approxidate()` read `+5`
+  and `" -5"` as the 5th of the month, and a lone `-` or an empty TIME as
+  NOW, in silence. The help fits in 80 columns.
 - **What 7.27.5 costs a replica to read, measured, and its performance
   report** (timeranger2; 7.27.5 shipped with only an append A/B). Before
   every iterator open and every page a replica `stat()`s the first md2 file
