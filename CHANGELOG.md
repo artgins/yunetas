@@ -196,6 +196,23 @@
   sent a sign AFTER the digits, or a space between them, to `approxidate()`).
   A `-` between two digits makes the text a date: `2026-10-01` keeps
   working. The help fits in 80 columns.
+- **The performance study of 7.27.7, against 7.27.5** (the last release
+  with a study; 7.27.6, which changed `.c` files and has none, in the same
+  rotation). The three built from worktrees and run in rotation: 8 rounds,
+  24 for the figures that left their noise, 48 for the read phase of
+  `perf_timeranger2`. 40 of 41 figures stay inside their noise: the fixes of
+  reviews V38-V40 cost no measurable time on the read path of the master or
+  of a replica (a page of 1 row on a replica 6.27 -> 6.31 us, +0.6%; an
+  iterator open +1.1%), nor on the appends (+0.5%), the opens of a store, the
+  treedb writes, the event loop, TCP or TLS. One price, and it appeared in
+  7.27.6 (commit `503c23efb`): a forced treedb delete 43.6 -> 52.8 us of CPU
+  (+21.1%, t = 41; 7.27.6 52.7 us), because every deleted key is moved out
+  of `keys/` whole before it is removed. An attribution build that reads the
+  start time of the process once runs it in 47.7 us: about 5 us of the price
+  is `process_start_time()`, a read of `/proc/self/stat` at every delete to
+  name the moved directory, and about 4 us the `rename()`. The report:
+  `performance/reports/7.27.7.html`; the figures in
+  `performance/c/README.md` and on the performance page of the docs.
 - **What 7.27.5 costs a replica to read, measured, and its performance
   report** (timeranger2; 7.27.5 shipped with only an append A/B). Before
   every iterator open and every page a replica `stat()`s the first md2 file

@@ -110,6 +110,15 @@ A release that moves a lot of code ships a performance report: charts of what
 the release does on one machine, the release before measured the same way, and every loss with its
 reason.
 
+- **7.27.7** (against 7.27.5, the last release with a study; 7.27.6 in the
+  same rotation): three reviews of retention at no measurable cost -- 40 of 41
+  figures inside their noise, the read path of a replica among them. One
+  price, and it appeared in 7.27.6: a forced treedb delete takes 21% more CPU
+  (43.6 -> 52.8 us), because a deleted key is moved out of `keys/` whole
+  before it is removed, so a delete that fails half way never renumbers it.
+  [Report](performance/reports/7.27.7.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.7/performance/reports/7.27.7.html) ·
+  [raw figures](performance/reports/7.27.7.json)
 - **7.27.5** (against 7.27.4, measured the day after the release): the
   retention of timeranger2 costs a replica about 1 us per read call -- a page
   of 1 row 19% slower, a filtered one 22%, the open of an iterator 8%: the

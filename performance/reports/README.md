@@ -16,6 +16,7 @@ The same figures, release after release, are charted on
 
 | Release | Against | Report | Rendered | Raw figures |
 |---------|---------|--------|----------|-------------|
+| 7.27.7 | 7.27.5 | [7.27.7.html](7.27.7.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.7/performance/reports/7.27.7.html) | [7.27.7.json](7.27.7.json) |
 | 7.27.5 | 7.27.4 | [7.27.5.html](7.27.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.27.5.html) | [7.27.5.json](7.27.5.json) |
 | 7.27.0 | 7.26.9 | [7.27.0.html](7.27.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.0/performance/reports/7.27.0.html) | [7.27.0.json](7.27.0.json) |
 | 7.26.9 | 7.26.8 | [7.26.9.html](7.26.9.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.26.9/performance/reports/7.26.9.html) | [7.26.9.json](7.26.9.json) |
@@ -31,10 +32,15 @@ name `main`, not the tag.
 
 ## Make the report of a release
 
-1. Measure the release against the one before: the A/B method of
-   [`performance/c/README.md`](../c/README.md) (the module of each release
-   linked before the same libraries, the two binaries run alternately). Write
-   the figures there and in the CHANGELOG, as for every release.
+1. Measure the release against the last release that has a study (the
+   `previous` of the table above), never against a tag nobody measured: the
+   A/B method of [`performance/c/README.md`](../c/README.md) (each release
+   built from a worktree of its tag, the binaries run alternately). When
+   releases without a study sit between the two, build their tags too, run
+   them in the same rotation, or measure on each of them every figure that got
+   slower, until the release where it appeared is named (and the commit, when
+   that is cheap). Write the figures there and in the CHANGELOG, as for every
+   release.
 2. At tag time, run the benchmarks of [`performance/c/`](../c) on the build of
    the new release, in rounds (5 or more), with a `sync` and a pause before
    each run.

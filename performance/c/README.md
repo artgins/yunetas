@@ -773,6 +773,99 @@ releases (`timeranger2.c` changed only in its rt-disk rescan): code
 placement, as far as this method can tell; `test_topic_pkey_integer`, 24 rounds,
 moved +0.3%.
 
+### Oct-2026: 7.27.7 against 7.27.5 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
+
+Written on 2026-10-22, before the tag. 7.27.7 is the main tree at `63d12373d`
+(its C code is final; YUNETA_VERSION still says 7.27.6). It is measured
+against 7.27.5, the last release with a study; 7.27.6 changed `.c` files and
+shipped none, so it runs in the same rotation and every move is placed in its
+release. The three built from git worktrees (same `.config` and compiler,
+`outputs_ext` shared: linux-ext-libs 1.24 at all three, OpenSSL 3.6.5), the
+`perf_timeranger2` of the main tree (with its `read` phase) compiled into
+all three. The three binaries of each benchmark run in rotation, the order
+turned every round, a `sync` and a 3 s pause before each run (1 s for the
+ctest binaries and the read phase): 8 rounds; 24 for `perf_tr_treedb`,
+`perf_tcp_test4`, `perf_tcps_test4` and `perf_yev_ping_pong2`; 48 for
+`perf_timeranger2 read`; `perf_rotatory` 16, its 8th round left out (the
+machine slowed the three builds alike for that minute: a log line 574 ns
+against 368 ns). Mean +- standard deviation; treedb figures are CPU time;
+|t| < 3 is noise. The report:
+[`performance/reports/7.27.7.html`](../reports/7.27.7.html).
+
+| Case | 7.27.5 | 7.27.7 | Change |
+|------|--------|--------|--------|
+| tr2.append_rate (appends/s) | 231,340 +- 3,507 | 232,605 +- 3,117 | +0.6% (t = +0.8) |
+| tr2.append_rate_rt (appends/s) | 196,704 +- 3,402 | 198,131 +- 2,979 | +0.7% (t = +0.9) |
+| tr2.build_appends (ms) | 1,574 +- 12.86 | 1,563 +- 16.82 | -0.7% (t = -1.5) |
+| tr2.tm_build_appends (ms) | 1,642 +- 31.98 | 1,661 +- 27.54 | +1.1% (t = +1.3) |
+| tr2.read_rate_iterator (records/s) | 219,256 +- 3,828 | 221,403 +- 2,609 | +1.0% (t = +1.3) |
+| tr2.read_rate_pages (records/s) | 195,565 +- 2,980 | 196,348 +- 4,674 | +0.4% (t = +0.4) |
+| tr2.open_master (ms) | 78.88 +- 0.886 | 78.78 +- 0.518 | -0.1% (t = -0.3) |
+| tr2.tm_query (ms) | 12.89 +- 0.345 | 12.86 +- 0.223 | -0.3% (t = -0.2) |
+| tr2.open_replica (ms) | 92.40 +- 0.473 | 93.48 +- 1.720 | +1.2% (t = +1.7) |
+| tr2.create_topic (ms) | 145.3 +- 16.55 | 151.3 +- 10.67 | +4.1% (t = +0.9) |
+| tr2.topic_version_change (ms) | 253.5 +- 19.35 | 266.4 +- 25.38 | +5.1% (t = +1.1) |
+| treedb.update_memory (us) | 2.331 +- 0.065 | 2.359 +- 0.064 | +1.2% (t = +1.5) |
+| treedb.update_saved (us) | 7.528 +- 0.135 | 7.590 +- 0.267 | +0.8% (t = +1.0) |
+| treedb.link_unlink (us) | 7.352 +- 0.085 | 7.380 +- 0.146 | +0.4% (t = +0.8) |
+| treedb.create_link_half (us) | 62.71 +- 1.423 | 63.19 +- 1.570 | +0.8% (t = +1.1) |
+| treedb.reopen (us) | 281.8 +- 6.392 | 281.2 +- 5.863 | -0.2% (t = -0.3) |
+| treedb.delete_force (us) | 43.63 +- 0.926 | 52.84 +- 0.600 | +21.1% (t = +40.9) **price** |
+| treedb.delete_parent (us) | 2,251 +- 48.51 | 2,303 +- 78.84 | +2.3% (t = +2.7) |
+| ctreedb.same_literal_release (s) | 0.357 +- 0.069 | 0.331 +- 0.005 | -7.4% (t = -1.1) |
+| ctreedb.seed (s) | 11.16 +- 0.492 | 11.24 +- 0.632 | +0.7% (t = +0.3) |
+| ctreedb.newer_literal (s) | 13.53 +- 0.803 | 13.21 +- 0.686 | -2.3% (t = -0.8) |
+| rotatory.audit_record (ns) | 567.9 +- 22.94 | 572.3 +- 22.67 | +0.8% (t = +0.5) |
+| rotatory.audit_record_flush (ns) | 1,251 +- 15.92 | 1,248 +- 15.66 | -0.2% (t = -0.4) |
+| rotatory.log_record (ns) | 375.0 +- 6.218 | 375.3 +- 6.337 | +0.1% (t = +0.1) |
+| net.yev_ping_pong (K msg/s) | 148.4 +- 1.173 | 148.3 +- 1.032 | -0.0% (t = -0.1) |
+| net.yev_ping_pong_persist (K msg/s) | 80.71 +- 7.434 | 82.69 +- 6.733 | +2.5% (t = +1.0) |
+| net.tcp_echo (round trips/s) | 38,175 +- 1,259 | 39,107 +- 1,574 | +2.4% (t = +2.3) |
+| net.tcp_echo_persist (round trips/s) | 30,909 +- 431.5 | 30,941 +- 363.2 | +0.1% (t = +0.2) |
+| net.tls_echo (round trips/s) | 28,640 +- 1,134 | 28,694 +- 2,771 | +0.2% (t = +0.1) |
+| net.tls_echo_persist (round trips/s) | 24,707 +- 495.9 | 24,266 +- 351.0 | -1.8% (t = -2.0) |
+| net.auth_bff_login (logins/s) | 8,606 +- 90.14 | 8,672 +- 117.0 | +0.8% (t = +1.3) |
+
+**The read path** (`perf_timeranger2 read`, us per operation, 48 rounds):
+
+| Case | 7.27.5 | 7.27.7 | Change |
+|------|--------|--------|--------|
+| `read_page1_replica` | 6.272 +- 0.318 | 6.309 +- 0.273 | +0.6% (t = +0.6) |
+| `read_page1_filtered_replica` | 5.045 +- 0.313 | 4.998 +- 0.242 | -0.9% (t = -0.8) |
+| `read_open_replica` | 17.91 +- 1.262 | 18.10 +- 1.520 | +1.1% (t = +0.7) |
+| `read_open_filtered_replica` | 13.24 +- 1.491 | 13.49 +- 1.688 | +1.9% (t = +0.8) |
+| `read_page100_replica` | 276.6 +- 27.31 | 271.5 +- 10.74 | -1.8% (t = -1.2) |
+| `read_page1_master` | 5.305 +- 0.200 | 5.337 +- 0.260 | +0.6% (t = +0.7) |
+| `read_page1_filtered_master` | 4.163 +- 0.219 | 4.197 +- 0.232 | +0.8% (t = +0.8) |
+| `read_open_master` | 16.85 +- 1.659 | 16.62 +- 0.971 | -1.3% (t = -0.8) |
+| `read_open_filtered_master` | 12.13 +- 1.241 | 12.09 +- 0.692 | -0.3% (t = -0.2) |
+| `read_page100_master` | 272.1 +- 16.54 | 268.7 +- 10.07 | -1.2% (t = -1.2) |
+
+One price, `treedb.delete_force` (+21.1%, 43.6 -> 52.8 us of CPU), and it
+appeared in **7.27.6, commit `503c23efb`** (the only C change of that
+release): every key a delete removes is first moved out of `keys/` whole, by
+a `rename()`, then removed, so a delete that fails half way leaves the key as
+it was instead of part of its files (a key read again from part of its files
+renumbered the rows after the hole). Placed by the rotation and split with an
+attribution build (7.27.7 with `process_start_time()` read once per process
+in `remove_key_directory()`, never shipped), CPU us per delete, 24 rounds
+(16 for the attribution build):
+
+| 7.27.5 | 7.27.6 | 7.27.7 | 7.27.7, start time read once |
+|--------|--------|--------|------------------------------|
+| 43.63 +- 0.93 | 52.69 +- 0.70 (+20.8%, t = 38) | 52.84 +- 0.60 (+21.1%, t = 41; +0.3% on 7.27.6, t = 0.8) | 47.75 +- 0.65 (+9.4%, t = 17) |
+
+About 5 us of the 9.2 us is `process_start_time()`, a read of
+`/proc/self/stat` made at every delete to name the moved directory; about
+4 us is the `rename()`. The start time of a process does not change, so that
+half can be paid once per process. Everything else moved inside its noise:
+the fixes of V38-V40 (iterator bounds on a replica, the purge and link order,
+the `.purged` retry, the owed reads of an rt_disk follower, the parts of a
+multi-key `C_TRANGER` iterator) cost no measurable time on the read path of
+the master or of a replica. `C_TRANGER` itself is not in a benchmark: its
+multi-key part bounds run only on a renumbered replica. Stripped sizes: 0 to
++0.08% against 7.27.5 (at most 8 KiB).
+
 ### Oct-2026: 7.27.5 against 7.27.4 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
 Written on 2026-10-22, the day after the release: 7.27.5 shipped with only an
