@@ -2,7 +2,7 @@
 # `yunetas sync-configs`
 
 Operator tool of the [`yunetas` CLI](../yunetas-cli.md) (module
-`yunetas.agent_tools.sync_configs`, [source](https://github.com/artgins/tui_yunetas.py/blob/0.23.4/yunetas/agent_tools/sync_configs.py)) that
+`yunetas.agent_tools.sync_configs`, [source](https://github.com/artgins/tui_yunetas.py/blob/0.23.5/yunetas/agent_tools/sync_configs.py)) that
 reconciles the yuno
 **configs in a directory** with what the local `yuneta_agent` already has
 installed, and — after confirmation — pushes the differences via `create-config`
