@@ -75,6 +75,17 @@ typedef struct node_write_s {
                                 // instances of a parent an unlink took the node out of
 } node_write_t;
 
+/*
+ *  The flags of a column a view of a node reads (get_col_view_flags())
+ */
+typedef struct {
+    BOOL hook;
+    BOOL fkey;
+    BOOL rowid;
+    BOOL required;
+    BOOL hidden;
+} col_view_flags_t;
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
@@ -244,6 +255,7 @@ PRIVATE json_t *apply_child_list_options(
     json_t *child_list,  // NOT owned
     json_t *jn_options // NOT owned
 );
+PRIVATE void get_col_view_flags(json_t *desc_flag, col_view_flags_t *flags);
 #define TREEDB_FILES_DEFAULT_MAX_SIZE   (128LL*1024*1024)
 /*
  *  The body of treedb_delete_node(). `snaps_walked` is "I have already
@@ -14858,6 +14870,61 @@ PUBLIC json_t *treedb_get_instance( // WARNING Return is NOT YOURS, pure node
 }
 
 /***************************************************************************
+ *  The five flags node_collapsed_view() reads of a column, in one walk of
+ *  its flags: what kw_has_word(gobj, desc_flag, word, 0) answers for each
+ *  word -- a dict says it with a true value, a list with a string holding
+ *  the word (its other items are not looked into), a string by holding it,
+ *  anything else (or none) says no, and nothing is logged. Up to 7.27.7 the
+ *  flags were walked five times, for every column of every node viewed.
+ ***************************************************************************/
+PRIVATE void get_col_view_flags(json_t *desc_flag, col_view_flags_t *flags)
+{
+    static const char *words[5] = {"hook", "fkey", "rowid", "required", "hidden"};
+    BOOL *found[5] = {
+        &flags->hook, &flags->fkey, &flags->rowid, &flags->required, &flags->hidden
+    };
+
+    memset(flags, 0, sizeof(*flags));
+    if(!desc_flag) {
+        return;
+    }
+
+    switch(json_typeof(desc_flag)) {
+        case JSON_OBJECT:
+            for(int i=0; i<5; i++) {
+                *found[i] = json_is_true(json_object_get(desc_flag, words[i]))?TRUE:FALSE;
+            }
+            break;
+        case JSON_ARRAY:
+            {
+                size_t idx; json_t *jn_value;
+                json_array_foreach(desc_flag, idx, jn_value) {
+                    if(!json_is_string(jn_value)) {
+                        continue;
+                    }
+                    const char *s = json_string_value(jn_value);
+                    for(int i=0; i<5; i++) {
+                        if(!*found[i] && strstr(s, words[i])) {
+                            *found[i] = TRUE;
+                        }
+                    }
+                }
+            }
+            break;
+        case JSON_STRING:
+            {
+                const char *s = json_string_value(desc_flag);
+                for(int i=0; i<5; i++) {
+                    *found[i] = strstr(s, words[i])?TRUE:FALSE;
+                }
+            }
+            break;
+        default:
+            break;
+    }
+}
+
+/***************************************************************************
     Return a view of node with hook fields being collapsed
     WARNING extra fields are ignored, only topic desc fields are used
 
@@ -14905,11 +14972,13 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
     const char *col_name; json_t *col;
     json_object_foreach(topic_desc, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
-        BOOL is_rowid = kw_has_word(gobj, desc_flag, "rowid", 0)?TRUE:FALSE;
-        BOOL is_required = kw_has_word(gobj, desc_flag, "required", 0)?TRUE:FALSE;
-        BOOL is_hidden = kw_has_word(gobj, desc_flag, "hidden", 0)?TRUE:FALSE;
+        col_view_flags_t col_flags;
+        get_col_view_flags(desc_flag, &col_flags);
+        BOOL is_hook = col_flags.hook;
+        BOOL is_fkey = col_flags.fkey;
+        BOOL is_rowid = col_flags.rowid;
+        BOOL is_required = col_flags.required;
+        BOOL is_hidden = col_flags.hidden;
         json_t *field_data = kw_get_dict_value(gobj, node, col_name, 0, is_required?KW_REQUIRED:0);
         if(!field_data) {
             // Something wrong?
