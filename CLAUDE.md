@@ -69,7 +69,8 @@ app commits its `package-lock.json`** (since 2026-10-22; until then all of
 them ignored it, so one commit could build two bundles): a fresh checkout
 installs with `npm ci`, and a range raised by hand or by the deploy round is
 an `npm install` whose rewritten lockfile goes into the same commit as the
-`package.json`. To edit a
+`package.json`. The one exception is gobj-ui's demo (`test-app/`): its
+`file:` dependencies are working trees a lockfile cannot pin. To edit a
 JS yuno: work in `yunos/js` directly, commit on `main` in the `yunos-js` repo,
 then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 
