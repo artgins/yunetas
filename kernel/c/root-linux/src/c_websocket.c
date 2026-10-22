@@ -818,6 +818,31 @@ PRIVATE gbuffer_t * unmask_data(hgobj gobj, gbuffer_t *gbuf, uint8_t *h_mask)
 
     char *p;
     size_t ln = gbuffer_leftbytes(gbuf);
+
+    /*
+     *  By runs, not a gbuffer_get() and a gbuffer_append() per byte (every
+     *  frame a browser sends is masked). A run is what `unmasked` has free,
+     *  so it never grows the buffer; when it is full, ONE byte is appended,
+     *  as the loop of one byte did: the same gbuffer_realloc(), with the same
+     *  need, the same doubling, and the same logs if it fails. The same
+     *  bytes, unmasked in place in `gbuf` as before.
+     */
+    if(unmasked) {
+        size_t done = 0;
+        while(done < ln) {
+            size_t room = gbuffer_freebytes(unmasked);
+            size_t run = room? MIN(room, ln - done) : 1;
+            p = gbuffer_get(gbuf, run);
+            for(size_t i=0; i<run; i++) {
+                p[i] = p[i] ^ h_mask[(done + i) % 4];
+            }
+            gbuffer_append(unmasked, p, run);
+            done += run;
+        }
+        gbuffer_decref(gbuf);
+        return unmasked;
+    }
+
     for(size_t i=0; i<ln; i++) {
         p = gbuffer_get(gbuf, 1);
         if(p) {
