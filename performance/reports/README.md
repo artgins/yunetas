@@ -17,7 +17,7 @@ The same figures, release after release, are charted on
 | Release | Against | Report | Rendered | Raw figures |
 |---------|---------|--------|----------|-------------|
 | 7.27.7 | 7.27.5 | [7.27.7.html](7.27.7.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.7/performance/reports/7.27.7.html) | [7.27.7.json](7.27.7.json) |
-| 7.27.5 | 7.27.4 | [7.27.5.html](7.27.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.27.5.html) | [7.27.5.json](7.27.5.json) |
+| 7.27.5 | 7.27.0 | [7.27.5.html](7.27.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.27.5.html) | [7.27.5.json](7.27.5.json) |
 | 7.27.0 | 7.26.9 | [7.27.0.html](7.27.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.0/performance/reports/7.27.0.html) | [7.27.0.json](7.27.0.json) |
 | 7.26.9 | 7.26.8 | [7.26.9.html](7.26.9.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.26.9/performance/reports/7.26.9.html) | [7.26.9.json](7.26.9.json) |
 | 7.26.0 | 7.25.22 | [7.26.0.html](7.26.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.26.0/performance/reports/7.26.0.html) | [7.26.0.json](7.26.0.json) |
@@ -27,8 +27,11 @@ The same figures, release after release, are charted on
 | 7.25.5 | 7.25.4 | [7.25.5.html](7.25.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.5/performance/reports/7.25.5.html) | [7.25.5.json](7.25.5.json) |
 
 7.27.5 shipped without its report; it was written the day after the release
-(the 7.27.5 side of an A/B against 7.27.4, not a tag-time run), so its links
-name `main`, not the tag.
+(the 7.27.5 side of an A/B, not a tag-time run), so its links name `main`, not
+the tag. The report of 7.27.5 now in the table replaces the first one, made
+against 7.27.4: a study compares with the last release that has a study, and
+7.27.4 had none. Against 7.27.0 it covers 7.27.1 to 7.27.5, and places each
+price in its release and commit.
 
 ## Make the report of a release
 

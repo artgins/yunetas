@@ -119,11 +119,13 @@ reason.
   [Report](performance/reports/7.27.7.html) (the file) ·
   [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.7/performance/reports/7.27.7.html) ·
   [raw figures](performance/reports/7.27.7.json)
-- **7.27.5** (against 7.27.4, measured the day after the release): the
-  retention of timeranger2 costs a replica about 1 us per read call -- a page
-  of 1 row 19% slower, a filtered one 22%, the open of an iterator 8%: the
-  stat() that notices a purge whose signal the replica missed. A page of 100
-  rows, the master and the appends stay inside their noise.
+- **7.27.5** (against 7.27.0, the last release with a study; measured after
+  the release, it covers 7.27.1 to 7.27.5): the retention of timeranger2 costs
+  a replica about 1 us per read call -- a page of 1 row 18% slower, a filtered
+  one 22%, the open of an iterator 7%: the stat() that notices a purge whose
+  signal the replica missed, placed in 7.27.5, commit 83a771089. A page of 100
+  rows 1.5%, a forced treedb delete 3.9%; the master and the appends stay
+  inside their noise, and 7.27.1 to 7.27.4 cost nothing measurable.
   [Report](performance/reports/7.27.5.html) (the file) ·
   [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.27.5.html) ·
   [raw figures](performance/reports/7.27.5.json)

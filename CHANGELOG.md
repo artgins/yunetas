@@ -230,25 +230,30 @@ passed: 316, with 1 skipped.
   name the moved directory, and about 4 us the `rename()`. The report:
   `performance/reports/7.27.7.html`; the figures in
   `performance/c/README.md` and on the performance page of the docs.
-- **What 7.27.5 costs a replica to read, measured, and its performance
-  report** (timeranger2; 7.27.5 shipped with only an append A/B). Before
-  every iterator open and every page a replica `stat()`s the first md2 file
-  of the key (`check_purge_before_read()`), purged or not, to notice a purge
-  of the master whose signal it did not hear before the read meets files
-  that are gone. Measured with the new `read` phase of `perf_timeranger2`
-  (one key of 10 000 rows), 24 alternated rounds, 7.27.4 against 7.27.5:
-  about 1 us per call on a replica -- a page of 1 row 5.11 -> 6.08 us
-  (+19%), a filtered page of 1 row 3.98 -> 4.86 us (+22%), an iterator open
-  16.1 -> 17.3 us (+8%), a filtered open 11.5 -> 12.7 us (+11%); a page of
-  100 rows +0.8% (noise), and nothing on the master. The main tree reads as
-  7.27.5 does, and with the check taken out at 7.27.4's speed: the check is
-  all of it. It stays, as the price of that detection: skipping it while
-  the replica seems to have missed nothing leaves a window (a signal not
-  yet read from the event queue, a replica with no follower) in which a
-  read opens a deleted file. Also a price of 7.27.5: a forced treedb delete
-  +3.8% of CPU (one `access()` of the key's base before its directory is
-  removed). The report, written after the release:
-  `performance/reports/7.27.5.html`; the figures in
+- **What 7.27.5 costs a replica to read, measured against 7.27.0, and its
+  performance report** (timeranger2; 7.27.5 shipped with only an append
+  A/B). Against 7.27.0, the last release with a study, so 7.27.1 to 7.27.5
+  together; it replaces a first report made against 7.27.4, which had no
+  study. Before every iterator open and every page a replica `stat()`s the
+  first md2 file of the key (`check_purge_before_read()`), purged or not, to
+  notice a purge of the master whose signal it did not hear before the read
+  meets files that are gone. Measured with the new `read` phase of
+  `perf_timeranger2` (one key of 10 000 rows), 48 alternated rounds: about
+  1 us per call on a replica -- a page of 1 row 5.25 -> 6.20 us (+18%), a
+  filtered page of 1 row 4.08 -> 4.95 us (+22%), an iterator open 16.5 ->
+  17.7 us (+7%), a filtered open 11.8 -> 12.8 us (+9%); nothing on the
+  master. Placed by a rotation of every tag from 7.27.0 to 7.27.5 and two
+  commits of 7.27.5: 7.27.1 to 7.27.4 read at 7.27.0's speed, and the check
+  arrives with `83a771089`. It stays, as the price of that detection:
+  skipping it while the replica seems to have missed nothing leaves a window
+  (a signal not yet read from the event queue, a replica with no follower)
+  in which a read opens a deleted file. Also prices of 7.27.5: a page of 100
+  rows +1.5% (from `bd3fdce51`, on the master too: a page counts its rows as
+  positions among the live rows, `g_rowid` = purged + position) and a forced
+  treedb delete +3.9% of CPU (one `access()` of the key's base before its
+  directory is removed). Everything else, the gobj and TCP changes of 7.27.2
+  to 7.27.4 included, inside its noise. The report, written after the
+  release: `performance/reports/7.27.5.html`; the figures in
   `performance/c/README.md` and on the performance page of the docs.
 
 ## v7.27.6 (2026-10-21)

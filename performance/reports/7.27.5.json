@@ -1,7 +1,7 @@
 {
     "schema": "yuneta-perf-report/1",
     "version": "7.27.5",
-    "previous": "7.27.4",
+    "previous": "7.27.0",
     "date": "2026-10-22",
     "source_ref": "main",
     "machine": {
@@ -27,19 +27,19 @@
         "fully_static": true,
         "debug_track_memory": true,
         "debug_with_backtrace": true,
-        "tls": "OpenSSL 3.6.3 (bundled, static); mbedTLS not built on this machine",
+        "tls": "OpenSSL 3.6.5 (bundled, static: linux-ext-libs 1.24, both sides); mbedTLS not built on this machine",
         "note": "CONFIG_DEBUG_TRACK_MEMORY is on (the .config of this machine): every allocation is tracked. A build without it does less work per allocation; that build was not measured here."
     },
     "method": {
-        "ab": "Written on 2026-10-22, the day after the release (7.27.5 shipped without a report; a review found it). 7.27.4 and 7.27.5 each built from a git worktree of its tag, with the same .config and compiler; outputs_ext shared (linux-ext-libs 1.24 at both tags). In each tree only the kernel libraries, the modules, performance/c/ and the three ctest binaries were built (the whole SDK in the 7.27.5 tree, for the binary sizes). The `read` phase of `perf_timeranger2`, added for this report, was compiled into both trees: it uses only the public API, which did not change. The two binaries of each benchmark run alternately, the order flipped every round, with a sync and a 3 s pause before each run (1 s for the three ctest binaries): 8 rounds, and 16 more for the four figures that came out of their noise after 8 (perf_tr_treedb, the TCP and TLS echo, the event loop echo with an append). The read path was measured apart: the `read` phase alone, 24 rounds, four binaries in rotation (7.27.4, 7.27.5, the main tree at 24da06bc8, and that tree with check_purge_before_read() made to return at once), a sync and a 1 s pause before each run. Mean +- standard deviation (median), t = the change over its standard error; |t| < 3 is noise. The treedb figures are CPU time of the process per operation.",
-        "tag_run": "The absolute figures of 7.27.5 are its side of the A/B run: the code of the tag, built on 2026-10-22 from a worktree of the tag on the machine of the earlier reports. Not a tag-time run: the release was tagged on 2026-10-21 without one. The per-second benchmarks drop their first and last second; reads page by page are the FORWARD pass. The binary sizes are those of that build of the tag."
+        "ab": "Written on 2026-10-22, after the release, and against 7.27.0: the last release with a study. It replaces the study written the day before, which compared 7.27.5 with 7.27.4, a release nobody had measured. This one covers 7.27.1 to 7.27.5. 7.27.0 and 7.27.5 each built from a git worktree of its tag, with the same .config and compiler; in each tree only the kernel libraries, the modules, performance/c/ and the three ctest binaries were built, and the perf_timeranger2 of the main tree (with its `read` phase, public API only) was compiled into both. outputs_ext was shared (linux-ext-libs 1.24, OpenSSL 3.6.5 and PCRE2 10.49): 7.27.0 shipped with 1.23 (OpenSSL 3.6.3), and that change of 7.27.1 is not in these figures; it was measured on its own when 7.27.1 shipped (no move: the TLS echo -0.9%, t = -0.6). The two binaries of each benchmark run alternately, the order flipped every round, with a sync and a 3 s pause before each run (1 s for the three ctest binaries and the read phase): 16 rounds; 24 for perf_timeranger2 and perf_tr_treedb, run with 7.27.4 in a rotation of three; 48 for the `read` phase alone (the last 24 with 7.27.4 in the rotation). perf_rotatory 16 rounds, its 9th left out: something on the machine slowed both builds alike for that minute (a log line 1.5 times its time on both). To place each move in its release, the `read` phase ran once more, 24 rounds, on every tag from 7.27.0 to 7.27.5 and on two commits of 7.27.5 (bd3fdce51, its first, and 83a771089). Mean +- standard deviation (median), t = the change over its standard error; |t| < 3 is noise. The treedb figures are CPU time of the process per operation.",
+        "tag_run": "The absolute figures of 7.27.5 are its side of this A/B run: the code of the tag, built on 2026-10-22 from a worktree of the tag on the machine of the earlier reports. Not a tag-time run: the release was tagged on 2026-10-21 without one. The per-second benchmarks drop their first and last second; reads page by page are the FORWARD pass. The binary sizes are those of a build of the tag made the same day for the first study."
     },
     "story": {
         "title": "Yuneta 7.27.5: retention, and what it costs a replica to read",
-        "lead": "7.27.5 gives timeranger2 retention: a store deletes the old files of a key and keeps the `g_rowid` of every row that stays, and its followers hear the purge. It shipped without this report; a review found that, and that the read path of a replica had not been measured. Both are done here, the day after the release, on the machine of the earlier reports, 7.27.4 against 7.27.5, the two run alternately. A replica pays about 1 us more for every iterator open and every page, purged or not: one `stat()` that notices a purge whose signal it missed. That is +19% on a page of one row, +8% on an open, and noise on a page of 100 rows; the master does not pay it. The appends, the opens of a store, the treedb and the network move inside their noise, or by the placement of code that does not run.",
+        "lead": "7.27.5 gives timeranger2 retention: a store deletes the old files of a key and keeps the `g_rowid` of every row that stays, and its followers hear the purge. This study compares it with 7.27.0, the last release with a study, so it covers 7.27.1 to 7.27.5 together, and every move is placed in the release where it appeared by building the tags between them. It replaces the one written the day after the release against 7.27.4, a release nobody had measured. A replica pays about 1 us more for every iterator open and every page, purged or not: one `stat()` that notices a purge whose signal it missed. That is +18% on a page of one row, +7% on an open; the master does not pay it. It appeared in 7.27.5, with commit 83a771089. A page of 100 rows costs 1.5% more (the base of the key read for every row), and a forced treedb delete 3.9% more. Everything else from 7.27.1 to 7.27.5, the gobj and TCP changes of 7.27.2 to 7.27.4 among them, moves inside its noise.",
         "hero": {
             "value": "~1 us",
-            "text": "more per iterator open and per page on a replica: the price of noticing a purge it did not hear. A page of 100 rows does not see it (+0.8%), and the master does not pay it."
+            "text": "more per iterator open and per page on a replica: the price of noticing a purge it did not hear. It appeared in 7.27.5 (commit 83a771089); 7.27.1 to 7.27.4 read at 7.27.0's speed, and the master does not pay it."
         },
         "tiles": [
             [
@@ -63,9 +63,9 @@
                 "Open a large store (20 000 files)"
             ]
         ],
-        "append_note": "+0.4% against 7.27.4 (230,633): t = 0.6 over 8 alternated rounds; the append path refuses a record of a purged period at no measurable cost",
-        "ab_sub": "Each benchmark built twice, from the tree of each release, and the two binaries run alternately: 8 rounds, 24 for the read path and for the four figures that left their noise after 8. A change inside its whisker is noise. Everything is on one axis: the change of the time an operation takes.",
-        "prices_sub": "What got slower, how much, and what it buys. Three of them buy nothing: no code on their path changed, and they are said as measured.",
+        "append_note": "+1.1% against 7.27.0 (223,947): t = 0.9 over 16 alternated rounds; the append path refuses a record of a purged period at no measurable cost",
+        "ab_sub": "Each benchmark built from the tree of each release, the binaries run alternately: 16 rounds, 24 for perf_timeranger2 and perf_tr_treedb (with 7.27.4 in the rotation), 48 for the read path. A change inside its whisker is noise. Everything is on one axis: the change of the time an operation takes.",
+        "prices_sub": "What got slower against 7.27.0, how much, in which release it appeared, and what it buys.",
         "prices": [
             [
                 "tr2.read_page1_replica",
@@ -84,20 +84,12 @@
                 "Open a filtered iterator, as a replica"
             ],
             [
+                "tr2.read_page100_replica",
+                "A page of 100 rows, as a replica"
+            ],
+            [
                 "treedb.delete_force",
                 "Forced delete of a treedb node"
-            ],
-            [
-                "net.tcp_echo",
-                "TCP echo (no code changed)"
-            ],
-            [
-                "net.tls_echo",
-                "TLS echo (no code changed)"
-            ],
-            [
-                "net.yev_ping_pong_persist",
-                "Event loop echo + append (placement)"
             ]
         ],
         "ab_order": [
@@ -143,7 +135,7 @@
             "net.tls_echo_persist",
             "net.auth_bff_login"
         ],
-        "abs_sub": "Absolute figures of the 7.27.5 build, measured on 2026-10-22, the day after the release, on the laptop above (the 7.27.5 side of the A/B run, not a tag-time run): one process, one core for the event loop (Yuneta scales by running one yuno per core). Mean of the rounds; the spread and the rounds are in the table at the end."
+        "abs_sub": "Absolute figures of the 7.27.5 build, measured on 2026-10-22, the day after the release, on the laptop above (the 7.27.5 side of the A/B run against 7.27.0, not a tag-time run): one process, one core for the event loop (Yuneta scales by running one yuno per core). Mean of the rounds; the spread and the rounds are in the table at the end."
     },
     "ab": [
         {
@@ -156,22 +148,21 @@
             "unit": "appends/s",
             "better": "higher",
             "previous": {
-                "mean": 230632.5,
-                "sd": 2808.0627,
-                "median": 231796.5
+                "mean": 223947.0,
+                "sd": 5865.8585,
+                "median": 224418.5
             },
             "current": {
-                "mean": 231469.625,
-                "sd": 3242.1802,
-                "median": 230442.5
+                "mean": 226311.375,
+                "sd": 8667.8215,
+                "median": 227290.5
             },
-            "n": 8,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.36,
-            "t": 0.55
+            "change_pct": 1.06,
+            "t": 0.9
         },
         {
             "id": "tr2.append_rate_rt",
@@ -184,22 +175,21 @@
             "unit": "appends/s",
             "better": "higher",
             "previous": {
-                "mean": 193872.25,
-                "sd": 2911.4638,
-                "median": 194667.5
+                "mean": 189169.25,
+                "sd": 5659.5226,
+                "median": 191211.0
             },
             "current": {
-                "mean": 195656.125,
-                "sd": 2765.7011,
-                "median": 194962.0
+                "mean": 193185.4375,
+                "sd": 6565.5179,
+                "median": 193776.5
             },
-            "n": 8,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.92,
-            "t": 1.26
+            "change_pct": 2.12,
+            "t": 1.85
         },
         {
             "id": "tr2.build_appends",
@@ -211,22 +201,21 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 1569.9195,
-                "sd": 17.1907,
-                "median": 1564.6035
+                "mean": 1595.2312,
+                "sd": 42.9361,
+                "median": 1583.573
             },
             "current": {
-                "mean": 1584.9755,
-                "sd": 16.3374,
-                "median": 1591.7845
+                "mean": 1623.8319,
+                "sd": 57.9632,
+                "median": 1611.4295
             },
-            "n": 8,
+            "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.96,
-            "t": 1.8
+            "change_pct": 1.79,
+            "t": 1.94
         },
         {
             "id": "tr2.tm_build_appends",
@@ -238,22 +227,21 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 1679.1541,
-                "sd": 32.6564,
-                "median": 1676.1435
+                "mean": 1688.0324,
+                "sd": 38.3105,
+                "median": 1678.1915
             },
             "current": {
-                "mean": 1654.7265,
-                "sd": 28.1301,
-                "median": 1666.7165
+                "mean": 1688.1943,
+                "sd": 40.3406,
+                "median": 1693.743
             },
-            "n": 8,
+            "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -1.45,
-            "t": -1.6
+            "change_pct": 0.01,
+            "t": 0.01
         },
         {
             "id": "tr2.read_rate_iterator",
@@ -266,22 +254,21 @@
             "unit": "records/s",
             "better": "higher",
             "previous": {
-                "mean": 219068.5,
-                "sd": 5295.6033,
-                "median": 218569.5
+                "mean": 215304.375,
+                "sd": 5659.2416,
+                "median": 215148.5
             },
             "current": {
-                "mean": 220260.75,
-                "sd": 4796.3554,
-                "median": 221061.0
+                "mean": 216080.0625,
+                "sd": 8155.0946,
+                "median": 216386.0
             },
-            "n": 8,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.54,
-            "t": 0.47
+            "change_pct": 0.36,
+            "t": 0.31
         },
         {
             "id": "tr2.read_rate_pages",
@@ -294,22 +281,21 @@
             "unit": "records/s",
             "better": "higher",
             "previous": {
-                "mean": 196432.5,
-                "sd": 5124.2891,
-                "median": 195496.0
+                "mean": 189844.125,
+                "sd": 5666.3779,
+                "median": 190169.0
             },
             "current": {
-                "mean": 194504.625,
-                "sd": 3879.8683,
-                "median": 193994.0
+                "mean": 193623.8125,
+                "sd": 7996.9643,
+                "median": 194992.5
             },
-            "n": 8,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.98,
-            "t": -0.85
+            "change_pct": 1.99,
+            "t": 1.54
         },
         {
             "id": "tr2.open_master",
@@ -322,22 +308,21 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 78.7905,
-                "sd": 1.24,
-                "median": 78.4145
+                "mean": 79.6539,
+                "sd": 2.1613,
+                "median": 79.3185
             },
             "current": {
-                "mean": 79.4099,
-                "sd": 1.2211,
-                "median": 79.151
+                "mean": 81.1428,
+                "sd": 3.2311,
+                "median": 80.6275
             },
-            "n": 8,
+            "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.79,
-            "t": 1.01
+            "change_pct": 1.87,
+            "t": 1.88
         },
         {
             "id": "tr2.tm_query",
@@ -350,22 +335,22 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 12.3145,
-                "sd": 0.3662,
-                "median": 12.185
+                "mean": 12.6967,
+                "sd": 0.8538,
+                "median": 12.5285
             },
             "current": {
-                "mean": 12.7185,
-                "sd": 0.247,
-                "median": 12.791
+                "mean": 13.1777,
+                "sd": 0.4053,
+                "median": 13.1305
             },
-            "n": 8,
+            "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "At the edge of its noise (t = 2.6, 8 rounds): tranger2_match_metadata() takes the base of the key since 7.27.5.",
-            "change_pct": 3.28,
-            "t": 2.59
+            "reason": "+3.8% (t = 2.5, 24 rounds), at the edge of the noise; 7.27.4 is +0.8%. tranger2_match_metadata() takes the base of the key since 7.27.5.",
+            "change_pct": 3.79,
+            "t": 2.49
         },
         {
             "id": "tr2.open_replica",
@@ -378,22 +363,21 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 91.5096,
-                "sd": 1.3575,
-                "median": 91.211
+                "mean": 92.7769,
+                "sd": 2.2006,
+                "median": 92.5675
             },
             "current": {
-                "mean": 93.187,
-                "sd": 1.4039,
-                "median": 93.1475
+                "mean": 94.3626,
+                "sd": 2.7278,
+                "median": 94.442
             },
-            "n": 8,
+            "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 1.83,
-            "t": 2.43
+            "change_pct": 1.71,
+            "t": 2.22
         },
         {
             "id": "tr2.create_topic",
@@ -405,22 +389,21 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 133.5857,
-                "sd": 16.111,
-                "median": 135.937
+                "mean": 143.3784,
+                "sd": 15.5894,
+                "median": 140.4845
             },
             "current": {
-                "mean": 145.9374,
-                "sd": 18.8008,
-                "median": 143.3995
+                "mean": 142.4518,
+                "sd": 14.2992,
+                "median": 142.413
             },
-            "n": 8,
+            "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 9.25,
-            "t": 1.41
+            "change_pct": -0.65,
+            "t": -0.21
         },
         {
             "id": "tr2.topic_version_change",
@@ -433,22 +416,21 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 253.3489,
-                "sd": 29.7215,
-                "median": 249.745
+                "mean": 250.4938,
+                "sd": 28.6836,
+                "median": 241.088
             },
             "current": {
-                "mean": 249.7366,
-                "sd": 24.7589,
-                "median": 239.4495
+                "mean": 254.1582,
+                "sd": 29.7583,
+                "median": 247.701
             },
-            "n": 8,
+            "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -1.43,
-            "t": -0.26
+            "change_pct": 1.46,
+            "t": 0.43
         },
         {
             "id": "treedb.update_memory",
@@ -460,22 +442,21 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 2.3769,
-                "sd": 0.0598,
-                "median": 2.381
+                "mean": 2.4271,
+                "sd": 0.0547,
+                "median": 2.437
             },
             "current": {
-                "mean": 2.3462,
-                "sd": 0.045,
-                "median": 2.343
+                "mean": 2.364,
+                "sd": 0.0911,
+                "median": 2.3505
             },
             "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -1.29,
-            "t": -2.0
+            "change_pct": -2.6,
+            "t": -2.91
         },
         {
             "id": "treedb.update_saved",
@@ -487,22 +468,21 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 7.5721,
-                "sd": 0.1809,
-                "median": 7.582
+                "mean": 7.6825,
+                "sd": 0.2179,
+                "median": 7.742
             },
             "current": {
-                "mean": 7.5945,
-                "sd": 0.2038,
-                "median": 7.586
+                "mean": 7.6199,
+                "sd": 0.1516,
+                "median": 7.599
             },
             "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.29,
-            "t": 0.4
+            "change_pct": -0.81,
+            "t": -1.16
         },
         {
             "id": "treedb.link_unlink",
@@ -514,22 +494,21 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 7.5382,
-                "sd": 0.185,
-                "median": 7.5355
+                "mean": 7.5544,
+                "sd": 0.1886,
+                "median": 7.582
             },
             "current": {
-                "mean": 7.467,
-                "sd": 0.2832,
-                "median": 7.4265
+                "mean": 7.4823,
+                "sd": 0.1719,
+                "median": 7.454
             },
             "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.94,
-            "t": -1.03
+            "change_pct": -0.95,
+            "t": -1.38
         },
         {
             "id": "treedb.create_link_half",
@@ -542,22 +521,21 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 63.84,
-                "sd": 2.3237,
-                "median": 63.168
+                "mean": 63.8813,
+                "sd": 2.1038,
+                "median": 63.5335
             },
             "current": {
-                "mean": 63.4936,
-                "sd": 1.6717,
-                "median": 63.017
+                "mean": 64.2373,
+                "sd": 2.3471,
+                "median": 63.948
             },
             "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.54,
-            "t": -0.59
+            "change_pct": 0.56,
+            "t": 0.55
         },
         {
             "id": "treedb.reopen",
@@ -569,22 +547,21 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 284.7168,
-                "sd": 9.4057,
-                "median": 283.467
+                "mean": 289.2064,
+                "sd": 7.8092,
+                "median": 288.5745
             },
             "current": {
-                "mean": 283.8844,
-                "sd": 10.2356,
-                "median": 282.603
+                "mean": 287.1991,
+                "sd": 8.2358,
+                "median": 285.4435
             },
             "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.29,
-            "t": -0.29
+            "change_pct": -0.69,
+            "t": -0.87
         },
         {
             "id": "treedb.delete_force",
@@ -596,22 +573,22 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 42.3323,
-                "sd": 1.9767,
-                "median": 41.847
+                "mean": 42.8712,
+                "sd": 1.9189,
+                "median": 42.2405
             },
             "current": {
-                "mean": 43.9186,
-                "sd": 1.4159,
-                "median": 43.3925
+                "mean": 44.5233,
+                "sd": 2.6473,
+                "median": 43.6555
             },
             "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "price",
-            "reason": "A forced delete removes the node's key (tranger2_delete_key()), and since 7.27.5 it first looks for the key's base (`keys/<key>/.purged`, one access()): a key with a base is moved out of keys/ whole, by a rename(), before it is removed, so a crash never leaves its files without its base or its base without its files. About 1.6 us of CPU per delete; attributed by reading the code, not by relinking.",
-            "change_pct": 3.75,
-            "t": 3.2
+            "reason": "+3.9% against 7.27.0 (t = 2.5, at the edge of the noise), and it is 7.27.5: with 7.27.4 in the rotation, 7.27.4 42.0 us and 7.27.5 44.5 us (+6.1%, t = 4.5). A forced delete removes the node's key (tranger2_delete_key()), and since 7.27.5 it first looks for the key's base (`keys/<key>/.purged`, one access()): a key with a base is moved out of keys/ whole, by a rename(), before it is removed, so a crash never leaves its files without its base or its base without its files. Attributed by reading the code.",
+            "change_pct": 3.85,
+            "t": 2.48
         },
         {
             "id": "treedb.delete_parent",
@@ -624,22 +601,21 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 2300.2472,
-                "sd": 138.7827,
-                "median": 2262.7675
+                "mean": 2326.929,
+                "sd": 163.2475,
+                "median": 2248.7445
             },
             "current": {
-                "mean": 2283.6307,
-                "sd": 91.3376,
-                "median": 2266.1585
+                "mean": 2342.9722,
+                "sd": 190.0696,
+                "median": 2263.5915
             },
             "n": 24,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.72,
-            "t": -0.49
+            "change_pct": 0.69,
+            "t": 0.31
         },
         {
             "id": "ctreedb.same_literal_release",
@@ -652,22 +628,21 @@
             "unit": "s",
             "better": "lower",
             "previous": {
-                "mean": 0.3418,
-                "sd": 0.0051,
-                "median": 0.3408
+                "mean": 0.3739,
+                "sd": 0.059,
+                "median": 0.3522
             },
             "current": {
-                "mean": 0.3498,
-                "sd": 0.0091,
-                "median": 0.3478
+                "mean": 0.3739,
+                "sd": 0.0621,
+                "median": 0.3506
             },
-            "n": 8,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 2.33,
-            "t": 2.16
+            "change_pct": -0.01,
+            "t": -0.0
         },
         {
             "id": "ctreedb.seed",
@@ -680,22 +655,21 @@
             "unit": "s",
             "better": "lower",
             "previous": {
-                "mean": 10.6445,
-                "sd": 0.3285,
-                "median": 10.5446
+                "mean": 10.8077,
+                "sd": 0.3859,
+                "median": 10.7823
             },
             "current": {
-                "mean": 10.7627,
-                "sd": 0.3845,
-                "median": 10.8768
+                "mean": 10.7936,
+                "sd": 0.5166,
+                "median": 10.707
             },
-            "n": 8,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 1.11,
-            "t": 0.66
+            "change_pct": -0.13,
+            "t": -0.09
         },
         {
             "id": "ctreedb.newer_literal",
@@ -708,22 +682,21 @@
             "unit": "s",
             "better": "lower",
             "previous": {
-                "mean": 13.5946,
-                "sd": 0.4933,
-                "median": 13.6089
+                "mean": 13.027,
+                "sd": 0.5974,
+                "median": 12.905
             },
             "current": {
-                "mean": 13.2405,
-                "sd": 0.6665,
-                "median": 13.0945
+                "mean": 12.9973,
+                "sd": 0.5833,
+                "median": 12.7809
             },
-            "n": 8,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -2.6,
-            "t": -1.21
+            "change_pct": -0.23,
+            "t": -0.14
         },
         {
             "id": "rotatory.audit_record",
@@ -736,22 +709,21 @@
             "unit": "ns",
             "better": "lower",
             "previous": {
-                "mean": 557.6375,
-                "sd": 19.4984,
-                "median": 552.1
+                "mean": 585.7,
+                "sd": 36.2712,
+                "median": 590.7
             },
             "current": {
-                "mean": 562.2,
-                "sd": 19.0601,
-                "median": 556.1
+                "mean": 572.9533,
+                "sd": 26.7972,
+                "median": 582.4
             },
-            "n": 8,
+            "n": 15,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.82,
-            "t": 0.47
+            "change_pct": -2.18,
+            "t": -1.09
         },
         {
             "id": "rotatory.audit_record_flush",
@@ -764,22 +736,21 @@
             "unit": "ns",
             "better": "lower",
             "previous": {
-                "mean": 1238.325,
-                "sd": 7.6386,
-                "median": 1238.3
+                "mean": 1265.42,
+                "sd": 35.1973,
+                "median": 1247.5
             },
             "current": {
-                "mean": 1242.175,
-                "sd": 9.3408,
-                "median": 1244.2
+                "mean": 1261.8133,
+                "sd": 41.6859,
+                "median": 1252.6
             },
-            "n": 8,
+            "n": 15,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.31,
-            "t": 0.9
+            "change_pct": -0.29,
+            "t": -0.26
         },
         {
             "id": "rotatory.log_record",
@@ -792,22 +763,21 @@
             "unit": "ns",
             "better": "lower",
             "previous": {
-                "mean": 372.775,
-                "sd": 3.1707,
-                "median": 372.65
+                "mean": 381.4,
+                "sd": 8.0565,
+                "median": 379.6
             },
             "current": {
-                "mean": 377.625,
-                "sd": 5.0352,
-                "median": 378.3
+                "mean": 382.58,
+                "sd": 22.0711,
+                "median": 374.1
             },
-            "n": 8,
+            "n": 15,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 1.3,
-            "t": 2.31
+            "change_pct": 0.31,
+            "t": 0.19
         },
         {
             "id": "net.yev_ping_pong",
@@ -820,22 +790,21 @@
             "unit": "K msg/s",
             "better": "higher",
             "previous": {
-                "mean": 147.5158,
-                "sd": 1.0551,
-                "median": 147.4125
+                "mean": 143.5311,
+                "sd": 7.7232,
+                "median": 146.4893
             },
             "current": {
-                "mean": 147.7364,
-                "sd": 0.7555,
-                "median": 147.9812
+                "mean": 143.0999,
+                "sd": 8.4914,
+                "median": 146.3768
             },
-            "n": 8,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.15,
-            "t": 0.48
+            "change_pct": -0.3,
+            "t": -0.15
         },
         {
             "id": "net.yev_ping_pong_persist",
@@ -848,22 +817,21 @@
             "unit": "K msg/s",
             "better": "higher",
             "previous": {
-                "mean": 85.8696,
-                "sd": 1.9763,
-                "median": 86.4429
+                "mean": 85.0054,
+                "sd": 3.1882,
+                "median": 85.9857
             },
             "current": {
-                "mean": 84.1512,
-                "sd": 1.6011,
-                "median": 84.6857
+                "mean": 82.6161,
+                "sd": 3.1262,
+                "median": 83.3429
             },
-            "n": 24,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
-            "verdict": "price",
-            "reason": "Each message is appended to timeranger2; the appends alone (test_topic_pkey_integer) are +0.4% (t = 0.6), and this run moves as the TCP echo, where no code changed: placement (24 rounds).",
-            "change_pct": -2.0,
-            "t": -3.31
+            "verdict": "noise",
+            "change_pct": -2.81,
+            "t": -2.14
         },
         {
             "id": "net.tcp_echo",
@@ -876,22 +844,21 @@
             "unit": "round trips/s",
             "better": "higher",
             "previous": {
-                "mean": 39947.3333,
-                "sd": 724.0093,
-                "median": 39860.0
+                "mean": 38258.25,
+                "sd": 1789.8317,
+                "median": 38839.5
             },
             "current": {
-                "mean": 38983.9583,
-                "sd": 574.7385,
-                "median": 38830.0
+                "mean": 38301.125,
+                "sd": 1353.1152,
+                "median": 38583.5
             },
-            "n": 24,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
-            "verdict": "price",
-            "reason": "No code on its path changed: 7.27.5 changed only timeranger2.c and c_tranger.c, and neither runs in this benchmark. The binary moved by where the code lands (both files are linked in, 2400 lines more); the same effect as the event loop echo of 7.26.9. Said as measured (24 rounds).",
-            "change_pct": -2.41,
-            "t": -5.11
+            "verdict": "noise",
+            "change_pct": 0.11,
+            "t": 0.08
         },
         {
             "id": "net.tcp_echo_persist",
@@ -904,22 +871,21 @@
             "unit": "round trips/s",
             "better": "higher",
             "previous": {
-                "mean": 31138.25,
-                "sd": 458.4177,
-                "median": 31071.5
+                "mean": 30136.8125,
+                "sd": 986.6906,
+                "median": 30449.0
             },
             "current": {
-                "mean": 30944.75,
-                "sd": 405.6535,
-                "median": 31101.5
+                "mean": 30130.6875,
+                "sd": 1094.8536,
+                "median": 30451.0
             },
-            "n": 8,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.62,
-            "t": -0.89
+            "change_pct": -0.02,
+            "t": -0.02
         },
         {
             "id": "net.tls_echo",
@@ -932,22 +898,21 @@
             "unit": "round trips/s",
             "better": "higher",
             "previous": {
-                "mean": 29962.75,
-                "sd": 579.5967,
-                "median": 29960.0
+                "mean": 29283.5,
+                "sd": 995.3854,
+                "median": 29484.5
             },
             "current": {
-                "mean": 29197.375,
-                "sd": 626.2035,
-                "median": 29230.0
+                "mean": 28758.75,
+                "sd": 1278.4921,
+                "median": 29081.5
             },
-            "n": 24,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
-            "verdict": "price",
-            "reason": "The same as the TCP echo: no code on its path changed (24 rounds).",
-            "change_pct": -2.55,
-            "t": -4.39
+            "verdict": "noise",
+            "change_pct": -1.79,
+            "t": -1.3
         },
         {
             "id": "net.tls_echo_persist",
@@ -960,22 +925,21 @@
             "unit": "round trips/s",
             "better": "higher",
             "previous": {
-                "mean": 24118.25,
-                "sd": 429.4055,
-                "median": 23938.0
+                "mean": 23941.875,
+                "sd": 1071.6114,
+                "median": 24073.0
             },
             "current": {
-                "mean": 24230.5,
-                "sd": 434.5678,
-                "median": 24154.5
+                "mean": 23709.4375,
+                "sd": 1116.1441,
+                "median": 24000.5
             },
-            "n": 8,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.47,
-            "t": 0.52
+            "change_pct": -0.97,
+            "t": -0.6
         },
         {
             "id": "net.auth_bff_login",
@@ -988,22 +952,21 @@
             "unit": "logins/s",
             "better": "higher",
             "previous": {
-                "mean": 8500.0,
-                "sd": 145.6206,
-                "median": 8456.25
+                "mean": 8328.9062,
+                "sd": 330.0479,
+                "median": 8418.75
             },
             "current": {
-                "mean": 8587.5,
-                "sd": 142.0513,
-                "median": 8581.25
+                "mean": 8417.1875,
+                "sd": 292.2925,
+                "median": 8487.5
             },
-            "n": 8,
+            "n": 16,
             "scope": "release",
             "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 1.03,
-            "t": 1.22
+            "change_pct": 1.06,
+            "t": 0.8
         },
         {
             "id": "tr2.read_page1_replica",
@@ -1016,22 +979,22 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 5.1139,
-                "sd": 0.0879,
-                "median": 5.1075
+                "mean": 5.2528,
+                "sd": 0.2084,
+                "median": 5.239
             },
             "current": {
-                "mean": 6.0781,
-                "sd": 0.1369,
-                "median": 6.07
+                "mean": 6.1959,
+                "sd": 0.3163,
+                "median": 6.1555
             },
-            "n": 24,
+            "n": 48,
             "scope": "release",
-            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.27.4, 7.27.5 and the main tree run in rotation, a sync and a 1 s pause before each run.",
+            "method": "The read phase of perf_timeranger2 alone, 48 rounds, the binaries of 7.27.0 and 7.27.5 (and 7.27.4 in the last 24) run in rotation, a sync and a 1 s pause before each run.",
             "verdict": "price",
-            "reason": "check_purge_before_read(): before every iterator open and every page, a replica stat()s the first md2 file of the key, to notice a purge of the master whose signal it did not hear (an overflow of its watch, a follower down while the master purged, a replica without a follower), before the read meets files that are gone. About 1 us per call on this machine, purged or not. With the check made to return at once, the same code reads at 7.27.4's speed (5.11 us): the check is all of it. Kept: skipping it while nothing seems missed leaves a window (a signal not yet read from the queue) in which a read opens a deleted file.",
-            "change_pct": 18.85,
-            "t": 29.03
+            "reason": "check_purge_before_read(): before every iterator open and every page, a replica stat()s the first md2 file of the key, to notice a purge of the master whose signal it did not hear (an overflow of its watch, a follower down while the master purged, a replica without a follower), before the read meets files that are gone. About 1 us per call on this machine, purged or not. Placed by a rotation of every tag from 7.27.0 to 7.27.5 and of two commits of 7.27.5 (24 rounds): 7.27.1 to 7.27.4 and bd3fdce51 read at 7.27.0's speed, and it appears with 83a771089 (the followers hear a purge), the commit that brings the check. On this figure: 7.27.4 5.12 us, bd3fdce51 5.19, 83a771089 6.03, 7.27.5 6.10. Kept: skipping the check while nothing seems missed leaves a window (a signal not yet read from the queue) in which a read opens a deleted file.",
+            "change_pct": 17.95,
+            "t": 17.25
         },
         {
             "id": "tr2.read_page1_filtered_replica",
@@ -1044,22 +1007,22 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 3.9794,
-                "sd": 0.0824,
-                "median": 3.9965
+                "mean": 4.0758,
+                "sd": 0.1079,
+                "median": 4.076
             },
             "current": {
-                "mean": 4.8592,
-                "sd": 0.0795,
-                "median": 4.8655
+                "mean": 4.9538,
+                "sd": 0.1095,
+                "median": 4.9495
             },
-            "n": 24,
+            "n": 48,
             "scope": "release",
-            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.27.4, 7.27.5 and the main tree run in rotation, a sync and a 1 s pause before each run.",
+            "method": "The read phase of perf_timeranger2 alone, 48 rounds, the binaries of 7.27.0 and 7.27.5 (and 7.27.4 in the last 24) run in rotation, a sync and a 1 s pause before each run.",
             "verdict": "price",
-            "reason": "The same stat() of check_purge_before_read(), on a page of the index of a filtered iterator: +0.9 us. Without the check, 4.00 us (7.27.4: 3.98 us).",
-            "change_pct": 22.11,
-            "t": 37.64
+            "reason": "The same stat() of check_purge_before_read(), on a page of the index of a filtered iterator: +0.9 us. Appeared in 83a771089 (7.27.5): 7.27.4 3.98 us, 83a771089 4.79, 7.27.5 4.89.",
+            "change_pct": 21.54,
+            "t": 39.57
         },
         {
             "id": "tr2.read_open_replica",
@@ -1072,22 +1035,22 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 16.0539,
-                "sd": 0.7811,
-                "median": 16.2965
+                "mean": 16.5447,
+                "sd": 0.4788,
+                "median": 16.475
             },
             "current": {
-                "mean": 17.3347,
-                "sd": 0.408,
-                "median": 17.3225
+                "mean": 17.6785,
+                "sd": 0.6849,
+                "median": 17.562
             },
-            "n": 24,
+            "n": 48,
             "scope": "release",
-            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.27.4, 7.27.5 and the main tree run in rotation, a sync and a 1 s pause before each run.",
+            "method": "The read phase of perf_timeranger2 alone, 48 rounds, the binaries of 7.27.0 and 7.27.5 (and 7.27.4 in the last 24) run in rotation, a sync and a 1 s pause before each run.",
             "verdict": "price",
-            "reason": "The same check, made once by the open: +1.3 us. Without it, 16.5 us (7.27.4: 16.1 us, inside the noise).",
-            "change_pct": 7.98,
-            "t": 7.12
+            "reason": "The same check, made once by the open: +1.1 us. Appeared in 7.27.5: 7.27.4 16.2 us, bd3fdce51 16.4, 83a771089 17.2, 7.27.5 17.5.",
+            "change_pct": 6.85,
+            "t": 9.4
         },
         {
             "id": "tr2.read_open_filtered_replica",
@@ -1100,22 +1063,22 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 11.465,
-                "sd": 0.3189,
-                "median": 11.4575
+                "mean": 11.7698,
+                "sd": 0.3611,
+                "median": 11.7125
             },
             "current": {
-                "mean": 12.6853,
-                "sd": 0.3024,
-                "median": 12.655
+                "mean": 12.7719,
+                "sd": 0.3856,
+                "median": 12.797
             },
-            "n": 24,
+            "n": 48,
             "scope": "release",
-            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.27.4, 7.27.5 and the main tree run in rotation, a sync and a 1 s pause before each run.",
+            "method": "The read phase of perf_timeranger2 alone, 48 rounds, the binaries of 7.27.0 and 7.27.5 (and 7.27.4 in the last 24) run in rotation, a sync and a 1 s pause before each run.",
             "verdict": "price",
-            "reason": "The same check, made once by the open of a filtered iterator: +1.2 us. Without it, 11.7 us (7.27.4: 11.5 us).",
-            "change_pct": 10.64,
-            "t": 13.6
+            "reason": "The same check, made once by the open of a filtered iterator: +1.0 us. Appeared in 83a771089 (7.27.5): 7.27.4 11.5 us, 83a771089 12.6, 7.27.5 12.7.",
+            "change_pct": 8.51,
+            "t": 13.14
         },
         {
             "id": "tr2.read_page100_replica",
@@ -1128,22 +1091,22 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 261.9805,
-                "sd": 5.2959,
-                "median": 261.4765
+                "mean": 264.1129,
+                "sd": 5.8332,
+                "median": 262.958
             },
             "current": {
-                "mean": 264.0608,
-                "sd": 4.8897,
-                "median": 265.267
+                "mean": 268.0945,
+                "sd": 5.2866,
+                "median": 269.0095
             },
-            "n": 24,
+            "n": 48,
             "scope": "release",
-            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.27.4, 7.27.5 and the main tree run in rotation, a sync and a 1 s pause before each run.",
-            "verdict": "noise",
-            "reason": "The same 1 us of the check, spread over 100 rows.",
-            "change_pct": 0.79,
-            "t": 1.41
+            "method": "The read phase of perf_timeranger2 alone, 48 rounds, the binaries of 7.27.0 and 7.27.5 (and 7.27.4 in the last 24) run in rotation, a sync and a 1 s pause before each run.",
+            "verdict": "price",
+            "reason": "+1.5% (t = 3.5, 48 rounds). Not the check (1 us over 100 rows is 0.4%): the master's page of 100 rows moves the same way (+1.1%, t = 1.7 here; +2.6% in the rotation of the tags). In the rotation it appears with bd3fdce51, the first commit of 7.27.5 (7.27.4 261.7 us, bd3fdce51 266.4, 7.27.5 265.9): a page of an unfiltered iterator counts its rows as positions among the live rows, g_rowid = purged + position, so the base of a key is read for every row.",
+            "change_pct": 1.51,
+            "t": 3.5
         },
         {
             "id": "tr2.read_page1_master",
@@ -1156,22 +1119,21 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 5.1082,
-                "sd": 0.1532,
-                "median": 5.0825
+                "mean": 5.2021,
+                "sd": 0.1372,
+                "median": 5.209
             },
             "current": {
-                "mean": 5.1289,
-                "sd": 0.0998,
-                "median": 5.129
+                "mean": 5.2105,
+                "sd": 0.1284,
+                "median": 5.2105
             },
-            "n": 24,
+            "n": 48,
             "scope": "release",
-            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.27.4, 7.27.5 and the main tree run in rotation, a sync and a 1 s pause before each run.",
+            "method": "The read phase of perf_timeranger2 alone, 48 rounds, the binaries of 7.27.0 and 7.27.5 (and 7.27.4 in the last 24) run in rotation, a sync and a 1 s pause before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.41,
-            "t": 0.55
+            "change_pct": 0.16,
+            "t": 0.31
         },
         {
             "id": "tr2.read_page1_filtered_master",
@@ -1184,22 +1146,21 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 3.9669,
-                "sd": 0.0835,
-                "median": 3.977
+                "mean": 4.0739,
+                "sd": 0.1496,
+                "median": 4.062
             },
             "current": {
-                "mean": 4.0555,
-                "sd": 0.1233,
-                "median": 4.029
+                "mean": 4.1052,
+                "sd": 0.1244,
+                "median": 4.0885
             },
-            "n": 24,
+            "n": 48,
             "scope": "release",
-            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.27.4, 7.27.5 and the main tree run in rotation, a sync and a 1 s pause before each run.",
+            "method": "The read phase of perf_timeranger2 alone, 48 rounds, the binaries of 7.27.0 and 7.27.5 (and 7.27.4 in the last 24) run in rotation, a sync and a 1 s pause before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 2.23,
-            "t": 2.91
+            "change_pct": 0.77,
+            "t": 1.12
         },
         {
             "id": "tr2.read_open_master",
@@ -1212,22 +1173,21 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 15.7617,
-                "sd": 0.6723,
-                "median": 15.8465
+                "mean": 16.6697,
+                "sd": 1.7622,
+                "median": 16.317
             },
             "current": {
-                "mean": 16.0914,
-                "sd": 0.4741,
-                "median": 16.0155
+                "mean": 16.3961,
+                "sd": 0.8203,
+                "median": 16.2905
             },
-            "n": 24,
+            "n": 48,
             "scope": "release",
-            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.27.4, 7.27.5 and the main tree run in rotation, a sync and a 1 s pause before each run.",
+            "method": "The read phase of perf_timeranger2 alone, 48 rounds, the binaries of 7.27.0 and 7.27.5 (and 7.27.4 in the last 24) run in rotation, a sync and a 1 s pause before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 2.09,
-            "t": 1.96
+            "change_pct": -1.64,
+            "t": -0.98
         },
         {
             "id": "tr2.read_open_filtered_master",
@@ -1240,22 +1200,21 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 11.279,
-                "sd": 0.3454,
-                "median": 11.2455
+                "mean": 11.7447,
+                "sd": 0.7989,
+                "median": 11.6835
             },
             "current": {
-                "mean": 11.5958,
-                "sd": 0.4136,
-                "median": 11.6595
+                "mean": 11.6816,
+                "sd": 0.4715,
+                "median": 11.613
             },
-            "n": 24,
+            "n": 48,
             "scope": "release",
-            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.27.4, 7.27.5 and the main tree run in rotation, a sync and a 1 s pause before each run.",
+            "method": "The read phase of perf_timeranger2 alone, 48 rounds, the binaries of 7.27.0 and 7.27.5 (and 7.27.4 in the last 24) run in rotation, a sync and a 1 s pause before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 2.81,
-            "t": 2.88
+            "change_pct": -0.54,
+            "t": -0.47
         },
         {
             "id": "tr2.read_page100_master",
@@ -1268,22 +1227,22 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 260.5474,
-                "sd": 7.2768,
-                "median": 259.7515
+                "mean": 264.6269,
+                "sd": 7.4315,
+                "median": 264.5915
             },
             "current": {
-                "mean": 262.7552,
-                "sd": 7.1347,
-                "median": 263.2735
+                "mean": 267.5937,
+                "sd": 9.9397,
+                "median": 266.359
             },
-            "n": 24,
+            "n": 48,
             "scope": "release",
-            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.27.4, 7.27.5 and the main tree run in rotation, a sync and a 1 s pause before each run.",
+            "method": "The read phase of perf_timeranger2 alone, 48 rounds, the binaries of 7.27.0 and 7.27.5 (and 7.27.4 in the last 24) run in rotation, a sync and a 1 s pause before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.85,
-            "t": 1.06
+            "reason": "+1.1% (t = 1.7, 48 rounds); the rotation of the tags shows +2.6% from bd3fdce51 on, as on a replica: the same purged + position of every row.",
+            "change_pct": 1.12,
+            "t": 1.66
         }
     ],
     "figures": [
@@ -1297,12 +1256,12 @@
             "unit": "K msg/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 147.7364,
-            "median": 147.9812,
-            "min": 146.2286,
-            "max": 148.5,
-            "n": 8,
-            "sd": 0.7555,
+            "mean": 143.0999,
+            "median": 146.3768,
+            "min": 118.975,
+            "max": 149.9429,
+            "n": 16,
+            "sd": 8.4914,
             "headline": true
         },
         {
@@ -1315,12 +1274,12 @@
             "unit": "K msg/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 84.1512,
-            "median": 84.6857,
-            "min": 78.7714,
-            "max": 85.9714,
-            "n": 24,
-            "sd": 1.6011,
+            "mean": 82.6161,
+            "median": 83.3429,
+            "min": 76.6429,
+            "max": 86.1429,
+            "n": 16,
+            "sd": 3.1262,
             "headline": true
         },
         {
@@ -1333,12 +1292,12 @@
             "unit": "round trips/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 38983.9583,
-            "median": 38830.0,
-            "min": 37952.0,
-            "max": 39996.0,
-            "n": 24,
-            "sd": 574.7385,
+            "mean": 38301.125,
+            "median": 38583.5,
+            "min": 36002.0,
+            "max": 40117.0,
+            "n": 16,
+            "sd": 1353.1152,
             "headline": true
         },
         {
@@ -1351,12 +1310,12 @@
             "unit": "round trips/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 30944.75,
-            "median": 31101.5,
-            "min": 30125.0,
-            "max": 31314.0,
-            "n": 8,
-            "sd": 405.6535,
+            "mean": 30130.6875,
+            "median": 30451.0,
+            "min": 28177.0,
+            "max": 31513.0,
+            "n": 16,
+            "sd": 1094.8536,
             "headline": true
         },
         {
@@ -1369,12 +1328,12 @@
             "unit": "round trips/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 29197.375,
-            "median": 29230.0,
-            "min": 27732.0,
-            "max": 30143.0,
-            "n": 24,
-            "sd": 626.2035,
+            "mean": 28758.75,
+            "median": 29081.5,
+            "min": 25884.0,
+            "max": 30004.0,
+            "n": 16,
+            "sd": 1278.4921,
             "headline": true
         },
         {
@@ -1387,12 +1346,12 @@
             "unit": "round trips/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 24230.5,
-            "median": 24154.5,
-            "min": 23769.0,
-            "max": 24927.0,
-            "n": 8,
-            "sd": 434.5678,
+            "mean": 23709.4375,
+            "median": 24000.5,
+            "min": 20764.0,
+            "max": 24885.0,
+            "n": 16,
+            "sd": 1116.1441,
             "headline": true
         },
         {
@@ -1405,12 +1364,12 @@
             "unit": "logins/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 8587.5,
-            "median": 8581.25,
-            "min": 8350.0,
-            "max": 8775.0,
-            "n": 8,
-            "sd": 142.0513
+            "mean": 8417.1875,
+            "median": 8487.5,
+            "min": 7800.0,
+            "max": 8787.5,
+            "n": 16,
+            "sd": 292.2925
         },
         {
             "id": "rotatory.audit_record",
@@ -1422,12 +1381,12 @@
             "unit": "ns",
             "better": "lower",
             "source": "ab-current",
-            "mean": 562.2,
-            "median": 556.1,
-            "min": 541.4,
-            "max": 586.4,
-            "n": 8,
-            "sd": 19.0601,
+            "mean": 572.9533,
+            "median": 582.4,
+            "min": 541.0,
+            "max": 628.0,
+            "n": 15,
+            "sd": 26.7972,
             "headline": true
         },
         {
@@ -1440,12 +1399,12 @@
             "unit": "ns",
             "better": "lower",
             "source": "ab-current",
-            "mean": 1242.175,
-            "median": 1244.2,
-            "min": 1228.8,
-            "max": 1255.7,
-            "n": 8,
-            "sd": 9.3408,
+            "mean": 1261.8133,
+            "median": 1252.6,
+            "min": 1222.3,
+            "max": 1386.9,
+            "n": 15,
+            "sd": 41.6859,
             "headline": true
         },
         {
@@ -1458,12 +1417,12 @@
             "unit": "ns",
             "better": "lower",
             "source": "ab-current",
-            "mean": 530.8625,
-            "median": 530.0,
-            "min": 528.5,
-            "max": 536.8,
-            "n": 8,
-            "sd": 2.6656
+            "mean": 540.78,
+            "median": 538.5,
+            "min": 524.9,
+            "max": 584.6,
+            "n": 15,
+            "sd": 17.1727
         },
         {
             "id": "rotatory.log_record",
@@ -1475,12 +1434,12 @@
             "unit": "ns",
             "better": "lower",
             "source": "ab-current",
-            "mean": 377.625,
-            "median": 378.3,
-            "min": 368.5,
-            "max": 385.0,
-            "n": 8,
-            "sd": 5.0352,
+            "mean": 382.58,
+            "median": 374.1,
+            "min": 366.2,
+            "max": 440.7,
+            "n": 15,
+            "sd": 22.0711,
             "headline": true
         },
         {
@@ -1493,12 +1452,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 2.3462,
-            "median": 2.343,
-            "min": 2.277,
-            "max": 2.427,
+            "mean": 2.364,
+            "median": 2.3505,
+            "min": 2.22,
+            "max": 2.657,
             "n": 24,
-            "sd": 0.045,
+            "sd": 0.0911,
             "headline": true
         },
         {
@@ -1511,12 +1470,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 7.5945,
-            "median": 7.586,
-            "min": 7.349,
-            "max": 8.236,
+            "mean": 7.6199,
+            "median": 7.599,
+            "min": 7.425,
+            "max": 7.981,
             "n": 24,
-            "sd": 0.2038,
+            "sd": 0.1516,
             "headline": true
         },
         {
@@ -1529,12 +1488,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 7.467,
-            "median": 7.4265,
-            "min": 7.173,
-            "max": 8.601,
+            "mean": 7.4823,
+            "median": 7.454,
+            "min": 7.219,
+            "max": 8.037,
             "n": 24,
-            "sd": 0.2832,
+            "sd": 0.1719,
             "headline": true
         },
         {
@@ -1547,12 +1506,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 63.4936,
-            "median": 63.017,
-            "min": 61.355,
-            "max": 66.986,
+            "mean": 64.2373,
+            "median": 63.948,
+            "min": 61.33,
+            "max": 70.43,
             "n": 24,
-            "sd": 1.6717,
+            "sd": 2.3471,
             "headline": true
         },
         {
@@ -1565,12 +1524,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 283.8844,
-            "median": 282.603,
-            "min": 274.377,
-            "max": 314.518,
+            "mean": 287.1991,
+            "median": 285.4435,
+            "min": 277.898,
+            "max": 305.906,
             "n": 24,
-            "sd": 10.2356
+            "sd": 8.2358
         },
         {
             "id": "treedb.delete_force",
@@ -1582,12 +1541,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 43.9186,
-            "median": 43.3925,
-            "min": 42.465,
-            "max": 48.516,
+            "mean": 44.5233,
+            "median": 43.6555,
+            "min": 42.61,
+            "max": 54.889,
             "n": 24,
-            "sd": 1.4159,
+            "sd": 2.6473,
             "headline": true
         },
         {
@@ -1600,12 +1559,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 2283.6307,
-            "median": 2266.1585,
-            "min": 2188.189,
-            "max": 2644.549,
+            "mean": 2342.9722,
+            "median": 2263.5915,
+            "min": 2192.228,
+            "max": 2958.673,
             "n": 24,
-            "sd": 91.3376
+            "sd": 190.0696
         },
         {
             "id": "tr2.build_appends",
@@ -1617,12 +1576,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 1584.9755,
-            "median": 1591.7845,
-            "min": 1561.087,
-            "max": 1603.762,
-            "n": 8,
-            "sd": 16.3374
+            "mean": 1623.8319,
+            "median": 1611.4295,
+            "min": 1564.36,
+            "max": 1813.249,
+            "n": 24,
+            "sd": 57.9632
         },
         {
             "id": "tr2.open_master",
@@ -1634,12 +1593,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 79.4099,
-            "median": 79.151,
-            "min": 77.927,
-            "max": 81.384,
-            "n": 8,
-            "sd": 1.2211
+            "mean": 81.1428,
+            "median": 80.6275,
+            "min": 77.916,
+            "max": 88.897,
+            "n": 24,
+            "sd": 3.2311
         },
         {
             "id": "tr2.open_replica",
@@ -1651,12 +1610,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 93.187,
-            "median": 93.1475,
-            "min": 91.276,
-            "max": 95.555,
-            "n": 8,
-            "sd": 1.4039
+            "mean": 94.3626,
+            "median": 94.442,
+            "min": 91.77,
+            "max": 103.983,
+            "n": 24,
+            "sd": 2.7278
         },
         {
             "id": "tr2.create_topic",
@@ -1668,12 +1627,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 145.9374,
-            "median": 143.3995,
-            "min": 116.878,
-            "max": 169.183,
-            "n": 8,
-            "sd": 18.8008
+            "mean": 142.4518,
+            "median": 142.413,
+            "min": 106.086,
+            "max": 165.899,
+            "n": 24,
+            "sd": 14.2992
         },
         {
             "id": "tr2.topic_version_change",
@@ -1685,12 +1644,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 249.7366,
-            "median": 239.4495,
-            "min": 226.983,
-            "max": 292.672,
-            "n": 8,
-            "sd": 24.7589
+            "mean": 254.1582,
+            "median": 247.701,
+            "min": 208.484,
+            "max": 300.735,
+            "n": 24,
+            "sd": 29.7583
         },
         {
             "id": "tr2.tm_build_appends",
@@ -1702,12 +1661,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 1654.7265,
-            "median": 1666.7165,
-            "min": 1619.332,
-            "max": 1688.705,
-            "n": 8,
-            "sd": 28.1301
+            "mean": 1688.1943,
+            "median": 1693.743,
+            "min": 1632.986,
+            "max": 1806.559,
+            "n": 24,
+            "sd": 40.3406
         },
         {
             "id": "tr2.tm_query",
@@ -1719,12 +1678,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 12.7185,
-            "median": 12.791,
-            "min": 12.275,
-            "max": 12.944,
-            "n": 8,
-            "sd": 0.247
+            "mean": 13.1777,
+            "median": 13.1305,
+            "min": 12.722,
+            "max": 14.243,
+            "n": 24,
+            "sd": 0.4053
         },
         {
             "id": "tr2.append_rate_store",
@@ -1737,12 +1696,12 @@
             "better": "higher",
             "source": "ab-current",
             "derived": "ops / seconds of build_appends",
-            "mean": 252393.3932,
-            "median": 251290.5693,
-            "min": 249413.5664,
-            "max": 256231.7155,
-            "n": 8,
-            "sd": 2612.4166,
+            "mean": 246614.1575,
+            "median": 248226.8703,
+            "min": 220598.4947,
+            "max": 255695.6199,
+            "n": 24,
+            "sd": 8288.8333,
             "headline": true
         },
         {
@@ -1756,12 +1715,12 @@
             "better": "higher",
             "source": "ab-current",
             "derived": "ops / seconds of tm_build_appends",
-            "mean": 362689.883,
-            "median": 359989.5851,
-            "min": 355301.8437,
-            "max": 370523.154,
-            "n": 8,
-            "sd": 6198.395,
+            "mean": 355600.0131,
+            "median": 354245.0489,
+            "min": 332123.1136,
+            "max": 367425.0728,
+            "n": 24,
+            "sd": 8332.3314,
             "headline": true
         },
         {
@@ -1774,12 +1733,12 @@
             "unit": "records/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 220260.75,
-            "median": 221061.0,
-            "min": 214781.0,
-            "max": 225475.0,
-            "n": 8,
-            "sd": 4796.3554,
+            "mean": 216080.0625,
+            "median": 216386.0,
+            "min": 200971.0,
+            "max": 225492.0,
+            "n": 16,
+            "sd": 8155.0946,
             "headline": true
         },
         {
@@ -1792,12 +1751,12 @@
             "unit": "records/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 194504.625,
-            "median": 193994.0,
-            "min": 190310.0,
-            "max": 202802.0,
-            "n": 8,
-            "sd": 3879.8683,
+            "mean": 193623.8125,
+            "median": 194992.5,
+            "min": 177556.0,
+            "max": 204096.0,
+            "n": 16,
+            "sd": 7996.9643,
             "headline": true
         },
         {
@@ -1810,12 +1769,12 @@
             "unit": "s",
             "better": "lower",
             "source": "ab-current",
-            "mean": 0.3498,
-            "median": 0.3478,
-            "min": 0.3368,
-            "max": 0.3661,
-            "n": 8,
-            "sd": 0.0091,
+            "mean": 0.3739,
+            "median": 0.3506,
+            "min": 0.3297,
+            "max": 0.5806,
+            "n": 16,
+            "sd": 0.0621,
             "headline": true
         },
         {
@@ -1828,12 +1787,12 @@
             "unit": "s",
             "better": "lower",
             "source": "ab-current",
-            "mean": 10.7627,
-            "median": 10.8768,
-            "min": 10.2348,
-            "max": 11.189,
-            "n": 8,
-            "sd": 0.3845
+            "mean": 10.7936,
+            "median": 10.707,
+            "min": 10.1857,
+            "max": 11.9331,
+            "n": 16,
+            "sd": 0.5166
         },
         {
             "id": "ctreedb.newer_literal",
@@ -1845,12 +1804,12 @@
             "unit": "s",
             "better": "lower",
             "source": "ab-current",
-            "mean": 13.2405,
-            "median": 13.0945,
-            "min": 12.4484,
-            "max": 14.6201,
-            "n": 8,
-            "sd": 0.6665
+            "mean": 12.9973,
+            "median": 12.7809,
+            "min": 11.9821,
+            "max": 14.2568,
+            "n": 16,
+            "sd": 0.5833
         },
         {
             "id": "tr2.append_rate",
@@ -1862,12 +1821,12 @@
             "unit": "appends/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 231469.625,
-            "median": 230442.5,
-            "min": 225960.0,
-            "max": 235473.0,
-            "n": 8,
-            "sd": 3242.1802,
+            "mean": 226311.375,
+            "median": 227290.5,
+            "min": 209773.0,
+            "max": 236555.0,
+            "n": 16,
+            "sd": 8667.8215,
             "headline": true
         },
         {
@@ -1880,12 +1839,12 @@
             "unit": "appends/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 195656.125,
-            "median": 194962.0,
-            "min": 191891.0,
-            "max": 201009.0,
-            "n": 8,
-            "sd": 2765.7011
+            "mean": 193185.4375,
+            "median": 193776.5,
+            "min": 177424.0,
+            "max": 200037.0,
+            "n": 16,
+            "sd": 6565.5179
         },
         {
             "id": "tr2.read_page1_replica",
@@ -1897,12 +1856,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 6.0781,
-            "median": 6.07,
-            "min": 5.875,
-            "max": 6.544,
-            "n": 24,
-            "sd": 0.1369
+            "mean": 6.1959,
+            "median": 6.1555,
+            "min": 5.885,
+            "max": 8.104,
+            "n": 48,
+            "sd": 0.3163
         },
         {
             "id": "tr2.read_page1_filtered_replica",
@@ -1914,12 +1873,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 4.8592,
-            "median": 4.8655,
-            "min": 4.728,
-            "max": 4.974,
-            "n": 24,
-            "sd": 0.0795
+            "mean": 4.9538,
+            "median": 4.9495,
+            "min": 4.752,
+            "max": 5.277,
+            "n": 48,
+            "sd": 0.1095
         },
         {
             "id": "tr2.read_open_replica",
@@ -1931,12 +1890,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 17.3347,
-            "median": 17.3225,
-            "min": 16.725,
-            "max": 18.322,
-            "n": 24,
-            "sd": 0.408
+            "mean": 17.6785,
+            "median": 17.562,
+            "min": 16.577,
+            "max": 20.435,
+            "n": 48,
+            "sd": 0.6849
         },
         {
             "id": "tr2.read_open_filtered_replica",
@@ -1948,12 +1907,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 12.6853,
-            "median": 12.655,
-            "min": 12.27,
-            "max": 13.78,
-            "n": 24,
-            "sd": 0.3024
+            "mean": 12.7719,
+            "median": 12.797,
+            "min": 12.013,
+            "max": 14.562,
+            "n": 48,
+            "sd": 0.3856
         },
         {
             "id": "tr2.read_page100_replica",
@@ -1965,12 +1924,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 264.0608,
-            "median": 265.267,
-            "min": 255.754,
-            "max": 270.518,
-            "n": 24,
-            "sd": 4.8897
+            "mean": 268.0945,
+            "median": 269.0095,
+            "min": 254.936,
+            "max": 282.984,
+            "n": 48,
+            "sd": 5.2866
         },
         {
             "id": "tr2.read_page1_master",
@@ -1982,12 +1941,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 5.1289,
-            "median": 5.129,
-            "min": 4.971,
-            "max": 5.342,
-            "n": 24,
-            "sd": 0.0998
+            "mean": 5.2105,
+            "median": 5.2105,
+            "min": 4.983,
+            "max": 5.739,
+            "n": 48,
+            "sd": 0.1284
         },
         {
             "id": "tr2.read_page1_filtered_master",
@@ -1999,12 +1958,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 4.0555,
-            "median": 4.029,
+            "mean": 4.1052,
+            "median": 4.0885,
             "min": 3.932,
-            "max": 4.543,
-            "n": 24,
-            "sd": 0.1233
+            "max": 4.479,
+            "n": 48,
+            "sd": 0.1244
         },
         {
             "id": "tr2.read_open_master",
@@ -2016,12 +1975,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 16.0914,
-            "median": 16.0155,
-            "min": 15.426,
-            "max": 17.122,
-            "n": 24,
-            "sd": 0.4741
+            "mean": 16.3961,
+            "median": 16.2905,
+            "min": 15.338,
+            "max": 20.748,
+            "n": 48,
+            "sd": 0.8203
         },
         {
             "id": "tr2.read_open_filtered_master",
@@ -2033,12 +1992,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 11.5958,
-            "median": 11.6595,
-            "min": 10.934,
-            "max": 12.713,
-            "n": 24,
-            "sd": 0.4136
+            "mean": 11.6816,
+            "median": 11.613,
+            "min": 10.833,
+            "max": 13.293,
+            "n": 48,
+            "sd": 0.4715
         },
         {
             "id": "tr2.read_page100_master",
@@ -2050,12 +2009,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 262.7552,
-            "median": 263.2735,
-            "min": 253.196,
-            "max": 285.866,
-            "n": 24,
-            "sd": 7.1347
+            "mean": 267.5937,
+            "median": 266.359,
+            "min": 253.448,
+            "max": 313.399,
+            "n": 48,
+            "sd": 9.9397
         }
     ],
     "binaries": [
