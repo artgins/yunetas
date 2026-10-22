@@ -11,6 +11,49 @@
   and says so, and its closing notes say what WOULD happen (they said the
   yunos were killed and the slots made).
 
+- **A filtered iterator with a negative rowid bound keeps its rows across a
+  purge** (timeranger2; appeared in 7.27.5). An iterator opened with
+  `from_rowid = -N` (or a negative `to_rowid`) indexes the last N rows of
+  the key. Since 7.27.5 a purge keeps that index and takes the segments
+  again, and the bound was resolved again against the end of the key as it
+  was THEN: when rows had come since the open, the segments no longer held
+  the indexed rows, and every page came back empty with an ERROR
+  *"indexed rowid without segment"*, on the master and on a replica. The
+  row view of gui_treedb opens with `from_rowid=-100`. A negative rowid
+  bound is now resolved once, at the open, and written back into the
+  iterator's match_cond, as a negative `from_t` already was.
+- **A link of a dead feed that cannot be removed is retried** (timeranger2,
+  `tranger2_delete_key_files()`; appeared in 7.27.5). The purge removed the
+  files of `keys/<key>/` first and the hard links in `disks/<rt_id>/<key>/`
+  after; the next open of the master looks for what is left in `keys/` only,
+  so a link left by a crash between the two, or by an `unlink()` that
+  failed, was never removed, and kept the disk of the file in use. The
+  links now go first, and while one of them stays, so do the files of the
+  period: the next open of the master removes both. The messages of a link
+  that cannot be removed say so (*"... the files of the period stay,
+  removed at the next open"*).
+- **A replica that fails to read the base of a key for a passing cause
+  reads it again** (timeranger2; appeared in 7.27.5). A `.purged` that
+  could not be read when the cache of a key was built flags the key, and a
+  load tried it again only when the directory or the `.purged` changed. An
+  EMFILE, ENFILE, ENOMEM, EIO, EINTR or EAGAIN changes nothing on disk:
+  the key stayed flagged, every load of it empty with `load_failed`, until a
+  new file or a new purge. The errno of the failure is now kept with the
+  flag, and a passing one is tried again at every load. A cause that stays
+  (a file that is not a base, EACCES) is still not read again at every load.
+- **A replica that builds the cache of a key while the master purges it
+  numbers it as the master** (timeranger2; appeared in 7.27.5). A md2 file
+  listed and gone when it was opened was flagged unreadable, and the key
+  was numbered without its rows, below the master, until a read applied the
+  purge and renumbered it with no word. The base is now read again: when it
+  covers the file, it is the base of the key and the file is no flag (INFO
+  *"md2 file of the key purged by the master while its cache was built:
+  its rows are in the base, read again"*). And a purge that renumbers a
+  replica says so every time, with a WARNING *"The numbering of the key
+  moved to the master's: the records handed before had g_rowids below the
+  master's"* and its `cause` and `delta`; it was said only when the purge
+  had waited for its base.
+
 ## v7.27.6 (2026-10-21)
 
 A patch release with one fix of timeranger2. A delete of a key that fails

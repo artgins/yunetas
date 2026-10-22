@@ -17,7 +17,9 @@
  *        is left;
  *      - an append into a purged period is refused;
  *      - the guards: a cut in the future, a mask with no year;
- *      - the hard link a dead feed left is removed with its file;
+ *      - the hard link a dead feed left is removed with its file; one that
+ *        cannot be removed keeps the files of the period, and the next
+ *        open of the master removes both;
  *      - a key purged whole keeps its base and goes on numbering;
  *      - a purge cut by a crash (the base written, the files still there)
  *        is finished by the open of the master, and skipped by a replica;
@@ -30,7 +32,10 @@
  *        topic of a treedb, are refused;
  *      - a delete of a key purged whole that fails keeps the key and its
  *        base: its next record goes on numbering, not from 1;
- *      - tranger2_delete_key() takes the base with the key.
+ *      - tranger2_delete_key() takes the base with the key;
+ *      - a filtered iterator opened with a NEGATIVE rowid bound keeps the
+ *        rows it indexed when the key grows and then its old files are
+ *        purged: the bound is resolved once, at the open.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -60,6 +65,8 @@
 #define KEY2        "0000000000000000002"   // a purge cut by a crash
 #define KEY3        "0000000000000000003"   // a .purged.new left, a .purged that cannot be read
 #define KEY4        "0000000000000000004"   // pages across a purge
+#define KEY5        "0000000000000000005"   // a negative rowid bound across appends and a purge
+#define KEY6        "0000000000000000006"   // a link of a dead feed that cannot be removed
 #define TOPIC_DMY   "topic_delete_key_files_dmy"
 #define DAY1        946684800   // 2000-01-01
 #define DAY2        (DAY1 + 86400)
@@ -480,6 +487,67 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*-------------------------------------*
+     *  A link of a dead feed that cannot be
+     *  removed: the files of the period stay,
+     *  and the next open removes them all
+     *-------------------------------------*/
+    if(geteuid() != 0) {
+        set_expected_results(
+            "delete key files: a link that cannot be removed",
+            json_pack("[{s:s}]",
+                "msg", "Cannot remove a feed's link of a purged period, unlink() FAILED: the files of the period stay, removed at the next open"
+            ),
+            NULL, NULL, 1
+        );
+        append_one(tm, TOPIC_NAME, 6, DAY1, "A1");
+        append_one(tm, TOPIC_NAME, 6, DAY1 + 1, "A2");
+        append_one(tm, TOPIC_NAME, 6, DAY2, "B1");
+        char dead6_dir[PATH_MAX];
+        char dead6_link[PATH_MAX];
+        char md2_6[PATH_MAX];
+        build_path(dead6_dir, sizeof(dead6_dir), path_database, TOPIC_NAME, "disks", "rt_dead6", KEY6, NULL);
+        build_path(dead6_link, sizeof(dead6_link), dead6_dir, "2000-01-01.md2", NULL);
+        build_path(md2_6, sizeof(md2_6), path_database, TOPIC_NAME, "keys", KEY6, "2000-01-01.md2", NULL);
+        mkrdir(dead6_dir, 02770);
+        if(link(md2_6, dead6_link) < 0) {
+            printf("%sERROR%s --> cannot link %s\n", On_Red BWhite, Color_Off, dead6_link);
+            result += -1;
+        }
+        chmod(dead6_dir, 0550);
+        result += expect_int("rows deleted", tranger2_delete_key_files(tm, TOPIC_NAME, KEY6, DAY2), 2);
+        chmod(dead6_dir, 02770);
+        result += expect_int("the link stays", access(dead6_link, F_OK) == 0, 1);
+        result += expect_int("and so does the md2 of the period", key_file_exists(KEY6, "2000-01-01.md2"), 1);
+        served(tm, KEY6, json_object(), bf, sizeof(bf));
+        result += expect("served: the base counts the period", bf, "B1:3");
+        result += test_json(NULL);
+
+        set_expected_results(
+            "delete key files: the next open removes the link",
+            json_pack("[{s:s}]",
+                "msg", "Files of a purged period still on disk, a purge cut by a crash: removed now"
+            ),
+            NULL, NULL, 1
+        );
+        tranger2_shutdown(tm);
+        drain(10);
+        tm = startup_tranger(TRUE);
+        if(!tm || !tranger2_open_topic(tm, TOPIC_NAME, TRUE)) {
+            printf("%sERROR%s --> cannot reopen the master\n", On_Red BWhite, Color_Off);
+            if(tm) {
+                tranger2_shutdown(tm);
+            }
+            return -1;
+        }
+        result += expect_int("the link removed", access(dead6_link, F_OK) == 0, 0);
+        result += expect_int("the md2 removed", key_file_exists(KEY6, "2000-01-01.md2"), 0);
+        result += expect_int("the content removed", key_file_exists(KEY6, "2000-01-01.json"), 0);
+        served(tm, KEY6, json_object(), bf, sizeof(bf));
+        result += expect("served after the open", bf, "B1:3");
+        result += test_json(NULL);
+    }
+
+    /*-------------------------------------*
      *  A key purged whole
      *-------------------------------------*/
     set_expected_results("delete key files: a key purged whole", NULL, NULL, NULL, 1);
@@ -682,6 +750,63 @@ PRIVATE int do_test(void)
         result += expect_int("its size: its 4 positions, empty", (json_int_t)tranger2_iterator_size(it_new), 4);
         paged(tm, it_new, 1, 4, bf, sizeof(bf));
         result += expect("its page", bf, "");
+        tranger2_close_iterator(tm, it_new);
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A negative rowid bound, then rows
+     *  appended, then a purge: the bound
+     *  is the one the open resolved
+     *-------------------------------------*/
+    set_expected_results("delete key files: a negative rowid bound across a purge", NULL, NULL, NULL, 1);
+    {
+        char content[8];
+        for(int d = 0; d < 3; d++) {
+            for(int r = 0; r < 3; r++) {
+                snprintf(content, sizeof(content), "%c%d", 'A' + d, r + 1);
+                append_one(tm, TOPIC_NAME, 5, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
+            }
+        }
+        json_t *it_from = tranger2_open_iterator(
+            tm, TOPIC_NAME, KEY5, json_pack("{s:I}", "from_rowid", (json_int_t)-4),
+            NULL, "neg_from", "", NULL, NULL
+        );
+        json_t *it_both = tranger2_open_iterator(
+            tm, TOPIC_NAME, KEY5,
+            json_pack("{s:I, s:I}", "from_rowid", (json_int_t)-5, "to_rowid", (json_int_t)-2),
+            NULL, "neg_both", "", NULL, NULL
+        );
+        paged(tm, it_from, 1, 10, bf, sizeof(bf));
+        result += expect("from -4, at the open", bf, "B3:6 C1:7 C2:8 C3:9");
+        paged(tm, it_both, 1, 10, bf, sizeof(bf));
+        result += expect("from -5 to -2, at the open", bf, "B2:5 B3:6 C1:7 C2:8");
+        for(int r = 0; r < 4; r++) {
+            snprintf(content, sizeof(content), "D%d", r + 1);
+            append_one(tm, TOPIC_NAME, 5, DAY4 + (uint64_t)r, content);
+        }
+        result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY5, DAY2), 3);
+        paged(tm, it_from, 1, 10, bf, sizeof(bf));
+        result += expect("from -4, after the appends and the purge", bf, "B3:6 C1:7 C2:8 C3:9");
+        result += expect_int("from -4, its size", (json_int_t)tranger2_iterator_size(it_from), 4);
+        {
+            json_t *page = tranger2_iterator_get_page(tm, it_from, 1, 10, TRUE);
+            records_str(json_object_get(page, "data"), bf, sizeof(bf));
+            JSON_DECREF(page)
+        }
+        result += expect("from -4, backward", bf, "C3:9 C2:8 C1:7 B3:6");
+        paged(tm, it_both, 1, 10, bf, sizeof(bf));
+        result += expect("from -5 to -2, after the appends and the purge", bf, "B2:5 B3:6 C1:7 C2:8");
+        tranger2_close_iterator(tm, it_from);
+        tranger2_close_iterator(tm, it_both);
+
+        /*  A new open resolves against the key as it is now  */
+        json_t *it_new = tranger2_open_iterator(
+            tm, TOPIC_NAME, KEY5, json_pack("{s:I}", "from_rowid", (json_int_t)-4),
+            NULL, "neg_new", "", NULL, NULL
+        );
+        paged(tm, it_new, 1, 10, bf, sizeof(bf));
+        result += expect("from -4, opened after", bf, "D1:10 D2:11 D3:12 D4:13");
         tranger2_close_iterator(tm, it_new);
     }
     result += test_json(NULL);

@@ -1028,6 +1028,13 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     are expressed in the TOPIC's own unit: seconds, or milliseconds when the
     topic sets sf_t_ms / sf_tm_ms.
 
+    A NEGATIVE bound counts from the key's end AS THE ITERATOR OPENS, and is
+    resolved then, once: `from_rowid = -4` is the last 4 rows of the key at
+    the open, and stays those rows when the key grows or its old files are
+    purged (the iterator's match_cond holds the absolute value). The same for
+    `to_rowid`, and for `from_t` / `to_t` / `from_tm` / `to_tm`, relative to
+    the t / tm of the key's last record.
+
     Every condition above is honored per RECORD, in both modes of the iterator:
       - LOADING (a load_record_callback and/or `data`): each record is matched
         as the history is walked.

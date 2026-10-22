@@ -157,7 +157,8 @@ if(rows < 0) {
   "t": <when>}`). The live rowids of the key are `purged+1 .. purged+rows`;
   `tranger2_topic_key_size()` counts the live rows, and
   `tranger2_topic_key_range()` adds `"purged": N`. A rowid bound of a
-  match_cond counts from the base, and so do the positions of a page: position
+  match_cond counts from the base (a negative one from the end of the key AT
+  THE OPEN: it is resolved then, once), and so do the positions of a page: position
   N of an unfiltered iterator is `g_rowid = purged + N`, with the base the key
   had when the iterator OPENED. A purge since the open moves no position: the
   ones of the rows it took come back empty, so a client paging forward skips
@@ -171,18 +172,26 @@ if(rows < 0) {
   directory BEFORE any file is deleted. A crash before it leaves the key as it
   was (a `.purged.new` left is removed at the next open); a crash after it
   leaves files the base already counts, and the next open of the master
-  removes them. A replica skips them.
+  removes them. A replica skips them. The hard links a dead feed left of the
+  files (`disks/<rt_id>/<key>/<id>.md2`) go BEFORE the files of `keys/`, and
+  while one of them cannot be removed the files stay too: the next open finds
+  the files, and removes both.
 - **A base that cannot be read is no base of 0** (that would number the key
   from 1 again): when the cache of the key is built, the key is flagged
   `unlisted`, its loads say `load_failed`, and an append reads it again first,
-  or is refused. A replica that already holds the cells of the key is not
+  or is refused. A load reads it again when the directory or the base
+  changed, or when the read failed for a passing cause (EMFILE, ENFILE,
+  ENOMEM, EIO, EINTR, EAGAIN). A replica that already holds the cells of the key is not
   flagged: its cells sum the rows it counted of the files purged (the master's
   base, unless it missed a late row of them), so its numbering stays the
   master's and its new records keep coming; the cells whose files are gone go
   to its base meanwhile (the live rows are served, the disk freed), and the
   base is read again, quietly, at every read until it can be. A numbering that
-  then moves (rows it had missed) is said with a WARNING: the records handed
-  meanwhile had g_rowids below the master's.
+  then moves (rows it had missed, a file it flagged unreadable) is said with a
+  WARNING: the records handed before had g_rowids below the master's. A
+  replica that builds the cache of a key while the master purges it (a md2
+  listed and gone at its open) reads the base again, and numbers the key as
+  the master.
 - **Refused** (-1, logged, nothing deleted): a cut in the future (it would
   delete the file being written); a topic whose `filename_mask` gives ids that
   do not sort as time (`tranger2_mask_sorts_as_time()`: numeric fields of a

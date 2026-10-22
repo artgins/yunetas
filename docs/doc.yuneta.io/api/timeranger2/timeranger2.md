@@ -1208,7 +1208,14 @@ tranger2_delete_key_files(K, before_t = 2000-01-02T00:00:00)   -> 3
   removes the ones a crash left behind (and a `.purged.new`, a purge that did
   not happen), a replica skips them. A `.purged` that cannot be read flags the
   key `unlisted` (*"The base of a purged key cannot be read"*): it is not a base
-  of 0, which would number the key from 1 again.
+  of 0, which would number the key from 1 again. A load reads the base again
+  when the directory or the base changed, or when the read failed for a
+  passing cause (EMFILE, ENFILE, ENOMEM, EIO, EINTR, EAGAIN: up to 7.27.6 such
+  a key stayed flagged, every load of it empty). A replica that lists a key
+  while the master purges it, and finds a md2 gone at its open, reads the base
+  again; when it covers the file the replica numbers the key as the master
+  (INFO *"md2 file of the key purged by the master while its cache was built:
+  its rows are in the base, read again"*).
 - **Followers.** The master makes and removes `disks/<rt_id>/.p.<key>`
   (`.q.<sha256>` for a key longer than NAME_MAX - 23 bytes) in every feed
   directory. A follower that hears it reads the base, drops the cells at or
@@ -1219,12 +1226,21 @@ tranger2_delete_key_files(K, before_t = 2000-01-02T00:00:00)   -> 3
   flagged: it keeps its numbering (its cells sum the master's base, unless it
   missed a late row of the files purged) and its new records, drops the
   cells whose files are gone, and reads the base again at every read until it
-  can; a numbering that moves then is said with a WARNING. Master and
+  can. A purge that moves the numbering of a follower (rows it had missed, a
+  file it flagged unreadable) is said with a WARNING, *"The numbering of the
+  key moved to the master's: the records handed before had g_rowids below the
+  master's"*, with its `cause` and `delta`. Master and
   followers of a topic upgrade together: an older follower ignores the
   signal.
 - **Cost.** One small file and two `fsync()` per key purged, and two or three
   unlinks per file: 0.9 to 1.8 ms per key on the two yunovatios VMs. The hard
-  links `disks/<rt_id>/<key>/<id>.md2` that a dead feed left are removed too.
+  links `disks/<rt_id>/<key>/<id>.md2` that a dead feed left are removed too,
+  BEFORE the files of `keys/`: while one of them cannot be removed (*"Cannot
+  remove a feed's link of a purged period, unlink() FAILED: the files of the
+  period stay, removed at the next open"*), the files of the period stay as
+  well, and the next open of the master removes both. Up to 7.27.6 the files
+  went first, and a link left by a crash or a failed `unlink()` was never
+  removed.
 - When the directory of the base cannot be `fsync()`ed after its rename, the
   purge is applied (the cache and the followers take it) but the files stay
   until the next open, and the call answers `-1`.
@@ -2275,6 +2291,27 @@ json_t *match_cond = json_pack("{s:I}",
 Up to 7.25.22 a negative bound reached the comparison raw, against an unsigned
 `__t__`, and no record matched -- without a word. (Before v7 it already meant
 "relative to the last record"; that is the meaning restored.)
+
+A **negative** `from_rowid` / `to_rowid` counts rows from the key's end: `-1` is
+its last live row. It is resolved the same way, once, when the iterator opens,
+and written back into its `match_cond` as the absolute `g_rowid`. So a filtered
+iterator opened with `from_rowid = -4` indexes the last 4 rows of the key at its
+open, and pages those 4 rows when the key grows and when its old files are
+purged later ([`tranger2_delete_key_files()`](#tranger2_delete_key_files)). A
+new open takes the last 4 rows of the key as it is then:
+
+```C
+json_t *it = tranger2_open_iterator(tranger, "tracks", key,
+    json_pack("{s:I}", "from_rowid", (json_int_t)-4),  // rows 6..9 of a key of 9 rows
+    NULL, "last4", "", NULL, NULL
+);
+/*  4 more rows appended, then the old files purged: its pages still give 6..9  */
+json_t *page = tranger2_iterator_get_page(tranger, it, 1, 10, FALSE);
+```
+
+In 7.27.5 and 7.27.6 the bound was resolved again when a purge took the
+segments again: with rows appended since the open, the pages came back empty
+with *"indexed rowid without segment"*.
 
 The two axes are not ordered the same way, and the scan knows it:
 

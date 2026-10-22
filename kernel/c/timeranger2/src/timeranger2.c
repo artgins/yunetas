@@ -546,13 +546,15 @@ PRIVATE BOOL md2_path_of(
 PRIVATE json_t *read_key_purged(
     hgobj gobj,
     const char *key_directory,
-    BOOL say
+    BOOL say,
+    int *read_errno
 );
 PRIVATE void flag_key_purged_unreadable(
     hgobj gobj,
     json_t *key_cache,
     const char *topic_directory,
-    const char *key
+    const char *key,
+    int read_errno
 );
 PRIVATE int remove_purged_files(
     hgobj gobj,
@@ -5393,7 +5395,7 @@ PRIVATE void apply_purge_of_master(
     }
     json_t *failed_state = json_object_get(key_cache, "purged_read_failed");
     BOOL say = (!failed_state || !json_equal(failed_state, jn_state))? TRUE : FALSE;
-    json_t *jn_purged = read_key_purged(gobj, key_directory, say);
+    json_t *jn_purged = read_key_purged(gobj, key_directory, say, NULL);
     if(!jn_purged) {
         if(say) {
             gobj_log_error(gobj, 0,
@@ -5465,23 +5467,27 @@ PRIVATE void apply_purge_of_master(
 
     json_int_t delta = (purged - old_purged) - rows_removed;
     if(delta != 0) {
-        if(waited) {
-            /*
-             *  The records this replica handed while the purge waited were
-             *  numbered without the rows it had missed of the files purged:
-             *  their g_rowids are `delta` below the master's (a consumer that
-             *  dedups by them may meet the same number twice)
-             */
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TRANGER,
-                "msg",          "%s", "The purge waited for its base and the numbering moved: the records handed meanwhile had g_rowids below the master's",
-                "topic",        "%s", tranger2_topic_name(topic),
-                "key",          "%s", key,
-                "delta",        "%ld", (long)delta,
-                NULL
-            );
-        }
+        /*
+         *  The records this replica handed before were numbered without the
+         *  rows it had not counted of the files purged (a purge that waited
+         *  for its base and missed late rows, a file it flagged unreadable,
+         *  a file purged while it built the key's cache): their g_rowids are
+         *  `delta` below the master's, and a consumer that dedups by them may
+         *  meet the same number twice. Up to 7.27.6 it was said only when the
+         *  purge had waited
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "The numbering of the key moved to the master's: the records handed before had g_rowids below the master's",
+            "cause",        "%s", waited?
+                "the purge waited for its base" :
+                "rows of the files purged that this replica had not counted",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "delta",        "%ld", (long)delta,
+            NULL
+        );
         /*
          *  Counted in the totals (`renumbered`, from tranger2_topic_key_range()):
          *  whoever keeps positions of the key outside its iterators (the parts
@@ -12017,6 +12023,25 @@ PRIVATE void note_unlisted_state(
 }
 
 /***************************************************************************
+ *  TRUE for the errno of a read that may work the next time with nothing
+ *  changed on disk: no descriptor, no memory, an i/o error.
+ ***************************************************************************/
+PRIVATE BOOL errno_is_transient(int err)
+{
+    switch(err) {
+        case EIO:
+        case EMFILE:
+        case ENFILE:
+        case ENOMEM:
+        case EINTR:
+        case EAGAIN:
+            return TRUE;
+        default:
+            return FALSE;
+    }
+}
+
+/***************************************************************************
  *  TRUE when the cause of a key's unlisted flag may be gone: its
  *  directory changed since it was flagged (its mode, its entries: ctime),
  *  or it could not be opened then and can be opened now. Silent: a
@@ -12049,8 +12074,15 @@ PRIVATE BOOL key_dir_flag_cause_gone(json_t *topic, const char *key)
         /*
          *  Flagged for its base (flag_key_purged_unreadable()): tried again
          *  when the base changed. The same file is not read again at every
-         *  load (an append still reads the key again: relist_key_before_append)
+         *  load (an append still reads the key again: relist_key_before_append),
+         *  unless what failed was the read itself, for a cause that goes away
+         *  and changes nothing on disk: up to 7.27.6 an EMFILE kept the key of
+         *  a replica flagged, every load of it empty, until a new file or a
+         *  new purge (DESIGN-retention.md §4.4)
          */
+        if(errno_is_transient((int)json_integer_value(json_object_get(state, "purged_errno")))) {
+            return TRUE;
+        }
         char purged_path[PATH_MAX];
         struct stat st_purged;
         if(build_path(purged_path, sizeof(purged_path), path, PURGED_FILENAME, NULL) &&
@@ -12528,13 +12560,19 @@ PRIVATE void cut_back_content(
  *       "t": <when the last purge happened>}
  *  Return it (owned), or NULL (logged) when it cannot be read or does not
  *  say what a base says. Called only when the listing of the key has it.
+ *  `read_errno` (optional) gets the errno of a file that could not be
+ *  read, 0 for a file read that says no base.
  ***************************************************************************/
 PRIVATE json_t *read_key_purged(
     hgobj gobj,
     const char *key_directory,
-    BOOL say        // FALSE: a failure said already, quiet
+    BOOL say,       // FALSE: a failure said already, quiet
+    int *read_errno
 )
 {
+    if(read_errno) {
+        *read_errno = 0;
+    }
     char path[PATH_MAX];
     if(!build_path(path, sizeof(path), key_directory, PURGED_FILENAME, NULL)) {
         return NULL;    // Error already logged
@@ -12544,6 +12582,9 @@ PRIVATE json_t *read_key_purged(
     json_t *jn_purged = json_load_file(path, 0, &error);
     if(!jn_purged) {
         int last_errno = errno;
+        if(read_errno) {
+            *read_errno = last_errno;
+        }
         if(!say) {
             return NULL;
         }
@@ -12586,13 +12627,16 @@ PRIVATE json_t *read_key_purged(
  *  unlisted, as a key whose directory cannot be listed -- every load of it
  *  says load_failed, and an append into it reads the key again first, or
  *  is refused. The state of the `.purged` is noted beside the directory's,
- *  so a load tries again once it changed (key_dir_flag_cause_gone()).
+ *  so a load tries again once it changed (key_dir_flag_cause_gone()), and
+ *  so is the errno of a file that could not be read: a transient one is
+ *  tried again at every load.
  ***************************************************************************/
 PRIVATE void flag_key_purged_unreadable(
     hgobj gobj,
     json_t *key_cache,
     const char *topic_directory,
-    const char *key
+    const char *key,
+    int read_errno      // 0: the file was read, and says no base
 )
 {
     gobj_log_error(gobj, 0,
@@ -12611,6 +12655,9 @@ PRIVATE void flag_key_purged_unreadable(
         return; // Error already logged
     }
     json_t *state = json_object_get(key_cache, "unlisted_state");
+    if(state && read_errno) {
+        json_object_set_new(state, "purged_errno", json_integer(read_errno));
+    }
     struct stat st;
     if(state && stat(path, &st) == 0) {
         json_object_set_new(state, "purged_ctime",
@@ -12620,11 +12667,98 @@ PRIVATE void flag_key_purged_unreadable(
 }
 
 /***************************************************************************
- *  Remove the files of a key that a purge deleted (`file_ids`): their
- *  content, their md2, the markers of the md2, and the hard links of the
- *  md2 that a feed has not consumed (`disks/<rt_id>/<key>/<id>.md2`: a
- *  dead follower leaves them, and they keep the inode, and the disk, in
+ *  Remove the hard links of the md2 files of a key that a purge deleted
+ *  (`file_ids`) and a feed has not consumed (`disks/<rt_id>/<key>/<id>.md2`:
+ *  a dead follower leaves them, and they keep the inode, and the disk, in
  *  use). What is not there is not an error.
+ *  Return the links that could not be removed (logged), 0 when none.
+ ***************************************************************************/
+PRIVATE int remove_purged_links(
+    hgobj gobj,
+    const char *topic_directory,
+    const char *key,
+    json_t *file_ids    // not owned
+)
+{
+    int failed = 0;
+    char disks_root[PATH_MAX];
+    if(!build_path(disks_root, sizeof(disks_root), topic_directory, "disks", NULL)) {
+        return 1;   // Error already logged
+    }
+    DIR *dir = opendir(disks_root);
+    if(!dir) {
+        if(errno != ENOENT) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot remove the feeds' links of a purged period, opendir() of disks/ FAILED: the files of the period stay, removed at the next open",
+                "path",         "%s", disks_root,
+                "key",          "%s", key,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            failed++;
+        }
+        return failed;
+    }
+    struct dirent *entry;
+    while((errno = 0, entry = readdir(dir)) != NULL) {
+        if(entry->d_name[0] == '.') {
+            continue;   // ".", "..", a signal, a feed being removed (no rt id starts with '.')
+        }
+        int idx; json_t *jn_file_id;
+        json_array_foreach(file_ids, idx, jn_file_id) {
+            char filename[NAME_MAX + 1];
+            char path[PATH_MAX];
+            if(snprintf(filename, sizeof(filename), "%s.md2", json_string_value(jn_file_id)) >= (int)sizeof(filename)) {
+                continue;   // a name no file can have
+            }
+            if(!build_path(path, sizeof(path), disks_root, entry->d_name, key, filename, NULL)) {
+                failed++;
+                continue;   // Error already logged
+            }
+            if(unlink(path) < 0 && errno != ENOENT && errno != ENOTDIR) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot remove a feed's link of a purged period, unlink() FAILED: the files of the period stay, removed at the next open",
+                    "path",         "%s", path,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+                failed++;
+            }
+        }
+    }
+    if(errno != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot remove every feed's link of a purged period, readdir() of disks/ FAILED: the files of the period stay, removed at the next open",
+            "path",         "%s", disks_root,
+            "key",          "%s", key,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        failed++;
+    }
+    closedir(dir);
+    return failed;
+}
+
+/***************************************************************************
+ *  Remove the files of a key that a purge deleted (`file_ids`): the hard
+ *  links of their md2 in the feeds' directories (remove_purged_links()),
+ *  THEN their content, their md2 and the markers of the md2. The open of
+ *  the master finishes a removal cut half way, and it finds the files to
+ *  remove in keys/<key>/ only: so the links go first, and while one of
+ *  them stays, so do the files of keys/ (up to 7.27.6 they went first, and
+ *  a link left by a crash or a failed unlink() between the two was never
+ *  removed: its inode kept the disk in use). What is not there is not an
+ *  error.
  *  Return the files that could not be removed (logged), 0 when none.
  ***************************************************************************/
 PRIVATE int remove_purged_files(
@@ -12635,7 +12769,11 @@ PRIVATE int remove_purged_files(
 )
 {
     static const char *suffixes[] = {".json", ".md2", ".unordered", ".tm_unordered", NULL};
-    int failed = 0;
+
+    int failed = remove_purged_links(gobj, topic_directory, key, file_ids);
+    if(failed > 0) {
+        return failed;  // Error already logged: the files stay, for the next open
+    }
 
     char key_directory[PATH_MAX];
     if(!build_path(key_directory, sizeof(key_directory), topic_directory, "keys", key, NULL)) {
@@ -12669,72 +12807,72 @@ PRIVATE int remove_purged_files(
             }
         }
     }
-
-    char disks_root[PATH_MAX];
-    if(!build_path(disks_root, sizeof(disks_root), topic_directory, "disks", NULL)) {
-        return failed + 1;  // Error already logged
-    }
-    DIR *dir = opendir(disks_root);
-    if(!dir) {
-        if(errno != ENOENT) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot remove the feeds' links of a purged period, opendir() of disks/ FAILED",
-                "path",         "%s", disks_root,
-                "key",          "%s", key,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
-            failed++;
-        }
-        return failed;
-    }
-    struct dirent *entry;
-    while((errno = 0, entry = readdir(dir)) != NULL) {
-        if(entry->d_name[0] == '.') {
-            continue;   // ".", "..", a signal, a feed being removed (no rt id starts with '.')
-        }
-        json_array_foreach(file_ids, idx, jn_file_id) {
-            char filename[NAME_MAX + 1];
-            char path[PATH_MAX];
-            if(snprintf(filename, sizeof(filename), "%s.md2", json_string_value(jn_file_id)) >= (int)sizeof(filename)) {
-                continue;   // a name no file can have
-            }
-            if(!build_path(path, sizeof(path), disks_root, entry->d_name, key, filename, NULL)) {
-                failed++;
-                continue;   // Error already logged
-            }
-            if(unlink(path) < 0 && errno != ENOENT && errno != ENOTDIR) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM,
-                    "msg",          "%s", "Cannot remove a feed's link of a purged period, unlink() FAILED: the disk of the file is not freed",
-                    "path",         "%s", path,
-                    "errno",        "%d", errno,
-                    "serrno",       "%s", strerror(errno),
-                    NULL
-                );
-                failed++;
-            }
-        }
-    }
-    if(errno != 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot remove every feed's link of a purged period, readdir() of disks/ FAILED",
-            "path",         "%s", disks_root,
-            "key",          "%s", key,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-        failed++;
-    }
-    closedir(dir);
     return failed;
+}
+
+/***************************************************************************
+ *  CLIENT, building the cache of a key: a md2 file listed and gone when it
+ *  was opened. The master may have purged it meanwhile: its base, read
+ *  again, covers the file. Then the base is the new one, the cells already
+ *  counted of the files it covers go (their rows are in it), and the file
+ *  is no flag. Up to 7.27.6 the file was flagged unreadable: the key was
+ *  numbered without its rows, below the master, until a read applied the
+ *  purge and renumbered it. Return TRUE when the base covers the file.
+ ***************************************************************************/
+PRIVATE BOOL purged_while_listed(
+    hgobj gobj,
+    json_t *key_cache,
+    const char *topic_directory,
+    const char *key,
+    const char *file_id
+)
+{
+    char md2_path[PATH_MAX];
+    if(!md2_path_of(md2_path, sizeof(md2_path), topic_directory, key, file_id)) {
+        return FALSE;   // Error already logged
+    }
+    if(access(md2_path, F_OK) == 0 || errno != ENOENT) {
+        return FALSE;   // there: not a purge
+    }
+    char key_directory[PATH_MAX];
+    if(!build_path(key_directory, sizeof(key_directory), topic_directory, "keys", key, NULL)) {
+        return FALSE;   // Error already logged
+    }
+    json_t *jn_purged = read_key_purged(gobj, key_directory, FALSE, NULL);
+    if(!jn_purged) {
+        return FALSE;   // no base, or none readable: the key deleted, or damage; the flag says it
+    }
+    const char *upto = json_string_value(json_object_get(jn_purged, "upto"));
+    if(cmp_file_ids(file_id, upto) > 0) {
+        JSON_DECREF(jn_purged)
+        return FALSE;
+    }
+
+    json_t *cache_files = json_object_get(key_cache, "files");
+    while(json_array_size(cache_files) > 0) {
+        const char *cell_id = json_string_value(json_object_get(json_array_get(cache_files, 0), "id"));
+        if(!cell_id || cmp_file_ids(cell_id, upto) > 0) {
+            break;
+        }
+        json_array_remove(cache_files, 0);
+    }
+    drop_flags_of_purged_files(key_cache, upto);
+    json_object_set_new(json_object_get(key_cache, "total"), "purged",
+        json_integer(json_integer_value(json_object_get(jn_purged, "rows")))
+    );
+
+    gobj_log_info(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_INFO,
+        "msg",              "%s", "md2 file of the key purged by the master while its cache was built: its rows are in the base, read again",
+        "topic_directory",  "%s", topic_directory,
+        "key",              "%s", key,
+        "file_id",          "%s", file_id,
+        "upto",             "%s", upto,
+        NULL
+    );
+    json_object_set_new(key_cache, "purged", jn_purged);
+    return TRUE;
 }
 
 /***************************************************************************
@@ -12838,11 +12976,12 @@ PRIVATE json_t *load_key_cache_from_disk(
         }
     }
     if(key_file_listed(&da, PURGED_FILENAME)) {
-        json_t *jn_purged = read_key_purged(gobj, full_path, TRUE);
+        int read_errno;
+        json_t *jn_purged = read_key_purged(gobj, full_path, TRUE, &read_errno);
         if(!jn_purged) {
             // Error already logged
             dir_array_free(&da);
-            flag_key_purged_unreadable(gobj, key_cache, topic_directory, key);
+            flag_key_purged_unreadable(gobj, key_cache, topic_directory, key, read_errno);
             return key_cache;
         }
         json_object_set_new(key_cache, "purged", jn_purged);
@@ -12920,6 +13059,12 @@ PRIVATE json_t *load_key_cache_from_disk(
         );
         if(!cache_cell) {
             // Error already logged, the cause
+            if(!master && purged_while_listed(gobj, key_cache, topic_directory, key, file_id)) {
+                purged_upto = json_string_value(
+                    json_object_get(json_object_get(key_cache, "purged"), "upto")
+                );
+                continue;   // its rows are in the base the master wrote meanwhile
+            }
             flag_key_unreadable(gobj, key_cache, topic_directory, key, file_id,
                 "the md2 file cannot be read (see the log before)"
             );
@@ -14106,7 +14251,7 @@ PRIVATE json_int_t load_first_and_last_record_md(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TRANGER,
                 "msg",          "%s", "Cannot open md2 file",
-                "reason",       "%s", "gone: its key deleted under the reader",
+                "reason",       "%s", "gone: its key deleted, or the file purged, under the reader",
                 "path",         "%s", full_path,
                 NULL
             );
@@ -15869,9 +16014,26 @@ PRIVATE json_t *get_segments(
     if(to_rowid == 0) {
         realtime = TRUE;
     }
+    BOOL from_rowid_relative = (from_rowid < 0);
+    BOOL to_rowid_relative = (to_rowid < 0);
     if(!resolve_from_rowid(from_rowid, purged, total_rows, &from_rowid) ||
             !resolve_to_rowid(to_rowid, purged, total_rows, &to_rowid)) {
         return jn_segments;
+    }
+
+    /*
+     *  A negative rowid bound is counted from the key's end AT THE OPEN, and
+     *  written back resolved, as a negative from_t is: the segments are taken
+     *  again after a purge (retake_segments_after_purge) while a filtered
+     *  iterator keeps its index. Resolved again against an end that grew
+     *  since the open, the bound left the indexed rows out of every segment,
+     *  and each page logged "indexed rowid without segment" (7.27.5)
+     */
+    if(from_rowid_relative) {
+        json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
+    }
+    if(to_rowid_relative) {
+        json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
     }
 
     if(to_rowid < from_rowid) {

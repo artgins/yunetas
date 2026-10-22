@@ -64,6 +64,7 @@ set(SRCS
     test_delete_key_propagation
     test_delete_key_files
     test_delete_key_files_follower
+    test_purge_replica_reads
     test_date_bound_units
     test_rt_disk_multi_feed
     test_rt_disk_overflow
@@ -166,6 +167,12 @@ foreach(test ${SRCS})
         # The test fails FIONREAD once in its own __wrap_ioctl(), and the
         # watch of one directory (ENOSPC) in __wrap_inotify_add_watch()
         target_link_options(${binary} PRIVATE "-Wl,--wrap=ioctl,--wrap=inotify_add_watch")
+    endif()
+    if(test STREQUAL "test_purge_replica_reads")
+        # The test fails the read of one base of a key in its own
+        # __wrap_fopen(), and purges a key on the master just before the
+        # replica opens one of its md2 files in __wrap_open()
+        target_link_options(${binary} PRIVATE "-Wl,--wrap=open,--wrap=fopen")
     endif()
     if(test STREQUAL "test_torn_tail_check_fails")
         # The test fails the open of a content file in its own __wrap_open()

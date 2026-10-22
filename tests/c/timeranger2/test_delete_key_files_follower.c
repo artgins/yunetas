@@ -16,11 +16,15 @@
  *        disks/) finds the purge before its next read, and reads what the
  *        master reads, with no error;
  *      - a file the follower flagged unreadable and the master purged is
- *        not a flag for ever: every load of the key failed;
+ *        not a flag for ever: every load of the key failed; the purge
+ *        renumbers the key, and says so with a WARNING;
  *      - a signal left in a feed directory (a master that died between its
  *        mkdir() and its rmdir()) does not stop the next ones;
  *      - a feed callback that reads its key while a purge waits does not
- *        apply it under the cell the new records are counted in.
+ *        apply it under the cell the new records are counted in;
+ *      - a filtered pager of the follower opened with a NEGATIVE rowid
+ *        bound keeps what it indexed when the key grows and the master
+ *        then purges it.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -48,6 +52,7 @@
 #define KEY3        "0000000000000000003"   // a file flagged by a follower, then purged
 #define KEY5        "0000000000000000005"   // a feed callback that reads its key
 #define KEY6        "0000000000000000006"   // a base the follower fails to read once
+#define KEY7        "0000000000000000007"   // a negative rowid bound across appends and a purge
 #define DAY1        946684800   // 2000-01-01
 #define DAY2        (DAY1 + 86400)
 #define DAY3        (DAY2 + 86400)
@@ -358,6 +363,7 @@ PRIVATE int do_test(void)
             append_one(tm, 3, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
             append_one(tm, 5, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
             append_one(tm, 6, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
+            append_one(tm, 7, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
             append_long(tm, DAY1 + (uint64_t)d*86400 + (uint64_t)r, content);
         }
     }
@@ -413,6 +419,61 @@ PRIVATE int do_test(void)
     result += expect("feed got", got, "D1:7");
     served(tf, TOPIC_NAME, KEY, bf, sizeof(bf));
     result += expect("follower after the append", bf, "B1:3 B2:4 C1:5 C2:6 D1:7");
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A pager of the follower with a
+     *  negative rowid bound, the key grows,
+     *  the master purges it
+     *-------------------------------------*/
+    set_expected_results("purge follower: a negative rowid bound", NULL, NULL, NULL, 1);
+    {
+        json_t *rt7 = tranger2_open_rt_disk(
+            tf, TOPIC_NAME, KEY7, NULL, on_feed_record, "rt_key7", "", NULL
+        );
+        drain(10);
+        json_t *it7 = tranger2_open_iterator(
+            tf, TOPIC_NAME, KEY7, json_pack("{s:I}", "from_rowid", (json_int_t)-3),
+            NULL, "neg_from", "", NULL, NULL
+        );
+        json_t *page = tranger2_iterator_get_page(tf, it7, 1, 10, FALSE);
+        char got7[128];
+        int i7; json_t *rec;
+        got7[0] = 0;
+        json_array_foreach(json_object_get(page, "data"), i7, rec) {
+            char item[32];
+            snprintf(item, sizeof(item), "%s%s:%ld", got7[0]? " ": "",
+                kw_get_str(0, rec, "content", "?", 0),
+                (long)kw_get_int(0, rec, "__md_tranger__`g_rowid", -1, 0));
+            strncat(got7, item, sizeof(got7) - strlen(got7) - 1);
+        }
+        JSON_DECREF(page)
+        result += expect("from -3, at the open", got7, "B2:4 C1:5 C2:6");
+
+        got[0] = 0;
+        append_one(tm, 7, DAY3 + 86400, "D1");
+        append_one(tm, 7, DAY3 + 86400 + 1, "D2");
+        append_one(tm, 7, DAY3 + 86400 + 2, "D3");
+        drain(30);
+        result += expect("the feed got the new rows", got, "D1:7 D2:8 D3:9");
+        result += expect_int("purged", tranger2_delete_key_files(tm, TOPIC_NAME, KEY7, DAY2), 2);
+        drain(20);
+
+        page = tranger2_iterator_get_page(tf, it7, 1, 10, FALSE);
+        got7[0] = 0;
+        json_array_foreach(json_object_get(page, "data"), i7, rec) {
+            char item[32];
+            snprintf(item, sizeof(item), "%s%s:%ld", got7[0]? " ": "",
+                kw_get_str(0, rec, "content", "?", 0),
+                (long)kw_get_int(0, rec, "__md_tranger__`g_rowid", -1, 0));
+            strncat(got7, item, sizeof(got7) - strlen(got7) - 1);
+        }
+        JSON_DECREF(page)
+        result += expect("from -3, after the appends and the purge", got7, "B2:4 C1:5 C2:6");
+        tranger2_close_iterator(tf, it7);
+        tranger2_close_rt_disk(tf, rt7);
+        drain(10);
+    }
     result += test_json(NULL);
 
     /*-------------------------------------*
@@ -516,7 +577,13 @@ PRIVATE int do_test(void)
         JSON_DECREF(page1)
         result += test_json(NULL);
 
-        set_expected_results("purge follower: a flagged file purged, read", NULL, NULL, NULL, 1);
+        set_expected_results(
+            "purge follower: a flagged file purged, read",
+            json_pack("[{s:s}]",
+                "msg", "The numbering of the key moved to the master's: the records handed before had g_rowids below the master's"
+            ),
+            NULL, NULL, 1
+        );
         /*
          *  The flagged file and one the follower counted: its g_rowids move
          *  by the rows of the flagged one
