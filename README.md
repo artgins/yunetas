@@ -136,12 +136,15 @@ reason.
   [Report](performance/reports/7.27.0.html) (the file) ·
   [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.0/performance/reports/7.27.0.html) ·
   [raw figures](performance/reports/7.27.0.json)
-- **7.26.9** (against 7.26.8): a hardening release that made the treedb
-  faster -- a link or unlink 12% faster, deleting a parent 8.7%, a reopen
-  6.2%; one price said with its number (the event loop echo that appends
-  every message, 3.9% fewer messages per second; not traced to a change).
+- **7.26.9** (against 7.26.0, the last release with a study; redone after
+  the release, it covers 7.26.1 to 7.26.9): a hardening release that made the
+  treedb faster -- a link or unlink 12% faster, deleting a parent 10%, a
+  reopen 9% (the names looked up by key). Two prices, each placed in its
+  release: the first open of 40 treedbs 6.7% longer (7.26.7, the `__icons__`
+  topic) and the appends of a store 2-4% longer (7.26.9, the hardened kw
+  calls).
   [Report](performance/reports/7.26.9.html) (the file) ·
-  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.26.9/performance/reports/7.26.9.html) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.26.9.html) ·
   [raw figures](performance/reports/7.26.9.json)
 - **7.26.0** (against 7.25.22): reading a timeranger2 history 16-17% faster,
   opening a treedb 20% faster, a tm query of a topic 7.25.22 had not marked 31x

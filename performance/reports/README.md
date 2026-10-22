@@ -19,7 +19,7 @@ The same figures, release after release, are charted on
 | 7.27.7 | 7.27.5 | [7.27.7.html](7.27.7.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.7/performance/reports/7.27.7.html) | [7.27.7.json](7.27.7.json) |
 | 7.27.5 | 7.27.0 | [7.27.5.html](7.27.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.27.5.html) | [7.27.5.json](7.27.5.json) |
 | 7.27.0 | 7.26.9 | [7.27.0.html](7.27.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.0/performance/reports/7.27.0.html) | [7.27.0.json](7.27.0.json) |
-| 7.26.9 | 7.26.8 | [7.26.9.html](7.26.9.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.26.9/performance/reports/7.26.9.html) | [7.26.9.json](7.26.9.json) |
+| 7.26.9 | 7.26.0 | [7.26.9.html](7.26.9.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.26.9.html) | [7.26.9.json](7.26.9.json) |
 | 7.26.0 | 7.25.22 | [7.26.0.html](7.26.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.26.0/performance/reports/7.26.0.html) | [7.26.0.json](7.26.0.json) |
 | 7.25.22 | 7.25.21 | [7.25.22.html](7.25.22.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.22/performance/reports/7.25.22.html) | [7.25.22.json](7.25.22.json) |
 | 7.25.21 | 7.25.20 | [7.25.21.html](7.25.21.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.21/performance/reports/7.25.21.html) | [7.25.21.json](7.25.21.json) |
@@ -31,7 +31,9 @@ The same figures, release after release, are charted on
 the tag. The report of 7.27.5 now in the table replaces the first one, made
 against 7.27.4: a study compares with the last release that has a study, and
 7.27.4 had none. Against 7.27.0 it covers 7.27.1 to 7.27.5, and places each
-price in its release and commit.
+price in its release and commit. The report of 7.26.9 was redone for the same
+reason, against 7.26.0 instead of 7.26.8 (it covers 7.26.1 to 7.26.9); it was
+written after the release, so its links name `main` too.
 
 ## Make the report of a release
 

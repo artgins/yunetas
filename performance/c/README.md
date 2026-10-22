@@ -1090,56 +1090,111 @@ The gobj-c of 7.27.0 is not the cost (the hybrid is faster than 7.26.9); the
 two checks are all of it, about 0.1 us of CPU per write. The price of 7.26.9,
 `net.yev_ping_pong_persist`, is not there against 7.26.9 (+0.7%).
 
-### Oct-2026: 7.26.9 against 7.26.8 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
+### Oct-2026: 7.26.9 against 7.26.0 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
-Each release built from its own tree (a git worktree of the 7.26.8 tag, the
-same `.config` and compiler; only the kernel libraries, the modules,
-`performance/c/` and the three ctest binaries built there). `outputs_ext` was
-shared: linux-ext-libs did not change. The two binaries of each benchmark run
-alternately, the order flipped every round, with a `sync` and a 3 s pause
-before each run: 8 rounds; the three timeranger2 ctest binaries 24 rounds, a
-1 s pause. Mean +- standard deviation; the treedb figures are CPU time; |t| < 3
-is noise. The report: [`performance/reports/7.26.9.html`](../reports/7.26.9.html).
+Written on 2026-10-22, after the release, against 7.26.0: the last release
+with a study. It replaces the study made at the tag against 7.26.8, a release
+nobody had measured; this one covers 7.26.1 to 7.26.9 (7.26.1 to 7.26.4
+changed no code of the kernel libraries or the modules). Each release built
+from a git worktree of its tag (same `.config` and compiler), the
+`perf_timeranger2` of the main tree (with its `read` phase) compiled into
+both. `outputs_ext` shared: linux-ext-libs 1.24 (OpenSSL 3.6.5) on both
+sides, where both tags shipped with 1.23. The two binaries of each benchmark
+run alternately, a `sync` and a 3 s pause before each run (1 s for the ctest
+binaries and the read phase): 15 rounds (the first left out: it ran right
+after a build on the machine); 31 for `perf_timeranger2` (47 for its appends,
+opens and tm query), `perf_tr_treedb` and `perf_c_treedb`; 24 for
+`perf_timeranger2 read` (a first run of 24 left out: a build of another tree
+ran during it). Mean +- standard deviation; treedb figures are CPU time;
+|t| < 3 is noise. The report:
+[`performance/reports/7.26.9.html`](../reports/7.26.9.html).
 
-| Case | 7.26.8 | 7.26.9 | Change |
+| Case | 7.26.0 | 7.26.9 | Change |
 |------|--------|--------|--------|
-| tr2.append_rate (appends/s) | 226,389 +- 4,723 | 222,940 +- 5,759 | -1.5% (t = -2.3) |
-| tr2.append_rate_rt (appends/s) | 192,019 +- 4,392 | 188,883 +- 4,218 | -1.6% (t = -2.5) |
-| tr2.build_appends (ms) | 1,569 +- 48 | 1,591 +- 35 | +1.4% (t = +1.0) |
-| tr2.tm_build_appends (ms) | 1,643 +- 43 | 1,629 +- 46 | -0.8% (t = -0.6) |
-| tr2.read_rate_iterator (records/s) | 213,626 +- 5,437 | 213,033 +- 4,854 | -0.3% (t = -0.4) |
-| tr2.read_rate_pages (records/s) | 189,200 +- 5,343 | 189,440 +- 4,964 | +0.1% (t = +0.2) |
-| tr2.open_master (ms) | 80.4 +- 1.5 | 80.9 +- 1.1 | +0.6% (t = +0.8) |
-| tr2.tm_query (ms) | 12.5 +- 0.6 | 12.6 +- 0.5 | +0.9% (t = +0.4) |
-| tr2.open_replica (ms) | 93.4 +- 1.9 | 93.6 +- 1.8 | +0.3% (t = +0.3) |
-| tr2.create_topic (ms) | 137.3 +- 10.1 | 147.6 +- 18.0 | +7.5% (t = +1.4) |
-| tr2.topic_version_change (ms) | 253.8 +- 31.5 | 261.6 +- 23.0 | +3.1% (t = +0.6) |
-| treedb.update_memory (us) | 2.434 +- 0.051 | 2.370 +- 0.064 | -2.6% (t = -2.2) |
-| treedb.update_saved (us) | 7.738 +- 0.220 | 7.734 +- 0.295 | -0.1% (t = -0.0) |
-| treedb.link_unlink (us) | 8.717 +- 0.200 | 7.673 +- 0.267 | -12.0% (t = -8.8) **gain** |
-| treedb.create_link_half (us) | 65.6 +- 2.2 | 64.9 +- 1.2 | -1.1% (t = -0.8) |
-| treedb.reopen (us) | 312.1 +- 10.9 | 292.8 +- 11.9 | -6.2% (t = -3.4) **gain** |
-| treedb.delete_force (us) | 44.2 +- 0.6 | 42.4 +- 0.4 | -3.9% (t = -6.8) **gain** |
-| treedb.delete_parent (us) | 2,554 +- 62 | 2,331 +- 67 | -8.7% (t = -6.9) **gain** |
-| ctreedb.same_literal_release (s) | 0.355 +- 0.012 | 0.348 +- 0.012 | -2.0% (t = -1.2) |
-| ctreedb.seed (s) | 11.1 +- 0.3 | 11.1 +- 0.3 | +0.8% (t = +0.6) |
-| ctreedb.newer_literal (s) | 13.4 +- 0.5 | 13.4 +- 0.5 | -0.1% (t = -0.0) |
-| rotatory.audit_record (ns) | 569.6 +- 21.0 | 565.4 +- 19.6 | -0.7% (t = -0.4) |
-| rotatory.audit_record_flush (ns) | 1,252 +- 18 | 1,242 +- 20 | -0.8% (t = -1.1) |
-| rotatory.log_record (ns) | 374.6 +- 7.8 | 374.0 +- 5.8 | -0.2% (t = -0.2) |
-| net.yev_ping_pong (K msg/s) | 150.0 +- 2.6 | 148.4 +- 3.5 | -1.1% (t = -1.0) |
-| net.yev_ping_pong_persist (K msg/s) | 87.6 +- 1.7 | 84.2 +- 2.1 | -3.9% (t = -3.6) **price** |
-| net.tcp_echo (round trips/s) | 39,366 +- 935 | 39,057 +- 856 | -0.8% (t = -0.7) |
-| net.tcp_echo_persist (round trips/s) | 31,322 +- 686 | 30,060 +- 2,657 | -4.0% (t = -1.3) |
-| net.tls_echo (round trips/s) | 29,764 +- 2,418 | 29,318 +- 708 | -1.5% (t = -0.5) |
-| net.tls_echo_persist (round trips/s) | 23,628 +- 1,043 | 24,192 +- 692 | +2.4% (t = +1.3) |
-| net.auth_bff_login (logins/s) | 8,622 +- 163 | 8,484 +- 163 | -1.6% (t = -1.7) |
+| tr2.append_rate (appends/s) | 222,265 +- 6,537 | 223,770 +- 6,593 | +0.7% (t = +0.6) |
+| tr2.append_rate_rt (appends/s) | 188,600 +- 6,461 | 189,144 +- 6,582 | +0.3% (t = +0.2) |
+| tr2.build_appends (ms) | 1,550 +- 46.31 | 1,586 +- 30.24 | +2.3% (t = +4.4) **price** |
+| tr2.tm_build_appends (ms) | 1,604 +- 42.66 | 1,669 +- 43.69 | +4.1% (t = +7.3) **price** |
+| tr2.read_rate_iterator (records/s) | 213,707 +- 7,689 | 215,615 +- 6,778 | +0.9% (t = +0.7) |
+| tr2.read_rate_pages (records/s) | 190,887 +- 7,408 | 192,700 +- 7,104 | +0.9% (t = +0.7) |
+| tr2.open_master (ms) | 79.84 +- 2.450 | 79.85 +- 2.409 | +0.0% (t = +0.0) |
+| tr2.tm_query (ms) | 12.47 +- 0.364 | 12.51 +- 0.389 | +0.3% (t = +0.5) |
+| tr2.open_replica (ms) | 93.11 +- 2.643 | 93.46 +- 2.661 | +0.4% (t = +0.7) |
+| tr2.create_topic (ms) | 146.2 +- 15.06 | 147.8 +- 15.48 | +1.1% (t = +0.4) |
+| tr2.topic_version_change (ms) | 264.3 +- 24.78 | 269.0 +- 23.26 | +1.8% (t = +0.8) |
+| treedb.update_memory (us) | 2.368 +- 0.081 | 2.293 +- 0.155 | -3.2% (t = -2.4) |
+| treedb.update_saved (us) | 7.636 +- 0.233 | 7.478 +- 0.276 | -2.1% (t = -2.4) |
+| treedb.link_unlink (us) | 8.591 +- 0.238 | 7.544 +- 0.223 | -12.2% (t = -17.9) **gain** |
+| treedb.create_link_half (us) | 65.23 +- 3.166 | 63.85 +- 3.255 | -2.1% (t = -1.7) |
+| treedb.reopen (us) | 311.6 +- 10.01 | 282.8 +- 10.09 | -9.2% (t = -11.3) **gain** |
+| treedb.delete_force (us) | 44.26 +- 2.454 | 42.64 +- 1.563 | -3.7% (t = -3.1) **gain** |
+| treedb.delete_parent (us) | 2,536 +- 172.2 | 2,281 +- 131.7 | -10.1% (t = -6.5) **gain** |
+| ctreedb.same_literal_release (s) | 0.355 +- 0.040 | 0.359 +- 0.049 | +1.2% (t = +0.4) |
+| ctreedb.seed (s) | 10.29 +- 0.486 | 10.97 +- 0.457 | +6.7% (t = +5.7) **price** |
+| ctreedb.newer_literal (s) | 13.18 +- 0.582 | 13.32 +- 0.616 | +1.1% (t = +0.9) |
+| rotatory.audit_record (ns) | 585.2 +- 37.15 | 579.4 +- 25.55 | -1.0% (t = -0.5) |
+| rotatory.audit_record_flush (ns) | 1,251 +- 47.35 | 1,263 +- 53.96 | +1.0% (t = +0.7) |
+| rotatory.log_record (ns) | 380.3 +- 20.20 | 383.3 +- 19.85 | +0.8% (t = +0.4) |
+| net.yev_ping_pong (K msg/s) | 147.1 +- 5.650 | 146.5 +- 6.240 | -0.4% (t = -0.3) |
+| net.yev_ping_pong_persist (K msg/s) | 86.30 +- 2.124 | 86.17 +- 2.636 | -0.2% (t = -0.2) |
+| net.tcp_echo (round trips/s) | 38,890 +- 943.1 | 39,034 +- 907.5 | +0.4% (t = +0.4) |
+| net.tcp_echo_persist (round trips/s) | 30,338 +- 936.9 | 30,447 +- 968.3 | +0.4% (t = +0.3) |
+| net.tls_echo (round trips/s) | 29,357 +- 680.1 | 29,440 +- 394.6 | +0.3% (t = +0.4) |
+| net.tls_echo_persist (round trips/s) | 23,650 +- 600.2 | 23,982 +- 524.2 | +1.4% (t = +1.6) |
+| net.auth_bff_login (logins/s) | 8,546 +- 300.1 | 8,527 +- 228.6 | -0.2% (t = -0.2) |
 
-The gains are the treedb names looked up by key (`KWID_GET_BY_KEYS()`). The
-price, `net.yev_ping_pong_persist`, and the appends at the edge of their noise,
-are not traced to a change: no code of the append path or of the event loop
-changed, and the perf profiles of `test_topic_pkey_integer` built from the two
-trees show the same functions with the same weight.
+**The read path** (`perf_timeranger2 read`, us per operation, 24 rounds):
+
+| Case | 7.26.0 | 7.26.9 | Change |
+|------|--------|--------|--------|
+| `read_page1_replica` | 5.068 +- 0.093 | 5.114 +- 0.099 | +0.9% (t = +1.6) |
+| `read_page1_filtered_replica` | 3.970 +- 0.072 | 3.940 +- 0.076 | -0.7% (t = -1.4) |
+| `read_open_replica` | 15.94 +- 0.593 | 15.95 +- 0.580 | +0.1% (t = +0.1) |
+| `read_open_filtered_replica` | 11.32 +- 0.321 | 11.56 +- 0.454 | +2.1% (t = +2.1) |
+| `read_page100_replica` | 264.4 +- 5.133 | 263.2 +- 6.477 | -0.5% (t = -0.7) |
+| `read_page1_master` | 5.016 +- 0.100 | 5.123 +- 0.217 | +2.1% (t = +2.2) |
+| `read_page1_filtered_master` | 3.956 +- 0.085 | 3.951 +- 0.093 | -0.1% (t = -0.2) |
+| `read_open_master` | 15.55 +- 0.290 | 15.78 +- 0.703 | +1.5% (t = +1.5) |
+| `read_open_filtered_master` | 11.11 +- 0.317 | 11.67 +- 1.299 | +5.0% (t = +2.0) |
+| `read_page100_master` | 264.6 +- 5.962 | 260.6 +- 5.677 | -1.5% (t = -2.4) |
+
+**Where each move appeared.** The figures that moved, measured again on the
+tags and commits between, every build in one rotation, 16 rounds:
+
+| Case | 7.26.0 | 7.26.6 | 7.26.7 | 7.26.8 | 7.26.9 |
+|------|--------|--------|--------|--------|--------|
+| `ctreedb.seed` (s) | 10.24 | 10.33 | 10.98 | -- | 10.96 |
+| `tr2.tm_build_appends` (ms) | 1,596 | 1,591 | 1,594 | 1,597 | 1,656 |
+| `tr2.build_appends` (ms) | 1,543 | 1,536 | 1,539 | 1,541 | 1,582 |
+
+| Case | 7.26.8 | `df6c5f06a` | `ac9165b82` | `6193b002c` | `9d8f7c584` | `f4be7d750` | 7.26.9 |
+|------|--------|-------------|-------------|-------------|-------------|-------------|--------|
+| `tr2.tm_build_appends` (ms) | 1,583 | 1,598 | 1,600 | 1,627 | 1,637 | -- | 1,655 |
+| `tr2.build_appends` (ms) | 1,525 | 1,535 | 1,534 | 1,542 | 1,555 | -- | 1,578 |
+| `treedb.link_unlink` (us) | 8.623 | -- | -- | -- | 8.283 | 7.528 | 7.381 |
+| `treedb.delete_parent` (us) | 2,506 | -- | -- | -- | 2,411 | 2,262 | 2,264 |
+| `treedb.reopen` (us) | 309.5 | -- | -- | -- | 286.7 | 281.8 | 278.3 |
+
+(The treedb rows of 7.26.0 against 7.26.8 in the same rotation: link or
+unlink 8.51 against 8.68 us, reopen 310.7 against 309.7 us: 7.26.1 to 7.26.8
+did not move them.)
+
+The gains are the treedb names looked up by key (`KWID_GET_BY_KEYS()`):
+**appeared in 7.26.9**, a link or unlink and the delete of a parent mostly
+with `f4be7d750` (*names looked up by key*), a reopen mostly before it, by
+`9d8f7c584` (the commits that read a name from data as a key).
+`ctreedb.seed` (+6.7%) **appeared in 7.26.7, commit `50c6cd78f`** (its only C
+change): every treedb gets a system topic `__icons__` at its first open, 40
+topics more for 40 treedbs, each with its fsyncs; the everyday open did not
+move. The appends of `perf_timeranger2` (+4.1% for 600 000 to one key, +2.3%
+for 400 000 into 20 000 files) **appeared in 7.26.9, in steps**: about +1%
+with the kw readers that answer what the kw holds (`df6c5f06a`,
+`ac9165b82`), +1.7% more with `6193b002c` (a name that comes from data read
+as a key), +0.6% with `9d8f7c584`, the rest after it -- no commit carries it
+alone; about 0.11 us per append, the price of the hardened kw calls. The main
+append benchmark moved +0.7% (t = 0.6). The study made at the tag reported the
+event loop echo with an append 3.9% slower against 7.26.8 and could not trace
+it: against 7.26.0 it is -0.2% (t = -0.2).
 
 ### Oct-2026: 7.26.0 against 7.25.22 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 

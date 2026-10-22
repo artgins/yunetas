@@ -1,8 +1,9 @@
 {
     "schema": "yuneta-perf-report/1",
     "version": "7.26.9",
-    "previous": "7.26.8",
-    "date": "2026-10-12",
+    "previous": "7.26.0",
+    "date": "2026-10-22",
+    "source_ref": "main",
     "machine": {
         "kind": "laptop",
         "model": "Acer Nitro AN517-53",
@@ -26,19 +27,19 @@
         "fully_static": true,
         "debug_track_memory": true,
         "debug_with_backtrace": true,
-        "tls": "OpenSSL 3.6.3 (bundled, static); mbedTLS not built on this machine",
+        "tls": "OpenSSL 3.6.5 (bundled, static: linux-ext-libs 1.24 on both sides; both tags shipped with 1.23, OpenSSL 3.6.3); mbedTLS not built on this machine",
         "note": "CONFIG_DEBUG_TRACK_MEMORY is on (the .config of this machine): every allocation is tracked. A build without it does less work per allocation; that build was not measured here."
     },
     "method": {
-        "ab": "7.26.8 and 7.26.9 each built from their own tree: a git worktree of the 7.26.8 tag with the same .config and compiler, where only the kernel libraries, the modules of modules/c, the benchmarks of performance/c/ and the three ctest binaries were built. outputs_ext was shared between the two trees: linux-ext-libs did not change in this release. Measured: the benchmarks of performance/c/ and the ctest binaries test_topic_pkey_integer, test_topic_pkey_integer_iterator2 and test_topic_pkey_integer_iterator5. The two binaries of each benchmark run alternately, the order flipped every round, with a sync and a 3 s pause before each run: 8 rounds; the three ctest binaries 24 rounds, 1 s pause. Mean +- standard deviation (median), t = the change over its standard error; |t| < 3 is noise, as in the reports before. The treedb figures are CPU time of the process per operation. No module was padded or relinked: a whole-release build also moves where the code lands, so a change of a few percent is not told apart from placement. Where a change was not traced to the code, the profiles of the two binaries (perf, test_topic_pkey_integer) were compared.",
-        "tag_run": "The absolute figures of 7.26.9 are its side of the A/B run (the code of the release, built from the main tree): 8 rounds of the benchmarks of performance/c/, 24 of the three ctest binaries, a sync and a pause before each run, no CPU pinning. The per-second benchmarks drop their first and last second; reads page by page are the FORWARD pass. The binary sizes are those of the clean release build."
+        "ab": "Written on 2026-10-22, after the release, against 7.26.0: the last release with a study. It replaces the study made at the tag against 7.26.8, a release nobody had measured. It covers 7.26.1 to 7.26.9 (7.26.1 to 7.26.4 changed no code of the kernel libraries or the modules). 7.26.0 and 7.26.9 each built from a git worktree of its tag, with the same .config and compiler; in each tree only the kernel libraries, the modules, performance/c/ and the three ctest binaries were built, and the perf_timeranger2 of the main tree (with its `read` phase, public API only) was compiled into both. outputs_ext was shared: linux-ext-libs 1.24 (OpenSSL 3.6.5, PCRE2 10.49) on both sides, where both tags shipped with 1.23 (OpenSSL 3.6.3), so the A/B compares the code of the two releases. The two binaries of each benchmark run alternately, the order flipped every round, with a sync and a 3 s pause before each run (1 s for the three ctest binaries and the read phase): 15 rounds (the first left out: it ran right after a build on the machine); 31 for perf_timeranger2 (47 for its appends, opens and tm query), perf_tr_treedb and perf_c_treedb, with the tags between them in some rounds (7.26.6, 7.26.7 and 7.26.8); 24 for the `read` phase alone (a first run of 24 was left out: a build of another tree ran during it). To place each move, the figures that moved were measured again on the tags between and on commits of 7.26.9, 16 rounds each, every build in one rotation. Mean +- standard deviation (median), t = the change over its standard error; |t| < 3 is noise. The treedb figures are CPU time of the process per operation.",
+        "tag_run": "The absolute figures of 7.26.9 are its side of this A/B run: the code of the tag, built on 2026-10-22 from a worktree of the tag, on the machine of the earlier reports, with the external libraries of 1.24. The per-second benchmarks drop their first and last second; reads page by page are the FORWARD pass. The binary sizes are those of the release build of 7.26.9, kept from the first report."
     },
     "story": {
-        "title": "Yuneta 7.26.9: a hardening release that made the treedb faster",
-        "lead": "7.26.9 is a correctness release, out of sixteen rounds of review: the kw readers never hand back a freed default, a name that comes from data is a key and never a path, two name rules guard every treedb name, the logger honours the precision and the size of what it prints, and C_NODE refuses what a peer names with a warning after the permission. One of those changes pays: the treedb looks its topics, hooks and fkeys up by key instead of formatting and splitting a path, and a link or unlink is 12% faster, deleting a parent 8.7%, a reopen 6.2%, a forced delete 3.9%. Measured against 7.26.8 on the same machine, each release built from its own tree, the two run alternately. One price, said with its number: the event loop echo that appends every message to timeranger2 is 3.9% slower; the appends alone are 1.5% slower, at the edge of their noise. No code of that path changed, and the profiles of the two binaries show the same functions with the same weight: it is not traced to a change.",
+        "title": "Yuneta 7.26.9: a hardening round that made the treedb faster",
+        "lead": "7.26.9 closes sixteen rounds of review: the kw readers never hand back a freed default, a name that comes from data is a key and never a path, two name rules guard every treedb name, the logger honours the precision and the size of what it prints, and C_NODE refuses what a peer names with a warning after the permission. This study compares it with 7.26.0, the last release with a study, so it covers 7.26.1 to 7.26.9, and places every move in its release and commit by building the tags and commits between them. It replaces the study made at the tag against 7.26.8, a release nobody had measured. The treedb is faster: a link or unlink 12% (8.59 -> 7.54 us of CPU), deleting a parent 10%, a reopen 9%, a forced delete 4%, from the names looked up by key. Two prices, each with its release: the first open of 40 treedbs takes 6.7% more (7.26.7: every treedb gets a topic __icons__ at its first open), and 600 000 appends to one key 4.1% more time (7.26.9: the kw calls of each append, hardened). The loss the first study could not trace (the event loop echo with an append, -3.9% against 7.26.8) is not there against 7.26.0.",
         "hero": {
             "value": "-12%",
-            "text": "of the time of a treedb link or unlink: 8.72 us down to 7.67 us of CPU per operation. The names of topics, hooks and fkeys are looked up by key, one hash lookup per segment, not through a formatted path split again on every call."
+            "text": "of the time of a treedb link or unlink against 7.26.0: 8.59 us down to 7.54 us of CPU per operation. The names of topics, hooks and fkeys are looked up by key, one hash lookup per segment (7.26.9, commit f4be7d750)."
         },
         "tiles": [
             [
@@ -54,21 +55,29 @@
                 "Reopen a treedb (per node)"
             ],
             [
-                "tr2.append_rate",
-                "Appends per second"
+                "ctreedb.seed",
+                "First open of 40 treedbs (7.26.7)"
             ],
             [
                 "net.yev_ping_pong",
                 "Raw io_uring echo"
             ]
         ],
-        "append_note": "-1.5% against 7.26.8 (226,389): t = 2.3 over 24 alternated rounds, at the edge of the noise; no code of the append path changed and the two profiles agree",
-        "ab_sub": "Each benchmark built twice, from the tree of each release, and the two binaries run alternately: 8 rounds, 24 for the three timeranger2 tests. A change inside its whisker is noise. Everything is on one axis: the change of the time an operation takes.",
-        "prices_sub": "What got slower, how much, and what is known about why.",
+        "append_note": "+0.7% against 7.26.0 (222,265): t = 0.6 over 15 alternated rounds; the appends of perf_timeranger2 take 2-4% more time (a price of 7.26.9, below)",
+        "ab_sub": "Each benchmark built from the tree of each release, the binaries run alternately: 15 rounds, 31 for perf_timeranger2, perf_tr_treedb and perf_c_treedb (47 for the appends and opens of perf_timeranger2), 24 for the read path. A change inside its whisker is noise. Everything is on one axis: the change of the time an operation takes.",
+        "prices_sub": "What got slower against 7.26.0, how much, in which release and commit it appeared, and what it buys.",
         "prices": [
             [
-                "net.yev_ping_pong_persist",
-                "Event loop echo that appends every message"
+                "ctreedb.seed",
+                "First open of 40 treedbs (7.26.7)"
+            ],
+            [
+                "tr2.tm_build_appends",
+                "600 000 appends to one key (7.26.9)"
+            ],
+            [
+                "tr2.build_appends",
+                "400 000 appends into 20 000 files (7.26.9)"
             ]
         ],
         "ab_order": [
@@ -83,6 +92,16 @@
             "tr2.open_replica",
             "tr2.create_topic",
             "tr2.topic_version_change",
+            "tr2.read_open_master",
+            "tr2.read_open_filtered_master",
+            "tr2.read_page1_master",
+            "tr2.read_page1_filtered_master",
+            "tr2.read_page100_master",
+            "tr2.read_open_replica",
+            "tr2.read_open_filtered_replica",
+            "tr2.read_page1_replica",
+            "tr2.read_page1_filtered_replica",
+            "tr2.read_page100_replica",
             "treedb.update_memory",
             "treedb.update_saved",
             "treedb.link_unlink",
@@ -103,7 +122,8 @@
             "net.tls_echo",
             "net.tls_echo_persist",
             "net.auth_bff_login"
-        ]
+        ],
+        "abs_sub": "Absolute figures of the 7.26.9 build, measured on 2026-10-22, after the release, on the laptop above (the 7.26.9 side of the A/B run against 7.26.0, not a tag-time run): one process, one core for the event loop (Yuneta scales by running one yuno per core). Mean of the rounds; the spread and the rounds are in the table at the end."
     },
     "ab": [
         {
@@ -116,22 +136,21 @@
             "unit": "appends/s",
             "better": "higher",
             "previous": {
-                "mean": 226388.9167,
-                "sd": 4722.955,
-                "median": 225485.5
+                "mean": 222265.2,
+                "sd": 6536.5204,
+                "median": 221888.0
             },
             "current": {
-                "mean": 222940.0417,
-                "sd": 5759.103,
-                "median": 221453.0
+                "mean": 223770.2667,
+                "sd": 6592.5836,
+                "median": 225510.0
             },
-            "n": 24,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "No code of the append path changed (tranger2_append_record() is the same function): the two profiles show the same functions with the same weight. Placed with the code a whole-release build moves; not claimed as a regression of the code, said as measured.",
-            "change_pct": -1.5,
-            "t": -2.3
+            "change_pct": 0.68,
+            "t": 0.63
         },
         {
             "id": "tr2.append_rate_rt",
@@ -144,22 +163,21 @@
             "unit": "appends/s",
             "better": "higher",
             "previous": {
-                "mean": 192019.125,
-                "sd": 4391.701,
-                "median": 192008.0
+                "mean": 188600.0667,
+                "sd": 6460.9802,
+                "median": 189472.0
             },
             "current": {
-                "mean": 188883.4583,
-                "sd": 4218.1692,
-                "median": 187414.5
+                "mean": 189143.8,
+                "sd": 6581.8144,
+                "median": 191348.0
             },
-            "n": 24,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "As the append without an rt list: the same path, the same profiles; measured, not traced to any change.",
-            "change_pct": -1.6,
-            "t": -2.5
+            "change_pct": 0.29,
+            "t": 0.23
         },
         {
             "id": "tr2.build_appends",
@@ -171,22 +189,22 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 1569.329,
-                "sd": 48.3685,
-                "median": 1545.757
+                "mean": 1550.384,
+                "sd": 46.3144,
+                "median": 1539.537
             },
             "current": {
-                "mean": 1590.5834,
-                "sd": 34.7154,
-                "median": 1602.4255
+                "mean": 1585.6,
+                "sd": 30.2356,
+                "median": 1584.797
             },
-            "n": 8,
+            "n": 47,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
-            "verdict": "noise",
-            "reason": "",
-            "change_pct": 1.4,
-            "t": 1.0
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "verdict": "price",
+            "reason": "400 000 appends into 20 000 files: +2.3% of time (t = 4.4). The same steps of 7.26.9 as the appends to one key.",
+            "change_pct": 2.27,
+            "t": 4.36
         },
         {
             "id": "tr2.tm_build_appends",
@@ -198,22 +216,22 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 1643.0235,
-                "sd": 43.3011,
-                "median": 1667.1755
+                "mean": 1603.8994,
+                "sd": 42.6638,
+                "median": 1600.224
             },
             "current": {
-                "mean": 1629.3906,
-                "sd": 46.0604,
-                "median": 1648.6165
+                "mean": 1669.0805,
+                "sd": 43.6921,
+                "median": 1664.49
             },
-            "n": 8,
+            "n": 47,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
-            "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.8,
-            "t": -0.6
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "verdict": "price",
+            "reason": "600 000 appends to one key: +4.1% of time (t = 7.3), about 0.11 us per append. Appeared in 7.26.9 (7.26.8 like 7.26.0), and not in one commit: a rotation of 7.26.8, four commits of 7.26.9 and the tag shows it in steps -- +1.0% with the kw readers that answer what the kw holds (df6c5f06a, ac9165b82), +1.7% more with 6193b002c (a name that comes from data read as a key, never a path), +0.6% with 9d8f7c584, the rest after. The guarantees of the hardening, paid in the kw calls of each append. The main append benchmark (test_topic_pkey_integer, 4 link layouts) moved +0.7% (t = 0.6).",
+            "change_pct": 4.06,
+            "t": 7.32
         },
         {
             "id": "tr2.read_rate_iterator",
@@ -226,22 +244,21 @@
             "unit": "records/s",
             "better": "higher",
             "previous": {
-                "mean": 213626.0833,
-                "sd": 5436.9367,
-                "median": 214232.5
+                "mean": 213706.7333,
+                "sd": 7688.9357,
+                "median": 214969.0
             },
             "current": {
-                "mean": 213032.625,
-                "sd": 4853.8639,
-                "median": 211304.5
+                "mean": 215615.2,
+                "sd": 6778.45,
+                "median": 215705.0
             },
-            "n": 24,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.3,
-            "t": -0.4
+            "change_pct": 0.89,
+            "t": 0.72
         },
         {
             "id": "tr2.read_rate_pages",
@@ -254,22 +271,21 @@
             "unit": "records/s",
             "better": "higher",
             "previous": {
-                "mean": 189200.375,
-                "sd": 5343.1876,
-                "median": 191308.0
+                "mean": 190887.0667,
+                "sd": 7407.9054,
+                "median": 193277.0
             },
             "current": {
-                "mean": 189440.25,
-                "sd": 4964.0927,
-                "median": 189404.5
+                "mean": 192700.0,
+                "sd": 7103.6666,
+                "median": 189348.0
             },
-            "n": 24,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.1,
-            "t": 0.2
+            "change_pct": 0.95,
+            "t": 0.68
         },
         {
             "id": "tr2.open_master",
@@ -282,22 +298,21 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 80.4304,
-                "sd": 1.46,
-                "median": 79.686
+                "mean": 79.8366,
+                "sd": 2.4496,
+                "median": 79.254
             },
             "current": {
-                "mean": 80.947,
-                "sd": 1.1413,
-                "median": 81.006
+                "mean": 79.8503,
+                "sd": 2.4085,
+                "median": 79.256
             },
-            "n": 8,
+            "n": 47,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.6,
-            "t": 0.8
+            "change_pct": 0.02,
+            "t": 0.03
         },
         {
             "id": "tr2.tm_query",
@@ -310,22 +325,21 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 12.5073,
-                "sd": 0.5504,
-                "median": 12.311
+                "mean": 12.4737,
+                "sd": 0.3637,
+                "median": 12.415
             },
             "current": {
-                "mean": 12.6242,
-                "sd": 0.5245,
-                "median": 12.5905
+                "mean": 12.5097,
+                "sd": 0.3892,
+                "median": 12.423
             },
-            "n": 8,
+            "n": 47,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.9,
-            "t": 0.4
+            "change_pct": 0.29,
+            "t": 0.46
         },
         {
             "id": "tr2.open_replica",
@@ -338,22 +352,21 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 93.3674,
-                "sd": 1.9367,
-                "median": 93.276
+                "mean": 93.1084,
+                "sd": 2.6427,
+                "median": 92.31
             },
             "current": {
-                "mean": 93.6129,
-                "sd": 1.8373,
-                "median": 93.3745
+                "mean": 93.4646,
+                "sd": 2.6609,
+                "median": 92.75
             },
-            "n": 8,
+            "n": 47,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.3,
-            "t": 0.3
+            "change_pct": 0.38,
+            "t": 0.65
         },
         {
             "id": "tr2.create_topic",
@@ -365,22 +378,21 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 137.3492,
-                "sd": 10.072,
-                "median": 136.3715
+                "mean": 146.1602,
+                "sd": 15.0626,
+                "median": 142.804
             },
             "current": {
-                "mean": 147.5942,
-                "sd": 17.9524,
-                "median": 153.5095
+                "mean": 147.775,
+                "sd": 15.4829,
+                "median": 144.413
             },
-            "n": 8,
+            "n": 31,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 7.5,
-            "t": 1.4
+            "change_pct": 1.1,
+            "t": 0.42
         },
         {
             "id": "tr2.topic_version_change",
@@ -393,22 +405,21 @@
             "unit": "ms",
             "better": "lower",
             "previous": {
-                "mean": 253.76,
-                "sd": 31.519,
-                "median": 253.5585
+                "mean": 264.3326,
+                "sd": 24.7823,
+                "median": 271.107
             },
             "current": {
-                "mean": 261.561,
-                "sd": 22.9645,
-                "median": 266.5735
+                "mean": 268.9544,
+                "sd": 23.2562,
+                "median": 268.197
             },
-            "n": 8,
+            "n": 31,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 3.1,
-            "t": 0.6
+            "change_pct": 1.75,
+            "t": 0.76
         },
         {
             "id": "treedb.update_memory",
@@ -420,22 +431,21 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 2.4339,
-                "sd": 0.0506,
-                "median": 2.4165
+                "mean": 2.3684,
+                "sd": 0.081,
+                "median": 2.365
             },
             "current": {
-                "mean": 2.37,
-                "sd": 0.0635,
-                "median": 2.3785
+                "mean": 2.2927,
+                "sd": 0.1549,
+                "median": 2.267
             },
-            "n": 8,
+            "n": 31,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -2.6,
-            "t": -2.2
+            "change_pct": -3.2,
+            "t": -2.41
         },
         {
             "id": "treedb.update_saved",
@@ -447,22 +457,21 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 7.7381,
-                "sd": 0.2197,
-                "median": 7.6665
+                "mean": 7.636,
+                "sd": 0.2331,
+                "median": 7.582
             },
             "current": {
-                "mean": 7.7341,
-                "sd": 0.2952,
-                "median": 7.794
+                "mean": 7.4778,
+                "sd": 0.2755,
+                "median": 7.424
             },
-            "n": 8,
+            "n": 31,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.1,
-            "t": -0.0
+            "change_pct": -2.07,
+            "t": -2.44
         },
         {
             "id": "treedb.link_unlink",
@@ -474,22 +483,22 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 8.7169,
-                "sd": 0.2001,
-                "median": 8.723
+                "mean": 8.5906,
+                "sd": 0.2383,
+                "median": 8.566
             },
             "current": {
-                "mean": 7.673,
-                "sd": 0.2671,
-                "median": 7.7595
+                "mean": 7.5441,
+                "sd": 0.2225,
+                "median": 7.529
             },
-            "n": 8,
+            "n": 31,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "gain",
-            "reason": "The treedb looks its topics, hooks and fkeys up by key (`kwid_get_by_keys()`), one hash lookup per segment, instead of formatting a path and splitting it into segments on every link.",
-            "change_pct": -12.0,
-            "t": -8.8
+            "reason": "The treedb looks its topics, hooks and fkeys up by key (KWID_GET_BY_KEYS(), one hash lookup per segment) instead of formatting a path and splitting it again on every call. Placed in 7.26.9 (7.26.8 8.62 us, like 7.26.0) and in its commits: 9d8f7c584 8.28 us (the names from data read as keys), f4be7d750 7.53 us (names looked up by key), the tag 7.38 us.",
+            "change_pct": -12.18,
+            "t": -17.87
         },
         {
             "id": "treedb.create_link_half",
@@ -502,22 +511,21 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 65.5896,
-                "sd": 2.1718,
-                "median": 64.7975
+                "mean": 65.2282,
+                "sd": 3.1655,
+                "median": 63.956
             },
             "current": {
-                "mean": 64.8925,
-                "sd": 1.2383,
-                "median": 64.898
+                "mean": 63.8494,
+                "sd": 3.2549,
+                "median": 62.732
             },
-            "n": 8,
+            "n": 31,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -1.1,
-            "t": -0.8
+            "change_pct": -2.11,
+            "t": -1.69
         },
         {
             "id": "treedb.reopen",
@@ -529,22 +537,22 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 312.0761,
-                "sd": 10.9068,
-                "median": 310.359
+                "mean": 311.5525,
+                "sd": 10.0132,
+                "median": 310.608
             },
             "current": {
-                "mean": 292.7912,
-                "sd": 11.8558,
-                "median": 294.88
+                "mean": 282.7757,
+                "sd": 10.086,
+                "median": 279.317
             },
-            "n": 8,
+            "n": 31,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "gain",
-            "reason": "The same by-key lookups of the hook maps, made for every node a reopen links again.",
-            "change_pct": -6.2,
-            "t": -3.4
+            "reason": "The same lookups, for every node linked again. 7.26.9: 7.26.8 309.5 us, 9d8f7c584 286.7 us (most of it comes with the commits of the round that read a name from data as a key), f4be7d750 281.8 us.",
+            "change_pct": -9.24,
+            "t": -11.27
         },
         {
             "id": "treedb.delete_force",
@@ -556,22 +564,22 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 44.1752,
-                "sd": 0.5955,
-                "median": 44.0595
+                "mean": 44.2606,
+                "sd": 2.4538,
+                "median": 43.604
             },
             "current": {
-                "mean": 42.4489,
-                "sd": 0.395,
-                "median": 42.348
+                "mean": 42.6383,
+                "sd": 1.5626,
+                "median": 42.161
             },
-            "n": 8,
+            "n": 31,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "gain",
-            "reason": "The same by-key lookups of the hooks a forced delete walks.",
-            "change_pct": -3.9,
-            "t": -6.8
+            "reason": "The same lookups of the hooks it walks: -3.7% (t = -3.1). 7.26.9 (7.26.8 43.8 us, f4be7d750 42.3 us).",
+            "change_pct": -3.67,
+            "t": -3.1
         },
         {
             "id": "treedb.delete_parent",
@@ -584,22 +592,22 @@
             "unit": "us",
             "better": "lower",
             "previous": {
-                "mean": 2553.8711,
-                "sd": 62.2561,
-                "median": 2548.353
+                "mean": 2536.3209,
+                "sd": 172.1743,
+                "median": 2494.279
             },
             "current": {
-                "mean": 2330.9293,
-                "sd": 67.42,
-                "median": 2311.1635
+                "mean": 2281.1537,
+                "sd": 131.7205,
+                "median": 2245.957
             },
-            "n": 8,
+            "n": 31,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "gain",
-            "reason": "The same by-key lookups of hooks and fkeys, walked once per child of the deleted parent.",
-            "change_pct": -8.7,
-            "t": -6.9
+            "reason": "The same lookups, once per child. 7.26.9: 7.26.8 2,506 us, 9d8f7c584 2,411 us, f4be7d750 2,262 us.",
+            "change_pct": -10.06,
+            "t": -6.55
         },
         {
             "id": "ctreedb.same_literal_release",
@@ -612,22 +620,21 @@
             "unit": "s",
             "better": "lower",
             "previous": {
-                "mean": 0.3554,
-                "sd": 0.0118,
-                "median": 0.3532
+                "mean": 0.3547,
+                "sd": 0.0398,
+                "median": 0.3448
             },
             "current": {
-                "mean": 0.3483,
-                "sd": 0.0122,
-                "median": 0.3498
+                "mean": 0.3591,
+                "sd": 0.049,
+                "median": 0.3413
             },
-            "n": 8,
+            "n": 31,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -2.0,
-            "t": -1.2
+            "change_pct": 1.25,
+            "t": 0.39
         },
         {
             "id": "ctreedb.seed",
@@ -640,22 +647,22 @@
             "unit": "s",
             "better": "lower",
             "previous": {
-                "mean": 11.0614,
-                "sd": 0.2519,
-                "median": 10.9991
+                "mean": 10.2851,
+                "sd": 0.4862,
+                "median": 10.149
             },
             "current": {
-                "mean": 11.1466,
-                "sd": 0.2829,
-                "median": 11.2064
+                "mean": 10.9727,
+                "sd": 0.4567,
+                "median": 11.0372
             },
-            "n": 8,
+            "n": 31,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
-            "verdict": "noise",
-            "reason": "",
-            "change_pct": 0.8,
-            "t": 0.6
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "verdict": "price",
+            "reason": "Appeared in 7.26.7, commit 50c6cd78f (its only C change): every treedb has a system topic __icons__ for the icons a user adds, created at its first open like __assets__. The first open of 40 treedbs creates 40 topics more, each with its fsyncs (about 14 ms a topic on this machine): +0.69 s. Placed by a rotation of 7.26.0, 7.26.6, 7.26.7 and 7.26.9: 10.24, 10.33, 10.98 and 10.96 s. A one-time cost of each treedb; the everyday open (same schema) did not move (+1.2%, t = 0.4).",
+            "change_pct": 6.68,
+            "t": 5.74
         },
         {
             "id": "ctreedb.newer_literal",
@@ -668,22 +675,21 @@
             "unit": "s",
             "better": "lower",
             "previous": {
-                "mean": 13.379,
-                "sd": 0.4879,
-                "median": 13.2958
+                "mean": 13.177,
+                "sd": 0.5823,
+                "median": 13.1605
             },
             "current": {
-                "mean": 13.3704,
-                "sd": 0.4672,
-                "median": 13.3749
+                "mean": 13.3208,
+                "sd": 0.6156,
+                "median": 13.2981
             },
-            "n": 8,
+            "n": 31,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.1,
-            "t": -0.0
+            "change_pct": 1.09,
+            "t": 0.95
         },
         {
             "id": "rotatory.audit_record",
@@ -696,22 +702,21 @@
             "unit": "ns",
             "better": "lower",
             "previous": {
-                "mean": 569.5625,
-                "sd": 21.0162,
-                "median": 567.05
+                "mean": 585.2133,
+                "sd": 37.1541,
+                "median": 583.8
             },
             "current": {
-                "mean": 565.375,
-                "sd": 19.6455,
-                "median": 554.6
+                "mean": 579.44,
+                "sd": 25.5517,
+                "median": 585.5
             },
-            "n": 8,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.7,
-            "t": -0.4
+            "change_pct": -0.99,
+            "t": -0.5
         },
         {
             "id": "rotatory.audit_record_flush",
@@ -724,22 +729,21 @@
             "unit": "ns",
             "better": "lower",
             "previous": {
-                "mean": 1252.2375,
-                "sd": 18.4949,
-                "median": 1246.95
+                "mean": 1251.04,
+                "sd": 47.3474,
+                "median": 1234.0
             },
             "current": {
-                "mean": 1241.9,
-                "sd": 19.7332,
-                "median": 1232.9
+                "mean": 1263.0067,
+                "sd": 53.9605,
+                "median": 1236.6
             },
-            "n": 8,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.8,
-            "t": -1.1
+            "change_pct": 0.96,
+            "t": 0.65
         },
         {
             "id": "rotatory.log_record",
@@ -752,22 +756,21 @@
             "unit": "ns",
             "better": "lower",
             "previous": {
-                "mean": 374.575,
-                "sd": 7.819,
-                "median": 374.4
+                "mean": 380.3333,
+                "sd": 20.1967,
+                "median": 372.7
             },
             "current": {
-                "mean": 374.0125,
-                "sd": 5.8426,
-                "median": 373.6
+                "mean": 383.3467,
+                "sd": 19.849,
+                "median": 374.8
             },
-            "n": 8,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.2,
-            "t": -0.2
+            "change_pct": 0.79,
+            "t": 0.41
         },
         {
             "id": "net.yev_ping_pong",
@@ -780,22 +783,21 @@
             "unit": "K msg/s",
             "better": "higher",
             "previous": {
-                "mean": 150.0261,
-                "sd": 2.6016,
-                "median": 151.075
+                "mean": 147.1268,
+                "sd": 5.6497,
+                "median": 150.0714
             },
             "current": {
-                "mean": 148.4031,
-                "sd": 3.5277,
-                "median": 149.8429
+                "mean": 146.5125,
+                "sd": 6.2396,
+                "median": 149.2429
             },
-            "n": 8,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -1.1,
-            "t": -1.0
+            "change_pct": -0.42,
+            "t": -0.28
         },
         {
             "id": "net.yev_ping_pong_persist",
@@ -808,22 +810,22 @@
             "unit": "K msg/s",
             "better": "higher",
             "previous": {
-                "mean": 87.5893,
-                "sd": 1.7039,
-                "median": 87.9429
+                "mean": 86.3038,
+                "sd": 2.1242,
+                "median": 87.3429
             },
             "current": {
-                "mean": 84.15,
-                "sd": 2.0798,
-                "median": 83.3714
+                "mean": 86.1657,
+                "sd": 2.6361,
+                "median": 86.6571
             },
-            "n": 8,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
-            "verdict": "price",
-            "reason": "The event loop echo that appends every message to timeranger2: the append path above, measured with the loop around it. No code of the loop or of the append changed; the same placement effect, larger in a 10 s run that does little else.",
-            "change_pct": -3.9,
-            "t": -3.6
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "verdict": "noise",
+            "reason": "-0.2% (t = -0.2). The study at the tag of 7.26.9 found it 3.9% slower against 7.26.8 and could not trace it: against 7.26.0 it is not there.",
+            "change_pct": -0.16,
+            "t": -0.16
         },
         {
             "id": "net.tcp_echo",
@@ -836,22 +838,21 @@
             "unit": "round trips/s",
             "better": "higher",
             "previous": {
-                "mean": 39365.75,
-                "sd": 934.5448,
-                "median": 39171.0
+                "mean": 38890.0667,
+                "sd": 943.1417,
+                "median": 38673.0
             },
             "current": {
-                "mean": 39057,
-                "sd": 855.9796,
-                "median": 39054.0
+                "mean": 39034.0667,
+                "sd": 907.5264,
+                "median": 38991.0
             },
-            "n": 8,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -0.8,
-            "t": -0.7
+            "change_pct": 0.37,
+            "t": 0.43
         },
         {
             "id": "net.tcp_echo_persist",
@@ -864,22 +865,21 @@
             "unit": "round trips/s",
             "better": "higher",
             "previous": {
-                "mean": 31321.75,
-                "sd": 685.8808,
-                "median": 31422.0
+                "mean": 30338.0,
+                "sd": 936.9049,
+                "median": 30487.0
             },
             "current": {
-                "mean": 30059.75,
-                "sd": 2657.2866,
-                "median": 31035.5
+                "mean": 30446.7333,
+                "sd": 968.3438,
+                "median": 30689.0
             },
-            "n": 8,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -4.0,
-            "t": -1.3
+            "change_pct": 0.36,
+            "t": 0.31
         },
         {
             "id": "net.tls_echo",
@@ -892,22 +892,21 @@
             "unit": "round trips/s",
             "better": "higher",
             "previous": {
-                "mean": 29763.625,
-                "sd": 2418.2961,
-                "median": 30686.5
+                "mean": 29356.9333,
+                "sd": 680.1489,
+                "median": 29281.0
             },
             "current": {
-                "mean": 29318.375,
-                "sd": 708.1989,
-                "median": 29256.0
+                "mean": 29439.6667,
+                "sd": 394.5509,
+                "median": 29447.0
             },
-            "n": 8,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -1.5,
-            "t": -0.5
+            "change_pct": 0.28,
+            "t": 0.41
         },
         {
             "id": "net.tls_echo_persist",
@@ -920,22 +919,21 @@
             "unit": "round trips/s",
             "better": "higher",
             "previous": {
-                "mean": 23628.125,
-                "sd": 1042.7374,
-                "median": 23736.0
+                "mean": 23650.4,
+                "sd": 600.2248,
+                "median": 23685.0
             },
             "current": {
-                "mean": 24191.875,
-                "sd": 692.2292,
-                "median": 24548.0
+                "mean": 23981.7333,
+                "sd": 524.2113,
+                "median": 24003.0
             },
-            "n": 8,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": 2.4,
-            "t": 1.3
+            "change_pct": 1.4,
+            "t": 1.61
         },
         {
             "id": "net.auth_bff_login",
@@ -948,22 +946,291 @@
             "unit": "logins/s",
             "better": "higher",
             "previous": {
-                "mean": 8621.875,
-                "sd": 162.5343,
-                "median": 8668.75
+                "mean": 8545.8333,
+                "sd": 300.0992,
+                "median": 8612.5
             },
             "current": {
-                "mean": 8484.375,
-                "sd": 163.2196,
-                "median": 8481.25
+                "mean": 8526.6667,
+                "sd": 228.6347,
+                "median": 8537.5
             },
-            "n": 8,
+            "n": 15,
             "scope": "release",
-            "method": "Each release built from its own tree, the two binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
+            "method": "Each release built from its own tree, the binaries run alternately, the order flipped every round, a sync and a 3 s pause (1 s for the three ctest binaries) before each run.",
             "verdict": "noise",
-            "reason": "",
-            "change_pct": -1.6,
-            "t": -1.7
+            "change_pct": -0.22,
+            "t": -0.2
+        },
+        {
+            "id": "tr2.read_page1_replica",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_page1_replica",
+            "label": "A page of 1 row, as a replica",
+            "short": "Page of 1 row, replica",
+            "meaning": "tranger2_iterator_get_page() of one row on a store another yuno writes: what a page costs beyond its rows.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 5.0682,
+                "sd": 0.0928,
+                "median": 5.0915
+            },
+            "current": {
+                "mean": 5.1137,
+                "sd": 0.0991,
+                "median": 5.1115
+            },
+            "n": 24,
+            "scope": "release",
+            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.26.0 and 7.26.9 run alternately, a sync and a 1 s pause before each run.",
+            "verdict": "noise",
+            "change_pct": 0.9,
+            "t": 1.64
+        },
+        {
+            "id": "tr2.read_page1_filtered_replica",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_page1_filtered_replica",
+            "label": "A page of 1 row of a filtered iterator, as a replica",
+            "short": "Filtered page of 1 row, replica",
+            "meaning": "The same through the index of a filtered iterator (100 rows).",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 3.9697,
+                "sd": 0.0718,
+                "median": 3.96
+            },
+            "current": {
+                "mean": 3.9402,
+                "sd": 0.076,
+                "median": 3.9275
+            },
+            "n": 24,
+            "scope": "release",
+            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.26.0 and 7.26.9 run alternately, a sync and a 1 s pause before each run.",
+            "verdict": "noise",
+            "change_pct": -0.74,
+            "t": -1.38
+        },
+        {
+            "id": "tr2.read_open_replica",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_open_replica",
+            "label": "Open and close an iterator, as a replica",
+            "short": "Iterator open, replica",
+            "meaning": "What a client of C_TRANGER pays to start reading a key; a multi-key iterator pays it once per key.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 15.9445,
+                "sd": 0.5927,
+                "median": 16.059
+            },
+            "current": {
+                "mean": 15.954,
+                "sd": 0.5795,
+                "median": 15.931
+            },
+            "n": 24,
+            "scope": "release",
+            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.26.0 and 7.26.9 run alternately, a sync and a 1 s pause before each run.",
+            "verdict": "noise",
+            "change_pct": 0.06,
+            "t": 0.06
+        },
+        {
+            "id": "tr2.read_open_filtered_replica",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_open_filtered_replica",
+            "label": "Open and close a filtered iterator, as a replica",
+            "short": "Filtered iterator open, replica",
+            "meaning": "The same with a filter: the open builds an index of 100 rows.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 11.3226,
+                "sd": 0.3211,
+                "median": 11.421
+            },
+            "current": {
+                "mean": 11.5593,
+                "sd": 0.4542,
+                "median": 11.465
+            },
+            "n": 24,
+            "scope": "release",
+            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.26.0 and 7.26.9 run alternately, a sync and a 1 s pause before each run.",
+            "verdict": "noise",
+            "change_pct": 2.09,
+            "t": 2.09
+        },
+        {
+            "id": "tr2.read_page100_replica",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_page100_replica",
+            "label": "A page of 100 rows, as a replica",
+            "short": "Page of 100 rows, replica",
+            "meaning": "A page as a GUI asks for it.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 264.4133,
+                "sd": 5.1335,
+                "median": 264.2115
+            },
+            "current": {
+                "mean": 263.1632,
+                "sd": 6.4768,
+                "median": 263.4365
+            },
+            "n": 24,
+            "scope": "release",
+            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.26.0 and 7.26.9 run alternately, a sync and a 1 s pause before each run.",
+            "verdict": "noise",
+            "change_pct": -0.47,
+            "t": -0.74
+        },
+        {
+            "id": "tr2.read_page1_master",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_page1_master",
+            "label": "A page of 1 row, as the master",
+            "short": "Page of 1 row, master",
+            "meaning": "The same page on the tranger that owns the store.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 5.0157,
+                "sd": 0.1003,
+                "median": 5.0435
+            },
+            "current": {
+                "mean": 5.1233,
+                "sd": 0.2173,
+                "median": 5.067
+            },
+            "n": 24,
+            "scope": "release",
+            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.26.0 and 7.26.9 run alternately, a sync and a 1 s pause before each run.",
+            "verdict": "noise",
+            "change_pct": 2.14,
+            "t": 2.2
+        },
+        {
+            "id": "tr2.read_page1_filtered_master",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_page1_filtered_master",
+            "label": "A page of 1 row of a filtered iterator, as the master",
+            "short": "Filtered page of 1 row, master",
+            "meaning": "The same through the index, on the master.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 3.9562,
+                "sd": 0.0854,
+                "median": 3.9465
+            },
+            "current": {
+                "mean": 3.9513,
+                "sd": 0.0931,
+                "median": 3.9335
+            },
+            "n": 24,
+            "scope": "release",
+            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.26.0 and 7.26.9 run alternately, a sync and a 1 s pause before each run.",
+            "verdict": "noise",
+            "change_pct": -0.12,
+            "t": -0.19
+        },
+        {
+            "id": "tr2.read_open_master",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_open_master",
+            "label": "Open and close an iterator, as the master",
+            "short": "Iterator open, master",
+            "meaning": "The open of an iterator on the master.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 15.5467,
+                "sd": 0.2897,
+                "median": 15.466
+            },
+            "current": {
+                "mean": 15.7806,
+                "sd": 0.7025,
+                "median": 15.7465
+            },
+            "n": 24,
+            "scope": "release",
+            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.26.0 and 7.26.9 run alternately, a sync and a 1 s pause before each run.",
+            "verdict": "noise",
+            "change_pct": 1.5,
+            "t": 1.51
+        },
+        {
+            "id": "tr2.read_open_filtered_master",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_open_filtered_master",
+            "label": "Open and close a filtered iterator, as the master",
+            "short": "Filtered iterator open, master",
+            "meaning": "A filtered open on the master.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 11.1138,
+                "sd": 0.3165,
+                "median": 11.0625
+            },
+            "current": {
+                "mean": 11.6709,
+                "sd": 1.2993,
+                "median": 11.386
+            },
+            "n": 24,
+            "scope": "release",
+            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.26.0 and 7.26.9 run alternately, a sync and a 1 s pause before each run.",
+            "verdict": "noise",
+            "change_pct": 5.01,
+            "t": 2.04
+        },
+        {
+            "id": "tr2.read_page100_master",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_page100_master",
+            "label": "A page of 100 rows, as the master",
+            "short": "Page of 100 rows, master",
+            "meaning": "A page as a GUI asks for it, on the master.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 264.6436,
+                "sd": 5.9617,
+                "median": 264.307
+            },
+            "current": {
+                "mean": 260.6385,
+                "sd": 5.677,
+                "median": 260.452
+            },
+            "n": 24,
+            "scope": "release",
+            "method": "The read phase of perf_timeranger2 alone, 24 rounds, the binaries of 7.26.0 and 7.26.9 run alternately, a sync and a 1 s pause before each run.",
+            "verdict": "noise",
+            "change_pct": -1.51,
+            "t": -2.38
         }
     ],
     "figures": [
@@ -977,12 +1244,12 @@
             "unit": "K msg/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 148.4031,
-            "median": 149.8429,
-            "min": 143.0857,
-            "max": 151.6857,
-            "n": 8,
-            "sd": 3.5277,
+            "mean": 146.5125,
+            "median": 149.2429,
+            "min": 130.7,
+            "max": 151.4375,
+            "n": 15,
+            "sd": 6.2396,
             "headline": true
         },
         {
@@ -995,12 +1262,12 @@
             "unit": "K msg/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 84.15,
-            "median": 83.3714,
-            "min": 82.2714,
-            "max": 87.4857,
-            "n": 8,
-            "sd": 2.0798,
+            "mean": 86.1657,
+            "median": 86.6571,
+            "min": 77.4,
+            "max": 88.7429,
+            "n": 15,
+            "sd": 2.6361,
             "headline": true
         },
         {
@@ -1013,12 +1280,12 @@
             "unit": "round trips/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 39057,
-            "median": 39054.0,
-            "min": 37932,
-            "max": 40647,
-            "n": 8,
-            "sd": 855.9796,
+            "mean": 39034.0667,
+            "median": 38991.0,
+            "min": 37587.0,
+            "max": 40405.0,
+            "n": 15,
+            "sd": 907.5264,
             "headline": true
         },
         {
@@ -1031,12 +1298,12 @@
             "unit": "round trips/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 30059.75,
-            "median": 31035.5,
-            "min": 23596,
-            "max": 31625,
-            "n": 8,
-            "sd": 2657.2866,
+            "mean": 30446.7333,
+            "median": 30689.0,
+            "min": 27657.0,
+            "max": 31703.0,
+            "n": 15,
+            "sd": 968.3438,
             "headline": true
         },
         {
@@ -1049,12 +1316,12 @@
             "unit": "round trips/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 29318.375,
-            "median": 29256.0,
-            "min": 28355,
-            "max": 30354,
-            "n": 8,
-            "sd": 708.1989,
+            "mean": 29439.6667,
+            "median": 29447.0,
+            "min": 28926.0,
+            "max": 30232.0,
+            "n": 15,
+            "sd": 394.5509,
             "headline": true
         },
         {
@@ -1067,12 +1334,12 @@
             "unit": "round trips/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 24191.875,
-            "median": 24548.0,
-            "min": 23234,
-            "max": 24872,
-            "n": 8,
-            "sd": 692.2292,
+            "mean": 23981.7333,
+            "median": 24003.0,
+            "min": 23058.0,
+            "max": 24960.0,
+            "n": 15,
+            "sd": 524.2113,
             "headline": true
         },
         {
@@ -1085,12 +1352,12 @@
             "unit": "logins/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 8484.375,
-            "median": 8481.25,
-            "min": 8225.0,
-            "max": 8737.5,
-            "n": 8,
-            "sd": 163.2196
+            "mean": 8526.6667,
+            "median": 8537.5,
+            "min": 8112.5,
+            "max": 8900.0,
+            "n": 15,
+            "sd": 228.6347
         },
         {
             "id": "rotatory.audit_record",
@@ -1102,12 +1369,12 @@
             "unit": "ns",
             "better": "lower",
             "source": "ab-current",
-            "mean": 565.375,
-            "median": 554.6,
-            "min": 551.4,
-            "max": 598.0,
-            "n": 8,
-            "sd": 19.6455,
+            "mean": 579.44,
+            "median": 585.5,
+            "min": 545.2,
+            "max": 623.7,
+            "n": 15,
+            "sd": 25.5517,
             "headline": true
         },
         {
@@ -1120,12 +1387,12 @@
             "unit": "ns",
             "better": "lower",
             "source": "ab-current",
-            "mean": 1241.9,
-            "median": 1232.9,
-            "min": 1223.3,
-            "max": 1272.6,
-            "n": 8,
-            "sd": 19.7332,
+            "mean": 1263.0067,
+            "median": 1236.6,
+            "min": 1218.3,
+            "max": 1390.3,
+            "n": 15,
+            "sd": 53.9605,
             "headline": true
         },
         {
@@ -1138,12 +1405,12 @@
             "unit": "ns",
             "better": "lower",
             "source": "ab-current",
-            "mean": 539.625,
-            "median": 539.65,
-            "min": 528.0,
-            "max": 545.8,
-            "n": 8,
-            "sd": 6.2424
+            "mean": 546.86,
+            "median": 536.0,
+            "min": 527.8,
+            "max": 590.6,
+            "n": 15,
+            "sd": 22.821
         },
         {
             "id": "rotatory.log_record",
@@ -1155,12 +1422,12 @@
             "unit": "ns",
             "better": "lower",
             "source": "ab-current",
-            "mean": 374.0125,
-            "median": 373.6,
-            "min": 366.5,
-            "max": 381.5,
-            "n": 8,
-            "sd": 5.8426,
+            "mean": 383.3467,
+            "median": 374.8,
+            "min": 368.7,
+            "max": 436.3,
+            "n": 15,
+            "sd": 19.849,
             "headline": true
         },
         {
@@ -1173,12 +1440,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 2.37,
-            "median": 2.3785,
-            "min": 2.287,
-            "max": 2.449,
-            "n": 8,
-            "sd": 0.0635,
+            "mean": 2.2927,
+            "median": 2.267,
+            "min": 2.139,
+            "max": 3.024,
+            "n": 31,
+            "sd": 0.1549,
             "headline": true
         },
         {
@@ -1191,12 +1458,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 7.7341,
-            "median": 7.794,
-            "min": 7.389,
-            "max": 8.229,
-            "n": 8,
-            "sd": 0.2952,
+            "mean": 7.4778,
+            "median": 7.424,
+            "min": 7.214,
+            "max": 8.522,
+            "n": 31,
+            "sd": 0.2755,
             "headline": true
         },
         {
@@ -1209,12 +1476,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 7.673,
-            "median": 7.7595,
-            "min": 7.324,
-            "max": 7.947,
-            "n": 8,
-            "sd": 0.2671,
+            "mean": 7.5441,
+            "median": 7.529,
+            "min": 7.294,
+            "max": 8.367,
+            "n": 31,
+            "sd": 0.2225,
             "headline": true
         },
         {
@@ -1227,12 +1494,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 64.8925,
-            "median": 64.898,
-            "min": 62.91,
-            "max": 66.994,
-            "n": 8,
-            "sd": 1.2383,
+            "mean": 63.8494,
+            "median": 62.732,
+            "min": 60.694,
+            "max": 74.119,
+            "n": 31,
+            "sd": 3.2549,
             "headline": true
         },
         {
@@ -1245,12 +1512,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 292.7912,
-            "median": 294.88,
-            "min": 278.99,
-            "max": 309.765,
-            "n": 8,
-            "sd": 11.8558
+            "mean": 282.7757,
+            "median": 279.317,
+            "min": 271.945,
+            "max": 322.026,
+            "n": 31,
+            "sd": 10.086
         },
         {
             "id": "treedb.delete_force",
@@ -1262,12 +1529,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 42.4489,
-            "median": 42.348,
-            "min": 42.008,
-            "max": 43.024,
-            "n": 8,
-            "sd": 0.395,
+            "mean": 42.6383,
+            "median": 42.161,
+            "min": 41.417,
+            "max": 48.677,
+            "n": 31,
+            "sd": 1.5626,
             "headline": true
         },
         {
@@ -1280,12 +1547,12 @@
             "unit": "us",
             "better": "lower",
             "source": "ab-current",
-            "mean": 2330.9293,
-            "median": 2311.1635,
-            "min": 2245.914,
-            "max": 2443.024,
-            "n": 8,
-            "sd": 67.42
+            "mean": 2281.1537,
+            "median": 2245.957,
+            "min": 2172.141,
+            "max": 2901.834,
+            "n": 31,
+            "sd": 131.7205
         },
         {
             "id": "tr2.build_appends",
@@ -1297,12 +1564,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 1590.5834,
-            "median": 1602.4255,
-            "min": 1524.943,
-            "max": 1623.797,
-            "n": 8,
-            "sd": 34.7154
+            "mean": 1585.6,
+            "median": 1584.797,
+            "min": 1535.805,
+            "max": 1691.944,
+            "n": 47,
+            "sd": 30.2356
         },
         {
             "id": "tr2.open_master",
@@ -1314,12 +1581,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 80.947,
-            "median": 81.006,
-            "min": 78.791,
-            "max": 82.586,
-            "n": 8,
-            "sd": 1.1413
+            "mean": 79.8503,
+            "median": 79.256,
+            "min": 77.855,
+            "max": 93.152,
+            "n": 47,
+            "sd": 2.4085
         },
         {
             "id": "tr2.open_replica",
@@ -1331,12 +1598,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 93.6129,
-            "median": 93.3745,
-            "min": 91.707,
-            "max": 97.55,
-            "n": 8,
-            "sd": 1.8373
+            "mean": 93.4646,
+            "median": 92.75,
+            "min": 90.773,
+            "max": 104.894,
+            "n": 47,
+            "sd": 2.6609
         },
         {
             "id": "tr2.create_topic",
@@ -1348,12 +1615,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 147.5942,
-            "median": 153.5095,
-            "min": 114.165,
-            "max": 170.503,
-            "n": 8,
-            "sd": 17.9524
+            "mean": 147.775,
+            "median": 144.413,
+            "min": 120.724,
+            "max": 186.998,
+            "n": 31,
+            "sd": 15.4829
         },
         {
             "id": "tr2.topic_version_change",
@@ -1365,12 +1632,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 261.561,
-            "median": 266.5735,
-            "min": 226.091,
-            "max": 287.956,
-            "n": 8,
-            "sd": 22.9645
+            "mean": 268.9544,
+            "median": 268.197,
+            "min": 226.349,
+            "max": 297.821,
+            "n": 31,
+            "sd": 23.2562
         },
         {
             "id": "tr2.tm_build_appends",
@@ -1382,12 +1649,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 1629.3906,
-            "median": 1648.6165,
-            "min": 1559.895,
-            "max": 1676.204,
-            "n": 8,
-            "sd": 46.0604
+            "mean": 1669.0805,
+            "median": 1664.49,
+            "min": 1602.726,
+            "max": 1877.684,
+            "n": 47,
+            "sd": 43.6921
         },
         {
             "id": "tr2.tm_query",
@@ -1399,12 +1666,12 @@
             "unit": "ms",
             "better": "lower",
             "source": "ab-current",
-            "mean": 12.6242,
-            "median": 12.5905,
-            "min": 12.07,
-            "max": 13.734,
-            "n": 8,
-            "sd": 0.5245
+            "mean": 12.5097,
+            "median": 12.423,
+            "min": 11.953,
+            "max": 13.989,
+            "n": 47,
+            "sd": 0.3892
         },
         {
             "id": "tr2.append_rate_store",
@@ -1417,12 +1684,12 @@
             "better": "higher",
             "source": "ab-current",
             "derived": "ops / seconds of build_appends",
-            "mean": 251587.1917,
-            "median": 249624.7306,
-            "min": 246336.2107,
-            "max": 262304.8861,
-            "n": 8,
-            "sd": 5610.492,
+            "mean": 252358.3549,
+            "median": 252398.2567,
+            "min": 236414.444,
+            "max": 260449.7316,
+            "n": 47,
+            "sd": 4713.1866,
             "headline": true
         },
         {
@@ -1436,12 +1703,12 @@
             "better": "higher",
             "source": "ab-current",
             "derived": "ops / seconds of tm_build_appends",
-            "mean": 368498.6326,
-            "median": 363941.6829,
-            "min": 357951.6574,
-            "max": 384641.2739,
-            "n": 8,
-            "sd": 10626.6181,
+            "mean": 359707.2116,
+            "median": 360470.7748,
+            "min": 319542.5854,
+            "max": 374362.1804,
+            "n": 47,
+            "sd": 8908.4302,
             "headline": true
         },
         {
@@ -1454,12 +1721,12 @@
             "unit": "records/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 213032.625,
-            "median": 211304.5,
-            "min": 205648,
-            "max": 221255,
-            "n": 24,
-            "sd": 4853.8639,
+            "mean": 215615.2,
+            "median": 215705.0,
+            "min": 197770.0,
+            "max": 223659.0,
+            "n": 15,
+            "sd": 6778.45,
             "headline": true
         },
         {
@@ -1472,12 +1739,12 @@
             "unit": "records/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 189440.25,
-            "median": 189404.5,
-            "min": 182756,
-            "max": 200155,
-            "n": 24,
-            "sd": 4964.0927,
+            "mean": 192700.0,
+            "median": 189348.0,
+            "min": 183906.0,
+            "max": 204189.0,
+            "n": 15,
+            "sd": 7103.6666,
             "headline": true
         },
         {
@@ -1490,12 +1757,12 @@
             "unit": "s",
             "better": "lower",
             "source": "ab-current",
-            "mean": 0.3483,
-            "median": 0.3498,
-            "min": 0.3344,
-            "max": 0.3661,
-            "n": 8,
-            "sd": 0.0122,
+            "mean": 0.3591,
+            "median": 0.3413,
+            "min": 0.3221,
+            "max": 0.5439,
+            "n": 31,
+            "sd": 0.049,
             "headline": true
         },
         {
@@ -1508,12 +1775,12 @@
             "unit": "s",
             "better": "lower",
             "source": "ab-current",
-            "mean": 11.1466,
-            "median": 11.2064,
-            "min": 10.6658,
-            "max": 11.4634,
-            "n": 8,
-            "sd": 0.2829
+            "mean": 10.9727,
+            "median": 11.0372,
+            "min": 9.8786,
+            "max": 11.7471,
+            "n": 31,
+            "sd": 0.4567
         },
         {
             "id": "ctreedb.newer_literal",
@@ -1525,12 +1792,12 @@
             "unit": "s",
             "better": "lower",
             "source": "ab-current",
-            "mean": 13.3704,
-            "median": 13.3749,
-            "min": 12.6918,
-            "max": 14.1477,
-            "n": 8,
-            "sd": 0.4672
+            "mean": 13.3208,
+            "median": 13.2981,
+            "min": 11.7415,
+            "max": 14.8263,
+            "n": 31,
+            "sd": 0.6156
         },
         {
             "id": "tr2.append_rate",
@@ -1542,12 +1809,12 @@
             "unit": "appends/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 222940.0417,
-            "median": 221453.0,
-            "min": 213965,
-            "max": 233293,
-            "n": 24,
-            "sd": 5759.103,
+            "mean": 223770.2667,
+            "median": 225510.0,
+            "min": 202881.0,
+            "max": 230780.0,
+            "n": 15,
+            "sd": 6592.5836,
             "headline": true
         },
         {
@@ -1560,12 +1827,182 @@
             "unit": "appends/s",
             "better": "higher",
             "source": "ab-current",
-            "mean": 188883.4583,
-            "median": 187414.5,
-            "min": 182223,
-            "max": 195732,
+            "mean": 189143.8,
+            "median": 191348.0,
+            "min": 173446.0,
+            "max": 195864.0,
+            "n": 15,
+            "sd": 6581.8144
+        },
+        {
+            "id": "tr2.read_page1_replica",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_page1_replica",
+            "label": "A page of 1 row, as a replica",
+            "meaning": "tranger2_iterator_get_page() of one row on a store another yuno writes: what a page costs beyond its rows.",
+            "unit": "us",
+            "better": "lower",
+            "source": "ab-current",
+            "mean": 5.1137,
+            "median": 5.1115,
+            "min": 4.958,
+            "max": 5.278,
             "n": 24,
-            "sd": 4218.1692
+            "sd": 0.0991
+        },
+        {
+            "id": "tr2.read_page1_filtered_replica",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_page1_filtered_replica",
+            "label": "A page of 1 row of a filtered iterator, as a replica",
+            "meaning": "The same through the index of a filtered iterator (100 rows).",
+            "unit": "us",
+            "better": "lower",
+            "source": "ab-current",
+            "mean": 3.9402,
+            "median": 3.9275,
+            "min": 3.831,
+            "max": 4.073,
+            "n": 24,
+            "sd": 0.076
+        },
+        {
+            "id": "tr2.read_open_replica",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_open_replica",
+            "label": "Open and close an iterator, as a replica",
+            "meaning": "What a client of C_TRANGER pays to start reading a key; a multi-key iterator pays it once per key.",
+            "unit": "us",
+            "better": "lower",
+            "source": "ab-current",
+            "mean": 15.954,
+            "median": 15.931,
+            "min": 14.042,
+            "max": 17.094,
+            "n": 24,
+            "sd": 0.5795
+        },
+        {
+            "id": "tr2.read_open_filtered_replica",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_open_filtered_replica",
+            "label": "Open and close a filtered iterator, as a replica",
+            "meaning": "The same with a filter: the open builds an index of 100 rows.",
+            "unit": "us",
+            "better": "lower",
+            "source": "ab-current",
+            "mean": 11.5593,
+            "median": 11.465,
+            "min": 10.788,
+            "max": 12.892,
+            "n": 24,
+            "sd": 0.4542
+        },
+        {
+            "id": "tr2.read_page100_replica",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_page100_replica",
+            "label": "A page of 100 rows, as a replica",
+            "meaning": "A page as a GUI asks for it.",
+            "unit": "us",
+            "better": "lower",
+            "source": "ab-current",
+            "mean": 263.1632,
+            "median": 263.4365,
+            "min": 251.086,
+            "max": 274.577,
+            "n": 24,
+            "sd": 6.4768
+        },
+        {
+            "id": "tr2.read_page1_master",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_page1_master",
+            "label": "A page of 1 row, as the master",
+            "meaning": "The same page on the tranger that owns the store.",
+            "unit": "us",
+            "better": "lower",
+            "source": "ab-current",
+            "mean": 5.1233,
+            "median": 5.067,
+            "min": 4.916,
+            "max": 6.019,
+            "n": 24,
+            "sd": 0.2173
+        },
+        {
+            "id": "tr2.read_page1_filtered_master",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_page1_filtered_master",
+            "label": "A page of 1 row of a filtered iterator, as the master",
+            "meaning": "The same through the index, on the master.",
+            "unit": "us",
+            "better": "lower",
+            "source": "ab-current",
+            "mean": 3.9513,
+            "median": 3.9335,
+            "min": 3.835,
+            "max": 4.213,
+            "n": 24,
+            "sd": 0.0931
+        },
+        {
+            "id": "tr2.read_open_master",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_open_master",
+            "label": "Open and close an iterator, as the master",
+            "meaning": "The open of an iterator on the master.",
+            "unit": "us",
+            "better": "lower",
+            "source": "ab-current",
+            "mean": 15.7806,
+            "median": 15.7465,
+            "min": 14.864,
+            "max": 18.272,
+            "n": 24,
+            "sd": 0.7025
+        },
+        {
+            "id": "tr2.read_open_filtered_master",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_open_filtered_master",
+            "label": "Open and close a filtered iterator, as the master",
+            "meaning": "A filtered open on the master.",
+            "unit": "us",
+            "better": "lower",
+            "source": "ab-current",
+            "mean": 11.6709,
+            "median": 11.386,
+            "min": 10.715,
+            "max": 17.499,
+            "n": 24,
+            "sd": 1.2993
+        },
+        {
+            "id": "tr2.read_page100_master",
+            "group": "timeranger2 reads",
+            "bench": "perf_timeranger2",
+            "case": "read_page100_master",
+            "label": "A page of 100 rows, as the master",
+            "meaning": "A page as a GUI asks for it, on the master.",
+            "unit": "us",
+            "better": "lower",
+            "source": "ab-current",
+            "mean": 260.6385,
+            "median": 260.452,
+            "min": 250.822,
+            "max": 271.013,
+            "n": 24,
+            "sd": 5.677
         }
     ],
     "binaries": [

@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **The performance studies of 7.27.5 and 7.26.9, redone against the last
+  release with a study** (`performance/reports/7.27.5.*` and `7.26.9.*`
+  replaced). Both had been made against the tag before them, which nobody
+  had measured; each now covers every release since the last study, and
+  places each move in its release (and commit, where that was cheap) by
+  building the tags between. 7.27.5 against 7.27.0 (7.27.1 to 7.27.5): the
+  price of a replica, about 1 us per iterator open and per page, appeared in
+  7.27.5 with `83a771089`; a page of 100 rows +1.5% with `bd3fdce51`; 7.27.1
+  to 7.27.4 cost nothing measurable. 7.26.9 against 7.26.0 (7.26.1 to
+  7.26.9): a treedb link or unlink 12.2% faster (8.59 -> 7.54 us of CPU),
+  deleting a parent 10.1%, a reopen 9.2% (7.26.9, mostly `f4be7d750`, the
+  names looked up by key); the first open of 40 treedbs +6.7% (7.26.7,
+  `50c6cd78f`: every treedb gets a topic `__icons__` at its first open); 600
+  000 appends to one key +4.1% and 400 000 into 20 000 files +2.3% (7.26.9,
+  in steps over its kw commits, about 0.11 us per append); the event loop
+  echo with an append that the first study found 3.9% slower against 7.26.8
+  is -0.2% against 7.26.0. Figures in `performance/c/README.md` and on the
+  performance page of the docs.
+
 ## v7.27.7 (2026-10-22)
 
 A patch release of fixes from the reviews V38-V42. In timeranger2, the rowid

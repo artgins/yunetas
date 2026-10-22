@@ -26,7 +26,7 @@
 <text class="m" x="20" y="48">one panel per figure, each on its own scale from zero &#183; the A/B figures of each release report (7.25.4 is the baseline of 7.25.5)</text>
 <text class="l" x="20" y="80">Appends per second</text>
 <line class="grid" x1="30" x2="430" y1="176" y2="176"/>
-<polyline class="curl" points="30.0,110.2 68.9,109.7 107.8,108.2 146.7,108.4 185.6,109.0 224.4,109.0 263.3,109.3 302.2,107.4 341.1,108.3 380.0,106.4"/>
+<polyline class="curl" points="30.0,110.2 68.9,109.7 107.8,108.2 146.7,108.4 185.6,109.0 224.4,109.0 263.3,109.1 302.2,107.4 341.1,108.3 380.0,106.4"/>
 <circle class="prev" cx="30.0" cy="110.2" r="4.5" stroke-width="2"><title>7.25.4: 220,120</title></circle>
 <text class="v" x="38.0" y="102.2" text-anchor="start">220,120</text>
 <text class="m" x="30.0" y="192" text-anchor="middle">7.25.4</text>
@@ -45,8 +45,8 @@
 <circle class="prev" cx="224.4" cy="109.0" r="4.5" stroke-width="2"><title>7.26.0: 223,864</title></circle>
 <text class="v" x="232.4" y="101.0" text-anchor="start">223,864</text>
 <text class="m" x="224.4" y="192" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="263.3" cy="109.3" r="4.5" stroke-width="2"><title>7.26.9: 222,940</title></circle>
-<text class="v" x="271.3" y="101.3" text-anchor="start">222,940</text>
+<circle class="prev" cx="263.3" cy="109.1" r="4.5" stroke-width="2"><title>7.26.9: 223,770</title></circle>
+<text class="v" x="271.3" y="101.1" text-anchor="start">223,770</text>
 <text class="m" x="263.3" y="192" text-anchor="middle">7.26.9</text>
 <circle class="prev" cx="302.2" cy="107.4" r="4.5" stroke-width="2"><title>7.27.0: 229,502</title></circle>
 <text class="v" x="310.2" y="99.4" text-anchor="start">229,502</text>
@@ -59,7 +59,7 @@
 <text class="m" x="380.0" y="192" text-anchor="middle">7.27.7</text>
 <text class="l" x="450" y="80">Open a store as master (ms)</text>
 <line class="grid" x1="460" x2="860" y1="176" y2="176"/>
-<polyline class="curl" points="460.0,106.4 498.9,115.2 537.8,117.2 576.7,114.4 615.6,116.2 654.4,114.4 693.3,115.1 732.2,114.2 771.1,115.0 810.0,116.8"/>
+<polyline class="curl" points="460.0,106.4 498.9,115.2 537.8,117.2 576.7,114.4 615.6,116.2 654.4,114.4 693.3,115.9 732.2,114.2 771.1,115.0 810.0,116.8"/>
 <circle class="prev" cx="460.0" cy="106.4" r="4.5" stroke-width="2"><title>7.25.4: 92.50</title></circle>
 <text class="v" x="468.0" y="98.4" text-anchor="start">92.50</text>
 <text class="m" x="460.0" y="192" text-anchor="middle">7.25.4</text>
@@ -78,8 +78,8 @@
 <circle class="prev" cx="654.4" cy="114.4" r="4.5" stroke-width="2"><title>7.26.0: 81.88</title></circle>
 <text class="v" x="662.4" y="106.4" text-anchor="start">81.88</text>
 <text class="m" x="654.4" y="192" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="693.3" cy="115.1" r="4.5" stroke-width="2"><title>7.26.9: 80.95</title></circle>
-<text class="v" x="701.3" y="107.1" text-anchor="start">80.95</text>
+<circle class="prev" cx="693.3" cy="115.9" r="4.5" stroke-width="2"><title>7.26.9: 79.85</title></circle>
+<text class="v" x="701.3" y="107.9" text-anchor="start">79.85</text>
 <text class="m" x="693.3" y="192" text-anchor="middle">7.26.9</text>
 <circle class="prev" cx="732.2" cy="114.2" r="4.5" stroke-width="2"><title>7.27.0: 82.23</title></circle>
 <text class="v" x="740.2" y="106.2" text-anchor="start">82.23</text>
@@ -92,7 +92,7 @@
 <text class="m" x="810.0" y="192" text-anchor="middle">7.27.7</text>
 <text class="l" x="20" y="230">tm query of one minute (ms)</text>
 <line class="grid" x1="30" x2="430" y1="326" y2="326"/>
-<polyline class="curl" points="30.0,259.0 68.9,286.9 107.8,287.2 146.7,285.6 185.6,286.6 224.4,258.3 263.3,259.4 302.2,258.3 341.1,256.4 380.0,258.1"/>
+<polyline class="curl" points="30.0,259.0 68.9,286.9 107.8,287.2 146.7,285.6 185.6,286.6 224.4,258.3 263.3,260.0 302.2,258.3 341.1,256.4 380.0,258.1"/>
 <circle class="prev" cx="30.0" cy="259.0" r="4.5" stroke-width="2"><title>7.25.4: 12.70</title></circle>
 <text class="v" x="38.0" y="251.0" text-anchor="start">12.70</text>
 <text class="m" x="30.0" y="342" text-anchor="middle">7.25.4</text>
@@ -111,8 +111,8 @@
 <circle class="prev" cx="224.4" cy="258.3" r="4.5" stroke-width="2"><title>7.26.0: 12.82</title></circle>
 <text class="v" x="232.4" y="250.3" text-anchor="start">12.82</text>
 <text class="m" x="224.4" y="342" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="263.3" cy="259.4" r="4.5" stroke-width="2"><title>7.26.9: 12.62</title></circle>
-<text class="v" x="271.3" y="251.4" text-anchor="start">12.62</text>
+<circle class="prev" cx="263.3" cy="260.0" r="4.5" stroke-width="2"><title>7.26.9: 12.51</title></circle>
+<text class="v" x="271.3" y="252.0" text-anchor="start">12.51</text>
 <text class="m" x="263.3" y="342" text-anchor="middle">7.26.9</text>
 <circle class="prev" cx="302.2" cy="258.3" r="4.5" stroke-width="2"><title>7.27.0: 12.82</title></circle>
 <text class="v" x="310.2" y="250.3" text-anchor="start">12.82</text>
@@ -125,7 +125,7 @@
 <text class="m" x="380.0" y="342" text-anchor="middle">7.27.7</text>
 <text class="l" x="450" y="230">treedb update in memory (us)</text>
 <line class="grid" x1="460" x2="860" y1="326" y2="326"/>
-<polyline class="curl" points="460.0,256.4 498.9,274.2 537.8,284.9 576.7,284.8 615.6,283.2 654.4,281.8 693.3,283.9 732.2,282.3 771.1,284.0 810.0,284.1"/>
+<polyline class="curl" points="460.0,256.4 498.9,274.2 537.8,284.9 576.7,284.8 615.6,283.2 654.4,281.8 693.3,285.3 732.2,282.3 771.1,284.0 810.0,284.1"/>
 <circle class="prev" cx="460.0" cy="256.4" r="4.5" stroke-width="2"><title>7.25.4: 3.92</title></circle>
 <text class="v" x="468.0" y="248.4" text-anchor="start">3.92</text>
 <text class="m" x="460.0" y="342" text-anchor="middle">7.25.4</text>
@@ -144,8 +144,8 @@
 <circle class="prev" cx="654.4" cy="281.8" r="4.5" stroke-width="2"><title>7.26.0: 2.49</title></circle>
 <text class="v" x="662.4" y="273.8" text-anchor="start">2.49</text>
 <text class="m" x="654.4" y="342" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="693.3" cy="283.9" r="4.5" stroke-width="2"><title>7.26.9: 2.37</title></circle>
-<text class="v" x="701.3" y="275.9" text-anchor="start">2.37</text>
+<circle class="prev" cx="693.3" cy="285.3" r="4.5" stroke-width="2"><title>7.26.9: 2.29</title></circle>
+<text class="v" x="701.3" y="277.3" text-anchor="start">2.29</text>
 <text class="m" x="693.3" y="342" text-anchor="middle">7.26.9</text>
 <circle class="prev" cx="732.2" cy="282.3" r="4.5" stroke-width="2"><title>7.27.0: 2.46</title></circle>
 <text class="v" x="740.2" y="274.3" text-anchor="start">2.46</text>
@@ -158,7 +158,7 @@
 <text class="m" x="810.0" y="342" text-anchor="middle">7.27.7</text>
 <text class="l" x="20" y="380">treedb update, saved (us)</text>
 <line class="grid" x1="30" x2="430" y1="476" y2="476"/>
-<polyline class="curl" points="30.0,406.4 68.9,412.0 107.8,430.6 146.7,430.0 185.6,430.1 224.4,429.8 263.3,430.2 302.2,429.6 341.1,430.9 380.0,431.1"/>
+<polyline class="curl" points="30.0,406.4 68.9,412.0 107.8,430.6 146.7,430.0 185.6,430.1 224.4,429.8 263.3,431.7 302.2,429.6 341.1,430.9 380.0,431.1"/>
 <circle class="prev" cx="30.0" cy="406.4" r="4.5" stroke-width="2"><title>7.25.4: 11.75</title></circle>
 <text class="v" x="38.0" y="398.4" text-anchor="start">11.75</text>
 <text class="m" x="30.0" y="492" text-anchor="middle">7.25.4</text>
@@ -177,8 +177,8 @@
 <circle class="prev" cx="224.4" cy="429.8" r="4.5" stroke-width="2"><title>7.26.0: 7.80</title></circle>
 <text class="v" x="232.4" y="421.8" text-anchor="start">7.80</text>
 <text class="m" x="224.4" y="492" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="263.3" cy="430.2" r="4.5" stroke-width="2"><title>7.26.9: 7.73</title></circle>
-<text class="v" x="271.3" y="422.2" text-anchor="start">7.73</text>
+<circle class="prev" cx="263.3" cy="431.7" r="4.5" stroke-width="2"><title>7.26.9: 7.48</title></circle>
+<text class="v" x="271.3" y="423.7" text-anchor="start">7.48</text>
 <text class="m" x="263.3" y="492" text-anchor="middle">7.26.9</text>
 <circle class="prev" cx="302.2" cy="429.6" r="4.5" stroke-width="2"><title>7.27.0: 7.84</title></circle>
 <text class="v" x="310.2" y="421.6" text-anchor="start">7.84</text>
@@ -191,7 +191,7 @@
 <text class="m" x="380.0" y="492" text-anchor="middle">7.27.7</text>
 <text class="l" x="450" y="380">treedb link / unlink (us)</text>
 <line class="grid" x1="460" x2="860" y1="476" y2="476"/>
-<polyline class="curl" points="460.0,406.4 498.9,407.5 537.8,422.6 576.7,422.2 615.6,422.8 654.4,422.6 693.3,428.6 732.2,428.1 771.1,429.8 810.0,430.4"/>
+<polyline class="curl" points="460.0,406.4 498.9,407.5 537.8,422.6 576.7,422.2 615.6,422.8 654.4,422.6 693.3,429.4 732.2,428.1 771.1,429.8 810.0,430.4"/>
 <circle class="prev" cx="460.0" cy="406.4" r="4.5" stroke-width="2"><title>7.25.4: 11.27</title></circle>
 <text class="v" x="468.0" y="398.4" text-anchor="start">11.27</text>
 <text class="m" x="460.0" y="492" text-anchor="middle">7.25.4</text>
@@ -210,8 +210,8 @@
 <circle class="prev" cx="654.4" cy="422.6" r="4.5" stroke-width="2"><title>7.26.0: 8.65</title></circle>
 <text class="v" x="662.4" y="414.6" text-anchor="start">8.65</text>
 <text class="m" x="654.4" y="492" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="693.3" cy="428.6" r="4.5" stroke-width="2"><title>7.26.9: 7.67</title></circle>
-<text class="v" x="701.3" y="420.6" text-anchor="start">7.67</text>
+<circle class="prev" cx="693.3" cy="429.4" r="4.5" stroke-width="2"><title>7.26.9: 7.54</title></circle>
+<text class="v" x="701.3" y="421.4" text-anchor="start">7.54</text>
 <text class="m" x="693.3" y="492" text-anchor="middle">7.26.9</text>
 <circle class="prev" cx="732.2" cy="428.1" r="4.5" stroke-width="2"><title>7.27.0: 7.76</title></circle>
 <text class="v" x="740.2" y="420.1" text-anchor="start">7.76</text>
@@ -224,7 +224,7 @@
 <text class="m" x="810.0" y="492" text-anchor="middle">7.27.7</text>
 <text class="l" x="20" y="530">Open 40 treedbs, same schema (s)</text>
 <line class="grid" x1="30" x2="430" y1="626" y2="626"/>
-<polyline class="curl" points="30.0,556.4 68.9,601.5 107.8,614.0 146.7,613.1 185.6,613.4 224.4,613.4 263.3,612.8 302.2,611.5 341.1,611.9 380.0,613.5"/>
+<polyline class="curl" points="30.0,556.4 68.9,601.5 107.8,614.0 146.7,613.1 185.6,613.4 224.4,613.4 263.3,612.4 302.2,611.5 341.1,611.9 380.0,613.5"/>
 <circle class="prev" cx="30.0" cy="556.4" r="4.5" stroke-width="2"><title>7.25.4: 1.84</title></circle>
 <text class="v" x="38.0" y="548.4" text-anchor="start">1.84</text>
 <text class="m" x="30.0" y="642" text-anchor="middle">7.25.4</text>
@@ -243,8 +243,8 @@
 <circle class="prev" cx="224.4" cy="613.4" r="4.5" stroke-width="2"><title>7.26.0: 0.335</title></circle>
 <text class="v" x="232.4" y="605.4" text-anchor="start">0.335</text>
 <text class="m" x="224.4" y="642" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="263.3" cy="612.8" r="4.5" stroke-width="2"><title>7.26.9: 0.348</title></circle>
-<text class="v" x="271.3" y="604.8" text-anchor="start">0.348</text>
+<circle class="prev" cx="263.3" cy="612.4" r="4.5" stroke-width="2"><title>7.26.9: 0.359</title></circle>
+<text class="v" x="271.3" y="604.4" text-anchor="start">0.359</text>
 <text class="m" x="263.3" y="642" text-anchor="middle">7.26.9</text>
 <circle class="prev" cx="302.2" cy="611.5" r="4.5" stroke-width="2"><title>7.27.0: 0.383</title></circle>
 <text class="v" x="310.2" y="603.5" text-anchor="start">0.383</text>
@@ -257,7 +257,7 @@
 <text class="m" x="380.0" y="642" text-anchor="middle">7.27.7</text>
 <text class="l" x="450" y="530">Agent audit record (ns)</text>
 <line class="grid" x1="460" x2="860" y1="626" y2="626"/>
-<polyline class="curl" points="460.0,556.4 498.9,619.8 537.8,619.6 576.7,619.3 615.6,619.6 654.4,619.6 693.3,619.7 732.2,619.5 771.1,619.6 810.0,619.6"/>
+<polyline class="curl" points="460.0,556.4 498.9,619.8 537.8,619.6 576.7,619.3 615.6,619.6 654.4,619.6 693.3,619.5 732.2,619.5 771.1,619.6 810.0,619.6"/>
 <circle class="prev" cx="460.0" cy="556.4" r="4.5" stroke-width="2"><title>7.25.4: 6,194</title></circle>
 <text class="v" x="468.0" y="548.4" text-anchor="start">6,194</text>
 <text class="m" x="460.0" y="642" text-anchor="middle">7.25.4</text>
@@ -276,8 +276,8 @@
 <circle class="prev" cx="654.4" cy="619.6" r="4.5" stroke-width="2"><title>7.26.0: 570.1</title></circle>
 <text class="v" x="662.4" y="611.6" text-anchor="start">570.1</text>
 <text class="m" x="654.4" y="642" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="693.3" cy="619.7" r="4.5" stroke-width="2"><title>7.26.9: 565.4</title></circle>
-<text class="v" x="701.3" y="611.7" text-anchor="start">565.4</text>
+<circle class="prev" cx="693.3" cy="619.5" r="4.5" stroke-width="2"><title>7.26.9: 579.4</title></circle>
+<text class="v" x="701.3" y="611.5" text-anchor="start">579.4</text>
 <text class="m" x="693.3" y="642" text-anchor="middle">7.26.9</text>
 <circle class="prev" cx="732.2" cy="619.5" r="4.5" stroke-width="2"><title>7.27.0: 578</title></circle>
 <text class="v" x="740.2" y="611.5" text-anchor="start">578</text>
@@ -290,7 +290,7 @@
 <text class="m" x="810.0" y="642" text-anchor="middle">7.27.7</text>
 <text class="l" x="20" y="680">Event loop echo (K msg/s)</text>
 <line class="grid" x1="30" x2="430" y1="776" y2="776"/>
-<polyline class="curl" points="30.0,706.4 68.9,707.2 107.8,707.4 146.7,708.8 185.6,707.2 224.4,707.9 263.3,708.2 302.2,709.8 341.1,710.6 380.0,708.2"/>
+<polyline class="curl" points="30.0,706.4 68.9,707.2 107.8,707.4 146.7,708.8 185.6,707.2 224.4,707.9 263.3,709.0 302.2,709.8 341.1,710.6 380.0,708.2"/>
 <circle class="prev" cx="30.0" cy="706.4" r="4.5" stroke-width="2"><title>7.25.4: 152.2</title></circle>
 <text class="v" x="38.0" y="698.4" text-anchor="start">152.2</text>
 <text class="m" x="30.0" y="792" text-anchor="middle">7.25.4</text>
@@ -309,8 +309,8 @@
 <circle class="prev" cx="224.4" cy="707.9" r="4.5" stroke-width="2"><title>7.26.0: 149</title></circle>
 <text class="v" x="232.4" y="699.9" text-anchor="start">149</text>
 <text class="m" x="224.4" y="792" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="263.3" cy="708.2" r="4.5" stroke-width="2"><title>7.26.9: 148.4</title></circle>
-<text class="v" x="271.3" y="700.2" text-anchor="start">148.4</text>
+<circle class="prev" cx="263.3" cy="709.0" r="4.5" stroke-width="2"><title>7.26.9: 146.5</title></circle>
+<text class="v" x="271.3" y="701.0" text-anchor="start">146.5</text>
 <text class="m" x="263.3" y="792" text-anchor="middle">7.26.9</text>
 <circle class="prev" cx="302.2" cy="709.8" r="4.5" stroke-width="2"><title>7.27.0: 144.9</title></circle>
 <text class="v" x="310.2" y="701.8" text-anchor="start">144.9</text>
@@ -342,8 +342,8 @@
 <circle class="prev" cx="654.4" cy="706.8" r="4.5" stroke-width="2"><title>7.26.0: 39,511</title></circle>
 <text class="v" x="662.4" y="698.8" text-anchor="start">39,511</text>
 <text class="m" x="654.4" y="792" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="693.3" cy="707.6" r="4.5" stroke-width="2"><title>7.26.9: 39,057</title></circle>
-<text class="v" x="701.3" y="699.6" text-anchor="start">39,057</text>
+<circle class="prev" cx="693.3" cy="707.6" r="4.5" stroke-width="2"><title>7.26.9: 39,034</title></circle>
+<text class="v" x="701.3" y="699.6" text-anchor="start">39,034</text>
 <text class="m" x="693.3" y="792" text-anchor="middle">7.26.9</text>
 <circle class="prev" cx="732.2" cy="708.1" r="4.5" stroke-width="2"><title>7.27.0: 38,744</title></circle>
 <text class="v" x="740.2" y="700.1" text-anchor="start">38,744</text>

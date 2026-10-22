@@ -24,47 +24,47 @@
 <rect class="bg" x="0.5" y="0.5" width="899" height="387" rx="10"/>
 <line class="grid" x1="330.0" x2="330.0" y1="66" y2="352"/>
 <text class="m" x="330.0" y="368" text-anchor="middle">0</text>
-<line class="grid" x1="430.4" x2="430.4" y1="66" y2="352"/>
-<text class="m" x="430.4" y="368" text-anchor="middle">50k</text>
-<line class="grid" x1="530.8" x2="530.8" y1="66" y2="352"/>
-<text class="m" x="530.8" y="368" text-anchor="middle">100k</text>
-<line class="grid" x1="631.2" x2="631.2" y1="66" y2="352"/>
-<text class="m" x="631.2" y="368" text-anchor="middle">150k</text>
-<line class="grid" x1="731.6" x2="731.6" y1="66" y2="352"/>
-<text class="m" x="731.6" y="368" text-anchor="middle">200k</text>
+<line class="grid" x1="430.0" x2="430.0" y1="66" y2="352"/>
+<text class="m" x="430.0" y="368" text-anchor="middle">50k</text>
+<line class="grid" x1="530.0" x2="530.0" y1="66" y2="352"/>
+<text class="m" x="530.0" y="368" text-anchor="middle">100k</text>
+<line class="grid" x1="630.1" x2="630.1" y1="66" y2="352"/>
+<text class="m" x="630.1" y="368" text-anchor="middle">150k</text>
+<line class="grid" x1="730.1" x2="730.1" y1="66" y2="352"/>
+<text class="m" x="730.1" y="368" text-anchor="middle">200k</text>
 <text class="t" x="20" y="30">Yuneta 7.26.9: operations per second on one core</text>
 <text class="m" x="20" y="48">as each benchmark counts them: a record stored or read, a message echoed, a round trip, a login</text>
 <text class="l" x="20" y="82">timeranger2 appends (records stored)</text>
 <rect class="cur" x="330" y="72" width="447.6" height="12" rx="3"/>
-<text class="v" x="783.6" y="82">223 K/s</text>
+<text class="v" x="783.6" y="82">224 K/s</text>
 <text class="l" x="20" y="108">appends with a live reader</text>
-<rect class="cur" x="330" y="98" width="379.2" height="12" rx="3"/>
-<text class="v" x="715.2" y="108">189 K/s</text>
+<rect class="cur" x="330" y="98" width="378.4" height="12" rx="3"/>
+<text class="v" x="714.4" y="108">189 K/s</text>
 <text class="l" x="20" y="134">timeranger2 reads (records loaded)</text>
-<rect class="cur" x="330" y="124" width="427.7" height="12" rx="3"/>
-<text class="v" x="763.7" y="134">213 K/s</text>
+<rect class="cur" x="330" y="124" width="431.3" height="12" rx="3"/>
+<text class="v" x="767.3" y="134">216 K/s</text>
 <text class="l" x="20" y="160">reads, page by page</text>
-<rect class="cur" x="330" y="150" width="380.4" height="12" rx="3"/>
-<text class="v" x="716.4" y="160">189 K/s</text>
+<rect class="cur" x="330" y="150" width="385.5" height="12" rx="3"/>
+<text class="v" x="721.5" y="160">193 K/s</text>
 <text class="l" x="20" y="186">io_uring event loop alone (1 KB echo)</text>
-<rect class="cur" x="330" y="176" width="298.0" height="12" rx="3"/>
-<text class="v" x="634.0" y="186">148 K/s</text>
+<rect class="cur" x="330" y="176" width="293.1" height="12" rx="3"/>
+<text class="v" x="629.1" y="186">147 K/s</text>
 <text class="l" x="20" y="212">event loop + timeranger2 append</text>
-<rect class="cur" x="330" y="202" width="169.0" height="12" rx="3"/>
-<text class="v" x="505.0" y="212">84.2 K/s</text>
+<rect class="cur" x="330" y="202" width="172.4" height="12" rx="3"/>
+<text class="v" x="508.4" y="212">86.2 K/s</text>
 <text class="l" x="20" y="238">full gobj stack, TCP</text>
-<rect class="cur" x="330" y="228" width="78.4" height="12" rx="3"/>
-<text class="v" x="414.4" y="238">39.1 K/s</text>
+<rect class="cur" x="330" y="228" width="78.1" height="12" rx="3"/>
+<text class="v" x="414.1" y="238">39.0 K/s</text>
 <text class="l" x="20" y="264">gobj stack, TCP + append</text>
-<rect class="cur" x="330" y="254" width="60.4" height="12" rx="3"/>
-<text class="v" x="396.4" y="264">30.1 K/s</text>
+<rect class="cur" x="330" y="254" width="60.9" height="12" rx="3"/>
+<text class="v" x="396.9" y="264">30.4 K/s</text>
 <text class="l" x="20" y="290">gobj stack, TLS (OpenSSL)</text>
 <rect class="cur" x="330" y="280" width="58.9" height="12" rx="3"/>
-<text class="v" x="394.9" y="290">29.3 K/s</text>
+<text class="v" x="394.9" y="290">29.4 K/s</text>
 <text class="l" x="20" y="316">gobj stack, TLS + append</text>
-<rect class="cur" x="330" y="306" width="48.6" height="12" rx="3"/>
-<text class="v" x="384.6" y="316">24.2 K/s</text>
+<rect class="cur" x="330" y="306" width="48.0" height="12" rx="3"/>
+<text class="v" x="384.0" y="316">24.0 K/s</text>
 <text class="l" x="20" y="342">OAuth2 BFF logins (HTTP, 5 clients)</text>
-<rect class="cur" x="330" y="332" width="17.0" height="12" rx="3"/>
-<text class="v" x="353.0" y="342">8.5 K/s</text>
+<rect class="cur" x="330" y="332" width="17.1" height="12" rx="3"/>
+<text class="v" x="353.1" y="342">8.5 K/s</text>
 </svg>
