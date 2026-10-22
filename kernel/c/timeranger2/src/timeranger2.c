@@ -18293,22 +18293,13 @@ PRIVATE json_t *read_record_content(
         return NULL;
     }
 
+    /*
+     *  pread(): one syscall, not an lseek() and a read(). Nothing reads this
+     *  descriptor by its position (it is the read descriptor of the content,
+     *  get_topic_rd_fd(); the appends write through another one), and the
+     *  offset is checked above against the size of the file.
+     */
     off_t offset = (off_t)md_record_ex->__offset__;
-    off_t offset_ = lseek(fd, offset, SEEK_SET);
-    if(offset != offset_) {
-        gobj_log_critical(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot read record data, lseek FAILED",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
-            "key",          "%s", key,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-        return NULL;
-    }
 
     char *p = gbmem_malloc(md_record_ex->__size__);
     if(!p) {
@@ -18323,10 +18314,11 @@ PRIVATE json_t *read_record_content(
         );
         return NULL;
     }
-    ssize_t ln = read( // read content
+    ssize_t ln = pread( // read content
         fd,
         p,
-        md_record_ex->__size__
+        md_record_ex->__size__,
+        offset
     );
 
     if(ln < 0) {
