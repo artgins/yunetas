@@ -14,7 +14,7 @@ gained, measured, and what was found and not done.
 | Round | Scope | Document |
 |-------|-------|----------|
 | 1 | `gobj-c`: the allocator, the publication of events, subscriptions, `gobj_change_state()`, `gobj_match_gobj()`. TCP echo **+32%**, TLS echo +26%, BFF logins +12% | [round-1-gobj-core.md](round-1-gobj-core.md) |
-| 2 | `timeranger2` and `tr_treedb` | (pending) |
+| 2 | `timeranger2` and `tr_treedb`: the cache of the keys, file names, `pread()`, the cols of a topic, `md2json()`, the start time of the process. Appends **+16%**, reads +13%, treedb writes -13%, forced deletes -18% | [round-2-timeranger2-treedb.md](round-2-timeranger2-treedb.md) |
 | 3 | The network path: `yev_loop`, `C_TCP`, the protocols, TLS | (pending) |
 
 ## Method
