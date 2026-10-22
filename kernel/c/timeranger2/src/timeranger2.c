@@ -4002,20 +4002,23 @@ PRIVATE int close_fd_opened_files(
 
 /***************************************************************************
  *  Return json object with record metadata
+ *  Built for every record read and every realtime one: the keys are ASCII
+ *  literals, so the _nocheck setter (no UTF-8 check of the key) stores
+ *  exactly what json_object_set_new() would.
  ***************************************************************************/
 PRIVATE json_t *md2json(
     md2_record_ex_t *md_record_ex
 )
 {
     json_t *jn_md = json_object();
-    json_object_set_new(jn_md, "g_rowid", json_integer((json_int_t)md_record_ex->g_rowid));
-    json_object_set_new(jn_md, "i_rowid", json_integer((json_int_t)md_record_ex->rowid));
-    json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record_ex->__t__));
-    json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record_ex->__tm__));
-    json_object_set_new(jn_md, "offset", json_integer((json_int_t)md_record_ex->__offset__));
-    json_object_set_new(jn_md, "size", json_integer((json_int_t)md_record_ex->__size__));
-    json_object_set_new(jn_md, "system_flag", json_integer(md_record_ex->system_flag));
-    json_object_set_new(jn_md, "user_flag", json_integer(md_record_ex->user_flag));
+    json_object_set_new_nocheck(jn_md, "g_rowid", json_integer((json_int_t)md_record_ex->g_rowid));
+    json_object_set_new_nocheck(jn_md, "i_rowid", json_integer((json_int_t)md_record_ex->rowid));
+    json_object_set_new_nocheck(jn_md, "t", json_integer((json_int_t)md_record_ex->__t__));
+    json_object_set_new_nocheck(jn_md, "tm", json_integer((json_int_t)md_record_ex->__tm__));
+    json_object_set_new_nocheck(jn_md, "offset", json_integer((json_int_t)md_record_ex->__offset__));
+    json_object_set_new_nocheck(jn_md, "size", json_integer((json_int_t)md_record_ex->__size__));
+    json_object_set_new_nocheck(jn_md, "system_flag", json_integer(md_record_ex->system_flag));
+    json_object_set_new_nocheck(jn_md, "user_flag", json_integer(md_record_ex->user_flag));
 
     return jn_md;
 }
