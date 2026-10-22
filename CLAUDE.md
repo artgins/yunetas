@@ -2026,7 +2026,8 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 - **Performance variations are studied, not assumed** (rule of 2026-09-23).
   Every round of changes that touches a hot path (timeranger2 append/read/open,
   tr_treedb writes, c_treedb, the event loop, protocols) compares speed
-  against the last tag, and so does a release that carries such a round.
+  against the last STUDIED release (below), and so does a release that
+  carries such a round.
   `yunetas test` keeps each ctest run in `build/<timestamp>.j<N>.txt` (CLI
   0.21.1+; older runs have no `.j<N>`). Compare runs of ONE job count: under
   `-j` only the `RUN_SERIAL` tests (the benchmarks, the
@@ -2034,18 +2035,25 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   read from serial runs (`yunetas test --serial`): grep the tests that time
   something (`grep "timeranger2/test_topic_pkey_integer \.\.\." build/*.j1.txt`)
   and list every test whose time moved more than ~10%. A single run varies
-  ±3-4%, so a suspected loss gets a controlled A/B: build the last tag in a
-  separate `git worktree` with its own outputs, run both binaries ALTERNATED
+  ±3-4%, so a suspected loss gets a controlled A/B: build the last studied
+  release in a separate `git worktree` with its own outputs, run both binaries ALTERNATED
   (8+ rounds), report mean and spread. A real loss is either the price of a named
   correctness fix, said in the CHANGELOG with its figure, or it is fixed before
   the tag. Why: the correctness fixes of 7.25.5 were made in many passes and
   nobody measured speed; `test_topic_pkey_integer` had drifted from 1.94 s to
   2.03-2.25 s on the fastest node before anybody looked.
+- **A study is always against the last release that HAS a study** (rule of
+  2026-10-22) -- the newest `performance/reports/<version>.json` -- never
+  against the tag just before when that tag has none. The releases in between
+  were not measured, so a study against the one before leaves them a hole
+  nobody looked at: 7.27.5 was compared with 7.27.4 while the last study was
+  7.27.0, and 7.26.9 with 7.26.8 while the last was 7.26.0. The `previous` of
+  a report's json names that studied release.
 - **A release with a large change in the `.c` files ships a performance
   report: an `.html` with charts that SELLS the release** (rule of 2026-09-23,
   narrowed 2026-09-25: a release of small fixes, tests and packaging -- 7.25.6
   -- ships none, and adds no row to the performance page). When such a version is generated,
-  collect the performance figures (the A/B against the last tag above, the
+  collect the performance figures (the A/B against the last studied release, the
   timing tests of `build/*.txt`, the benchmarks under `performance/c/` —
   appends/s, TLS round-trips, message rates, binary sizes) and build a
   good-looking, self-contained `.html` with charts: this release against the
