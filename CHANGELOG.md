@@ -10,7 +10,7 @@
   the 7.27.6 deploy). It now shows the command of every candidate, runs none
   and says so, and its closing notes say what WOULD happen (they said the
   yunos were killed and the slots made).
-- **The `yunetas` CLI 0.23.3-0.23.4** (on PyPI): `restart-agents` refuses to
+- **The `yunetas` CLI 0.23.3-0.23.5** (on PyPI): `restart-agents` refuses to
   restart the main agent while the spare does not run (`--without-spare`
   accepts the risk), since a main agent that did not come up then left the
   node with no agent at all; and an agent it restarts outside its unit no
@@ -19,7 +19,10 @@
   2), not "Everything is up to date", and the closing note of `-n` shows the
   promote commands it announces. With `--without-spare`, a failed restart
   that leaves the main agent running (systemctl failed, or it outlived
-  `--stop`) says so, not "this node has NO agent now" (0.23.4).
+  `--stop`) says so, not "this node has NO agent now" (0.23.4), and one
+  where only the NEW agent runs, without answering, says that nothing
+  answers on the node (0.23.5). A process whose command line is not UTF-8 no
+  longer breaks the reading of the agents (0.23.5; since 0.23.0).
 - **gobj-ui 7.27.30** (npm; deployed to every consumer): a `keep_alive`
   `C_YUI_NODE` tree tells its content `EV_VIEW_SHOWN` once, not twice, when
   the shell shows it again (`C_YUI_NODE` no longer declares the event); the
@@ -28,6 +31,19 @@
   saved camera comes back right at a zoom other than 1; the counted words of
   the gclass viewer change language; and `yui_update_watch_language_changed()`
   lets a login with no shell re-translate the "new version" bar.
+- **gobj-ui 7.27.33** (npm; deployed to every consumer): an element looked
+  up by a name or a value that comes from data no longer goes through a CSS
+  selector built from it -- `find_by_id()` and `css_string()`
+  (`src/yui_selector.js`) in the 25 sites that did, which failed on a `~`,
+  a `.` or a `%` and threw on a `%5E`: the gobj tree window of gui_agent
+  0.29.106-0.29.107 never found its canvas, and did not open for a key with
+  a `^`. The treedb schema graph applies the drag-canvas patch too, and a
+  trace set carries a `set_id` that the host may echo, so a read asked
+  before the set no longer unlocks what the set locked.
+- **gui_agent 0.29.108, gui_treedb 0.17.170** (deployed): the gobj tree
+  window name stays apart under gobj-js's lowercasing (an uppercase letter
+  is written `!` + the letter), the host echoes the `set_id` of a trace set,
+  and a new QA check opens a gobj tree on the deployed plane.
 - **gobj-ui 7.27.32** (npm; deployed to every consumer): the two built-in G6
   behaviors gobj-ui replaces on purpose (`drag-canvas`, `zoom-canvas`) are
   written into G6's live registry and checked, so G6 no longer warns "has
