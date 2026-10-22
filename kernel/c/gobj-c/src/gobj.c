@@ -6235,13 +6235,20 @@ PUBLIC size_t gobj_child_size2(
  ***************************************************************************/
 PUBLIC BOOL gobj_match_gobj(
     hgobj gobj_,
-    json_t *jn_filter_ // owned
+    json_t *jn_filter // owned
 )
 {
     gobj_t *gobj = gobj_;
-    json_t *jn_filter = json_deep_copy(jn_filter_); // deep copy, jn_filter will be modified
-    JSON_DECREF(jn_filter_)
 
+    /*
+     *  The keys that name the gobj itself are answered here, and the rest
+     *  of the filter are its attributes. Up to 7.27.7 the keys answered were
+     *  deleted from a deep copy of the filter, made on every call (C_IOGATE
+     *  matches every channel of every message it sends): the attribute loop
+     *  skips them now, and the filter is not copied. A key is skipped exactly
+     *  when it was deleted: a string was read for it (a key of another type
+     *  stays an attribute to compare, as it did), or it is __disabled__.
+     */
     const char *__inherited_gclass_name__ =  kw_get_str(
         gobj, jn_filter, "__inherited_gclass_name__", 0, 0
     );
@@ -6252,56 +6259,51 @@ PUBLIC BOOL gobj_match_gobj(
 
     if(__inherited_gclass_name__) {
         if(!gobj_typeof_inherited_gclass(gobj, __inherited_gclass_name__)) {
-            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter)
             return FALSE;
         }
-        json_object_del(jn_filter, "__inherited_gclass_name__");
     }
 
     if(__gclass_name__) {
         if(!gobj_typeof_gclass(gobj, __gclass_name__)) {
-            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter)
             return FALSE;
         }
-        json_object_del(jn_filter, "__gclass_name__");
     }
     if(__state__) {
         if(strcasecmp(__state__, gobj_current_state(gobj))!=0) {
-            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter)
             return FALSE;
         }
-        json_object_del(jn_filter, "__state__");
     }
 
-    if(kw_has_key(jn_filter, "__disabled__")) {
+    BOOL has_disabled = kw_has_key(jn_filter, "__disabled__");
+    if(has_disabled) {
         BOOL disabled = kw_get_bool(gobj, jn_filter, "__disabled__", 0, 0);
         if(disabled && !gobj_is_disabled(gobj)) {
-            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter)
             return FALSE;
         }
         if(!disabled && gobj_is_disabled(gobj)) {
-            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter)
             return FALSE;
         }
-        json_object_del(jn_filter, "__disabled__");
     }
 
     if(__gobj_name__) {
         const char *child_name = gobj_name(gobj);
         if(strcmp(__gobj_name__, child_name)!=0) {
-            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter)
             return FALSE;
         }
-        json_object_del(jn_filter, "__gobj_name__");
     }
 
     if(__prefix_gobj_name__) {
         const char *child_name = gobj_name(gobj);
         if(strncmp(__prefix_gobj_name__, child_name, strlen(__prefix_gobj_name__))!=0) {
-            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter)
             return FALSE;
         }
-        json_object_del(jn_filter, "__prefix_gobj_name__");
     }
 
     const char *key;
@@ -6309,6 +6311,15 @@ PUBLIC BOOL gobj_match_gobj(
 
     BOOL matched = TRUE;
     json_object_foreach(jn_filter, key, jn_value) {
+        if((__inherited_gclass_name__ && strcmp(key, "__inherited_gclass_name__")==0) ||
+            (__gclass_name__ && strcmp(key, "__gclass_name__")==0) ||
+            (__state__ && strcmp(key, "__state__")==0) ||
+            (has_disabled && strcmp(key, "__disabled__")==0) ||
+            (__gobj_name__ && strcmp(key, "__gobj_name__")==0) ||
+            (__prefix_gobj_name__ && strcmp(key, "__prefix_gobj_name__")==0)
+        ) {
+            continue;
+        }
         json_t *hs = gobj_hsdata2(gobj, key, NULL);
         if(hs) {
             json_t *jn_var1 = json_object_get(hs, key);
@@ -6320,7 +6331,7 @@ PUBLIC BOOL gobj_match_gobj(
         }
     }
 
-    JSON_DECREF(jn_filter) // clone
+    JSON_DECREF(jn_filter)
     return matched;
 }
 
