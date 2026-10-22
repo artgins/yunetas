@@ -67,6 +67,17 @@
 #define TRACK_MEM 0
 #endif
 
+/*
+ *  Up to this size a block is taken with malloc() and zeroed here, not with
+ *  calloc(): up to glibc 2.40 calloc() never takes a block from the
+ *  per-thread cache (tcache) that malloc() and free() use, so every small
+ *  calloc() went down to the arenas and every free() overflowed the cache
+ *  (jansson allocates through here: a pair of an object, an integer, a
+ *  string). The block is zeroed either way. A larger one keeps calloc(),
+ *  which skips the memset of memory fresh from the system.
+ */
+#define MAX_SMALL_BLOCK_ZEROED_HERE 1024
+
 PRIVATE void *_mem_malloc(size_t size);
 PRIVATE void _mem_free(void *p);
 PRIVATE void *_mem_realloc(void *p, size_t new_size);
@@ -532,7 +543,19 @@ PRIVATE void *_mem_malloc(size_t size)
     }
 #endif
 
-    char *pm = calloc(1, size);
+    char *pm;
+#ifdef __GLIBC__
+    if(size <= MAX_SMALL_BLOCK_ZEROED_HERE) {
+        pm = malloc(size);
+        if(pm) {
+            memset(pm, 0, size);
+        }
+    } else {
+        pm = calloc(1, size);
+    }
+#else
+    pm = calloc(1, size);
+#endif
     if(!pm) {
 #ifdef ESP_PLATFORM
         #include <esp_system.h>
