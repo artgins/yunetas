@@ -239,6 +239,7 @@ typedef struct {
  *              Prototypes
  ***************************************************************/
 PRIVATE void purge_posted_events(gobj_t *gobj);
+PRIVATE void forget_found_event_types(void);
 PRIVATE void push_dispatch_frame(
     dispatch_frame_t *frame,
     gobj_t *gobj,
@@ -475,6 +476,20 @@ PRIVATE int (*__global_remove_persistent_attrs_fn__)(hgobj gobj, json_t *keys) =
 PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys) = 0;
 
 PRIVATE dl_list_t dl_gclass = {0};
+
+/*
+ *  The last event types gobj_find_event_type() found, by the flag asked:
+ *  msg_ievent asks it the event of every inter-event received, and it walks
+ *  the events of every gclass with strcasecmp(). Forgotten whenever a gclass
+ *  or an event type is added or removed (forget_found_event_types()).
+ */
+#define FOUND_EVENT_TYPES 8
+typedef struct {
+    event_type_t *event_type;
+    event_flag_t event_flag;
+} found_event_type_t;
+PRIVATE found_event_type_t found_event_types[FOUND_EVENT_TYPES];
+PRIVATE int found_event_types_next = 0;
 
 /*
  *  Messages posted with gobj_post_event(), pending for the next cycle.
@@ -1029,6 +1044,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
     }
 
     dl_add(&dl_gclass, gclass);
+    forget_found_event_types();
     gclass->gclass_name = gclass_name;  // DANGER gbmem_strdup(gclass_name); 14/11/2024
     gclass->gmt = gmt;
     gclass->lmt = lmt;
@@ -1278,16 +1294,43 @@ PUBLIC int gclass_add_event_type(
 }
 
 /***************************************************************************
+ *  What gobj_find_event_type() found is no longer the first match once a
+ *  gclass or an event type is added or removed.
+ ***************************************************************************/
+PRIVATE void forget_found_event_types(void)
+{
+    memset(found_event_types, 0, sizeof(found_event_types));
+    found_event_types_next = 0;
+}
+
+/***************************************************************************
  *  Find a **string event** in any gclass
  ***************************************************************************/
 PUBLIC event_type_t *gobj_find_event_type(const char *event, event_flag_t event_flag, BOOL verbose)
 {
+    /*
+     *  Found before, with the same flag, for a name equal to this one but
+     *  for case: the walk below would find the same one first, since
+     *  nothing was added or removed since then.
+     */
+    for(int i=0; i<FOUND_EVENT_TYPES; i++) {
+        found_event_type_t *found = &found_event_types[i];
+        if(found->event_type && found->event_flag == event_flag &&
+                strcasecmp(found->event_type->event_name, event)==0) {
+            return found->event_type;
+        }
+    }
+
     gclass_t *gclass = dl_first(&dl_gclass);
     while(gclass) {
         event_t *event_ = dl_first(&gclass->dl_events);
         while(event_) {
             if(!event_flag || (event_->event_type.event_flag & event_flag)) {
                 if(event_->event_type.event_name && strcasecmp(event_->event_type.event_name, event)==0) {
+                    found_event_type_t *found = &found_event_types[found_event_types_next];
+                    found->event_type = &event_->event_type;
+                    found->event_flag = event_flag;
+                    found_event_types_next = (found_event_types_next + 1) % FOUND_EVENT_TYPES;
                     return &event_->event_type;
                 }
             }
@@ -1337,6 +1380,8 @@ PUBLIC void gclass_unregister(hgclass hgclass)
         );
         return;
     }
+
+    forget_found_event_types();
 
     state_t *state;
     while((state = dl_first(&gclass->dl_states))) {
@@ -1490,6 +1535,7 @@ PRIVATE int _add_event_type(
     event->event_type.event_name = event_name;
     event->event_type.event_flag = event_flag;
 
+    forget_found_event_types();
     return dl_add(dl, event);
 }
 
