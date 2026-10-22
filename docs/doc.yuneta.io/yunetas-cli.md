@@ -144,7 +144,9 @@ yunetas sync-configs -n --host my.host.com   # or target one batches dir explici
 
 Give `--role` when you changed one yuno: without it, `sync-binaries` also
 proposes every other binary that differs by a few bytes from the node's,
-because your SDK is newer than the node's (since CLI 0.23.0).
+because your SDK is newer than the node's (since CLI 0.23.0). A role you
+name that has no local build is an error (exit 2), not "Everything is up to
+date" (since CLI 0.23.3).
 
 `sync-configs` (and the configs pass of `sync`) walks the registered projects.
 Without `--host` it queries the local agent (`*list-realms`) and syncs every
@@ -249,6 +251,20 @@ yunetas restart-agents        # ask, then restart
    answers a command.
 3. Only then does it restart the spare. The spare is the way into a node whose
    main agent does not come up, so a failure leaves it alone.
+
+When the spare does not run, the command refuses to restart the main agent
+and exits 1 (since CLI 0.23.3): if the main agent then did not come up, the
+node would have no agent at all. Start the spare first, or say that you
+accept the risk:
+
+```bash
+yunetas restart-agents --without-spare   # restart the main agent alone
+```
+
+An agent restarted outside its unit does not inherit the operator's
+credentials (`YUNETA_OAUTH_PASSW`, `YUNETA_OAUTH_CLIENT_SECRET`,
+`YUNETA_OAUTH_JWT`): they would stay in the agent and in every yuno it
+launches.
 
 An agent that runs in its systemd unit is restarted with `sudo -n systemctl
 restart <unit>`. An agent that runs outside its unit (as on a development

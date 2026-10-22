@@ -2,7 +2,7 @@
 # `yunetas sync-binaries`
 
 Operator tool of the [`yunetas` CLI](../yunetas-cli.md) (module
-`yunetas.agent_tools.sync_binaries`, [source](https://github.com/artgins/tui_yunetas.py/blob/0.23.2/yunetas/agent_tools/sync_binaries.py)) that
+`yunetas.agent_tools.sync_binaries`, [source](https://github.com/artgins/tui_yunetas.py/blob/0.23.3/yunetas/agent_tools/sync_binaries.py)) that
 reconciles the freshly built yuno binaries with what the local `yuneta_agent` already has installed,
 and — after confirmation — pushes the differences via `install-binary` /
 `update-binary`.
@@ -109,7 +109,8 @@ yunetas sync-binaries --yunos-dir /path/to/yunos # override the build dir
 
 `--role` keeps only the roles you name. Without it, a change to one yuno can
 also propose every other binary that differs by a few bytes from the node's,
-because the local SDK is newer (since CLI 0.23.0).
+because the local SDK is newer (since CLI 0.23.0). A role you name that has
+no local build stops the command with an error and exit 2 (since CLI 0.23.3).
 
 ## See also
 
