@@ -57,8 +57,20 @@ tr2list /yuneta/store/x/topic1 --from-t=1790812800
 tr2list /yuneta/store/x/topic_ms --from-t=1790812800000
 ```
 
+A **negative** integer counts back from the last record of each key, as
+timeranger2 reads a negative bound:
+
+```bash
+# the last day of every key (a topic in seconds)
+tr2list /yuneta/store/x/topic1 --from-t=-86400
+```
+
 Up to 7.27.4 a date stayed in seconds on a topic in milliseconds, and selected
-nothing or everything there. `--dry-run` shows the dates resolved in seconds.
+nothing or everything there. Up to 7.27.6 a negative integer was read as a
+date, and `approxidate` read `-86400` as NOW (and `-1` as the first day of
+the month), with no word. `--dry-run` shows the dates resolved in seconds, and
+a negative bound as relative to the last record of each key; an integer out
+of range is refused (*"TIME out of range"*).
 
 ## Filtering by field
 

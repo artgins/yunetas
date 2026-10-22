@@ -33,7 +33,8 @@
     "\v" /* argp: everything after \v appears AFTER the options block */ \
     "TIME values accept an integer, taken as it is in the topic's own unit\n" \
     "(seconds, or milliseconds for t on an sf_t_ms topic and for tm on an\n" \
-    "sf_tm_ms one), or a natural-language string parsed by approxidate\n" \
+    "sf_tm_ms one; a negative one counts back from the key's last record:\n" \
+    "--from-t=-86400 is its last day), or a natural-language string parsed by approxidate\n" \
     "(git-style date parser) and taken to that unit, topic by topic.\n" \
     "Accepted forms:\n" \
     "  units    : seconds, minutes, hours, days, weeks, months, years\n" \
@@ -902,6 +903,37 @@ PRIVATE void delete_right_slash(char *s)
 }
 
 /***************************************************************************
+ *  A TIME given as an integer: the whole text is -?[0-9]+, in the range of
+ *  a json integer. A negative one is relative to the key's last record, as
+ *  timeranger2 reads it: up to 7.27.6 all_numbers() refused its '-' and
+ *  approxidate() read "-86400" as NOW, in silence.
+ ***************************************************************************/
+PRIVATE BOOL time_integer(const char *text, json_int_t *value)
+{
+    const char *p = text;
+    if(*p == '-') {
+        p++;
+    }
+    if(!*p) {
+        return FALSE;
+    }
+    for(; *p; p++) {
+        if(*p < '0' || *p > '9') {
+            return FALSE;   // a date: approxidate() reads it
+        }
+    }
+    errno = 0;
+    char *end = NULL;
+    long long v = strtoll(text, &end, 10);
+    if(errno == ERANGE || !end || *end != 0) {
+        fprintf(stderr, "TIME out of range: '%s'\n\n", text);
+        exit(-1);
+    }
+    *value = (json_int_t)v;
+    return TRUE;
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -985,44 +1017,36 @@ int main(int argc, char *argv[])
     date_bounds = json_array();
 
     if(arguments.from_t) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.from_t)) {
-            timestamp = atoll(arguments.from_t);
-        } else {
-            timestamp = approxidate(arguments.from_t);
+        json_int_t bound;
+        if(!time_integer(arguments.from_t, &bound)) {
+            bound = (json_int_t)approxidate(arguments.from_t);
             json_array_append_new(date_bounds, json_string("from_t"));
         }
-        json_object_set_new(match_cond, "from_t", json_integer(timestamp));
+        json_object_set_new(match_cond, "from_t", json_integer(bound));
     }
     if(arguments.to_t) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.to_t)) {
-            timestamp = atoll(arguments.to_t);
-        } else {
-            timestamp = approxidate(arguments.to_t);
+        json_int_t bound;
+        if(!time_integer(arguments.to_t, &bound)) {
+            bound = (json_int_t)approxidate(arguments.to_t);
             json_array_append_new(date_bounds, json_string("to_t"));
         }
-        json_object_set_new(match_cond, "to_t", json_integer(timestamp));
+        json_object_set_new(match_cond, "to_t", json_integer(bound));
     }
     if(arguments.from_tm) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.from_tm)) {
-            timestamp = atoll(arguments.from_tm);
-        } else {
-            timestamp = approxidate(arguments.from_tm);
+        json_int_t bound;
+        if(!time_integer(arguments.from_tm, &bound)) {
+            bound = (json_int_t)approxidate(arguments.from_tm);
             json_array_append_new(date_bounds, json_string("from_tm"));
         }
-        json_object_set_new(match_cond, "from_tm", json_integer(timestamp));
+        json_object_set_new(match_cond, "from_tm", json_integer(bound));
     }
     if(arguments.to_tm) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.to_tm)) {
-            timestamp = atoll(arguments.to_tm);
-        } else {
-            timestamp = approxidate(arguments.to_tm);
+        json_int_t bound;
+        if(!time_integer(arguments.to_tm, &bound)) {
+            bound = (json_int_t)approxidate(arguments.to_tm);
             json_array_append_new(date_bounds, json_string("to_tm"));
         }
-        json_object_set_new(match_cond, "to_tm", json_integer(timestamp));
+        json_object_set_new(match_cond, "to_tm", json_integer(bound));
     }
 
     if(arguments.from_rowid) {
@@ -1166,6 +1190,12 @@ int main(int argc, char *argv[])
                 header_printed = TRUE;
             }
             long long raw = (long long)json_integer_value(v);
+            if(raw < 0) {
+                printf("  %-8s = %lld  ->  relative to the last record of each key\n",
+                    time_keys[i], raw
+                );
+                continue;
+            }
             long long seconds = raw;
             const char *unit = "s";
             if(raw >= 100000000000LL) {  /* >= 1e11 → milliseconds */

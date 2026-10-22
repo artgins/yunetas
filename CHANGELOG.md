@@ -74,6 +74,14 @@
   `test_c_tranger` green). `test_c_tranger` adds the refusals of
   `delete-key-files` from C code (a topic of a treedb, a mask whose ids do
   not sort as time).
+- **`tr2list` takes a negative TIME as relative to the last record**
+  (existed in 7.27.4; its help promised it in 7.27.5). `--from-t=-86400`
+  failed `all_numbers()` on its `-`, went to `approxidate()`, and listed from
+  NOW (`-1` from the first day of the month), in silence. An integer TIME is
+  now `-?[0-9]+`, read whole with `strtoll()`, and a negative one reaches
+  timeranger2 as it is: the last day of every key. `--dry-run` says a
+  negative bound is relative to the last record, and an integer out of range
+  is refused.
 
 ## v7.27.6 (2026-10-21)
 
