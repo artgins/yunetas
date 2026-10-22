@@ -9092,6 +9092,85 @@ PRIVATE void check_destroy_under_running_code(gobj_t *gobj)
 }
 
 /***************************************************************************
+ *  Would anybody see the EV_STATE_CHANGED of a change of state? FALSE only
+ *  when gobj_publish_event() would do nothing that shows: no hook of the
+ *  gclass to call, no trace, no log, and no subscriber it is delivered to.
+ *  Then the kw is not built and the event is not published. A protocol
+ *  changes state twice a frame, and its parent (the CHILD subscription)
+ *  does not take the system event: up to 7.27.7 every change built a kw of
+ *  two strings and published it to nobody.
+ *
+ *  The subscriptions are looked at as gobj_publish_event() looks at them,
+ *  in its order: whatever it would have logged, or a __filter__ it would
+ *  have evaluated, sends the change down the publication as before.
+ ***************************************************************************/
+PRIVATE BOOL state_changed_has_audience(gobj_t *gobj)
+{
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    if(measuring_cur_type) {
+        return TRUE;    // the publication is timed
+    }
+#endif
+    const GMETHODS *gmt = gobj->gclass->gmt;
+    if(gmt->mt_state_changed ||
+        gmt->mt_publish_event ||
+        gmt->mt_publication_pre_filter ||
+        gmt->mt_publication_filter
+    ) {
+        return TRUE;
+    }
+
+    if((__trace_gobj_subscriptions__(gobj) || is_machine_tracing(gobj, EV_STATE_CHANGED)) &&
+        !is_machine_not_tracing(gobj, EV_STATE_CHANGED)
+    ) {
+        return TRUE;
+    }
+
+    event_type_t *ev = gobj_event_type(gobj, EV_STATE_CHANGED, TRUE);
+    if(!(ev && (ev->event_flag & EVF_SYSTEM_EVENT) && (ev->event_flag & EVF_NO_WARN_SUBS))) {
+        return TRUE;    // its own declaration of the event: the publication decides
+    }
+
+    size_t idx; json_t *subs;
+    json_array_foreach(gobj->dl_subscriptions, idx, subs) {
+        json_t *jn_subscriber = json_object_get(subs, "subscriber");
+        if(!json_is_integer(jn_subscriber)) {
+            return TRUE;
+        }
+        gobj_t *subscriber = (gobj_t *)(uintptr_t)json_integer_value(jn_subscriber);
+        if(!(subscriber && !(subscriber->obflag & (obflag_destroying|obflag_destroyed)))) {
+            continue;
+        }
+
+        json_t *jn_subs_flag = json_object_get(subs, "subs_flag");
+        json_t *jn_event = json_object_get(subs, "event");
+        json_t *jn_renamed_event = json_object_get(subs, "renamed_event");
+        if(!json_is_integer(jn_subs_flag) || !json_is_integer(jn_event) ||
+            (jn_renamed_event && !json_is_integer(jn_renamed_event))
+        ) {
+            return TRUE;
+        }
+        gobj_event_t event_ = (gobj_event_t)(uintptr_t)json_integer_value(jn_event);
+        if(!(empty_string(event_) || event_ == EV_STATE_CHANGED)) {
+            continue;
+        }
+
+        if(json_size(json_object_get(subs, "__filter__"))>0) {
+            return TRUE;
+        }
+
+        event_type_t *ev_ = gobj_event_type(subscriber, EV_STATE_CHANGED, TRUE);
+        if(!(ev_ && (ev_->event_flag & EVF_SYSTEM_EVENT) &&
+            !gobj_has_event(subscriber, ev_->event_name, 0))
+        ) {
+            return TRUE;    // delivered
+        }
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC BOOL gobj_change_state(
@@ -9155,6 +9234,10 @@ PUBLIC BOOL gobj_change_state(
                 Color_Off
             );
         }
+    }
+
+    if(!state_changed_has_audience(gobj)) {
+        return TRUE;
     }
 
     json_t *kw_st = json_object();
