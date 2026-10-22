@@ -110,6 +110,14 @@ A release that moves a lot of code ships a performance report: charts of what
 the release does on one machine, the release before measured the same way, and every loss with its
 reason.
 
+- **7.27.5** (against 7.27.4, measured the day after the release): the
+  retention of timeranger2 costs a replica about 1 us per read call -- a page
+  of 1 row 19% slower, a filtered one 22%, the open of an iterator 8%: the
+  stat() that notices a purge whose signal the replica missed. A page of 100
+  rows, the master and the appends stay inside their noise.
+  [Report](performance/reports/7.27.5.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.27.5.html) ·
+  [raw figures](performance/reports/7.27.5.json)
 - **7.27.0** (against 7.26.9): a hardening release that holds its speed --
   30 of 31 figures inside their noise; one price said with its cause (a
   treedb update in memory, 6.5% more CPU, 2.31 -> 2.46 us: the NUL checks of

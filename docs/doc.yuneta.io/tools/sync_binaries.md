@@ -2,7 +2,7 @@
 # `yunetas sync-binaries`
 
 Operator tool of the [`yunetas` CLI](../yunetas-cli.md) (module
-`yunetas.agent_tools.sync_binaries`, [source](https://github.com/artgins/tui_yunetas.py/blob/0.23.3/yunetas/agent_tools/sync_binaries.py)) that
+`yunetas.agent_tools.sync_binaries`, [source](https://github.com/artgins/tui_yunetas.py/blob/0.23.4/yunetas/agent_tools/sync_binaries.py)) that
 reconciles the freshly built yuno binaries with what the local `yuneta_agent` already has installed,
 and — after confirmation — pushes the differences via `install-binary` /
 `update-binary`.
