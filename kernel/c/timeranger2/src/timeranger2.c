@@ -3388,6 +3388,18 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref
         // Error already logged
         return 0;
     }
+
+    /*
+     *  The cols of a topic are a dict: what kwid_new_dict() answers for a
+     *  dict is the dict, increfed, and the treedb asks for it 3 or 4 times
+     *  per write of a node. Read directly, without the formatting and the
+     *  split of the path. A list (the cols of an older schema) or anything
+     *  else is still answered by kwid_new_dict().
+     */
+    json_t *cols = json_object_get(topic, "cols");
+    if(json_is_object(cols)) {
+        return json_incref(cols);
+    }
     return kwid_new_dict(gobj, topic, KW_VERBOSE, "cols");
 }
 
