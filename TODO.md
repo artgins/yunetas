@@ -26,7 +26,21 @@ Severity in parentheses where one was assigned.
 
 ## 1. Defects to fix
 
-None open in this repo (2026-10-15).
+- **`test_c_fs` stalled once in a full `-j8` suite on wattyzer** (7.27.7
+  release suite, 2026-10-22; once already in the first 7.27.6 run, whose log
+  was lost). Phase 0 passed; right after the test replaces the two inotify
+  fds that have an io_uring read pending (`break_inotify_fds()`, a `dup2()`
+  of a directory over them), NOTHING ran for 10 s -- not the 300 ms timer of
+  phase 1, not the inotify completions -- until `set_auto_kill_time(10)`'s
+  alarm woke the loop; the completions ("inotify read FAILED: the watcher is
+  gone") were then processed during the shutdown. Not reproduced: 40 runs
+  alone, 8 under `ctest -j8` of a subset, 20 while a full suite loaded the
+  machine, and a second full suite: all green. Kernel 6.12 (Debian 13); never
+  seen on the dev machine (7.0). The scenario is the test's own sabotage of an
+  fd under a pending io_uring op, not a production path; next: arm the
+  `liburing` trace from phase 1 on so a recurrence says which completion did
+  not come. Log: `LastTest.wattyzer-7.27.7.log`, `test_c_fs` section, kept in
+  the release notes of 7.27.7.
 
 ### Projects (code outside this repo)
 
