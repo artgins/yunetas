@@ -42,6 +42,21 @@ Severity in parentheses where one was assigned.
   not come. Log: `LastTest.wattyzer-7.27.7.log`, `test_c_fs` section, kept in
   the release notes of 7.27.7.
 
+- **`check_doc_line_refs.py --repin` pins a performance report to its own
+  tag, and a report redone after its release is not in that tag** (found at
+  the 7.27.7 repin). The rule of 2026-10-22 redid the reports of 7.27.5 and
+  7.26.9 on `main`. `performance/reports/7.27.5.*` is in no tag, so the
+  link answers 404. The `7.26.9` tag holds the OLD report, so the link shows
+  the replaced study. The repin rewrote both rows of
+  `docs/doc.yuneta.io/performance.md` to their own tag. The rows were set
+  back to `blob/main` by hand, and the guard now flags them as a moving ref.
+  Fix the script: pin a report link to the first tag that holds the CURRENT
+  version of the file (e.g. compare `git rev-parse <tag>:<path>` with
+  `HEAD:<path>`). Until a tag holds the file, keep `main` without a finding.
+  The same gap applies to the `blob/<tag>` of `performance/reports/README.md`
+  and `performance/c/README.md`: pinned to 7.27.7, they do not list the
+  redone studies.
+
 ### Projects (code outside this repo)
 
 Moved to the TODO of each project on 2026-10-02: `msg2db_id_incomplete()` in
