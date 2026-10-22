@@ -113,3 +113,45 @@ were compared message by message with the base: 208 lines, identical.
   Stopping at the newest record of each key would make the open O(keys), but
   a damaged older record would no longer be detected at open: a functional
   change, a proposal.
+
+## Proposal: jansson, fast paths for ASCII
+
+The patch is
+[`proposals/jansson-0002-ascii-fast-paths.patch`](proposals/jansson-0002-ascii-fast-paths.patch),
+with its description and how it was checked in its header. It is **not
+applied**: it is a patch of a third-party library, it bumps the `VERSION` of
+`linux-ext-libs` (every node that builds from source reruns `extrae.sh` and
+`configure-libs.sh`), and that is a decision for the maintainers. What it
+does: a byte below `0x80` skips the UTF-8 decode in `dump_string()` and in
+`utf8_check_string()`, and the lexer saves a run of plain ASCII of a string
+token at once instead of a byte per callback. Every result, every byte and
+every error stays the same: jansson's own 215 tests pass, and a differential
+fuzz (original and patched library, the same driver, 120 000 random
+documents, valid and invalid, loaded with three sets of flags and dumped with
+five, half of them with the allocator capped to force "not enough memory")
+gave the same bytes, the same errors and the same positions.
+
+Instructions (`callgrind`), round 2 -> round 2 + the patch:
+
+| Benchmark | Round 2 | + patch | Change |
+|-----------|---------|---------|--------|
+| `test_topic_pkey_integer` (appends) | 18.85 G | 12.38 G | **-34.3%** |
+| `test_topic_pkey_integer_iterator2` (reads) | 11.21 G | 4.43 G | **-60.5%** |
+| `perf_tr_treedb` | 25.46 G | 23.64 G | -7.1% |
+
+Time (A/B, alternated, 8 rounds), round 2 -> round 2 + the patch:
+
+| Benchmark | Round 2 | + patch | Change | t |
+|-----------|---------|---------|--------|---|
+| Appends/s, with a live reader (rt list) | 224 510 ± 20 305 | 279 321 ± 15 220 | **+24.4%** | 6.1 |
+| Appends/s, without an rt list | 192 880 ± 16 023 | 241 592 ± 28 682 | **+25.3%** | 4.2 |
+| Records read/s, iterator with callback (`..._iterator2`) | 193 384 ± 10 065 | 397 512 ± 48 633 | **+105.6%** | 11.6 |
+| Pages read/s, forward (`..._iterator5`) | 177 328 ± 16 980 | 347 513 ± 22 316 | **+96.0%** | 17.2 |
+| Pages read/s, backward | 183 059 ± 10 805 | 343 954 ± 38 723 | **+87.9%** | 11.3 |
+| BFF logins (`perf_auth_bff`, K msg/s) | 7.97 ± 0.27 | 9.16 ± 0.53 | **+15.0%** | 5.7 |
+| A page of 1 row, replica (`perf_timeranger2`, µs) | 6.88 ± 0.68 | 5.96 ± 0.25 | -13.4% | 3.6 |
+
+The rest of `perf_timeranger2`, `perf_tr_treedb` and the TCP echo moved
+inside their noise (|t| < 3), most of them in the same direction. A record
+read is twice as fast: its cost was the parse, and the parse of ASCII is
+now a copy.
