@@ -1003,14 +1003,52 @@ The deletion is **propagated to subscribers**:
   warning (*"No birth time of a directory ..."*). So is a container whose
   seccomp profile refuses `statx()` (`EPERM`): the inode then comes from
   `lstat()`. Any other failure to tell which directory a key directory is
-  (`EIO`, `EACCES`) is an ERROR, once per errno in a row: that directory's
-  scan is skipped, and its links wait for the key's next record. Up to
+  (`EIO`, `EACCES`) is an ERROR, once per errno in a row, and the directory
+  is not read then. Up to
   7.25.21 every failure of `statx()` took the directory for gone, in
   silence. Up to 7.25.20 the directory was read
   early (`[R1 DEL]`, `[DEL R1 DEL]`, the live key out of the cache), and a
   key read before, deleted and written again in the same day file, was
   read through the old file's descriptor (short reads, records lost).
   Details in [fs_watcher](fs_watcher.md).
+
+  A key directory that cannot be read for a PASSING cause -- it cannot be
+  told, opened or listed, or one of its links cannot be opened or removed,
+  with `EMFILE`, `ENFILE`, `ENOMEM`, `EIO`, `EINTR` or `EAGAIN` -- keeps its
+  links, and nothing brings them back by itself: the master links a file
+  into the feed only when the link is not there, so the key's next records
+  in that file make no event. Its read is OWED: each failure is logged where
+  it happens, the debt is said once per feed (*"rt_disk feed: a key
+  directory could not be read for a passing cause, its read is owed to the
+  end of the next batch of events of the feed"*, a WARNING), and the read is
+  tried again at the end of the feed's next batch of events, if the
+  directory is still the one seen; the first one that fails again ends that
+  round, and the rest wait for the next batch. When nothing is owed any
+  more it is said (*"rt_disk feed: no read of a key directory owed any
+  more"*, an INFO). A link heard meanwhile in a directory that owes its
+  read is left to that read, which takes every link in order. A failure
+  for another cause (`EACCES`) is logged and not owed. No timer: **a feed
+  that hears no event at all keeps the read owed until it hears one** -- a
+  record of any key that makes a new link, a new file of a key, a delete,
+  or the echo of a link it consumes itself; until then the keys it owes
+  are behind the master. A record that cannot be read once its link is consumed is
+  read with the key's next link, as before. Up to 7.27.6 such a key stayed
+  behind the master for good -- until a new file of the key (a new day) or
+  a new feed -- and a key directory watched by its path (its descriptor
+  could not be opened when it was made) was listed by its path; it is now
+  opened and read through that descriptor, like the others
+  (`tests/c/timeranger2/test_rt_disk_emfile`):
+
+  ```
+  follower with 2 descriptors free, master writes a new day of keys 0..59
+      -> ERROR   Cannot open a key directory to read its links   (one per key)
+      -> WARNING rt_disk feed: a key directory could not be read ... owed ...   (once)
+  descriptors free again, master appends to keys 0..59
+      -> no event: their links are there; the follower serves 2 records, the master 13
+  master appends to key 60 (a new key: an event, a batch of the feed)
+      -> keys 0..59 read at the end of the batch: 13 records each
+      -> INFO    rt_disk feed: no read of a key directory owed any more
+  ```
 - In-process `rt_mem`, `open_iterator`, and `rt_disk` subscribers without a
   watcher (no loop) whose `key` filter matches receive their
   [`tranger2_key_deleted_callback_t`](#tranger2_set_rt_key_deleted_callback)

@@ -64,6 +64,22 @@
   new file or a new purge. The errno of the failure is now kept with the
   flag, and a passing one is tried again at every load. A cause that stays
   (a file that is not a base, EACCES) is still not read again at every load.
+- **An rt_disk follower that fails to read a key directory for a passing
+  cause reads it again** (timeranger2; since 7.0.0, kept by the descriptor
+  form of 7.25.22). A follower out of descriptors (EMFILE) while it read the
+  key directories of its feed left their links, and the master links a file
+  into the feed only when the link is not there: no new event came, and the
+  key stayed behind the master until a new file of the key (a new day) or a
+  new feed -- in a test, 60 keys at 2 records for good, 13 on the master.
+  Such a read (EMFILE, ENFILE, ENOMEM, EIO, EINTR, EAGAIN: the directory
+  cannot be told, opened or listed, a link cannot be opened or removed) is
+  now OWED, and done at the end of the feed's next batch of events, if the
+  directory is still the one seen (WARNING *"rt_disk feed: a key directory
+  could not be read for a passing cause, its read is owed ..."* once, INFO
+  *"... no read of a key directory owed any more"*). No timer: a feed that
+  hears no event keeps it owed until it hears one. A key directory watched
+  by its path is now read through a descriptor opened for the read, as the
+  others (new `test_rt_disk_emfile`).
 - **A replica that builds the cache of a key while the master purges it
   numbers it as the master** (timeranger2; appeared in 7.27.5). A md2 file
   listed and gone when it was opened was flagged unreadable, and the key

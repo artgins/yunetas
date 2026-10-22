@@ -71,6 +71,7 @@ set(SRCS
     test_fs_watcher_overflow
     test_rt_disk_watcher_gone
     test_rt_disk_unwatched_key
+    test_rt_disk_emfile
     test_out_of_order_append
     test_pkey_path_traversal
     test_topic_path_traversal

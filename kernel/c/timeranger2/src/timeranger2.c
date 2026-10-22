@@ -795,6 +795,21 @@ PRIVATE BOOL key_dir_scan_waits(
     fs_event_t *fs_event,
     const char *key
 );
+PRIVATE void owe_key_dir_scan(
+    json_t *watched_topic,
+    fs_event_t *fs_event,
+    const char *key,
+    const dir_id_t *seen,
+    BOOL relook,
+    int err
+);
+PRIVATE void run_owed_key_dir_scans(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *watched_topic,
+    fs_event_t *fs_event
+);
+PRIVATE BOOL errno_is_transient(int err);
 PRIVATE void tell_deletes_lost_in_overflow(
     hgobj gobj,
     json_t *tranger,
@@ -9029,10 +9044,16 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
     switch(fs_event->fs_type) {
         case FS_BATCH_END_TYPE:
             /*
-             *  The due scans ran above; the key directories noted in this
-             *  batch (or slice of the pass) are placed now
+             *  The due scans ran above; the reads a passing failure left
+             *  owed are tried again (run_owed_key_dir_scans()), and the
+             *  key directories noted in this batch (or slice of the pass)
+             *  are placed now
              */
             if(watched_topic) {
+                run_owed_key_dir_scans(gobj, tranger, watched_topic, fs_event);
+                if(fs_event->stop_requested) {
+                    return 0;   // a callback closed the feed
+                }
                 place_new_key_dir_scans(gobj, tranger, watched_topic, fs_event, fs_event->offset);
             }
             break;
@@ -9104,6 +9125,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 if(name[0] != '.') {
                     json_object_del(json_object_get(disk, "scans_pending"), name);  // its entry in scans_order is skipped when due
                     json_object_del(json_object_get(disk, "scans_new"), name);
+                    json_object_del(json_object_get(disk, "scans_owed"), name);
                     break;
                 }
                 json_int_t seq;
@@ -9213,6 +9235,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 json_object_del(feed_of_watcher(watched_topic, fs_event), "scans_order_next");
                 json_object_del(feed_of_watcher(watched_topic, fs_event), "scans_new");
                 json_object_del(feed_of_watcher(watched_topic, fs_event), "scans_postponed_until");
+                json_object_del(feed_of_watcher(watched_topic, fs_event), "scans_owed");
                 tell_deletes_lost_in_overflow(gobj, tranger, watched_topic, fs_event);
             }
             break;
@@ -9235,6 +9258,8 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                     json_object_del(disk, "scans_order_next");
                     json_object_del(disk, "scans_new");
                     json_object_del(disk, "scans_postponed_until");
+                    json_object_del(disk, "scans_owed");
+                    json_object_del(disk, "scans_owed_said");
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_TRANGER,
@@ -9319,9 +9344,16 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                          */
                         int dir_fd = fs_watcher_dir_fd(fs_event, fs_event->event_wd);
                         if(dir_fd >= 0) {
-                            consume_link_by_fd(gobj, tranger, watched_topic, fs_event,
-                                dir_fd, key, (const char *)fs_event->filename
-                            );
+                            if(consume_link_by_fd(gobj, tranger, watched_topic, fs_event,
+                                    dir_fd, key, (const char *)fs_event->filename) < 0 &&
+                                    errno_is_transient(errno)) {
+                                /*
+                                 *  The link is left: the master links a
+                                 *  file once, so no event of it comes again
+                                 */
+                                dir_id_t seen = {fs_event->event_wd, 0, 0, 0};
+                                owe_key_dir_scan(watched_topic, fs_event, key, &seen, FALSE, errno);
+                            }
                             break;
                         }
                         if(errno == ENOENT) {
@@ -9425,7 +9457,9 @@ PRIVATE int cmp_link_names(const void *a, const void *b)
 /***************************************************************************
  *  CLIENT: the links (*.md2) of a key directory, read through its
  *  descriptor, in name order: each one consumed (consume_link_by_fd()).
- *  Returns the links found, or -1 (logged).
+ *  Returns the links found, or -1 (logged) with the cause in errno: the
+ *  listing failed, or a link was left for a passing cause (the links after
+ *  it are left too).
  ***************************************************************************/
 PRIVATE int scan_key_dir_by_fd(
     hgobj gobj,
@@ -9442,7 +9476,8 @@ PRIVATE int scan_key_dir_by_fd(
      */
     int list_fd = openat(dir_fd, ".", O_RDONLY|O_DIRECTORY|O_CLOEXEC);
     if(list_fd < 0) {
-        if(errno == ENOENT) {
+        int err = errno;
+        if(err == ENOENT) {
             return 0;   // gone meanwhile
         }
         gobj_log_error(gobj, 0,
@@ -9450,24 +9485,27 @@ PRIVATE int scan_key_dir_by_fd(
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot open a key directory to list its links",
             "key",          "%s", key,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
             NULL
         );
+        errno = err;
         return -1;
     }
     DIR *dir = fdopendir(list_fd);
     if(!dir) {
+        int err = errno;
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "fdopendir() FAILED: the links of a key directory are not read",
             "key",          "%s", key,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
             NULL
         );
         close(list_fd);
+        errno = err;
         return -1;
     }
 
@@ -9480,17 +9518,19 @@ PRIVATE int scan_key_dir_by_fd(
         }
     }
     if(errno != 0) {
+        int err = errno;
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "readdir() FAILED: the links of a key directory are not read",
             "key",          "%s", key,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
             NULL
         );
         closedir(dir);
         JSON_DECREF(names)
+        errno = err;
         return -1;
     }
     closedir(dir);
@@ -9500,6 +9540,7 @@ PRIVATE int scan_key_dir_by_fd(
     if(n && !sorted) {
         // Error already logged
         JSON_DECREF(names)
+        errno = ENOMEM;
         return -1;
     }
     for(size_t i = 0; i < n; i++) {
@@ -9508,12 +9549,26 @@ PRIVATE int scan_key_dir_by_fd(
     if(n) {
         qsort(sorted, n, sizeof(char *), cmp_link_names);
     }
+    /*
+     *  A link left for a passing cause stops the scan: a later file read
+     *  before it would hand its records out of order. The scan is owed
+     *  (scan_key_dir()), and reads them all again in order.
+     */
+    int left_err = 0;
     for(size_t i = 0; i < n && !fs_event->stop_requested; i++) {
-        consume_link_by_fd(gobj, tranger, watched_topic, fs_event, dir_fd, key, sorted[i]);
+        if(consume_link_by_fd(gobj, tranger, watched_topic, fs_event, dir_fd, key, sorted[i]) < 0 &&
+                errno_is_transient(errno)) {
+            left_err = errno;
+            break;
+        }
     }
     GBMEM_FREE(sorted)
     JSON_DECREF(names)
 
+    if(left_err) {
+        errno = left_err;   // Error already logged
+        return -1;
+    }
     return (int)n;
 }
 
@@ -9566,6 +9621,10 @@ PRIVATE int known_life_md2_fd(
  *  (update_new_records_from_disk()). A link of a directory gone (the key
  *  deleted, maybe written again: a directory made again has links of its
  *  own) is not read: its life is gone, and its delete is heard.
+ *
+ *  Returns -1 (logged) with the cause in errno when the link is LEFT in
+ *  the directory (it cannot be opened, or removed); a record that cannot
+ *  be read once the link is consumed is read with the key's next link.
  ***************************************************************************/
 PRIVATE int consume_link_by_fd(
     hgobj gobj,
@@ -9588,6 +9647,7 @@ PRIVATE int consume_link_by_fd(
             "path",         "%s", fs_event->path,
             NULL
         );
+        errno = EINVAL;
         return -1;
     }
 
@@ -9615,16 +9675,18 @@ PRIVATE int consume_link_by_fd(
     }
     if(life_md2_fd < 0 && link_fd < 0) {
         if(errno != ENOENT) {
+            int err = errno;
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot open the link of a new record",
                 "key",          "%s", key,
                 "link",         "%s", link_name,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
+                "errno",        "%d", err,
+                "serrno",       "%s", strerror(err),
                 NULL
             );
+            errno = err;
             return -1;
         }
         struct stat st;
@@ -9663,29 +9725,38 @@ PRIVATE int consume_link_by_fd(
         }
         return 0;
     } else if(link_fd >= 0 && fstat(link_fd, &pin) < 0) {
+        int err = errno;
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "fstat() of the link of a new record FAILED",
             "key",          "%s", key,
             "link",         "%s", link_name,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
             NULL
         );
         close(link_fd);
+        errno = err;
         return -1;
     }
 
+    /*
+     *  A link left (unlinkat() failed) is read now, and is owed all the
+     *  same: the master links a file once, so the key's next records in it
+     *  bring no event (the read is idempotent: nothing is handed twice)
+     */
+    int left_err = 0;
     if(unlinkat(dir_fd, link_name, 0) < 0 && errno != ENOENT) {
+        left_err = errno;
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "unlinkat() FAILED",
             "key",          "%s", key,
             "link",         "%s", link_name,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
+            "errno",        "%d", left_err,
+            "serrno",       "%s", strerror(left_err),
             NULL
         );
     }
@@ -9704,6 +9775,10 @@ PRIVATE int consume_link_by_fd(
     );
     if(link_fd >= 0) {
         close(link_fd);
+    }
+    if(left_err) {
+        errno = left_err;   // Error already logged
+        return -1;
     }
     return 0;
 }
@@ -10231,7 +10306,8 @@ PRIVATE void prune_deletes_applied(json_t *topic)
  *
  *  FALSE when the directory is gone (ENOENT, ENOTDIR: nothing to read in
  *  it, in silence), or when it cannot be known: logged, once per errno in
- *  a row, since the caller skips the scan of the directory.
+ *  a row. The cause is left in errno: for a passing one the caller owes
+ *  the read of the directory (owe_key_dir_scan()).
  ***************************************************************************/
 PRIVATE BOOL no_btime_said = FALSE;   // the warning of a filesystem with no birth, once per process
 PRIVATE int dir_identity_errno_said = 0;
@@ -10257,6 +10333,7 @@ PRIVATE BOOL dir_identity(const char *path, json_int_t *ino, json_int_t *bsec, j
                 err = errno;    // of the lstat()
             }
             if(err == ENOENT || err == ENOTDIR) {
+                errno = err;
                 return FALSE;   // gone: nothing to read in it
             }
             if(err != dir_identity_errno_said) {
@@ -10264,13 +10341,14 @@ PRIVATE BOOL dir_identity(const char *path, json_int_t *ino, json_int_t *bsec, j
                 gobj_log_error(0, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM,
-                    "msg",          "%s", "Cannot tell which directory a key directory is: its scan is skipped, its links wait for its next record (said once per errno in a row)",
+                    "msg",          "%s", "Cannot tell which directory a key directory is: it is not read now; for a passing cause (EIO, ENOMEM...) its read is owed to the next batch of events of the feed (said once per errno in a row)",
                     "path",         "%s", path,
                     "errno",        "%d", err,
                     "serrno",       "%s", strerror(err),
                     NULL
                 );
             }
+            errno = err;
             return FALSE;
         }
     }
@@ -10303,8 +10381,13 @@ PRIVATE BOOL dir_identity(const char *path, json_int_t *ino, json_int_t *bsec, j
  *  directory `seen` (looked at before the end of the queue was asked:
  *  place_new_key_dir_scans()). Gone: nothing in it. Another one: it is
  *  read by its own IN_CREATE, after the delete of this one.
+ *
+ *  A read that fails for a passing cause (no descriptor, no memory, an i/o
+ *  error) is OWED (owe_key_dir_scan()): its links stay, and the master
+ *  links a file once, so nothing else would bring them back.
+ *  Returns 0, or -1 (logged) with the cause in errno.
  ***************************************************************************/
-PRIVATE void scan_key_dir(
+PRIVATE int scan_key_dir(
     hgobj gobj,
     json_t *tranger,
     json_t *watched_topic,
@@ -10316,6 +10399,7 @@ PRIVATE void scan_key_dir(
 {
     char key_[NAME_MAX+1];
     snprintf(key_, sizeof(key_), "%s", key);
+    int ret;
     if(seen->wd >= 0) {
         /*
          *  The very directory looked at, through its descriptor: one made
@@ -10324,23 +10408,63 @@ PRIVATE void scan_key_dir(
         int dir_fd = fs_watcher_dir_fd(fs_event, (int)seen->wd);
         struct stat st;
         if(dir_fd < 0 || fstat(dir_fd, &st) < 0 || st.st_nlink == 0) {
-            return; // gone: the signal of a delete, or deleted since
+            return 0; // gone: the signal of a delete, or deleted since
         }
-        scan_key_dir_by_fd(gobj, tranger, watched_topic, fs_event, dir_fd, key_);
+        ret = scan_key_dir_by_fd(gobj, tranger, watched_topic, fs_event, dir_fd, key_);
     } else {
+        /*
+         *  Watched by its path (its descriptor could not be opened then):
+         *  opened now, and read through that descriptor if it is the
+         *  directory seen -- the one opened, not one made since under the
+         *  path. Up to 7.27.6 it was listed by path, and a listing that
+         *  failed (EMFILE) left its links for good.
+         */
         char key_dir[PATH_MAX];
         if(!build_path(key_dir, sizeof(key_dir), fs_event->path, key, NULL)) {
-            return; // Error already logged
+            return -1; // Error already logged
         }
-        dir_id_t now;
-        if(!dir_identity(key_dir, &now.ino, &now.bsec, &now.bnsec)) {
-            return; // gone: the signal of a delete, or deleted since
+        int dir_fd = open(key_dir, O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+        if(dir_fd < 0) {
+            int err = errno;
+            if(err == ENOENT || err == ENOTDIR) {
+                return 0; // gone: the signal of a delete, or deleted since
+            }
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot open a key directory to read its links",
+                "path",         "%s", key_dir,
+                "errno",        "%d", err,
+                "serrno",       "%s", strerror(err),
+                NULL
+            );
+            ret = -1;
+            errno = err;
+        } else {
+            dir_id_t now;
+            struct stat st;
+            if(!dir_identity(key_dir, &now.ino, &now.bsec, &now.bnsec)) {
+                ret = errno_is_transient(errno)? -1 : 0;    // gone, or logged
+            } else if(fstat(dir_fd, &st) < 0 || (json_int_t)st.st_ino != now.ino ||
+                    now.ino != seen->ino || now.bsec != seen->bsec || now.bnsec != seen->bnsec) {
+                ret = 0;    // another directory: its own IN_CREATE reads it
+            } else {
+                ret = scan_key_dir_by_fd(gobj, tranger, watched_topic, fs_event, dir_fd, key_);
+            }
+            int err = errno;
+            close(dir_fd);
+            errno = err;
         }
-        if(now.ino != seen->ino || now.bsec != seen->bsec || now.bnsec != seen->bnsec) {
-            return; // another directory: its own IN_CREATE reads it
-        }
-        scan_disks_key_for_new_file(gobj, tranger, key_dir);
     }
+    if(ret < 0) {
+        int err = errno;
+        if(errno_is_transient(err)) {
+            owe_key_dir_scan(watched_topic, fs_event, key_, seen, FALSE, err);
+        }
+        errno = err;
+        return -1;
+    }
+    return 0;
 }
 
 /***************************************************************************
@@ -10499,6 +10623,15 @@ PRIVATE void place_new_key_dir_scans(
                         json_object_iter_key(it), NULL) &&
                     dir_identity(key_dir, &seen[n_seen].id.ino, &seen[n_seen].id.bsec,
                         &seen[n_seen].id.bnsec);
+                if(!seen[n_seen].alive && errno_is_transient(errno)) {
+                    /*
+                     *  Not known who it is (logged): looked at again
+                     *  later, through its watch
+                     */
+                    dir_id_t watch = {wd, 0, 0, 0};
+                    owe_key_dir_scan(watched_topic, fs_event, json_object_iter_key(it),
+                        &watch, TRUE, errno);
+                }
             } else {
                 seen[n_seen].alive = FALSE;     // gone at its IN_CREATE, or since
             }
@@ -10694,8 +10827,10 @@ PRIVATE void run_due_key_dir_scans(
 }
 
 /***************************************************************************
- *  CLIENT: the scan of the key's directory is noted or waits: a link heard
- *  in it is left to that scan
+ *  CLIENT: the scan of the key's directory is noted, waits, or is owed: a
+ *  link heard in it is left to that scan, which reads every link of the
+ *  directory in order (read at its own event, a later file came before
+ *  the ones the scan owes)
  ***************************************************************************/
 PRIVATE BOOL key_dir_scan_waits(
     json_t *watched_topic,
@@ -10710,7 +10845,170 @@ PRIVATE BOOL key_dir_scan_waits(
     if(json_object_get(json_object_get(disk, "scans_pending"), key)) {
         return TRUE;
     }
+    if(json_object_get(json_object_get(disk, "scans_owed"), key)) {
+        return TRUE;
+    }
     return FALSE;
+}
+
+/***************************************************************************
+ *  CLIENT: a key directory could not be read for a passing cause (no
+ *  descriptor, no memory, an i/o error: errno_is_transient()): its links
+ *  stay, and nothing brings them back by itself -- the master links a file
+ *  once (only if the link is not there), so the key's next records in the
+ *  same file make no event, and the key waited for its next FILE (a new
+ *  day) or for the feed to be opened again. Up to 7.27.6 it was so: a
+ *  follower out of descriptors for a moment kept every key it failed on
+ *  behind the master for good.
+ *
+ *  The read is OWED (`scans_owed`, by key: `<relook> <wd> <ino> <birth sec>
+ *  <birth nsec>`, the directory seen) and tried again at the end of the
+ *  next batch of events of the feed (run_owed_key_dir_scans()). No timer:
+ *  a feed that hears no event at all keeps it owed until it hears one --
+ *  a record of any key that makes a link, a new file, a delete, the echo
+ *  of a link it consumes itself. `relook`: who the directory is was not
+ *  known (dir_identity() failed): it is looked at again, as a directory
+ *  just met (defer_key_dir_scan(), through its watch `wd`).
+ *
+ *  Said once per feed while it owes reads, then once more when it owes
+ *  none (every failure is logged where it happens).
+ ***************************************************************************/
+PRIVATE void owe_key_dir_scan(
+    json_t *watched_topic,
+    fs_event_t *fs_event,
+    const char *key,
+    const dir_id_t *seen,
+    BOOL relook,
+    int err
+)
+{
+    if(fs_event->stop_requested) {
+        return; // a callback closed the feed
+    }
+    json_t *disk = feed_of_watcher(watched_topic, fs_event);
+    if(!disk) {
+        return; // the feed is gone
+    }
+    char entry[5*21];   // five numbers of up to 20 characters, a blank or the NUL after each
+    snprintf(entry, sizeof(entry), "%d %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64,
+        relook? 1 : 0, (int64_t)seen->wd, (int64_t)seen->ino, (int64_t)seen->bsec, (int64_t)seen->bnsec);
+    json_t *owed = json_object_get(disk, "scans_owed");
+    if(!owed) {
+        owed = json_object();
+        json_object_set_new(disk, "scans_owed", owed);
+    }
+    json_object_set_new(owed, key, json_string(entry));
+
+    if(!json_object_get(disk, "scans_owed_said")) {
+        json_object_set_new(disk, "scans_owed_said", json_true());
+        gobj_log_warning(fs_event->gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "rt_disk feed: a key directory could not be read for a passing cause, its read is owed to the end of the next batch of events of the feed (the next ones not said)",
+            "topic_name",   "%s", tranger2_topic_name(watched_topic),
+            "rt_id",        "%s", json_string_value(json_object_get(disk, "id")),
+            "key",          "%s", key,
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
+ *  CLIENT: the end of a batch (or of a slice of the pass): the reads owed
+ *  (owe_key_dir_scan()) are tried again, each if its directory is still
+ *  the one seen. The first that fails again for a passing cause ends the
+ *  round: the cause is still there, and the rest wait for the next batch
+ *  (one failure logged per batch, not one per key). A key whose scan is
+ *  noted or waits is read by that scan.
+ ***************************************************************************/
+PRIVATE void run_owed_key_dir_scans(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *watched_topic,
+    fs_event_t *fs_event
+)
+{
+    json_t *disk = feed_of_watcher(watched_topic, fs_event);
+    json_t *owed = json_object_get(disk, "scans_owed");
+    if(!owed && !json_object_get(disk, "scans_owed_said")) {
+        return; // the common case
+    }
+
+    if(owed) {
+        json_incref(owed);
+        json_object_del(disk, "scans_owed");   // a read that fails again owes itself anew
+        BOOL failed_again = FALSE;
+        const char *key; json_t *jn_entry;
+        json_object_foreach(owed, key, jn_entry) {
+            if(fs_event->stop_requested) {
+                break;  // a callback closed the feed
+            }
+            disk = feed_of_watcher(watched_topic, fs_event);
+            if(!disk) {
+                break;  // the feed is gone
+            }
+            if(failed_again) {
+                json_t *again = json_object_get(disk, "scans_owed");
+                if(!again) {
+                    again = json_object();
+                    json_object_set_new(disk, "scans_owed", again);
+                }
+                json_object_set(again, key, jn_entry);
+                continue;
+            }
+            if(key_dir_scan_waits(watched_topic, fs_event, key)) {
+                continue;   // its scan, noted or waiting, reads it
+            }
+            int relook = 0;
+            int64_t wd = -1, ino = 0, bsec = 0, bnsec = 0;
+            const char *entry = json_string_value(jn_entry);
+            if(!entry || sscanf(entry, "%d %" SCNd64 " %" SCNd64 " %" SCNd64 " %" SCNd64,
+                    &relook, &wd, &ino, &bsec, &bnsec) != 5) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "bad owed read of a key directory: not read",
+                    "key",          "%s", key,
+                    "entry",        "%s", entry? entry : "",
+                    NULL
+                );
+                continue;
+            }
+            if(relook) {
+                defer_key_dir_scan(watched_topic, fs_event, key, fs_event->offset, (int)wd);
+                continue;
+            }
+            dir_id_t seen = {(json_int_t)wd, (json_int_t)ino, (json_int_t)bsec, (json_int_t)bnsec};
+            if(scan_key_dir(gobj, tranger, watched_topic, fs_event, key, fs_event->offset, &seen) < 0 &&
+                    errno_is_transient(errno)) {
+                failed_again = TRUE;    // owed anew (logged): the rest wait for the next batch
+            }
+        }
+        json_decref(owed);
+
+        disk = feed_of_watcher(watched_topic, fs_event);
+        if(fs_event->stop_requested || !disk) {
+            return; // a callback closed the feed
+        }
+    }
+
+    /*
+     *  Read, or dropped by the deletes of their keys or by an overflow (the
+     *  pass reads every directory)
+     */
+    if(!json_object_get(disk, "scans_owed") && json_object_get(disk, "scans_owed_said")) {
+        json_object_del(disk, "scans_owed_said");
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "rt_disk feed: no read of a key directory owed any more",
+            "topic_name",   "%s", tranger2_topic_name(watched_topic),
+            "rt_id",        "%s", json_string_value(json_object_get(disk, "id")),
+            NULL
+        );
+    }
 }
 
 /***************************************************************************
