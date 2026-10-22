@@ -891,7 +891,23 @@ PUBLIC int kw_set_subdict_value(
     const char *key,
     json_t *value // owned
 ) {
-    json_t *jn_subdict = kw_get_dict(gobj, kw, path, json_object(), KW_CREATE);
+    /*
+     *  A subdict already there, under a path of one segment: what
+     *  kw_get_dict() with KW_CREATE answers, without building and freeing
+     *  the default dict it is handed (C_IOGATE sets two keys of __temp__ in
+     *  every message it receives). Anything else goes to kw_get_dict(), its
+     *  creation and its logs.
+     */
+    json_t *jn_subdict = NULL;
+    if(json_is_object(kw) && path && !search_delimiter(path, delimiter[0])) {
+        jn_subdict = json_object_get(kw, path);
+        if(!json_is_object(jn_subdict)) {
+            jn_subdict = NULL;
+        }
+    }
+    if(!jn_subdict) {
+        jn_subdict = kw_get_dict(gobj, kw, path, json_object(), KW_CREATE);
+    }
     if(!jn_subdict) {
         // Error already logged
         KW_DECREF(value);
