@@ -77,6 +77,17 @@
   purge, with an ERROR *"indexed rowid without segment"* per page. The
   absolute bounds now move with the index. (A negative bound, resolved at the
   open since the point above, failed the same way before this fix.)
+  **A multi-key iterator of `C_TRANGER`** (`open-iterator rkey=...`) failed
+  in another way, in 7.27.5 and 7.27.6: it holds no tranger2 iterator
+  between pages, and opened each part again for every page with the
+  match_cond of the open, which nothing moved. When the purge took only rows
+  the replica never counted (no part is closed then), a part opened with
+  `from_rowid=3, to_rowid=4` paged OTHER rows of the key -- `Qb1:3 Qb2:4`
+  in place of `Qc1:5 Qc2:6` -- with result 0 and no log. Each part is now
+  opened with its absolute bounds moved by the `renumbered` of its key since
+  the open of the iterator (opened twice when the replica hears the purge in
+  that open). A negative bound is resolved at every open of a part, and
+  was right.
 - **A link of a dead feed that cannot be removed is retried** (timeranger2,
   `tranger2_delete_key_files()`; appeared in 7.27.5). The purge removed the
   files of `keys/<key>/` first and the hard links in `disks/<rt_id>/<key>/`
@@ -157,9 +168,13 @@
   timeranger2 as it is: the last day of every key. `--dry-run` says a
   negative bound is relative to the last record, and an integer out of range
   is refused. A text of spaces, signs and digits only that is not
-  `-?[0-9]+` is refused too, not read as a date: `approxidate()` read `+5`
-  and `" -5"` as the 5th of the month, and a lone `-` or an empty TIME as
-  NOW, in silence. The help fits in 80 columns.
+  `-?[0-9]+` is refused too, not read as a date, wherever its signs and
+  spaces are: `approxidate()` read `+5`, `" -5"`, `5+`, `5-` and `-5-` as
+  the 5th of the month, `"5 5"` and `5+5` as the 5th of May, and a lone `-`
+  or an empty TIME as NOW, in silence (a first version of this fix still
+  sent a sign AFTER the digits, or a space between them, to `approxidate()`).
+  A `-` between two digits makes the text a date: `2026-10-01` keeps
+  working. The help fits in 80 columns.
 - **What 7.27.5 costs a replica to read, measured, and its performance
   report** (timeranger2; 7.27.5 shipped with only an append A/B). Before
   every iterator open and every page a replica `stat()`s the first md2 file

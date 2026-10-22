@@ -15,7 +15,13 @@
  *        cache): the purge renumbers the key (`renumbered`), and the
  *        positions of the page do not move with it;
  *      - delete-key-files on a replica is answered READ-ONLY, before the
- *        library.
+ *        library;
+ *      - iterators with ABSOLUTE rowid bounds (from_rowid=3, to_rowid=4)
+ *        across a renumber that closes no part (the master purges only rows
+ *        the replica never counted): a one-key one and a multi-key one page
+ *        the same rows, under their new g_rowids. The parts of a multi-key
+ *        iterator are opened again for every page, with the bounds of the
+ *        open moved by the key's `renumbered` since then.
  *
  *  The C_TRANGER gobj is the yuno; the master is a plain tranger of the same
  *  store, started first so it holds the lock.
@@ -36,6 +42,7 @@
 
 #define DATABASE    "tr_c_tranger_replica"
 #define TOPIC_NAME  "topic_replica"
+#define TOPIC_BOUNDS "topic_bounds"
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
 
 /***************************************************************
@@ -97,6 +104,24 @@ PRIVATE void page_contents(json_t *r, char *bf, size_t bfsize)
             strncat(bf, " ", bfsize - strlen(bf) - 1);
         }
         strncat(bf, kw_get_str(0, record, "content", "?", 0), bfsize - strlen(bf) - 1);
+    }
+}
+
+/*
+ *  The records of a page with their g_rowid, "<content>:<g_rowid> ..."
+ */
+PRIVATE void page_rowids(json_t *r, char *bf, size_t bfsize)
+{
+    bf[0] = 0;
+    int idx; json_t *record;
+    json_array_foreach(kw_get_list(0, r, "data`data", 0, 0), idx, record) {
+        char item[64];
+        snprintf(item, sizeof(item), "%s%s:%lld",
+            bf[0]? " " : "",
+            kw_get_str(0, record, "content", "?", 0),
+            (long long)kw_get_int(0, record, "__md_tranger__`g_rowid", -1, 0)
+        );
+        strncat(bf, item, bfsize - strlen(bf) - 1);
     }
 }
 
@@ -306,6 +331,136 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
     check_int("R kept every row", (json_int_t)tranger2_topic_key_size(tm, TOPIC_NAME, "R"), 6);
     global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
+     *      Absolute rowid bounds across a renumber: a second topic, keys Q
+     *      and R of four days of two rows, the first day of Q unreadable to
+     *      the replica. The master purges only that day: rows the replica
+     *      never counted, so no filtered part is closed, and the numbering
+     *      of Q moves by 2. The rows an iterator opened with
+     *      from_rowid=3, to_rowid=4 are the same rows after it, under their
+     *      new g_rowids -- a multi-key one too, whose parts are opened again
+     *      for every page
+     *-------------------------------------------------*/
+    if(flagged) {
+        set_expected_results("replica: bounds, setup", NULL, NULL, NULL, 1);
+        if(!tranger2_create_topic(
+                tm, TOPIC_BOUNDS, "id", "tm",
+                json_pack("{s:s}", "filename_mask", "%Y-%m-%d"),
+                sf_string_key,
+                json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
+                0)) {
+            printf("%s: FAIL (topic %s)\n", APP, TOPIC_BOUNDS);
+            global_result += -1;
+        }
+        for(int k = 0; k < 2; k++) {
+            for(int d = 0; d < 4; d++) {
+                for(int j = 0; j < 2; j++) {
+                    uint64_t t = BASE_T + (uint64_t)d*86400 + (uint64_t)j;
+                    char content[8];
+                    snprintf(content, sizeof(content), "%s%c%d", keys[k], 'a' + d, j + 1);
+                    md2_record_ex_t md = {0};
+                    tranger2_append_record(tm, TOPIC_BOUNDS, t, 0, &md,
+                        json_pack("{s:s, s:I, s:s}", "id", keys[k], "tm", (json_int_t)t, "content", content));
+                }
+            }
+        }
+        char md2_bounds_qa[PATH_MAX];
+        build_path(md2_bounds_qa, sizeof(md2_bounds_qa),
+            path_database, TOPIC_BOUNDS, "keys", "Q", "2000-01-01.md2", NULL);
+        chmod(md2_bounds_qa, 0);
+        global_result += test_json(NULL);
+
+        set_expected_results(
+            "replica: bounds, open",
+            json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+                "msg", "Cannot open md2 file",
+                "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
+                /*  the opens of Q: itB, itS, itN, and the parts of Q the pages of itB and itN open  */
+                "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
+                "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
+                "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
+                "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
+                "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built"
+            ),
+            NULL, NULL, 1
+        );
+        r = gobj_command(yuno, "open-iterator",
+            json_pack("{s:s, s:s, s:s, s:i, s:i}",
+                "topic_name", TOPIC_BOUNDS, "rkey", "^(Q|R)$", "iterator_id", "itB",
+                "from_rowid", 3, "to_rowid", 4), yuno);
+        check_int("open-iterator Q|R rowid 3..4", kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "open-iterator",
+            json_pack("{s:s, s:s, s:s, s:i, s:i}",
+                "topic_name", TOPIC_BOUNDS, "key", "Q", "iterator_id", "itS",
+                "from_rowid", 3, "to_rowid", 4), yuno);
+        check_int("open-iterator Q rowid 3..4", kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "open-iterator",
+            json_pack("{s:s, s:s, s:s, s:i}",
+                "topic_name", TOPIC_BOUNDS, "rkey", "^(Q|R)$", "iterator_id", "itN",
+                "from_rowid", -2), yuno);
+        check_int("open-iterator Q|R rowid -2", kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+
+        r = gobj_command(yuno, "get-page",
+            json_pack("{s:s, s:i, s:i}", "iterator_id", "itB", "from_rowid", 1, "limit", 10), yuno);
+        page_rowids(r, bf, sizeof(bf));
+        check_str("multi-key 3..4 at the open", bf, "Qc1:3 Qc2:4 Rb1:3 Rb2:4");
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "get-page",
+            json_pack("{s:s, s:i, s:i}", "iterator_id", "itS", "from_rowid", 1, "limit", 10), yuno);
+        page_rowids(r, bf, sizeof(bf));
+        check_str("one key 3..4 at the open", bf, "Qc1:3 Qc2:4");
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "get-page",
+            json_pack("{s:s, s:i, s:i}", "iterator_id", "itN", "from_rowid", 1, "limit", 10), yuno);
+        page_rowids(r, bf, sizeof(bf));
+        check_str("multi-key -2 at the open", bf, "Qd1:5 Qd2:6 Rd1:7 Rd2:8");
+        JSON_DECREF(r)
+        global_result += test_json(NULL);
+
+        set_expected_results("replica: bounds, the master purges", NULL, NULL, NULL, 1);
+        check_int("master purges the first day of Q",
+            tranger2_delete_key_files(tm, TOPIC_BOUNDS, "Q", BASE_T + 86400), 2);
+        global_result += test_json(NULL);
+
+        set_expected_results("replica: bounds, renumbered", NULL, NULL, NULL, 1);
+        r = gobj_command(yuno, "get-page",
+            json_pack("{s:s, s:i, s:i}", "iterator_id", "itB", "from_rowid", 1, "limit", 10), yuno);
+        check_int("multi-key 3..4 after the renumber", kw_get_int(0, r, "result", -999, 0), 0);
+        page_rowids(r, bf, sizeof(bf));
+        check_str("the same rows, Q's under its new g_rowids", bf, "Qc1:5 Qc2:6 Rb1:3 Rb2:4");
+        JSON_DECREF(r)
+        range = tranger2_topic_key_range(tr, TOPIC_BOUNDS, "Q");
+        check_int("Q renumbered by the rows it had not counted",
+            kw_get_int(0, range, "renumbered", 0, 0), 2);
+        JSON_DECREF(range)
+        r = gobj_command(yuno, "get-page",
+            json_pack("{s:s, s:i, s:i}", "iterator_id", "itB", "from_rowid", 2, "limit", 2), yuno);
+        page_rowids(r, bf, sizeof(bf));
+        check_str("multi-key 3..4, a page across the two keys", bf, "Qc2:6 Rb1:3");
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "get-page",
+            json_pack("{s:s, s:i, s:i}", "iterator_id", "itS", "from_rowid", 1, "limit", 10), yuno);
+        page_rowids(r, bf, sizeof(bf));
+        check_str("one key 3..4 after the renumber", bf, "Qc1:5 Qc2:6");
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "get-page",
+            json_pack("{s:s, s:i, s:i}", "iterator_id", "itN", "from_rowid", 1, "limit", 10), yuno);
+        page_rowids(r, bf, sizeof(bf));
+        check_str("multi-key -2 after the renumber", bf, "Qd1:7 Qd2:8 Rd1:7 Rd2:8");
+        JSON_DECREF(r)
+        const char *its[] = {"itB", "itS", "itN"};
+        for(int i = 0; i < 3; i++) {
+            r = gobj_command(yuno, "close-iterator", json_pack("{s:s}", "iterator_id", its[i]), yuno);
+            JSON_DECREF(r)
+        }
+        global_result += test_json(NULL);
+    } else {
+        printf("skip rowid bounds across a renumber: root reads every md2, nothing is renumbered\n");
+    }
 
     set_expected_results("replica: shutdown", NULL, NULL, NULL, 1);
     tranger2_shutdown(tm);

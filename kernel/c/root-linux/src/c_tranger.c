@@ -269,6 +269,15 @@ PRIVATE json_t *find_handle_by_identity(
     json_t *registered_ptr
 );
 PRIVATE json_t *open_part(hgobj gobj, const char *iterator_id, json_t *entry, json_t *part);
+PRIVATE json_int_t part_renumbered(hgobj gobj, json_t *entry, json_t *part);
+PRIVATE BOOL has_absolute_rowid_bound(json_t *match_cond);
+PRIVATE json_t *open_part_with_bounds_moved(
+    hgobj gobj,
+    const char *iterator_id,
+    json_t *entry,
+    json_t *part,
+    json_int_t moved
+);
 PRIVATE json_int_t key_purged(hgobj gobj, const char *topic_name, const char *key);
 PRIVATE json_int_t part_shift(hgobj gobj, json_t *entry, json_t *part);
 PRIVATE json_int_t key_range_int(hgobj gobj, const char *topic_name, const char *key, const char *field);
@@ -1393,6 +1402,16 @@ PRIVATE json_t *find_keys_watch(hgobj gobj, json_t *entry)
 /***************************************************************************
  *  Open ONE part of a multi-key iterator, for the page that reads it: with
  *  the match_cond the iterator was opened with. The caller closes it.
+ *
+ *  Its ABSOLUTE rowid bounds (a positive from_rowid / to_rowid) are g_rowids
+ *  of the key as it was numbered at the open. A replica whose numbering of
+ *  the key a purge moved to the master's (`renumbered`, a md2 file it could
+ *  not read) moved every g_rowid of it, and the same bounds name other rows:
+ *  the part is opened with them moved by the same amount, as the library
+ *  moves the bounds of the iterators it holds (apply_purge_of_master()). A
+ *  purge this replica had not heard is applied INSIDE the open, so the move
+ *  is known only after it: the part is then opened again. A negative bound
+ *  is resolved at every open, from the end of the key, and is not moved.
  ***************************************************************************/
 PRIVATE json_t *open_part(
     hgobj gobj,
@@ -1403,6 +1422,69 @@ PRIVATE json_t *open_part(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    json_int_t moved = part_renumbered(gobj, entry, part);
+    json_t *iterator = open_part_with_bounds_moved(gobj, iterator_id, entry, part, moved);
+    if(!iterator) {
+        return NULL;    // Error already logged
+    }
+    json_int_t moved_now = part_renumbered(gobj, entry, part);
+    if(moved_now != moved && has_absolute_rowid_bound(json_object_get(entry, "match_cond"))) {
+        tranger2_close_iterator(priv->tranger, iterator);
+        iterator = open_part_with_bounds_moved(gobj, iterator_id, entry, part, moved_now);
+    }
+    return iterator;    // Error already logged when NULL
+}
+
+/***************************************************************************
+ *  The moves of the numbering of the key of a part since the open of its
+ *  iterator (see open_part()). 0 on a master, and on a replica that never
+ *  had to take the master's numbering.
+ ***************************************************************************/
+PRIVATE json_int_t part_renumbered(hgobj gobj, json_t *entry, json_t *part)
+{
+    const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
+    const char *key = kw_get_str(gobj, part, "key", "", 0);
+    return key_range_int(gobj, topic_name, key, "renumbered") -
+        kw_get_int(gobj, part, "renumbered", 0, 0);
+}
+
+/***************************************************************************
+ *  Does a match_cond bound its rows by an absolute g_rowid?
+ ***************************************************************************/
+PRIVATE BOOL has_absolute_rowid_bound(json_t *match_cond)
+{
+    return (json_integer_value(json_object_get(match_cond, "from_rowid")) > 0 ||
+        json_integer_value(json_object_get(match_cond, "to_rowid")) > 0)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  tranger2_open_iterator() of a part, with the match_cond of its iterator
+ *  and its absolute rowid bounds moved by `moved`
+ ***************************************************************************/
+PRIVATE json_t *open_part_with_bounds_moved(
+    hgobj gobj,
+    const char *iterator_id,
+    json_t *entry,  // not owned, the registry entry
+    json_t *part,   // not owned
+    json_int_t moved
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *match_cond = json_deep_copy(json_object_get(entry, "match_cond"));
+    if(moved != 0 && match_cond) {
+        const char *bounds[] = {"from_rowid", "to_rowid", NULL};
+        for(int b = 0; bounds[b]; b++) {
+            json_int_t bound = json_integer_value(json_object_get(match_cond, bounds[b]));
+            if(bound > 0) {
+                json_int_t bound_moved = bound + moved;
+                json_object_set_new(match_cond, bounds[b],
+                    json_integer((bound_moved > 0)? bound_moved : 1)   // 0 or negative would be another bound
+                );
+            }
+        }
+    }
+
     const char *key = kw_get_str(gobj, part, "key", "", 0);
     json_t *jn_part_id = json_sprintf("%s^%s", iterator_id, key);
     char creator[NAME_MAX];
@@ -1411,7 +1493,7 @@ PRIVATE json_t *open_part(
         priv->tranger,
         kw_get_str(gobj, entry, "topic_name", "", 0),
         key,
-        json_deep_copy(json_object_get(entry, "match_cond")), // owned
+        match_cond,         // owned
         NULL,               // index only
         json_string_value(jn_part_id),
         creator,
@@ -1643,8 +1725,7 @@ PRIVATE json_int_t part_shift(hgobj gobj, json_t *entry, json_t *part)
      *  never counted a file it had flagged) moved every g_rowid of the key
      *  by the same amount, `renumbered`: positions do not move with it
      */
-    json_int_t moved = key_range_int(gobj, topic_name, key, "renumbered") -
-        kw_get_int(gobj, part, "renumbered", 0, 0);
+    json_int_t moved = part_renumbered(gobj, entry, part);
     json_int_t shift = purged - base - moved;
     return (shift > 0)? shift : 0;
 }
@@ -4200,7 +4281,8 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
  *  client that wants another one sorts the page it holds.
  *
  *  Each part is an ordinary one-key iterator with the same match_cond, so a
- *  filter bounds every key alike. Its row count is taken at open, and it is
+ *  filter bounds every key alike (absolute rowid bounds moved with the
+ *  numbering of a replica, see open_part()). Its row count is taken at open, and it is
  *  what get-page cuts the concatenation with for a FILTERED part; an
  *  unfiltered one is counted live at every page (part_rows).
  *  Registered like a one-key iterator, with `parts` in place of `ptr`.

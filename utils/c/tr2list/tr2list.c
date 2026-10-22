@@ -36,8 +36,9 @@
     "on an sf_tm_ms one; a negative one counts back from the key's last\n" \
     "record: --from-t=-86400 is its last day), or a natural-language string\n" \
     "parsed by approxidate (git-style date parser) and taken to that unit,\n" \
-    "topic by topic. A sign with no digits, a '+', or spaces around an\n" \
-    "integer are refused, not read as a date.\n" \
+    "topic by topic. Any other text of spaces, signs and digits only ('+5',\n" \
+    "'5-', '5 5', '-') is refused, not read as a date; a '-' between two\n" \
+    "digits makes it a date ('2026-10-01').\n" \
     "Accepted forms:\n" \
     "  units    : seconds, minutes, hours, days, weeks, months, years\n" \
     "             with a count and optional 'ago'\n" \
@@ -905,31 +906,26 @@ PRIVATE void delete_right_slash(char *s)
 }
 
 /***************************************************************************
- *  A TIME that looks like an integer and is not -?[0-9]+: spaces, a sign
- *  and digits only (an empty text, "-", "+5", " -5", "--5", "5 ").
- *  approxidate() read every one of them as a date in silence ("+5" as the
- *  5th of this month, "-" as NOW). A date has other characters ("2026-10-01"
- *  a '-' between digits, "1.day" a letter).
+ *  A TIME that looks like an integer and is not -?[0-9]+: spaces, signs
+ *  and digits only, wherever they are (an empty text, "-", "+5", " -5",
+ *  "--5", "5 ", "5+", "5-", "-5-", "5 5", "5+5"). approxidate() read every
+ *  one of them as a date in silence ("+5" and "5-" as the 5th of this
+ *  month, "5 5" as the 5th of May, "-" as NOW). A date has a '-' between
+ *  two digits ("2026-10-01") or other characters ("1.day" a letter).
  ***************************************************************************/
 PRIVATE BOOL looks_like_integer(const char *text)
 {
-    const char *p = text;
-    while(*p == ' ' || *p == '\t') {
-        p++;
+    for(const char *p = text; *p; p++) {
+        BOOL digit = (*p >= '0' && *p <= '9')? TRUE : FALSE;
+        if(!digit && *p != ' ' && *p != '\t' && *p != '+' && *p != '-') {
+            return FALSE;   // a date: approxidate() reads it
+        }
+        if(*p == '-' && p > text &&
+                p[-1] >= '0' && p[-1] <= '9' && p[1] >= '0' && p[1] <= '9') {
+            return FALSE;   // a date separator: approxidate() reads it
+        }
     }
-    while(*p == '-' || *p == '+') {
-        p++;
-    }
-    while(*p == ' ' || *p == '\t') {
-        p++;
-    }
-    while(*p >= '0' && *p <= '9') {
-        p++;
-    }
-    while(*p == ' ' || *p == '\t') {
-        p++;
-    }
-    return (*p == 0)? TRUE : FALSE;
+    return TRUE;
 }
 
 /***************************************************************************

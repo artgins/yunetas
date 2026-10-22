@@ -1374,9 +1374,15 @@ its old files were deleted"*.
 (now: no purge reaches it), a key with no base, a key not in the topic, and a
 record whose key or time cannot be read (the append says why). A key flagged
 `unlisted` (its `.purged`, or its directory, could not be read when the topic
-opened) has no base in its cache: its base is read from the disk, as the
-append reads it when it lists the key again, so the two agree. Silent, but for
-a topic that does not exist (logged).
+opened) has no base in its cache: its base is read from the disk, quietly, as
+the append reads it when it lists the key again. A base that can be read gives
+the same answer as the append. A base that still cannot be read (a `.purged`
+that is corrupt or unreadable, a directory that cannot be listed) gives
+`FALSE`, and the append refuses the record for that other cause, with an
+ERROR *"Cannot append record, its key cannot be listed: its row would follow
+rows no cell counts"*: the two agree only that the record is not appended,
+and only the append says so, in the log. Silent, but for a topic that does not
+exist (logged).
 
 ```C
 BOOL tranger2_record_in_purged_period(

@@ -73,14 +73,22 @@ a negative bound as relative to the last record of each key; an integer out
 of range is refused (*"TIME out of range"*).
 
 An integer TIME is exactly `-?[0-9]+`. A text of spaces, signs and digits
-only that is not one is refused, not read as a date: up to 7.27.6
-`approxidate` read `+5` and `" -5"` as the 5th of this month, and a lone `-`
-or an empty TIME as NOW, with no word. A date keeps working (`2026-10-01`
-has a `-` between digits, `1.day` a letter):
+only that is not one is refused, not read as a date, wherever its signs and
+spaces are: up to 7.27.6 `approxidate` read `+5`, `" -5"`, `5+`, `5-` and
+`-5-` as the 5th of this month, `"5 5"` and `5+5` as the 5th of May, and a
+lone `-` or an empty TIME as NOW, with no word. A `-` between two digits makes
+the text a date, and a date keeps working (`2026-10-01`; `1.day` has a
+letter):
 
 ```bash
 tr2list /yuneta/store/x/topic1 --from-t=+5
 # -> TIME is not an integer -?[0-9]+ nor a date: '+5'
+tr2list /yuneta/store/x/topic1 --from-t=5-
+# -> TIME is not an integer -?[0-9]+ nor a date: '5-'
+tr2list /yuneta/store/x/topic1 --from-t='5 5'
+# -> TIME is not an integer -?[0-9]+ nor a date: '5 5'
+tr2list /yuneta/store/x/topic1 --from-t=2026-10-01 --dry-run
+# -> from_t = ... 2026-10-01T...
 ```
 
 ## Filtering by field

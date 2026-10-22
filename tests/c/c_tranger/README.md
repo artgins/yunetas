@@ -92,7 +92,16 @@ signal, and finds each purge before its next read):
   md2 it could not read when it built the key's cache; not as root): the
   purge renumbers the key (`renumbered` 2), and the positions of the page do
   not move with it;
-- `delete-key-files` on a replica answers READ-ONLY.
+- `delete-key-files` on a replica answers READ-ONLY;
+- iterators with ABSOLUTE rowid bounds (`from_rowid=3, to_rowid=4`) on a
+  second topic, keys Q and R of four days, across a renumber that closes no
+  part: the master purges only the day of Q the replica could not read (rows
+  it never counted, `renumbered` 2). The one-key iterator and the multi-key
+  one page the same rows, Q's under their new g_rowids (`Qc1:5 Qc2:6 Rb1:3
+  Rb2:4`); before, the parts of the multi-key one were opened again with the
+  bounds of the open and paged `Qb1:3 Qb2:4`, other rows. A `from_rowid=-2`
+  one gives the last two rows of each key before and after. Not as root
+  (nothing is renumbered there): skipped.
 
 The commands and their answers are documented in
 [`docs/doc.yuneta.io/api/gclass/data.md`](../../../docs/doc.yuneta.io/api/gclass/data.md)
