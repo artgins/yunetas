@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## v7.27.7 (2026-10-22)
+
+A patch release of fixes from the reviews V38-V42. In timeranger2, the rowid
+bounds of an iterator on a replica now move with its numbering. Several
+passing failures of a replica or of an rt_disk follower are now retried
+instead of being lost: an `EMFILE`, a purge that crosses a read, a link that
+cannot be removed. `add-record` refuses a record in a purged period before it
+writes. `tr2list` reads a negative TIME as relative to the last record. The
+release also ships the `yunetas` CLI 0.23.1-0.23.5, gobj-ui
+7.27.30-7.27.34 and gui_agent 0.29.105-0.29.109. The only performance price
+is a forced treedb delete, +21% of CPU. It appeared in 7.27.6, and its
+report is `performance/reports/7.27.7.html`. nginx 1.31.8 is out, but it
+is not taken: it has no security fix, and it changes `working_directory`.
+The suite passed 316 of 316 on the dev machine. On wattyzer, `test_c_fs`
+stopped once in the first full run (see `TODO.md`), and the second full run
+passed: 316, with 1 skipped.
+
 - **The `yunetas` CLI 0.23.1 and 0.23.2** (on PyPI): `-n` asks nothing in
   `sync-binaries`, `sync-configs` and `yunetas sync`. A dry run ended with
   "Apply [a]ll, [s]elect one by one, or [q]uit?", which answered itself when
