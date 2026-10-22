@@ -747,6 +747,7 @@ PRIVATE void drop_gone_head_cells(
 PRIVATE void carry_renumbered(json_t *topic, const char *key, json_t *new_key_cache);
 PRIVATE void sweep_deleted_keys_left(hgobj gobj, const char *topic_dir);
 PRIVATE unsigned long long process_start_time(pid_t pid);
+PRIVATE unsigned long long own_process_start_time(void);
 PRIVATE BOOL parse_purge_signal(
     const char *name,
     char *ref,
@@ -6229,7 +6230,7 @@ PRIVATE int remove_key_directory(hgobj gobj, const char *topic_dir, const char *
      *  leftover that could not be removed is passed over
      */
     static unsigned deleted_seq = 0;
-    unsigned long long started = process_start_time(getpid());
+    unsigned long long started = own_process_start_time();
     char away[PATH_MAX];
     int err = 0;
     for(int tries = 0; tries < 100; tries++) {
@@ -8294,6 +8295,26 @@ PRIVATE unsigned long long process_start_time(pid_t pid)
     return start;   // field 22: clock ticks since boot
 }
 
+/***************************************************************************
+ *  process_start_time() of this process. It does not change while the
+ *  process lives, and a delete of a key asked for it every time (a read of
+ *  /proc/self/stat, ~5 us of a delete, performance/c/README.md 7.27.7):
+ *  read once per process, by pid, so a child after a fork() reads its own.
+ *  An unknown start (0) is asked again the next time, as it was.
+ ***************************************************************************/
+PRIVATE unsigned long long own_process_start_time(void)
+{
+    static pid_t known_pid = 0;
+    static unsigned long long known_start = 0;
+
+    pid_t pid = getpid();
+    if(pid != known_pid || known_start == 0) {
+        known_start = process_start_time(pid);
+        known_pid = pid;
+    }
+    return known_start;
+}
+
 PRIVATE void remove_rt_disk_directory(
     hgobj gobj,
     const char *topic_directory,
@@ -8306,7 +8327,7 @@ PRIVATE void remove_rt_disk_directory(
     char closing_path[PATH_MAX];
     build_path(full_path, sizeof(full_path), topic_directory, "disks", rt_id, NULL);
     snprintf(closing_name, sizeof(closing_name), ".closing.%d-%llu.%u",
-        (int)getpid(), process_start_time(getpid()), ++closing_seq
+        (int)getpid(), own_process_start_time(), ++closing_seq
     );
     build_path(closing_path, sizeof(closing_path), topic_directory, "disks", closing_name, NULL);
 
