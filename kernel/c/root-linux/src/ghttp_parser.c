@@ -278,7 +278,14 @@ PRIVATE int on_body(llhttp_t* llhttp, const char* at, size_t length)
          *  If on_message_event is defined, then accumulate data in body variable
          */
         if(!parser->gbuf_body) {
-            parser->gbuf_body = gbuffer_create(RX_GBUFFER_SIZE, gbmem_get_maximum_block());
+            /*
+             *  Of the size of the first part of the body, up to
+             *  RX_GBUFFER_SIZE (it grows, as it did, with the rest): up to
+             *  7.27.7 every body took 4 KB, zeroed, and a body that is not
+             *  json is handed up in it
+             */
+            size_t initial_size = (length < RX_GBUFFER_SIZE)? length : RX_GBUFFER_SIZE;
+            parser->gbuf_body = gbuffer_create(initial_size, gbmem_get_maximum_block());
             if(!parser->gbuf_body) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
