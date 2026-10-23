@@ -433,14 +433,32 @@ PRIVATE void start_wait_frame_header(hgobj gobj)
 }
 
 /***************************************************************************
- *  mask or unmask data. Just do xor for each byte
+ *  mask or unmask data: a xor of each byte with the byte of the key of its
+ *  position, the first one being at `offset` of the payload.
+ *  Eight bytes at a time: the key, from that position, twice in a word, and
+ *  each word of the data read and written with memcpy(). The bytes of both
+ *  are in the order of memory, so the xor is the same on any byte order.
  *  mask_key: 4 bytes
  *  data: data to mask/unmask.
  ***************************************************************************/
-PRIVATE void mask(const char *mask_key, char *data, int len)
+PRIVATE void mask(const char *mask_key, char *data, size_t len, size_t offset)
 {
-    for(int i=0; i<len; i++) {
-        *(data + i) ^= mask_key[i % 4];
+    unsigned char key8[8];
+    uint64_t key, w;
+    size_t i;
+
+    for(i=0; i<8; i++) {
+        key8[i] = (unsigned char)mask_key[(offset + i) % 4];
+    }
+    memcpy(&key, key8, 8);
+
+    for(i=0; i + 8 <= len; i += 8) {
+        memcpy(&w, data + i, 8);
+        w ^= key;
+        memcpy(data + i, &w, 8);
+    }
+    for(; i<len; i++) {
+        data[i] ^= mask_key[(offset + i) % 4];
     }
 }
 
@@ -566,7 +584,7 @@ PRIVATE int _write_control_frame(hgobj gobj, char h_fin, char h_opcode, char *da
         uint32_t mask_key = dev_urandom();
         gbuffer_append(gbuf, (char *)&mask_key, 4);
         if(ln) {
-            mask((char *)&mask_key, data, ln);
+            mask((char *)&mask_key, data, ln, 0);
         }
     }
 
@@ -842,28 +860,27 @@ PRIVATE gbuffer_t * unmask_data(hgobj gobj, gbuffer_t *gbuf, uint8_t *h_mask)
 {
     gbuffer_t *unmasked;
 
-    unmasked = gbuffer_create(4*1024, gbmem_get_maximum_block());
-
     char *p;
     size_t ln = gbuffer_leftbytes(gbuf);
 
     /*
-     *  By runs, not a gbuffer_get() and a gbuffer_append() per byte (every
-     *  frame a browser sends is masked). A run is what `unmasked` has free,
-     *  so it never grows the buffer; when it is full, ONE byte is appended,
-     *  as the loop of one byte did: the same gbuffer_realloc(), with the same
-     *  need, the same doubling, and the same logs if it fails. The same
-     *  bytes, unmasked in place in `gbuf` as before.
+     *  Of the size of the payload, which is in `gbuf` already, so no larger
+     *  than the largest block: it was 4 KB whatever the payload, a calloc()
+     *  and a memset of 4 KB for each frame a browser sends (every one is
+     *  masked). By runs, not a gbuffer_get() and a gbuffer_append() per byte:
+     *  a run is what `unmasked` has free, so it never grows the buffer, and
+     *  the first one takes the whole payload. The same bytes, unmasked in
+     *  place in `gbuf` as before.
      */
+    unmasked = gbuffer_create(ln, gbmem_get_maximum_block());
+
     if(unmasked) {
         size_t done = 0;
         while(done < ln) {
             size_t room = gbuffer_freebytes(unmasked);
             size_t run = room? MIN(room, ln - done) : 1;
             p = gbuffer_get(gbuf, run);
-            for(size_t i=0; i<run; i++) {
-                p[i] = p[i] ^ h_mask[(done + i) % 4];
-            }
+            mask((const char *)h_mask, p, run, done);
             gbuffer_append(unmasked, p, run);
             done += run;
         }
@@ -2260,7 +2277,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
      */
     while((ln=gbuffer_chunk(gbuf_data))>0) {
         char *p = gbuffer_get(gbuf_data, ln);
-        mask((char *)&mask_key, p, ln);
+        mask((char *)&mask_key, p, ln, 0);
         gbuffer_append(gbuf, p, ln);
     }
 
