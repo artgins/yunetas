@@ -4174,6 +4174,7 @@ PRIVATE int append_content(
     json_t *tranger,
     json_t *topic,
     const char *topic_name,
+    system_flag2_t system_flag,
     uint64_t __t__,
     uint64_t __tm__,
     BOOL tm_wrapped,
@@ -4185,7 +4186,6 @@ PRIVATE int append_content(
     json_t *record
 )
 {
-    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
     system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
 
     /*--------------------------------------------*
@@ -4868,6 +4868,7 @@ PUBLIC int tranger2_append_record(
         tranger,
         topic,
         topic_name,
+        system_flag,
         __t__,
         __tm__,
         tm_wrapped,
@@ -5068,6 +5069,7 @@ PUBLIC int tranger2_append_record_text(
         tranger,
         topic,
         topic_name,
+        system_flag,
         __t__,
         __tm__,
         tm_wrapped,
