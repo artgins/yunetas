@@ -112,6 +112,7 @@ PRIVATE int load_pkey2_callback(
     md2_record_ex_t *md_record,
     json_t *jn_record  // must be owned
 );
+PRIVATE void feed_only_md(json_t *list);
 
 PRIVATE int load_all_links(
     hgobj gobj,
@@ -1652,6 +1653,9 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                 NULL
             );
         }
+        if(snaps_list) {
+            feed_only_md(snaps_list);
+        }
     }
 
     /*------------------------------*
@@ -1733,6 +1737,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             );
         } else {
             note_keys_not_loaded(gobj, tranger, treedb_name, graphs_topic_name, graphs_list);
+            feed_only_md(graphs_list);
         }
     }
 
@@ -3190,6 +3195,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         );
     } else {
         note_keys_not_loaded(gobj, tranger, treedb_name, topic_name, rt);
+        feed_only_md(rt);
     }
 
     /*----------------------*
@@ -3250,6 +3256,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             );
         } else {
             note_keys_not_loaded(gobj, tranger, treedb_name, topic_name, rt2);
+            feed_only_md(rt2);
         }
     }
     JSON_DECREF(jn_topic_var)
@@ -5787,6 +5794,23 @@ PRIVATE int load_pkey2_callback(
 
     JSON_DECREF(jn_record)
     return 0;  // Timeranger: does not load the record, it's mine.
+}
+
+/***************************************************************************
+ *  The feed of one of the treedb's own lists, once loaded, asks for the
+ *  metadata of a record only: its callbacks (load_id_callback(),
+ *  load_pkey2_callback()) read nothing of a record appended after the
+ *  load, and an append builds the __md_tranger__ of its content only for
+ *  a feed that wants the content. Set after the load, which reads it. Up
+ *  to 7.27.7 every save of a node built it for them (~5 000 instructions).
+ *  The list's match_cond says `only_md`, and its callback gets NULL.
+ ***************************************************************************/
+PRIVATE void feed_only_md(json_t *list)
+{
+    json_t *match_cond = json_object_get(list, "match_cond");
+    if(json_is_object(match_cond)) {
+        json_object_set_new(match_cond, "only_md", json_true());
+    }
 }
 
 /***************************************************************************
