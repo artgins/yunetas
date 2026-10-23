@@ -127,8 +127,8 @@ In jansson (`artgins/jansson`, `master`):
   commit of round 8) for each commit of jansson, and its 215 tests, also
   built with `JANSSON_THREAD_SAFE_REFCOUNT=OFF`.
 - **The suite of the SDK** on the result (`linux-ext-libs` 1.33, every
-  yuno rebuilt): running when this document was first committed; its
-  result follows in the next commit.
+  yuno rebuilt), 319 tests: the 9 failures of this machine, each one with
+  the same messages as in round 8, and nothing else.
 
 ### What a caller can see
 
