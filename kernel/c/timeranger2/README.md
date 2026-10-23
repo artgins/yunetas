@@ -11,7 +11,7 @@
 ```c
 tranger2_startup(...) / tranger2_shutdown(...)
 tranger2_open_topic(...) / tranger2_close_topic(...)
-tranger2_append_record(...)
+tranger2_append_record(...) / tranger2_append_record_text(...)
 tranger2_open_iterator(...) / tranger2_iterator_get_page(...) / tranger2_close_iterator(...)
 tranger2_topic_key_size(...) / tranger2_topic_key_range(...)
 ```
@@ -23,6 +23,13 @@ increments the per-key `g_rowid` (monotonic, never resets) and
 keep their `g_rowid`, and the live rowids of the key start after the rows it
 took. TreeDB relies on this for its
 link/unlink semantics — see `CLAUDE.md` for the full rules.
+
+`tranger2_append_record_text()` is the same append for a record whose content
+is already json TEXT (a frame as a peer sent it): the text is written as it is,
+with no parse of the whole record and no dump. The store checks that the text
+is one json object that a read parses (`json_scan_object_members()`), and takes
+the pkey and the tkey from it. Both appends share the write half
+(`append_content()`), so they write the same way.
 
 ## Two time axes: `t` and `tm`
 

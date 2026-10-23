@@ -99,6 +99,7 @@ set(SRCS
     test_unlistable_dirs
     test_unlisted_relist_once
     test_tr2check
+    test_append_record_text
 )
 
 ##############################################

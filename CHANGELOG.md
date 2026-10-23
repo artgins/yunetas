@@ -17,6 +17,19 @@
   New test `c_yuno_cpu_core` (`test1` a pin, `test2` a cpu that does not
   exist), red against 7.27.9. Found pinning the yunos of hidraulia for the
   performance test.
+- **New `tranger2_append_record_text()`** (`kernel/c/timeranger2`). It
+  appends a record whose content is already json text, as a peer sent it,
+  written as it is: no parse of the whole record and no dump. The store
+  itself checks with `json_scan_object_members()` that the text is one json
+  object that a read parses, and takes the pkey and the tkey from the text.
+  So a topic cannot hold a record that nobody can read back. Everything
+  else is shared with `tranger2_append_record()`: its write half moved, as it
+  was, into one private `append_content()` that both appends call (the
+  content and its md2 row, the cut back of a failed write, the cache, the
+  realtime lists). A realtime list that wants the record gets the text parsed
+  one time. These are refused with an ERROR: a topic keyed by rowid, a text
+  with `__md_tranger__`, and a string pkey with a NUL in it.
+  New test `timeranger2/test_append_record_text`.
 - **New `json_scan_object_members()`** (`kernel/c/gobj-c/src/json_scan.c`,
   declared in `helpers.h`). It reads the members of a json object from its
   TEXT, without building the object. It gives the verdict of `json_loadb()`

@@ -4009,27 +4009,22 @@ PRIVATE BOOL feed_wants_only_md(json_t *feed)
 }
 
 /***************************************************************************
- *  The __tm__ an append keeps of the tkey of `record`: an integer as it
- *  is, a string read as a date by approxidate() and multiplied by 1000 on
- *  an sf_tm_ms topic, 0 when it has none. *wrapped TRUE when that
- *  multiplication passed the 44 bits of an md2 row (asked before it: past
- *  64 bits it wraps to a value that looks like a time). The rest of what
- *  does not fit is a returned value past TRANGER2_MAX_TIME (a negative
- *  integer too): the append asks it with one compare, together with its
- *  __t__.
+ *  The __tm__ an append keeps of the tkey value `jn_tval`: an integer as
+ *  it is, a string read as a date by approxidate() and multiplied by 1000
+ *  on an sf_tm_ms topic, 0 when there is none (NULL) or it is of another
+ *  type. *wrapped TRUE when that multiplication passed the 44 bits of an
+ *  md2 row (asked before it: past 64 bits it wraps to a value that looks
+ *  like a time). The rest of what does not fit is a returned value past
+ *  TRANGER2_MAX_TIME (a negative integer too): the append asks it with one
+ *  compare, together with its __t__.
  ***************************************************************************/
-static inline uint64_t tkey_time_of_record(
-    const char *tkey,
+static inline uint64_t tkey_time_of_value(
     system_flag2_t system_flag,
-    json_t *record,
+    json_t *jn_tval,
     BOOL *wrapped
 )
 {
     *wrapped = FALSE;
-    if(empty_string(tkey)) {
-        return 0;   // No tkey value, mark with 0
-    }
-    json_t *jn_tval = json_object_get(record, tkey);
     if(json_is_string(jn_tval)) {
         timestamp_t timestamp = approxidate(json_string_value(jn_tval));
         if(system_flag & sf_tm_ms) {
@@ -4044,6 +4039,23 @@ static inline uint64_t tkey_time_of_record(
         return (uint64_t)json_integer_value(jn_tval);
     }
     return 0;   // No tkey value, mark with 0
+}
+
+/***************************************************************************
+ *  The __tm__ an append keeps of the tkey of `record` (tkey_time_of_value())
+ ***************************************************************************/
+static inline uint64_t tkey_time_of_record(
+    const char *tkey,
+    system_flag2_t system_flag,
+    json_t *record,
+    BOOL *wrapped
+)
+{
+    *wrapped = FALSE;
+    if(empty_string(tkey)) {
+        return 0;   // No tkey value, mark with 0
+    }
+    return tkey_time_of_value(system_flag, json_object_get(record, tkey), wrapped);
 }
 
 /***************************************************************************
@@ -4068,66 +4080,117 @@ PUBLIC uint64_t tranger2_record_tkey_time(
 }
 
 /***************************************************************************
-    Append a new item to record.
-    The 'pkey' and 'tkey' are getting according to the topic schema.
-    Return the new record's metadata.
+ *  What an append that is refused shows in the trace: the record, or
+ *  the first bytes of its text (an append of a text has no json)
  ***************************************************************************/
-PUBLIC int tranger2_append_record(
-    json_t *tranger,
-    const char *topic_name,
-    uint64_t __t__,         // if 0 then the time will be set by TimeRanger with now time
-    uint16_t user_flag,
-    md2_record_ex_t *md_record_ex, // required, to return the metadata
-    json_t *record       // JSON owned
+#define REFUSED_TEXT_DUMP_SIZE (256)
+
+PRIVATE void trace_refused_record(
+    hgobj gobj,
+    json_t *record,         // NOT owned, NULL for an append of a text
+    const char *content,
+    size_t content_len,
+    const char *msg
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    if(record) {
+        gobj_trace_json(gobj, record, "%s", msg);
+    } else {
+        gobj_trace_dump(gobj,
+            content,
+            content_len < REFUSED_TEXT_DUMP_SIZE? content_len : REFUSED_TEXT_DUMP_SIZE,
+            "%s", msg
+        );
+    }
+}
 
-    if(!record || record->refcount <= 0) {
+/***************************************************************************
+ *  A string key becomes a directory name under <topic_dir>/keys/:
+ *  not empty, at most NAME_MAX, and not a path (see the checks)
+ ***************************************************************************/
+PRIVATE int check_string_key(
+    hgobj gobj,
+    const char *topic_name,
+    const char *pkey,
+    const char *key_value
+)
+{
+    if(empty_string(key_value)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Cannot append record, record NULL",
+            "msgset",       "%s", MSGSET_JSON,
+            "msg",          "%s", "Cannot append record, no pkey",
             "topic",        "%s", topic_name,
+            "pkey",         "%s", pkey,
             NULL
         );
         return -1;
     }
-
-    // TEST performance 800.000
-
-    BOOL master = tranger_is_master(gobj, tranger);
-    if(!master) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+    if(strlen(key_value) > NAME_MAX) {
+        // Key will be a directory name, cannot be greater than NAME_MAX
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Cannot append record, NO master",
+            "msg",          "%s", "Cannot append record, pkey too long",
             "topic",        "%s", topic_name,
+            "key_value",    "%s", pkey,
+            "size",         "%d", strlen(key_value),
+            "maxsize",      "%d", NAME_MAX,
             NULL
         );
-        gobj_trace_json(gobj, record, "Cannot append record, NO master");
-        JSON_DECREF(record)
         return -1;
     }
-
-    json_t *topic = tranger2_topic(tranger, topic_name);
-    if(!topic) {
+    /*
+     *  The key becomes a single directory component under
+     *  <topic_dir>/keys/. It must not contain a path separator
+     *  nor be a relative-path element ('.' or '..'), otherwise it
+     *  escapes the keys/ directory (path traversal). Reject any
+     *  value containing '/' or beginning with '.'.
+     */
+    if(strchr(key_value, '/') != NULL || key_value[0] == '.') {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Cannot append record, topic not found",
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot append record, invalid pkey (path traversal)",
             "topic",        "%s", topic_name,
+            "key_value",    "%s", key_value,
             NULL
         );
-        gobj_trace_json(gobj, record, "Cannot append record, topic not found");
-        JSON_DECREF(record)
         return -1;
     }
+    return 0;
+}
+
+/***************************************************************************
+ *  The part of an append that writes: the content (`content_len` bytes
+ *  of json text and the NUL after them, written whole), its md2 row, the
+ *  cache, and the realtime lists. Both appends end here, a json record
+ *  and a text, so both write the same way.
+ *  `record` is NOT owned: the json of the record, or NULL for an append
+ *  of a text (parsed here only if a realtime list wants the record).
+ ***************************************************************************/
+PRIVATE int append_content(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *topic_name,
+    uint64_t __t__,
+    uint64_t __tm__,
+    BOOL tm_wrapped,
+    uint16_t user_flag,
+    md2_record_ex_t *md_record_ex,
+    const char *key_value,
+    const char *content,
+    size_t content_len,
+    json_t *record
+)
+{
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
 
     /*--------------------------------------------*
      *  If time not specified, use the now time
      *--------------------------------------------*/
-    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
     if(!__t__) {
         if(system_flag & (sf_t_ms)) {
             __t__ = time_in_milliseconds();
@@ -4142,116 +4205,7 @@ PUBLIC int tranger2_append_record(
     md2_record_t md_record;
     memset(&md_record, 0, sizeof(md2_record_t));
     md_record.__t__ = __t__;
-
-    // TEST performance 700000
-
-    /*-----------------------------------*
-     *  Get the primary-key
-     *-----------------------------------*/
-    const char *pkey = json_string_value(json_object_get(topic, "pkey"));
-    system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
-
-    const char *key_value = NULL;
-    char key_int[NAME_MAX+1];
-
-    switch(system_flag_key_type) {
-        case sf_string_key:
-            {
-                key_value = json_string_value(json_object_get(record, pkey));
-                if(empty_string(key_value)) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_JSON,
-                        "msg",          "%s", "Cannot append record, no pkey",
-                        "topic",        "%s", topic_name,
-                        "pkey",         "%s", pkey,
-                        NULL
-                    );
-                    gobj_trace_json(gobj, record, "Cannot append record, no pkey");
-                    JSON_DECREF(record)
-                    return -1;
-                }
-                if(strlen(key_value) > NAME_MAX) {
-                    // Key will be a directory name, cannot be greater than NAME_MAX
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER,
-                        "msg",          "%s", "Cannot append record, pkey too long",
-                        "topic",        "%s", topic_name,
-                        "key_value",    "%s", pkey,
-                        "size",         "%d", strlen(key_value),
-                        "maxsize",      "%d", NAME_MAX,
-                        NULL
-                    );
-                    gobj_trace_json(gobj, record, "Cannot append record, pkey too long");
-                    JSON_DECREF(record)
-                    return -1;
-                }
-                /*
-                 *  The key becomes a single directory component under
-                 *  <topic_dir>/keys/. It must not contain a path separator
-                 *  nor be a relative-path element ('.' or '..'), otherwise it
-                 *  escapes the keys/ directory (path traversal). Reject any
-                 *  value containing '/' or beginning with '.'.
-                 */
-                if(strchr(key_value, '/') != NULL || key_value[0] == '.') {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER,
-                        "msg",          "%s", "Cannot append record, invalid pkey (path traversal)",
-                        "topic",        "%s", topic_name,
-                        "key_value",    "%s", key_value,
-                        NULL
-                    );
-                    gobj_trace_json(gobj, record, "Cannot append record, invalid pkey (path traversal)");
-                    JSON_DECREF(record)
-                    return -1;
-                }
-            }
-            break;
-
-        case sf_int_key:
-            {
-                uint64_t i = json_integer_value(json_object_get(record, pkey));
-                snprintf(key_int, sizeof(key_int), "%0*"PRIu64, 19, i);
-                key_value = key_int;
-            }
-            break;
-
-        case sf_rowid_key:
-            {
-                key_value = "__rowid__";
-                json_object_set_new(record, "__rowid__", json_string("__rowid__"));
-            }
-            break;
-
-        default:
-            // No pkey
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_JSON,
-                "msg",          "%s", "Cannot append record, no pkey type",
-                "topic",        "%s", topic_name,
-                "pkey",         "%s", pkey,
-                NULL
-            );
-            gobj_trace_json(gobj, record, "Cannot append record, no pkey type");
-            JSON_DECREF(record)
-            return -1;
-    }
-
-    // TEST performance 630000
-
-    /*--------------------------------------------*
-     *  Get and save the t-key if exists
-     *--------------------------------------------*/
-    BOOL tm_wrapped;
-    md_record.__tm__ = tkey_time_of_record(
-        json_string_value(json_object_get(topic, "tkey")),
-        system_flag,
-        record,
-        &tm_wrapped
-    );
+    md_record.__tm__ = __tm__;
 
     /*
      *  An md2 row keeps 44 bits of each time: the flags go over the rest.
@@ -4288,8 +4242,7 @@ PUBLIC int tranger2_append_record(
         (system_flag & sf_t_ms)? __t__/1000:__t__
     )) {
         // Error already logged
-        gobj_trace_json(gobj, record, "Cannot append record, cannot name its file");
-        JSON_DECREF(record)
+        trace_refused_record(gobj, record, content, content_len, "Cannot append record, cannot name its file");
         return -1;
     }
 
@@ -4305,7 +4258,6 @@ PUBLIC int tranger2_append_record(
     if(json_object_get(key_cache, "unlisted")) {
         if(relist_key_before_append(gobj, tranger, topic, key_value) < 0) {
             // Error already logged
-            JSON_DECREF(record)
             return -1;
         }
         key_cache = json_object_get(json_object_get(topic, "cache"), key_value);
@@ -4317,7 +4269,6 @@ PUBLIC int tranger2_append_record(
     if(json_array_size(json_object_get(key_cache, "unreadable")) > 0) {
         if(count_flagged_file_again(gobj, tranger, topic, key_value, file_id) < 0) {
             // Error already logged
-            JSON_DECREF(record)
             return -1;
         }
         key_cache = json_object_get(json_object_get(topic, "cache"), key_value);
@@ -4344,7 +4295,6 @@ PUBLIC int tranger2_append_record(
                 "__t__",        "%" PRIu64, (uint64_t)__t__,
                 NULL
             );
-            JSON_DECREF(record)
             return -1;
         }
     }
@@ -4372,36 +4322,10 @@ PUBLIC int tranger2_append_record(
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
-            gobj_trace_json(gobj, record, "Cannot append record, lseek() FAILED");
-            JSON_DECREF(record)
+            trace_refused_record(gobj, record, content, content_len, "Cannot append record, lseek() FAILED");
             return -1;
         }
         md_record.__offset__ = __offset__;
-
-        /*--------------------------------------------*
-         *  Get the record's content, always json.
-         *  A __md_tranger__ the record carries (from an earlier append, or
-         *  from a load) is the metadata of THAT record, not content.
-         *--------------------------------------------*/
-        json_object_del(record, "__md_tranger__");
-        char *srecord = json_dumps(record, JSON_COMPACT|JSON_ENCODE_ANY);
-        if(!srecord) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_JSON,
-                "msg",          "%s", "Cannot append record, json_dumps() FAILED",
-                "topic",        "%s", topic_name,
-                NULL
-            );
-            gobj_trace_json(gobj, record, "Cannot append record, json_dumps() FAILED");
-            JSON_DECREF(record)
-            // JSON_DECREF(kw_)
-            return -1;
-        }
-        // JSON_DECREF(kw_)
-
-        size_t size = strlen(srecord);
-        char *p = srecord;
 
         /*
          *  Saving: first compress, second encrypt (sure this order?)
@@ -4423,14 +4347,14 @@ PUBLIC int tranger2_append_record(
 //            // }
 //        }
 
-        md_record.__size__ = size + 1; // put the final null
+        md_record.__size__ = content_len + 1; // put the final null
 
         /*-------------------------*
          *  Write record content
          *-------------------------*/
         ssize_t ln = write( // write new (record content)
             content_fp,
-            p,
+            content,
             md_record.__size__
         );
         if(ln != (ssize_t)md_record.__size__) {
@@ -4461,16 +4385,11 @@ PUBLIC int tranger2_append_record(
                     NULL
                 );
             }
-            gobj_trace_json(gobj, record, "Cannot append record, write FAILED");
-            JSON_DECREF(record)
-            jsonp_free(srecord);
+            trace_refused_record(gobj, record, content, content_len, "Cannot append record, write FAILED");
             return -1;
         }
-
-        jsonp_free(srecord);
     } else {
         // Error already logged by get_topic_wr_fd
-        JSON_DECREF(record)
         return -1;
     }
 
@@ -4509,8 +4428,7 @@ PUBLIC int tranger2_append_record(
                 "serrno",       "%s", strerror(err),
                 NULL
             );
-            gobj_trace_json(gobj, record, "Cannot append record, lseek() FAILED");
-            JSON_DECREF(record)
+            trace_refused_record(gobj, record, content, content_len, "Cannot append record, lseek() FAILED");
             return -1;
         }
 
@@ -4557,7 +4475,6 @@ PUBLIC int tranger2_append_record(
                     "md2_size",     "%ld", (long)offset,
                     NULL
                 );
-                JSON_DECREF(record)
                 return -1;
             }
             if(checked < 0) {
@@ -4574,7 +4491,6 @@ PUBLIC int tranger2_append_record(
                     "md2_size",     "%ld", (long)offset,
                     NULL
                 );
-                JSON_DECREF(record)
                 return -1;
             }
             if(ftruncate(md2_fd, whole) < 0 || lseek(md2_fd, whole, SEEK_SET) != whole) {
@@ -4593,7 +4509,6 @@ PUBLIC int tranger2_append_record(
                     "serrno",       "%s", strerror(err),
                     NULL
                 );
-                JSON_DECREF(record)
                 return -1;
             }
             gobj_log_warning(gobj, 0,
@@ -4683,7 +4598,6 @@ PUBLIC int tranger2_append_record(
                     NULL
                 );
             }
-            JSON_DECREF(record)
             return -1;
         }
 
@@ -4721,7 +4635,6 @@ PUBLIC int tranger2_append_record(
             "file_id",      "%s", file_id,
             NULL
         );
-        JSON_DECREF(record)
         return -1;
     }
 
@@ -4748,6 +4661,7 @@ PUBLIC int tranger2_append_record(
      *  the key and not only its metadata), built once, before the first.
      */
     BOOL md_attached = FALSE;
+    json_t *jn_parsed = NULL;   // a text append's record, parsed for the first list that wants it
 
     /*--------------------------------------------*
      *      FEED the lists
@@ -4765,6 +4679,22 @@ PUBLIC int tranger2_append_record(
 
             if(load_record_callback) {
                 BOOL only_md = feed_wants_only_md(list);
+                if(!only_md && !record) {
+                    jn_parsed = json_loadb(content, content_len, RECORD_LOAD_FLAGS, 0);
+                    if(!jn_parsed) {
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_JSON,
+                            "msg",          "%s", "Appended record cannot be parsed for its realtime lists: they do not get it",
+                            "topic",        "%s", topic_name,
+                            "key",          "%s", key_value,
+                            "g_rowid",      "%ld", (long)g_rowid,
+                            NULL
+                        );
+                        break;
+                    }
+                    record = jn_parsed;
+                }
                 if(!only_md && !md_attached) {
                     json_object_set_new(record, "__md_tranger__", md2json(md_record_ex));
                     md_attached = TRUE;
@@ -4783,9 +4713,373 @@ PUBLIC int tranger2_append_record(
         }
     }
 
-    JSON_DECREF(record)
+    JSON_DECREF(jn_parsed)
     return 0;
 }
+
+/***************************************************************************
+    Append a new item to record.
+    The 'pkey' and 'tkey' are getting according to the topic schema.
+    Return the new record's metadata.
+ ***************************************************************************/
+PUBLIC int tranger2_append_record(
+    json_t *tranger,
+    const char *topic_name,
+    uint64_t __t__,         // if 0 then the time will be set by TimeRanger with now time
+    uint16_t user_flag,
+    md2_record_ex_t *md_record_ex, // required, to return the metadata
+    json_t *record       // JSON owned
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    if(!record || record->refcount <= 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot append record, record NULL",
+            "topic",        "%s", topic_name,
+            NULL
+        );
+        return -1;
+    }
+
+    // TEST performance 800.000
+
+    BOOL master = tranger_is_master(gobj, tranger);
+    if(!master) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot append record, NO master",
+            "topic",        "%s", topic_name,
+            NULL
+        );
+        gobj_trace_json(gobj, record, "Cannot append record, NO master");
+        JSON_DECREF(record)
+        return -1;
+    }
+
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot append record, topic not found",
+            "topic",        "%s", topic_name,
+            NULL
+        );
+        gobj_trace_json(gobj, record, "Cannot append record, topic not found");
+        JSON_DECREF(record)
+        return -1;
+    }
+
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+
+    // TEST performance 700000
+
+    /*-----------------------------------*
+     *  Get the primary-key
+     *-----------------------------------*/
+    const char *pkey = json_string_value(json_object_get(topic, "pkey"));
+    system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
+
+    const char *key_value = NULL;
+    char key_int[NAME_MAX+1];
+
+    switch(system_flag_key_type) {
+        case sf_string_key:
+            {
+                key_value = json_string_value(json_object_get(record, pkey));
+                if(check_string_key(gobj, topic_name, pkey, key_value) < 0) {
+                    // Error already logged
+                    gobj_trace_json(gobj, record, "Cannot append record, bad pkey");
+                    JSON_DECREF(record)
+                    return -1;
+                }
+            }
+            break;
+
+        case sf_int_key:
+            {
+                uint64_t i = json_integer_value(json_object_get(record, pkey));
+                snprintf(key_int, sizeof(key_int), "%0*"PRIu64, 19, i);
+                key_value = key_int;
+            }
+            break;
+
+        case sf_rowid_key:
+            {
+                key_value = "__rowid__";
+                json_object_set_new(record, "__rowid__", json_string("__rowid__"));
+            }
+            break;
+
+        default:
+            // No pkey
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_JSON,
+                "msg",          "%s", "Cannot append record, no pkey type",
+                "topic",        "%s", topic_name,
+                "pkey",         "%s", pkey,
+                NULL
+            );
+            gobj_trace_json(gobj, record, "Cannot append record, no pkey type");
+            JSON_DECREF(record)
+            return -1;
+    }
+
+    // TEST performance 630000
+
+    /*--------------------------------------------*
+     *  Get and save the t-key if exists
+     *--------------------------------------------*/
+    BOOL tm_wrapped;
+    uint64_t __tm__ = tkey_time_of_record(
+        json_string_value(json_object_get(topic, "tkey")),
+        system_flag,
+        record,
+        &tm_wrapped
+    );
+
+    /*--------------------------------------------*
+     *  Get the record's content, always json.
+     *  A __md_tranger__ the record carries (from an earlier append, or
+     *  from a load) is the metadata of THAT record, not content.
+     *--------------------------------------------*/
+    json_object_del(record, "__md_tranger__");
+    char *srecord = json_dumps(record, JSON_COMPACT|JSON_ENCODE_ANY);
+    if(!srecord) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON,
+            "msg",          "%s", "Cannot append record, json_dumps() FAILED",
+            "topic",        "%s", topic_name,
+            NULL
+        );
+        gobj_trace_json(gobj, record, "Cannot append record, json_dumps() FAILED");
+        JSON_DECREF(record)
+        return -1;
+    }
+
+    int ret = append_content(
+        gobj,
+        tranger,
+        topic,
+        topic_name,
+        __t__,
+        __tm__,
+        tm_wrapped,
+        user_flag,
+        md_record_ex,
+        key_value,
+        srecord,
+        strlen(srecord),
+        record
+    );
+
+    jsonp_free(srecord);
+    JSON_DECREF(record)
+    return ret;
+}
+
+/***************************************************************************
+ *  Append a record whose content is already TEXT: one json object,
+ *  `content_len` bytes followed by a NUL. See the header.
+ ***************************************************************************/
+PUBLIC int tranger2_append_record_text(
+    json_t *tranger,
+    const char *topic_name,
+    uint64_t __t__,         // if 0 then the time will be set by TimeRanger with now time
+    uint16_t user_flag,
+    md2_record_ex_t *md_record_ex, // required, to return the metadata
+    const char *content,    // NOT owned: content_len bytes of json text, and a NUL
+    size_t content_len
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    if(!content || content[content_len] != 0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot append record, content NULL or not followed by a NUL",
+            "topic",        "%s", topic_name,
+            NULL
+        );
+        return -1;
+    }
+
+    BOOL master = tranger_is_master(gobj, tranger);
+    if(!master) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot append record, NO master",
+            "topic",        "%s", topic_name,
+            NULL
+        );
+        trace_refused_record(gobj, NULL, content, content_len, "Cannot append record, NO master");
+        return -1;
+    }
+
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot append record, topic not found",
+            "topic",        "%s", topic_name,
+            NULL
+        );
+        trace_refused_record(gobj, NULL, content, content_len, "Cannot append record, topic not found");
+        return -1;
+    }
+
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
+    const char *pkey = json_string_value(json_object_get(topic, "pkey"));
+    const char *tkey = json_string_value(json_object_get(topic, "tkey"));
+
+    if((system_flag_key_type != sf_string_key && system_flag_key_type != sf_int_key) ||
+            empty_string(pkey)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot append record as text: only a topic keyed by a string or an integer takes one",
+            "topic",        "%s", topic_name,
+            "pkey",         "%s", pkey? pkey : "",
+            "system_flag",  "0x%x", (unsigned)system_flag,
+            NULL
+        );
+        trace_refused_record(gobj, NULL, content, content_len, "Cannot append record as text, key type");
+        return -1;
+    }
+
+    /*-----------------------------------------------------*
+     *  The text must be what a read of the record parses:
+     *  one json object (RECORD_LOAD_FLAGS). Its pkey and
+     *  tkey are read from it.
+     *-----------------------------------------------------*/
+    json_member_span_t members[3] = {
+        {.key = pkey},
+        {.key = "__md_tranger__"},
+        {.key = tkey},
+    };
+    int n_members = 2;
+    int tkey_idx = -1;
+    if(!empty_string(tkey)) {
+        if(strcmp(tkey, pkey) == 0) {
+            tkey_idx = 0;
+        } else if(strcmp(tkey, "__md_tranger__") == 0) {
+            tkey_idx = 1;
+        } else {
+            tkey_idx = 2;
+            n_members = 3;
+        }
+    }
+
+    if(json_scan_object_members(content, content_len, JSON_ALLOW_NUL, members, n_members) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON,
+            "msg",          "%s", "Cannot append record, its content is not one json object",
+            "topic",        "%s", topic_name,
+            "len",          "%ld", (long)content_len,
+            NULL
+        );
+        trace_refused_record(gobj, NULL, content, content_len, "Cannot append record, not one json object");
+        return -1;
+    }
+    if(members[1].count > 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot append record as text, it carries a __md_tranger__ (the metadata of another append)",
+            "topic",        "%s", topic_name,
+            NULL
+        );
+        trace_refused_record(gobj, NULL, content, content_len, "Cannot append record as text, __md_tranger__");
+        return -1;
+    }
+
+    /*-----------------------------------*
+     *  Get the primary-key
+     *-----------------------------------*/
+    char key_bf[NAME_MAX+1];
+    const char *key_value = key_bf;
+    json_t *jn_key = NULL;
+    if(members[0].count > 0) {
+        jn_key = json_loadb(
+            content + members[0].value_offset,
+            members[0].value_length,
+            JSON_DECODE_ANY|JSON_ALLOW_NUL,
+            0
+        );
+    }
+
+    if(system_flag_key_type == sf_string_key) {
+        const char *s = json_string_value(jn_key);
+        if(s && strlen(s) != json_string_length(jn_key)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Cannot append record, its pkey has a NUL in it",
+                "topic",        "%s", topic_name,
+                "pkey",         "%s", pkey,
+                NULL
+            );
+            trace_refused_record(gobj, NULL, content, content_len, "Cannot append record, pkey with a NUL");
+            JSON_DECREF(jn_key)
+            return -1;
+        }
+        if(check_string_key(gobj, topic_name, pkey, s) < 0) {
+            // Error already logged
+            trace_refused_record(gobj, NULL, content, content_len, "Cannot append record, bad pkey");
+            JSON_DECREF(jn_key)
+            return -1;
+        }
+        snprintf(key_bf, sizeof(key_bf), "%s", s);
+    } else {
+        uint64_t i = json_integer_value(jn_key);
+        snprintf(key_bf, sizeof(key_bf), "%0*"PRIu64, 19, i);
+    }
+    JSON_DECREF(jn_key)
+
+    /*--------------------------------------------*
+     *  Get the t-key if exists
+     *--------------------------------------------*/
+    BOOL tm_wrapped = FALSE;
+    uint64_t __tm__ = 0;
+    if(tkey_idx >= 0 && members[tkey_idx].count > 0) {
+        json_t *jn_tval = json_loadb(
+            content + members[tkey_idx].value_offset,
+            members[tkey_idx].value_length,
+            JSON_DECODE_ANY|JSON_ALLOW_NUL,
+            0
+        );
+        __tm__ = tkey_time_of_value(system_flag, jn_tval, &tm_wrapped);
+        JSON_DECREF(jn_tval)
+    }
+
+    return append_content(
+        gobj,
+        tranger,
+        topic,
+        topic_name,
+        __t__,
+        __tm__,
+        tm_wrapped,
+        user_flag,
+        md_record_ex,
+        key_value,
+        content,
+        content_len,
+        NULL
+    );
+}
+
 
 /***************************************************************************
  *  Fire registered key-delete callbacks for every in-memory subscriber

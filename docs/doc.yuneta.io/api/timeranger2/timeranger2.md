@@ -431,6 +431,72 @@ tranger2_append_record(tranger, "topic", t_day2, 0, &md, rec_v9); // counts day 
 
 ---
 
+(tranger2_append_record_text)=
+## [`tranger2_append_record_text()`](https://github.com/artgins/yunetas/blob/7.27.9/kernel/c/timeranger2/src/timeranger2.c#L4891)
+
+Appends a record whose content is already json TEXT, for example a frame as a peer sent it. The text is written as it is: the function does not parse the whole record and does not dump it again. **Master-only.** For a record of about 1 KB, this removes the parse, the free and the dump that [`tranger2_append_record()`](#tranger2_append_record) does with a json: about 18 µs per record on a Xeon E-2386G.
+
+The store reads what it needs from the text with [`json_scan_object_members()`](#json_scan_object_members). It makes sure that the text is one json object that a read of the record can parse (`json_loadb()` with `JSON_ALLOW_NUL`). It takes the pkey and the tkey from the text, as `tranger2_append_record()` takes them from a json. A text that it refuses is not written. Thus a topic cannot hold a record that nobody can read back.
+
+```C
+int tranger2_append_record_text(
+    json_t *tranger,
+    const char *topic_name,
+    uint64_t __t__,
+    uint16_t user_flag,
+    md2_record_ex_t *md_record_ex,
+    const char *content,
+    size_t content_len
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
+| `topic_name` | `const char *` | Name of the topic. The topic must be keyed by a string (`sf_string_key`) or by an integer (`sf_int_key`). |
+| `__t__` | `uint64_t` | Timestamp of the record. If set to 0, the current time is used. |
+| `user_flag` | `uint16_t` | User-defined flag associated with the record. |
+| `md_record_ex` | `md2_record_ex_t *` | Required. The function writes the metadata of the new record here. |
+| `content` | `const char *` | `content_len` bytes of json text, followed by a NUL: `content[content_len]` must be `0`. Not owned, not modified. |
+| `content_len` | `size_t` | The number of bytes of the text, without the NUL. |
+
+**Returns**
+
+`0` on success, `-1` on error. Every error is logged.
+
+**Example**
+
+```C
+/*
+ *  topic "raw_tracks": pkey "id" (sf_string_key), tkey "tm"
+ */
+const char text[] = "{\"id\":\"DEV-1\",\"tm\":1700000001,\"m\":{\"v\":229.0}}";
+md2_record_ex_t md;
+if(tranger2_append_record_text(tranger, "raw_tracks", 0, 0, &md, text, sizeof(text) - 1) < 0) {
+    // Error already logged: nothing was written
+    return -1;
+}
+/*  md.g_rowid: the key's global rowid; md.__tm__ is 1700000001  */
+```
+
+**Notes**
+
+Everything else is the same as in `tranger2_append_record()`: the checks of the key (not empty, at most `NAME_MAX`, not a path), the write (one content and one md2 row, and the same cut back of a failed write), the cache and the realtime lists. When a realtime list wants the record, the function parses the text one time for all the lists.
+
+These texts are refused with an ERROR, and nothing is written:
+
+- a text that is not one json object: *"Cannot append record, its content is not one json object"*;
+- a text that is not followed by a NUL: *"Cannot append record, content NULL or not followed by a NUL"*;
+- a topic keyed by rowid (`sf_rowid_key`): its records get a `"__rowid__"` member, and a text cannot get one. Use `tranger2_append_record()`;
+- a text that has a `"__md_tranger__"` member. That member is the metadata of another append. The json append removes it; the text append cannot cut it;
+- a string pkey that has a NUL in it (`"dx\u0000evil"`). The json append takes it as `"dx"`.
+
+The text keeps its spaces and its escapes. A read gets back the same json, not the bytes that `json_dumps()` would write.
+
+---
+
 (tranger2_record_tkey_time)=
 ## [`tranger2_record_tkey_time()`](https://github.com/artgins/yunetas/blob/7.27.9/kernel/c/timeranger2/src/timeranger2.c#L4053)
 

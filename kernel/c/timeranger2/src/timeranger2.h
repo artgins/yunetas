@@ -725,6 +725,43 @@ PUBLIC int tranger2_append_record(
 );
 
 /*
+    Append a record whose content is already TEXT: one json object, as a
+    peer sent it, written as it is -- no parse, no dump. The store reads
+    what it needs from the text (json_scan_object_members()): it checks
+    that the text is one json object that a read of the record parses
+    (json_loadb with JSON_ALLOW_NUL), and takes the pkey and the tkey from
+    it, as tranger2_append_record() takes them from a json. A text it
+    refuses is never written, so a topic never holds a record nobody can
+    read back.
+    `content` is `content_len` bytes followed by a NUL (content[content_len]
+    is 0, and is written as the end of the record, as json_dumps()'s is).
+    It is NOT owned and not modified.
+    The rest is tranger2_append_record()'s: the same checks of the key, the
+    same write (one content, one md2 row, the same cut back of a failed
+    write), the same cache and realtime lists. A list that wants the record
+    gets it parsed once, for all the lists.
+    Differences, all refused with an ERROR, nothing written:
+      - a topic keyed by rowid (sf_rowid_key): its record gets a "__rowid__"
+        member, which a text cannot be given; use tranger2_append_record();
+      - a text that carries "__md_tranger__" (the metadata of an append; the
+        json append drops it, the text append cannot cut it);
+      - a string pkey with a NUL in it ("dx\u0000evil"): the json append
+        takes it as "dx".
+    The text keeps its spaces and escapes: the record is read back as the
+    same json, not as the same bytes json_dumps() would write.
+    Return: 0 on success, -1 on error.
+*/
+PUBLIC int tranger2_append_record_text(
+    json_t *tranger,
+    const char *topic_name,
+    uint64_t __t__,         // if 0 then the time will be set by TimeRanger with now time
+    uint16_t user_flag,
+    md2_record_ex_t *md_record_ex, // required, to return the metadata
+    const char *content,    // NOT owned: content_len bytes of json text, and a NUL
+    size_t content_len
+);
+
+/*
     Delete a whole record (= primary key) from a topic.
     Removes the `keys/<key>/` directory and every instance it
     holds. Irrecoverable. Only the master can delete.
