@@ -97,6 +97,7 @@ Usage:
 """
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -289,6 +290,48 @@ GH_BLOB = GH_ROOT + "/blob"
 PERF_REPORT = re.compile(r"performance/reports/(?P<ver>[0-9]+\.[0-9]+\.[0-9]+)\.(html|json)$")
 BLOB_REF = re.compile(re.escape(GH_BLOB) + r"/(?P<ref>[^/]+)/")
 PINNED_REF = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
+# The htmlpreview "view" link of a report: not a markdown link to GH_ROOT, so
+# GH_LINK does not see it, and it has to be re-pinned like the report itself.
+VIEW_LINK = re.compile(
+    r"(?P<head>https://htmlpreview\.github\.io/\?" + re.escape(GH_BLOB) + r"/)"
+    r"(?P<tag>[^/]+)/(?P<rel>performance/reports/(?P<ver>[0-9]+\.[0-9]+\.[0-9]+)\.html)"
+)
+_REPORT_TAGS = {}
+
+
+def version_key(tag):
+    return tuple(int(x) for x in tag.split("."))
+
+
+def report_tag(rel, ver, newtag):
+    """The tag a release's performance report is pinned to: the FIRST tag,
+    from its own release on, whose copy of the report is the one in the tree.
+    Usually its own tag. But a report redone after its release (a study
+    redone against the right base, 2026-10-22) lives only in a later tag; its
+    own tag holds the old study, or no report at all, and pinning it there
+    linked the old figures or a 404. When no tag has it yet: the tag being
+    cut."""
+    key = (rel, newtag)
+    if key in _REPORT_TAGS:
+        return _REPORT_TAGS[key]
+    try:
+        current = (REPO / rel).read_bytes()
+    except OSError:
+        _REPORT_TAGS[key] = ver
+        return ver
+    out = subprocess.run(["git", "-C", str(REPO), "tag", "-l"], capture_output=True, text=True)
+    tags = sorted(
+        (t for t in out.stdout.split() if PINNED_REF.match(t) and version_key(t) >= version_key(ver)),
+        key=version_key
+    )
+    found = newtag
+    for t in tags:
+        r = subprocess.run(["git", "-C", str(REPO), "show", f"{t}:{rel}"], capture_output=True)
+        if r.returncode == 0 and r.stdout == current:
+            found = t
+            break
+    _REPORT_TAGS[key] = found
+    return found
 
 
 def gh_url(path, l1, l2, tag):
@@ -925,9 +968,20 @@ def symbol_of_text(txt):
 def repin_line(line, newtag, missing):
     """Re-pin every GitHub blob link on one line. Returns (newline, n_tag,
     n_anchor, n_drift)."""
+    n_view = 0
+
+    def repin_view(m):
+        nonlocal n_view
+        t = report_tag(m.group("rel"), m.group("ver"), newtag)
+        if t != m.group("tag"):
+            n_view += 1
+        return f"{m.group('head')}{t}/{m.group('rel')}"
+
+    line = VIEW_LINK.sub(repin_view, line)
+
     links = list(GH_LINK.finditer(line))
     if not links:
-        return line, 0, 0, 0
+        return line, n_view, 0, 0
 
     # Sub-pass 1: recompute single-line symbol-link anchors; map old line -> new
     # so locator twins on the same line can follow.
@@ -949,7 +1003,8 @@ def repin_line(line, newtag, missing):
 
     # Sub-pass 2: rebuild the line.
     out, pos = [], 0
-    n_tag = n_anchor = n_drift = 0
+    n_tag = n_view
+    n_anchor = n_drift = 0
     for m in links:
         out.append(line[pos:m.start()])
         txt, tag, rel = m.group("txt"), m.group("tag"), m.group("rel")
@@ -997,11 +1052,12 @@ def repin_line(line, newtag, missing):
                     anchor = f"#L{nl}"
                     n_anchor += 1
         # A release's performance report is a fixed document of THAT release:
-        # it stays pinned to its own tag, as its htmlpreview "view" link does.
+        # it stays pinned to the first tag that holds it as it is now, as its
+        # htmlpreview "view" link does (report_tag()).
         link_tag = newtag
         rm = PERF_REPORT.match(rel or "")
         if rm:
-            link_tag = rm.group("ver")
+            link_tag = report_tag(rel, rm.group("ver"), newtag)
         if tag != link_tag:
             n_tag += 1
         tail = f"/{rel}" if rel else ""

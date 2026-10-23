@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **The links to a redone performance report point at the report**
+  (`scripts/check_doc_line_refs.py`). `--repin` pinned every report to the
+  tag of its own release. The studies of 7.27.5 and 7.26.9 were redone after
+  their release, so on doc.yuneta.io the 7.27.5 report was a 404 (its tag has
+  no report) and the 7.26.9 one showed the old study, and their
+  htmlpreview "view" links were left on `main`, which the audit flags. A
+  report is now pinned to the first tag that holds it as it is in the tree
+  (its own tag, unless it was redone), and the "view" links are re-pinned
+  with it.
 - **New module: M-Bus master** (`modules/c/mbus`, `CONFIG_MODULE_MBUS`,
   `default y`). It reads the water, heat, gas and electricity meters of a
   wired M-Bus (EN 13757-2/-3) through a serial M-Bus level converter
