@@ -2,11 +2,12 @@
 
 ## Unreleased
 
-- **A performance audit of the C SDK** (`performance/audit/`): eight rounds
+- **A performance audit of the C SDK** (`performance/audit/`): nine rounds
   (the core of gobj-c; timeranger2 and tr_treedb; the network path; the
   inter-yuno path, HTTP and MQTT; subscriptions and the reads of a treedb;
   jansson's parse; the bytes of jansson's lexer, UTF-8 check and dump;
-  jansson's allocations, dump and lexer, in standard C only), each change
+  jansson's allocations, dump and lexer, in standard C only; jansson's
+  blocks, dump and counts, and the websocket mask), each change
   a commit of its own that leaves results,
   bytes, events, logs and errors as they were, and the proposals the rounds
   left for a decision, applied on the user's decision.
@@ -31,14 +32,31 @@
       a string token with no allocation of its own), the loop check of a
       dump without a table for 32 levels, the output of a dump gathered
       before its callback, and string tokens and integers read without the
-      generic byte calls (the same results, bytes, errors and positions).
-      `linux-ext-libs` 1.25 to 1.32: a node that builds from source reruns
+      generic byte calls (the same results, bytes, errors and positions),
+      Yuneta's braces on every block, a dump that writes its pieces in
+      place, and a NUL looked for only in a string with escapes.
+      `linux-ext-libs` 1.25 to 1.33: a node that builds from source reruns
       `./extrae.sh && ./configure-libs.sh`. Two things a caller can see:
       a custom allocator (`json_set_alloc_funcs()`) sees fewer
       allocations, of other sizes; and a dump whose callback fails once
       now fails, where a failure on the piece of a key was ignored (the
       key missing, the dump answering 0; `json_dumps()` without memory on
       a key now gives NULL, not a text without that key).
+    - **jansson counts references without atomics** (`linux-ext-libs`
+      1.33 builds it with its new CMake option
+      `JANSSON_THREAD_SAFE_REFCOUNT=OFF`): Yuneta has no threads, and
+      `json_incref()`/`json_decref()`, inline in every caller, were a
+      locked instruction each. `JANSSON_THREAD_SAFE_REFCOUNT` is no longer
+      defined: a json value must not be shared by threads. Every yuno is
+      rebuilt, not only relinked (`jansson_config.h` changes).
+    - **jansson's blocks are not zeroed**: a new public function of gobj-c,
+      `gbmem_get_json_allocators()`, gives the pair for
+      `json_set_alloc_funcs()` with the tracking and limits of
+      `gbmem_malloc()` and without its zeroing (filled with `0xA5` under
+      `CONFIG_DEBUG_TRACK_MEMORY`); every yuno, `C_AUTHZ`, the tools and the
+      benchmarks take it. `gbmem_malloc()` still zeroes.
+    - **The gbuffer of a masked websocket frame has the size of its
+      payload** (`C_WEBSOCKET`), where it was 4 KB; the same bytes.
     - **A `C_TIMER` keeps its subscription to the yuno's
       `EV_TIMEOUT_PERIODIC` for its life**, from its first start: the yuno's
       subscriptions list stopped timers too, and a stopped timer gets the
