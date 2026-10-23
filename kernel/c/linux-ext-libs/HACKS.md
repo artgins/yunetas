@@ -64,14 +64,21 @@ and `/etc/hosts` directly, bypassing glibc's NSS resolver chain.
 > build cleanly as fully static GCC/Clang binaries.
 
 
-## jansson — the lexer stops when a save fails (`patches/jansson/`)
+## jansson — from `artgins/jansson`
 
-`configure-libs.sh` applies every `patches/<lib>/*.patch` after the checkout
-of `<lib>` (`apply_patches`; a patch already applied is skipped, a patch that
-does not apply stops the script). The first one is
-`patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch`, on
-jansson v2.15.1. Upstream has the defect too (v2.15.1 and master,
-2026-09-23).
+jansson comes from Yuneta's fork, `https://github.com/artgins/jansson`
+(`repos2clone.sh`, `TAG_JANSSON`): upstream v2.15.1 and one commit per
+change Yuneta carries on it, the three below. A new fix or change is a
+commit there, and `TAG_JANSSON` moves to it (with a bump of `VERSION` in
+`configure-libs.sh`). Up to `configure-libs.sh` 1.24 the changes were
+`patches/jansson/*.patch`, applied after a checkout of upstream.
+
+## jansson — the lexer stops when a save fails
+
+The first commit of the fork on v2.15.1 (it was
+`patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch`,
+configure-libs.sh 1.22-1.24). Upstream has the defect too (v2.15.1 and
+master, 2026-09-23).
 
 The lexer saves each byte of a token in a buffer that grows by doubling, and
 it ignored a failed save. Yuneta routes jansson through `gbmem_*`, which
@@ -85,8 +92,53 @@ failed save stops the lexer with the error `json_error_out_of_memory`
 sets that error too (before, they set none, and a caller could not tell "no
 memory" from "not json").
 
-The same patch is applied by hand to the ESP32 copy of jansson (2.14),
+The same fix is applied by hand to the ESP32 copy of jansson (2.14),
 `kernel/c/root-esp32/components/esp_jansson/jansson/src/load.c`.
 
 Check an installed library: `strings outputs_ext/lib/libjansson.a | grep
 "not enough memory"` finds the text (the unpatched `load.o` has none).
+
+## jansson — fast paths for ASCII
+
+The second commit of the fork (configure-libs.sh 1.25), for speed, not a
+fix, from the performance audit of the C SDK
+(`performance/audit/round-2-timeranger2-treedb.md`).
+jansson walks a string a byte at a time through a function call and a
+UTF-8 decode, and its lexer saves a string token a byte per callback. For
+ASCII, which is most of what Yuneta stores and sends, none of that is
+needed:
+
+- `utf8_check_string()` skips a byte below `0x80` before the decode, which
+  answers 1 for it;
+- `dump_string()` takes a byte below `0x80` as its own codepoint, what
+  `utf8_iterate()` answers;
+- `lex_scan_string()`, reading from the buffer of `json_loadb()`, saves the
+  run of plain ASCII that follows (`0x20..0x7F` but `"` and `\`) at once,
+  grown by the same doublings, so a token that fails for memory fails where
+  it failed. From another source, or in the middle of a multi-byte
+  character, the bytes are read one by one, as before.
+
+The same results, bytes and errors: jansson's 215 tests pass, and the
+patched and unpatched libraries, under the same driver, gave the same output
+for random documents (valid, mutated, invalid UTF-8, escapes, control
+characters; three sets of load flags, five of dump flags; and the allocator
+capped to force "not enough memory", with the same positions). Not applied
+to the ESP32 copy of jansson.
+
+## jansson — a faster seeded hash of the keys
+
+The third commit of the fork (configure-libs.sh 1.25), for speed, from the
+performance audit of the C SDK (`performance/audit/round-1-gobj-core.md`).
+lookup3's `hashlittle()` was the most expensive function of a lookup (5% of
+an inter-yuno round trip, 11% of an MQTT publication, 10-12% of the TCP
+echo). `hash_str()` now takes 64-bit words of the key, xored with the seed
+and with constants, multiplied 64x64 -> 128 and folded to 64 bits: the
+construction of wyhash, the one Go's runtime uses for its maps where it has
+no AES. It is seeded with `hashtable_seed`, as before (`json_object_seed()`).
+
+Nothing that jansson answers depends on the hash: an object is walked in the
+order its keys were inserted, never by its buckets. Checked: jansson's 215
+tests, a differential fuzz against the previous library (the same bytes),
+and the buckets as evenly filled as with `hashlittle()`. Per hash, -10% to
+-25% for the keys of a Yuneta message, x3.5 faster for a key of 100 bytes.
+Not applied to the ESP32 copy of jansson.

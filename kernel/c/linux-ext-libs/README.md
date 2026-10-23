@@ -8,7 +8,7 @@ Yuneta kernel, so they don't conflict with any system-wide version.
 
 | Library         | Upstream                                            |
 |-----------------|-----------------------------------------------------|
-| jansson-artgins | https://github.com/akheron/jansson.git              |
+| jansson-artgins | https://github.com/artgins/jansson.git (a fork of https://github.com/akheron/jansson.git) |
 | liburing        | https://github.com/axboe/liburing                   |
 | mbedtls         | https://github.com/Mbed-TLS/mbedtls                 |
 | openssl         | https://github.com/openssl/openssl                  |
@@ -115,12 +115,21 @@ CVEs of 1.31.2 to 1.31.7. Track upstream openresty.
 
 jansson (v2.15.1, and upstream master) ignored a failed save of a token
 byte, and then wrote past its buffers: a string longer than about half of
-`MEM_MAX_BLOCK` crashed the process that parsed it. Fixed by
-`patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch`
-(configure-libs.sh v1.22), which `configure-libs.sh` applies after the
-checkout. See `HACKS.md`. Every node that builds from source must run
+`MEM_MAX_BLOCK` crashed the process that parsed it. Fixed in configure-libs.sh
+v1.22 by a patch, which is a commit of `artgins/jansson` since v1.25. See
+`HACKS.md`. Every node that builds from source must run
 `./extrae.sh && ./configure-libs.sh` again, and then rebuild the SDK and
 its yunos.
+
+### jansson: from `artgins/jansson` (configure-libs.sh v1.25)
+
+jansson is cloned from Yuneta's fork, `artgins/jansson`, at `TAG_JANSSON`:
+v2.15.1 and one commit per change, the lexer fix above and two from the
+performance audit of the C SDK (`performance/audit/`): fast paths for ASCII
+(a record of timeranger2 read twice as fast and appended 25% faster) and a
+faster seeded hash of the keys. The same results, bytes and errors. See
+`HACKS.md`. Every node that builds from source must run `./extrae.sh &&
+./configure-libs.sh` again, and then rebuild the SDK and its yunos.
 
 ### openresty: release tarball (configure-libs.sh v1.23)
 
@@ -137,9 +146,9 @@ Every node that builds from source must run `./extrae.sh &&
 > reinstalled, which is how every node that builds from source learns that
 > its external libraries are stale.
 >
-> A fix to a library that upstream has not released goes in
-> `patches/<lib>/NNNN-<what>.patch` (a `git diff` with a header that says
-> why). `configure-libs.sh` applies it after the checkout of `<lib>`.
+> A fix to a library that upstream has not released goes in Yuneta's fork of
+> it under `github.com/artgins` (as `artgins/jansson`), as a commit whose
+> message says why, and `repos2clone.sh` points at that commit.
 
 ## Build flow
 

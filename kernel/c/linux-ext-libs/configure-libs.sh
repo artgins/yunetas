@@ -249,11 +249,28 @@
 #       rides along. Every yuno must be rebuilt and relinked; every node that
 #       builds from source must run `./extrae.sh && ./configure-libs.sh` again.
 
-VERSION="1.24"
+#   version 1.25
+#       jansson from artgins/jansson (was akheron/jansson + patches/jansson/),
+#       at TAG_JANSSON: v2.15.1 and the commits Yuneta carries on it, which
+#       replace this directory's patches/jansson/:
+#         - the lexer stops when a save of the token text fails (was
+#           patches/jansson/0001, configure-libs.sh 1.22);
+#         - fast paths for ASCII in the string dump, the UTF-8 check and the
+#           lexer of a string token (two commits): a record of timeranger2
+#           read twice as fast, appended 25% faster;
+#         - a faster seeded hash of the keys (the construction of wyhash) in
+#           place of lookup3's hashlittle().
+#       The last two come from the performance audit of the C SDK
+#       (performance/audit/). The same results, bytes and errors: jansson's
+#       215 tests, and a differential fuzz against the previous library. No
+#       API/ABI change, no header change. Every yuno must be rebuilt and
+#       relinked; every node that builds from source must run
+#       `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.25"
 
 
 source ./repos2clone.sh
-PATCHES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/patches"
 export CFLAGS="-Wno-error=char-subscripts -O3 -g -DNDEBUG" # let each library to be, or not
 export CC=cc
 export MAKEFLAGS="-j$(nproc)"
@@ -311,35 +328,12 @@ mkdir -p "$YUNETA_INSTALL_PREFIX"
 export PKG_CONFIG_PATH="$YUNETA_INSTALL_PREFIX/lib/pkgconfig"
 
 #------------------------------------------
-#   Patches
-#------------------------------------------
-# Apply every patches/<lib>/*.patch to the checkout of <lib> (run from its
-# directory). A patch already applied (a second run of this script over the
-# same checkout) is skipped; a patch that does not apply stops the script.
-apply_patches() {
-    local lib="$1"
-    local p
-    for p in "$PATCHES_DIR/$lib/"*.patch; do
-        if [ ! -f "$p" ]; then
-            continue
-        fi
-        if git apply --reverse --check "$p" 2>/dev/null; then
-            echo "patch already applied: $p"
-        else
-            echo "apply patch: $p"
-            git apply "$p"
-        fi
-    done
-}
-
-#------------------------------------------
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
 cd build/jansson
 
-git checkout "$TAG_JANSSON"
-apply_patches jansson
+git checkout "$TAG_JANSSON"   # its fixes are commits of artgins/jansson
 
 mkdir -p build
 cd build

@@ -210,8 +210,8 @@ typedef struct {
  *  The allocator refused a block: the largest is MEM_MAX_BLOCK, set per
  *  yuno. A text smaller than that block can need more to parse: jansson
  *  doubles the buffer of a string token, and the table of an array or an
- *  object. jansson says json_error_out_of_memory (with
- *  kernel/c/linux-ext-libs/patches/jansson/0001: before it, the lexer
+ *  object. jansson says json_error_out_of_memory (with the lexer fix of
+ *  artgins/jansson, see kernel/c/linux-ext-libs: before it, the lexer
  *  ignored a failed save and wrote past its buffer, and the parser set no
  *  error for the other failures). A failure with no error text did not
  *  find the text wrong: it is taken for memory too. `error` must be
