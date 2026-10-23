@@ -128,6 +128,11 @@ among those that pass.
   algorithm can hold a small write while an earlier one is unacknowledged.
   Setting it changes what goes on the wire and when: a proposal, not
   measured.
+  **Wrong**: it is set, by `set_tcp_socket_options()`, on every socket
+  `yev_loop` accepts or connects (found when the proposals were applied,
+  [proposals-applied.md](proposals-applied.md)). The proposal of one
+  `io_uring_submit()` per turn was not applied either: it is not safe as
+  written, see the same document.
 
 ## Next
 

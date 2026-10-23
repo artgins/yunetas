@@ -38,28 +38,29 @@ gained, measured, and what was found and not done.
   count is the steadier figure and the wall-clock A/B confirms its direction.
 - **That nothing changed**: the whole ctest suite, before and after.
 
-## Proposals waiting for a decision
+## The proposals
 
 What the rounds found and did not apply, because it changes behaviour,
 format or API, touches a third-party library, or needs a structure a
-consolidated module does not have yet. Each one is described, with its
-expected gain, in the round that found it.
+consolidated module does not have yet, was left for a decision. Each one is
+described, with its expected gain, in the round that found it. The user
+decided to apply them all; what each one changed, what a caller can see and
+what it gained are in [proposals-applied.md](proposals-applied.md).
 
-| Proposal | Gain | Why it waits | Round |
-|----------|------|--------------|-------|
-| jansson patch: fast paths for ASCII (dump, UTF-8 check, lexer), a ready patch | record reads **x2**, appends +25%, BFF +15% | a patch of a third-party library (`linux-ext-libs` VERSION bump) | [2](round-2-timeranger2-treedb.md) |
-| The gbuffer of a TLS read sized to what was read | most of what is left of a TLS read (zeroing 32 KB per message), and 32 KB per message kept by a consumer | the free space of the buffer handed up changes | [3](round-3-network.md) |
-| Subscriptions as C structs | ~16% of a TCP echo (hash lookups per publication) | `gobj_find_subscriptions()` returns json: API | [1](round-1-gobj-core.md), [3](round-3-network.md) |
-| A faster seeded hash in jansson | part of the 10-14% of `hashlittle` | a patch of a third-party library | [1](round-1-gobj-core.md) |
-| A `C_TIMER` keeps its subscription to the yuno for its life | every timer start/stop (the per-frame case is solved in round 3) | the list of subscriptions anybody can see changes | [1](round-1-gobj-core.md) |
-| treedb realtime lists marked `only_md` | ~5 000 instructions per treedb save | `only_md` shows in the list and its callback gets NULL | [2](round-2-timeranger2-treedb.md) |
-| treedb open in O(keys), not O(history) | the open of a treedb with a long history | a damaged older record is no longer detected at open | [2](round-2-timeranger2-treedb.md) |
-| Hooks rebuilt at load without the O(children^2) scan | ~0.5 s of start-up for a parent with 3 000 children | a new structure in a consolidated module | [2](round-2-timeranger2-treedb.md) |
-| `C_WEBSOCKET` as a server: a frame in one write, not two | 8% of an inter-yuno round trip (the peer's payload timer), a write and a read per frame | `C_TCP`'s `txMsgs` counts one message where it counted two | [4](round-4-inter-yuno-http-mqtt.md) |
-| The MQTT broker reads the subscriber's session without copying it | 19% of an MQTT publication | a change in the consolidated broker | [4](round-4-inter-yuno-http-mqtt.md) |
-| One `io_uring_submit()` per turn of the loop; `TCP_NODELAY` | syscalls per operation; latency of small writes | when an operation reaches the kernel; what goes on the wire | [3](round-3-network.md) |
-| The same TLS change in mbedTLS | as OpenSSL's | not built here: to be built and tested where mbedTLS is | [3](round-3-network.md) |
-
-And one finding that is not about speed: **the masking key of a websocket
-client is predictable** (`srand(time(0))` per frame), against RFC 6455
-§5.3: a security fix, for its own commit ([round 3](round-3-network.md)).
+| Proposal | Round | Decision |
+|----------|-------|----------|
+| `C_WEBSOCKET` as a server: a frame in one write, not two | [4](round-4-inter-yuno-http-mqtt.md) | applied (first batch) |
+| The MQTT broker reads the subscriber's session without copying it | [4](round-4-inter-yuno-http-mqtt.md) | applied (first batch) |
+| jansson: fast paths for ASCII (dump, UTF-8 check, lexer) | [2](round-2-timeranger2-treedb.md) | applied, in Yuneta's fork of jansson |
+| A faster seeded hash in jansson | [1](round-1-gobj-core.md) | applied, in Yuneta's fork of jansson |
+| The gbuffer of a TLS read sized to what was read; the same in mbedTLS | [3](round-3-network.md) | applied |
+| Subscriptions as C structs | [1](round-1-gobj-core.md), [3](round-3-network.md) | applied as a C record next to each dict, without changing the API |
+| A subscription built with its values | [4](round-4-inter-yuno-http-mqtt.md) | applied |
+| A `C_TIMER` keeps its subscription to the yuno for its life | [1](round-1-gobj-core.md) | applied |
+| treedb realtime lists marked `only_md` | [2](round-2-timeranger2-treedb.md) | applied |
+| treedb open in O(keys), not O(history) | [2](round-2-timeranger2-treedb.md) | applied |
+| Hooks rebuilt at load without the O(children^2) scan | [2](round-2-timeranger2-treedb.md) | applied |
+| The masking key of a websocket client from a strong source (a security fix) | [3](round-3-network.md) | applied |
+| The body buffer of an HTTP request sized to its body | [4](round-4-inter-yuno-http-mqtt.md) | applied |
+| One `io_uring_submit()` per turn of the loop | [3](round-3-network.md) | **not applied**: not safe as proposed (a write submitted late can be reordered, a read submitted late can find its fd closed by `C_TCP`) |
+| `TCP_NODELAY` | [3](round-3-network.md) | **nothing to do**: it is already set on every accepted and connected socket |

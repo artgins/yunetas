@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+- **A performance audit of the C SDK** (`performance/audit/`): four rounds
+  (the core of gobj-c, timeranger2 and tr_treedb, the network path, the
+  inter-yuno path, HTTP and MQTT), each change a commit of its own that
+  leaves results, bytes, events, logs and errors as they were, and then the
+  proposals the rounds left for a decision, applied on the user's decision.
+  The figures of each change, and what it was checked against, are in the
+  documents of the audit. Two benchmarks join `performance/c/`:
+  `perf_ievent` (inter-yuno round trips over websocket) and `perf_mqtt`
+  (MQTT QoS 0 through the embedded broker). What a caller can see:
+    - **jansson comes from Yuneta's fork**, `github.com/artgins/jansson`, at
+      a fixed commit (`TAG_JANSSON`), in place of `patches/jansson/`:
+      upstream v2.15.1 plus the lexer fix that was the patch, fast paths for
+      ASCII and a faster seeded hash of the keys (the same results, bytes
+      and errors). `linux-ext-libs` 1.25: a node that builds from source
+      reruns `./extrae.sh && ./configure-libs.sh`.
+    - **A `C_TIMER` keeps its subscription to the yuno's
+      `EV_TIMEOUT_PERIODIC` for its life**, from its first start: the yuno's
+      subscriptions list stopped timers too, and a stopped timer gets the
+      tick and ignores it.
+    - **A publisher keeps a C record of each subscription**, read when the
+      subscription is made: a value written into a subscription dict after
+      that (a key replaced) is not seen by the framework. Nothing in the SDK
+      writes them; the API is the same.
+    - **The open of a treedb reads the newest record of each key only**: a
+      damaged older record of a key no longer fails the key at the open.
+      The realtime lists the treedb leaves on its topics show `only_md` in
+      their `match_cond`, and their callback gets a NULL record for a
+      realtime append.
+    - **The gbuffer of a TLS read is the size read** (OpenSSL, mbedTLS),
+      able to grow up to `rx_buffer_size`, where it was `rx_buffer_size`
+      (32 KB) whatever was read; mbedTLS reads into one scratch buffer per
+      process, as OpenSSL does. So is the body buffer of an HTTP request
+      under 4 KB (`ghttp_parser`).
+    - **`C_WEBSOCKET` writes a server frame in one write**: the same bytes,
+      but `C_TCP`'s `txMsgs` counts one message where it counted two.
+    - **Security: the masking key of a websocket client frame comes from
+      `getrandom()`**. It came from `srand(time(0))` + `rand()` at every
+      frame: the same key for every frame of a second, predictable from
+      the clock (RFC 6455 §5.3), and the process's `rand()` sequence was
+      reset at every frame.
+
 ## v7.27.7 (2026-10-22)
 
 A patch release of fixes from the reviews V38-V42. In timeranger2, the rowid

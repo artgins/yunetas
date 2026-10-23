@@ -116,13 +116,15 @@ were compared message by message with the base: 208 lines, identical.
 
 ## Proposal: jansson, fast paths for ASCII
 
-The patch is
-[`proposals/jansson-0002-ascii-fast-paths.patch`](proposals/jansson-0002-ascii-fast-paths.patch),
-with its description and how it was checked in its header. It is **not
-applied**: it is a patch of a third-party library, it bumps the `VERSION` of
-`linux-ext-libs` (every node that builds from source reruns `extrae.sh` and
-`configure-libs.sh`), and that is a decision for the maintainers. What it
-does: a byte below `0x80` skips the UTF-8 decode in `dump_string()` and in
+It was written as a patch of the library
+(`proposals/jansson-0002-ascii-fast-paths.patch`, on this branch until it
+was applied), and **left for a decision**: a patch of a third-party library
+bumps the `VERSION` of `linux-ext-libs` (every node that builds from source
+reruns `extrae.sh` and `configure-libs.sh`). It was applied afterwards, as
+commits of Yuneta's fork of jansson
+([`artgins/jansson`](https://github.com/artgins/jansson)), see
+[proposals-applied.md](proposals-applied.md). What it does: a byte below
+`0x80` skips the UTF-8 decode in `dump_string()` and in
 `utf8_check_string()`, and the lexer saves a run of plain ASCII of a string
 token at once instead of a byte per callback. Every result, every byte and
 every error stays the same: jansson's own 215 tests pass, and a differential
