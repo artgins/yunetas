@@ -50,6 +50,7 @@ typedef struct _PRIVATE_DATA {
     BOOL periodic;
     json_int_t msec;
     uint64_t t_flush;
+    BOOL subscribed;    // to the yuno's EV_TIMEOUT_PERIODIC, since the first start
 } PRIVATE_DATA;
 
 
@@ -129,9 +130,18 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
-     *  WARNING this subscribe can be TOO SLOW
+     *  Subscribed to the yuno at the first start, and for the rest of its
+     *  life: the subscription goes with the timer, when it is destroyed. Up
+     *  to 7.27.7 every start subscribed it and every stop unsubscribed it,
+     *  a subscription made and searched for among all the yuno's for every
+     *  timeout armed and cleared. A stopped timer still gets the yuno's
+     *  EV_TIMEOUT_PERIODIC, and ignores it: its t_flush is 0.
      */
-    gobj_subscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, 0, gobj);
+    if(!priv->subscribed) {
+        if(gobj_subscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, 0, gobj)) {
+            priv->subscribed = TRUE;
+        }
+    }
 
     if(priv->msec > 0) {
         priv->t_flush = start_msectimer(priv->msec);
@@ -146,8 +156,7 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->t_flush = 0;
-    gobj_unsubscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, 0, gobj);
+    priv->t_flush = 0;  // its subscription to the yuno stays, see mt_start()
 
     return 0;
 }

@@ -148,6 +148,20 @@ events with millisecond configuration. See the
   [`set_timeout()`](../runtime/timer.md#set_timeout),
   [`set_timeout_periodic()`](../runtime/timer.md#set_timeout_periodic),
   and [`clear_timeout()`](../runtime/timer.md#clear_timeout).
+- **It counts on the yuno's tick.** At its first start a `C_TIMER` subscribes
+  to the yuno's `EV_TIMEOUT_PERIODIC`, and the subscription stays until the
+  timer is destroyed: a cleared timer still gets the tick and ignores it.
+  Up to 7.27.7 every start subscribed it and every clear unsubscribed it, a
+  subscription made, and searched for among all the yuno's, for every
+  timeout armed and cleared. So the yuno's subscriptions list every
+  `C_TIMER` that ever ran, and a timer keeps the place it took at its first
+  start among the subscribers of the tick.
+
+  ```C
+  set_timeout(priv->timer, 5*1000);   // first start: subscribed to the yuno
+  clear_timeout(priv->timer);         // stopped: still subscribed, the tick is ignored
+  set_timeout(priv->timer, 5*1000);   // runs again, no new subscription
+  ```
 
 ---
 
