@@ -3146,14 +3146,35 @@ PRIVATE int subs__send(
 
     /*----------------------------*
      *  Find the client session
+     *
+     *  Only its `_gobj_channel` is read here, and it reads
+     *  the same in the node of the treedb as in a view of it
+     *  (a plain column: no hook, no fkey, not hidden). So the
+     *  node is read in place, NOT YOURS and not to be written:
+     *  up to 7.27.7 gobj_get_node() made a view of the whole
+     *  session for every message delivered (19% of an MQTT
+     *  publication). A treedb on its way out still answers
+     *  through gobj_get_node(), and logs as it did.
      *----------------------------*/
-    json_t *session = gobj_get_node(
-        priv->gobj_treedb_mqtt_broker,
-        "sessions",
-        json_pack("{s:s}", "id", client_id),
-        NULL,
-        gobj
-    );
+    json_t *session_view = NULL;    // a copy, yours: only from gobj_get_node()
+    json_t *session = NULL;
+    if(gobj_is_destroying(priv->gobj_treedb_mqtt_broker)) {
+        session_view = gobj_get_node(
+            priv->gobj_treedb_mqtt_broker,
+            "sessions",
+            json_pack("{s:s}", "id", client_id),
+            NULL,
+            gobj
+        );
+        session = session_view;
+    } else if(client_id) {
+        session = treedb_get_node(
+            priv->tranger_treedb_mqtt_broker,
+            priv->treedb_mqtt_broker_name,
+            "sessions",
+            client_id
+        );
+    }
     if(!session) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -3194,7 +3215,7 @@ PRIVATE int subs__send(
             gobj, kw_mqtt_msg, "client_id", "", KW_REQUIRED
         );
         if(strcmp(client_id, publisher_client_id) == 0) {
-            JSON_DECREF(session)
+            JSON_DECREF(session_view)
             return 0; // Skip: noLocal prevents self-delivery
         }
     }
@@ -3290,7 +3311,7 @@ PRIVATE int subs__send(
              *  If qos is 0 and client is disconnected, the message is lost
              */
             KW_DECREF(new_msg)
-            JSON_DECREF(session)
+            JSON_DECREF(session_view)
             return 0;
         }
 
@@ -3346,7 +3367,7 @@ PRIVATE int subs__send(
         }
 
         tr2q_close(trq_out_msgs);
-        JSON_DECREF(session)
+        JSON_DECREF(session_view)
         return 0;
     }
 
@@ -3375,7 +3396,7 @@ PRIVATE int subs__send(
     // Sending a subscribed message
     gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, new_msg, gobj);
 
-    JSON_DECREF(session)
+    JSON_DECREF(session_view)
     return 0;
 }
 
