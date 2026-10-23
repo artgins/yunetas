@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## v7.27.9 (2026-10-23)
+
+A release for one new module, `modules/c/mbus`: an M-Bus master
+(EN 13757). It reads the water, heat, gas and electricity meters of a wired
+bus through a serial level converter or a TCP gateway:
+
+- a telegram decoder, checked against libmbus on 78 real telegrams;
+- the master gclass `C_PROT_MBUS_M`;
+- the commands to put meters into service: scan the bus by primary or
+  secondary address, and give a meter a primary address.
+
+The release also fixes the links to the two performance reports that were
+redone after their release: one was a 404, and the other showed the old
+study. The external libraries were checked again, and all are at their
+latest versions.
+
+The suite passed 320 of 320 on the dev machine only, with four jobs. With
+eight, the machine was short of memory: 4 and then 22 tests could not create
+their io_uring ring (`ENOMEM`, "pinned-memory pressure"), and each of them
+passed alone. There is no performance study:
+every `.c` changed is in the new module, which no binary measured by a study
+links, so no figure can move.
+
 - **The links to a redone performance report point at the report**
   (`scripts/check_doc_line_refs.py`). `--repin` pinned every report to the
   tag of its own release. The studies of 7.27.5 and 7.26.9 were redone after
