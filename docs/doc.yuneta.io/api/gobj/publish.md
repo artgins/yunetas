@@ -71,6 +71,21 @@ A JSON array containing the matching subscriptions. Each subscription is represe
 
 This function is useful for inspecting active subscriptions and can be used in conjunction with [`gobj_unsubscribe_list()`](#gobj_unsubscribe_list) to remove subscriptions.
 
+A subscription is read when it is made: the publisher keeps, next to each
+dict, its subscriber, event, renamed event, flags and the `__config__`,
+`__global__`, `__local__` and `__filter__` it holds, and every publication
+and every search of a subscription read them there. The dicts this
+function returns are those subscriptions, to read and to hand to
+[`gobj_unsubscribe_list()`](#gobj_unsubscribe_list); a value written into
+one of them afterwards is not seen by the framework (a key replaced, that
+is: the content of its `__filter__` dict, changed in place, is). Up to
+7.27.7 a publication read 3 to 8 keys of every dict by hash.
+
+```C
+json_t *subs = gobj_find_subscriptions(publisher, EV_ON_MESSAGE, 0, subscriber);
+gobj_unsubscribe_list(publisher, subs, FALSE);  // owned: the dicts are the subscriptions
+```
+
 ---
 
 (gobj_list_subscriptions)=

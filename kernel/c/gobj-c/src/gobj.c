@@ -101,6 +101,31 @@ typedef struct gclass_s {
     BOOL fsm_checked;
 } gclass_t;
 
+/*
+ *  What the framework reads of a subscription on every publication, and on
+ *  every search of one, read once when it is made. The subscription is
+ *  still its json dict, the one the API hands out (gobj_find_subscriptions()
+ *  and the rest): the record holds a reference to it and to its dicts. A
+ *  publisher keeps one record per entry of its dl_subscriptions, at the same
+ *  index (subs_recs). Removed, its publisher and subscriber are zeroed, as
+ *  the dict's are, for a publication that still holds it.
+ */
+typedef struct subs_rec_s {
+    int refs;
+    json_t *subs;
+    struct gobj_s *publisher;
+    struct gobj_s *subscriber;
+    gobj_event_t event;
+    gobj_event_t renamed_event;
+    json_int_t subs_flag;
+    json_t *__config__;     // a dict, or NULL
+    json_t *__global__;     // a dict, or NULL
+    json_t *__local__;      // a dict, or NULL
+    json_t *__filter__;     // any json, or NULL
+} subs_rec_t;
+
+#define SUBS_RECS_ON_STACK  32  // a publication to more takes an array of them
+
 typedef struct gobj_s {
     DL_ITEM_FIELDS
 
@@ -117,6 +142,9 @@ typedef struct gobj_s {
 
     json_t *dl_subscriptions; // external subscriptions to events of this gobj.
     json_t *dl_subscribings;  // subscriptions of this gobj to events of others gobj.
+    subs_rec_t **subs_recs;   // a record per entry of dl_subscriptions, same index
+    size_t subs_recs_size;
+    size_t subs_recs_cap;
 
     // Data allocated
     char *gobj_name;
@@ -332,6 +360,7 @@ PRIVATE int walk_list_watched(
 );
 
 PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it);
+PRIVATE void subs_recs_free(gobj_t *publisher);
 PUBLIC void trace_vjson(
     hgobj gobj,
     int priority,
@@ -2833,6 +2862,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     JSON_DECREF(gobj->jn_user_data)
     JSON_DECREF(gobj->dl_subscribings)
     JSON_DECREF(gobj->dl_subscriptions)
+    subs_recs_free(gobj);
 
     EXEC_AND_RESET(gbmem_free, gobj->gobj_name)
     EXEC_AND_RESET(gbmem_free, gobj->full_name)
@@ -9238,31 +9268,23 @@ PRIVATE BOOL state_changed_has_audience(gobj_t *gobj)
         return TRUE;    // its own declaration of the event: the publication decides
     }
 
-    size_t idx; json_t *subs;
-    json_array_foreach(gobj->dl_subscriptions, idx, subs) {
-        json_t *jn_subscriber = json_object_get(subs, "subscriber");
-        if(!json_is_integer(jn_subscriber)) {
-            return TRUE;
-        }
-        gobj_t *subscriber = (gobj_t *)(uintptr_t)json_integer_value(jn_subscriber);
+    /*
+     *  The records of the subscriptions (see subs_rec_t): what the
+     *  publication reads, read when they were made
+     */
+    for(size_t idx = 0; idx < gobj->subs_recs_size; idx++) {
+        const subs_rec_t *rec = gobj->subs_recs[idx];
+        gobj_t *subscriber = rec->subscriber;
         if(!(subscriber && !(subscriber->obflag & (obflag_destroying|obflag_destroyed)))) {
             continue;
         }
 
-        json_t *jn_subs_flag = json_object_get(subs, "subs_flag");
-        json_t *jn_event = json_object_get(subs, "event");
-        json_t *jn_renamed_event = json_object_get(subs, "renamed_event");
-        if(!json_is_integer(jn_subs_flag) || !json_is_integer(jn_event) ||
-            (jn_renamed_event && !json_is_integer(jn_renamed_event))
-        ) {
-            return TRUE;
-        }
-        gobj_event_t event_ = (gobj_event_t)(uintptr_t)json_integer_value(jn_event);
+        gobj_event_t event_ = rec->event;
         if(!(empty_string(event_) || event_ == EV_STATE_CHANGED)) {
             continue;
         }
 
-        if(json_size(json_object_get(subs, "__filter__"))>0) {
+        if(json_size(rec->__filter__)>0) {
             return TRUE;
         }
 
@@ -9617,6 +9639,108 @@ PRIVATE json_t *subs_get_dict(json_t *subs, const char *key)
 }
 
 /***************************************************************************
+ *  The record of a subscription (see subs_rec_t): its fields read from the
+ *  dict as a publication read them. The dict and its dicts are increfed.
+ ***************************************************************************/
+PRIVATE subs_rec_t *subs_rec_create(gobj_t *publisher, json_t *subs)
+{
+    subs_rec_t *rec = GBMEM_MALLOC(sizeof(subs_rec_t));
+    if(!rec) {
+        // Error already logged
+        return NULL;
+    }
+    rec->refs = 1;
+    rec->subs = json_incref(subs);
+    rec->publisher = (gobj_t *)(uintptr_t)subs_get_int(publisher, subs, "publisher", KW_REQUIRED);
+    rec->subscriber = (gobj_t *)(uintptr_t)subs_get_int(publisher, subs, "subscriber", KW_REQUIRED);
+    rec->event = (gobj_event_t)(uintptr_t)subs_get_int(publisher, subs, "event", KW_REQUIRED);
+    rec->renamed_event = (gobj_event_t)(uintptr_t)subs_get_int(publisher, subs, "renamed_event", 0);
+    rec->subs_flag = subs_get_int(publisher, subs, "subs_flag", KW_REQUIRED);
+    rec->__config__ = json_incref(subs_get_dict(subs, "__config__"));
+    rec->__global__ = json_incref(subs_get_dict(subs, "__global__"));
+    rec->__local__ = json_incref(subs_get_dict(subs, "__local__"));
+    rec->__filter__ = json_incref(json_object_get(subs, "__filter__"));
+    return rec;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void subs_rec_decref(subs_rec_t *rec)
+{
+    rec->refs--;
+    if(rec->refs > 0) {
+        return;
+    }
+    JSON_DECREF(rec->__config__)
+    JSON_DECREF(rec->__global__)
+    JSON_DECREF(rec->__local__)
+    JSON_DECREF(rec->__filter__)
+    JSON_DECREF(rec->subs)
+    GBMEM_FREE(rec)
+}
+
+/***************************************************************************
+ *  Room for one record more in the publisher's subs_recs
+ ***************************************************************************/
+PRIVATE int subs_recs_reserve(gobj_t *publisher)
+{
+    if(publisher->subs_recs_size < publisher->subs_recs_cap) {
+        return 0;
+    }
+    size_t cap = publisher->subs_recs_cap? publisher->subs_recs_cap*2 : 4;
+    subs_rec_t **recs = GBMEM_REALLOC(publisher->subs_recs, cap * sizeof(subs_rec_t *));
+    if(!recs) {
+        // Error already logged
+        return -1;
+    }
+    publisher->subs_recs = recs;
+    publisher->subs_recs_cap = cap;
+    return 0;
+}
+
+/***************************************************************************
+ *  The record of `subs` taken out of the publisher's subs_recs, where it is
+ *  at `idx` (the index of `subs` in dl_subscriptions): the reference of the
+ *  list is the caller's. NULL, logged, if it is not there.
+ ***************************************************************************/
+PRIVATE subs_rec_t *subs_recs_take(gobj_t *publisher, size_t idx, json_t *subs)
+{
+    if(idx >= publisher->subs_recs_size || publisher->subs_recs[idx]->subs != subs) {
+        gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "record of the subscription not at its index",
+            "idx",          "%d", (int)idx,
+            "records",      "%d", (int)publisher->subs_recs_size,
+            NULL
+        );
+        return NULL;
+    }
+    subs_rec_t *rec = publisher->subs_recs[idx];
+    memmove(
+        &publisher->subs_recs[idx],
+        &publisher->subs_recs[idx+1],
+        (publisher->subs_recs_size - idx - 1) * sizeof(subs_rec_t *)
+    );
+    publisher->subs_recs_size--;
+    return rec;
+}
+
+/***************************************************************************
+ *  The records of a destroyed gobj's subscriptions still listed
+ ***************************************************************************/
+PRIVATE void subs_recs_free(gobj_t *publisher)
+{
+    for(size_t i = 0; i < publisher->subs_recs_size; i++) {
+        subs_rec_decref(publisher->subs_recs[i]);
+    }
+    GBMEM_FREE(publisher->subs_recs)
+    publisher->subs_recs_size = 0;
+    publisher->subs_recs_cap = 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t * _create_subscription(
@@ -9811,6 +9935,7 @@ PRIVATE void read_subs_match_kw(gobj_t *publisher, json_t *kw, subs_match_kw_t *
  ***************************************************************************/
 PRIVATE BOOL _match_subscription(
     json_t *subs,
+    const subs_rec_t *rec,  // its record, or NULL to read the dict
     gobj_t *publisher,
     gobj_event_t event,
     gobj_event_t renamed_event, // NULL: any
@@ -9823,30 +9948,32 @@ PRIVATE BOOL _match_subscription(
     json_t *__filter__ = match->__filter__;
 
     if(publisher) {
-        gobj_t *publisher_ = (gobj_t *)(uintptr_t)subs_get_int(0, subs, "publisher", KW_REQUIRED);
+        gobj_t *publisher_ = rec? rec->publisher :
+            (gobj_t *)(uintptr_t)subs_get_int(0, subs, "publisher", KW_REQUIRED);
         if(publisher != publisher_) {
             return FALSE;
         }
     }
 
     if(subscriber) {
-        gobj_t *subscriber_ = (gobj_t *)(uintptr_t)subs_get_int(0, subs, "subscriber", KW_REQUIRED);
+        gobj_t *subscriber_ = rec? rec->subscriber :
+            (gobj_t *)(uintptr_t)subs_get_int(0, subs, "subscriber", KW_REQUIRED);
         if(subscriber != subscriber_) {
             return FALSE;
         }
     }
 
     if(event) {
-        gobj_event_t event_ = (gobj_event_t)(uintptr_t)subs_get_int(0, subs, "event", KW_REQUIRED);
+        gobj_event_t event_ = rec? rec->event :
+            (gobj_event_t)(uintptr_t)subs_get_int(0, subs, "event", KW_REQUIRED);
         if(event != event_) {
             return FALSE;
         }
     }
 
     if(renamed_event) {
-        gobj_event_t renamed_event_ = (gobj_event_t)(uintptr_t)subs_get_int(
-            0, subs, "renamed_event", 0
-        );
+        gobj_event_t renamed_event_ = rec? rec->renamed_event :
+            (gobj_event_t)(uintptr_t)subs_get_int(0, subs, "renamed_event", 0);
         if(renamed_event != renamed_event_) {
             return FALSE;
         }
@@ -9906,6 +10033,8 @@ PRIVATE BOOL _match_subscription(
  ***************************************************************************/
 PRIVATE json_t * _find_subscriptions(
     json_t *dl_subs,
+    subs_rec_t **recs,  // the records of dl_subs, same index, or NULL
+    size_t n_recs,
     gobj_t *publisher,
     gobj_event_t event,
     gobj_event_t renamed_event, // NULL: any
@@ -9913,6 +10042,9 @@ PRIVATE json_t * _find_subscriptions(
     gobj_t *subscriber
 ) {
     json_t *iter = json_array();
+    if(recs && n_recs != json_array_size(dl_subs)) {
+        recs = NULL;    // never: the list and its records go index for index
+    }
 
     /*
      *  What kw asks for does not depend on the subscription: read once, not
@@ -9932,6 +10064,7 @@ PRIVATE json_t * _find_subscriptions(
         }
         if(_match_subscription(
             subs,
+            recs? recs[idx] : NULL,
             publisher,
             event,
             renamed_event,
@@ -10063,6 +10196,7 @@ PRIVATE int _delete_subscription(
      *--------------------------------*/
     json_incref(subs);  // alive until its pointers are zeroed, below
     int idx = _get_subs_idx(publisher->dl_subscriptions, subs);
+    subs_rec_t *rec = NULL;
 
     if(idx >= 0) {
         if(json_array_remove(publisher->dl_subscriptions, (size_t)idx)<0) {
@@ -10072,6 +10206,8 @@ PRIVATE int _delete_subscription(
                 "msg",          "%s", "json_array_remove() subscriptions FAILED",
                 NULL
             );
+        } else {
+            rec = subs_recs_take(publisher, (size_t)idx, subs);    // NULL logged
         }
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -10109,6 +10245,11 @@ PRIVATE int _delete_subscription(
      */
     json_object_set_new(subs, "publisher", json_integer(0));
     json_object_set_new(subs, "subscriber", json_integer(0));
+    if(rec) {
+        rec->publisher = NULL;
+        rec->subscriber = NULL;
+        subs_rec_decref(rec);   // the reference of the list
+    }
     JSON_DECREF(subs)   // the reference taken above
     return 0;
 }
@@ -10216,6 +10357,8 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     json_t *kw_match = _subscription_match_kw(publisher, event, kw, &renamed_event);
     json_t *dl_subs = _find_subscriptions(
         publisher->dl_subscriptions,
+        publisher->subs_recs,
+        publisher->subs_recs_size,
         publisher,
         event,
         renamed_event,
@@ -10304,6 +10447,29 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
         return 0;
     }
 
+    /*
+     *  Its record (see subs_rec_t), made before it is listed, so that the
+     *  list and the records stay index for index
+     */
+    subs_rec_t *rec = subs_rec_create(publisher, subs);
+    if(!rec || subs_recs_reserve(publisher) < 0) {
+        gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "record of the subscription FAILED",
+            "event",        "%s", event,
+            "publisher",    "%s", gobj_full_name(publisher),
+            "subscriber",   "%s", gobj_full_name(subscriber),
+            NULL
+        );
+        if(rec) {
+            subs_rec_decref(rec);
+        }
+        JSON_DECREF(subs)
+        JSON_DECREF(kw)
+        return 0;
+    }
+
     if(json_array_append(publisher->dl_subscriptions, subs)<0) {
         gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -10314,6 +10480,9 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
             "subscriber",   "%s", gobj_full_name(subscriber),
             NULL
         );
+        subs_rec_decref(rec);
+    } else {
+        publisher->subs_recs[publisher->subs_recs_size++] = rec;
     }
     if(json_array_append(subscriber->dl_subscribings, subs)<0) {
         gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
@@ -10470,6 +10639,8 @@ PUBLIC int gobj_unsubscribe_event(
     json_t *kw_match = _subscription_match_kw(publisher, event, kw, &renamed_event);
     json_t *dl_subs = _find_subscriptions(
         publisher->dl_subscriptions,
+        publisher->subs_recs,
+        publisher->subs_recs_size,
         publisher,
         event,
         renamed_event,
@@ -10585,6 +10756,8 @@ PUBLIC json_t *gobj_find_subscriptions(
     }
     return _find_subscriptions(
         publisher->dl_subscriptions,
+        publisher->subs_recs,
+        publisher->subs_recs_size,
         gobj_,
         event,
         NULL,
@@ -10613,6 +10786,8 @@ PUBLIC json_t *gobj_find_subscribings(
     }
     return _find_subscriptions(
         gobj->dl_subscribings,
+        NULL,
+        0,
         publisher,
         event,
         NULL,
@@ -10843,11 +11018,34 @@ PUBLIC int gobj_publish_event(
     dispatch_frame_t frame;
     push_dispatch_frame(&frame, publisher, event, FRAME_PUBLICATION);
 
-    json_t *dl_subs = json_copy(publisher->dl_subscriptions); // Protect to inside deleted subs
+    /*
+     *  The records of the subscriptions, each one held: one removed meanwhile
+     *  (by a subscriber, in its action) has its subscriber zeroed and is
+     *  skipped, one added meanwhile is not in this publication. Up to
+     *  7.27.7 the publication walked a copy of dl_subscriptions and read 3
+     *  to 8 keys of each dict, by hash; the record has them read.
+     */
+    subs_rec_t *recs_on_stack[SUBS_RECS_ON_STACK];
+    subs_rec_t **recs = recs_on_stack;
+    size_t n_recs = publisher->subs_recs_size;
+    if(n_recs > SUBS_RECS_ON_STACK) {
+        recs = GBMEM_MALLOC(n_recs * sizeof(subs_rec_t *));
+        if(!recs) {
+            // Error already logged
+            recs = recs_on_stack;
+            n_recs = 0;
+        }
+    }
+    for(size_t i = 0; i < n_recs; i++) {
+        recs[i] = publisher->subs_recs[i];
+        recs[i]->refs++;
+    }
+
     int sent_count = 0;
     int ret = 0;
-    json_t *subs; size_t idx;
-    json_array_foreach(dl_subs, idx, subs) {
+    for(size_t idx = 0; idx < n_recs; idx++) {
+        subs_rec_t *rec = recs[idx];
+        json_t *subs = rec->subs;
         /*-------------------------------------*
          *  Pre-filter
          *  kw NOT owned! you can modify the publishing kw
@@ -10869,9 +11067,7 @@ PUBLIC int gobj_publish_event(
                 continue;
             }
         }
-        gobj_t *subscriber = (gobj_t *)(uintptr_t)subs_get_int(
-            publisher, subs, "subscriber", KW_REQUIRED
-        );
+        gobj_t *subscriber = rec->subscriber;
         if(!(subscriber && !(subscriber->obflag & (obflag_destroying|obflag_destroyed)))) {
             continue;
         }
@@ -10879,29 +11075,20 @@ PUBLIC int gobj_publish_event(
         /*
          *  Check if event null or event in event_list
          */
-        subs_flag_t subs_flag = (subs_flag_t)subs_get_int(
-            publisher, subs, "subs_flag", KW_REQUIRED
-        );
+        subs_flag_t subs_flag = (subs_flag_t)rec->subs_flag;
 
-        gobj_event_t event_ = (gobj_event_t)(uintptr_t)subs_get_int(
-            publisher, subs, "event", KW_REQUIRED
-        );
+        gobj_event_t event_ = rec->event;
 
         if(empty_string(event_) || event_ == event) { // WARNING old strcasecmp(event_, event)==0
-            json_t *__config__ = subs_get_dict(subs, "__config__");
-            json_t *__global__ = subs_get_dict(subs, "__global__");
-            json_t *__local__ = subs_get_dict(subs, "__local__");
-            json_t *__filter__ = json_object_get(subs, "__filter__");
+            json_t *__config__ = rec->__config__;
+            json_t *__global__ = rec->__global__;
+            json_t *__local__ = rec->__local__;
+            json_t *__filter__ = rec->__filter__;
 
             /*
              *  Check renamed_event
              */
-            gobj_event_t event_name = (gobj_event_t)(uintptr_t)subs_get_int(
-                publisher,
-                subs,
-                "renamed_event",
-                0
-            );
+            gobj_event_t event_name = rec->renamed_event;
             if(empty_string(event_name)) {
                 event_name = event;
             }
@@ -11090,7 +11277,12 @@ PUBLIC int gobj_publish_event(
         }
     }
 
-    JSON_DECREF(dl_subs)
+    for(size_t i = 0; i < n_recs; i++) {
+        subs_rec_decref(recs[i]);
+    }
+    if(recs != recs_on_stack) {
+        GBMEM_FREE(recs)
+    }
     KW_DECREF(kw)
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
