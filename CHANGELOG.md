@@ -15,9 +15,12 @@
   `perf_ievent` (inter-yuno round trips over websocket), `perf_mqtt`
   (MQTT QoS 0 through the embedded broker) and `perf_tr_treedb_read` (the
   reads of a treedb: open, lists, views of nodes). What a caller can see:
-    - **jansson comes from Yuneta's fork**, `github.com/artgins/jansson`, now
-      Yuneta's official jansson, at a commit of its `master` (`TAG_JANSSON`),
-      in place of `patches/jansson/`:
+    - **jansson is Yuneta's own JSON library**, `github.com/artgins/jansson`,
+      first class in the SDK: it began as a fork of `akheron/jansson`, which
+      it no longer follows, keeps its public API as it is, and checks every
+      change against the commit pinned before (`test/differential/run.sh`).
+      It is cloned at a commit of its `master` (`TAG_JANSSON`), in place of
+      `patches/jansson/`:
       upstream v2.15.1 plus the lexer fix that was the patch, fast paths for
       ASCII (for `json_loads()` too, and runs of digits and blanks), a
       byte of the lexer read and saved without the generic calls, eight

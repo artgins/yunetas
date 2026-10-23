@@ -121,12 +121,13 @@ v1.22 by a patch, which is a commit of `artgins/jansson` since v1.25. See
 `./extrae.sh && ./configure-libs.sh` again, and then rebuild the SDK and
 its yunos.
 
-### jansson: from `artgins/jansson` (configure-libs.sh v1.25 to v1.32)
+### jansson: Yuneta's, `artgins/jansson` (configure-libs.sh v1.25 to v1.32)
 
-jansson is cloned from Yuneta's fork, `artgins/jansson`, Yuneta's official
-jansson, at `TAG_JANSSON` (a commit of its `master` since v1.29): upstream
-and one commit per change, the lexer fix above and those of the performance
-audit of the C SDK (`performance/audit/`): fast paths for ASCII (a record of
+jansson is Yuneta's own JSON library, `artgins/jansson`, cloned at
+`TAG_JANSSON` (a commit of its `master` since v1.29). It began as a fork of
+`akheron/jansson` v2.15.1, which it no longer follows. On top of it are one
+commit per change: the lexer fix above, and those of the performance audit
+of the C SDK (`performance/audit/`): fast paths for ASCII (a record of
 timeranger2 read twice as fast and appended 25% faster) and a faster seeded
 hash of the keys (v1.25), the key of the loop check without `snprintf()`
 (v1.26), the runs of the lexer for `json_loads()`, digits and blanks
@@ -152,9 +153,10 @@ Every node that builds from source must run `./extrae.sh &&
 > reinstalled, which is how every node that builds from source learns that
 > its external libraries are stale.
 >
-> A fix to a library that upstream has not released goes in Yuneta's fork of
-> it under `github.com/artgins` (as `artgins/jansson`), as a commit whose
-> message says why, and `repos2clone.sh` points at that commit.
+> A fix to a third-party library that upstream has not released goes in a
+> fork of it under `github.com/artgins`, as a commit whose message says why,
+> and `repos2clone.sh` points at that commit. jansson began that way, and is
+> now Yuneta's own library (`artgins/jansson`, with its own `CLAUDE.md`).
 
 ## Build flow
 

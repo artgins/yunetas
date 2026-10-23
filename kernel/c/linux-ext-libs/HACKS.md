@@ -64,21 +64,27 @@ and `/etc/hosts` directly, bypassing glibc's NSS resolver chain.
 > build cleanly as fully static GCC/Clang binaries.
 
 
-## jansson — from `artgins/jansson`
+## jansson — Yuneta's JSON library (`artgins/jansson`)
 
-jansson comes from Yuneta's fork, `https://github.com/artgins/jansson`,
-which is Yuneta's official jansson (`repos2clone.sh`, `TAG_JANSSON`): a
-commit of its `master`, which is upstream (`akheron/jansson`) and one commit
-per change Yuneta carries on it, those below. A new fix or change is a commit there, merged into `master` once
-it is checked, and `TAG_JANSSON` moves to that commit of `master` (with a
-bump of `VERSION` in `configure-libs.sh`). Since `configure-libs.sh` 1.29
-`TAG_JANSSON` is a commit of `master`; from 1.25 to 1.28 it was a commit of
-a work branch. Up to 1.24 the changes were `patches/jansson/*.patch`,
-applied after a checkout of upstream.
+jansson is Yuneta's own JSON library, `https://github.com/artgins/jansson`,
+first class in the SDK (its rules are in its own `CLAUDE.md` and in the
+yunetas `CLAUDE.md`). `repos2clone.sh` clones it at `TAG_JANSSON`, a commit
+of its `master`. It began as a fork of `akheron/jansson` v2.15.1 and keeps
+upstream's history, but upstream is no longer followed (decided
+2026-10-23). Its public API is fixed: what changes is inside, one commit per
+change, each checked with `test/differential/run.sh` against the commit
+pinned before it. A new commit is pinned by moving `TAG_JANSSON`, with a
+bump of `VERSION` in `configure-libs.sh`. The sections below say what each
+change did.
+
+How the pin came to be: since `configure-libs.sh` 1.29 `TAG_JANSSON` is a
+commit of `master`; from 1.25 to 1.28 it was a commit of a work branch; up to
+1.24 the changes were `patches/jansson/*.patch`, applied after a checkout of
+upstream.
 
 ## jansson — the lexer stops when a save fails
 
-The first commit of the fork on v2.15.1 (it was
+The first commit of `artgins/jansson` on v2.15.1 (it was
 `patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch`,
 configure-libs.sh 1.22-1.24). Upstream has the defect too (v2.15.1 and
 master, 2026-09-23).
@@ -103,7 +109,7 @@ Check an installed library: `strings outputs_ext/lib/libjansson.a | grep
 
 ## jansson — fast paths for ASCII
 
-The second commit of the fork (configure-libs.sh 1.25), for speed, not a
+The second commit of `artgins/jansson` (configure-libs.sh 1.25), for speed, not a
 fix, from the performance audit of the C SDK
 (`performance/audit/round-2-timeranger2-treedb.md`).
 jansson walks a string a byte at a time through a function call and a
@@ -130,7 +136,7 @@ to the ESP32 copy of jansson.
 
 ## jansson — a faster seeded hash of the keys
 
-The third commit of the fork (configure-libs.sh 1.25), for speed, from the
+The third commit of `artgins/jansson` (configure-libs.sh 1.25), for speed, from the
 performance audit of the C SDK (`performance/audit/round-1-gobj-core.md`).
 lookup3's `hashlittle()` was the most expensive function of a lookup (5% of
 an inter-yuno round trip, 11% of an MQTT publication, 10-12% of the TCP
@@ -159,7 +165,7 @@ each output bit.
 
 ## jansson — the key of the loop check without `snprintf()`
 
-The fourth commit of the fork (configure-libs.sh 1.26), for speed, from the
+The fourth commit of `artgins/jansson` (configure-libs.sh 1.26), for speed, from the
 performance audit of the C SDK (`performance/audit/round-5-subscriptions-treedb.md`).
 Every object and array dumped, deep-copied or compared is first put in a
 table of its parents, under a key made with `snprintf(key, size, "%p",
@@ -174,7 +180,7 @@ used past 32 levels of a walk (see the loop path below).
 
 ## jansson — the runs of the lexer for `json_loads()`, digits and blanks
 
-The fifth and sixth commits of the fork (configure-libs.sh 1.27 and 1.28), for speed, from the
+The fifth and sixth commits of `artgins/jansson` (configure-libs.sh 1.27 and 1.28), for speed, from the
 performance audit of the C SDK (`performance/audit/round-6-jansson-parse-treedb-reads.md`).
 The run of plain ASCII of a string token (the second commit) was saved at
 once only from the source of `json_loadb()`; `gbuf2json()` parses every
@@ -194,7 +200,7 @@ them. Not applied to the ESP32 copy of jansson.
 
 ## jansson — a byte read and saved without the generic calls
 
-A commit of the fork's `master` (configure-libs.sh 1.30), for speed, from the
+A commit of jansson's `master` (configure-libs.sh 1.30), for speed, from the
 performance audit of the C SDK (`performance/audit/round-7-jansson.md`).
 Outside the runs, the lexer read every byte through `stream_get()` and the
 source's get function (55 instructions a byte) and saved it through
@@ -209,7 +215,7 @@ applied to the ESP32 copy of jansson.
 
 ## jansson — eight bytes of ASCII at a time
 
-Two commits of the fork's `master` (configure-libs.sh 1.30 and 1.31), for
+Two commits of jansson's `master` (configure-libs.sh 1.30 and 1.31), for
 speed, from the same round. `utf8_check_string()` skips eight bytes with no
 high bit at once, and `dump_string()` takes eight bytes that need no escape at
 once (ASCII from 0x20, none `"` nor `\`, nor `/` with `JSON_ESCAPE_SLASH`).
@@ -226,7 +232,7 @@ places under four). Not applied to the ESP32 copy of jansson.
 
 ## jansson — fewer allocations
 
-Four commits of the fork's `master` (configure-libs.sh 1.32), for speed,
+Four commits of jansson's `master` (configure-libs.sh 1.32), for speed,
 from the performance audit of the C SDK
 (`performance/audit/round-8-jansson.md`). An inter-yuno round trip of Yuneta
 made 381 allocations, nearly all of them jansson's.
@@ -250,7 +256,7 @@ sizes. Not applied to the ESP32 copy of jansson.
 
 ## jansson — the dump: its loop check and its output
 
-Two commits of the fork's `master` (configure-libs.sh 1.32), from the same
+Two commits of jansson's `master` (configure-libs.sh 1.32), from the same
 round.
 
 - The containers above the one a walk is in (a dump, a deep copy, a
@@ -276,7 +282,7 @@ applied to the ESP32 copy of jansson.
 
 ## jansson — the lexer: one source, and tokens without the byte calls
 
-Two commits of the fork's `master` (configure-libs.sh 1.32), from the same
+Two commits of jansson's `master` (configure-libs.sh 1.32), from the same
 round.
 
 - `json_loads()` measures its string and reads it as a buffer of that

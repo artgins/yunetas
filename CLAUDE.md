@@ -283,6 +283,34 @@ Operational notes:
   on published v2) and update the repo's `README.md` when the
   contract changes.
 
+### `jansson` is Yuneta's JSON library (`github.com/artgins/jansson`)
+
+**jansson is first class in the SDK, like `gobj-c`**: every json of Yuneta
+goes through it (the messages between yunos, the records of timeranger2, the
+nodes of a treedb, the configurations). It began as a fork of
+`akheron/jansson` v2.15.1. Upstream is no longer followed (decided
+2026-10-23), and nothing in it waits for upstream's approval. It is not a
+submodule: `kernel/c/linux-ext-libs` clones it at `TAG_JANSSON`
+(`repos2clone.sh`), a commit of its `master`, and links it statically into
+every binary. Its own `CLAUDE.md` carries the detail. The rules in short:
+
+- **Consolidated code, and its API is the right one.** `jansson.h` gains no
+  function and loses none, and no function changes its contract (described
+  in `doc/apiref.rst`). What changes is inside. A change a caller can see (an
+  answer, an error, what a custom allocator sees) is said in the commit and
+  in `CHANGELOG.md`. A change of documented behaviour is proposed before it
+  is made.
+- **Every change is checked against the pinned commit** with
+  `test/differential/run.sh <TAG_JANSSON>` in the jansson repo. It must
+  answer exactly as before: results, errors with their positions, the bytes
+  of every dump. It also runs under AddressSanitizer and
+  UndefinedBehaviorSanitizer. A change made for speed is also measured in
+  Yuneta (`performance/audit/`).
+- **To ship**: commit and push on its `master`, then move `TAG_JANSSON`,
+  bump `VERSION` in `configure-libs.sh` (with its header entry), document it
+  in `kernel/c/linux-ext-libs/HACKS.md` and `CHANGELOG.md`, and rebuild every
+  binary.
+
 ## ⚠️ CRITICAL: Memory allocation in C code
 
 **NEVER use raw `malloc` / `calloc` / `realloc` / `free` / `strdup` / `strndup` in Yuneta C code.**
@@ -381,6 +409,21 @@ Corollaries:
 
 ## C coding rules
 
+- **Standard C only: nothing may depend on the compiler or the processor,
+  unless there is a major reason** (rule of 2026-10-23). This rules out
+  builtins (`__builtin_*`), an `__attribute__` for speed (`noinline`,
+  `always_inline`, ...), `__int128`, intrinsics, and assumptions about byte
+  order or alignment. It also rules out an `#ifdef` on a compiler, a CPU or
+  a C library that picks a faster path. A word read with `memcpy()` and
+  tested in a way that does not depend on byte order is standard C. So is
+  `inline`. When the major reason exists, a comment at
+  the place says what it is. **Why:** a speed that holds on one compiler or
+  one CPU is not a property of the code. The performance audit found three
+  such dependencies in its own earlier changes and removed them (round 8):
+  a 128-bit product in jansson's hash, a `noinline` in `json2gbuf()`, and an
+  `#ifdef __GLIBC__` in gbmem. Attributes that only feed the compiler's
+  warnings (`format`, `fallthrough`, `warn_unused_result`) are not a
+  dependency: the code means the same without them.
 - **Paths:** assemble filesystem paths with `build_path(bf, sizeof(bf), seg1,
   ..., NULL)` (`kernel/c/gobj-c/src/helpers.h`), never `snprintf("%s/%s")`.
   `build_path` strips duplicate `/`, always null-terminates and logs on
@@ -1090,7 +1133,7 @@ stress/c/*            ← stress test programs
 | `kernel/c/gobj-c/src/gobj.c` | Core ~12K-line GObject runtime |
 | `kernel/c/yev_loop/` | Non-blocking event loop (io_uring) |
 | `kernel/c/timeranger2/` | Time-series DB (append-only, key-indexed) |
-| `kernel/c/linux-ext-libs/` | External dep libs (OpenSSL, liburing, …) |
+| `kernel/c/linux-ext-libs/` | External dep libs (OpenSSL, liburing, …) and jansson, Yuneta's own JSON library (`artgins/jansson`, cloned at `TAG_JANSSON`) |
 | `kernel/c/root-linux/src/` | Runtime GClasses (`c_tcp`, `c_timer`, `c_prot_*`, `c_treedb`, …) |
 | `kernel/js/` | JS implementations (gobj-js, gobj-ui) |
 | `yunos/c/mqtt_broker/` | MQTT v3.1.1 + v5.0 broker |
