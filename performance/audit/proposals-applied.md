@@ -107,13 +107,60 @@ Against the release 7.27.7, after the four rounds and the proposals: the TCP
 echo takes **41.14 G -> 10.61 G** (3.9 times fewer), `perf_tr_treedb`
 **30.35 G -> 17.44 G** (-42.5%).
 
-### Time (A/B, alternated), the first batch -> all
+### Time (A/B, alternated)
 
-Being measured.
+8 rounds, the order turned every round, a `sync` and a 2 s pause before each
+run; mean ± standard deviation, t = the change over its standard error. Three
+builds alternated: the release 7.27.7, the branch before this batch, and the
+branch after it. This VM was slower during this measure than during the
+rounds (the TCP echo of the base: 18 700/s here, 39 700/s in round 1), so its
+figures are compared only with each other.
+
+| Benchmark | 7.27.7 | Before | After | Before -> after | t | 7.27.7 -> after |
+|-----------|--------|--------|-------|-----------------|---|-----------------|
+| TCP echo (`perf_tcp_test4`), msg/s | 18 678 ± 1 178 | 33 135 ± 2 577 | 39 308 ± 2 392 | **+18.6%** | 5.0 | **+110%** |
+| TLS echo (`perf_tcps_test4`), msg/s | 12 875 ± 346 | 20 548 ± 1 293 | 24 880 ± 1 086 | **+21.1%** | 7.3 | **+93%** |
+| BFF logins (`perf_auth_bff`), K msg/s | 3.38 ± 0.12 | 3.91 ± 0.13 | 4.93 ± 0.30 | **+25.8%** | 8.8 | **+46%** |
+| Appends/s, with a live reader (rt list) | 92 156 ± 7 416 | 97 053 ± 8 794 | 145 675 ± 16 055 | **+50.1%** | 7.5 | **+58%** |
+| Appends/s, without an rt list | 82 075 ± 10 551 | 92 266 ± 6 926 | 125 927 ± 16 777 | **+36.5%** | 5.2 | **+53%** |
+| Records read/s, iterator with callback (`..._iterator2`) | 85 792 ± 9 757 | 104 278 ± 14 424 | 181 237 ± 34 661 | **+73.8%** | 5.8 | **+111%** |
+| treedb reopen (`perf_tr_treedb`), µs of CPU per node | 729 ± 130 | 575 ± 132 | 47.8 ± 10.2 | **-91.7%** | 11.2 | **-93%** |
+| treedb link + unlink, µs of CPU | 15.2 ± 0.9 | 14.7 ± 1.7 | 12.0 ± 1.0 | **-18.4%** | 3.8 | -21% |
+| treedb update saved, µs of CPU | 16.2 ± 1.6 | 13.3 ± 1.2 | 11.8 ± 1.1 | -11.4% | 2.7 | -27% |
+| treedb delete of a parent, µs of CPU | 5 877 ± 600 | 5 635 ± 633 | 4 940 ± 433 | -12.3% | 2.6 | -16% |
+
+The first batch has its own pair, round 4 -> first batch -> all:
+
+| Benchmark | Round 4 | First batch | All | Round 4 -> first batch | t | First batch -> all | t |
+|-----------|---------|-------------|-----|------------------------|---|--------------------|---|
+| Inter-yuno round trips/s (`perf_ievent`) | 7 095 ± 468 | 8 850 ± 479 | 10 445 ± 712 | **+24.7%** | 7.4 | **+18.0%** | 5.3 |
+| MQTT QoS 0, publications delivered/s (`perf_mqtt`) | 14 997 ± 1 621 | 17 755 ± 1 598 | 20 858 ± 1 341 | **+18.4%** | 3.4 | **+17.5%** | 4.2 |
+
+The inter-yuno round trip gains more in time than in instructions with the
+first batch (+24.7% against -9.6%): a frame in one write is a write and a
+read less per frame, and the time in the kernel is not in `callgrind`'s
+count. The rest of `perf_tr_treedb` (a forced delete, an update in memory,
+the creation of links), `perf_timeranger2` and `perf_c_treedb` moved inside
+their noise (|t| < 2.5); `perf_timeranger2`'s 8% fewer instructions are not
+visible in its time on this VM.
 
 ### The open of a treedb
 
-Being measured.
+A benchmark of the treedb reads (in the scratch of the audit, not in the
+tree): 8 000 users linked to departments, the treedb closed and opened again;
+the old `tr_treedb.c` (before the three treedb commits) and the new one
+against the same libraries, 8 rounds alternated, µs of CPU per node loaded.
+
+| Case | Before | After | Change | t |
+|------|--------|-------|--------|---|
+| 8 000 users in 200 departments (40 children per hook) | 112.6 ± 19.7 | 78.0 ± 8.4 | **-30.8%** | 4.6 |
+| 8 000 users in 1 department (8 000 children in one hook) | 1 424.6 ± 530.4 | 75.7 ± 6.3 | **-94.7%** | 7.2 |
+
+With one parent of 8 000 children the open took 11.4 s and takes 0.6 s: the
+scan of the hook array per link loaded was all of it. With 40 children per
+parent the scan was small, and what is left of the gain is the history read
+once per key. `perf_tr_treedb`'s `reopen` (2 000 nodes over 200 000 records,
+the time above) is the history: -92%.
 
 ### Nothing changed
 
