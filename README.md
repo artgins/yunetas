@@ -110,6 +110,17 @@ A release that moves a lot of code ships a performance report: charts of what
 the release does on one machine, the release before measured the same way, and every loss with its
 reason.
 
+- **7.27.10** (against 7.27.7, the last release with a study; 7.27.8 and
+  7.27.9 changed no measured code): a store that writes json text as it
+  arrives. `tranger2_append_record_text()` and `json_scan_object_members()`
+  let a writer of raw history skip the parse and the dump of every frame:
+  db_tracks_ce stores 2.2 times more frames per second (24,700 -> 53,300),
+  and holds 20,000 records/s on a Xeon E-2386G at 55% of one core. Every one
+  of the 41 figures inside its noise or faster; the one loss the study found
+  (-1.6% of the json append) is fixed in the release.
+  [Report](performance/reports/7.27.10.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.10/performance/reports/7.27.10.html) ·
+  [raw figures](performance/reports/7.27.10.json)
 - **7.27.7** (against 7.27.5, the last release with a study; 7.27.6 in the
   same rotation): three reviews of retention at no measurable cost -- 40 of 41
   figures inside their noise, the read path of a replica among them. One

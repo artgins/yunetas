@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## v7.27.10 (2026-10-24)
+
+A release for a store that writes json text as it arrives. A writer of raw
+history receives frames as text, and until now it parsed each frame whole to
+read two or three of its members, and dumped it again to store it. Two new
+functions let it skip both:
+
+- `json_scan_object_members()` (gobj-c) reads the members of a json object
+  from its text, with jansson's verdict and no node built;
+- `tranger2_append_record_text()` (timeranger2) appends a record that is
+  already json text, and checks the text itself, so a topic never holds a
+  record nobody can read back.
+
+With them, yunovatios' `db_tracks_ce` stores 2.2 times more frames per second
+on the same machine (24,700 -> 53,300). On hidraulia (Xeon E-2386G) it holds
+20,000 records/s at 55% of one core: 36,375,974 records in 30 minutes,
+0 duplicates and 0 gaps (`tr2check`). The release also fixes a queue that sent
+its own metadata with every message, and a pinned yuno that logged an error at
+each start.
+
+The suite passed 324 of 324 on the dev machine only, with four jobs. The
+performance study is against 7.27.7, the last release with a study (7.27.8
+and 7.27.9 changed no measured code): every one of the 41 figures stays inside
+its noise or gets faster (the appends of `perf_timeranger2`, 1.6% and 2.8%).
+It found a loss of 1.6% in the json append, brought by the split of the
+append, and this release fixes it (`append_content()` read the topic's
+`system_flag` a second time on every append). Report:
+[`performance/reports/7.27.10.html`](performance/reports/7.27.10.html). The
+external libraries were checked, and all are at their latest versions.
+
 - **A yuno pinned to a cpu no longer logs errors at each start**
   (`kernel/c/root-linux/src/c_yuno.c`). With `cpu_core > 0`, the real-time
   priority (`SCHED_RR`) and the memory lock (`mlockall`) are now asked only
@@ -47,8 +77,8 @@
   nothing. On hidraulia (Xeon E-2386G), for a record of 955 bytes, the scan
   of three members takes 0.75 µs. The parse, delete, dump and free of the
   whole record that it can replace take 19.85 µs. It is the base of a fast
-  append path for a store that receives records as text (the RENFE
-  20,000 records/s test).
+  append path for a store that receives records as text (the test of
+  20,000 records/s of a public tender).
   New test `helpers/test_json_scan`: jansson's own test corpus, the edges
   (integer and real ranges, the real overflow threshold digit by digit,
   surrogates, `\u0000`, nesting depth), the members, and a fuzz of 200,000
