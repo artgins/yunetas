@@ -14918,8 +14918,10 @@ PRIVATE BOOL match_node_simple(
             continue; // Never must occur
         }
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
-        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+        col_view_flags_t col_flags;
+        get_col_view_flags(desc_flag, &col_flags);
+        BOOL is_fkey = col_flags.fkey;
+        BOOL is_hook = col_flags.hook;
         if(is_fkey) {
             matched = match_fkey(jn_filter_value, jn_record_value);
             if(!matched) {
