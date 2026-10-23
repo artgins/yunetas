@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## v7.27.8 (2026-10-23)
+
+A short release for the Modbus master, `C_PROT_MODBUS_M`. A polling cycle
+now publishes only what it read. Before, a slave that never answered came
+out as a reading of zeros, and a silent one repeated its last values. Over
+TCP an exception no longer holds the connection for `timeout_response`. A
+queued write is sent once, and the polling goes on after it; before, the
+write was released while the queue held it, and the next send read freed
+memory. A failing block is logged once, as a warning that names its slave,
+not as an error on every cycle. `c_prot_modbus_m.h` defines
+`C_PROT_MODBUS_M_PUBLISHES_WHAT_IT_READ` for the consumers that depend on
+this, and the new test `c_prot_modbus_m/test1` covers the three defects.
+nginx goes to `release-1.31.8` (`linux-ext-libs` 1.25), with no security
+fix. The other external libraries were checked and are at their latest
+versions. The suite passed 317 of 317 on the dev machine only: from this
+release there is no second run on wattyzer. There is no performance study:
+the user decided it for this release, and the change is in a module that
+no hot path uses.
+
 - **`C_PROT_MODBUS_M` logs a failing block once, as a warning**
   (`modules/c/modbus`). Every exception and every `timeout_response` of every
   cycle was an ERROR, and the line did not name the slave: a unit id that
