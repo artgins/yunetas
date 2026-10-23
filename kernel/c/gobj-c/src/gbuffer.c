@@ -1247,12 +1247,10 @@ PUBLIC gbuffer_t *str2gbuf(
 }
 
 /***************************************************************************
- *      Dump json into gbuf
+ *      Append a piece of a json dump to gbuf
  ***************************************************************************/
-PRIVATE int dump2gbuf(const char *buffer, size_t size, void *data)
+static inline void dump_append(gbuffer_t *gbuf, const char *buffer, size_t size)
 {
-    gbuffer_t *gbuf = data;
-
     if(size > 0) {
         if(gbuf && buffer && size <= gbuffer_freebytes(gbuf)) {
             /*
@@ -1266,6 +1264,14 @@ PRIVATE int dump2gbuf(const char *buffer, size_t size, void *data)
             gbuffer_append(gbuf, (void *)buffer, size);
         }
     }
+}
+
+/***************************************************************************
+ *      Dump json into gbuf
+ ***************************************************************************/
+PRIVATE int dump2gbuf(const char *buffer, size_t size, void *data)
+{
+    dump_append(data, buffer, size);
     return 0;
 }
 /***************************************************************************
@@ -1284,6 +1290,19 @@ typedef struct {
     gbuffer_t *gbuf;
 } json2gbuf_dump_t;
 
+/*
+ *  Once per dump that does not fit: kept out of dump2small(), which runs
+ *  for every token, so that the registers its calls need are not saved at
+ *  every token of a big dump
+ */
+__attribute__((noinline))
+PRIVATE void dump2small_overflow(json2gbuf_dump_t *dump)
+{
+    dump->in_gbuf = TRUE;
+    dump->gbuf = gbuffer_create(JSON2GBUF_SIZE, gbmem_get_maximum_block());
+    dump_append(dump->gbuf, dump->bf, dump->len);
+}
+
 PRIVATE int dump2small(const char *buffer, size_t size, void *data)
 {
     json2gbuf_dump_t *dump = data;
@@ -1296,11 +1315,10 @@ PRIVATE int dump2small(const char *buffer, size_t size, void *data)
             }
             return 0;
         }
-        dump->in_gbuf = TRUE;
-        dump->gbuf = gbuffer_create(JSON2GBUF_SIZE, gbmem_get_maximum_block());
-        dump2gbuf(dump->bf, dump->len, dump->gbuf);
+        dump2small_overflow(dump);
     }
-    return dump2gbuf(buffer, size, dump->gbuf);
+    dump_append(dump->gbuf, buffer, size);
+    return 0;
 }
 
 PUBLIC gbuffer_t *json2gbuf(
@@ -1325,7 +1343,7 @@ PUBLIC gbuffer_t *json2gbuf(
         return dump.gbuf;
     }
     gbuf = gbuffer_create(dump.len, gbmem_get_maximum_block());
-    dump2gbuf(dump.bf, dump.len, gbuf);
+    dump_append(gbuf, dump.bf, dump.len);
     return gbuf;
 }
 
