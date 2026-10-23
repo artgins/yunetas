@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <endian.h>
 #include <time.h>
+#include <errno.h>
+#include <sys/random.h>
 #include <arpa/inet.h>
 
 #include <gobj.h>
@@ -503,12 +505,37 @@ PRIVATE int _add_frame_header(hgobj gobj, gbuffer_t *gbuf, char h_fin, char h_op
  ***************************************************************************/
 PRIVATE uint32_t dev_urandom(void)
 {
-    uint32_t mask_key;
+    /*
+     *  The masking key of a frame a client sends: RFC 6455 (5.3) asks for
+     *  one that cannot be predicted, from a strong source of entropy. The
+     *  kernel's generator (getrandom(), what /dev/urandom reads), a pool
+     *  of keys at a time: one system call per 64 frames. Up to 7.27.7 it
+     *  was rand() seeded with srand(time(0)) at every frame: every frame
+     *  of the same second carried the same key, and the process's own
+     *  rand() sequence was reset at every frame.
+     */
+    static uint32_t pool[64];
+    static size_t pool_left = 0;
+    static uint32_t fallback = 0;
 
-    srand(time(0));
-    mask_key = rand();
-
-    return mask_key;
+    if(pool_left == 0) {
+        ssize_t ret = getrandom(pool, sizeof(pool), 0);
+        if(ret != (ssize_t)sizeof(pool)) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "getrandom() FAILED: a masking key that can be predicted",
+                "ret",          "%d", (int)ret,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            fallback = fallback*1664525u + 1013904223u + (uint32_t)time(0);
+            return fallback;
+        }
+        pool_left = sizeof(pool)/sizeof(pool[0]);
+    }
+    return pool[--pool_left];
 }
 
 /***************************************************************************
