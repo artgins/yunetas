@@ -35,6 +35,7 @@
 #define WEBSOCKET_VERSION 13
 
 #define MAX_LOG_DUMP_SIZE (256)     // Cap the data dump added to logs, for very large packets
+#define ONE_WRITE_MAX_PAYLOAD (64*1024) // Server: a frame up to this payload goes in one write
 
 /*
  * closing frame status codes.
@@ -2121,10 +2122,47 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     char h_opcode = OPCODE_TEXT_FRAME; // OPCODE_BINARY_FRAME not used
 
     /*-------------------------------------------------*
-     *  Server: no need of mask or re-create the gbuf,
-     *  send the header and resend the gbuf.
+     *  Server: no need of mask.
+     *
+     *  A frame of up to ONE_WRITE_MAX_PAYLOAD goes in
+     *  one write, its header and its payload in one
+     *  buffer: written apart (up to 7.27.7) the peer
+     *  often read the header alone, and armed and
+     *  cleared its payload timer for it, and every
+     *  frame cost one more write and one more read.
+     *  C_TCP counts the frame as one message (txMsgs).
+     *  A bigger one is not copied: its header, and
+     *  then the gbuf itself, as before.
      *-------------------------------------------------*/
     if (priv->iamServer) {
+        if(ln <= ONE_WRITE_MAX_PAYLOAD && 14 + ln + 1 <= gbmem_get_maximum_block()) {
+            gbuffer_t *gbuf = gbuffer_create(
+                14+ln,
+                14+ln
+            );
+            if(gbuf) {
+                if(gbuffer_is_secret(gbuf_data)) {
+                    gbuffer_set_secret(gbuf, TRUE);
+                }
+                _add_frame_header(gobj, gbuf, TRUE, h_opcode, ln);
+                if(ln > 0) {
+                    gbuffer_append(gbuf, gbuffer_cur_rd_pointer(gbuf_data), ln);
+                }
+
+                json_t *kww = json_object();
+                json_object_set_new(kww, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));
+                json_t *jn_secret = json_object_get(kw, "__secret__");
+                if(jn_secret) {
+                    json_object_set(kww, "__secret__", jn_secret);  // C_TCP hides its dump
+                }
+                gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kww, gobj);
+
+                KW_DECREF(kw)
+                return 0;
+            }
+            // Error already logged: in two writes, as a bigger one
+        }
+
         gbuffer_t *gbuf_header = gbuffer_create(
             14,
             14
