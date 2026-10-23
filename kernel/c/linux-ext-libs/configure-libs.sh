@@ -307,7 +307,17 @@
 #       (checked object by object). Every node that builds from source must
 #       run `./extrae.sh && ./configure-libs.sh` again.
 
-VERSION="1.29"
+#   version 1.30
+#       jansson at a new commit of the master of artgins/jansson, two more
+#       commits from the performance audit of the C SDK (round 7): the lexer
+#       reads a byte of plain ASCII from the source of json_loads() and
+#       json_loadb() directly and saves a byte without the generic calls;
+#       utf8_check_string() and the dump of a string take eight bytes of
+#       plain ASCII at a time. The same results, bytes, errors and positions.
+#       Every yuno must be rebuilt and relinked; every node that builds from
+#       source must run `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.30"
 
 
 source ./repos2clone.sh

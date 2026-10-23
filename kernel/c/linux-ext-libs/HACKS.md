@@ -69,7 +69,7 @@ and `/etc/hosts` directly, bypassing glibc's NSS resolver chain.
 jansson comes from Yuneta's fork, `https://github.com/artgins/jansson`,
 which is Yuneta's official jansson (`repos2clone.sh`, `TAG_JANSSON`): a
 commit of its `master`, which is upstream (`akheron/jansson`) and one commit
-per change Yuneta carries on it, the five below (the last one in two
+per change Yuneta carries on it, the seven below (one of them in two
 commits). A new fix or change is a commit there, merged into `master` once
 it is checked, and `TAG_JANSSON` moves to that commit of `master` (with a
 bump of `VERSION` in `configure-libs.sh`). Since `configure-libs.sh` 1.29
@@ -179,3 +179,30 @@ positions and allocations. The sixth commit takes a run only after a byte of
 its kind (the blanks after the first one, the digits of a number after its
 second), so that a compact document with short numbers pays nothing for
 them. Not applied to the ESP32 copy of jansson.
+
+## jansson — a byte read and saved without the generic calls
+
+A commit of the fork's `master` (configure-libs.sh 1.30), for speed, from the
+performance audit of the C SDK (`performance/audit/round-7-jansson.md`).
+Outside the runs, the lexer read every byte through `stream_get()` and the
+source's get function (55 instructions a byte) and saved it through
+`strbuffer_append_byte()` -> `strbuffer_append_bytes()` -> `memcpy()` (63).
+`stream_get_fast()` reads a byte of plain ASCII that is not a newline nor a
+NUL from the source of `json_loads()` or `json_loadb()` directly, and leaves
+the stream as `stream_get()` leaves it; `strbuffer_append_byte()` is inline,
+writing the byte when there is room for it and the NUL (exactly when
+`strbuffer_append_bytes()` would not grow). The same results, errors and
+positions: jansson's 215 tests and the differential fuzz of the lexer. Not
+applied to the ESP32 copy of jansson.
+
+## jansson — eight bytes of ASCII at a time
+
+A commit of the fork's `master` (configure-libs.sh 1.30), for speed, from the
+same round. `utf8_check_string()` skips eight bytes with no high bit at once,
+and `dump_string()` takes eight bytes that need no escape at once (ASCII from
+0x20, none `"` nor `\`, nor `/` with `JSON_ESCAPE_SLASH`); a word that fails
+goes a byte at a time, as before. The tests on a word are exact (checked
+against a byte by byte reference on 48 million words); the same bytes,
+results and errors (jansson's 215 tests, the differential fuzz, and strings
+with a special byte at each place under six sets of flags). Not applied to
+the ESP32 copy of jansson.

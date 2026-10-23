@@ -9,8 +9,9 @@ declare -A REPOS
 # jansson comes from artgins/jansson, Yuneta's official jansson: a commit of
 # its master, which is upstream and the commits Yuneta carries on it (the
 # lexer fix, the ASCII fast paths, the seeded hash, the loop key, the runs of
-# the lexer for json_loads(), digits and blanks; see HACKS.md)
-TAG_JANSSON="2dc5e0cba961cf863d0d606d924c3999762d577c"
+# the lexer for json_loads(), digits and blanks, a byte read and saved
+# without the generic calls, eight bytes of ASCII at a time; see HACKS.md)
+TAG_JANSSON="33b0a3622a3d07b9ab755868feb57ef442b79a8a"
 TAG_LIBURING="liburing-2.15"
 TAG_MBEDTLS="v4.2.0"
 TAG_OPENSSL="openssl-3.6.5"
