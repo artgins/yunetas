@@ -279,6 +279,9 @@ PRIVATE int load_slave_mapping(hgobj gobj);
 PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len);
 PRIVATE endian_format_t get_endian_format(hgobj gobj, const char *format);
 PRIVATE variable_format_t get_variable_format(hgobj gobj, const char *format);
+PRIVATE int variable_cells(hgobj gobj, json_t *jn_variable, variable_format_t variable_format);
+PRIVATE BOOL variable_updated(hgobj gobj, slave_data_t *pslv, json_t *jn_variable);
+PRIVATE int clear_updated_cells(slave_data_t *pslv);
 PRIVATE int build_message_to_publish(hgobj gobj);
 PRIVATE int check_conversion_variables(hgobj gobj);
 
@@ -1373,7 +1376,6 @@ PRIVATE int collect_register_bytes(
         /* store_modbus_response_data() kept wire order: p[0]=MSB, p[1]=LSB */
         out[(i<<1)+0] = p[0];
         out[(i<<1)+1] = p[1];
-        c->control.updated = 0;
     }
     return 0;
 }
@@ -2018,7 +2020,26 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
 
     if(frame->function & 0x80) {
         frame->error_code = priv->frame_head.byte_count;
-        frame->payload_length = sizeof(uint16_t); // + crc
+
+        /*
+         *  An exception ends at its code. RTU closes the frame with a CRC;
+         *  TCP carries none, and the MBAP length (3: unit, function, code)
+         *  has already left payload_length at 0. Waiting for a CRC over TCP
+         *  held the poll of the whole connection for timeout_response.
+         */
+        SWITCHS(priv->modbus_protocol) {
+            CASES("TCP")
+                break;
+
+            CASES("RTU")
+            CASES("ASCII")
+                frame->payload_length = sizeof(uint16_t); // crc
+                break;
+
+            DEFAULTS
+                break;
+        } SWITCHS_END
+
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_PROTOCOL,
@@ -2824,7 +2845,6 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
         // Error already logged
         return jn_value;
     }
-    cell_control->control.updated = 0;
 
     switch(variable_format) {
         case FORMAT_BOOL:
@@ -3205,7 +3225,116 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
 }
 
 /***************************************************************************
+ *  How many cells a variable of this format spans: registers, or one bit
+ ***************************************************************************/
+PRIVATE int variable_cells(hgobj gobj, json_t *jn_variable, variable_format_t variable_format)
+{
+    switch(variable_format) {
+        case FORMAT_BOOL:
+        case FORMAT_INT16:
+        case FORMAT_UINT16:
+            return 1;
+
+        case FORMAT_INT32:
+        case FORMAT_UINT32:
+        case FORMAT_FLOAT:
+            return 2;
+
+        case FORMAT_INT64:
+        case FORMAT_UINT64:
+        case FORMAT_DOUBLE:
+            return 4;
+
+        case FORMAT_STRING:
+            {
+                /*
+                 *  Prefer 'length_bytes', fallback to historic 'multiplier' (=bytes).
+                 */
+                int bytes = (int)kw_get_int(gobj, jn_variable, "length_bytes", -1, KW_WILD_NUMBER);
+                if(bytes <= 0) {
+                    bytes = (int)kw_get_int(gobj, jn_variable, "multiplier", 1, KW_WILD_NUMBER);
+                }
+                if(bytes <= 0) {
+                    bytes = 1;
+                }
+                return (bytes + 1) / 2;
+            }
+    }
+
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL,
+        "msg",          "%s", "variable format UNKNOWN",
+        "format",       "%d", (int)variable_format,
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
+ *  TRUE when every cell of the variable was stored after the last
+ *  publication, that is, its read of this cycle was answered
+ ***************************************************************************/
+PRIVATE BOOL variable_updated(hgobj gobj, slave_data_t *pslv, json_t *jn_variable)
+{
+    const char *type = kw_get_str(gobj, jn_variable, "type", "", KW_REQUIRED);
+    modbus_object_type_t object_type = get_object_type(gobj, type);
+    const char *format = kw_get_str(gobj, jn_variable, "format", "", KW_REQUIRED);
+    variable_format_t variable_format = get_variable_format(gobj, format);
+    if(object_type < 0 || variable_format < 0) {
+        // Error already logged
+        return FALSE;
+    }
+    int address = (int)kw_get_int(gobj, jn_variable, "address", -1, KW_REQUIRED|KW_WILD_NUMBER);
+
+    int cells = variable_cells(gobj, jn_variable, variable_format);
+    if(cells <= 0) {
+        // Error already logged
+        return FALSE;
+    }
+    for(int i=0; i<cells; i++) {
+        cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address+i, FALSE);
+        if(!cell_control) {
+            // Error already logged
+            return FALSE;
+        }
+        if(!cell_control->control.updated) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The cells of the slave wait for a new read
+ ***************************************************************************/
+PRIVATE int clear_updated_cells(slave_data_t *pslv)
+{
+    const char *key; json_t *jn_type;
+    json_object_foreach(pslv->x_control, key, jn_type) {
+        const char *key2; json_t *jn_cell;
+        json_object_foreach(jn_type, key2, jn_cell) {
+            cell_control_t *cell_control = (cell_control_t *)(uintptr_t)json_integer_value(jn_cell);
+            if(cell_control) {
+                cell_control->control.updated = 0;
+            }
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Publish, slave by slave, what this cycle read
  *
+ *  Only what it read. A cell whose read timed out or was answered with an
+ *  exception keeps the value of an earlier cycle, or zero if none ever came,
+ *  and would reach the subscriber as a new reading. A variable
+ *  whose cells were not all stored since the last publication is left out,
+ *  and a slave with none is not published at all: its failed reads were
+ *  logged where they failed.
+ *
+ *  The cells are cleared after the whole slave was decoded, not variable by
+ *  variable: two variables can share a cell.
  ***************************************************************************/
 PRIVATE int build_message_to_publish(hgobj gobj)
 {
@@ -3225,6 +3354,8 @@ PRIVATE int build_message_to_publish(hgobj gobj)
 
         json_t *kw_data = json_object();
         json_object_set_new(kw_data, "slave_id", json_integer(slave_id));
+        int n_read = 0;
+        int n_not_read = 0;
 
         size_t idx_conversion; json_t *jn_variable;
         json_array_foreach(jn_conversion, idx_conversion, jn_variable) {
@@ -3232,9 +3363,25 @@ PRIVATE int build_message_to_publish(hgobj gobj)
             if(disabled) {
                 continue;
             }
+            if(!variable_updated(gobj, pslv, jn_variable)) {
+                n_not_read++;
+                continue;
+            }
             const char *variable_id = kw_get_str(gobj, jn_variable, "id", "", KW_REQUIRED);
             json_t *jn_value = get_variable_value(gobj, pslv, jn_variable);
             json_object_set_new(kw_data, variable_id, jn_value);
+            n_read++;
+        }
+        clear_updated_cells(pslv);
+
+        if(n_not_read > 0 && (gobj_trace_level(gobj) & TRACE_MESSAGES)) {
+            gobj_trace_msg(gobj, "slave %d: %d variables not read this cycle, left out",
+                slave_id, n_not_read
+            );
+        }
+        if(n_read == 0) {
+            JSON_DECREF(kw_data)
+            continue;
         }
 
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
@@ -3326,51 +3473,7 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
         return -1;
     }
 
-    int compound_value = 0;
-    switch(variable_format) {
-        case FORMAT_INT16:
-            compound_value = 1;
-            break;
-        case FORMAT_UINT16:
-            compound_value = 1;
-            break;
-        case FORMAT_BOOL:
-            compound_value = 1;
-            break;
-        case FORMAT_INT32:
-            compound_value = 2;
-            break;
-        case FORMAT_UINT32:
-            compound_value = 2;
-            break;
-        case FORMAT_INT64:
-            compound_value = 4;
-            break;
-        case FORMAT_UINT64:
-            compound_value = 4;
-            break;
-        case FORMAT_FLOAT:
-            compound_value = 2;
-            break;
-        case FORMAT_DOUBLE:
-            compound_value = 4;
-            break;
-        // case FORMAT_STRING:
-        //     compound_value = (int)kw_get_int(gobj, jn_variable, "multiplier", 1, KW_WILD_NUMBER);
-
-        case FORMAT_STRING:
-            {
-                int bytes = (int)kw_get_int(gobj, jn_variable, "length_bytes", -1, KW_WILD_NUMBER);
-                if(bytes <= 0) {
-                    bytes = (int)kw_get_int(gobj, jn_variable, "multiplier", 1, KW_WILD_NUMBER);
-                }
-                if(bytes <= 0) {
-                    bytes = 1;
-                }
-                compound_value = (bytes + 1) / 2;   /* reserve needed registers */
-            }
-            break;
-    }
+    int compound_value = variable_cells(gobj, jn_variable, variable_format);
 
     for(int i=0; i<compound_value; i++) {
         cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address+i, FALSE);
@@ -3516,6 +3619,19 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     RESET_MACHINE();
 
     clear_timeout(priv->gobj_timer);
+
+    /*
+     *  What the cycle read before the connection dropped is not a reading of
+     *  the cycle that publishes after it comes back. An orderly stop has
+     *  freed the slave data before stopping the transport: nothing to clear.
+     */
+    if(priv->slave_data) {
+        slave_data_t *pslv = priv->slave_data;
+        for(int i=0; i<priv->max_slaves; i++) {
+            clear_updated_cells(pslv);
+            pslv++;
+        }
+    }
 
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);

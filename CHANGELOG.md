@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- **`C_PROT_MODBUS_M` publishes only what the cycle read, and a TCP exception
+  no longer stalls the connection** (`modules/c/modbus`). Two defects, found
+  with a field gate polling SATEC meters over Modbus TCP:
+    - It published, at the end of each cycle, every variable of every slave,
+      also those whose read timed out or was answered with an exception: the
+      cells keep the last value received, or zero if none ever came, so a
+      slave that stopped answering repeated its last values, and a unit that
+      never answered came out as a reading of zeros -- energy counters
+      included. Each cell already carried an `updated` flag documented as
+      *"reset when published"*, set when a response is stored; nothing read
+      it before publishing, and the decoders cleared it on read. Now a
+      variable is published only when all its cells were stored since the
+      previous publication, a slave with none is not published, and the flags
+      are cleared after the whole slave is decoded (two variables can share a
+      cell) and on a disconnection. **A subscriber can now receive a message
+      with fewer variables than the map declares**, and must not read a
+      missing one as zero. The consumers checked (the yunovatios gates, through
+      their data contract, which marks a partial reading as suspect, and
+      hidraulia's ESP32 `esp_caudal`, which merges each message into the
+      last one) handle it; hidraulia's Raspberry gateway (`rasp_caudal`) uses
+      libmodbus, and estadodelaire and wattyzer have no Modbus.
+    - Over TCP, `framehead_consume()` waited after every exception response
+      for a 2-byte CRC that TCP does not carry: each exception cost
+      `timeout_response` and held the poll of every slave of the connection
+      (a SATEC BFM II with one submeter answering exceptions went from one
+      reading a second to one every ~8 s). The CRC is now added to an
+      exception only for RTU/ASCII.
+  The span of a variable in cells, computed twice, is now one function
+  (`variable_cells()`). The doc page of the module now says what a message
+  carries, the polling cycle, the `endian` word orders and the two behaviours
+  of `multiplier` (an integer factor from 1 up, a single-precision real
+  below 1).
+
 - **nginx `release-1.31.7` -> `release-1.31.8`** (the standalone binary,
   `linux-ext-libs` 1.25). No security fix: bug fixes for HTTP/3 on
   strict-alignment platforms, kernel TLS alerts with OpenSSL >= 3.2, and
