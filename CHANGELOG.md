@@ -2,10 +2,11 @@
 
 ## Unreleased
 
-- **A performance audit of the C SDK** (`performance/audit/`): six rounds
+- **A performance audit of the C SDK** (`performance/audit/`): seven rounds
   (the core of gobj-c; timeranger2 and tr_treedb; the network path; the
   inter-yuno path, HTTP and MQTT; subscriptions and the reads of a treedb;
-  jansson's parse), each change a commit of its own that leaves results,
+  jansson's parse; the bytes of jansson's lexer, UTF-8 check and dump),
+  each change a commit of its own that leaves results,
   bytes, events, logs and errors as they were, and the proposals the rounds
   left for a decision, applied on the user's decision.
   The figures of each change, and what it was checked against, are in the
@@ -18,10 +19,12 @@
       in place of `patches/jansson/`:
       upstream v2.15.1 plus the lexer fix that was the patch, fast paths for
       ASCII (for `json_loads()` too, and runs of digits and blanks), a
-      faster seeded hash of the keys and the key of its loop check without
-      `snprintf()` (the same results, bytes, errors and positions).
-      `linux-ext-libs` 1.25 to 1.29: a node that builds from source reruns
-      `./extrae.sh && ./configure-libs.sh`.
+      byte of the lexer read and saved without the generic calls, eight
+      bytes of ASCII at a time in the UTF-8 check and in the dump of a
+      string, a faster seeded hash of the keys and the key of its loop
+      check without `snprintf()` (the same results, bytes, errors and
+      positions). `linux-ext-libs` 1.25 to 1.31: a node that builds from
+      source reruns `./extrae.sh && ./configure-libs.sh`.
     - **A `C_TIMER` keeps its subscription to the yuno's
       `EV_TIMEOUT_PERIODIC` for its life**, from its first start: the yuno's
       subscriptions list stopped timers too, and a stopped timer gets the
