@@ -6486,6 +6486,135 @@ PRIVATE int put_child_back_in_other_instances(
 }
 
 /***************************************************************************
+ *  The hooks of a load (load_all_links()).
+ *
+ *  Every link of the store makes link_child_to_parent() ask whether the
+ *  parent's hook array already holds the child: child_in_hook_array(), a
+ *  scan of the whole array, C^2/2 comparisons for a parent of C children
+ *  (4.5 million for 3 000, about half a second of every open). During the
+ *  load each hook array asked about has an index instead, {"%p" of the
+ *  array: {key: true}}: its entries are indexed the first time it is
+ *  asked about, and every child appended to it is added. Two keys per
+ *  entry, for the two answers of the scan: the entry itself ("p" and its
+ *  address, a node or the data of a child hook), and the node of a topic
+ *  and an id ("t", the length of the topic, the topic and the id: what
+ *  hook_entry_is() compares). An entry whose key does not fit marks the
+ *  array to be scanned, as before ("!").
+ ***************************************************************************/
+PRIVATE BOOL hook_index_ptr_key(char *bf, size_t bfsize, json_t *ptr)
+{
+    int written = snprintf(bf, bfsize, "p%p", (void *)ptr);
+    return (written >= 0 && (size_t)written < bfsize)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE BOOL hook_index_tid_key(char *bf, size_t bfsize, const char *topic_name, const char *id)
+{
+    int written = snprintf(bf, bfsize, "t%zu:%s%s", strlen(topic_name), topic_name, id);
+    return (written >= 0 && (size_t)written < bfsize)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  Index an entry of a hook array
+ ***************************************************************************/
+PRIVATE void hook_index_add(json_t *index, json_t *entry)
+{
+    char key[TREEDB_REF_MAX + 64];
+    if(!hook_index_ptr_key(key, sizeof(key), entry)) {
+        json_object_set_new(index, "!", json_true());
+        return;
+    }
+    json_object_set_new(index, key, json_true());
+
+    if(!json_is_object(entry)) {
+        return;
+    }
+    const char *eid = json_string_value(json_object_get(entry, "id"));
+    const char *etopic = node_md_str(entry, "topic_name");
+    if(empty_string(eid) || !etopic) {
+        return;     // hook_entry_is() never matches it
+    }
+    if(!hook_index_tid_key(key, sizeof(key), etopic, eid)) {
+        json_object_set_new(index, "!", json_true());
+        return;
+    }
+    json_object_set_new(index, key, json_true());
+}
+
+/***************************************************************************
+ *  The index of `hook_array` in `hook_indexes`, made the first time
+ ***************************************************************************/
+PRIVATE json_t *hook_index_of(json_t *hook_indexes, json_t *hook_array)
+{
+    char key[64];
+    snprintf(key, sizeof(key), "%p", (void *)hook_array);
+    json_t *index = json_object_get(hook_indexes, key);
+    if(!index) {
+        index = json_object();
+        json_object_set_new(hook_indexes, key, index);
+        size_t idx; json_t *entry;
+        json_array_foreach(hook_array, idx, entry) {
+            hook_index_add(index, entry);
+        }
+    }
+    return index;
+}
+
+/***************************************************************************
+ *  What child_in_hook_array() answers, from the index: 1 held, 0 not, -1
+ *  when the index cannot answer (an array marked "!", a key that does not
+ *  fit), and the array is scanned
+ ***************************************************************************/
+PRIVATE int hook_index_holds(
+    json_t *index,
+    json_t *child_node,
+    json_t *child_data,
+    const char *child_id,
+    BOOL is_child_hook
+)
+{
+    if(json_object_get(index, "!")) {
+        return -1;
+    }
+    char key[TREEDB_REF_MAX + 64];
+    if(is_child_hook) {
+        if(!hook_index_ptr_key(key, sizeof(key), child_data)) {
+            return -1;
+        }
+        return json_object_get(index, key)? 1 : 0;
+    }
+    if(!hook_index_ptr_key(key, sizeof(key), child_node)) {
+        return -1;
+    }
+    if(json_object_get(index, key)) {
+        return 1;
+    }
+    const char *child_topic_name = node_md_str(child_node, "topic_name");
+    if(!child_topic_name || empty_string(child_id)) {
+        return 0;   // hook_entry_is() never matches it
+    }
+    if(!hook_index_tid_key(key, sizeof(key), child_topic_name, child_id)) {
+        return -1;
+    }
+    return json_object_get(index, key)? 1 : 0;
+}
+
+/***************************************************************************
+ *  Does the hook hold `child_node` itself, by pointer? From the index when
+ *  it can answer
+ ***************************************************************************/
+PRIVATE BOOL hook_index_holds_ptr(json_t *index, json_t *hook_array, json_t *child_node)
+{
+    char key[64];
+    if(index && !json_object_get(index, "!") && hook_index_ptr_key(key, sizeof(key), child_node)) {
+        return json_object_get(index, key)? TRUE : FALSE;
+    }
+    return json_array_holds(hook_array, child_node);
+}
+
+/***************************************************************************
  *  Loading hook links
  ***************************************************************************/
 PRIVATE int link_child_to_parent(
@@ -6495,7 +6624,8 @@ PRIVATE int link_child_to_parent(
     json_t *child_node,
     const char *fkey_col_name,
     json_t *fkey_desc,
-    BOOL is_child_hook
+    BOOL is_child_hook,
+    json_t *hook_indexes    // the hooks indexed during a load, or NULL
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -6593,15 +6723,22 @@ PRIVATE int link_child_to_parent(
     switch(json_typeof(parent_hook_data)) { // json_typeof PROTECTED
     case JSON_ARRAY:
         {
-            if(!child_in_hook_array(
-                gobj, parent_hook_data, child_node, child_data, child_id, is_child_hook
-            )) {
-                if(is_child_hook) {
-                    json_array_append(parent_hook_data, child_data);
-                } else {
-                    json_array_append(parent_hook_data, child_node);
+            json_t *hook_index = hook_indexes?
+                hook_index_of(hook_indexes, parent_hook_data) : NULL;
+            int in_hook = hook_index?
+                hook_index_holds(hook_index, child_node, child_data, child_id, is_child_hook) : -1;
+            if(in_hook < 0) {
+                in_hook = child_in_hook_array(
+                    gobj, parent_hook_data, child_node, child_data, child_id, is_child_hook
+                )? 1 : 0;
+            }
+            if(!in_hook) {
+                json_t *entry = is_child_hook? child_data : child_node;
+                json_array_append(parent_hook_data, entry);
+                if(hook_index) {
+                    hook_index_add(hook_index, entry);
                 }
-            } else if(is_child_hook || json_array_holds(parent_hook_data, child_node)) {
+            } else if(is_child_hook || hook_index_holds_ptr(hook_index, parent_hook_data, child_node)) {
                 /*
                  *  Rebuilding hooks on load and the child is already there:
                  *  a duplicate fkey on disk being self-healed. Warn so the
@@ -6709,7 +6846,8 @@ PRIVATE int load_links(
     hgobj gobj,
     json_t *tranger,
     json_t *child_node, // not owned
-    json_t *orphan_cols // not owned, optional: {"topic`col": nodes with refs} of the columns no hook fills
+    json_t *orphan_cols, // not owned, optional: {"topic`col": nodes with refs} of the columns no hook fills
+    json_t *hook_indexes // not owned, optional: the hooks indexed during a load
 )
 {
     int ret = 0;
@@ -6788,7 +6926,8 @@ PRIVATE int load_links(
                         child_node,
                         col_name,
                         fkey_desc,
-                        is_child_hook
+                        is_child_hook,
+                        hook_indexes
                     );
                 }
             }
@@ -6804,7 +6943,8 @@ PRIVATE int load_links(
                         child_node,
                         col_name,
                         fkey_desc,
-                        is_child_hook
+                        is_child_hook,
+                        hook_indexes
                     );
                 }
             }
@@ -6820,7 +6960,8 @@ PRIVATE int load_links(
                     child_node,
                     col_name,
                     fkey_desc,
-                    is_child_hook
+                    is_child_hook,
+                    hook_indexes
                 );
             }
             break;
@@ -6844,6 +6985,7 @@ PRIVATE int load_all_links(
 {
     int ret = 0;
     json_t *orphan_cols = json_object();
+    json_t *hook_indexes = json_object();   // see hook_index_of()
 
     /*
      *  Loop topics, as child nodes
@@ -6886,7 +7028,8 @@ PRIVATE int load_all_links(
                 gobj,
                 tranger,
                 child_node,
-                orphan_cols
+                orphan_cols,
+                hook_indexes
             );
         }
     }
@@ -6914,6 +7057,7 @@ PRIVATE int load_all_links(
             gobj, treedb_name, topic_col, col_name, json_integer_value(jn_count)
         );
     }
+    JSON_DECREF(hook_indexes)
     JSON_DECREF(orphan_cols)
     JSON_DECREF(topics)
     return ret;
@@ -8009,7 +8153,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  Build links to hooks
      *-------------------------------*/
     if(links_inherited) {
-        load_links(gobj, tranger, node, NULL);
+        load_links(gobj, tranger, node, NULL, NULL);
     }
 
     /*-------------------------------*

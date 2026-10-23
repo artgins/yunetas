@@ -2552,6 +2552,23 @@ Make sure that `tranger` is already initialized before calling [`treedb_open_db(
 The function follows a hierarchical structure where nodes are linked via parent-child relationships.
 If the `persistent` option is enabled, the schema is loaded from a file, and modifications require a version update.
 
+**What the open reads, and the lists it leaves.** The `id` index of a topic
+is loaded from the newest record of each key (a damaged older row is not
+read, see [a topic that did not load whole](<#treedb-topic-not-loaded-whole>)),
+then the links: every fkey of every node is hooked into its parent, the
+parent's hook arrays indexed for the time of the load (a parent with
+thousands of children cost a scan of its hook for each of them, half a
+second for 3 000 up to 7.27.7). The realtime lists the open leaves on each
+topic (`id`, each `pkey2`, `__snaps__`, `__graphs__`) read nothing of a
+record appended later, so once loaded their `match_cond` says `only_md`:
+their callback gets the metadata and a NULL record, and a save of a node
+does not build, for them, the `__md_tranger__` of its content.
+
+```C
+json_t *treedb = treedb_open_db(tranger, "treedb_items", jn_schema, "persistent");
+// every topic loaded: one record per key read, the links hooked
+```
+
 **The `impose` option.** With `"persistent,impose"`, and only on the master,
 `jn_schema` wins over a newer schema on disk too. The rule is the same at both
 levels, the treedb and each topic: a stored `schema_version` or
