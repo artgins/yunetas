@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **A yuno pinned to a cpu no longer logs errors at each start**
+  (`kernel/c/root-linux/src/c_yuno.c`). With `cpu_core > 0`, the real-time
+  priority (`SCHED_RR`) and the memory lock (`mlockall`) are now asked only
+  when the process has `CAP_SYS_NICE` / `CAP_IPC_LOCK` in its **effective**
+  set (`capget`). The check used to read the bounding set, which holds almost
+  every capability. So a yuno run by a plain user tried `sched_setscheduler`,
+  failed with EPERM and logged *"sched_setscheduler() FAILED"* at every
+  start, and it locked all its memory with no capability wherever memlock is
+  unlimited. Now it logs one INFO, *"Yuno pinned to a cpu"*, saying what was
+  applied. A `cpu_core` that is not a cpu of the machine is an ERROR, and
+  nothing is pinned: it used to be silent, and the bound let one cpu past the
+  last through. `sched_priority <= 0` no longer asks for `SCHED_RR`.
+  New test `c_yuno_cpu_core` (`test1` a pin, `test2` a cpu that does not
+  exist), red against 7.27.9. Found pinning the yunos of hidraulia for the
+  performance test.
+
 ## v7.27.9 (2026-10-23)
 
 A release for one new module, `modules/c/mbus`: an M-Bus master

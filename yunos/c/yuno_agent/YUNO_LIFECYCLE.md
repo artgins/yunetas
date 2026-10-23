@@ -576,7 +576,42 @@ agent-built config file #1 as the yuno's `sched_priority` / `cpu_core` attrs
 (`build_yuno_running_script`). They are **defaults only**: the user config file
 is merged after #1, so an explicit value in the yuno's own config still wins
 (precedence stays with the deployer). `cpu_core=0` (the default) means no
-affinity boost, that is, unchanged behavior.
+affinity boost, that is, unchanged behavior. So CPU 0 itself cannot be a pin.
+
+What a pinned yuno gets (`boost_process_performance()` in `c_yuno.c`):
+
+- **The pin**: `sched_setaffinity` to that cpu alone, always.
+- **A real-time priority** (`SCHED_RR` at `sched_priority`), only if the
+  process has `CAP_SYS_NICE` in its **effective** set.
+- **Its memory locked** (`mlockall`), only if it has `CAP_IPC_LOCK` in its
+  effective set.
+
+A yuno run by a plain user, the normal case, gets the pin only. It logs one
+INFO, *"Yuno pinned to a cpu"*, with what was applied:
+
+```json
+{"msg": "Yuno pinned to a cpu", "cpu_core": 1,
+ "realtime": "not applied: no CAP_SYS_NICE", "sched_priority": 20,
+ "memory_lock": "not applied: no CAP_IPC_LOCK"}
+```
+
+A `cpu_core` that is not a cpu of the machine is an ERROR (*"cpu_core is not
+a cpu of this machine: the yuno is NOT pinned"*), and nothing is pinned. Up to
+7.27.9 the capabilities were looked for in the BOUNDING set, which holds
+almost all of them. So every pinned yuno tried `sched_setscheduler`, failed
+with EPERM and logged an ERROR at each start. It also ran `mlockall` with no
+capability at all, and that worked wherever memlock is unlimited. A cpu past
+the last one was silent.
+
+Pin the yunos of a node by their logical cpus (`lscpu -e`: two threads of a
+core share it), one record per yuno:
+
+```bash
+printf '{"id":"5120","cpu_core":1}' > /tmp/rec.json
+ycommand -c "command-agent service=treedb_yuneta_agent command=update-node topic_name=yunos content64=\$\$(/tmp/rec.json)"
+ycommand -c "kill-yuno id=5120"; ycommand -c "run-yuno id=5120"   # taken at its next start
+grep Cpus_allowed_list /proc/<pid>/status
+```
 
 Set any of the three live, no redeploy. The `record=` inline form is NOT
 coerced from text by the ycommand CLI ("What record?"), so pass the node as a

@@ -33,8 +33,8 @@
 
 #include <sched.h>
 #include <sys/mman.h>
-#include <sys/prctl.h>     // for PR_CAPBSET_READ
-#include <linux/capability.h>  // for CAP_SYS_NICE, CAP_IPC_LOCK#include <sys/prctl.h>
+#include <sys/syscall.h>       // SYS_capget
+#include <linux/capability.h>  // CAP_SYS_NICE, CAP_IPC_LOCK
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -68,7 +68,7 @@
  *              Prototypes
  ***************************************************************/
 PRIVATE json_t *get_cpus(void);
-PRIVATE void boost_process_performance(int priority, int cpu_core);
+PRIVATE void boost_process_performance(hgobj gobj, int priority, int cpu_core);
 PRIVATE json_t *get_process_memory_info(void);
 PRIVATE json_int_t yuno_uptime(hgobj gobj);
 PRIVATE json_t *get_machine_memory_info(void);
@@ -540,8 +540,8 @@ SDATA (DTP_INTEGER, "io_uring_entries", SDF_RD,         "0",            "Entries
 SDATA (DTP_INTEGER, "limit_open_files", SDF_PERSIST,    "0",            "Limit open files. 0: the soft limit raised to the hard one"),
 SDATA (DTP_INTEGER, "limit_open_files_done", SDF_RD,    "",             "Limit open files done"),
 
-SDATA (DTP_INTEGER, "cpu_core",         SDF_WR|SDF_PERSIST, "0",        "Cpu core, used if > 0"),
-SDATA (DTP_INTEGER, "sched_priority",   SDF_WR|SDF_PERSIST, "20",       "OS scheduler priority (sched_setscheduler), used if cpu_core > 0. BE CAREFUL"),
+SDATA (DTP_INTEGER, "cpu_core",         SDF_WR|SDF_PERSIST, "0",        "Cpu the yuno is pinned to, if > 0 (0: not pinned, so cpu 0 cannot be a pin)"),
+SDATA (DTP_INTEGER, "sched_priority",   SDF_WR|SDF_PERSIST, "20",       "Real-time priority (SCHED_RR), applied if cpu_core > 0 and the process has CAP_SYS_NICE. BE CAREFUL"),
 
 SDATA_END()
 };
@@ -841,11 +841,7 @@ PRIVATE void mt_create(hgobj gobj)
     int priority = (int)gobj_read_integer_attr(gobj, "sched_priority");
     int cpu_core = (int)gobj_read_integer_attr(gobj, "cpu_core");
     if(cpu_core > 0) {
-        json_t *jn_cpus = get_cpus();
-        if(json_array_size(jn_cpus)>= cpu_core-1) {
-            boost_process_performance(priority, cpu_core);
-        }
-        JSON_DECREF(jn_cpus)
+        boost_process_performance(gobj, priority, cpu_core);
     }
 
     /*--------------------------*
@@ -4966,58 +4962,116 @@ PRIVATE json_t *get_cpus(void)
 }
 
 /***************************************************************************
+ *  Is the capability in the EFFECTIVE set of this process?
  *
+ *  Not the bounding set (prctl PR_CAPBSET_READ): that one says what the
+ *  process could ever be given, and it holds almost every capability, so a
+ *  plain user passed the check and then failed the call (EPERM) on every
+ *  start (up to 7.27.9).
  ***************************************************************************/
-PRIVATE void boost_process_performance(int priority, int cpu_core)
+PRIVATE BOOL has_effective_capability(int cap)
+{
+    struct __user_cap_header_struct hdr = {
+        .version = _LINUX_CAPABILITY_VERSION_3,
+        .pid = 0
+    };
+    struct __user_cap_data_struct data[_LINUX_CAPABILITY_U32S_3];
+    memset(data, 0, sizeof(data));
+    if(syscall(SYS_capget, &hdr, data) < 0) {
+        return FALSE;
+    }
+    return (data[CAP_TO_INDEX(cap)].effective & CAP_TO_MASK(cap))? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  Pin the process to `cpu_core`, and, when the process has the
+ *  capabilities, give it a real-time priority (SCHED_RR `priority`,
+ *  CAP_SYS_NICE) and lock its memory (mlockall, CAP_IPC_LOCK). Without
+ *  them only the pin applies: it is the normal case of a yuno run by a
+ *  plain user, not a failure, and one INFO says what was applied.
+ *
+ *  A cpu that this machine does not have is a configuration error: logged,
+ *  and nothing is pinned (up to 7.27.9 it was silent, and the bound let one
+ *  cpu past the last through to a failing sched_setaffinity).
+ ***************************************************************************/
+PRIVATE void boost_process_performance(hgobj gobj, int priority, int cpu_core)
 {
     /*-----------------------------*
-     * 1. Check CAP_SYS_NICE
+     *  1. The cpu must exist
      *-----------------------------*/
-    if(prctl(PR_CAPBSET_READ, CAP_SYS_NICE) == 1) {
-        struct sched_param param = { .sched_priority = priority };
-        if(sched_setscheduler(0, SCHED_RR, &param) < 0) {
-            gobj_log_error(0, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "sched_setscheduler() FAILED",
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
+    BOOL found = FALSE;
+    json_t *jn_cpus = get_cpus();
+    size_t idx; json_t *jn_cpu;
+    json_array_foreach(jn_cpus, idx, jn_cpu) {
+        if(kw_get_int(gobj, jn_cpu, "processor", -1, 0) == cpu_core) {
+            found = TRUE;
+            break;
         }
-    } else {
-        gobj_log_error(0, 0,
+    }
+    size_t n_cpus = json_array_size(jn_cpus);
+    JSON_DECREF(jn_cpus)
+    if(!found) {
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Missing CAP_SYS_NICE (skipping sched_setscheduler)",
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "cpu_core is not a cpu of this machine: the yuno is NOT pinned",
+            "cpu_core",     "%d", cpu_core,
+            "cpus",         "%d", (int)n_cpus,
             NULL
         );
+        return;
     }
 
     /*-----------------------------*
-     * 2. Set CPU affinity
+     *  2. Set CPU affinity
      *-----------------------------*/
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
     CPU_SET(cpu_core, &cpuset);
-
     if(sched_setaffinity(0, sizeof(cpu_set_t), &cpuset) < 0) {
-        gobj_log_error(0, 0,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "sched_setaffinity() FAILED",
+            "cpu_core",     "%d", cpu_core,
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
             NULL
         );
+        return;
     }
 
     /*-----------------------------*
-     * 3. Check CAP_IPC_LOCK
+     *  3. Real-time priority
      *-----------------------------*/
-    if(prctl(PR_CAPBSET_READ, CAP_IPC_LOCK) == 1) {
+    const char *realtime = "not applied: no CAP_SYS_NICE";
+    if(priority <= 0) {
+        realtime = "not asked (sched_priority <= 0)";
+    } else if(has_effective_capability(CAP_SYS_NICE)) {
+        struct sched_param param = { .sched_priority = priority };
+        if(sched_setscheduler(0, SCHED_RR, &param) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "sched_setscheduler() FAILED",
+                "sched_priority","%d", priority,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            realtime = "FAILED";
+        } else {
+            realtime = "SCHED_RR";
+        }
+    }
+
+    /*-----------------------------*
+     *  4. Lock the memory
+     *-----------------------------*/
+    const char *memlock = "not applied: no CAP_IPC_LOCK";
+    if(has_effective_capability(CAP_IPC_LOCK)) {
         if(mlockall(MCL_CURRENT | MCL_FUTURE) < 0) {
-            gobj_log_error(0, 0,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "mlockall() FAILED",
@@ -5025,15 +5079,22 @@ PRIVATE void boost_process_performance(int priority, int cpu_core)
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
+            memlock = "FAILED";
+        } else {
+            memlock = "mlockall";
         }
-    } else {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Missing CAP_IPC_LOCK (skipping mlockall)",
-            NULL
-        );
     }
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_STARTUP,
+        "msg",          "%s", "Yuno pinned to a cpu",
+        "cpu_core",     "%d", cpu_core,
+        "realtime",     "%s", realtime,
+        "sched_priority","%d", priority,
+        "memory_lock",  "%s", memlock,
+        NULL
+    );
 }
 
 /***************************************************************************

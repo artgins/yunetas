@@ -55,6 +55,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `gobj_post_event` | `gobj_post_event()`: delivery on the next cycle of the loop |
 | `gobj_dispatch` | A gobj destroyed while an event is dispatched to it or published by it: the kernel never reads it after; a gobj destroyed under code still running on it (a publication, an outer action) is an ERROR; a self-destroy, in an action or a framework method, and the `EV_STOPPED` of the stop contract are not |
 | `c_timer0`, `c_timer` | `C_TIMER0` / `C_TIMER` scheduling |
+| `c_yuno_cpu_core` | A yuno with `cpu_core` runs on that cpu alone and logs one INFO with what it got, without the real-time priority or the memory lock it has no capability for (`test1`); a `cpu_core` that is not a cpu of the machine is an ERROR and pins nothing (`test2`) |
 | `c_counter` | `C_COUNTER`: an expiration publishes the final count on the next turn, late counts do not count |
 | `c_tcp`, `c_tcp2` | `C_TCP` client GClass (connect, I/O, timeouts); a write that does not start drops the connection (`test5`); the stop of a client already disconnected publishes `EV_STOPPED` and it starts again (`test6`) |
 | `c_tcps`, `c_tcps2` | `C_TCP_S` TLS client (handshake, OpenSSL + mbedTLS) |
