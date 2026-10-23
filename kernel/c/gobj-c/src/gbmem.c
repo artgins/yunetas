@@ -69,12 +69,13 @@
 
 /*
  *  Up to this size a block is taken with malloc() and zeroed here, not with
- *  calloc(): up to glibc 2.40 calloc() never takes a block from the
+ *  calloc(): the same zeroed block in any C library, and in glibc (up to
+ *  2.40) a faster one, because there calloc() never takes a block from the
  *  per-thread cache (tcache) that malloc() and free() use, so every small
  *  calloc() went down to the arenas and every free() overflowed the cache
  *  (jansson allocates through here: a pair of an object, an integer, a
- *  string). The block is zeroed either way. A larger one keeps calloc(),
- *  which skips the memset of memory fresh from the system.
+ *  string). A larger one keeps calloc(), which skips the memset of memory
+ *  fresh from the system.
  */
 #define MAX_SMALL_BLOCK_ZEROED_HERE 1024
 
@@ -544,7 +545,6 @@ PRIVATE void *_mem_malloc(size_t size)
 #endif
 
     char *pm;
-#ifdef __GLIBC__
     if(size <= MAX_SMALL_BLOCK_ZEROED_HERE) {
         pm = malloc(size);
         if(pm) {
@@ -553,9 +553,6 @@ PRIVATE void *_mem_malloc(size_t size)
     } else {
         pm = calloc(1, size);
     }
-#else
-    pm = calloc(1, size);
-#endif
     if(!pm) {
 #ifdef ESP_PLATFORM
         #include <esp_system.h>
