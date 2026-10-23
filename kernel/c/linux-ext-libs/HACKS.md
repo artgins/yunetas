@@ -66,12 +66,16 @@ and `/etc/hosts` directly, bypassing glibc's NSS resolver chain.
 
 ## jansson — from `artgins/jansson`
 
-jansson comes from Yuneta's fork, `https://github.com/artgins/jansson`
-(`repos2clone.sh`, `TAG_JANSSON`): upstream v2.15.1 and one commit per
-change Yuneta carries on it, the five below (the last one in two commits). A new fix or change is a
-commit there, and `TAG_JANSSON` moves to it (with a bump of `VERSION` in
-`configure-libs.sh`). Up to `configure-libs.sh` 1.24 the changes were
-`patches/jansson/*.patch`, applied after a checkout of upstream.
+jansson comes from Yuneta's fork, `https://github.com/artgins/jansson`,
+which is Yuneta's official jansson (`repos2clone.sh`, `TAG_JANSSON`): a
+commit of its `master`, which is upstream (`akheron/jansson`) and one commit
+per change Yuneta carries on it, the five below (the last one in two
+commits). A new fix or change is a commit there, merged into `master` once
+it is checked, and `TAG_JANSSON` moves to that commit of `master` (with a
+bump of `VERSION` in `configure-libs.sh`). Since `configure-libs.sh` 1.29
+`TAG_JANSSON` is a commit of `master`; from 1.25 to 1.28 it was a commit of
+a work branch. Up to 1.24 the changes were `patches/jansson/*.patch`,
+applied after a checkout of upstream.
 
 ## jansson — the lexer stops when a save fails
 

@@ -121,10 +121,11 @@ v1.22 by a patch, which is a commit of `artgins/jansson` since v1.25. See
 `./extrae.sh && ./configure-libs.sh` again, and then rebuild the SDK and
 its yunos.
 
-### jansson: from `artgins/jansson` (configure-libs.sh v1.25 to v1.28)
+### jansson: from `artgins/jansson` (configure-libs.sh v1.25 to v1.29)
 
-jansson is cloned from Yuneta's fork, `artgins/jansson`, at `TAG_JANSSON`:
-v2.15.1 and one commit per change, the lexer fix above and four from the
+jansson is cloned from Yuneta's fork, `artgins/jansson`, Yuneta's official
+jansson, at `TAG_JANSSON` (a commit of its `master` since v1.29):
+upstream and one commit per change, the lexer fix above and four from the
 performance audit of the C SDK (`performance/audit/`): fast paths for ASCII
 (a record of timeranger2 read twice as fast and appended 25% faster), a
 faster seeded hash of the keys (v1.25), the key of the loop check without

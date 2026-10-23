@@ -6,10 +6,11 @@ declare -A REPOS
 # If you change some version of those libraries
 #   remember to change the VERSION of installation in configure-libs.sh
 #--------------------------------------------------------------------------
-# jansson comes from artgins/jansson: v2.15.1 and the commits Yuneta carries
-# on it (the lexer fix, the ASCII fast paths, the seeded hash, the loop key,
-# the runs of the lexer for json_loads(), digits and blanks; see HACKS.md)
-TAG_JANSSON="0de2232955c69bae73fa1cbecf0a0ba929d52ec1"
+# jansson comes from artgins/jansson, Yuneta's official jansson: a commit of
+# its master, which is upstream and the commits Yuneta carries on it (the
+# lexer fix, the ASCII fast paths, the seeded hash, the loop key, the runs of
+# the lexer for json_loads(), digits and blanks; see HACKS.md)
+TAG_JANSSON="2dc5e0cba961cf863d0d606d924c3999762d577c"
 TAG_LIBURING="liburing-2.15"
 TAG_MBEDTLS="v4.2.0"
 TAG_OPENSSL="openssl-3.6.5"

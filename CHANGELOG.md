@@ -13,13 +13,14 @@
   `perf_ievent` (inter-yuno round trips over websocket), `perf_mqtt`
   (MQTT QoS 0 through the embedded broker) and `perf_tr_treedb_read` (the
   reads of a treedb: open, lists, views of nodes). What a caller can see:
-    - **jansson comes from Yuneta's fork**, `github.com/artgins/jansson`, at
-      a fixed commit (`TAG_JANSSON`), in place of `patches/jansson/`:
+    - **jansson comes from Yuneta's fork**, `github.com/artgins/jansson`, now
+      Yuneta's official jansson, at a commit of its `master` (`TAG_JANSSON`),
+      in place of `patches/jansson/`:
       upstream v2.15.1 plus the lexer fix that was the patch, fast paths for
       ASCII (for `json_loads()` too, and runs of digits and blanks), a
       faster seeded hash of the keys and the key of its loop check without
       `snprintf()` (the same results, bytes, errors and positions).
-      `linux-ext-libs` 1.25 to 1.27: a node that builds from source reruns
+      `linux-ext-libs` 1.25 to 1.29: a node that builds from source reruns
       `./extrae.sh && ./configure-libs.sh`.
     - **A `C_TIMER` keeps its subscription to the yuno's
       `EV_TIMEOUT_PERIODIC` for its life**, from its first start: the yuno's

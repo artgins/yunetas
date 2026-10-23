@@ -297,7 +297,17 @@
 #       that builds from source must run `./extrae.sh && ./configure-libs.sh`
 #       again.
 
-VERSION="1.28"
+#   version 1.29
+#       jansson at the master of artgins/jansson, which becomes Yuneta's
+#       official jansson: TAG_JANSSON is the merge of the commits Yuneta
+#       carries (those of 1.25 to 1.28) into it. Master also holds two
+#       upstream commits after v2.15.1 that change only the CMake test of
+#       the symbol versioning of the SHARED library and the CI: the static
+#       library Yuneta builds has the same machine code as with 1.28
+#       (checked object by object). Every node that builds from source must
+#       run `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.29"
 
 
 source ./repos2clone.sh
