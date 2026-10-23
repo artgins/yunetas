@@ -1515,12 +1515,13 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
     while(sskt->ssl) {
         /*
          *  With the scratch, SSL_read() reads there and the gbuffer is
-         *  created only when something was read: up to 7.27.7 every read
-         *  took a gbuffer of rx_buffer_size (zeroed), the last one of every
-         *  flush too, the one that answers WANT_READ and is thrown away. The
-         *  gbuffer handed to the callback is the same (rx_buffer_size, the
-         *  same bytes), and it is filled before the callback: a flush nested
-         *  in it reads into the scratch again, harmlessly.
+         *  created only when something was read, of the size read (it can
+         *  grow up to rx_buffer_size): up to 7.27.7 every read took a
+         *  gbuffer of rx_buffer_size (32 KB zeroed, and kept by whoever
+         *  kept the message), the last one of every flush too, the one that
+         *  answers WANT_READ and is thrown away. It is filled before the
+         *  callback: a flush nested in it reads into the scratch again,
+         *  harmlessly.
          */
         char *scratch = get_rx_scratch(sskt->ytls->rx_buffer_size);
         gbuffer_t *gbuf = NULL;
@@ -1576,7 +1577,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
 
         // Callback clear data
         if(scratch) {
-            gbuf = gbuffer_create(sskt->ytls->rx_buffer_size, sskt->ytls->rx_buffer_size);
+            gbuf = gbuffer_create((size_t)nread, sskt->ytls->rx_buffer_size);
             if(!gbuf) {
                 gobj_log_error(gobj, 0,
                     "function",         "%s", __FUNCTION__,
