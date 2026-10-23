@@ -15525,6 +15525,96 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
 }
 
 /***************************************************************************
+ *  How the refs (fkey) or the children (hook) of a view are written, by
+ *  the first of their options that is true
+ ***************************************************************************/
+typedef enum {
+    VIEW_ONLY_ID,
+    VIEW_LIST_DICT,
+    VIEW_REFS,
+    VIEW_DEFAULT
+} view_style_t;
+
+PRIVATE const char *fkey_view_options[] = {
+    "only_id", "fkey_only_id", "list_dict", "fkey_list_dict", "refs", "fkey_refs", NULL
+};
+PRIVATE const char *hook_view_options[] = {
+    "only_id", "hook_only_id", "list_dict", "hook_list_dict", "refs", "hook_refs", NULL
+};
+
+/***************************************************************************
+ *  The style of an element of a view, read as kw_get_bool() reads it, in
+ *  the order apply_parent_ref_options() and apply_child_list_options()
+ *  always read it (options[] is one of the lists above).
+ ***************************************************************************/
+PRIVATE view_style_t view_style(hgobj gobj, json_t *jn_options, const char *options[])
+{
+    if(json_is_object(jn_options) && json_object_size(jn_options) == 0) {
+        // No option: what each kw_get_bool() below answers, without asking
+        return VIEW_DEFAULT;
+    }
+    if(kw_get_bool(gobj, jn_options, options[0], 0, KW_WILD_NUMBER) ||
+        kw_get_bool(gobj, jn_options, options[1], 0, KW_WILD_NUMBER)
+    ) {
+        return VIEW_ONLY_ID;
+    }
+    if(kw_get_bool(gobj, jn_options, options[2], 0, KW_WILD_NUMBER) ||
+        kw_get_bool(gobj, jn_options, options[3], 0, KW_WILD_NUMBER)
+    ) {
+        return VIEW_LIST_DICT;
+    }
+    if(kw_get_bool(gobj, jn_options, options[4], 0, KW_WILD_NUMBER) ||
+        kw_get_bool(gobj, jn_options, options[5], 0, KW_WILD_NUMBER)
+    ) {
+        return VIEW_REFS;
+    }
+    return VIEW_DEFAULT;
+}
+
+/***************************************************************************
+ *  TRUE when view_style() answers the same for every element of a view,
+ *  and logs nothing: the options are a dict, and each of them is absent or
+ *  a value kw_get_bool() reads with KW_WILD_NUMBER (a boolean, a number, a
+ *  string, null). Then the style is read once for the whole view; otherwise
+ *  (an option that is a dict or a list, options that are not a dict) it is
+ *  read for every element, as it always was, with its logs.
+ ***************************************************************************/
+PRIVATE BOOL view_style_is_constant(json_t *jn_options, const char *options[])
+{
+    if(!json_is_object(jn_options)) {
+        return FALSE;
+    }
+    if(json_object_size(jn_options) == 0) {
+        return TRUE;
+    }
+    for(int i=0; options[i]; i++) {
+        json_t *jn_option = json_object_get(jn_options, options[i]);
+        if(json_is_object(jn_option) || json_is_array(jn_option)) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  What json_pack("{s:s, s:s, ...}", keys[0], values[0], ...) builds,
+ *  without parsing a format: the keys in this order, and NULL (nothing
+ *  built) when a value is NULL or not UTF-8.
+ ***************************************************************************/
+PRIVATE json_t *strings_dict(const char *keys[], const char *values[], int n)
+{
+    json_t *jn_dict = json_object();
+    for(int i=0; i<n; i++) {
+        json_t *jn_value = values[i]? json_string(values[i]) : NULL;
+        if(!jn_value || json_object_set_new_nocheck(jn_dict, keys[i], jn_value) < 0) {
+            JSON_DECREF(jn_dict)
+            return NULL;
+        }
+    }
+    return jn_dict;
+}
+
+/***************************************************************************
  *
     fkey options
     -------------
@@ -15556,6 +15646,11 @@ PRIVATE json_t *apply_parent_ref_options(
     char parent_topic_name[NAME_MAX];
     char parent_id[NAME_MAX];
     char hook_name[NAME_MAX];
+    static const char *dict_keys[] = {"id", "topic_name", "hook_name"};
+
+    BOOL constant_style = view_style_is_constant(jn_options, fkey_view_options);
+    BOOL style_read = FALSE;
+    view_style_t style = VIEW_DEFAULT;
 
     int idx; json_t *jn_fkey;
     json_array_foreach(refs, idx, jn_fkey) {
@@ -15580,56 +15675,40 @@ PRIVATE json_t *apply_parent_ref_options(
             continue;
         }
 
-        if(kw_get_bool(gobj, jn_options, "only_id", 0, KW_WILD_NUMBER) ||
-            kw_get_bool(gobj, jn_options, "fkey_only_id", 0, KW_WILD_NUMBER)
-        ) {
-            /*
-                Return the 'fkey ref' with only the 'id' field
-                    ["$id",...]
-             */
-            json_array_append_new(parents, json_string(parent_id));
+        if(!style_read || !constant_style) {
+            style = view_style(gobj, jn_options, fkey_view_options);
+            style_read = TRUE;
+        }
 
-        } else if(kw_get_bool(gobj, jn_options, "list_dict", 0, KW_WILD_NUMBER) ||
-            kw_get_bool(gobj, jn_options, "fkey_list_dict", 0, KW_WILD_NUMBER)
-        ) {
-            /*
-                Return the kwid style:
-                    [{"id": "$id", "topic_name":"$topic_name", "hook_name":"$hook_name"}, ...]
-             */
-            json_array_append_new(
-                parents,
-                json_pack("{s:s, s:s, s:s}",
-                    "id", parent_id,
-                    "topic_name", parent_topic_name,
-                    "hook_name", hook_name
-                )
-            );
+        switch(style) {
+            case VIEW_ONLY_ID:
+                /*
+                    Return the 'fkey ref' with only the 'id' field
+                        ["$id",...]
+                 */
+                json_array_append_new(parents, json_string(parent_id));
+                break;
 
-        } else if(kw_get_bool(gobj, jn_options, "refs", 0, KW_WILD_NUMBER) ||
-            kw_get_bool(gobj, jn_options, "fkey_refs", 0, KW_WILD_NUMBER)
-        ) {
-            /*
-                Return 'fkey ref'
-                    ["topic_name^id^hook_name", ...]
-            */
-            json_array_append_new(parents, json_string(ref));
+            case VIEW_REFS:
+                /*
+                    Return 'fkey ref'
+                        ["topic_name^id^hook_name", ...]
+                */
+                json_array_append_new(parents, json_string(ref));
+                break;
 
-        } else {
-            /*
-             *  DEFAULT
-             *
-                Return the kwid style:
-                    [{"id": "$id", "topic_name":"$topic_name", "hook_name":"$hook_name"}, ...]
-             */
-            json_array_append_new(
-                parents,
-                json_pack("{s:s, s:s, s:s}",
-                    "id", parent_id,
-                    "topic_name", parent_topic_name,
-                    "hook_name", hook_name
-                )
-            );
-
+            case VIEW_LIST_DICT:
+            case VIEW_DEFAULT:
+            default:
+                /*
+                    Return the kwid style (list_dict, and the DEFAULT):
+                        [{"id": "$id", "topic_name":"$topic_name", "hook_name":"$hook_name"}, ...]
+                 */
+                {
+                    const char *values[] = {parent_id, parent_topic_name, hook_name};
+                    json_array_append_new(parents, strings_dict(dict_keys, values, 3));
+                }
+                break;
         }
     }
 
@@ -15685,76 +15764,68 @@ PRIVATE json_t *apply_child_list_options(
         return children;
     }
 
+    static const char *dict_keys[] = {"id", "topic_name"};
+
+    BOOL constant_style = view_style_is_constant(jn_options, hook_view_options);
+    BOOL style_read = FALSE;
+    view_style_t style = VIEW_DEFAULT;
+
     int idx; json_t *child;
     json_array_foreach(child_list, idx, child) {
-        if(kw_get_bool(gobj, jn_options, "only_id", 0, KW_WILD_NUMBER) ||
-            kw_get_bool(gobj, jn_options, "hook_only_id", 0, KW_WILD_NUMBER)
-        ) {
-            /*
-                Return the 'hook ref' with only the 'id' field
-                    ["$id",...]
-             */
-            const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
-            json_array_append_new(children, json_string(id));
+        if(!style_read || !constant_style) {
+            style = view_style(gobj, jn_options, hook_view_options);
+            style_read = TRUE;
+        }
 
-        } else if(kw_get_bool(gobj, jn_options, "list_dict", 0, KW_WILD_NUMBER) ||
-            kw_get_bool(gobj, jn_options, "hook_list_dict", 0, KW_WILD_NUMBER)
-        ) {
-            /*
-                Return the kwid style:
-                    [{"id": "$id", "topic_name":"$topic_name"}, ...]
-             */
-            const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
-            const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, 0);
+        switch(style) {
+            case VIEW_ONLY_ID:
+                /*
+                    Return the 'hook ref' with only the 'id' field
+                        ["$id",...]
+                 */
+                {
+                    const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
+                    json_array_append_new(children, json_string(id));
+                }
+                break;
 
-            json_array_append_new(
-                children,
-                json_pack("{s:s, s:s}",
-                    "id", id,
-                    "topic_name", topic_name
-                )
-            );
+            case VIEW_REFS:
+                /*
+                        Return 'hook ref'
+                            ["topic_name^id", ...]
 
-        } else if(kw_get_bool(gobj, jn_options, "refs", 0, KW_WILD_NUMBER) ||
-            kw_get_bool(gobj, jn_options, "hook_refs", 0, KW_WILD_NUMBER)
-        ) {
-            /*
-                    Return 'hook ref'
-                        ["topic_name^id", ...]
+                */
+                {
+                    const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
+                    const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, KW_REQUIRED);
+                    if(!id || !topic_name) {
+                        continue;   // Error already logged
+                    }
+                    /*
+                     *  Not build_ref(): the treedb never stores a child ref nor
+                     *  reads one back, this one is for the caller, and the child
+                     *  hangs from the hook whatever its id holds (a topic without
+                     *  hooks keeps an id with '^', or of NAME_MAX bytes).
+                     *  decode_child_ref() refuses such a ref, and says so.
+                     */
+                    json_array_append_new(children, json_sprintf("%s^%s", topic_name, id));
+                }
+                break;
 
-            */
-            const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
-            const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, KW_REQUIRED);
-            if(!id || !topic_name) {
-                continue;   // Error already logged
-            }
-            /*
-             *  Not build_ref(): the treedb never stores a child ref nor
-             *  reads one back, this one is for the caller, and the child
-             *  hangs from the hook whatever its id holds (a topic without
-             *  hooks keeps an id with '^', or of NAME_MAX bytes).
-             *  decode_child_ref() refuses such a ref, and says so.
-             */
-            json_array_append_new(children, json_sprintf("%s^%s", topic_name, id));
-
-        } else {
-            /*
-             *  DEFAULT
-             *
-                Return the kwid style:
-                    [{"id": "$id", "topic_name":"$topic_name"}, ...]
-             */
-            const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
-            const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, 0);
-
-            json_array_append_new(
-                children,
-                json_pack("{s:s, s:s}",
-                    "id", id,
-                    "topic_name", topic_name
-                )
-            );
-
+            case VIEW_LIST_DICT:
+            case VIEW_DEFAULT:
+            default:
+                /*
+                    Return the kwid style (list_dict, and the DEFAULT):
+                        [{"id": "$id", "topic_name":"$topic_name"}, ...]
+                 */
+                {
+                    const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
+                    const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, 0);
+                    const char *values[] = {id, topic_name};
+                    json_array_append_new(children, strings_dict(dict_keys, values, 2));
+                }
+                break;
         }
     }
 
