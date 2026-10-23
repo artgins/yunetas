@@ -924,7 +924,15 @@ Returns a pointer to a `gbuffer_t` containing the serialized JSON data. If an er
 
 **Notes**
 
-The function uses `json_dump_callback()` to serialize the JSON object into the buffer. If `gbuf` is NULL, a new buffer is allocated with a default size.
+The function uses `json_dump_callback()` to serialize the JSON object into the buffer. If `gbuf` is NULL, a new buffer is made: for a dump of up to 4 KB, of the size of the dump (it has no free space); for a bigger one, of 4 KB grown as the dump needs, up to `gbmem_get_maximum_block()`. A caller that appends to the buffer it gets grows it.
+
+**Example**
+
+```C
+gbuffer_t *gbuf = json2gbuf(0, json_pack("{s:s}", "hello", "world"), JSON_COMPACT);
+// gbuffer_cur_rd_pointer(gbuf) is "{\"hello\":\"world\"}", 17 bytes
+gbuffer_decref(gbuf);
+```
 
 ---
 
