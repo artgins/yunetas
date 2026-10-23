@@ -2799,7 +2799,12 @@ opened. A key fails:
 
 - when a row's metadata (`.md2`) or its content (`.json`) cannot be read
   during the load -- a file cut, damaged or unreadable behind the running
-  yuno's back;
+  yuno's back. The list of the `id` index reads only the NEWEST record of
+  each key (the one that is its node; the load is backward and stops
+  there), so a damaged OLDER row of a key does not fail it there: the key
+  loads. A `pkey2` list reads the whole history of the key, as every list
+  did up to 7.27.7, when the open read and parsed every record of every
+  key to keep the newest;
 - after a RESTART, when the topic's cache, built from disk at the open,
   could not count a `.md2` file of the key: one that cannot be opened or
   read, or one that ends on no row boundary and must not be cut (below).

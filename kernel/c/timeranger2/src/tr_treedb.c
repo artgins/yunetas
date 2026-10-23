@@ -5588,6 +5588,17 @@ PRIVATE int load_id_callback(
             );
             JSON_DECREF(jn_record2)
         }
+
+        /*
+         *  The load is backward: the first record of the key is its node,
+         *  and the older ones, read only to be ignored, are not read (-1
+         *  ends the load of THIS key). Up to 7.27.7 the whole history of
+         *  every key was read and parsed at every open; an older record
+         *  that cannot be read is no longer found here (its key loaded
+         *  whole said load_failed).
+         */
+        JSON_DECREF(jn_record)
+        return -1;
     }
 
     JSON_DECREF(jn_record)
