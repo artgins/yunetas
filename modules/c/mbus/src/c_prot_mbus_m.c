@@ -64,6 +64,21 @@
  *          an INFO "M-Bus slave answered again" with what it had failed
  *          with. Every frame is counted in the stats.
  *
+ *          OPERATIONS. Three commands work on the bus itself, for putting
+ *          meters into service: scan-primary (SND_NKE to each address, and
+ *          REQ_UD2 to the ones that answer, to say who they are),
+ *          scan-secondary (the wildcard tree search: a selection with F in
+ *          the digits not fixed yet; nothing answers, one answers E5, or
+ *          several answer at once and the garbage is a collision that
+ *          fixes one digit more), and set-primary-address (select a meter
+ *          by its secondary address, write it 01 7A <address>, and check
+ *          it answers SND_NKE there). A command starts its operation and
+ *          answers at once; the operation runs when the bus is free (at
+ *          the end of the cycle in progress), the cycle waits while it
+ *          runs, and its state and result are asked with operation-status.
+ *          The end of an operation is logged, as an INFO when it is done
+ *          and a WARNING when it failed.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -97,6 +112,20 @@ typedef enum {
     STEP_REQUEST,           // REQ_UD2
 } step_t;
 
+typedef enum {
+    OP_NONE = 0,
+    OP_SCAN_PRIMARY,
+    OP_SCAN_SECONDARY,
+    OP_SET_ADDRESS,
+} op_t;
+
+typedef enum {
+    OPS_PROBE = 1,          // SND_NKE to an address, or a selection
+    OPS_IDENTIFY,           // REQ_UD2: who answered
+    OPS_WRITE,              // SND_UD CI 51: 01 7A <new address>
+    OPS_VERIFY,             // SND_NKE to the new address
+} op_step_t;
+
 typedef struct {
     int address;                            // 1-250; 0 when read by secondary address
     char secondary[16];                     // the 8 digits, "" when primary
@@ -114,6 +143,8 @@ PRIVATE void free_slaves(hgobj gobj);
 PRIVATE void start_cycle(hgobj gobj);
 PRIVATE void next_slave(hgobj gobj);
 PRIVATE void send_step(hgobj gobj);
+PRIVATE void start_operation(hgobj gobj);
+PRIVATE void op_send(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -123,6 +154,11 @@ PRIVATE void send_step(hgobj gobj);
  *---------------------------------------------*/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_dump_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_scan_primary(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_scan_secondary(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_primary_address(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_operation_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_read_now(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -136,6 +172,19 @@ SDATAPM (DTP_INTEGER,   "address",      0,              0,          "Primary add
 SDATAPM (DTP_STRING,    "secondary",    0,              0,          "Secondary address of the slave"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_scan_primary[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_INTEGER,   "from",         0,              "1",        "First primary address to try"),
+SDATAPM (DTP_INTEGER,   "to",           0,              "250",      "Last primary address to try"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_set_primary_address[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "secondary",    0,              0,          "Secondary address (8 digits) of the meter"),
+SDATAPM (DTP_STRING,    "manufacturer", 0,              0,          "Its manufacturer (3 letters), to be stricter"),
+SDATAPM (DTP_INTEGER,   "new_address",  0,              0,          "The primary address to give it, 1-250"),
+SDATA_END()
+};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
@@ -143,6 +192,11 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
 SDATACM (DTP_SCHEMA,    "dump-data",        0,          pm_dump_data,   cmd_dump_data,  "Last reading of the slaves"),
+SDATACM (DTP_SCHEMA,    "scan-primary",     0,          pm_scan_primary, cmd_scan_primary, "Start a search of the bus by primary address (see operation-status)"),
+SDATACM (DTP_SCHEMA,    "scan-secondary",   0,          0,              cmd_scan_secondary, "Start a search of the bus by secondary address (see operation-status)"),
+SDATACM (DTP_SCHEMA,    "set-primary-address", 0,       pm_set_primary_address, cmd_set_primary_address, "Give a meter, selected by its secondary address, a primary address (see operation-status)"),
+SDATACM (DTP_SCHEMA,    "operation-status", 0,          0,              cmd_operation_status, "State and result of the last operation"),
+SDATACM (DTP_SCHEMA,    "read-now",         0,          0,              cmd_read_now,   "Start a cycle now, without waiting for timeout_polling"),
 SDATA_END()
 };
 
@@ -183,7 +237,7 @@ enum {
 PRIVATE const trace_level_t s_user_trace_level[16] = {
 {"messages",        "Trace the readings published"},
 {"traffic",         "Trace dump traffic"},
-{"polling",         "Trace the steps of the cycle"},
+{"polling",         "Trace the steps of the cycle and of the operations"},
 {0, 0},
 };
 
@@ -214,6 +268,19 @@ typedef struct _PRIVATE_DATA {
     BOOL unexpected_warned;         // bytes with no request in flight, warned once
 
     BOOL inform_on_close;
+
+    op_t op;                        // the operation running, OP_NONE when the cycle runs
+    op_t op_asked;                  // the operation asked for, till it starts
+    BOOL op_pending;                // asked for: it starts when the bus is free
+    op_step_t op_step;
+    int op_address;                 // scan-primary: the address probed
+    int op_to;                      // scan-primary: the last one
+    char op_mask[9];                // scan-secondary: the id probed, F for any digit
+    int op_pos;                     // scan-secondary: the digit being enumerated
+    char op_secondary[16];          // set-primary-address
+    int op_new_address;
+    uint8_t op_selection[MBUS_SECONDARY_ADDRESS_SIZE];
+    json_t *jn_op;                  // state and result of the last operation
 
     json_int_t txFrames;
     json_int_t rxFrames;
@@ -343,7 +410,10 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     free_slaves(gobj);
+    JSON_DECREF(priv->jn_op)
 }
 
 /***************************************************************************
@@ -496,6 +566,237 @@ PRIVATE json_t *cmd_dump_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         0,
         0,
         jn_data,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  A cycle now: the bus must be open and between cycles
+ ***************************************************************************/
+PRIVATE json_t *cmd_read_now(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_current_state(gobj) != ST_CONNECTED || priv->op || priv->op_pending) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: M-Bus not between cycles (not connected, a cycle or an operation in progress)",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(priv->n_slaves == 0) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: M-Bus master with no slaves", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    start_cycle(gobj);
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("%s: M-Bus cycle started", gobj_yuno_role_plus_name()),
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  An operation can be asked for with the bus open and no other operation
+ *  in progress. NULL when it can, else the refusal to answer.
+ ***************************************************************************/
+PRIVATE json_t *operation_refused(hgobj gobj, json_t *kw)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_current_state(gobj) == ST_DISCONNECTED) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: M-Bus not connected", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(priv->op || priv->op_pending) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: M-Bus operation already in progress: %s",
+                gobj_yuno_role_plus_name(),
+                kw_get_str(gobj, priv->jn_op, "operation", "", 0)
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Note the operation asked for, and start it when the bus is free
+ ***************************************************************************/
+PRIVATE json_t *operation_asked(hgobj gobj, op_t op, const char *name, json_t *jn_args, json_t *kw)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    JSON_DECREF(priv->jn_op)
+    priv->jn_op = json_pack("{s:s, s:s, s:o, s:I, s:n, s:[], s:s}",
+        "operation", name,
+        "state", "waiting",
+        "args", jn_args,
+        "asked", (json_int_t)time_in_seconds(),
+        "ended",
+        "found",
+        "error", ""
+    );
+    priv->op_asked = op;
+    priv->op_pending = TRUE;
+
+    if(gobj_current_state(gobj) == ST_CONNECTED) {
+        start_operation(gobj);  // the bus is between cycles
+    }
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("%s: M-Bus %s %s: see operation-status",
+            gobj_yuno_role_plus_name(), name, priv->op_pending? "waits for the cycle to end" : "started"
+        ),
+        0,
+        json_incref(priv->jn_op),
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_scan_primary(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_refused = operation_refused(gobj, kw);
+    if(jn_refused) {
+        return jn_refused;
+    }
+
+    int from = (int)kw_get_int(gobj, kw, "from", MBUS_ADDRESS_MIN, 0);
+    int to = (int)kw_get_int(gobj, kw, "to", MBUS_ADDRESS_MAX, 0);
+    if(from < MBUS_ADDRESS_MIN || to > MBUS_ADDRESS_MAX || from > to) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: M-Bus primary addresses are 1-250, from <= to", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    priv->op_address = from;
+    priv->op_to = to;
+    return operation_asked(gobj, OP_SCAN_PRIMARY, "scan-primary",
+        json_pack("{s:i, s:i}", "from", from, "to", to), kw
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_scan_secondary(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_refused = operation_refused(gobj, kw);
+    if(jn_refused) {
+        return jn_refused;
+    }
+
+    snprintf(priv->op_mask, sizeof(priv->op_mask), "FFFFFFFF");
+    priv->op_pos = 0;
+    return operation_asked(gobj, OP_SCAN_SECONDARY, "scan-secondary", json_object(), kw);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_set_primary_address(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_refused = operation_refused(gobj, kw);
+    if(jn_refused) {
+        return jn_refused;
+    }
+
+    const char *secondary = kw_get_str(gobj, kw, "secondary", "", 0);
+    const char *manufacturer = kw_get_str(gobj, kw, "manufacturer", "", 0);
+    int new_address = (int)kw_get_int(gobj, kw, "new_address", 0, 0);
+
+    char why[256] = "";
+    if(mbus_build_secondary_address(priv->op_selection, secondary, manufacturer, -1, -1,
+            why, sizeof(why)) < 0 || strchr(secondary, 'F') || strchr(secondary, 'f')) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: M-Bus secondary address must be 8 digits, no wildcard: %s",
+                gobj_yuno_role_plus_name(), why
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(new_address < MBUS_ADDRESS_MIN || new_address > MBUS_ADDRESS_MAX) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: M-Bus new_address must be 1-250", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    snprintf(priv->op_secondary, sizeof(priv->op_secondary), "%s", secondary);
+    priv->op_new_address = new_address;
+    return operation_asked(gobj, OP_SET_ADDRESS, "set-primary-address",
+        json_pack("{s:s, s:s, s:i}",
+            "secondary", secondary,
+            "manufacturer", manufacturer,
+            "new_address", new_address
+        ),
+        kw
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_operation_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        0,
+        priv->jn_op? json_incref(priv->jn_op) : json_null(),
         kw  // owned
     );
 }
@@ -720,7 +1021,24 @@ PRIVATE int send_frame(hgobj gobj, const uint8_t *bf, size_t len)
 }
 
 /***************************************************************************
- *  Send the request of the current step, and wait for its answer
+ *  Send a request, and wait for its answer
+ ***************************************************************************/
+PRIVATE void send_request(hgobj gobj, const uint8_t *bf, size_t len)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->rx_len = 0;
+    priv->rx_bad = FALSE;
+    priv->rx_why[0] = 0;
+    priv->rx_dump[0] = 0;
+
+    gobj_change_state(gobj, ST_WAIT_RESPONSE);
+    set_timeout0(priv->timer, priv->timeout_response);
+    send_frame(gobj, bf, len);
+}
+
+/***************************************************************************
+ *  Send the request of the current step of the cycle
  ***************************************************************************/
 PRIVATE void send_step(hgobj gobj)
 {
@@ -757,14 +1075,7 @@ PRIVATE void send_step(hgobj gobj)
         );
     }
 
-    priv->rx_len = 0;
-    priv->rx_bad = FALSE;
-    priv->rx_why[0] = 0;
-    priv->rx_dump[0] = 0;
-
-    gobj_change_state(gobj, ST_WAIT_RESPONSE);
-    set_timeout0(priv->timer, priv->timeout_response);
-    send_frame(gobj, bf, len);
+    send_request(gobj, bf, len);
 }
 
 /***************************************************************************
@@ -803,6 +1114,10 @@ PRIVATE void next_slave(hgobj gobj)
         }
         priv->idx = -1;
         gobj_change_state(gobj, ST_CONNECTED);
+        if(priv->op_pending) {
+            start_operation(gobj);
+            return;
+        }
         set_timeout0(priv->timer, priv->timeout_polling);
         return;
     }
@@ -1012,6 +1327,424 @@ PRIVATE void step_answered(hgobj gobj, const mbus_frame_t *frame)
     slave_read(gobj);
 }
 
+/***************************************************************************
+ *  The operation ends: logged, and the cycle goes on (when the bus is open)
+ ***************************************************************************/
+PRIVATE void finish_operation(hgobj gobj, const char *error, BOOL resume)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *name = kw_get_str(gobj, priv->jn_op, "operation", "", 0);
+    json_object_set_new(priv->jn_op, "state", json_string(error? "failed" : "done"));
+    json_object_set_new(priv->jn_op, "ended", json_integer((json_int_t)time_in_seconds()));
+    json_object_set_new(priv->jn_op, "error", json_string(error? error : ""));
+
+    if(error) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "M-Bus operation failed",
+            "operation",    "%s", name,
+            "error",        "%s", error,
+            "args",         "%j", json_object_get(priv->jn_op, "args"),
+            NULL
+        );
+    } else {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "M-Bus operation done",
+            "operation",    "%s", name,
+            "found",        "%d", (int)json_array_size(json_object_get(priv->jn_op, "found")),
+            NULL
+        );
+    }
+
+    priv->op = OP_NONE;
+    priv->op_asked = OP_NONE;
+    priv->op_pending = FALSE;
+    JSON_DECREF(priv->jn_reading)
+
+    if(resume) {
+        gobj_change_state(gobj, ST_CONNECTED);
+        set_timeout0(priv->timer, priv->timeout_polling);
+    }
+}
+
+/***************************************************************************
+ *  What a scan found
+ ***************************************************************************/
+PRIVATE void op_found(hgobj gobj, json_t *jn_item)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_trace_level(gobj) & TRACE_POLLING) {
+        gobj_trace_json(gobj, jn_item, "M-Bus found");
+    }
+    json_array_append_new(json_object_get(priv->jn_op, "found"), jn_item);
+}
+
+/***************************************************************************
+ *  Copy who a meter says it is, from the header of its answer
+ ***************************************************************************/
+PRIVATE void add_identity(json_t *jn_item, const mbus_frame_t *frame)
+{
+    char bf[256];
+    BOOL more;
+    json_t *jn_data = mbus_decode_user_data(frame, &more, bf, sizeof(bf));
+    json_t *jn_header = jn_data? json_object_get(jn_data, "header") : NULL;
+    if(!json_object_get(jn_header, "id")) {
+        json_object_set_new(jn_item, "error", json_string(jn_data? "no identification in the answer" : bf));
+        JSON_DECREF(jn_data)
+        return;
+    }
+    const char *keys[] = {"id", "manufacturer", "version", "medium", "medium_code"};
+    for(size_t i=0; i<ARRAY_SIZE(keys); i++) {
+        json_t *v = json_object_get(jn_header, keys[i]);
+        if(v) {
+            json_object_set(jn_item, strcmp(keys[i], "id")==0? "secondary" : keys[i], v);
+        }
+    }
+    JSON_DECREF(jn_data)
+}
+
+/***************************************************************************
+ *  The next mask of the secondary search, after the one probed answered
+ *  nothing or one meter. Return FALSE when the search is over.
+ ***************************************************************************/
+PRIVATE BOOL next_secondary_mask(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    while(priv->op_pos >= 0) {
+        if(priv->op_mask[priv->op_pos] < '9') {
+            priv->op_mask[priv->op_pos]++;
+            return TRUE;
+        }
+        priv->op_mask[priv->op_pos] = 'F';
+        priv->op_pos--;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  The scan of primary addresses goes on, or ends
+ ***************************************************************************/
+PRIVATE void next_primary_address(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->op_address++;
+    if(priv->op_address > priv->op_to) {
+        finish_operation(gobj, NULL, TRUE);
+        return;
+    }
+    priv->op_step = OPS_PROBE;
+    priv->attempts = 0;
+    op_send(gobj);
+}
+
+/***************************************************************************
+ *  The scan of secondary addresses goes on, or ends
+ ***************************************************************************/
+PRIVATE void next_secondary_probe(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!next_secondary_mask(gobj)) {
+        finish_operation(gobj, NULL, TRUE);
+        return;
+    }
+    priv->op_step = OPS_PROBE;
+    priv->attempts = 0;
+    op_send(gobj);
+}
+
+/***************************************************************************
+ *  Several meters answered the mask: fix one digit more
+ ***************************************************************************/
+PRIVATE void secondary_collision(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->op_pos < 7) {
+        priv->op_pos++;
+        priv->op_mask[priv->op_pos] = '0';
+        priv->op_step = OPS_PROBE;
+        priv->attempts = 0;
+        op_send(gobj);
+        return;
+    }
+    /*
+     *  Two meters with the same 8 digits: told apart only by their
+     *  manufacturer, version or medium, which this search does not go into
+     */
+    op_found(gobj, json_pack("{s:s, s:b}", "secondary", priv->op_mask, "collision", 1));
+    next_secondary_probe(gobj);
+}
+
+/***************************************************************************
+ *  Start the operation asked for: the bus is free
+ ***************************************************************************/
+PRIVATE void start_operation(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->op = priv->op_asked;
+    priv->op_asked = OP_NONE;
+    priv->op_pending = FALSE;
+    priv->op_step = OPS_PROBE;
+    priv->attempts = 0;
+    json_object_set_new(priv->jn_op, "state", json_string("running"));
+
+    if(priv->op == OP_SCAN_SECONDARY) {
+        priv->op_mask[0] = '0';
+    }
+    op_send(gobj);
+}
+
+/***************************************************************************
+ *  Send the request of the current step of the operation
+ ***************************************************************************/
+PRIVATE void op_send(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint8_t bf[MBUS_FRAME_MAX_LENGTH];
+    size_t len = 0;
+    char why[256] = "";
+
+    switch(priv->op) {
+        case OP_SCAN_PRIMARY:
+            if(priv->op_step == OPS_PROBE) {
+                len = mbus_build_short_frame(bf, sizeof(bf), MBUS_C_SND_NKE, (uint8_t)priv->op_address);
+            } else {
+                len = mbus_build_short_frame(bf, sizeof(bf), MBUS_C_REQ_UD2|MBUS_C_FCB,
+                    (uint8_t)priv->op_address
+                );
+            }
+            break;
+
+        case OP_SCAN_SECONDARY:
+            if(priv->op_step == OPS_PROBE) {
+                uint8_t sel[MBUS_SECONDARY_ADDRESS_SIZE];
+                if(mbus_build_secondary_address(sel, priv->op_mask, NULL, -1, -1, why, sizeof(why)) < 0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "M-Bus search mask not valid",
+                        "mask",         "%s", priv->op_mask,
+                        "why",          "%s", why,
+                        NULL
+                    );
+                    finish_operation(gobj, "search mask not valid", TRUE);
+                    return;
+                }
+                len = mbus_build_long_frame(bf, sizeof(bf), MBUS_C_SND_UD, MBUS_ADDRESS_SELECTED,
+                    MBUS_CI_SELECT_SECONDARY, sel, sizeof(sel)
+                );
+            } else {
+                len = mbus_build_short_frame(bf, sizeof(bf), MBUS_C_REQ_UD2|MBUS_C_FCB,
+                    MBUS_ADDRESS_SELECTED
+                );
+            }
+            break;
+
+        case OP_SET_ADDRESS:
+            switch(priv->op_step) {
+                case OPS_PROBE:
+                    len = mbus_build_long_frame(bf, sizeof(bf), MBUS_C_SND_UD, MBUS_ADDRESS_SELECTED,
+                        MBUS_CI_SELECT_SECONDARY, priv->op_selection, sizeof(priv->op_selection)
+                    );
+                    break;
+                case OPS_WRITE:
+                    {
+                        // DIF 01 (8 bits), VIF 7A (bus address), the address
+                        uint8_t record[3] = {0x01, 0x7A, (uint8_t)priv->op_new_address};
+                        len = mbus_build_long_frame(bf, sizeof(bf), MBUS_C_SND_UD, MBUS_ADDRESS_SELECTED,
+                            MBUS_CI_DATA_SEND, record, sizeof(record)
+                        );
+                    }
+                    break;
+                default:    // OPS_VERIFY
+                    len = mbus_build_short_frame(bf, sizeof(bf), MBUS_C_SND_NKE,
+                        (uint8_t)priv->op_new_address
+                    );
+                    break;
+            }
+            break;
+
+        default:
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "M-Bus operation unknown",
+                "op",           "%d", (int)priv->op,
+                NULL
+            );
+            finish_operation(gobj, "operation unknown", TRUE);
+            return;
+    }
+
+    if(gobj_trace_level(gobj) & TRACE_POLLING) {
+        gobj_trace_msg(gobj, "M-Bus operation %d step %d, address %d, mask %s, attempt %d",
+            (int)priv->op, (int)priv->op_step, priv->op_address, priv->op_mask, priv->attempts + 1
+        );
+    }
+    send_request(gobj, bf, len);
+}
+
+/***************************************************************************
+ *  A valid frame arrived for the step of the operation
+ ***************************************************************************/
+PRIVATE void op_answered(hgobj gobj, const mbus_frame_t *frame)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    BOOL ack = frame->type == MBUS_FRAME_ACK;
+    BOOL rsp_ud = frame->type == MBUS_FRAME_LONG && (frame->c & 0xCF) == MBUS_C_RSP_UD;
+
+    switch(priv->op) {
+        case OP_SCAN_PRIMARY:
+            if(priv->op_step == OPS_PROBE) {
+                if(!ack) {
+                    priv->badFrames++;
+                    op_found(gobj, json_pack("{s:i, s:s}",
+                        "address", priv->op_address, "error", "SND_NKE not answered with E5"
+                    ));
+                    next_primary_address(gobj);
+                    return;
+                }
+                priv->op_step = OPS_IDENTIFY;
+                priv->attempts = 0;
+                op_send(gobj);
+                return;
+            }
+            {
+                json_t *jn_item = json_pack("{s:i}", "address", priv->op_address);
+                if(rsp_ud) {
+                    add_identity(jn_item, frame);
+                } else {
+                    priv->badFrames++;
+                    json_object_set_new(jn_item, "error", json_string("REQ_UD2 not answered with an RSP_UD"));
+                }
+                op_found(gobj, jn_item);
+                next_primary_address(gobj);
+            }
+            return;
+
+        case OP_SCAN_SECONDARY:
+            if(priv->op_step == OPS_PROBE) {
+                if(!ack) {
+                    priv->badFrames++;
+                    secondary_collision(gobj);
+                    return;
+                }
+                priv->op_step = OPS_IDENTIFY;
+                priv->attempts = 0;
+                op_send(gobj);
+                return;
+            }
+            if(!rsp_ud) {
+                priv->badFrames++;
+                secondary_collision(gobj);
+                return;
+            }
+            {
+                json_t *jn_item = json_object();
+                add_identity(jn_item, frame);
+                if(!json_object_get(jn_item, "secondary")) {
+                    json_object_set_new(jn_item, "secondary", json_string(priv->op_mask));
+                }
+                json_object_set_new(jn_item, "address", json_integer(frame->a));
+                op_found(gobj, jn_item);
+                next_secondary_probe(gobj);
+            }
+            return;
+
+        case OP_SET_ADDRESS:
+            if(!ack) {
+                priv->badFrames++;
+                finish_operation(gobj,
+                    priv->op_step == OPS_PROBE? "the selection was not answered with E5" :
+                    priv->op_step == OPS_WRITE? "the write was not answered with E5" :
+                        "SND_NKE to the new address was not answered with E5",
+                    TRUE
+                );
+                return;
+            }
+            if(priv->op_step == OPS_VERIFY) {
+                op_found(gobj, json_pack("{s:s, s:i}",
+                    "secondary", priv->op_secondary, "address", priv->op_new_address
+                ));
+                finish_operation(gobj, NULL, TRUE);
+                return;
+            }
+            priv->op_step = priv->op_step == OPS_PROBE? OPS_WRITE : OPS_VERIFY;
+            priv->attempts = 0;
+            op_send(gobj);
+            return;
+
+        default:
+            finish_operation(gobj, "operation unknown", TRUE);
+            return;
+    }
+}
+
+/***************************************************************************
+ *  No valid answer to the step of the operation, retries spent
+ ***************************************************************************/
+PRIVATE void op_not_answered(hgobj gobj, BOOL bad)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    switch(priv->op) {
+        case OP_SCAN_PRIMARY:
+            if(priv->op_step == OPS_PROBE) {
+                if(bad) {
+                    // several meters with the address: their E5 overlap
+                    op_found(gobj, json_pack("{s:i, s:b}", "address", priv->op_address, "collision", 1));
+                }
+            } else {
+                op_found(gobj, json_pack("{s:i, s:s}",
+                    "address", priv->op_address,
+                    "error", bad? "bad frame to REQ_UD2 (a collision?)" : "no answer to REQ_UD2"
+                ));
+            }
+            next_primary_address(gobj);
+            return;
+
+        case OP_SCAN_SECONDARY:
+            if(bad) {
+                secondary_collision(gobj);
+                return;
+            }
+            if(priv->op_step == OPS_IDENTIFY) {
+                op_found(gobj, json_pack("{s:s, s:s}",
+                    "secondary", priv->op_mask, "error", "no answer to REQ_UD2"
+                ));
+            }
+            next_secondary_probe(gobj);
+            return;
+
+        case OP_SET_ADDRESS:
+            {
+                char error[128];
+                snprintf(error, sizeof(error), "%s %s",
+                    bad? "bad frame to" : "no answer to",
+                    priv->op_step == OPS_PROBE? "the selection" :
+                    priv->op_step == OPS_WRITE? "the write" : "SND_NKE to the new address"
+                );
+                finish_operation(gobj, error, TRUE);
+            }
+            return;
+
+        default:
+            finish_operation(gobj, "operation unknown", TRUE);
+            return;
+    }
+}
+
 
 
 
@@ -1057,6 +1790,10 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     JSON_DECREF(priv->jn_reading)
     priv->rx_len = 0;
     priv->idx = -1;
+
+    if(priv->op || priv->op_pending) {
+        finish_operation(gobj, "the bus closed", FALSE);
+    }
 
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);
@@ -1183,7 +1920,11 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     priv->rxFrames++;
-    step_answered(gobj, &frame);
+    if(priv->op) {
+        op_answered(gobj, &frame);
+    } else {
+        step_answered(gobj, &frame);
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -1204,7 +1945,17 @@ PRIVATE int ac_timeout_response(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     if(priv->attempts < priv->retries) {
         priv->attempts++;
         priv->repeats++;
-        send_step(gobj);
+        if(priv->op) {
+            op_send(gobj);
+        } else {
+            send_step(gobj);
+        }
+        JSON_DECREF(kw)
+        return 0;
+    }
+
+    if(priv->op) {
+        op_not_answered(gobj, bad);
         JSON_DECREF(kw)
         return 0;
     }

@@ -309,7 +309,7 @@ transparent M-Bus to TCP gateway (`C_TCP`). Full reference:
 | File | Purpose |
 |------|---------|
 | `mbus_telegram.c/.h` | The telegram decoder, no gobj and no state: frames of EN 13757-2, the variable data structure of EN 13757-3 decoded to json (one unit per quantity, stable record ids), the requests of a master |
-| `c_prot_mbus_m.c/.h` | `C_PROT_MBUS_M` GClass — the master: reads each slave by primary or secondary address, multi-telegram readouts with the FCB, retries, one `EV_ON_MESSAGE` per slave read, failures logged on transition |
+| `c_prot_mbus_m.c/.h` | `C_PROT_MBUS_M` GClass — the master: reads each slave by primary or secondary address, multi-telegram readouts with the FCB, retries, one `EV_ON_MESSAGE` per slave read, failures logged on transition; scans of the bus (primary, secondary) and the setting of a primary address |
 
 ---
 

@@ -7,7 +7,7 @@ electricity meters, read through a serial M-Bus level converter (`C_UART`,
 | File | What it is |
 |---|---|
 | `src/mbus_telegram.c/.h` | The telegram decoder: no gobj, no state. Finds frames, builds the requests of a master, and decodes the variable data structure to json, with one unit per quantity and record ids that stay the same from one reading to the next. Never logs: a failure comes back with its reason, for the caller to log |
-| `src/c_prot_mbus_m.c/.h` | `C_PROT_MBUS_M`, the master gclass (child model). Reads each slave by primary or secondary address, follows multi-telegram readouts with the FCB, retries, publishes one `EV_ON_MESSAGE` per slave read, and logs a failing slave on transition, not on every cycle |
+| `src/c_prot_mbus_m.c/.h` | `C_PROT_MBUS_M`, the master gclass (child model). Reads each slave by primary or secondary address, follows multi-telegram readouts with the FCB, retries, publishes one `EV_ON_MESSAGE` per slave read, and logs a failing slave on transition, not on every cycle. Commissioning commands: `scan-primary`, `scan-secondary`, `set-primary-address` (operations that run when the bus is free; `operation-status` gives their result), `read-now`, `dump-data` |
 
 A minimal master on a serial level converter:
 
@@ -35,4 +35,4 @@ the units and every function of `mbus_telegram.h`:
 
 Tests: `tests/c/mbus_telegram` (the decoder, with real telegrams checked
 against libmbus) and `tests/c/c_prot_mbus_m` (the master against a simulated
-bus).
+bus: `test1` the cycle, `test2` the operations).

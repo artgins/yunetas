@@ -37,16 +37,30 @@
     - it logs a failing slave once, as a warning with its reason, and again
       when it answers, not on every cycle;
     - its stats are `txFrames`, `rxFrames`, `badFrames`, `timeouts`,
-      `repeats`, `readings` and `failedReads`, and it has the command
-      `dump-data`.
+      `repeats`, `readings` and `failedReads`;
+    - commands: `dump-data` (last reading of each slave, and what it is
+      failing with) and `read-now` (a cycle at once);
+    - three operations to put meters into service: `scan-primary`
+      (`SND_NKE`, then `REQ_UD2` to say who answered, with collisions
+      reported), `scan-secondary` (the wildcard tree search; a collision
+      fixes one more digit) and `set-primary-address` (select, write
+      `01 7A nn`, check `SND_NKE` at the new address). A command starts its
+      operation and answers at once. The operation runs when the bus is
+      free, the cycle waits for it, and `operation-status` gives its
+      result. Its end is logged once.
 
     It uses `C_TIMER0`, because an answer is waited for in hundreds of
     milliseconds and `C_TIMER` counts in seconds.
   - New tests: `mbus_telegram` (the decoder, with six real telegrams of the
-    libmbus collection, BSD-3-Clause, licence next to them) and
-    `c_prot_mbus_m/test1` (the master against a simulated bus). The master
-    test was checked to fail when the FCB is not toggled, when the FCB is
-    toggled on a repeat, and when a failure is logged on every cycle.
+    libmbus collection, BSD-3-Clause, licence next to them),
+    `c_prot_mbus_m/test1` (the cycle, against a simulated bus) and
+    `c_prot_mbus_m/test2` (the operations, on a simulated bus of six
+    meters). The master tests were checked to fail when:
+    - the FCB is not toggled;
+    - the FCB is toggled on a repeat;
+    - a failure is logged on every cycle;
+    - a collision does not narrow the search;
+    - the address is written with another VIF.
   - Docs: `/mbus` and `/mbus-telegram` on doc.yuneta.io.
   - **An existing checkout** must add the new symbol to its `.config`
     (`olddefconfig`, or `menuconfig` and save) and run `yunetas init`.

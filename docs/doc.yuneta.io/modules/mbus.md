@@ -248,15 +248,82 @@ json_t *resp = gobj_command(gobj_mbus, "dump-data",
 );
 ```
 
+**`read-now`** starts a cycle at once, without waiting for `timeout_polling`.
+It answers `-1` when the bus is not between cycles (not connected, a cycle
+or an operation in progress).
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=<gate> command=read-now'
+```
+
+### Operations: putting meters into service
+
+Three commands work on the bus itself. A command checks its arguments,
+**starts its operation and answers at once**. The operation runs when the bus
+is free: at once between cycles, or at the end of the cycle in progress. The
+cycle waits while it runs, and goes on `timeout_polling` after it. Only one
+runs at a time; a second one answers `-1`. **`operation-status`** gives the
+state (`waiting`, `running`, `done`, `failed`) and the result. The end is
+logged: *"M-Bus operation done"* as an INFO, with the number found, or *"M-Bus
+operation failed"* as a WARNING, with the reason. A bus that closes fails the
+operation in progress.
+
+- **`scan-primary from=1 to=250`** sends a `SND_NKE` to each address. To
+  each one that answers it sends a `REQ_UD2`, to find out who the meter is.
+  When the `E5` of several meters with the same address overlap, it is a
+  collision.
+- **`scan-secondary`** is the wildcard tree search. It selects with an `F`
+  in every digit not yet fixed (`0FFFFFFF`, `1FFFFFFF`, ...). With no answer,
+  it goes on to the next digit. With one `E5`, it sends a `REQ_UD2` to the
+  selected meter. When several meters answer at once, the garbage is a
+  collision, and the search fixes one more digit (`10FFFFFF`, `11FFFFFF`,
+  ...). Each step waits up to `timeout_response`, so a bus of a few meters
+  takes tens of seconds.
+- **`set-primary-address secondary=<8 digits> [manufacturer=<3 letters>]
+  new_address=<1-250>`**
+  1. selects the meter, which must answer `E5`;
+  2. writes it the record `01 7A <address>` (`SND_UD`, `CI 51`), which must
+     answer `E5`;
+  3. checks that the meter answers `SND_NKE` at the new address.
+
+  A secondary address with a wildcard is refused: it could select more than
+  one meter.
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=<gate> command=scan-secondary'
+ycommand -c 'command-yuno id=<yuno> service=<gate> command=operation-status'
+```
+
+```json
+{
+    "operation": "scan-primary",
+    "state": "done",
+    "args": {"from": 1, "to": 5},
+    "asked": 1792750000,
+    "ended": 1792750003,
+    "error": "",
+    "found": [
+        {"address": 1, "secondary": "11111111", "manufacturer": "KAM",
+         "version": 1, "medium": "water", "medium_code": 7},
+        {"address": 4, "collision": true}
+    ]
+}
+```
+
+An entry of `scan-secondary` has the `secondary` and the primary `address`
+the meter answered with (0 when it has none). An entry that could not be told
+apart carries `"collision": true`, and one that answered the probe but not
+the `REQ_UD2` carries an `error`.
+
 **Trace levels:** `messages` (each reading published), `traffic` (raw bytes,
-both ways), `polling` (each step of the cycle, and a slave with more telegrams
-than `max_telegrams`).
+both ways), `polling` (each step of the cycle and of the operations, what
+each scan finds, and a slave with more telegrams than `max_telegrams`).
 
 ### What it does not do (yet)
 
 - **Wireless M-Bus** (EN 13757-4, 868 MHz radio, usually encrypted).
 - The **fixed data structure** (`CI 73`/`77`), an old format: refused as
   `undecodable`.
-- **Writing to a meter.**
-- **Searching the bus** for meters, and setting a primary address. These two
-  are planned as commands.
+- **Writing to a meter**, other than its primary address.
+- Telling apart, in a secondary search, two meters with the same 8 digits
+  (by manufacturer, version or medium): they are reported as a collision.
