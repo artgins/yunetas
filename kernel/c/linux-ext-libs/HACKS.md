@@ -69,8 +69,7 @@ and `/etc/hosts` directly, bypassing glibc's NSS resolver chain.
 jansson comes from Yuneta's fork, `https://github.com/artgins/jansson`,
 which is Yuneta's official jansson (`repos2clone.sh`, `TAG_JANSSON`): a
 commit of its `master`, which is upstream (`akheron/jansson`) and one commit
-per change Yuneta carries on it, the seven below (one of them in two
-commits). A new fix or change is a commit there, merged into `master` once
+per change Yuneta carries on it, those below. A new fix or change is a commit there, merged into `master` once
 it is checked, and `TAG_JANSSON` moves to that commit of `master` (with a
 bump of `VERSION` in `configure-libs.sh`). Since `configure-libs.sh` 1.29
 `TAG_JANSSON` is a commit of `master`; from 1.25 to 1.28 it was a commit of
@@ -147,6 +146,17 @@ and the buckets as evenly filled as with `hashlittle()`. Per hash, -10% to
 -25% for the keys of a Yuneta message, x3.5 faster for a key of 100 bytes.
 Not applied to the ESP32 copy of jansson.
 
+Since configure-libs.sh 1.32 (`performance/audit/round-8-jansson.md`) the
+hash is built on 32-bit words: two words of state, each word of the key
+xored in, the state mixed by the 64-bit product of its two words (the
+construction of wyhash32). The 64x64 -> 128 product of 1.25 used
+`__uint128_t` where the compiler had it and four 32-bit products where it
+did not, twice the instructions: its speed depended on the compiler. The
+product of two 32-bit words is exact in standard C, so the hash is the
+same code, and the same values, everywhere, and 7% to 19% faster than the
+128-bit path. Checked as before, plus the avalanche of each input bit on
+each output bit.
+
 ## jansson — the key of the loop check without `snprintf()`
 
 The fourth commit of the fork (configure-libs.sh 1.26), for speed, from the
@@ -159,6 +169,8 @@ hexadecimal digits of the address, without leading zeros); a buffer too
 short for it, or a NULL json, still goes to `snprintf()`. Checked against
 `snprintf()` on 20 million addresses and buffer sizes (the same bytes and
 length), and jansson's 215 tests. Not applied to the ESP32 copy of jansson.
+Since configure-libs.sh 1.32 the table of parents, and so the key, is only
+used past 32 levels of a walk (see the loop path below).
 
 ## jansson — the runs of the lexer for `json_loads()`, digits and blanks
 
@@ -211,3 +223,73 @@ byte by byte reference on 48 million words); the same bytes, results and
 errors (jansson's 215 tests, the differential fuzz, strings with one special
 byte at each place under six sets of flags and with two at every pair of
 places under four). Not applied to the ESP32 copy of jansson.
+
+## jansson — fewer allocations
+
+Four commits of the fork's `master` (configure-libs.sh 1.32), for speed,
+from the performance audit of the C SDK
+(`performance/audit/round-8-jansson.md`). An inter-yuno round trip of Yuneta
+made 381 allocations, nearly all of them jansson's.
+
+- A hashtable keeps its first 8 buckets in itself (`inline_buckets`, fixed
+  in `hashtable.h`), and allocates them only when it grows past them.
+- A string whose value fits, with its `json_string_t` and the NUL, in 1024
+  bytes is one allocation, the value right after the `json_string_t`.
+- An array keeps its first table of 8 entries in its own allocation.
+- A string token is not decoded into an allocation of its own: with no
+  escape its value is the saved text between its quotes, with escapes it is
+  decoded into one buffer of the lexer; a key is kept in a stack of keys of
+  the lexer until its value is parsed, a value is copied into its string.
+
+The same results: jansson's 215 tests (also under AddressSanitizer and
+UndefinedBehaviorSanitizer), the differential fuzz, and tests of each change
+against the previous library (big objects, strings across the inline size,
+nested objects with long and escaped keys, arrays across their growth).
+What changes is what a custom allocator sees: fewer allocations, of other
+sizes. Not applied to the ESP32 copy of jansson.
+
+## jansson — the dump: its loop check and its output
+
+Two commits of the fork's `master` (configure-libs.sh 1.32), from the same
+round.
+
+- The containers above the one a walk is in (a dump, a deep copy, a
+  recursive update) were a hashtable keyed by their address as text: a
+  table per walk, a key written, two lookups, an insertion that allocated
+  and a deletion that freed, per container. They are a path now
+  (`loop_path_t`): the first 32 in an array, compared one by one, the
+  deeper ones in the hashtable of before, made the first time a walk goes
+  that deep.
+- `json_dump_callback()`, which every dump goes through, called its
+  callback for every piece of the output (a brace, a quote, a key, a run of
+  a string). The pieces are gathered in a buffer of 4096 bytes and handed
+  over when the next would not fit, and at the end; a piece is never cut,
+  so each chunk is still whole UTF-8 sequences. One answer changes, in an
+  error case: a callback that failed on the piece of a key was ignored
+  (the key missing, the dump answering 0); now a failure of the callback
+  always fails the dump, as the documentation of the callback says.
+
+The same output: jansson's 215 tests, and random documents dumped through
+`json_dumps()`, `json_dump_callback()`, `json_dumpb()`, `json_dumpf()` and
+`json_dumpfd()`, with cycles at depths on both sides of 32 and 2048. Not
+applied to the ESP32 copy of jansson.
+
+## jansson — the lexer: one source, and tokens without the byte calls
+
+Two commits of the fork's `master` (configure-libs.sh 1.32), from the same
+round.
+
+- `json_loads()` measures its string and reads it as a buffer of that
+  length, through the source of `json_loadb()`: the string source is gone,
+  and every source of the fast paths has a length.
+- A string token takes the plain bytes after its opening quote as a run
+  (eight bytes at a time, with the exact test of the dump) and its closing
+  quote where it is; an integer ends without reading the byte after it,
+  when that byte is plain ASCII that cannot continue a number. The same
+  bytes saved, the same stream state, the saved text grown where it was.
+
+The same results, errors, lines, columns and positions: jansson's 215
+tests, the differential fuzz (also under a capped allocator, against the
+previous commit), and 333 420 loads of integers followed by each byte, of
+strings with a special byte at each place, and of tokens across the growths
+of the saved text. Not applied to the ESP32 copy of jansson.

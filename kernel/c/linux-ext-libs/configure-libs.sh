@@ -327,7 +327,24 @@
 #       relinked; every node that builds from source must run
 #       `./extrae.sh && ./configure-libs.sh` again.
 
-VERSION="1.31"
+#   version 1.32
+#       jansson at a new commit of the master of artgins/jansson, nine more
+#       commits from the performance audit of the C SDK (round 8): a hash of
+#       the keys in standard C (32-bit words; the previous one had a path
+#       for compilers with a 128-bit integer), fewer allocations (the first
+#       buckets of a table, the value of a short string and the first table
+#       of an array in their own blocks; a string token decoded with no
+#       allocation of its own), the loop check of a dump without a hashtable
+#       for 32 levels, the output of a dump gathered before its callback,
+#       json_loads() through the buffer source, and the lexer's string
+#       tokens and integers without the generic byte calls. The same
+#       results, bytes, errors and positions; what a custom allocator sees
+#       changes, and a dump callback that fails once now always fails the
+#       dump. Every yuno must be rebuilt and relinked; every node that
+#       builds from source must run `./extrae.sh && ./configure-libs.sh`
+#       again.
+
+VERSION="1.32"
 
 
 source ./repos2clone.sh
