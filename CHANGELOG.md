@@ -2,11 +2,12 @@
 
 ## Unreleased
 
-- **A performance audit of the C SDK** (`performance/audit/`): seven rounds
+- **A performance audit of the C SDK** (`performance/audit/`): eight rounds
   (the core of gobj-c; timeranger2 and tr_treedb; the network path; the
   inter-yuno path, HTTP and MQTT; subscriptions and the reads of a treedb;
-  jansson's parse; the bytes of jansson's lexer, UTF-8 check and dump),
-  each change a commit of its own that leaves results,
+  jansson's parse; the bytes of jansson's lexer, UTF-8 check and dump;
+  jansson's allocations, dump and lexer, in standard C only), each change
+  a commit of its own that leaves results,
   bytes, events, logs and errors as they were, and the proposals the rounds
   left for a decision, applied on the user's decision.
   The figures of each change, and what it was checked against, are in the
@@ -21,10 +22,20 @@
       ASCII (for `json_loads()` too, and runs of digits and blanks), a
       byte of the lexer read and saved without the generic calls, eight
       bytes of ASCII at a time in the UTF-8 check and in the dump of a
-      string, a faster seeded hash of the keys and the key of its loop
-      check without `snprintf()` (the same results, bytes, errors and
-      positions). `linux-ext-libs` 1.25 to 1.31: a node that builds from
-      source reruns `./extrae.sh && ./configure-libs.sh`.
+      string, a faster seeded hash of the keys (in standard C, on 32-bit
+      words), fewer allocations (the first buckets of a table, the value of
+      a short string and the first table of an array in their own blocks,
+      a string token with no allocation of its own), the loop check of a
+      dump without a table for 32 levels, the output of a dump gathered
+      before its callback, and string tokens and integers read without the
+      generic byte calls (the same results, bytes, errors and positions).
+      `linux-ext-libs` 1.25 to 1.32: a node that builds from source reruns
+      `./extrae.sh && ./configure-libs.sh`. Two things a caller can see:
+      a custom allocator (`json_set_alloc_funcs()`) sees fewer
+      allocations, of other sizes; and a dump whose callback fails once
+      now fails, where a failure on the piece of a key was ignored (the
+      key missing, the dump answering 0; `json_dumps()` without memory on
+      a key now gives NULL, not a text without that key).
     - **A `C_TIMER` keeps its subscription to the yuno's
       `EV_TIMEOUT_PERIODIC` for its life**, from its first start: the yuno's
       subscriptions list stopped timers too, and a stopped timer gets the
