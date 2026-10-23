@@ -299,3 +299,32 @@ tests, the differential fuzz (also under a capped allocator, against the
 previous commit), and 333 420 loads of integers followed by each byte, of
 strings with a special byte at each place, and of tokens across the growths
 of the saved text. Not applied to the ESP32 copy of jansson.
+
+## jansson — the dump in place, a NUL looked for after escapes only, counts without atomics
+
+Five commits of jansson's `master` (configure-libs.sh 1.33), from round 9
+of the audit (`performance/audit/round-9-jansson-memory-websocket.md`).
+
+- Yuneta's braces on every block of the sources, by `clang-format`
+  (`InsertBraces`), and `lookup3.h`, which nothing included, removed: the
+  library built is byte-identical.
+- The dump writes its pieces (a brace, a quote, a run of a string) into
+  the buffer of `json_dump_callback()` in place, not through a call each,
+  and classes the bytes of a string by a table of 256 (escaped always,
+  escaped with `JSON_ESCAPE_SLASH`, a byte of a UTF-8 sequence).
+- A string loaded is looked through for a NUL (refused without
+  `JSON_ALLOW_NUL`, and always in a key) only when it had escapes: the
+  lexer refuses a control byte in a string, so only `\u0000` can put one
+  there.
+- A CMake option, `JANSSON_THREAD_SAFE_REFCOUNT` (ON by default): OFF,
+  `json_incref()` and `json_decref()` count with `++` and `--`, without
+  the compiler's atomic builtins, and `JANSSON_THREAD_SAFE_REFCOUNT` is not
+  defined. **`configure-libs.sh` builds jansson with it OFF**: Yuneta has no
+  threads (one yuno per core), and each atomic count was a locked
+  instruction in every caller, `json_incref()` and `json_decref()` being
+  inline. A json value of a yuno must not be shared by threads; none is.
+  The seed of the hash keeps the builtins.
+
+The same results, bytes and errors: `test/differential/run.sh` against the
+commit of 1.32 for each commit, and jansson's 215 tests, also with the
+option OFF. Not applied to the ESP32 copy of jansson.

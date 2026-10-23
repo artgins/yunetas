@@ -344,7 +344,20 @@
 #       builds from source must run `./extrae.sh && ./configure-libs.sh`
 #       again.
 
-VERSION="1.32"
+#   version 1.33
+#       jansson at a new commit of the master of artgins/jansson (round 9
+#       of the performance audit): Yuneta's braces on every block (the
+#       library byte-identical), the dump's pieces written into its buffer
+#       in place and the bytes of a string classed by a table, a NUL looked
+#       for only in a string that had escapes, and the CMake option
+#       JANSSON_THREAD_SAFE_REFCOUNT, which this script turns OFF: Yuneta
+#       has no threads, and json_incref()/json_decref(), inline in every
+#       caller, were a locked instruction each. The same results, bytes and
+#       errors. jansson_config.h changes, so every yuno must be rebuilt (not
+#       only relinked); every node that builds from source must run
+#       `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.33"
 
 
 source ./repos2clone.sh
@@ -423,6 +436,7 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DJANSSON_BUILD_DOCS=OFF \
     -DJANSSON_EXAMPLES=OFF \
     -DJANSSON_WITHOUT_TESTS=ON \
+    -DJANSSON_THREAD_SAFE_REFCOUNT=OFF \
     ..
 make
 make install

@@ -10,8 +10,10 @@ declare -A REPOS
 # its master, which is upstream and the commits Yuneta carries on it (the
 # lexer fix, the ASCII fast paths, the seeded hash, the loop key, the runs of
 # the lexer for json_loads(), digits and blanks, a byte read and saved
-# without the generic calls, eight bytes of ASCII at a time; see HACKS.md)
-TAG_JANSSON="a81a51c543e1dd95c7d4966efc0d0a6bd7f0dc48"
+# without the generic calls, eight bytes of ASCII at a time, fewer
+# allocations, a dump written in place, counts built without atomics; see
+# HACKS.md)
+TAG_JANSSON="20fd432a1ab4ae37ea73ec889ef760fe6278600b"
 TAG_LIBURING="liburing-2.15"
 TAG_MBEDTLS="v4.2.0"
 TAG_OPENSSL="openssl-3.6.5"

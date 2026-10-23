@@ -121,7 +121,7 @@ v1.22 by a patch, which is a commit of `artgins/jansson` since v1.25. See
 `./extrae.sh && ./configure-libs.sh` again, and then rebuild the SDK and
 its yunos.
 
-### jansson: Yuneta's, `artgins/jansson` (configure-libs.sh v1.25 to v1.32)
+### jansson: Yuneta's, `artgins/jansson` (configure-libs.sh v1.25 to v1.33)
 
 jansson is Yuneta's own JSON library, `artgins/jansson`, cloned at
 `TAG_JANSSON` (a commit of its `master` since v1.29). It began as a fork of
@@ -134,7 +134,10 @@ hash of the keys (v1.25), the key of the loop check without `snprintf()`
 (v1.27, v1.28), a byte read and saved without the generic calls and eight
 bytes of ASCII at a time (v1.30, v1.31), and a hash in standard C, fewer
 allocations, a dump that gathers its output, and string tokens and integers
-without the byte calls (v1.32). The same results, bytes and errors. See
+without the byte calls (v1.32), and a dump that writes its pieces in place,
+a NUL looked for only after escapes, and counts of references built without
+atomics, Yuneta having no threads (v1.33). The same results, bytes and
+errors. See
 `HACKS.md`. Every node that builds from source must run `./extrae.sh &&
 ./configure-libs.sh` again, and then rebuild the SDK and its yunos.
 
