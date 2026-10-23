@@ -68,7 +68,7 @@ and `/etc/hosts` directly, bypassing glibc's NSS resolver chain.
 
 jansson comes from Yuneta's fork, `https://github.com/artgins/jansson`
 (`repos2clone.sh`, `TAG_JANSSON`): upstream v2.15.1 and one commit per
-change Yuneta carries on it, the three below. A new fix or change is a
+change Yuneta carries on it, the four below. A new fix or change is a
 commit there, and `TAG_JANSSON` moves to it (with a bump of `VERSION` in
 `configure-libs.sh`). Up to `configure-libs.sh` 1.24 the changes were
 `patches/jansson/*.patch`, applied after a checkout of upstream.
@@ -142,3 +142,16 @@ tests, a differential fuzz against the previous library (the same bytes),
 and the buckets as evenly filled as with `hashlittle()`. Per hash, -10% to
 -25% for the keys of a Yuneta message, x3.5 faster for a key of 100 bytes.
 Not applied to the ESP32 copy of jansson.
+
+## jansson — the key of the loop check without `snprintf()`
+
+The fourth commit of the fork (configure-libs.sh 1.26), for speed, from the
+performance audit of the C SDK (`performance/audit/round-5-subscriptions-treedb.md`).
+Every object and array dumped, deep-copied or compared is first put in a
+table of its parents, under a key made with `snprintf(key, size, "%p",
+json)`: 15 printf calls per inter-yuno message, 1.8% of its round trip.
+`loop_key()` writes the same text glibc's `"%p"` writes ("0x" and the
+hexadecimal digits of the address, without leading zeros); a buffer too
+short for it, or a NULL json, still goes to `snprintf()`. Checked against
+`snprintf()` on 20 million addresses and buffer sizes (the same bytes and
+length), and jansson's 215 tests. Not applied to the ESP32 copy of jansson.

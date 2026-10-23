@@ -267,7 +267,16 @@
 #       relinked; every node that builds from source must run
 #       `./extrae.sh && ./configure-libs.sh` again.
 
-VERSION="1.25"
+#   version 1.26
+#       jansson at a new TAG_JANSSON of artgins/jansson: one more commit, the
+#       key of the loop check (the table of the parents of a container being
+#       dumped, deep-copied or compared) written without snprintf("%p"), the
+#       same text. From the performance audit of the C SDK (round 5). No API/
+#       ABI change, no header change. Every yuno must be rebuilt and relinked;
+#       every node that builds from source must run
+#       `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.26"
 
 
 source ./repos2clone.sh

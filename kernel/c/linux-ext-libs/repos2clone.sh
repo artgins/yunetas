@@ -7,8 +7,9 @@ declare -A REPOS
 #   remember to change the VERSION of installation in configure-libs.sh
 #--------------------------------------------------------------------------
 # jansson comes from artgins/jansson: v2.15.1 and the commits Yuneta carries
-# on it (the lexer fix, the ASCII fast paths, the seeded hash; see HACKS.md)
-TAG_JANSSON="632f542942a0cd624fee6bb3d1914421fa95cc8c"
+# on it (the lexer fix, the ASCII fast paths, the seeded hash, the loop key;
+# see HACKS.md)
+TAG_JANSSON="3fccbb6489dfd0d2198408c90bf064c8247154cd"
 TAG_LIBURING="liburing-2.15"
 TAG_MBEDTLS="v4.2.0"
 TAG_OPENSSL="openssl-3.6.5"
