@@ -95,6 +95,22 @@ upstream.
 
 Source: `main_perf_auth_bff.c`, `c_perf_auth_bff.c`
 
+### perf_ievent -- inter-yuno round trips (C_IEVENT_CLI / C_IEVENT_SRV over websocket)
+
+**Binary:** `perf_ievent`
+
+A `C_IEVENT_CLI` sends an inter-event to the service `echo` of the same yuno through `ws://127.0.0.1:7798` (`C_WEBSOCKET` and `C_IEVENT_SRV` on the other side); `echo` publishes the answer to the client's remote subscription, and the client sends the next one: 100 000 round trips. See [`perf_ievent/README.md`](perf_ievent/README.md).
+
+Source: `src/main.c`, `src/c_perf_ievent.c`, `src/c_perf_iev_echo.c`
+
+### perf_mqtt -- MQTT QoS 0 publications through the embedded broker
+
+**Binary:** `perf_mqtt`
+
+The embedded broker (`C_MQTT_BROKER`) on `mqtt://0.0.0.0:18119` and a client in one yuno: the client publishes at QoS 0 on a topic it is subscribed to, and publishes again when the broker delivers the message back: 100 000 times. See [`perf_mqtt/README.md`](perf_mqtt/README.md).
+
+Source: `src/main.c`, `src/c_perf_mqtt.c`
+
 ### perf_timeranger2 -- timeranger2 open, topic create, tm query, iterator reads
 
 **Binary:** `perf_timeranger2`
