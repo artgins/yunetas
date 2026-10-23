@@ -244,6 +244,11 @@ static inline md2_record_ex_t *trq_msg_md(q_msg_t *msg)
     Get info of message
 */
 PUBLIC md2_record_ex_t *trq_msg_md(q_msg_t *msg);
+/*
+    The message as it was queued, read from the store: without the
+    __md_tranger__ the read adds and the "__rowid__" the append of the
+    queue topic (keyed by rowid) adds. NULL if it cannot be read (logged).
+*/
 PUBLIC json_t *trq_msg_json(q_msg_t *msg); // Load the message, Return json is YOURS!!
 
 static inline json_int_t trq_msg_rowid(q_msg_t *msg)

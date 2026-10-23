@@ -200,6 +200,37 @@ PRIVATE int do_test(void)
         result += -1;
     }
 
+    /*-----------------------------------------------------*
+     *  A message read back is the message queued: not the
+     *  __md_tranger__ of the queue's store, nor the
+     *  "__rowid__" the append of a rowid topic gives it
+     *  (a C_QIOGATE sent both on with every message).
+     *-----------------------------------------------------*/
+    set_expected_results(
+        "message read back as queued",
+        json_pack("[{s:s}]", "msg", "Creating topic"),
+        NULL, NULL, 1
+    );
+    tr_queue_t *trq_json = trq_open(tranger, "queue_msg_json", "tm", 0, 1000);
+    json_t *kw_queued = json_pack("{s:s, s:I, s:{s:f}, s:{s:I}}",
+        "id", "DEV-1",
+        "tm", (json_int_t)946684800,
+        "m", "v", 1.5,
+        "__md_trq__", "__msg_key__", (json_int_t)7
+    );
+    q_msg_t *qmsg = trq_append2(trq_json, 0, json_deep_copy(kw_queued), 0);
+    json_t *jn_read = qmsg? trq_msg_json(qmsg) : NULL;
+    if(!jn_read || !json_equal(jn_read, kw_queued)) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "the message read back is not the message queued", Color_Off);
+        print_json("queued", kw_queued);
+        print_json("read", jn_read);
+        result += -1;
+    }
+    JSON_DECREF(jn_read)
+    JSON_DECREF(kw_queued)
+    trq_close(trq_json);
+    result += test_json(NULL);
+
     /*-------------------------------*
      *      Shutdown timeranger
      *-------------------------------*/

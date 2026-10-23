@@ -367,7 +367,7 @@ Use [`trq_load_all()`](<#trq_load_all>) to retrieve messages efficiently within 
 (trq_msg_json)=
 ## [`trq_msg_json()`](https://github.com/artgins/yunetas/blob/7.27.9/kernel/c/timeranger2/src/tr_queue.c#L776)
 
-`trq_msg_json()` retrieves the JSON representation of a queue message. The returned JSON object is not owned by the caller and must not be modified or freed.
+`trq_msg_json()` reads the content of a queue message from the queue's store and returns it as JSON. The returned JSON is **yours**: decref it when you are done.
 
 ```C
 json_t *trq_msg_json(
@@ -379,6 +379,30 @@ json_t *trq_msg_json(
 
 | Key | Type | Description |
 |---|---|---|
+| `msg` | `q_msg_t *` | The queue message to read. |
+
+**Returns**
+
+The message, as it was queued, or `NULL` if it cannot be read (the error is logged). The caller owns the returned JSON.
+
+**Example**
+
+```C
+q_msg_t *msg = trq_append2(trq, 0, json_pack("{s:s, s:I}", "id", "DEV-1", "tm", (json_int_t)946684800), 0);
+
+json_t *jn_msg = trq_msg_json(msg);     // {"id": "DEV-1", "tm": 946684800}
+if(jn_msg) {
+    trq_set_metadata(jn_msg, "__msg_rowid__", json_integer((json_int_t)trq_msg_rowid(msg)));
+    /*  ... send it ...  */
+    JSON_DECREF(jn_msg)
+}
+```
+
+**Notes**
+
+The message comes back as it was queued. The read of a record adds the `__md_tranger__` of the queue's store, and the append to a queue topic (keyed by rowid) adds a `"__rowid__"` member. `trq_msg_json()` removes both. Up to 7.27.9 it returned them, so a `C_QIOGATE` sent them with every message, and a consumer that stored the frames as they arrived stored the `"__rowid__"` too. The metadata of the message is in [`trq_msg_md()`](#trq_msg_md).
+
+---|---|---|
 | `msg` | `q_msg_t *` | The queue message whose JSON representation is to be retrieved. |
 
 **Returns**

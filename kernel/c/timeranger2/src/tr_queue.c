@@ -794,7 +794,16 @@ PUBLIC json_t *trq_msg_json(q_msg_t *msg) // Load the message, Return json is YO
             "topic",        "%s", msg->trq->topic_name,
             NULL
         );
+        return NULL;
     }
+
+    /*
+     *  The message as it was queued: the read adds the metadata of the
+     *  queue's own store, and the append of a topic keyed by rowid gave it
+     *  a "__rowid__". Neither is the message's: a C_QIOGATE sent both on.
+     */
+    json_object_del(jn_record, "__md_tranger__");
+    json_object_del(jn_record, "__rowid__");
     return jn_record;
 }
 

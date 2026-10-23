@@ -17,6 +17,15 @@
   New test `c_yuno_cpu_core` (`test1` a pin, `test2` a cpu that does not
   exist), red against 7.27.9. Found pinning the yunos of hidraulia for the
   performance test.
+- **A queue message is read back as it was queued** (`trq_msg_json()`,
+  `kernel/c/timeranger2/src/tr_queue.c`). The read of a record adds the
+  `__md_tranger__` of the queue's own store, and the append to a queue topic
+  (keyed by rowid) adds `"__rowid__": "__rowid__"`; `trq_msg_json()` returned
+  both. So a `C_QIOGATE` sent them with every message, and a consumer that
+  stores frames as they arrive (yunovatios' and hidraulia's `db_tracks`)
+  stored the `"__rowid__"`. Both are removed now. The message's metadata is in
+  `trq_msg_md()`. The API page said the json was not the caller's; it is.
+  Test `tr_queue/test_tr_queue1` (red against 7.27.9).
 - **New `tranger2_append_record_text()`** (`kernel/c/timeranger2`). It
   appends a record whose content is already json text, as a peer sent it,
   written as it is: no parse of the whole record and no dump. The store
