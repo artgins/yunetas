@@ -1258,16 +1258,64 @@ PRIVATE int dump2gbuf(const char *buffer, size_t size, void *data)
     }
     return 0;
 }
+/***************************************************************************
+ *  The dump of json2gbuf() without a gbuffer of the caller: kept in bf
+ *  while it fits the 4 KB gbuffer json2gbuf() always made, so that a small
+ *  json ends in a gbuffer of its size instead of one of 4 KB, zeroed, that
+ *  it barely used. The first token that would not have fit those 4 KB
+ *  makes that gbuffer, with what bf holds, and the dump goes on in it as it
+ *  always did: the same appends, the same growth.
+ ***************************************************************************/
+#define JSON2GBUF_SIZE (4*1024)
+typedef struct {
+    char bf[JSON2GBUF_SIZE];
+    size_t len;
+    BOOL in_gbuf;
+    gbuffer_t *gbuf;
+} json2gbuf_dump_t;
+
+PRIVATE int dump2small(const char *buffer, size_t size, void *data)
+{
+    json2gbuf_dump_t *dump = data;
+
+    if(!dump->in_gbuf) {
+        if(size <= sizeof(dump->bf) - dump->len) {
+            if(size > 0) {
+                memcpy(dump->bf + dump->len, buffer, size);
+                dump->len += size;
+            }
+            return 0;
+        }
+        dump->in_gbuf = TRUE;
+        dump->gbuf = gbuffer_create(JSON2GBUF_SIZE, gbmem_get_maximum_block());
+        dump2gbuf(dump->bf, dump->len, dump->gbuf);
+    }
+    return dump2gbuf(buffer, size, dump->gbuf);
+}
+
 PUBLIC gbuffer_t *json2gbuf(
     gbuffer_t *gbuf,
     json_t *jn, // owned
     size_t flags)
 {
-    if(!gbuf) {
-        gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
+    if(gbuf) {
+        json_dump_callback(jn, dump2gbuf, gbuf, flags);
+        JSON_DECREF(jn)
+        return gbuf;
     }
-    json_dump_callback(jn, dump2gbuf, gbuf, flags);
+
+    json2gbuf_dump_t dump;
+    dump.len = 0;
+    dump.in_gbuf = FALSE;
+    dump.gbuf = 0;
+    json_dump_callback(jn, dump2small, &dump, flags);
     JSON_DECREF(jn)
+
+    if(dump.in_gbuf) {
+        return dump.gbuf;
+    }
+    gbuf = gbuffer_create(dump.len, gbmem_get_maximum_block());
+    dump2gbuf(dump.bf, dump.len, gbuf);
     return gbuf;
 }
 
