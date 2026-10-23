@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **`C_PROT_MODBUS_M` logs a failing block once, as a warning**
+  (`modules/c/modbus`). Every exception and every `timeout_response` of every
+  cycle was an ERROR, and the line did not name the slave: a unit id that
+  does not exist, polled every 10 s, wrote ~35,000 errors a day that did not
+  say which unit. Now a block that is not answered is a WARNING (`Protocol`:
+  the slave answered, or did not; nothing is broken on our side) with its
+  `slave_id`, its exception code and its `block`, logged when the block
+  starts failing or fails another way, and *"Modbus block answered again"*
+  (info) when it answers; the exception or timeout of a write is logged every
+  time, with the write instead of the last read block it used to name. A
+  write queued during a `timeout_response` is sent then, not after the next
+  response, and a stop of the gobj that drops queued writes says so (*"Modbus
+  writes NOT sent, the gobj stopped"*). New test `c_prot_modbus_m/test1`: a
+  master against a raw Modbus TCP slave; against 7.27.7 it fails on the
+  zeros published, the exception that held the cycle and the queued write.
+
 - **`C_PROT_MODBUS_M` sends a queued write once, and keeps polling after it**
   (`modules/c/modbus`). `send_request()` took the first write of the queue
   with a borrowed reference, released it while the queue still held it, and
@@ -41,8 +57,12 @@
       missing one as zero. The consumers checked (the yunovatios gates, through
       their data contract, which marks a partial reading as suspect, and
       hidraulia's ESP32 `esp_caudal`, which merges each message into the
-      last one) handle it; hidraulia's Raspberry gateway (`rasp_caudal`) uses
-      libmodbus, and estadodelaire and wattyzer have no Modbus.
+      last one) handle it, and so does hidraulia's Raspberry gateway
+      (`rasp_caudal`, a GUF120 over RTU): it copies only the keys that arrive,
+      and a derived total whose integer part or multiplier is missing is not
+      computed. estadodelaire and wattyzer have no Modbus. A consumer that
+      depends on it can refuse to build without it:
+      `c_prot_modbus_m.h` defines `C_PROT_MODBUS_M_PUBLISHES_WHAT_IT_READ`.
     - Over TCP, `framehead_consume()` waited after every exception response
       for a 2-byte CRC that TCP does not carry: each exception cost
       `timeout_response` and held the poll of every slave of the connection

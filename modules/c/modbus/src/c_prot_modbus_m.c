@@ -284,6 +284,8 @@ PRIVATE BOOL variable_updated(hgobj gobj, slave_data_t *pslv, json_t *jn_variabl
 PRIVATE int clear_updated_cells(slave_data_t *pslv);
 PRIVATE int build_message_to_publish(hgobj gobj);
 PRIVATE int check_conversion_variables(hgobj gobj);
+PRIVATE int note_block_failed(hgobj gobj, const char *msg, int error_code);
+PRIVATE int note_block_answered(hgobj gobj);
 
 PRIVATE cell_control_t *get_cell_control(
     hgobj gobj,
@@ -464,6 +466,8 @@ typedef struct _PRIVATE_DATA {
 
     json_t *jn_current_request;
     json_t *jn_request_queue;
+
+    json_t *jn_failing_blocks;  // "<slave id>:<block index>" -> why it fails
 } PRIVATE_DATA;
 
 
@@ -530,6 +534,7 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->jn_request_queue = json_array();
+    priv->jn_failing_blocks = json_object();
 
     load_modbus_config(gobj);
     build_slave_data(gobj);
@@ -635,8 +640,27 @@ PRIVATE int mt_stop(hgobj gobj)
 
     clear_timeout(priv->gobj_timer);
 
+    if(priv->jn_current_request) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "Modbus write NOT confirmed, the gobj stopped before its response",
+            "request",      "%j", priv->jn_current_request,
+            NULL
+        );
+    }
+    if(json_array_size(priv->jn_request_queue) > 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "Modbus writes NOT sent, the gobj stopped",
+            "requests",     "%j", priv->jn_request_queue,
+            NULL
+        );
+    }
     JSON_DECREF(priv->jn_request_queue);
     JSON_DECREF(priv->jn_current_request);
+    JSON_DECREF(priv->jn_failing_blocks);
 
     hgobj bottom_gobj = gobj_bottom_gobj(gobj);
     if(bottom_gobj) {
@@ -2056,16 +2080,20 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
                 break;
         } SWITCHS_END
 
-        gobj_log_error(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_PROTOCOL,
-            "msg",              "%s", "modbus exception",
-            "error_code",       "%d", frame->error_code,
-            "error_name",       "%s", modbus_exception_name(frame->error_code),
-            "cur_map_",         "%j", priv->cur_map_,
-            "request",          "%j", priv->jn_current_request?priv->jn_current_request:json_null(),
-            NULL
-        );
+        if(priv->jn_current_request) {
+            gobj_log_warning(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_PROTOCOL,
+                "msg",              "%s", "modbus exception",
+                "slave_id",         "%d", (int)frame->slave_id,
+                "error_code",       "%d", frame->error_code,
+                "error_name",       "%s", modbus_exception_name(frame->error_code),
+                "request",          "%j", priv->jn_current_request,
+                NULL
+            );
+        } else {
+            note_block_failed(gobj, "modbus exception", frame->error_code);
+        }
     } else {
         if(gobj_trace_level(gobj) & TRACE_POLLING) {
             gobj_trace_msg(gobj, "🍅🍅⏪ func: %d %s, slave_id: %d, count: %d",
@@ -2095,7 +2123,9 @@ PRIVATE int frame_completed(hgobj gobj)
             int len = gbuffer_leftbytes(gbuf);
             uint8_t *bf = gbuffer_get(gbuf, len);
             if(!priv->frame_head.error_code) {
-                store_modbus_response_data(gobj, bf, len);
+                if(store_modbus_response_data(gobj, bf, len)==0 && !priv->jn_current_request) {
+                    note_block_answered(gobj);
+                }
             }
             break;
 
@@ -2128,7 +2158,9 @@ PRIVATE int frame_completed(hgobj gobj)
                  return -1;
              }
              if(!priv->frame_head.error_code) {
-                 store_modbus_response_data(gobj, bf, len - 2);
+                 if(store_modbus_response_data(gobj, bf, len - 2)==0 && !priv->jn_current_request) {
+                     note_block_answered(gobj);
+                 }
              }
              break;
 
@@ -3341,6 +3373,81 @@ PRIVATE int clear_updated_cells(slave_data_t *pslv)
 }
 
 /***************************************************************************
+ *  The key of the block in flight in jn_failing_blocks
+ ***************************************************************************/
+PRIVATE int current_block_key(hgobj gobj, char *bf, size_t bfsize)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int slave_id = (int)kw_get_int(gobj, priv->cur_slave_, "id", 0, 0);
+    snprintf(bf, bfsize, "%d:%d", slave_id, priv->idx_mapping);
+    return slave_id;
+}
+
+/***************************************************************************
+ *  A block of the cycle was not answered: logged when it starts failing,
+ *  or fails another way, not on every cycle. A unit that does not exist
+ *  answers the same exception every cycle, and that is one fact.
+ ***************************************************************************/
+PRIVATE int note_block_failed(hgobj gobj, const char *msg, int error_code)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char key[64];
+    int slave_id = current_block_key(gobj, key, sizeof(key));
+
+    char why[64];
+    snprintf(why, sizeof(why), "%s %d", msg, error_code);
+
+    json_t *jn_why = json_object_get(priv->jn_failing_blocks, key);
+    if(jn_why && strcmp(json_string_value(jn_why), why)==0) {
+        return 0;
+    }
+    json_object_set_new(priv->jn_failing_blocks, key, json_string(why));
+
+    gobj_log_warning(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_PROTOCOL,
+        "msg",              "%s", msg,
+        "slave_id",         "%d", slave_id,
+        "error_code",       "%d", error_code,
+        "error_name",       "%s", error_code? modbus_exception_name(error_code) : "",
+        "block",            "%j", priv->cur_map_?priv->cur_map_:json_null(),
+        "note",             "%s", "logged again only when the block answers or fails another way",
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
+ *  A block of the cycle was answered: if it was failing, say it is back
+ ***************************************************************************/
+PRIVATE int note_block_answered(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char key[64];
+    int slave_id = current_block_key(gobj, key, sizeof(key));
+
+    json_t *jn_why = json_object_get(priv->jn_failing_blocks, key);
+    if(!jn_why) {
+        return 0;
+    }
+
+    gobj_log_info(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_PROTOCOL,
+        "msg",              "%s", "Modbus block answered again",
+        "slave_id",         "%d", slave_id,
+        "failed_with",      "%s", json_string_value(jn_why),
+        "block",            "%j", priv->cur_map_?priv->cur_map_:json_null(),
+        NULL
+    );
+    json_object_del(priv->jn_failing_blocks, key);
+    return 0;
+}
+
+/***************************************************************************
  *  Publish, slave by slave, what this cycle read
  *
  *  Only what it read. A cell whose read timed out or was answered with an
@@ -3890,35 +3997,41 @@ PRIVATE int ac_timeout_response(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_log_error(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PROTOCOL,
-        "msg",          "%s", "Modbus Timeout",
-        "request",      "%j", priv->jn_current_request?priv->jn_current_request:json_null(),
-        NULL
-    );
-    JSON_DECREF(priv->jn_current_request)
+    if(priv->jn_current_request) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "Modbus Timeout",
+            "request",      "%j", priv->jn_current_request,
+            NULL
+        );
+        JSON_DECREF(priv->jn_current_request)
+    } else {
+        note_block_failed(gobj, "Modbus Timeout", 0);
+    }
 
     RESET_MACHINE()
     gobj_change_state(gobj, ST_CONNECTED);
 
     /*
-     *  Next map
+     *  A queued write, else the next map
      */
-    if(next_map(gobj)<0) {
-        /*
-         *  NO map or end of cycle, wait timeout_polling
-         */
-        set_timeout(priv->gobj_timer, priv->timeout_response*1000);
-    } else {
-        if(poll_modbus(gobj)<0) {
+    if(!send_request(gobj)) {
+        if(next_map(gobj)<0) {
             /*
-             *  Problemas con el query actual, pasa al siguiente después del timeout
+             *  NO map or end of cycle, wait timeout_polling
              */
-            next_map(gobj);
             set_timeout(priv->gobj_timer, priv->timeout_response*1000);
         } else {
-            // timeout set by poll_modbus
+            if(poll_modbus(gobj)<0) {
+                /*
+                 *  Problemas con el query actual, pasa al siguiente después del timeout
+                 */
+                next_map(gobj);
+                set_timeout(priv->gobj_timer, priv->timeout_response*1000);
+            } else {
+                // timeout set by poll_modbus
+            }
         }
     }
 

@@ -112,21 +112,51 @@ spans was stored since the previous publication, that is, when its block was
 answered in this cycle. A block that timed out or was answered with an
 exception leaves its variables out of the message, and a slave none of whose
 blocks answered is not published at all; each failure was logged where it
-happened (`Modbus Timeout`, `modbus exception` with its code and block). So a
+started (`Modbus Timeout`, `modbus exception`: see below). So a
 subscriber can receive **a message with fewer variables than the map
 declares**, and must not read a missing one as zero. The cells read before a
 disconnection are discarded with it. (Up to SDK 7.27.7 every variable of every
 slave was published each cycle: a slave that stopped answering repeated its
 last values, and one that never answered came out as zeros.)
 
-### Exceptions
+A consumer that depends on this refuses to build against an older module, with
+the macro its header defines since this change:
 
-An exception response is logged as an error with its code and name and the
-block it answered (`cur_map_`), and the cycle moves on at once. Over TCP the
-frame ends at the exception code; RTU adds its CRC. (Up to SDK 7.27.7 the TCP
-master waited after an exception for a CRC that TCP does not carry, so each
-exception cost `timeout_response` and held the poll of every slave of the
-connection.)
+```C
+#include <c_prot_modbus_m.h>
+#ifndef C_PROT_MODBUS_M_PUBLISHES_WHAT_IT_READ
+#error "C_PROT_MODBUS_M publishes what it did not read: needs the SDK after 7.27.7"
+#endif
+```
+
+### Exceptions and timeouts
+
+An exception response, or a block that does not answer within
+`timeout_response`, moves the cycle on at once to the next block. Over TCP the
+frame ends at the exception code; RTU adds its CRC.
+
+Each failure is logged as a **warning** (`msgset` `Protocol`: the slave
+answered, or did not, and nothing is broken on our side), with the
+`slave_id`, the exception code and name, and the `block` it answered. It is
+logged **when the block starts failing**, or starts failing another way (a new
+exception code, or a timeout after an exception), **not on every cycle**: a
+unit id that does not exist answers the same exception every cycle, and that
+is one fact. When the block answers again, an info says so, with what it
+failed with:
+
+```json
+{"msg": "modbus exception", "slave_id": 4, "error_code": 2,
+ "error_name": "ILLEGAL_DATA_ADDRESS",
+ "block": {"type": "holding_register", "address": 256, "size": 12}}
+{"msg": "Modbus block answered again", "slave_id": 4,
+ "failed_with": "modbus exception 2"}
+```
+
+The exception and the timeout of a **write** are logged every time, with the
+write (`request`), not a block. (Up to SDK 7.27.7 the TCP master waited after
+an exception for a CRC that TCP does not carry, so each exception cost
+`timeout_response` and held the poll of every slave of the connection; and
+every exception and timeout of every cycle was an error.)
 
 ### Writes
 
@@ -145,13 +175,16 @@ gobj_send_event(gobj_modbus, EV_SEND_MESSAGE,
 );
 ```
 
-It is queued and sent between two reads, or when the wait between cycles
-ends, and **once**: it leaves the queue when it is sent, and its response, an
-exception, `timeout_response` or the end of the connection close it (the
-exception and the timeout name the write in their log; a connection that
-drops before the response logs *"Modbus write NOT confirmed"*). A write that
-cannot be built is dropped with its reason and the next one is tried; writes
-still queued when the connection drops are sent after it comes back. (Up to
+It is queued and sent after the next response, exception or timeout, or when
+the wait between cycles ends, and **once**: it leaves the queue when it is
+sent, and its response, an exception, `timeout_response` or the end of the
+connection close it (the exception and the timeout name the write in their
+log; a connection that drops before the response logs *"Modbus write NOT
+confirmed"*). A write that cannot be built is dropped with its reason and the
+next one is tried; writes still queued when the connection drops are sent
+after it comes back. A stop of the gobj drops them, with a warning that lists
+them (*"Modbus writes NOT sent, the gobj stopped"*, and *"NOT confirmed"* for
+the one in flight). (Up to
 SDK 7.27.7 a write was never taken out of the queue, and the item was released
 while the queue still held it: the next send read freed memory, and the
 polling did not resume.)
