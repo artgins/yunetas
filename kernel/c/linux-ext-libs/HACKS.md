@@ -197,12 +197,17 @@ applied to the ESP32 copy of jansson.
 
 ## jansson — eight bytes of ASCII at a time
 
-A commit of the fork's `master` (configure-libs.sh 1.30), for speed, from the
-same round. `utf8_check_string()` skips eight bytes with no high bit at once,
-and `dump_string()` takes eight bytes that need no escape at once (ASCII from
-0x20, none `"` nor `\`, nor `/` with `JSON_ESCAPE_SLASH`); a word that fails
-goes a byte at a time, as before. The tests on a word are exact (checked
-against a byte by byte reference on 48 million words); the same bytes,
-results and errors (jansson's 215 tests, the differential fuzz, and strings
-with a special byte at each place under six sets of flags). Not applied to
-the ESP32 copy of jansson.
+Two commits of the fork's `master` (configure-libs.sh 1.30 and 1.31), for
+speed, from the same round. `utf8_check_string()` skips eight bytes with no
+high bit at once, and `dump_string()` takes eight bytes that need no escape at
+once (ASCII from 0x20, none `"` nor `\`, nor `/` with `JSON_ESCAPE_SLASH`).
+After a word that fails, `utf8_check_string()` goes a byte at a time while the
+bytes are ASCII and `dump_string()` through the eight bytes of that word, as
+before, and then they read words again. The first commit (1.30) tested for a
+word on every byte, which cost more than a byte at a time for a string under
+eight bytes and after every word that failed; the second (1.31) tests only
+where a word can be taken. The tests on a word are exact (checked against a
+byte by byte reference on 48 million words); the same bytes, results and
+errors (jansson's 215 tests, the differential fuzz, strings with one special
+byte at each place under six sets of flags and with two at every pair of
+places under four). Not applied to the ESP32 copy of jansson.

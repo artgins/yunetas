@@ -317,7 +317,17 @@
 #       Every yuno must be rebuilt and relinked; every node that builds from
 #       source must run `./extrae.sh && ./configure-libs.sh` again.
 
-VERSION="1.30"
+#   version 1.31
+#       jansson at a new commit of the master of artgins/jansson (round 7 of
+#       the performance audit): the eight bytes at a time of 1.30 test for a
+#       word only where one can be taken. 1.30 tested on every byte, which
+#       cost more than a byte at a time for strings under eight bytes (most
+#       keys) and for a text with a non-ASCII character every few bytes. The
+#       same results, bytes and errors. Every yuno must be rebuilt and
+#       relinked; every node that builds from source must run
+#       `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.31"
 
 
 source ./repos2clone.sh
