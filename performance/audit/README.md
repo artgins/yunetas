@@ -18,6 +18,7 @@ gained, measured, and what was found and not done.
 | 3 | The network path: the payload timer of every frame (`C_PROT_TCP4H`, `C_WEBSOCKET`, `C_PROT_MQTT2`), the TLS read buffer, `json_pack()` per message, `C_IOGATE`, the websocket unmask. TCP echo **+45%**, TLS echo **+36%**, with an append +27/+28% | [round-3-network.md](round-3-network.md) |
 | 4 | Inter-yuno messages (`C_IEVENT_*` over websocket), HTTP (the BFF), MQTT, with two benchmarks written for it: the MQTT message builder, the flags of a treedb node view, the event of an inter-event found by name, `kw_set_dict_value()`, `json2gbuf()`, jansson's allocator under `C_AUTHZ`. MQTT **+18%**; an inter-event is jansson's (2%) | [round-4-inter-yuno-http-mqtt.md](round-4-inter-yuno-http-mqtt.md) |
 | P | The proposals the rounds left for a decision, applied on the user's decision (all but one, not safe as proposed): jansson from Yuneta's fork (ASCII fast paths, a faster hash), subscriptions read from a C record, `C_TIMER`'s subscription kept, the TLS read buffer of the size read, the treedb open in O(keys) and without the O(children^2) hook scan, `C_WEBSOCKET`'s frame in one write, the broker's session without a copy. TLS echo **+21%**, TCP echo **+19%**, inter-yuno **+47%** (from round 4), MQTT **+39%** (from round 4), appends **+50%**, reads **+74%**, BFF +26%, treedb open **x12** with a long history, **x19** with 8 000 children in one hook. Against 7.27.7: TCP echo **x2.1**, TLS echo x1.9 | [proposals-applied.md](proposals-applied.md) |
+| 5 | What was left of a subscription (nothing to change: the proposals took it off the path of a message), and the reads of a treedb: the options of a view read once and its entries built without `json_pack()`, `decode_parent_ref()` without `split2()`, the flags of a filter read once; jansson's loop key without `snprintf()`. The views of a treedb **-30%** of instructions, **-11% to -16%** of time | [round-5-subscriptions-treedb.md](round-5-subscriptions-treedb.md) |
 
 ## Method
 
@@ -65,3 +66,9 @@ what it gained are in [proposals-applied.md](proposals-applied.md).
 | The body buffer of an HTTP request sized to its body | [4](round-4-inter-yuno-http-mqtt.md) | applied |
 | One `io_uring_submit()` per turn of the loop | [3](round-3-network.md) | **not applied**: not safe as proposed (a write submitted late can be reordered, a read submitted late can find its fd closed by `C_TCP`) |
 | `TCP_NODELAY` | [3](round-3-network.md) | **nothing to do**: it is already set on every accepted and connected socket |
+
+Round 5 left one more for a decision:
+
+| Proposal | Round | Decision |
+|----------|-------|----------|
+| `json2gbuf()`: the gbuffer of the size of the dump, not 4 KB zeroed whatever it holds (2.3% of an inter-yuno round trip) | [5](round-5-subscriptions-treedb.md) | waiting: the free space of the gbuffer handed up changes |

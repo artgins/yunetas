@@ -2,11 +2,12 @@
 
 ## Unreleased
 
-- **A performance audit of the C SDK** (`performance/audit/`): four rounds
-  (the core of gobj-c, timeranger2 and tr_treedb, the network path, the
-  inter-yuno path, HTTP and MQTT), each change a commit of its own that
-  leaves results, bytes, events, logs and errors as they were, and then the
-  proposals the rounds left for a decision, applied on the user's decision.
+- **A performance audit of the C SDK** (`performance/audit/`): five rounds
+  (the core of gobj-c; timeranger2 and tr_treedb; the network path; the
+  inter-yuno path, HTTP and MQTT; subscriptions and the reads of a treedb),
+  each change a commit of its own that leaves results, bytes, events, logs
+  and errors as they were, and the proposals the first four left for a
+  decision, applied on the user's decision.
   The figures of each change, and what it was checked against, are in the
   documents of the audit. Two benchmarks join `performance/c/`:
   `perf_ievent` (inter-yuno round trips over websocket) and `perf_mqtt`
@@ -14,9 +15,10 @@
     - **jansson comes from Yuneta's fork**, `github.com/artgins/jansson`, at
       a fixed commit (`TAG_JANSSON`), in place of `patches/jansson/`:
       upstream v2.15.1 plus the lexer fix that was the patch, fast paths for
-      ASCII and a faster seeded hash of the keys (the same results, bytes
-      and errors). `linux-ext-libs` 1.25: a node that builds from source
-      reruns `./extrae.sh && ./configure-libs.sh`.
+      ASCII, a faster seeded hash of the keys and the key of its loop check
+      without `snprintf()` (the same results, bytes and errors).
+      `linux-ext-libs` 1.25 and 1.26: a node that builds from source reruns
+      `./extrae.sh && ./configure-libs.sh`.
     - **A `C_TIMER` keeps its subscription to the yuno's
       `EV_TIMEOUT_PERIODIC` for its life**, from its first start: the yuno's
       subscriptions list stopped timers too, and a stopped timer gets the
