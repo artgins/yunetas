@@ -29,9 +29,9 @@ decision.
 | Release | Against | Report | Rendered | Raw figures |
 |---------|---------|--------|----------|-------------|
 | 7.27.7 | 7.27.5 | [7.27.7.html](https://github.com/artgins/yunetas/blob/7.27.7/performance/reports/7.27.7.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.7/performance/reports/7.27.7.html) | [7.27.7.json](https://github.com/artgins/yunetas/blob/7.27.7/performance/reports/7.27.7.json) |
-| 7.27.5 | 7.27.0 | [7.27.5.html](https://github.com/artgins/yunetas/blob/main/performance/reports/7.27.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.27.5.html) | [7.27.5.json](https://github.com/artgins/yunetas/blob/main/performance/reports/7.27.5.json) |
+| 7.27.5 | 7.27.0 | [7.27.5.html](https://github.com/artgins/yunetas/blob/7.27.5/performance/reports/7.27.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.27.5.html) | [7.27.5.json](https://github.com/artgins/yunetas/blob/7.27.5/performance/reports/7.27.5.json) |
 | 7.27.0 | 7.26.9 | [7.27.0.html](https://github.com/artgins/yunetas/blob/7.27.0/performance/reports/7.27.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.0/performance/reports/7.27.0.html) | [7.27.0.json](https://github.com/artgins/yunetas/blob/7.27.0/performance/reports/7.27.0.json) |
-| 7.26.9 | 7.26.0 | [7.26.9.html](https://github.com/artgins/yunetas/blob/main/performance/reports/7.26.9.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.26.9.html) | [7.26.9.json](https://github.com/artgins/yunetas/blob/main/performance/reports/7.26.9.json) |
+| 7.26.9 | 7.26.0 | [7.26.9.html](https://github.com/artgins/yunetas/blob/7.26.9/performance/reports/7.26.9.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.26.9.html) | [7.26.9.json](https://github.com/artgins/yunetas/blob/7.26.9/performance/reports/7.26.9.json) |
 | 7.26.0 | 7.25.22 | [7.26.0.html](https://github.com/artgins/yunetas/blob/7.26.0/performance/reports/7.26.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.26.0/performance/reports/7.26.0.html) | [7.26.0.json](https://github.com/artgins/yunetas/blob/7.26.0/performance/reports/7.26.0.json) |
 | 7.25.22 | 7.25.21 | [7.25.22.html](https://github.com/artgins/yunetas/blob/7.25.22/performance/reports/7.25.22.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.22/performance/reports/7.25.22.html) | [7.25.22.json](https://github.com/artgins/yunetas/blob/7.25.22/performance/reports/7.25.22.json) |
 | 7.25.21 | 7.25.20 | [7.25.21.html](https://github.com/artgins/yunetas/blob/7.25.21/performance/reports/7.25.21.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.21/performance/reports/7.25.21.html) | [7.25.21.json](https://github.com/artgins/yunetas/blob/7.25.21/performance/reports/7.25.21.json) |
@@ -41,7 +41,7 @@ decision.
 The report is one self-contained page (no script, no external file). GitHub
 shows it as source code; the "view" link renders it. How a report is made, and
 the schema of its `.json`, are in
-[`performance/reports/README.md`](https://github.com/artgins/yunetas/blob/7.27.7/performance/reports/README.md).
+[`performance/reports/README.md`](https://github.com/artgins/yunetas/blob/7.27.8/performance/reports/README.md).
 
 ## The trend
 
@@ -609,7 +609,7 @@ The prices of 7.25.5, and what each one buys:
 | The agent audit record, built | +2-3% | Names are judged with their JSON escapes decoded, and a write-attr is looked for in every string: no secret reaches the audit file. |
 
 Every A/B of 7.25.5, change by change, with its rounds and spread, is in
-[`performance/c/README.md`](https://github.com/artgins/yunetas/blob/7.27.7/performance/c/README.md)
+[`performance/c/README.md`](https://github.com/artgins/yunetas/blob/7.27.8/performance/c/README.md)
 and in the [CHANGELOG](CHANGELOG.md) ("Performance, against 7.25.4").
 
 ## What one machine does with 7.25.5
