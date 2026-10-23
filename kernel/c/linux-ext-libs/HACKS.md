@@ -68,7 +68,7 @@ and `/etc/hosts` directly, bypassing glibc's NSS resolver chain.
 
 jansson comes from Yuneta's fork, `https://github.com/artgins/jansson`
 (`repos2clone.sh`, `TAG_JANSSON`): upstream v2.15.1 and one commit per
-change Yuneta carries on it, the four below. A new fix or change is a
+change Yuneta carries on it, the five below. A new fix or change is a
 commit there, and `TAG_JANSSON` moves to it (with a bump of `VERSION` in
 `configure-libs.sh`). Up to `configure-libs.sh` 1.24 the changes were
 `patches/jansson/*.patch`, applied after a checkout of upstream.
@@ -155,3 +155,20 @@ hexadecimal digits of the address, without leading zeros); a buffer too
 short for it, or a NULL json, still goes to `snprintf()`. Checked against
 `snprintf()` on 20 million addresses and buffer sizes (the same bytes and
 length), and jansson's 215 tests. Not applied to the ESP32 copy of jansson.
+
+## jansson — the runs of the lexer for `json_loads()`, digits and blanks
+
+The fifth commit of the fork (configure-libs.sh 1.27), for speed, from the
+performance audit of the C SDK (`performance/audit/round-6-jansson-parse-treedb-reads.md`).
+The run of plain ASCII of a string token (the second commit) was saved at
+once only from the source of `json_loadb()`; `gbuf2json()` parses every
+message Yuneta receives with `json_loads()`, whose source went a byte at a
+time through `stream_get()` and `string_get()`. The runs now read either
+source (`json_loads()`'s up to its NUL), and two more kinds are taken at
+once: the digits of a number, and the blanks before a token (a newline
+still goes a byte at a time, for the line count). Each run does what the
+byte-by-byte reads did: the same bytes saved, the same position and column,
+the saved text grown where it was grown. Checked: jansson's 215 tests, and a
+differential fuzz against the previous library (140 000 documents, both
+loaders, five sets of flags, a capped allocator): the same results, errors,
+positions and allocations. Not applied to the ESP32 copy of jansson.

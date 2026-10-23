@@ -276,7 +276,17 @@
 #       every node that builds from source must run
 #       `./extrae.sh && ./configure-libs.sh` again.
 
-VERSION="1.26"
+#   version 1.27
+#       jansson at a new TAG_JANSSON of artgins/jansson: one more commit, the
+#       runs of the lexer (a string's plain ASCII saved at once) also for
+#       json_loads(), which parses every message Yuneta receives
+#       (gbuf2json()), and runs of digits and of blanks. The same results,
+#       errors, lines, columns and positions. From the performance audit of
+#       the C SDK (round 6). No API/ABI change, no header change. Every yuno
+#       must be rebuilt and relinked; every node that builds from source must
+#       run `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.27"
 
 
 source ./repos2clone.sh
