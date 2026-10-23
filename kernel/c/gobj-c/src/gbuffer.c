@@ -1291,11 +1291,8 @@ typedef struct {
 } json2gbuf_dump_t;
 
 /*
- *  Once per dump that does not fit: kept out of dump2small(), which runs
- *  for every token, so that the registers its calls need are not saved at
- *  every token of a big dump
+ *  Once per dump that does not fit
  */
-__attribute__((noinline))
 PRIVATE void dump2small_overflow(json2gbuf_dump_t *dump)
 {
     dump->in_gbuf = TRUE;
