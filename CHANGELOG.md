@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **`C_PROT_MODBUS_M` sends a queued write once, and keeps polling after it**
+  (`modules/c/modbus`). `send_request()` took the first write of the queue
+  with a borrowed reference, released it while the queue still held it, and
+  never took it out: the next call read freed memory (*"BAD json_decref()"*,
+  a write with no value, a send with no gbuffer) and the polling did not
+  resume. Now a write leaves the queue when it is sent and is held as the one
+  in flight until its response, an exception, `timeout_response` or the end
+  of the connection, whose logs name it (*"Modbus write NOT confirmed"* when
+  the connection drops first); a write that cannot be built is dropped with
+  its reason and the next one is tried, before the state changes. The builder
+  no longer returns an empty message over RTU/ASCII after logging: it refuses
+  the write (*"Modbus write NOT IMPLEMENTED for this protocol"*). No consumer
+  sends writes today (yunovatios, hidraulia, wattyzer and estadodelaire were
+  checked), which is how it survived. Checked with a probe yuno against a
+  simulated meter: two writes reach it once each and the readings go on; an
+  unbuildable write and a write answered with an exception do not stop them.
+  Still open, and said on the doc page: a coil write (function 05) sends the
+  value as given instead of `0xFF00`/`0x0000`, and several values (functions
+  15 and 16) are not built as Modbus frames.
+
 - **`C_PROT_MODBUS_M` publishes only what the cycle read, and a TCP exception
   no longer stalls the connection** (`modules/c/modbus`). Two defects, found
   with a field gate polling SATEC meters over Modbus TCP:

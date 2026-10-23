@@ -86,7 +86,7 @@ its low word first, read over TCP:
 | `modbus_protocol` | `"TCP"` | `TCP`, `RTU` or `ASCII` |
 | `url` | `""` | `tcp://<host>:<port>`, or the serial device |
 | `slaves` | `[]` | The map, above. Read at `mt_start` |
-| `timeout_polling` | `1000` | Milliseconds between the end of a cycle and the next |
+| `timeout_polling` | `1000` | Milliseconds between the end of a cycle and the next. The timer counts whole seconds (`C_TIMER`), so less than 1000 is 1 s |
 | `timeout_response` | `10` | Seconds a slave has to answer one request |
 
 ### The polling cycle
@@ -127,6 +127,40 @@ frame ends at the exception code; RTU adds its CRC. (Up to SDK 7.27.7 the TCP
 master waited after an exception for a CRC that TCP does not carry, so each
 exception cost `timeout_response` and held the poll of every slave of the
 connection.)
+
+### Writes
+
+A write is an `EV_SEND_MESSAGE` to the gobj, with the slave, the object, the
+address and the value:
+
+```C
+gobj_send_event(gobj_modbus, EV_SEND_MESSAGE,
+    json_pack("{s:i, s:s, s:i, s:i}",
+        "id", 1,
+        "type", "holding_register",
+        "address", 100,
+        "value", 1000
+    ),
+    gobj
+);
+```
+
+It is queued and sent between two reads, or when the wait between cycles
+ends, and **once**: it leaves the queue when it is sent, and its response, an
+exception, `timeout_response` or the end of the connection close it (the
+exception and the timeout name the write in their log; a connection that
+drops before the response logs *"Modbus write NOT confirmed"*). A write that
+cannot be built is dropped with its reason and the next one is tried; writes
+still queued when the connection drops are sent after it comes back. (Up to
+SDK 7.27.7 a write was never taken out of the queue, and the item was released
+while the queue still held it: the next send read freed memory, and the
+polling did not resume.)
+
+What is built today: **one holding register over TCP** (function 06).
+Function 05 (one coil) sends the `value` as given, where Modbus asks for
+`0xFF00` or `0x0000`; several values (functions 15 and 16) are not built as
+Modbus frames yet; and over RTU or ASCII a write is refused (*"Modbus write NOT
+IMPLEMENTED for this protocol"*).
 
 ### Commands
 

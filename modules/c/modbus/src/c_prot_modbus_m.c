@@ -1306,11 +1306,12 @@ PRIVATE gbuffer_t *build_modbus_request_write_message(hgobj gobj, json_t *jn_req
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "Modbus protocol UNKNOWN",
+                "msg",          "%s", "Modbus write NOT IMPLEMENTED for this protocol",
                 "protocol",     "%s", priv->modbus_protocol,
                 NULL
             );
-            break;
+            GBUFFER_DECREF(gbuf);
+            return 0;
     } SWITCHS_END;
 
     priv->modbus_function = modbus_function;
@@ -1875,34 +1876,49 @@ PRIVATE int poll_modbus(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Send the first queued write, if any.
+ *  Return TRUE when one was sent and its response is awaited.
  *
+ *  A write is sent once: it leaves the queue here, and the one in flight is
+ *  kept in jn_current_request until its response, its timeout or the end of
+ *  the connection. A write that cannot be built is dropped (the builder
+ *  logged why) and the next one is tried.
  ***************************************************************************/
 PRIVATE BOOL send_request(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(json_array_size(priv->jn_request_queue)==0) {
-        return FALSE;
+    while(json_array_size(priv->jn_request_queue) > 0) {
+        json_t *jn_request = json_incref(json_array_get(priv->jn_request_queue, 0));
+        json_array_remove(priv->jn_request_queue, 0);
+
+        if(gobj_trace_level(gobj) & TRACE_SEND) {
+            gobj_trace_json(gobj, jn_request, "sending to %s",
+               gobj_read_str_attr(gobj_bottom_gobj(gobj), "url")
+            );
+        }
+
+        gbuffer_t *gbuf = build_modbus_request_write_message(gobj, jn_request);
+        if(!gbuf) {
+            // Error already logged
+            JSON_DECREF(jn_request)
+            continue;
+        }
+
+        JSON_DECREF(priv->jn_current_request)
+        priv->jn_current_request = jn_request;
+
+        // Change state
+        gobj_change_state(gobj, ST_WAIT_RESPONSE);
+
+        // Set response timeout
+        set_timeout(priv->gobj_timer, priv->timeout_response*1000);
+
+        send_data(gobj, gbuf);
+        return TRUE;
     }
 
-    json_t *jn_current_request = json_array_get(priv->jn_request_queue, 0);
-    if(gobj_trace_level(gobj) & TRACE_SEND) {
-        gobj_trace_json(gobj, jn_current_request, "sending to %s",
-           gobj_read_str_attr(gobj_bottom_gobj(gobj), "url")
-        );
-    }
-
-    // Change state
-    gobj_change_state(gobj, ST_WAIT_RESPONSE);
-
-    // Set response timeout
-    set_timeout(priv->gobj_timer, priv->timeout_response*1000);
-
-    gbuffer_t *gbuf = build_modbus_request_write_message(gobj, jn_current_request);
-    JSON_DECREF(jn_current_request);
-    send_data(gobj, gbuf);
-
-    return TRUE;
+    return FALSE;
 }
 
 /***************************************************************************
@@ -2047,6 +2063,7 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
             "error_code",       "%d", frame->error_code,
             "error_name",       "%s", modbus_exception_name(frame->error_code),
             "cur_map_",         "%j", priv->cur_map_,
+            "request",          "%j", priv->jn_current_request?priv->jn_current_request:json_null(),
             NULL
         );
     } else {
@@ -3633,6 +3650,17 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         }
     }
 
+    if(priv->jn_current_request) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "Modbus write NOT confirmed, the connection dropped before its response",
+            "request",      "%j", priv->jn_current_request,
+            NULL
+        );
+        JSON_DECREF(priv->jn_current_request)
+    }
+
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);
     }
@@ -3767,6 +3795,9 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         RESET_MACHINE()
         gobj_change_state(gobj, ST_CONNECTED);
 
+        // The write in flight, if it was one, is answered
+        JSON_DECREF(priv->jn_current_request)
+
         if(!send_request(gobj)) {
             if(next_map(gobj)<0) {
                 /*
@@ -3863,8 +3894,10 @@ PRIVATE int ac_timeout_response(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Modbus Timeout",
+        "request",      "%j", priv->jn_current_request?priv->jn_current_request:json_null(),
         NULL
     );
+    JSON_DECREF(priv->jn_current_request)
 
     RESET_MACHINE()
     gobj_change_state(gobj, ST_CONNECTED);
