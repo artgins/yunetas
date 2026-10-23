@@ -8,6 +8,8 @@ Optional GClass libraries that extend the Yuneta kernel with domain-specific fun
 modules/
 ├── c/
 │   ├── console/        # Terminal UI: line editing with ncurses (C_EDITLINE)
+│   ├── mbus/           # M-Bus master, EN 13757 (C_PROT_MBUS_M, mbus_telegram.h)
+│   ├── modbus/         # Modbus master, TCP and RTU (C_PROT_MODBUS_M)
 │   ├── mqtt/           # MQTT v3.1/v3.1.1/v5.0 protocol and broker (C_PROT_MQTT2, C_MQTT_BROKER)
 │   ├── postgres/       # PostgreSQL async client (C_POSTGRES)
 │   └── test/           # Test GClasses for traffic testing (C_PEPON, C_TESTON)
@@ -21,6 +23,7 @@ modules/
 | console | `CONFIG_MODULE_CONSOLE` | `libyunetas-module-console.a` | `C_EDITLINE` |
 | mqtt | `CONFIG_MODULE_MQTT` | `libyunetas-module-mqtt.a` | `C_PROT_MQTT2`, `C_MQTT_BROKER` |
 | modbus | `CONFIG_MODULE_MODBUS` | `libyunetas-module-modbus.a` | `C_PROT_MODBUS_M` |
+| mbus | `CONFIG_MODULE_MBUS` | `libyunetas-module-mbus.a` | `C_PROT_MBUS_M` |
 | postgres | `CONFIG_MODULE_POSTGRES` | `libyunetas-module-postgres.a` | `C_POSTGRES` |
 | test | `CONFIG_MODULE_TEST` | `libyunetas-module-test.a` | `C_PEPON`, `C_TESTON` |
 
@@ -294,6 +297,22 @@ Bit     0:  Pending   (TR2Q_MSG_PENDING)
 
 ---
 
+## M-Bus Module
+
+Master of a wired M-Bus (EN 13757-2/-3): reads water, heat, gas and electricity
+meters through a serial M-Bus level converter (`C_UART`, 2400 baud 8E1) or a
+transparent M-Bus to TCP gateway (`C_TCP`). Full reference:
+[doc.yuneta.io/mbus](https://doc.yuneta.io/mbus).
+
+### Source Files
+
+| File | Purpose |
+|------|---------|
+| `mbus_telegram.c/.h` | The telegram decoder, no gobj and no state: frames of EN 13757-2, the variable data structure of EN 13757-3 decoded to json (one unit per quantity, stable record ids), the requests of a master |
+| `c_prot_mbus_m.c/.h` | `C_PROT_MBUS_M` GClass — the master: reads each slave by primary or secondary address, multi-telegram readouts with the FCB, retries, one `EV_ON_MESSAGE` per slave read, failures logged on transition |
+
+---
+
 ## Postgres Module
 
 Asynchronous PostgreSQL client GClass using libpq non-blocking API, integrated with the Yuneta event loop.
@@ -424,6 +443,7 @@ When a module is disabled in `.config`, nothing is compiled and its library is n
 | `CONFIG_MODULE_CONSOLE` | `${MODULE_CONSOLE}` | `libyunetas-module-console.a` |
 | `CONFIG_MODULE_MQTT` | `${MODULE_MQTT}` | `libyunetas-module-mqtt.a` |
 | `CONFIG_MODULE_MODBUS` | `${MODULE_MODBUS}` | `libyunetas-module-modbus.a` |
+| `CONFIG_MODULE_MBUS` | `${MODULE_MBUS}` | `libyunetas-module-mbus.a` |
 | `CONFIG_MODULE_POSTGRES` | `${MODULE_POSTGRES}` | `libyunetas-module-postgres.a` |
 | `CONFIG_MODULE_TEST` | `${MODULE_TEST}` | `libyunetas-module-test.a` |
 

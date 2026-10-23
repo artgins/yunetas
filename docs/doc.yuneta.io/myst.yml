@@ -299,6 +299,9 @@ project:
           children:
             - file: modules/console_api.md
         - file: modules/modbus.md
+        - file: modules/mbus.md
+          children:
+            - file: modules/mbus_telegram.md
         - file: modules/mqtt.md
           children:
             - file: modules/mqtt_util.md

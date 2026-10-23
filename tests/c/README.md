@@ -60,6 +60,8 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `c_tcps`, `c_tcps2` | `C_TCP_S` TLS client (handshake, OpenSSL + mbedTLS) |
 | `c_tcp_inactivity` | `C_TCP` `timeout_inactivity` |
 | `c_prot_modbus_m` | `C_PROT_MODBUS_M` over TCP against a raw slave: a cycle publishes only what it read, an exception ends its block at once and is logged once (and again when the block answers), a queued write is sent once and the polling goes on (`c_prot_modbus_m/test1`; built with `CONFIG_MODULE_MODBUS`) |
+| `mbus_telegram` | The M-Bus telegram decoder of `modules/c/mbus`: frames found and refused, requests built, one case per rule of EN 13757-3 (codings, the VIF tables, VIFEs, dates, units), refusals, and six real telegrams checked against libmbus (built with `CONFIG_MODULE_MBUS`) |
+| `c_prot_mbus_m` | `C_PROT_MBUS_M` against a simulated M-Bus behind a raw TCP server: a reading in two telegrams with the FCB toggled, a silent slave logged once and not published, a broken answer repeated with the same FCB, a secondary slave selected every cycle, a disabled one never asked, and the counters (`c_prot_mbus_m/test1`; built with `CONFIG_MODULE_MBUS`) |
 | `c_tcp_s_ip_lists` | `C_TCP_S` at accept: a peer in `denied_ips` is refused (the deny wins over `allowed_ips`), with `only_allowed_ips` one not in `allowed_ips` is refused, loopback is exempt; a refusal is logged on the transition (one line a minute at most per cause) and counted in `refusedConnxs`; a full server's refusals are one warning, counted in `noChannelConnxs`; the list key of each peername form (IPv4, bracketed IPv6, IPv4 on a dual-stack socket); the `add-`/`remove-` ip commands store the form a peer is looked up by, refuse what is not an ip, and a `remove-` of an ip not in the list answers `-1`; entries stored as typed are renamed or dropped at load |
 | `c_qiogate_stats` | `C_QIOGATE`'s queue gauges (`msgs_in_queue`, `pending_acks`) in the stats of a `C_MQIOGATE` above it, one entry per child |
 | `c_tcp_s_stats` | The connection stats of `C_TCP_S`, with `child_tree_filter` and with the new method: `connxs` counts the connections held now and `tconnxs` those accepted since the start, as attributes and in `stats` (both read 0 up to 7.25.20) |
@@ -137,8 +139,9 @@ binaries carry a prefix: `c_mqtt/acl` runs `test_mqtt_acl`, `c_tcp/test5` runs
 
 The single-binary directories that also register under `<directory>/`:
 `build_path`, `glogger_utf8`, `command_authz`, `command_delete_user`,
-`command_shutdown`, `command_binary_kw`, `c_tranger` and `libjwt`
-(`libjwt/test_jwt_alg_confusion`).
+`command_shutdown`, `command_binary_kw`, `c_tranger`, `libjwt` and
+`mbus_telegram`
+(for example `libjwt/test_jwt_alg_confusion`).
 
 `c_treedb_literal_wins` registers its one binary seven times, once per group
 of scenarios, so that `ctest -j` runs them at once:

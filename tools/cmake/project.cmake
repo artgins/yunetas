@@ -304,6 +304,14 @@ else()
     set(MODULE_MODBUS "")
 endif()
 
+if (CONFIG_MODULE_MBUS)
+    set(MODULE_MBUS
+        ${LIB_DEST_DIR}/libyunetas-module-mbus.a
+    )
+else()
+    set(MODULE_MBUS "")
+endif()
+
 if (CONFIG_MODULE_POSTGRES)
     set(MODULE_POSTGRES
         ${LIB_DEST_DIR}/libyunetas-module-postgres.a

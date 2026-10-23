@@ -1,0 +1,6 @@
+config MODULE_MBUS
+    bool "MODULE_MBUS support"
+    default y
+    help
+      This option enables the M-Bus master (EN 13757): the telegram
+      decoder and the C_PROT_MBUS_M gclass.

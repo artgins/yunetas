@@ -2,6 +2,56 @@
 
 ## Unreleased
 
+- **New module: M-Bus master** (`modules/c/mbus`, `CONFIG_MODULE_MBUS`,
+  `default y`). It reads the water, heat, gas and electricity meters of a
+  wired M-Bus (EN 13757-2/-3) through a serial M-Bus level converter
+  (`C_UART`, 2400 baud 8E1) or a transparent M-Bus to TCP gateway (`C_TCP`).
+  - **`mbus_telegram.h`**, the telegram decoder, with no gobj and no state.
+    It finds frames, builds the requests of a master, and decodes the
+    variable data structure to json:
+    - every data coding;
+    - the primary VIF table and the `FB`/`FD` extensions;
+    - the VIFEs that change a record;
+    - dates of type G, F, I and J.
+
+    Values come in one unit per quantity (energy in Wh, power in W, volume
+    flow in m3/h, durations in s, temperatures in C), so a meter that counts
+    in GJ, MWh or J/h needs no conversion downstream. Each record has an id
+    that stays the same from one reading to the next (`volume`,
+    `volume@s1`, `power:max`, `energy@t2`). It never logs: a failure comes
+    back with its reason, for the caller to log with its peer. It was
+    checked against libmbus on its 78 real telegrams: 893 of 909 records are
+    equal, and the other 16 differ on purpose. The 16 are a BCD in error
+    (`null` here, a made-up number there), a "date of" VIFE (a date here, a
+    temperature of 41 million degrees there), dates never set, and the fixed
+    data structure, which is not decoded.
+  - **`C_PROT_MBUS_M`**, the master (a child gclass):
+    - it reads each slave by primary address (`SND_NKE`, `REQ_UD2`) or by
+      secondary address (a selection, then `REQ_UD2` to `FD`);
+    - it follows multi-telegram readouts with the FCB, up to
+      `max_telegrams`;
+    - it repeats a request with no valid answer `retries` times with the
+      same FCB, and waits out a bad frame before repeating;
+    - it publishes one `EV_ON_MESSAGE` per slave read, as soon as the
+      reading is complete, and only what was read;
+    - it logs a failing slave once, as a warning with its reason, and again
+      when it answers, not on every cycle;
+    - its stats are `txFrames`, `rxFrames`, `badFrames`, `timeouts`,
+      `repeats`, `readings` and `failedReads`, and it has the command
+      `dump-data`.
+
+    It uses `C_TIMER0`, because an answer is waited for in hundreds of
+    milliseconds and `C_TIMER` counts in seconds.
+  - New tests: `mbus_telegram` (the decoder, with six real telegrams of the
+    libmbus collection, BSD-3-Clause, licence next to them) and
+    `c_prot_mbus_m/test1` (the master against a simulated bus). The master
+    test was checked to fail when the FCB is not toggled, when the FCB is
+    toggled on a repeat, and when a failure is logged on every cycle.
+  - Docs: `/mbus` and `/mbus-telegram` on doc.yuneta.io.
+  - **An existing checkout** must add the new symbol to its `.config`
+    (`olddefconfig`, or `menuconfig` and save) and run `yunetas init`.
+    Packages are built with `alldefconfig` and carry the module.
+
 ## v7.27.8 (2026-10-23)
 
 A short release for the Modbus master, `C_PROT_MODBUS_M`. A polling cycle
