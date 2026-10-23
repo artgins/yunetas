@@ -9625,10 +9625,24 @@ PRIVATE json_t * _create_subscription(
     json_t *kw, // not owned
     gobj_t * subscriber)
 {
-    json_t *subs = gobj_sdata_create(publisher, subscription_desc);
-    json_object_set_new(subs, "event", json_integer((json_int_t)(uintptr_t)event));
-    json_object_set_new(subs, "subscriber", json_integer((json_int_t)(uintptr_t)subscriber));
-    json_object_set_new(subs, "publisher", json_integer((json_int_t)(uintptr_t)publisher));
+    /*
+     *  The dict of subscription_desc, built with its values: the keys in
+     *  the order of the table, its defaults (pointers and subs_flag 0, the
+     *  json ones null, __service__ "") but for the three set here. Up to
+     *  7.27.7 gobj_sdata_create() parsed the default of every field, and
+     *  three of them were then overwritten: the same dict.
+     */
+    json_t *subs = json_object();
+    json_object_set_new_nocheck(subs, "publisher", json_integer((json_int_t)(uintptr_t)publisher));
+    json_object_set_new_nocheck(subs, "subscriber", json_integer((json_int_t)(uintptr_t)subscriber));
+    json_object_set_new_nocheck(subs, "event", json_integer((json_int_t)(uintptr_t)event));
+    json_object_set_new_nocheck(subs, "renamed_event", json_integer(0));
+    json_object_set_new_nocheck(subs, "subs_flag", json_integer(0));
+    json_object_set_new_nocheck(subs, "__config__", json_null());
+    json_object_set_new_nocheck(subs, "__global__", json_null());
+    json_object_set_new_nocheck(subs, "__local__", json_null());
+    json_object_set_new_nocheck(subs, "__filter__", json_null());
+    json_object_set_new_nocheck(subs, "__service__", json_string(""));
     subs_flag_t subs_flag = 0;
 
     if(kw) {
