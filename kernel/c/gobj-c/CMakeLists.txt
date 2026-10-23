@@ -51,6 +51,7 @@ set (SRCS
     src/stats_parser.c
     src/testing.c
     src/json_config.c
+    src/json_scan.c
     src/json_replace_vars.c
     src/rotatory.c
     src/replace_string.c

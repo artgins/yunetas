@@ -805,6 +805,37 @@ PUBLIC json_t *string2json(const char *str, BOOL verbose); /* only [] or {}, old
  */
 PUBLIC json_t *json_config_string2json(const char *bf, BOOL verbose);
 
+/**rst**
+    A member of a json object as json_scan_object_members() finds it in
+    the TEXT of the object: offsets into that text, nothing copied.
+**rst**/
+typedef struct {
+    const char *key;        // in: the key of the member to find (keys must differ)
+    int count;              // out: times the key is in the object, 0 if absent
+    json_type type;         // out: type of its value (when count > 0)
+    size_t value_offset;    // out: its value is text + value_offset, value_length bytes
+    size_t value_length;
+    size_t cut_offset;      // out: remove these bytes and the object is valid without it
+    size_t cut_length;      //      (only when count is 1)
+} json_member_span_t;
+
+/**rst**
+    Scan `text` (`len` bytes, no NUL needed): 0 if it is ONE json object
+    that json_loadb(text, len, flags) accepts, -1 if not. `flags` is 0 or
+    JSON_ALLOW_NUL. It builds nothing and allocates nothing.
+    For each of `members` it says whether the object has that key at its
+    top level, and where: of a repeated key, the LAST one, as jansson
+    keeps it. With -1 the members are not to be read.
+    Logs only a bad parameter: a text that is not json is an answer.
+**rst**/
+PUBLIC int json_scan_object_members(
+    const char *text,
+    size_t len,
+    size_t flags,
+    json_member_span_t *members,    // in/out, NULL when n_members is 0
+    int n_members
+);
+
 
 /**rst**
     Set real precision (use in conversion of json to string functions)

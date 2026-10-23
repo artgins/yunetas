@@ -699,6 +699,97 @@ This function is useful for debugging memory management issues related to JSON r
 
 ---
 
+(json_scan_object_members)=
+## [`json_scan_object_members()`](https://github.com/artgins/yunetas/blob/7.27.9/kernel/c/gobj-c/src/json_scan.c#L570)
+
+Reads the TEXT of a json object without building it. It answers if the text is one json object, with the same verdict as `json_loadb()`. For each key you ask for, it says if the object has that key at its top level and where the key is in the text. It builds no json node and allocates no memory.
+
+Use it when you need two or three members of a large object and the rest of the object only as text. For example, a store that writes the text of a record as it arrived, and that needs only the key and the time of the record. Then the parse, the free and the dump of the whole object are not necessary.
+
+```C
+typedef struct {
+    const char *key;        // in: the key of the member to find (keys must differ)
+    int count;              // out: times the key is in the object, 0 if absent
+    json_type type;         // out: type of its value (when count > 0)
+    size_t value_offset;    // out: its value is text + value_offset, value_length bytes
+    size_t value_length;
+    size_t cut_offset;      // out: remove these bytes and the object is valid without it
+    size_t cut_length;      //      (only when count is 1)
+} json_member_span_t;
+
+int json_scan_object_members(
+    const char *text,
+    size_t len,
+    size_t flags,
+    json_member_span_t *members,    // in/out, NULL when n_members is 0
+    int n_members
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `text` | `const char *` | The text. It does not need a NUL at the end. |
+| `len` | `size_t` | The number of bytes of `text`. |
+| `flags` | `size_t` | `0` or `JSON_ALLOW_NUL`: the flags that `json_loadb()` gets. Any other flag is an error. |
+| `members` | `json_member_span_t *` | The members to find. You set `key`, the function sets the other fields. `NULL` when `n_members` is `0`. |
+| `n_members` | `int` | The number of entries in `members`. |
+
+**Returns**
+
+`0` if `text` is one json object that `json_loadb(text, len, flags)` accepts. `-1` if it is not, or if a parameter is wrong. When the function returns `-1`, do not read `members`.
+
+For each member:
+
+- `count` is the number of times that the key is in the object. `0` means that the object does not have the key. A key can be written with escapes in the text: `"id"` is the key `id`.
+- When the key occurs more than one time, the other fields give the LAST occurrence. jansson also keeps the last one.
+- `type` is the jansson type of the value: `JSON_OBJECT`, `JSON_ARRAY`, `JSON_STRING`, `JSON_INTEGER`, `JSON_REAL`, `JSON_TRUE`, `JSON_FALSE` or `JSON_NULL`.
+- `value_offset` and `value_length` give the text of the value. Decode a scalar from it with `json_loadb()` and `JSON_DECODE_ANY`.
+- `cut_offset` and `cut_length` give the bytes to remove so that the object stays valid without the member: the key, its value and one comma. Use them only when `count` is `1`.
+
+**Example**
+
+```C
+/*
+ *  Get the key and the time of a record, and remove its queue metadata,
+ *  without a parse of the record
+ */
+char *text = gbuffer_cur_rd_pointer(gbuf);
+size_t len = gbuffer_leftbytes(gbuf);
+
+json_member_span_t m[] = {
+    {.key = "id"},
+    {.key = "tm"},
+    {.key = "__md_trq__"},
+};
+if(json_scan_object_members(text, len, JSON_ALLOW_NUL, m, 3) < 0 ||
+        m[0].count != 1 || m[0].type != JSON_STRING ||
+        m[1].count != 1 || m[1].type != JSON_INTEGER ||
+        m[2].count != 1 || m[2].type != JSON_OBJECT) {
+    return process_record_parsed(gobj, gbuf);   // the usual path logs what is wrong
+}
+
+json_t *jn_md = json_loadb(text + m[2].value_offset, m[2].value_length, 0, 0);
+json_t *jn_tm = json_loadb(text + m[1].value_offset, m[1].value_length, JSON_DECODE_ANY, 0);
+
+memmove(text + m[2].cut_offset,
+    text + m[2].cut_offset + m[2].cut_length,
+    len - m[2].cut_offset - m[2].cut_length
+);
+len -= m[2].cut_length;     // text is now the record without __md_trq__
+```
+
+**Notes**
+
+The function accepts a text only if jansson 2.15 accepts it as an object. It uses the same grammar, the same UTF-8 check, the same escapes and surrogate pairs, the same `\u0000` rule (always refused in a key), the same ranges for integers (`json_int_t`) and reals (a real that `strtod()` changes to an infinite is refused, an underflow is accepted), and the same depth limit (`JSON_PARSER_MAX_DEPTH`). The test `tests/c/helpers/test_json_scan.c` compares the two verdicts on the jansson test corpus and on a fuzz of mutated objects.
+
+One difference is known, and it is on the safe side. `json_loadb()` skips a raw NUL byte that comes after a number or a literal: it accepts `{"a":12\0}` as `{"a":12}`. This function refuses all raw NUL bytes. `json_loads()` also refuses that text, because it stops at the NUL.
+
+A text that is not json is an answer, not an error: the function writes no log for it. It writes an ERROR log only for a wrong parameter.
+
+---
+
 (json_str_in_list)=
 ## [`json_str_in_list()`](https://github.com/artgins/yunetas/blob/7.27.9/kernel/c/gobj-c/src/helpers.c#L6385)
 

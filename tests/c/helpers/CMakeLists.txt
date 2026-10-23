@@ -62,6 +62,7 @@ set(SRCS
     test_switchs
     test_watch_request
     test_yuno_config_file
+    test_json_scan
 )
 
 ##############################################

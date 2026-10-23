@@ -743,7 +743,7 @@ it by hand, run the script.
 
 253. [**`tab`**](logging/trace.md#tab) — `PUBLIC char *tab(char *bf, int bflen)`
 
-### `helpers.h` — 185 functions
+### `helpers.h` — 186 functions
 
 **Source:** `kernel/c/gobj-c/src/helpers.h`
 
@@ -923,199 +923,201 @@ it by hand, run the script.
 
 88. [**`json_config_string2json`**](helpers/json_helper.md#json_config_string2json) — `PUBLIC json_t *json_config_string2json(const char *bf, BOOL verbose)`
 
-89. [**`set_real_precision`**](helpers/json_helper.md#set_real_precision) — `PUBLIC int set_real_precision(int precision)`
+89. [**`json_scan_object_members`**](helpers/json_helper.md#json_scan_object_members) — `PUBLIC int json_scan_object_members( const char *text, size_t len, size_t flags, json_member_span_t *members, int n_members )`
 
-90. [**`get_real_precision`**](helpers/json_helper.md#get_real_precision) — `PUBLIC int get_real_precision(void)`
+90. [**`set_real_precision`**](helpers/json_helper.md#set_real_precision) — `PUBLIC int set_real_precision(int precision)`
 
-91. [**`json2str`**](helpers/json_helper.md#json2str) — `PUBLIC char *json2str(const json_t *jn)`
+91. [**`get_real_precision`**](helpers/json_helper.md#get_real_precision) — `PUBLIC int get_real_precision(void)`
 
-92. [**`json2uglystr`**](helpers/json_helper.md#json2uglystr) — `PUBLIC char *json2uglystr(const json_t *jn)`
+92. [**`json2str`**](helpers/json_helper.md#json2str) — `PUBLIC char *json2str(const json_t *jn)`
 
-93. [**`json_check_refcounts`**](helpers/json_helper.md#json_check_refcounts) — `PUBLIC int json_check_refcounts( json_t *kw, int max_refcount, int *result )`
+93. [**`json2uglystr`**](helpers/json_helper.md#json2uglystr) — `PUBLIC char *json2uglystr(const json_t *jn)`
 
-94. [**`json_refcounts_report`**](helpers/json_helper.md#json_refcounts_report) — `PUBLIC json_t *json_refcounts_report( json_t *jn, json_int_t max_refcount, int max_shown )`
+94. [**`json_check_refcounts`**](helpers/json_helper.md#json_check_refcounts) — `PUBLIC int json_check_refcounts( json_t *kw, int max_refcount, int *result )`
 
-95. [**`json_nul_fault`**](helpers/json_helper.md#json_nul_fault) — `PUBLIC const char *json_nul_fault( json_t *jn )`
+95. [**`json_refcounts_report`**](helpers/json_helper.md#json_refcounts_report) — `PUBLIC json_t *json_refcounts_report( json_t *jn, json_int_t max_refcount, int max_shown )`
 
-96. [**`json_print_refcounts`**](helpers/json_helper.md#json_print_refcounts) — `PUBLIC int json_print_refcounts( json_t *jn, int level )`
+96. [**`json_nul_fault`**](helpers/json_helper.md#json_nul_fault) — `PUBLIC const char *json_nul_fault( json_t *jn )`
 
-97. [**`json_str_in_list`**](helpers/json_helper.md#json_str_in_list) — `PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL ignore_case)`
+97. [**`json_print_refcounts`**](helpers/json_helper.md#json_print_refcounts) — `PUBLIC int json_print_refcounts( json_t *jn, int level )`
 
-98. [**`walk_dir_tree`**](helpers/directory_walk.md#walk_dir_tree) — `PUBLIC int walk_dir_tree( hgobj gobj, const char *root_dir, const char *pattern, wd_option opt, walkdir_cb cb, void *user_data )`
+98. [**`json_str_in_list`**](helpers/json_helper.md#json_str_in_list) — `PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL ignore_case)`
 
-99. [**`find_files_with_suffix_array`**](helpers/directory_walk.md#find_files_with_suffix_array) — `PUBLIC int find_files_with_suffix_array( hgobj gobj, const char *directory, const char *suffix, dir_array_t *da )`
+99. [**`walk_dir_tree`**](helpers/directory_walk.md#walk_dir_tree) — `PUBLIC int walk_dir_tree( hgobj gobj, const char *root_dir, const char *pattern, wd_option opt, walkdir_cb cb, void *user_data )`
 
-100. [**`dir_array_sort`**](helpers/directory_walk.md#dir_array_sort) — `PUBLIC void dir_array_sort( dir_array_t *da )`
+100. [**`find_files_with_suffix_array`**](helpers/directory_walk.md#find_files_with_suffix_array) — `PUBLIC int find_files_with_suffix_array( hgobj gobj, const char *directory, const char *suffix, dir_array_t *da )`
 
-101. [**`dir_array_free`**](helpers/directory_walk.md#dir_array_free) — `PUBLIC void dir_array_free( dir_array_t *da )`
+101. [**`dir_array_sort`**](helpers/directory_walk.md#dir_array_sort) — `PUBLIC void dir_array_sort( dir_array_t *da )`
 
-102. [**`walk_dir_array`**](helpers/directory_walk.md#walk_dir_array) — `PUBLIC int walk_dir_array( hgobj gobj, const char *root_dir, const char *re, wd_option opt, dir_array_t *da )`
+102. [**`dir_array_free`**](helpers/directory_walk.md#dir_array_free) — `PUBLIC void dir_array_free( dir_array_t *da )`
 
-103. [**`get_ordered_filename_array`**](helpers/directory_walk.md#get_ordered_filename_array) — `PUBLIC int get_ordered_filename_array( hgobj gobj, const char *root_dir, const char *re, wd_option opt, dir_array_t *da )`
+103. [**`walk_dir_array`**](helpers/directory_walk.md#walk_dir_array) — `PUBLIC int walk_dir_array( hgobj gobj, const char *root_dir, const char *re, wd_option opt, dir_array_t *da )`
 
-104. [**`tm_to_time_t`**](helpers/time_date.md#tm_to_time_t) — `PUBLIC time_t tm_to_time_t(const struct tm *tm)`
+104. [**`get_ordered_filename_array`**](helpers/directory_walk.md#get_ordered_filename_array) — `PUBLIC int get_ordered_filename_array( hgobj gobj, const char *root_dir, const char *re, wd_option opt, dir_array_t *da )`
 
-105. [**`date_mode_from_type`**](helpers/time_date.md#date_mode_from_type) — `PUBLIC struct date_mode *date_mode_from_type(enum date_mode_type type)`
+105. [**`tm_to_time_t`**](helpers/time_date.md#tm_to_time_t) — `PUBLIC time_t tm_to_time_t(const struct tm *tm)`
 
-106. [**`show_date`**](helpers/time_date.md#show_date) — `PUBLIC const char *show_date(timestamp_t time, int timezone, const struct date_mode *mode)`
+106. [**`date_mode_from_type`**](helpers/time_date.md#date_mode_from_type) — `PUBLIC struct date_mode *date_mode_from_type(enum date_mode_type type)`
 
-107. [**`show_date_relative`**](helpers/time_date.md#show_date_relative) — `PUBLIC void show_date_relative( timestamp_t time, char *timebuf, int timebufsize )`
+107. [**`show_date`**](helpers/time_date.md#show_date) — `PUBLIC const char *show_date(timestamp_t time, int timezone, const struct date_mode *mode)`
 
-108. [**`parse_date`**](helpers/time_date.md#parse_date) — `PUBLIC int parse_date( const char *date, char *out, int outsize )`
+108. [**`show_date_relative`**](helpers/time_date.md#show_date_relative) — `PUBLIC void show_date_relative( timestamp_t time, char *timebuf, int timebufsize )`
 
-109. [**`parse_date_basic`**](helpers/time_date.md#parse_date_basic) — `PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset)`
+109. [**`parse_date`**](helpers/time_date.md#parse_date) — `PUBLIC int parse_date( const char *date, char *out, int outsize )`
 
-110. [**`parse_expiry_date`**](helpers/time_date.md#parse_expiry_date) — `PUBLIC int parse_expiry_date(const char *date, timestamp_t *timestamp)`
+110. [**`parse_date_basic`**](helpers/time_date.md#parse_date_basic) — `PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset)`
 
-111. [**`datestamp`**](helpers/time_date.md#datestamp) — `PUBLIC void datestamp( char *out, int outsize )`
+111. [**`parse_expiry_date`**](helpers/time_date.md#parse_expiry_date) — `PUBLIC int parse_expiry_date(const char *date, timestamp_t *timestamp)`
 
-112. [**`parse_date_format`**](helpers/time_date.md#parse_date_format) — `PUBLIC void parse_date_format(const char *format, struct date_mode *mode)`
+112. [**`datestamp`**](helpers/time_date.md#datestamp) — `PUBLIC void datestamp( char *out, int outsize )`
 
-113. [**`date_overflows`**](helpers/time_date.md#date_overflows) — `PUBLIC int date_overflows(timestamp_t date)`
+113. [**`parse_date_format`**](helpers/time_date.md#parse_date_format) — `PUBLIC void parse_date_format(const char *format, struct date_mode *mode)`
 
-114. [**`hex2bin`**](helpers/string_helper.md#hex2bin) — `PUBLIC char *hex2bin(char *bf, int bfsize, const char *hex, size_t hex_len, size_t *out_len)`
+114. [**`date_overflows`**](helpers/time_date.md#date_overflows) — `PUBLIC int date_overflows(timestamp_t date)`
 
-115. [**`bin2hex`**](helpers/string_helper.md#bin2hex) — `PUBLIC char *bin2hex(char *bf, int bfsize, const uint8_t *bin, size_t bin_len)`
+115. [**`hex2bin`**](helpers/string_helper.md#hex2bin) — `PUBLIC char *hex2bin(char *bf, int bfsize, const char *hex, size_t hex_len, size_t *out_len)`
 
-116. [**`tdump`**](helpers/backtrace.md#tdump) — `PUBLIC void tdump(const char *prefix, const uint8_t *s, size_t len, view_fn_t view, int nivel)`
+116. [**`bin2hex`**](helpers/string_helper.md#bin2hex) — `PUBLIC char *bin2hex(char *bf, int bfsize, const uint8_t *bin, size_t bin_len)`
 
-117. [**`tdump2json`**](helpers/backtrace.md#tdump2json) — `PUBLIC json_t *tdump2json(const uint8_t *s, size_t len)`
+117. [**`tdump`**](helpers/backtrace.md#tdump) — `PUBLIC void tdump(const char *prefix, const uint8_t *s, size_t len, view_fn_t view, int nivel)`
 
-118. [**`print_json`**](helpers/json_helper.md#print_json) — `PUBLIC int print_json(const char *label, json_t *jn)`
+118. [**`tdump2json`**](helpers/backtrace.md#tdump2json) — `PUBLIC json_t *tdump2json(const uint8_t *s, size_t len)`
 
-119. [**`debug_json`**](helpers/json_helper.md#debug_json) — `PUBLIC int debug_json(const char *label, json_t *jn, BOOL verbose)`
+119. [**`print_json`**](helpers/json_helper.md#print_json) — `PUBLIC int print_json(const char *label, json_t *jn)`
 
-120. [**`debug_json2`**](helpers/json_helper.md#debug_json2) — `PUBLIC int debug_json2(json_t *jn, const char *format, ...)JANSSON_ATTRS((format(printf, 2, 3)))`
+120. [**`debug_json`**](helpers/json_helper.md#debug_json) — `PUBLIC int debug_json(const char *label, json_t *jn, BOOL verbose)`
 
-121. [**`current_timestamp`**](helpers/time_date.md#current_timestamp) — `PUBLIC char *current_timestamp(char *bf, size_t bfsize)`
+121. [**`debug_json2`**](helpers/json_helper.md#debug_json2) — `PUBLIC int debug_json2(json_t *jn, const char *format, ...)JANSSON_ATTRS((format(printf, 2, 3)))`
 
-122. [**`tm2timestamp`**](helpers/time_date.md#tm2timestamp) — `PUBLIC char *tm2timestamp(char *bf, int bfsize, struct tm *tm)`
+122. [**`current_timestamp`**](helpers/time_date.md#current_timestamp) — `PUBLIC char *current_timestamp(char *bf, size_t bfsize)`
 
-123. [**`t2timestamp`**](helpers/time_date.md#t2timestamp) — `PUBLIC char *t2timestamp(char *bf, int bfsize, time_t t, BOOL local)`
+123. [**`tm2timestamp`**](helpers/time_date.md#tm2timestamp) — `PUBLIC char *tm2timestamp(char *bf, int bfsize, struct tm *tm)`
 
-124. [**`start_sectimer`**](helpers/time_date.md#start_sectimer) — `PUBLIC time_t start_sectimer(time_t seconds)`
+124. [**`t2timestamp`**](helpers/time_date.md#t2timestamp) — `PUBLIC char *t2timestamp(char *bf, int bfsize, time_t t, BOOL local)`
 
-125. [**`test_sectimer`**](helpers/time_date.md#test_sectimer) — `PUBLIC BOOL test_sectimer(time_t value)`
+125. [**`start_sectimer`**](helpers/time_date.md#start_sectimer) — `PUBLIC time_t start_sectimer(time_t seconds)`
 
-126. [**`start_msectimer`**](helpers/time_date.md#start_msectimer) — `PUBLIC uint64_t start_msectimer(uint64_t milliseconds)`
+126. [**`test_sectimer`**](helpers/time_date.md#test_sectimer) — `PUBLIC BOOL test_sectimer(time_t value)`
 
-127. [**`test_msectimer`**](helpers/time_date.md#test_msectimer) — `PUBLIC BOOL test_msectimer(uint64_t value)`
+127. [**`start_msectimer`**](helpers/time_date.md#start_msectimer) — `PUBLIC uint64_t start_msectimer(uint64_t milliseconds)`
 
-128. [**`time_in_milliseconds_monotonic`**](helpers/time_date.md#time_in_milliseconds_monotonic) — `PUBLIC uint64_t time_in_milliseconds_monotonic(void)`
+128. [**`test_msectimer`**](helpers/time_date.md#test_msectimer) — `PUBLIC BOOL test_msectimer(uint64_t value)`
 
-129. [**`time_in_milliseconds`**](helpers/time_date.md#time_in_milliseconds) — `PUBLIC uint64_t time_in_milliseconds(void)`
+129. [**`time_in_milliseconds_monotonic`**](helpers/time_date.md#time_in_milliseconds_monotonic) — `PUBLIC uint64_t time_in_milliseconds_monotonic(void)`
 
-130. [**`time_in_seconds`**](helpers/time_date.md#time_in_seconds) — `PUBLIC time_t time_in_seconds(void)`
+130. [**`time_in_milliseconds`**](helpers/time_date.md#time_in_milliseconds) — `PUBLIC uint64_t time_in_milliseconds(void)`
 
-131. [**`cpu_usage`**](helpers/misc.md#cpu_usage) — `PUBLIC uint64_t cpu_usage(void)`
+131. [**`time_in_seconds`**](helpers/time_date.md#time_in_seconds) — `PUBLIC time_t time_in_seconds(void)`
 
-132. [**`cpu_usage_percent`**](helpers/misc.md#cpu_usage_percent) — `PUBLIC double cpu_usage_percent( uint64_t *last_cpu_ticks, uint64_t *last_ms )`
+132. [**`cpu_usage`**](helpers/misc.md#cpu_usage) — `PUBLIC uint64_t cpu_usage(void)`
 
-133. [**`htonll`**](helpers/time_date.md#htonll) — `PUBLIC uint64_t htonll(uint64_t value)`
+133. [**`cpu_usage_percent`**](helpers/misc.md#cpu_usage_percent) — `PUBLIC double cpu_usage_percent( uint64_t *last_cpu_ticks, uint64_t *last_ms )`
 
-134. [**`ntohll`**](helpers/time_date.md#ntohll) — `PUBLIC uint64_t ntohll(uint64_t value)`
+134. [**`htonll`**](helpers/time_date.md#htonll) — `PUBLIC uint64_t htonll(uint64_t value)`
 
-135. [**`list_open_files`**](helpers/time_date.md#list_open_files) — `PUBLIC void list_open_files(void)`
+135. [**`ntohll`**](helpers/time_date.md#ntohll) — `PUBLIC uint64_t ntohll(uint64_t value)`
 
-136. [**`gmtime2timezone`**](helpers/time_date.md#gmtime2timezone) — `PUBLIC time_t gmtime2timezone(time_t t, const char *tz, struct tm *ltm, time_t *offset)`
+136. [**`list_open_files`**](helpers/time_date.md#list_open_files) — `PUBLIC void list_open_files(void)`
 
-137. [**`formatdate`**](helpers/time_date.md#formatdate) — `PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format)`
+137. [**`gmtime2timezone`**](helpers/time_date.md#gmtime2timezone) — `PUBLIC time_t gmtime2timezone(time_t t, const char *tz, struct tm *ltm, time_t *offset)`
 
-138. [**`count_char`**](helpers/string_helper.md#count_char) — `PUBLIC int count_char(const char *s, char c)`
+138. [**`formatdate`**](helpers/time_date.md#formatdate) — `PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format)`
 
-139. [**`get_hostname`**](helpers/misc.md#get_hostname) — `PUBLIC const char *get_hostname(void)`
+139. [**`count_char`**](helpers/string_helper.md#count_char) — `PUBLIC int count_char(const char *s, char c)`
 
-140. [**`create_random_uuid`**](helpers/misc.md#create_random_uuid) — `PUBLIC int create_random_uuid(char *bf, int bfsize)`
+140. [**`get_hostname`**](helpers/misc.md#get_hostname) — `PUBLIC const char *get_hostname(void)`
 
-141. [**`node_uuid`**](helpers/misc.md#node_uuid) — `PUBLIC const char *node_uuid(void)`
+141. [**`create_random_uuid`**](helpers/misc.md#create_random_uuid) — `PUBLIC int create_random_uuid(char *bf, int bfsize)`
 
-142. [**`is_metadata_key`**](helpers/json_helper.md#is_metadata_key) — `PUBLIC BOOL is_metadata_key(const char *key)`
+142. [**`node_uuid`**](helpers/misc.md#node_uuid) — `PUBLIC const char *node_uuid(void)`
 
-143. [**`is_private_key`**](helpers/json_helper.md#is_private_key) — `PUBLIC BOOL is_private_key(const char *key)`
+143. [**`is_metadata_key`**](helpers/json_helper.md#is_metadata_key) — `PUBLIC BOOL is_metadata_key(const char *key)`
 
-144. [**`comm_prot_register`**](helpers/common_protocol.md#comm_prot_register) — `PUBLIC int comm_prot_register(gclass_name_t gclass_name, const char *schema)`
+144. [**`is_private_key`**](helpers/json_helper.md#is_private_key) — `PUBLIC BOOL is_private_key(const char *key)`
 
-145. [**`comm_prot_get_gclass`**](helpers/common_protocol.md#comm_prot_get_gclass) — `PUBLIC gclass_name_t comm_prot_get_gclass(const char *schema)`
+145. [**`comm_prot_register`**](helpers/common_protocol.md#comm_prot_register) — `PUBLIC int comm_prot_register(gclass_name_t gclass_name, const char *schema)`
 
-146. [**`comm_prot_free`**](helpers/common_protocol.md#comm_prot_free) — `PUBLIC void comm_prot_free(void)`
+146. [**`comm_prot_get_gclass`**](helpers/common_protocol.md#comm_prot_get_gclass) — `PUBLIC gclass_name_t comm_prot_get_gclass(const char *schema)`
 
-147. [**`launch_daemon`**](helpers/daemon_launcher.md#launch_daemon) — `PUBLIC int launch_daemon( BOOL redirect_stdio_to_null, const char *program, ... )`
+147. [**`comm_prot_free`**](helpers/common_protocol.md#comm_prot_free) — `PUBLIC void comm_prot_free(void)`
 
-148. [**`parse_url`**](helpers/url_parsing.md#parse_url) — `PUBLIC int parse_url( hgobj gobj, const char *uri, char *schema, size_t schema_size, char *host, size_t host_size, char *port, size_t port_size, char *path, size_t path_size, char *query, size_t query_size, BOOL no_schema )`
+148. [**`launch_daemon`**](helpers/daemon_launcher.md#launch_daemon) — `PUBLIC int launch_daemon( BOOL redirect_stdio_to_null, const char *program, ... )`
 
-149. [**`get_url_schema`**](helpers/url_parsing.md#get_url_schema) — `PUBLIC int get_url_schema( hgobj gobj, const char *uri, char *schema, size_t schema_size )`
+149. [**`parse_url`**](helpers/url_parsing.md#parse_url) — `PUBLIC int parse_url( hgobj gobj, const char *uri, char *schema, size_t schema_size, char *host, size_t host_size, char *port, size_t port_size, char *path, size_t path_size, char *query, size_t query_size, BOOL no_schema )`
 
-150. [**`free_ram_in_kb`**](helpers/misc.md#free_ram_in_kb) — `PUBLIC unsigned long free_ram_in_kb(void)`
+150. [**`get_url_schema`**](helpers/url_parsing.md#get_url_schema) — `PUBLIC int get_url_schema( hgobj gobj, const char *uri, char *schema, size_t schema_size )`
 
-151. [**`total_ram_in_kb`**](helpers/misc.md#total_ram_in_kb) — `PUBLIC unsigned long total_ram_in_kb(void)`
+151. [**`free_ram_in_kb`**](helpers/misc.md#free_ram_in_kb) — `PUBLIC unsigned long free_ram_in_kb(void)`
 
-152. [**`read_process_cmdline`**](helpers/file_system.md#read_process_cmdline) — `PUBLIC int read_process_cmdline(char *bf, size_t bfsize, pid_t pid)`
+152. [**`total_ram_in_kb`**](helpers/misc.md#total_ram_in_kb) — `PUBLIC unsigned long total_ram_in_kb(void)`
 
-153. [**`copyfile`**](helpers/file_system.md#copyfile) — `PUBLIC int copyfile( const char* source, const char* destination, int permission, BOOL overwrite )`
+153. [**`read_process_cmdline`**](helpers/file_system.md#read_process_cmdline) — `PUBLIC int read_process_cmdline(char *bf, size_t bfsize, pid_t pid)`
 
-154. [**`set_nonblocking`**](helpers/file_system.md#set_nonblocking) — `PUBLIC int set_nonblocking(int fd)`
+154. [**`copyfile`**](helpers/file_system.md#copyfile) — `PUBLIC int copyfile( const char* source, const char* destination, int permission, BOOL overwrite )`
 
-155. [**`set_cloexec`**](helpers/file_system.md#set_cloexec) — `PUBLIC int set_cloexec(int fd)`
+155. [**`set_nonblocking`**](helpers/file_system.md#set_nonblocking) — `PUBLIC int set_nonblocking(int fd)`
 
-156. [**`upper`**](helpers/string_helper.md#upper) — `PUBLIC char *upper(char *s)`
+156. [**`set_cloexec`**](helpers/file_system.md#set_cloexec) — `PUBLIC int set_cloexec(int fd)`
 
-157. [**`lower`**](helpers/string_helper.md#lower) — `PUBLIC char *lower(char *s)`
+157. [**`upper`**](helpers/string_helper.md#upper) — `PUBLIC char *upper(char *s)`
 
-158. [**`capitalize`**](helpers/string_helper.md#capitalize) — `PUBLIC char *capitalize(char *s)`
+158. [**`lower`**](helpers/string_helper.md#lower) — `PUBLIC char *lower(char *s)`
 
-159. [**`set_tcp_socket_options`**](helpers/common_protocol.md#set_tcp_socket_options) — `PUBLIC int set_tcp_socket_options(int fd, int delay)`
+159. [**`capitalize`**](helpers/string_helper.md#capitalize) — `PUBLIC char *capitalize(char *s)`
 
-160. [**`is_tcp_socket`**](helpers/common_protocol.md#is_tcp_socket) — `PUBLIC BOOL is_tcp_socket(int fd)`
+160. [**`set_tcp_socket_options`**](helpers/common_protocol.md#set_tcp_socket_options) — `PUBLIC int set_tcp_socket_options(int fd, int delay)`
 
-161. [**`is_udp_socket`**](helpers/common_protocol.md#is_udp_socket) — `PUBLIC BOOL is_udp_socket(int fd)`
+161. [**`is_tcp_socket`**](helpers/common_protocol.md#is_tcp_socket) — `PUBLIC BOOL is_tcp_socket(int fd)`
 
-162. [**`print_socket_address`**](helpers/common_protocol.md#print_socket_address) — `PUBLIC int print_socket_address(char *buf, size_t buflen, const struct sockaddr *sa)`
+162. [**`is_udp_socket`**](helpers/common_protocol.md#is_udp_socket) — `PUBLIC BOOL is_udp_socket(int fd)`
 
-163. [**`get_peername`**](helpers/common_protocol.md#get_peername) — `PUBLIC int get_peername(char *bf, size_t bfsize, int fd)`
+163. [**`print_socket_address`**](helpers/common_protocol.md#print_socket_address) — `PUBLIC int print_socket_address(char *buf, size_t buflen, const struct sockaddr *sa)`
 
-164. [**`get_sockname`**](helpers/common_protocol.md#get_sockname) — `PUBLIC int get_sockname(char *bf, size_t bfsize, int fd)`
+164. [**`get_peername`**](helpers/common_protocol.md#get_peername) — `PUBLIC int get_peername(char *bf, size_t bfsize, int fd)`
 
-165. [**`check_open_fds`**](helpers/misc.md#check_open_fds) — `PUBLIC int check_open_fds(void)`
+165. [**`get_sockname`**](helpers/common_protocol.md#get_sockname) — `PUBLIC int get_sockname(char *bf, size_t bfsize, int fd)`
 
-166. [**`print_open_fds`**](helpers/misc.md#print_open_fds) — `PUBLIC int print_open_fds(const char *fmt, ...)`
+166. [**`check_open_fds`**](helpers/misc.md#check_open_fds) — `PUBLIC int check_open_fds(void)`
 
-167. [**`get_inotify_self_usage`**](helpers/misc.md#get_inotify_self_usage) — `PUBLIC int get_inotify_self_usage(int *instances, int *watches)`
+167. [**`print_open_fds`**](helpers/misc.md#print_open_fds) — `PUBLIC int print_open_fds(const char *fmt, ...)`
 
-168. [**`is_yuneta_user`**](helpers/misc.md#is_yuneta_user) — `PUBLIC int is_yuneta_user(const char *username)`
+168. [**`get_inotify_self_usage`**](helpers/misc.md#get_inotify_self_usage) — `PUBLIC int get_inotify_self_usage(int *instances, int *watches)`
 
-169. [**`yuneta_getpwuid`**](helpers/misc.md#yuneta_getpwuid) — `PUBLIC struct passwd *yuneta_getpwuid(uid_t uid)`
+169. [**`is_yuneta_user`**](helpers/misc.md#is_yuneta_user) — `PUBLIC int is_yuneta_user(const char *username)`
 
-170. [**`yuneta_getpwnam`**](helpers/misc.md#yuneta_getpwnam) — `PUBLIC struct passwd *yuneta_getpwnam(const char *name)`
+170. [**`yuneta_getpwuid`**](helpers/misc.md#yuneta_getpwuid) — `PUBLIC struct passwd *yuneta_getpwuid(uid_t uid)`
 
-171. [**`yuneta_getgrnam`**](helpers/misc.md#yuneta_getgrnam) — `PUBLIC struct group *yuneta_getgrnam(const char *name)`
+171. [**`yuneta_getpwnam`**](helpers/misc.md#yuneta_getpwnam) — `PUBLIC struct passwd *yuneta_getpwnam(const char *name)`
 
-172. [**`yuneta_getgrouplist`**](helpers/misc.md#yuneta_getgrouplist) — `PUBLIC int yuneta_getgrouplist(const char *user, gid_t group, gid_t *groups, int *ngroups)`
+172. [**`yuneta_getgrnam`**](helpers/misc.md#yuneta_getgrnam) — `PUBLIC struct group *yuneta_getgrnam(const char *name)`
 
-173. [**`path_basename`**](helpers/string_helper.md#path_basename) — `PUBLIC const char *path_basename(const char *path)`
+173. [**`yuneta_getgrouplist`**](helpers/misc.md#yuneta_getgrouplist) — `PUBLIC int yuneta_getgrouplist(const char *user, gid_t group, gid_t *groups, int *ngroups)`
 
-174. [**`get_yunetas_base`**](helpers/misc.md#get_yunetas_base) — `PUBLIC const char *get_yunetas_base(void)`
+174. [**`path_basename`**](helpers/string_helper.md#path_basename) — `PUBLIC const char *path_basename(const char *path)`
 
-175. [**`source2base64_for_yunetas`**](helpers/misc.md#source2base64_for_yunetas) — `PUBLIC gbuffer_t *source2base64_for_yunetas( const char *source, char *comment, int commentlen )`
+175. [**`get_yunetas_base`**](helpers/misc.md#get_yunetas_base) — `PUBLIC const char *get_yunetas_base(void)`
 
-176. [**`replace_cli_vars`**](helpers/string_helper.md#replace_cli_vars) — `PUBLIC gbuffer_t *replace_cli_vars( const char *command, char *comment, int commentlen )`
+176. [**`source2base64_for_yunetas`**](helpers/misc.md#source2base64_for_yunetas) — `PUBLIC gbuffer_t *source2base64_for_yunetas( const char *source, char *comment, int commentlen )`
 
-177. [**`get_number_from_nn_table`**](helpers/misc.md#get_number_from_nn_table) — `PUBLIC int get_number_from_nn_table(const number_name_table_t *table, const char *name)`
+177. [**`replace_cli_vars`**](helpers/string_helper.md#replace_cli_vars) — `PUBLIC gbuffer_t *replace_cli_vars( const char *command, char *comment, int commentlen )`
 
-178. [**`get_name_from_nn_table`**](helpers/misc.md#get_name_from_nn_table) — `PUBLIC const char *get_name_from_nn_table(const number_name_table_t *table, int number)`
+178. [**`get_number_from_nn_table`**](helpers/misc.md#get_number_from_nn_table) — `PUBLIC int get_number_from_nn_table(const number_name_table_t *table, const char *name)`
 
-179. [**`get_hours_range`**](helpers/time_date.md#get_hours_range) — `PUBLIC time_range_t get_hours_range(time_t t, int range, const char *TZ)`
+179. [**`get_name_from_nn_table`**](helpers/misc.md#get_name_from_nn_table) — `PUBLIC const char *get_name_from_nn_table(const number_name_table_t *table, int number)`
 
-180. [**`get_days_range`**](helpers/time_date.md#get_days_range) — `PUBLIC time_range_t get_days_range(time_t t, int range, const char *TZ)`
+180. [**`get_hours_range`**](helpers/time_date.md#get_hours_range) — `PUBLIC time_range_t get_hours_range(time_t t, int range, const char *TZ)`
 
-181. [**`get_weeks_range`**](helpers/time_date.md#get_weeks_range) — `PUBLIC time_range_t get_weeks_range(time_t t, int range, const char *TZ)`
+181. [**`get_days_range`**](helpers/time_date.md#get_days_range) — `PUBLIC time_range_t get_days_range(time_t t, int range, const char *TZ)`
 
-182. [**`get_months_range`**](helpers/time_date.md#get_months_range) — `PUBLIC time_range_t get_months_range(time_t t, int range, const char *TZ)`
+182. [**`get_weeks_range`**](helpers/time_date.md#get_weeks_range) — `PUBLIC time_range_t get_weeks_range(time_t t, int range, const char *TZ)`
 
-183. [**`get_years_range`**](helpers/time_date.md#get_years_range) — `PUBLIC time_range_t get_years_range(time_t t, int range, const char *TZ)`
+183. [**`get_months_range`**](helpers/time_date.md#get_months_range) — `PUBLIC time_range_t get_months_range(time_t t, int range, const char *TZ)`
 
-184. [**`sha256_digest`**](helpers/misc.md#sha256_digest) — `PUBLIC void sha256_digest(const void *data, size_t len, uint8_t digest[SHA256_DIGEST_LEN])`
+184. [**`get_years_range`**](helpers/time_date.md#get_years_range) — `PUBLIC time_range_t get_years_range(time_t t, int range, const char *TZ)`
 
-185. [**`sha256_hex`**](helpers/misc.md#sha256_hex) — `PUBLIC int sha256_hex(const void *data, size_t len, char *bf, size_t bflen)`
+185. [**`sha256_digest`**](helpers/misc.md#sha256_digest) — `PUBLIC void sha256_digest(const void *data, size_t len, uint8_t digest[SHA256_DIGEST_LEN])`
+
+186. [**`sha256_hex`**](helpers/misc.md#sha256_hex) — `PUBLIC int sha256_hex(const void *data, size_t len, char *bf, size_t bflen)`
 
 ### `kwid.h` — 61 functions
 
@@ -1323,7 +1325,7 @@ it by hand, run the script.
 
 11. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 628 functions**
+**Total: 629 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2410,7 +2412,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1049 functions** sorted alphabetically with their source header.
+All **1050 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2914,6 +2916,7 @@ All **1049 functions** sorted alphabetically with their source header.
 | [**`json_refcounts_report`**](helpers/json_helper.md#json_refcounts_report) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_replace_var`**](helpers/json_helper.md#json_replace_var) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_replace_var_custom`**](helpers/json_helper.md#json_replace_var_custom) | `helpers.h` | gobj-c (Core Framework) |
+| [**`json_scan_object_members`**](helpers/json_helper.md#json_scan_object_members) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_str_in_list`**](helpers/json_helper.md#json_str_in_list) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_unflatten_dict`**](helpers/kwid.md#json_unflatten_dict) | `kwid.h` | gobj-c (Core Framework) |
 | [**`jwk_process_one`**](libjwt.md#jwk_process_one) | `jwt.h` | libjwt (JWT Authentication) |

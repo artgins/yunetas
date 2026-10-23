@@ -17,6 +17,23 @@
   New test `c_yuno_cpu_core` (`test1` a pin, `test2` a cpu that does not
   exist), red against 7.27.9. Found pinning the yunos of hidraulia for the
   performance test.
+- **New `json_scan_object_members()`** (`kernel/c/gobj-c/src/json_scan.c`,
+  declared in `helpers.h`). It reads the members of a json object from its
+  TEXT, without building the object. It gives the verdict of `json_loadb()`
+  (one valid object or not) and, for each key asked, its count, its type,
+  the text of its value and the bytes to cut to remove it. It allocates
+  nothing. On hidraulia (Xeon E-2386G), for a record of 955 bytes, the scan
+  of three members takes 0.75 µs. The parse, delete, dump and free of the
+  whole record that it can replace take 19.85 µs. It is the base of a fast
+  append path for a store that receives records as text (the RENFE
+  20,000 records/s test).
+  New test `helpers/test_json_scan`: jansson's own test corpus, the edges
+  (integer and real ranges, the real overflow threshold digit by digit,
+  surrogates, `\u0000`, nesting depth), the members, and a fuzz of 200,000
+  mutated objects compared with `json_loadb()` (9 million in three runs by
+  hand: no difference). One difference is known, on the safe side:
+  `json_loadb()` skips a raw NUL byte after a number or a literal
+  (`{"a":12\0}` is `{"a":12}`), and the scan refuses it.
 
 ## v7.27.9 (2026-10-23)
 

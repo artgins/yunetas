@@ -198,3 +198,13 @@ autumn. It also checks `day_before_of()` (N calendar days back: `keep_days`,
 back: the age of a `whois_cache_days` answer) across both changes; up to
 7.25.20 they were `t - N*86400`, an hour off per change of hour and a day off
 near midnight.
+
+`test_json_scan` covers `json_scan_object_members()`
+(`kernel/c/gobj-c/src/json_scan.c`): its verdict must be the verdict of
+`json_loadb()` on every text. It runs jansson's own test corpus (copied into
+the test), the edges (integer and real ranges, the real overflow threshold,
+surrogates, `\u0000` with and without `JSON_ALLOW_NUL`, nesting depth), the
+members (type, value text, a repeated key, an escaped key, the cut), and a
+fuzz of 200,000 mutated objects. For a longer fuzz, run it by hand:
+`test_json_scan <iterations> [seed]`. The one difference allowed is a raw NUL
+byte after a number or a literal: `json_loadb()` skips it, the scan refuses it.

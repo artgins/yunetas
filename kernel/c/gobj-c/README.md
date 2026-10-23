@@ -27,6 +27,7 @@
 | `src/glogger.c/h` | Structured JSON logger |
 | `src/gbuffer.c/h` | Growable byte buffer |
 | `src/helpers.c/h` | Paths, timers, strings, static NSS replacements for `CONFIG_FULLY_STATIC` |
+| `src/json_scan.c` | `json_scan_object_members()`: the members of a json object read from its text, with `json_loadb()`'s verdict, without building it (declared in `helpers.h`) |
 | `src/dl_list.c/h` | Intrusive doubly-linked list |
 
 ## Typical GClass layout
