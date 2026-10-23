@@ -72,14 +72,23 @@
  *  calloc(): the same zeroed block in any C library, and in glibc (up to
  *  2.40) a faster one, because there calloc() never takes a block from the
  *  per-thread cache (tcache) that malloc() and free() use, so every small
- *  calloc() went down to the arenas and every free() overflowed the cache
- *  (jansson allocates through here: a pair of an object, an integer, a
- *  string). A larger one keeps calloc(), which skips the memset of memory
- *  fresh from the system.
+ *  calloc() went down to the arenas and every free() overflowed the cache.
+ *  A larger one keeps calloc(), which skips the memset of memory fresh from
+ *  the system. The blocks of jansson are not zeroed at all (see
+ *  gbmem_get_json_allocators()).
  */
 #define MAX_SMALL_BLOCK_ZEROED_HERE 1024
 
+/*
+ *  What fills a block of jansson in a build that tracks memory (see
+ *  gbmem_get_json_allocators()): never zero, so that a read of a byte
+ *  jansson did not write reads garbage in the tests, as it can on a node
+ */
+#define UNZEROED_FILL_BYTE 0xA5
+
+PRIVATE inline void *mem_alloc(size_t size, BOOL zeroed);
 PRIVATE void *_mem_malloc(size_t size);
+PRIVATE void *_mem_malloc_unzeroed(size_t size);
 PRIVATE void _mem_free(void *p);
 PRIVATE void *_mem_realloc(void *p, size_t new_size);
 PRIVATE void *_mem_calloc(size_t n, size_t size);
@@ -166,6 +175,32 @@ PUBLIC int gbmem_get_allocators(
     }
     if(calloc_func) {
         *calloc_func = sys_calloc_fn;
+    }
+    if(free_func) {
+        *free_func = sys_free_fn;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  The pair to give jansson (json_set_alloc_funcs()): the tracking and
+ *  limits of gbmem_malloc(), without its zeroing. jansson asks for
+ *  malloc()'s contract and writes every byte it reads, so zeroing its
+ *  blocks (a pair of an object, an integer, a string: most of the blocks
+ *  of a yuno) only cost a memset each.
+ *  With allocators replaced by gbmem_set_allocators(), those are the ones.
+ ***************************************************************************/
+PUBLIC int gbmem_get_json_allocators(
+    sys_malloc_fn_t *malloc_func,
+    sys_free_fn_t *free_func
+) {
+    if(malloc_func) {
+        if(sys_malloc_fn == _mem_malloc) {
+            *malloc_func = _mem_malloc_unzeroed;
+        } else {
+            *malloc_func = sys_malloc_fn;
+        }
     }
     if(free_func) {
         *free_func = sys_free_fn;
@@ -511,9 +546,9 @@ PRIVATE void check_failed_list(track_mem_t *track_mem)
 #endif
 
 /***********************************************************************
- *      Alloc memory
+ *      Alloc memory, zeroed or not
  ***********************************************************************/
-PRIVATE void *_mem_malloc(size_t size)
+PRIVATE inline void *mem_alloc(size_t size, BOOL zeroed)
 {
 #ifdef CONFIG_DEBUG_TRACK_MEMORY
     size_t extra = TRACK_MEM;
@@ -545,7 +580,9 @@ PRIVATE void *_mem_malloc(size_t size)
 #endif
 
     char *pm;
-    if(size <= MAX_SMALL_BLOCK_ZEROED_HERE) {
+    if(!zeroed) {
+        pm = malloc(size);
+    } else if(size <= MAX_SMALL_BLOCK_ZEROED_HERE) {
         pm = malloc(size);
         if(pm) {
             memset(pm, 0, size);
@@ -576,9 +613,28 @@ PRIVATE void *_mem_malloc(size_t size)
     check_failed_list(pm_);
     pm += extra;
     pm_->p = pm;
+    if(!zeroed) {
+        memset(pm, UNZEROED_FILL_BYTE, size - extra);
+    }
 #endif
 
     return pm;
+}
+
+/***********************************************************************
+ *      Alloc memory, zeroed: gbmem_malloc()
+ ***********************************************************************/
+PRIVATE void *_mem_malloc(size_t size)
+{
+    return mem_alloc(size, TRUE);
+}
+
+/***********************************************************************
+ *      Alloc memory, not zeroed: jansson's, gbmem_get_json_allocators()
+ ***********************************************************************/
+PRIVATE void *_mem_malloc_unzeroed(size_t size)
+{
+    return mem_alloc(size, FALSE);
 }
 
 /***********************************************************************

@@ -146,6 +146,58 @@ Any parameter can be `NULL` if you do not need that particular function pointer.
 
 ---
 
+(gbmem_get_json_allocators)=
+## [`gbmem_get_json_allocators()`](https://github.com/artgins/yunetas/blob/7.27.6/kernel/c/gobj-c/src/gbmem.c#L194)
+
+Retrieves the pair of allocator functions to hand jansson with `json_set_alloc_funcs()`: the same memory tracking and limits as [`gbmem_malloc()`](<#gbmem_malloc>), without zeroing the block.
+
+```C
+int gbmem_get_json_allocators(
+    sys_malloc_fn_t *malloc_func,
+    sys_free_fn_t *free_func
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `malloc_func` | `sys_malloc_fn_t *` | Pointer to receive the malloc function for jansson. Can be `NULL` if not needed. |
+| `free_func` | `sys_free_fn_t *` | Pointer to receive the free function for jansson. Can be `NULL` if not needed. |
+
+**Returns**
+
+0 on success.
+
+**Notes**
+
+jansson asks its allocator for the contract of `malloc()`, and it writes every byte it reads. Zeroing its blocks (the pair of an object, an integer, a string: most of the blocks of a yuno) only costs a `memset()` each, so this malloc does not zero. Everything else is as in `gbmem_malloc()`: the largest block, the memory tracking (`CONFIG_DEBUG_TRACK_MEMORY`) and the free function, which is the one of the other blocks.
+
+In a build with `CONFIG_DEBUG_TRACK_MEMORY` the block is filled with `0xA5` instead of being left as it is: a read of a byte that jansson did not write reads garbage in the tests too, not only on a node.
+
+If the allocators were replaced with [`gbmem_set_allocators()`](<#gbmem_set_allocators>), the answer is those.
+
+`yuneta_entry_point()` does this for every yuno, and `C_AUTHZ` again after libjwt has pointed jansson at its own wrappers. A program that does not start through `yuneta_entry_point()` (a tool, a benchmark) does it itself, before its first json:
+
+```C
+sys_malloc_fn_t malloc_func;
+sys_free_fn_t free_func;
+
+gbmem_get_json_allocators(
+    &malloc_func,
+    &free_func
+);
+
+json_set_alloc_funcs(
+    malloc_func,
+    free_func
+);
+```
+
+Use [`gbmem_get_allocators()`](<#gbmem_get_allocators>) for a library that needs `realloc()` or `calloc()` too, or zeroed memory.
+
+---
+
 (gbmem_get_maximum_block)=
 ## [`gbmem_get_maximum_block()`](https://github.com/artgins/yunetas/blob/7.27.6/kernel/c/gobj-c/src/gbmem.c#L247)
 
@@ -194,7 +246,7 @@ Pointer to the allocated memory block, or `NULL` on failure.
 
 **Notes**
 
-The contents of the allocated block are uninitialized. Use `gbmem_calloc()` if you need zero-initialized memory.
+The block is zeroed, as with `gbmem_calloc()`. The blocks of jansson are not: see [`gbmem_get_json_allocators()`](<#gbmem_get_json_allocators>).
 
 ---
 
