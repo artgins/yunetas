@@ -5872,6 +5872,59 @@ PUBLIC BOOL decode_parent_ref(
     if(!(pref && strchr(pref, '^'))) {
         return FALSE;
     }
+
+    /*
+     *  The parts as split2(pref, "^", ...) cuts them (strtok_r(): the runs
+     *  of bytes without '^', the empty ones skipped), without copying them.
+     *  When there are three and each one fits its buffer, they are copied
+     *  and checked here; anything else goes the way it always went below,
+     *  with its logs.
+     */
+    const char *part[3] = {0};
+    size_t part_len[3] = {0};
+    int parts = 0;
+    const char *p = pref;
+    while(*p) {
+        while(*p == '^') {
+            p++;
+        }
+        if(!*p) {
+            break;
+        }
+        const char *begin = p;
+        while(*p && *p != '^') {
+            p++;
+        }
+        if(parts < 3) {
+            part[parts] = begin;
+            part_len[parts] = (size_t)(p - begin);
+        }
+        parts++;
+    }
+    if(parts == 3 && topic_name && id && hook_name &&
+        topic_name_size > 0 && part_len[0] < (size_t)topic_name_size &&
+        id_size > 0 && part_len[1] < (size_t)id_size &&
+        hook_name_size > 0 && part_len[2] < (size_t)hook_name_size
+    ) {
+        memcpy(topic_name, part[0], part_len[0]);
+        topic_name[part_len[0]] = 0;
+        memcpy(id, part[1], part_len[1]);
+        id[part_len[1]] = 0;
+        memcpy(hook_name, part[2], part_len[2]);
+        hook_name[part_len[2]] = 0;
+        if(!tranger2_name_is_identifier(topic_name) || !treedb_col_name_is_identifier(hook_name)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Wrong fkey (parent) reference: a name breaks the name rule",
+                "pref",         "%.128s", pref,
+                NULL
+            );
+            return FALSE;
+        }
+        return TRUE;
+    }
+
     int list_size;
     const char **ss = split2(pref, "^", &list_size);
     if(list_size!=3) {
