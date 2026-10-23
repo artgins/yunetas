@@ -19,6 +19,7 @@ gained, measured, and what was found and not done.
 | 4 | Inter-yuno messages (`C_IEVENT_*` over websocket), HTTP (the BFF), MQTT, with two benchmarks written for it: the MQTT message builder, the flags of a treedb node view, the event of an inter-event found by name, `kw_set_dict_value()`, `json2gbuf()`, jansson's allocator under `C_AUTHZ`. MQTT **+18%**; an inter-event is jansson's (2%) | [round-4-inter-yuno-http-mqtt.md](round-4-inter-yuno-http-mqtt.md) |
 | P | The proposals the rounds left for a decision, applied on the user's decision (all but one, not safe as proposed): jansson from Yuneta's fork (ASCII fast paths, a faster hash), subscriptions read from a C record, `C_TIMER`'s subscription kept, the TLS read buffer of the size read, the treedb open in O(keys) and without the O(children^2) hook scan, `C_WEBSOCKET`'s frame in one write, the broker's session without a copy. TLS echo **+21%**, TCP echo **+19%**, inter-yuno **+47%** (from round 4), MQTT **+39%** (from round 4), appends **+50%**, reads **+74%**, BFF +26%, treedb open **x12** with a long history, **x19** with 8 000 children in one hook. Against 7.27.7: TCP echo **x2.1**, TLS echo x1.9 | [proposals-applied.md](proposals-applied.md) |
 | 5 | What was left of a subscription (nothing to change: the proposals took it off the path of a message), and the reads of a treedb: the options of a view read once and its entries built without `json_pack()`, `decode_parent_ref()` without `split2()`, the flags of a filter read once; jansson's loop key without `snprintf()`. The views of a treedb **-30%** of instructions, **-11% to -16%** of time | [round-5-subscriptions-treedb.md](round-5-subscriptions-treedb.md) |
+| 6 | What round 5 left, on the user's decision: `json2gbuf()` with a gbuffer of the size of a small dump (the proposal), jansson's lexer runs for `json_loads()` (what every message received goes through), digits and blanks, in the fork; `perf_tr_treedb_read` in `performance/c/`. Inter-yuno **-17%** of instructions, **+19%** of round trips/s; reads with an iterator -6% of instructions | [round-6-jansson-parse-treedb-reads.md](round-6-jansson-parse-treedb-reads.md) |
 
 ## Method
 
@@ -67,8 +68,8 @@ what it gained are in [proposals-applied.md](proposals-applied.md).
 | One `io_uring_submit()` per turn of the loop | [3](round-3-network.md) | **not applied**: not safe as proposed (a write submitted late can be reordered, a read submitted late can find its fd closed by `C_TCP`) |
 | `TCP_NODELAY` | [3](round-3-network.md) | **nothing to do**: it is already set on every accepted and connected socket |
 
-Round 5 left one more for a decision:
+Round 5 left one more for a decision, applied with round 6:
 
 | Proposal | Round | Decision |
 |----------|-------|----------|
-| `json2gbuf()`: the gbuffer of the size of the dump, not 4 KB zeroed whatever it holds (2.3% of an inter-yuno round trip) | [5](round-5-subscriptions-treedb.md) | waiting: the free space of the gbuffer handed up changes |
+| `json2gbuf()`: the gbuffer of the size of the dump, not 4 KB zeroed whatever it holds (2.3% of an inter-yuno round trip) | [5](round-5-subscriptions-treedb.md) | applied in [round 6](round-6-jansson-parse-treedb-reads.md) |

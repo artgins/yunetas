@@ -2,22 +2,24 @@
 
 ## Unreleased
 
-- **A performance audit of the C SDK** (`performance/audit/`): five rounds
+- **A performance audit of the C SDK** (`performance/audit/`): six rounds
   (the core of gobj-c; timeranger2 and tr_treedb; the network path; the
-  inter-yuno path, HTTP and MQTT; subscriptions and the reads of a treedb),
-  each change a commit of its own that leaves results, bytes, events, logs
-  and errors as they were, and the proposals the first four left for a
-  decision, applied on the user's decision.
+  inter-yuno path, HTTP and MQTT; subscriptions and the reads of a treedb;
+  jansson's parse), each change a commit of its own that leaves results,
+  bytes, events, logs and errors as they were, and the proposals the rounds
+  left for a decision, applied on the user's decision.
   The figures of each change, and what it was checked against, are in the
-  documents of the audit. Two benchmarks join `performance/c/`:
-  `perf_ievent` (inter-yuno round trips over websocket) and `perf_mqtt`
-  (MQTT QoS 0 through the embedded broker). What a caller can see:
+  documents of the audit. Three benchmarks join `performance/c/`:
+  `perf_ievent` (inter-yuno round trips over websocket), `perf_mqtt`
+  (MQTT QoS 0 through the embedded broker) and `perf_tr_treedb_read` (the
+  reads of a treedb: open, lists, views of nodes). What a caller can see:
     - **jansson comes from Yuneta's fork**, `github.com/artgins/jansson`, at
       a fixed commit (`TAG_JANSSON`), in place of `patches/jansson/`:
       upstream v2.15.1 plus the lexer fix that was the patch, fast paths for
-      ASCII, a faster seeded hash of the keys and the key of its loop check
-      without `snprintf()` (the same results, bytes and errors).
-      `linux-ext-libs` 1.25 and 1.26: a node that builds from source reruns
+      ASCII (for `json_loads()` too, and runs of digits and blanks), a
+      faster seeded hash of the keys and the key of its loop check without
+      `snprintf()` (the same results, bytes, errors and positions).
+      `linux-ext-libs` 1.25 to 1.27: a node that builds from source reruns
       `./extrae.sh && ./configure-libs.sh`.
     - **A `C_TIMER` keeps its subscription to the yuno's
       `EV_TIMEOUT_PERIODIC` for its life**, from its first start: the yuno's
@@ -36,7 +38,8 @@
       able to grow up to `rx_buffer_size`, where it was `rx_buffer_size`
       (32 KB) whatever was read; mbedTLS reads into one scratch buffer per
       process, as OpenSSL does. So is the body buffer of an HTTP request
-      under 4 KB (`ghttp_parser`).
+      under 4 KB (`ghttp_parser`), and the gbuffer `json2gbuf()` makes for
+      a dump of up to 4 KB (it was 4 KB whatever the dump).
     - **`C_WEBSOCKET` writes a server frame in one write**: the same bytes,
       but `C_TCP`'s `txMsgs` counts one message where it counted two.
     - **Security: the masking key of a websocket client frame comes from

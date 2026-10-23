@@ -114,6 +114,10 @@ The benchmarks of the suite pass.
 
 ## Found, not done
 
+The first, the third and the fourth were done in
+[round 6](round-6-jansson-parse-treedb-reads.md), on the user's decision.
+
+
 - **`json2gbuf()` makes a gbuffer of 4 KB, zeroed, for every json it
   dumps** (`gbuffer_create(4*1024, ...)`), whatever its size: two per
   inter-yuno message, 2.3% of the round trip. Sized to the dump (or grown
