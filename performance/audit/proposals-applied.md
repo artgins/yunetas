@@ -85,7 +85,27 @@ libraries, and the old `libjansson.a`.
 
 ### Instructions (`callgrind`, deterministic), the first batch -> all
 
-Being measured.
+| Benchmark | Before | After | Change | Where it went |
+|-----------|--------|-------|--------|---------------|
+| TLS echo (`perf_tcps_test4`) | 35.20 G | 17.20 G | **-51.1%** | the 32 KB gbuffer created and zeroed per TLS read: 36% -> 1% |
+| `test_topic_pkey_integer_iterator2` (reads) | 11.22 G | 4.92 G | **-56.1%** | jansson's parse of ASCII (as measured in round 2) |
+| `test_topic_pkey_integer` (appends) | 18.90 G | 12.09 G | **-36.0%** | jansson's dump and parse of ASCII, the hash |
+| `perf_tr_treedb` | 25.37 G | 17.44 G | **-31.3%** | the open, 20.7% -> 1.0% (the newest record per key); `md2json()` for the treedb's feeds, 6.5% -> 0.2%; jansson |
+| TCP echo (`perf_tcp_test4`) | 15.34 G | 10.61 G | **-30.8%** | `json_object_get()`, 34.7% -> 13.9% (the subscription records); the hash, 13.4% -> 5.5%; the json copy of the list per publication, 3.5% -> 0 |
+| MQTT QoS 0 (`perf_mqtt`) | 22.16 G | 17.88 G | **-19.3%** | the hash and the reads of subscriptions |
+| Inter-yuno round trips (`perf_ievent`) | 54.32 G | 45.51 G | **-16.2%** | jansson's dump of ASCII (`utf8_iterate()` gone), the hash |
+| `perf_timeranger2` | 39.49 G | 36.29 G | -8.1% | jansson's dump of ASCII; the hash gains less with long keys |
+
+The new hash gains most where the keys are short (the TCP echo: 2.06 G ->
+0.84 G) and least with long ones (`perf_timeranger2`: 4.04 G -> 3.60 G).
+`perf_ievent` and `perf_mqtt` are built here with their auto-kill off, which
+`callgrind`'s slowness would trip; their "before" is the same build of the
+first batch. The BFF (`perf_auth_bff`) runs for a time, not a count, so it
+is compared by time only.
+
+Against the release 7.27.7, after the four rounds and the proposals: the TCP
+echo takes **41.14 G -> 10.61 G** (3.9 times fewer), `perf_tr_treedb`
+**30.35 G -> 17.44 G** (-42.5%).
 
 ### Time (A/B, alternated), the first batch -> all
 
