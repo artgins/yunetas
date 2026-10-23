@@ -286,7 +286,18 @@
 #       must be rebuilt and relinked; every node that builds from source must
 #       run `./extrae.sh && ./configure-libs.sh` again.
 
-VERSION="1.27"
+#   version 1.28
+#       jansson at a new TAG_JANSSON of artgins/jansson: one more commit on
+#       the runs of 1.27, which are taken now only after a byte of their kind
+#       (the blanks after the first blank, the digits of a number after its
+#       second digit): a compact document with short numbers had paid a call
+#       per token and per number for runs that took nothing. The same
+#       results, errors and positions. From the performance audit of the C
+#       SDK (round 6). Every yuno must be rebuilt and relinked; every node
+#       that builds from source must run `./extrae.sh && ./configure-libs.sh`
+#       again.
+
+VERSION="1.28"
 
 
 source ./repos2clone.sh
