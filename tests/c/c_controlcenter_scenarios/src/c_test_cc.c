@@ -1218,7 +1218,8 @@ PRIVATE int test_permissions_changed(hgobj gobj)
  *      control center runs itself when it is due. A: the scenario "mr"
  *      (max_run 1 s) is saved and started; its stop is due ~1 s after,
  *      `scenarios` says when (`stop_at`); a max_run out of 0..a week is
- *      refused. B (the next phase, past it): the control center sent the
+ *      refused, and while it runs a user who may write it but not run it
+ *      cannot save it. B (the next phase, past it): the control center sent the
  *      stop step by itself, answered here as the agent does; the run is
  *      written as the control center's with the reason, and the stop is
  *      no longer scheduled. Every run that ends is told
@@ -1282,6 +1283,17 @@ PRIVATE int test_max_run_start(hgobj gobj, hgobj client)
     JSON_DECREF(step)
     count_received(client, EV_MT_COMMAND_ANSWER, 0);
 
+    /*
+     *  It runs, and its max_run will stop it: who may write it but not run
+     *  it cannot save it now -- the control center would run the stop steps
+     *  that save writes
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "__username__", json_string("writer"));
+    json_object_set_new(kw, "scenario", max_run_scenario(1));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        -1, "saving it needs 'run-scenarios' too", "a writer who may not run cannot save a running mr");
+
     priv->max_run_started = (json_int_t)time_in_seconds();
     json_int_t stop_at = stop_at_of(gobj, client);
     if(stop_at < priv->max_run_started || stop_at > priv->max_run_started + 1) {
@@ -1317,7 +1329,7 @@ PRIVATE int test_max_run_stopped(hgobj gobj)
     json_t *newest = json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0);
     if(strcmp(kw_get_str(gobj, newest, "action", "", 0), "stop")!=0 ||
             kw_get_int(gobj, newest, "result", -1, KW_WILD_NUMBER) != 0 ||
-            !strstr(kw_get_str(gobj, newest, "comment", "", 0), "max_run of 1 s reached") ||
+            !strstr(kw_get_str(gobj, newest, "comment", "", 0), "max_run of 1 s reached (started by alice)") ||
             strcmp(kw_get_str(gobj, newest, "username", "", 0), gobj_yuno_role_plus_name())!=0) {
         ret += fail(gobj, "the stop of the max_run is a run of the control center, with its reason",
             kw_get_str(gobj, newest, "comment", "", 0));

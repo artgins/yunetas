@@ -2,9 +2,27 @@
 
 ## Unreleased
 
+## v7.27.18 (2026-10-24)
+
+A lite release of the controlcenter, which replaces 7.27.17 before it was
+activated anywhere (its binary was installed on a.com, not promoted). The
+tests it touches ran on the dev machine. No performance study.
+
+- **controlcenter: while a scenario's stop is scheduled, saving it needs
+  `run-scenarios` too.** The control center runs the stop steps of the
+  scenario when its max_run is due, so in 7.27.17 a user who may write a
+  scenario but not run it could rewrite the stop steps of a running one and
+  have them run: writing was running. Now *"scenario 'x' runs and its
+  max_run will stop it: saving it needs 'run-scenarios' too"* (checked after
+  `write-scenarios`, so nobody without it learns that it runs).
+- **The stop of a max_run says who started what it stops**: *"max_run of
+  2100 s reached (started by esg@hidraulia.eu); ..."*.
+- `test_c_controlcenter_scenarios` case 16 checks both.
+
 ## v7.27.17 (2026-10-24)
 
-A lite release of the controlcenter: a test left running is stopped. Only
+A lite release of the controlcenter: a test left running is stopped. Never
+activated: 7.27.18 replaced it the same day. Only
 the controlcenter is deployed (1996/1997 on a.com). The tests it touches ran
 on the dev machine (`test_c_controlcenter_scenarios`). No performance study:
 no benchmark runs it.

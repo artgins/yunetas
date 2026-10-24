@@ -103,7 +103,8 @@ time_measure_t time_measure;
  *  installed the default one is C_AUTHZ's, which this test yuno does not
  *  run. This test is about what the commands do, not about who may ask:
  *  everybody may do everything, but "viewer", who may only read the
- *  scenario "scn", and "writer", who may read and write "scn" only -- the
+ *  scenario "scn", and "writer", who may read and write "scn" and "mr" but run
+ *  nothing -- the
  *  scope a role's `parameters` gives in C_AUTHZ
  *  (tests/c/authz_scoped_permissions), which is what the control center
  *  asks per scenario (case 14).
@@ -116,7 +117,9 @@ static BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj 
     if(strcmp(username, "viewer")==0) {
         allow = strcmp(authz, "read-scenarios")==0 && on_scn;
     } else if(strcmp(username, "writer")==0) {
-        allow = (strcmp(authz, "read-scenarios")==0 || strcmp(authz, "write-scenarios")==0) && on_scn;
+        BOOL on_mr = strcmp(kw_get_str(gobj, kw, "scenario_id", "", 0), "mr")==0;
+        allow = (strcmp(authz, "read-scenarios")==0 || strcmp(authz, "write-scenarios")==0) &&
+            (on_scn || on_mr);
     }
     KW_DECREF(kw)
     return allow;
