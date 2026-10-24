@@ -16,7 +16,7 @@
 #define APP_NAME        "{{yunorole}}"
 #define APP_DOC         "{{description}}"
 
-#define APP_VERSION     "{{version}}"
+#define APP_VERSION     "{{version}}" "-" YUNETA_VERSION
 #define APP_SUPPORT     "<{{author_email}}>"
 #define APP_DATETIME    __DATE__ " " __TIME__
 

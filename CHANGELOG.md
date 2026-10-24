@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## v7.27.11 (2026-10-24)
+
+A release of one fix in treedb, and of a version for each project yuno
+that names the SDK it was built with. The fix was found while deploying
+7.27.10: the yunos of a realm that read its authz store as replicas shared
+one feed directory, so a change could reach one of them and miss the others.
+Rebuild every yuno that opens a treedb as a replica (every yuno with
+`C_AUTHZ` reading the realm's authz store), then remove the directories of
+the old form (below). The suite ran on the dev machine only.
+
+Studied against 7.27.10: all 41 figures inside their noise
+([raw figures](performance/reports/7.27.11.json); a fix release, no report
+page). The BFF logins crossed it in the rotation (-1.69%, t = -3.3) but
+never run the changed code; a controlled re-run measured +0.08% (t = 0.05),
+and 7.27.10's code relinked with the new code placement measured the same as
+7.27.11 -- placement, not code.
+
 - **Two yunos that read one treedb as replicas no longer share one feed.**
   A replica names a directory of the store after the id of each of its
   lists, `<topic>/disks/<id>/`, and that id was unique inside one process
@@ -30,6 +47,30 @@
       key and file: no data is copied, but a purge cannot free those files.
       Remove it once every yuno that reads that store runs this release:
       `rm -rf <store>/<treedb>/<topic>/disks/treedb-C_TRANGER-*`.
+- **A project yuno's version carries the SDK it is built with:**
+  `#define APP_VERSION "1.9.1" "-" YUNETA_VERSION`, which gives
+  `1.9.1-7.27.11`. Until now a project yuno was written `"1.9.1" ".0"`, so a
+  new SDK rebuilt it with the same version and the push overwrote its slot
+  (a `REBUILD`): no snap could take the yuno back to its old kernel. Now each
+  SDK release installs it in a new slot and keeps the old one. The agent
+  compares a version number by number, split at `.` and `-` (`version_cmp()`),
+  so `1.9.1-7.27.11` is newer than `1.9.1.0` and older than `1.9.1-7.28.0`
+  and `1.9.1-8.0.0`. The 30 project yunos of estadodelaire, hidraulia,
+  wattyzer and yunovatios use it, and so do the `yuno-skeleton` templates.
+  **The first build with it is a version bump of every project yuno**:
+  `yunetas sync`, then `yunetas upgrade-yunos`. Each slot is about 35 MB per
+  yuno and release, as for the yunos of the SDK (50-64 slots per role on the
+  nodes today).
+- **The `yunetas` CLI 1.0.0** (on PyPI; 0.23.6 with its version renumbered to
+  one digit per segment) compares a version split at `-`
+  too, as `version_cmp()` does, and a missing segment counts as 0. Split at
+  `.` alone, `1-8` read as 1, so `sync-binaries` would have taken
+  `1.9.1-8.0.0` for a DOWNGRADE of `1.9.1-7.27.11`. It also writes
+  `yuneta_version.h` and `yuneta_config.h` when their TEXT changes, not when
+  their source is newer: a `YUNETA_VERSION` put back with an older time
+  (`cp -p`, a branch switch) left the header saying the old version until a
+  `yunetas init`. The headers no longer carry the year.
+- **gui_agent 0.29.111** sorts versions split at `-` too.
 
 ## v7.27.10 (2026-10-24)
 

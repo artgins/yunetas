@@ -818,8 +818,8 @@ ycommand -c 'delete-yuno  id=<yuno_id> whole=1'   # refuses if running
 
 ### 6.5 Upgrade a yuno to a new release (version bump)
 
-When `APP_VERSION` in `main.c` changes (`1.3.1.0` → `1.3.1.1`, or a
-yunetas-side bump like `7.3.4` → `7.4.0`), the canonical flow is
+When `APP_VERSION` in `main.c` changes (`1.3.1-7.27.11` → `1.3.2-7.27.11`,
+or a yunetas-side bump like `7.3.4` → `7.4.0`), the canonical flow is
 **not** `kill-yuno` + `run-yuno`. Both the old and the new
 yuno-instance rows exist after registration, and the agent's
 in-memory primary index for the `yunos` topic still points at the

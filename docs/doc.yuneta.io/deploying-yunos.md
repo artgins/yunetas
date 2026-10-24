@@ -80,6 +80,26 @@ JSON file. An **id** identifies it (by convention `<role>.<name>`, for example
 `auth_bff.1801`), and the `__version__` field *inside* the file gives its
 version. A **realm** is the tenant that the yuno instance runs in.
 
+**The version of a project yuno carries the SDK it was built with.** Write
+`APP_VERSION` in `main.c` as the yuno's own version, a `-`, and the SDK's:
+
+```c
+#define APP_VERSION     "1.9.1" "-" YUNETA_VERSION     // "1.9.1-7.27.11"
+```
+
+`YUNETA_VERSION` comes from `yuneta_version.h`, which `yunetas.h` includes.
+So a new SDK gives every yuno a new version, even when its own code did not
+change: SDK 7.27.12 makes it `1.9.1-7.27.12`. The agent installs that version
+in a new slot, and keeps the slot of `1.9.1-7.27.11`. A snap taken before the
+upgrade can then take the yuno back to its old binary, kernel included.
+Before 7.27.11 the convention was `"1.9.1" ".0"`: a new SDK rebuilt the yuno
+with the same version, the push overwrote its slot (a `REBUILD`), and no snap
+could bring the old kernel back. The agent and the deploy tools compare a
+version number by number, split at `.` and `-`. So `1.9.1-7.27.11` is older
+than `1.9.1-7.28.0`, `1.9.1-8.0.0` and `1.9.2-7.27.11`, and newer than the old
+`1.9.1.0`. Each SDK release is therefore a version bump of every project yuno
+(Recipe B). The yunos of the SDK itself use `APP_VERSION YUNETA_VERSION`.
+
 **Deploy is two phases: push, then promote.** The push phase (`yunetas sync`)
 uploads new binaries and configs into the agent's store. Nothing that runs
 changes yet. The promote phase (`yunetas upgrade-yunos`) makes the newly
