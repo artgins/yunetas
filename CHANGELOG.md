@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **A performance audit of the C SDK** (`performance/audit/`): thirteen rounds
+- **A performance audit of the C SDK** (`performance/audit/`): fourteen rounds
   (the core of gobj-c; timeranger2 and tr_treedb; the network path; the
   inter-yuno path, HTTP and MQTT; subscriptions and the reads of a treedb;
   jansson's parse; the bytes of jansson's lexer, UTF-8 check and dump;
@@ -10,12 +10,16 @@
   blocks, dump and counts, and the websocket mask; the columns of a treedb
   topic, read once, and once for a whole write; fewer lookups in
   timeranger2's append and the treedb's writes; a topic's fixed fields read
-  once, and the state of a treedb's events in a C structure), each change
+  once, and the state of a treedb's events in a C structure; the name of an
+  MQTT property), each change
   a commit of its own that leaves results,
   bytes, events, logs and errors as they were, and the proposals the rounds
   left for a decision, applied on the user's decision.
   The figures of each change, and what it was checked against, are in the
-  documents of the audit. Three benchmarks join `performance/c/`:
+  documents of the audit; what it found at its close and left for a
+  decision (glibc's allocator, an attribute found by its name, the type of
+  `EV_STATE_CHANGED` at every change of state) is in its README, "What is
+  left". Three benchmarks join `performance/c/`:
   `perf_ievent` (inter-yuno round trips over websocket), `perf_mqtt`
   (MQTT QoS 0 through the embedded broker) and `perf_tr_treedb_read` (the
   reads of a treedb: open, lists, views of nodes). What a caller can see:

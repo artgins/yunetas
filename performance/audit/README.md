@@ -11,6 +11,10 @@ Every round says what was looked at, what the profile showed, what was changed
 (each change a commit of its own, so it can be taken or left alone), what it
 gained, measured, and what was found and not done.
 
+The audit was closed on 2026-10-24, after fourteen rounds and the proposals.
+What it found and did not do is gathered in [What is left](#what-is-left),
+at the end of this page.
+
 | Round | Scope | Document |
 |-------|-------|----------|
 | 1 | `gobj-c`: the allocator, the publication of events, subscriptions, `gobj_change_state()`, `gobj_match_gobj()`. TCP echo **+32%**, TLS echo +26%, BFF logins +12% | [round-1-gobj-core.md](round-1-gobj-core.md) |
@@ -27,6 +31,7 @@ gained, measured, and what was found and not done.
 | 11 | The lookups that a local change can take away, on the user's decision: timeranger2 keeps the file id of the last time for every time of its unit (numeric masks only) and takes the key's totals from the cell the append just wrote; the treedb reads a node's metadata and a topic's pkey2s directly where the path readers would answer them. Appends **-7.6%** of instructions, treedb writes **-5.7%**; an update in memory -12% of time. What is left (the treedb's events, a topic's static fields, a column reading handed down) is written down for a decision | [round-11-append-treedb-lookups.md](round-11-append-treedb-lookups.md) |
 | 12 | On the user's decision, from what round 11 left: the columns of a topic read once for a whole write of a node, kept in a slot of the operation (its `node_write_t`, or the create's) and given back before the append runs its callbacks; `treedb_save_node()` and `treedb_store_files()` keep their signature and their logs. Asks of the columns per update 5 -> 1; treedb writes **-2.0%** of instructions, within the noise in time | [round-12-treedb-columns-per-write.md](round-12-treedb-columns-per-write.md) |
 | 13 | On the user's decision, the two items round 11 left: a timeranger2 topic's fixed fields (`system_flag`, `pkey`, `tkey`, `filename_mask`) read once per topic json, in slots that hold it; and the state of a treedb's events (its json, callback, user data, held and deferred events) kept in a C structure that follows the json's only writers and holds its tranger. Treedb writes **-7.8%** of instructions (5.2 million lookups fewer), appends -2.8% | [round-13-topic-fields-treedb-events.md](round-13-topic-fields-treedb-events.md) |
+| 14 | The last round, on the user's decision: the paths rounds 10 to 13 did not touch profiled again, and the one local item found there applied: the name of an MQTT property looked up, with the same `strcasecmp()`, only among the names of its length (it went through all 27, three times per message). MQTT **-3.3%** of instructions. What else was found is written down below, in [What is left](#what-is-left) | [round-14-mqtt-property-names.md](round-14-mqtt-property-names.md) |
 
 ## Method
 
@@ -80,3 +85,98 @@ Round 5 left one more for a decision, applied with round 6:
 | Proposal | Round | Decision |
 |----------|-------|----------|
 | `json2gbuf()`: the gbuffer of the size of the dump, not 4 KB zeroed whatever it holds (2.3% of an inter-yuno round trip) | [5](round-5-subscriptions-treedb.md) | applied in [round 6](round-6-jansson-parse-treedb-reads.md) |
+
+## What is left
+
+What the audit found at its close and did not do, with what it would give
+and what it would take. The figures are instructions (`callgrind`) on the
+benchmarks of `performance/c/`, after the last round that touched each path
+(round 9 for the TCP echo, the inter-yuno messages and the BFF; round 14 for
+MQTT; round 13 for the treedb). Each one is a decision.
+
+### The allocator: the one large item
+
+glibc's `malloc()` and `free()` (with `_int_malloc()`, `_int_free()` and
+their helpers) are a large part of every path that is not the treedb's, and
+the one cost a single change would reduce on all of them:
+
+| Benchmark | glibc's allocator |
+|-----------|-------------------|
+| `perf_tcp_test4` (TCP echo through the gobj stack) | 12.8% |
+| `perf_ievent` (inter-yuno round trips over websocket) | 16.9% |
+| `perf_mqtt` (MQTT QoS 0 through the embedded broker) | 21.9% |
+| `perf_auth_bff` (BFF logins) | 20.8% |
+
+Every block of Yuneta and of jansson goes through `gbmem` to glibc. The
+remedy is to restore gbmem's own memory manager, the pools of blocks by
+size of yuneta V6 (from MAWK's `zmalloc`), whose switch is still there
+(`USE_OWN_SYSTEM_MEMORY` in `gbmem_setup()`, `FALSE` in every yuno) and
+whose code was not carried to v7. One thread, so no locks: a block taken and
+given back in a few instructions. The price: what a pool keeps is not given
+back to the system, so a process stays at the size of its peak. **FUTURE
+(user, 2026-10-24)**, kept in `TODO.md`; the assessment is in
+[round 9](round-9-jansson-memory-websocket.md).
+
+### gobj-c: an attribute found by its name, at every access
+
+`gobj_read_integer_attr()`, `gobj_write_integer_attr()`,
+`gobj_read_bool_attr()` and their kind find the attribute by its name every
+time: a read first compares the name with `__trace_level__`
+(`strcasecmp()`), then `gobj_hsdata2()` asks `gobj_has_attr()`, which walks
+the attribute table of the gclass comparing names with `strcmp()`
+(`gclass_attr_desc()`) and goes down the bottom gobjs when the gclass has no
+such attribute; then the value is looked up in the gobj's data. In
+`perf_tcp_test4` the finding is **some 3%** of the instructions (what
+`gobj_hsdata2()` costs under the integer reads 1.45%, the integer writes
+0.97%, the boolean reads 0.44% and `gobj_match_gobj()` 0.21%). Most of it
+is `C_TIMER`: each `clear_timeout()` writes its `msec`, and its
+`mt_writing()` reads `msec` back, by name, some 720 000 times in the run;
+the rest is `C_PROT_TCP4H` reading its settings at each frame header.
+`C_TIMER` goes through the attribute on purpose (writing `msec` is the one
+door to the timer, and `set_timeout()`/`clear_timeout()` are sugar over
+it), so the remedy is not to go around the attribute but to find it faster.
+
+The remedy: an index of a gclass's attributes by name, made when the gclass
+is registered (its table does not change after), so that the walk is one
+lookup. `gobj.c` is the consolidated core of the framework, and the gain is
+small.
+
+### gobj-c: the type of `EV_STATE_CHANGED`, at every change of state
+
+`gobj_change_state()` asks `state_changed_has_audience()` whether anybody
+would see the change, and that looks up the type of `EV_STATE_CHANGED` with
+`gobj_event_type()`: a walk of the gclass's events, then of the global ones.
+A protocol changes state twice per frame, so in `perf_tcp_test4` it is
+**2.4%** of the instructions (2.16 million lookups). The remedy: the answer
+kept in the gclass. Its events can still be added after it is registered
+(`gclass_add_event_type()` is public), so the kept answer must be dropped
+there. Same core, same small gain.
+
+### The treedb: the lookups, spread thin
+
+After rounds 10 to 13 the lookups of a key are still a third of a treedb
+write, but no reader of them is large: the path readers 4.6%, a node's
+metadata 4.2%, timeranger2's append 3.5%, a key's cache 2.7%, and a long
+tail. Each one would give 1% to 3%, and most of them read jsons that callers
+hold and change, where a reading kept needs every writer to say so. Not
+proposed; the detail is in [round 13](round-13-topic-fields-treedb-events.md).
+
+### Decided earlier
+
+- **Slots for the first pairs inside a jansson object** (some 5% of an
+  inter-yuno message, for some 320 bytes more in every object): **discarded
+  for now** (user, 2026-10-24), see [round 9](round-9-jansson-memory-websocket.md)
+  and `TODO.md`.
+- **The ESP32 copy of jansson**, which is upstream 2.14 and has none of the
+  changes of these rounds: **not touched for now** (user, 2026-10-24), see
+  [round 9](round-9-jansson-memory-websocket.md) and `TODO.md`.
+- **One `io_uring_submit()` per turn of the loop**: not applied, not safe as
+  proposed (see the table of proposals above).
+
+### What `callgrind` does not see
+
+The instructions counted are the process's own. The time a message spends
+in the kernel (the syscalls, the network stack, the disk) is not in them,
+and on the network paths it is a large part of a round trip. The A/B of
+each round measured time as well, and on this VM its noise (10% to 25% of a
+case) hides most changes under some 10%.
