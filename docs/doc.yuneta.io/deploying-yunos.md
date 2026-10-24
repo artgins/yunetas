@@ -100,6 +100,15 @@ than `1.9.1-7.28.0`, `1.9.1-8.0.0` and `1.9.2-7.27.11`, and newer than the old
 `1.9.1.0`. Each SDK release is therefore a version bump of every project yuno
 (Recipe B). The yunos of the SDK itself use `APP_VERSION YUNETA_VERSION`.
 
+**The yuno's own version always has three numbers**, `x.y.z`. The agent
+orders the releases of a yuno, `<version>-<config version>`, as one list of
+numbers split at `.` and `-`, so the count of the yuno's own numbers decides
+where the SDK's land. Write `"1.0"` and `1.0-7.27.11` compares NEWER than
+`1.0.1-7.27.11` (its 7 meets the 1); write `"1.0.0"`. Since 7.27.13
+`install-binary` logs a WARNING for a binary whose version is neither
+`x.y.z` nor `x.y.z-a.b.c` (or the older `x.y.z.0`), and `sync-binaries` (CLI
+1.0.1) prints one; both go on with the push.
+
 **Deploy is two phases: push, then promote.** The push phase (`yunetas sync`)
 uploads new binaries and configs into the agent's store. Nothing that runs
 changes yet. The promote phase (`yunetas upgrade-yunos`) makes the newly

@@ -56,6 +56,51 @@ PUBLIC int build_yuno_release_name(
 }
 
 /***************************************************************************
+ *  See find_new_yunos.h. A binary version the releases of a yuno compare in order with: `x.y.z`
+ *  (a yuno of the SDK, APP_VERSION YUNETA_VERSION) or `x.y.z-a.b.c` (a
+ *  project yuno, "x.y.z" "-" YUNETA_VERSION, since 7.27.11).
+ *
+ *  promote_highest_release_yunos() compares the whole `yuno_release`,
+ *  `<binary version>-<config version>`, with version_cmp(), one list of
+ *  numbers split at '.' and '-'. When the count of the yuno's OWN numbers
+ *  changes, the SDK's land in another position: 1.0-7.27.11 compared NEWER
+ *  than 1.0.1-7.27.11 (7 > 1), and an old 1.0.0-9 newer than
+ *  1.0.0-7.27.11-1 (9 > 7). The pre-7.27.11 form x.y.z.0 is accepted too:
+ *  its 0 sits where the SDK's major goes, so it compares older.
+ ***************************************************************************/
+PUBLIC BOOL yuno_version_has_a_comparable_shape(const char *version)
+{
+    int numbers = 0;
+    int dashes = 0;
+    BOOL in_number = FALSE;
+    for(const char *p = version; p && *p; p++) {
+        if(*p >= '0' && *p <= '9') {
+            if(!in_number) {
+                numbers++;
+                in_number = TRUE;
+            }
+        } else if((*p == '.' || *p == '-') && in_number) {
+            if(*p == '-') {
+                dashes++;
+                if(numbers != 3) {
+                    return FALSE;
+                }
+            }
+            in_number = FALSE;
+        } else {
+            return FALSE;
+        }
+    }
+    if(!in_number) {
+        return FALSE;   // empty, or ends with a separator
+    }
+    if(dashes == 0) {
+        return (numbers == 3 || numbers == 4)? TRUE : FALSE;
+    }
+    return (dashes == 1 && numbers == 6)? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  Take a candidate release only when it moves FORWARD, and say out loud
  *  which way it moves. Returns TRUE to take it.
  *

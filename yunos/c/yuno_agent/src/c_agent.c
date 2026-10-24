@@ -3152,6 +3152,18 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
     const char *binary_version = kw_get_str(gobj, jn_basic_info, "version", "", 0);
     json_t *jn_tags = kw_get_dict_value(gobj, jn_basic_info, "tags", 0, 0);
 
+    if(!yuno_version_has_a_comparable_shape(binary_version)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Binary version neither x.y.z nor x.y.z-a.b.c: "
+                                  "its releases may not compare in order",
+            "role",         "%s", binary_role? binary_role : "",
+            "version",      "%s", binary_version,
+            NULL
+        );
+    }
+
     /*------------------------------------------------*
      *      Check if already exists
      *------------------------------------------------*/

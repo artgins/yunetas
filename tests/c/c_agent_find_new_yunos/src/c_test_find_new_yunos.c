@@ -471,11 +471,94 @@ PRIVATE int check_row(hgobj gobj, json_t *rows, const char *id, int expected, co
 /***************************************************************************
  *  Run all tests — called from the timer callback inside the event loop
  ***************************************************************************/
+/***************************************************************************
+ *  The versions whose releases compare in order (install-binary warns of
+ *  any other), and the order of the releases the agent promotes from:
+ *  promote_highest_release_yunos() compares the whole yuno_release,
+ *  "<binary version>-<config version>", with version_cmp().
+ ***************************************************************************/
+PRIVATE int check_version_shapes_and_release_order(hgobj gobj)
+{
+    int result = 0;
+
+    struct {
+        const char *version;
+        BOOL comparable;
+    } shapes[] = {
+        {"7.27.11",             TRUE},      // a yuno of the SDK
+        {"1.9.1-7.27.11",       TRUE},      // a project yuno, since 7.27.11
+        {"1.9.1.0",             TRUE},      // the form before 7.27.11
+        {"1.0-7.27.11",         FALSE},     // two own numbers
+        {"1.0.0.1-7.27.11",     FALSE},     // four own numbers
+        {"1.9.1-7.27",          FALSE},
+        {"1.9.1-7.27.11-2",     FALSE},     // a release, not a version
+        {"1.9",                 FALSE},
+        {"1.9.1.",              FALSE},
+        {"v1.9.1",              FALSE},
+        {"",                    FALSE},
+    };
+    for(size_t i=0; i<ARRAY_SIZE(shapes); i++) {
+        if(yuno_version_has_a_comparable_shape(shapes[i].version) != shapes[i].comparable) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: the shape of a version",
+                "version",      "%s", shapes[i].version,
+                "expected",     "%s", shapes[i].comparable? "comparable" : "not comparable",
+                NULL
+            );
+            result += -1;
+        }
+    }
+
+    struct {
+        const char *older_role; const char *older_name;
+        const char *newer_role; const char *newer_name;
+    } order[] = {
+        {"1.9.1.0",         "12",   "1.9.1-7.27.11",    "12"},  // the old form to the new
+        {"1.9.1-7.27.11",   "12",   "1.9.1-7.27.12",    "12"},  // the next SDK
+        {"1.9.1-7.27.19",   "1",    "1.9.1-7.27.20",    "1"},
+        {"1.9.1-7.27.11",   "12",   "1.9.1-7.28.0",     "1"},
+        {"1.9.1-7.27.11",   "12",   "1.9.1-8.0.0",      "1"},
+        {"1.9.1-7.27.11",   "12",   "1.9.1-7.27.11",    "13"},  // a new config
+        {"1.9.1-7.27.11",   "12",   "1.9.1-7.27.12",    "3"},   // the binary first
+        {"1.9.1-8.0.0",     "1",    "1.9.2-7.27.11",    "1"},   // its own version first
+        {"1.0.0",           "1",    "1.0.0-7.27.11",    "1"},   // gate_modbus_tcp's step
+        {"7.27.10",         "1",    "7.27.11",          "1"},   // a yuno of the SDK
+    };
+    for(size_t i=0; i<ARRAY_SIZE(order); i++) {
+        char older[NAME_MAX];
+        char newer[NAME_MAX];
+        if(build_yuno_release_name(gobj, older, sizeof(older),
+                order[i].older_role, order[i].older_name)<0 ||
+           build_yuno_release_name(gobj, newer, sizeof(newer),
+                order[i].newer_role, order[i].newer_name)<0) {
+            // Error already logged
+            result += -1;
+            continue;
+        }
+        if(!(version_cmp(newer, older) > 0) || !(version_cmp(older, newer) < 0)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a release does not compare newer",
+                "older",        "%s", older,
+                "newer",        "%s", newer,
+                NULL
+            );
+            result += -1;
+        }
+    }
+    return result;
+}
+
 PRIVATE int run_tests(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     int result = 0;
+
+    result += check_version_shapes_and_release_order(gobj);
 
     /*-----------------------------------------------*
      *  Fixture: one realm, the binaries, the configs

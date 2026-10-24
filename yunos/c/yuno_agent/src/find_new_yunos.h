@@ -34,6 +34,14 @@ PUBLIC int build_yuno_release_name(
 );
 
 /*
+ *  TRUE when the releases of a yuno with this binary version compare in
+ *  order: "x.y.z" (a yuno of the SDK), "x.y.z-a.b.c" (a project yuno with
+ *  the SDK it is built with), or the pre-7.27.11 "x.y.z.0". install-binary
+ *  logs a WARNING for any other shape and installs it all the same.
+ */
+PUBLIC BOOL yuno_version_has_a_comparable_shape(const char *version);
+
+/*
  *  The rows of find-new-yunos, from the agent's treedb service
  *  `gobj_resource`: for each yuno row matching `filter` (owned) whose
  *  binary or configuration has a greater version, one dict
