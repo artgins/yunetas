@@ -2,7 +2,7 @@
 
 Operator tool of the [`yunetas` CLI](../yunetas-cli.md) (module
 `yunetas.agent_tools.set_start_priorities`,
-[source](https://github.com/artgins/tui_yunetas.py/blob/1.0.1/yunetas/agent_tools/set_start_priorities.py)).
+[source](https://github.com/artgins/tui_yunetas.py/blob/1.0.2/yunetas/agent_tools/set_start_priorities.py)).
 
 Assigns each managed yuno's **`start_priority`** — the agent's per-yuno
 launch-order band `0..9` — by role, in one shot.
