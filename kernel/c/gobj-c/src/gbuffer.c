@@ -1258,6 +1258,13 @@ PRIVATE int dump2gbuf(const char *buffer, size_t size, void *data)
     }
     return 0;
 }
+
+/*
+ *  The gbuffer json2gbuf() makes when the caller gives none
+ */
+#define JSON2GBUF_SIZE (4*1024)
+
+#ifndef ESP_PLATFORM
 /***************************************************************************
  *  The dump of json2gbuf() without a gbuffer of the caller: kept in bf
  *  while it fits the 4 KB gbuffer json2gbuf() always made, so that a small
@@ -1266,7 +1273,6 @@ PRIVATE int dump2gbuf(const char *buffer, size_t size, void *data)
  *  makes that gbuffer, with what bf holds, and the dump goes on in it as it
  *  always did: the same appends, the same growth.
  ***************************************************************************/
-#define JSON2GBUF_SIZE (4*1024)
 typedef struct {
     char bf[JSON2GBUF_SIZE];
     size_t len;
@@ -1293,11 +1299,25 @@ PRIVATE int dump2small(const char *buffer, size_t size, void *data)
     return dump2gbuf(buffer, size, dump->gbuf);
 }
 
+#endif
+
 PUBLIC gbuffer_t *json2gbuf(
     gbuffer_t *gbuf,
     json_t *jn, // owned
     size_t flags)
 {
+#ifdef ESP_PLATFORM
+    /*
+     *  The stack of an ESP32 task is 8 KB: no buffer of 4 KB on it there,
+     *  the gbuffer of 4 KB as before
+     */
+    if(!gbuf) {
+        gbuf = gbuffer_create(JSON2GBUF_SIZE, gbmem_get_maximum_block());
+    }
+    json_dump_callback(jn, dump2gbuf, gbuf, flags);
+    JSON_DECREF(jn)
+    return gbuf;
+#else
     if(gbuf) {
         json_dump_callback(jn, dump2gbuf, gbuf, flags);
         JSON_DECREF(jn)
@@ -1317,6 +1337,7 @@ PUBLIC gbuffer_t *json2gbuf(
     gbuf = gbuffer_create(dump.len, gbmem_get_maximum_block());
     dump2gbuf(dump.bf, dump.len, gbuf);
     return gbuf;
+#endif
 }
 
 /***************************************************************************
