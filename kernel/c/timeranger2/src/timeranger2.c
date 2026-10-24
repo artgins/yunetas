@@ -181,6 +181,26 @@ typedef struct {
     json_int_t rows;
 } cache_values_t;
 
+/*
+ *  The fields of a topic that an append reads for every record, read once
+ *  for each topic json (topic_fixed_of()). They are the topic's from its
+ *  open: a topic_var changes the others, never these (replace_topic_var()
+ *  leaves out topic_fields), and nothing else writes them. A slot holds a
+ *  reference to its topic, so its pointer cannot become another topic's
+ *  while it is kept: what the slot read is that topic's for as long as it
+ *  is there. Two topics on one slot take turns, each one read again when it
+ *  comes back.
+ */
+typedef struct {
+    json_t *topic;              // held, NULL: a free slot
+    system_flag2_t system_flag;
+    const char *pkey;           // strings of the topic, alive while it is held
+    const char *tkey;
+    const char *filename_mask;  // the topic's own, NULL or "" when it has none
+} topic_fixed_t;
+
+#define TOPIC_FIXED_SLOTS   64
+
 #define TIME_FLAG_MASK  TRANGER2_MAX_TIME      /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
 #define USER_FLAG_MASK  0x0FFFF00000000000ULL
 
@@ -352,6 +372,9 @@ PRIVATE json_t *create_cache_key(void);
 PRIVATE void set_cache_int(json_t *dict, const char *key, json_int_t value);
 PRIVATE void build_int_key(char *bf, size_t bfsize, uint64_t i);
 PRIVATE void get_cache_range(json_t *dict, cache_range_t *range);
+PRIVATE const topic_fixed_t *topic_fixed_of(json_t *topic);
+PRIVATE void topic_fixed_forget(json_t *topic);
+PRIVATE void topic_fixed_sweep(void);
 PRIVATE void put_cache_int(json_t *dict, const char *key, json_t **pjn_value, json_int_t value);
 PRIVATE json_t *find_cache_cell(
     json_t *topic,
@@ -862,6 +885,11 @@ PRIVATE int scan_disks_key_for_new_file(
 PRIVATE uint64_t md_write_gen = 0;  // raised by every write of md2 rows: see md_block_t
 
 /*
+ *  The fixed fields of the topics appended to (topic_fixed_of())
+ */
+PRIVATE topic_fixed_t topic_fixed_slots[TOPIC_FIXED_SLOTS];
+
+/*
  *  The last file id made (get_file_id()): the same for every time of the
  *  unit of the finest field of its mask (mask_time_unit())
  */
@@ -1246,6 +1274,7 @@ PUBLIC int tranger2_shutdown(json_t *tranger)
         tranger2_stop(tranger);
     }
     JSON_DECREF(tranger)
+    topic_fixed_sweep();    // the fixed fields of its topics that only a slot holds now
     return 0;
 }
 
@@ -2782,6 +2811,7 @@ PUBLIC int tranger2_close_topic(
 
     tranger2_close_all_lists(tranger, topic_name, "", "");
 
+    topic_fixed_forget(topic);
     json_t *jn_topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
     json_object_del(jn_topics, topic_name);
 
@@ -3448,6 +3478,63 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref
 }
 
 /***************************************************************************
+ *  The slot of a topic json in topic_fixed_slots: the bits of its pointer
+ *  above its alignment, mixed
+ ***************************************************************************/
+PRIVATE topic_fixed_t *topic_fixed_slot(json_t *topic)
+{
+    uintptr_t h = (uintptr_t)topic;
+    h = (h >> 4) ^ (h >> 10);
+    return &topic_fixed_slots[h % TOPIC_FIXED_SLOTS];
+}
+
+/***************************************************************************
+ *  The fixed fields of a topic (topic_fixed_t), read once while its slot
+ *  holds it
+ ***************************************************************************/
+PRIVATE const topic_fixed_t *topic_fixed_of(json_t *topic)
+{
+    topic_fixed_t *slot = topic_fixed_slot(topic);
+    if(slot->topic != topic) {
+        if(slot->topic) {
+            json_decref(slot->topic);   // another topic: read again when it comes back
+        }
+        slot->topic = json_incref(topic);
+        slot->system_flag = (system_flag2_t)json_integer_value(json_object_get(topic, "system_flag"));
+        slot->pkey = json_string_value(json_object_get(topic, "pkey"));
+        slot->tkey = json_string_value(json_object_get(topic, "tkey"));
+        slot->filename_mask = json_string_value(json_object_get(topic, "filename_mask"));
+    }
+    return slot;
+}
+
+/***************************************************************************
+ *  A topic that is closed: its slot lets it go
+ ***************************************************************************/
+PRIVATE void topic_fixed_forget(json_t *topic)
+{
+    topic_fixed_t *slot = topic_fixed_slot(topic);
+    if(slot->topic == topic) {
+        json_decref(slot->topic);
+        slot->topic = NULL;
+    }
+}
+
+/***************************************************************************
+ *  Let go the topics that only a slot holds now (their tranger is gone)
+ ***************************************************************************/
+PRIVATE void topic_fixed_sweep(void)
+{
+    for(size_t i = 0; i < TOPIC_FIXED_SLOTS; i++) {
+        topic_fixed_t *slot = &topic_fixed_slots[i];
+        if(slot->topic && slot->topic->refcount == 1) {
+            json_decref(slot->topic);
+            slot->topic = NULL;
+        }
+    }
+}
+
+/***************************************************************************
  *  The seconds of the finest field of a file name mask, when its file id
  *  depends on the time alone and is the same for every second of that
  *  unit; 0 when it is not known to. Only the numeric conversions without a
@@ -3516,7 +3603,7 @@ PRIVATE char *get_file_id(
     hgobj gobj = 0;
     *bf = 0;
 
-    const char *filename_mask = json_string_value(json_object_get(topic, "filename_mask"));
+    const char *filename_mask = topic? topic_fixed_of(topic)->filename_mask : NULL;
     if(empty_string(filename_mask)) {
         filename_mask = json_string_value(json_object_get(tranger, "filename_mask"));
     }
@@ -4315,7 +4402,8 @@ PUBLIC int tranger2_append_record(
     /*--------------------------------------------*
      *  If time not specified, use the now time
      *--------------------------------------------*/
-    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    const topic_fixed_t *fixed = topic_fixed_of(topic);
+    system_flag2_t system_flag = fixed->system_flag;
     if(!__t__) {
         if(system_flag & (sf_t_ms)) {
             __t__ = time_in_milliseconds();
@@ -4336,7 +4424,7 @@ PUBLIC int tranger2_append_record(
     /*-----------------------------------*
      *  Get the primary-key
      *-----------------------------------*/
-    const char *pkey = json_string_value(json_object_get(topic, "pkey"));
+    const char *pkey = fixed->pkey;
     system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
 
     const char *key_value = NULL;
@@ -4435,7 +4523,7 @@ PUBLIC int tranger2_append_record(
      *--------------------------------------------*/
     BOOL tm_wrapped;
     md_record.__tm__ = tkey_time_of_record(
-        json_string_value(json_object_get(topic, "tkey")),
+        fixed->tkey,
         system_flag,
         record,
         &tm_wrapped
