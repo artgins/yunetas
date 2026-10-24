@@ -46,9 +46,41 @@ GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_UNLINKED);
  */
 typedef struct events_hold_s {
     json_t *treedb;     // NOT owned, NULL: nobody listens to the treedb
+    struct treedb_state_s *state;   // the treedb's state (treedb_state_of()), with `treedb`
     BOOL owner;
     size_t mark;
 } events_hold_t;
+
+/*
+ *  The state of an open treedb that its writes read on every node: its
+ *  json in the tranger and, of that json, what the hold, the publication
+ *  and the release of its events read (treedb_state_of()). The json stays
+ *  what says it -- its keys are part of a treedb, a dump shows them -- and
+ *  this is a reading of it, kept as the json changes: the callback and its
+ *  data are written by treedb_set_callback() alone, which reads them again
+ *  here, and __events_held__ and __deferred_events__ are made once (by the
+ *  first hold and the first held event, here as well) and then changed in
+ *  place.
+ *
+ *  A state is found by its tranger and its name, and it holds a reference
+ *  to its tranger, so that pointer cannot become another tranger's while
+ *  the state is kept. The json of a treedb is put in the tranger by
+ *  treedb_open_db() and taken out only by treedb_close_db(), which lets its
+ *  state go first: while a state is kept, its treedb is the one of its
+ *  tranger. The states of a tranger shut down without closing its treedbs
+ *  (the only references left to it are theirs) are let go at the next look
+ *  that finds no state, or at the next close of a treedb.
+ */
+typedef struct treedb_state_s {
+    json_t *tranger;            // held
+    char *treedb_name;
+    json_t *treedb;             // tranger["treedbs"][treedb_name], NOT owned
+    treedb_callback_t callback; // as treedb["__treedb_callback__"] says
+    void *user_data;            // as treedb["__treedb_callback_user_data__"] says
+    json_t *events_held;        // treedb["__events_held__"], NULL until the first hold
+    json_t *deferred;           // treedb["__deferred_events__"], NULL until the first held event
+    BOOL gone;                  // its tranger is held by the states alone (treedb_states_sweep())
+} treedb_state_t;
 
 /*
  *  A reference "topic_name^id^hook_name" joins three names, each one of
@@ -321,6 +353,10 @@ PRIVATE void topic_cols_sweep(BOOL all);
 PRIVATE void topic_cols_forget(json_t *key);
 PRIVATE topic_cols_t *topic_cols_of_op(topic_cols_t **slot, json_t *tranger, const char *topic_name);
 PRIVATE void topic_cols_drop(topic_cols_t **slot);
+PRIVATE treedb_state_t *treedb_state_of(json_t *tranger, const char *treedb_name);
+PRIVATE void treedb_state_read(treedb_state_t *st);
+PRIVATE void treedb_state_forget(json_t *tranger, const char *treedb_name);
+PRIVATE void treedb_states_sweep(void);
 PRIVATE int save_node(json_t *tranger, json_t *node, topic_cols_t **cols);
 PRIVATE json_t *create_node(
     json_t *tranger,
@@ -425,6 +461,13 @@ PRIVATE json_t *topic_cols_desc = 0; // HACK incref/decref by each treedb_open_d
 PRIVATE topic_cols_t **topic_cols_kept = 0;
 PRIVATE size_t topic_cols_kept_n = 0;
 PRIVATE size_t topic_cols_kept_size = 0;
+
+/*
+ *  The states of the open treedbs (treedb_state_of())
+ */
+PRIVATE treedb_state_t **treedb_states = 0;
+PRIVATE size_t treedb_states_n = 0;
+PRIVATE size_t treedb_states_size = 0;
 
 /*
  *  The words of the column flags (topic_cols_t)
@@ -2113,6 +2156,11 @@ PUBLIC int treedb_set_callback(
         "__treedb_callback_flags__",
         json_integer((json_int_t)flags)
     );
+
+    treedb_state_t *st = treedb_state_of(tranger, treedb_name);
+    if(st) {
+        treedb_state_read(st);  // what the json says now
+    }
     return 0;
 }
 
@@ -2143,6 +2191,7 @@ PUBLIC int treedb_close_db(
     /*------------------------------*
      *  Delete treedb
      *------------------------------*/
+    treedb_state_forget(tranger, treedb_name);
     json_t *treedb = kw_get_subdict_value(gobj, tranger, "treedbs", treedb_name, 0, KW_EXTRACT);
     json_object_del(kw_get_dict(gobj, tranger, "treedbs_files", 0, 0), treedb_name);
     forget_keys_not_loaded(tranger, treedb_name, NULL);
@@ -8725,10 +8774,133 @@ PRIVATE BOOL md_get_bool(
  ***************************************************************************/
 PRIVATE json_t *get_treedb(json_t *tranger, const char *treedb_name)
 {
+    treedb_state_t *st = treedb_state_of(tranger, treedb_name);
+    return st? st->treedb : NULL;
+}
+
+/***************************************************************************
+ *  Free a treedb state, letting its tranger go
+ ***************************************************************************/
+PRIVATE void treedb_state_free(treedb_state_t *st)
+{
+    JSON_DECREF(st->tranger)
+    GBMEM_FREE(st->treedb_name)
+    gbmem_free(st);
+}
+
+/***************************************************************************
+ *  Read again of the treedb's json what its state keeps of it
+ ***************************************************************************/
+PRIVATE void treedb_state_read(treedb_state_t *st)
+{
+    st->callback = (treedb_callback_t)(uintptr_t)json_integer_value(
+        json_object_get(st->treedb, "__treedb_callback__")
+    );
+    st->user_data = (void *)(uintptr_t)json_integer_value(
+        json_object_get(st->treedb, "__treedb_callback_user_data__")
+    );
+    st->events_held = json_object_get(st->treedb, "__events_held__");
+    st->deferred = json_object_get(st->treedb, "__deferred_events__");
+}
+
+/***************************************************************************
+ *  The state of the treedb `treedb_name` of the tranger (treedb_state_t),
+ *  or NULL when the tranger has none of that name. Made at its first look,
+ *  from its json, and kept until treedb_close_db().
+ ***************************************************************************/
+PRIVATE treedb_state_t *treedb_state_of(json_t *tranger, const char *treedb_name)
+{
     if(!treedb_name) {
         return NULL;
     }
-    return json_object_get(json_object_get(tranger, "treedbs"), treedb_name);
+
+    for(size_t i = 0; i < treedb_states_n; i++) {
+        treedb_state_t *st = treedb_states[i];
+        if(st->tranger == tranger && strcmp(st->treedb_name, treedb_name) == 0) {
+            return st;
+        }
+    }
+    treedb_states_sweep();
+
+    json_t *treedb = json_object_get(json_object_get(tranger, "treedbs"), treedb_name);
+    if(!treedb) {
+        return NULL;
+    }
+    if(treedb_states_n == treedb_states_size) {
+        size_t size = treedb_states_size? 2*treedb_states_size : 8;
+        treedb_state_t **states = gbmem_realloc(treedb_states, size * sizeof(treedb_state_t *));
+        if(!states) {
+            return NULL;    // Error already logged
+        }
+        treedb_states = states;
+        treedb_states_size = size;
+    }
+    treedb_state_t *st = gbmem_malloc(sizeof(treedb_state_t));
+    if(!st) {
+        return NULL;    // Error already logged
+    }
+    st->treedb_name = gbmem_strdup(treedb_name);
+    if(!st->treedb_name) {
+        gbmem_free(st);
+        return NULL;    // Error already logged
+    }
+    st->tranger = json_incref(tranger);
+    st->treedb = treedb;
+    st->gone = FALSE;
+    treedb_state_read(st);
+    treedb_states[treedb_states_n++] = st;
+    return st;
+}
+
+/***************************************************************************
+ *  A treedb that is closed: its state goes
+ ***************************************************************************/
+PRIVATE void treedb_state_forget(json_t *tranger, const char *treedb_name)
+{
+    size_t j = 0;
+    for(size_t i = 0; i < treedb_states_n; i++) {
+        treedb_state_t *st = treedb_states[i];
+        if(st->tranger == tranger && strcmp(st->treedb_name, treedb_name) == 0) {
+            treedb_state_free(st);
+            continue;
+        }
+        treedb_states[j++] = st;
+    }
+    treedb_states_n = j;
+    treedb_states_sweep();
+}
+
+/***************************************************************************
+ *  Let go the states whose tranger only they hold any more (it was shut
+ *  down without closing its treedbs), and the array of them with the last
+ *  one. Their tranger goes with the last of them.
+ ***************************************************************************/
+PRIVATE void treedb_states_sweep(void)
+{
+    for(size_t i = 0; i < treedb_states_n; i++) {
+        size_t holders = 0;
+        for(size_t k = 0; k < treedb_states_n; k++) {
+            if(treedb_states[k]->tranger == treedb_states[i]->tranger) {
+                holders++;
+            }
+        }
+        treedb_states[i]->gone = (treedb_states[i]->tranger->refcount == holders)? TRUE : FALSE;
+    }
+
+    size_t j = 0;
+    for(size_t i = 0; i < treedb_states_n; i++) {
+        treedb_state_t *st = treedb_states[i];
+        if(st->gone) {
+            treedb_state_free(st);
+            continue;
+        }
+        treedb_states[j++] = st;
+    }
+    treedb_states_n = j;
+    if(treedb_states_n == 0) {
+        GBMEM_FREE(treedb_states)
+        treedb_states_size = 0;
+    }
 }
 
 /***************************************************************************
@@ -8785,24 +8957,24 @@ PRIVATE void publish_treedb_event(
     json_t *kw  // owned
 )
 {
-    json_t *treedb = get_treedb(tranger, treedb_name);
+    treedb_state_t *st = treedb_state_of(tranger, treedb_name);
+    json_t *treedb = st? st->treedb : NULL;
     if(treedb && treedb == events_muted_treedb) {
         JSON_DECREF(kw)     // told again by the one that muted them (delete_node())
         return;
     }
-    treedb_callback_t treedb_callback = (treedb_callback_t)(uintptr_t)json_integer_value(
-        json_object_get(treedb, "__treedb_callback__")
-    );
+    treedb_callback_t treedb_callback = st? st->callback : NULL;
     if(!treedb_callback) {
         JSON_DECREF(kw)
         return;
     }
 
-    if(json_integer_value(json_object_get(treedb, "__events_held__"))) {
-        json_t *deferred = json_object_get(treedb, "__deferred_events__");
+    if(json_integer_value(st->events_held)) {
+        json_t *deferred = st->deferred;
         if(!deferred) {
             deferred = json_array();
             json_object_set_new(treedb, "__deferred_events__", deferred);
+            st->deferred = deferred;
         }
         json_t *jn_topic_name = json_object_get(
             json_object_get(json_object_get(tranger, "topics"), topic_name),
@@ -8818,11 +8990,8 @@ PRIVATE void publish_treedb_event(
         return;
     }
 
-    void *user_data = (void *)(uintptr_t)json_integer_value(
-        json_object_get(treedb, "__treedb_callback_user_data__")
-    );
     run_treedb_callback(treedb_callback,
-        user_data,
+        st->user_data,
         tranger,
         treedb_name,
         topic_name,
@@ -8843,25 +9012,28 @@ PRIVATE void publish_treedb_event(
 PRIVATE void hold_treedb_events(json_t *tranger, const char *treedb_name, events_hold_t *hold)
 {
     hold->treedb = NULL;
+    hold->state = NULL;
     hold->owner = FALSE;
     hold->mark = 0;
 
-    json_t *treedb = get_treedb(tranger, treedb_name);
-    if(!json_integer_value(json_object_get(treedb, "__treedb_callback__"))) {
+    treedb_state_t *st = treedb_state_of(tranger, treedb_name);
+    if(!st || !st->callback) {
         return;
     }
-    hold->treedb = treedb;
+    hold->treedb = st->treedb;
+    hold->state = st;
 
-    json_t *jn_held = json_object_get(treedb, "__events_held__");
+    json_t *jn_held = st->events_held;
     if(!jn_held) {
         jn_held = json_integer(0);
-        json_object_set_new(treedb, "__events_held__", jn_held);
+        json_object_set_new(st->treedb, "__events_held__", jn_held);
+        st->events_held = jn_held;
     }
     if(json_integer_value(jn_held) == 0) {
         json_integer_set(jn_held, 1);
         hold->owner = TRUE;
     }
-    hold->mark = json_array_size(json_object_get(treedb, "__deferred_events__"));
+    hold->mark = json_array_size(st->deferred);
 }
 
 /***************************************************************************
@@ -8876,9 +9048,11 @@ PRIVATE void release_treedb_events(json_t *tranger, events_hold_t *hold, BOOL te
     if(!treedb) {
         return;
     }
+    treedb_state_t *st = hold->state;
     hold->treedb = NULL;
+    hold->state = NULL;
 
-    json_t *deferred = json_object_get(treedb, "__deferred_events__");
+    json_t *deferred = st->deferred;
     if(!hold->owner) {
         if(!tell) {
             while(json_array_size(deferred) > hold->mark) {
@@ -8893,28 +9067,21 @@ PRIVATE void release_treedb_events(json_t *tranger, events_hold_t *hold, BOOL te
      *  own, which tells its events when its write ends, and takes them out
      *  of the list again (they are above these).
      */
-    json_integer_set(json_object_get(treedb, "__events_held__"), 0);
+    json_integer_set(st->events_held, 0);
     size_t size = json_array_size(deferred);
     if(size <= hold->mark) {
         return;
     }
 
     if(tell) {
+        /*
+         *  Taken of the state BEFORE the callbacks: one of them may close
+         *  the treedb, and its state with it
+         */
         char treedb_name[NAME_MAX];
-        treedb_name[0] = 0;
-        const char *name; json_t *v;
-        json_object_foreach(json_object_get(tranger, "treedbs"), name, v) {
-            if(v == treedb) {
-                snprintf(treedb_name, sizeof(treedb_name), "%s", name);
-                break;
-            }
-        }
-        treedb_callback_t treedb_callback = (treedb_callback_t)(uintptr_t)json_integer_value(
-            json_object_get(treedb, "__treedb_callback__")
-        );
-        void *user_data = (void *)(uintptr_t)json_integer_value(
-            json_object_get(treedb, "__treedb_callback_user_data__")
-        );
+        snprintf(treedb_name, sizeof(treedb_name), "%s", st->treedb_name);
+        treedb_callback_t treedb_callback = st->callback;
+        void *user_data = st->user_data;
         json_incref(deferred);
         for(size_t i = hold->mark; i + 2 < size && treedb_callback; i += 3) {
             run_treedb_callback(treedb_callback,
@@ -8949,7 +9116,7 @@ PRIVATE void release_treedb_events(json_t *tranger, events_hold_t *hold, BOOL te
  ***************************************************************************/
 PRIVATE json_t *take_held_events(events_hold_t *hold)
 {
-    json_t *deferred = json_object_get(hold->treedb, "__deferred_events__");
+    json_t *deferred = hold->state? hold->state->deferred : NULL;
     size_t size = json_array_size(deferred);
     if(size <= hold->mark) {
         return NULL;
@@ -9091,9 +9258,9 @@ PRIVATE void begin_node_write_in(node_write_t *write, events_hold_t *outer)
 {
     init_node_write(write);
     write->events.treedb = outer->treedb;
+    write->events.state = outer->state;
     write->events.owner = FALSE;
-    write->events.mark = outer->treedb?
-        json_array_size(json_object_get(outer->treedb, "__deferred_events__")) : 0;
+    write->events.mark = outer->treedb? json_array_size(outer->state->deferred) : 0;
 }
 
 /***************************************************************************
@@ -12211,6 +12378,7 @@ PRIVATE int delete_node(
                     gobj, tranger, treedb_name, unlinked[i].parent, unlinked[i].hook,
                     unlinked[i].child, TRUE)) {
                 hold.treedb = NULL;     // closed by a callback: nothing left to release
+                hold.state = NULL;
                 break;
             }
         }
