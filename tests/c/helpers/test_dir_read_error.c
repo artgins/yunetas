@@ -763,11 +763,9 @@ int main(int argc, char *argv[])
     setvbuf(stdout, NULL, _IOLBF, 0);   // what was checked is printed, also before a crash
 
     sys_malloc_fn_t malloc_func;
-    sys_realloc_fn_t realloc_func;
-    sys_calloc_fn_t calloc_func;
     sys_free_fn_t free_func;
 
-    gbmem_get_allocators(&malloc_func, &realloc_func, &calloc_func, &free_func);
+    gbmem_get_json_allocators(&malloc_func, &free_func);
     json_set_alloc_funcs(malloc_func, free_func);
 
     gobj_start_up(

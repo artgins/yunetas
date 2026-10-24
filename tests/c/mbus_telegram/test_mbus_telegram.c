@@ -584,10 +584,8 @@ PRIVATE void test_real_meters(void)
 int main(int argc, char *argv[])
 {
     sys_malloc_fn_t malloc_func;
-    sys_realloc_fn_t realloc_func;
-    sys_calloc_fn_t calloc_func;
     sys_free_fn_t free_func;
-    gbmem_get_allocators(&malloc_func, &realloc_func, &calloc_func, &free_func);
+    gbmem_get_json_allocators(&malloc_func, &free_func);
     json_set_alloc_funcs(malloc_func, free_func);
 
     gobj_start_up(argc, argv, NULL, NULL, NULL, NULL, NULL, NULL);

@@ -2444,14 +2444,10 @@ PRIVATE void test_cost(void)
 int main(int argc, char *argv[])
 {
     sys_malloc_fn_t malloc_func;
-    sys_realloc_fn_t realloc_func;
-    sys_calloc_fn_t calloc_func;
     sys_free_fn_t free_func;
 
-    gbmem_get_allocators(
+    gbmem_get_json_allocators(
         &malloc_func,
-        &realloc_func,
-        &calloc_func,
         &free_func
     );
 
