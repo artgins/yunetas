@@ -42,6 +42,11 @@
  *  test_torn_md2_tail.c). Cases 5 and 7 use a md2 of mode 000, and are
  *  skipped as root, who reads it anyway.
  *
+ *  9 and 10 use a treedb of two topics without pkey2s: 9, a parent whose
+ *  child topic did not load whole is not deleted; 10, an OLDER record of a
+ *  key damaged is not read at the open (only the newest record of a key
+ *  is), so the key loads.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -433,10 +438,11 @@ PRIVATE int test_damaged_at_restart(const char *path_root, const char *case_name
 /*
  *  Move every file of a key to the day file `day` (the key has one day)
  */
-PRIVATE int move_key_to_day(const char *path_database, const char *key, const char *day)
+PRIVATE int move_key_to_day(const char *path_database, const char *topic_name,
+    const char *key, const char *day)
 {
     char key_dir[PATH_MAX];
-    build_path(key_dir, sizeof(key_dir), path_database, TOPIC_NAME, "keys", key, NULL);
+    build_path(key_dir, sizeof(key_dir), path_database, topic_name, "keys", key, NULL);
     const char *exts[] = {"md2", "json", NULL};
     int moved = 0;
     for(int e = 0; exts[e]; e++) {
@@ -542,7 +548,7 @@ PRIVATE int test_uncommitted_at_restart(const char *path_root, BOOL in_the_middl
     /*
      *  k2's version "a" in an older file
      */
-    result += move_key_to_day(path_database, "k2", "2000-01-01");
+    result += move_key_to_day(path_database, TOPIC_NAME, "k2", "2000-01-01");
 
     if(in_the_middle) {
         /*
@@ -791,6 +797,77 @@ PRIVATE int test_delete_with_a_child_that_did_not_load(const char *path_root)
 }
 
 /***************************************************************************
+ *  10: an OLDER record of a key damaged, at restart
+ *
+ *  The id index loads only the newest record of each key, so an older
+ *  record whose content is cut is not read at the open: t1 is in memory
+ *  with its newest record, linked, and not flagged. (A topic with pkey2s
+ *  still reads the whole history in its pkey2 lists, and fails the key.)
+ ***************************************************************************/
+PRIVATE int test_older_record_damaged(const char *path_root)
+{
+    int result = 0;
+    const char *case_name = "10. an older record of t1 cut, at restart";
+    const char *database = "tr_treedb_load_failed_older";
+    const char *treedb_name = "treedb_load_failed_boxes";
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database), path_root, database, NULL);
+    rmrdir(path_database);
+
+    set_expected_results("older record damaged: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = open_tranger(path_root, database);
+    treedb_open_db(tranger, treedb_name, legalstring2json(schema_boxes, TRUE), 0);
+    treedb_create_node(tranger, treedb_name, "boxes", json_pack("{s:s}", "id", "b1"));
+    treedb_create_node(tranger, treedb_name, "things", json_pack("{s:s}", "id", "t1"));
+    treedb_close_db(tranger, treedb_name);
+    tranger2_shutdown(tranger);
+
+    /*
+     *  t1's first record in an older file, its link in today's
+     */
+    result += move_key_to_day(path_database, "things", "t1", "2000-01-01");
+    tranger = open_tranger(path_root, database);
+    treedb_open_db(tranger, treedb_name, legalstring2json(schema_boxes, TRUE), 0);
+    json_t *b1 = treedb_get_node(tranger, treedb_name, "boxes", "b1");
+    json_t *t1 = treedb_get_node(tranger, treedb_name, "things", "t1");
+    if(!b1 || !t1 || treedb_link_nodes(tranger, "things", b1, t1) < 0) {
+        printf("%sERROR%s --> %s: cannot link t1 to b1\n", On_Red BWhite, Color_Off, case_name);
+        result += -1;
+    }
+    treedb_close_db(tranger, treedb_name);
+    tranger2_shutdown(tranger);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    char older[PATH_MAX];
+    build_path(older, sizeof(older), path_database, "things", "keys", "t1", "2000-01-01.json", NULL);
+    if(truncate(older, 0) < 0) {
+        printf("%sERROR%s --> %s: cannot cut %s\n", On_Red BWhite, Color_Off, case_name, older);
+        result += -1;
+    }
+
+    set_expected_results(case_name, NULL, NULL, NULL, 1);
+    tranger = open_tranger(path_root, database);
+    treedb_open_db(tranger, treedb_name, legalstring2json(schema_boxes, TRUE), 0);
+    t1 = treedb_get_node(tranger, treedb_name, "things", "t1");
+    if(!t1 || strcmp(kw_get_str(0, t1, "box", "", 0), "boxes^b1^things") != 0) {
+        printf("%sERROR%s --> %s: t1 is not in memory linked to b1\n", On_Red BWhite, Color_Off, case_name);
+        result += -1;
+    }
+    if(json_object_get(
+            json_object_get(json_object_get(json_object_get(tranger, "treedbs_load_failed"),
+                treedb_name), "things"), "t1")) {
+        printf("%sERROR%s --> %s: t1 is in the registry of the keys that did not load\n",
+            On_Red BWhite, Color_Off, case_name);
+        result += -1;
+    }
+    treedb_close_db(tranger, treedb_name);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+    rmrdir(path_database);
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -809,6 +886,7 @@ PRIVATE int do_test(void)
     result += test_damaged_at_restart(path_root, "6. content of k2 cut to 0 bytes, at restart", "json", FALSE);
     result += test_snaps_damaged_at_restart(path_root);
     result += test_delete_with_a_child_that_did_not_load(path_root);
+    result += test_older_record_damaged(path_root);
 
     return result;
 }

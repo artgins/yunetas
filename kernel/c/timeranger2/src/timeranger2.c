@@ -3229,6 +3229,9 @@ PUBLIC int tranger2_write_topic_var(
 
 /***************************************************************************
    Write topic cols
+   It REPLACES the topic's `cols`: treedb keeps a reading of a topic's
+   columns while its `cols` is the same json, so a description of a
+   column is never changed in place (see YUNO_TREEDB.md, 3.5)
  ***************************************************************************/
 PUBLIC int tranger2_write_topic_cols(
     json_t *tranger,

@@ -842,6 +842,17 @@ and say the same things, in a different **order**. The freeze exists so that a
 change to what a column declares cannot arrive unannounced; an order declares
 nothing new, so `tranger2_create_topic()` rewrites the file for it (§3.11).
 
+**A column's description is never changed in place** (7.28.0+). treedb
+reads the columns of a topic once -- each column's flags as bits, its type
+-- and keeps that reading while the topic's `cols` is the same json. So a
+change of the columns REPLACES `cols` (what the open, `create-topic`, a new
+`topic_version` and `tranger2_write_topic_cols()` do), and code that edits a
+`cols` in place has to tell the reading to go (`topic_cols_forget()` in
+`tr_treedb.c`, as `derive_file_hooks()` does for `__assets__`). Editing a
+column's `flag` in place, without that, leaves the old bits in use and logs
+nothing: the only check left is the NUMBER of columns, read again when it
+changes.
+
 ### 3.6 Node CRUD: the public API
 
 Two layers — `treedb_*` (the low-level graph API) and `gobj_*node` (the
