@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## v7.27.12 (2026-10-24)
+
+A lite release of the agent alone: the column of a yuno's release is wide
+enough for the versions of 7.27.11. Only the agent is deployed; no yuno is
+rebuilt. The tests that read the agent's schema ran on the dev machine
+(`test_c_agent_find_new_yunos`, `test_treedb_schema_fidelity`). No
+performance study: the change is a string of the agent's schema, which no
+benchmark links.
+
+- **`list-yunos` and ycli's top show a yuno's release whole.** A project
+  yuno's release is `<own>-<sdk>-<config>` since 7.27.11
+  (`2.17.3-7.27.11-12`, 17 characters), and the column of `yuno_release` in
+  the `yunos` topic of the agent's treedb was 12 wide, so it was cut
+  (`2.17.3-7.27`). It is 20 now; `yuno_name` goes from 22 to 16 and
+  `yuno_tag` from 12 to 9, so a row keeps its width. `topic_version` 23,
+  `schema_version` 27: the agent's persisted schema is replaced at its first
+  start.
+
 ## v7.27.11 (2026-10-24)
 
 A release of one fix in treedb, and of a version for each project yuno
