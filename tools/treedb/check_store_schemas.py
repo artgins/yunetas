@@ -13,6 +13,7 @@ nothing but the count of what it read.
     python3 check_store_schemas.py                    # every store under /yuneta/store
     python3 check_store_schemas.py /yuneta/store/x    # one store, or several dirs
     python3 check_store_schemas.py --list-ids-gobj tranger_x <dir>   # see LIST below
+    python3 check_store_schemas.py --list-ids-yuno db_history_ce^1620 <dir>
 
 It needs nothing but python3, so it runs on a node with no SDK sources:
 installed with the packages under /yuneta/development/yunetas/tools/treedb/,
@@ -44,10 +45,14 @@ LEVEL, by what the SDK does at the open:
     CUT         the __assets__ hook of a 'file' column is cut to NAME_MAX at
                 the open, with no log (and refused for a new topic)
     LIST        the id of a list of the topic's indexes is cut to NAME_MAX: it
-                holds the gclass and the name of the gobj that owns the tranger,
-                which no file says; it is ESTIMATED with C_TRANGER and
-                `tranger_<treedb>` (the name C_TREEDB gives it), or the name
-                given with --list-ids-gobj
+                holds the yuno that opens the store (`<role>^<name>`, after
+                7.27.10) and the gclass and the name of the gobj that owns the
+                tranger, which no file says; it is ESTIMATED with a yuno of 32
+                bytes (longer than the yunos of our nodes: `db_history_ce^1620`
+                is 18), or the one given with --list-ids-yuno (an empty one for
+                an SDK up to 7.27.10), and with C_TRANGER and `tranger_<treedb>`
+                (the name C_TREEDB gives it), or the name given with
+                --list-ids-gobj
 
 Not checked: the fields of a column against the column meta-schema
 (parse_schema_cols(): its types and flags), which the SDK says as "a column is
@@ -160,7 +165,7 @@ def topic_names(t, key):
     return tid if isinstance(tid, str) else ""
 
 
-def check_treedb_topic(rep, path, treedb, t, key, tranger_dir, list_gobj):
+def check_treedb_topic(rep, path, treedb, t, key, tranger_dir, list_gobj, list_yuno):
     tn = topic_names(t, key)
     if not tn:
         rep.say(path, "LEFT-OUT", "?", "a topic with no id nor topic_name",
@@ -287,11 +292,12 @@ def check_treedb_topic(rep, path, treedb, t, key, tranger_dir, list_gobj):
                 break
             seen.add(p2)
 
-    #   list_id_too_long(): "treedb-<gclass>-<gobj>-<treedb>-<topic>-<key>"
+    #   list_id_too_long(): "treedb-<yuno>-<gclass>-<gobj>-<treedb>-<topic>-<key>"
     gobj_name = list_gobj or f"tranger_{treedb}"
+    yuno = f"{list_yuno}-" if list_yuno else ""
     keys = [tkey] + [k for k in ids_of(pkey2s) if k] if isinstance(pkey2s, (str, list, dict)) else [tkey]
     for k in keys:
-        list_id = f"treedb-C_TRANGER-{gobj_name}-{treedb}-{tn}-{k}"
+        list_id = f"treedb-{yuno}C_TRANGER-{gobj_name}-{treedb}-{tn}-{k}"
         if nbytes(list_id) >= NAME_MAX:
             rep.say(path, "LIST", f"{tn}.{k or '(tkey)'}",
                     f"the id of a list of its indexes is {nbytes(list_id)} bytes (estimated)",
@@ -434,7 +440,7 @@ def unless_replaced(data):
             f" a higher one when not imposed: that one replaces this file)")
 
 
-def check_treedb_file(rep, path, data, list_gobj):
+def check_treedb_file(rep, path, data, list_gobj, list_yuno):
     fn = os.path.basename(path)
     tranger_dir = os.path.dirname(path)
     if isinstance(data, dict) and "topics" not in data and "topic_name" not in data:
@@ -453,7 +459,7 @@ def check_treedb_file(rep, path, data, list_gobj):
             if not isinstance(t, dict):
                 rep.say(path, "LEFT-OUT", "?", "a topic that is not a json object", "Schema topic without id/topic_name")
                 continue
-            check_treedb_topic(rep, path, treedb, t, key, tranger_dir, list_gobj)
+            check_treedb_topic(rep, path, treedb, t, key, tranger_dir, list_gobj, list_yuno)
         check_main_topics(rep, path, items)
         check_file_hooks(rep, path, items)
     elif isinstance(data, dict):
@@ -462,7 +468,7 @@ def check_treedb_file(rep, path, data, list_gobj):
         tn = data.get("topic_name") if isinstance(data.get("topic_name"), str) else ""
         stem = fn[:-len(TREEDB_SUFFIX)]
         treedb = stem[:-(len(tn) + 1)] if tn and stem.endswith("-" + tn) else stem
-        check_treedb_topic(rep, path, treedb, data, None, tranger_dir, list_gobj)
+        check_treedb_topic(rep, path, treedb, data, None, tranger_dir, list_gobj, list_yuno)
     else:
         rep.say(path, "NO-OPEN", "?", "the schema is not a json object" + unless_replaced(data), "No topics found")
 
@@ -504,6 +510,9 @@ def main():
     ap.add_argument("dirs", nargs="*", default=["/yuneta/store"], help="store directories (default /yuneta/store)")
     ap.add_argument("--list-ids-gobj", default=None,
                     help="the name of the gobj that owns the tranger, for the LIST estimate (default tranger_<treedb>)")
+    ap.add_argument("--list-ids-yuno", default="y" * 32,
+                    help="the <role>^<name> of the yuno that opens the store, for the LIST estimate "
+                         "(default 32 bytes; empty for an SDK up to 7.27.10)")
     args = ap.parse_args()
 
     rep = Report()
@@ -529,7 +538,7 @@ def main():
                     continue
                 rep.files += 1
                 if is_treedb:
-                    check_treedb_file(rep, path, data, args.list_ids_gobj)
+                    check_treedb_file(rep, path, data, args.list_ids_gobj, args.list_ids_yuno)
                 else:
                     check_msg2db_file(rep, path, data)
 

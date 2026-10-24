@@ -5466,7 +5466,7 @@ PRIVATE int check_more_peer_data_refused(hgobj gobj)
         );
     }
     {
-        /*  "treedb-C_TRANGER-tranger_<treedb>-<treedb>-<topic>-" in a
+        /*  "treedb-<yuno>-C_TRANGER-tranger_<treedb>-<treedb>-<topic>-" in a
          *  char[NAME_MAX]: a topic of 220 bytes does not fit  */
         char long_topic[220 + 1];
         memset(long_topic, 'x', sizeof(long_topic) - 1);
@@ -6725,10 +6725,10 @@ PRIVATE int check_peer_cannot_adopt_foreign_topics(hgobj gobj)
  *  Test 13d6, c4 #2: a C caller's open of an EXISTING store keeps a topic
  *  on disk whose literal now gives it pkey2s a NEW topic is refused for --
  *  `id` on `items` -- or whose list id is then past NAME_MAX -- `name` on
- *  a topic of 196 bytes: the id index fits (252), the pkey2's does not
- *  (256). Refused, the topic was gone from the treedb (the CRITICAL
- *  "Cannot create topic of the schema", an exit for C_AUTHZ); it opens as
- *  it did, each fault an ERROR.
+ *  a topic of 196 bytes less the yuno of the list ids (`<role>-` here):
+ *  the id index fits (252), the pkey2's does not (256). Refused, the topic
+ *  was gone from the treedb (the CRITICAL "Cannot create topic of the
+ *  schema", an exit for C_AUTHZ); it opens as it did, each fault an ERROR.
  ***************************************************************************/
 PRIVATE int check_c_caller_topic_on_disk_as_before(hgobj gobj)
 {
@@ -6736,8 +6736,13 @@ PRIVATE int check_c_caller_topic_on_disk_as_before(hgobj gobj)
     int result = 0;
     const char *db = "treedb_on_disk";
     char long_topic[197];
-    memset(long_topic, 'l', sizeof(long_topic) - 1);
-    long_topic[sizeof(long_topic) - 1] = 0;
+    size_t yuno_len = strlen(gobj_yuno_role()) + strlen("-");
+    if(!empty_string(gobj_yuno_name())) {
+        yuno_len += strlen("^") + strlen(gobj_yuno_name());
+    }
+    size_t topic_len = sizeof(long_topic) - 1 - yuno_len;
+    memset(long_topic, 'l', topic_len);
+    long_topic[topic_len] = 0;
 
     result += check_done(gobj, "TEST FAIL: treedb_on_disk did not open",
         open_treedb_as(gobj, NULL, db,

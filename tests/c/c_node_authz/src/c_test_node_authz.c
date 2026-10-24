@@ -38,6 +38,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <dirent.h>
 
 #include "c_test_node_authz.h"
 
@@ -952,6 +953,56 @@ PRIVATE int run_replica_tests(hgobj gobj)
         return -1;
     }
     gobj_start(priv->gobj_node);
+
+    /*
+     *  The replica's feeds are directories of the store named after the
+     *  ids of its lists, and they carry the yuno: two yunos reading one
+     *  store as replicas shared one directory, each open wiping what the
+     *  other had pending (up to 7.27.10)
+     */
+    {
+        char disks[PATH_MAX];
+        build_path(disks, sizeof(disks), path_root, "c_node_authz", "items", "disks", NULL);
+        char prefix[NAME_MAX];
+        if(empty_string(gobj_yuno_name())) {
+            snprintf(prefix, sizeof(prefix), "treedb-%s-", gobj_yuno_role());
+        } else {
+            snprintf(prefix, sizeof(prefix), "treedb-%s^%s-", gobj_yuno_role(), gobj_yuno_name());
+        }
+        int feeds = 0;
+        DIR *dir = opendir(disks);
+        struct dirent *entry;
+        while(dir && (entry = readdir(dir))) {
+            if(entry->d_name[0] == '.') {
+                continue;
+            }
+            feeds++;
+            if(strncmp(entry->d_name, prefix, strlen(prefix)) != 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST FAIL: the feed of a replica does not carry its yuno",
+                    "feed",         "%s", entry->d_name,
+                    "prefix",       "%s", prefix,
+                    NULL
+                );
+                result += -1;
+            }
+        }
+        if(dir) {
+            closedir(dir);
+        }
+        if(feeds == 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: the replica has no feed in the store",
+                "path",         "%s", disks,
+                NULL
+            );
+            result += -1;
+        }
+    }
 
     struct {
         const char *command;

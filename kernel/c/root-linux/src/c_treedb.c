@@ -11898,9 +11898,12 @@ PRIVATE BOOL refuse_peer_treedb_not_open(hgobj gobj, BOOL peer, const char *tree
 
 /***************************************************************************
  *  The length of the id tr_treedb gives the list that loads an index of a
- *  topic of a treedb opened HERE, `treedb-<gclass>-<gobj>-<treedb>-<topic>-<key>`
- *  (build_topic_list_id() of tr_treedb.c; <key> is the tkey for the id
- *  index, or the pkey2). <gclass>-<gobj> is the tranger's gobj, the
+ *  topic of a treedb opened HERE,
+ *  `treedb-<yuno>-<gclass>-<gobj>-<treedb>-<topic>-<key>` (build_topic_list_id()
+ *  of tr_treedb.c; <key> is the tkey for the id index, or the pkey2).
+ *  <yuno> is this yuno, `<role>^<name>` (list_id_yuno() of tr_treedb.c):
+ *  a replica names a directory of the store after the id, and two yunos
+ *  shared it (up to 7.27.10). <gclass>-<gobj> is the tranger's gobj, the
  *  C_TRANGER `tranger_<treedb>` that cmd_open_treedb() creates, so the name
  *  of the treedb is in it TWICE. The id goes in a char[NAME_MAX], and
  *  tr_treedb refuses a topic whose id does not fit with an ERROR (it was
@@ -11912,7 +11915,14 @@ PRIVATE size_t treedb_list_id_len(
     const char *key
 )
 {
-    return strlen("treedb-") + strlen(C_TRANGER) + strlen("-tranger_") + strlen(treedb_name)
+    size_t yuno = 0;
+    if(!empty_string(gobj_yuno_role())) {
+        yuno = strlen(gobj_yuno_role()) + strlen("-");
+        if(!empty_string(gobj_yuno_name())) {
+            yuno += strlen("^") + strlen(gobj_yuno_name());
+        }
+    }
+    return strlen("treedb-") + yuno + strlen(C_TRANGER) + strlen("-tranger_") + strlen(treedb_name)
         + strlen("-") + strlen(treedb_name)
         + strlen("-") + strlen(topic_name)
         + strlen("-") + strlen(key);
@@ -11956,8 +11966,10 @@ PRIVATE BOOL path_is_not_a_directory(const char *path)
  *    save-schema's `<name>.treedb_schema.json.new` is one shorter), each one
  *    a char[NAME_MAX]. Of the ids of lists, it is the list of the id index of
  *    `__assets__`, the longest topic every treedb has, with no tkey
- *    (treedb_list_id_len()): 38 + 2 * the name. So the name is 108 bytes at
- *    most (REV-CLOUD V20.4), and each topic of it is asked again with its
+ *    (treedb_list_id_len()): 38 + the yuno and its '-' + 2 * the name. So
+ *    the name is 108 bytes at most out of a yuno, and half the yuno's
+ *    `<role>^<name>-` less in one (REV-CLOUD V20.4; the yuno is in the id
+ *    after 7.27.10), and each topic of it is asked again with its
  *    own name and keys (refuse_peer_new_topic()).
  *  Asked by every command that takes a treedb_name from OUTSIDE (`peer`):
  *  delete-treedb built the paths of the files of saved_schemas/ from it,

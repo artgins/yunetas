@@ -42,24 +42,6 @@ Severity in parentheses where one was assigned.
   not come. Log: `LastTest.wattyzer-7.27.7.log`, `test_c_fs` section, kept in
   the release notes of 7.27.7.
 
-- **Two yunos that read one treedb as rt_disk clients share one `disks/`
-  feed** (found at the 7.27.10 deploy, 2026-10-24). A topic list's `rt_id`
-  (`build_topic_list_id()` and the snaps list in `tr_treedb.c`) is
-  `treedb-<gclass>-<gobj name>-<treedb>-<topic>-<key>`, unique inside one
-  process, not between processes. `monitor_rt_disk_by_client()` uses it as
-  the client's directory `<topic>/disks/<rt_id>/`, so every yuno of a realm
-  whose `C_AUTHZ` reads the realm's authz store as a client gets the SAME
-  directory (`treedb-C_TRANGER-tranger_authz-treedb_authzs-users-`, seen in
-  every realm of every node). Each client does `rmrdir()` + `mkdir()` of it
-  at open: on hidraulia the three `sim_controllers` started together by the
-  bounce logged *"mkdir() FAILED"* (`EEXIST`) once. Worse than the log, and
-  already said in `tranger2_open_rt_disk()` (*"Two processes that follow one
-  store with the same id still take each other's directory"*): the clients
-  consume one directory between them, a client's open wipes what the others
-  had pending, and a client's close renames the directory away, so the
-  others stop hearing the master. Fix: put the process in the treedb's ids
-  (the yuno role^name).
-
 - **`check_doc_line_refs.py --repin` pins a performance report to its own
   tag, and a report redone after its release is not in that tag** (found at
   the 7.27.7 repin). The rule of 2026-10-22 redid the reports of 7.27.5 and
@@ -196,6 +178,15 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 ## 4. Accepted limitations
 
 ### timeranger2 and treedb
+
+- **A feed nobody reads any more is fed for ever.** The master feeds every
+  directory of `<topic>/disks/` (a hard link per key and file), and nothing
+  says whether a reader is still behind it: a reader closes its directory
+  on an orderly stop, but one killed (SIGKILL, `deactivate-snap`) leaves it,
+  and only its own next open takes it back. So the directory of a yuno that
+  is deleted for good, or one of the form before the yuno was in the treedb
+  list ids (up to 7.27.10), stays fed until it is removed by hand. No data
+  is copied, but a purge cannot free the files linked there.
 
 - **A t marker that cannot be written** (`<file>.unordered`, a late
   `__t__`) is retried only by the next append to the same FILE; a file

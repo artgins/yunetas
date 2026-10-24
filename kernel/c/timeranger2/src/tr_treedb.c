@@ -647,6 +647,31 @@ PRIVATE json_t *create_topic_index(
 }
 
 /***************************************************************************
+ *  The yuno in the ids of the lists of a treedb: `<role>^<name>-`, or
+ *  `<role>-` for a yuno with no name, or nothing out of a yuno (treedb_list
+ *  runs without one). A replica names a directory of the store after the
+ *  id of each list, `<topic>/disks/<id>/`, and the rest of the id is unique
+ *  inside ONE process only: up to 7.27.10 every yuno of a realm that reads
+ *  the realm's authz store as a replica had the same directory, the open of
+ *  one wiped what the others had pending, and the close of one took the
+ *  directory away from the rest. The yuno is the same at each start, so a
+ *  restart takes its own directory back, as it did.
+ ***************************************************************************/
+PRIVATE const char *list_id_yuno(char *bf, size_t bfsize)
+{
+    const char *role = gobj_yuno_role();
+    const char *name = gobj_yuno_name();
+    if(empty_string(role)) {
+        snprintf(bf, bfsize, "%s", "");
+    } else if(empty_string(name)) {
+        snprintf(bf, bfsize, "%s-", role);
+    } else {
+        snprintf(bf, bfsize, "%s^%s-", role, name);
+    }
+    return bf;
+}
+
+/***************************************************************************
  *  The id of the list that loads an index of a topic (the "id" index is
  *  named by the topic's tkey, a pkey2 index by the pkey2), as
  *  snprintf() writes it: the length it needs, without its NUL, is
@@ -664,8 +689,11 @@ PRIVATE int build_topic_list_id(
     const char *index_key   // the tkey, or the pkey2
 )
 {
+    char yuno[NAME_MAX];
+    list_id_yuno(yuno, sizeof(yuno));
     if(gobj) {
-        return snprintf(bf, bfsize, "treedb-%s-%s-%s-%s-%s",
+        return snprintf(bf, bfsize, "treedb-%s%s-%s-%s-%s-%s",
+            yuno,
             gobj_gclass_name(gobj),
             gobj_name(gobj),
             treedb_name,
@@ -673,11 +701,57 @@ PRIVATE int build_topic_list_id(
             index_key
         );
     }
-    return snprintf(bf, bfsize, "treedb-%s-%s-%s",
+    return snprintf(bf, bfsize, "treedb-%s%s-%s-%s",
+        yuno,
         treedb_name,
         topic_name,
         index_key
     );
+}
+
+/***************************************************************************
+ *  The id of the list that loads a system topic of a treedb (__snaps__,
+ *  __graphs__): build_topic_list_id() with no key. One longer than
+ *  NAME_MAX is refused by tranger2_open_list(), with a WARNING; one that
+ *  does not fit `bf` is cut, and said here.
+ ***************************************************************************/
+PRIVATE void build_system_list_id(
+    char *bf,
+    size_t bfsize,
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name
+)
+{
+    char yuno[NAME_MAX];
+    list_id_yuno(yuno, sizeof(yuno));
+    int len;
+    if(gobj) {
+        len = snprintf(bf, bfsize, "treedb-%s%s-%s-%s-%s",
+            yuno,
+            gobj_gclass_name(gobj),
+            gobj_name(gobj),
+            treedb_name,
+            topic_name
+        );
+    } else {
+        len = snprintf(bf, bfsize, "treedb-%s%s-%s",
+            yuno,
+            treedb_name,
+            topic_name
+        );
+    }
+    if(len < 0 || (size_t)len >= bfsize) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The id of the list of a system topic was cut",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "length",       "%d", len,
+            NULL
+        );
+    }
 }
 
 /***************************************************************************
@@ -1520,19 +1594,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        if(gobj) {
-            snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s-%s-%s",
-                gobj_gclass_name(gobj),
-                gobj_name(gobj),
-                treedb_name,
-                snaps_topic_name
-            );
-        } else {
-            snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s",
-                treedb_name,
-                snaps_topic_name
-            );
-        }
+        build_system_list_id(rt_id, sizeof(rt_id), gobj, treedb_name, snaps_topic_name);
 
         json_t *match_cond = json_pack("{s:b, s:s, s:I}",
             "backward", 1,
@@ -1617,19 +1679,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        if(gobj) {
-            snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s-%s-%s",
-                gobj_gclass_name(gobj),
-                gobj_name(gobj),
-                treedb_name,
-                graphs_topic_name
-            );
-        } else {
-            snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s",
-                treedb_name,
-                graphs_topic_name
-            );
-        }
+        build_system_list_id(rt_id, sizeof(rt_id), gobj, treedb_name, graphs_topic_name);
 
         json_t *match_cond = json_pack("{s:b, s:s, s:I}",
             "backward", 1,

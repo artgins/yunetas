@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- **Two yunos that read one treedb as replicas no longer share one feed.**
+  A replica names a directory of the store after the id of each of its
+  lists, `<topic>/disks/<id>/`, and that id was unique inside one process
+  only: `treedb-<gclass>-<gobj>-<treedb>-<topic>-<key>`. So every yuno of a
+  realm that reads the realm's authz store as a replica had the SAME
+  directory, `treedb-C_TRANGER-tranger_authz-treedb_authzs-users-` (seen in
+  every realm of every node). Each one consumed the notifications of the
+  others, the open of one wiped what the others had pending, and the close of
+  one took the directory away from the rest. Three yunos started together
+  logged *"mkdir() FAILED"* (`EEXIST`). The id now starts with the yuno,
+  `treedb-<role>^<name>-...` (`treedb-db_history_ce^1620-C_TRANGER-...`), in
+  the lists of the indexes of every topic and in those of `__snaps__` and
+  `__graphs__`. The yuno is the same at each start, so a restart takes its
+  own directory back, as it did. Out of a yuno (`treedb_list --follow`) the
+  id is what it was.
+    - **The name of a treedb opened by a command is shorter now**: the id of
+      the list of `__assets__` holds the yuno, so the limit is 38 bytes + the
+      yuno and its `-` + 2 times the name, inside `NAME_MAX` (98 bytes in
+      `db_history_ce^1620`; it was 108).
+    - **`tools/treedb/check_store_schemas.py --list-ids-yuno <role>^<name>`**:
+      its `LIST` estimate counts the yuno too, taken as 32 bytes when it is
+      not given.
+    - **After the upgrade, a directory of the old form is left in `disks/`**
+      when its yunos were stopped with a SIGKILL (`deactivate-snap`, the bounce
+      of `upgrade-yunos`). The master goes on feeding it, with a hard link per
+      key and file: no data is copied, but a purge cannot free those files.
+      Remove it once every yuno that reads that store runs this release:
+      `rm -rf <store>/<treedb>/<topic>/disks/treedb-C_TRANGER-*`.
+
 ## v7.27.10 (2026-10-24)
 
 A release for a store that writes json text as it arrives. A writer of raw

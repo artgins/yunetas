@@ -14,6 +14,7 @@ T=/yuneta/development/yunetas/tools/treedb
 
 python3 $T/check_store_schemas.py                             # every store under /yuneta/store
 python3 $T/check_store_schemas.py /yuneta/store/wattyzerdb    # one store, or several dirs
+python3 $T/check_store_schemas.py --list-ids-yuno db_history_ce^1620 /yuneta/store/yunovatioscedb   # the LIST estimate with that yuno
 # checked 126 schema files: 0 faults, 0 unreadable
 ```
 
@@ -50,7 +51,7 @@ topic (and column), the fault, and the message the SDK logs.
 | `ERROR` | The topic opens as it was, and the ERROR is logged at every open: a pkey2 that is `id`, the tkey or named twice, a pkey2 of no column, a `^` in a topic name or a hook id, a second `main_topic`, two `file` columns deriving one `__assets__` hook. |
 | `PROJECTION` | The projection of the schema into `__system__` (`C_TREEDB`, on the master) refuses the node: a `<treedb>.<topic>.<column>` longer than a record key, a hook column that is not a dict or a list. |
 | `CUT` | The `__assets__` hook of a `file` column is cut to `NAME_MAX` at the open, with no log. |
-| `LIST` | The id of a list of an index is cut to `NAME_MAX`. **Estimated**: the id holds the name of the gobj that owns the tranger, which no file says; it is taken as `tranger_<treedb>` (the name `C_TREEDB` gives it), or as the name given with `--list-ids-gobj`. |
+| `LIST` | The id of a list of an index is cut to `NAME_MAX`. **Estimated**: the id holds two things that no file says. The yuno that opens the store, `<role>^<name>` (after 7.27.10), is taken as 32 bytes, longer than the yunos of our nodes, or as the one given with `--list-ids-yuno db_history_ce^1620` (`--list-ids-yuno ""` for an SDK up to 7.27.10). The name of the gobj that owns the tranger is taken as `tranger_<treedb>` (the name `C_TREEDB` gives it), or as the name given with `--list-ids-gobj`. |
 
 A fault a NEW topic would be refused for is a `CRITICAL` when the topic is not
 on disk yet (no `<topic>/topic_desc.json` beside the schema), and an `ERROR`
