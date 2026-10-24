@@ -134,6 +134,12 @@ still reported and fails the test.
     `my-permissions` says `read-scenarios: ["scn"]` and false for the rest
     to the viewer, true for everything to a user who may do everything.
 
+15. What a user may do changed in the users store. The store's events are
+    sent to the control center as C_NODE publishes them: a role created,
+    updated or deleted, and a link or unlink whose parent is a role, publish
+    `EV_PERMISSIONS_CHANGED` once each; an update of a user (its sessions
+    change at every login) and a link of another topic publish nothing.
+
 ## Run
 
 ```bash

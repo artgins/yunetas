@@ -29,6 +29,12 @@
  *  on, so a role whose `parameters` scope it (C_AUTHZ) grants it for some
  *  scenarios only: the list keeps them, save checks the id it saves, and
  *  such a user watches them with watch-scenario, never with command-agent.
+ *  When what a user may do changes in the `authz` store -- a role created,
+ *  changed or deleted, a role given or taken -- it publishes
+ *  EV_PERMISSIONS_CHANGED (public, no data) to the clients that subscribed,
+ *  which ask `my-permissions` again: a console shows the new controls
+ *  without a reload. A user's own record is not watched: it changes at every
+ *  login (its sessions), and disabling or deleting a user drops its sessions.
  *  A RUN sends each step to the node's agent as `command-yuno`, carrying
  *  the user who asked (`__username__`, what the agent's audit records),
  *  one after the other: a step is sent only when the one before it
@@ -74,6 +80,16 @@
 /*  A run id is `<scenario id>.<ms>` and must fit in NAME_MAX.  */
 #define SCENARIO_ID_MAX 200
 
+/*  What the users store publishes when something in it changes  */
+#define AUTHZ_STORE_EVENTS {                \
+    EV_TREEDB_NODE_CREATED,                 \
+    EV_TREEDB_NODE_UPDATED,                 \
+    EV_TREEDB_NODE_DELETED,                 \
+    EV_TREEDB_NODE_LINKED,                  \
+    EV_TREEDB_NODE_UNLINKED,                \
+    0                                       \
+}
+
 /***************************************************************************
  *              Structures
  ***************************************************************************/
@@ -102,6 +118,8 @@ PRIVATE json_t *cmd_watch_scenario(hgobj gobj, const char *cmd, json_t *kw, hgob
 PRIVATE json_t *cmd_my_permissions(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *forward_to_agent(hgobj gobj, json_t *kw, hgobj src);
+PRIVATE int ac_authz_store_changed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
+GOBJ_DECLARE_EVENT(EV_PERMISSIONS_CHANGED);     // defined with the gclass, below
 PRIVATE json_t *refuse_scenario_command(
     hgobj gobj,
     const char *permission,
@@ -348,6 +366,7 @@ typedef struct _PRIVATE_DATA {
 
     hgobj gobj_treedbs;
     hgobj gobj_treedb_controlcenter;
+    hgobj gobj_treedb_authzs;       // the users store of C_AUTHZ: watched for permission changes
     hgobj gobj_authz;
 
 
@@ -677,6 +696,18 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
     gobj_start_tree(priv->gobj_input_side);
 
+    /*
+     *  What a user may do lives in the users store of C_AUTHZ. A control
+     *  center with no store (a test yuno) has no permissions to announce.
+     */
+    priv->gobj_treedb_authzs = gobj_find_service("treedb_authzs", FALSE);
+    if(priv->gobj_treedb_authzs) {
+        gobj_event_t authz_store_events[] = AUTHZ_STORE_EVENTS;
+        for(int i=0; authz_store_events[i]; i++) {
+            gobj_subscribe_event(priv->gobj_treedb_authzs, authz_store_events[i], 0, gobj);
+        }
+    }
+
     start_rates_tick(gobj);
     return 0;
 }
@@ -687,6 +718,14 @@ PRIVATE int mt_play(hgobj gobj)
 PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->gobj_treedb_authzs) {
+        gobj_event_t authz_store_events[] = AUTHZ_STORE_EVENTS;
+        for(int i=0; authz_store_events[i]; i++) {
+            gobj_unsubscribe_event(priv->gobj_treedb_authzs, authz_store_events[i], 0, gobj);
+        }
+        priv->gobj_treedb_authzs = 0;
+    }
 
     /*---------------------------------------*
      *  A run in flight ends here: written
@@ -3386,6 +3425,24 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Something changed in the users store: a change of what a user may do
+ *  -- a role, or a link from a role (a user given or taken it, a child
+ *  role) -- is told to the clients, which ask `my-permissions` again. A
+ *  user's own record changes at every login and is not one.
+ ***************************************************************************/
+PRIVATE int ac_authz_store_changed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    const char *topic = (event == EV_TREEDB_NODE_LINKED || event == EV_TREEDB_NODE_UNLINKED)?
+        kw_get_str(gobj, kw, "parent_topic_name", "", 0) :
+        kw_get_str(gobj, kw, "topic_name", "", 0);
+    if(strcmp(topic, "roles")==0) {
+        gobj_publish_event(gobj, EV_PERMISSIONS_CHANGED, json_object());
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  Identity_card off from
  *      Web clients (__top_side__)
  *      agent clients (__input_side__)
@@ -3816,6 +3873,7 @@ GOBJ_DEFINE_GCLASS(C_CONTROLCENTER);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DEFINE_EVENT(EV_PERMISSIONS_CHANGED);
 
 /***************************************************************************
  *          Create the GClass
@@ -3852,6 +3910,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT,                ac_timeout,              0},
         {EV_TIMEOUT_PERIODIC,       ac_timeout,              0},
         {EV_STOPPED,                0,                       0},
+
+        {EV_TREEDB_NODE_CREATED,    ac_authz_store_changed,  0},
+        {EV_TREEDB_NODE_UPDATED,    ac_authz_store_changed,  0},
+        {EV_TREEDB_NODE_DELETED,    ac_authz_store_changed,  0},
+        {EV_TREEDB_NODE_LINKED,     ac_authz_store_changed,  0},
+        {EV_TREEDB_NODE_UNLINKED,   ac_authz_store_changed,  0},
         {0,0,0}
     };
 
@@ -3878,6 +3942,15 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT,                0},
         {EV_TIMEOUT_PERIODIC,       0},
         {EV_STOPPED,                0},
+
+        {EV_TREEDB_NODE_CREATED,    0},
+        {EV_TREEDB_NODE_UPDATED,    0},
+        {EV_TREEDB_NODE_DELETED,    0},
+        {EV_TREEDB_NODE_LINKED,     0},
+        {EV_TREEDB_NODE_UNLINKED,   0},
+
+        /*  What a user may do changed: a client asks my-permissions again  */
+        {EV_PERMISSIONS_CHANGED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
 
         {NULL, 0}
     };

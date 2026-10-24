@@ -129,6 +129,15 @@ the scenario it keeps -- and never needs `command-agent`, which sends anything
 to any node. `my-permissions` tells the console what to offer. Details and the
 role row: doc.yuneta.io, *controlcenter* -> *A user who may see one scenario*.
 
+**When it changes** (7.27.16+): the control center watches its `authz` store
+(`treedb_authzs`) and publishes `EV_PERMISSIONS_CHANGED` -- a public event with
+no data -- when a role is created, changed or deleted, or a link whose parent
+is a role is made or undone (a user given or taken a role, a child role). A
+client subscribed to it on the service `controlcenter` asks `my-permissions`
+again: the console shows the new controls without a reload. A user's own
+record is not watched -- it changes at every login (its sessions) -- and
+disabling or deleting a user already drops its sessions.
+
 ## Data model: scenarios and their runs
 
 `src/treedb_schema_controlcenter.c` declares the control center's own treedb

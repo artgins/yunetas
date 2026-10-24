@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## v7.27.16 (2026-10-24)
+
+A lite release of the controlcenter: a console learns that what its user may
+do changed, without a reload. Only the controlcenter is deployed (1996/1997
+on a.com). The tests it touches ran on the dev machine
+(`test_c_controlcenter_scenarios`, `authz_scoped_permissions`). No
+performance study: no benchmark runs it.
+
+- **controlcenter: `EV_PERMISSIONS_CHANGED`.** It watches its `authz` store
+  (`treedb_authzs`) and publishes the event -- public, no data -- when a role
+  is created, changed or deleted, or a link whose parent is a role is made or
+  undone (a user given or taken a role, a child role). A client subscribed to
+  it on the service `controlcenter` asks `my-permissions` again. A user's own
+  record is not watched: it changes at every login (its sessions). Up to
+  7.27.15 a console saw a role given to its user only after a reload.
+  `test_c_controlcenter_scenarios` case 15.
+- **gui_agent 1.0.0** and **gui_treedb 1.0.0** (yunos-js): one digit per
+  segment from now on, as the `yunetas` CLI. gui_agent 1.0.0 subscribes to
+  the event and shows the new controls at once; gui_agent 0.29.116 has the
+  Roles view of Users (what each role grants and for what, edited there).
+
 ## v7.27.15 (2026-10-24)
 
 A lite release of the controlcenter, which replaces 7.27.14 before it was

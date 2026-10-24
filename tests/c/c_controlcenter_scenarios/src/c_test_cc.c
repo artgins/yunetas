@@ -46,7 +46,10 @@
  *                the client loops connect/inject/leave;
  *              - a user who may read one scenario lists that one only,
  *                watches it with watch-scenario (the line the agent gets
- *                is built here) and is told so by my-permissions.
+ *                is built here) and is told so by my-permissions;
+ *              - a change of a role, or of a link from a role, in the users
+ *                store is told as EV_PERMISSIONS_CHANGED; a user's own
+ *                update is not.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -61,6 +64,8 @@
  ***************************************************************************/
 #define AGENT_HOST  "node1"
 #define DROPS_WAIT_MS   5000    // the most a phase waits for the drops timer
+
+GOBJ_DECLARE_EVENT(EV_PERMISSIONS_CHANGED);     // c_controlcenter.c
 
 /***************************************************************************
  *              Structures
@@ -139,6 +144,7 @@ typedef struct _PRIVATE_DATA {
     hgobj client3;
     json_int_t rates_tx0;
     json_int_t rates_rx0;
+    int permissions_changed;    // EV_PERMISSIONS_CHANGED published by the control center
 } PRIVATE_DATA;
 
 
@@ -1158,6 +1164,53 @@ PRIVATE int test_scoped_viewer(hgobj gobj, hgobj client)
 }
 
 /***************************************************************************
+ *  15. What a user may do changed in the users store: a role created,
+ *      changed or deleted, a link from a role. The control center tells
+ *      its subscribers (EV_PERMISSIONS_CHANGED), which ask my-permissions
+ *      again; a user's own record (it changes at every login) and a link
+ *      of another topic are not a change of permissions. The store's
+ *      events are sent here as C_NODE publishes them.
+ ***************************************************************************/
+PRIVATE int test_permissions_changed(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    gobj_subscribe_event(priv->cc, EV_PERMISSIONS_CHANGED, 0, gobj);
+    priv->permissions_changed = 0;
+
+    struct {
+        gobj_event_t event;
+        const char *key;
+        const char *topic;
+        int told;
+    } cases[] = {
+        {EV_TREEDB_NODE_CREATED,  "topic_name",        "roles", 1},
+        {EV_TREEDB_NODE_UPDATED,  "topic_name",        "roles", 1},
+        {EV_TREEDB_NODE_DELETED,  "topic_name",        "roles", 1},
+        {EV_TREEDB_NODE_LINKED,   "parent_topic_name", "roles", 1},
+        {EV_TREEDB_NODE_UNLINKED, "parent_topic_name", "roles", 1},
+        {EV_TREEDB_NODE_UPDATED,  "topic_name",        "users", 0},
+        {EV_TREEDB_NODE_LINKED,   "parent_topic_name", "users", 0},
+        {0}
+    };
+    for(int i=0; cases[i].event; i++) {
+        int before = priv->permissions_changed;
+        gobj_send_event(priv->cc, cases[i].event,
+            json_pack("{s:s, s:s}", cases[i].key, cases[i].topic, "treedb_name", "treedb_authzs"),
+            gobj
+        );
+        if(priv->permissions_changed - before != cases[i].told) {
+            char what[NAME_MAX];
+            snprintf(what, sizeof(what), "%s of %s", cases[i].event, cases[i].topic);
+            ret += fail(gobj, "EV_PERMISSIONS_CHANGED told for a change of the users store", what);
+        }
+    }
+    gobj_unsubscribe_event(priv->cc, EV_PERMISSIONS_CHANGED, 0, gobj);
+    return ret;
+}
+
+/***************************************************************************
  *  9. Who gets what the agent sends back when it names no web client:
  *     only one of this yuno's own ievent links (C_IEVENT_CLI), the one the
  *     request came in by -- never a local service named in a hop below
@@ -1494,6 +1547,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_answer_to_local_requesters(gobj, client1);
     result += test_inject_in_a_loop(gobj, client2);
     result += test_scoped_viewer(gobj, client1);
+    result += test_permissions_changed(gobj);
 
     priv->client1 = client1;
     priv->client3 = client3;
@@ -1663,6 +1717,17 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  EV_PERMISSIONS_CHANGED of the control center (case 15)
+ ***************************************************************************/
+PRIVATE int ac_permissions_changed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    priv->permissions_changed++;
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  EV_STOPPED
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -1727,6 +1792,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_idle[] = {
         {EV_TIMEOUT,                ac_timeout,         0},
         {EV_STOPPED,                ac_stopped,         0},
+        {EV_PERMISSIONS_CHANGED,    ac_permissions_changed, 0},
         {0, 0, 0}
     };
 
@@ -1738,6 +1804,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_TIMEOUT,                0},
         {EV_STOPPED,                0},
+        {EV_PERMISSIONS_CHANGED,    0},
         {0, 0}
     };
 

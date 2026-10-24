@@ -423,6 +423,19 @@ ycommand ... -c 'my-permissions'
 #     "write-scenarios": false, "run-scenarios": ["renfe-20k-hidraulia"]}
 ```
 
+**When the permissions change** (7.27.16+). The control center watches its
+`authz` store and publishes `EV_PERMISSIONS_CHANGED` (public, no data) when a
+role is created, changed or deleted, or a role is given, taken, or made the
+child of another. A client subscribes to it on the service `controlcenter`
+and asks `my-permissions` again; the console does, so a user given
+`run-scenarios` while their console is open sees the actions appear without
+a reload. An update of a user's own record (its sessions, at every login) is
+not announced.
+
+```js
+gobj_subscribe_event(iev, "EV_PERMISSIONS_CHANGED", {__service__: "controlcenter"}, subscriber);
+```
+
 **A link to a scenario.** The console shows a saved scenario at
 `https://<console>/#/scenarios/live/<id>`, so that address is a link to send:
 the user signs in and lands on it.
@@ -544,7 +557,7 @@ never armed: all six read 0.
 | `run-scenario` | Run the steps of an action, in order (`scenario_id`, `action`) |
 | `scenario-runs` | The runs of a scenario, newest first (`scenario_id`) |
 | `watch-scenario` | Watch the yunos of a scenario on one node, the watch built here (`scenario_id`, `node`, `keys`, `period`, `stop`) |
-| `my-permissions` | The permissions of the user who asks: `true`, `false`, or the scenarios it is granted for |
+| `my-permissions` | The permissions of the user who asks: `true`, `false`, or the scenarios it is granted for; `EV_PERMISSIONS_CHANGED` says when to ask again |
 | `authzs` | Authorization help |
 | `help` | Command help |
 
