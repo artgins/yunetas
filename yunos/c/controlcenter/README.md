@@ -184,7 +184,8 @@ A scenario is a document saved whole:
     "node": "yunovatios-controlador",
     "yunos": [
         {"key": "sim",    "id": "stress", "service": "sim_controllers", "rate": "tx"},
-        {"key": "gate",   "id": "2120",   "label": "gate_central"},
+        {"key": "gate",   "id": "2120",   "label": "gate_central",
+         "queue_service": "__output_side__"},
         {"key": "tracks", "id": "5120",   "label": "db_tracks_ce"}
     ],
     "links": [["sim", "gate"], ["gate", "tracks"]],
@@ -198,7 +199,12 @@ A scenario is a document saved whole:
 }
 ```
 
-`node` is the scenario's default; a yuno can carry its own. `agent_url`
+`node` is the scenario's default; a yuno can carry its own. `queue_service`
+(7.27.21+) names the service that holds a yuno's output queue when it is not
+the one it is watched on: a gate's queue towards its store is in
+`__output_side__`, and its main service reports none. `watch-scenario` adds
+it to the watch (`ids=2120,2120:__output_side__`), and the console shows that
+queue on the card and in a chart of its own. `agent_url`
 instead of `node` makes a DIRECT scenario, which the web console watches
 through its own link to that agent (and which `run-scenario` refuses). An
 action is `start`, `pause`, `resume`, `stop` or `report`, each a list of

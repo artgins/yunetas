@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## v7.27.21 (2026-10-24)
+
+A lite release of the controlcenter: only it is deployed (1996/1997 on
+a.com). The test it touches ran on the dev machine. No performance study:
+the change builds a command line.
+
+- **controlcenter: a yuno of a scenario may name its `queue_service`**, the
+  service that holds its output queue when it is not the one it is watched
+  on -- a gate's queue towards its store is in `__output_side__`, and its
+  main service reports none. `save-scenario` checks it like `service`
+  (*"yunos[N]: queue_service: letters, digits and _ . ^ -"*), and
+  `watch-scenario` watches the yuno on it too
+  (`watch-yuno-stats ids=2120,2120:__output_side__ ...`). The web console
+  (gui_agent 1.0.4) shows that queue on the card and in a chart of its own:
+  those are the queues to watch in a load test. `test_c_controlcenter_scenarios`
+  case 14.
+
 ## v7.27.20 (2026-10-24)
 
 A lite release of the controlcenter (the C_AUTHZ it links): only it is

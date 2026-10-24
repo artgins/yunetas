@@ -261,7 +261,8 @@ watch, or just a group of yunos to watch. It is a document saved whole:
     "node": "yunovatios-controlador",
     "yunos": [
         {"key": "sim",    "id": "stress", "service": "sim_controllers", "rate": "tx"},
-        {"key": "gate",   "id": "2120",   "label": "gate_central"},
+        {"key": "gate",   "id": "2120",   "label": "gate_central",
+         "queue_service": "__output_side__"},
         {"key": "tracks", "id": "5120",   "label": "db_tracks_ce"}
     ],
     "links": [["sim", "gate"], ["gate", "tracks"]],
@@ -280,7 +281,7 @@ watch, or just a group of yunos to watch. It is a document saved whole:
 | `id` | The scenario's name: no blanks, no `^`, no `` ` ``. |
 | `node` | The node (agent hostname or UUID) of every yuno that does not say its own. |
 | `agent_url` | Instead of `node`: a DIRECT scenario, watched by the web console through its own link to that agent. `run-scenario` refuses it. |
-| `yunos` | `id` (the agent's yuno id) and optionally `key` (how the rest of the scenario names it, needed when two nodes carry the same id), `node`, `service`, `label`, `rate` (`rx` or `tx`). |
+| `yunos` | `id` (the agent's yuno id) and optionally `key` (how the rest of the scenario names it, needed when two nodes carry the same id), `node`, `service`, `label`, `rate` (`rx` or `tx`), `queue_service` (the service that holds its output queue, when it is not `service`: `__output_side__` for a gate; 7.27.21+). |
 | `links` | `[from, to]` pairs of keys: how the messages flow. |
 | `actions` | `start`, `pause`, `resume`, `stop`, `report`: each a list of steps `{yuno, service?, command}`, one command line with its `key=value` parameters. |
 | `view` | How the console shows it (`mode`: `graph` or `cards`). |
@@ -399,13 +400,15 @@ ids=..."` to each node -- which needs `command-agent`. `watch-scenario` asks
 only `read-scenarios` on the scenario, and the control center BUILDS the
 watch itself from the scenario it keeps: the yunos of that node (`keys=`, a
 comma-separated list of yuno keys, narrows it), with `period=`; `stop=1` ends
-it. The readings come back as `EV_YUNO_STATS`, as through `command-agent`
-(the client says it takes them in its `__relays__`). The agent never gets a
+it. A yuno with a `queue_service` is watched on that service too, so the
+queue of a gate towards its store comes in the same reading. The readings
+come back as `EV_YUNO_STATS`, as through `command-agent` (the client says it
+takes them in its `__relays__`). The agent never gets a
 line the client wrote:
 
 ```bash
 ycommand ... -c 'watch-scenario scenario_id=renfe-20k-hidraulia node=hidrauliaconnect period=2000'
-# -> the agent of hidrauliaconnect gets: watch-yuno-stats ids=pp9:sim_controllers,pp10:sim_controllers,pp11:sim_controllers,2120,2130,2140,5120 period=2000
+# -> the agent of hidrauliaconnect gets: watch-yuno-stats ids=pp9:sim_controllers,pp10:sim_controllers,pp11:sim_controllers,2120,2120:__output_side__,2130,2130:__output_side__,2140,2140:__output_side__,5120 period=2000
 ycommand ... -c 'watch-scenario scenario_id=renfe-20k-hidraulia node=hidrauliaconnect keys=tracks'
 # -> watch-yuno-stats ids=5120 period=2000
 ycommand ... -c 'watch-scenario scenario_id=renfe-20k-hidraulia node=hidrauliaconnect stop=1'

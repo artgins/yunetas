@@ -1108,6 +1108,29 @@ PRIVATE int test_scoped_viewer(hgobj gobj, hgobj client)
     ret += check_agent_line(gobj, "watch-yuno-stats ids=1234 period=1000",
         "watch-scenario builds the watch of the node's yunos");
 
+    /*
+     *  A yuno whose queue is another service's (a gate's __output_side__)
+     *  is watched on that service too; a queue_service that is no name is
+     *  refused
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", json_pack("{s:s, s:s, s:[{s:s, s:s}]}",
+        "id", "qs", "node", AGENT_HOST, "yunos", "id", "1234", "queue_service", "a b"));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        -1, "queue_service: letters", "a queue_service that is no name is refused");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", json_pack("{s:s, s:s, s:[{s:s, s:s}]}",
+        "id", "qs", "node", AGENT_HOST, "yunos", "id", "1234", "queue_service", "__output_side__"));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        0, "scenario created: qs", "a scenario with a queue_service");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("qs"));
+    json_object_set_new(kw, "node", json_string(AGENT_HOST));
+    ret += check_response(gobj, gobj_command(priv->cc, "watch-scenario", kw, client),
+        0, 0, "watch-scenario of qs");
+    ret += check_agent_line(gobj, "watch-yuno-stats ids=1234,1234:__output_side__ period=2000",
+        "watch-scenario watches the queue_service too");
+
     kw = viewer_kw(client);
     json_object_set_new(kw, "scenario_id", json_string("scn"));
     json_object_set_new(kw, "node", json_string(AGENT_HOST));

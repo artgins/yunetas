@@ -1906,6 +1906,8 @@ PRIVATE json_t *cmd_scenario_runs(hgobj gobj, const char *cmd, json_t *kw, hgobj
  *  read the scenario sees its yunos live without `command-agent` (which
  *  sends anything to any node). `keys` narrows it to some of the yunos of
  *  that node (a console pauses the readings of a yuno); `stop=1` ends it.
+ *  A yuno whose queue is another service's (`queue_service`, a gate's
+ *  __output_side__) is watched on that service too.
  *  The readings come back as from `command-agent` (EV_YUNO_STATS, when the
  *  client's __relays__ says it takes them).
  ***************************************************************************/
@@ -1997,6 +1999,10 @@ PRIVATE json_t *cmd_watch_scenario(hgobj gobj, const char *cmd, json_t *kw_, hgo
                 y_service
             );
             n++;
+            const char *q_service = kw_get_str(gobj, yuno, "queue_service", "", 0);
+            if(!empty_string(q_service) && strcmp(q_service, y_service)!=0) {
+                gbuffer_printf(gbuf, ",%s:%s", y_id, q_service);
+            }
         }
         if(n) {
             gbuffer_printf(gbuf, " period=%lld",
@@ -2482,7 +2488,7 @@ PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz
                 (int)idx, key);
         }
         json_object_set_new(keys, key, json_true());
-        const char *yuno_cols[] = {"node", "service", "label", "rate", 0};
+        const char *yuno_cols[] = {"node", "service", "label", "rate", "queue_service", 0};
         for(int i=0; yuno_cols[i]; i++) {
             if(!str_member(yuno, yuno_cols[i])) {
                 JSON_DECREF(keys)
@@ -2494,6 +2500,14 @@ PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz
         if(!empty_string(yuno_service) && !is_plain_name(yuno_service)) {
             JSON_DECREF(keys)
             return scenario_error(err, errsz, "yunos[%d]: service: letters, digits and _ . ^ -",
+                (int)idx);
+        }
+        /*  The service whose stats say the yuno's queue, when it is not
+         *  `service` (a gate's queue is its __output_side__'s)  */
+        const char *queue_service = str_member(yuno, "queue_service");
+        if(!empty_string(queue_service) && !is_plain_name(queue_service)) {
+            JSON_DECREF(keys)
+            return scenario_error(err, errsz, "yunos[%d]: queue_service: letters, digits and _ . ^ -",
                 (int)idx);
         }
         const char *rate = str_member(yuno, "rate");
