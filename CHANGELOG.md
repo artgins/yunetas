@@ -2,11 +2,25 @@
 
 ## Unreleased
 
+## v7.27.19 (2026-10-24)
+
+A lite release of the controlcenter, which replaces 7.27.18 before it was
+activated (its binary was installed on a.com, not promoted). The tests it
+touches ran on the dev machine. No performance study.
+
+- **controlcenter: while a scenario RUNS, saving it needs `run-scenarios`
+  too** -- a run of it in flight, or its last run that did anything is not a
+  stop, whatever its max_run. 7.27.18 asked it only while a stop was
+  scheduled, which it decided BEFORE the save: a running scenario with no
+  max_run could be given one, with new stop steps, by a user who may write
+  it but not run it, and the save scheduled them. Now *"scenario 'x' runs:
+  saving it needs 'run-scenarios' too"*. `test_c_controlcenter_scenarios`
+  cases 14 and 16.
+
 ## v7.27.18 (2026-10-24)
 
 A lite release of the controlcenter, which replaces 7.27.17 before it was
-activated anywhere (its binary was installed on a.com, not promoted). The
-tests it touches ran on the dev machine. No performance study.
+activated anywhere. Never activated either: 7.27.19 replaced it.
 
 - **controlcenter: while a scenario's stop is scheduled, saving it needs
   `run-scenarios` too.** The control center runs the stop steps of the
@@ -14,7 +28,8 @@ tests it touches ran on the dev machine. No performance study.
   scenario but not run it could rewrite the stop steps of a running one and
   have them run: writing was running. Now *"scenario 'x' runs and its
   max_run will stop it: saving it needs 'run-scenarios' too"* (checked after
-  `write-scenarios`, so nobody without it learns that it runs).
+  `write-scenarios`, so nobody without it learns that it runs). Incomplete:
+  see 7.27.19.
 - **The stop of a max_run says who started what it stops**: *"max_run of
   2100 s reached (started by esg@hidraulia.eu); ..."*.
 - `test_c_controlcenter_scenarios` case 16 checks both.

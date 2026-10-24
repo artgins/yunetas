@@ -284,7 +284,7 @@ watch, or just a group of yunos to watch. It is a document saved whole:
 | `links` | `[from, to]` pairs of keys: how the messages flow. |
 | `actions` | `start`, `pause`, `resume`, `stop`, `report`: each a list of steps `{yuno, service?, command}`, one command line with its `key=value` parameters. |
 | `view` | How the console shows it (`mode`: `graph` or `cards`). |
-| `max_run` | Seconds a start may run before the control center stops it (0 = no limit, a week at most; 7.27.18+). |
+| `max_run` | Seconds a start may run before the control center stops it (0 = no limit, a week at most; 7.27.19+). |
 
 `save-scenario` validates it -- the same rules the console's editor applies --
 and writes every column: a key the new document leaves out is emptied, not
@@ -441,7 +441,7 @@ gobj_subscribe_event(iev, "EV_PERMISSIONS_CHANGED", {__service__: "controlcenter
 `https://<console>/#/scenarios/live/<id>`, so that address is a link to send:
 the user signs in and lands on it.
 
-**A test left running: `max_run`** (7.27.18+). A scenario may say how long a
+**A test left running: `max_run`** (7.27.19+). A scenario may say how long a
 start may run, in seconds (0 = no limit, a week at most):
 
 ```json
@@ -459,9 +459,10 @@ schedule is rebuilt from the runs at start, so a restart does not lose it.
 `scenarios` answers it as `stop_at` (epoch seconds), and every run that ends
 publishes `EV_SCENARIO_RUN_ENDED` (public, no data): the console says *"stops
 at 18:45"* while it runs, and sees it stopped -- by the control center, or by
-anybody -- at once. While a stop is scheduled, saving the scenario needs
-`run-scenarios` on it too (7.27.18): the control center will run the stop
-steps that save writes, so writing them would be running them.
+anybody -- at once. While a scenario runs (a run of it in flight, or its last
+run that did anything is not a stop), saving it needs `run-scenarios` on it
+too (7.27.19): a max_run saved then schedules the stop steps saved then, so
+writing them would be running them.
 
 **What a step may carry.** A scenario id is letters, digits and `_ . @ -`, not
 starting with a dot, 200 characters at most (a run id is `<id>.<ms>`). The

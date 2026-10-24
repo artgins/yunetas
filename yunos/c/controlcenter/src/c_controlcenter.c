@@ -146,6 +146,7 @@ PRIVATE int start_run(
 );
 PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id);
 PRIVATE int run_steps_done(hgobj gobj, json_t *run);
+PRIVATE BOOL scenario_runs_now(hgobj gobj, const char *scenario_id);
 PRIVATE void add_stop_at(hgobj gobj, json_t *scenario);
 PRIVATE void arm_stop_timer(hgobj gobj);
 PRIVATE int stop_due_scenario(hgobj gobj);
@@ -1425,9 +1426,11 @@ PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*
      *  The permission is asked of the id SAVED, never of the client's kw:
      *  a `scenario_id` beside the scenario would answer for another one.
-     *  A scenario whose stop is scheduled (it runs, and its max_run stops
-     *  it) needs run-scenarios too: the control center will run the stop
-     *  steps saved now, and writing them would be running them.
+     *  A scenario that RUNS (its last run that did anything is not a stop,
+     *  or a run of it is in flight) needs run-scenarios too, whatever its
+     *  max_run says before or after: a max_run saved now schedules a stop
+     *  the control center runs with the stop steps saved now, and writing
+     *  them would be running them.
      */
     {
         json_t *jn_id = json_is_object(jn_scenario)? json_object_get(jn_scenario, "id") : NULL;
@@ -1443,14 +1446,14 @@ PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj
                 kw  // owned
             );
         }
-        if(saved_id && json_object_get(priv->auto_stops, saved_id) &&
+        if(saved_id && scenario_runs_now(gobj, saved_id) &&
                 !user_may_scenario(gobj, "run-scenarios", saved_id, kw, src)) {
             JSON_DECREF(jn_parsed)
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("%s: scenario '%s' runs and its max_run will stop it: "
-                    "saving it needs 'run-scenarios' too", gobj_yuno_role_plus_name(), saved_id),
+                json_sprintf("%s: scenario '%s' runs: saving it needs 'run-scenarios' too",
+                    gobj_yuno_role_plus_name(), saved_id),
                 0,
                 0,
                 kw  // owned
@@ -3608,6 +3611,55 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
         }
     }
     JSON_DECREF(runs)
+}
+
+/***************************************************************************
+ *  Does the scenario run? A run of it in flight, or its last run that did
+ *  anything (a report changes nothing) is not a stop.
+ ***************************************************************************/
+PRIVATE BOOL scenario_runs_now(hgobj gobj, const char *scenario_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->run && strcmp(kw_get_str(gobj, priv->run, "scenario_id", "", 0), scenario_id)==0) {
+        return TRUE;
+    }
+    if(!priv->gobj_treedb_controlcenter) {
+        return FALSE;
+    }
+    /*  A new scenario has no runs  */
+    json_t *scenario = gobj_get_node(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        json_pack("{s:s}", "id", scenario_id),
+        0,
+        gobj
+    );
+    if(!scenario) {
+        return FALSE;
+    }
+    JSON_DECREF(scenario)
+    json_t *runs = sort_runs_newest_first(gobj_node_children(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        json_pack("{s:s}", "id", scenario_id),
+        "runs",
+        0,
+        json_pack("{s:b}", "fkey_only_id", 1),
+        gobj
+    ));
+    BOOL runs_now = FALSE;
+    size_t idx; json_t *run;
+    json_array_foreach(runs, idx, run) {
+        const char *action = kw_get_str(gobj, run, "action", "", 0);
+        if(strcmp(action, "report")==0 || run_steps_done(gobj, run)==0) {
+            continue;
+        }
+        runs_now = strcmp(action, "stop")!=0;
+        break;
+    }
+    JSON_DECREF(runs)
+    return runs_now;
 }
 
 /*  `stop_at` of a scenario answered: when its max_run stops it  */

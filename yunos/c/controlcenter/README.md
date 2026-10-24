@@ -132,10 +132,11 @@ answers it as `stop_at` (epoch seconds). Every run that ends publishes
 `EV_SCENARIO_RUN_ENDED` (public, no data): a console watching a scenario reads
 its state again, and sees it stopped by the control center, or by anybody.
 
-**While a stop is scheduled, saving the scenario needs `run-scenarios` too**
-(7.27.18): the control center will run the stop steps that save writes, so
-writing them would be running them -- a user who may write a scenario but not
-run it gets *"scenario 'x' runs and its max_run will stop it: saving it needs
+**While a scenario runs, saving it needs `run-scenarios` too** (7.27.19): it
+runs when a run of it is in flight, or its last run that did anything is not a
+stop. Whatever max_run the save leaves, the control center may run the stop
+steps that save writes, so writing them would be running them -- a user who
+may write a scenario but not run it gets *"scenario 'x' runs: saving it needs
 'run-scenarios' too"*.
 
 ```json

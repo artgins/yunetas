@@ -1078,9 +1078,15 @@ PRIVATE int test_scoped_viewer(hgobj gobj, hgobj client)
         -1, "no permission to 'write-scenarios'", "a scenario_id beside another scenario is no permission");
     kw = viewer_kw(client);
     json_object_set_new(kw, "__username__", json_string("writer"));
+    json_object_set_new(kw, "scenario", scenario_with_step("wr", "resume-generation rate=10"));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        0, "scenario created: wr", "the writer of 'wr' saves it");
+    /*  "scn" runs (case 4 started it): writing it would be running it  */
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "__username__", json_string("writer"));
     json_object_set_new(kw, "scenario", scenario_with_step("scn", "resume-generation rate=10"));
     ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
-        0, "scenario saved: scn", "the writer of 'scn' saves it");
+        -1, "scn' runs: saving it needs 'run-scenarios' too", "the writer may not save a running scn");
 
     /*  Nor read another by naming "scn" in the kw of the whole list  */
     kw = viewer_kw(client);
@@ -1293,6 +1299,18 @@ PRIVATE int test_max_run_start(hgobj gobj, hgobj client)
     json_object_set_new(kw, "scenario", max_run_scenario(1));
     ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
         -1, "saving it needs 'run-scenarios' too", "a writer who may not run cannot save a running mr");
+
+    /*
+     *  Nor the scenario "scn", which runs with no max_run (case 4 started
+     *  it): a max_run saved now would schedule the stop steps saved now
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "__username__", json_string("writer"));
+    json_t *scn = scenario_with_step("scn", "resume-generation rate=10");
+    json_object_set_new(scn, "max_run", json_integer(1));
+    json_object_set_new(kw, "scenario", scn);
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        -1, "saving it needs 'run-scenarios' too", "a writer cannot give a running scn a max_run");
 
     priv->max_run_started = (json_int_t)time_in_seconds();
     json_int_t stop_at = stop_at_of(gobj, client);
