@@ -206,6 +206,33 @@ each announced the max block reserved it each with a few bytes sent.
 }
 ```
 
+### Writing a frame
+
+`EV_SEND_MESSAGE` takes a gbuffer and writes it as one text frame:
+
+```C
+gbuffer_t *gbuf = gbuffer_create(256, 256);
+gbuffer_append_string(gbuf, "{\"event\": \"EV_HELLO\"}");
+json_t *kw = json_pack("{s:I}",
+    "gbuffer", (json_int_t)(uintptr_t)gbuf
+);
+gobj_send_event(gobj_websocket, EV_SEND_MESSAGE, kw, gobj);
+```
+
+A **server** writes a frame with up to 64 KB of payload with ONE `EV_TX_DATA`
+to its `C_TCP`: the header and the payload are copied into one gbuffer. A
+bigger frame is written as before: its header, then the gbuffer of the payload
+itself, not copied. `C_TCP` counts every `EV_TX_DATA` in `txMsgs`, so a server
+counts one message per frame of up to 64 KB, where it counted two. Up to
+7.27.7 the header always went alone, and the peer often read it alone.
+
+A **client** masks every frame (RFC 6455 §5.3) with a key from `getrandom()`,
+taken 64 keys at a time. Up to 7.27.7 the key came from `srand(time(0))` and
+`rand()` at every frame: every frame of the same second had the same key, which
+the clock could predict, and the process's own `rand()` sequence was reset at
+every frame. If `getrandom()` fails, an ERROR is logged and the frame gets a
+key from a weak generator.
+
 ### Closing
 
 `ws_close()` -- a timeout, a protocol error, a received Close -- moves the

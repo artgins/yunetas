@@ -539,6 +539,33 @@ kernel was not touched.
   word. A `data-i18n-count` (read back by `refresh_language`) would make them
   ordinary.
 
+### Memory and jansson (from the performance round of 7.28.0)
+
+Three decisions of the user (2026-10-24), each one with doubts: kept here to
+be weighed again, not as settled.
+
+- **gbmem's own memory manager, the pools of yuneta V6.** **FUTURE.**
+  glibc's `malloc()` and `free()` were 13% to 22% of the instructions of
+  the network benchmarks in the cloud audit (`perf_tcp_test4`,
+  `perf_ievent`, `perf_mqtt`, `perf_auth_bff`). V6 had pools of blocks by
+  size (from MAWK's `zmalloc`); the switch is still there
+  (`USE_OWN_SYSTEM_MEMORY` in `gbmem_setup()`, `FALSE` in every yuno) and
+  the code was not carried to v7. One thread, so no locks. The price: what
+  a pool keeps is not given back to the system, so a process stays at the
+  size of its peak.
+- **The ESP32 copy of jansson stays as it is** (2.14 with the lexer fix by
+  hand, `kernel/c/root-esp32/components/esp_jansson`). **FUTURE.** To make
+  it Yuneta's jansson: a build setting for the size of the dump buffer (on
+  the stack, and the yuno's task has 8 KB), a measure of the 64-bit words
+  on its 32-bit cores, a build and a run on a device.
+- **Slots for the first pairs inside a jansson object.** **Discarded for
+  now.** Most pairs of a message would take no block of their own (some 5%
+  of `perf_ievent`, estimated), for some 320 bytes more in every object,
+  used or not -- and a treedb holds hundreds of thousands of them. The two
+  smaller cousins of this idea (the first buckets of a table and the first
+  table of an array inside their object) were measured and left out of
+  `2.15.1-yuneta.1`: up to 8% more live memory, no gain in time.
+
 ---
 
 ## 6. Operations and deployment

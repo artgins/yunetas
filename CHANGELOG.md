@@ -7,6 +7,73 @@ the performance round taken from the cloud audit
 (branch `claude/laughing-pasteur-o80yf7`) lands here, with jansson from
 Yuneta's own fork (`artgins/jansson`).
 
+- **A performance round, taken from a cloud audit of the C SDK** (branch
+  `claude/laughing-pasteur-o80yf7`, its documents in `performance/audit/`
+  there). Every commit was reviewed again and cherry-picked one by one; the
+  ones that added cached state for a small gain, or changed a gclass's
+  lifecycle, were left out (a `C_TIMER` subscribed to the yuno's tick for
+  its life, a static cache of topics in timeranger2, the memo of a file id,
+  the state of a treedb's events and a column reading held for a whole
+  write in C structures, the skip of the payload timer, mbedTLS's scratch
+  read). Three benchmarks join `performance/c/`: `perf_ievent`
+  (inter-yuno round trips over websocket), `perf_mqtt` (MQTT QoS 0 through
+  the embedded broker) and `perf_tr_treedb_read` (the reads of a treedb).
+  What a caller can see:
+    - **jansson is Yuneta's own JSON library**, `github.com/artgins/jansson`
+      at the tag `2.15.1-yuneta.1` (`linux-ext-libs` 1.26): upstream
+      v2.15.1 with a series of Yuneta's commits, rebased onto each upstream
+      release. It replaces `patches/jansson/0001` (the lexer fix, which now
+      stops only on a failed save: `"1\xff"` with
+      `JSON_DECODE_ANY | JSON_DISABLE_EOF_CHECK` gives 1 again, as upstream)
+      and adds the speed changes of the round: ASCII eight bytes at a time,
+      runs in the lexer, a seeded hash of 32-bit words, a short string in
+      one block, a string token without its own allocation, the loop check
+      without a hashtable for 32 levels, the dump gathered in a buffer. A
+      custom allocator sees fewer allocations, of other sizes; a dump whose
+      callback fails once fails; a key that cannot be dumped fails the dump
+      (it wrote `{":1}` and answered 0). Built with
+      `JANSSON_THREAD_SAFE_REFCOUNT=OFF`: a json value must not be shared
+      by threads. Every yuno is rebuilt (`jansson_config.h` changes); a
+      node that builds from source reruns
+      `./extrae.sh && ./configure-libs.sh`.
+    - **jansson's blocks are not zeroed**: `gbmem_get_json_allocators()`,
+      new in gobj-c, gives the pair for `json_set_alloc_funcs()` with the
+      tracking and limits of `gbmem_malloc()` and without its zeroing
+      (filled with `0xA5` under `CONFIG_DEBUG_TRACK_MEMORY`). Every yuno,
+      `C_AUTHZ`, the tools, the benchmarks and the tests take it.
+      `gbmem_malloc()` still zeroes.
+    - **A publisher keeps a C record of each subscription**, read when it
+      is made, and publications and searches read it: a value written into
+      a subscription dict afterwards (a key replaced) is not seen by the
+      framework. Nothing in the SDK writes them; the API is the same.
+      `EV_STATE_CHANGED` is not built nor published when nobody would see
+      it. `c_subscriptions` test4.
+    - **The open of a treedb reads the newest record of each key only**
+      (x12 with a long history), and its hooks are rebuilt indexed (8 000
+      children in one hook: 11.4 s -> 0.6 s): a damaged OLDER record of a
+      key of a topic without pkey2s no longer fails the key
+      (`tr_treedb_load_failed` case 10). The realtime lists the treedb
+      leaves on its topics show `only_md` in their `match_cond`. The
+      columns of a topic are read once while its `cols` is the same json:
+      a column's description is never changed in place
+      (`YUNO_TREEDB.md` 3.5).
+    - **`C_WEBSOCKET` writes a server frame of up to 64 KB in one write**:
+      the same bytes, but `C_TCP`'s `txMsgs` counts one message where it
+      counted two. A masked frame is unmasked in place, eight bytes at a
+      time.
+    - **The gbuffer of an OpenSSL read is the size read**, able to grow up
+      to `rx_buffer_size` (it was 32 KB whatever was read); so is the body
+      buffer of an HTTP request under 4 KB, and the gbuffer `json2gbuf()`
+      makes for a dump of up to 4 KB. When the gbuffer of a TLS read cannot
+      be created, the bytes read are lost (logged with their count): only
+      with replaced allocators, since in a yuno gbmem aborts first.
+    - **Security: the masking key of a websocket client frame comes from
+      `getrandom()`**. It came from `srand(time(0))` + `rand()` at every
+      frame: the same key for every frame of a second, predictable from the
+      clock (RFC 6455 §5.3).
+    - timeranger2 logs a NULL file id, and a file name cut at the size of
+      its buffer, where `snprintf()` wrote `(null)` or cut it in silence.
+
 ## v7.27.21 (2026-10-24)
 
 A lite release of the controlcenter: only it is deployed (1996/1997 on
