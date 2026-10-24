@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **The `yunetas` CLI 1.0.2** (on PyPI): the table of `sync-binaries` stays
+  in line with the long versions of 7.27.11 (`2.17.3-7.27.13`). Its role,
+  version and size columns are as wide as their longest value, the old widths
+  as a floor; a fixed 12 for a version pushed every column after it out of
+  line.
+
 ## v7.27.13 (2026-10-24)
 
 A lite release of the agent alone: it says when a binary's version would
