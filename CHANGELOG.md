@@ -2,14 +2,14 @@
 
 ## Unreleased
 
-- **A performance audit of the C SDK** (`performance/audit/`): eleven rounds
+- **A performance audit of the C SDK** (`performance/audit/`): twelve rounds
   (the core of gobj-c; timeranger2 and tr_treedb; the network path; the
   inter-yuno path, HTTP and MQTT; subscriptions and the reads of a treedb;
   jansson's parse; the bytes of jansson's lexer, UTF-8 check and dump;
   jansson's allocations, dump and lexer, in standard C only; jansson's
   blocks, dump and counts, and the websocket mask; the columns of a treedb
-  topic, read once; fewer lookups in timeranger2's append and the treedb's
-  writes), each change
+  topic, read once, and once for a whole write; fewer lookups in
+  timeranger2's append and the treedb's writes), each change
   a commit of its own that leaves results,
   bytes, events, logs and errors as they were, and the proposals the rounds
   left for a decision, applied on the user's decision.
