@@ -66,6 +66,7 @@
 #define DROPS_WAIT_MS   5000    // the most a phase waits for the drops timer
 
 GOBJ_DECLARE_EVENT(EV_PERMISSIONS_CHANGED);     // c_controlcenter.c
+GOBJ_DECLARE_EVENT(EV_SCENARIO_RUN_ENDED);      // c_controlcenter.c
 
 /***************************************************************************
  *              Structures
@@ -145,6 +146,8 @@ typedef struct _PRIVATE_DATA {
     json_int_t rates_tx0;
     json_int_t rates_rx0;
     int permissions_changed;    // EV_PERMISSIONS_CHANGED published by the control center
+    int runs_ended;             // EV_SCENARIO_RUN_ENDED published by the control center
+    json_int_t max_run_started; // when the start of case 16 ended (its stop is due 1 s after)
 } PRIVATE_DATA;
 
 
@@ -1211,6 +1214,126 @@ PRIVATE int test_permissions_changed(hgobj gobj)
 }
 
 /***************************************************************************
+ *  16. A scenario's max_run: its start schedules its stop, which the
+ *      control center runs itself when it is due. A: the scenario "mr"
+ *      (max_run 1 s) is saved and started; its stop is due ~1 s after,
+ *      `scenarios` says when (`stop_at`); a max_run out of 0..a week is
+ *      refused. B (the next phase, past it): the control center sent the
+ *      stop step by itself, answered here as the agent does; the run is
+ *      written as the control center's with the reason, and the stop is
+ *      no longer scheduled. Every run that ends is told
+ *      (EV_SCENARIO_RUN_ENDED).
+ ***************************************************************************/
+PRIVATE json_t *max_run_scenario(json_int_t max_run)
+{
+    return json_pack("{s:s, s:s, s:I, s:[{s:s}], s:{s:[{s:s, s:s}], s:[{s:s, s:s}]}}",
+        "id", "mr",
+        "node", AGENT_HOST,
+        "max_run", max_run,
+        "yunos", "id", "1234",
+        "actions",
+            "start", "yuno", "1234", "command", "resume-generation",
+            "stop", "yuno", "1234", "command", "pause-generation"
+    );
+}
+
+PRIVATE json_int_t stop_at_of(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("mr"));
+    json_t *response = gobj_command(priv->cc, "scenarios", kw, client);
+    json_int_t stop_at = kw_get_int(gobj,
+        json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0), "stop_at", 0, KW_WILD_NUMBER);
+    JSON_DECREF(response)
+    return stop_at;
+}
+
+PRIVATE int test_max_run_start(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    gobj_subscribe_event(priv->cc, EV_SCENARIO_RUN_ENDED, 0, gobj);
+    priv->runs_ended = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", max_run_scenario(-1));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        -1, "max_run: seconds", "a negative max_run is refused");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", max_run_scenario(1));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        0, "scenario created: mr", "a scenario with a max_run");
+    if(stop_at_of(gobj, client) != 0) {
+        ret += fail(gobj, "a scenario not started has a stop scheduled", "");
+    }
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("mr"));
+    json_object_set_new(kw, "action", json_string("start"));
+    json_t *response = gobj_command(priv->cc, "run-scenario", kw, client);
+    JSON_DECREF(response)
+    json_t *step = agent_request(gobj, "the start step of mr goes to the agent");
+    if(!step) {
+        return ret - 1;
+    }
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, 0, "generating");
+    JSON_DECREF(step)
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
+
+    priv->max_run_started = (json_int_t)time_in_seconds();
+    json_int_t stop_at = stop_at_of(gobj, client);
+    if(stop_at < priv->max_run_started || stop_at > priv->max_run_started + 1) {
+        char detail[64];
+        snprintf(detail, sizeof(detail), "%lld, started %lld", (long long)stop_at,
+            (long long)priv->max_run_started);
+        ret += fail(gobj, "a start schedules its stop at the end of the start + max_run", detail);
+    }
+    if(priv->runs_ended != 1) {
+        ret += fail(gobj, "the start that ended is told (EV_SCENARIO_RUN_ENDED)", "");
+    }
+    return ret;
+}
+
+PRIVATE int test_max_run_stopped(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *step = agent_request(gobj, "the control center sends the stop of mr by itself");
+    if(!step) {
+        return -1;
+    }
+    if(!strstr(kw_get_str(gobj, step, "__command__", "", 0), "pause-generation")) {
+        ret += fail(gobj, "the stop step of mr", kw_get_str(gobj, step, "__command__", "", 0));
+    }
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, 0, "paused");
+    JSON_DECREF(step)
+
+    json_t *kw = client_kw(gobj_name(priv->client1));
+    json_object_set_new(kw, "scenario_id", json_string("mr"));
+    json_t *response = gobj_command(priv->cc, "scenario-runs", kw, priv->client1);
+    json_t *newest = json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0);
+    if(strcmp(kw_get_str(gobj, newest, "action", "", 0), "stop")!=0 ||
+            kw_get_int(gobj, newest, "result", -1, KW_WILD_NUMBER) != 0 ||
+            !strstr(kw_get_str(gobj, newest, "comment", "", 0), "max_run of 1 s reached") ||
+            strcmp(kw_get_str(gobj, newest, "username", "", 0), gobj_yuno_role_plus_name())!=0) {
+        ret += fail(gobj, "the stop of the max_run is a run of the control center, with its reason",
+            kw_get_str(gobj, newest, "comment", "", 0));
+    }
+    JSON_DECREF(response)
+    if(stop_at_of(gobj, priv->client1) != 0) {
+        ret += fail(gobj, "a stopped scenario has no stop scheduled", "");
+    }
+    if(priv->runs_ended != 2) {
+        ret += fail(gobj, "the stop that ended is told (EV_SCENARIO_RUN_ENDED)", "");
+    }
+    gobj_unsubscribe_event(priv->cc, EV_SCENARIO_RUN_ENDED, 0, gobj);
+    return ret;
+}
+
+/***************************************************************************
  *  9. Who gets what the agent sends back when it names no web client:
  *     only one of this yuno's own ievent links (C_IEVENT_CLI), the one the
  *     request came in by -- never a local service named in a hop below
@@ -1548,6 +1671,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_inject_in_a_loop(gobj, client2);
     result += test_scoped_viewer(gobj, client1);
     result += test_permissions_changed(gobj);
+    result += test_max_run_start(gobj, client1);
 
     priv->client1 = client1;
     priv->client3 = client3;
@@ -1648,7 +1772,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  tick, at most DROPS_WAIT_MS: a stall of the loop delays them, it
      *  does not reorder them; a timer that never fires fails, loudly.
      */
-    if(priv->phase == 2 || priv->phase == 3) {
+    if(priv->phase == 3 || priv->phase == 4) {
         if(gobj_read_bool_attr(priv->cc, "drops_timer_armed")) {
             if(!test_msectimer(priv->t_wait)) {
                 set_timeout(priv->timer, 100);
@@ -1656,41 +1780,48 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 return 0;
             }
             priv->result += fail(gobj, "the drops timer did not fire in time",
-                priv->phase == 2? "phase 2" : "phase 3");
-            priv->phase = 6;
+                priv->phase == 3? "phase 3" : "phase 4");
+            priv->phase = 7;
         }
     }
 
     switch(priv->phase++) {
         case 0:
             priv->result += run_tests(gobj);
-            set_timeout(priv->timer, 400);  // past every window opened above
+            /*  past every window opened above, and past the stop the
+             *  max_run of case 16 schedules (1 s, on a clock of seconds)  */
+            set_timeout(priv->timer, 2500);
             KW_DECREF(kw)
             return 0;
         case 1:
+            priv->result += test_max_run_stopped(gobj);
+            set_timeout(priv->timer, 100);
+            KW_DECREF(kw)
+            return 0;
+        case 2:
             priv->result += test_drops_window_shortened(gobj);
             priv->t_wait = start_msectimer(DROPS_WAIT_MS);
             set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
-        case 2:
+        case 3:
             priv->result += test_drops_counted_again(gobj);
             priv->t_wait = start_msectimer(DROPS_WAIT_MS);
             set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
-        case 3:
+        case 4:
             priv->result += test_drops_timer_said(gobj);
             priv->result += test_rates_traffic(gobj);
             set_timeout(priv->timer, 2*RATES_TICK_MS + 500);    // past two ticks
             KW_DECREF(kw)
             return 0;
-        case 4:
+        case 5:
             priv->result += test_rates_read(gobj);
             set_timeout(priv->timer, RATES_TICK_MS + 500);  // a tick with the 3 messages
             KW_DECREF(kw)
             return 0;
-        case 5:
+        case 6:
             priv->result += test_stop_outside_shutdown(gobj);
             break;
         default:
@@ -1723,6 +1854,17 @@ PRIVATE int ac_permissions_changed(hgobj gobj, gobj_event_t event, json_t *kw, h
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     priv->permissions_changed++;
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  EV_SCENARIO_RUN_ENDED of the control center (case 16)
+ ***************************************************************************/
+PRIVATE int ac_run_ended(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    priv->runs_ended++;
     KW_DECREF(kw)
     return 0;
 }
@@ -1793,6 +1935,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT,                ac_timeout,         0},
         {EV_STOPPED,                ac_stopped,         0},
         {EV_PERMISSIONS_CHANGED,    ac_permissions_changed, 0},
+        {EV_SCENARIO_RUN_ENDED,     ac_run_ended,       0},
         {0, 0, 0}
     };
 
@@ -1805,6 +1948,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT,                0},
         {EV_STOPPED,                0},
         {EV_PERMISSIONS_CHANGED,    0},
+        {EV_SCENARIO_RUN_ENDED,     0},
         {0, 0}
     };
 

@@ -3,7 +3,7 @@
     This file holds this comment and the literal, nothing else: replace
     it whole with an export of the schema editor.
 
-    treedb_controlcenter  (schema_version 3)
+    treedb_controlcenter  (schema_version 4)
 
     {}  dict hook   (N unique children)
     []  list hook   (n not-unique children)
@@ -27,6 +27,7 @@
             │  agent_url                │
             │  yunos                    │
             │  links                    │
+            │  max_run                  │
             │  actions                  │
             │  view                     │
             │                   runs {} │ ◀─┐
@@ -55,13 +56,13 @@
 static char treedb_schema_controlcenter[]= "\
 {                                                                   \n\
     'id': 'treedb_controlcenter',                                   \n\
-    'schema_version': '3',                                          \n\
+    'schema_version': '4',                                          \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'scenarios',                                      \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Scenario',                           \n\
@@ -121,6 +122,16 @@ static char treedb_schema_controlcenter[]= "\
                     'header': 'Links',                              \n\
                     'type': 'list',                                 \n\
                     'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'max_run': {                                        \n\
+                    'header': 'Max Run (s)',                        \n\
+                    'type': 'integer',                              \n\
+                    'default': 0,                                   \n\
+                    'fillspace': 6,                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
                         'persistent'                                \n\

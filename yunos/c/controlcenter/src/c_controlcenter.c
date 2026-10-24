@@ -29,6 +29,16 @@
  *  on, so a role whose `parameters` scope it (C_AUTHZ) grants it for some
  *  scenarios only: the list keeps them, save checks the id it saves, and
  *  such a user watches them with watch-scenario, never with command-agent.
+ *  A scenario's `max_run` (seconds, 0 = none) is a SAFEGUARD against a test
+ *  left running: a `start` that did any step schedules its `stop` max_run
+ *  seconds after it; a `stop` that did any step cancels it; pause and resume
+ *  leave the clock as it is. When it is due the control center runs `stop`
+ *  itself, as one more run (its user, the reason in its comment), a few
+ *  seconds later if another run is in flight. The schedule is rebuilt from
+ *  the runs when the control center starts, so a restart does not lose it;
+ *  `scenarios` answers it as `stop_at` (epoch seconds). Every run that ends
+ *  publishes EV_SCENARIO_RUN_ENDED (public, no data): a console that watches
+ *  a scenario reads its state again, and sees it stopped by somebody else.
  *  When what a user may do changes in the `authz` store -- a role created,
  *  changed or deleted, a role given or taken -- it publishes
  *  EV_PERMISSIONS_CHANGED (public, no data) to the clients that subscribed,
@@ -80,6 +90,9 @@
 /*  A run id is `<scenario id>.<ms>` and must fit in NAME_MAX.  */
 #define SCENARIO_ID_MAX 200
 
+/*  The longest max_run of a scenario: a week, in seconds  */
+#define MAX_RUN_LIMIT   (7*24*3600)
+
 /*  What the users store publishes when something in it changes  */
 #define AUTHZ_STORE_EVENTS {                \
     EV_TREEDB_NODE_CREATED,                 \
@@ -119,6 +132,24 @@ PRIVATE json_t *cmd_my_permissions(hgobj gobj, const char *cmd, json_t *kw, hgob
 
 PRIVATE json_t *forward_to_agent(hgobj gobj, json_t *kw, hgobj src);
 PRIVATE int ac_authz_store_changed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
+PRIVATE int start_run(
+    hgobj gobj,
+    const char *scenario_id,
+    const char *action,
+    const char *username,
+    const char *requester,
+    json_int_t requester_connection,
+    json_t *kw_answer,
+    const char *reason,
+    char *err,
+    size_t errsz
+);
+PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id);
+PRIVATE int run_steps_done(hgobj gobj, json_t *run);
+PRIVATE void add_stop_at(hgobj gobj, json_t *scenario);
+PRIVATE void arm_stop_timer(hgobj gobj);
+PRIVATE int stop_due_scenario(hgobj gobj);
+GOBJ_DECLARE_EVENT(EV_SCENARIO_RUN_ENDED);      // defined with the gclass, below
 GOBJ_DECLARE_EVENT(EV_PERMISSIONS_CHANGED);     // defined with the gclass, below
 PRIVATE json_t *refuse_scenario_command(
     hgobj gobj,
@@ -392,6 +423,8 @@ typedef struct _PRIVATE_DATA {
     uint64_t drops_timer_end;       // msectimer the drops timer is armed for
 
     hgobj run_timer;                // deadline of the step of the run in flight
+    hgobj stop_timer;               // the next stop a scenario's max_run is due
+    json_t *auto_stops;             // scenario id -> epoch second its stop is due (max_run)
     json_t *run;                    // the run in flight, or NULL (one at a time)
     json_t *run_kw_answer;          // the request of that run, to answer it
     hgobj run_agent_channel;        // channel (in __input_side__) of the step in flight
@@ -427,6 +460,8 @@ PRIVATE void mt_create(hgobj gobj)
     );
 
     priv->run_timer = gobj_create_pure_child("run_timer", C_TIMER, 0, gobj);
+    priv->stop_timer = gobj_create_pure_child("stop_timer", C_TIMER, 0, gobj);
+    priv->auto_stops = json_object();
     priv->rates_timer = gobj_create_pure_child("rates_timer", C_TIMER0, 0, gobj);
     priv->drops_timer = gobj_create_pure_child("drops_timer", C_TIMER, 0, gobj);
 
@@ -528,6 +563,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     JSON_DECREF(priv->run)
     KW_DECREF(priv->run_kw_answer)
+    JSON_DECREF(priv->auto_stops)
 }
 
 /***************************************************************************
@@ -563,6 +599,7 @@ PRIVATE int mt_stop(hgobj gobj)
     priv->drops_timer_armed = FALSE;
     gobj_write_bool_attr(gobj, "drops_timer_armed", FALSE);
     clear_timeout(priv->run_timer);
+    clear_timeout(priv->stop_timer);
     clear_timeout0(priv->rates_timer);
     if(gobj_is_running(priv->rates_timer)) {
         gobj_stop(priv->rates_timer);
@@ -685,6 +722,23 @@ PRIVATE int mt_play(hgobj gobj)
      */
     priv->gobj_treedb_controlcenter = gobj_find_service("treedb_controlcenter", TRUE);
 
+    /*
+     *  The stops a max_run had scheduled before a restart, from the runs
+     */
+    json_object_clear(priv->auto_stops);
+    if(priv->gobj_treedb_controlcenter) {
+        json_t *scenarios = gobj_list_nodes(
+            priv->gobj_treedb_controlcenter, "scenarios", 0, json_pack("{s:b}", "only_id", 1), gobj
+        );
+        size_t idx; json_t *jn_sc;
+        json_array_foreach(scenarios, idx, jn_sc) {
+            schedule_from_runs(gobj, json_is_string(jn_sc)?
+                json_string_value(jn_sc) : kw_get_str(gobj, jn_sc, "id", "", 0));
+        }
+        JSON_DECREF(scenarios)
+    }
+    arm_stop_timer(gobj);
+
     /*-------------------------*
      *      Start services
      *-------------------------*/
@@ -735,6 +789,8 @@ PRIVATE int mt_pause(hgobj gobj)
     if(priv->run) {
         run_end(gobj, -1, "the control center was paused in the middle of the run");
     }
+    clear_timeout(priv->stop_timer);
+    json_object_clear(priv->auto_stops);  // rebuilt from the runs at play
 
     clear_timeout0(priv->rates_timer);
     priv->txMsgsec = 0;
@@ -1293,6 +1349,11 @@ PRIVATE json_t *cmd_scenarios(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
+    size_t i_sc; json_t *jn_sc;
+    json_array_foreach(jn_data, i_sc, jn_sc) {
+        add_stop_at(gobj, jn_sc);
+    }
+
     if(whole_list) {
         json_t *mine = json_array();
         int idx; json_t *scenario;
@@ -1413,6 +1474,9 @@ PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj
         json_t *v = json_object_get(jn_scenario, list_cols[i]);
         json_object_set_new(record, list_cols[i], json_is_array(v)? json_deep_copy(v) : json_array());
     }
+    json_t *jn_max_run = json_object_get(jn_scenario, "max_run");
+    json_object_set_new(record, "max_run",
+        json_integer(json_is_integer(jn_max_run)? json_integer_value(jn_max_run) : 0));
     const char *dict_cols[] = {"actions", "view", 0};
     for(int i=0; dict_cols[i]; i++) {
         json_t *v = json_object_get(jn_scenario, dict_cols[i]);
@@ -1483,6 +1547,11 @@ PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj
             kw  // owned
         );
     }
+
+    /*  A max_run changed while it runs moves its stop  */
+    schedule_from_runs(gobj, scenario_id);
+    arm_stop_timer(gobj);
+    add_stop_at(gobj, node);
 
     json_t *jn_data = json_array();
     json_array_append_new(jn_data, node);
@@ -1598,6 +1667,9 @@ PRIVATE json_t *cmd_delete_scenario(hgobj gobj, const char *cmd, json_t *kw, hgo
         );
     }
 
+    json_object_del(priv->auto_stops, scenario_id);
+    arm_stop_timer(gobj);
+
     return msg_iev_build_response(
         gobj,
         0,
@@ -1648,6 +1720,61 @@ PRIVATE json_t *cmd_run_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
+    char err[512];
+    hgobj client_channel = channel_of_side(priv->gobj_top_side, src);
+    if(start_run(gobj,
+            scenario_id,
+            action,
+            username_of(gobj, kw, src),
+            kw_get_str(gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", "", 0),
+            client_channel? connection_number(client_channel) : (json_int_t)0,
+            kw,     // owned by the run if it starts: answered by run_end()
+            "",
+            err, sizeof(err))<0) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: %s", gobj_yuno_role_plus_name(), err),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    priv->rxMsgs++;
+    return 0;   /* Asynchronous response */
+}
+
+/***************************************************************************
+ *  Start a run of `action` of a scenario: its steps one after the other
+ *  (run_send_step()), answered by run_end() to `kw_answer` (owned when it
+ *  starts; NULL for a run of the control center itself, a max_run stop).
+ *  -1 with the reason in `err` when it cannot start, and kw_answer is the
+ *  caller's still.
+ ***************************************************************************/
+PRIVATE int start_run(
+    hgobj gobj,
+    const char *scenario_id,
+    const char *action,
+    const char *username,
+    const char *requester,
+    json_int_t requester_connection,
+    json_t *kw_answer,
+    const char *reason,
+    char *err,
+    size_t errsz
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->run) {
+        snprintf(err, errsz, "a run is in flight, one at a time: %s",
+            kw_get_str(gobj, priv->run, "id", "", 0));
+        return -1;
+    }
+    if(!priv->gobj_treedb_controlcenter) {
+        snprintf(err, errsz, "the scenarios are not open yet");
+        return -1;
+    }
     json_t *scenario = gobj_get_node(
         priv->gobj_treedb_controlcenter,
         "scenarios",
@@ -1656,35 +1783,18 @@ PRIVATE json_t *cmd_run_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         gobj
     );
     if(!scenario) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("%s: scenario not found: '%s'", gobj_yuno_role_plus_name(), scenario_id),
-            0,
-            0,
-            kw  // owned
-        );
+        snprintf(err, errsz, "scenario not found: '%s'", scenario_id);
+        return -1;
     }
 
-    char err[256];
-    json_t *steps = build_run_steps(gobj, scenario, action, err, sizeof(err));
+    char why[256];
+    json_t *steps = build_run_steps(gobj, scenario, action, why, sizeof(why));
     JSON_DECREF(scenario)
     if(!steps) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("%s: cannot run '%s' of '%s': %s", gobj_yuno_role_plus_name(),
-                action, scenario_id, err),
-            0,
-            0,
-            kw  // owned
-        );
+        snprintf(err, errsz, "cannot run '%s' of '%s': %s", action, scenario_id, why);
+        return -1;
     }
 
-    const char *requester = kw_get_str(
-        gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", "", 0
-    );
-    hgobj client_channel = channel_of_side(priv->gobj_top_side, src);
     char run_id[NAME_MAX];
     int len = snprintf(run_id, sizeof(run_id), "%s.%llu",
         scenario_id, (unsigned long long)time_in_milliseconds());
@@ -1697,33 +1807,26 @@ PRIVATE json_t *cmd_run_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             NULL
         );
         JSON_DECREF(steps)
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("%s: scenario id too long to run it: '%s'", gobj_yuno_role_plus_name(),
-                scenario_id),
-            0,
-            0,
-            kw  // owned
-        );
+        snprintf(err, errsz, "scenario id too long to run it: '%s'", scenario_id);
+        return -1;
     }
 
-    priv->rxMsgs++;
-    priv->run = json_pack("{s:s, s:s, s:s, s:s, s:s, s:I, s:I, s:o, s:i}",
+    priv->run = json_pack("{s:s, s:s, s:s, s:s, s:s, s:I, s:I, s:o, s:i, s:s}",
         "id", run_id,
         "scenario_id", scenario_id,
         "action", action,
-        "username", username_of(gobj, kw, src),
-        "requester", requester,
-        "requester_connection", client_channel? connection_number(client_channel) : (json_int_t)0,
+        "username", username,
+        "requester", requester? requester : "",
+        "requester_connection", requester_connection,
         "started_at", (json_int_t)time_in_seconds(),
         "steps", steps, // owned
-        "idx", 0
+        "idx", 0,
+        "reason", reason? reason : ""
     );
-    priv->run_kw_answer = kw;   // owned: answered by run_end()
+    priv->run_kw_answer = kw_answer;
 
     run_send_step(gobj);
-    return 0;   /* Asynchronous response */
+    return 0;
 }
 
 /***************************************************************************
@@ -2452,6 +2555,13 @@ PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz
     json_t *view = json_object_get(scenario, "view");
     if(view && !json_is_object(view)) {
         return scenario_error(err, errsz, "view: a dict");
+    }
+
+    /*  Seconds a start may run before the control center stops it  */
+    json_t *max_run = json_object_get(scenario, "max_run");
+    if(max_run && (!json_is_integer(max_run) || json_integer_value(max_run) < 0 ||
+            json_integer_value(max_run) > MAX_RUN_LIMIT)) {
+        return scenario_error(err, errsz, "max_run: seconds, 0 (none) to %d", MAX_RUN_LIMIT);
     }
     return 0;
 }
@@ -3276,11 +3386,14 @@ PRIVATE int run_end(hgobj gobj, int result, const char *comment)
             done++;
         }
     }
+    const char *reason = kw_get_str(gobj, run, "reason", "", 0);
     json_t *jn_text = result < 0?
-        json_sprintf("run %s: %s failed, %d of %d steps done: %s",
+        json_sprintf("%s%srun %s: %s failed, %d of %d steps done: %s",
+            reason, empty_string(reason)? "" : "; ",
             kw_get_str(gobj, run, "id", "", 0), kw_get_str(gobj, run, "action", "", 0),
             done, (int)json_array_size(steps), comment) :
-        json_sprintf("run %s: %s done, %d steps",
+        json_sprintf("%s%srun %s: %s done, %d steps",
+            reason, empty_string(reason)? "" : "; ",
             kw_get_str(gobj, run, "id", "", 0), kw_get_str(gobj, run, "action", "", 0),
             (int)json_array_size(steps));
 
@@ -3381,7 +3494,206 @@ PRIVATE int run_end(hgobj gobj, int result, const char *comment)
         );
     }
 
+    /*
+     *  What the run did to the stop a max_run schedules: a start sets it,
+     *  a stop cancels it. A stop of the max_run that did no step (its node
+     *  not connected) is tried again in a minute, not at once forever.
+     */
+    if(priv->gobj_treedb_controlcenter) {
+        schedule_from_runs(gobj, scenario_id);
+        if(!empty_string(reason) && done == 0 && json_object_get(priv->auto_stops, scenario_id)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_APP,
+                "msg",          "%s", "the stop of a scenario's max_run did nothing, tried again in a minute",
+                "scenario_id",  "%s", scenario_id,
+                "comment",      "%s", comment? comment : "",
+                NULL
+            );
+            json_object_set_new(priv->auto_stops, scenario_id,
+                json_integer((json_int_t)time_in_seconds() + 60));
+        }
+        arm_stop_timer(gobj);
+    }
+
+    /*  Whoever watches a scenario reads its state again  */
+    gobj_publish_event(gobj, EV_SCENARIO_RUN_ENDED, json_object());
+
     JSON_DECREF(run)
+    return 0;
+}
+
+/***************************************************************************
+ *  How many steps of a run did their work: a step not sent has no result.
+ ***************************************************************************/
+PRIVATE int run_steps_done(hgobj gobj, json_t *run)
+{
+    int done = 0;
+    size_t idx; json_t *step;
+    json_array_foreach(kw_get_list(gobj, run, "steps", 0, 0), idx, step) {
+        if(kw_has_key(step, "result") && kw_get_int(gobj, step, "result", -1, KW_WILD_NUMBER) >= 0) {
+            done++;
+        }
+    }
+    return done;
+}
+
+/***************************************************************************
+ *  The stop a scenario's max_run schedules, from its runs: none when it
+ *  has no max_run or its last run that did anything (a report changes
+ *  nothing) is a stop; else the end of its last start, plus max_run.
+ ***************************************************************************/
+PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_object_del(priv->auto_stops, scenario_id);
+    json_t *scenario = gobj_get_node(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        json_pack("{s:s}", "id", scenario_id),
+        0,
+        gobj
+    );
+    json_int_t max_run = kw_get_int(gobj, scenario, "max_run", 0, KW_WILD_NUMBER);
+    JSON_DECREF(scenario)
+    if(max_run <= 0) {
+        return;
+    }
+
+    json_t *runs = sort_runs_newest_first(gobj_node_children(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        json_pack("{s:s}", "id", scenario_id),
+        "runs",
+        0,
+        json_pack("{s:b}", "fkey_only_id", 1),
+        gobj
+    ));
+    BOOL running = FALSE;
+    size_t idx; json_t *run;
+    json_array_foreach(runs, idx, run) {
+        const char *action = kw_get_str(gobj, run, "action", "", 0);
+        if(strcmp(action, "report")==0 || run_steps_done(gobj, run)==0) {
+            continue;
+        }
+        if(!running) {
+            if(strcmp(action, "stop")==0) {
+                break;
+            }
+            running = TRUE;
+        }
+        if(strcmp(action, "start")==0) {
+            json_object_set_new(priv->auto_stops, scenario_id, json_integer(
+                kw_get_int(gobj, run, "ended_at", 0, KW_WILD_NUMBER) + max_run
+            ));
+            break;
+        }
+    }
+    JSON_DECREF(runs)
+}
+
+/*  `stop_at` of a scenario answered: when its max_run stops it  */
+PRIVATE void add_stop_at(hgobj gobj, json_t *scenario)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *stop_at = json_object_get(priv->auto_stops, kw_get_str(gobj, scenario, "id", "", 0));
+    if(stop_at) {
+        json_object_set(scenario, "stop_at", stop_at);
+    }
+}
+
+/***************************************************************************
+ *  The stop timer, at the next stop due (at most an hour away: the wall
+ *  clock the schedule is written in may have moved meanwhile).
+ ***************************************************************************/
+PRIVATE void arm_stop_timer(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t next = 0;
+    const char *id; json_t *jn_at;
+    json_object_foreach(priv->auto_stops, id, jn_at) {
+        json_int_t at = json_integer_value(jn_at);
+        if(!next || at < next) {
+            next = at;
+        }
+    }
+    clear_timeout(priv->stop_timer);
+    if(!next) {
+        return;
+    }
+    json_int_t ms = (next - (json_int_t)time_in_seconds()) * 1000;
+    if(ms < 1000) {
+        ms = 1000;
+    }
+    if(ms > 3600*1000) {
+        ms = 3600*1000;
+    }
+    set_timeout(priv->stop_timer, ms);
+}
+
+/***************************************************************************
+ *  The stop timer fired: the first scenario whose max_run is due is
+ *  stopped by the control center itself, as a run of its own. Another
+ *  run in flight: a few seconds later.
+ ***************************************************************************/
+PRIVATE int stop_due_scenario(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t now = (json_int_t)time_in_seconds();
+    char scenario_id[SCENARIO_ID_MAX+1] = "";
+    const char *id; json_t *jn_at;
+    json_object_foreach(priv->auto_stops, id, jn_at) {
+        if(json_integer_value(jn_at) <= now) {
+            snprintf(scenario_id, sizeof(scenario_id), "%s", id);
+            break;
+        }
+    }
+    if(empty_string(scenario_id)) {
+        arm_stop_timer(gobj);   // the clock moved: not due yet
+        return 0;
+    }
+    if(priv->run) {
+        set_timeout(priv->stop_timer, 5000);
+        return 0;
+    }
+
+    json_t *scenario = gobj_get_node(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        json_pack("{s:s}", "id", scenario_id),
+        0,
+        gobj
+    );
+    char reason[128];
+    snprintf(reason, sizeof(reason), "max_run of %lld s reached",
+        (long long)kw_get_int(gobj, scenario, "max_run", 0, KW_WILD_NUMBER));
+    JSON_DECREF(scenario)
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_APP,
+        "msg",          "%s", "stopping a scenario: its max_run is reached",
+        "scenario_id",  "%s", scenario_id,
+        NULL
+    );
+    json_object_del(priv->auto_stops, scenario_id);
+    char err[512];
+    if(start_run(gobj, scenario_id, "stop", gobj_yuno_role_plus_name(), "", 0, NULL,
+            reason, err, sizeof(err)) < 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "the stop of a scenario's max_run cannot run, tried again in a minute",
+            "scenario_id",  "%s", scenario_id,
+            "comment",      "%s", err,
+            NULL
+        );
+        json_object_set_new(priv->auto_stops, scenario_id, json_integer(now + 60));
+        arm_stop_timer(gobj);
+    }
     return 0;
 }
 
@@ -3821,6 +4133,10 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         KW_DECREF(kw);
         return run_step_timed_out(gobj);
     }
+    if(src == priv->stop_timer) {
+        KW_DECREF(kw);
+        return stop_due_scenario(gobj);
+    }
     if(src == priv->drops_timer) {
         priv->drops_timer_armed = FALSE;    // it fired: a one-shot is not armed
         gobj_write_bool_attr(gobj, "drops_timer_armed", FALSE);
@@ -3874,6 +4190,7 @@ GOBJ_DEFINE_GCLASS(C_CONTROLCENTER);
  *      Events
  *------------------------*/
 GOBJ_DEFINE_EVENT(EV_PERMISSIONS_CHANGED);
+GOBJ_DEFINE_EVENT(EV_SCENARIO_RUN_ENDED);
 
 /***************************************************************************
  *          Create the GClass
@@ -3951,6 +4268,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
         /*  What a user may do changed: a client asks my-permissions again  */
         {EV_PERMISSIONS_CHANGED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        /*  A scenario run ended: a client watching it reads its state again  */
+        {EV_SCENARIO_RUN_ENDED,     EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
 
         {NULL, 0}
     };

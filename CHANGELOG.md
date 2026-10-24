@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+## v7.27.17 (2026-10-24)
+
+A lite release of the controlcenter: a test left running is stopped. Only
+the controlcenter is deployed (1996/1997 on a.com). The tests it touches ran
+on the dev machine (`test_c_controlcenter_scenarios`). No performance study:
+no benchmark runs it.
+
+- **controlcenter: `max_run`, the stop of a test left running.** A scenario
+  may say how many seconds a start may run (`max_run`, 0 = none, a week at
+  most; new column, `treedb_controlcenter` schema_version 4). A start that
+  did any step schedules its stop; when it is due the control center runs
+  `stop` itself, as a run of its own with the reason in its comment; a stop
+  cancels it. The schedule is rebuilt from the runs at start (a restart
+  loses nothing) and `scenarios` answers it as `stop_at`. `run-scenario`
+  and the stop share `start_run()`. Asked for after a user who had started
+  the 20,000/s test lost the role that runs it: nobody but the operators
+  could stop it, and nothing would have.
+- **controlcenter: `EV_SCENARIO_RUN_ENDED`** (public, no data) when any run
+  ends: a console watching a scenario reads its state again, and sees it
+  stopped by somebody else, or by its max_run, at once.
+  `test_c_controlcenter_scenarios` case 16.
+- **gui_agent 1.0.1** (yunos-js): `max_run` in the scenario editor (and kept
+  on save), *"stops at 18:45"* in the live view while it runs, and the state
+  read again on `EV_SCENARIO_RUN_ENDED`.
+
 ## v7.27.16 (2026-10-24)
 
 A lite release of the controlcenter: a console learns that what its user may

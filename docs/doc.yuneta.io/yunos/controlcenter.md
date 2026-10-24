@@ -284,6 +284,7 @@ watch, or just a group of yunos to watch. It is a document saved whole:
 | `links` | `[from, to]` pairs of keys: how the messages flow. |
 | `actions` | `start`, `pause`, `resume`, `stop`, `report`: each a list of steps `{yuno, service?, command}`, one command line with its `key=value` parameters. |
 | `view` | How the console shows it (`mode`: `graph` or `cards`). |
+| `max_run` | Seconds a start may run before the control center stops it (0 = no limit, a week at most; 7.27.17+). |
 
 `save-scenario` validates it -- the same rules the console's editor applies --
 and writes every column: a key the new document leaves out is emptied, not
@@ -439,6 +440,25 @@ gobj_subscribe_event(iev, "EV_PERMISSIONS_CHANGED", {__service__: "controlcenter
 **A link to a scenario.** The console shows a saved scenario at
 `https://<console>/#/scenarios/live/<id>`, so that address is a link to send:
 the user signs in and lands on it.
+
+**A test left running: `max_run`** (7.27.17+). A scenario may say how long a
+start may run, in seconds (0 = no limit, a week at most):
+
+```json
+{"id": "renfe-20k-hidraulia", "node": "hidrauliaconnect", "max_run": 2100, "yunos": [...], "actions": {...}}
+```
+
+A `start` that did any step schedules the scenario's `stop` `max_run` seconds
+after it; a `stop` that did any step cancels it; pause and resume leave the
+clock alone. When it is due the control center runs `stop` itself, as a run of
+its own -- user the control center, the reason in the comment (*"max_run of
+2100 s reached; run ...: stop done, 16 steps"*) -- a few seconds later if
+another run is in flight, a minute later if the stop could do nothing. The
+schedule is rebuilt from the runs at start, so a restart does not lose it.
+`scenarios` answers it as `stop_at` (epoch seconds), and every run that ends
+publishes `EV_SCENARIO_RUN_ENDED` (public, no data): the console says *"stops
+at 18:45"* while it runs, and sees it stopped -- by the control center, or by
+anybody -- at once.
 
 **What a step may carry.** A scenario id is letters, digits and `_ . @ -`, not
 starting with a dot, 200 characters at most (a run id is `<id>.<ms>`). The

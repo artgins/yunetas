@@ -116,6 +116,25 @@ the highest of any tick (write 0 to start again);
 `stats=__reset__` zeroes them all. Up to 7.25.20 nothing counted them and all
 six read 0.
 
+## A test left running: `max_run`
+
+A scenario's `max_run` (seconds, 0 = none, at most a week) is a safeguard: a
+`start` that did any step schedules its `stop` `max_run` seconds after the
+start ended; a `stop` that did any step cancels it; pause and resume leave the
+clock as it is. When it is due the control center runs `stop` itself -- one
+more run, written with its own name as the user and the reason in the comment
+(*"max_run of 2100 s reached; run ...: stop done, 16 steps"*) -- a few seconds
+later if another run is in flight, a minute later if the stop could do
+nothing (a node not connected). The schedule is rebuilt from the runs when
+the control center starts, so a restart does not lose it, and `scenarios`
+answers it as `stop_at` (epoch seconds). Every run that ends publishes
+`EV_SCENARIO_RUN_ENDED` (public, no data): a console watching a scenario reads
+its state again, and sees it stopped by the control center, or by anybody.
+
+```json
+{"id": "renfe-20k-hidraulia", "max_run": 2100, "node": "hidrauliaconnect", ...}
+```
+
 ## Permissions scoped to scenarios
 
 Every scenario command checks its permission (`read-scenarios`,
