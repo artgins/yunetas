@@ -9,8 +9,8 @@ tool that decodes captured telegrams, can use it directly.
 
 Source code:
 
-- [`mbus_telegram.h`](https://github.com/artgins/yunetas/blob/7.27.16/modules/c/mbus/src/mbus_telegram.h)
-- [`mbus_telegram.c`](https://github.com/artgins/yunetas/blob/7.27.16/modules/c/mbus/src/mbus_telegram.c)
+- [`mbus_telegram.h`](https://github.com/artgins/yunetas/blob/7.27.20/modules/c/mbus/src/mbus_telegram.h)
+- [`mbus_telegram.c`](https://github.com/artgins/yunetas/blob/7.27.20/modules/c/mbus/src/mbus_telegram.c)
 
 **Nothing here logs, and nothing keeps state.** A function that fails returns
 `-1`, `0` or `NULL`, and writes the reason into the `why` buffer it is given.
