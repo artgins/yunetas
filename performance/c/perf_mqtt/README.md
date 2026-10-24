@@ -6,7 +6,7 @@ the test `c_mqtt/test1`.
 
 The client (`C_PERF_MQTT`, over `C_IOGATE` -> `C_CHANNEL` -> `C_PROT_MQTT2`
 -> `C_TCP`) connects, subscribes `perf/topic`, and publishes on it at QoS 0
-a payload of ~120 bytes of JSON; it publishes the next one when the broker
+a payload of 99 bytes of JSON; it publishes the next one when the broker
 delivers the previous one back to it: 100 000 times, timed. Then it
 disconnects. An error, or a connection closed before the last message,
 fails it. The broker's store goes in `/tmp/store/perf_mqtt`.

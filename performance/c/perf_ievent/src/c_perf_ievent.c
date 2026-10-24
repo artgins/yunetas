@@ -27,7 +27,7 @@
 #define MAX_ROUND_TRIPS 100000
 
 /*
- *  ~140 bytes, as the message of perf_c_tcp
+ *  99 bytes of json, of the size of the message of perf_c_tcp (132)
  */
 #define PAYLOAD "{\"device\": \"0000000001\", \"t\": 1729600000, " \
     "\"v\": [230.1, 230.4, 229.8], \"i\": [1.2, 1.1, 0.9], \"q\": 1}"
@@ -68,6 +68,14 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 };
 
 /*---------------------------------------------*
+ *      GClass authz levels
+ *---------------------------------------------*/
+PRIVATE sdata_desc_t authz_table[] = {
+/*-AUTHZ-- type---------name----------------flag----alias---items---description--*/
+SDATA_END()
+};
+
+/*---------------------------------------------*
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
@@ -98,6 +106,20 @@ PRIVATE void mt_create(hgobj gobj)
     if(subscriber) {
         gobj_subscribe_event(gobj, NULL, NULL, subscriber);
     }
+}
+
+/***************************************************************************
+ *      Framework Method writing
+ ***************************************************************************/
+PRIVATE void mt_writing(hgobj gobj, const char *path)
+{
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
 }
 
 /***************************************************************************
@@ -261,10 +283,12 @@ PRIVATE int ac_pong(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
     .mt_create  = mt_create,
+    .mt_destroy = mt_destroy,
     .mt_start   = mt_start,
     .mt_stop    = mt_stop,
     .mt_play    = mt_play,
     .mt_pause   = mt_pause,
+    .mt_writing = mt_writing,
 };
 
 /*------------------------*
@@ -338,7 +362,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0, // local methods
         attrs_table,
         sizeof(PRIVATE_DATA),
-        0, // authz_table
+        authz_table,
         0, // command_table
         s_user_trace_level,
         0 // gcflags

@@ -57,6 +57,14 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 };
 
 /*---------------------------------------------*
+ *      GClass authz levels
+ *---------------------------------------------*/
+PRIVATE sdata_desc_t authz_table[] = {
+/*-AUTHZ-- type---------name----------------flag----alias---items---description--*/
+SDATA_END()
+};
+
+/*---------------------------------------------*
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
@@ -89,6 +97,20 @@ PRIVATE void mt_create(hgobj gobj)
 }
 
 /***************************************************************************
+ *      Framework Method writing
+ ***************************************************************************/
+PRIVATE void mt_writing(hgobj gobj, const char *path)
+{
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
+}
+
+/***************************************************************************
  *      Framework Method start
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
@@ -107,6 +129,22 @@ PRIVATE int mt_start(hgobj gobj)
  *  its channel while the yuno stops, after this service.
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
+{
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method play
+ ***************************************************************************/
+PRIVATE int mt_play(hgobj gobj)
+{
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method pause
+ ***************************************************************************/
+PRIVATE int mt_pause(hgobj gobj)
 {
     return 0;
 }
@@ -176,8 +214,12 @@ PRIVATE int ac_ping(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
     .mt_create  = mt_create,
+    .mt_destroy = mt_destroy,
     .mt_start   = mt_start,
     .mt_stop    = mt_stop,
+    .mt_play    = mt_play,
+    .mt_pause   = mt_pause,
+    .mt_writing = mt_writing,
 };
 
 /*------------------------*
@@ -247,7 +289,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0, // local methods
         attrs_table,
         sizeof(PRIVATE_DATA),
-        0, // authz_table
+        authz_table,
         0, // command_table
         s_user_trace_level,
         0 // gcflags

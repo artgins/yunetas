@@ -213,13 +213,13 @@ int result = 0;
 
 static int register_yuno_and_more(void)
 {
-    int result = 0;
+    int res = 0;
 
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    result += register_c_perf_ievent();
-    result += register_c_perf_iev_echo();
+    res += register_c_perf_ievent();
+    res += register_c_perf_iev_echo();
 
     /*------------------------------------------------*
      *          Traces
@@ -244,7 +244,7 @@ static int register_yuno_and_more(void)
         TRUE
     );
 
-    return result;
+    return res;
 }
 
 /***************************************************************************
