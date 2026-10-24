@@ -433,14 +433,32 @@ PRIVATE void start_wait_frame_header(hgobj gobj)
 }
 
 /***************************************************************************
- *  mask or unmask data. Just do xor for each byte
+ *  mask or unmask data: a xor of each byte with the byte of the key of its
+ *  position, the first one being at `offset` of the payload.
+ *  Eight bytes at a time: the key, from that position, twice in a word, and
+ *  each word of the data read and written with memcpy(). The bytes of both
+ *  are in the order of memory, so the xor is the same on any byte order.
  *  mask_key: 4 bytes
  *  data: data to mask/unmask.
  ***************************************************************************/
-PRIVATE void mask(const char *mask_key, char *data, int len)
+PRIVATE void mask(const char *mask_key, char *data, size_t len, size_t offset)
 {
-    for(int i=0; i<len; i++) {
-        *(data + i) ^= mask_key[i % 4];
+    unsigned char key8[8];
+    uint64_t key, w;
+    size_t i;
+
+    for(i=0; i<8; i++) {
+        key8[i] = (unsigned char)mask_key[(offset + i) % 4];
+    }
+    memcpy(&key, key8, 8);
+
+    for(i=0; i + 8 <= len; i += 8) {
+        memcpy(&w, data + i, 8);
+        w ^= key;
+        memcpy(data + i, &w, 8);
+    }
+    for(; i<len; i++) {
+        data[i] ^= mask_key[(offset + i) % 4];
     }
 }
 
@@ -566,7 +584,7 @@ PRIVATE int _write_control_frame(hgobj gobj, char h_fin, char h_opcode, char *da
         uint32_t mask_key = dev_urandom();
         gbuffer_append(gbuf, (char *)&mask_key, 4);
         if(ln) {
-            mask((char *)&mask_key, data, ln);
+            mask((char *)&mask_key, data, ln, 0);
         }
     }
 
@@ -836,32 +854,16 @@ PRIVATE int framehead_consume(FRAME_HEAD *frame, istream_h istream, char *bf, si
 }
 
 /***************************************************************************
- *  Unmask data. Return a new gbuf with the data unmasked
+ *  Unmask data, in place: the payload is in `gbuf` already, contiguous.
+ *  Return the same gbuf (owned), its bytes unmasked.
  ***************************************************************************/
 PRIVATE gbuffer_t * unmask_data(hgobj gobj, gbuffer_t *gbuf, uint8_t *h_mask)
 {
-    gbuffer_t *unmasked;
-
-    unmasked = gbuffer_create(4*1024, gbmem_get_maximum_block());
-
-    char *p;
     size_t ln = gbuffer_leftbytes(gbuf);
-    for(size_t i=0; i<ln; i++) {
-        p = gbuffer_get(gbuf, 1);
-        if(p) {
-            *p = (*p) ^ h_mask[i % 4];
-            gbuffer_append(unmasked, p, 1);
-        } else {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "gbuffer_get() return NULL",
-                NULL
-            );
-        }
+    if(ln > 0) {
+        mask((const char *)h_mask, gbuffer_cur_rd_pointer(gbuf), ln, 0);
     }
-    gbuffer_decref(gbuf);
-    return unmasked;
+    return gbuf;
 }
 
 /***************************************************************************
@@ -2197,7 +2199,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
      */
     while((ln=gbuffer_chunk(gbuf_data))>0) {
         char *p = gbuffer_get(gbuf_data, ln);
-        mask((char *)&mask_key, p, ln);
+        mask((char *)&mask_key, p, ln, 0);
         gbuffer_append(gbuf, p, ln);
     }
 
