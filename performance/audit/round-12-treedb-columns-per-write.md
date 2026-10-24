@@ -81,4 +81,5 @@ of this round.
 What round 11 left for a decision and this round did not take stays as it
 was written there: the treedb's events in a C structure (about 9% of a
 write), and a timeranger2 topic's static fields read once (some 16 lookups
-per append).
+per append). Both were done in
+[round 13](round-13-topic-fields-treedb-events.md).
