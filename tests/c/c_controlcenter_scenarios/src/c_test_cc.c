@@ -43,7 +43,10 @@
  *                local service a hop below names, nor to a link that never
  *                asked that agent; a flood of it, or of agent events
  *                injected by a client, is said once a minute, also when
- *                the client loops connect/inject/leave.
+ *                the client loops connect/inject/leave;
+ *              - a user who may read one scenario lists that one only,
+ *                watches it with watch-scenario (the line the agent gets
+ *                is built here) and is told so by my-permissions.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -975,6 +978,186 @@ PRIVATE int test_relays_only_for_who_asks(hgobj gobj, hgobj client)
 }
 
 /***************************************************************************
+ *  A request of `client` as the user "viewer", who may read the scenario
+ *  "scn" and nothing else (test_authz_checker() of main.c)
+ ***************************************************************************/
+PRIVATE json_t *viewer_kw(hgobj client)
+{
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "__username__", json_string("viewer"));
+    return kw;
+}
+
+/*  The line the agent got, compared; the request is taken  */
+PRIVATE int check_agent_line(hgobj gobj, const char *expected, const char *what)
+{
+    json_t *forwarded = agent_request(gobj, what);
+    if(!forwarded) {
+        return -1;
+    }
+    int ret = 0;
+    const char *line = kw_get_str(gobj, forwarded, "__command__", "", 0);
+    if(strcmp(line, expected)!=0) {
+        ret = fail(gobj, what, line);
+    }
+    const char *own[] = {"scenario_id", "node", "keys", "period", "stop", 0};
+    for(int i=0; own[i]; i++) {
+        if(json_object_get(forwarded, own[i])) {
+            ret += fail(gobj, "a parameter of watch-scenario reaches the agent", own[i]);
+        }
+    }
+    JSON_DECREF(forwarded)
+    return ret;
+}
+
+/***************************************************************************
+ *  14. A user who may read ONE scenario: the list has that one only, the
+ *      others are refused by id, `command-agent` is refused, and
+ *      `watch-scenario` builds the watch of its yunos on a node -- the
+ *      line the agent gets is the control center's, not the client's;
+ *      `my-permissions` says what the user may do
+ ***************************************************************************/
+PRIVATE int test_scoped_viewer(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *response = gobj_command(priv->cc, "scenarios", viewer_kw(client), client);
+    json_t *data = kw_get_list(gobj, response, "data", 0, 0);
+    if(kw_get_int(gobj, response, "result", -99, KW_WILD_NUMBER) != 0 ||
+            json_array_size(data) != 1 ||
+            strcmp(kw_get_str(gobj, json_array_get(data, 0), "id", "", 0), "scn")!=0) {
+        char *s = json_dumps(data, JSON_COMPACT);
+        ret += fail(gobj, "the viewer's list holds 'scn' only", s? s : "");
+        if(s) {
+            gbmem_free(s);
+        }
+    }
+    JSON_DECREF(response)
+
+    json_t *kw = viewer_kw(client);
+    json_object_set_new(kw, "scenario_id", json_string("string-form-scenario-0001"));
+    ret += check_response(gobj, gobj_command(priv->cc, "scenarios", kw, client),
+        -1, "no permission to 'read-scenarios'", "another scenario is refused by id");
+
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "scenario_id", json_string("scn"));
+    ret += check_response(gobj, gobj_command(priv->cc, "scenario-runs", kw, client),
+        0, 0, "the viewer reads the runs of 'scn'");
+
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("watch-yuno-stats ids=1234"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        -1, "No permission to 'command-agent'", "the viewer may not command an agent");
+
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "scenario", scenario_with_step("scn", "resume-generation rate=10"));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        -1, "no permission to 'write-scenarios'", "the viewer may not save 'scn'");
+
+    /*
+     *  Who may write "scn" only cannot save another scenario by naming
+     *  "scn" beside it: the permission is asked of the id saved, never of
+     *  the client's kw
+     */
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "__username__", json_string("writer"));
+    json_object_set_new(kw, "scenario_id", json_string("scn"));
+    json_object_set_new(kw, "scenario", scenario_with_step("not-scn", "resume-generation rate=10"));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        -1, "no permission to 'write-scenarios'", "a scenario_id beside another scenario is no permission");
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "__username__", json_string("writer"));
+    json_object_set_new(kw, "scenario", scenario_with_step("scn", "resume-generation rate=10"));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        0, "scenario saved: scn", "the writer of 'scn' saves it");
+
+    /*  Nor read another by naming "scn" in the kw of the whole list  */
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "scenario_id", json_string(""));
+    json_object_set_new(kw, "other", json_string("scn"));
+    response = gobj_command(priv->cc, "scenarios", kw, client);
+    if(json_array_size(kw_get_list(gobj, response, "data", 0, 0)) != 1) {
+        ret += fail(gobj, "the viewer's list, asked with keys of its own, holds 'scn' only", "");
+    }
+    JSON_DECREF(response)
+
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "scenario_id", json_string("scn"));
+    json_object_set_new(kw, "node", json_string(AGENT_HOST));
+    json_object_set_new(kw, "period", json_integer(1000));
+    json_object_set_new(kw, "__relays__", json_pack("[s]", EV_YUNO_STATS));
+    ret += check_response(gobj, gobj_command(priv->cc, "watch-scenario", kw, client),
+        0, "Command sent to 1 nodes", "the viewer watches 'scn'");
+    ret += check_agent_line(gobj, "watch-yuno-stats ids=1234 period=1000",
+        "watch-scenario builds the watch of the node's yunos");
+
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "scenario_id", json_string("scn"));
+    json_object_set_new(kw, "node", json_string(AGENT_HOST));
+    json_object_set_new(kw, "keys", json_string("1234"));
+    ret += check_response(gobj, gobj_command(priv->cc, "watch-scenario", kw, client),
+        0, 0, "the viewer watches some keys of 'scn'");
+    ret += check_agent_line(gobj, "watch-yuno-stats ids=1234 period=2000",
+        "watch-scenario keys= keeps the keys asked");
+
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "scenario_id", json_string("scn"));
+    json_object_set_new(kw, "node", json_string(AGENT_HOST));
+    json_object_set_new(kw, "keys", json_string("12,123,12345"));
+    ret += check_response(gobj, gobj_command(priv->cc, "watch-scenario", kw, client),
+        -1, "has no yuno to watch on node", "keys of no yuno of the node");
+
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "scenario_id", json_string("scn"));
+    json_object_set_new(kw, "node", json_string("another-node"));
+    ret += check_response(gobj, gobj_command(priv->cc, "watch-scenario", kw, client),
+        -1, "has no yuno to watch on node", "a node of no yuno of the scenario");
+
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "scenario_id", json_string("scn"));
+    json_object_set_new(kw, "node", json_string(AGENT_HOST));
+    json_object_set_new(kw, "stop", json_true());
+    ret += check_response(gobj, gobj_command(priv->cc, "watch-scenario", kw, client),
+        0, 0, "the viewer stops its watch");
+    ret += check_agent_line(gobj, "watch-yuno-stats stop=1", "watch-scenario stop=1");
+
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "scenario_id", json_string("string-form-scenario-0001"));
+    json_object_set_new(kw, "node", json_string(AGENT_HOST));
+    ret += check_response(gobj, gobj_command(priv->cc, "watch-scenario", kw, client),
+        -1, "no permission to 'read-scenarios'", "the viewer may not watch another scenario");
+
+    response = gobj_command(priv->cc, "my-permissions", viewer_kw(client), client);
+    json_t *expected = json_pack("{s:b, s:b, s:b, s:b, s:b, s:[s], s:b, s:b}",
+        "list-agents", 0, "command-agent", 0, "drop-agent", 0, "logout-user", 0,
+        "write-tty", 0, "read-scenarios", "scn", "write-scenarios", 0, "run-scenarios", 0
+    );
+    data = kw_get_dict(gobj, response, "data", 0, 0);
+    if(!data || !json_equal(data, expected)) {
+        char *s = data? json_dumps(data, JSON_COMPACT) : 0;
+        ret += fail(gobj, "my-permissions of the viewer", s? s : "no data");
+        if(s) {
+            gbmem_free(s);
+        }
+    }
+    JSON_DECREF(expected)
+    JSON_DECREF(response)
+
+    response = gobj_command(priv->cc, "my-permissions", client_kw(gobj_name(client)), client);
+    data = kw_get_dict(gobj, response, "data", 0, 0);
+    const char *key; json_t *v;
+    json_object_foreach(data, key, v) {
+        if(!json_is_true(v)) {
+            ret += fail(gobj, "my-permissions of a user who may do everything", key);
+        }
+    }
+    JSON_DECREF(response)
+    return ret;
+}
+
+/***************************************************************************
  *  9. Who gets what the agent sends back when it names no web client:
  *     only one of this yuno's own ievent links (C_IEVENT_CLI), the one the
  *     request came in by -- never a local service named in a hop below
@@ -1310,6 +1493,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_relays_only_for_who_asks(gobj, client1);
     result += test_answer_to_local_requesters(gobj, client1);
     result += test_inject_in_a_loop(gobj, client2);
+    result += test_scoped_viewer(gobj, client1);
 
     priv->client1 = client1;
     priv->client3 = client3;

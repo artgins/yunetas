@@ -121,6 +121,19 @@ still reported and fails the test.
     its step, the step's answer, its answer) count 3 in and 3 out. Up to
     7.25.20 all of them read 0.
 
+14. A user who may read ONE scenario ("viewer": the test's checker grants
+    it `read-scenarios` with `scenario_id` "scn" only, the scope a role's
+    `parameters` gives in C_AUTHZ). `scenarios` lists "scn" alone; another
+    scenario asked by id, `command-agent` and `save-scenario` of "scn" are
+    refused; `scenario-runs` of "scn" answers. `watch-scenario` sends the
+    agent the line the control center builds from the scenario
+    (`watch-yuno-stats ids=1234 period=1000`, none of its own parameters
+    along); `keys=` keeps the keys asked, keys or a node of no yuno of the
+    scenario are refused (*"has no yuno to watch on node"*), `stop=1` sends
+    `watch-yuno-stats stop=1`, and another scenario is refused.
+    `my-permissions` says `read-scenarios: ["scn"]` and false for the rest
+    to the viewer, true for everything to a user who may do everything.
+
 ## Run
 
 ```bash

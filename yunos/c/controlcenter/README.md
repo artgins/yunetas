@@ -44,6 +44,8 @@ Registered in the `command_table` of `src/c_controlcenter.c`:
 | `delete-scenario`| Delete a scenario and its runs (`scenario_id=`).                              |
 | `run-scenario`   | Run the steps of an action of a scenario, in order (`scenario_id= action=`).   |
 | `scenario-runs`  | The runs of a scenario, newest first (`scenario_id=`).                        |
+| `watch-scenario` | Watch the yunos of a scenario on one node (`scenario_id= node= [keys=] [period=] [stop=1]`): the agent's `watch-yuno-stats` is built HERE from the scenario, so it needs only `read-scenarios` on it. |
+| `my-permissions` | The permissions of the user who asks: `true`, `false`, or the list of scenarios a scoped role grants it for. |
 
 Besides answers, the control center relays what a node's agent PUSHES along
 the route of a request: the PTY of `open-console` (`EV_TTY_OPEN/DATA/CLOSE`)
@@ -113,6 +115,19 @@ one, so a reading returns the same whoever reads; `maxrxMsgsec`/`maxtxMsgsec`
 the highest of any tick (write 0 to start again);
 `stats=__reset__` zeroes them all. Up to 7.25.20 nothing counted them and all
 six read 0.
+
+## Permissions scoped to scenarios
+
+Every scenario command checks its permission (`read-scenarios`,
+`write-scenarios`, `run-scenarios`) with the `scenario_id` it acts on, so a
+role of the `authz` store whose `parameters` scope a permission
+(`{"scenario_id": ["renfe-20k-hidraulia"]}`, C_AUTHZ 7.27.14+) grants it for
+those scenarios only: `scenarios` lists only them, the others are refused by
+id, and `save-scenario` checks the id it saves. Such a user watches a scenario
+live with `watch-scenario` -- the control center builds the agent's watch from
+the scenario it keeps -- and never needs `command-agent`, which sends anything
+to any node. `my-permissions` tells the console what to offer. Details and the
+role row: doc.yuneta.io, *controlcenter* -> *A user who may see one scenario*.
 
 ## Data model: scenarios and their runs
 

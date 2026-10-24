@@ -22,6 +22,13 @@
  *      delete-scenario scenario_id=        delete one and its runs
  *      run-scenario scenario_id= action=   run the steps of an action, in order
  *      scenario-runs scenario_id=          the runs of one, newest first
+ *      watch-scenario scenario_id= node=   watch its yunos on that node (the
+ *                                          agent's watch-yuno-stats, built here)
+ *      my-permissions                      what the user who asks may do here
+ *  A scenario permission is checked with the `scenario_id` the command acts
+ *  on, so a role whose `parameters` scope it (C_AUTHZ) grants it for some
+ *  scenarios only: the list keeps them, save checks the id it saves, and
+ *  such a user watches them with watch-scenario, never with command-agent.
  *  A RUN sends each step to the node's agent as `command-yuno`, carrying
  *  the user who asked (`__username__`, what the agent's audit records),
  *  one after the other: a step is sent only when the one before it
@@ -91,11 +98,23 @@ PRIVATE json_t *cmd_delete_scenario(hgobj gobj, const char *cmd, json_t *kw, hgo
 PRIVATE json_t *cmd_run_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_scenario_runs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
-PRIVATE json_t *refuse_scenario_command(hgobj gobj, const char *permission, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_watch_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_my_permissions(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+
+PRIVATE json_t *forward_to_agent(hgobj gobj, json_t *kw, hgobj src);
+PRIVATE json_t *refuse_scenario_command(
+    hgobj gobj,
+    const char *permission,
+    const char *scenario_id,
+    json_t *kw,
+    hgobj src
+);
+PRIVATE BOOL user_may_scenario(hgobj gobj, const char *permission, const char *scenario_id, json_t *kw, hgobj src);
 PRIVATE json_t *treedb_tranger(hgobj gobj);
 PRIVATE const char *scenario_id_of(hgobj gobj, json_t *kw);
 PRIVATE const char *username_of(hgobj gobj, json_t *kw, hgobj src);
 PRIVATE BOOL is_scenario_action(const char *action);
+PRIVATE BOOL in_comma_list(const char *list, const char *name);
 PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz);
 PRIVATE json_t *build_run_steps(hgobj gobj, json_t *scenario, const char *action, char *err, size_t errsz);
 PRIVATE json_t *sort_runs_newest_first(json_t *runs);
@@ -207,6 +226,15 @@ SDATAPM (DTP_JSON,      "scenario",     0,              0,          "The scenari
 SDATAPM (DTP_INTEGER,   "revision",     0,              "0",        "The revision the scenario was read at (`__md_treedb__`g_rowid` in what `scenarios` answers): refused if it was saved since. 0: no check"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_watch_scenario[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "scenario_id",  0,              0,          "Scenario id"),
+SDATAPM (DTP_STRING,    "node",         0,              0,          "Node of the scenario whose yunos to watch (its agent id)"),
+SDATAPM (DTP_STRING,    "keys",         0,              "",         "Keys of the yunos of that node to watch, comma separated. Empty: all of them"),
+SDATAPM (DTP_INTEGER,   "period",       0,              "2000",     "Milliseconds between two readings"),
+SDATAPM (DTP_BOOLEAN,   "stop",         0,              "0",        "Stop the watch of this node"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_run_scenario[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "scenario_id",  0,              0,          "Scenario id"),
@@ -237,6 +265,8 @@ SDATACM2 (DTP_SCHEMA,   "save-scenario",    0,                  0,              
 SDATACM2 (DTP_SCHEMA,   "delete-scenario",  0,                  0,              pm_scenario,    cmd_delete_scenario,"Delete a scenario and its runs"),
 SDATACM2 (DTP_SCHEMA,   "run-scenario",     0,                  0,              pm_run_scenario,cmd_run_scenario,"Run the steps of an action of a scenario, in order"),
 SDATACM2 (DTP_SCHEMA,   "scenario-runs",    0,                  0,              pm_scenario,    cmd_scenario_runs,"The runs of a scenario, newest first"),
+SDATACM2 (DTP_SCHEMA,   "watch-scenario",   0,                  0,              pm_watch_scenario,cmd_watch_scenario,"Watch the yunos of a scenario on one node (watch-yuno-stats to its agent, built here)"),
+SDATACM2 (DTP_SCHEMA,   "my-permissions",   0,                  0,              0,              cmd_my_permissions,"The permissions of the user who asks, in this service"),
 
 SDATA_END()
 };
@@ -879,6 +909,19 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
      *  Job
      *----------------------------------------*/
     priv->rxMsgs++;
+    return forward_to_agent(gobj, kw, src);
+}
+
+/***************************************************************************
+ *  Send `cmd2agent` to the agent `agent_id`, along the route of the
+ *  client's request: what the agent answers, or pushes, goes back to it.
+ *  The kw is the client's, cleaned of what is not the agent's business.
+ *  Answers at once with the dispatch ("Command sent to N nodes").
+ ***************************************************************************/
+PRIVATE json_t *forward_to_agent(hgobj gobj, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     BOOL client_takes_yuno_stats = client_relays(kw, EV_YUNO_STATS);
 
     const char *keys2delete[] = { // WARNING parameters of command-yuno command of agent
@@ -1156,12 +1199,19 @@ PRIVATE json_t *cmd_scenarios(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *refused = refuse_scenario_command(gobj, "read-scenarios", kw, src);
+    /*
+     *  One scenario is asked of its id; the list keeps the ones the user
+     *  may read, each asked of ITS id (all of them for an unscoped grant,
+     *  some for a role scoped by `scenario_id`).
+     */
+    const char *scenario_id = scenario_id_of(gobj, kw);
+    BOOL whole_list = empty_string(scenario_id);
+    json_t *refused = refuse_scenario_command(gobj,
+        whole_list? NULL : "read-scenarios", scenario_id, kw, src);
     if(refused) {
         return refused;
     }
 
-    const char *scenario_id = scenario_id_of(gobj, kw);
     json_t *jn_data;
     if(!empty_string(scenario_id)) {
         json_t *node = gobj_get_node(
@@ -1193,6 +1243,32 @@ PRIVATE json_t *cmd_scenarios(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
+    if(whole_list) {
+        json_t *mine = json_array();
+        int idx; json_t *scenario;
+        json_array_foreach(jn_data, idx, scenario) {
+            if(user_may_scenario(gobj, "read-scenarios",
+                    kw_get_str(gobj, scenario, "id", "", 0), kw, src)) {
+                json_array_append(mine, scenario);
+            }
+        }
+        JSON_DECREF(jn_data)
+        jn_data = mine;
+        /*  An empty store is an empty list for who may read it  */
+        if(json_array_size(jn_data)==0 &&
+                !user_may_scenario(gobj, "read-scenarios", NULL, kw, src)) {
+            JSON_DECREF(jn_data)
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: no permission to '%s'", gobj_yuno_role_plus_name(), "read-scenarios"),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
+
     return msg_iev_build_response(
         gobj,
         0,
@@ -1219,7 +1295,7 @@ PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *refused = refuse_scenario_command(gobj, "write-scenarios", kw, src);
+    json_t *refused = refuse_scenario_command(gobj, NULL, NULL, kw, src);
     if(refused) {
         return refused;
     }
@@ -1233,6 +1309,26 @@ PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj
         const char *s = json_string_value(jn_scenario);
         jn_parsed = anystring2json(s, strlen(s), FALSE);
         jn_scenario = jn_parsed;
+    }
+
+    /*
+     *  The permission is asked of the id SAVED, never of the client's kw:
+     *  a `scenario_id` beside the scenario would answer for another one.
+     */
+    {
+        json_t *jn_id = json_is_object(jn_scenario)? json_object_get(jn_scenario, "id") : NULL;
+        if(!user_may_scenario(gobj, "write-scenarios",
+                json_is_string(jn_id)? json_string_value(jn_id) : NULL, kw, src)) {
+            JSON_DECREF(jn_parsed)
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: no permission to '%s'", gobj_yuno_role_plus_name(), "write-scenarios"),
+                0,
+                0,
+                kw  // owned
+            );
+        }
     }
 
     char err[256];
@@ -1359,7 +1455,7 @@ PRIVATE json_t *cmd_delete_scenario(hgobj gobj, const char *cmd, json_t *kw, hgo
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *refused = refuse_scenario_command(gobj, "write-scenarios", kw, src);
+    json_t *refused = refuse_scenario_command(gobj, "write-scenarios", scenario_id_of(gobj, kw), kw, src);
     if(refused) {
         return refused;
     }
@@ -1471,7 +1567,7 @@ PRIVATE json_t *cmd_run_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *refused = refuse_scenario_command(gobj, "run-scenarios", kw, src);
+    json_t *refused = refuse_scenario_command(gobj, "run-scenarios", scenario_id_of(gobj, kw), kw, src);
     if(refused) {
         return refused;
     }
@@ -1587,7 +1683,7 @@ PRIVATE json_t *cmd_scenario_runs(hgobj gobj, const char *cmd, json_t *kw, hgobj
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *refused = refuse_scenario_command(gobj, "read-scenarios", kw, src);
+    json_t *refused = refuse_scenario_command(gobj, "read-scenarios", scenario_id_of(gobj, kw), kw, src);
     if(refused) {
         return refused;
     }
@@ -1628,6 +1724,192 @@ PRIVATE json_t *cmd_scenario_runs(hgobj gobj, const char *cmd, json_t *kw, hgobj
         0,
         tranger2_list_topic_desc_cols(treedb_tranger(gobj), "scenario_runs"),
         sort_runs_newest_first(runs), // owned
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Watch the yunos of a scenario on one of its nodes: the watch-yuno-stats
+ *  of that node's agent, BUILT HERE from the scenario, so a user who may
+ *  read the scenario sees its yunos live without `command-agent` (which
+ *  sends anything to any node). `keys` narrows it to some of the yunos of
+ *  that node (a console pauses the readings of a yuno); `stop=1` ends it.
+ *  The readings come back as from `command-agent` (EV_YUNO_STATS, when the
+ *  client's __relays__ says it takes them).
+ ***************************************************************************/
+PRIVATE json_t *cmd_watch_scenario(hgobj gobj, const char *cmd, json_t *kw_, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *kw = json_deep_copy(kw_);
+    KW_DECREF(kw_);
+
+    json_t *refused = refuse_scenario_command(gobj, "read-scenarios", scenario_id_of(gobj, kw), kw, src);
+    if(refused) {
+        return refused;
+    }
+
+    const char *scenario_id = scenario_id_of(gobj, kw);
+    const char *node = kw_get_str(gobj, kw, "node", "", 0);
+    if(empty_string(scenario_id) || empty_string(node)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: what scenario and node? scenario_id=<id> node=<node>",
+                gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *scenario = gobj_get_node(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        json_pack("{s:s}", "id", scenario_id),
+        0,
+        gobj
+    );
+    if(!scenario) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: scenario not found: '%s'", gobj_yuno_role_plus_name(), scenario_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(!empty_string(kw_get_str(gobj, scenario, "agent_url", "", 0))) {
+        JSON_DECREF(scenario)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: scenario '%s' is watched through its agent_url, not here",
+                gobj_yuno_role_plus_name(), scenario_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *keys = kw_get_str(gobj, kw, "keys", "", 0);
+    BOOL stop = kw_get_bool(gobj, kw, "stop", 0, 0);
+
+    gbuffer_t *gbuf = gbuffer_create(256, 4*1024);
+    int n = 0;
+    if(stop) {
+        gbuffer_printf(gbuf, "watch-yuno-stats stop=1");
+        n = 1;
+    } else {
+        const char *scenario_node = kw_get_str(gobj, scenario, "node", "", 0);
+        json_t *yunos = kw_get_list(gobj, scenario, "yunos", 0, 0);
+        int idx; json_t *yuno;
+        json_array_foreach(yunos, idx, yuno) {
+            const char *y_node = kw_get_str(gobj, yuno, "node", "", 0);
+            if(strcmp(empty_string(y_node)? scenario_node : y_node, node)!=0) {
+                continue;
+            }
+            const char *y_id = kw_get_str(gobj, yuno, "id", "", 0);
+            const char *y_key = kw_get_str(gobj, yuno, "key", "", 0);
+            if(empty_string(y_key)) {
+                y_key = y_id;
+            }
+            if(!empty_string(keys) && !in_comma_list(keys, y_key)) {
+                continue;
+            }
+            const char *y_service = kw_get_str(gobj, yuno, "service", "", 0);
+            gbuffer_printf(gbuf, "%s%s%s%s",
+                n? "," : "watch-yuno-stats ids=",
+                y_id,
+                empty_string(y_service)? "" : ":",
+                y_service
+            );
+            n++;
+        }
+        if(n) {
+            gbuffer_printf(gbuf, " period=%lld",
+                (long long)kw_get_int(gobj, kw, "period", 2000, 0));
+        }
+    }
+    JSON_DECREF(scenario)
+
+    if(!n) {
+        GBUFFER_DECREF(gbuf)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: scenario '%s' has no yuno to watch on node '%s'",
+                gobj_yuno_role_plus_name(), scenario_id, node),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  The agent gets the line built here and nothing of this command:
+     *  `period` and `stop` are parameters of its watch-yuno-stats too.
+     */
+    json_object_set_new(kw, "agent_id", json_string(node));
+    json_object_set_new(kw, "cmd2agent",
+        json_stringn(gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf)));
+    GBUFFER_DECREF(gbuf)
+    const char *own_params[] = {"scenario_id", "node", "keys", "period", "stop", "agent_service", 0};
+    for(int i=0; own_params[i]; i++) {
+        json_object_del(kw, own_params[i]);
+    }
+
+    priv->rxMsgs++;
+    return forward_to_agent(gobj, kw, src);
+}
+
+/***************************************************************************
+ *  What the user who asks may do here: every permission of this service,
+ *  true or false; a scenario permission that a role grants only for some
+ *  scenarios (C_AUTHZ `parameters`) is the list of those scenarios. A
+ *  console shows what it can use, instead of controls that are refused.
+ ***************************************************************************/
+PRIVATE json_t *cmd_my_permissions(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_data = json_object();
+    json_t *scenarios = NULL;
+    for(const sdata_desc_t *it = authz_table; it->name; it++) {
+        if(user_may_scenario(gobj, it->name, NULL, kw, src)) {
+            json_object_set_new(jn_data, it->name, json_true());
+            continue;
+        }
+        if(strstr(it->name, "-scenarios") && priv->gobj_treedb_controlcenter) {
+            if(!scenarios) {
+                scenarios = gobj_list_nodes(
+                    priv->gobj_treedb_controlcenter, "scenarios", 0, 0, gobj
+                );
+            }
+            json_t *ids = json_array();
+            int idx; json_t *scenario;
+            json_array_foreach(scenarios, idx, scenario) {
+                const char *id = kw_get_str(gobj, scenario, "id", "", 0);
+                if(user_may_scenario(gobj, it->name, id, kw, src)) {
+                    json_array_append_new(ids, json_string(id));
+                }
+            }
+            if(json_array_size(ids)) {
+                json_object_set_new(jn_data, it->name, ids);
+                continue;
+            }
+            JSON_DECREF(ids)
+        }
+        json_object_set_new(jn_data, it->name, json_false());
+    }
+    JSON_DECREF(scenarios)
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        0,
+        jn_data,
         kw  // owned
     );
 }
@@ -1675,14 +1957,21 @@ PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t ev
 
 /***************************************************************************
  *  The answer of a scenario command that cannot run: the user has not
- *  the permission, or the treedb is not open. NULL when it can (kw
- *  untouched).
+ *  the permission on the scenario it acts on, or the treedb is not open.
+ *  NULL when it can (kw untouched). A NULL permission checks only the
+ *  treedb: the caller checks the permission per scenario.
  ***************************************************************************/
-PRIVATE json_t *refuse_scenario_command(hgobj gobj, const char *permission, json_t *kw, hgobj src)
+PRIVATE json_t *refuse_scenario_command(
+    hgobj gobj,
+    const char *permission,
+    const char *scenario_id,
+    json_t *kw,
+    hgobj src
+)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+    if(permission && !user_may_scenario(gobj, permission, scenario_id, kw, src)) {
         return msg_iev_build_response(
             gobj,
             -1,
@@ -1697,7 +1986,7 @@ PRIVATE json_t *refuse_scenario_command(hgobj gobj, const char *permission, json
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SERVICE,
             "msg",          "%s", "Treedb Controlcenter not open",
-            "permission",   "%s", permission,
+            "permission",   "%s", permission? permission : "",
             NULL
         );
         return msg_iev_build_response(
@@ -1710,6 +1999,34 @@ PRIVATE json_t *refuse_scenario_command(hgobj gobj, const char *permission, json
         );
     }
     return NULL;
+}
+
+/***************************************************************************
+ *  Has the user `permission` on THIS scenario? A role may grant a
+ *  permission for some scenarios only (C_AUTHZ `parameters`, e.g.
+ *  {"scenario_id": ["renfe-20k-hidraulia"]}): the check carries the id the
+ *  command acts on and who asks (the user C_IEVENT_SRV authenticated), and
+ *  NOTHING of the client's kw -- a key of it could answer for a scope. A
+ *  NULL id asks the permission with no scenario: only an unscoped grant
+ *  has it.
+ ***************************************************************************/
+PRIVATE BOOL user_may_scenario(
+    hgobj gobj,
+    const char *permission,
+    const char *scenario_id,
+    json_t *kw, // not owned
+    hgobj src
+)
+{
+    json_t *kw_check = json_object();
+    if(scenario_id) {
+        json_object_set_new(kw_check, "scenario_id", json_string(scenario_id));
+    }
+    const char *username = username_of(gobj, kw, src);
+    if(!empty_string(username)) {
+        json_object_set_new(kw_check, "__username__", json_string(username));
+    }
+    return gobj_user_has_authz(gobj, permission, kw_check, src);
 }
 
 PRIVATE json_t *treedb_tranger(hgobj gobj)
@@ -1739,6 +2056,24 @@ PRIVATE const char *username_of(hgobj gobj, json_t *kw, hgobj src)
 }
 
 PRIVATE const char *scenario_actions[] = {"start", "pause", "resume", "stop", "report", 0};
+
+/***************************************************************************
+ *  Is `name` one of the items of "a,b,c"?
+ ***************************************************************************/
+PRIVATE BOOL in_comma_list(const char *list, const char *name)
+{
+    size_t ln = strlen(name);
+    const char *p = list;
+    while(p && *p) {
+        const char *comma = strchr(p, ',');
+        size_t lt = comma? (size_t)(comma - p) : strlen(p);
+        if(lt == ln && strncmp(p, name, ln)==0) {
+            return TRUE;
+        }
+        p = comma? comma + 1 : NULL;
+    }
+    return FALSE;
+}
 
 PRIVATE BOOL is_scenario_action(const char *action)
 {

@@ -8,6 +8,43 @@
   as a floor; a fixed 12 for a version pushed every column after it out of
   line.
 
+- **A role can grant a permission for some things only: its `parameters`
+  scope what it grants** (`C_AUTHZ`). The column was in the `roles` topic
+  and nothing read it. Now a role's `parameters` is a dict of kw keys, each
+  with the value or the list of values the kw of the check must carry; a
+  grant whose scope does not match is left out, as if the role did not have
+  it. An entry of `permissions` may carry its own `parameters`, which
+  replace the role's for it. Both fail closed: a grant needs every key of
+  its scope in the kw; a scoped `deny` applies unless the kw carries a key
+  of its scope with a value out of it. A role with no `parameters` grants
+  as before. `{"permission":
+  "read-scenarios", "parameters": {"scenario_id": ["renfe-20k-hidraulia"]}}`
+  reads that scenario and nothing else. A `parameters` that is not a dict
+  grants nothing and logs an ERROR. New test `authz_scoped_permissions`.
+- **`deny` of an entry of a role's `permissions` is optional** (false, as it
+  always defaulted): an entry without it logged *"path NOT FOUND"* on every
+  check of every permission of its role.
+- **controlcenter: a user can be let see ONE scenario.** Every scenario
+  permission is checked with a kw BUILT from the scenario the command acts
+  on (`scenario_id` and the authenticated user, nothing of the client's kw:
+  a `scenario_id` beside `save-scenario scenario={"id": "other"}` would have
+  answered for another scenario), so a scoped role works there: `scenarios` lists only the scenarios in scope (and
+  refuses another one by id), `save-scenario` checks `write-scenarios` on
+  the id it saves. New `watch-scenario scenario_id= node= [keys=] [period=]
+  [stop=1]`: the control center builds the agent's `watch-yuno-stats` from
+  the scenario it keeps, with only `read-scenarios` on it -- the live view
+  needed `command-agent`, which sends anything to any node. New
+  `my-permissions`: what the user who asks may do (`true`, `false`, or the
+  scenarios it is granted for), which the console asks to offer only that.
+  `command-agent` and `watch-scenario` share the forwarding to the agent
+  (`forward_to_agent()`). `test_c_controlcenter_scenarios` case 14.
+- **gui_agent 0.29.114** (yunos-js): `#/scenarios/live/<id>` is a link to a
+  scenario; the live view watches a saved scenario with `watch-scenario`;
+  a user without `command-agent` gets a shell of Scenarios only. Deployed on
+  artgins.yunetacontrol.com and .ovh, where it falls back (one warning each)
+  until the control center is 7.27.14. gui_agent 0.29.112-0.29.113: the
+  charts of a stopped scenario hold.
+
 ## v7.27.13 (2026-10-24)
 
 A lite release of the agent alone: it says when a binary's version would

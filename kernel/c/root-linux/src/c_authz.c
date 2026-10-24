@@ -9,6 +9,18 @@
  *          libjwt has been modified to use in yuneta environment:
  *              see in the jwt.h the functions marked with ArtGins
  *
+ *          A role's `parameters` SCOPE the permissions it grants: a dict of
+ *          kw keys, each with the value (or the list of values) the
+ *          command's kw must carry for the grant to hold. A grant whose
+ *          scope does not match the kw of the check is left out, as if the
+ *          role did not have it; a scoped DENY applies unless the kw
+ *          carries a key of its scope with a value out of it (both fail
+ *          closed); a role with no `parameters` grants as before. An entry of `permissions` may carry its own
+ *          `parameters`, which replace the role's for that entry:
+ *              {"id": "renfe-viewer", "service": "controlcenter",
+ *               "realm_id": "...", "permission": "read-scenarios",
+ *               "parameters": {"scenario_id": ["renfe-20k-hidraulia"]}}
+ *
  *          Copyright (c) 2020 Niyamaka.
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -4022,12 +4034,78 @@ PRIVATE json_t *get_user_roles(
 /***************************************************************************
  *
  ***************************************************************************/
+/***************************************************************************
+ *  Does the kw of a check fall in the scope of a grant? `parameters` is
+ *  the scope (see the header): an absent or empty one is no scope. A key
+ *  and a value come from data: the kw is read with json_object_get(),
+ *  never as a path.
+ *  Both fail CLOSED: a grant needs every key of its scope in the kw, with
+ *  a value of the scope; a DENY applies unless the kw carries a key of
+ *  its scope with a value out of it -- a check that does not say the key
+ *  is denied. A scope that is not a dict grants nothing and denies all.
+ ***************************************************************************/
+PRIVATE BOOL kw_in_scope(
+    hgobj gobj,
+    json_t *role,       // not owned
+    json_t *parameters, // not owned
+    json_t *kw,         // not owned
+    BOOL deny
+)
+{
+    if(json_absent(parameters) || (json_is_object(parameters) && json_object_size(parameters)==0)) {
+        return TRUE;
+    }
+    if(!json_is_object(parameters)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", deny?
+                "parameters of a role is not a dict: its deny applies to all" :
+                "parameters of a role is not a dict: its grant is left out",
+            "role",         "%s", kw_get_str(gobj, role, "id", "", 0),
+            NULL
+        );
+        return deny;
+    }
+
+    const char *key; json_t *allowed;
+    json_object_foreach(parameters, key, allowed) {
+        json_t *value = json_is_object(kw)? json_object_get(kw, key) : NULL;
+        if(json_absent(value)) {
+            if(deny) {
+                continue;
+            }
+            return FALSE;
+        }
+        if(json_is_array(allowed)) {
+            BOOL found = FALSE;
+            size_t i; json_t *one;
+            json_array_foreach(allowed, i, one) {
+                if(json_equal(one, value)) {
+                    found = TRUE;
+                    break;
+                }
+            }
+            if(!found) {
+                return FALSE;
+            }
+        } else if(!json_equal(allowed, value)) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE json_t *append_permission(
     hgobj gobj,
     json_t *services_roles, // not owned
     json_t *role,       // not owned
     const char *dst_realm_id,
-    const char *dst_service
+    const char *dst_service,
+    json_t *kw          // not owned
 )
 {
     BOOL disabled = kw_get_bool(gobj, role, "disabled", 0, KW_REQUIRED|KW_WILD_NUMBER);
@@ -4037,9 +4115,10 @@ PRIVATE json_t *append_permission(
         if((strcmp(realm_id, dst_realm_id)==0 || strcmp(realm_id, "*")==0)) {
             if(strcmp(service, dst_service)==0 || strcmp(service, "*")==0
             ) {
+                json_t *role_scope = json_object_get(role, "parameters");
                 const char *permission = kw_get_str(gobj, role, "permission", "", KW_REQUIRED);
                 BOOL deny = kw_get_bool(gobj, role, "deny", FALSE, KW_REQUIRED);
-                if(!empty_string(permission)) {
+                if(!empty_string(permission) && kw_in_scope(gobj, role, role_scope, kw, deny)) {
                     json_object_set_new(
                         services_roles,
                         permission,
@@ -4051,7 +4130,16 @@ PRIVATE json_t *append_permission(
                 int idx; json_t *jn_permission;
                 json_array_foreach(permissions, idx, jn_permission) {
                     permission = kw_get_str(gobj, jn_permission, "permission", "", KW_REQUIRED);
-                    deny = kw_get_bool(gobj, jn_permission, "deny", FALSE, KW_REQUIRED);
+                    /*  `deny` of an entry is optional: false  */
+                    deny = kw_get_bool(gobj, jn_permission, "deny", FALSE, 0);
+                    json_t *scope = json_is_object(jn_permission)?
+                        json_object_get(jn_permission, "parameters") : NULL;
+                    if(json_absent(scope)) {
+                        scope = role_scope;
+                    }
+                    if(!kw_in_scope(gobj, role, scope, kw, deny)) {
+                        continue;
+                    }
                     if(!empty_string(permission)) {
                         json_object_set_new(
                             services_roles,
@@ -4145,7 +4233,8 @@ PRIVATE json_t *get_user_permissions(
             services_roles,
             role,
             dst_realm_id,
-            dst_service
+            dst_service,
+            kw
         );
 
         int idx2; json_t *required_service;
@@ -4187,7 +4276,8 @@ PRIVATE json_t *get_user_permissions(
                 services_roles,
                 child,
                 dst_realm_id,
-                dst_service
+                dst_service,
+                kw
             );
             int idx4;
             json_array_foreach(required_services, idx4, required_service) {
@@ -4198,7 +4288,8 @@ PRIVATE json_t *get_user_permissions(
                         services_roles,
                         child,
                         dst_realm_id,
-                        service
+                        service,
+                        kw
                     );
                 }
             }

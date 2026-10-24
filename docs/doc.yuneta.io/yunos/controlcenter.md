@@ -352,6 +352,79 @@ as `command-agent`**: whoever may write a scenario and run it may send any
 command to any yuno of a connected node. Grant them as you grant
 `command-agent`.
 
+(controlcenter-one-scenario)=
+### A user who may see one scenario (7.27.14+)
+
+A role can grant a permission for some scenarios only: its `parameters`
+**scope** what it grants ([`C_AUTHZ`](#gclass-c-authz), see
+[*Scoped permissions*](#authz-scoped-permissions)). The control center asks
+every scenario permission with the `scenario_id` the command acts on -- a kw
+it builds, with the authenticated user and nothing else of the request, so a
+`scenario_id` put beside another scenario answers nothing -- and a
+role row like this one, in the control center's `authz` store, lets its users
+read `renfe-20k-hidraulia` and nothing else:
+
+```json
+{
+    "id": "renfe-20k-viewer",
+    "description": "Sees the scenario renfe-20k-hidraulia",
+    "realm_id": "<the realm of the control center>",
+    "service": "controlcenter",
+    "permission": "read-scenarios",
+    "parameters": {"scenario_id": ["renfe-20k-hidraulia"]}
+}
+```
+
+To let them run its actions too, the same role carries
+`"permissions": [{"permission": "run-scenarios"}]` -- an entry without
+`parameters` takes the role's. Never `service: "*"` (a superuser) and never
+`command-agent` for such a user: that one sends any command to any node.
+
+What the scope does in each command:
+
+| Command | A user whose `read-scenarios` is scoped |
+|---------|------------------------------------------|
+| `scenarios` | Lists only the scenarios in scope; asked by `scenario_id` for another one, `-1` *"no permission to 'read-scenarios'"* |
+| `scenario-runs`, `watch-scenario` | Only for a scenario in scope |
+| `save-scenario`, `delete-scenario` | Need `write-scenarios` on that scenario (scoped the same way, on the id saved or deleted) |
+| `run-scenario` | Needs `run-scenarios` on that scenario |
+| `command-agent`, `stats-agent`, `list-agents` | Refused: not granted |
+
+**Watching a scenario without `command-agent`.** The live view of the console
+watched the yunos of a scenario with `command-agent cmd2agent="watch-yuno-stats
+ids=..."` to each node -- which needs `command-agent`. `watch-scenario` asks
+only `read-scenarios` on the scenario, and the control center BUILDS the
+watch itself from the scenario it keeps: the yunos of that node (`keys=`, a
+comma-separated list of yuno keys, narrows it), with `period=`; `stop=1` ends
+it. The readings come back as `EV_YUNO_STATS`, as through `command-agent`
+(the client says it takes them in its `__relays__`). The agent never gets a
+line the client wrote:
+
+```bash
+ycommand ... -c 'watch-scenario scenario_id=renfe-20k-hidraulia node=hidrauliaconnect period=2000'
+# -> the agent of hidrauliaconnect gets: watch-yuno-stats ids=pp9:sim_controllers,pp10:sim_controllers,pp11:sim_controllers,2120,2130,2140,5120 period=2000
+ycommand ... -c 'watch-scenario scenario_id=renfe-20k-hidraulia node=hidrauliaconnect keys=tracks'
+# -> watch-yuno-stats ids=5120 period=2000
+ycommand ... -c 'watch-scenario scenario_id=renfe-20k-hidraulia node=hidrauliaconnect stop=1'
+```
+
+**What may I do here?** `my-permissions` answers, for the user who asks, every
+permission of the control center: `true`, `false`, or the list of the
+scenarios it is granted for. It needs no permission. The console asks it
+before it builds its shell, and a user without `command-agent` gets one of
+Scenarios only:
+
+```bash
+ycommand ... -c 'my-permissions'
+# -> {"list-agents": false, "command-agent": false, "drop-agent": false, "logout-user": false,
+#     "write-tty": false, "read-scenarios": ["renfe-20k-hidraulia"],
+#     "write-scenarios": false, "run-scenarios": ["renfe-20k-hidraulia"]}
+```
+
+**A link to a scenario.** The console shows a saved scenario at
+`https://<console>/#/scenarios/live/<id>`, so that address is a link to send:
+the user signs in and lands on it.
+
 **What a step may carry.** A scenario id is letters, digits and `_ . @ -`, not
 starting with a dot, 200 characters at most (a run id is `<id>.<ms>`). The
 `id`, `key` and `service` of a yuno, and the `service` of a step, are letters,
@@ -468,6 +541,8 @@ never armed: all six read 0.
 | `delete-scenario` | Delete a scenario and its runs (`scenario_id`) |
 | `run-scenario` | Run the steps of an action, in order (`scenario_id`, `action`) |
 | `scenario-runs` | The runs of a scenario, newest first (`scenario_id`) |
+| `watch-scenario` | Watch the yunos of a scenario on one node, the watch built here (`scenario_id`, `node`, `keys`, `period`, `stop`) |
+| `my-permissions` | The permissions of the user who asks: `true`, `false`, or the scenarios it is granted for |
 | `authzs` | Authorization help |
 | `help` | Command help |
 

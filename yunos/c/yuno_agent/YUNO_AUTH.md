@@ -421,6 +421,56 @@ Roles can inherit from a parent (`parent_role_id`) — [`get_user_roles()`](http
 at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.27.13/kernel/c/root-linux/src/c_authz.c) walks the chain and accumulates effective
 authzs.
 
+(authz-scoped-permissions)=
+#### Scoped permissions: `parameters` (7.27.14+)
+
+A role grants its `permission`, and each entry of its `permissions` list
+(`{permission, deny}`), for **every** use of that permission. Its
+`parameters` narrow that: a dict of kw keys, each with the value, or the list
+of values, the kw of the check must carry. A grant whose scope does not match
+the kw is left out, as if the role did not have it; an entry of `permissions`
+may carry its own `parameters`, which replace the role's for that entry; a
+role with no `parameters` grants as before.
+
+```json
+{
+    "id": "renfe-20k-viewer",
+    "realm_id": "*",
+    "service": "controlcenter",
+    "permission": "read-scenarios",
+    "parameters": {"scenario_id": ["renfe-20k-hidraulia"]},
+    "permissions": [
+        {"permission": "run-scenarios"},
+        {"permission": "write-scenarios", "parameters": {"scenario_id": "renfe-20k-draft"}}
+    ]
+}
+```
+
+That role reads and runs `renfe-20k-hidraulia` and writes `renfe-20k-draft`,
+and a check of `read-scenarios` with no `scenario_id` in its kw is refused:
+the scope cannot match a key that is not there. The values are compared as
+json -- `"1"` does not match `1`, nor `"S1"` `"s1"` -- and a key is read from
+the kw as a key, never as a path. Both sides fail CLOSED: a grant needs every
+key of its scope in the kw, and a scoped `deny` applies unless the kw carries
+a key of its scope with a value out of it. So `{"permission":
+"run-scenarios", "deny": true, "parameters": {"scenario_id": ["s1"]}}` after a
+plain `run-scenarios` lets the role run everything but `s1`, and a check that
+names no `scenario_id` is denied. A `parameters` that is not a dict grants
+nothing, denies everything, and logs an ERROR (*"parameters of a role is not
+a dict: its grant is left out"* / *"... its deny applies to all"*). `deny` of an
+entry is optional (false); up to 7.27.13 an entry without it logged *"path NOT
+FOUND"* on every check.
+
+The scope is what the service asks with: it applies where a service checks a
+permission with the kw of the thing it acts on -- and that kw must be BUILT
+from the thing, never be the client's: a client that puts the scoped key
+beside a request for something else would answer the check for it. The
+control center asks with `{scenario_id, __username__}` only. The control center does it
+for its scenario permissions ([*A user who may see one
+scenario*](#controlcenter-one-scenario)); a service that checks with a kw that
+does not carry the key refuses every scoped grant. Pinned by
+`tests/c/authz_scoped_permissions`.
+
 ### 4.2 The `yuneta` super-user
 
 [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.27.13/kernel/c/root-linux/src/c_authz.c):
