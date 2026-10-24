@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## v7.27.20 (2026-10-24)
+
+A lite release of the controlcenter (the C_AUTHZ it links): only it is
+deployed (1996/1997 on a.com). Suite on the dev machine: see below. No
+performance study: the change is in the check of a permission.
+
+- **C_AUTHZ: the scope of a grant is weighed only when its own permission is
+  asked** (and `*`'s). Up to 7.27.19 every grant of the user's roles was
+  checked against the keys the ASKED permission declares, so a good scope
+  -- `read-scenarios` on `scenario_id` -- read as undeclared when another
+  permission was asked (`command-agent`, at every `my-permissions`), and
+  logged *"a role scopes a permission on a key it does not declare"* once
+  per role and check. What was granted did not change. Seen on a.com after
+  the deploy of 7.27.19, at the login of the scoped user.
+  `authz_scoped_permissions` checks that a good scope logs nothing.
+
 ## v7.27.19 (2026-10-24)
 
 A lite release of the controlcenter, which replaces 7.27.18 before it was

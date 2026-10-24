@@ -22,6 +22,8 @@
  *               match the integer 1, nor "S1"
  *            6. a scope that is not a dict grants nothing and logs an
  *               error once per check
+ *            -  none of 1-5 logs an error: the scope of a grant is checked
+ *               only when its own permission is asked
  *            7. a scope may name only the keys the permission declares (the
  *               `items` of its SDATAAUTHZ: what the service builds into the
  *               kw itself): command-agent declares none, so a role scoping it
@@ -242,6 +244,8 @@ PRIVATE void check_may(
 
 PRIVATE void run_checks(hgobj gobj)
 {
+    int errors_before = s_errors;
+
     /*  1  */
     check_may(gobj, "viewer", "read-scenarios", "s1", 1);
     check_may(gobj, "viewer", "read-scenarios", "s2", 0);
@@ -271,6 +275,11 @@ PRIVATE void run_checks(hgobj gobj)
     check_int("viewer read-scenarios (integer 1)",
         gobj_user_has_authz(gobj, "read-scenarios", kw, gobj)? 1 : 0, 0);
     check_may(gobj, "viewer", "read-scenarios", "S1", 0);
+
+    /*  A good scope logs nothing, also when another permission of its role
+     *  is asked (up to 7.27.19 the scope of read-scenarios was weighed
+     *  against the keys of command-agent: an ERROR at every check)  */
+    check_int("a good scope logs no error, whatever is asked", s_errors - errors_before, 0);
 
     /*  6  */
     int errors0 = s_errors;

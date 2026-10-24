@@ -4040,6 +4040,18 @@ PRIVATE json_t *get_user_roles(
  *
  ***************************************************************************/
 /***************************************************************************
+ *  Is a grant of `permission` weighed when `authz` is asked? Its own, and
+ *  `*`. The scope of another permission is checked against what IT
+ *  declares, when it is the one asked: weighed here against the keys of
+ *  the asked one, a good scope read as undeclared (an ERROR at every check
+ *  of the other permissions of the role, up to 7.27.19).
+ ***************************************************************************/
+PRIVATE BOOL grant_is_asked(const char *permission, const char *authz)
+{
+    return strcmp(permission, "*")==0 || !authz || strcmp(permission, authz)==0;
+}
+
+/***************************************************************************
  *  Does the permission asked declare `key` among its parameters (the
  *  `items` of its SDATAAUTHZ)? Only those keys does the service build
  *  itself; a scope on any other could be answered by the client.
@@ -4142,7 +4154,8 @@ PRIVATE json_t *append_permission(
     const char *dst_realm_id,
     const char *dst_service,
     json_t *kw,         // not owned
-    json_t *declared    // not owned
+    json_t *declared,   // not owned
+    const char *authz   // the permission asked: only its grants (and `*`) are weighed
 )
 {
     BOOL disabled = kw_get_bool(gobj, role, "disabled", 0, KW_REQUIRED|KW_WILD_NUMBER);
@@ -4155,7 +4168,8 @@ PRIVATE json_t *append_permission(
                 json_t *role_scope = json_object_get(role, "parameters");
                 const char *permission = kw_get_str(gobj, role, "permission", "", KW_REQUIRED);
                 BOOL deny = kw_get_bool(gobj, role, "deny", FALSE, KW_REQUIRED);
-                if(!empty_string(permission) && kw_in_scope(gobj, role, role_scope, kw, declared, deny)) {
+                if(!empty_string(permission) && grant_is_asked(permission, authz) &&
+                        kw_in_scope(gobj, role, role_scope, kw, declared, deny)) {
                     json_object_set_new(
                         services_roles,
                         permission,
@@ -4174,7 +4188,8 @@ PRIVATE json_t *append_permission(
                     if(json_absent(scope)) {
                         scope = role_scope;
                     }
-                    if(!kw_in_scope(gobj, role, scope, kw, declared, deny)) {
+                    if(!grant_is_asked(permission, authz) ||
+                            !kw_in_scope(gobj, role, scope, kw, declared, deny)) {
                         continue;
                     }
                     if(!empty_string(permission)) {
@@ -4202,7 +4217,8 @@ PRIVATE json_t *get_user_permissions(
     const char *dst_service,
     const char *username,
     json_t *kw, // not owned
-    json_t *declared // not owned, the `parameters` of the permission asked
+    json_t *declared, // not owned, the `parameters` of the permission asked
+    const char *authz // the permission asked
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -4273,7 +4289,8 @@ PRIVATE json_t *get_user_permissions(
             dst_realm_id,
             dst_service,
             kw,
-            declared
+            declared,
+            authz
         );
 
         int idx2; json_t *required_service;
@@ -4317,7 +4334,8 @@ PRIVATE json_t *get_user_permissions(
                 dst_realm_id,
                 dst_service,
                 kw,
-                declared
+                declared,
+                authz
             );
             int idx4;
             json_array_foreach(required_services, idx4, required_service) {
@@ -4330,7 +4348,8 @@ PRIVATE json_t *get_user_permissions(
                         dst_realm_id,
                         service,
                         kw,
-                        declared
+                        declared,
+                        authz
                     );
                 }
             }
@@ -5142,7 +5161,8 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         gobj_name(gobj_to_check),   // dst_service
         __username__,
         kw, // not owned
-        json_object_get(jn_authz_desc, "parameters")
+        json_object_get(jn_authz_desc, "parameters"),
+        authz
     );
 
     BOOL allow = FALSE;
