@@ -23,7 +23,7 @@ Yunetas has two installation methods. Your task decides which method you use:
   [`menuconfig`](#configure-menuconfig).
 
 > ℹ️ The PyPI package `yunetas` (`pipx install yunetas`) is the CLI for
-> management and builds. Its current version is 1.0.0. It is not the C
+> management and builds. Its current version is 1.0.1. It is not the C
 > framework runtime, which is at 7.x. The `.deb` contains the two of them. A
 > build from source uses the CLI to drive the build.
 

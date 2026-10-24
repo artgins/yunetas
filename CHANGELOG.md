@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## v7.27.13 (2026-10-24)
+
+A lite release of the agent alone: it says when a binary's version would
+make its releases compare out of order. Only the agent is deployed; no yuno
+is rebuilt. The test that covers it ran on the dev machine
+(`test_c_agent_find_new_yunos`). No performance study: the change is the
+agent's own, which no benchmark links. 7.27.12 (the release column) was
+deployed on the dev machine only, and reaches the nodes with this one.
+
+- **`install-binary` warns of a version whose releases may not compare in
+  order.** The agent picks the newest release of a yuno by comparing the
+  whole `yuno_release`, `<binary version>-<config version>`, as one list of
+  numbers split at `.` and `-`. With the SDK after a `-` in a project yuno's
+  version (7.27.11), the count of the yuno's own numbers decides where the
+  SDK's land: `1.0-7.27.11` compared NEWER than `1.0.1-7.27.11`, and an old
+  three-number `1.0.0-9` newer than `1.0.0-7.27.11-1`. Any version but
+  `x.y.z`, `x.y.z-a.b.c` or the older `x.y.z.0` now logs a WARNING
+  (*"Binary version neither x.y.z nor x.y.z-a.b.c"*); the binary is installed
+  all the same. The rule is written in `deploying-yunos.md`: a yuno's own
+  version always has three numbers. No yuno on the nodes breaks it.
+- **The `yunetas` CLI 1.0.1**: `sync-binaries` prints the same warning.
+
 ## v7.27.12 (2026-10-24)
 
 A lite release of the agent alone: the column of a yuno's release is wide
