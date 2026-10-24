@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v7.27.14 (2026-10-24)
+
+A lite release of the controlcenter: a user can be let see ONE scenario.
+`C_AUTHZ` (in every yuno) gains the scope of a role's `parameters`, but a
+role without `parameters` grants as before, so only the controlcenter is
+deployed (1996/1997 on a.com); the other yunos take it with the next full
+release. The suite ran on the dev machine: 325/325. No performance study:
+the change is in the check of a permission, which no benchmark runs.
+
 - **The `yunetas` CLI 1.0.2** (on PyPI): the table of `sync-binaries` stays
   in line with the long versions of 7.27.11 (`2.17.3-7.27.13`). Its role,
   version and size columns are as wide as their longest value, the old widths
