@@ -234,6 +234,8 @@ How it would be done, if decided: the component takes `src/` of jansson at
 Linux), with its two configuration headers kept, plus the size of the dump
 buffer; then a build and a run on a device.
 
+**Decided (user, 2026-10-24): not touched for now.** Kept in `TODO.md`.
+
 ## Found, not done
 
 - **Allocation is now the largest cost of a message.** `malloc()` and
@@ -255,7 +257,8 @@ buffer; then a build and a run on a device.
       not carried to v7. One thread, so no locks: a block taken and given
       back in a few instructions, for every block of Yuneta and jansson.
       What a pool keeps is not given back to the system: a process stays
-      at the size of its peak.
+      at the size of its peak. **FUTURE (user, 2026-10-24)**, kept in
+      `TODO.md`.
 - **The lookups of a treedb.** In `perf_tr_treedb`, `hashtable_get()`,
   `hash_str()`, `json_object_get()` and `strlen()` are 38% of the
   instructions: 48 million lookups of a key, 11.8 million of them from

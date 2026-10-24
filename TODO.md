@@ -496,6 +496,26 @@ kernel was not touched.
   word. A `data-i18n-count` (read back by `refresh_language`) would make them
   ordinary.
 
+### Memory and jansson (from the performance audit, round 9)
+
+- **gbmem's own memory manager: the pools of yuneta V6.** **FUTURE** (user,
+  2026-10-24: not now; do not raise it as pending until asked). `malloc()`
+  and `free()` of glibc are some 18% of the instructions of an inter-yuno
+  message (`perf_ievent`, round 9). V6 had its own manager, pools of blocks
+  by size (from MAWK's `zmalloc`); the switch is still there
+  (`USE_OWN_SYSTEM_MEMORY` in `gbmem_setup()`, `FALSE` in every yuno) and the
+  code was not carried to v7. One thread, so no locks: a block taken and
+  given back in a few instructions. The price: what a pool keeps is not
+  given back to the system, so a process stays at the size of its peak.
+  See `performance/audit/round-9-jansson-memory-websocket.md`.
+- **The ESP32 copy of jansson stays as it is.** **FUTURE** (user,
+  2026-10-24: not touched for now). It is jansson 2.14 with the lexer fix
+  by hand (`kernel/c/root-esp32/components/esp_jansson`). To make it
+  Yuneta's jansson: a build setting for the size of the dump buffer, which
+  is on the stack (4 KB, and the yuno's task has 8 KB); a measure of the
+  64-bit words on its 32-bit cores; a build and a run on a device. The
+  assessment is in the round 9 document above.
+
 ---
 
 ## 6. Operations and deployment
