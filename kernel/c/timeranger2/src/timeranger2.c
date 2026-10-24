@@ -844,6 +844,17 @@ PRIVATE int scan_disks_key_for_new_file(
  ***************************************************************/
 PRIVATE uint64_t md_write_gen = 0;  // raised by every write of md2 rows: see md_block_t
 
+/*
+ *  The last file id made (get_file_id()): the same for every time of the
+ *  unit of the finest field of its mask (mask_time_unit())
+ */
+PRIVATE struct {
+    uint64_t unit;          // 0: none kept
+    uint64_t t_unit;        // the __t__ it was made of, divided by unit
+    char mask[NAME_MAX];
+    char id[NAME_MAX];
+} file_id_memo = {0};
+
 /***************************************************************************
  *  Startup TimeRanger database
  ***************************************************************************/
@@ -3420,8 +3431,62 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref
 }
 
 /***************************************************************************
+ *  The seconds of the finest field of a file name mask, when its file id
+ *  depends on the time alone and is the same for every second of that
+ *  unit; 0 when it is not known to. Only the numeric conversions without a
+ *  modifier count, and only those of tranger2_mask_sorts_as_time(): with
+ *  them strftime() writes the fields of the gmtime() of the time, in no
+ *  locale and no zone (%E and %O may give another locale's digits, %s reads
+ *  the zone, a name the locale). Those fields are the same for every second
+ *  of a unit, because in UTC a second, a minute, an hour and a day begin at
+ *  a multiple of 1, 60, 3600 and 86400 seconds of the epoch, and a week, a
+ *  month and a year begin with a day.
+ ***************************************************************************/
+PRIVATE uint64_t mask_time_unit(const char *filename_mask)
+{
+    uint64_t unit = 86400;
+    for(const char *p = filename_mask; *p; p++) {
+        if(*p != '%') {
+            continue;   // literal text
+        }
+        p++;
+        switch(*p) {
+            case '%':   // a literal '%'
+            case 'Y':
+            case 'G':
+            case 'F':
+            case 'm':
+            case 'j':
+            case 'd':
+            case 'V':
+            case 'u':
+                break;
+            case 'H':
+                unit = MIN(unit, 3600);
+                break;
+            case 'M':
+            case 'R':
+                unit = MIN(unit, 60);
+                break;
+            case 'S':
+            case 'T':
+                unit = 1;
+                break;
+            default:
+                return 0;   // another conversion, a modifier, or the end of the mask
+        }
+    }
+    return unit;
+}
+
+/***************************************************************************
  *  Get fullpath of filename in content or md2 level
  *  The directory will be create if it's master
+ *
+ *  The id is made by strftime() of the gmtime() of `__t__`, for every
+ *  append. The last one made is kept (file_id_memo), and answers again for
+ *  the same mask and a time of the same unit of its finest field: the same
+ *  bytes strftime() would write (mask_time_unit()).
  ***************************************************************************/
 PRIVATE char *get_file_id(
     char *bf,
@@ -3433,6 +3498,21 @@ PRIVATE char *get_file_id(
 {
     hgobj gobj = 0;
     *bf = 0;
+
+    const char *filename_mask = json_string_value(json_object_get(topic, "filename_mask"));
+    if(empty_string(filename_mask)) {
+        filename_mask = json_string_value(json_object_get(tranger, "filename_mask"));
+    }
+
+    if(file_id_memo.unit && !empty_string(filename_mask) &&
+            __t__ / file_id_memo.unit == file_id_memo.t_unit &&
+            strcmp(filename_mask, file_id_memo.mask) == 0) {
+        size_t ln = strlen(file_id_memo.id);
+        if(ln < (size_t)bfsize) {
+            memcpy(bf, file_id_memo.id, ln + 1);
+            return bf;
+        }
+    }
 
     struct tm *tm = gmtime((time_t *)&__t__);
     if(!tm) {
@@ -3447,11 +3527,6 @@ PRIVATE char *get_file_id(
         return NULL;
     }
 
-    const char *filename_mask = json_string_value(json_object_get(topic, "filename_mask"));
-    if(empty_string(filename_mask)) {
-        filename_mask = json_string_value(json_object_get(tranger, "filename_mask"));
-    }
-
     if(empty_string(filename_mask) || strftime(bf, (size_t)bfsize, filename_mask, tm) == 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -3463,6 +3538,18 @@ PRIVATE char *get_file_id(
         );
         *bf = 0;
         return NULL;
+    }
+
+    uint64_t unit = mask_time_unit(filename_mask);
+    size_t mask_ln = strlen(filename_mask);
+    size_t id_ln = strlen(bf);
+    if(unit && mask_ln < sizeof(file_id_memo.mask) && id_ln < sizeof(file_id_memo.id)) {
+        file_id_memo.unit = unit;
+        file_id_memo.t_unit = __t__ / unit;
+        memcpy(file_id_memo.mask, filename_mask, mask_ln + 1);
+        memcpy(file_id_memo.id, bf, id_ln + 1);
+    } else {
+        file_id_memo.unit = 0;
     }
     return bf;
 }
