@@ -228,7 +228,7 @@ buffer of a string as it reads it, and the table of an array or an object. A
 string of 40 000 bytes does not parse with a block of 64 KiB, nor does an
 array of 10 000 numbers. A yuno with a larger block reads the record. Up to
 7.25.4 such a string crashed the process (jansson wrote past its buffer, see
-`kernel/c/linux-ext-libs/patches/jansson/`).
+the lexer fix of Yuneta's jansson in `kernel/c/linux-ext-libs/HACKS.md`).
 
 The function does not add a `__md_tranger__` to the record for the caller.
 It adds one (`g_rowid`, `i_rowid`, `t`, `tm`, `offset`, `size`,

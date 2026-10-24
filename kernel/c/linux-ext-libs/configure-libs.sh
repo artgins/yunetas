@@ -264,7 +264,28 @@
 #       builds from source must run `./extrae.sh && ./configure-libs.sh`
 #       again.
 
-VERSION="1.25"
+#   version 1.26
+#       jansson from artgins/jansson, Yuneta's own JSON library (was
+#       akheron/jansson v2.15.1 + patches/jansson/): TAG_JANSSON is the
+#       annotated tag 2.15.1-yuneta.1, upstream v2.15.1 with Yuneta's series
+#       (branch yuneta/2.15.1, rebased on each upstream release). The series
+#       carries the lexer fix that was patches/jansson/0001 (configure-libs
+#       1.22), now stopping only on a failed save (a top-level number or
+#       literal followed by a byte that is not UTF-8 answers as upstream
+#       again), and the speed changes of the performance round of 7.28.0:
+#       ASCII eight bytes at a time in the dump and the UTF-8 check, runs in
+#       the lexer, a seeded hash of 32-bit words in place of lookup3, a short
+#       string in one block, a string token without its own allocation, the
+#       loop check without a hashtable for 32 levels, the dump gathered in a
+#       buffer; and a key that cannot be dumped fails the dump (it wrote
+#       invalid json and answered 0). The API does not change; what a custom
+#       allocator sees does, and a dump callback that fails once fails the
+#       dump. jansson is built with JANSSON_THREAD_SAFE_REFCOUNT=OFF (Yuneta
+#       has no threads): jansson_config.h changes, so every yuno must be
+#       rebuilt (not only relinked); every node that builds from source must
+#       run `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.26"
 
 
 source ./repos2clone.sh
@@ -353,8 +374,7 @@ apply_patches() {
 echo "===================== JANSSON ======================="
 cd build/jansson
 
-git checkout "$TAG_JANSSON"
-apply_patches jansson
+git checkout "$TAG_JANSSON"   # its fixes are commits of artgins/jansson
 
 mkdir -p build
 cd build
@@ -367,6 +387,7 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DJANSSON_BUILD_DOCS=OFF \
     -DJANSSON_EXAMPLES=OFF \
     -DJANSSON_WITHOUT_TESTS=ON \
+    -DJANSSON_THREAD_SAFE_REFCOUNT=OFF \
     ..
 make
 make install

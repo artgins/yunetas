@@ -283,6 +283,36 @@ Operational notes:
   on published v2) and update the repo's `README.md` when the
   contract changes.
 
+### `jansson` is Yuneta's own JSON library (`github.com/artgins/jansson`)
+
+**jansson is first class in the SDK, like `gobj-c`**: every json of Yuneta
+goes through it (the messages between yunos, the records of timeranger2, the
+nodes of a treedb, the configurations). Since 7.28.0 it is Yuneta's own:
+upstream `akheron/jansson` plus a series of Yuneta's commits on a branch
+named after the upstream release (`yuneta/2.15.1`), linear, pinned by an
+annotated tag (`2.15.1-yuneta.1`) that `TAG_JANSSON` in
+`kernel/c/linux-ext-libs/repos2clone.sh` names. It is not a submodule:
+linux-ext-libs clones it and links it statically into every binary. Its own
+`CLAUDE.md` carries the detail; in short:
+
+- **Upstream is followed**: the series is rebased onto each upstream
+  release, and upstream's security fixes are always brought in. Upstream's
+  code is never reformatted (it would make every rebase conflict); the code
+  of the series braces every block.
+- **The API is fixed.** `jansson.h` gains and loses no function and none
+  changes its contract. A change a caller can see (an answer, an error,
+  what a custom allocator sees) is said in the commit and in `CHANGELOG.md`.
+- **Every change is checked** with `test/differential/run.sh <pinned tag>`
+  in the jansson repo (same results, errors, positions and dump bytes; also
+  under ASan and UBSan), and a change made for speed is measured in Yuneta.
+- **To ship**: a new commit on the branch, a new `-yuneta.<n>` tag, then
+  move `TAG_JANSSON`, bump `VERSION` in `configure-libs.sh` (with its header
+  entry), say it in `kernel/c/linux-ext-libs/HACKS.md` and `CHANGELOG.md`,
+  and rebuild every binary.
+- **Built without atomic reference counts** (`JANSSON_THREAD_SAFE_REFCOUNT=OFF`):
+  Yuneta has no threads. A project that shares json between threads must
+  turn it ON again -- nothing else warns.
+
 ## ⚠️ CRITICAL: Memory allocation in C code
 
 **NEVER use raw `malloc` / `calloc` / `realloc` / `free` / `strdup` / `strndup` in Yuneta C code.**
@@ -1090,7 +1120,7 @@ stress/c/*            ← stress test programs
 | `kernel/c/gobj-c/src/gobj.c` | Core ~12K-line GObject runtime |
 | `kernel/c/yev_loop/` | Non-blocking event loop (io_uring) |
 | `kernel/c/timeranger2/` | Time-series DB (append-only, key-indexed) |
-| `kernel/c/linux-ext-libs/` | External dep libs (OpenSSL, liburing, …) |
+| `kernel/c/linux-ext-libs/` | External dep libs (OpenSSL, liburing, …) and jansson, Yuneta's own JSON library (`artgins/jansson`, cloned at `TAG_JANSSON`) |
 | `kernel/c/root-linux/src/` | Runtime GClasses (`c_tcp`, `c_timer`, `c_prot_*`, `c_treedb`, …) |
 | `kernel/js/` | JS implementations (gobj-js, gobj-ui) |
 | `yunos/c/mqtt_broker/` | MQTT v3.1.1 + v5.0 broker |

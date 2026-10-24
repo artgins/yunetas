@@ -8,7 +8,7 @@ Yuneta kernel, so they don't conflict with any system-wide version.
 
 | Library         | Upstream                                            |
 |-----------------|-----------------------------------------------------|
-| jansson-artgins | https://github.com/akheron/jansson.git              |
+| jansson         | https://github.com/artgins/jansson.git (Yuneta's own, on upstream akheron/jansson) |
 | liburing        | https://github.com/axboe/liburing                   |
 | mbedtls         | https://github.com/Mbed-TLS/mbedtls                 |
 | openssl         | https://github.com/openssl/openssl                  |
@@ -120,16 +120,15 @@ CVEs of 1.31.2 to 1.31.7. Track upstream openresty.
 
 openresty stays `1.31.1.1` (no newer release, checked 2026-10-22).
 
-### jansson: heap overflow in the lexer (patched)
+### jansson: Yuneta's own, `artgins/jansson` (configure-libs.sh v1.26)
 
-jansson (v2.15.1, and upstream master) ignored a failed save of a token
-byte, and then wrote past its buffers: a string longer than about half of
-`MEM_MAX_BLOCK` crashed the process that parsed it. Fixed by
-`patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch`
-(configure-libs.sh v1.22), which `configure-libs.sh` applies after the
-checkout. See `HACKS.md`. Every node that builds from source must run
-`./extrae.sh && ./configure-libs.sh` again, and then rebuild the SDK and
-its yunos.
+jansson comes from `artgins/jansson` at the tag `2.15.1-yuneta.1`: upstream
+v2.15.1 with Yuneta's series (the lexer fix that was
+`patches/jansson/0001`, the speed changes of the performance round of
+7.28.0, a dump that fails on a key it cannot dump), built with
+`JANSSON_THREAD_SAFE_REFCOUNT=OFF`. See `HACKS.md`. Every node that builds
+from source must run `./extrae.sh && ./configure-libs.sh` again, and then
+rebuild the SDK and every yuno (`jansson_config.h` changed).
 
 ### openresty: release tarball (configure-libs.sh v1.23)
 

@@ -6,7 +6,9 @@ declare -A REPOS
 # If you change some version of those libraries
 #   remember to change the VERSION of installation in configure-libs.sh
 #--------------------------------------------------------------------------
-TAG_JANSSON="v2.15.1"
+# jansson is Yuneta's own (artgins/jansson): upstream v2.15.1 with Yuneta's
+# series on branch yuneta/2.15.1, pinned by its annotated tag (see HACKS.md)
+TAG_JANSSON="2.15.1-yuneta.1"
 TAG_LIBURING="liburing-2.15"
 TAG_MBEDTLS="v4.2.0"
 TAG_OPENSSL="openssl-3.6.5"
@@ -27,7 +29,7 @@ TAG_NGINX="release-1.31.8"  # bug fixes, no CVE (was release-1.31.7); mainline b
 #   REPOS
 #------------------------------------------
 # Add repositories and their versions (branch, tag, or commit hash)
-REPOS["https://github.com/akheron/jansson.git"]="$TAG_JANSSON"
+REPOS["https://github.com/artgins/jansson.git"]="$TAG_JANSSON"
 REPOS["https://github.com/axboe/liburing.git"]="$TAG_LIBURING"
 REPOS["https://github.com/Mbed-TLS/mbedtls.git"]="$TAG_MBEDTLS"
 REPOS["https://github.com/openssl/openssl.git"]="$TAG_OPENSSL"

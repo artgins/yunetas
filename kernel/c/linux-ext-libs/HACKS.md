@@ -64,29 +64,69 @@ and `/etc/hosts` directly, bypassing glibc's NSS resolver chain.
 > build cleanly as fully static GCC/Clang binaries.
 
 
-## jansson — the lexer stops when a save fails (`patches/jansson/`)
+## jansson — Yuneta's own (`artgins/jansson`)
 
-`configure-libs.sh` applies every `patches/<lib>/*.patch` after the checkout
-of `<lib>` (`apply_patches`; a patch already applied is skipped, a patch that
-does not apply stops the script). The first one is
-`patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch`, on
-jansson v2.15.1. Upstream has the defect too (v2.15.1 and master,
-2026-09-23).
+jansson is Yuneta's JSON library, and since `configure-libs.sh` 1.26 it is
+Yuneta's own: `https://github.com/artgins/jansson`. It is upstream jansson
+(`akheron/jansson`) plus a series of Yuneta's commits on a branch named
+after the upstream release it sits on (`yuneta/2.15.1`, on tag `v2.15.1`),
+linear, one commit per change. Each state pinned here is an annotated tag
+(`2.15.1-yuneta.1`), and `TAG_JANSSON` in `repos2clone.sh` names it. On each
+upstream release the series is rebased onto it, and upstream's security
+fixes are always brought in. Upstream's code is not reformatted; the code of
+the series braces every block. The rules of the repo are in its `CLAUDE.md`.
 
-The lexer saves each byte of a token in a buffer that grows by doubling, and
-it ignored a failed save. Yuneta routes jansson through `gbmem_*`, which
-refuses a block larger than `MEM_MAX_BLOCK`. So a string token longer than
-about half of that block lost its closing quote, and `lex_scan_string()`
-decoded past the end of its buffers: a heap overflow, from json text alone.
-It crashed the reads of timeranger2 (`SIGSEGV`, *"corrupted size vs.
-prev_size"*), and any other `json_load*()` of such a text. With the patch, a
-failed save stops the lexer with the error `json_error_out_of_memory`
-(*"not enough memory"*), and every other allocation failure of the parser
-sets that error too (before, they set none, and a caller could not tell "no
-memory" from "not json").
+Every change is checked with `test/differential/run.sh <commit>` in the
+jansson repo: the same results, errors and positions, and the same bytes of
+every dump as the commit pinned before, also under AddressSanitizer and
+UndefinedBehaviorSanitizer.
 
-The same patch is applied by hand to the ESP32 copy of jansson (2.14),
-`kernel/c/root-esp32/components/esp_jansson/jansson/src/load.c`.
+What the series of `2.15.1-yuneta.1` changes:
+
+- **The lexer stops when a save of the token text fails** (it was
+  `patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch`,
+  configure-libs.sh 1.22-1.25). The lexer saves each byte of a token in a
+  buffer that grows by doubling, and it ignored a failed save. Yuneta routes
+  jansson through `gbmem_*`, which refuses a block larger than
+  `MEM_MAX_BLOCK`, so a string token longer than about half of that block
+  lost its closing quote and `lex_scan_string()` decoded past the end of its
+  buffers: a heap overflow, from json text alone. A failed save now stops
+  the lexer with `json_error_out_of_memory` (*"not enough memory"*), and
+  every other allocation failure of the parser sets that error too. The
+  stop after a number or a literal happens only on a failed save: the patch
+  stopped there on any error of the stream, so `"1\xff"` loaded with
+  `JSON_DECODE_ANY | JSON_DISABLE_EOF_CHECK` was refused where upstream
+  returns the value. Upstream has the defect (v2.15.1 and master).
+- **Speed, from the performance round of 7.28.0**: plain ASCII taken eight
+  bytes at a time in the dump of a string and in the UTF-8 check (read with
+  `memcpy()`, the same on any byte order); the lexer takes runs of plain
+  bytes (string text, digits, blanks) and reads a byte without the generic
+  stream calls; a seeded hash of 32-bit words in place of lookup3's
+  `hashlittle()` (still seeded from `/dev/urandom`, no more resistant to
+  flooding than lookup3 was); a short string with its value in its own
+  block; a string token decoded without an allocation of its own; a NUL
+  looked for only in a string that had escapes; the loop check of a dump,
+  a deep copy or a compare without a hashtable for 32 levels; the output
+  of a dump gathered in a buffer of 4 KB before its callback.
+- **A key that cannot be dumped fails the dump.** A key with bytes that are
+  not UTF-8 (set with a `_nocheck` call) was dumped as `{":1}`, invalid
+  json, and the dump answered 0. Upstream has the defect.
+- **`JANSSON_THREAD_SAFE_REFCOUNT`**, a CMake option of the series (ON by
+  default). This script turns it OFF: Yuneta has no threads, and
+  `json_incref()`/`json_decref()`, inline in every caller, were a locked
+  instruction each. `jansson_config.h` changes, so every yuno is rebuilt,
+  not only relinked. **A project that adds threads sharing json must turn
+  it ON again**: nothing else warns.
+
+What a caller can see besides the speed: what a custom allocator is asked
+(fewer and other blocks), and a dump callback that fails once fails the
+dump (upstream went on calling it). Measured and left out of the series:
+the first buckets of a table and the first table of an array kept inside
+their object (up to 8% more live memory in a treedb-like load, no gain in
+time).
+
+The ESP32 copy of jansson (2.14, `kernel/c/root-esp32/components/esp_jansson`)
+is not this library: it carries only the lexer fix, by hand.
 
 Check an installed library: `strings outputs_ext/lib/libjansson.a | grep
-"not enough memory"` finds the text (the unpatched `load.o` has none).
+"not enough memory"` finds the text (upstream's `load.o` has none).

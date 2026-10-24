@@ -528,7 +528,7 @@ largest memory block can need more to parse (jansson doubles the buffer of a
 string, and the table of an array or an object), and a yuno with a larger
 `MEM_MAX_BLOCK` reads it. Up to 7.25.4 a string longer than about half of the
 block crashed the process: jansson wrote past its buffer (fixed by
-`kernel/c/linux-ext-libs/patches/jansson/`). `tests/c/timeranger2/test_torn_tail_check_fails.c`.
+the lexer fix of Yuneta's jansson, see `kernel/c/linux-ext-libs/HACKS.md`). `tests/c/timeranger2/test_torn_tail_check_fails.c`.
 
 `tranger2_open_list()` of ONE key answers `NULL` when the history of the key
 did not load whole. A KEYLESS list loads every key it can read, opens its
