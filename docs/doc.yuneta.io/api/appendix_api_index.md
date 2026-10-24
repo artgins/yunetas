@@ -61,7 +61,7 @@ it by hand, run the script.
 
 8. [**`dl_flush`**](helpers/dl.md#dl_flush) — `PUBLIC void dl_flush(dl_list_t *dl, void (*fnfree)(void *))`
 
-### `gbmem.h` — 15 functions
+### `gbmem.h` — 16 functions
 
 **Source:** `kernel/c/gobj-c/src/gbmem.h`
 
@@ -73,27 +73,29 @@ it by hand, run the script.
 
 4. [**`gbmem_get_allocators`**](helpers/memory.md#gbmem_get_allocators) — `PUBLIC int gbmem_get_allocators( sys_malloc_fn_t *malloc_func, sys_realloc_fn_t *realloc_func, sys_calloc_fn_t *calloc_func, sys_free_fn_t *free_func )`
 
-5. [**`gbmem_malloc`**](helpers/memory.md#gbmem_malloc) — `PUBLIC void *gbmem_malloc(size_t size)`
+5. [**`gbmem_get_json_allocators`**](helpers/memory.md#gbmem_get_json_allocators) — `PUBLIC int gbmem_get_json_allocators( sys_malloc_fn_t *malloc_func, sys_free_fn_t *free_func )`
 
-6. [**`gbmem_free`**](helpers/memory.md#gbmem_free) — `PUBLIC void gbmem_free(void *ptr)`
+6. [**`gbmem_malloc`**](helpers/memory.md#gbmem_malloc) — `PUBLIC void *gbmem_malloc(size_t size)`
 
-7. [**`gbmem_realloc`**](helpers/memory.md#gbmem_realloc) — `PUBLIC void *gbmem_realloc(void *ptr, size_t size)`
+7. [**`gbmem_free`**](helpers/memory.md#gbmem_free) — `PUBLIC void gbmem_free(void *ptr)`
 
-8. [**`gbmem_calloc`**](helpers/memory.md#gbmem_calloc) — `PUBLIC void *gbmem_calloc(size_t n, size_t size)`
+8. [**`gbmem_realloc`**](helpers/memory.md#gbmem_realloc) — `PUBLIC void *gbmem_realloc(void *ptr, size_t size)`
 
-9. [**`gbmem_strndup`**](helpers/memory.md#gbmem_strndup) — `PUBLIC char *gbmem_strndup(const char *str, size_t size)`
+9. [**`gbmem_calloc`**](helpers/memory.md#gbmem_calloc) — `PUBLIC void *gbmem_calloc(size_t n, size_t size)`
 
-10. [**`gbmem_strdup`**](helpers/memory.md#gbmem_strdup) — `PUBLIC char *gbmem_strdup(const char *str)`
+10. [**`gbmem_strndup`**](helpers/memory.md#gbmem_strndup) — `PUBLIC char *gbmem_strndup(const char *str, size_t size)`
 
-11. [**`gbmem_get_maximum_block`**](helpers/memory.md#gbmem_get_maximum_block) — `PUBLIC size_t gbmem_get_maximum_block(void)`
+11. [**`gbmem_strdup`**](helpers/memory.md#gbmem_strdup) — `PUBLIC char *gbmem_strdup(const char *str)`
 
-12. [**`get_max_system_memory`**](helpers/memory.md#get_max_system_memory) — `PUBLIC size_t get_max_system_memory(void)`
+12. [**`gbmem_get_maximum_block`**](helpers/memory.md#gbmem_get_maximum_block) — `PUBLIC size_t gbmem_get_maximum_block(void)`
 
-13. [**`get_cur_system_memory`**](helpers/memory.md#get_cur_system_memory) — `PUBLIC size_t get_cur_system_memory(void)`
+13. [**`get_max_system_memory`**](helpers/memory.md#get_max_system_memory) — `PUBLIC size_t get_max_system_memory(void)`
 
-14. [**`set_memory_check_list`**](helpers/memory.md#set_memory_check_list) — `PUBLIC void set_memory_check_list(unsigned long *memory_check_list)`
+14. [**`get_cur_system_memory`**](helpers/memory.md#get_cur_system_memory) — `PUBLIC size_t get_cur_system_memory(void)`
 
-15. [**`print_track_mem`**](helpers/memory.md#print_track_mem) — `PUBLIC void print_track_mem(void)`
+15. [**`set_memory_check_list`**](helpers/memory.md#set_memory_check_list) — `PUBLIC void set_memory_check_list(unsigned long *memory_check_list)`
+
+16. [**`print_track_mem`**](helpers/memory.md#print_track_mem) — `PUBLIC void print_track_mem(void)`
 
 ### `gbuffer.h` — 30 functions
 
@@ -1325,7 +1327,7 @@ it by hand, run the script.
 
 11. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 629 functions**
+**Total: 630 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2414,7 +2416,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1051 functions** sorted alphabetically with their source header.
+All **1052 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2515,6 +2517,7 @@ All **1051 functions** sorted alphabetically with their source header.
 | [**`gbmem_calloc`**](helpers/memory.md#gbmem_calloc) | `gbmem.h` | gobj-c (Core Framework) |
 | [**`gbmem_free`**](helpers/memory.md#gbmem_free) | `gbmem.h` | gobj-c (Core Framework) |
 | [**`gbmem_get_allocators`**](helpers/memory.md#gbmem_get_allocators) | `gbmem.h` | gobj-c (Core Framework) |
+| [**`gbmem_get_json_allocators`**](helpers/memory.md#gbmem_get_json_allocators) | `gbmem.h` | gobj-c (Core Framework) |
 | [**`gbmem_get_maximum_block`**](helpers/memory.md#gbmem_get_maximum_block) | `gbmem.h` | gobj-c (Core Framework) |
 | [**`gbmem_malloc`**](helpers/memory.md#gbmem_malloc) | `gbmem.h` | gobj-c (Core Framework) |
 | [**`gbmem_realloc`**](helpers/memory.md#gbmem_realloc) | `gbmem.h` | gobj-c (Core Framework) |

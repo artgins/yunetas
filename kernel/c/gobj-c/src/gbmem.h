@@ -4,7 +4,7 @@
  *              Block Memory Core
  *
  *              Copyright (c) 1996-2023 Niyamaka.
- *              Copyright (c) 2024, ArtGins.
+ *              Copyright (c) 2024-2026, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -76,6 +76,10 @@ PUBLIC int gbmem_get_allocators(
     sys_malloc_fn_t *malloc_func,
     sys_realloc_fn_t *realloc_func,
     sys_calloc_fn_t *calloc_func,
+    sys_free_fn_t *free_func
+);
+PUBLIC int gbmem_get_json_allocators( /* for json_set_alloc_funcs(): not zeroed */
+    sys_malloc_fn_t *malloc_func,
     sys_free_fn_t *free_func
 );
 

@@ -463,14 +463,22 @@ PRIVATE void mt_create(hgobj gobj)
     );
 
     /*
-     *  jwt_set_alloc() points jansson too at libjwt's wrappers of these same
+     *  jwt_set_alloc() points jansson too at libjwt's wrappers of gbmem's
      *  functions (jwt_malloc() -> malloc_func): every json allocated and
-     *  freed by the yuno paid one more call. Back to them directly, as
-     *  entry_point.c had set it.
+     *  freed by the yuno paid one more call, and its blocks were zeroed.
+     *  Back to the pair entry_point.c had set.
      */
+    sys_malloc_fn_t json_malloc_func;
+    sys_free_fn_t json_free_func;
+
+    gbmem_get_json_allocators(
+        &json_malloc_func,
+        &json_free_func
+    );
+
     json_set_alloc_funcs(
-        malloc_func,
-        free_func
+        json_malloc_func,
+        json_free_func
     );
 
 #if defined(__linux__)
