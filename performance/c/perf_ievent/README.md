@@ -3,7 +3,7 @@
 Benchmark of the inter-events between yunos: `C_IEVENT_CLI` ->
 `C_WEBSOCKET` -> `C_IEVENT_SRV` -> a service -> its publication back to the
 client's remote subscription. Both sides live in one yuno, on
-`ws://127.0.0.1:7798`.
+`ws://127.0.0.1:7890`.
 
 | Service | GClass | Role |
 |---|---|---|

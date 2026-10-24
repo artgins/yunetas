@@ -1,7 +1,7 @@
 # perf_mqtt
 
 Benchmark of the MQTT publications delivered by the embedded broker
-(`C_AUTHZ` + `C_MQTT_BROKER` on `mqtt://0.0.0.0:18119`), in one yuno, from
+(`C_AUTHZ` + `C_MQTT_BROKER` on `mqtt://127.0.0.1:18119`), in one yuno, from
 the test `c_mqtt/test1`.
 
 The client (`C_PERF_MQTT`, over `C_IOGATE` -> `C_CHANNEL` -> `C_PROT_MQTT2`

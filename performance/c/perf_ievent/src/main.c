@@ -4,7 +4,7 @@
  *          perf_ievent: inter-yuno round trips (C_IEVENT_CLI -> C_WEBSOCKET
  *          -> C_IEVENT_SRV -> a service -> its publication back), in one yuno
  *
- *          - `__input_side__`: a C_IEVENT_SRV gate on ws://127.0.0.1:7798
+ *          - `__input_side__`: a C_IEVENT_SRV gate on ws://127.0.0.1:7890
  *          - `echo` (C_PERF_IEV_ECHO): answers EV_PERF_PING with EV_PERF_PONG
  *          - `cli` (C_IEVENT_CLI): the client of `echo`
  *          - `tester` (C_PERF_IEVENT): 100 000 round trips, timed
@@ -87,7 +87,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'server_port',                          \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'ws://127.0.0.1:7798',               \n\
+                        'url': 'ws://127.0.0.1:7890',               \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -158,7 +158,7 @@ PRIVATE char variable_config[]= "\
                                             'name': 'cli',          \n\
                                             'gclass': 'C_TCP',      \n\
                                             'kw': {                 \n\
-                                    'url': 'ws://127.0.0.1:7798'    \n\
+                                    'url': 'ws://127.0.0.1:7890'    \n\
                                             }                       \n\
                                         }                           \n\
                                     ]                               \n\

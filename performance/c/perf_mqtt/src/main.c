@@ -70,8 +70,8 @@ PRIVATE char variable_config[]= "\
     'global': {                                                     \n\
         'Authz.allow_anonymous_in_localhost': true,                 \n\
         '__input_side__.__json_config_variables__': {               \n\
-            '__input_url__':  'mqtt://0.0.0.0:"MQTT_TEST_PORT"',   \n\
-            '__input_host__': '0.0.0.0',                           \n\
+            '__input_url__':  'mqtt://127.0.0.1:"MQTT_TEST_PORT"', \n\
+            '__input_host__': '127.0.0.1',                         \n\
             '__input_port__': '"MQTT_TEST_PORT"'                    \n\
         }                                                           \n\
     },                                                              \n\
