@@ -76,7 +76,7 @@ typedef struct node_write_s {
 } node_write_t;
 
 /*
- *  The flags of a column a view of a node reads (get_col_view_flags())
+ *  The flags of a column a filter of nodes reads (get_col_view_flags())
  */
 typedef struct {
     BOOL hook;
@@ -85,6 +85,60 @@ typedef struct {
     BOOL required;
     BOOL hidden;
 } col_view_flags_t;
+
+/*
+ *  The columns of a topic, read once from its `cols` (topic_cols_get()).
+ *
+ *  The paths that write and view a node asked each column, at every node,
+ *  its flags (kw_has_word() on its `flag`, a walk of the list of flags per
+ *  word asked) and its `type`: the same answers every time, since
+ *  the description of a column is never changed in place. When the columns
+ *  of a topic change, its `cols` is replaced by another json (at an open,
+ *  at a create-topic, at a new topic_version), and parse_hooks() writes in
+ *  place only their `fkey` marks, which are not read here. So a reading of
+ *  `cols` holds while `cols` is the same json, and is made again when it is
+ *  another one. The json stays the schema; this is a reading of it.
+ *
+ *  One place changes a `cols` in place: derive_file_hooks() adds and
+ *  removes the hooks it derives on __assets__. It says so
+ *  (topic_cols_forget()); and a reading whose number of columns is not
+ *  that of its `cols` any more is made again.
+ *
+ *  A column flag, one bit per word: what kw_has_word(flag, word, 0) answers
+ *  (a substring of an item of a list, the key of a dict that is true, a
+ *  substring of a string), so the same answers.
+ */
+#define COLF_FKEY       0x00000001
+#define COLF_HOOK       0x00000002
+#define COLF_PERSISTENT 0x00000004
+#define COLF_FILE       0x00000008
+#define COLF_REQUIRED   0x00000010
+#define COLF_NOW        0x00000020
+#define COLF_ENUM       0x00000040
+#define COLF_WILD       0x00000080
+#define COLF_TIME       0x00000100
+#define COLF_TEMPLATE   0x00000200
+#define COLF_NOTNULL    0x00000400
+#define COLF_ROWID      0x00000800
+#define COLF_HIDDEN     0x00001000
+
+typedef struct {
+    const char *name;   // its key in the cols
+    json_t *col;        // its description, a dict (a treedb refuses any other)
+    const char *type;   // col["type"] if a string, else NULL
+    uint32_t flags;     // COLF_*
+} topic_col_t;
+
+typedef struct {
+    json_t *key;        // the topic's `cols` when read, held: its pointer
+                        // cannot be another json's while this is kept
+    json_t *cols;       // the dict of the columns (the key, or the dict made
+                        // from a list of an older schema), held
+    size_t refs;        // its callers (topic_cols_get() / topic_cols_put())
+    BOOL kept;          // FALSE: not in the registry, freed at its last put
+    size_t n;
+    topic_col_t col[];  // in the order of the cols
+} topic_cols_t;
 
 /***************************************************************
  *              Prototypes
@@ -257,6 +311,12 @@ PRIVATE json_t *apply_child_list_options(
     json_t *jn_options // NOT owned
 );
 PRIVATE void get_col_view_flags(json_t *desc_flag, col_view_flags_t *flags);
+PRIVATE topic_cols_t *topic_cols_get(json_t *tranger, const char *topic_name);
+PRIVATE void topic_cols_put(topic_cols_t *tc);
+PRIVATE const topic_col_t *topic_col_by_name(const topic_cols_t *tc, const char *col_name);
+PRIVATE void topic_cols_sweep(BOOL all);
+PRIVATE void topic_cols_forget(json_t *key);
+PRIVATE uint32_t col_flags(json_t *desc_flag);
 #define TREEDB_FILES_DEFAULT_MAX_SIZE   (128LL*1024*1024)
 /*
  *  The body of treedb_delete_node(). `snaps_walked` is "I have already
@@ -312,6 +372,38 @@ PRIVATE json_t *_list_children(
  *              Data
  ***************************************************************/
 PRIVATE json_t *topic_cols_desc = 0; // HACK incref/decref by each treedb_open_db/treedb_close_db
+
+/*
+ *  The columns read of the topics of the open treedbs (topic_cols_get()).
+ *  Swept of the ones whose `cols` no topic holds any more, and emptied when
+ *  the last treedb is closed, as topic_cols_desc is.
+ */
+PRIVATE topic_cols_t **topic_cols_kept = 0;
+PRIVATE size_t topic_cols_kept_n = 0;
+PRIVATE size_t topic_cols_kept_size = 0;
+
+/*
+ *  The words of the column flags (topic_cols_t)
+ */
+PRIVATE const struct {
+    const char *word;
+    uint32_t bit;
+} col_flag_words[] = {
+    {"fkey",        COLF_FKEY},
+    {"hook",        COLF_HOOK},
+    {"persistent",  COLF_PERSISTENT},
+    {"file",        COLF_FILE},
+    {"required",    COLF_REQUIRED},
+    {"now",         COLF_NOW},
+    {"enum",        COLF_ENUM},
+    {"wild",        COLF_WILD},
+    {"time",        COLF_TIME},
+    {"template",    COLF_TEMPLATE},
+    {"notnull",     COLF_NOTNULL},
+    {"rowid",       COLF_ROWID},
+    {"hidden",      COLF_HIDDEN},
+    {0, 0}
+};
 PRIVATE BOOL treedb_trace = 0;
 
 /*
@@ -1998,6 +2090,12 @@ PUBLIC int treedb_close_db(
     } else {
         JSON_DECREF(topic_cols_desc);
     }
+
+    /*
+     *  The columns read of the topics just closed, or of all of them when
+     *  this was the last treedb
+     */
+    topic_cols_sweep(topic_cols_desc? FALSE : TRUE);
     return ret;
 }
 
@@ -4338,19 +4436,39 @@ PRIVATE int check_enum_value(
 }
 
 /***************************************************************************
- *  Normalize a new treedb node field
+ *  The column flags (COLF_*) of a `flag`, as topic_cols_read() reads them
+ ***************************************************************************/
+PRIVATE uint32_t col_flags(json_t *desc_flag)
+{
+    uint32_t flags = 0;
+    for(int i=0; col_flag_words[i].word; i++) {
+        if(kw_has_word(0, desc_flag, col_flag_words[i].word, 0)) {
+            flags |= col_flag_words[i].bit;
+        }
+    }
+    return flags;
+}
+
+/***************************************************************************
+ *  Normalize a new treedb node field.
+ *  `type` and `flags` are the column's as read by topic_cols_get(), or NULL
+ *  to read them from `col` here, in this order.
  ***************************************************************************/
 PRIVATE int normalize_node_field_value(
     const char *topic_name, // used only for log
     const char *field,
     json_t *col,    // NOT owned
+    const char *type,       // NULL: col["type"]
+    const uint32_t *flags,  // NULL: of col["flag"]
     json_t *record, // NOT owned
     json_t *value   // NOT owned
 )
 {
     hgobj gobj = 0;
 
-    const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
+    if(!type) {
+        type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
+    }
     if(!type) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -4363,13 +4481,13 @@ PRIVATE int normalize_node_field_value(
         );
         return -1;
     }
-    json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+    uint32_t f = flags? *flags : col_flags(kw_get_dict_value(gobj, col, "flag", 0, 0));
 
     /*
      *  Required. A `now` column is the clock's, not the caller's: nobody
      *  sends it, and `required` cannot be asking for it.
      */
-    if(kw_has_word(gobj, desc_flag, "required", 0) && !kw_has_word(gobj, desc_flag, "now", 0)) {
+    if((f & COLF_REQUIRED) && !(f & COLF_NOW)) {
         if(!value) {
             char temp[NAME_MAX];
             snprintf(temp, sizeof(temp), "Field required: '%s'", field);
@@ -4386,27 +4504,27 @@ PRIVATE int normalize_node_field_value(
         }
     }
 
-    BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
-    BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
-    // BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
+    BOOL is_hook = (f & COLF_HOOK)?TRUE:FALSE;
+    BOOL is_fkey = (f & COLF_FKEY)?TRUE:FALSE;
+    // BOOL is_persistent = (f & COLF_PERSISTENT)?TRUE:FALSE;
     // if(!(is_persistent || is_hook || is_fkey)) {
     //     // Not save to tranger
     //     // Save to tranger only persistent or hooks or fkeys
     //     return 0;
     // }
 
-    BOOL wild_conversion = kw_has_word(gobj, desc_flag, "wild", 0)?TRUE:FALSE;
-    BOOL is_enum = kw_has_word(gobj, desc_flag, "enum", 0)?TRUE:FALSE;
-    BOOL is_now = kw_has_word(gobj, desc_flag, "now", 0)?TRUE:FALSE;
-    BOOL is_time = kw_has_word(gobj, desc_flag, "time", 0)?TRUE:FALSE;
-    BOOL is_template = kw_has_word(gobj, desc_flag, "template", 0)?TRUE:FALSE;
+    BOOL wild_conversion = (f & COLF_WILD)?TRUE:FALSE;
+    BOOL is_enum = (f & COLF_ENUM)?TRUE:FALSE;
+    BOOL is_now = (f & COLF_NOW)?TRUE:FALSE;
+    BOOL is_time = (f & COLF_TIME)?TRUE:FALSE;
+    BOOL is_template = (f & COLF_TEMPLATE)?TRUE:FALSE;
 
     /*
      *  Null
      */
     if(json_is_null(value)) {
         if(!(is_hook || is_fkey || is_enum)) {
-            if(kw_has_word(gobj, desc_flag, "notnull", 0)) {
+            if(f & COLF_NOTNULL) {
                 log_data_fault(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
@@ -5226,8 +5344,8 @@ PRIVATE json_t *create_pure_record(
     json_t *kw  // NOT owned
 )
 {
-    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
-    if(!cols) {
+    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
+    if(!tc) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -5239,27 +5357,29 @@ PRIVATE json_t *create_pure_record(
     }
     json_t *new_record = json_object();
 
-    const char *field; json_t *col;
-    json_object_foreach(cols, field, col) {
-        json_t *value = kw_get_dict_value(gobj, kw, field, 0, 0);
+    for(size_t i=0; i<tc->n; i++) {
+        const topic_col_t *c = &tc->col[i];
+        json_t *value = kw_get_dict_value(gobj, kw, c->name, 0, 0);
         if(!value) {
-            value = kw_get_dict_value(gobj, col, "default", 0, 0);
+            value = kw_get_dict_value(gobj, c->col, "default", 0, 0);
         }
         if(normalize_node_field_value(
             topic_name,
-            field,
-            col,
+            c->name,
+            c->col,
+            c->type,
+            &c->flags,
             new_record,
             value
         )<0) {
             // Error already logged
             JSON_DECREF(new_record)
-            JSON_DECREF(cols)
+            topic_cols_put(tc);
             return NULL;
         }
     }
 
-    JSON_DECREF(cols)
+    topic_cols_put(tc);
     return new_record;
 }
 
@@ -5273,8 +5393,8 @@ PRIVATE json_t *convert_node2tranger(
     json_t *node  // NOT owned
 )
 {
-    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
-    if(!cols) {
+    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
+    if(!tc) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -5286,12 +5406,13 @@ PRIVATE json_t *convert_node2tranger(
     }
     json_t *record = json_object();
 
-    const char *field; json_t *col;
-    json_object_foreach(cols, field, col) {
-        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
-        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
+    for(size_t i=0; i<tc->n; i++) {
+        const topic_col_t *c = &tc->col[i];
+        const char *field = c->name;
+        json_t *col = c->col;
+        BOOL is_persistent = (c->flags & COLF_PERSISTENT)?TRUE:FALSE;
+        BOOL is_hook = (c->flags & COLF_HOOK)?TRUE:FALSE;
+        BOOL is_fkey = (c->flags & COLF_FKEY)?TRUE:FALSE;
         if(!(is_persistent || is_hook || is_fkey)) {
             // Save to tranger only persistent or fkeys
             continue;
@@ -5302,7 +5423,7 @@ PRIVATE json_t *convert_node2tranger(
         /*
          *  Required
          */
-        if(kw_has_word(gobj, desc_flag, "required", 0)) {
+        if(c->flags & COLF_REQUIRED) {
             if(!value) {
                 char temp[NAME_MAX];
                 snprintf(temp, sizeof(temp), "Field required: '%s'", field);
@@ -5316,11 +5437,12 @@ PRIVATE json_t *convert_node2tranger(
                     NULL
                 );
                 JSON_DECREF(record)
+                topic_cols_put(tc);
                 return NULL;
             }
         }
 
-        const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
+        const char *type = c->type? c->type : kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
 
         const char *real_type = type;
         if(is_hook) {
@@ -5412,7 +5534,7 @@ PRIVATE json_t *convert_node2tranger(
         } SWITCHS_END
     }
 
-    JSON_DECREF(cols)
+    topic_cols_put(tc);
     return record;
 }
 
@@ -7743,7 +7865,7 @@ PRIVATE int set_create_key2_values(
             value = json_object_get(col, "default");
         }
         json_t *normalized = json_object();
-        if(normalize_node_field_value(topic_name, pkey2_name, col, normalized, value)<0) {
+        if(normalize_node_field_value(topic_name, pkey2_name, col, NULL, NULL, normalized, value)<0) {
             // Error already logged
             JSON_DECREF(normalized)
             ret = -1;
@@ -8874,6 +8996,215 @@ PRIVATE json_t *topic_cols_dict(json_t *tranger, const char *topic_name)
 }
 
 /***************************************************************************
+ *  Read the columns of a topic: `cols` (owned) is the dict of them, `key`
+ *  the topic's `cols` it was made from (not owned).
+ ***************************************************************************/
+PRIVATE topic_cols_t *topic_cols_read(json_t *key, json_t *cols)
+{
+    size_t n = json_object_size(cols);
+    topic_cols_t *tc = gbmem_malloc(sizeof(topic_cols_t) + n * sizeof(topic_col_t));
+    if(!tc) {
+        // Error already logged
+        JSON_DECREF(cols)
+        return 0;
+    }
+    tc->key = key;
+    if(key != cols) {
+        json_incref(key);
+    }
+    tc->cols = cols;
+    tc->refs = 0;
+    tc->kept = FALSE;
+    tc->n = 0;
+
+    const char *col_name; json_t *col;
+    json_object_foreach(cols, col_name, col) {
+        topic_col_t *c = &tc->col[tc->n++];
+        c->name = col_name;
+        c->col = col;
+        c->type = json_string_value(json_object_get(col, "type"));
+        c->flags = col_flags(json_object_get(col, "flag"));
+    }
+    return tc;
+}
+
+/***************************************************************************
+ *  Free the reading of the columns of a topic
+ ***************************************************************************/
+PRIVATE void topic_cols_free(topic_cols_t *tc)
+{
+    if(tc->key != tc->cols) {
+        JSON_DECREF(tc->key)
+    }
+    JSON_DECREF(tc->cols)
+    gbmem_free(tc);
+}
+
+/***************************************************************************
+ *  The columns of a topic, read (topic_cols_t): what
+ *  tranger2_dict_topic_desc_cols() answers, read once while the topic's
+ *  `cols` is the same json. Like it, a topic not open is opened, and NULL
+ *  is answered, logged, when there are no columns to read. Give it back
+ *  with topic_cols_put().
+ ***************************************************************************/
+PRIVATE topic_cols_t *topic_cols_get(json_t *tranger, const char *topic_name)
+{
+    json_t *key = json_object_get(
+        json_object_get(json_object_get(tranger, "topics"), topic_name),
+        "cols"
+    );
+    if(key) {
+        for(size_t i=0; i<topic_cols_kept_n; i++) {
+            topic_cols_t *tc = topic_cols_kept[i];
+            if(tc->key == key) {
+                if(tc->key == tc->cols && json_object_size(tc->cols) != tc->n) {
+                    topic_cols_forget(key);     // changed in place: read again
+                    break;
+                }
+                tc->refs++;
+                return tc;
+            }
+        }
+    }
+
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
+    if(!cols) {
+        return 0;   // Error already logged
+    }
+    key = json_object_get(
+        json_object_get(json_object_get(tranger, "topics"), topic_name),
+        "cols"
+    );
+    if(!key) {
+        key = cols;
+    }
+
+    topic_cols_t *tc = topic_cols_read(key, cols);
+    if(!tc) {
+        return 0;   // Error already logged
+    }
+    tc->refs = 1;
+
+    /*
+     *  Kept only while a treedb is open: its close is what sweeps them
+     */
+    if(topic_cols_desc) {
+        topic_cols_sweep(FALSE);
+        if(topic_cols_kept_n == topic_cols_kept_size) {
+            size_t size = topic_cols_kept_size? 2*topic_cols_kept_size : 16;
+            topic_cols_t **kept = gbmem_realloc(topic_cols_kept, size * sizeof(topic_cols_t *));
+            if(!kept) {
+                return tc;  // Error already logged; used, not kept
+            }
+            topic_cols_kept = kept;
+            topic_cols_kept_size = size;
+        }
+        tc->kept = TRUE;
+        topic_cols_kept[topic_cols_kept_n++] = tc;
+    }
+    return tc;
+}
+
+/***************************************************************************
+ *  Give back the columns of a topic (topic_cols_get())
+ ***************************************************************************/
+PRIVATE void topic_cols_put(topic_cols_t *tc)
+{
+    if(!tc) {
+        return;
+    }
+    if(tc->refs == 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "topic cols given back more times than taken",
+            NULL
+        );
+        return;
+    }
+    tc->refs--;
+    if(tc->refs == 0 && !tc->kept) {
+        topic_cols_free(tc);
+    }
+}
+
+/***************************************************************************
+ *  The column of that name, or NULL
+ ***************************************************************************/
+PRIVATE const topic_col_t *topic_col_by_name(const topic_cols_t *tc, const char *col_name)
+{
+    json_t *col = json_object_get(tc->cols, col_name);
+    if(!col) {
+        return 0;
+    }
+    for(size_t i=0; i<tc->n; i++) {
+        if(tc->col[i].col == col) {
+            return &tc->col[i];
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Forget the reading of a `cols` that is being changed in place: the next
+ *  topic_cols_get() reads it again. A caller still using it keeps it until
+ *  its topic_cols_put().
+ ***************************************************************************/
+PRIVATE void topic_cols_forget(json_t *key)
+{
+    size_t j = 0;
+    for(size_t i=0; i<topic_cols_kept_n; i++) {
+        topic_cols_t *tc = topic_cols_kept[i];
+        if(tc->key == key) {
+            tc->kept = FALSE;
+            if(tc->refs == 0) {
+                topic_cols_free(tc);
+            }
+        } else {
+            topic_cols_kept[j++] = tc;
+        }
+    }
+    topic_cols_kept_n = j;
+}
+
+/***************************************************************************
+ *  Free the columns read that nobody is using and whose `cols` no topic
+ *  holds any more (only the reading holds it), or all of them (`all`, at
+ *  the close of the last treedb)
+ ***************************************************************************/
+PRIVATE void topic_cols_sweep(BOOL all)
+{
+    size_t j = 0;
+    for(size_t i=0; i<topic_cols_kept_n; i++) {
+        topic_cols_t *tc = topic_cols_kept[i];
+        if(tc->refs == 0 && (all || tc->key->refcount == 1)) {
+            topic_cols_free(tc);
+        } else {
+            topic_cols_kept[j++] = tc;
+        }
+    }
+    topic_cols_kept_n = j;
+
+    if(all) {
+        if(topic_cols_kept_n > 0) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "topic cols still taken at the close of the last treedb",
+                "taken",        "%d", (int)topic_cols_kept_n,
+                NULL
+            );
+            for(size_t i=0; i<topic_cols_kept_n; i++) {
+                topic_cols_kept[i]->kept = FALSE;
+            }
+            topic_cols_kept_n = 0;
+        }
+        GBMEM_FREE(topic_cols_kept)
+        topic_cols_kept_size = 0;
+    }
+}
+
+/***************************************************************************
  *  Has the topic a hook column? Its ids are then in the refs its
  *  children hold.
  ***************************************************************************/
@@ -8946,21 +9277,29 @@ PRIVATE void keep_node_fkeys(hgobj gobj, json_t *tranger, node_write_t *write, j
     if(!topic_name) {
         return;     // not a pure node: refused by the write itself
     }
-    json_t *cols = topic_cols_dict(tranger, topic_name);
-
-    const char *col_name; json_t *v;
-    json_object_foreach(kw? kw : cols, col_name, v) {
-        json_t *col = kw? json_object_get(cols, col_name) : v;
-        if(!col) {
-            continue;
-        }
-        json_t *desc_flag = json_object_get(col, "flag");
-        if(!kw_has_word(gobj, desc_flag, "fkey", 0)) {
-            continue;
-        }
-        keep_node_fkey(write, node, col_name);
+    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
+    if(!tc) {
+        return;     // Error already logged
     }
-    JSON_DECREF(cols)
+
+    if(kw) {
+        const char *col_name; json_t *v;
+        json_object_foreach(kw, col_name, v) {
+            const topic_col_t *c = topic_col_by_name(tc, col_name);
+            if(!c || !(c->flags & COLF_FKEY)) {
+                continue;
+            }
+            keep_node_fkey(write, node, col_name);
+        }
+    } else {
+        for(size_t i=0; i<tc->n; i++) {
+            if(!(tc->col[i].flags & COLF_FKEY)) {
+                continue;
+            }
+            keep_node_fkey(write, node, tc->col[i].name);
+        }
+    }
+    topic_cols_put(tc);
 }
 
 /***************************************************************************
@@ -10095,8 +10434,8 @@ PRIVATE json_t *prepare_node_update(
     /*-------------------------------*
      *  Update fields
      *-------------------------------*/
-    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
-    if(!cols) {
+    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
+    if(!tc) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -10117,11 +10456,12 @@ PRIVATE json_t *prepare_node_update(
     json_t *updates = json_object();
     int ret = 0;
 
-    const char *col_name; json_t *col;
-    json_object_foreach(cols, col_name, col) {
-        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
-        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+    for(size_t i=0; i<tc->n; i++) {
+        const topic_col_t *c = &tc->col[i];
+        const char *col_name = c->name;
+        json_t *col = c->col;
+        BOOL is_fkey = (c->flags & COLF_FKEY)?TRUE:FALSE;
+        BOOL is_hook = (c->flags & COLF_HOOK)?TRUE:FALSE;
         if(!(is_fkey || is_hook)) {
             json_t *new_value = kw_get_dict_value(gobj, kw, col_name, 0, 0);
             /*
@@ -10137,13 +10477,15 @@ PRIVATE json_t *prepare_node_update(
              *  not touch it. An epoch is an integer: a `now` of another type
              *  is not stamped (it would be written as "").
              */
-            BOOL stamp_now = (kw_has_word(gobj, desc_flag, "now", 0) &&
-                strcmp(kw_get_str(gobj, col, "type", "", 0), "integer")==0)?TRUE:FALSE;
+            BOOL stamp_now = ((c->flags & COLF_NOW) &&
+                strcmp(c->type? c->type : kw_get_str(gobj, col, "type", "", 0), "integer")==0)?TRUE:FALSE;
             if(new_value || stamp_now) {
                 if(normalize_node_field_value(
                     topic_name,
                     col_name,
                     col,
+                    c->type,
+                    &c->flags,
                     updates,
                     new_value
                 )<0) {
@@ -10153,7 +10495,7 @@ PRIVATE json_t *prepare_node_update(
         }
     }
 
-    JSON_DECREF(cols)
+    topic_cols_put(tc);
 
     /*
      *  A pkey2 value names an INSTANCE, so an update cannot change it. On
@@ -15054,12 +15396,14 @@ PUBLIC json_t *treedb_get_instance( // WARNING Return is NOT YOURS, pure node
 }
 
 /***************************************************************************
- *  The five flags node_collapsed_view() reads of a column, in one walk of
- *  its flags: what kw_has_word(gobj, desc_flag, word, 0) answers for each
+ *  The flags match_node_simple() reads of a column, in one walk of its
+ *  flags: what kw_has_word(gobj, desc_flag, word, 0) answers for each
  *  word -- a dict says it with a true value, a list with a string holding
  *  the word (its other items are not looked into), a string by holding it,
  *  anything else (or none) says no, and nothing is logged. Up to 7.27.7 the
  *  flags were walked five times, for every column of every node viewed.
+ *  node_collapsed_view() reads them of topic_cols_get() since: a filter is
+ *  handed the topic's cols json (its match_fn is the caller's to choose).
  ***************************************************************************/
 PRIVATE void get_col_view_flags(json_t *desc_flag, col_view_flags_t *flags)
 {
@@ -15145,7 +15489,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
      *-------------------------------*/
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
-    json_t *topic_desc = tranger2_dict_topic_desc_cols(tranger, topic_name);
+    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
 
     BOOL with_metadata = kw_get_bool(gobj, jn_options, "with_metadata", 0, KW_WILD_NUMBER);
     BOOL without_rowid =  kw_get_bool(gobj, jn_options, "without_rowid", 0, KW_WILD_NUMBER);
@@ -15153,16 +15497,15 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
 
     json_t *node_view = json_object();
 
-    const char *col_name; json_t *col;
-    json_object_foreach(topic_desc, col_name, col) {
-        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        col_view_flags_t col_flags;
-        get_col_view_flags(desc_flag, &col_flags);
-        BOOL is_hook = col_flags.hook;
-        BOOL is_fkey = col_flags.fkey;
-        BOOL is_rowid = col_flags.rowid;
-        BOOL is_required = col_flags.required;
-        BOOL is_hidden = col_flags.hidden;
+    size_t n = tc? tc->n : 0;
+    for(size_t i=0; i<n; i++) {
+        const topic_col_t *c = &tc->col[i];
+        const char *col_name = c->name;
+        BOOL is_hook = (c->flags & COLF_HOOK)?TRUE:FALSE;
+        BOOL is_fkey = (c->flags & COLF_FKEY)?TRUE:FALSE;
+        BOOL is_rowid = (c->flags & COLF_ROWID)?TRUE:FALSE;
+        BOOL is_required = (c->flags & COLF_REQUIRED)?TRUE:FALSE;
+        BOOL is_hidden = (c->flags & COLF_HIDDEN)?TRUE:FALSE;
         json_t *field_data = kw_get_dict_value(gobj, node, col_name, 0, is_required?KW_REQUIRED:0);
         if(!field_data) {
             // Something wrong?
@@ -15240,7 +15583,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
         );
     }
 
-    JSON_DECREF(topic_desc)
+    topic_cols_put(tc);
     JSON_DECREF(jn_options)
     return node_view;
 }
@@ -17477,18 +17820,16 @@ PRIVATE int link_file_columns(
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0);
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", "", 0);
 
-    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
-    if(!cols) {
+    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
+    if(!tc) {
         // Error already logged
         return -1;
     }
 
     int ret = 0;
-    const char *col_name; json_t *col;
-    json_object_foreach(cols, col_name, col) {
-        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        if(!kw_has_word(gobj, desc_flag, "file", 0) ||
-                !kw_has_word(gobj, desc_flag, "fkey", 0)) {
+    for(size_t i=0; i<tc->n; i++) {
+        const char *col_name = tc->col[i].name;
+        if(!(tc->col[i].flags & COLF_FILE) || !(tc->col[i].flags & COLF_FKEY)) {
             continue;
         }
         json_t *jn_new = json_object_get(kw, col_name);
@@ -17527,7 +17868,7 @@ PRIVATE int link_file_columns(
         }
         *moved = TRUE;
     }
-    JSON_DECREF(cols)
+    topic_cols_put(tc);
 
     return ret;
 }
@@ -17577,8 +17918,8 @@ PUBLIC int treedb_store_files(
     json_t *manifests = json_object_get(kw, "__files__");
     const char *uploaded_by = kw_get_str(gobj, kw, "__username__", "", 0);
 
-    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
-    if(!cols) {
+    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
+    if(!tc) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -17594,13 +17935,13 @@ PUBLIC int treedb_store_files(
 
     int ret = 0;
     BOOL any_file_col = FALSE;
-    const char *col_name; json_t *col;
-    json_object_foreach(cols, col_name, col) {
-        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        if(!kw_has_word(gobj, desc_flag, "file", 0)) {
+    for(size_t i=0; i<tc->n; i++) {
+        const char *col_name = tc->col[i].name;
+        json_t *col = tc->col[i].col;
+        if(!(tc->col[i].flags & COLF_FILE)) {
             continue;
         }
-        if(!kw_has_word(gobj, desc_flag, "fkey", 0)) {
+        if(!(tc->col[i].flags & COLF_FKEY)) {
             /*
              *  Refused at open and at create-topic, so this is a persisted
              *  topic_cols.json that says otherwise. Storing anyway wrote
@@ -17825,7 +18166,7 @@ PUBLIC int treedb_store_files(
             );
         }
     }
-    JSON_DECREF(cols)
+    topic_cols_put(tc);
 
     if(!any_file_col && json_is_object(manifests) && json_object_size(manifests) > 0) {
         gobj_log_warning(gobj, 0,
@@ -18314,6 +18655,7 @@ PRIVATE int derive_file_hooks(
                 "hook", topic_name, col_name
             );
             json_object_set_new(assets_cols, hook_name, hook_col);
+            topic_cols_forget(assets_cols);
 
             /*
              *  And into the nodes that are already loaded. A hook is a
@@ -18386,6 +18728,7 @@ PRIVATE int derive_file_hooks(
             }
         }
         json_object_del(assets_cols, hook_name);
+        topic_cols_forget(assets_cols);
     }
     JSON_DECREF(wanted)
     JSON_DECREF(mine)
@@ -20532,6 +20875,8 @@ PUBLIC json_t *create_template_record(
             template_name,
             field,
             col,
+            NULL,
+            NULL,
             new_record,
             value
         );
