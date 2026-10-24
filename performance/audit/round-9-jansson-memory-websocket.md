@@ -250,7 +250,8 @@ buffer; then a build and a run on a device.
       With 3.2 keys per object in a message, most pairs would take no
       block: some 5% of the instructions of `perf_ievent`, estimated. The
       price is memory: some 320 bytes more in every object, used or not,
-      and a treedb holds hundreds of thousands of them.
+      and a treedb holds hundreds of thousands of them. **Discarded for
+      now (user, 2026-10-24).**
     - **Restore gbmem's own memory manager**, the pools of blocks by size
       of yuneta V6 (from MAWK's `zmalloc`), whose switch is still there
       (`USE_OWN_SYSTEM_MEMORY`, `FALSE` in every yuno) and whose code was

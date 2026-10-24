@@ -515,6 +515,12 @@ kernel was not touched.
   is on the stack (4 KB, and the yuno's task has 8 KB); a measure of the
   64-bit words on its 32-bit cores; a build and a run on a device. The
   assessment is in the round 9 document above.
+- **Slots for the first pairs inside a jansson object.** **Discarded for
+  now** (user, 2026-10-24). An object would carry a few slots for its
+  first pairs (short keys), so most pairs of a message would take no block
+  of their own: some 5% of the instructions of `perf_ievent`, estimated.
+  The price is some 320 bytes more in every object, used or not, and a
+  treedb holds hundreds of thousands of them. See the round 9 document.
 
 ---
 
