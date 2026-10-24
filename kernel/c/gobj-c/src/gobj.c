@@ -6307,46 +6307,16 @@ PUBLIC size_t gobj_child_size2(
 }
 
 /***************************************************************************
- *  Which of the keys that name the gobj, in the order gobj_match_gobj()
- *  reads them, a filter may hold. A dict is walked once (a filter has a few
- *  keys) and a key that is not there is not read: kw_get_str() answers 0 for
- *  it, with no log, and kw_has_key() FALSE. A key that is there is read with
- *  the reader of before, so a value of another type logs as it did. A filter
- *  that is not a dict may hold any of them: all are read, as before.
+ *  Whether a filter may hold `key`: a key that is not in a dict is not
+ *  read (kw_get_str() answers 0 for it, with no log); a filter that is not
+ *  a dict is read for every key, as kw_get_str() reads it
  ***************************************************************************/
-#define MATCH_GOBJ_KEYS 6
-PRIVATE void which_match_gobj_keys(json_t *jn_filter, BOOL in_filter[MATCH_GOBJ_KEYS])
+PRIVATE BOOL filter_may_hold(json_t *jn_filter, const char *key)
 {
-    static const char *names[MATCH_GOBJ_KEYS] = {
-        "__inherited_gclass_name__",
-        "__gclass_name__",
-        "__state__",
-        "__gobj_name__",
-        "__prefix_gobj_name__",
-        "__disabled__"
-    };
-
-    BOOL is_dict = json_is_object(jn_filter);
-    for(int i=0; i<MATCH_GOBJ_KEYS; i++) {
-        in_filter[i] = is_dict? FALSE : TRUE;
+    if(!json_is_object(jn_filter)) {
+        return TRUE;
     }
-    if(!is_dict) {
-        return;
-    }
-
-    const char *key;
-    json_t *jn_value;
-    json_object_foreach(jn_filter, key, jn_value) {
-        if(key[0] != '_' || key[1] != '_') {
-            continue;
-        }
-        for(int i=0; i<MATCH_GOBJ_KEYS; i++) {
-            if(strcmp(key, names[i])==0) {
-                in_filter[i] = TRUE;
-                break;
-            }
-        }
-    }
+    return json_object_get(jn_filter, key)? TRUE : FALSE;
 }
 
 /***************************************************************************
@@ -6360,27 +6330,20 @@ PUBLIC BOOL gobj_match_gobj(
     gobj_t *gobj = gobj_;
 
     /*
-     *  The keys that name the gobj itself are answered here, and the rest
-     *  of the filter are its attributes. Up to 7.27.7 the keys answered were
-     *  deleted from a deep copy of the filter, made on every call (C_IOGATE
-     *  matches every channel of every message it sends): the attribute loop
-     *  skips them now, and the filter is not copied. A key is skipped exactly
-     *  when it was deleted: a string was read for it (a key of another type
-     *  stays an attribute to compare, as it did), or it is __disabled__.
+     *  The naming keys are answered here and skipped by the attribute loop
+     *  (the filter is not copied): a key is skipped when a string was read
+     *  for it, or it is __disabled__.
      */
-    BOOL in_filter[MATCH_GOBJ_KEYS];
-    which_match_gobj_keys(jn_filter, in_filter);
-
-    const char *__inherited_gclass_name__ = !in_filter[0]? 0 : kw_get_str(
-        gobj, jn_filter, "__inherited_gclass_name__", 0, 0
-    );
-    const char * __gclass_name__ = !in_filter[1]? 0 :
+    const char *__inherited_gclass_name__ =
+        !filter_may_hold(jn_filter, "__inherited_gclass_name__")? 0 :
+        kw_get_str(gobj, jn_filter, "__inherited_gclass_name__", 0, 0);
+    const char * __gclass_name__ = !filter_may_hold(jn_filter, "__gclass_name__")? 0 :
         kw_get_str(gobj, jn_filter, "__gclass_name__", 0, 0);
-    const char * __state__ = !in_filter[2]? 0 :
+    const char * __state__ = !filter_may_hold(jn_filter, "__state__")? 0 :
         kw_get_str(gobj, jn_filter, "__state__", 0, 0);
-    const char *__gobj_name__ = !in_filter[3]? 0 :
+    const char *__gobj_name__ = !filter_may_hold(jn_filter, "__gobj_name__")? 0 :
         kw_get_str(gobj, jn_filter, "__gobj_name__", 0, 0);
-    const char *__prefix_gobj_name__ = !in_filter[4]? 0 :
+    const char *__prefix_gobj_name__ = !filter_may_hold(jn_filter, "__prefix_gobj_name__")? 0 :
         kw_get_str(gobj, jn_filter, "__prefix_gobj_name__", 0, 0);
 
     if(__inherited_gclass_name__) {
@@ -6403,7 +6366,8 @@ PUBLIC BOOL gobj_match_gobj(
         }
     }
 
-    BOOL has_disabled = in_filter[5] && kw_has_key(jn_filter, "__disabled__");
+    BOOL has_disabled = filter_may_hold(jn_filter, "__disabled__") &&
+        kw_has_key(jn_filter, "__disabled__");
     if(has_disabled) {
         BOOL disabled = kw_get_bool(gobj, jn_filter, "__disabled__", 0, 0);
         if(disabled && !gobj_is_disabled(gobj)) {
@@ -9232,14 +9196,15 @@ PRIVATE void check_destroy_under_running_code(gobj_t *gobj)
  *  Would anybody see the EV_STATE_CHANGED of a change of state? FALSE only
  *  when gobj_publish_event() would do nothing that shows: no hook of the
  *  gclass to call, no trace, no log, and no subscriber it is delivered to.
- *  Then the kw is not built and the event is not published. A protocol
- *  changes state twice a frame, and its parent (the CHILD subscription)
- *  does not take the system event: up to 7.27.7 every change built a kw of
- *  two strings and published it to nobody.
+ *  Then the kw is not built and the event is not published (a protocol
+ *  changes state twice a frame, and its parent does not take the system
+ *  event).
  *
  *  The subscriptions are looked at as gobj_publish_event() looks at them,
  *  in its order: whatever it would have logged, or a __filter__ it would
- *  have evaluated, sends the change down the publication as before.
+ *  have evaluated, sends the change down the publication.
+ *  A COPY of the delivery rules of gobj_publish_event(): a change of those
+ *  rules is made here too.
  ***************************************************************************/
 PRIVATE BOOL state_changed_has_audience(gobj_t *gobj)
 {
@@ -9579,7 +9544,8 @@ typedef enum {
 } subs_flag_t;
 
 /*
- *
+ *  _create_subscription() builds this dict by hand, with these keys and
+ *  defaults: a change of the table is made there too
  */
 PRIVATE sdata_desc_t subscription_desc[] = {
 /*-ATTR-type--------name----------------flag----default-----description---------- */
@@ -9750,11 +9716,9 @@ PRIVATE json_t * _create_subscription(
     gobj_t * subscriber)
 {
     /*
-     *  The dict of subscription_desc, built with its values: the keys in
-     *  the order of the table, its defaults (pointers and subs_flag 0, the
-     *  json ones null, __service__ "") but for the three set here. Up to
-     *  7.27.7 gobj_sdata_create() parsed the default of every field, and
-     *  three of them were then overwritten: the same dict.
+     *  The dict of subscription_desc, built by hand with its keys in the
+     *  order of the table and its defaults: a change of the table is made
+     *  here too
      */
     json_t *subs = json_object();
     json_object_set_new_nocheck(subs, "publisher", json_integer((json_int_t)(uintptr_t)publisher));
@@ -9980,7 +9944,7 @@ PRIVATE BOOL _match_subscription(
     }
 
     if(json_size(__config__)>0) {
-        json_t *kw_config = subs_get_dict(subs, "__config__");
+        json_t *kw_config = rec? rec->__config__ : subs_get_dict(subs, "__config__");
         if(json_size(kw_config)>0) {
             if(!json_is_identical(kw_config, __config__)) {
                 return FALSE;
@@ -9990,7 +9954,7 @@ PRIVATE BOOL _match_subscription(
         }
     }
     if(json_size(__global__)>0) {
-        json_t *kw_global = subs_get_dict(subs, "__global__");
+        json_t *kw_global = rec? rec->__global__ : subs_get_dict(subs, "__global__");
         if(json_size(kw_global)>0) {
             if(!json_is_identical(kw_global, __global__)) {
                 return FALSE;
@@ -10000,7 +9964,7 @@ PRIVATE BOOL _match_subscription(
         }
     }
     if(json_size(__local__)>0) {
-        json_t *kw_local = subs_get_dict(subs, "__local__");
+        json_t *kw_local = rec? rec->__local__ : subs_get_dict(subs, "__local__");
         if(json_size(kw_local)>0) {
             if(!json_is_identical(kw_local, __local__)) {
                 return FALSE;
@@ -10010,7 +9974,7 @@ PRIVATE BOOL _match_subscription(
         }
     }
     if(json_size(__filter__)>0) {
-        json_t *kw_filter = json_object_get(subs, "__filter__");
+        json_t *kw_filter = rec? rec->__filter__ : json_object_get(subs, "__filter__");
         if(json_size(kw_filter)>0) {
             if(!json_is_identical(kw_filter, __filter__)) {
                 return FALSE;
@@ -10043,7 +10007,15 @@ PRIVATE json_t * _find_subscriptions(
 ) {
     json_t *iter = json_array();
     if(recs && n_recs != json_array_size(dl_subs)) {
-        recs = NULL;    // never: the list and its records go index for index
+        gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "the records of the subscriptions are not those of the list",
+            "records",      "%d", (int)n_recs,
+            "subscriptions","%d", (int)json_array_size(dl_subs),
+            NULL
+        );
+        recs = NULL;
     }
 
     /*
@@ -10886,6 +10858,8 @@ PUBLIC json_t *gobj_list_subscribings(
 
 /***************************************************************************
  *  Return the sum of returns of gobj_send_event
+ *  state_changed_has_audience() repeats the rules of who is delivered an
+ *  EV_STATE_CHANGED: a change of them here is made there too.
  ***************************************************************************/
 PUBLIC int gobj_publish_event(
     hgobj publisher_,
@@ -11020,10 +10994,8 @@ PUBLIC int gobj_publish_event(
 
     /*
      *  The records of the subscriptions, each one held: one removed meanwhile
-     *  (by a subscriber, in its action) has its subscriber zeroed and is
-     *  skipped, one added meanwhile is not in this publication. Up to
-     *  7.27.7 the publication walked a copy of dl_subscriptions and read 3
-     *  to 8 keys of each dict, by hash; the record has them read.
+     *  has its subscriber zeroed and is skipped, one added meanwhile is not
+     *  in this publication.
      */
     subs_rec_t *recs_on_stack[SUBS_RECS_ON_STACK];
     subs_rec_t **recs = recs_on_stack;
