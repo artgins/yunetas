@@ -169,6 +169,18 @@ typedef struct {
     json_t *rows;
 } cache_range_t;
 
+/*
+ *  The five integers of a cache cell after update_cache_cell(), read of the
+ *  json it wrote: what reading the cell again answers
+ */
+typedef struct {
+    json_int_t fr_t;
+    json_int_t to_t;
+    json_int_t fr_tm;
+    json_int_t to_tm;
+    json_int_t rows;
+} cache_values_t;
+
 #define TIME_FLAG_MASK  TRANGER2_MAX_TIME      /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
 #define USER_FLAG_MASK  0x0FFFF00000000000ULL
 
@@ -462,6 +474,11 @@ PRIVATE json_int_t update_totals_of_key_cache(
 PRIVATE json_int_t update_totals_of_key_cache2(
     json_t *key_cache,
     json_t *cache_cell,
+    json_int_t rows_added
+);
+PRIVATE json_int_t update_key_totals(
+    json_t *key_cache,
+    const cache_values_t *cell,
     json_int_t rows_added
 );
 
@@ -13768,7 +13785,8 @@ PRIVATE json_t *update_cache_cell(
     const char *file_id,
     md2_record_t *md_record,
     int operation,  // -1 to subtract (NOT USED), 0 to set, +1 to add
-    uint64_t rows_
+    uint64_t rows_,
+    cache_values_t *values  // what the cell holds after it, or NULL
 )
 {
     uint64_t file_from_t = (uint64_t)(-1);
@@ -13833,6 +13851,19 @@ PRIVATE json_t *update_cache_cell(
     put_cache_int(file_cache, "to_tm", &range.to_tm, (json_int_t)file_to_tm);
     put_cache_int(file_cache, "rows", &range.rows, (json_int_t)rows);
 
+    if(values) {
+        /*
+         *  put_cache_int() leaves each pointer at what the cell holds now
+         *  (NULL when it could not write it, and then the cell holds no
+         *  integer there): reading them is reading the cell again
+         */
+        values->fr_t = json_integer_value(range.fr_t);
+        values->to_t = json_integer_value(range.to_t);
+        values->fr_tm = json_integer_value(range.fr_tm);
+        values->to_tm = json_integer_value(range.to_tm);
+        values->rows = json_integer_value(range.rows);
+    }
+
     return file_cache;
 }
 
@@ -13879,8 +13910,8 @@ PRIVATE json_t *load_cache_cell_from_disk(
         *p = 0;
         // Now filename is file_id
     }
-    json_t *file_cache = update_cache_cell(0, filename, &md_first_record, 0, 1);
-    update_cache_cell(file_cache, filename, &md_last_record, 0, file_rows);
+    json_t *file_cache = update_cache_cell(0, filename, &md_first_record, 0, 1, NULL);
+    update_cache_cell(file_cache, filename, &md_last_record, 0, file_rows, NULL);
 
     /*
      *  The first and the last row give the file's range only while its rows
@@ -15046,21 +15077,22 @@ PRIVATE json_int_t update_new_record_from_mem(
      *  was written, for the marker too: one search per append, not two.
      */
     json_t *cur_cache_cell = cell;
+    cache_values_t values;
 
     /*
      *  UPDATE CACHE from mem
      */
     if(!cur_cache_cell) {
         json_t *cache_files = json_object_get(key_cache, "files");
-        cur_cache_cell = update_cache_cell(0, file_id, md_record, 1, 1);
+        cur_cache_cell = update_cache_cell(0, file_id, md_record, 1, 1, &values);
         json_array_insert_new(cache_files, (size_t)insert_idx, cur_cache_cell);
 
     } else {
         // The file was marked before its row was written (mark_file_before_append)
-        update_cache_cell(cur_cache_cell, file_id, md_record, 1, 1);
+        update_cache_cell(cur_cache_cell, file_id, md_record, 1, 1, &values);
     }
 
-    if(update_totals_of_key_cache2(key_cache, cur_cache_cell, 1)<0) {
+    if(update_key_totals(key_cache, &values, 1)<0) {
         // Error already logged
         return -1;
     }
@@ -15072,7 +15104,7 @@ PRIVATE json_int_t update_new_record_from_mem(
      *  it always was. For an earlier file, every record of the later files
      *  moves one place up -- which a reload did anyway, unannounced.
      */
-    return file_base + json_integer_value(json_object_get(cur_cache_cell, "rows"));
+    return file_base + values.rows;
 }
 
 /***************************************************************************
@@ -15189,6 +15221,24 @@ PRIVATE json_int_t update_totals_of_key_cache2(
     json_t *cache_file,
     json_int_t rows_added
 ) {
+    cache_values_t cell;
+    cell.fr_t = json_integer_value(json_object_get(cache_file, "fr_t"));
+    cell.to_t = json_integer_value(json_object_get(cache_file, "to_t"));
+    cell.fr_tm = json_integer_value(json_object_get(cache_file, "fr_tm"));
+    cell.to_tm = json_integer_value(json_object_get(cache_file, "to_tm"));
+    cell.rows = 0;  // not read
+    return update_key_totals(key_cache, &cell, rows_added);
+}
+
+/***************************************************************************
+ *  update_totals_of_key_cache2() with the four times of the cell already
+ *  read (update_cache_cell())
+ ***************************************************************************/
+PRIVATE json_int_t update_key_totals(
+    json_t *key_cache,
+    const cache_values_t *cell,
+    json_int_t rows_added
+) {
     json_t *total_range = json_object_get(key_cache, "total");
     cache_range_t total = {0};
     get_cache_range(total_range, &total);
@@ -15206,10 +15256,10 @@ PRIVATE json_int_t update_totals_of_key_cache2(
         global_from_tm = (uint64_t)(-1);
     }
 
-    json_int_t fr_t = json_integer_value(json_object_get(cache_file, "fr_t"));
-    json_int_t to_t = json_integer_value(json_object_get(cache_file, "to_t"));
-    json_int_t fr_tm = json_integer_value(json_object_get(cache_file, "fr_tm"));
-    json_int_t to_tm = json_integer_value(json_object_get(cache_file, "to_tm"));
+    json_int_t fr_t = cell->fr_t;
+    json_int_t to_t = cell->to_t;
+    json_int_t fr_tm = cell->fr_tm;
+    json_int_t to_tm = cell->to_tm;
 
     if(fr_t < global_from_t) {
         global_from_t = fr_t;
