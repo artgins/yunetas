@@ -2,9 +2,27 @@
 
 ## Unreleased
 
+## v7.27.15 (2026-10-24)
+
+A lite release of the controlcenter, which replaces 7.27.14 before it was
+deployed anywhere: a scope may name only the keys its permission declares.
+The suite ran on the dev machine. No performance study, as in 7.27.14.
+
+- **A role's scope may name only the keys the permission declares** (the
+  `items` of its `SDATAAUTHZ`, which `authzs` lists as its `parameters`).
+  A declared key is one the service BUILDS into the kw of the check from
+  what it acts on; any other could come from the client's own kw, which a
+  service like the command parser checks as it arrives -- so 7.27.14 let a
+  role scoped on such a key be answered by the client. A scope on an
+  undeclared key now grants nothing, denies all, and logs an ERROR (*"a role
+  scopes a permission on a key it does not declare"*). The controlcenter
+  declares `scenario_id` for `read-scenarios`, `write-scenarios` and
+  `run-scenarios`. `authz_scoped_permissions` case 7.
+
 ## v7.27.14 (2026-10-24)
 
 A lite release of the controlcenter: a user can be let see ONE scenario.
+Never deployed: 7.27.15 replaced it the same day.
 `C_AUTHZ` (in every yuno) gains the scope of a role's `parameters`, but a
 role without `parameters` grants as before, so only the controlcenter is
 deployed (1996/1997 on a.com); the other yunos take it with the next full

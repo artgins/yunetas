@@ -310,6 +310,17 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *      GClass authz levels
  *---------------------------------------------*/
 
+/*
+ *  The key of the kw a scenario permission is asked with: built here from
+ *  the scenario the command acts on (user_may_scenario()), so a role may
+ *  scope these permissions on it (C_AUTHZ `parameters`).
+ */
+PRIVATE sdata_desc_t pm_authz_scenario[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "scenario_id",  0,              0,          "The scenario the permission is asked for"),
+SDATA_END()
+};
+
 PRIVATE sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name----------------flag----alias---items---description--*/
 SDATAAUTHZ (DTP_SCHEMA, "list-agents",      0,      0,      0,      "Permission to list remote agents"),
@@ -318,9 +329,9 @@ SDATAAUTHZ (DTP_SCHEMA, "drop-agent",       0,      0,      0,      "Permission 
 SDATAAUTHZ (DTP_SCHEMA, "logout-user",      0,      0,      0,      "Permission to logout users"),
 SDATAAUTHZ (DTP_SCHEMA, "write-tty",        0,      0,      0,      "Internal use. Feed remote consola from local keyboard"),
 
-SDATAAUTHZ (DTP_SCHEMA, "read-scenarios",   0,      0,      0,      "Permission to read the scenarios and their runs"),
-SDATAAUTHZ (DTP_SCHEMA, "write-scenarios",  0,      0,      0,      "Permission to save and delete scenarios"),
-SDATAAUTHZ (DTP_SCHEMA, "run-scenarios",    0,      0,      0,      "Permission to run the actions of a scenario"),
+SDATAAUTHZ (DTP_SCHEMA, "read-scenarios",   0,      0,      pm_authz_scenario, "Permission to read the scenarios and their runs"),
+SDATAAUTHZ (DTP_SCHEMA, "write-scenarios",  0,      0,      pm_authz_scenario, "Permission to save and delete scenarios"),
+SDATAAUTHZ (DTP_SCHEMA, "run-scenarios",    0,      0,      pm_authz_scenario, "Permission to run the actions of a scenario"),
 
 SDATA_END()
 };

@@ -22,6 +22,11 @@
  *               match the integer 1, nor "S1"
  *            6. a scope that is not a dict grants nothing and logs an
  *               error once per check
+ *            7. a scope may name only the keys the permission declares (the
+ *               `items` of its SDATAAUTHZ: what the service builds into the
+ *               kw itself): command-agent declares none, so a role scoping it
+ *               on scenario_id -- a key the CLIENT could put in the kw --
+ *               grants nothing and logs an error
  *
  *          A real C_AUTHZ service over a temp tranger store, its roles and
  *          users seeded by initial_load. The checks ask the permissions of
@@ -155,6 +160,14 @@ PRIVATE char variable_config[]= "\
                             ]                                       \n\
                         },                                          \n\
                         {                                           \n\
+                            'id': 'undeclared',                     \n\
+                            'description': 'a scope not declared',  \n\
+                            'realm_id': '*',                        \n\
+                            'service': 'checked',                   \n\
+                            'permission': 'command-agent',          \n\
+                            'parameters': {'scenario_id': ['s1']}   \n\
+                        },                                          \n\
+                        {                                           \n\
                             'id': 'broken',                         \n\
                             'description': 'a scope not a dict',    \n\
                             'realm_id': '*',                        \n\
@@ -172,6 +185,7 @@ PRIVATE char variable_config[]= "\
                         {'id': 'multi',  'roles': ['roles^multi^users']},  \n\
                         {'id': 'reader', 'roles': ['roles^reader^users']}, \n\
                         {'id': 'denier', 'roles': ['roles^denier^users']}, \n\
+                        {'id': 'undeclared', 'roles': ['roles^undeclared^users']}, \n\
                         {'id': 'broken', 'roles': ['roles^broken^users']}  \n\
                     ]                                               \n\
                 }                                                   \n\
@@ -262,6 +276,11 @@ PRIVATE void run_checks(hgobj gobj)
     int errors0 = s_errors;
     check_may(gobj, "broken", "read-scenarios", "s1", 0);
     check_int("a scope not a dict logs one error", s_errors - errors0, 1);
+
+    /*  7  */
+    errors0 = s_errors;
+    check_may(gobj, "undeclared", "command-agent", "s1", 0);
+    check_int("a scope on an undeclared key logs one error", s_errors - errors0, 1);
 }
 
 /***************************************************************
@@ -333,11 +352,18 @@ PRIVATE sdata_desc_t attrs_table[] = {
     SDATA_END()
 };
 
+/*  The key this driver builds into the kw of its scenario checks  */
+PRIVATE sdata_desc_t pm_authz_scenario[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "scenario_id",  0,              0,          "Scenario the permission is asked for"),
+SDATA_END()
+};
+
 PRIVATE sdata_desc_t authz_table[] = {
-/*-AUTHZ-- type---------name----------------flag----alias---items---description--*/
-SDATAAUTHZ (DTP_SCHEMA, "read-scenarios",   0,      0,      0,      "Read scenarios"),
-SDATAAUTHZ (DTP_SCHEMA, "run-scenarios",    0,      0,      0,      "Run scenarios"),
-SDATAAUTHZ (DTP_SCHEMA, "command-agent",    0,      0,      0,      "Command an agent"),
+/*-AUTHZ-- type---------name----------------flag----alias---items---------------description--*/
+SDATAAUTHZ (DTP_SCHEMA, "read-scenarios",   0,      0,      pm_authz_scenario,  "Read scenarios"),
+SDATAAUTHZ (DTP_SCHEMA, "run-scenarios",    0,      0,      pm_authz_scenario,  "Run scenarios"),
+SDATAAUTHZ (DTP_SCHEMA, "command-agent",    0,      0,      0,                  "Command an agent"),
 SDATA_END()
 };
 

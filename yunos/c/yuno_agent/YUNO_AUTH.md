@@ -422,7 +422,7 @@ at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.27.14/kernel/c/root-l
 authzs.
 
 (authz-scoped-permissions)=
-#### Scoped permissions: `parameters` (7.27.14+)
+#### Scoped permissions: `parameters` (7.27.15+)
 
 A role grants its `permission`, and each entry of its `permissions` list
 (`{permission, deny}`), for **every** use of that permission. Its
@@ -461,11 +461,28 @@ a dict: its grant is left out"* / *"... its deny applies to all"*). `deny` of an
 entry is optional (false); up to 7.27.13 an entry without it logged *"path NOT
 FOUND"* on every check.
 
-The scope is what the service asks with: it applies where a service checks a
-permission with the kw of the thing it acts on -- and that kw must be BUILT
-from the thing, never be the client's: a client that puts the scoped key
-beside a request for something else would answer the check for it. The
-control center asks with `{scenario_id, __username__}` only. The control center does it
+The scope is what the service asks with, so a service has to SAY which keys
+it builds: a scope may name only the keys the permission declares, the
+`items` of its `SDATAAUTHZ` (listed as its `parameters` by `authzs`). A key
+the permission does not declare may come from the client's own kw -- a
+client that puts the scoped key beside a request for something else would
+answer the check for it -- so a scope on it grants nothing, denies all, and
+logs an ERROR (*"a role scopes a permission on a key it does not declare"*).
+Declaring a key is a promise: the service checks that permission with a kw it
+BUILDS from the thing it acts on, never with the client's. The control center
+declares `scenario_id` for its three scenario permissions and asks them with
+`{scenario_id, __username__}` only:
+
+```c
+PRIVATE sdata_desc_t pm_authz_scenario[] = {
+SDATAPM (DTP_STRING,    "scenario_id",  0,              0,          "The scenario the permission is asked for"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t authz_table[] = {
+SDATAAUTHZ (DTP_SCHEMA, "read-scenarios",   0,      0,      pm_authz_scenario, "Permission to read the scenarios and their runs"),
+...
+};
+``` The control center does it
 for its scenario permissions ([*A user who may see one
 scenario*](#controlcenter-one-scenario)); a service that checks with a kw that
 does not carry the key refuses every scoped grant. Pinned by

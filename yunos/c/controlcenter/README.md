@@ -121,7 +121,7 @@ six read 0.
 Every scenario command checks its permission (`read-scenarios`,
 `write-scenarios`, `run-scenarios`) with the `scenario_id` it acts on, so a
 role of the `authz` store whose `parameters` scope a permission
-(`{"scenario_id": ["renfe-20k-hidraulia"]}`, C_AUTHZ 7.27.14+) grants it for
+(`{"scenario_id": ["renfe-20k-hidraulia"]}`, C_AUTHZ 7.27.15+) grants it for
 those scenarios only: `scenarios` lists only them, the others are refused by
 id, and `save-scenario` checks the id it saves. Such a user watches a scenario
 live with `watch-scenario` -- the control center builds the agent's watch from

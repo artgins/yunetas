@@ -15,7 +15,12 @@
  *          scope does not match the kw of the check is left out, as if the
  *          role did not have it; a scoped DENY applies unless the kw
  *          carries a key of its scope with a value out of it (both fail
- *          closed); a role with no `parameters` grants as before. An entry of `permissions` may carry its own
+ *          closed); a role with no `parameters` grants as before.
+ *          A scope may name only the keys the PERMISSION declares: the
+ *          `items` of its SDATAAUTHZ (its `parameters` in `authzs`), which
+ *          say the service builds those keys of the kw itself, from what
+ *          it acts on. Any other key could come from the client: a scope
+ *          on it grants nothing and denies all, and logs an error. An entry of `permissions` may carry its own
  *          `parameters`, which replace the role's for that entry:
  *              {"id": "renfe-viewer", "service": "controlcenter",
  *               "realm_id": "...", "permission": "read-scenarios",
@@ -4035,6 +4040,23 @@ PRIVATE json_t *get_user_roles(
  *
  ***************************************************************************/
 /***************************************************************************
+ *  Does the permission asked declare `key` among its parameters (the
+ *  `items` of its SDATAAUTHZ)? Only those keys does the service build
+ *  itself; a scope on any other could be answered by the client.
+ ***************************************************************************/
+PRIVATE BOOL scope_key_declared(json_t *declared, const char *key)
+{
+    size_t idx; json_t *jn_param;
+    json_array_foreach(declared, idx, jn_param) {
+        const char *id = json_string_value(json_object_get(jn_param, "id"));
+        if(id && strcmp(id, key)==0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *  Does the kw of a check fall in the scope of a grant? `parameters` is
  *  the scope (see the header): an absent or empty one is no scope. A key
  *  and a value come from data: the kw is read with json_object_get(),
@@ -4049,6 +4071,7 @@ PRIVATE BOOL kw_in_scope(
     json_t *role,       // not owned
     json_t *parameters, // not owned
     json_t *kw,         // not owned
+    json_t *declared,   // not owned, the `parameters` of the permission asked
     BOOL deny
 )
 {
@@ -4070,6 +4093,19 @@ PRIVATE BOOL kw_in_scope(
 
     const char *key; json_t *allowed;
     json_object_foreach(parameters, key, allowed) {
+        if(!scope_key_declared(declared, key)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", deny?
+                    "a role scopes a permission on a key it does not declare: its deny applies to all" :
+                    "a role scopes a permission on a key it does not declare: its grant is left out",
+                "role",         "%s", kw_get_str(gobj, role, "id", "", 0),
+                "key",          "%s", key,
+                NULL
+            );
+            return deny;
+        }
         json_t *value = json_is_object(kw)? json_object_get(kw, key) : NULL;
         if(json_absent(value)) {
             if(deny) {
@@ -4105,7 +4141,8 @@ PRIVATE json_t *append_permission(
     json_t *role,       // not owned
     const char *dst_realm_id,
     const char *dst_service,
-    json_t *kw          // not owned
+    json_t *kw,         // not owned
+    json_t *declared    // not owned
 )
 {
     BOOL disabled = kw_get_bool(gobj, role, "disabled", 0, KW_REQUIRED|KW_WILD_NUMBER);
@@ -4118,7 +4155,7 @@ PRIVATE json_t *append_permission(
                 json_t *role_scope = json_object_get(role, "parameters");
                 const char *permission = kw_get_str(gobj, role, "permission", "", KW_REQUIRED);
                 BOOL deny = kw_get_bool(gobj, role, "deny", FALSE, KW_REQUIRED);
-                if(!empty_string(permission) && kw_in_scope(gobj, role, role_scope, kw, deny)) {
+                if(!empty_string(permission) && kw_in_scope(gobj, role, role_scope, kw, declared, deny)) {
                     json_object_set_new(
                         services_roles,
                         permission,
@@ -4137,7 +4174,7 @@ PRIVATE json_t *append_permission(
                     if(json_absent(scope)) {
                         scope = role_scope;
                     }
-                    if(!kw_in_scope(gobj, role, scope, kw, deny)) {
+                    if(!kw_in_scope(gobj, role, scope, kw, declared, deny)) {
                         continue;
                     }
                     if(!empty_string(permission)) {
@@ -4164,7 +4201,8 @@ PRIVATE json_t *get_user_permissions(
     const char *dst_realm_id,
     const char *dst_service,
     const char *username,
-    json_t *kw // not owned
+    json_t *kw, // not owned
+    json_t *declared // not owned, the `parameters` of the permission asked
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -4234,7 +4272,8 @@ PRIVATE json_t *get_user_permissions(
             role,
             dst_realm_id,
             dst_service,
-            kw
+            kw,
+            declared
         );
 
         int idx2; json_t *required_service;
@@ -4277,7 +4316,8 @@ PRIVATE json_t *get_user_permissions(
                 child,
                 dst_realm_id,
                 dst_service,
-                kw
+                kw,
+                declared
             );
             int idx4;
             json_array_foreach(required_services, idx4, required_service) {
@@ -4289,7 +4329,8 @@ PRIVATE json_t *get_user_permissions(
                         child,
                         dst_realm_id,
                         service,
-                        kw
+                        kw,
+                        declared
                     );
                 }
             }
@@ -5100,7 +5141,8 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         gobj_yuno_realm_id(),       // dst_realm_id
         gobj_name(gobj_to_check),   // dst_service
         __username__,
-        kw // not owned
+        kw, // not owned
+        json_object_get(jn_authz_desc, "parameters")
     );
 
     BOOL allow = FALSE;

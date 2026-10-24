@@ -353,14 +353,16 @@ command to any yuno of a connected node. Grant them as you grant
 `command-agent`.
 
 (controlcenter-one-scenario)=
-### A user who may see one scenario (7.27.14+)
+### A user who may see one scenario (7.27.15+)
 
 A role can grant a permission for some scenarios only: its `parameters`
 **scope** what it grants ([`C_AUTHZ`](#gclass-c-authz), see
 [*Scoped permissions*](#authz-scoped-permissions)). The control center asks
 every scenario permission with the `scenario_id` the command acts on -- a kw
 it builds, with the authenticated user and nothing else of the request, so a
-`scenario_id` put beside another scenario answers nothing -- and a
+`scenario_id` put beside another scenario answers nothing; the three
+permissions declare `scenario_id` as the key they may be scoped on (7.27.15)
+-- and a
 role row like this one, in the control center's `authz` store, lets its users
 read `renfe-20k-hidraulia` and nothing else:
 
