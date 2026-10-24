@@ -38,6 +38,14 @@ Tests subscribe / unsubscribe / publish semantics of the GObj framework. Verifie
   outlives its publisher (destroyed, its memory poisoned by
   `../emailsender/poison_alloc.c`) removes nothing and follows no pointer
   (up to 7.25.20 it read the freed publisher: a crash under the poison).
+- `test4`: the records of the subscriptions (what a publication reads of
+  each one, read when it is made, 7.28.0). A publication to 40 subscribers
+  (more than the 32 records kept on the stack) reaches each one once. A
+  subscriber that, in its action, unsubscribes a later one and subscribes a
+  new one: in that publication neither gets the event; in the next one the
+  new one does. `EV_STATE_CHANGED`, published only when somebody would see
+  it: a subscriber that declares it gets every change, and one with a
+  `__filter__` the changes the filter matches.
 
 ## Run
 
