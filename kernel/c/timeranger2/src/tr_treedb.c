@@ -642,6 +642,26 @@ PUBLIC json_t *treedb_topic_pkey2s( // Return list with pkey2s
     const char *topic_name
 )
 {
+    /*
+     *  What the two readers below answer, read directly when `tranger` and
+     *  its topics are dicts: the topic's list of pkey2s, or NULL. Asked two
+     *  or three times for every update of a node, they walked two paths.
+     *  With no flag they log only of a `tranger` that is not a dict, which
+     *  goes to them.
+     */
+    json_t *topics = json_object_get(tranger, "topics");
+    if(json_is_object(topics)) {
+        if(empty_string(topic_name)) {
+            return NULL;
+        }
+        json_t *topic = json_object_get(topics, topic_name);
+        if(!json_is_object(topic)) {
+            return NULL;    // see below
+        }
+        json_t *pkey2s = json_object_get(topic, "pkey2s");
+        return json_is_array(pkey2s)? json_incref(pkey2s) : NULL;
+    }
+
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     json_t *topic_desc = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
