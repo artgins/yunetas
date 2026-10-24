@@ -73,6 +73,8 @@ typedef struct node_write_s {
     json_t *hook_positions;     // owned or NULL: {ref: [place before, holder]} of the other ones
     json_t *other_holders;      // owned or NULL: [[ref, holder, place before]] of the OTHER
                                 // instances of a parent an unlink took the node out of
+    struct topic_cols_s *cols;  // the columns of the node's topic, read for this write
+                                // (topic_cols_of_op()), or NULL: given back at its close
 } node_write_t;
 
 /*
@@ -129,7 +131,8 @@ typedef struct {
     uint32_t flags;     // COLF_*
 } topic_col_t;
 
-typedef struct {
+typedef struct topic_cols_s {
+    char *topic_name;   // the topic it was read of: what an operation's slot answers for
     json_t *key;        // the topic's `cols` when read, held: its pointer
                         // cannot be another json's while this is kept
     json_t *cols;       // the dict of the columns (the key, or the dict made
@@ -316,6 +319,23 @@ PRIVATE void topic_cols_put(topic_cols_t *tc);
 PRIVATE const topic_col_t *topic_col_by_name(const topic_cols_t *tc, const char *col_name);
 PRIVATE void topic_cols_sweep(BOOL all);
 PRIVATE void topic_cols_forget(json_t *key);
+PRIVATE topic_cols_t *topic_cols_of_op(topic_cols_t **slot, json_t *tranger, const char *topic_name);
+PRIVATE void topic_cols_drop(topic_cols_t **slot);
+PRIVATE int save_node(json_t *tranger, json_t *node, topic_cols_t **cols);
+PRIVATE json_t *create_node(
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *kw,             // owned
+    topic_cols_t **cols
+);
+PRIVATE int store_files(
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *kw,             // NOT owned, modified
+    topic_cols_t **cols     // the operation's slot (topic_cols_of_op()), or NULL
+);
 PRIVATE uint32_t col_flags(json_t *desc_flag);
 PRIVATE const char *md_get_str(
     hgobj gobj,
@@ -348,7 +368,8 @@ PRIVATE int append_node_record(
     json_t *tranger,
     const char *topic_name,
     json_t *node,   // NOT owned, pure node
-    uint16_t tag
+    uint16_t tag,
+    topic_cols_t **cols     // the operation's slot (topic_cols_of_op()), or NULL
 );
 PRIVATE json_t *existing_snap_tags(hgobj gobj, json_t *tranger);
 PRIVATE int node_held_by_a_snap(hgobj gobj, json_t *tranger, const char *treedb_name, json_t *node);
@@ -371,7 +392,16 @@ PRIVATE int check_file_column(
 );
 PRIVATE BOOL link_col_type_is_valid(hgobj gobj, const char *col_name, json_t *col);
 PRIVATE int check_hook_fkey_columns(hgobj gobj, const char *topic_name, json_t *cols);
-PRIVATE int link_file_columns(hgobj gobj, json_t *tranger, json_t *node, json_t *kw, BOOL is_new, BOOL *moved, node_write_t *write);
+PRIVATE int link_file_columns(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *node,
+    json_t *kw,
+    BOOL is_new,
+    BOOL *moved,
+    node_write_t *write,
+    topic_cols_t **cols
+);
 PRIVATE int remove_blob(hgobj gobj, json_t *tranger, json_t *node);
 PRIVATE json_t *filtra_fkeys(const char *topic_name, const char *col_name, const char *type, json_t *value, BOOL skip_wrong);
 PRIVATE const char *files_default_types[];
@@ -5375,10 +5405,11 @@ PRIVATE json_t *create_pure_record(
     hgobj gobj,
     json_t *tranger,
     const char *topic_name,
-    json_t *kw  // NOT owned
+    json_t *kw,             // NOT owned
+    topic_cols_t **cols     // the operation's slot (topic_cols_of_op()), or NULL
 )
 {
-    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
+    topic_cols_t *tc = topic_cols_of_op(cols, tranger, topic_name);
     if(!tc) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -5424,10 +5455,11 @@ PRIVATE json_t *convert_node2tranger(
     hgobj gobj,
     json_t *tranger,
     const char *topic_name,
-    json_t *node  // NOT owned
+    json_t *node,           // NOT owned
+    topic_cols_t **cols     // the operation's slot (topic_cols_of_op()), or NULL
 )
 {
-    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
+    topic_cols_t *tc = topic_cols_of_op(cols, tranger, topic_name);
     if(!tc) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7925,6 +7957,24 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     json_t *kw // owned
 )
 {
+    topic_cols_t *cols = NULL;  // the columns of the topic, read once for the create
+    json_t *node = create_node(tranger, treedb_name, topic_name, kw, &cols);
+    topic_cols_drop(&cols);
+    return node;
+}
+
+/***************************************************************************
+ *  treedb_create_node(), with the columns of the topic in the slot `cols`
+ *  (topic_cols_of_op()). Its logs name treedb_create_node(), as before.
+ ***************************************************************************/
+PRIVATE json_t *create_node( // WARNING Return is NOT YOURS, pure node
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *kw,             // owned
+    topic_cols_t **cols     // the create's slot (topic_cols_of_op())
+)
+{
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     /*-----------------------------------*
@@ -7933,7 +7983,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *-----------------------------------*/
     if(!kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED)) {
         gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
+            "function",     "%s", "treedb_create_node",
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Cannot create node, NO master",
             "treedb_name",  "%s", treedb_name,
@@ -7950,7 +8000,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *-----------------------------------*/
     if(!treedb_is_treedbs_topic(tranger, treedb_name, topic_name)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
+            "function",     "%s", "treedb_create_node",
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", treedb_name,
@@ -7976,7 +8026,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         json_object_del(kw, "id");
     } else if(jn_given_id && !json_is_string(jn_given_id)) {
         log_data_fault(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
+            "function",     "%s", "treedb_create_node",
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Field 'id' must be a string",
             "treedb_name",  "%s", treedb_name,
@@ -8022,7 +8072,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             id = kw_get_str(gobj, kw, "id", 0, 0);
         } else {
             log_data_fault(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
+                "function",     "%s", "treedb_create_node",
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Field 'id' required",
                 "topic_name",   "%s", topic_name,
@@ -8044,7 +8094,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *-----------------------------------------------*/
     if(!is_valid_key_name(id)) {
         log_data_fault(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
+            "function",     "%s", "treedb_create_node",
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Invalid 'id': contains path metacharacters",
             "topic_name",   "%s", topic_name,
@@ -8065,7 +8115,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *-----------------------------------------------*/
     if((strchr(id, '^') || strlen(id) >= NAME_MAX) && topic_has_hooks(gobj, tranger, topic_name)) {
         log_data_fault(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
+            "function",     "%s", "treedb_create_node",
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", strchr(id, '^')?
                 "Invalid 'id': it holds a '^', the separator of a reference" :
@@ -8087,7 +8137,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *-----------------------------------------------*/
     if(json_object_get(keys_not_loaded(tranger, treedb_name, topic_name), id)) {
         gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
+            "function",     "%s", "treedb_create_node",
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Cannot create node, its id has records on disk that could not be loaded",
             "treedb_name",  "%s", treedb_name,
@@ -8176,7 +8226,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
 
     if(!save_id && !save_pkey2) {
         gobj_log_warning(gobj, __peer_data__? 0 : LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
+            "function",     "%s", "treedb_create_node",
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Node already exists",
             "topic_name",   "%s", topic_name,
@@ -8203,7 +8253,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  already written the blob and the __assets__ row, and left both
      *  for the gc.
      *-------------------------------*/
-    if(treedb_store_files(tranger, treedb_name, topic_name, kw)<0) {
+    if(store_files(tranger, treedb_name, topic_name, kw, cols)<0) {
         // Error already logged
         JSON_DECREF(pkey2_list)
         JSON_DECREF(kw)
@@ -8213,7 +8263,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*----------------------------------------*
      *      Create a new treedb record
      *----------------------------------------*/
-    json_t *node = create_pure_record(gobj, tranger, topic_name, kw);
+    json_t *node = create_pure_record(gobj, tranger, topic_name, kw, cols);
     if(!node) {
         // Error already logged
         JSON_DECREF(pkey2_list)
@@ -8245,7 +8295,15 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*---------------------------------------*
      *  Create the tranger record to save
      *---------------------------------------*/
-    json_t *record = convert_node2tranger(gobj, tranger, topic_name, node);
+    json_t *record = convert_node2tranger(gobj, tranger, topic_name, node, cols);
+
+    /*
+     *  The append runs the callbacks of the topic's lists, and the create
+     *  its own after it: the columns are given back now, so that no reading
+     *  is held while a callback runs, as before. What asks for them after
+     *  the callbacks (the 'file' columns) reads them again.
+     */
+    topic_cols_drop(cols);
     if(!record) {
         // Error already logged
         JSON_DECREF(pkey2_list)
@@ -8389,7 +8447,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             );
             if(!indexy) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
+                    "function",     "%s", "treedb_create_node",
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "TreeDb Topic indexy NOT FOUND",
                     "topic_name",   "%s", topic_name,
@@ -8474,7 +8532,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
          *  would be linked a second time -- a "Child already in parent
          *  hook" per column and an instance for nothing.
          */
-        if(link_file_columns(gobj, tranger, node, kw, !links_inherited, &moved, NULL)<0) {
+        if(link_file_columns(gobj, tranger, node, kw, !links_inherited, &moved, NULL, cols)<0) {
             /*
              *  Error already logged. A create that could not link the
              *  `file` column it was handed is the failure §16.8 closed
@@ -8499,7 +8557,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                 return NULL;    // node is gone, and so is what it linked
             }
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
+                "function",     "%s", "treedb_create_node",
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Node created with a 'file' column that could NOT be linked",
                 "treedb_name",  "%s", treedb_name,
@@ -8508,7 +8566,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                 NULL
             );
         } else if(moved) {
-            treedb_save_node(tranger, node);
+            save_node(tranger, node, cols);
         }
     }
 
@@ -8528,10 +8586,20 @@ PRIVATE int append_node_record(
     json_t *tranger,
     const char *topic_name,
     json_t *node,   // NOT owned, pure node
-    uint16_t tag
+    uint16_t tag,
+    topic_cols_t **cols     // the operation's slot (topic_cols_of_op()), or NULL
 )
 {
-    json_t *record = convert_node2tranger(gobj, tranger, topic_name, node);
+    json_t *record = convert_node2tranger(gobj, tranger, topic_name, node, cols);
+
+    /*
+     *  The append runs the callbacks of the topic's lists, and nothing of a
+     *  write reads the columns after it: the slot gives them back now, so
+     *  that no reading is held while a callback runs, as before
+     */
+    if(cols) {
+        topic_cols_drop(cols);
+    }
     if(!record) {
         // Error already logged
         return -1;
@@ -9001,6 +9069,7 @@ PRIVATE void init_node_write(node_write_t *write)
     write->hook_holder = NULL;
     write->hook_positions = NULL;
     write->other_holders = NULL;
+    write->cols = NULL;
 }
 
 PRIVATE void begin_node_write(hgobj gobj, json_t *tranger, json_t *node, node_write_t *write)
@@ -9080,12 +9149,19 @@ PRIVATE json_t *topic_cols_dict(json_t *tranger, const char *topic_name)
  *  Read the columns of a topic: `cols` (owned) is the dict of them, `key`
  *  the topic's `cols` it was made from (not owned).
  ***************************************************************************/
-PRIVATE topic_cols_t *topic_cols_read(json_t *key, json_t *cols)
+PRIVATE topic_cols_t *topic_cols_read(const char *topic_name, json_t *key, json_t *cols)
 {
     size_t n = json_object_size(cols);
     topic_cols_t *tc = gbmem_malloc(sizeof(topic_cols_t) + n * sizeof(topic_col_t));
     if(!tc) {
         // Error already logged
+        JSON_DECREF(cols)
+        return 0;
+    }
+    tc->topic_name = gbmem_strdup(topic_name);
+    if(!tc->topic_name) {
+        // Error already logged
+        gbmem_free(tc);
         JSON_DECREF(cols)
         return 0;
     }
@@ -9118,6 +9194,7 @@ PRIVATE void topic_cols_free(topic_cols_t *tc)
         JSON_DECREF(tc->key)
     }
     JSON_DECREF(tc->cols)
+    GBMEM_FREE(tc->topic_name)
     gbmem_free(tc);
 }
 
@@ -9160,7 +9237,7 @@ PRIVATE topic_cols_t *topic_cols_get(json_t *tranger, const char *topic_name)
         key = cols;
     }
 
-    topic_cols_t *tc = topic_cols_read(key, cols);
+    topic_cols_t *tc = topic_cols_read(topic_name, key, cols);
     if(!tc) {
         return 0;   // Error already logged
     }
@@ -9206,6 +9283,54 @@ PRIVATE void topic_cols_put(topic_cols_t *tc)
     tc->refs--;
     if(tc->refs == 0 && !tc->kept) {
         topic_cols_free(tc);
+    }
+}
+
+/***************************************************************************
+ *  The columns of a topic for one OPERATION (a write of a node, a create):
+ *  its functions ask for them one after the other, and the first one that
+ *  asks reads them (topic_cols_get()) and leaves them in the operation's
+ *  `slot`; the next ones take them from there, without the three lookups of
+ *  topic_cols_get(). A topic other than the slot's, a NULL name, or no slot
+ *  at all is asked of topic_cols_get(), as before. Give them back with
+ *  topic_cols_put(); the slot keeps its own reference until its owner gives
+ *  it back (topic_cols_drop()).
+ *
+ *  An operation is short, and none changes the columns of a topic: they
+ *  change at an open, a create-topic or a delete-topic. Its slot holds the
+ *  columns as they were when it began, which are the ones it would read.
+ *  It gives them back before the append of its record (append_node_record(),
+ *  create_node()), which runs the callbacks of the topic's lists: a callback
+ *  may do anything, and finds no reading of the operation held.
+ ***************************************************************************/
+PRIVATE topic_cols_t *topic_cols_of_op(topic_cols_t **slot, json_t *tranger, const char *topic_name)
+{
+    if(!slot || !topic_name) {
+        return topic_cols_get(tranger, topic_name);
+    }
+    if(*slot) {
+        if(strcmp((*slot)->topic_name, topic_name) == 0) {
+            (*slot)->refs++;
+            return *slot;
+        }
+        return topic_cols_get(tranger, topic_name);     // not the operation's topic
+    }
+    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
+    if(tc) {
+        tc->refs++;     // the slot's
+        *slot = tc;
+    }
+    return tc;
+}
+
+/***************************************************************************
+ *  Give back the columns an operation's slot holds (topic_cols_of_op())
+ ***************************************************************************/
+PRIVATE void topic_cols_drop(topic_cols_t **slot)
+{
+    if(*slot) {
+        topic_cols_put(*slot);
+        *slot = NULL;
     }
 }
 
@@ -9358,7 +9483,7 @@ PRIVATE void keep_node_fkeys(hgobj gobj, json_t *tranger, node_write_t *write, j
     if(!topic_name) {
         return;     // not a pure node: refused by the write itself
     }
-    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
+    topic_cols_t *tc = topic_cols_of_op(&write->cols, tranger, topic_name);
     if(!tc) {
         return;     // Error already logged
     }
@@ -9670,6 +9795,7 @@ PRIVATE void restore_node(hgobj gobj, json_t *tranger, json_t *node, node_write_
  ***************************************************************************/
 PRIVATE void close_node_write(hgobj gobj, json_t *tranger, node_write_t *write, BOOL tell)
 {
+    topic_cols_drop(&write->cols);  // before the events: their callbacks write on their own
     release_treedb_events(tranger, &write->events, tell);
     JSON_DECREF(write->fkey_before)
     JSON_DECREF(write->fkeys)
@@ -9701,7 +9827,7 @@ PRIVATE int end_node_write(
 {
     int ret = ok? 0 : -1;
     if(ret == 0 && save) {
-        ret = treedb_save_node(tranger, node);  // Error already logged
+        ret = save_node(tranger, node, &write->cols);   // Error already logged
     }
     if(ret < 0) {
         restore_node(gobj, tranger, node, write);
@@ -10222,6 +10348,19 @@ PUBLIC int treedb_save_node(
     json_t *node    // NOT owned, WARNING be care, must be a pure node.
 )
 {
+    return save_node(tranger, node, NULL);
+}
+
+/***************************************************************************
+ *  treedb_save_node(), with the columns of the topic taken from the
+ *  operation's slot (topic_cols_of_op())
+ ***************************************************************************/
+PRIVATE int save_node(
+    json_t *tranger,
+    json_t *node,           // NOT owned, WARNING be care, must be a pure node.
+    topic_cols_t **cols     // the operation's slot (topic_cols_of_op()), or NULL
+)
+{
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     /*------------------------------*
@@ -10229,7 +10368,7 @@ PUBLIC int treedb_save_node(
      *------------------------------*/
     if(!node_is_pure(node)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
+            "function",     "%s", "treedb_save_node",
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Not a pure node",
             NULL
@@ -10249,7 +10388,7 @@ PUBLIC int treedb_save_node(
      *-------------------------------*/
     if(node_is_being_deleted(node)) {
         gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
+            "function",     "%s", "treedb_save_node",
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Cannot save a node that is being deleted",
             "treedb_name",  "%s", treedb_name? treedb_name: "",
@@ -10269,7 +10408,7 @@ PUBLIC int treedb_save_node(
     const char *node_id = kw_get_str(gobj, node, "id", "", 0);
     if(!node_is_indexed(tranger, treedb_name, topic_name, node_id, node)) {
         gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
+            "function",     "%s", "treedb_save_node",
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Cannot save a node that no index holds: its record would bring back what was deleted",
             "treedb_name",  "%s", treedb_name? treedb_name: "",
@@ -10298,7 +10437,7 @@ PUBLIC int treedb_save_node(
      *  Write to tranger (save, updating)
      *  Untagged, snap active or not (see above).
      *-------------------------------------*/
-    if(append_node_record(gobj, tranger, topic_name, node, 0)<0) {
+    if(append_node_record(gobj, tranger, topic_name, node, 0, cols)<0) {
         // Error already logged
         JSON_DECREF(pkey2s)
         return -1;
@@ -10445,7 +10584,8 @@ PRIVATE json_t *prepare_node_update(
     json_t *node,   // NOT owned, pure node
     json_t *kw,     // NOT owned, modified (the 'file' columns)
     BOOL save,
-    BOOL with_fields
+    BOOL with_fields,
+    topic_cols_t **cols     // the operation's slot (topic_cols_of_op()), or NULL
 )
 {
     /*------------------------------*
@@ -10504,7 +10644,7 @@ PRIVATE json_t *prepare_node_update(
      *  Storing them may write an asset node, a write of its own: it is on
      *  disk, and told, whatever this write does after.
      *-------------------------------*/
-    if(treedb_store_files(tranger, treedb_name, topic_name, kw)<0) {
+    if(store_files(tranger, treedb_name, topic_name, kw, cols)<0) {
         return NULL;    // Error already logged
     }
 
@@ -10515,7 +10655,7 @@ PRIVATE json_t *prepare_node_update(
     /*-------------------------------*
      *  Update fields
      *-------------------------------*/
-    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
+    topic_cols_t *tc = topic_cols_of_op(cols, tranger, topic_name);
     if(!tc) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -10666,9 +10806,11 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
         return 0;   // Error already logged
     }
 
-    json_t *updates = prepare_node_update(gobj, tranger, node, kw, save, TRUE);
+    topic_cols_t *cols = NULL;  // the columns of the node's topic, read once for the write
+    json_t *updates = prepare_node_update(gobj, tranger, node, kw, save, TRUE, &cols);
     if(!updates) {
         // Error already logged
+        topic_cols_drop(&cols);
         JSON_DECREF(kw)
         return 0;
     }
@@ -10685,9 +10827,10 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
      *-------------------------------*/
     node_write_t write;
     begin_node_write(gobj, tranger, node, &write);
+    write.cols = cols;  // given back at the close of the write
     keep_node_fkeys(gobj, tranger, &write, node, kw);
     BOOL moved = FALSE;
-    if(link_file_columns(gobj, tranger, node, kw, FALSE, &moved, &write)<0) {
+    if(link_file_columns(gobj, tranger, node, kw, FALSE, &moved, &write, NULL)<0) {
         // Error already logged
         end_node_write(gobj, tranger, node, &write, FALSE, FALSE);
         JSON_DECREF(updates)
@@ -10966,7 +11109,7 @@ PRIVATE int save_newest_again(hgobj gobj, json_t *tranger, json_t *newest)
                     )) {
                 continue;
             }
-            if(append_node_record(gobj, tranger, topic_name, instance, 0)<0) {
+            if(append_node_record(gobj, tranger, topic_name, instance, 0, NULL)<0) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
@@ -11771,7 +11914,7 @@ PRIVATE int delete_node(
                     gobj, tranger, unlinked[i].hook, unlinked[i].parent, child, write
                 );
                 if(r == 0) {
-                    r = treedb_save_node(tranger, child);
+                    r = save_node(tranger, child, &write->cols);
                 }
                 if(r < 0) {
                     /*
@@ -14377,19 +14520,23 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
      *  asset node, a write of its own, told when it lands, whatever the
      *  autolink does after.
      */
-    if(treedb_store_files(
+    topic_cols_t *cols = NULL;  // the columns of the node's topic, read once for the write
+    if(store_files(
         tranger,
         md_get_str(gobj, node, "treedb_name", "", 0),
         md_get_str(gobj, node, "topic_name", "", 0),
-        kw
+        kw,
+        &cols
     )<0) {
         // Error already logged
+        topic_cols_drop(&cols);
         JSON_DECREF(kw)
         return -1;
     }
 
     node_write_t write;
     begin_node_write(gobj, tranger, node, &write);
+    write.cols = cols;  // given back at the close of the write
     keep_node_fkeys(gobj, tranger, &write, node, kw);
     BOOL to_save = FALSE;
     int ret = autolink_in_memory(tranger, node, kw, &to_save, &write);
@@ -14816,19 +14963,23 @@ PUBLIC int treedb_replace_links(
      *  A 'file' column may still hold a bare id here (idempotent
      *  otherwise). Stored before the write opens (see prepare_node_update).
      */
-    if(treedb_store_files(
+    topic_cols_t *cols = NULL;  // the columns of the node's topic, read once for the write
+    if(store_files(
         tranger,
         md_get_str(gobj, node, "treedb_name", "", 0),
         md_get_str(gobj, node, "topic_name", "", 0),
-        kw
+        kw,
+        &cols
     )<0) {
         // Error already logged
+        topic_cols_drop(&cols);
         JSON_DECREF(kw)
         return -1;
     }
 
     node_write_t write;
     begin_node_write(gobj, tranger, node, &write);
+    write.cols = cols;  // given back at the close of the write
     keep_node_fkeys(gobj, tranger, &write, node, NULL);
     BOOL changed = FALSE;
     int ret = replace_links_in_memory(gobj, tranger, node, kw, &changed, &write);
@@ -14884,15 +15035,18 @@ PUBLIC json_t *treedb_update_node_and_links( // WARNING Return is NOT YOURS, pur
         return 0;   // Error already logged
     }
 
-    json_t *updates = prepare_node_update(gobj, tranger, node, kw, TRUE, with_fields);
+    topic_cols_t *cols = NULL;  // the columns of the node's topic, read once for the write
+    json_t *updates = prepare_node_update(gobj, tranger, node, kw, TRUE, with_fields, &cols);
     if(!updates) {
         // Error already logged
+        topic_cols_drop(&cols);
         JSON_DECREF(kw)
         return 0;
     }
 
     node_write_t write;
     begin_node_write(gobj, tranger, node, &write);
+    write.cols = cols;  // given back at the close of the write
     keep_node_fkeys(gobj, tranger, &write, node, NULL);
 
     if(with_fields) {
@@ -14900,7 +15054,7 @@ PUBLIC json_t *treedb_update_node_and_links( // WARNING Return is NOT YOURS, pur
          *  The links of the 'file' columns, see treedb_update_node()
          */
         BOOL moved = FALSE;
-        if(link_file_columns(gobj, tranger, node, kw, FALSE, &moved, &write)<0) {
+        if(link_file_columns(gobj, tranger, node, kw, FALSE, &moved, &write, NULL)<0) {
             // Error already logged
             end_node_write(gobj, tranger, node, &write, FALSE, FALSE);
             JSON_DECREF(updates)
@@ -15088,7 +15242,7 @@ PUBLIC int treedb_unlink_nodes(
      *  events of the write are dropped)
      *----------------------------*/
     if(ret == 0) {
-        ret = treedb_save_node(tranger, child_node);    // Error already logged
+        ret = save_node(tranger, child_node, &write.cols);  // Error already logged
     }
     if(ret < 0) {
         restore_node(gobj, tranger, child_node, &write);
@@ -17895,13 +18049,14 @@ PRIVATE int link_file_columns(
     json_t *kw,         // NOT owned
     BOOL is_new,
     BOOL *moved,
-    node_write_t *write // optional
+    node_write_t *write, // optional
+    topic_cols_t **cols // the operation's slot when there is no write, or NULL
 )
 {
     const char *treedb_name = md_get_str(gobj, node, "treedb_name", "", 0);
     const char *topic_name = md_get_str(gobj, node, "topic_name", "", 0);
 
-    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
+    topic_cols_t *tc = topic_cols_of_op(write? &write->cols : cols, tranger, topic_name);
     if(!tc) {
         // Error already logged
         return -1;
@@ -17980,6 +18135,21 @@ PUBLIC int treedb_store_files(
     json_t *kw  // NOT owned, modified
 )
 {
+    return store_files(tranger, treedb_name, topic_name, kw, NULL);
+}
+
+/***************************************************************************
+ *  treedb_store_files(), with the columns of the topic taken from the
+ *  operation's slot (topic_cols_of_op())
+ ***************************************************************************/
+PRIVATE int store_files(
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *kw,             // NOT owned, modified
+    topic_cols_t **cols     // the operation's slot (topic_cols_of_op()), or NULL
+)
+{
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     if(!json_is_object(kw)) {
@@ -17999,10 +18169,10 @@ PUBLIC int treedb_store_files(
     json_t *manifests = json_object_get(kw, "__files__");
     const char *uploaded_by = kw_get_str(gobj, kw, "__username__", "", 0);
 
-    topic_cols_t *tc = topic_cols_get(tranger, topic_name);
+    topic_cols_t *tc = topic_cols_of_op(cols, tranger, topic_name);
     if(!tc) {
         gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
+            "function",     "%s", "treedb_store_files",
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic without cols",
             "topic_name",   "%s", topic_name,
@@ -18030,7 +18200,7 @@ PUBLIC int treedb_store_files(
              *  gc then took the bytes it named.
              */
             gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
+                "function",     "%s", "treedb_store_files",
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "a 'file' column must be flagged 'fkey' too, write refused",
                 "treedb_name",  "%s", treedb_name,
@@ -18064,7 +18234,7 @@ PUBLIC int treedb_store_files(
                  *  nothing names, whatever its caller answered.
                  */
                 gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
+                    "function",     "%s", "treedb_store_files",
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "Cannot store a file, NO master",
                     "treedb_name",  "%s", treedb_name,
@@ -18099,7 +18269,7 @@ PUBLIC int treedb_store_files(
                 decoded_len = (decoded_len > padding)? decoded_len - padding: 0;
                 if((json_int_t)decoded_len > max_size) {
                     gobj_log_warning(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
+                        "function",     "%s", "treedb_store_files",
                         "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "File REFUSED: over max_size",
                         "size",         "%ld", (long)decoded_len,
@@ -18118,7 +18288,7 @@ PUBLIC int treedb_store_files(
                 gbuf_decoded = gbuffer_base64_to_binary(content64, b64len);
                 if(!gbuf_decoded) {
                     gobj_log_warning(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
+                        "function",     "%s", "treedb_store_files",
                         "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "File REFUSED: bad base64",
                         "topic_name",   "%s", topic_name,
@@ -18139,7 +18309,7 @@ PUBLIC int treedb_store_files(
                 if(offset < 0 || slice <= 0 || (size_t)offset > total ||
                         (size_t)slice > total - (size_t)offset) {
                     gobj_log_warning(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
+                        "function",     "%s", "treedb_store_files",
                         "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "File REFUSED: manifest slice out of the gbuffer",
                         "offset",       "%ld", (long)offset,
@@ -18158,7 +18328,7 @@ PUBLIC int treedb_store_files(
 
             } else {
                 gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
+                    "function",     "%s", "treedb_store_files",
                     "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "File REFUSED: manifest without content64 and without gbuffer",
                     "topic_name",   "%s", topic_name,
@@ -18211,7 +18381,7 @@ PUBLIC int treedb_store_files(
                 );
                 if(empty_string(claimed_id) || strcmp(value, ref)!=0) {
                     gobj_log_warning(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
+                        "function",     "%s", "treedb_store_files",
                         "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "File REFUSED: a 'file' column must name its own asset hook",
                         "topic_name",   "%s", topic_name,
@@ -18230,7 +18400,7 @@ PUBLIC int treedb_store_files(
             }
             if(!treedb_get_node(tranger, treedb_name, TREEDB_ASSETS_TOPIC, claimed_id)) {
                 gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
+                    "function",     "%s", "treedb_store_files",
                     "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "File REFUSED: asset not found and no bytes sent",
                     "id",           "%s", claimed_id,
@@ -18251,7 +18421,7 @@ PUBLIC int treedb_store_files(
 
     if(!any_file_col && json_is_object(manifests) && json_object_size(manifests) > 0) {
         gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
+            "function",     "%s", "treedb_store_files",
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "__files__ received by a topic with no 'file' column, dropped",
             "topic_name",   "%s", topic_name,
@@ -20659,7 +20829,7 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
                  *  photo (up to 7.25.4).
                  *------------------------------------------------------*/
                 json_t *newer = newest_instance_of_key(tranger, node);
-                if(append_node_record(gobj, tranger, topic_name, node, (uint16_t)user_flag)<0) {
+                if(append_node_record(gobj, tranger, topic_name, node, (uint16_t)user_flag, NULL)<0) {
                     ret += -1;
                     gobj_log_critical(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -20672,7 +20842,7 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
                         NULL
                     );
                 } else if(newer && newer != node &&
-                        append_node_record(gobj, tranger, topic_name, newer, 0)<0) {
+                        append_node_record(gobj, tranger, topic_name, newer, 0, NULL)<0) {
                     ret += -1;
                     gobj_log_critical(gobj, 0,
                         "function",     "%s", __FUNCTION__,
