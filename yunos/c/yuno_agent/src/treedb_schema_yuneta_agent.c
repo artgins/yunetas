@@ -3,7 +3,7 @@
     This file holds this comment and the literal, nothing else: replace
     it whole with an export of the schema editor.
 
-    treedb_yuneta_agent  (schema_version 24)
+    treedb_yuneta_agent  (schema_version 27)
 
     {}  dict hook   (N unique children)
     []  list hook   (n not-unique children)
@@ -117,7 +117,7 @@
 static char treedb_schema_yuneta_agent[]= "\
 {                                                                   \n\
     'id': 'treedb_yuneta_agent',                                    \n\
-    'schema_version': '24',                                         \n\
+    'schema_version': '27',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'realms',                                         \n\
@@ -246,7 +246,7 @@ static char treedb_schema_yuneta_agent[]= "\
             'id': 'yunos',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '20',                                  \n\
+            'topic_version': '23',                                  \n\
             'tkey': '',                                             \n\
             'pkey2s': 'yuno_release',                               \n\
             'cols': {                                               \n\
@@ -279,7 +279,7 @@ static char treedb_schema_yuneta_agent[]= "\
                 },                                                  \n\
                 'yuno_name': {                                      \n\
                     'header': 'yuno_name',                          \n\
-                    'fillspace': 22,                                \n\
+                    'fillspace': 16,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
@@ -288,7 +288,7 @@ static char treedb_schema_yuneta_agent[]= "\
                 },                                                  \n\
                 'yuno_release': {                                   \n\
                     'header': 'yuno_release',                       \n\
-                    'fillspace': 12,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
@@ -297,7 +297,7 @@ static char treedb_schema_yuneta_agent[]= "\
                 },                                                  \n\
                 'yuno_tag': {                                       \n\
                     'header': 'yuno_tag',                           \n\
-                    'fillspace': 12,                                \n\
+                    'fillspace': 9,                                 \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
