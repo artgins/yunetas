@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+The line of 7.28.0, opened on 2026-10-24 to keep it apart from 7.27.21:
+the performance round taken from the cloud audit
+(branch `claude/laughing-pasteur-o80yf7`) lands here, with jansson from
+Yuneta's own fork (`artgins/jansson`).
+
 ## v7.27.21 (2026-10-24)
 
 A lite release of the controlcenter: only it is deployed (1996/1997 on
