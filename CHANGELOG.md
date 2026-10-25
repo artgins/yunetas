@@ -1,11 +1,14 @@
 # **Changelog**
 
-## Unreleased
+## v7.28.0 (2026-10-25)
 
-The line of 7.28.0, opened on 2026-10-24 to keep it apart from 7.27.21:
-the performance round taken from the cloud audit
-(branch `claude/laughing-pasteur-o80yf7`) lands here, with jansson from
-Yuneta's own fork (`artgins/jansson`).
+A full release: a performance round over the C SDK, taken from a cloud
+audit (branch `claude/laughing-pasteur-o80yf7`) and reviewed commit by
+commit, and jansson as Yuneta's own JSON library (`artgins/jansson`, tag
+`2.15.1-yuneta.1`, linux-ext-libs 1.26). Every binary is rebuilt: a node
+that builds from source reruns `./extrae.sh && ./configure-libs.sh` FIRST,
+then the SDK and every yuno. The API is the same. Suite on the dev machine
+only: 329/329 after a clean build, under `ulimit -Sn 1024`.
 
 - **Performance study** against 7.27.11, the last release with a study
   (7.27.12 to 7.27.21 inside it; they changed only `c_authz.c` in the
@@ -93,6 +96,9 @@ Yuneta's own fork (`artgins/jansson`).
       clock (RFC 6455 §5.3).
     - timeranger2 logs a NULL file id, and a file name cut at the size of
       its buffer, where `snprintf()` wrote `(null)` or cut it in silence.
+- **The web console (gui_agent 1.0.5, 1.0.6)** reads the queue of a gate
+  where it is, and a click on a card of a scenario's graph highlights it,
+  the cards linked to it and their links (its own CHANGELOG in `yunos/js`).
 
 ## v7.27.21 (2026-10-24)
 
