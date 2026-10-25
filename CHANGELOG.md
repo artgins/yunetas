@@ -25,6 +25,17 @@
   itself. Up to 7.28.3 the CRITICAL *"Message NOT SAVED in the queue"*
   aborted the yuno, which loaded its queue and aborted again, in a loop
   (the simulators of wattyzer, for a day). `tests/c/c_qiogate_stats`.
+- **The control center stops, pauses and reports every yuno of a scenario at
+  once.** A `stop`, `pause` or `report` run sends all its steps together,
+  within one `run_step_timeout`, records each result, and ends with `-1`
+  naming the steps that failed or did not answer (*"1 of 3 steps failed;
+  step 1 (...): the yuno refused"*). An agent that disconnects fails only
+  its own steps. `start` and `resume` stay in order. Up to 7.28.3 a stop
+  was serial too and ended at the first yuno that did not answer: the
+  max_run stop of `renfe-20k-hidraulia` failed every minute at its first
+  simulator, already stopped, and the others went on. `scenarios` also
+  answers the run in flight of a scenario, `run_in_flight` (`id`, `action`,
+  `username`, `started_at`). `tests/c/c_controlcenter_scenarios` (case 17).
 
 ## v7.28.3 (2026-10-25)
 

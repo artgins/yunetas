@@ -264,6 +264,7 @@ PRIVATE const char *expected_msgs[] = {
     "answer of an agent for no requester of this control center, dropped",  // a link that did not ask
     "answer of an agent for no requester of this control center, dropped",  // the link, after the agent's close
     "stopping a scenario: its max_run is reached",          // 16
+    "a step of a scenario run was not answered",            // 17: one step, said once
     /*  11: a 300 ms window (C_TIMER ticks every 100 ms here, the
      *  timeout_periodic above). "msg|when|dropped": fields checked too  */
     "stream for a web client that is gone, dropped|its window ended|1",

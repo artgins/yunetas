@@ -49,7 +49,11 @@
  *                is built here) and is told so by my-permissions;
  *              - a change of a role, or of a link from a role, in the users
  *                store is told as EV_PERMISSIONS_CHANGED; a user's own
- *                update is not.
+ *                update is not;
+ *              - a stop, a pause or a report sends every step at once and
+ *                waits for them all, naming each step that failed or was
+ *                not answered; a start ends at its first failed step; and
+ *                `scenarios` says the run in flight.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -1387,6 +1391,365 @@ PRIVATE int test_max_run_stopped(hgobj gobj)
 }
 
 /***************************************************************************
+ *  17. A stop, a pause or a report asks every yuno at once, and waits for
+ *      them all; a start or a resume goes in order and ends at the first
+ *      step that fails. The scenario "par" has three yunos on the agent,
+ *      one step each in its start, stop and pause.
+ *      A (case 0): the start, its second step failing: the third is not
+ *      sent, the run fails there. The stop: the three steps are sent at
+ *      once, `scenarios` says the run in flight (`run_in_flight`), the
+ *      steps are answered out of order and the second fails; the run waits
+ *      for the third, and ends naming only the one that failed, the others
+ *      recorded with their result 0. B (the next phase, after case 16's):
+ *      the pause, with `run_step_timeout` set to PAR_STEP_TIMEOUT_MS and
+ *      its second step never answered: in flight while it waits; C (the
+ *      phase after, once it is not in flight): the step not answered is
+ *      named, and said once (a warning, in the expected logs).
+ ***************************************************************************/
+#define PAR_SCENARIO            "par"
+#define PAR_STEP_TIMEOUT_MS     300
+#define PAR_DEFAULT_TIMEOUT_MS  30000   // run_step_timeout's default, put back
+#define PAR_WAIT_MS             5000    // the most phase C waits for the run to end
+
+PRIVATE json_t *parallel_scenario(void)
+{
+    const char *yunos[] = {"1234", "1235", "1236", 0};
+    struct {
+        const char *action;
+        const char *command;
+    } defs[] = {
+        {"start",   "resume-generation"},
+        {"stop",    "pause-generation"},
+        {"pause",   "pause-generation"},
+        {0, 0}
+    };
+
+    json_t *jn_yunos = json_array();
+    for(int y=0; yunos[y]; y++) {
+        json_array_append_new(jn_yunos, json_pack("{s:s}", "id", yunos[y]));
+    }
+    json_t *actions = json_object();
+    for(int a=0; defs[a].action; a++) {
+        json_t *steps = json_array();
+        for(int y=0; yunos[y]; y++) {
+            json_array_append_new(steps, json_pack("{s:s, s:s}",
+                "yuno", yunos[y],
+                "command", defs[a].command
+            ));
+        }
+        json_object_set_new(actions, defs[a].action, steps);
+    }
+    return json_pack("{s:s, s:s, s:o, s:o}",
+        "id", PAR_SCENARIO,
+        "node", AGENT_HOST,
+        "yunos", jn_yunos,
+        "actions", actions
+    );
+}
+
+/*  The kw of every request the agent got since the last time (yours)  */
+PRIVATE json_t *agent_requests(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *received = take_received(priv->agent_wire);
+    json_t *requests = json_array();
+    size_t idx; json_t *jn;
+    json_array_foreach(received, idx, jn) {
+        json_array_append(requests, json_object_get(jn, "kw"));
+    }
+    JSON_DECREF(received)
+    return requests;
+}
+
+/*  The `run_in_flight` `scenarios` says of "par" (yours), or NULL  */
+PRIVATE json_t *par_run_in_flight(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string(PAR_SCENARIO));
+    json_t *response = gobj_command(priv->cc, "scenarios", kw, client);
+    json_t *in_flight = json_object_get(
+        json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0), "run_in_flight");
+    json_incref(in_flight);
+    JSON_DECREF(response)
+    return in_flight;
+}
+
+/*  The newest run of "par", as `scenario-runs` says it (yours), or NULL  */
+PRIVATE json_t *par_newest_run(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string(PAR_SCENARIO));
+    json_t *response = gobj_command(priv->cc, "scenario-runs", kw, client);
+    json_t *newest = json_incref(json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0));
+    JSON_DECREF(response)
+    return newest;
+}
+
+/*
+ *  The requests of a run in parallel: one per step, all at once, each
+ *  marked with its step and with the line of its yuno
+ */
+PRIVATE int check_parallel_requests(hgobj gobj, json_t *requests, const char *command, const char *what)
+{
+    int ret = 0;
+    const char *yunos[] = {"id=1234", "id=1235", "id=1236", 0};
+
+    if(json_array_size(requests) != 3) {
+        char detail[64];
+        snprintf(detail, sizeof(detail), "%d requests, expected 3", (int)json_array_size(requests));
+        return fail(gobj, what, detail);
+    }
+    for(int i=0; yunos[i]; i++) {
+        json_t *request = json_array_get(requests, (size_t)i);
+        const char *line = kw_get_str(gobj, request, "__command__", "", 0);
+        if(!strstr(line, yunos[i]) || !strstr(line, command) ||
+                kw_get_int(gobj, request, "__md_iev__`cc_step", -1, KW_WILD_NUMBER) != i) {
+            ret += fail(gobj, what, line);
+        }
+    }
+    return ret;
+}
+
+/*  The result of each step of a run record: `results` -1, 0, or 1 (no result)  */
+PRIVATE int check_step_results(hgobj gobj, json_t *run, const int results[3], const char *what)
+{
+    int ret = 0;
+    json_t *steps = kw_get_list(gobj, run, "steps", 0, 0);
+    if(json_array_size(steps) != 3) {
+        return fail(gobj, what, "the run record has not its 3 steps");
+    }
+    for(int i=0; i<3; i++) {
+        json_t *step = json_array_get(steps, (size_t)i);
+        char detail[64];
+        snprintf(detail, sizeof(detail), "step %d", i);
+        if(results[i] > 0) {
+            if(kw_has_key(step, "result")) {
+                ret += fail(gobj, what, detail);
+            }
+        } else if(!kw_has_key(step, "result") ||
+                kw_get_int(gobj, step, "result", -99, KW_WILD_NUMBER) != results[i]) {
+            ret += fail(gobj, what, detail);
+        }
+    }
+    return ret;
+}
+
+/*  A: the start stays in order; the stop goes in parallel  */
+PRIVATE int test_parallel_stop(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", parallel_scenario());
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        0, "scenario created: " PAR_SCENARIO, "a scenario of three yunos");
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
+
+    /*
+     *  The start: its second step fails, the third is not sent
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string(PAR_SCENARIO));
+    json_object_set_new(kw, "action", json_string("start"));
+    json_t *response = gobj_command(priv->cc, "run-scenario", kw, client);
+    if(response) {
+        ret += fail(gobj, "the start of par answers when the run is over",
+            kw_get_str(gobj, response, "comment", "", 0));
+        JSON_DECREF(response)
+        return ret;
+    }
+    const char *start_yunos[] = {"id=1234", "id=1235", 0};
+    const int start_results[] = {0, -1};
+    for(int i=0; start_yunos[i]; i++) {
+        json_t *requests = agent_requests(gobj);
+        json_t *step = json_array_get(requests, 0);
+        if(json_array_size(requests) != 1 ||
+                !strstr(kw_get_str(gobj, step, "__command__", "", 0), start_yunos[i])) {
+            ret += fail(gobj, "a start sends its steps one after the other", start_yunos[i]);
+            JSON_DECREF(requests)
+            return ret;
+        }
+        agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, start_results[i],
+            start_results[i] < 0? "the yuno refused" : "resumed");
+        JSON_DECREF(requests)
+    }
+    json_t *requests = agent_requests(gobj);
+    if(json_array_size(requests) != 0) {
+        ret += fail(gobj, "a start sends no step after the one that failed",
+            kw_get_str(gobj, json_array_get(requests, 0), "__command__", "", 0));
+    }
+    JSON_DECREF(requests)
+    if(count_received(client, EV_MT_COMMAND_ANSWER, "start failed, 1 of 3 steps done: a step failed") != 1) {
+        ret += fail(gobj, "a start ends at the step that fails", "");
+    }
+    json_t *run = par_newest_run(gobj, client);
+    const int start_recorded[3] = {0, -1, 1};
+    if(strcmp(kw_get_str(gobj, run, "action", "", 0), "start")!=0 ||
+            kw_get_int(gobj, run, "result", 0, KW_WILD_NUMBER) != -1) {
+        ret += fail(gobj, "the start that failed is written, failed",
+            kw_get_str(gobj, run, "comment", "", 0));
+    }
+    ret += check_step_results(gobj, run, start_recorded, "the steps of the start: done, failed, not sent");
+    JSON_DECREF(run)
+
+    /*
+     *  The stop: every step at once
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string(PAR_SCENARIO));
+    json_object_set_new(kw, "action", json_string("stop"));
+    response = gobj_command(priv->cc, "run-scenario", kw, client);
+    if(response) {
+        ret += fail(gobj, "the stop of par answers when the run is over",
+            kw_get_str(gobj, response, "comment", "", 0));
+        JSON_DECREF(response)
+        return ret;
+    }
+    requests = agent_requests(gobj);
+    if(check_parallel_requests(gobj, requests, "pause-generation",
+            "a stop sends every step at once") < 0) {
+        JSON_DECREF(requests)
+        return ret - 1;
+    }
+    char run_id[NAME_MAX];
+    snprintf(run_id, sizeof(run_id), "%s",
+        kw_get_str(gobj, json_array_get(requests, 0), "__md_iev__`cc_run", "", 0));
+
+    json_t *in_flight = par_run_in_flight(gobj, client);
+    if(!in_flight ||
+            strcmp(kw_get_str(gobj, in_flight, "id", "", 0), run_id)!=0 ||
+            strcmp(kw_get_str(gobj, in_flight, "action", "", 0), "stop")!=0 ||
+            strcmp(kw_get_str(gobj, in_flight, "username", "", 0), "alice")!=0 ||
+            kw_get_int(gobj, in_flight, "started_at", 0, KW_WILD_NUMBER) <= 0) {
+        ret += fail(gobj, "scenarios says the run in flight", run_id);
+    }
+    JSON_DECREF(in_flight)
+
+    /*
+     *  Answered out of order; the one that fails does not end the run
+     */
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, json_array_get(requests, 2), 0, "paused");
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, json_array_get(requests, 1), -1, "the yuno refused");
+    if(count_received(client, EV_MT_COMMAND_ANSWER, 0) != 0) {
+        ret += fail(gobj, "a stop waits for every step, also after one failed", run_id);
+    }
+    in_flight = par_run_in_flight(gobj, client);
+    if(!in_flight) {
+        ret += fail(gobj, "a stop with a step waiting is in flight", run_id);
+    }
+    JSON_DECREF(in_flight)
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, json_array_get(requests, 0), 0, "paused");
+    JSON_DECREF(requests)
+
+    const char *failure =
+        "stop failed, 2 of 3 steps done: 1 of 3 steps failed; "
+        "step 1 (command-yuno id=1235 command=pause-generation): the yuno refused";
+    if(count_received(client, EV_MT_COMMAND_ANSWER, failure) != 1) {
+        ret += fail(gobj, "a stop ends when every step answered, naming the one that failed", failure);
+    }
+    in_flight = par_run_in_flight(gobj, client);
+    if(in_flight) {
+        ret += fail(gobj, "scenarios says no run in flight once it ended",
+            kw_get_str(gobj, in_flight, "id", "", 0));
+    }
+    JSON_DECREF(in_flight)
+
+    run = par_newest_run(gobj, client);
+    const char *comment = kw_get_str(gobj, run, "comment", "", 0);
+    const int stop_recorded[3] = {0, -1, 0};
+    if(strcmp(kw_get_str(gobj, run, "id", "", 0), run_id)!=0 ||
+            strcmp(kw_get_str(gobj, run, "action", "", 0), "stop")!=0 ||
+            kw_get_int(gobj, run, "result", 0, KW_WILD_NUMBER) != -1 ||
+            !strstr(comment, failure) ||
+            strstr(comment, "step 0 (") || strstr(comment, "step 2 (")) {
+        ret += fail(gobj, "the stop is written failed, naming only the step that failed", comment);
+    }
+    ret += check_step_results(gobj, run, stop_recorded, "the steps of the stop: each its own answer");
+    JSON_DECREF(run)
+    return ret;
+}
+
+/*  B: a pause, its second step never answered: in flight while it waits  */
+PRIVATE int test_parallel_unanswered_sent(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+    hgobj client = priv->client1;
+
+    gobj_write_integer_attr(priv->cc, "run_step_timeout", PAR_STEP_TIMEOUT_MS);
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string(PAR_SCENARIO));
+    json_object_set_new(kw, "action", json_string("pause"));
+    json_t *response = gobj_command(priv->cc, "run-scenario", kw, client);
+    if(response) {
+        ret += fail(gobj, "the pause of par answers when the run is over",
+            kw_get_str(gobj, response, "comment", "", 0));
+        JSON_DECREF(response)
+        return ret;
+    }
+    json_t *requests = agent_requests(gobj);
+    if(check_parallel_requests(gobj, requests, "pause-generation",
+            "a pause sends every step at once") < 0) {
+        JSON_DECREF(requests)
+        return ret - 1;
+    }
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, json_array_get(requests, 0), 0, "paused");
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, json_array_get(requests, 2), 0, "paused");
+
+    json_t *in_flight = par_run_in_flight(gobj, client);
+    if(!in_flight ||
+            strcmp(kw_get_str(gobj, in_flight, "id", "", 0),
+                kw_get_str(gobj, json_array_get(requests, 0), "__md_iev__`cc_run", "", 0))!=0 ||
+            strcmp(kw_get_str(gobj, in_flight, "action", "", 0), "pause")!=0) {
+        ret += fail(gobj, "scenarios says the run in flight while a step is not answered", "");
+    }
+    JSON_DECREF(in_flight)
+    JSON_DECREF(requests)
+    if(count_received(client, EV_MT_COMMAND_ANSWER, 0) != 0) {
+        ret += fail(gobj, "a pause waits for the step not answered yet", "");
+    }
+    return ret;
+}
+
+/*  C: past the deadline, the step not answered is named  */
+PRIVATE int test_parallel_unanswered_ended(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+    hgobj client = priv->client1;
+
+    gobj_write_integer_attr(priv->cc, "run_step_timeout", PAR_DEFAULT_TIMEOUT_MS);
+
+    char failure[256];
+    snprintf(failure, sizeof(failure),
+        "pause failed, 2 of 3 steps done: 1 of 3 steps failed; "
+        "step 1 (command-yuno id=1235 command=pause-generation): not answered in %d ms",
+        PAR_STEP_TIMEOUT_MS);
+    if(count_received(client, EV_MT_COMMAND_ANSWER, failure) != 1) {
+        ret += fail(gobj, "a pause ends at its deadline, naming the step not answered", failure);
+    }
+    json_t *run = par_newest_run(gobj, client);
+    const int pause_recorded[3] = {0, -1, 0};
+    if(strcmp(kw_get_str(gobj, run, "action", "", 0), "pause")!=0 ||
+            kw_get_int(gobj, run, "result", 0, KW_WILD_NUMBER) != -1 ||
+            !strstr(kw_get_str(gobj, run, "comment", "", 0), failure)) {
+        ret += fail(gobj, "the pause is written failed, naming the step not answered",
+            kw_get_str(gobj, run, "comment", "", 0));
+    }
+    ret += check_step_results(gobj, run, pause_recorded, "the steps of the pause: answered, not answered");
+    JSON_DECREF(run)
+    return ret;
+}
+
+/***************************************************************************
  *  9. Who gets what the agent sends back when it names no web client:
  *     only one of this yuno's own ievent links (C_IEVENT_CLI), the one the
  *     request came in by -- never a local service named in a hop below
@@ -1724,6 +2087,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_inject_in_a_loop(gobj, client2);
     result += test_scoped_viewer(gobj, client1);
     result += test_permissions_changed(gobj);
+    result += test_parallel_stop(gobj, client1);    // before 16: it counts the runs ended
     result += test_max_run_start(gobj, client1);
 
     priv->client1 = client1;
@@ -1820,12 +2184,29 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
-     *  Phases 2 and 3 wait for the control center's drops timer to have
+     *  Phase 2 waits for the run of case 17 B to end (no run in flight),
+     *  and phases 4 and 5 for the control center's drops timer to have
      *  fired (drops_timer_armed back to false), checked at each 100 ms
-     *  tick, at most DROPS_WAIT_MS: a stall of the loop delays them, it
-     *  does not reorder them; a timer that never fires fails, loudly.
+     *  tick, at most PAR_WAIT_MS / DROPS_WAIT_MS: a stall of the loop
+     *  delays them, it does not reorder them; a timer that never fires
+     *  fails, loudly.
      */
-    if(priv->phase == 3 || priv->phase == 4) {
+    if(priv->phase == 2) {
+        json_t *in_flight = par_run_in_flight(gobj, priv->client1);
+        BOOL waiting = in_flight? TRUE : FALSE;
+        JSON_DECREF(in_flight)
+        if(waiting) {
+            if(!test_msectimer(priv->t_wait)) {
+                set_timeout(priv->timer, 100);
+                KW_DECREF(kw)
+                return 0;
+            }
+            priv->result += fail(gobj, "the run with a step not answered did not end in time",
+                "phase 2");
+            priv->phase = 8;
+        }
+    }
+    if(priv->phase == 4 || priv->phase == 5) {
         if(gobj_read_bool_attr(priv->cc, "drops_timer_armed")) {
             if(!test_msectimer(priv->t_wait)) {
                 set_timeout(priv->timer, 100);
@@ -1833,8 +2214,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 return 0;
             }
             priv->result += fail(gobj, "the drops timer did not fire in time",
-                priv->phase == 3? "phase 3" : "phase 4");
-            priv->phase = 7;
+                priv->phase == 4? "phase 4" : "phase 5");
+            priv->phase = 8;
         }
     }
 
@@ -1848,33 +2229,40 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             return 0;
         case 1:
             priv->result += test_max_run_stopped(gobj);
+            priv->result += test_parallel_unanswered_sent(gobj);
+            priv->t_wait = start_msectimer(PAR_WAIT_MS);
             set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
         case 2:
+            priv->result += test_parallel_unanswered_ended(gobj);
+            set_timeout(priv->timer, 100);
+            KW_DECREF(kw)
+            return 0;
+        case 3:
             priv->result += test_drops_window_shortened(gobj);
             priv->t_wait = start_msectimer(DROPS_WAIT_MS);
             set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
-        case 3:
+        case 4:
             priv->result += test_drops_counted_again(gobj);
             priv->t_wait = start_msectimer(DROPS_WAIT_MS);
             set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
-        case 4:
+        case 5:
             priv->result += test_drops_timer_said(gobj);
             priv->result += test_rates_traffic(gobj);
             set_timeout(priv->timer, 2*RATES_TICK_MS + 500);    // past two ticks
             KW_DECREF(kw)
             return 0;
-        case 5:
+        case 6:
             priv->result += test_rates_read(gobj);
             set_timeout(priv->timer, RATES_TICK_MS + 500);  // a tick with the 3 messages
             KW_DECREF(kw)
             return 0;
-        case 6:
+        case 7:
             priv->result += test_stop_outside_shutdown(gobj);
             break;
         default:

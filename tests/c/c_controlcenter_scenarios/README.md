@@ -140,6 +140,38 @@ still reported and fails the test.
     `EV_PERMISSIONS_CHANGED` once each; an update of a user (its sessions
     change at every login) and a link of another topic publish nothing.
 
+16. A scenario's `max_run`: its start schedules its stop, which the control
+    center runs itself when it is due. The scenario "mr" (`max_run` 1 s) is
+    saved and started; `scenarios` says when its stop is due (`stop_at`); a
+    `max_run` out of range is refused, and while it runs a user who may
+    write it but not run it cannot save it. In the next phase the control
+    center has sent the stop step by itself (*"stopping a scenario: its
+    max_run is reached"*); the run is written as the control center's, with
+    the reason, and the stop is no longer scheduled. Every run that ends is
+    told (`EV_SCENARIO_RUN_ENDED`).
+17. A stop, a pause or a report asks every yuno at once and waits for them
+    all; a start or a resume goes in order. The scenario "par" has three
+    yunos on the agent, one step each. Its **start**, with the second step
+    answered -1: the third step is not sent, and the run ends there
+    (*"start failed, 1 of 3 steps done: a step failed"*). Its **stop**: the
+    agent gets the three steps at once; while they wait, `scenarios` gives
+    the run in `run_in_flight` (its id, action, user, start); the steps are
+    answered out of order and the second one -1, and the run still waits
+    for the last one. Then it ends with -1 and *"1 of 3 steps failed; step 1
+    (command-yuno id=1235 command=pause-generation): the yuno refused"*, the
+    other steps keep their result 0 in `scenario-runs`, and `scenarios`
+    gives no `run_in_flight`. Its **pause**, in the phase after case 16's,
+    with `run_step_timeout` set to 300 ms and the second step never
+    answered: in flight while it waits; once it is not (checked every
+    100 ms, for at most 5 s), it names the step *"not answered in 300 ms"*,
+    with one warning (*"a step of a scenario run was not answered"*), and
+    the other two keep their result 0. `run_step_timeout` goes back to its
+    default after. It runs before case 16, which counts the runs that end,
+    and its pause runs before the drops timer of case 11 has a short
+    window, so its warning has one place in the expected logs. Up to 7.28.3
+    a stop ran its steps in order and ended at the first one that failed or
+    did not answer: one dead yuno left the yunos after it running.
+
 ## Run
 
 ```bash

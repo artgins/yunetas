@@ -46,10 +46,14 @@
  *  without a reload. A user's own record is not watched: it changes at every
  *  login (its sessions), and disabling or deleting a user drops its sessions.
  *  A RUN sends each step to the node's agent as `command-yuno`, carrying
- *  the user who asked (`__username__`, what the agent's audit records),
- *  one after the other: a step is sent only when the one before it
- *  answered, and a step that fails, does not answer in `run_step_timeout`,
- *  or whose agent disconnects meanwhile ends the run there. The agent
+ *  the user who asked (`__username__`, what the agent's audit records).
+ *  A start or a resume goes one step after the other: a step is sent only
+ *  when the one before it answered, and a step that fails, does not answer
+ *  in `run_step_timeout`, or whose agent disconnects meanwhile ends the run
+ *  there. A stop, a pause or a report sends every step at once, within one
+ *  `run_step_timeout`: each result is recorded, and the run ends with -1
+ *  naming the steps that failed (up to 7.28.3 these were serial too, and a
+ *  stop ended at the first yuno that did not answer). The agent
  *  runs it on the control center's session, so `write-scenarios` together
  *  with `run-scenarios` is as much as `command-agent`: grant them alike.
  *  Then the run is written in
@@ -171,10 +175,14 @@ PRIVATE json_t *sort_runs_newest_first(json_t *runs);
 PRIVATE BOOL requester_listens(hgobj requester);
 PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t event);
 PRIVATE int run_send_step(hgobj gobj);
+PRIVATE int run_send_all_steps(hgobj gobj);
+PRIVATE int run_parallel_step_done(hgobj gobj);
+PRIVATE hgobj run_channel_of_step(hgobj gobj, int idx);
+PRIVATE BOOL run_uses_channel(hgobj gobj, hgobj channel);
 PRIVATE int run_step_answered(hgobj gobj, json_t *kw);
 PRIVATE int run_step_timed_out(hgobj gobj);
 PRIVATE int run_end(hgobj gobj, int result, const char *comment);
-PRIVATE int run_agent_disconnected(hgobj gobj);
+PRIVATE int run_agent_disconnected(hgobj gobj, hgobj channel);
 PRIVATE hgobj channel_of_side(hgobj side, hgobj g);
 PRIVATE json_int_t connection_number(hgobj channel);
 PRIVATE BOOL same_connection(hgobj gobj, json_t *kw, hgobj channel);
@@ -428,7 +436,7 @@ typedef struct _PRIVATE_DATA {
     json_t *auto_stops;             // scenario id -> {stop_at: epoch second, started_by} (max_run)
     json_t *run;                    // the run in flight, or NULL (one at a time)
     json_t *run_kw_answer;          // the request of that run, to answer it
-    hgobj run_agent_channel;        // channel (in __input_side__) of the step in flight
+    json_t *run_channels;           // "<step idx>" -> channel (in __input_side__) of each step in flight
 
     json_int_t connections;         // number given to the last web client connection
 } PRIVATE_DATA;
@@ -563,6 +571,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(priv->run)
+    JSON_DECREF(priv->run_channels)
     KW_DECREF(priv->run_kw_answer)
     JSON_DECREF(priv->auto_stops)
 }
@@ -1843,7 +1852,21 @@ PRIVATE int start_run(
         "reason", reason? reason : ""
     );
     priv->run_kw_answer = kw_answer;
+    JSON_DECREF(priv->run_channels)
+    priv->run_channels = json_object();
 
+    /*
+     *  A stop, a pause or a report asks every yuno at once, and waits for
+     *  them all: one yuno that does not answer must not leave the others
+     *  running (a stop that ended at its first unanswered step left the
+     *  simulators of a node generating, and the max_run stop failed every
+     *  minute on the same dead one). A start or a resume goes in order,
+     *  and ends at the first step that fails: what follows depends on it.
+     */
+    if(strcmp(action, "stop")==0 || strcmp(action, "pause")==0 || strcmp(action, "report")==0) {
+        json_object_set_new(priv->run, "parallel", json_true());
+        return run_send_all_steps(gobj);
+    }
     run_send_step(gobj);
     return 0;
 }
@@ -2771,7 +2794,11 @@ PRIVATE int run_send_step(hgobj gobj)
         json_object_set_new(step, "comment", json_sprintf("node '%s' is not connected", node));
         return run_end(gobj, -1, "a node of the run is not connected");
     }
-    priv->run_agent_channel = channel_of_side(priv->gobj_input_side, channel);
+    json_object_clear(priv->run_channels);
+    char key[32];
+    snprintf(key, sizeof(key), "%d", idx);
+    json_object_set_new(priv->run_channels, key,
+        json_integer((json_int_t)(size_t)channel_of_side(priv->gobj_input_side, channel)));
 
     json_t *kw_step = json_pack("{s:s}",
         "__username__", kw_get_str(gobj, priv->run, "username", "", 0)
@@ -2789,6 +2816,139 @@ PRIVATE int run_send_step(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A run in parallel (stop, pause, report): every step at once, under one
+ *  deadline. A step whose node is not connected fails at once; the run ends
+ *  when no step waits (run_parallel_step_done()).
+ ***************************************************************************/
+PRIVATE int run_send_all_steps(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Every step is registered before the first is sent: an answer that
+     *  came at once must not find the run with nothing left to wait for
+     */
+    json_t *steps = kw_get_list(gobj, priv->run, "steps", 0, KW_REQUIRED);
+    size_t idx; json_t *step;
+    json_array_foreach(steps, idx, step) {
+        const char *node = kw_get_str(gobj, step, "node", "", KW_REQUIRED);
+        hgobj channel = find_agent_channel(gobj, node);
+        if(!channel) {
+            json_object_set_new(step, "result", json_integer(-1));
+            json_object_set_new(step, "comment", json_sprintf("node '%s' is not connected", node));
+            continue;
+        }
+        char key[32];
+        snprintf(key, sizeof(key), "%d", (int)idx);
+        json_object_set_new(priv->run_channels, key,
+            json_integer((json_int_t)(size_t)channel_of_side(priv->gobj_input_side, channel)));
+    }
+    if(json_object_size(priv->run_channels) == 0) {
+        return run_parallel_step_done(gobj);    // no node connected: nothing to wait for
+    }
+    set_timeout(priv->run_timer, gobj_read_integer_attr(gobj, "run_step_timeout"));
+
+    json_t *run = json_incref(priv->run);   // an answer at once may end it under the loop
+    json_array_foreach(steps, idx, step) {
+        if(priv->run != run || !run_channel_of_step(gobj, (int)idx)) {
+            if(priv->run != run) {
+                break;
+            }
+            continue;
+        }
+        hgobj channel = find_agent_channel(gobj, kw_get_str(gobj, step, "node", "", KW_REQUIRED));
+        if(!channel) {
+            continue;   // registered just above: it cannot be gone in between
+        }
+        json_t *kw_step = json_pack("{s:s}",
+            "__username__", kw_get_str(gobj, run, "username", "", 0)
+        );
+        kw_set_subdict_value(gobj, kw_step, "__md_iev__", "cc_run",
+            json_string(kw_get_str(gobj, run, "id", "", 0)));
+        kw_set_subdict_value(gobj, kw_step, "__md_iev__", "cc_step", json_integer((json_int_t)idx));
+
+        priv->txMsgs++;
+        json_t *webix = gobj_command(channel, kw_get_str(gobj, step, "line", "", KW_REQUIRED), kw_step, gobj);
+        JSON_DECREF(webix)
+    }
+    JSON_DECREF(run)
+    return 0;
+}
+
+/***************************************************************************
+ *  A step of a run in parallel is over (answered, failed, not answered):
+ *  the end of the run when none waits. -1 when any step failed, its
+ *  comment naming each one.
+ ***************************************************************************/
+PRIVATE int run_parallel_step_done(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(json_object_size(priv->run_channels) > 0) {
+        return 0;
+    }
+    json_t *steps = kw_get_list(gobj, priv->run, "steps", 0, KW_REQUIRED);
+    int failed = 0;
+    size_t idx; json_t *step;
+    json_array_foreach(steps, idx, step) {
+        if(kw_get_int(gobj, step, "result", -1, KW_WILD_NUMBER) < 0) {
+            failed++;
+        }
+    }
+    if(failed == 0) {
+        return run_end(gobj, 0, "");
+    }
+
+    gbuffer_t *gbuf = gbuffer_create(256, 64 * 1024);
+    if(!gbuf) {
+        // Error already logged
+        return run_end(gobj, -1, "steps failed");
+    }
+    gbuffer_printf(gbuf, "%d of %d steps failed", failed, (int)json_array_size(steps));
+    json_array_foreach(steps, idx, step) {
+        if(kw_get_int(gobj, step, "result", -1, KW_WILD_NUMBER) < 0) {
+            gbuffer_printf(gbuf, "; step %d (%s): %s",
+                (int)idx,
+                kw_get_str(gobj, step, "line", "", 0),
+                kw_get_str(gobj, step, "comment", "", 0)
+            );
+        }
+    }
+    gbuffer_append_char(gbuf, 0);
+    int ret = run_end(gobj, -1, (const char *)gbuffer_cur_rd_pointer(gbuf));
+    GBUFFER_DECREF(gbuf)
+    return ret;
+}
+
+/***************************************************************************
+ *  The channel a step in flight was sent through, 0 when it waits for none
+ ***************************************************************************/
+PRIVATE hgobj run_channel_of_step(hgobj gobj, int idx)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char key[32];
+    snprintf(key, sizeof(key), "%d", idx);
+    return (hgobj)(size_t)json_integer_value(json_object_get(priv->run_channels, key));
+}
+
+/***************************************************************************
+ *  Does a step in flight wait for an answer through `channel`?
+ ***************************************************************************/
+PRIVATE BOOL run_uses_channel(hgobj gobj, hgobj channel)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *key; json_t *jn_channel;
+    json_object_foreach(priv->run_channels, key, jn_channel) {
+        if((hgobj)(size_t)json_integer_value(jn_channel) == channel) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *  The answer of a step (kw owned): the next one, or the end.
  ***************************************************************************/
 PRIVATE int run_step_answered(hgobj gobj, json_t *kw)
@@ -2799,9 +2959,11 @@ PRIVATE int run_step_answered(hgobj gobj, json_t *kw)
     int step_idx = (int)kw_get_int(gobj, kw, "__md_iev__`cc_step", -1, KW_WILD_NUMBER);
     int result = (int)kw_get_int(gobj, kw, "result", -1, KW_WILD_NUMBER);
 
+    BOOL parallel = priv->run? kw_get_bool(gobj, priv->run, "parallel", 0, 0) : FALSE;
     if(!priv->run ||
             strcmp(run_id, kw_get_str(gobj, priv->run, "id", "", 0))!=0 ||
-            step_idx != (int)kw_get_int(gobj, priv->run, "idx", 0, 0)) {
+            (parallel? !run_channel_of_step(gobj, step_idx) :
+                step_idx != (int)kw_get_int(gobj, priv->run, "idx", 0, 0))) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_APP,
@@ -2814,7 +2976,9 @@ PRIVATE int run_step_answered(hgobj gobj, json_t *kw)
         KW_DECREF(kw)
         return 0;
     }
-    clear_timeout(priv->run_timer);
+    if(!parallel) {
+        clear_timeout(priv->run_timer);
+    }
 
     json_t *steps = kw_get_list(gobj, priv->run, "steps", 0, KW_REQUIRED);
     json_t *step = json_array_get(steps, (size_t)step_idx);
@@ -2831,6 +2995,12 @@ PRIVATE int run_step_answered(hgobj gobj, json_t *kw)
     }
     KW_DECREF(kw)
 
+    if(parallel) {
+        char key[32];
+        snprintf(key, sizeof(key), "%d", step_idx);
+        json_object_del(priv->run_channels, key);
+        return run_parallel_step_done(gobj);
+    }
     if(result < 0) {
         return run_end(gobj, -1, "a step failed");
     }
@@ -2851,6 +3021,30 @@ PRIVATE int run_step_timed_out(hgobj gobj)
 
     if(!priv->run) {
         return 0;
+    }
+    if(kw_get_bool(gobj, priv->run, "parallel", 0, 0)) {
+        /*
+         *  Every step still waiting is not answered; the run ends with them
+         */
+        json_t *steps = kw_get_list(gobj, priv->run, "steps", 0, KW_REQUIRED);
+        const char *key; json_t *jn_channel; void *n;
+        json_object_foreach_safe(priv->run_channels, n, key, jn_channel) {
+            json_t *step = json_array_get(steps, (size_t)atoi(key));
+            json_object_set_new(step, "result", json_integer(-1));
+            json_object_set_new(step, "comment", json_sprintf("not answered in %d ms",
+                (int)gobj_read_integer_attr(gobj, "run_step_timeout")));
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_APP,
+                "msg",          "%s", "a step of a scenario run was not answered",
+                "run",          "%s", kw_get_str(gobj, priv->run, "id", "", 0),
+                "step",         "%d", atoi(key),
+                "line",         "%s", kw_get_str(gobj, step, "line", "", 0),
+                NULL
+            );
+            json_object_del(priv->run_channels, key);
+        }
+        return run_parallel_step_done(gobj);
     }
     int idx = (int)kw_get_int(gobj, priv->run, "idx", 0, KW_REQUIRED);
     json_t *step = json_array_get(kw_get_list(gobj, priv->run, "steps", 0, KW_REQUIRED), (size_t)idx);
@@ -2873,12 +3067,39 @@ PRIVATE int run_step_timed_out(hgobj gobj)
  *  The agent of the step in flight disconnected: its answer will not come,
  *  the run ends now instead of at the step's deadline.
  ***************************************************************************/
-PRIVATE int run_agent_disconnected(hgobj gobj)
+PRIVATE int run_agent_disconnected(hgobj gobj, hgobj channel)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(!priv->run) {
         return 0;
+    }
+    if(kw_get_bool(gobj, priv->run, "parallel", 0, 0)) {
+        /*
+         *  Only the steps of that agent fail: the others are still answered
+         */
+        json_t *steps = kw_get_list(gobj, priv->run, "steps", 0, KW_REQUIRED);
+        const char *key; json_t *jn_channel; void *n;
+        json_object_foreach_safe(priv->run_channels, n, key, jn_channel) {
+            if((hgobj)(size_t)json_integer_value(jn_channel) != channel) {
+                continue;
+            }
+            json_t *step = json_array_get(steps, (size_t)atoi(key));
+            json_object_set_new(step, "result", json_integer(-1));
+            json_object_set_new(step, "comment", json_sprintf("the agent of '%s' disconnected",
+                kw_get_str(gobj, step, "node", "", 0)));
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_APP,
+                "msg",          "%s", "the agent of a step of a scenario run disconnected",
+                "run",          "%s", kw_get_str(gobj, priv->run, "id", "", 0),
+                "step",         "%d", atoi(key),
+                "node",         "%s", kw_get_str(gobj, step, "node", "", 0),
+                NULL
+            );
+            json_object_del(priv->run_channels, key);
+        }
+        return run_parallel_step_done(gobj);
     }
     int idx = (int)kw_get_int(gobj, priv->run, "idx", 0, KW_REQUIRED);
     json_t *step = json_array_get(kw_get_list(gobj, priv->run, "steps", 0, KW_REQUIRED), (size_t)idx);
@@ -3404,7 +3625,9 @@ PRIVATE int run_end(hgobj gobj, int result, const char *comment)
     json_t *kw_answer = priv->run_kw_answer;
     priv->run = 0;
     priv->run_kw_answer = 0;
-    priv->run_agent_channel = 0;
+    if(priv->run_channels) {
+        json_object_clear(priv->run_channels);
+    }
     if(!run) {
         KW_DECREF(kw_answer)
         return 0;
@@ -3684,6 +3907,21 @@ PRIVATE void add_stop_at(hgobj gobj, json_t *scenario)
     if(stop) {
         json_object_set(scenario, "stop_at", json_object_get(stop, "stop_at"));
     }
+
+    /*
+     *  The run of it in flight, if any: a run is written only when it ends,
+     *  and a client that read only the runs took a start still running for
+     *  the stop before it
+     */
+    if(priv->run && strcmp(kw_get_str(gobj, priv->run, "scenario_id", "", 0),
+            kw_get_str(gobj, scenario, "id", "", 0))==0) {
+        json_object_set_new(scenario, "run_in_flight", json_pack("{s:s, s:s, s:s, s:I}",
+            "id", kw_get_str(gobj, priv->run, "id", "", 0),
+            "action", kw_get_str(gobj, priv->run, "action", "", 0),
+            "username", kw_get_str(gobj, priv->run, "username", "", 0),
+            "started_at", (json_int_t)kw_get_int(gobj, priv->run, "started_at", 0, 0)
+        ));
+    }
 }
 
 /***************************************************************************
@@ -3854,8 +4092,8 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
 
     if(src == priv->gobj_input_side && priv->run && channel_gobj &&
-            channel_gobj == priv->run_agent_channel) {
-        run_agent_disconnected(gobj);
+            run_uses_channel(gobj, channel_gobj)) {
+        run_agent_disconnected(gobj, channel_gobj);
     }
     if(src == priv->gobj_top_side && channel_gobj) {
         gobj_write_user_data(channel_gobj, "cc_connection", json_integer(0));
@@ -3937,7 +4175,8 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
      */
     if(kw_get_dict_value(gobj, kw, "__md_iev__`cc_run", 0, 0)) {
         hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
-        if(priv->run && channel_gobj != priv->run_agent_channel) {
+        int step_idx = (int)kw_get_int(gobj, kw, "__md_iev__`cc_step", -1, KW_WILD_NUMBER);
+        if(priv->run && run_channel_of_step(gobj, step_idx) && channel_gobj != run_channel_of_step(gobj, step_idx)) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL,

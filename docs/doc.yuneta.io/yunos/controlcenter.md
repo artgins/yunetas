@@ -322,9 +322,26 @@ command-yuno id=<yuno> [service=<service>] command=<command>
 ```
 
 carrying the user who asked (`__username__`, what the agent's audit records).
-A step goes only when the one before it answered; a step that fails, does not
-answer in `run_step_timeout` (30000 ms), or whose node's agent disconnects
-meanwhile, ends the run there -- the last at once, not at the deadline. The run is written to `scenario_runs` -- action, user, start and
+How the steps go depends on the action:
+
+- **`start` and `resume` are serial.** A step goes only when the one before
+  it answered; a step that fails, does not answer in `run_step_timeout`
+  (30000 ms), or whose node's agent disconnects meanwhile, ends the run
+  there -- the last at once, not at the deadline. The order is the order of
+  the start: what one yuno needs is started first.
+- **`stop`, `pause` and `report` send every step at once** (7.28.4+), and
+  give them all one `run_step_timeout`. Each step's result is recorded; a
+  step that fails does not keep the others from going. The run ends when
+  every step has answered, failed, or timed out, with result `-1` if any
+  did not succeed, and the comment names them (*"2 of 16 steps failed; step
+  0 (pp1): ...; step 5 (pp6): not answered in 30000 ms"*). A step on a node
+  whose agent is not connected fails at once; an agent that disconnects
+  fails only its own steps. Up to 7.28.3 these were serial too, so a stop
+  ended at the first yuno that did not answer, and the yunos after it never
+  got the stop (the max_run stop of a scenario whose first simulator was
+  already stopped failed every minute, and stopped nothing).
+
+The run is written to `scenario_runs` -- action, user, start and
 end, the result and the answer of every step, and for a `report` what each
 step answered (`data`) -- and the requester is answered with it (the command
 answers when the run is OVER). One run at a time.
@@ -459,7 +476,10 @@ its own -- user the control center, the reason in the comment (*"max_run of
 -- a few seconds later if
 another run is in flight, a minute later if the stop could do nothing. The
 schedule is rebuilt from the runs at start, so a restart does not lose it.
-`scenarios` answers it as `stop_at` (epoch seconds), and every run that ends
+`scenarios` answers it as `stop_at` (epoch seconds), and the run in flight of
+the scenario, if any, as `run_in_flight` (`id`, `action`, `username`,
+`started_at`; 7.28.4+), so a console can say that a start is still going and
+not offer another. Every run that ends
 publishes `EV_SCENARIO_RUN_ENDED` (public, no data): the console says *"stops
 at 18:45"* while it runs, and sees it stopped -- by the control center, or by
 anybody -- at once. While a scenario runs (a run of it in flight, or its last
