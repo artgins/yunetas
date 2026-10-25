@@ -672,7 +672,8 @@ h1.hero-title {
     gap: 1px;
     background: var(--rule);
     border: 1px solid var(--rule);
-    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    /* six figures: three columns at most (3 x 2), one on a phone */
+    grid-template-columns: repeat(auto-fit, minmax(max(16rem, calc((100% - 2px) / 3)), 1fr));
 }
 .fig {
     background: var(--ground);
@@ -1394,30 +1395,44 @@ h1.hero-title {
 
         <div class="figures">
             <div class="fig">
-                <span class="fig-n">35,760<span class="u">op/s</span></span>
-                <span class="fig-d">TCP echo through the full gobj protocol stack.</span>
+                <span class="fig-n">__PERF_TR2_APPEND__<span class="u">/s</span></span>
+                <span class="fig-d">Records stored per second in a key-indexed timeranger2 topic, json built and appended.</span>
+                <span class="fig-src">test_topic_pkey_integer</span>
+            </div>
+            <div class="fig">
+                <span class="fig-n">__PERF_TCP__<span class="u">/s</span></span>
+                <span class="fig-d">TCP echo round trips per second through the full gobj protocol stack.</span>
                 <span class="fig-src">perf_tcp_test4</span>
             </div>
             <div class="fig">
-                <span class="fig-n">24,862<span class="u">op/s</span></span>
-                <span class="fig-d">The same echo, TLS-encrypted end to end.</span>
+                <span class="fig-n">__PERF_TLS__<span class="u">/s</span></span>
+                <span class="fig-d">The same echo, TLS-encrypted end to end (OpenSSL).</span>
                 <span class="fig-src">perf_tcps_test4</span>
             </div>
             <div class="fig">
-                <span class="fig-n">173,000<span class="u">msg/s</span></span>
-                <span class="fig-d">Raw io_uring ping-pong, 177&nbsp;MB/s, no gobj overhead.</span>
+                <span class="fig-n">__PERF_IEVENT__<span class="u">/s</span></span>
+                <span class="fig-d">Events to a service of another yuno, and their answers, per second over a websocket.</span>
+                <span class="fig-src">perf_ievent</span>
+            </div>
+            <div class="fig">
+                <span class="fig-n">__PERF_YEV__<span class="u">/s</span></span>
+                <span class="fig-d">Raw io_uring echo of 1&nbsp;KB messages per second, no gobj layer.</span>
                 <span class="fig-src">perf_yev_ping_pong</span>
             </div>
             <div class="fig">
                 <span class="fig-n">1,500,000<span class="u">conns</span></span>
-                <span class="fig-d">Concurrent TCP connections held by one listener.</span>
+                <span class="fig-d">Concurrent TCP connections held by one listener (a stress run, not in the per-release study).</span>
                 <span class="fig-src">stress_listen</span>
             </div>
         </div>
 
         <p class="prose" style="margin-top:1.25rem; font-size:var(--t-md); color:var(--text-dim);">
-        Figures from the reference box. Every performance binary is a <code>ctest</code> target
-        &mdash; run <code>yunetas test</code> and get your own numbers.</p>
+        Yuneta __PERF_VERSION__, one core for the event loop, on __PERF_MACHINE__: the mean of
+        alternated runs, every figure against the release before it. Read
+        <a href="__PERF_STUDY_URL__">the study of __PERF_VERSION__</a>,
+        <a href="__PERF_REPORT_URL__">the last report with charts (__PERF_REPORT_VERSION__)</a> and
+        <a href="/performance">every release since 7.25.5</a>. Every performance binary is a
+        <code>ctest</code> target &mdash; run <code>yunetas test</code> and get your own numbers.</p>
     </section>
 
     <!-- ============ READING PATH ============ -->

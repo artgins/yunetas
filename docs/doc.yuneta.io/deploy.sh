@@ -214,6 +214,49 @@ if grep -q "__YUNETA_VERSION__" "${ORIGIN}landing/index.html"; then
     echo "ERROR: landing page still carries an unsubstituted __YUNETA_VERSION__" >&2
     exit 1
 fi
+# The figures of its "Measured, not claimed" band come from the newest
+# performance/reports/<version>.json, the study of the last release that has
+# one: written by hand they were the figures of 2026-07 on a box nobody named,
+# and nothing linked the study they claimed.
+python3 - "$REPO_ROOT/performance/reports" "${ORIGIN}landing/index.html" <<'PYEOF'
+import glob, json, os, sys
+reports_dir, page = sys.argv[1], sys.argv[2]
+
+def vkey(v):
+    return tuple(int(x) for x in v.split('.'))
+
+versions = sorted((os.path.basename(p)[:-5] for p in glob.glob(os.path.join(reports_dir, '*.json'))), key=vkey)
+latest = versions[-1]
+rep = json.load(open(os.path.join(reports_dir, latest + '.json')))
+fig = {f['id']: f for f in rep['figures']}
+
+def rate(i, scale=1.0):
+    return '{:,.0f}'.format(fig[i]['mean'] * scale)
+
+with_html = [v for v in versions if os.path.exists(os.path.join(reports_dir, v + '.html'))]
+report_v = with_html[-1]
+gh = 'https://github.com/artgins/yunetas/blob/%s/performance/reports/%s.html' % (report_v, report_v)
+m = rep['machine']
+values = {
+    '__PERF_TR2_APPEND__': rate('tr2.append_rate'),
+    '__PERF_TCP__': rate('net.tcp_echo'),
+    '__PERF_TLS__': rate('net.tls_echo'),
+    '__PERF_IEVENT__': rate('net.ievent_round_trip'),
+    '__PERF_YEV__': rate('net.yev_ping_pong', 1000.0),    # the json keeps K msg/s
+    '__PERF_VERSION__': latest,
+    '__PERF_MACHINE__': '%s (%d cores), %s' % (m['cpu'], m['cores'], m['distro']),
+    '__PERF_STUDY_URL__': '/performance#id-%s-against-%s' % (latest.replace('.', '-'), rep['previous'].replace('.', '-')),
+    '__PERF_REPORT_URL__': 'https://htmlpreview.github.io/?' + gh,
+    '__PERF_REPORT_VERSION__': report_v,
+}
+html = open(page, encoding='utf-8').read()
+for k, v in values.items():
+    html = html.replace(k, v)
+if '__PERF_' in html:
+    sys.exit('ERROR: landing page still carries an unsubstituted __PERF_ placeholder')
+open(page, 'w', encoding='utf-8').write(html)
+print('landing figures from performance/reports/%s.json (report with charts: %s)' % (latest, report_v))
+PYEOF
 echo "landing page installed at /landing (version ${VERSION})"
 
 # The 404 page, for the `error_page 404 /404.html` of every server block that
