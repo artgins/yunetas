@@ -21,6 +21,7 @@
  *      save-scenario scenario={} [revision=]  create or replace one (validated here)
  *      delete-scenario scenario_id=        delete one and its runs
  *      run-scenario scenario_id= action=   run the steps of an action, in order
+ *          [scenario_yuno=]                (on/off: the SWITCH of that yuno)
  *      scenario-runs scenario_id=          the runs of one, newest first
  *      watch-scenario scenario_id= node=   watch its yunos on that node (the
  *                                          agent's watch-yuno-stats, built here)
@@ -39,6 +40,17 @@
  *  `scenarios` answers it as `stop_at` (epoch seconds). Every run that ends
  *  publishes EV_SCENARIO_RUN_ENDED (public, no data): a console that watches
  *  a scenario reads its state again, and sees it stopped by somebody else.
+ *  A yuno of a scenario may carry a SWITCH, `switch: {on: [steps], off:
+ *  [steps]}` (a step as those of an action; its `yuno` defaults to the
+ *  switch's own): the operator turns one generator on or off by hand,
+ *  while the others keep going -- to climb the load one fleet at a time.
+ *  `run-scenario action=on|off scenario_yuno=<key>` runs them, under
+ *  `run-scenarios`, as a run like any other (one at a time, written, told).
+ *  `on` runs only while the scenario RUNS (its last run that did anything
+ *  is a start or a resume): the max_run stop of a stopped scenario would
+ *  not be there to stop it. `off` runs in any state, all its steps at once
+ *  as a stop does. A switch run changes neither the state of the scenario
+ *  nor its max_run clock: its `stop` is what turns every switch off.
  *  When what a user may do changes in the `authz` store -- a role created,
  *  changed or deleted, a role given or taken -- it publishes
  *  EV_PERMISSIONS_CHANGED (public, no data) to the clients that subscribed,
@@ -145,12 +157,15 @@ PRIVATE int start_run(
     json_int_t requester_connection,
     json_t *kw_answer,
     const char *reason,
+    const char *scenario_yuno,
     char *err,
     size_t errsz
 );
 PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id);
 PRIVATE int run_steps_done(hgobj gobj, json_t *run);
+PRIVATE BOOL run_changes_state(hgobj gobj, json_t *run);
 PRIVATE BOOL scenario_runs_now(hgobj gobj, const char *scenario_id);
+PRIVATE BOOL scenario_is_running(hgobj gobj, const char *scenario_id);
 PRIVATE void add_stop_at(hgobj gobj, json_t *scenario);
 PRIVATE void arm_stop_timer(hgobj gobj);
 PRIVATE int stop_due_scenario(hgobj gobj);
@@ -168,9 +183,17 @@ PRIVATE json_t *treedb_tranger(hgobj gobj);
 PRIVATE const char *scenario_id_of(hgobj gobj, json_t *kw);
 PRIVATE const char *username_of(hgobj gobj, json_t *kw, hgobj src);
 PRIVATE BOOL is_scenario_action(const char *action);
+PRIVATE BOOL is_switch_action(const char *action);
 PRIVATE BOOL in_comma_list(const char *list, const char *name);
 PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz);
-PRIVATE json_t *build_run_steps(hgobj gobj, json_t *scenario, const char *action, char *err, size_t errsz);
+PRIVATE json_t *build_run_steps(
+    hgobj gobj,
+    json_t *scenario,
+    const char *action,
+    const char *scenario_yuno,
+    char *err,
+    size_t errsz
+);
 PRIVATE json_t *sort_runs_newest_first(json_t *runs);
 PRIVATE BOOL requester_listens(hgobj requester);
 PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t event);
@@ -296,7 +319,8 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_run_scenario[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "scenario_id",  0,              0,          "Scenario id"),
-SDATAPM (DTP_STRING,    "action",       0,              0,          "Action to run: start, pause, resume, stop or report"),
+SDATAPM (DTP_STRING,    "action",       0,              0,          "Action to run: start, pause, resume, stop or report; on or off, the switch of a yuno"),
+SDATAPM (DTP_STRING,    "scenario_yuno",0,              0,          "Key of the yuno whose switch to turn (action on or off)"),
 SDATA_END()
 };
 
@@ -434,6 +458,7 @@ typedef struct _PRIVATE_DATA {
     hgobj run_timer;                // deadline of the step of the run in flight
     hgobj stop_timer;               // the next stop a scenario's max_run is due
     json_t *auto_stops;             // scenario id -> {stop_at: epoch second, started_by} (max_run)
+    uint64_t last_run_ms;           // the millisecond of the last run id: never twice the same
     json_t *run;                    // the run in flight, or NULL (one at a time)
     json_t *run_kw_answer;          // the request of that run, to answer it
     json_t *run_channels;           // "<step idx>" -> channel (in __input_side__) of each step in flight
@@ -1736,12 +1761,35 @@ PRIVATE json_t *cmd_run_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     const char *scenario_id = scenario_id_of(gobj, kw);
     const char *action = kw_get_str(gobj, kw, "action", "", 0);
-    if(!is_scenario_action(action)) {
+    const char *scenario_yuno = kw_get_str(gobj, kw, "scenario_yuno", "", 0);
+    if(!is_scenario_action(action) && !is_switch_action(action)) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: what action? start, pause, resume, stop or report",
+            json_sprintf("%s: what action? start, pause, resume, stop or report; on or off with a scenario_yuno",
                 gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(is_switch_action(action) == empty_string(scenario_yuno)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: scenario_yuno goes with on and off, and only with them",
+                gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(strcmp(action, "on")==0 && !scenario_is_running(gobj, scenario_id)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: '%s' does not run: a switch is turned on only while its scenario runs",
+                gobj_yuno_role_plus_name(), scenario_id),
             0,
             0,
             kw  // owned
@@ -1758,6 +1806,7 @@ PRIVATE json_t *cmd_run_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             client_channel? connection_number(client_channel) : (json_int_t)0,
             kw,     // owned by the run if it starts: answered by run_end()
             "",
+            scenario_yuno,
             err, sizeof(err))<0) {
         return msg_iev_build_response(
             gobj,
@@ -1776,6 +1825,8 @@ PRIVATE json_t *cmd_run_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  *  Start a run of `action` of a scenario: its steps one after the other
  *  (run_send_step()), answered by run_end() to `kw_answer` (owned when it
  *  starts; NULL for a run of the control center itself, a max_run stop).
+ *  `scenario_yuno` names the yuno whose switch an on/off turns ("" for an
+ *  action of the scenario).
  *  -1 with the reason in `err` when it cannot start, and kw_answer is the
  *  caller's still.
  ***************************************************************************/
@@ -1788,6 +1839,7 @@ PRIVATE int start_run(
     json_int_t requester_connection,
     json_t *kw_answer,
     const char *reason,
+    const char *scenario_yuno,
     char *err,
     size_t errsz
 )
@@ -1816,16 +1868,24 @@ PRIVATE int start_run(
     }
 
     char why[256];
-    json_t *steps = build_run_steps(gobj, scenario, action, why, sizeof(why));
+    json_t *steps = build_run_steps(gobj, scenario, action, scenario_yuno, why, sizeof(why));
     JSON_DECREF(scenario)
     if(!steps) {
         snprintf(err, errsz, "cannot run '%s' of '%s': %s", action, scenario_id, why);
         return -1;
     }
 
+    /*  Two runs in one millisecond would share the id, and the second
+     *  record would replace the first  */
+    uint64_t run_ms = time_in_milliseconds();
+    if(run_ms <= priv->last_run_ms) {
+        run_ms = priv->last_run_ms + 1;
+    }
+    priv->last_run_ms = run_ms;
+
     char run_id[NAME_MAX];
     int len = snprintf(run_id, sizeof(run_id), "%s.%llu",
-        scenario_id, (unsigned long long)time_in_milliseconds());
+        scenario_id, (unsigned long long)run_ms);
     if(len < 0 || (size_t)len >= sizeof(run_id)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1839,10 +1899,11 @@ PRIVATE int start_run(
         return -1;
     }
 
-    priv->run = json_pack("{s:s, s:s, s:s, s:s, s:s, s:I, s:I, s:o, s:i, s:s}",
+    priv->run = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:I, s:I, s:o, s:i, s:s}",
         "id", run_id,
         "scenario_id", scenario_id,
         "action", action,
+        "scenario_yuno", scenario_yuno? scenario_yuno : "",
         "username", username,
         "requester", requester? requester : "",
         "requester_connection", requester_connection,
@@ -1862,8 +1923,10 @@ PRIVATE int start_run(
      *  simulators of a node generating, and the max_run stop failed every
      *  minute on the same dead one). A start or a resume goes in order,
      *  and ends at the first step that fails: what follows depends on it.
+     *  A switch alike: off is a stop of one yuno, on a start of one.
      */
-    if(strcmp(action, "stop")==0 || strcmp(action, "pause")==0 || strcmp(action, "report")==0) {
+    if(strcmp(action, "stop")==0 || strcmp(action, "pause")==0 || strcmp(action, "report")==0 ||
+            strcmp(action, "off")==0) {
         json_object_set_new(priv->run, "parallel", json_true());
         return run_send_all_steps(gobj);
     }
@@ -2257,6 +2320,7 @@ PRIVATE const char *username_of(hgobj gobj, json_t *kw, hgobj src)
 }
 
 PRIVATE const char *scenario_actions[] = {"start", "pause", "resume", "stop", "report", 0};
+PRIVATE const char *switch_actions[] = {"on", "off", 0};
 
 /***************************************************************************
  *  Is `name` one of the items of "a,b,c"?
@@ -2283,6 +2347,19 @@ PRIVATE BOOL is_scenario_action(const char *action)
     }
     for(int i=0; scenario_actions[i]; i++) {
         if(strcmp(scenario_actions[i], action)==0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+PRIVATE BOOL is_switch_action(const char *action)
+{
+    if(empty_string(action)) {
+        return FALSE;
+    }
+    for(int i=0; switch_actions[i]; i++) {
+        if(strcmp(switch_actions[i], action)==0) {
             return TRUE;
         }
     }
@@ -2465,6 +2542,47 @@ PRIVATE int scenario_error(char *err, size_t errsz, const char *fmt, ...)
     return -1;
 }
 
+/*
+ *  The steps of an action or of a switch: each a yuno (a key of `keys`;
+ *  `own_yuno`, the switch's, when it names none), a command and an
+ *  optional service. `where` names the list in the error.
+ */
+PRIVATE int check_steps(
+    json_t *steps,
+    const char *where,
+    json_t *keys,
+    const char *own_yuno,
+    char *err,
+    size_t errsz
+)
+{
+    if(!json_is_array(steps)) {
+        return scenario_error(err, errsz, "%s: a list of steps", where);
+    }
+    size_t idx; json_t *step;
+    json_array_foreach(steps, idx, step) {
+        const char *step_yuno = json_is_object(step)? str_member(step, "yuno") : NULL;
+        if(own_yuno && json_is_object(step) && !json_object_get(step, "yuno")) {
+            step_yuno = own_yuno;
+        }
+        const char *command = json_is_object(step)? str_member(step, "command") : NULL;
+        if(!json_is_object(step) || !step_yuno || !json_object_get(keys, step_yuno)) {
+            return scenario_error(err, errsz, "%s[%d]: yuno: a key of its yunos", where, (int)idx);
+        }
+        char bad[NAME_MAX];
+        if(!command || check_step_command(command, bad, sizeof(bad)) < 0) {
+            return scenario_error(err, errsz, "%s[%d]: command: %s",
+                where, (int)idx, command? bad : "must be a string");
+        }
+        const char *step_service = str_member(step, "service");
+        if(!step_service || (!empty_string(step_service) && !is_plain_name(step_service))) {
+            return scenario_error(err, errsz, "%s[%d]: service: letters, digits and _ . ^ -",
+                where, (int)idx);
+        }
+    }
+    return 0;
+}
+
 PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz)
 {
     if(!json_is_object(scenario)) {
@@ -2579,30 +2697,34 @@ PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz
             return scenario_error(err, errsz,
                 "actions: '%s' is not an action (start, pause, resume, stop, report)", action);
         }
-        if(!json_is_array(steps)) {
+        char where[NAME_MAX];
+        snprintf(where, sizeof(where), "actions.%s", action);
+        if(check_steps(steps, where, keys, NULL, err, errsz) < 0) {
             JSON_DECREF(keys)
-            return scenario_error(err, errsz, "actions.%s: a list of steps", action);
+            return -1;
         }
-        json_t *step;
-        json_array_foreach(steps, idx, step) {
-            const char *step_yuno = str_member(step, "yuno");
-            const char *command = str_member(step, "command");
-            if(!json_is_object(step) || !step_yuno || !json_object_get(keys, step_yuno)) {
+    }
+
+    /*  The switch of a yuno: its on and off, both, never empty  */
+    json_array_foreach(yunos, idx, yuno) {
+        json_t *jn_switch = json_object_get(yuno, "switch");
+        if(!jn_switch) {
+            continue;
+        }
+        const char *key = yuno_key(yuno);
+        if(!json_is_object(jn_switch) || json_object_size(jn_switch) != 2 ||
+                json_array_size(json_object_get(jn_switch, "on"))==0 ||
+                json_array_size(json_object_get(jn_switch, "off"))==0) {
+            JSON_DECREF(keys)
+            return scenario_error(err, errsz, "yunos[%d]: switch: {on: [steps], off: [steps]}", (int)idx);
+        }
+        for(int i=0; switch_actions[i]; i++) {
+            char where[NAME_MAX];
+            snprintf(where, sizeof(where), "yunos[%d].switch.%s", (int)idx, switch_actions[i]);
+            if(check_steps(json_object_get(jn_switch, switch_actions[i]), where, keys, key,
+                    err, errsz) < 0) {
                 JSON_DECREF(keys)
-                return scenario_error(err, errsz, "actions.%s[%d]: yuno: a key of its yunos",
-                    action, (int)idx);
-            }
-            char bad[NAME_MAX];
-            if(!command || check_step_command(command, bad, sizeof(bad)) < 0) {
-                JSON_DECREF(keys)
-                return scenario_error(err, errsz, "actions.%s[%d]: command: %s",
-                    action, (int)idx, command? bad : "must be a string");
-            }
-            const char *step_service = str_member(step, "service");
-            if(!step_service || (!empty_string(step_service) && !is_plain_name(step_service))) {
-                JSON_DECREF(keys)
-                return scenario_error(err, errsz, "actions.%s[%d]: service: letters, digits and _ . ^ -",
-                    action, (int)idx);
+                return -1;
             }
         }
     }
@@ -2630,13 +2752,34 @@ PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz
  *  by an older control center (or written into the treedb by other means)
  *  never went through those checks.
  ***************************************************************************/
-PRIVATE json_t *build_run_steps(hgobj gobj, json_t *scenario, const char *action, char *err, size_t errsz)
+PRIVATE json_t *build_run_steps(
+    hgobj gobj,
+    json_t *scenario,
+    const char *action,
+    const char *scenario_yuno,
+    char *err,
+    size_t errsz
+)
 {
-    json_t *actions = json_object_get(scenario, "actions");
-    json_t *defs = json_object_get(actions, action);
-    if(!json_is_array(defs) || json_array_size(defs)==0) {
-        scenario_error(err, errsz, "the scenario declares no step for '%s'", action);
-        return NULL;
+    json_t *defs = NULL;
+    if(is_switch_action(action)) {
+        json_t *own = find_scenario_yuno(scenario, scenario_yuno? scenario_yuno : "");
+        if(!own) {
+            scenario_error(err, errsz, "no yuno '%s' in the scenario", scenario_yuno? scenario_yuno : "");
+            return NULL;
+        }
+        defs = json_object_get(json_object_get(own, "switch"), action);
+        if(!json_is_array(defs) || json_array_size(defs)==0) {
+            scenario_error(err, errsz, "yuno '%s' has no switch", scenario_yuno);
+            return NULL;
+        }
+    } else {
+        defs = json_object_get(json_object_get(scenario, "actions"), action);
+        if(!json_is_array(defs) || json_array_size(defs)==0) {
+            scenario_error(err, errsz, "the scenario declares no step for '%s'", action);
+            return NULL;
+        }
+        scenario_yuno = NULL;
     }
     const char *default_node = str_member(scenario, "node");
 
@@ -2644,6 +2787,9 @@ PRIVATE json_t *build_run_steps(hgobj gobj, json_t *scenario, const char *action
     size_t idx; json_t *def;
     json_array_foreach(defs, idx, def) {
         const char *key = str_member(def, "yuno");
+        if(scenario_yuno && json_is_object(def) && !json_object_get(def, "yuno")) {
+            key = scenario_yuno;
+        }
         json_t *yuno = find_scenario_yuno(scenario, key? key : "");
         if(!yuno) {
             JSON_DECREF(steps)
@@ -3643,14 +3789,17 @@ PRIVATE int run_end(hgobj gobj, int result, const char *comment)
         }
     }
     const char *reason = kw_get_str(gobj, run, "reason", "", 0);
+    const char *scenario_yuno = kw_get_str(gobj, run, "scenario_yuno", "", 0);
     json_t *jn_text = result < 0?
-        json_sprintf("%s%srun %s: %s failed, %d of %d steps done: %s",
+        json_sprintf("%s%srun %s: %s%s%s failed, %d of %d steps done: %s",
             reason, empty_string(reason)? "" : "; ",
             kw_get_str(gobj, run, "id", "", 0), kw_get_str(gobj, run, "action", "", 0),
+            empty_string(scenario_yuno)? "" : " ", scenario_yuno,
             done, (int)json_array_size(steps), comment) :
-        json_sprintf("%s%srun %s: %s done, %d steps",
+        json_sprintf("%s%srun %s: %s%s%s done, %d steps",
             reason, empty_string(reason)? "" : "; ",
             kw_get_str(gobj, run, "id", "", 0), kw_get_str(gobj, run, "action", "", 0),
+            empty_string(scenario_yuno)? "" : " ", scenario_yuno,
             (int)json_array_size(steps));
 
     char parent_ref[NAME_MAX*2];
@@ -3830,7 +3979,7 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
     size_t idx; json_t *run;
     json_array_foreach(runs, idx, run) {
         const char *action = kw_get_str(gobj, run, "action", "", 0);
-        if(strcmp(action, "report")==0 || run_steps_done(gobj, run)==0) {
+        if(!run_changes_state(gobj, run)) {
             continue;
         }
         if(!running) {
@@ -3851,18 +4000,29 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
 }
 
 /***************************************************************************
- *  Does the scenario run? A run of it in flight, or its last run that did
- *  anything (a report changes nothing) is not a stop.
+ *  Does a run change the state of its scenario? Not a report, not a
+ *  switch (on/off of one yuno), not one that did no step.
  ***************************************************************************/
-PRIVATE BOOL scenario_runs_now(hgobj gobj, const char *scenario_id)
+PRIVATE BOOL run_changes_state(hgobj gobj, json_t *run)
+{
+    const char *action = kw_get_str(gobj, run, "action", "", 0);
+    if(strcmp(action, "report")==0 || is_switch_action(action)) {
+        return FALSE;
+    }
+    return run_steps_done(gobj, run) > 0;
+}
+
+/***************************************************************************
+ *  The action of the last run of a scenario that changed its state, in
+ *  `bf` ("" when there is none: never started, or a new scenario).
+ ***************************************************************************/
+PRIVATE void last_state_action(hgobj gobj, const char *scenario_id, char *bf, size_t bfsize)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->run && strcmp(kw_get_str(gobj, priv->run, "scenario_id", "", 0), scenario_id)==0) {
-        return TRUE;
-    }
+    bf[0] = 0;
     if(!priv->gobj_treedb_controlcenter) {
-        return FALSE;
+        return;
     }
     /*  A new scenario has no runs  */
     json_t *scenario = gobj_get_node(
@@ -3873,7 +4033,7 @@ PRIVATE BOOL scenario_runs_now(hgobj gobj, const char *scenario_id)
         gobj
     );
     if(!scenario) {
-        return FALSE;
+        return;
     }
     JSON_DECREF(scenario)
     json_t *runs = sort_runs_newest_first(gobj_node_children(
@@ -3885,18 +4045,42 @@ PRIVATE BOOL scenario_runs_now(hgobj gobj, const char *scenario_id)
         json_pack("{s:b}", "fkey_only_id", 1),
         gobj
     ));
-    BOOL runs_now = FALSE;
     size_t idx; json_t *run;
     json_array_foreach(runs, idx, run) {
-        const char *action = kw_get_str(gobj, run, "action", "", 0);
-        if(strcmp(action, "report")==0 || run_steps_done(gobj, run)==0) {
+        if(!run_changes_state(gobj, run)) {
             continue;
         }
-        runs_now = strcmp(action, "stop")!=0;
+        snprintf(bf, bfsize, "%s", kw_get_str(gobj, run, "action", "", 0));
         break;
     }
     JSON_DECREF(runs)
-    return runs_now;
+}
+
+/***************************************************************************
+ *  Does the scenario run? A run of it in flight, or its last run that
+ *  changed its state is not a stop.
+ ***************************************************************************/
+PRIVATE BOOL scenario_runs_now(hgobj gobj, const char *scenario_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->run && strcmp(kw_get_str(gobj, priv->run, "scenario_id", "", 0), scenario_id)==0) {
+        return TRUE;
+    }
+    char action[NAME_MAX];
+    last_state_action(gobj, scenario_id, action, sizeof(action));
+    return !empty_string(action) && strcmp(action, "stop")!=0;
+}
+
+/***************************************************************************
+ *  Is it RUNNING, not paused nor stopped: its last run that changed its
+ *  state is a start or a resume. What a switch is turned on in.
+ ***************************************************************************/
+PRIVATE BOOL scenario_is_running(hgobj gobj, const char *scenario_id)
+{
+    char action[NAME_MAX];
+    last_state_action(gobj, scenario_id, action, sizeof(action));
+    return strcmp(action, "start")==0 || strcmp(action, "resume")==0;
 }
 
 /*  `stop_at` of a scenario answered: when its max_run stops it  */
@@ -3915,9 +4099,10 @@ PRIVATE void add_stop_at(hgobj gobj, json_t *scenario)
      */
     if(priv->run && strcmp(kw_get_str(gobj, priv->run, "scenario_id", "", 0),
             kw_get_str(gobj, scenario, "id", "", 0))==0) {
-        json_object_set_new(scenario, "run_in_flight", json_pack("{s:s, s:s, s:s, s:I}",
+        json_object_set_new(scenario, "run_in_flight", json_pack("{s:s, s:s, s:s, s:s, s:I}",
             "id", kw_get_str(gobj, priv->run, "id", "", 0),
             "action", kw_get_str(gobj, priv->run, "action", "", 0),
+            "scenario_yuno", kw_get_str(gobj, priv->run, "scenario_yuno", "", 0),
             "username", kw_get_str(gobj, priv->run, "username", "", 0),
             "started_at", (json_int_t)kw_get_int(gobj, priv->run, "started_at", 0, 0)
         ));
@@ -4007,7 +4192,7 @@ PRIVATE int stop_due_scenario(hgobj gobj)
     json_object_del(priv->auto_stops, scenario_id);
     char err[512];
     if(start_run(gobj, scenario_id, "stop", gobj_yuno_role_plus_name(), "", 0, NULL,
-            reason, err, sizeof(err)) < 0) {
+            reason, "", err, sizeof(err)) < 0) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_APP,

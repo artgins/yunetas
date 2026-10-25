@@ -281,10 +281,10 @@ watch, or just a group of yunos to watch. It is a document saved whole:
 | `id` | The scenario's name: no blanks, no `^`, no `` ` ``. |
 | `node` | The node (agent hostname or UUID) of every yuno that does not say its own. |
 | `agent_url` | Instead of `node`: a DIRECT scenario, watched by the web console through its own link to that agent. `run-scenario` refuses it. |
-| `yunos` | `id` (the agent's yuno id) and optionally `key` (how the rest of the scenario names it, needed when two nodes carry the same id), `node`, `service`, `label`, `rate` (`rx` or `tx`), `queue_service` (the service that holds its output queue, when it is not `service`: `__output_side__` for a gate; 7.27.21+). |
+| `yunos` | `id` (the agent's yuno id) and optionally `key` (how the rest of the scenario names it, needed when two nodes carry the same id), `node`, `service`, `label`, `rate` (`rx` or `tx`), `queue_service` (the service that holds its output queue, when it is not `service`: `__output_side__` for a gate; 7.27.21+), `switch` (`{on: [steps], off: [steps]}`, turned by hand; 7.28.6+, below). |
 | `links` | `[from, to]` pairs of keys: how the messages flow. |
 | `actions` | `start`, `pause`, `resume`, `stop`, `report`: each a list of steps `{yuno, service?, command}`, one command line with its `key=value` parameters. |
-| `view` | How the console shows it (`mode`: `graph` or `cards`). |
+| `view` | How the console shows it (`mode`: `graph` or `cards`; `node_labels`, a short name per node on its cards, `{"hidrauliaconnect": "hid"}`). |
 | `max_run` | Seconds a start may run before the control center stops it (0 = no limit, a week at most; 7.27.19+). |
 
 `save-scenario` validates it -- the same rules the console's editor applies --
@@ -486,6 +486,40 @@ anybody -- at once. While a scenario runs (a run of it in flight, or its last
 run that did anything is not a stop), saving it needs `run-scenarios` on it
 too (7.27.19): a max_run saved then schedules the stop steps saved then, so
 writing them would be running them.
+
+**A generator turned on or off by hand: the `switch` of a yuno** (7.28.6+).
+To climb the load one fleet at a time, a yuno may carry a switch: two lists
+of steps, `on` and `off`, as those of an action, where a step that names no
+`yuno` goes to the switch's own:
+
+```json
+{"key": "pp12", "id": "pp12", "service": "sim_controllers", "rate": "tx", "node": "artgins",
+ "switch": {
+     "on":  [{"command": "set-devices devices=20"}, {"command": "set-period period=1000"},
+             {"command": "set-controllers controllers=125"}, {"command": "resume-generation"}],
+     "off": [{"command": "pause-generation"}, {"command": "set-controllers controllers=0"}]
+ }}
+```
+
+```bash
+ycommand ... -c 'run-scenario scenario_id=renfe-20k-hidraulia action=on scenario_yuno=pp12'
+ycommand ... -c 'run-scenario scenario_id=renfe-20k-hidraulia action=off scenario_yuno=pp12'
+```
+
+`save-scenario` refuses a switch without both lists, or with a step that
+names no yuno of the scenario. `on` runs in order and ends at the first step
+that fails, as a start does; `off` sends every step at once, as a stop does.
+`on` is refused unless the scenario RUNS -- its last run that changed its
+state is a `start` or a `resume` (*"a switch is turned on only while its
+scenario runs"*) -- because a scenario that is not running has no `max_run`
+stop to turn it off again. `off` runs in any state. A switch run is a run
+like the others (one at a time, under `run-scenarios`, written in
+`scenario_runs` with its steps, answered *"run ...: on pp12 done, 4 steps"*,
+told by `EV_SCENARIO_RUN_ENDED`), but it changes neither the state of the
+scenario nor its `max_run` clock: the scenario's `stop` is what turns every
+switch off, so its steps must reach every yuno that has one. `run_in_flight`
+carries the `scenario_yuno` of a switch run. The web console draws the switch
+on the yuno's card, ON while its throughput is not zero.
 
 **What a step may carry.** A scenario id is letters, digits and `_ . @ -`, not
 starting with a dot, 200 characters at most (a run id is `<id>.<ms>`). The

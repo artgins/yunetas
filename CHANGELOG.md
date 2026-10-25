@@ -1,6 +1,32 @@
 # **Changelog**
 
-## v7.28.5 (2026-10-25)
+## v7.28.6 (2026-10-25)
+
+A lite release: only the control center changes (`yunos/c/controlcenter`),
+and only it is deployed (1996/1997 on a.com). Tests: the control center's own
+(`test_c_controlcenter_scenarios`, case 18 new) and gui_agent's vitest suite,
+on the dev machine. No performance study: no benchmark runs the control
+center, so no figure of the trend can move.
+
+- **The switch of a yuno of a scenario.** A yuno may carry `switch: {on:
+  [steps], off: [steps]}` (steps as those of an action; a step that names no
+  `yuno` goes to the switch's own), run with `run-scenario action=on|off
+  scenario_yuno=<key>` under `run-scenarios`: one generator turned on or off
+  by hand while the others go on, to climb the load one fleet at a time.
+  `on` runs in order and only while the scenario RUNS (its last run that
+  changed its state is a start or a resume), so the `max_run` stop is
+  always there to turn it off; `off` sends its steps at once, in any state.
+  A switch run is written and told like any other run, but changes neither
+  the state of the scenario nor its `max_run` clock. `save-scenario`
+  refuses a switch without both lists or with a step of no yuno of the
+  scenario; `run_in_flight` carries the `scenario_yuno`. gui_agent 1.1.3
+  draws it on the yuno's card.
+- **Two runs started in the same millisecond no longer share an id** (`<scenario
+  id>.<ms>`): the second record replaced the first in `scenario_runs`, so a
+  start followed at once by another run could vanish from the runs, and with
+  it the state of the scenario. A run id now takes the millisecond after the
+  last one when the clock has not moved. Found by the new case of
+  `test_c_controlcenter_scenarios`, which failed one run in three.
 
 The license round: the code of others that the MIT license of the SDK cannot
 carry is written again, and the licenses of what stays are recorded. Its C

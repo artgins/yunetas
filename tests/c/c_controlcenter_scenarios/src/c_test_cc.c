@@ -1462,6 +1462,13 @@ PRIVATE json_t *agent_requests(hgobj gobj)
     return requests;
 }
 
+/*  What the agent got since the last time, left there (not yours)  */
+PRIVATE json_t *agent_requests_peek(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    return gobj_read_user_data(priv->agent_wire, "received");
+}
+
 /*  The `run_in_flight` `scenarios` says of "par" (yours), or NULL  */
 PRIVATE json_t *par_run_in_flight(hgobj gobj, hgobj client)
 {
@@ -1746,6 +1753,177 @@ PRIVATE int test_parallel_unanswered_ended(hgobj gobj)
     }
     ret += check_step_results(gobj, run, pause_recorded, "the steps of the pause: answered, not answered");
     JSON_DECREF(run)
+    return ret;
+}
+
+/***************************************************************************
+ *  18. The switch of a yuno: `run-scenario action=on|off scenario_yuno=`.
+ *      The scenario "sw": a generator "sim" with a switch (on: two steps,
+ *      the second naming no yuno, so it goes to "sim"; off: two steps) and
+ *      a gate, whose start and stop are one step on the gate. A switch
+ *      without its off is refused by save-scenario, and so is a step of it
+ *      naming no yuno of the scenario. On while the scenario is stopped is
+ *      refused, and so are on without a scenario_yuno and a scenario_yuno
+ *      with start. Started: on sends its steps in order (to "sim", the
+ *      line of its yuno and its service), on of a yuno with no switch is
+ *      refused, its answer names the yuno, and
+ *      the scenario still runs (on again is not refused for the state);
+ *      off sends both at once. Stopped: on is refused again.
+ ***************************************************************************/
+#define SW_SCENARIO "sw"
+
+PRIVATE json_t *switch_scenario(BOOL with_off, const char *on_yuno)
+{
+    json_t *jn_switch = json_pack("{s:[{s:s, s:s}, {s:s}]}",
+        "on",
+            "yuno", on_yuno, "command", "set-controllers controllers=5",
+            "command", "resume-generation"
+    );
+    if(with_off) {
+        json_object_set_new(jn_switch, "off", json_pack("[{s:s}, {s:s}]",
+            "command", "pause-generation",
+            "command", "set-controllers controllers=0"
+        ));
+    }
+    return json_pack("{s:s, s:s, s:[{s:s, s:s, s:s, s:o}, {s:s, s:s}], s:{s:[{s:s, s:s}], s:[{s:s, s:s}]}}",
+        "id", SW_SCENARIO,
+        "node", AGENT_HOST,
+        "yunos",
+            "key", "sim", "id", "pp1", "service", "sim_controllers", "switch", jn_switch,
+            "key", "gate", "id", "2120",
+        "actions",
+            "start", "yuno", "gate", "command", "play-yuno",
+            "stop", "yuno", "gate", "command", "pause-yuno"
+    );
+}
+
+PRIVATE json_t *run_kw(hgobj client, const char *action, const char *scenario_yuno)
+{
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string(SW_SCENARIO));
+    json_object_set_new(kw, "action", json_string(action));
+    if(scenario_yuno) {
+        json_object_set_new(kw, "scenario_yuno", json_string(scenario_yuno));
+    }
+    return kw;
+}
+
+/*  Run `action` of "sw" whose steps are answered one by one, each 0  */
+PRIVATE int run_serial(hgobj gobj, hgobj client, const char *action, const char *scenario_yuno,
+    const char **lines, const char *what)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *response = gobj_command(priv->cc, "run-scenario", run_kw(client, action, scenario_yuno), client);
+    if(response) {
+        ret += fail(gobj, what, kw_get_str(gobj, response, "comment", "", 0));
+        JSON_DECREF(response)
+        return ret;
+    }
+    for(int i=0; lines[i]; i++) {
+        json_t *requests = agent_requests(gobj);
+        json_t *step = json_array_get(requests, 0);
+        if(json_array_size(requests) != 1 ||
+                strcmp(kw_get_str(gobj, step, "__command__", "", 0), lines[i])!=0) {
+            ret += fail(gobj, what, step? kw_get_str(gobj, step, "__command__", "", 0) : "no step");
+            JSON_DECREF(requests)
+            return ret;
+        }
+        agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, 0, "done");
+        JSON_DECREF(requests)
+    }
+    return ret;
+}
+
+PRIVATE int test_switch(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *left = agent_requests(gobj);    // what the cases before left
+    JSON_DECREF(left)
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", switch_scenario(FALSE, "sim"));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        -1, "yunos[0]: switch: {on: [steps], off: [steps]}", "a switch without its off is refused");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", switch_scenario(TRUE, "nobody"));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        -1, "yunos[0].switch.on[0]: yuno: a key of its yunos", "a switch step of no yuno is refused");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", switch_scenario(TRUE, "sim"));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        0, "scenario created: " SW_SCENARIO, "a scenario with a switch");
+
+    ret += check_response(gobj, gobj_command(priv->cc, "run-scenario", run_kw(client, "on", "sim"), client),
+        -1, "a switch is turned on only while its scenario runs", "on while stopped is refused");
+    ret += check_response(gobj, gobj_command(priv->cc, "run-scenario", run_kw(client, "on", NULL), client),
+        -1, "scenario_yuno goes with on and off", "on without a scenario_yuno is refused");
+    ret += check_response(gobj, gobj_command(priv->cc, "run-scenario", run_kw(client, "start", "sim"), client),
+        -1, "scenario_yuno goes with on and off", "a scenario_yuno with start is refused");
+    if(json_array_size(agent_requests_peek(gobj)) != 0) {
+        ret += fail(gobj, "nothing refused reaches the agent", "");
+    }
+
+    const char *start_lines[] = {"command-yuno id=2120 command=play-yuno", 0};
+    ret += run_serial(gobj, client, "start", NULL, start_lines, "the start of sw");
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
+    ret += check_response(gobj, gobj_command(priv->cc, "run-scenario", run_kw(client, "on", "gate"), client),
+        -1, "yuno 'gate' has no switch", "on of a yuno with no switch is refused");
+
+    const char *on_lines[] = {
+        "command-yuno id=pp1 service=sim_controllers command=set-controllers controllers=5",
+        "command-yuno id=pp1 service=sim_controllers command=resume-generation",
+        0
+    };
+    ret += run_serial(gobj, client, "on", "sim", on_lines, "on sends its steps in order, to its yuno");
+    if(count_received(client, EV_MT_COMMAND_ANSWER, ": on sim done, 2 steps") != 1) {
+        ret += fail(gobj, "the answer of on names its yuno", "");
+    }
+
+    /*  The scenario still runs: on is refused for no state, only for the run in flight  */
+    json_t *response = gobj_command(priv->cc, "run-scenario", run_kw(client, "off", "sim"), client);
+    if(response) {
+        ret += fail(gobj, "off of a running scenario runs", kw_get_str(gobj, response, "comment", "", 0));
+        JSON_DECREF(response)
+        return ret;
+    }
+    json_t *requests = agent_requests(gobj);
+    if(json_array_size(requests) != 2 ||
+            !strstr(kw_get_str(gobj, json_array_get(requests, 0), "__command__", "", 0), "pause-generation") ||
+            !strstr(kw_get_str(gobj, json_array_get(requests, 1), "__command__", "", 0), "controllers=0")) {
+        ret += fail(gobj, "off sends its steps at once", "");
+    }
+    ret += check_response(gobj, gobj_command(priv->cc, "run-scenario", run_kw(client, "on", "sim"), client),
+        -1, "a run is in flight", "one run at a time, a switch too");
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, json_array_get(requests, 1), 0, "done");
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, json_array_get(requests, 0), 0, "done");
+    JSON_DECREF(requests)
+    if(count_received(client, EV_MT_COMMAND_ANSWER, ": off sim done, 2 steps") != 1) {
+        ret += fail(gobj, "off ends when both steps answered", "");
+    }
+
+    /*  The switch runs left the scenario running: on again goes  */
+    ret += run_serial(gobj, client, "on", "sim", on_lines, "a switch does not change the state");
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
+
+    const char *stop_lines[] = {"command-yuno id=2120 command=pause-yuno", 0};
+    response = gobj_command(priv->cc, "run-scenario", run_kw(client, "stop", NULL), client);
+    JSON_DECREF(response)
+    requests = agent_requests(gobj);
+    if(json_array_size(requests) != 1 ||
+            strcmp(kw_get_str(gobj, json_array_get(requests, 0), "__command__", "", 0), stop_lines[0])!=0) {
+        ret += fail(gobj, "the stop of sw", "");
+    } else {
+        agent_sends(gobj, EV_MT_COMMAND_ANSWER, json_array_get(requests, 0), 0, "done");
+    }
+    JSON_DECREF(requests)
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
+    ret += check_response(gobj, gobj_command(priv->cc, "run-scenario", run_kw(client, "on", "sim"), client),
+        -1, "a switch is turned on only while its scenario runs", "on once stopped is refused");
     return ret;
 }
 
@@ -2087,6 +2265,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_inject_in_a_loop(gobj, client2);
     result += test_scoped_viewer(gobj, client1);
     result += test_permissions_changed(gobj);
+    result += test_switch(gobj, client1);
     result += test_parallel_stop(gobj, client1);    // before 16: it counts the runs ended
     result += test_max_run_start(gobj, client1);
 

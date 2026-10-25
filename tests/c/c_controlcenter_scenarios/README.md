@@ -171,6 +171,20 @@ still reported and fails the test.
     window, so its warning has one place in the expected logs. Up to 7.28.3
     a stop ran its steps in order and ended at the first one that failed or
     did not answer: one dead yuno left the yunos after it running.
+18. The SWITCH of a yuno (`run-scenario action=on|off scenario_yuno=<key>`).
+    The scenario "sw": a generator "sim" whose switch has two steps in `on`
+    (the second names no yuno, so it goes to "sim") and two in `off`, and a
+    gate whose start and stop are one step each. `save-scenario` refuses a
+    switch without its `off`, and a switch step that names no yuno of the
+    scenario. `on` while the scenario is stopped is refused (*"a switch is
+    turned on only while its scenario runs"*), and so are `on` without a
+    `scenario_yuno` and a `scenario_yuno` with `start`; nothing reaches the
+    agent. Started: `on` of the gate is refused (*"has no switch"*); `on` of
+    "sim" sends its steps in order, each the line of "sim" with its service,
+    and its answer names the yuno (*"on sim done, 2 steps"*). `off` sends
+    both steps at once, as a stop does, and another run is refused while it
+    waits. The switch runs leave the scenario running: `on` goes again.
+    Stopped: `on` is refused again.
 
 ## Run
 
