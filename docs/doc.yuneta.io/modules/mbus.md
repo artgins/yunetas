@@ -12,8 +12,8 @@ meters of a wired M-Bus. The module has two parts:
 
 Source code:
 
-- [`c_prot_mbus_m.h`](https://github.com/artgins/yunetas/blob/7.28.5/modules/c/mbus/src/c_prot_mbus_m.h)
-- [`c_prot_mbus_m.c`](https://github.com/artgins/yunetas/blob/7.28.5/modules/c/mbus/src/c_prot_mbus_m.c)
+- [`c_prot_mbus_m.h`](https://github.com/artgins/yunetas/blob/7.28.6/modules/c/mbus/src/c_prot_mbus_m.h)
+- [`c_prot_mbus_m.c`](https://github.com/artgins/yunetas/blob/7.28.6/modules/c/mbus/src/c_prot_mbus_m.c)
 
 ## The bus, in short
 
