@@ -26,452 +26,482 @@
 <text class="m" x="20" y="48">one panel per figure, each on its own scale from zero &#183; the A/B figures of each release report (7.25.4 is the baseline of 7.25.5)</text>
 <text class="l" x="20" y="80">Appends per second</text>
 <line class="grid" x1="30" x2="430" y1="176" y2="176"/>
-<polyline class="curl" points="30.0,140.7 56.9,140.5 83.8,139.7 110.8,139.8 137.7,140.1 164.6,140.1 191.5,140.2 218.5,139.2 245.4,139.8 272.3,138.7 299.2,139.9 326.2,139.4 353.1,108.3 380.0,106.4"/>
+<polyline class="curl" points="30.0,140.7 55.0,140.5 80.0,139.7 105.0,139.8 130.0,140.1 155.0,140.1 180.0,140.2 205.0,139.2 230.0,139.8 255.0,138.7 280.0,139.9 305.0,139.4 330.0,108.3 355.0,106.4 380.0,108.4"/>
 <circle class="prev" cx="30.0" cy="140.7" r="4.5" stroke-width="2"><title>7.25.4: 220,120</title></circle>
 <text class="v" x="38.0" y="132.7" text-anchor="start">220,120</text>
 <text class="m" x="30.0" y="192" text-anchor="middle">7.25.4</text>
-<circle class="prev" cx="56.9" cy="140.5" r="4.5" stroke-width="2"><title>7.25.5: 221,588</title></circle>
-<text class="v" x="64.9" y="132.5" text-anchor="start">221,588</text>
-<text class="m" x="56.9" y="192" text-anchor="middle">7.25.5</text>
-<circle class="prev" cx="83.8" cy="139.7" r="4.5" stroke-width="2"><title>7.25.20: 226,720</title></circle>
-<text class="v" x="91.8" y="131.7" text-anchor="start">226,720</text>
-<text class="m" x="83.8" y="192" text-anchor="middle">7.25.20</text>
-<circle class="prev" cx="110.8" cy="139.8" r="4.5" stroke-width="2"><title>7.25.21: 225,883</title></circle>
-<text class="v" x="118.8" y="131.8" text-anchor="start">225,883</text>
-<text class="m" x="110.8" y="192" text-anchor="middle">7.25.21</text>
-<circle class="prev" cx="137.7" cy="140.1" r="4.5" stroke-width="2"><title>7.25.22: 224,185</title></circle>
-<text class="v" x="145.7" y="132.1" text-anchor="start">224,185</text>
-<text class="m" x="137.7" y="192" text-anchor="middle">7.25.22</text>
-<circle class="prev" cx="164.6" cy="140.1" r="4.5" stroke-width="2"><title>7.26.0: 223,864</title></circle>
-<text class="v" x="172.6" y="132.1" text-anchor="start">223,864</text>
-<text class="m" x="164.6" y="192" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="191.5" cy="140.2" r="4.5" stroke-width="2"><title>7.26.9: 223,770</title></circle>
-<text class="v" x="199.5" y="132.2" text-anchor="start">223,770</text>
-<text class="m" x="191.5" y="192" text-anchor="middle">7.26.9</text>
-<circle class="prev" cx="218.5" cy="139.2" r="4.5" stroke-width="2"><title>7.27.0: 229,502</title></circle>
-<text class="v" x="226.5" y="131.2" text-anchor="start">229,502</text>
-<text class="m" x="218.5" y="192" text-anchor="middle">7.27.0</text>
-<circle class="prev" cx="245.4" cy="139.8" r="4.5" stroke-width="2"><title>7.27.5: 226,311</title></circle>
-<text class="v" x="253.4" y="131.8" text-anchor="start">226,311</text>
-<text class="m" x="245.4" y="192" text-anchor="middle">7.27.5</text>
-<circle class="prev" cx="272.3" cy="138.7" r="4.5" stroke-width="2"><title>7.27.7: 232,605</title></circle>
-<text class="v" x="280.3" y="130.7" text-anchor="start">232,605</text>
-<text class="m" x="272.3" y="192" text-anchor="middle">7.27.7</text>
-<circle class="prev" cx="299.2" cy="139.9" r="4.5" stroke-width="2"><title>7.27.10: 225,186</title></circle>
-<text class="v" x="307.2" y="131.9" text-anchor="start">225,186</text>
-<text class="m" x="299.2" y="192" text-anchor="middle">7.27.10</text>
-<circle class="prev" cx="326.2" cy="139.4" r="4.5" stroke-width="2"><title>7.27.11: 228,739</title></circle>
-<text class="v" x="334.2" y="131.4" text-anchor="start">228,739</text>
-<text class="m" x="326.2" y="192" text-anchor="middle">7.27.11</text>
-<circle class="prev" cx="353.1" cy="108.3" r="4.5" stroke-width="2"><title>7.28.0: 422,850</title></circle>
-<text class="v" x="361.1" y="100.3" text-anchor="start">422,850</text>
-<text class="m" x="353.1" y="192" text-anchor="middle">7.28.0</text>
-<circle class="cur" cx="380.0" cy="106.4" r="4.5" stroke-width="2"><title>7.28.2: 434,385</title></circle>
-<text class="v" x="388.0" y="110.4" text-anchor="start">434,385</text>
-<text class="m" x="380.0" y="192" text-anchor="middle">7.28.2</text>
+<circle class="prev" cx="55.0" cy="140.5" r="4.5" stroke-width="2"><title>7.25.5: 221,588</title></circle>
+<text class="v" x="63.0" y="132.5" text-anchor="start">221,588</text>
+<text class="m" x="55.0" y="192" text-anchor="middle">7.25.5</text>
+<circle class="prev" cx="80.0" cy="139.7" r="4.5" stroke-width="2"><title>7.25.20: 226,720</title></circle>
+<text class="v" x="88.0" y="131.7" text-anchor="start">226,720</text>
+<text class="m" x="80.0" y="192" text-anchor="middle">7.25.20</text>
+<circle class="prev" cx="105.0" cy="139.8" r="4.5" stroke-width="2"><title>7.25.21: 225,883</title></circle>
+<text class="v" x="113.0" y="131.8" text-anchor="start">225,883</text>
+<text class="m" x="105.0" y="192" text-anchor="middle">7.25.21</text>
+<circle class="prev" cx="130.0" cy="140.1" r="4.5" stroke-width="2"><title>7.25.22: 224,185</title></circle>
+<text class="v" x="138.0" y="132.1" text-anchor="start">224,185</text>
+<text class="m" x="130.0" y="192" text-anchor="middle">7.25.22</text>
+<circle class="prev" cx="155.0" cy="140.1" r="4.5" stroke-width="2"><title>7.26.0: 223,864</title></circle>
+<text class="v" x="163.0" y="132.1" text-anchor="start">223,864</text>
+<text class="m" x="155.0" y="192" text-anchor="middle">7.26.0</text>
+<circle class="prev" cx="180.0" cy="140.2" r="4.5" stroke-width="2"><title>7.26.9: 223,770</title></circle>
+<text class="v" x="188.0" y="132.2" text-anchor="start">223,770</text>
+<text class="m" x="180.0" y="192" text-anchor="middle">7.26.9</text>
+<circle class="prev" cx="205.0" cy="139.2" r="4.5" stroke-width="2"><title>7.27.0: 229,502</title></circle>
+<text class="v" x="213.0" y="131.2" text-anchor="start">229,502</text>
+<text class="m" x="205.0" y="192" text-anchor="middle">7.27.0</text>
+<circle class="prev" cx="230.0" cy="139.8" r="4.5" stroke-width="2"><title>7.27.5: 226,311</title></circle>
+<text class="v" x="238.0" y="131.8" text-anchor="start">226,311</text>
+<text class="m" x="230.0" y="192" text-anchor="middle">7.27.5</text>
+<circle class="prev" cx="255.0" cy="138.7" r="4.5" stroke-width="2"><title>7.27.7: 232,605</title></circle>
+<text class="v" x="263.0" y="130.7" text-anchor="start">232,605</text>
+<text class="m" x="255.0" y="192" text-anchor="middle">7.27.7</text>
+<circle class="prev" cx="280.0" cy="139.9" r="4.5" stroke-width="2"><title>7.27.10: 225,186</title></circle>
+<text class="v" x="288.0" y="131.9" text-anchor="start">225,186</text>
+<text class="m" x="280.0" y="192" text-anchor="middle">7.27.10</text>
+<circle class="prev" cx="305.0" cy="139.4" r="4.5" stroke-width="2"><title>7.27.11: 228,739</title></circle>
+<text class="v" x="313.0" y="131.4" text-anchor="start">228,739</text>
+<text class="m" x="305.0" y="192" text-anchor="middle">7.27.11</text>
+<circle class="prev" cx="330.0" cy="108.3" r="4.5" stroke-width="2"><title>7.28.0: 422,850</title></circle>
+<text class="v" x="338.0" y="100.3" text-anchor="start">422,850</text>
+<text class="m" x="330.0" y="192" text-anchor="middle">7.28.0</text>
+<circle class="prev" cx="355.0" cy="106.4" r="4.5" stroke-width="2"><title>7.28.2: 434,385</title></circle>
+<text class="v" x="363.0" y="98.4" text-anchor="start">434,385</text>
+<text class="m" x="355.0" y="192" text-anchor="middle">7.28.2</text>
+<circle class="cur" cx="380.0" cy="108.4" r="4.5" stroke-width="2"><title>7.28.4: 422,318</title></circle>
+<text class="v" x="388.0" y="112.4" text-anchor="start">422,318</text>
+<text class="m" x="380.0" y="192" text-anchor="middle">7.28.4</text>
 <text class="l" x="450" y="80">Open a store as master (ms)</text>
 <line class="grid" x1="460" x2="860" y1="176" y2="176"/>
-<polyline class="curl" points="460.0,106.4 486.9,115.2 513.8,117.2 540.8,114.4 567.7,116.2 594.6,114.4 621.5,115.9 648.5,114.2 675.4,115.0 702.3,116.8 729.2,116.3 756.2,116.6 783.1,117.8 810.0,118.5"/>
+<polyline class="curl" points="460.0,106.4 485.0,115.2 510.0,117.2 535.0,114.4 560.0,116.2 585.0,114.4 610.0,115.9 635.0,114.2 660.0,115.0 685.0,116.8 710.0,116.3 735.0,116.6 760.0,117.8 785.0,118.5 810.0,114.5"/>
 <circle class="prev" cx="460.0" cy="106.4" r="4.5" stroke-width="2"><title>7.25.4: 92.50</title></circle>
 <text class="v" x="468.0" y="98.4" text-anchor="start">92.50</text>
 <text class="m" x="460.0" y="192" text-anchor="middle">7.25.4</text>
-<circle class="prev" cx="486.9" cy="115.2" r="4.5" stroke-width="2"><title>7.25.5: 80.80</title></circle>
-<text class="v" x="494.9" y="107.2" text-anchor="start">80.80</text>
-<text class="m" x="486.9" y="192" text-anchor="middle">7.25.5</text>
-<circle class="prev" cx="513.8" cy="117.2" r="4.5" stroke-width="2"><title>7.25.20: 78.18</title></circle>
-<text class="v" x="521.8" y="109.2" text-anchor="start">78.18</text>
-<text class="m" x="513.8" y="192" text-anchor="middle">7.25.20</text>
-<circle class="prev" cx="540.8" cy="114.4" r="4.5" stroke-width="2"><title>7.25.21: 81.89</title></circle>
-<text class="v" x="548.8" y="106.4" text-anchor="start">81.89</text>
-<text class="m" x="540.8" y="192" text-anchor="middle">7.25.21</text>
-<circle class="prev" cx="567.7" cy="116.2" r="4.5" stroke-width="2"><title>7.25.22: 79.58</title></circle>
-<text class="v" x="575.7" y="108.2" text-anchor="start">79.58</text>
-<text class="m" x="567.7" y="192" text-anchor="middle">7.25.22</text>
-<circle class="prev" cx="594.6" cy="114.4" r="4.5" stroke-width="2"><title>7.26.0: 81.88</title></circle>
-<text class="v" x="602.6" y="106.4" text-anchor="start">81.88</text>
-<text class="m" x="594.6" y="192" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="621.5" cy="115.9" r="4.5" stroke-width="2"><title>7.26.9: 79.85</title></circle>
-<text class="v" x="629.5" y="107.9" text-anchor="start">79.85</text>
-<text class="m" x="621.5" y="192" text-anchor="middle">7.26.9</text>
-<circle class="prev" cx="648.5" cy="114.2" r="4.5" stroke-width="2"><title>7.27.0: 82.23</title></circle>
-<text class="v" x="656.5" y="106.2" text-anchor="start">82.23</text>
-<text class="m" x="648.5" y="192" text-anchor="middle">7.27.0</text>
-<circle class="prev" cx="675.4" cy="115.0" r="4.5" stroke-width="2"><title>7.27.5: 81.14</title></circle>
-<text class="v" x="683.4" y="107.0" text-anchor="start">81.14</text>
-<text class="m" x="675.4" y="192" text-anchor="middle">7.27.5</text>
-<circle class="prev" cx="702.3" cy="116.8" r="4.5" stroke-width="2"><title>7.27.7: 78.78</title></circle>
-<text class="v" x="710.3" y="108.8" text-anchor="start">78.78</text>
-<text class="m" x="702.3" y="192" text-anchor="middle">7.27.7</text>
-<circle class="prev" cx="729.2" cy="116.3" r="4.5" stroke-width="2"><title>7.27.10: 79.32</title></circle>
-<text class="v" x="737.2" y="108.3" text-anchor="start">79.32</text>
-<text class="m" x="729.2" y="192" text-anchor="middle">7.27.10</text>
-<circle class="prev" cx="756.2" cy="116.6" r="4.5" stroke-width="2"><title>7.27.11: 78.98</title></circle>
-<text class="v" x="764.2" y="108.6" text-anchor="start">78.98</text>
-<text class="m" x="756.2" y="192" text-anchor="middle">7.27.11</text>
-<circle class="prev" cx="783.1" cy="117.8" r="4.5" stroke-width="2"><title>7.28.0: 77.36</title></circle>
-<text class="v" x="791.1" y="109.8" text-anchor="start">77.36</text>
-<text class="m" x="783.1" y="192" text-anchor="middle">7.28.0</text>
-<circle class="cur" cx="810.0" cy="118.5" r="4.5" stroke-width="2"><title>7.28.2: 76.46</title></circle>
-<text class="v" x="818.0" y="122.5" text-anchor="start">76.46</text>
-<text class="m" x="810.0" y="192" text-anchor="middle">7.28.2</text>
+<circle class="prev" cx="485.0" cy="115.2" r="4.5" stroke-width="2"><title>7.25.5: 80.80</title></circle>
+<text class="v" x="493.0" y="107.2" text-anchor="start">80.80</text>
+<text class="m" x="485.0" y="192" text-anchor="middle">7.25.5</text>
+<circle class="prev" cx="510.0" cy="117.2" r="4.5" stroke-width="2"><title>7.25.20: 78.18</title></circle>
+<text class="v" x="518.0" y="109.2" text-anchor="start">78.18</text>
+<text class="m" x="510.0" y="192" text-anchor="middle">7.25.20</text>
+<circle class="prev" cx="535.0" cy="114.4" r="4.5" stroke-width="2"><title>7.25.21: 81.89</title></circle>
+<text class="v" x="543.0" y="106.4" text-anchor="start">81.89</text>
+<text class="m" x="535.0" y="192" text-anchor="middle">7.25.21</text>
+<circle class="prev" cx="560.0" cy="116.2" r="4.5" stroke-width="2"><title>7.25.22: 79.58</title></circle>
+<text class="v" x="568.0" y="108.2" text-anchor="start">79.58</text>
+<text class="m" x="560.0" y="192" text-anchor="middle">7.25.22</text>
+<circle class="prev" cx="585.0" cy="114.4" r="4.5" stroke-width="2"><title>7.26.0: 81.88</title></circle>
+<text class="v" x="593.0" y="106.4" text-anchor="start">81.88</text>
+<text class="m" x="585.0" y="192" text-anchor="middle">7.26.0</text>
+<circle class="prev" cx="610.0" cy="115.9" r="4.5" stroke-width="2"><title>7.26.9: 79.85</title></circle>
+<text class="v" x="618.0" y="107.9" text-anchor="start">79.85</text>
+<text class="m" x="610.0" y="192" text-anchor="middle">7.26.9</text>
+<circle class="prev" cx="635.0" cy="114.2" r="4.5" stroke-width="2"><title>7.27.0: 82.23</title></circle>
+<text class="v" x="643.0" y="106.2" text-anchor="start">82.23</text>
+<text class="m" x="635.0" y="192" text-anchor="middle">7.27.0</text>
+<circle class="prev" cx="660.0" cy="115.0" r="4.5" stroke-width="2"><title>7.27.5: 81.14</title></circle>
+<text class="v" x="668.0" y="107.0" text-anchor="start">81.14</text>
+<text class="m" x="660.0" y="192" text-anchor="middle">7.27.5</text>
+<circle class="prev" cx="685.0" cy="116.8" r="4.5" stroke-width="2"><title>7.27.7: 78.78</title></circle>
+<text class="v" x="693.0" y="108.8" text-anchor="start">78.78</text>
+<text class="m" x="685.0" y="192" text-anchor="middle">7.27.7</text>
+<circle class="prev" cx="710.0" cy="116.3" r="4.5" stroke-width="2"><title>7.27.10: 79.32</title></circle>
+<text class="v" x="718.0" y="108.3" text-anchor="start">79.32</text>
+<text class="m" x="710.0" y="192" text-anchor="middle">7.27.10</text>
+<circle class="prev" cx="735.0" cy="116.6" r="4.5" stroke-width="2"><title>7.27.11: 78.98</title></circle>
+<text class="v" x="743.0" y="108.6" text-anchor="start">78.98</text>
+<text class="m" x="735.0" y="192" text-anchor="middle">7.27.11</text>
+<circle class="prev" cx="760.0" cy="117.8" r="4.5" stroke-width="2"><title>7.28.0: 77.36</title></circle>
+<text class="v" x="768.0" y="109.8" text-anchor="start">77.36</text>
+<text class="m" x="760.0" y="192" text-anchor="middle">7.28.0</text>
+<circle class="prev" cx="785.0" cy="118.5" r="4.5" stroke-width="2"><title>7.28.2: 76.46</title></circle>
+<text class="v" x="793.0" y="110.5" text-anchor="start">76.46</text>
+<text class="m" x="785.0" y="192" text-anchor="middle">7.28.2</text>
+<circle class="cur" cx="810.0" cy="114.5" r="4.5" stroke-width="2"><title>7.28.4: 81.79</title></circle>
+<text class="v" x="818.0" y="118.5" text-anchor="start">81.79</text>
+<text class="m" x="810.0" y="192" text-anchor="middle">7.28.4</text>
 <text class="l" x="20" y="230">tm query of one minute (ms)</text>
 <line class="grid" x1="30" x2="430" y1="326" y2="326"/>
-<polyline class="curl" points="30.0,259.0 56.9,287.0 83.8,287.2 110.8,285.6 137.7,286.6 164.6,258.4 191.5,260.0 218.5,258.4 245.4,256.5 272.3,258.2 299.2,256.4 326.2,257.7 353.1,258.1 380.0,257.4"/>
-<circle class="prev" cx="30.0" cy="259.0" r="4.5" stroke-width="2"><title>7.25.4: 12.70</title></circle>
-<text class="v" x="38.0" y="251.0" text-anchor="start">12.70</text>
+<polyline class="curl" points="30.0,260.2 55.0,287.7 80.0,287.9 105.0,286.3 130.0,287.3 155.0,259.6 180.0,261.2 205.0,259.6 230.0,257.7 255.0,259.4 280.0,257.7 305.0,258.9 330.0,259.3 355.0,258.6 380.0,256.4"/>
+<circle class="prev" cx="30.0" cy="260.2" r="4.5" stroke-width="2"><title>7.25.4: 12.70</title></circle>
+<text class="v" x="38.0" y="252.2" text-anchor="start">12.70</text>
 <text class="m" x="30.0" y="342" text-anchor="middle">7.25.4</text>
-<circle class="prev" cx="56.9" cy="287.0" r="4.5" stroke-width="2"><title>7.25.5: 7.40</title></circle>
-<text class="v" x="64.9" y="279.0" text-anchor="start">7.40</text>
-<text class="m" x="56.9" y="342" text-anchor="middle">7.25.5</text>
-<circle class="prev" cx="83.8" cy="287.2" r="4.5" stroke-width="2"><title>7.25.20: 7.35</title></circle>
-<text class="v" x="91.8" y="279.2" text-anchor="start">7.35</text>
-<text class="m" x="83.8" y="342" text-anchor="middle">7.25.20</text>
-<circle class="prev" cx="110.8" cy="285.6" r="4.5" stroke-width="2"><title>7.25.21: 7.66</title></circle>
-<text class="v" x="118.8" y="277.6" text-anchor="start">7.66</text>
-<text class="m" x="110.8" y="342" text-anchor="middle">7.25.21</text>
-<circle class="prev" cx="137.7" cy="286.6" r="4.5" stroke-width="2"><title>7.25.22: 7.47</title></circle>
-<text class="v" x="145.7" y="278.6" text-anchor="start">7.47</text>
-<text class="m" x="137.7" y="342" text-anchor="middle">7.25.22</text>
-<circle class="prev" cx="164.6" cy="258.4" r="4.5" stroke-width="2"><title>7.26.0: 12.82</title></circle>
-<text class="v" x="172.6" y="250.4" text-anchor="start">12.82</text>
-<text class="m" x="164.6" y="342" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="191.5" cy="260.0" r="4.5" stroke-width="2"><title>7.26.9: 12.51</title></circle>
-<text class="v" x="199.5" y="252.0" text-anchor="start">12.51</text>
-<text class="m" x="191.5" y="342" text-anchor="middle">7.26.9</text>
-<circle class="prev" cx="218.5" cy="258.4" r="4.5" stroke-width="2"><title>7.27.0: 12.82</title></circle>
-<text class="v" x="226.5" y="250.4" text-anchor="start">12.82</text>
-<text class="m" x="218.5" y="342" text-anchor="middle">7.27.0</text>
-<circle class="prev" cx="245.4" cy="256.5" r="4.5" stroke-width="2"><title>7.27.5: 13.18</title></circle>
-<text class="v" x="253.4" y="248.5" text-anchor="start">13.18</text>
-<text class="m" x="245.4" y="342" text-anchor="middle">7.27.5</text>
-<circle class="prev" cx="272.3" cy="258.2" r="4.5" stroke-width="2"><title>7.27.7: 12.86</title></circle>
-<text class="v" x="280.3" y="250.2" text-anchor="start">12.86</text>
-<text class="m" x="272.3" y="342" text-anchor="middle">7.27.7</text>
-<circle class="prev" cx="299.2" cy="256.4" r="4.5" stroke-width="2"><title>7.27.10: 13.19</title></circle>
-<text class="v" x="307.2" y="248.4" text-anchor="start">13.19</text>
-<text class="m" x="299.2" y="342" text-anchor="middle">7.27.10</text>
-<circle class="prev" cx="326.2" cy="257.7" r="4.5" stroke-width="2"><title>7.27.11: 12.95</title></circle>
-<text class="v" x="334.2" y="249.7" text-anchor="start">12.95</text>
-<text class="m" x="326.2" y="342" text-anchor="middle">7.27.11</text>
-<circle class="prev" cx="353.1" cy="258.1" r="4.5" stroke-width="2"><title>7.28.0: 12.88</title></circle>
-<text class="v" x="361.1" y="250.1" text-anchor="start">12.88</text>
-<text class="m" x="353.1" y="342" text-anchor="middle">7.28.0</text>
-<circle class="cur" cx="380.0" cy="257.4" r="4.5" stroke-width="2"><title>7.28.2: 13.02</title></circle>
-<text class="v" x="388.0" y="261.4" text-anchor="start">13.02</text>
-<text class="m" x="380.0" y="342" text-anchor="middle">7.28.2</text>
+<circle class="prev" cx="55.0" cy="287.7" r="4.5" stroke-width="2"><title>7.25.5: 7.40</title></circle>
+<text class="v" x="63.0" y="279.7" text-anchor="start">7.40</text>
+<text class="m" x="55.0" y="342" text-anchor="middle">7.25.5</text>
+<circle class="prev" cx="80.0" cy="287.9" r="4.5" stroke-width="2"><title>7.25.20: 7.35</title></circle>
+<text class="v" x="88.0" y="279.9" text-anchor="start">7.35</text>
+<text class="m" x="80.0" y="342" text-anchor="middle">7.25.20</text>
+<circle class="prev" cx="105.0" cy="286.3" r="4.5" stroke-width="2"><title>7.25.21: 7.66</title></circle>
+<text class="v" x="113.0" y="278.3" text-anchor="start">7.66</text>
+<text class="m" x="105.0" y="342" text-anchor="middle">7.25.21</text>
+<circle class="prev" cx="130.0" cy="287.3" r="4.5" stroke-width="2"><title>7.25.22: 7.47</title></circle>
+<text class="v" x="138.0" y="279.3" text-anchor="start">7.47</text>
+<text class="m" x="130.0" y="342" text-anchor="middle">7.25.22</text>
+<circle class="prev" cx="155.0" cy="259.6" r="4.5" stroke-width="2"><title>7.26.0: 12.82</title></circle>
+<text class="v" x="163.0" y="251.6" text-anchor="start">12.82</text>
+<text class="m" x="155.0" y="342" text-anchor="middle">7.26.0</text>
+<circle class="prev" cx="180.0" cy="261.2" r="4.5" stroke-width="2"><title>7.26.9: 12.51</title></circle>
+<text class="v" x="188.0" y="253.2" text-anchor="start">12.51</text>
+<text class="m" x="180.0" y="342" text-anchor="middle">7.26.9</text>
+<circle class="prev" cx="205.0" cy="259.6" r="4.5" stroke-width="2"><title>7.27.0: 12.82</title></circle>
+<text class="v" x="213.0" y="251.6" text-anchor="start">12.82</text>
+<text class="m" x="205.0" y="342" text-anchor="middle">7.27.0</text>
+<circle class="prev" cx="230.0" cy="257.7" r="4.5" stroke-width="2"><title>7.27.5: 13.18</title></circle>
+<text class="v" x="238.0" y="249.7" text-anchor="start">13.18</text>
+<text class="m" x="230.0" y="342" text-anchor="middle">7.27.5</text>
+<circle class="prev" cx="255.0" cy="259.4" r="4.5" stroke-width="2"><title>7.27.7: 12.86</title></circle>
+<text class="v" x="263.0" y="251.4" text-anchor="start">12.86</text>
+<text class="m" x="255.0" y="342" text-anchor="middle">7.27.7</text>
+<circle class="prev" cx="280.0" cy="257.7" r="4.5" stroke-width="2"><title>7.27.10: 13.19</title></circle>
+<text class="v" x="288.0" y="249.7" text-anchor="start">13.19</text>
+<text class="m" x="280.0" y="342" text-anchor="middle">7.27.10</text>
+<circle class="prev" cx="305.0" cy="258.9" r="4.5" stroke-width="2"><title>7.27.11: 12.95</title></circle>
+<text class="v" x="313.0" y="250.9" text-anchor="start">12.95</text>
+<text class="m" x="305.0" y="342" text-anchor="middle">7.27.11</text>
+<circle class="prev" cx="330.0" cy="259.3" r="4.5" stroke-width="2"><title>7.28.0: 12.88</title></circle>
+<text class="v" x="338.0" y="251.3" text-anchor="start">12.88</text>
+<text class="m" x="330.0" y="342" text-anchor="middle">7.28.0</text>
+<circle class="prev" cx="355.0" cy="258.6" r="4.5" stroke-width="2"><title>7.28.2: 13.02</title></circle>
+<text class="v" x="363.0" y="250.6" text-anchor="start">13.02</text>
+<text class="m" x="355.0" y="342" text-anchor="middle">7.28.2</text>
+<circle class="cur" cx="380.0" cy="256.4" r="4.5" stroke-width="2"><title>7.28.4: 13.43</title></circle>
+<text class="v" x="388.0" y="260.4" text-anchor="start">13.43</text>
+<text class="m" x="380.0" y="342" text-anchor="middle">7.28.4</text>
 <text class="l" x="450" y="230">treedb update in memory (us)</text>
 <line class="grid" x1="460" x2="860" y1="326" y2="326"/>
-<polyline class="curl" points="460.0,256.4 486.9,274.2 513.8,284.9 540.8,284.8 567.7,283.2 594.6,281.8 621.5,285.3 648.5,282.3 675.4,284.0 702.3,284.1 729.2,283.9 756.2,282.9 783.1,305.8 810.0,305.7"/>
+<polyline class="curl" points="460.0,256.4 485.0,274.2 510.0,284.9 535.0,284.8 560.0,283.2 585.0,281.8 610.0,285.3 635.0,282.3 660.0,284.0 685.0,284.1 710.0,283.9 735.0,282.9 760.0,305.8 785.0,305.7 810.0,304.4"/>
 <circle class="prev" cx="460.0" cy="256.4" r="4.5" stroke-width="2"><title>7.25.4: 3.92</title></circle>
 <text class="v" x="468.0" y="248.4" text-anchor="start">3.92</text>
 <text class="m" x="460.0" y="342" text-anchor="middle">7.25.4</text>
-<circle class="prev" cx="486.9" cy="274.2" r="4.5" stroke-width="2"><title>7.25.5: 2.92</title></circle>
-<text class="v" x="494.9" y="266.2" text-anchor="start">2.92</text>
-<text class="m" x="486.9" y="342" text-anchor="middle">7.25.5</text>
-<circle class="prev" cx="513.8" cy="284.9" r="4.5" stroke-width="2"><title>7.25.20: 2.32</title></circle>
-<text class="v" x="521.8" y="276.9" text-anchor="start">2.32</text>
-<text class="m" x="513.8" y="342" text-anchor="middle">7.25.20</text>
-<circle class="prev" cx="540.8" cy="284.8" r="4.5" stroke-width="2"><title>7.25.21: 2.32</title></circle>
-<text class="v" x="548.8" y="276.8" text-anchor="start">2.32</text>
-<text class="m" x="540.8" y="342" text-anchor="middle">7.25.21</text>
-<circle class="prev" cx="567.7" cy="283.2" r="4.5" stroke-width="2"><title>7.25.22: 2.41</title></circle>
-<text class="v" x="575.7" y="275.2" text-anchor="start">2.41</text>
-<text class="m" x="567.7" y="342" text-anchor="middle">7.25.22</text>
-<circle class="prev" cx="594.6" cy="281.8" r="4.5" stroke-width="2"><title>7.26.0: 2.49</title></circle>
-<text class="v" x="602.6" y="273.8" text-anchor="start">2.49</text>
-<text class="m" x="594.6" y="342" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="621.5" cy="285.3" r="4.5" stroke-width="2"><title>7.26.9: 2.29</title></circle>
-<text class="v" x="629.5" y="277.3" text-anchor="start">2.29</text>
-<text class="m" x="621.5" y="342" text-anchor="middle">7.26.9</text>
-<circle class="prev" cx="648.5" cy="282.3" r="4.5" stroke-width="2"><title>7.27.0: 2.46</title></circle>
-<text class="v" x="656.5" y="274.3" text-anchor="start">2.46</text>
-<text class="m" x="648.5" y="342" text-anchor="middle">7.27.0</text>
-<circle class="prev" cx="675.4" cy="284.0" r="4.5" stroke-width="2"><title>7.27.5: 2.36</title></circle>
-<text class="v" x="683.4" y="276.0" text-anchor="start">2.36</text>
-<text class="m" x="675.4" y="342" text-anchor="middle">7.27.5</text>
-<circle class="prev" cx="702.3" cy="284.1" r="4.5" stroke-width="2"><title>7.27.7: 2.36</title></circle>
-<text class="v" x="710.3" y="276.1" text-anchor="start">2.36</text>
-<text class="m" x="702.3" y="342" text-anchor="middle">7.27.7</text>
-<circle class="prev" cx="729.2" cy="283.9" r="4.5" stroke-width="2"><title>7.27.10: 2.37</title></circle>
-<text class="v" x="737.2" y="275.9" text-anchor="start">2.37</text>
-<text class="m" x="729.2" y="342" text-anchor="middle">7.27.10</text>
-<circle class="prev" cx="756.2" cy="282.9" r="4.5" stroke-width="2"><title>7.27.11: 2.43</title></circle>
-<text class="v" x="764.2" y="274.9" text-anchor="start">2.43</text>
-<text class="m" x="756.2" y="342" text-anchor="middle">7.27.11</text>
-<circle class="prev" cx="783.1" cy="305.8" r="4.5" stroke-width="2"><title>7.28.0: 1.14</title></circle>
-<text class="v" x="791.1" y="297.8" text-anchor="start">1.14</text>
-<text class="m" x="783.1" y="342" text-anchor="middle">7.28.0</text>
-<circle class="cur" cx="810.0" cy="305.7" r="4.5" stroke-width="2"><title>7.28.2: 1.14</title></circle>
-<text class="v" x="818.0" y="309.7" text-anchor="start">1.14</text>
-<text class="m" x="810.0" y="342" text-anchor="middle">7.28.2</text>
+<circle class="prev" cx="485.0" cy="274.2" r="4.5" stroke-width="2"><title>7.25.5: 2.92</title></circle>
+<text class="v" x="493.0" y="266.2" text-anchor="start">2.92</text>
+<text class="m" x="485.0" y="342" text-anchor="middle">7.25.5</text>
+<circle class="prev" cx="510.0" cy="284.9" r="4.5" stroke-width="2"><title>7.25.20: 2.32</title></circle>
+<text class="v" x="518.0" y="276.9" text-anchor="start">2.32</text>
+<text class="m" x="510.0" y="342" text-anchor="middle">7.25.20</text>
+<circle class="prev" cx="535.0" cy="284.8" r="4.5" stroke-width="2"><title>7.25.21: 2.32</title></circle>
+<text class="v" x="543.0" y="276.8" text-anchor="start">2.32</text>
+<text class="m" x="535.0" y="342" text-anchor="middle">7.25.21</text>
+<circle class="prev" cx="560.0" cy="283.2" r="4.5" stroke-width="2"><title>7.25.22: 2.41</title></circle>
+<text class="v" x="568.0" y="275.2" text-anchor="start">2.41</text>
+<text class="m" x="560.0" y="342" text-anchor="middle">7.25.22</text>
+<circle class="prev" cx="585.0" cy="281.8" r="4.5" stroke-width="2"><title>7.26.0: 2.49</title></circle>
+<text class="v" x="593.0" y="273.8" text-anchor="start">2.49</text>
+<text class="m" x="585.0" y="342" text-anchor="middle">7.26.0</text>
+<circle class="prev" cx="610.0" cy="285.3" r="4.5" stroke-width="2"><title>7.26.9: 2.29</title></circle>
+<text class="v" x="618.0" y="277.3" text-anchor="start">2.29</text>
+<text class="m" x="610.0" y="342" text-anchor="middle">7.26.9</text>
+<circle class="prev" cx="635.0" cy="282.3" r="4.5" stroke-width="2"><title>7.27.0: 2.46</title></circle>
+<text class="v" x="643.0" y="274.3" text-anchor="start">2.46</text>
+<text class="m" x="635.0" y="342" text-anchor="middle">7.27.0</text>
+<circle class="prev" cx="660.0" cy="284.0" r="4.5" stroke-width="2"><title>7.27.5: 2.36</title></circle>
+<text class="v" x="668.0" y="276.0" text-anchor="start">2.36</text>
+<text class="m" x="660.0" y="342" text-anchor="middle">7.27.5</text>
+<circle class="prev" cx="685.0" cy="284.1" r="4.5" stroke-width="2"><title>7.27.7: 2.36</title></circle>
+<text class="v" x="693.0" y="276.1" text-anchor="start">2.36</text>
+<text class="m" x="685.0" y="342" text-anchor="middle">7.27.7</text>
+<circle class="prev" cx="710.0" cy="283.9" r="4.5" stroke-width="2"><title>7.27.10: 2.37</title></circle>
+<text class="v" x="718.0" y="275.9" text-anchor="start">2.37</text>
+<text class="m" x="710.0" y="342" text-anchor="middle">7.27.10</text>
+<circle class="prev" cx="735.0" cy="282.9" r="4.5" stroke-width="2"><title>7.27.11: 2.43</title></circle>
+<text class="v" x="743.0" y="274.9" text-anchor="start">2.43</text>
+<text class="m" x="735.0" y="342" text-anchor="middle">7.27.11</text>
+<circle class="prev" cx="760.0" cy="305.8" r="4.5" stroke-width="2"><title>7.28.0: 1.14</title></circle>
+<text class="v" x="768.0" y="297.8" text-anchor="start">1.14</text>
+<text class="m" x="760.0" y="342" text-anchor="middle">7.28.0</text>
+<circle class="prev" cx="785.0" cy="305.7" r="4.5" stroke-width="2"><title>7.28.2: 1.14</title></circle>
+<text class="v" x="793.0" y="297.7" text-anchor="start">1.14</text>
+<text class="m" x="785.0" y="342" text-anchor="middle">7.28.2</text>
+<circle class="cur" cx="810.0" cy="304.4" r="4.5" stroke-width="2"><title>7.28.4: 1.22</title></circle>
+<text class="v" x="818.0" y="308.4" text-anchor="start">1.22</text>
+<text class="m" x="810.0" y="342" text-anchor="middle">7.28.4</text>
 <text class="l" x="20" y="380">treedb update, saved (us)</text>
 <line class="grid" x1="30" x2="430" y1="476" y2="476"/>
-<polyline class="curl" points="30.0,406.4 56.9,412.0 83.8,430.6 110.8,430.0 137.7,430.1 164.6,429.8 191.5,431.7 218.5,429.6 245.4,430.9 272.3,431.1 299.2,430.4 326.2,429.2 353.1,452.0 380.0,451.9"/>
+<polyline class="curl" points="30.0,406.4 55.0,412.0 80.0,430.6 105.0,430.0 130.0,430.1 155.0,429.8 180.0,431.7 205.0,429.6 230.0,430.9 255.0,431.1 280.0,430.4 305.0,429.2 330.0,452.0 355.0,451.9 380.0,450.9"/>
 <circle class="prev" cx="30.0" cy="406.4" r="4.5" stroke-width="2"><title>7.25.4: 11.75</title></circle>
 <text class="v" x="38.0" y="398.4" text-anchor="start">11.75</text>
 <text class="m" x="30.0" y="492" text-anchor="middle">7.25.4</text>
-<circle class="prev" cx="56.9" cy="412.0" r="4.5" stroke-width="2"><title>7.25.5: 10.81</title></circle>
-<text class="v" x="64.9" y="404.0" text-anchor="start">10.81</text>
-<text class="m" x="56.9" y="492" text-anchor="middle">7.25.5</text>
-<circle class="prev" cx="83.8" cy="430.6" r="4.5" stroke-width="2"><title>7.25.20: 7.66</title></circle>
-<text class="v" x="91.8" y="422.6" text-anchor="start">7.66</text>
-<text class="m" x="83.8" y="492" text-anchor="middle">7.25.20</text>
-<circle class="prev" cx="110.8" cy="430.0" r="4.5" stroke-width="2"><title>7.25.21: 7.77</title></circle>
-<text class="v" x="118.8" y="422.0" text-anchor="start">7.77</text>
-<text class="m" x="110.8" y="492" text-anchor="middle">7.25.21</text>
-<circle class="prev" cx="137.7" cy="430.1" r="4.5" stroke-width="2"><title>7.25.22: 7.75</title></circle>
-<text class="v" x="145.7" y="422.1" text-anchor="start">7.75</text>
-<text class="m" x="137.7" y="492" text-anchor="middle">7.25.22</text>
-<circle class="prev" cx="164.6" cy="429.8" r="4.5" stroke-width="2"><title>7.26.0: 7.80</title></circle>
-<text class="v" x="172.6" y="421.8" text-anchor="start">7.80</text>
-<text class="m" x="164.6" y="492" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="191.5" cy="431.7" r="4.5" stroke-width="2"><title>7.26.9: 7.48</title></circle>
-<text class="v" x="199.5" y="423.7" text-anchor="start">7.48</text>
-<text class="m" x="191.5" y="492" text-anchor="middle">7.26.9</text>
-<circle class="prev" cx="218.5" cy="429.6" r="4.5" stroke-width="2"><title>7.27.0: 7.84</title></circle>
-<text class="v" x="226.5" y="421.6" text-anchor="start">7.84</text>
-<text class="m" x="218.5" y="492" text-anchor="middle">7.27.0</text>
-<circle class="prev" cx="245.4" cy="430.9" r="4.5" stroke-width="2"><title>7.27.5: 7.62</title></circle>
-<text class="v" x="253.4" y="422.9" text-anchor="start">7.62</text>
-<text class="m" x="245.4" y="492" text-anchor="middle">7.27.5</text>
-<circle class="prev" cx="272.3" cy="431.1" r="4.5" stroke-width="2"><title>7.27.7: 7.59</title></circle>
-<text class="v" x="280.3" y="423.1" text-anchor="start">7.59</text>
-<text class="m" x="272.3" y="492" text-anchor="middle">7.27.7</text>
-<circle class="prev" cx="299.2" cy="430.4" r="4.5" stroke-width="2"><title>7.27.10: 7.70</title></circle>
-<text class="v" x="307.2" y="422.4" text-anchor="start">7.70</text>
-<text class="m" x="299.2" y="492" text-anchor="middle">7.27.10</text>
-<circle class="prev" cx="326.2" cy="429.2" r="4.5" stroke-width="2"><title>7.27.11: 7.90</title></circle>
-<text class="v" x="334.2" y="421.2" text-anchor="start">7.90</text>
-<text class="m" x="326.2" y="492" text-anchor="middle">7.27.11</text>
-<circle class="prev" cx="353.1" cy="452.0" r="4.5" stroke-width="2"><title>7.28.0: 4.05</title></circle>
-<text class="v" x="361.1" y="444.0" text-anchor="start">4.05</text>
-<text class="m" x="353.1" y="492" text-anchor="middle">7.28.0</text>
-<circle class="cur" cx="380.0" cy="451.9" r="4.5" stroke-width="2"><title>7.28.2: 4.07</title></circle>
-<text class="v" x="388.0" y="455.9" text-anchor="start">4.07</text>
-<text class="m" x="380.0" y="492" text-anchor="middle">7.28.2</text>
+<circle class="prev" cx="55.0" cy="412.0" r="4.5" stroke-width="2"><title>7.25.5: 10.81</title></circle>
+<text class="v" x="63.0" y="404.0" text-anchor="start">10.81</text>
+<text class="m" x="55.0" y="492" text-anchor="middle">7.25.5</text>
+<circle class="prev" cx="80.0" cy="430.6" r="4.5" stroke-width="2"><title>7.25.20: 7.66</title></circle>
+<text class="v" x="88.0" y="422.6" text-anchor="start">7.66</text>
+<text class="m" x="80.0" y="492" text-anchor="middle">7.25.20</text>
+<circle class="prev" cx="105.0" cy="430.0" r="4.5" stroke-width="2"><title>7.25.21: 7.77</title></circle>
+<text class="v" x="113.0" y="422.0" text-anchor="start">7.77</text>
+<text class="m" x="105.0" y="492" text-anchor="middle">7.25.21</text>
+<circle class="prev" cx="130.0" cy="430.1" r="4.5" stroke-width="2"><title>7.25.22: 7.75</title></circle>
+<text class="v" x="138.0" y="422.1" text-anchor="start">7.75</text>
+<text class="m" x="130.0" y="492" text-anchor="middle">7.25.22</text>
+<circle class="prev" cx="155.0" cy="429.8" r="4.5" stroke-width="2"><title>7.26.0: 7.80</title></circle>
+<text class="v" x="163.0" y="421.8" text-anchor="start">7.80</text>
+<text class="m" x="155.0" y="492" text-anchor="middle">7.26.0</text>
+<circle class="prev" cx="180.0" cy="431.7" r="4.5" stroke-width="2"><title>7.26.9: 7.48</title></circle>
+<text class="v" x="188.0" y="423.7" text-anchor="start">7.48</text>
+<text class="m" x="180.0" y="492" text-anchor="middle">7.26.9</text>
+<circle class="prev" cx="205.0" cy="429.6" r="4.5" stroke-width="2"><title>7.27.0: 7.84</title></circle>
+<text class="v" x="213.0" y="421.6" text-anchor="start">7.84</text>
+<text class="m" x="205.0" y="492" text-anchor="middle">7.27.0</text>
+<circle class="prev" cx="230.0" cy="430.9" r="4.5" stroke-width="2"><title>7.27.5: 7.62</title></circle>
+<text class="v" x="238.0" y="422.9" text-anchor="start">7.62</text>
+<text class="m" x="230.0" y="492" text-anchor="middle">7.27.5</text>
+<circle class="prev" cx="255.0" cy="431.1" r="4.5" stroke-width="2"><title>7.27.7: 7.59</title></circle>
+<text class="v" x="263.0" y="423.1" text-anchor="start">7.59</text>
+<text class="m" x="255.0" y="492" text-anchor="middle">7.27.7</text>
+<circle class="prev" cx="280.0" cy="430.4" r="4.5" stroke-width="2"><title>7.27.10: 7.70</title></circle>
+<text class="v" x="288.0" y="422.4" text-anchor="start">7.70</text>
+<text class="m" x="280.0" y="492" text-anchor="middle">7.27.10</text>
+<circle class="prev" cx="305.0" cy="429.2" r="4.5" stroke-width="2"><title>7.27.11: 7.90</title></circle>
+<text class="v" x="313.0" y="421.2" text-anchor="start">7.90</text>
+<text class="m" x="305.0" y="492" text-anchor="middle">7.27.11</text>
+<circle class="prev" cx="330.0" cy="452.0" r="4.5" stroke-width="2"><title>7.28.0: 4.05</title></circle>
+<text class="v" x="338.0" y="444.0" text-anchor="start">4.05</text>
+<text class="m" x="330.0" y="492" text-anchor="middle">7.28.0</text>
+<circle class="prev" cx="355.0" cy="451.9" r="4.5" stroke-width="2"><title>7.28.2: 4.07</title></circle>
+<text class="v" x="363.0" y="443.9" text-anchor="start">4.07</text>
+<text class="m" x="355.0" y="492" text-anchor="middle">7.28.2</text>
+<circle class="cur" cx="380.0" cy="450.9" r="4.5" stroke-width="2"><title>7.28.4: 4.25</title></circle>
+<text class="v" x="388.0" y="454.9" text-anchor="start">4.25</text>
+<text class="m" x="380.0" y="492" text-anchor="middle">7.28.4</text>
 <text class="l" x="450" y="380">treedb link / unlink (us)</text>
 <line class="grid" x1="460" x2="860" y1="476" y2="476"/>
-<polyline class="curl" points="460.0,406.4 486.9,407.5 513.8,422.6 540.8,422.2 567.7,422.8 594.6,422.6 621.5,429.4 648.5,428.1 675.4,429.8 702.3,430.4 729.2,429.2 756.2,427.0 783.1,447.6 810.0,447.6"/>
+<polyline class="curl" points="460.0,406.4 485.0,407.5 510.0,422.6 535.0,422.2 560.0,422.8 585.0,422.6 610.0,429.4 635.0,428.1 660.0,429.8 685.0,430.4 710.0,429.2 735.0,427.0 760.0,447.6 785.0,447.6 810.0,446.3"/>
 <circle class="prev" cx="460.0" cy="406.4" r="4.5" stroke-width="2"><title>7.25.4: 11.27</title></circle>
 <text class="v" x="468.0" y="398.4" text-anchor="start">11.27</text>
 <text class="m" x="460.0" y="492" text-anchor="middle">7.25.4</text>
-<circle class="prev" cx="486.9" cy="407.5" r="4.5" stroke-width="2"><title>7.25.5: 11.09</title></circle>
-<text class="v" x="494.9" y="399.5" text-anchor="start">11.09</text>
-<text class="m" x="486.9" y="492" text-anchor="middle">7.25.5</text>
-<circle class="prev" cx="513.8" cy="422.6" r="4.5" stroke-width="2"><title>7.25.20: 8.65</title></circle>
-<text class="v" x="521.8" y="414.6" text-anchor="start">8.65</text>
-<text class="m" x="513.8" y="492" text-anchor="middle">7.25.20</text>
-<circle class="prev" cx="540.8" cy="422.2" r="4.5" stroke-width="2"><title>7.25.21: 8.71</title></circle>
-<text class="v" x="548.8" y="414.2" text-anchor="start">8.71</text>
-<text class="m" x="540.8" y="492" text-anchor="middle">7.25.21</text>
-<circle class="prev" cx="567.7" cy="422.8" r="4.5" stroke-width="2"><title>7.25.22: 8.63</title></circle>
-<text class="v" x="575.7" y="414.8" text-anchor="start">8.63</text>
-<text class="m" x="567.7" y="492" text-anchor="middle">7.25.22</text>
-<circle class="prev" cx="594.6" cy="422.6" r="4.5" stroke-width="2"><title>7.26.0: 8.65</title></circle>
-<text class="v" x="602.6" y="414.6" text-anchor="start">8.65</text>
-<text class="m" x="594.6" y="492" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="621.5" cy="429.4" r="4.5" stroke-width="2"><title>7.26.9: 7.54</title></circle>
-<text class="v" x="629.5" y="421.4" text-anchor="start">7.54</text>
-<text class="m" x="621.5" y="492" text-anchor="middle">7.26.9</text>
-<circle class="prev" cx="648.5" cy="428.1" r="4.5" stroke-width="2"><title>7.27.0: 7.76</title></circle>
-<text class="v" x="656.5" y="420.1" text-anchor="start">7.76</text>
-<text class="m" x="648.5" y="492" text-anchor="middle">7.27.0</text>
-<circle class="prev" cx="675.4" cy="429.8" r="4.5" stroke-width="2"><title>7.27.5: 7.48</title></circle>
-<text class="v" x="683.4" y="421.8" text-anchor="start">7.48</text>
-<text class="m" x="675.4" y="492" text-anchor="middle">7.27.5</text>
-<circle class="prev" cx="702.3" cy="430.4" r="4.5" stroke-width="2"><title>7.27.7: 7.38</title></circle>
-<text class="v" x="710.3" y="422.4" text-anchor="start">7.38</text>
-<text class="m" x="702.3" y="492" text-anchor="middle">7.27.7</text>
-<circle class="prev" cx="729.2" cy="429.2" r="4.5" stroke-width="2"><title>7.27.10: 7.58</title></circle>
-<text class="v" x="737.2" y="421.2" text-anchor="start">7.58</text>
-<text class="m" x="729.2" y="492" text-anchor="middle">7.27.10</text>
-<circle class="prev" cx="756.2" cy="427.0" r="4.5" stroke-width="2"><title>7.27.11: 7.94</title></circle>
-<text class="v" x="764.2" y="419.0" text-anchor="start">7.94</text>
-<text class="m" x="756.2" y="492" text-anchor="middle">7.27.11</text>
-<circle class="prev" cx="783.1" cy="447.6" r="4.5" stroke-width="2"><title>7.28.0: 4.59</title></circle>
-<text class="v" x="791.1" y="439.6" text-anchor="start">4.59</text>
-<text class="m" x="783.1" y="492" text-anchor="middle">7.28.0</text>
-<circle class="cur" cx="810.0" cy="447.6" r="4.5" stroke-width="2"><title>7.28.2: 4.61</title></circle>
-<text class="v" x="818.0" y="451.6" text-anchor="start">4.61</text>
-<text class="m" x="810.0" y="492" text-anchor="middle">7.28.2</text>
+<circle class="prev" cx="485.0" cy="407.5" r="4.5" stroke-width="2"><title>7.25.5: 11.09</title></circle>
+<text class="v" x="493.0" y="399.5" text-anchor="start">11.09</text>
+<text class="m" x="485.0" y="492" text-anchor="middle">7.25.5</text>
+<circle class="prev" cx="510.0" cy="422.6" r="4.5" stroke-width="2"><title>7.25.20: 8.65</title></circle>
+<text class="v" x="518.0" y="414.6" text-anchor="start">8.65</text>
+<text class="m" x="510.0" y="492" text-anchor="middle">7.25.20</text>
+<circle class="prev" cx="535.0" cy="422.2" r="4.5" stroke-width="2"><title>7.25.21: 8.71</title></circle>
+<text class="v" x="543.0" y="414.2" text-anchor="start">8.71</text>
+<text class="m" x="535.0" y="492" text-anchor="middle">7.25.21</text>
+<circle class="prev" cx="560.0" cy="422.8" r="4.5" stroke-width="2"><title>7.25.22: 8.63</title></circle>
+<text class="v" x="568.0" y="414.8" text-anchor="start">8.63</text>
+<text class="m" x="560.0" y="492" text-anchor="middle">7.25.22</text>
+<circle class="prev" cx="585.0" cy="422.6" r="4.5" stroke-width="2"><title>7.26.0: 8.65</title></circle>
+<text class="v" x="593.0" y="414.6" text-anchor="start">8.65</text>
+<text class="m" x="585.0" y="492" text-anchor="middle">7.26.0</text>
+<circle class="prev" cx="610.0" cy="429.4" r="4.5" stroke-width="2"><title>7.26.9: 7.54</title></circle>
+<text class="v" x="618.0" y="421.4" text-anchor="start">7.54</text>
+<text class="m" x="610.0" y="492" text-anchor="middle">7.26.9</text>
+<circle class="prev" cx="635.0" cy="428.1" r="4.5" stroke-width="2"><title>7.27.0: 7.76</title></circle>
+<text class="v" x="643.0" y="420.1" text-anchor="start">7.76</text>
+<text class="m" x="635.0" y="492" text-anchor="middle">7.27.0</text>
+<circle class="prev" cx="660.0" cy="429.8" r="4.5" stroke-width="2"><title>7.27.5: 7.48</title></circle>
+<text class="v" x="668.0" y="421.8" text-anchor="start">7.48</text>
+<text class="m" x="660.0" y="492" text-anchor="middle">7.27.5</text>
+<circle class="prev" cx="685.0" cy="430.4" r="4.5" stroke-width="2"><title>7.27.7: 7.38</title></circle>
+<text class="v" x="693.0" y="422.4" text-anchor="start">7.38</text>
+<text class="m" x="685.0" y="492" text-anchor="middle">7.27.7</text>
+<circle class="prev" cx="710.0" cy="429.2" r="4.5" stroke-width="2"><title>7.27.10: 7.58</title></circle>
+<text class="v" x="718.0" y="421.2" text-anchor="start">7.58</text>
+<text class="m" x="710.0" y="492" text-anchor="middle">7.27.10</text>
+<circle class="prev" cx="735.0" cy="427.0" r="4.5" stroke-width="2"><title>7.27.11: 7.94</title></circle>
+<text class="v" x="743.0" y="419.0" text-anchor="start">7.94</text>
+<text class="m" x="735.0" y="492" text-anchor="middle">7.27.11</text>
+<circle class="prev" cx="760.0" cy="447.6" r="4.5" stroke-width="2"><title>7.28.0: 4.59</title></circle>
+<text class="v" x="768.0" y="439.6" text-anchor="start">4.59</text>
+<text class="m" x="760.0" y="492" text-anchor="middle">7.28.0</text>
+<circle class="prev" cx="785.0" cy="447.6" r="4.5" stroke-width="2"><title>7.28.2: 4.61</title></circle>
+<text class="v" x="793.0" y="439.6" text-anchor="start">4.61</text>
+<text class="m" x="785.0" y="492" text-anchor="middle">7.28.2</text>
+<circle class="cur" cx="810.0" cy="446.3" r="4.5" stroke-width="2"><title>7.28.4: 4.81</title></circle>
+<text class="v" x="818.0" y="450.3" text-anchor="start">4.81</text>
+<text class="m" x="810.0" y="492" text-anchor="middle">7.28.4</text>
 <text class="l" x="20" y="530">Open 40 treedbs, same schema (s)</text>
 <line class="grid" x1="30" x2="430" y1="626" y2="626"/>
-<polyline class="curl" points="30.0,556.4 56.9,601.5 83.8,614.0 110.8,613.1 137.7,613.4 164.6,613.4 191.5,612.4 218.5,611.5 245.4,611.9 272.3,613.5 299.2,613.0 326.2,612.5 353.1,616.3 380.0,616.4"/>
+<polyline class="curl" points="30.0,556.4 55.0,601.5 80.0,614.0 105.0,613.1 130.0,613.4 155.0,613.4 180.0,612.4 205.0,611.5 230.0,611.9 255.0,613.5 280.0,613.0 305.0,612.5 330.0,616.3 355.0,616.4 380.0,613.7"/>
 <circle class="prev" cx="30.0" cy="556.4" r="4.5" stroke-width="2"><title>7.25.4: 1.84</title></circle>
 <text class="v" x="38.0" y="548.4" text-anchor="start">1.84</text>
 <text class="m" x="30.0" y="642" text-anchor="middle">7.25.4</text>
-<circle class="prev" cx="56.9" cy="601.5" r="4.5" stroke-width="2"><title>7.25.5: 0.649</title></circle>
-<text class="v" x="64.9" y="593.5" text-anchor="start">0.649</text>
-<text class="m" x="56.9" y="642" text-anchor="middle">7.25.5</text>
-<circle class="prev" cx="83.8" cy="614.0" r="4.5" stroke-width="2"><title>7.25.20: 0.318</title></circle>
-<text class="v" x="91.8" y="606.0" text-anchor="start">0.318</text>
-<text class="m" x="83.8" y="642" text-anchor="middle">7.25.20</text>
-<circle class="prev" cx="110.8" cy="613.1" r="4.5" stroke-width="2"><title>7.25.21: 0.340</title></circle>
-<text class="v" x="118.8" y="605.1" text-anchor="start">0.340</text>
-<text class="m" x="110.8" y="642" text-anchor="middle">7.25.21</text>
-<circle class="prev" cx="137.7" cy="613.4" r="4.5" stroke-width="2"><title>7.25.22: 0.333</title></circle>
-<text class="v" x="145.7" y="605.4" text-anchor="start">0.333</text>
-<text class="m" x="137.7" y="642" text-anchor="middle">7.25.22</text>
-<circle class="prev" cx="164.6" cy="613.4" r="4.5" stroke-width="2"><title>7.26.0: 0.335</title></circle>
-<text class="v" x="172.6" y="605.4" text-anchor="start">0.335</text>
-<text class="m" x="164.6" y="642" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="191.5" cy="612.4" r="4.5" stroke-width="2"><title>7.26.9: 0.359</title></circle>
-<text class="v" x="199.5" y="604.4" text-anchor="start">0.359</text>
-<text class="m" x="191.5" y="642" text-anchor="middle">7.26.9</text>
-<circle class="prev" cx="218.5" cy="611.5" r="4.5" stroke-width="2"><title>7.27.0: 0.383</title></circle>
-<text class="v" x="226.5" y="603.5" text-anchor="start">0.383</text>
-<text class="m" x="218.5" y="642" text-anchor="middle">7.27.0</text>
-<circle class="prev" cx="245.4" cy="611.9" r="4.5" stroke-width="2"><title>7.27.5: 0.374</title></circle>
-<text class="v" x="253.4" y="603.9" text-anchor="start">0.374</text>
-<text class="m" x="245.4" y="642" text-anchor="middle">7.27.5</text>
-<circle class="prev" cx="272.3" cy="613.5" r="4.5" stroke-width="2"><title>7.27.7: 0.331</title></circle>
-<text class="v" x="280.3" y="605.5" text-anchor="start">0.331</text>
-<text class="m" x="272.3" y="642" text-anchor="middle">7.27.7</text>
-<circle class="prev" cx="299.2" cy="613.0" r="4.5" stroke-width="2"><title>7.27.10: 0.344</title></circle>
-<text class="v" x="307.2" y="605.0" text-anchor="start">0.344</text>
-<text class="m" x="299.2" y="642" text-anchor="middle">7.27.10</text>
-<circle class="prev" cx="326.2" cy="612.5" r="4.5" stroke-width="2"><title>7.27.11: 0.357</title></circle>
-<text class="v" x="334.2" y="604.5" text-anchor="start">0.357</text>
-<text class="m" x="326.2" y="642" text-anchor="middle">7.27.11</text>
-<circle class="prev" cx="353.1" cy="616.3" r="4.5" stroke-width="2"><title>7.28.0: 0.256</title></circle>
-<text class="v" x="361.1" y="608.3" text-anchor="start">0.256</text>
-<text class="m" x="353.1" y="642" text-anchor="middle">7.28.0</text>
-<circle class="cur" cx="380.0" cy="616.4" r="4.5" stroke-width="2"><title>7.28.2: 0.253</title></circle>
-<text class="v" x="388.0" y="620.4" text-anchor="start">0.253</text>
-<text class="m" x="380.0" y="642" text-anchor="middle">7.28.2</text>
+<circle class="prev" cx="55.0" cy="601.5" r="4.5" stroke-width="2"><title>7.25.5: 0.649</title></circle>
+<text class="v" x="63.0" y="593.5" text-anchor="start">0.649</text>
+<text class="m" x="55.0" y="642" text-anchor="middle">7.25.5</text>
+<circle class="prev" cx="80.0" cy="614.0" r="4.5" stroke-width="2"><title>7.25.20: 0.318</title></circle>
+<text class="v" x="88.0" y="606.0" text-anchor="start">0.318</text>
+<text class="m" x="80.0" y="642" text-anchor="middle">7.25.20</text>
+<circle class="prev" cx="105.0" cy="613.1" r="4.5" stroke-width="2"><title>7.25.21: 0.340</title></circle>
+<text class="v" x="113.0" y="605.1" text-anchor="start">0.340</text>
+<text class="m" x="105.0" y="642" text-anchor="middle">7.25.21</text>
+<circle class="prev" cx="130.0" cy="613.4" r="4.5" stroke-width="2"><title>7.25.22: 0.333</title></circle>
+<text class="v" x="138.0" y="605.4" text-anchor="start">0.333</text>
+<text class="m" x="130.0" y="642" text-anchor="middle">7.25.22</text>
+<circle class="prev" cx="155.0" cy="613.4" r="4.5" stroke-width="2"><title>7.26.0: 0.335</title></circle>
+<text class="v" x="163.0" y="605.4" text-anchor="start">0.335</text>
+<text class="m" x="155.0" y="642" text-anchor="middle">7.26.0</text>
+<circle class="prev" cx="180.0" cy="612.4" r="4.5" stroke-width="2"><title>7.26.9: 0.359</title></circle>
+<text class="v" x="188.0" y="604.4" text-anchor="start">0.359</text>
+<text class="m" x="180.0" y="642" text-anchor="middle">7.26.9</text>
+<circle class="prev" cx="205.0" cy="611.5" r="4.5" stroke-width="2"><title>7.27.0: 0.383</title></circle>
+<text class="v" x="213.0" y="603.5" text-anchor="start">0.383</text>
+<text class="m" x="205.0" y="642" text-anchor="middle">7.27.0</text>
+<circle class="prev" cx="230.0" cy="611.9" r="4.5" stroke-width="2"><title>7.27.5: 0.374</title></circle>
+<text class="v" x="238.0" y="603.9" text-anchor="start">0.374</text>
+<text class="m" x="230.0" y="642" text-anchor="middle">7.27.5</text>
+<circle class="prev" cx="255.0" cy="613.5" r="4.5" stroke-width="2"><title>7.27.7: 0.331</title></circle>
+<text class="v" x="263.0" y="605.5" text-anchor="start">0.331</text>
+<text class="m" x="255.0" y="642" text-anchor="middle">7.27.7</text>
+<circle class="prev" cx="280.0" cy="613.0" r="4.5" stroke-width="2"><title>7.27.10: 0.344</title></circle>
+<text class="v" x="288.0" y="605.0" text-anchor="start">0.344</text>
+<text class="m" x="280.0" y="642" text-anchor="middle">7.27.10</text>
+<circle class="prev" cx="305.0" cy="612.5" r="4.5" stroke-width="2"><title>7.27.11: 0.357</title></circle>
+<text class="v" x="313.0" y="604.5" text-anchor="start">0.357</text>
+<text class="m" x="305.0" y="642" text-anchor="middle">7.27.11</text>
+<circle class="prev" cx="330.0" cy="616.3" r="4.5" stroke-width="2"><title>7.28.0: 0.256</title></circle>
+<text class="v" x="338.0" y="608.3" text-anchor="start">0.256</text>
+<text class="m" x="330.0" y="642" text-anchor="middle">7.28.0</text>
+<circle class="prev" cx="355.0" cy="616.4" r="4.5" stroke-width="2"><title>7.28.2: 0.253</title></circle>
+<text class="v" x="363.0" y="608.4" text-anchor="start">0.253</text>
+<text class="m" x="355.0" y="642" text-anchor="middle">7.28.2</text>
+<circle class="cur" cx="380.0" cy="613.7" r="4.5" stroke-width="2"><title>7.28.4: 0.325</title></circle>
+<text class="v" x="388.0" y="617.7" text-anchor="start">0.325</text>
+<text class="m" x="380.0" y="642" text-anchor="middle">7.28.4</text>
 <text class="l" x="450" y="530">Agent audit record (ns)</text>
 <line class="grid" x1="460" x2="860" y1="626" y2="626"/>
-<polyline class="curl" points="460.0,556.4 486.9,619.8 513.8,619.6 540.8,619.3 567.7,619.6 594.6,619.6 621.5,619.5 648.5,619.5 675.4,619.6 702.3,619.6 729.2,619.7 756.2,619.7 783.1,619.7 810.0,619.7"/>
+<polyline class="curl" points="460.0,556.4 485.0,619.8 510.0,619.6 535.0,619.3 560.0,619.6 585.0,619.6 610.0,619.5 635.0,619.5 660.0,619.6 685.0,619.6 710.0,619.7 735.0,619.7 760.0,619.7 785.0,619.7 810.0,619.2"/>
 <circle class="prev" cx="460.0" cy="556.4" r="4.5" stroke-width="2"><title>7.25.4: 6,194</title></circle>
 <text class="v" x="468.0" y="548.4" text-anchor="start">6,194</text>
 <text class="m" x="460.0" y="642" text-anchor="middle">7.25.4</text>
-<circle class="prev" cx="486.9" cy="619.8" r="4.5" stroke-width="2"><title>7.25.5: 554</title></circle>
-<text class="v" x="494.9" y="611.8" text-anchor="start">554</text>
-<text class="m" x="486.9" y="642" text-anchor="middle">7.25.5</text>
-<circle class="prev" cx="513.8" cy="619.6" r="4.5" stroke-width="2"><title>7.25.20: 572.1</title></circle>
-<text class="v" x="521.8" y="611.6" text-anchor="start">572.1</text>
-<text class="m" x="513.8" y="642" text-anchor="middle">7.25.20</text>
-<circle class="prev" cx="540.8" cy="619.3" r="4.5" stroke-width="2"><title>7.25.21: 592.5</title></circle>
-<text class="v" x="548.8" y="611.3" text-anchor="start">592.5</text>
-<text class="m" x="540.8" y="642" text-anchor="middle">7.25.21</text>
-<circle class="prev" cx="567.7" cy="619.6" r="4.5" stroke-width="2"><title>7.25.22: 567.9</title></circle>
-<text class="v" x="575.7" y="611.6" text-anchor="start">567.9</text>
-<text class="m" x="567.7" y="642" text-anchor="middle">7.25.22</text>
-<circle class="prev" cx="594.6" cy="619.6" r="4.5" stroke-width="2"><title>7.26.0: 570.1</title></circle>
-<text class="v" x="602.6" y="611.6" text-anchor="start">570.1</text>
-<text class="m" x="594.6" y="642" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="621.5" cy="619.5" r="4.5" stroke-width="2"><title>7.26.9: 579.4</title></circle>
-<text class="v" x="629.5" y="611.5" text-anchor="start">579.4</text>
-<text class="m" x="621.5" y="642" text-anchor="middle">7.26.9</text>
-<circle class="prev" cx="648.5" cy="619.5" r="4.5" stroke-width="2"><title>7.27.0: 578</title></circle>
-<text class="v" x="656.5" y="611.5" text-anchor="start">578</text>
-<text class="m" x="648.5" y="642" text-anchor="middle">7.27.0</text>
-<circle class="prev" cx="675.4" cy="619.6" r="4.5" stroke-width="2"><title>7.27.5: 573</title></circle>
-<text class="v" x="683.4" y="611.6" text-anchor="start">573</text>
-<text class="m" x="675.4" y="642" text-anchor="middle">7.27.5</text>
-<circle class="prev" cx="702.3" cy="619.6" r="4.5" stroke-width="2"><title>7.27.7: 572.3</title></circle>
-<text class="v" x="710.3" y="611.6" text-anchor="start">572.3</text>
-<text class="m" x="702.3" y="642" text-anchor="middle">7.27.7</text>
-<circle class="prev" cx="729.2" cy="619.7" r="4.5" stroke-width="2"><title>7.27.10: 558.7</title></circle>
-<text class="v" x="737.2" y="611.7" text-anchor="start">558.7</text>
-<text class="m" x="729.2" y="642" text-anchor="middle">7.27.10</text>
-<circle class="prev" cx="756.2" cy="619.7" r="4.5" stroke-width="2"><title>7.27.11: 563.7</title></circle>
-<text class="v" x="764.2" y="611.7" text-anchor="start">563.7</text>
-<text class="m" x="756.2" y="642" text-anchor="middle">7.27.11</text>
-<circle class="prev" cx="783.1" cy="619.7" r="4.5" stroke-width="2"><title>7.28.0: 564</title></circle>
-<text class="v" x="791.1" y="611.7" text-anchor="start">564</text>
-<text class="m" x="783.1" y="642" text-anchor="middle">7.28.0</text>
-<circle class="cur" cx="810.0" cy="619.7" r="4.5" stroke-width="2"><title>7.28.2: 558.5</title></circle>
-<text class="v" x="818.0" y="623.7" text-anchor="start">558.5</text>
-<text class="m" x="810.0" y="642" text-anchor="middle">7.28.2</text>
+<circle class="prev" cx="485.0" cy="619.8" r="4.5" stroke-width="2"><title>7.25.5: 554</title></circle>
+<text class="v" x="493.0" y="611.8" text-anchor="start">554</text>
+<text class="m" x="485.0" y="642" text-anchor="middle">7.25.5</text>
+<circle class="prev" cx="510.0" cy="619.6" r="4.5" stroke-width="2"><title>7.25.20: 572.1</title></circle>
+<text class="v" x="518.0" y="611.6" text-anchor="start">572.1</text>
+<text class="m" x="510.0" y="642" text-anchor="middle">7.25.20</text>
+<circle class="prev" cx="535.0" cy="619.3" r="4.5" stroke-width="2"><title>7.25.21: 592.5</title></circle>
+<text class="v" x="543.0" y="611.3" text-anchor="start">592.5</text>
+<text class="m" x="535.0" y="642" text-anchor="middle">7.25.21</text>
+<circle class="prev" cx="560.0" cy="619.6" r="4.5" stroke-width="2"><title>7.25.22: 567.9</title></circle>
+<text class="v" x="568.0" y="611.6" text-anchor="start">567.9</text>
+<text class="m" x="560.0" y="642" text-anchor="middle">7.25.22</text>
+<circle class="prev" cx="585.0" cy="619.6" r="4.5" stroke-width="2"><title>7.26.0: 570.1</title></circle>
+<text class="v" x="593.0" y="611.6" text-anchor="start">570.1</text>
+<text class="m" x="585.0" y="642" text-anchor="middle">7.26.0</text>
+<circle class="prev" cx="610.0" cy="619.5" r="4.5" stroke-width="2"><title>7.26.9: 579.4</title></circle>
+<text class="v" x="618.0" y="611.5" text-anchor="start">579.4</text>
+<text class="m" x="610.0" y="642" text-anchor="middle">7.26.9</text>
+<circle class="prev" cx="635.0" cy="619.5" r="4.5" stroke-width="2"><title>7.27.0: 578</title></circle>
+<text class="v" x="643.0" y="611.5" text-anchor="start">578</text>
+<text class="m" x="635.0" y="642" text-anchor="middle">7.27.0</text>
+<circle class="prev" cx="660.0" cy="619.6" r="4.5" stroke-width="2"><title>7.27.5: 573</title></circle>
+<text class="v" x="668.0" y="611.6" text-anchor="start">573</text>
+<text class="m" x="660.0" y="642" text-anchor="middle">7.27.5</text>
+<circle class="prev" cx="685.0" cy="619.6" r="4.5" stroke-width="2"><title>7.27.7: 572.3</title></circle>
+<text class="v" x="693.0" y="611.6" text-anchor="start">572.3</text>
+<text class="m" x="685.0" y="642" text-anchor="middle">7.27.7</text>
+<circle class="prev" cx="710.0" cy="619.7" r="4.5" stroke-width="2"><title>7.27.10: 558.7</title></circle>
+<text class="v" x="718.0" y="611.7" text-anchor="start">558.7</text>
+<text class="m" x="710.0" y="642" text-anchor="middle">7.27.10</text>
+<circle class="prev" cx="735.0" cy="619.7" r="4.5" stroke-width="2"><title>7.27.11: 563.7</title></circle>
+<text class="v" x="743.0" y="611.7" text-anchor="start">563.7</text>
+<text class="m" x="735.0" y="642" text-anchor="middle">7.27.11</text>
+<circle class="prev" cx="760.0" cy="619.7" r="4.5" stroke-width="2"><title>7.28.0: 564</title></circle>
+<text class="v" x="768.0" y="611.7" text-anchor="start">564</text>
+<text class="m" x="760.0" y="642" text-anchor="middle">7.28.0</text>
+<circle class="prev" cx="785.0" cy="619.7" r="4.5" stroke-width="2"><title>7.28.2: 558.5</title></circle>
+<text class="v" x="793.0" y="611.7" text-anchor="start">558.5</text>
+<text class="m" x="785.0" y="642" text-anchor="middle">7.28.2</text>
+<circle class="cur" cx="810.0" cy="619.2" r="4.5" stroke-width="2"><title>7.28.4: 602.7</title></circle>
+<text class="v" x="818.0" y="623.2" text-anchor="start">602.7</text>
+<text class="m" x="810.0" y="642" text-anchor="middle">7.28.4</text>
 <text class="l" x="20" y="680">Event loop echo (K msg/s)</text>
 <line class="grid" x1="30" x2="430" y1="776" y2="776"/>
-<polyline class="curl" points="30.0,706.4 56.9,707.2 83.8,707.4 110.8,708.8 137.7,707.2 164.6,707.9 191.5,709.0 218.5,709.8 245.4,710.6 272.3,708.2 299.2,709.6 326.2,708.8 353.1,706.8 380.0,708.5"/>
+<polyline class="curl" points="30.0,706.4 55.0,707.2 80.0,707.4 105.0,708.8 130.0,707.2 155.0,707.9 180.0,709.0 205.0,709.8 230.0,710.6 255.0,708.2 280.0,709.6 305.0,708.8 330.0,706.8 355.0,708.5 380.0,710.6"/>
 <circle class="prev" cx="30.0" cy="706.4" r="4.5" stroke-width="2"><title>7.25.4: 152.2</title></circle>
 <text class="v" x="38.0" y="698.4" text-anchor="start">152.2</text>
 <text class="m" x="30.0" y="792" text-anchor="middle">7.25.4</text>
-<circle class="prev" cx="56.9" cy="707.2" r="4.5" stroke-width="2"><title>7.25.5: 150.5</title></circle>
-<text class="v" x="64.9" y="699.2" text-anchor="start">150.5</text>
-<text class="m" x="56.9" y="792" text-anchor="middle">7.25.5</text>
-<circle class="prev" cx="83.8" cy="707.4" r="4.5" stroke-width="2"><title>7.25.20: 150.1</title></circle>
-<text class="v" x="91.8" y="699.4" text-anchor="start">150.1</text>
-<text class="m" x="83.8" y="792" text-anchor="middle">7.25.20</text>
-<circle class="prev" cx="110.8" cy="708.8" r="4.5" stroke-width="2"><title>7.25.21: 147.1</title></circle>
-<text class="v" x="118.8" y="700.8" text-anchor="start">147.1</text>
-<text class="m" x="110.8" y="792" text-anchor="middle">7.25.21</text>
-<circle class="prev" cx="137.7" cy="707.2" r="4.5" stroke-width="2"><title>7.25.22: 150.5</title></circle>
-<text class="v" x="145.7" y="699.2" text-anchor="start">150.5</text>
-<text class="m" x="137.7" y="792" text-anchor="middle">7.25.22</text>
-<circle class="prev" cx="164.6" cy="707.9" r="4.5" stroke-width="2"><title>7.26.0: 149</title></circle>
-<text class="v" x="172.6" y="699.9" text-anchor="start">149</text>
-<text class="m" x="164.6" y="792" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="191.5" cy="709.0" r="4.5" stroke-width="2"><title>7.26.9: 146.5</title></circle>
-<text class="v" x="199.5" y="701.0" text-anchor="start">146.5</text>
-<text class="m" x="191.5" y="792" text-anchor="middle">7.26.9</text>
-<circle class="prev" cx="218.5" cy="709.8" r="4.5" stroke-width="2"><title>7.27.0: 144.9</title></circle>
-<text class="v" x="226.5" y="701.8" text-anchor="start">144.9</text>
-<text class="m" x="218.5" y="792" text-anchor="middle">7.27.0</text>
-<circle class="prev" cx="245.4" cy="710.6" r="4.5" stroke-width="2"><title>7.27.5: 143.1</title></circle>
-<text class="v" x="253.4" y="702.6" text-anchor="start">143.1</text>
-<text class="m" x="245.4" y="792" text-anchor="middle">7.27.5</text>
-<circle class="prev" cx="272.3" cy="708.2" r="4.5" stroke-width="2"><title>7.27.7: 148.3</title></circle>
-<text class="v" x="280.3" y="700.2" text-anchor="start">148.3</text>
-<text class="m" x="272.3" y="792" text-anchor="middle">7.27.7</text>
-<circle class="prev" cx="299.2" cy="709.6" r="4.5" stroke-width="2"><title>7.27.10: 145.3</title></circle>
-<text class="v" x="307.2" y="701.6" text-anchor="start">145.3</text>
-<text class="m" x="299.2" y="792" text-anchor="middle">7.27.10</text>
-<circle class="prev" cx="326.2" cy="708.8" r="4.5" stroke-width="2"><title>7.27.11: 147.1</title></circle>
-<text class="v" x="334.2" y="700.8" text-anchor="start">147.1</text>
-<text class="m" x="326.2" y="792" text-anchor="middle">7.27.11</text>
-<circle class="prev" cx="353.1" cy="706.8" r="4.5" stroke-width="2"><title>7.28.0: 151.4</title></circle>
-<text class="v" x="361.1" y="698.8" text-anchor="start">151.4</text>
-<text class="m" x="353.1" y="792" text-anchor="middle">7.28.0</text>
-<circle class="cur" cx="380.0" cy="708.5" r="4.5" stroke-width="2"><title>7.28.2: 147.6</title></circle>
-<text class="v" x="388.0" y="712.5" text-anchor="start">147.6</text>
-<text class="m" x="380.0" y="792" text-anchor="middle">7.28.2</text>
+<circle class="prev" cx="55.0" cy="707.2" r="4.5" stroke-width="2"><title>7.25.5: 150.5</title></circle>
+<text class="v" x="63.0" y="699.2" text-anchor="start">150.5</text>
+<text class="m" x="55.0" y="792" text-anchor="middle">7.25.5</text>
+<circle class="prev" cx="80.0" cy="707.4" r="4.5" stroke-width="2"><title>7.25.20: 150.1</title></circle>
+<text class="v" x="88.0" y="699.4" text-anchor="start">150.1</text>
+<text class="m" x="80.0" y="792" text-anchor="middle">7.25.20</text>
+<circle class="prev" cx="105.0" cy="708.8" r="4.5" stroke-width="2"><title>7.25.21: 147.1</title></circle>
+<text class="v" x="113.0" y="700.8" text-anchor="start">147.1</text>
+<text class="m" x="105.0" y="792" text-anchor="middle">7.25.21</text>
+<circle class="prev" cx="130.0" cy="707.2" r="4.5" stroke-width="2"><title>7.25.22: 150.5</title></circle>
+<text class="v" x="138.0" y="699.2" text-anchor="start">150.5</text>
+<text class="m" x="130.0" y="792" text-anchor="middle">7.25.22</text>
+<circle class="prev" cx="155.0" cy="707.9" r="4.5" stroke-width="2"><title>7.26.0: 149</title></circle>
+<text class="v" x="163.0" y="699.9" text-anchor="start">149</text>
+<text class="m" x="155.0" y="792" text-anchor="middle">7.26.0</text>
+<circle class="prev" cx="180.0" cy="709.0" r="4.5" stroke-width="2"><title>7.26.9: 146.5</title></circle>
+<text class="v" x="188.0" y="701.0" text-anchor="start">146.5</text>
+<text class="m" x="180.0" y="792" text-anchor="middle">7.26.9</text>
+<circle class="prev" cx="205.0" cy="709.8" r="4.5" stroke-width="2"><title>7.27.0: 144.9</title></circle>
+<text class="v" x="213.0" y="701.8" text-anchor="start">144.9</text>
+<text class="m" x="205.0" y="792" text-anchor="middle">7.27.0</text>
+<circle class="prev" cx="230.0" cy="710.6" r="4.5" stroke-width="2"><title>7.27.5: 143.1</title></circle>
+<text class="v" x="238.0" y="702.6" text-anchor="start">143.1</text>
+<text class="m" x="230.0" y="792" text-anchor="middle">7.27.5</text>
+<circle class="prev" cx="255.0" cy="708.2" r="4.5" stroke-width="2"><title>7.27.7: 148.3</title></circle>
+<text class="v" x="263.0" y="700.2" text-anchor="start">148.3</text>
+<text class="m" x="255.0" y="792" text-anchor="middle">7.27.7</text>
+<circle class="prev" cx="280.0" cy="709.6" r="4.5" stroke-width="2"><title>7.27.10: 145.3</title></circle>
+<text class="v" x="288.0" y="701.6" text-anchor="start">145.3</text>
+<text class="m" x="280.0" y="792" text-anchor="middle">7.27.10</text>
+<circle class="prev" cx="305.0" cy="708.8" r="4.5" stroke-width="2"><title>7.27.11: 147.1</title></circle>
+<text class="v" x="313.0" y="700.8" text-anchor="start">147.1</text>
+<text class="m" x="305.0" y="792" text-anchor="middle">7.27.11</text>
+<circle class="prev" cx="330.0" cy="706.8" r="4.5" stroke-width="2"><title>7.28.0: 151.4</title></circle>
+<text class="v" x="338.0" y="698.8" text-anchor="start">151.4</text>
+<text class="m" x="330.0" y="792" text-anchor="middle">7.28.0</text>
+<circle class="prev" cx="355.0" cy="708.5" r="4.5" stroke-width="2"><title>7.28.2: 147.6</title></circle>
+<text class="v" x="363.0" y="700.5" text-anchor="start">147.6</text>
+<text class="m" x="355.0" y="792" text-anchor="middle">7.28.2</text>
+<circle class="cur" cx="380.0" cy="710.6" r="4.5" stroke-width="2"><title>7.28.4: 143.2</title></circle>
+<text class="v" x="388.0" y="714.6" text-anchor="start">143.2</text>
+<text class="m" x="380.0" y="792" text-anchor="middle">7.28.4</text>
 <text class="l" x="450" y="680">gobj TCP echo (round trips/s)</text>
 <line class="grid" x1="460" x2="860" y1="776" y2="776"/>
-<polyline class="curl" points="460.0,733.6 486.9,732.9 513.8,734.1 540.8,732.5 567.7,734.0 594.6,732.7 621.5,733.2 648.5,733.5 675.4,734.0 702.3,733.1 729.2,733.4 756.2,733.2 783.1,706.4 810.0,707.1"/>
+<polyline class="curl" points="460.0,733.6 485.0,732.9 510.0,734.1 535.0,732.5 560.0,734.0 585.0,732.7 610.0,733.2 635.0,733.5 660.0,734.0 685.0,733.1 710.0,733.4 735.0,733.2 760.0,706.4 785.0,707.1 810.0,711.8"/>
 <circle class="prev" cx="460.0" cy="733.6" r="4.5" stroke-width="2"><title>7.25.4: 38,706</title></circle>
 <text class="v" x="468.0" y="725.6" text-anchor="start">38,706</text>
 <text class="m" x="460.0" y="792" text-anchor="middle">7.25.4</text>
-<circle class="prev" cx="486.9" cy="732.9" r="4.5" stroke-width="2"><title>7.25.5: 39,344</title></circle>
-<text class="v" x="494.9" y="724.9" text-anchor="start">39,344</text>
-<text class="m" x="486.9" y="792" text-anchor="middle">7.25.5</text>
-<circle class="prev" cx="513.8" cy="734.1" r="4.5" stroke-width="2"><title>7.25.20: 38,191</title></circle>
-<text class="v" x="521.8" y="726.1" text-anchor="start">38,191</text>
-<text class="m" x="513.8" y="792" text-anchor="middle">7.25.20</text>
-<circle class="prev" cx="540.8" cy="732.5" r="4.5" stroke-width="2"><title>7.25.21: 39,715</title></circle>
-<text class="v" x="548.8" y="724.5" text-anchor="start">39,715</text>
-<text class="m" x="540.8" y="792" text-anchor="middle">7.25.21</text>
-<circle class="prev" cx="567.7" cy="734.0" r="4.5" stroke-width="2"><title>7.25.22: 38,292</title></circle>
-<text class="v" x="575.7" y="726.0" text-anchor="start">38,292</text>
-<text class="m" x="567.7" y="792" text-anchor="middle">7.25.22</text>
-<circle class="prev" cx="594.6" cy="732.7" r="4.5" stroke-width="2"><title>7.26.0: 39,511</title></circle>
-<text class="v" x="602.6" y="724.7" text-anchor="start">39,511</text>
-<text class="m" x="594.6" y="792" text-anchor="middle">7.26.0</text>
-<circle class="prev" cx="621.5" cy="733.2" r="4.5" stroke-width="2"><title>7.26.9: 39,034</title></circle>
-<text class="v" x="629.5" y="725.2" text-anchor="start">39,034</text>
-<text class="m" x="621.5" y="792" text-anchor="middle">7.26.9</text>
-<circle class="prev" cx="648.5" cy="733.5" r="4.5" stroke-width="2"><title>7.27.0: 38,744</title></circle>
-<text class="v" x="656.5" y="725.5" text-anchor="start">38,744</text>
-<text class="m" x="648.5" y="792" text-anchor="middle">7.27.0</text>
-<circle class="prev" cx="675.4" cy="734.0" r="4.5" stroke-width="2"><title>7.27.5: 38,301</title></circle>
-<text class="v" x="683.4" y="726.0" text-anchor="start">38,301</text>
-<text class="m" x="675.4" y="792" text-anchor="middle">7.27.5</text>
-<circle class="prev" cx="702.3" cy="733.1" r="4.5" stroke-width="2"><title>7.27.7: 39,107</title></circle>
-<text class="v" x="710.3" y="725.1" text-anchor="start">39,107</text>
-<text class="m" x="702.3" y="792" text-anchor="middle">7.27.7</text>
-<circle class="prev" cx="729.2" cy="733.4" r="4.5" stroke-width="2"><title>7.27.10: 38,877</title></circle>
-<text class="v" x="737.2" y="725.4" text-anchor="start">38,877</text>
-<text class="m" x="729.2" y="792" text-anchor="middle">7.27.10</text>
-<circle class="prev" cx="756.2" cy="733.2" r="4.5" stroke-width="2"><title>7.27.11: 39,035</title></circle>
-<text class="v" x="764.2" y="725.2" text-anchor="start">39,035</text>
-<text class="m" x="756.2" y="792" text-anchor="middle">7.27.11</text>
-<circle class="prev" cx="783.1" cy="706.4" r="4.5" stroke-width="2"><title>7.28.0: 63,478</title></circle>
-<text class="v" x="791.1" y="698.4" text-anchor="start">63,478</text>
-<text class="m" x="783.1" y="792" text-anchor="middle">7.28.0</text>
-<circle class="cur" cx="810.0" cy="707.1" r="4.5" stroke-width="2"><title>7.28.2: 62,915</title></circle>
-<text class="v" x="818.0" y="711.1" text-anchor="start">62,915</text>
-<text class="m" x="810.0" y="792" text-anchor="middle">7.28.2</text>
+<circle class="prev" cx="485.0" cy="732.9" r="4.5" stroke-width="2"><title>7.25.5: 39,344</title></circle>
+<text class="v" x="493.0" y="724.9" text-anchor="start">39,344</text>
+<text class="m" x="485.0" y="792" text-anchor="middle">7.25.5</text>
+<circle class="prev" cx="510.0" cy="734.1" r="4.5" stroke-width="2"><title>7.25.20: 38,191</title></circle>
+<text class="v" x="518.0" y="726.1" text-anchor="start">38,191</text>
+<text class="m" x="510.0" y="792" text-anchor="middle">7.25.20</text>
+<circle class="prev" cx="535.0" cy="732.5" r="4.5" stroke-width="2"><title>7.25.21: 39,715</title></circle>
+<text class="v" x="543.0" y="724.5" text-anchor="start">39,715</text>
+<text class="m" x="535.0" y="792" text-anchor="middle">7.25.21</text>
+<circle class="prev" cx="560.0" cy="734.0" r="4.5" stroke-width="2"><title>7.25.22: 38,292</title></circle>
+<text class="v" x="568.0" y="726.0" text-anchor="start">38,292</text>
+<text class="m" x="560.0" y="792" text-anchor="middle">7.25.22</text>
+<circle class="prev" cx="585.0" cy="732.7" r="4.5" stroke-width="2"><title>7.26.0: 39,511</title></circle>
+<text class="v" x="593.0" y="724.7" text-anchor="start">39,511</text>
+<text class="m" x="585.0" y="792" text-anchor="middle">7.26.0</text>
+<circle class="prev" cx="610.0" cy="733.2" r="4.5" stroke-width="2"><title>7.26.9: 39,034</title></circle>
+<text class="v" x="618.0" y="725.2" text-anchor="start">39,034</text>
+<text class="m" x="610.0" y="792" text-anchor="middle">7.26.9</text>
+<circle class="prev" cx="635.0" cy="733.5" r="4.5" stroke-width="2"><title>7.27.0: 38,744</title></circle>
+<text class="v" x="643.0" y="725.5" text-anchor="start">38,744</text>
+<text class="m" x="635.0" y="792" text-anchor="middle">7.27.0</text>
+<circle class="prev" cx="660.0" cy="734.0" r="4.5" stroke-width="2"><title>7.27.5: 38,301</title></circle>
+<text class="v" x="668.0" y="726.0" text-anchor="start">38,301</text>
+<text class="m" x="660.0" y="792" text-anchor="middle">7.27.5</text>
+<circle class="prev" cx="685.0" cy="733.1" r="4.5" stroke-width="2"><title>7.27.7: 39,107</title></circle>
+<text class="v" x="693.0" y="725.1" text-anchor="start">39,107</text>
+<text class="m" x="685.0" y="792" text-anchor="middle">7.27.7</text>
+<circle class="prev" cx="710.0" cy="733.4" r="4.5" stroke-width="2"><title>7.27.10: 38,877</title></circle>
+<text class="v" x="718.0" y="725.4" text-anchor="start">38,877</text>
+<text class="m" x="710.0" y="792" text-anchor="middle">7.27.10</text>
+<circle class="prev" cx="735.0" cy="733.2" r="4.5" stroke-width="2"><title>7.27.11: 39,035</title></circle>
+<text class="v" x="743.0" y="725.2" text-anchor="start">39,035</text>
+<text class="m" x="735.0" y="792" text-anchor="middle">7.27.11</text>
+<circle class="prev" cx="760.0" cy="706.4" r="4.5" stroke-width="2"><title>7.28.0: 63,478</title></circle>
+<text class="v" x="768.0" y="698.4" text-anchor="start">63,478</text>
+<text class="m" x="760.0" y="792" text-anchor="middle">7.28.0</text>
+<circle class="prev" cx="785.0" cy="707.1" r="4.5" stroke-width="2"><title>7.28.2: 62,915</title></circle>
+<text class="v" x="793.0" y="699.1" text-anchor="start">62,915</text>
+<text class="m" x="785.0" y="792" text-anchor="middle">7.28.2</text>
+<circle class="cur" cx="810.0" cy="711.8" r="4.5" stroke-width="2"><title>7.28.4: 58,567</title></circle>
+<text class="v" x="818.0" y="715.8" text-anchor="start">58,567</text>
+<text class="m" x="810.0" y="792" text-anchor="middle">7.28.4</text>
 </svg>
