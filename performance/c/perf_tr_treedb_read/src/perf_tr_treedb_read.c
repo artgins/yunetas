@@ -455,6 +455,17 @@ int main(int argc, char *argv[])
     unsigned long memory_check_list[] = {0, 0};
     set_memory_check_list(memory_check_list);
 
+    /*
+     *  N = 8000 holds more than the default 64 MB once CONFIG_DEBUG_TRACK_MEMORY
+     *  adds its header to every block
+     */
+    gbmem_setup(
+        0,
+        1024*1024*1024L,
+        FALSE,
+        0,
+        0
+    );
     gobj_start_up(argc, argv, NULL, NULL, NULL, NULL, NULL, NULL);
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
