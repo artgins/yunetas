@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v7.28.4 (2026-10-25)
+
+A full release: `c_yuno` and `c_qiogate` are in the kernel, which every yuno
+links. The suite ran on the dev machine. The performance study is against
+7.28.2, the last studied release.
+
 - **A yuno tells its memory and the fullest filesystem it writes to.** Its
   stats (`stats-yuno` for `__yuno__`, and the `cpu` kind of
   `watch-yuno-stats`) gain `mem_rss_kb` (its resident memory),
@@ -36,6 +42,11 @@
   simulator, already stopped, and the others went on. `scenarios` also
   answers the run in flight of a scenario, `run_in_flight` (`id`, `action`,
   `username`, `started_at`). `tests/c/c_controlcenter_scenarios` (case 17).
+- **The web console (gui_agent 1.0.8 to 1.1.1)**: the action buttons of a
+  scenario are enabled only when its state lets them work; the live view
+  shows the memory and the fullest disk of each yuno and node; the time axis
+  of the charts is the window chosen; and every control is off while a run
+  of the scenario is in flight in the control center (`run_in_flight`).
 
 ## v7.28.3 (2026-10-25)
 
