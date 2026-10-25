@@ -2,11 +2,8 @@
  *          test_date_text.c
  *
  *          Dates as text, read and written by kernel/c/gobj-c/src/helpers.c:
- *          approxidate_careful() / approxidate() / approxidate_relative(),
- *          parse_date_basic(), parse_date(), parse_expiry_date(),
- *          show_date() / date_mode_from_type() / parse_date_format(),
- *          show_date_relative(), datestamp(), date_overflows() and
- *          tm_to_time_t().
+ *          approxidate_careful() / approxidate(), parse_date_basic() and
+ *          show_date_relative().
  *
  *          In the time zone of Madrid, with the clock faked (the test binary
  *          is linked with --wrap=time, see CMakeLists.txt): NOW is
@@ -29,28 +26,22 @@
  *          4.  parse_date_basic(): only a whole date and time, or epoch
  *              seconds, and the offset it was given in (the local one when
  *              none);
- *          5.  show_date() in every mode, and the modes of
- *              parse_date_format() ("-local" and the default);
- *          6.  show_date_relative() at the edge of each unit;
- *          7.  parse_date(), parse_expiry_date(), datestamp(),
- *              approxidate_relative(), date_overflows(), tm_to_time_t().
+ *          5.  show_date_relative() at the edge of each unit.
  *
  *          And what the rewrite of 2026 (the port of git's date.c, GPL-2.0,
  *          replaced) reads differently:
- *          8.  a text that is no date is refused, with the error flag,
+ *          6.  a text that is no date is refused, with the error flag,
  *              where the port read something else in silence: a time ahead
  *              ("in 3 days", "2 days from now" were days BACK), "1.5 hours
  *              ago" (the 1st of May), a date not in the calendar
  *              ("2026-02-30" was March 2), a lone sign or number ("+5" was
  *              the 5th); "today", "2 mins", "3 hrs" and "@0" are read;
- *          9.  the edges of the calendar: a month back from the 31st, a
+ *          7.  the edges of the calendar: a month back from the 31st, a
  *              year back from Feb 29, a Y-M-D date far ahead of now;
- *          10. a clock time on the day of a change of hour is the local
+ *          8.  a clock time on the day of a change of hour is the local
  *              one ("noon yesterday" was 13:00 on 2026-10-25);
- *          11. one unit is singular in show_date_relative(); a strftime
- *              format is written, and an unknown format is the default
- *              one, with an error (the port crashed);
- *          12. parse_date_basic() refuses a word it does not know.
+ *          9.  parse_date_basic() refuses a word it does not know. And one
+ *              unit is singular in show_date_relative() (5).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -154,7 +145,7 @@ PRIVATE void check_text(const char *label, const char *got, const char *expected
 /***************************************************************************
  *  1. Durations back from now, specials, clock times
  ***************************************************************************/
-PRIVATE void test_approxidate_relative_forms(void)
+PRIVATE void test_approxidate_durations_and_times(void)
 {
     static const approxidate_case_t cases[] = {
         {"now",                     "2026-10-21 11:00:00 +0200", 0},
@@ -402,66 +393,7 @@ PRIVATE void test_parse_date_basic(void)
 }
 
 /***************************************************************************
- *  5. show_date(), with the zone as +hhmm in a number (200 is +02:00)
- ***************************************************************************/
-PRIVATE void check_show_date(enum date_mode_type type, timestamp_t t, int tz, const char *expected)
-{
-    char label[64];
-    snprintf(label, sizeof(label), "show_date mode %d, %llu, %d", (int)type, (unsigned long long)t, tz);
-    check_text(label, show_date(t, tz, date_mode_from_type(type)), expected);
-}
-
-PRIVATE void check_date_format(const char *format, const char *expected)
-{
-    struct date_mode mode;
-    memset(&mode, 0, sizeof(mode));
-    parse_date_format(format, &mode);
-    char label[128];
-    snprintf(label, sizeof(label), "show_date of format '%s'", format);
-    check_text(label, show_date(1790848800, -330, &mode), expected);
-}
-
-PRIVATE void test_show_date(void)
-{
-    /*
-     *  1790848800 is 2026-10-01 10:00:00 UTC
-     */
-    check_show_date(DATE_NORMAL,         1790848800, 200,  "Thu Oct 1 12:00:00 2026 +0200");
-    check_show_date(DATE_NORMAL,         1790848800, -330, "Thu Oct 1 06:30:00 2026 -0330");
-    check_show_date(DATE_NORMAL,         0,          0,    "Thu Jan 1 00:00:00 1970 +0000");
-    check_show_date(DATE_SHORT,          1790848800, 200,  "2026-10-01");
-    check_show_date(DATE_ISO8601,        1790848800, 200,  "2026-10-01 12:00:00 +0200");
-    check_show_date(DATE_ISO8601,        1790848800, -330, "2026-10-01 06:30:00 -0330");
-    check_show_date(DATE_ISO8601_STRICT, 1790848800, 200,  "2026-10-01T12:00:00+02:00");
-    check_show_date(DATE_ISO8601_STRICT, 1790848800, -330, "2026-10-01T06:30:00-03:30");
-    check_show_date(DATE_RFC2822,        1790848800, 200,  "Thu, 1 Oct 2026 12:00:00 +0200");
-    check_show_date(DATE_RFC2822,        1790848800, -330, "Thu, 1 Oct 2026 06:30:00 -0330");
-    check_show_date(DATE_RAW,            1790848800, 200,  "1790848800 +0200");
-    check_show_date(DATE_RAW,            1790848800, -330, "1790848800 -0330");
-    check_show_date(DATE_UNIX,           1790848800, 200,  "1790848800");
-    check_show_date(DATE_RELATIVE,       1790848800, 200,  "3 weeks ago");
-
-    /*
-     *  The names of the formats; "-local" writes in the local zone
-     */
-    check_date_format("default",                "Thu Oct 1 06:30:00 2026 -0330");
-    check_date_format("relative",               "3 weeks ago");
-    check_date_format("short",                  "2026-10-01");
-    check_date_format("iso8601",                "2026-10-01 06:30:00 -0330");
-    check_date_format("iso8601-strict",         "2026-10-01T06:30:00-03:30");
-    check_date_format("rfc2822",                "Thu, 1 Oct 2026 06:30:00 -0330");
-    check_date_format("raw",                    "1790848800 -0330");
-    check_date_format("unix",                   "1790848800");
-    check_date_format("local",                  "Thu Oct 1 12:00:00 2026");
-    check_date_format("short-local",            "2026-10-01");
-    check_date_format("iso8601-local",          "2026-10-01 12:00:00 +0200");
-    check_date_format("iso8601-strict-local",   "2026-10-01T12:00:00+02:00");
-    check_date_format("rfc2822-local",          "Thu, 1 Oct 2026 12:00:00 +0200");
-    check_date_format("raw-local",              "1790848800 +0200");
-}
-
-/***************************************************************************
- *  6. show_date_relative(): `seconds` before now
+ *  5. show_date_relative(): `seconds` before now
  ***************************************************************************/
 PRIVATE void check_relative(long seconds, const char *expected)
 {
@@ -500,88 +432,7 @@ PRIVATE void test_show_date_relative(void)
 }
 
 /***************************************************************************
- *  7. The rest
- ***************************************************************************/
-PRIVATE void test_the_rest(void)
-{
-    char bf[128];
-    int r;
-
-    /*
-     *  parse_date(): "<seconds> <+hhmm>"
-     */
-    memset(bf, 0, sizeof(bf));
-    r = parse_date("2026-10-01 10:00:00 +0200", bf, sizeof(bf));
-    check_text("parse_date '2026-10-01 10:00:00 +0200'", r == 0? bf : "(failed)", "1790841600 +0200");
-    memset(bf, 0, sizeof(bf));
-    r = parse_date("1700000000", bf, sizeof(bf));
-    check_text("parse_date '1700000000'", r == 0? bf : "(failed)", "1700000000 +0100");
-    r = parse_date("2 days ago", bf, sizeof(bf));
-    check_number("parse_date '2 days ago' fails", (unsigned long long)(r == -1), 1);
-
-    /*
-     *  parse_expiry_date()
-     */
-    timestamp_t t = 1;
-    r = parse_expiry_date("never", &t);
-    check_number("parse_expiry_date 'never'", t, 0);
-    r = parse_expiry_date("all", &t);
-    check_number("parse_expiry_date 'all'", t, TIME_MAX);
-    r = parse_expiry_date("now", &t);
-    check_number("parse_expiry_date 'now'", t, TIME_MAX);
-    r = parse_expiry_date("2 days ago", &t);
-    check_number("parse_expiry_date '2 days ago'", t, NOW - 2*86400);
-    check_number("parse_expiry_date '2 days ago' ret", (unsigned long long)r, 0);
-    r = parse_expiry_date("xyz", &t);
-    check_number("parse_expiry_date 'xyz' ret", (unsigned long long)r, 1);
-
-    /*
-     *  datestamp(): now, with the local offset
-     */
-    memset(bf, 0, sizeof(bf));
-    datestamp(bf, sizeof(bf));
-    check_text("datestamp", bf, "1792573200 +0200");
-
-    /*
-     *  approxidate_relative()
-     */
-    check_number("approxidate_relative '2 days ago'", approxidate_relative("2 days ago"), NOW - 2*86400);
-    check_number("approxidate_relative 'xyz'", approxidate_relative("xyz"), NOW);
-
-    /*
-     *  date_overflows(): what a time_t cannot hold
-     */
-    check_number("date_overflows 0", (unsigned long long)date_overflows(0), 0);
-    check_number("date_overflows INT64_MAX", (unsigned long long)date_overflows(9223372036854775807ULL), 0);
-    check_number("date_overflows INT64_MAX+1", (unsigned long long)date_overflows(9223372036854775808ULL), 1);
-    check_number("date_overflows UINTMAX_MAX", (unsigned long long)date_overflows(TIME_MAX), 1);
-
-    /*
-     *  tm_to_time_t(): UTC, years 1970 to 2099
-     */
-    struct tm tm;
-    memset(&tm, 0, sizeof(tm));
-    tm.tm_year = 126; tm.tm_mon = 9; tm.tm_mday = 1; tm.tm_hour = 10;
-    check_number("tm_to_time_t 2026-10-01 10:00:00", (unsigned long long)tm_to_time_t(&tm), 1790848800);
-    memset(&tm, 0, sizeof(tm));
-    tm.tm_year = 70; tm.tm_mon = 0; tm.tm_mday = 1;
-    check_number("tm_to_time_t 1970-01-01", (unsigned long long)tm_to_time_t(&tm), 0);
-    memset(&tm, 0, sizeof(tm));
-    tm.tm_year = 199; tm.tm_mon = 11; tm.tm_mday = 31; tm.tm_hour = 23; tm.tm_min = 59; tm.tm_sec = 59;
-    check_number("tm_to_time_t 2099-12-31 23:59:59", (unsigned long long)tm_to_time_t(&tm), 4102444799);
-    memset(&tm, 0, sizeof(tm));
-    tm.tm_year = 69; tm.tm_mon = 11; tm.tm_mday = 31;
-    check_number("tm_to_time_t 1969-12-31 is -1", (unsigned long long)(tm_to_time_t(&tm) == -1), 1);
-    memset(&tm, 0, sizeof(tm));
-    tm.tm_year = 200; tm.tm_mon = 0; tm.tm_mday = 1;
-    check_number("tm_to_time_t 2100-01-01 is -1", (unsigned long long)(tm_to_time_t(&tm) == -1), 1);
-    memset(&tm, 0, sizeof(tm));
-    tm.tm_year = 126; tm.tm_mon = 12; tm.tm_mday = 1;
-    check_number("tm_to_time_t month 12 is -1", (unsigned long long)(tm_to_time_t(&tm) == -1), 1);
-}
-
-/***************************************************************************
- *  8. Texts that are no date are refused; some more that are read
+ *  6. Texts that are no date are refused; some more that are read
  ***************************************************************************/
 PRIVATE void test_approxidate_refused(void)
 {
@@ -620,7 +471,7 @@ PRIVATE void test_approxidate_refused(void)
 }
 
 /***************************************************************************
- *  9. The edges of the calendar
+ *  7. The edges of the calendar
  ***************************************************************************/
 PRIVATE void test_calendar_edges(void)
 {
@@ -650,7 +501,7 @@ PRIVATE void test_calendar_edges(void)
 }
 
 /***************************************************************************
- *  10. The day of a change of hour: Sun 2026-10-25 12:34:56 UTC, 13:34:56
+ *  8. The day of a change of hour: Sun 2026-10-25 12:34:56 UTC, 13:34:56
  *  CET, a day of 25 hours (03:00 CEST was 02:00 CET)
  ***************************************************************************/
 PRIVATE void test_change_of_hour(void)
@@ -673,19 +524,10 @@ PRIVATE void test_change_of_hour(void)
 }
 
 /***************************************************************************
- *  11, 12. Formats; parse_date_basic() and a word it does not know
+ *  9. parse_date_basic() and a word it does not know
  ***************************************************************************/
-PRIVATE void test_formats_and_words(void)
+PRIVATE void test_words(void)
 {
-    check_date_format("format:%Y/%m/%d %H",     "2026/10/01 06");
-    check_date_format("format-local:%H:%M",     "12:00");
-
-    gobj_log_clear_counters();
-    check_date_format("bogus",                  "Thu Oct 1 06:30:00 2026 -0330");
-    const char *last = gobj_log_last_message();
-    check_number("an unknown date format is logged",
-        (unsigned long long)(last && strstr(last, "unknown date format")? 1 : 0), 1);
-
     check_parse_date_basic("2026-10-01 10:00:00 junk",  -1, "", 0);
     check_parse_date_basic("@0",                        0, "1970-01-01 01:00:00 +0100", 60);
 }
@@ -715,17 +557,15 @@ int main(int argc, char *argv[])
     );
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
 
-    test_approxidate_relative_forms();
+    test_approxidate_durations_and_times();
     test_approxidate_absolute_forms();
     test_approxidate_unreadable();
     test_parse_date_basic();
-    test_show_date();
     test_show_date_relative();
-    test_the_rest();
     test_approxidate_refused();
     test_calendar_edges();
     test_change_of_hour();
-    test_formats_and_words();
+    test_words();
 
     gobj_end();
 

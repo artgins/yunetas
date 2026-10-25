@@ -7106,8 +7106,8 @@ PUBLIC int get_ordered_filename_array( // WARNING too slow for thousands of file
  *  approxidate_careful() reads a date the way a person types it on a
  *  command line ("2 days ago", "yesterday noon", "2026-10-01 10:00",
  *  "@1700000000 +0000"); parse_date_basic() reads only a whole date and
- *  time, or epoch seconds; show_date() and show_date_relative() write one.
- *  The grammar, with examples, is in helpers.h.
+ *  time, or epoch seconds; show_date_relative() writes how long ago one
+ *  was. The grammar, with examples, is in helpers.h.
  *
  *  A text is read in two steps: read_date_text() notes what each piece
  *  of it says (a date, a clock time, a zone, a duration back, ...) and
@@ -7127,15 +7127,8 @@ PRIVATE const char *month_full_names[12] = {
     "january", "february", "march", "april", "may", "june",
     "july", "august", "september", "october", "november", "december"
 };
-PRIVATE const char *month_short_names[12] = {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-};
 PRIVATE const char *weekday_full_names[7] = {
     "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"
-};
-PRIVATE const char *weekday_short_names[7] = {
-    "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
 };
 PRIVATE const char *number_words[11] = {
     "zero", "one", "two", "three", "four", "five",
@@ -7294,22 +7287,6 @@ PRIVATE long local_offset_at(time_t t)
     }
     return (long)(utc_seconds(lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
         lt.tm_hour, lt.tm_min, lt.tm_sec) - t);
-}
-
-/***************************************************************************
- *  An offset of seconds as +hhmm (or +hh:mm with `colon`)
- ***************************************************************************/
-PRIVATE void offset_text(char *bf, size_t bfsize, long offset_seconds, BOOL colon)
-{
-    long minutes = offset_seconds/60;
-    char sign = '+';
-    if(minutes < 0) {
-        sign = '-';
-        minutes = -minutes;
-    }
-    int hh = (int)((minutes/60)%100);   // an offset is less than a day: two digits
-    int mm = (int)(minutes%60);
-    snprintf(bf, bfsize, colon? "%c%02d:%02d" : "%c%02d%02d", sign, hh, mm);
 }
 
 /***************************************************************************
@@ -8179,147 +8156,6 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
 }
 
 /***************************************************************************
- *  UTC seconds of a struct tm of UTC, its fields as they are (no
- *  normalization of tm_wday or tm_yday): years 1970 to 2099
- ***************************************************************************/
-PUBLIC time_t tm_to_time_t(const struct tm *tm)
-{
-    int64_t year = tm->tm_year + 1900;
-    if(year < 1970 || year > 2099 || tm->tm_mon < 0 || tm->tm_mon > 11) {
-        return -1;
-    }
-    return (time_t)utc_seconds(year, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
-}
-
-/***************************************************************************
- *  A date mode of a type, in a static struct (DATE_STRFTIME needs a
- *  format: use parse_date_format() for it)
- ***************************************************************************/
-PUBLIC struct date_mode *date_mode_from_type(enum date_mode_type type)
-{
-    static struct date_mode mode;
-    memset(&mode, 0, sizeof(mode));
-    mode.type = type;
-    if(type == DATE_STRFTIME) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "DATE_STRFTIME needs a format, use parse_date_format()",
-            NULL
-        );
-    }
-    return &mode;
-}
-
-/***************************************************************************
- *  `time` written in a mode. `tz` is the zone to write it in, as a
- *  number +hhmm (200 is +02:00, -330 is -03:30); a "-local" mode writes
- *  it in the local zone instead. Return a static buffer.
- ***************************************************************************/
-PUBLIC const char *show_date(timestamp_t time, int tz, const struct date_mode *mode)
-{
-    static char bf[256];
-
-    if(!mode) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "mode NULL, the default one is used",
-            NULL
-        );
-        mode = date_mode_from_type(DATE_NORMAL);
-    }
-    if(date_overflows(time)) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "time beyond a time_t, written as 0",
-            "time",         "%" PRItime, time,
-            NULL
-        );
-        time = 0;
-    }
-
-    if(mode->type == DATE_UNIX) {
-        snprintf(bf, sizeof(bf), "%" PRItime, time);
-        return bf;
-    }
-    if(mode->type == DATE_RELATIVE) {
-        show_date_relative(time, bf, sizeof(bf));
-        return bf;
-    }
-
-    long offset;
-    if(mode->local) {
-        offset = local_offset_at((time_t)time);
-    } else {
-        offset = (long)((tz/100)*60 + tz%100)*60;
-    }
-    char zone[16];
-    offset_text(zone, sizeof(zone), offset, FALSE);
-
-    if(mode->type == DATE_RAW) {
-        snprintf(bf, sizeof(bf), "%" PRItime " %s", time, zone);
-        return bf;
-    }
-
-    time_t shifted = (time_t)time + offset;
-    struct tm tm;
-    if(!gmtime_r(&shifted, &tm)) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "gmtime_r() FAILED",
-            "time",         "%" PRItime, time,
-            NULL
-        );
-        snprintf(bf, sizeof(bf), "%" PRItime, time);
-        return bf;
-    }
-
-    switch(mode->type) {
-        case DATE_SHORT:
-            snprintf(bf, sizeof(bf), "%04d-%02d-%02d",
-                tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
-            break;
-
-        case DATE_ISO8601:
-            snprintf(bf, sizeof(bf), "%04d-%02d-%02d %02d:%02d:%02d %s",
-                tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-                tm.tm_hour, tm.tm_min, tm.tm_sec, zone);
-            break;
-
-        case DATE_ISO8601_STRICT:
-            offset_text(zone, sizeof(zone), offset, TRUE);
-            snprintf(bf, sizeof(bf), "%04d-%02d-%02dT%02d:%02d:%02d%s",
-                tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-                tm.tm_hour, tm.tm_min, tm.tm_sec, zone);
-            break;
-
-        case DATE_RFC2822:
-            snprintf(bf, sizeof(bf), "%s, %d %s %d %02d:%02d:%02d %s",
-                weekday_short_names[tm.tm_wday], tm.tm_mday, month_short_names[tm.tm_mon],
-                tm.tm_year + 1900, tm.tm_hour, tm.tm_min, tm.tm_sec, zone);
-            break;
-
-        case DATE_STRFTIME:
-            if(strftime(bf, sizeof(bf), mode->strftime_fmt, &tm) == 0) {
-                bf[0] = 0;  // an empty result, or one too long for bf
-            }
-            break;
-
-        case DATE_NORMAL:
-        default:
-            snprintf(bf, sizeof(bf), "%s %s %d %02d:%02d:%02d %d%s%s",
-                weekday_short_names[tm.tm_wday], month_short_names[tm.tm_mon], tm.tm_mday,
-                tm.tm_hour, tm.tm_min, tm.tm_sec, tm.tm_year + 1900,
-                mode->local? "" : " ", mode->local? "" : zone);
-            break;
-    }
-    return bf;
-}
-
-/***************************************************************************
  *  How long ago `t` was, in the unit that fits: seconds up to 89,
  *  minutes up to 89, hours up to 35, days up to 13, weeks up to 69 days,
  *  months up to 364 days, years and months up to 5 years, years. Each
@@ -8387,22 +8223,6 @@ PUBLIC void show_date_relative(timestamp_t t, char *timebuf, int timebufsize)
 }
 
 /***************************************************************************
- *  A whole date and time (or epoch seconds) as "<seconds> <+hhmm>"
- ***************************************************************************/
-PUBLIC int parse_date(const char *date, char *out, int outsize)
-{
-    timestamp_t t;
-    int offset;
-    if(parse_date_basic(date, &t, &offset) < 0) {
-        return -1;
-    }
-    char zone[16];
-    offset_text(zone, sizeof(zone), (long)offset*60, FALSE);
-    snprintf(out, (size_t)outsize, "%" PRItime " %s", t, zone);
-    return 0;
-}
-
-/***************************************************************************
  *  Only a whole date and time, or epoch seconds: the time and the
  *  offset it was written in (the local one at that time when none), in
  *  minutes. Return -1 for anything else.
@@ -8428,116 +8248,6 @@ PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offse
 }
 
 /***************************************************************************
- *  An expiry: "never" is 0, "all" and "now" are TIME_MAX, anything else
- *  is read by approxidate_careful(). Return its error flag.
- ***************************************************************************/
-PUBLIC int parse_expiry_date(const char *date, timestamp_t *timestamp)
-{
-    if(date && strcmp(date, "never") == 0) {
-        *timestamp = 0;
-        return 0;
-    }
-    if(date && (strcmp(date, "all") == 0 || strcmp(date, "now") == 0)) {
-        *timestamp = TIME_MAX;
-        return 0;
-    }
-    int error = 0;
-    *timestamp = approxidate_careful(date, &error);
-    return error;
-}
-
-/***************************************************************************
- *  The name of a format: default, relative, short, iso8601 (iso),
- *  iso8601-strict (iso-strict), rfc2822 (rfc), raw, unix, or
- *  "format:<strftime format>"; with "-local" (or "format-local:", or
- *  "local" alone) it is written in the local zone
- ***************************************************************************/
-PUBLIC void parse_date_format(const char *format, struct date_mode *mode)
-{
-    static const struct {
-        const char *name;
-        enum date_mode_type type;
-    } formats[] = {
-        {"default",         DATE_NORMAL},
-        {"relative",        DATE_RELATIVE},
-        {"short",           DATE_SHORT},
-        {"iso8601",         DATE_ISO8601},
-        {"iso",             DATE_ISO8601},
-        {"iso8601-strict",  DATE_ISO8601_STRICT},
-        {"iso-strict",      DATE_ISO8601_STRICT},
-        {"rfc2822",         DATE_RFC2822},
-        {"rfc",             DATE_RFC2822},
-        {"raw",             DATE_RAW},
-        {"unix",            DATE_UNIX},
-    };
-
-    memset(mode, 0, sizeof(*mode));
-    mode->type = DATE_NORMAL;
-    if(!format) {
-        format = "";
-    }
-
-    const char *strftime_format = NULL;
-    if(strncmp(format, "format:", 7) == 0) {
-        strftime_format = format + 7;
-    } else if(strncmp(format, "format-local:", 13) == 0) {
-        strftime_format = format + 13;
-        mode->local = 1;
-    }
-    if(strftime_format) {
-        mode->type = DATE_STRFTIME;
-        if(snprintf(mode->strftime_fmt, sizeof(mode->strftime_fmt), "%s", strftime_format)
-                >= (int)sizeof(mode->strftime_fmt)) {
-            gobj_log_error(0, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "strftime format too long, cut",
-                "format",       "%s", format,
-                NULL
-            );
-        }
-        return;
-    }
-
-    if(strcmp(format, "local") == 0) {
-        mode->local = 1;
-        return;
-    }
-
-    char name[32];
-    snprintf(name, sizeof(name), "%s", format);
-    size_t len = strlen(name);
-    if(len > 6 && strcmp(name + len - 6, "-local") == 0) {
-        name[len - 6] = 0;
-        mode->local = 1;
-    }
-    for(size_t i = 0; i < sizeof(formats)/sizeof(formats[0]); i++) {
-        if(strcmp(formats[i].name, name) == 0) {
-            mode->type = formats[i].type;
-            return;
-        }
-    }
-    gobj_log_error(0, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER,
-        "msg",          "%s", "unknown date format, the default one is used",
-        "format",       "%s", format,
-        NULL
-    );
-}
-
-/***************************************************************************
- *  Now, as "<seconds> <+hhmm>" in the local zone
- ***************************************************************************/
-PUBLIC void datestamp(char *out, int outsize)
-{
-    time_t now = time(NULL);
-    char zone[16];
-    offset_text(zone, sizeof(zone), local_offset_at(now), FALSE);
-    snprintf(out, (size_t)outsize, "%lld %s", (long long)now, zone);
-}
-
-/***************************************************************************
  *  A date as a person types it; NOW, with *error_ret set, when the text
  *  says no date
  ***************************************************************************/
@@ -8557,23 +8267,6 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret)
         *error_ret = 0;
     }
     return t;
-}
-
-/***************************************************************************
- *  approxidate_careful() with no error flag: NOW when the text says no
- *  date
- ***************************************************************************/
-PUBLIC timestamp_t approxidate_relative(const char *date)
-{
-    return approxidate_careful(date, NULL);
-}
-
-/***************************************************************************
- *  TRUE when `t` does not fit in a time_t
- ***************************************************************************/
-PUBLIC int date_overflows(timestamp_t t)
-{
-    return (t > (timestamp_t)INT64_MAX)? 1 : 0;
 }
 
 

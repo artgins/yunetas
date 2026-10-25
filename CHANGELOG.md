@@ -49,19 +49,28 @@
   does not move (`tests/c/helpers/test_switchs`); it keeps one flag where it
   kept two that were always equal.
 - **The date reader of `helpers.c` is Yuneta's own code: the port of git's
-  `date.c` (GPL-2.0) is gone.** `approxidate_careful()`, `approxidate()`,
-  `approxidate_relative()`, `parse_date_basic()`, `parse_date()`,
-  `parse_expiry_date()`, `show_date()`, `show_date_relative()`,
-  `date_mode_from_type()`, `parse_date_format()`, `datestamp()`,
-  `date_overflows()` and `tm_to_time_t()` were about 1,400 lines copied from
-  git with yuneta v6, a license the MIT of the SDK cannot carry. They are
-  written again from a description of their behaviour, not from that code:
-  the old functions were run as a black box (about 700 texts, three time
-  zones, four moments, the change of hour among them), and the new ones give
-  the same time for every form the tools document (`tr2list --help`): ISO
-  8601, RFC 2822, `@<seconds> +0000` with no year limit, `N units ago`, the
-  short units (`1m` a minute, `1M` a month), `noon`/`midnight`/`tea`,
-  `last <weekday>`, M/D/Y and D.M.Y. The API does not move. What changes:
+  `date.c` (GPL-2.0) is gone.** It was about 1,400 lines copied from git with
+  yuneta v6, a license the MIT of the SDK cannot carry.
+    - **What is used is written again**, from a description of its
+      behaviour, not from that code: `approxidate_careful()` /
+      `approxidate()`, `parse_date_basic()` and `show_date_relative()`. The
+      old functions were run as a black box (about 700 texts, three time
+      zones, four moments, the change of hour among them), and the new ones
+      give the same time for every form the tools document (`tr2list
+      --help`): ISO 8601, RFC 2822, `@<seconds> +0000` with no year limit,
+      `N units ago`, the short units (`1m` a minute, `1M` a month),
+      `noon`/`midnight`/`tea`, `last <weekday>`, M/D/Y and D.M.Y.
+    - **BREAKING: what nobody used is removed**, not written again:
+      `approxidate_relative()`, `parse_date()`, `parse_expiry_date()`,
+      `show_date()`, `date_mode_from_type()` / `DATE_MODE()` /
+      `struct date_mode`, `parse_date_format()`, `datestamp()`,
+      `date_overflows()`, `tm_to_time_t()`, and the macros of the port in
+      `helpers.h`: `skip_prefix()`, `signed_add_overflows()`,
+      `unsigned_add_overflows()`, `maximum_*_value_of_type()`,
+      `bitsizeof()`, `parse_timestamp` and `TIME_MAX`. Checked in yunetas,
+      gobj-js, gobj-ui, yunos-js, yunovatios, tui_yunetas, wattyzer,
+      estadodelaire, hidraulia, yunomusica and yunovideo: none calls them.
+      `timestamp_t` and `PRItime` stay.
     - **A text that is no date is refused**, with the error flag, where the
       port read another date in silence: `"2 days from now"` and
       `"in 3 days"` were days BACK, `"1.5 hours ago"` was May 1st,
@@ -81,17 +90,15 @@
     - **A date with no year** is of this year unless it is more than 10
       days ahead (one rule; the port had two, by month and by days).
     - `parse_date_basic()` refuses a word it does not know
-      (`"2026-10-01 10:00:00 junk"` was read).
+      (`"2026-10-01 10:00:00 junk"` was read). The `published_at` of
+      `gate_auraair` (estadodelaire, hidraulia), ISO 8601 with
+      milliseconds and `Z`, reads the same.
     - `show_date_relative()` writes one unit in the singular
       (`1 second ago`, `1 year, 1 month ago`).
-    - `parse_date_format()` with an unknown name logs an error and takes
-      the default (it crashed), and a `format:<strftime>` mode is written
-      (it printed garbage).
     - The zone abbreviations are a table of their own, each with its
       offset (the port had `WEST` at +00:00, `AST` at -03:00).
-  `tests/c/helpers/test_date_text` (255 checks, passing on the port for
-  every form kept). `skip_prefix()` and the overflow macros of `helpers.h`
-  are written again too; nothing in the tree uses them.
+  `tests/c/helpers/test_date_text`: the forms kept passed on the port
+  before it was replaced.
 
 ## v7.28.4 (2026-10-25)
 

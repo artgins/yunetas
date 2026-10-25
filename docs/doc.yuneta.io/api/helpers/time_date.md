@@ -10,7 +10,7 @@ Source code:
 (approxidate_careful)=
 ## [`approxidate_careful()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L8544)
 
-Reads a date as a person types it on a command line -- `"2 hours ago"`, `"yesterday noon"`, `"2026-10-01 10:00"`, `"@1700000000 +0000"` -- against now. It is what every tool of the SDK reads a TIME option with (`tr2list --from-t`, `tr2search`, `stats_list`), and what timeranger2 reads a string tkey with. `approxidate(s)` is the same with no error flag.
+Reads a date as a person types it on a command line -- `"2 hours ago"`, `"yesterday noon"`, `"2026-10-01 10:00"`, `"@1700000000 +0000"` -- against now. It is what every tool of the SDK reads a TIME option with (`tr2list --from-t`, `tr2search`, `stats_list`), and what timeranger2 reads a string tkey with. `approxidate(s)` is the same with no error flag: a text that says no date is now.
 
 ```C
 timestamp_t approxidate_careful(
@@ -57,35 +57,6 @@ t = approxidate("2026-10-01 10:00:00 +0200");                     /* 1790841600 
 
 ---
 
-(approxidate_relative)=
-## [`approxidate_relative()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L8566)
-
-[`approxidate_careful()`](#approxidate_careful) with no error flag: a text that says no date is now.
-
-```C
-timestamp_t approxidate_relative(
-    const char *date
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `date` | `const char *` | The text to read. |
-
-**Returns**
-
-The time the text names, in seconds since the epoch; now when it names none.
-
-**Example**
-
-```C
-timestamp_t t = approxidate_relative("3 days ago");   /* now - 3*86400 */
-```
-
----
-
 (current_timestamp)=
 ## [`current_timestamp()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L8942)
 
@@ -112,97 +83,6 @@ Returns a pointer to the buffer `bf` containing the formatted timestamp string.
 **Notes**
 
 The function uses `clock_gettime(CLOCK_REALTIME, &ts)` to obtain the current time with nanosecond precision and formats it as `YYYY-MM-DDTHH:MM:SS.nnnnnnnnn±hhmm`.
-
----
-
-(date_mode_from_type)=
-## [`date_mode_from_type()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L8198)
-
-A [`show_date()`](#show_date) mode of a type, in a static struct. `DATE_MODE(ISO8601)` is `date_mode_from_type(DATE_ISO8601)`. `DATE_STRFTIME` needs a format: ask it with [`parse_date_format()`](#parse_date_format); here it logs an error.
-
-```C
-struct date_mode *date_mode_from_type(
-    enum date_mode_type type
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `type` | `enum date_mode_type` | `DATE_NORMAL`, `DATE_RELATIVE`, `DATE_SHORT`, `DATE_ISO8601`, `DATE_ISO8601_STRICT`, `DATE_RFC2822`, `DATE_RAW` or `DATE_UNIX`. |
-
-**Returns**
-
-A pointer to a static `struct date_mode`, overwritten by the next call.
-
-**Example**
-
-```C
-show_date(1790848800, 200, DATE_MODE(RFC2822));   /* "Thu, 1 Oct 2026 12:00:00 +0200" */
-```
-
----
-
-(date_overflows)=
-## [`date_overflows()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L8574)
-
-Whether a `timestamp_t` is beyond what a `time_t` holds.
-
-```C
-int date_overflows(
-    timestamp_t date
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `date` | `timestamp_t` | Seconds since the epoch. |
-
-**Returns**
-
-1 when `date` is larger than `INT64_MAX`, else 0.
-
-**Example**
-
-```C
-date_overflows(1790848800);   /* 0 */
-date_overflows(TIME_MAX);     /* 1 */
-```
-
----
-
-(datestamp)=
-## [`datestamp()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L8532)
-
-Now, as `"<seconds> <+hhmm>"` with the offset of the local zone.
-
-```C
-void datestamp(
-    char    *out,
-    int     outsize
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `out` | `char *` | Buffer for the text. |
-| `outsize` | `int` | Size of `out`. |
-
-**Returns**
-
-Nothing.
-
-**Example**
-
-```C
-char bf[64];
-datestamp(bf, sizeof(bf));    /* "1792573200 +0200" */
-```
 
 ---
 
@@ -314,41 +194,6 @@ This function checks the system's byte order and swaps bytes if necessary to mak
 
 ---
 
-(parse_date)=
-## [`parse_date()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L8392)
-
-A whole date and time (or epoch seconds), read by [`parse_date_basic()`](#parse_date_basic), written as `"<seconds> <+hhmm>"`: the time and the offset it was given in.
-
-```C
-int parse_date(
-    const char  *date,
-    char        *out,
-    int         outsize
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `date` | `const char *` | The text to read. |
-| `out` | `char *` | Buffer for the result. |
-| `outsize` | `int` | Size of `out`. |
-
-**Returns**
-
-0, or -1 when `date` is not a whole date and time (`out` is not written).
-
-**Example**
-
-```C
-char bf[64];
-parse_date("2026-10-01 10:00:00 +0200", bf, sizeof(bf));   /* 0, "1790841600 +0200" */
-parse_date("2 days ago", bf, sizeof(bf));                  /* -1 */
-```
-
----
-
 (parse_date_basic)=
 ## [`parse_date_basic()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L8410)
 
@@ -383,111 +228,6 @@ parse_date_basic("2026-10-01 10:00:00 +0200", &t, &offset);     /* 0, t 17908416
 parse_date_basic("Thu, 01 Oct 2026 10:00:00 GMT", &t, &offset); /* 0, t 1790848800, offset 0 */
 parse_date_basic("@1700000000", &t, &offset);                   /* 0, offset the local one */
 parse_date_basic("2026-10-01", &t, &offset);                    /* -1: no clock time */
-```
-
----
-
-(parse_date_format)=
-## [`parse_date_format()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L8455)
-
-A [`show_date()`](#show_date) mode from its name. `-local` after a name writes the date in the local zone instead of the one given to `show_date()`.
-
-```C
-void parse_date_format(
-    const char          *format,
-    struct date_mode    *mode
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `format` | `const char *` | `default`, `relative`, `short`, `iso8601` (`iso`), `iso8601-strict` (`iso-strict`), `rfc2822` (`rfc`), `raw`, `unix`, `local` (the default, local), or `format:<strftime format>` / `format-local:<strftime format>`. |
-| `mode` | `struct date_mode *` | The mode to fill. |
-
-**Returns**
-
-Nothing. An unknown name fills the default mode and logs an error (up to 7.28.4 it crashed).
-
-**Example**
-
-```C
-struct date_mode mode;
-parse_date_format("iso8601-strict-local", &mode);
-show_date(1790848800, 0, &mode);              /* "2026-10-01T12:00:00+02:00" in Madrid */
-parse_date_format("format:%Y/%m/%d %H", &mode);
-show_date(1790848800, -330, &mode);           /* "2026/10/01 06" */
-```
-
----
-
-(parse_expiry_date)=
-## [`parse_expiry_date()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L8434)
-
-An expiry: `never` is 0, `all` and `now` are `TIME_MAX`, anything else is read by [`approxidate_careful()`](#approxidate_careful).
-
-```C
-int parse_expiry_date(
-    const char  *date,
-    timestamp_t *timestamp
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `date` | `const char *` | The text to read. |
-| `timestamp` | `timestamp_t *` | Where the time goes. |
-
-**Returns**
-
-0, or 1 when `date` says no date (`*timestamp` is then now).
-
-**Example**
-
-```C
-timestamp_t t;
-parse_expiry_date("never", &t);          /* 0, t 0 */
-parse_expiry_date("2 weeks ago", &t);    /* 0, t now - 14*86400 */
-```
-
----
-
-(show_date)=
-## [`show_date()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L8219)
-
-A time written in a mode, in the zone `timezone` (or in the local zone, with a `-local` mode of [`parse_date_format()`](#parse_date_format)).
-
-```C
-const char *show_date(
-    timestamp_t             time,
-    int                     timezone,
-    const struct date_mode  *mode
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `time` | `timestamp_t` | Seconds since the epoch. |
-| `timezone` | `int` | The zone, as `+hhmm` written as a number: `200` is +02:00, `-330` is -03:30. |
-| `mode` | `const struct date_mode *` | From [`date_mode_from_type()`](#date_mode_from_type) (`DATE_MODE(...)`) or [`parse_date_format()`](#parse_date_format). |
-
-**Returns**
-
-A static buffer, overwritten by the next call.
-
-**Example**
-
-```C
-show_date(1790848800, 200, DATE_MODE(NORMAL));           /* "Thu Oct 1 12:00:00 2026 +0200" */
-show_date(1790848800, 200, DATE_MODE(SHORT));            /* "2026-10-01" */
-show_date(1790848800, 200, DATE_MODE(ISO8601));          /* "2026-10-01 12:00:00 +0200" */
-show_date(1790848800, -330, DATE_MODE(ISO8601_STRICT));  /* "2026-10-01T06:30:00-03:30" */
-show_date(1790848800, 200, DATE_MODE(RAW));              /* "1790848800 +0200" */
 ```
 
 ---
@@ -729,36 +469,6 @@ Returns a pointer to the buffer `bf` containing the formatted timestamp.
 **Notes**
 
 The output format follows the ISO 8601 standard: `YYYY-MM-DDTHH:MM:SS.0±HHMM`.
-
----
-
-(tm_to_time_t)=
-## [`tm_to_time_t()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L8185)
-
-The seconds since the epoch of a `struct tm` of UTC, its fields taken as they are: `tm_wday` and `tm_yday` are not read, and a `tm_mday` past the month runs into the next one.
-
-```C
-time_t tm_to_time_t(
-    const struct tm *tm
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `tm` | `const struct tm *` | A date and time of UTC. |
-
-**Returns**
-
-The seconds since the epoch, or -1 when the year is not 1970-2099 or `tm_mon` is not 0-11.
-
-**Example**
-
-```C
-struct tm tm = {.tm_year = 126, .tm_mon = 9, .tm_mday = 1, .tm_hour = 10};
-tm_to_time_t(&tm);    /* 1790848800: 2026-10-01 10:00:00 UTC */
-```
 
 ---
 

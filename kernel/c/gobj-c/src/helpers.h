@@ -12,7 +12,6 @@
 #include <sys/types.h>
 #include <regex.h>
 #include <inttypes.h>
-#include <string.h>
 #include <time.h>
 #include <sys/socket.h>
 
@@ -1074,101 +1073,16 @@ PUBLIC int get_ordered_filename_array( // Remember to free 'da' with dir_array_f
  *---------------------------------*/
 typedef uintmax_t timestamp_t;     // seconds since the epoch, as dates are read and written
 #define PRItime PRIuMAX
-#define parse_timestamp strtoumax
-#define TIME_MAX UINTMAX_MAX
 
-#define bitsizeof(x)  (CHAR_BIT * sizeof(x))
-
-/*
- *  The largest value of a signed (unsigned) integer type `a`
- */
-#define maximum_signed_value_of_type(a) \
-    (INTMAX_MAX >> (bitsizeof(intmax_t) - bitsizeof(a)))
-
-#define maximum_unsigned_value_of_type(a) \
-    (UINTMAX_MAX >> (bitsizeof(uintmax_t) - bitsizeof(a)))
-
-/*
- *  TRUE when a + b does not fit in the type of `a` (a >= 0, b of the same
- *  type): the test is made before the sum, which would be undefined
- */
-#define signed_add_overflows(a, b) \
-    ((b) > maximum_signed_value_of_type(a) - (a))
-
-#define unsigned_add_overflows(a, b) \
-    ((b) > maximum_unsigned_value_of_type(a) - (a))
-
-/*
- *  When `str` starts with `prefix`: 1, and *out points to what follows it.
- *  Else 0, and *out is not touched.
- *
- *      const char *rest;
- *      if(skip_prefix("format:%Y", "format:", &rest)) {
- *          // rest is "%Y"
- *      }
- */
-static inline int skip_prefix(const char *str, const char *prefix, const char **out)
-{
-    size_t len = strlen(prefix);
-    if(strncmp(str, prefix, len) != 0) {
-        return 0;
-    }
-    *out = str + len;
-    return 1;
-}
-
-struct date_mode {
-    enum date_mode_type {
-        DATE_NORMAL = 0,        // Thu Oct 1 10:00:00 2026 +0200
-        DATE_RELATIVE,          // 3 weeks ago
-        DATE_SHORT,             // 2026-10-01
-        DATE_ISO8601,           // 2026-10-01 10:00:00 +0200
-        DATE_ISO8601_STRICT,    // 2026-10-01T10:00:00+02:00
-        DATE_RFC2822,           // Thu, 1 Oct 2026 10:00:00 +0200
-        DATE_STRFTIME,          // strftime_fmt
-        DATE_RAW,               // 1790841600 +0200
-        DATE_UNIX               // 1790841600
-    } type;
-    char strftime_fmt[256];
-    int local;                  // write it in the local zone, not in the one given
-};
-
-PUBLIC time_t tm_to_time_t(const struct tm *tm);
-
-/*
- *  A mode of a type, for show_date():
- *
- *      show_date(t, 200, DATE_MODE(ISO8601));     // "2026-10-01 10:00:00 +0200"
- */
-#define DATE_MODE(t) date_mode_from_type(DATE_##t)
-PUBLIC struct date_mode *date_mode_from_type(enum date_mode_type type);
-
-/*
- *  `timezone` is +hhmm as a number: 200 is +02:00, -330 is -03:30
- */
-PUBLIC const char *show_date(timestamp_t time, int timezone, const struct date_mode *mode);
 PUBLIC void show_date_relative( // "2 hours ago", "1 year, 3 months ago", "in the future"
     timestamp_t time,
     char *timebuf,
     int timebufsize
 );
-PUBLIC int parse_date(  // a whole date and time as "<seconds> <+hhmm>"
-    const char *date,
-    char *out,
-    int outsize
-);
 PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset);
-PUBLIC int parse_expiry_date(const char *date, timestamp_t *timestamp);
-PUBLIC void datestamp(  // now as "<seconds> <+hhmm>"
-    char *out,
-    int outsize
-);
 
 #define approxidate(s) approxidate_careful((s), NULL)
 PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
-PUBLIC timestamp_t approxidate_relative(const char *date);
-PUBLIC void parse_date_format(const char *format, struct date_mode *mode);
-PUBLIC int date_overflows(timestamp_t date);
 
 /*
     approxidate_careful() reads a date as a person types it on a command

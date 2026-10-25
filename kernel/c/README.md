@@ -830,11 +830,9 @@ time_t   time_in_seconds(void);
 char    *formatdate(time_t t, char *bf, int bfsize, const char *format);
 char    *t2timestamp(char *bf, int bfsize, time_t t, BOOL local);
 char    *tm2timestamp(char *bf, int bfsize, struct tm *tm);
-time_t   tm_to_time_t(const struct tm *tm);
-int      parse_date(const char *date, int mode, timestamp_t *out);
 int      parse_date_basic(const char *date, timestamp_t *timestamp, int *offset);
-void     parse_date_format(const char *format, struct date_mode *mode);
-void     datestamp(char *bf, size_t bfsize, time_t t, const struct date_mode *mode);
+timestamp_t approxidate_careful(const char *date, int *error_ret);           // approxidate(s)
+void     show_date_relative(timestamp_t time, char *timebuf, int timebufsize);
 ```
 
 **Metadata & private key detection:**
