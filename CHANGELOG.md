@@ -1,6 +1,13 @@
 # **Changelog**
 
-## Unreleased
+## v7.28.1 (2026-10-25)
+
+A lite release of the agents: only `yuneta_agent` and `yuneta_agent22`
+change, and only their start-up check of the pid file. The test that
+touches the agent and a hand test of the pid file (an empty file, a
+zombie's pid, another program's pid, a pid that is gone) ran on the dev
+machine. No performance study: the change is in the start-up of the agent,
+once per start.
 
 - **The agents read the pid file left by a killed agent as what it is.**
   An agent killed with SIGKILL (a stop of its unit that timed out) leaves
