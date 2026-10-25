@@ -1,6 +1,11 @@
 # **Changelog**
 
-## Unreleased
+## v7.28.3 (2026-10-25)
+
+A lite release of the agent: only `yuneta_agent` changes (its stop), and
+gui_agent 1.0.7 for the web console. The test that touches the agent ran on
+the dev machine. No performance study: the change runs once, at the stop of
+the agent.
 
 - **The agent no longer destroys its waiting counters under the list that
   holds them.** At its stop, the agent stops and destroys the `C_COUNTER`s
