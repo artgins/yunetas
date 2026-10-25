@@ -8,9 +8,11 @@
  *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
+#include <errno.h>
 #include <string.h>
 #include <stdio.h>
 #include <limits.h>
+#include <sys/statvfs.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -37,6 +39,13 @@
  */
 #define POLL_FLOOR_MS   1000
 
+/*
+ *  How often the free space of the queue's disk is checked, while messages
+ *  arrive and on every poll: the poll is how a gate that refuses messages
+ *  accepts them again when nothing arrives.
+ */
+#define DISK_CHECK_MS   1000
+
 /***************************************************************************
  *              Structures
  ***************************************************************************/
@@ -47,6 +56,8 @@
 PRIVATE int open_queue(hgobj gobj);
 PRIVATE int close_queue(hgobj gobj);
 PRIVATE void raise_timeout_poll_to_floor(hgobj gobj);
+PRIVATE BOOL queue_refuses_messages(hgobj gobj);
+PRIVATE void start_refusing_messages(hgobj gobj, const char *cause, int free_percent);
 
 
 /***************************************************************************
@@ -101,6 +112,7 @@ SDATA (DTP_INTEGER,     "max_pending_acks", SDF_WR|SDF_PERSIST, "10000",    "Max
 SDATA (DTP_INTEGER,     "backup_queue_size",SDF_WR|SDF_PERSIST, "1000000",  "Do backup at this size"),
 SDATA (DTP_INTEGER,     "alert_queue_size", SDF_WR|SDF_PERSIST, "2000",     "Limit alert queue size"),
 SDATA (DTP_INTEGER,     "timeout_ack",      SDF_WR|SDF_PERSIST, "60",       "Timeout ack in seconds"),
+SDATA (DTP_INTEGER,     "min_free_disk_percentage",SDF_WR|SDF_PERSIST,"10", "Refuse new messages while the disk of the queue has less free space than this, in percent. 0 or less: refuse them only when the queue cannot save one"),
 
 SDATA (DTP_BOOLEAN,     "with_metadata",    SDF_RD,             0,          "Don't filter metadata"),
 SDATA (DTP_BOOLEAN,     "disable_alert",    SDF_WR|SDF_PERSIST, 0,          "Disable alert"),
@@ -109,6 +121,7 @@ SDATA (DTP_STRING,      "alert_to",         SDF_WR|SDF_PERSIST, "",         "Ale
 
 SDATA (DTP_INTEGER,     "msgs_in_queue",    SDF_RD|SDF_STATS,   "0",        "Messages in the persistent queue, not acked yet (a gauge)"),
 SDATA (DTP_INTEGER,     "pending_acks",     SDF_RD|SDF_STATS,   "0",        "Messages sent and waiting for their ack (a gauge)"),
+SDATA (DTP_INTEGER,     "dropped_msgs",     SDF_RD|SDF_STATS,   "0",        "Messages refused because the queue could not save them (a full disk), since the yuno started"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
@@ -154,6 +167,13 @@ typedef struct _PRIVATE_DATA {
     uint32_t pending_acks;
     uint32_t max_pending_acks;
 
+    json_int_t min_free_disk_percentage;
+    BOOL refusing_msgs;
+    BOOL disk_check_failed;
+    uint64_t t_disk_check;
+    json_int_t dropped_msgs;
+    json_int_t dropped_while_refusing;
+
 } PRIVATE_DATA;
 
 
@@ -198,6 +218,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(alert_queue_size,          gobj_read_integer_attr)
     SET_PRIV(max_pending_acks,          gobj_read_integer_attr)
     SET_PRIV(disable_alert,             gobj_read_bool_attr)
+    SET_PRIV(min_free_disk_percentage,  gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -214,6 +235,8 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(alert_queue_size,      gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_pending_acks,      gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(disable_alert,         gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(min_free_disk_percentage, gobj_read_integer_attr)
+        priv->t_disk_check = 0;     // checked against the new one at once
     END_EQ_SET_PRIV()
 }
 
@@ -277,7 +300,8 @@ PRIVATE int mt_stop(hgobj gobj)
  *  The two gauges are read live: they are what the queue holds now, so the
  *  stats of a parent that reads its children's attrs (C_MQIOGATE, through
  *  build_stats()) say them too. Up to 7.25.21 only this gclass's own
- *  mt_stats said them, and a C_MQIOGATE never asked it.
+ *  mt_stats said them, and a C_MQIOGATE never asked it. dropped_msgs is
+ *  read the same way.
  ***************************************************************************/
 PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
 {
@@ -290,6 +314,9 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     } else if(strcmp(name, "pending_acks")==0) {
         v.found = 1;
         v.v.i = (json_int_t)priv->pending_acks;
+    } else if(strcmp(name, "dropped_msgs")==0) {
+        v.found = 1;
+        v.v.i = priv->dropped_msgs;
     }
     return v;
 }
@@ -314,6 +341,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         json_integer(priv->trq_msgs? (json_int_t)trq_size(priv->trq_msgs) : 0)
     );
     json_object_set_new(jn_data, "pending_acks", json_integer((json_int_t)priv->pending_acks));
+    json_object_set_new(jn_data, "dropped_msgs", json_integer(priv->dropped_msgs));
 
     KW_DECREF(kw)
     return build_stats_response(
@@ -677,6 +705,12 @@ PRIVATE q_msg_t *enqueue_message(
         return 0;
     }
 
+    if(queue_refuses_messages(gobj)) {
+        priv->dropped_msgs++;
+        priv->dropped_while_refusing++;
+        return 0;   // Logged once, when the queue started to refuse them
+    }
+
     json_t *kw_clean_clone;
 
     if(!priv->with_metadata) {
@@ -689,12 +723,10 @@ PRIVATE q_msg_t *enqueue_message(
         kw_clean_clone
     );
     if(!msg) {
-        gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Message NOT SAVED in the queue",
-            NULL
-        );
+        // The cause is logged by timeranger2; the state is logged once
+        start_refusing_messages(gobj, "the queue cannot save a message", -1);
+        priv->dropped_msgs++;
+        priv->dropped_while_refusing++;
         return 0;
     }
 
@@ -756,6 +788,96 @@ PRIVATE q_msg_t *enqueue_message(
     }
 
     return msg;
+}
+
+/***************************************************************************
+ *  Enter the state where new messages are refused. One ERROR when the
+ *  state starts, not one per message: the messages refused are counted
+ *  in dropped_msgs. free_percent -1: not known.
+ ***************************************************************************/
+PRIVATE void start_refusing_messages(hgobj gobj, const char *cause, int free_percent)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->t_disk_check = start_msectimer(DISK_CHECK_MS);
+    if(priv->refusing_msgs) {
+        return;
+    }
+    priv->refusing_msgs = TRUE;
+    priv->dropped_while_refusing = 0;
+
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_QUEUE,
+        "msg",          "%s", "Queue refuses new messages",
+        "cause",        "%s", cause,
+        "free_percent", "%d", free_percent,
+        "min_free_disk_percentage", "%d", (int)priv->min_free_disk_percentage,
+        "path",         "%s", gobj_read_str_attr(gobj, "tranger_path"),
+        "queue",        "%s", gobj_read_str_attr(gobj, "tranger_database"),
+        "msgs_in_queue","%ld", (long)(priv->trq_msgs? trq_size(priv->trq_msgs) : 0),
+        NULL
+    );
+}
+
+/***************************************************************************
+ *  TRUE while new messages must be refused. The free space of the disk of
+ *  the queue is checked every DISK_CHECK_MS: below min_free_disk_percentage
+ *  the queue refuses them, before a record is half written on a full disk;
+ *  above it (or with no threshold, at the next check after a failed save)
+ *  it accepts them again, with one INFO. What is already in the queue is
+ *  delivered all the time. Up to 7.28.3 a message the queue could not save
+ *  aborted the yuno, which started again, read the queue and aborted again
+ *  on the next message, while the disk stayed full.
+ ***************************************************************************/
+PRIVATE BOOL queue_refuses_messages(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->t_disk_check && !test_msectimer(priv->t_disk_check)) {
+        return priv->refusing_msgs;     // 0: never checked, check now
+    }
+    priv->t_disk_check = start_msectimer(DISK_CHECK_MS);
+
+    const char *path = gobj_read_str_attr(gobj, "tranger_path");
+    struct statvfs st;
+    if(statvfs(path, &st) != 0 || st.f_blocks == 0) {
+        if(!priv->disk_check_failed) {
+            priv->disk_check_failed = TRUE;
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot read the free space of the disk of the queue: the state is kept",
+                "path",         "%s", path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
+        return priv->refusing_msgs;
+    }
+    priv->disk_check_failed = FALSE;
+
+    int free_percent = (int)((st.f_bavail * 100) / st.f_blocks);
+    if(priv->min_free_disk_percentage > 0 && free_percent < (int)priv->min_free_disk_percentage) {
+        start_refusing_messages(gobj, "the disk of the queue is below min_free_disk_percentage", free_percent);
+        return TRUE;
+    }
+
+    if(priv->refusing_msgs) {
+        priv->refusing_msgs = FALSE;
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_QUEUE,
+            "msg",          "%s", "Queue accepts new messages again",
+            "free_percent", "%d", free_percent,
+            "min_free_disk_percentage", "%d", (int)priv->min_free_disk_percentage,
+            "dropped",      "%ld", (long)priv->dropped_while_refusing,
+            "queue",        "%s", gobj_read_str_attr(gobj, "tranger_database"),
+            NULL
+        );
+    }
+    return FALSE;
 }
 
 /***************************************************************************
@@ -1145,10 +1267,14 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         kw  // not owned
     );
 
-    if(msg) {
-        if(priv->bottom_side_opened) {
-            send_batch_messages(gobj, msg); // Send the received msg
-        }
+    if(!msg) {
+        // Error already logged (or counted in dropped_msgs while the queue refuses them)
+        KW_DECREF(kw);
+        return -1;
+    }
+
+    if(priv->bottom_side_opened) {
+        send_batch_messages(gobj, msg); // Send the received msg
     }
 
     KW_DECREF(kw);
@@ -1164,6 +1290,10 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(priv->bottom_side_opened) {
         send_batch_messages(gobj, 0); // Resend by periodic timeout
+    }
+
+    if(priv->refusing_msgs) {
+        queue_refuses_messages(gobj);   // to accept them again when none arrives
     }
 
     if(priv->timeout_backup > 0 && test_sectimer(priv->t_backup)) {

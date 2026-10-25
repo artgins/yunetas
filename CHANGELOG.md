@@ -14,6 +14,17 @@
   each simulator died on a message it could not save (`c_qiogate`'s CRITICAL
   *"Message NOT SAVED in the queue"*), in a loop, for a day.
   `tests/c/c_yuno_stats`.
+- **A queue gate with a full disk refuses messages, it no longer aborts.**
+  When the queue of a `C_QIOGATE` cannot save a message, the gate refuses
+  it: `EV_SEND_MESSAGE` returns `-1` to the sender, and the new stat
+  `dropped_msgs` counts it. It also refuses new messages before the disk is
+  full, below the new `min_free_disk_percentage` (default `10`, as the log
+  rotatory's), so no record is half written. One ERROR when it starts to
+  refuse (*"Queue refuses new messages"*), one INFO when it accepts them
+  again. What is in the queue is still delivered, and the gate recovers by
+  itself. Up to 7.28.3 the CRITICAL *"Message NOT SAVED in the queue"*
+  aborted the yuno, which loaded its queue and aborted again, in a loop
+  (the simulators of wattyzer, for a day). `tests/c/c_qiogate_stats`.
 
 ## v7.28.3 (2026-10-25)
 

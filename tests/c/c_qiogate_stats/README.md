@@ -22,6 +22,22 @@ through it (red: the three checks fail for both children). And up to the
 same release both gates' `mt_stats` returned the bare counters, so
 `stats-yuno` on either answered `-1` (red: no `result`, no `data`).
 
+Then the test shows that a gate whose queue cannot save a message refuses it
+and goes on. It sets `min_free_disk_percentage` of `output-q1` to `101` (a
+disk that is always too full) and sends 3 more messages:
+
+- each `EV_SEND_MESSAGE` returns `-1` (the broadcast returns the error of
+  `output-q1`);
+- `output-q1` counts them in `dropped_msgs` (3), and in the stats of the
+  `C_MQIOGATE`; its queue keeps its 5 messages, and it logs one ERROR,
+  *"Queue refuses new messages"*;
+- `output-q2` takes them (8 messages, `dropped_msgs` 0).
+
+With `min_free_disk_percentage` `0`, the poll of `output-q1` accepts messages
+again (one INFO), and the next message goes into its queue. Up to 7.28.3 the
+gate had no such threshold, and a message its queue could not save aborted
+the yuno (red: the messages go in, and the checks fail).
+
 ## Run
 
 ```bash

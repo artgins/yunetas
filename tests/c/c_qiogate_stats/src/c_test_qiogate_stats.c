@@ -24,6 +24,13 @@
  *            (what `stats-yuno service=<it>` does) are the response
  *            envelope, result 0 and the data in `data`: up to 7.25.21 both
  *            answered the bare data, and stats-yuno said -1
+ *          - A queue that cannot save a message refuses it and holds on: with
+ *            min_free_disk_percentage 101 (a disk always too full) the gate
+ *            refuses N_REFUSED messages (the sender gets -1), counts them in
+ *            dropped_msgs, logs one ERROR, keeps what it had, and the other
+ *            gate of the broadcast takes them. With 0 it accepts them again,
+ *            with one INFO. Up to 7.28.3 a message the queue could not save
+ *            aborted the yuno
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -36,6 +43,7 @@
  *              Constants
  ***************************************************************************/
 #define N_MSGS      5
+#define N_REFUSED   3
 
 /***************************************************************************
  *              Structures
@@ -217,7 +225,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, 300);
             break;
 
-        default:
+        case 1:
             {
                 json_t *jn_stats = gobj_stats(priv->gobj_output_side, "", 0, gobj);
                 json_t *jn_data = kw_get_dict(gobj, jn_stats, "data", 0, 0);
@@ -289,6 +297,61 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     gobj_trace_json(gobj, jn_stats, "the stats of __output_side__");
                 }
                 JSON_DECREF(jn_stats)
+
+                hgobj q1 = gobj_find_service("output-q1", TRUE);
+                hgobj q2 = gobj_find_service("output-q2", TRUE);
+                gobj_write_integer_attr(q1, "min_free_disk_percentage", 101);
+                int refused = 0;
+                for(int i = 0; i < N_REFUSED; i++) {
+                    int ret = gobj_send_event(
+                        priv->gobj_output_side,
+                        EV_SEND_MESSAGE,
+                        json_pack("{s:s, s:i}", "id", "1", "n", N_MSGS + i),
+                        gobj
+                    );
+                    if(ret < 0) {
+                        refused++;
+                    }
+                }
+                check(gobj, "a queue that cannot save a message refuses it: the sender gets -1",
+                    refused == N_REFUSED
+                );
+                check(gobj, "and counts it in dropped_msgs",
+                    gobj_read_integer_attr(q1, "dropped_msgs") == N_REFUSED
+                );
+                check(gobj, "and keeps what it had",
+                    gobj_read_integer_attr(q1, "msgs_in_queue") == N_MSGS
+                );
+                check(gobj, "the other gate of the broadcast takes them",
+                    gobj_read_integer_attr(q2, "msgs_in_queue") == N_MSGS + N_REFUSED &&
+                    gobj_read_integer_attr(q2, "dropped_msgs") == 0
+                );
+                json_t *jn_stats2 = gobj_stats(priv->gobj_output_side, "", 0, gobj);
+                check(gobj, "the C_MQIOGATE stats say dropped_msgs of each child",
+                    kw_get_int(gobj, jn_stats2, "data`output-q1`dropped_msgs", -1, 0) == N_REFUSED
+                );
+                JSON_DECREF(jn_stats2)
+
+                gobj_write_integer_attr(q1, "min_free_disk_percentage", 0);
+                set_timeout(priv->timer, 1500);     // the poll of the gate accepts again
+            }
+            break;
+
+        default:
+            {
+                hgobj q1 = gobj_find_service("output-q1", TRUE);
+                int ret = gobj_send_event(
+                    priv->gobj_output_side,
+                    EV_SEND_MESSAGE,
+                    json_pack("{s:s, s:i}", "id", "1", "n", N_MSGS + N_REFUSED),
+                    gobj
+                );
+                check(gobj, "the queue accepts messages again",
+                    ret == 0 && gobj_read_integer_attr(q1, "msgs_in_queue") == N_MSGS + 1
+                );
+                check(gobj, "and dropped_msgs keeps its count",
+                    gobj_read_integer_attr(q1, "dropped_msgs") == N_REFUSED
+                );
 
                 gobj_stop_tree(priv->gobj_output_side);
                 set_yuno_must_die();

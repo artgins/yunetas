@@ -208,12 +208,15 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     /*
      *  The warnings and errors, in order: the floor of timeout_poll, for
-     *  each C_QIOGATE (-5 and 0), and for the 0 written once started
+     *  each C_QIOGATE (-5 and 0), and for the 0 written once started; then
+     *  the gate that refuses messages (its INFO when it accepts them again
+     *  is not a warning nor an error: not in the list)
      */
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "timeout_poll 0 or less never polls, the floor is used",
         "msg", "timeout_poll 0 or less never polls, the floor is used",
-        "msg", "timeout_poll 0 or less never polls, the floor is used"
+        "msg", "timeout_poll 0 or less never polls, the floor is used",
+        "msg", "Queue refuses new messages"
     );
 
     set_expected_results( // Check that no logs happen

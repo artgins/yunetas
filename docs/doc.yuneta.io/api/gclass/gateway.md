@@ -161,8 +161,10 @@ backed by timeranger. Provides ack-based delivery with automatic retry.
 | `timeout_poll` | `integer` | Poll of the queue, in milliseconds (default `1000`): it resends what waits for its ack and checks the backup. `0` or less is raised to 1000 ms with a WARNING, at start and when code writes it later (*"timeout_poll 0 or less never polls, the floor is used"*): up to 7.26.9 such a gate never resent anything. Example: `'kw': {'timeout_poll': 2000}`. |
 | `backup_queue_size` | `integer` | Backup retention size. |
 | `alert_queue_size` | `integer` | Queue size threshold for alerts. |
+| `min_free_disk_percentage` | `integer` | The gate refuses new messages while the disk of `tranger_path` has less free space than this, in percent (default `10`). `0` or less: it refuses them only when the queue cannot save one. Example: `'kw': {'min_free_disk_percentage': 5}`. |
 | `msgs_in_queue` | `integer` (stats) | Messages in the queue, not acked yet: a gauge, read live. |
 | `pending_acks` | `integer` (stats) | Messages sent and waiting for their ack: a gauge, read live. |
+| `dropped_msgs` | `integer` (stats) | Messages refused because the queue could not save them, since the yuno started. |
 
 `msgs_in_queue` and `pending_acks` are stats attributes, so they are in the
 stats of the gate itself and in those of a `C_MQIOGATE` above it, one entry
@@ -172,7 +174,36 @@ read through it).
 
 ```bash
 ycommand -c 'stats-yuno id=<id> service=__output_side__'
-# {"output-qiogate-aire": {"msgs_in_queue": 12, "pending_acks": 3, ...}, ...}
+# {"output-qiogate-aire": {"msgs_in_queue": 12, "pending_acks": 3, "dropped_msgs": 0, ...}, ...}
+```
+
+### A full disk
+
+A gate whose queue cannot save a message **refuses** it and goes on. The
+`EV_SEND_MESSAGE` returns `-1` to its sender, and `dropped_msgs` counts it.
+What is already in the queue is still delivered. The gate refuses new
+messages:
+
+- while the disk of `tranger_path` has less free space than
+  `min_free_disk_percentage` (checked every second): so no record is half
+  written on a full disk;
+- after a save that failed, until the next check (one second later).
+
+It logs one ERROR when it starts to refuse (*"Queue refuses new messages"*,
+with the `cause` and the `free_percent`), and one INFO when it accepts them
+again (*"Queue accepts new messages again"*, with the count `dropped`). The
+poll of the gate does the check also when no message arrives, so the gate
+recovers by itself when space comes back. Up to 7.28.3 a message that the
+queue could not save aborted the yuno (CRITICAL *"Message NOT SAVED in the
+queue"*). The yuno started again, loaded its queue and aborted again on the
+next message, in a loop, for as long as the disk stayed full.
+
+A sender sees the refusal in the return of the event:
+
+```C
+if(gobj_send_event(gobj_output_side, EV_SEND_MESSAGE, kw, gobj) < 0) {
+    // the queue refused it: see dropped_msgs and the gate's ERROR
+}
 ```
 
 ### Commands
