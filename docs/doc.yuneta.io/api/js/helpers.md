@@ -20,7 +20,7 @@ its calls.
 | Reading and writing a `kw`, the `kwid` records, and the inter-event metadata | [`kw`, `kwid` and inter-event helpers](helpers_kw.md) |
 | The comparisons of strings, the lists, the time and the general utilities | [String, list and general helpers](helpers_str.md) |
 | Building elements, escaping untrusted values, and the language | [DOM and i18n helpers](helpers_dom.md) |
-| The database in memory, the files, the HTTP and the tokens | [Local database, transport and token helpers](helpers_data.md) |
+| The database in memory, the files and the HTTP | [Local database and transport helpers](helpers_data.md) |
 | The writers of logs and traces, and the formatting | [Logging](logging.md) |
 
 Every symbol of the package is in the

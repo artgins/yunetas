@@ -1,11 +1,11 @@
 ---
-title: 'JS: Local database, transport and token helpers'
+title: 'JS: Local database and transport helpers'
 description: >-
-  The jdb in-memory database, the file and HTTP helpers, and the JWT
-  readers of @yuneta/gobj-js.
+  The jdb in-memory database and the file and HTTP helpers of
+  @yuneta/gobj-js.
 ---
 
-# Local database, transport and token helpers
+# Local database and transport helpers
 
 **Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.27.0/src/helpers.js)
 
@@ -125,26 +125,3 @@ Reads a JSON file from a URL, and calls `on_success` with the object. It calls
 
 Sends a POST request with a JSON body. It calls `on_response(status,
 response_data)`.
-
----
-
-## Tokens
-
-(js_jwtDecode)=
-### [`jwtDecode(jwt)`](https://github.com/artgins/gobj-js/blob/7.27.0/src/helpers.js#L5142)
-
-Reads a JWT, and gives its three parts back.
-
-(js_jwt2json)=
-### [`jwt2json(jwt, what)`](https://github.com/artgins/gobj-js/blob/7.27.0/src/helpers.js#L5190)
-
-Reads one part of a JWT as JSON. `what` accepts `"header"`, `"payload"` and
-`"signature"`, and the default is `"payload"`.
-
-:::{warning}
-Both functions **read** a token. Neither one verifies it. The signature, the
-issuer and the expiry are checked by the backend, and a browser cannot check
-them: it holds no key, and a token that it reads is a token that somebody can
-write. Use the payload to draw a name on the screen. Never use it to decide a
-permission.
-:::

@@ -99,6 +99,16 @@
       offset (the port had `WEST` at +00:00, `AST` at -03:00).
   `tests/c/helpers/test_date_text`: the forms kept passed on the port
   before it was replaced.
+- **The JavaScript and Python projects carry their licenses** (submodules
+  bumped): `gobj-js`, `gobj-ui.js`, `yunos-js` and `tui_yunetas.py` get a
+  `LICENSE` (MIT) and a `CONTRIBUTING.md` that points to the CLA; gobj-js
+  ships the BSD-3-Clause notice of `sprintf.js` in a `THIRD-PARTY-NOTICES`
+  and keeps it in its bundles, gobj-ui ships the CC BY 4.0 attribution of
+  the Font Awesome Free paths of `yui_icons.css` and declares
+  `"license": "MIT"`, which its published package lacked. **BREAKING in
+  gobj-js** (not yet published): `jwtDecode()` and `jwt2json()` are removed
+  (copied from a StackOverflow answer, CC BY-SA; nobody called them), and
+  their entries leave the JS API pages.
 
 ## v7.28.4 (2026-10-25)
 
