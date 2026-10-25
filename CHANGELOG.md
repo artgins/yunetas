@@ -43,6 +43,11 @@
   logger outlives `gobj_end()` and the gbmem audit. `c_websocket.c` no
   longer says its `dev_urandom()` was copied from pinewiki: it was written
   again in 7.27.7.
+- **The string switch of `helpers.h` (`SWITCHS`, `CASES`, `ICASES`,
+  `CASES_RE`, `DEFAULTS`, `SWITCHS_END`) is written again**, with its own
+  example: it carried the code of a gist with no license. What it matches
+  does not move (`tests/c/helpers/test_switchs`); it keeps one flag where it
+  kept two that were always equal.
 
 ## v7.28.4 (2026-10-25)
 

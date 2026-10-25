@@ -39,47 +39,34 @@ extern "C"{
 #define INLINE_COMMENT "#^^"
 
 /***********************************************************************
- *  Macros of switch for strings
- *  copied from https://gist.github.com/HoX/abfe15c40f2d9daebc35
+ *  A switch on a string: each case compares it, the first one that
+ *  matches runs, and a case with no `break` (or `return`) goes on into
+ *  the next one, as in a C switch. DEFAULTS runs when no case before it
+ *  matched, or when one falls into it.
 
-Example:
-
-int main(int argc, char **argv) {
-     SWITCHS(argv[1]) {
-        CASES("foo")
-        CASES("bar")
-            printf("foo or bar (case sensitive)\n");
+    SWITCHS(command) {
+        CASES("start")
+        CASES("run")
+            gobj_start(gobj);           // "start" or "run", exactly
             break;
 
-        ICASES("pi")
-            printf("pi or Pi or pI or PI (case insensitive)\n");
+        ICASES("stop")
+            gobj_stop(gobj);            // "stop", "STOP", "Stop"...
             break;
 
-        CASES_RE("^D.*",0)
-            printf("Something that start with D (case sensitive)\n");
+        CASES_RE("^list-", 0)
+            list_things(command);       // anything starting with "list-"
             break;
 
-        CASES_RE("^E.*",REG_ICASE)
-            printf("Something that start with E (case insensitive)\n");
-            break;
-
-        CASES("1")
-            printf("1\n");
-
-        CASES("2")
-            printf("2\n");
+        CASES_RE("^help$", REG_ICASE)
+            print_help();               // regcomp(3) flags
             break;
 
         DEFAULTS
-            printf("No match\n");
+            unknown_command(command);
             break;
     } SWITCHS_END
 
-    return 0;
-}
- ***********************************************************************/
-
-/*
  *  NOTHING IS ALLOCATED BY A SWITCHS, so leaving it from inside a case --
  *  a `return`, a `goto` -- is safe.
  *
@@ -90,29 +77,32 @@ int main(int argc, char **argv) {
  *  C_MQIOGATE's send path lost ~1.1 KB per message and a gate_central grew to
  *  1 GB in 25 minutes. Now only CASES_RE touches a regex, and it frees it
  *  before the case body runs.
- */
-
-/** Begin a switch for the string x */
+ *
+ *  How it is built: the `do { ... } while(0)` is what a `break` leaves, and
+ *  each case closes the block of the case before it and opens its own.
+ *  switchs_taken_ says that a case was entered: from then on every case
+ *  opens without comparing, which is the fall-through. A case that was
+ *  entered and left with `break` never reaches the next one, so DEFAULTS
+ *  needs no test: getting to it means nothing before it matched, or a
+ *  case fell into it.
+ ***********************************************************************/
 #define SWITCHS(x) \
-    { const char *__sw = (x); BOOL __done = FALSE; BOOL __cont = FALSE; do {
+    { const char *switchs_text_ = (x); BOOL switchs_taken_ = FALSE; do {
 
-/** Check if the string matches the cases argument (case sensitive) */
-#define CASES(x)    } if ( __cont || !strcmp ( __sw, x ) ) \
-    { __done = TRUE; __cont = TRUE;
+#define CASES(x) \
+    } if(switchs_taken_ || strcmp(switchs_text_, (x)) == 0) { switchs_taken_ = TRUE;
 
-/** Check if the string matches the icases argument (case insensitive) */
-#define ICASES(x)    } if ( __cont || !strcasecmp ( __sw, x ) ) { \
-    __done = TRUE; __cont = TRUE;
+#define ICASES(x) \
+    } if(switchs_taken_ || strcasecmp(switchs_text_, (x)) == 0) { switchs_taken_ = TRUE;
 
-/** Check if the string matches the regular expression x (regcomp(3) flags) */
-#define CASES_RE(x,flags) } if ( __cont || str_match_regex ( __sw, x, flags ) ) { \
-    __done = TRUE; __cont = TRUE;
+#define CASES_RE(x, flags) \
+    } if(switchs_taken_ || str_match_regex(switchs_text_, (x), (flags))) { switchs_taken_ = TRUE;
 
-/** Default behaviour */
-#define DEFAULTS } if ( !__done || __cont ) {
+#define DEFAULTS \
+    } {
 
-/** Close the switchs */
-#define SWITCHS_END } while ( 0 ); }
+#define SWITCHS_END \
+    } while(0); }
 
 /*****************************************************************
  *     Structures
