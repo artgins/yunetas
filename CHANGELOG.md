@@ -28,6 +28,8 @@ center, so no figure of the trend can move.
   last one when the clock has not moved. Found by the new case of
   `test_c_controlcenter_scenarios`, which failed one run in three.
 
+## v7.28.5 (2026-10-25)
+
 The license round: the code of others that the MIT license of the SDK cannot
 carry is written again, and the licenses of what stays are recorded. Its C
 changes are in `gobj-c` and `root-linux`, which every yuno links, so every
