@@ -1,6 +1,19 @@
 # **Changelog**
 
-## Unreleased
+## v7.28.5 (2026-10-25)
+
+The license round: the code of others that the MIT license of the SDK cannot
+carry is written again, and the licenses of what stays are recorded. Its C
+changes are in `gobj-c` and `root-linux`, which every yuno links, so every
+binary is rebuilt (the external libraries do not change: linux-ext-libs
+1.26). Two changes are BREAKING for a C caller: the date functions nobody
+called are removed, and the result of `replace_string()` is freed with
+`gbmem_free()`. Suite on the dev machine only: 335/335 after a clean build,
+under `ulimit -Sn 1024`. A short performance study against 7.28.4, the last
+release with a study: only the benchmarks that run changed code (the treedb,
+which runs `SWITCHS`, and the inter-yuno events, which run the websocket
+handshake), 18 figures, every one within its noise (the largest, a link or
+unlink of two nodes, +1.67%, t = 2.4); `performance/reports/7.28.5.json`.
 
 - **maplibre-gl 6.16.0** in the JS layer: gobj-ui's lockfile and its demo
   (no gobj-ui release, the peer floor stays `^6.14.0`), and gui_treedb 1.0.1.

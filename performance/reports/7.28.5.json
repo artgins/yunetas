@@ -1,0 +1,957 @@
+{
+ "schema": "yuneta-perf-report/1",
+ "version": "7.28.5",
+ "previous": "7.28.4",
+ "date": "2026-10-25",
+ "machine": {
+  "kind": "laptop",
+  "model": "Acer Nitro AN517-53",
+  "cpu": "11th Gen Intel Core i7-11370H @ 3.30 GHz",
+  "cores": 4,
+  "threads": 8,
+  "cpu_max_ghz": 4.8,
+  "l3_cache": "12 MiB",
+  "cpu_governor": "powersave (intel_pstate)",
+  "ram": "31 GiB",
+  "disk": "Samsung SSD 990 PRO 2TB (NVMe)",
+  "filesystem": "ext4",
+  "kernel": "Linux 7.0.0-38-generic x86_64",
+  "distro": "Ubuntu 26.04.1 LTS",
+  "glibc": "2.43",
+  "shared": "A development machine, with other work running at times; the A/B runs are alternated for that reason"
+ },
+ "build": {
+  "compiler": "gcc 15.2.0",
+  "build_type": "RelWithDebInfo (-O2 -g -DNDEBUG)",
+  "fully_static": true,
+  "debug_track_memory": true,
+  "debug_with_backtrace": true,
+  "tls": "OpenSSL 3.6.5 (bundled, static: linux-ext-libs 1.26); mbedTLS not built on this machine",
+  "note": "CONFIG_DEBUG_TRACK_MEMORY is on (the .config of this machine): every allocation is tracked. A build without it does less work per allocation; that build was not measured here."
+ },
+ "method": {
+  "ab": "Written on 2026-10-25, before the tag. 7.28.5 is the C code of main at f5a86a1b2, measured against 7.28.4, the last release with a study. A short study: 7.28.5 writes again code of others the SDK could not carry under its license, and only two of those changes are on the path of a benchmark: the string switch (SWITCHS) of helpers.h, which tr_treedb runs, and the websocket handshake (SHA-1 and base64), which perf_ievent runs once per connection. So only the benchmarks of the treedb (perf_tr_treedb, perf_tr_treedb_read, perf_c_treedb) and of the inter-yuno events (perf_ievent) were run; the other figures pass through no changed code and are not in this study (their last measure is the study of 7.28.4). Each release built from a git worktree with the same .config, compiler and outputs_ext (linux-ext-libs 1.26); the kernel libraries, the modules and the four benchmarks were built in each. The two binaries of each benchmark run in rotation, the order turned every round, with a sync and a 3 s pause before each run: 8 rounds. Mean +- standard deviation (median), t = the change over its standard error; |t| < 3 is noise. The treedb figures are CPU time of the process per operation.",
+  "tag_run": "The absolute figures of 7.28.5 are its side of the A/B run: its C code (f5a86a1b2), built on 2026-10-25 on the machine of the earlier reports. The binary sizes are those of the yunos built from the main tree with the same .config."
+ },
+ "story": {
+  "title": "Yuneta 7.28.5: its own code, at the same speed",
+  "lead": "7.28.5 writes again the code of others that the MIT license of the SDK cannot carry. Against 7.28.4, the 18 figures that run changed code stay inside their noise.",
+  "hero": {
+   "value": "0",
+   "text": "figures outside their noise against 7.28.4."
+  },
+  "tiles": [
+   [
+    "treedb.update_saved",
+    "treedb: update a node and save it"
+   ],
+   [
+    "treedb.reopen",
+    "Open a treedb (per node)"
+   ],
+   [
+    "net.ievent_round_trip",
+    "Inter-yuno event round trips"
+   ]
+  ],
+  "append_note": "",
+  "ab_sub": "Each benchmark built from the tree of each release (7.28.4 and 7.28.5), the binaries run in rotation: 8 rounds. Only the benchmarks that run changed code. A change inside its whisker is noise.",
+  "prices_sub": "What got slower, how much, in which release, and what it buys.",
+  "prices": [],
+  "no_prices": "None.",
+  "abs_sub": "Absolute figures of the 7.28.5 build (its C code: f5a86a1b2), measured on 2026-10-25 as its side of the A/B run.",
+  "ab_order": [
+   "treedb.update_memory",
+   "treedb.update_saved",
+   "treedb.link_unlink",
+   "treedb.create_link_half",
+   "treedb.reopen",
+   "treedb.delete_force",
+   "treedb.delete_parent",
+   "treedb_read.reopen",
+   "treedb_read.list_nodes",
+   "treedb_read.list_filter",
+   "treedb_read.view_users",
+   "treedb_read.view_departments",
+   "treedb_read.get_view",
+   "treedb_read.dump_views",
+   "ctreedb.same_literal_release",
+   "ctreedb.seed",
+   "ctreedb.newer_literal",
+   "net.ievent_round_trip"
+  ]
+ },
+ "ab": [
+  {
+   "id": "treedb.update_memory",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "update_memory",
+   "label": "Update a node in memory",
+   "meaning": "A change of a node that is not saved.",
+   "unit": "us",
+   "better": "lower",
+   "previous": {
+    "mean": 1.1599,
+    "sd": 0.0525,
+    "median": 1.1905
+   },
+   "current": {
+    "mean": 1.1591,
+    "sd": 0.0396,
+    "median": 1.17
+   },
+   "n": 8,
+   "scope": "release",
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "verdict": "noise",
+   "change_pct": -0.07,
+   "t": -0.03
+  },
+  {
+   "id": "treedb.update_saved",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "update_saved",
+   "label": "Update a node and save it",
+   "meaning": "The common write: change a node and persist it.",
+   "unit": "us",
+   "better": "lower",
+   "previous": {
+    "mean": 4.1259,
+    "sd": 0.08,
+    "median": 4.1485
+   },
+   "current": {
+    "mean": 4.1014,
+    "sd": 0.0686,
+    "median": 4.104
+   },
+   "n": 8,
+   "scope": "release",
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "verdict": "noise",
+   "change_pct": -0.59,
+   "t": -0.66
+  },
+  {
+   "id": "treedb.link_unlink",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "link_unlink",
+   "label": "Link or unlink two nodes",
+   "meaning": "One relation made or undone (the child is saved).",
+   "unit": "us",
+   "better": "lower",
+   "previous": {
+    "mean": 4.6259,
+    "sd": 0.0529,
+    "median": 4.6435
+   },
+   "current": {
+    "mean": 4.703,
+    "sd": 0.0741,
+    "median": 4.721
+   },
+   "n": 8,
+   "scope": "release",
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "verdict": "noise",
+   "change_pct": 1.67,
+   "t": 2.4
+  },
+  {
+   "id": "treedb.create_link_half",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "create_link_half",
+   "label": "Create a node (half of them linked)",
+   "short": "Create a node",
+   "meaning": "A new node, saved.",
+   "unit": "us",
+   "better": "lower",
+   "previous": {
+    "mean": 55.6773,
+    "sd": 1.5159,
+    "median": 55.0925
+   },
+   "current": {
+    "mean": 54.8401,
+    "sd": 0.5688,
+    "median": 54.874
+   },
+   "n": 8,
+   "scope": "release",
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "verdict": "noise",
+   "change_pct": -1.5,
+   "t": -1.46
+  },
+  {
+   "id": "treedb.reopen",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "reopen",
+   "label": "Reopen the treedb",
+   "meaning": "Loading every node and its links at start-up (us_per_op as the benchmark counts it).",
+   "unit": "us",
+   "better": "lower",
+   "previous": {
+    "mean": 16.7804,
+    "sd": 0.4447,
+    "median": 16.7375
+   },
+   "current": {
+    "mean": 16.7041,
+    "sd": 0.2953,
+    "median": 16.671
+   },
+   "n": 8,
+   "scope": "release",
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "verdict": "noise",
+   "change_pct": -0.45,
+   "t": -0.4
+  },
+  {
+   "id": "treedb.delete_force",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "delete_force",
+   "label": "Forced delete of a node",
+   "meaning": "Removing a node, linked or not.",
+   "unit": "us",
+   "better": "lower",
+   "previous": {
+    "mean": 44.532,
+    "sd": 0.8666,
+    "median": 44.353
+   },
+   "current": {
+    "mean": 44.3184,
+    "sd": 0.5993,
+    "median": 44.4715
+   },
+   "n": 8,
+   "scope": "release",
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "verdict": "noise",
+   "change_pct": -0.48,
+   "t": -0.57
+  },
+  {
+   "id": "treedb.delete_parent",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "delete_parent",
+   "label": "Forced delete of a parent with 200 children",
+   "short": "Delete a parent of 200 children",
+   "meaning": "Each child is unlinked and saved.",
+   "unit": "us",
+   "better": "lower",
+   "previous": {
+    "mean": 1657.1585,
+    "sd": 40.5283,
+    "median": 1650.971
+   },
+   "current": {
+    "mean": 1670.2404,
+    "sd": 23.4955,
+    "median": 1666.0895
+   },
+   "n": 8,
+   "scope": "release",
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "verdict": "noise",
+   "change_pct": 0.79,
+   "t": 0.79
+  },
+  {
+   "id": "ctreedb.same_literal_release",
+   "group": "C_TREEDB",
+   "bench": "perf_c_treedb",
+   "case": "same_literal",
+   "label": "Open 40 treedbs whose schema did not change (release against release)",
+   "short": "Open 40 treedbs, same schema",
+   "meaning": "The start-up of a yuno with many treedbs: the everyday case.",
+   "unit": "s",
+   "better": "lower",
+   "previous": {
+    "mean": 0.2679,
+    "sd": 0.0167,
+    "median": 0.2632
+   },
+   "current": {
+    "mean": 0.2662,
+    "sd": 0.0155,
+    "median": 0.2628
+   },
+   "n": 8,
+   "scope": "release",
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "verdict": "noise",
+   "change_pct": -0.63,
+   "t": -0.21
+  },
+  {
+   "id": "ctreedb.seed",
+   "group": "C_TREEDB",
+   "bench": "perf_c_treedb",
+   "case": "seed",
+   "label": "First open of 40 treedbs (seed projection)",
+   "short": "First open of 40 treedbs (seed)",
+   "meaning": "A one-time cost: the first start of a new treedb.",
+   "unit": "s",
+   "better": "lower",
+   "previous": {
+    "mean": 9.3795,
+    "sd": 0.3283,
+    "median": 9.3492
+   },
+   "current": {
+    "mean": 9.8131,
+    "sd": 0.5379,
+    "median": 9.7855
+   },
+   "n": 8,
+   "scope": "release",
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "verdict": "noise",
+   "change_pct": 4.62,
+   "t": 1.95
+  },
+  {
+   "id": "ctreedb.newer_literal",
+   "group": "C_TREEDB",
+   "bench": "perf_c_treedb",
+   "case": "newer_literal",
+   "label": "Open 40 treedbs with a newer schema",
+   "short": "Open 40 treedbs, newer schema",
+   "meaning": "A one-time cost: the first start after a schema upgrade.",
+   "unit": "s",
+   "better": "lower",
+   "previous": {
+    "mean": 11.9643,
+    "sd": 0.6559,
+    "median": 12.1016
+   },
+   "current": {
+    "mean": 12.162,
+    "sd": 0.7317,
+    "median": 11.9403
+   },
+   "n": 8,
+   "scope": "release",
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "verdict": "noise",
+   "change_pct": 1.65,
+   "t": 0.57
+  },
+  {
+   "id": "net.ievent_round_trip",
+   "group": "event loop",
+   "bench": "perf_ievent",
+   "case": "",
+   "label": "Inter-yuno event round trips (websocket)",
+   "short": "Inter-yuno events",
+   "meaning": "An event to a service of another yuno and its answer published back: C_IEVENT_CLI, websocket, C_IEVENT_SRV, both ends in one process.",
+   "unit": "round trips/s",
+   "better": "higher",
+   "scope": "release",
+   "previous": {
+    "mean": 28215.25,
+    "sd": 545.4554,
+    "median": 28169.0
+   },
+   "current": {
+    "mean": 28294.5,
+    "sd": 425.4749,
+    "median": 28159.0
+   },
+   "n": 8,
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "change_pct": 0.28,
+   "t": 0.32,
+   "verdict": "noise"
+  },
+  {
+   "id": "treedb_read.reopen",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "reopen",
+   "label": "Open a treedb of 8 000 users (per node)",
+   "short": "Open a treedb (per node)",
+   "meaning": "The start of a yuno that owns a treedb: every node loaded and linked.",
+   "unit": "us",
+   "better": "lower",
+   "scope": "release",
+   "previous": {
+    "mean": 26.4282,
+    "sd": 0.3465,
+    "median": 26.398
+   },
+   "current": {
+    "mean": 26.8038,
+    "sd": 0.484,
+    "median": 26.6815
+   },
+   "n": 8,
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "change_pct": 1.42,
+   "t": 1.78,
+   "verdict": "noise"
+  },
+  {
+   "id": "treedb_read.list_nodes",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "list_nodes",
+   "label": "List the nodes of a topic (per node)",
+   "short": "List nodes",
+   "meaning": "treedb_list_nodes() of every user.",
+   "unit": "us",
+   "better": "lower",
+   "scope": "release",
+   "previous": {
+    "mean": 0.0405,
+    "sd": 0.0027,
+    "median": 0.041
+   },
+   "current": {
+    "mean": 0.0399,
+    "sd": 0.0035,
+    "median": 0.0405
+   },
+   "n": 8,
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "change_pct": -1.48,
+   "t": -0.38,
+   "verdict": "noise"
+  },
+  {
+   "id": "treedb_read.list_filter",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "list_filter",
+   "label": "List with a filter of one column (per node looked at)",
+   "short": "List with a filter",
+   "meaning": "treedb_list_nodes() with {\"enabled\": false}.",
+   "unit": "us",
+   "better": "lower",
+   "scope": "release",
+   "previous": {
+    "mean": 0.1949,
+    "sd": 0.0965,
+    "median": 0.1535
+   },
+   "current": {
+    "mean": 0.2266,
+    "sd": 0.0931,
+    "median": 0.2115
+   },
+   "n": 8,
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "change_pct": 16.26,
+   "t": 0.67,
+   "verdict": "noise"
+  },
+  {
+   "id": "treedb_read.view_users",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "view_users",
+   "label": "The views of every user (per user)",
+   "short": "Views of users",
+   "meaning": "node_collapsed_view() of each user, its links as references: what list-nodes answers.",
+   "unit": "us",
+   "better": "lower",
+   "scope": "release",
+   "previous": {
+    "mean": 3.4511,
+    "sd": 0.1442,
+    "median": 3.445
+   },
+   "current": {
+    "mean": 3.3977,
+    "sd": 0.1773,
+    "median": 3.3995
+   },
+   "n": 8,
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "change_pct": -1.55,
+   "t": -0.66,
+   "verdict": "noise"
+  },
+  {
+   "id": "treedb_read.view_departments",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "view_departments",
+   "label": "The views of every department, ~50 users in its hook (per department)",
+   "short": "Views of departments",
+   "meaning": "A parent whose hook holds about 50 children, collapsed into references.",
+   "unit": "us",
+   "better": "lower",
+   "scope": "release",
+   "previous": {
+    "mean": 58.3424,
+    "sd": 2.5041,
+    "median": 57.4555
+   },
+   "current": {
+    "mean": 58.9516,
+    "sd": 2.8364,
+    "median": 58.411
+   },
+   "n": 8,
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "change_pct": 1.04,
+   "t": 0.46,
+   "verdict": "noise"
+  },
+  {
+   "id": "treedb_read.get_view",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "get_view",
+   "label": "Get a node and its view, one by one (per user)",
+   "short": "Get a node + view",
+   "meaning": "treedb_get_node() and node_collapsed_view(): what get-node answers.",
+   "unit": "us",
+   "better": "lower",
+   "scope": "release",
+   "previous": {
+    "mean": 2.4594,
+    "sd": 0.1325,
+    "median": 2.482
+   },
+   "current": {
+    "mean": 2.4121,
+    "sd": 0.0942,
+    "median": 2.4275
+   },
+   "n": 8,
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "change_pct": -1.92,
+   "t": -0.82,
+   "verdict": "noise"
+  },
+  {
+   "id": "treedb_read.dump_views",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "dump_views",
+   "label": "The json text of the view of each user (per user)",
+   "short": "Views as json text",
+   "meaning": "json2gbuf() of each view, compact: the bytes a command answer carries.",
+   "unit": "us",
+   "better": "lower",
+   "scope": "release",
+   "previous": {
+    "mean": 0.9746,
+    "sd": 0.0702,
+    "median": 0.962
+   },
+   "current": {
+    "mean": 0.953,
+    "sd": 0.0664,
+    "median": 0.9235
+   },
+   "n": 8,
+   "method": "Each release built from its own tree (7.28.4 and 7.28.5, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "change_pct": -2.22,
+   "t": -0.63,
+   "verdict": "noise"
+  }
+ ],
+ "figures": [
+  {
+   "id": "treedb.update_memory",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "update_memory",
+   "label": "Update a node in memory",
+   "meaning": "A change of a node that is not saved.",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 1.1591,
+   "median": 1.17,
+   "n": 8,
+   "sd": 0.0396,
+   "headline": true
+  },
+  {
+   "id": "treedb.update_saved",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "update_saved",
+   "label": "Update a node and save it",
+   "meaning": "The common write: change a node and persist it.",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 4.1014,
+   "median": 4.104,
+   "n": 8,
+   "sd": 0.0686,
+   "headline": true
+  },
+  {
+   "id": "treedb.link_unlink",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "link_unlink",
+   "label": "Link or unlink two nodes",
+   "meaning": "One relation made or undone (the child is saved).",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 4.703,
+   "median": 4.721,
+   "n": 8,
+   "sd": 0.0741,
+   "headline": true
+  },
+  {
+   "id": "treedb.create_link_half",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "create_link_half",
+   "label": "Create a node (half of them linked)",
+   "meaning": "A new node, saved.",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 54.8401,
+   "median": 54.874,
+   "n": 8,
+   "sd": 0.5688,
+   "headline": true
+  },
+  {
+   "id": "treedb.reopen",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "reopen",
+   "label": "Reopen the treedb",
+   "meaning": "Loading every node and its links at start-up (us_per_op as the benchmark counts it).",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 16.7041,
+   "median": 16.671,
+   "n": 8,
+   "sd": 0.2953
+  },
+  {
+   "id": "treedb.delete_force",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "delete_force",
+   "label": "Forced delete of a node",
+   "meaning": "Removing a node, linked or not.",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 44.3184,
+   "median": 44.4715,
+   "n": 8,
+   "sd": 0.5993,
+   "headline": true
+  },
+  {
+   "id": "treedb.delete_parent",
+   "group": "treedb",
+   "bench": "perf_tr_treedb",
+   "case": "delete_parent",
+   "label": "Forced delete of a parent with 200 children",
+   "meaning": "Each child is unlinked and saved.",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 1670.2404,
+   "median": 1666.0895,
+   "n": 8,
+   "sd": 23.4955
+  },
+  {
+   "id": "ctreedb.same_literal",
+   "group": "C_TREEDB",
+   "bench": "perf_c_treedb",
+   "case": "same_literal",
+   "label": "Open 40 treedbs whose schema did not change",
+   "meaning": "The everyday start of a yuno with many treedbs (tag-time run).",
+   "unit": "s",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 0.2662,
+   "median": 0.2628,
+   "n": 8,
+   "sd": 0.0155,
+   "headline": true
+  },
+  {
+   "id": "ctreedb.seed",
+   "group": "C_TREEDB",
+   "bench": "perf_c_treedb",
+   "case": "seed",
+   "label": "First open of 40 treedbs (seed projection)",
+   "meaning": "A one-time cost: the first start of a new treedb.",
+   "unit": "s",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 9.8131,
+   "median": 9.7855,
+   "n": 8,
+   "sd": 0.5379
+  },
+  {
+   "id": "ctreedb.newer_literal",
+   "group": "C_TREEDB",
+   "bench": "perf_c_treedb",
+   "case": "newer_literal",
+   "label": "Open 40 treedbs with a newer schema",
+   "meaning": "A one-time cost: the first start after a schema upgrade.",
+   "unit": "s",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 12.162,
+   "median": 11.9403,
+   "n": 8,
+   "sd": 0.7317
+  },
+  {
+   "id": "net.ievent_round_trip",
+   "group": "event loop",
+   "bench": "perf_ievent",
+   "case": "",
+   "label": "Inter-yuno event round trips (websocket)",
+   "meaning": "An event to a service of another yuno and its answer published back: C_IEVENT_CLI, websocket, C_IEVENT_SRV, both ends in one process.",
+   "unit": "round trips/s",
+   "better": "higher",
+   "source": "ab-current",
+   "mean": 28294.5,
+   "median": 28159.0,
+   "n": 8,
+   "sd": 425.4749
+  },
+  {
+   "id": "treedb_read.reopen",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "reopen",
+   "label": "Open a treedb of 8 000 users (per node)",
+   "meaning": "The start of a yuno that owns a treedb: every node loaded and linked.",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 26.8038,
+   "median": 26.6815,
+   "n": 8,
+   "sd": 0.484
+  },
+  {
+   "id": "treedb_read.list_nodes",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "list_nodes",
+   "label": "List the nodes of a topic (per node)",
+   "meaning": "treedb_list_nodes() of every user.",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 0.0399,
+   "median": 0.0405,
+   "n": 8,
+   "sd": 0.0035
+  },
+  {
+   "id": "treedb_read.list_filter",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "list_filter",
+   "label": "List with a filter of one column (per node looked at)",
+   "meaning": "treedb_list_nodes() with {\"enabled\": false}.",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 0.2266,
+   "median": 0.2115,
+   "n": 8,
+   "sd": 0.0931
+  },
+  {
+   "id": "treedb_read.view_users",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "view_users",
+   "label": "The views of every user (per user)",
+   "meaning": "node_collapsed_view() of each user, its links as references: what list-nodes answers.",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 3.3977,
+   "median": 3.3995,
+   "n": 8,
+   "sd": 0.1773
+  },
+  {
+   "id": "treedb_read.view_departments",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "view_departments",
+   "label": "The views of every department, ~50 users in its hook (per department)",
+   "meaning": "A parent whose hook holds about 50 children, collapsed into references.",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 58.9516,
+   "median": 58.411,
+   "n": 8,
+   "sd": 2.8364
+  },
+  {
+   "id": "treedb_read.get_view",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "get_view",
+   "label": "Get a node and its view, one by one (per user)",
+   "meaning": "treedb_get_node() and node_collapsed_view(): what get-node answers.",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 2.4121,
+   "median": 2.4275,
+   "n": 8,
+   "sd": 0.0942
+  },
+  {
+   "id": "treedb_read.dump_views",
+   "group": "treedb reads",
+   "bench": "perf_tr_treedb_read",
+   "case": "dump_views",
+   "label": "The json text of the view of each user (per user)",
+   "meaning": "json2gbuf() of each view, compact: the bytes a command answer carries.",
+   "unit": "us",
+   "better": "lower",
+   "source": "ab-current",
+   "mean": 0.953,
+   "median": 0.9235,
+   "n": 8,
+   "sd": 0.0664
+  }
+ ],
+ "binaries": [
+  {
+   "name": "auth_bff",
+   "kind": "yuno",
+   "bytes": 35115224,
+   "stripped_bytes": 10500416,
+   "text": 9718846,
+   "data": 767548,
+   "bss": 114572,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "controlcenter",
+   "kind": "yuno",
+   "bytes": 35398456,
+   "stripped_bytes": 10603904,
+   "text": 9795814,
+   "data": 793916,
+   "bss": 114444,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "emailsender",
+   "kind": "yuno",
+   "bytes": 35335712,
+   "stripped_bytes": 10581952,
+   "text": 9778374,
+   "data": 784636,
+   "bss": 114604,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "logcenter",
+   "kind": "yuno",
+   "bytes": 35185144,
+   "stripped_bytes": 10522816,
+   "text": 9738110,
+   "data": 769884,
+   "bss": 114988,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "mqtt_broker",
+   "kind": "yuno",
+   "bytes": 35927408,
+   "stripped_bytes": 10802304,
+   "text": 9942446,
+   "data": 841660,
+   "bss": 114604,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "sgateway",
+   "kind": "yuno",
+   "bytes": 35121256,
+   "stripped_bytes": 10500864,
+   "text": 9720222,
+   "data": 768252,
+   "bss": 114476,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "watchfs",
+   "kind": "yuno",
+   "bytes": 35131504,
+   "stripped_bytes": 10509120,
+   "text": 9722366,
+   "data": 768348,
+   "bss": 114860,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "webstats",
+   "kind": "yuno",
+   "bytes": 35449984,
+   "stripped_bytes": 10623648,
+   "text": 9832374,
+   "data": 773596,
+   "bss": 114604,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "yuneta_agent",
+   "kind": "agent",
+   "bytes": 36041752,
+   "stripped_bytes": 10850144,
+   "text": 9964190,
+   "data": 867772,
+   "bss": 116300,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "perf_yev_ping_pong",
+   "kind": "bench",
+   "bytes": 6938776,
+   "stripped_bytes": 2571632,
+   "text": 2525556,
+   "data": 32460,
+   "bss": 78640,
+   "static": true,
+   "tls": "openssl"
+  }
+ ]
+}

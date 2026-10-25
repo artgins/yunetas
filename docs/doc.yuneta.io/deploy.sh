@@ -226,9 +226,16 @@ def vkey(v):
     return tuple(int(x) for x in v.split('.'))
 
 versions = sorted((os.path.basename(p)[:-5] for p in glob.glob(os.path.join(reports_dir, '*.json'))), key=vkey)
-latest = versions[-1]
-rep = json.load(open(os.path.join(reports_dir, latest + '.json')))
-fig = {f['id']: f for f in rep['figures']}
+# A short study measures only what its release changed: the band takes the
+# newest study that measured all of its figures.
+needed = ('tr2.append_rate', 'net.tcp_echo', 'net.tls_echo', 'net.ievent_round_trip', 'net.yev_ping_pong')
+for latest in reversed(versions):
+    rep = json.load(open(os.path.join(reports_dir, latest + '.json')))
+    fig = {f['id']: f for f in rep['figures']}
+    if all(i in fig for i in needed):
+        break
+else:
+    sys.exit('ERROR: no performance study measures every figure of the landing page')
 
 def rate(i, scale=1.0):
     return '{:,.0f}'.format(fig[i]['mean'] * scale)
