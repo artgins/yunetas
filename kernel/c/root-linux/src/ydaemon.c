@@ -107,7 +107,6 @@ PRIVATE void write_pid_file(pid_t pid)
  ***************************************************************************/
 PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
 {
-    /* Our process ID and Session ID */
     pid_t pid, sid;
 
     /*
@@ -120,9 +119,8 @@ PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
      */
 
     /*
-     *  Fork off the parent process
-     *  The first fork will change our pid
-     *  but the sid and pgid will be the calling process.
+     *  The first fork: the child goes on, as the watcher, with a new pid but
+     *  still in the session and process group of whoever started it
      */
     pid = fork();
 
@@ -133,7 +131,7 @@ PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
         case 0:
             break;                  // child falls through
         default:
-            /* If we got a good PID, then we can exit the parent process. */
+            /* The parent is done: the child (the watcher) stays */
             if(pid_file) {
                 write_pid_file(pid);    // the child is the watcher
             }
@@ -143,13 +141,8 @@ PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
     watcher_pid = getpid();
 
     /*
-     *  Create a new SID for the child process
-     *  Run the process in a new session without a controlling
-     *  terminal. The process group ID will be the process ID
-     *  and thus, the process will be the process group leader.
-     *  After this call the process will be in a new session,
-     *  and it will be the progress group leader in a new
-     *  process group.
+     *  The watcher leaves the terminal: setsid() makes a session of its own,
+     *  with no controlling terminal, and a process group whose leader it is
      */
     sid = setsid(); // become leader of new session
     if (sid < 0) {
@@ -181,19 +174,10 @@ PRIVATE int relauncher(
     }
 
     /*
-     *  We will fork again, also known as a
-     *  double fork. This second fork will orphan
-     *  our process because the parent will exit.
-     *  When the parent process exits the child
-     *  process will be adopted by the init process
-     *  with process ID 1.
-     *  The result of this second fork is a process
-     *  with the parent as the init process with an ID
-     *  of 1. The process will be in it's own session
-     *  and process group and will have no controlling
-     *  terminal. Furthermore, the process will not
-     *  be the process group leader and thus, cannot
-     *  have the controlling terminal if there was one.
+     *  The second fork: the child runs the yuno, the parent (the watcher)
+     *  waits for it and says whether to relaunch it. The child is not the
+     *  leader of the session the watcher made, so it can never get a
+     *  controlling terminal back.
      */
     pid_t pid = fork();
     if(debug) {
@@ -271,10 +255,10 @@ PRIVATE int relauncher(
          *  we are the child
          *  (return 0)
          *------------------------*/
-        /* Clear umask to enable explicit file modes. */
+        /* umask 0: the yuno gives every file it makes its mode explicitly */
         umask(0);
 
-        /* Change the current working directory */
+        /* Into the work dir of the yuno */
         if(!empty_string(work_dir)) {
             if(chdir(work_dir) < 0) {
                 gobj_log_error(0, 0,
@@ -361,7 +345,7 @@ PUBLIC int daemon_run(
 
     continue_as_daemon(work_dir, process_name);
     while((ret=relauncher(process, process_name, work_dir, domain_dir, cleaning_fn))<0) {
-        // sleep 2 sec and launch again while relauncher return negative
+        // relauncher() < 0: the yuno ended in a way that asks for it again, 2 s later
         relaunch_times++;
         sleep(2);
         if(stop_requested) {

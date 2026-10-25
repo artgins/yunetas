@@ -15,6 +15,16 @@
   license that lets it distribute the contribution under the license of the
   project and under others. Agreed to once, in the first pull request; the
   JavaScript and Python projects point to it.
+- **The licenses of the third-party code in the kernel are written where
+  the code is.** `llhttp` (the four `llhttp*` files of `gobj-c`, version
+  9.4.3, byte for byte the upstream release) carried no notice of its MIT
+  License: it is in `kernel/c/gobj-c/src/LICENSE-llhttp.txt`. The json
+  buffers of `glogger.c`, adapted from libumberlog (BalaBit), carried its
+  copyright line but not the BSD 2-Clause terms that ask for it: they are
+  there now. `ydaemon` keeps the design of NXWEB's watcher (LGPL-3.0) but
+  none of its code; the comments it still shared with the daemon skeleton
+  NXWEB took them from are written again, and its header says it. Comments
+  and notices only: no code changes.
 
 ## v7.28.4 (2026-10-25)
 

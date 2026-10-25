@@ -1,9 +1,10 @@
 /****************************************************************************
  *          ydaemon.h
  *
- *  Work inspired in daemon.c from NXWEB project.
- *  https://github.com/yarosla/nxweb
- *  Copyright (c) 2011-2012 Yaroslav Stavnichiy <yarosla@gmail.com>
+ *  The design of the watcher (a first fork that stays and watches, a
+ *  second one that runs the yuno and is relaunched when it fails) follows
+ *  the one of daemon.c of NXWEB (https://github.com/yarosla/nxweb, by
+ *  Yaroslav Stavnichiy). No code of it is here.
  *
  *          Copyright (c) 2013 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
