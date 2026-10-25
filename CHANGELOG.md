@@ -1,5 +1,21 @@
 # **Changelog**
 
+## Unreleased
+
+- **The agents read the pid file left by a killed agent as what it is.**
+  An agent killed with SIGKILL (a stop of its unit that timed out) leaves
+  its pid file, and the next start found that pid still a zombie: it logged
+  an ERROR, *"cannot check pid"*, with `errno 0`. Now a pid that is not an
+  agent (a zombie or another program) is a WARNING, *"pid file left by an
+  agent that did not end in order"*, and the file is removed; a pid that is
+  gone is removed in silence, as before. A pid file without a pid was read
+  as pid 0, this very process, and the agent exited as *"already running"*:
+  now it is a WARNING and the agent starts. An agent of another user
+  (`kill()` answers `EPERM`) is recognised by its cmdline as running,
+  where it was an ERROR. The pid of the file is
+  logged as `pid_in_file` (it was `pid`, the key of the process's own pid in
+  every log record). `yuneta_agent` and `yuneta_agent22`.
+
 ## v7.28.0 (2026-10-25)
 
 A full release: a performance round over the C SDK, taken from a cloud

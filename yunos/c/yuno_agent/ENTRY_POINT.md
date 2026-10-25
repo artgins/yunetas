@@ -399,6 +399,32 @@ What each line keeps from this chapter:
   v2 path written by hand: a no-op, unsaid, on a v1 or hybrid host, and a
   kill with nothing in the journal. Such a stop ends `failed (timeout)`,
   which is what it was.
+- **The pid file of a killed agent.** An agent killed with SIGKILL runs no
+  `atexit()`, so its own pid file (`/yuneta/realms/agent/yuneta_agent.pid`,
+  not the unit's) stays behind, and the next start reads it a few
+  milliseconds later, when that pid is still a zombie nobody reaped. The
+  agent tells the cases apart: a pid that is an agent (of any user: its
+  cmdline is read even when `kill()` answers `EPERM`) means *"already
+  running"*, and it exits; a pid that is gone is removed in silence; a pid
+  that is something else -- a zombie, with an empty cmdline, or another
+  program -- is a WARNING, *"pid file left by an agent that did not end in
+  order"*, and removed; a file without a pid is a WARNING too. Up to 7.28.0
+  the zombie was an ERROR, *"cannot check pid"* with `errno 0`, and a file
+  without a pid was read as pid 0 -- this very process -- and the agent
+  exited as *"already running"*. Example, the WARNING after a stop that
+  timed out:
+
+  ```
+  WARNING: {"process": "yuneta_agent^hidrauliaconnect", "msg": "pid file left by an agent that did not end in order: its pid is not an agent now (killed and not yet reaped, or taken by another program), removed", "pid_in_file": 1142552, ...}
+  ```
+
+- **The unit is the package's.** A node that builds from source does not
+  install the packages, so it keeps the unit of the last package it had: a
+  unit older than 7.26.0 asks only the agent to stop (`pkill`), not its
+  watcher, and its `ExecStopPost` reads a hand-written cgroup path and says
+  nothing (artgins and hidraulia had one in 2026-10). Compare with
+  `systemctl cat yuneta_agent` and copy `packages/templates/*.service` by
+  hand when it differs.
 - **`KillMode=process`.** The yunos the agent launches are in the unit's
   cgroup. A stop or a restart must not take them (they outlive their agent,
   §4.4); the journal says *"Found left-over process"* for them at the next

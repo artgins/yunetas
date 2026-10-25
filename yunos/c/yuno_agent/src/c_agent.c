@@ -1176,28 +1176,46 @@ PRIVATE void mt_create(hgobj gobj)
         FILE *file = fopen(pidfile, "r");
         if(file) {
             int x = fscanf(file, "%d", &pid);
-            if(x) {} // ignore warning
             fclose(file);
 
-            if(pid != getpid()) {
+            if(x != 1 || pid <= 0) {
+                // pid 0 would be read as this very process (/proc/self)
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_OPERATIONAL,
+                    "msg",          "%s", "pid file without a pid, removed",
+                    "pid_file",     "%s", pidfile,
+                    NULL
+                );
+                unlink(pidfile);
+            } else if(pid != getpid()) {
                 int ret = is_yuneta_agent(pid);
                 if(ret == 0) {
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_INFO,
                         "msg",          "%s", "yuneta_agent already running, exiting",
-                        "pid",          "%d", pid,
+                        "pid_in_file",  "%d", pid,
                         NULL
                     );
                     exit(0);
-                } else if(errno == ESRCH) {
+                } else if(ret == 1) {
+                    unlink(pidfile);
+                } else if(ret == 2) {
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_OPERATIONAL,
+                        "msg",          "%s", "pid file left by an agent that did not end in order: its pid is not an agent now (killed and not yet reaped, or taken by another program), removed",
+                        "pid_in_file",  "%d", pid,
+                        NULL
+                    );
                     unlink(pidfile);
                 } else {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_SYSTEM,
                         "msg",          "%s", "cannot check pid",
-                        "pid",          "%d", pid,
+                        "pid_in_file",  "%d", pid,
                         "errno",        "%d", errno,
                         "serrno",       "%s", strerror(errno),
                         NULL
@@ -7505,16 +7523,23 @@ PRIVATE const char *sequence_name(hgobj gobj)
  *****************************************************************/
 PRIVATE int is_yuneta_agent(pid_t pid)
 {
-    int ret = kill(pid, 0);
-    if(ret == 0) {
-        char cmdline[1024];
-        read_process_cmdline(cmdline, sizeof(cmdline), pid);
-        if(strstr(cmdline, "yuneta_agent ")) {
-            return 0;
-        }
-        return -1;
+    /*
+     *  0 an agent runs with the pid, 1 nothing does, 2 something that is
+     *  not an agent does: a zombie (its cmdline is empty) or another
+     *  program; -1 cannot tell (errno). EPERM is an agent of another user
+     *  as much as a stranger: its cmdline is readable, so it is read.
+     */
+    if(kill(pid, 0) < 0 && errno != EPERM) {
+        return (errno == ESRCH)? 1 : -1;
     }
-    return ret;
+    char cmdline[1024];
+    if(read_process_cmdline(cmdline, sizeof(cmdline), pid) < 0) {
+        return (errno == ENOENT || errno == ESRCH)? 1 : -1;
+    }
+    if(strstr(cmdline, "yuneta_agent ")) {
+        return 0;
+    }
+    return 2;
 }
 
 /***************************************************************************
