@@ -10,7 +10,8 @@
   place of the live view (status line, memory tags, cards mode, the
   commands a confirmation lists), and a chart series is named by label, id
   and short node, so yunos that share a label stay apart; then gobj-ui
-  `^7.28.1`.
+  `^7.28.1`. gui_agent 1.1.6 writes the rate of a link where it leaves its
+  card, beside the yuno that emits it, not halfway along the edge.
 
 ## v7.28.6 (2026-10-25)
 
