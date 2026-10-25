@@ -1397,15 +1397,39 @@ PRIVATE int mt_stop(hgobj gobj)
     json_t *dl_counters = gobj_match_children(gobj, json_pack("{s:s}",
         "__gclass_name__", C_COUNTER
     ));
-    int idx; json_t *jn_counter;
-    json_array_foreach(dl_counters, idx, jn_counter) {
-        hgobj gobj_counter = (hgobj)(size_t)json_integer_value(jn_counter);
-        if(gobj_is_running(gobj_counter)) {
-            gobj_stop(gobj_counter);
+    /*
+     *  The iter holds a reference of each gobj: it is freed BEFORE they are
+     *  destroyed. Up to 7.28.2 they were destroyed under it ("gobj
+     *  DESTROYING with references") and its free read the gobjs already
+     *  gone ("iter gobj with refs <= 0"), at a stop that came while a
+     *  run/play-yuno still waited, as a restart right after a deploy.
+     */
+    size_t n_counters = json_array_size(dl_counters);
+    hgobj *counters = NULL;
+    if(n_counters > 0) {
+        counters = gbmem_malloc(n_counters * sizeof(hgobj));
+        if(!counters) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "no memory for the C_COUNTERs to stop: left running",
+                "counters",     "%d", (int)n_counters,
+                NULL
+            );
+            n_counters = 0;
         }
-        gobj_destroy(gobj_counter);
+    }
+    for(size_t i = 0; i < n_counters; i++) {
+        counters[i] = (hgobj)(size_t)json_integer_value(json_array_get(dl_counters, i));
     }
     gobj_free_iter(dl_counters);
+    for(size_t i = 0; i < n_counters; i++) {
+        if(gobj_is_running(counters[i])) {
+            gobj_stop(counters[i]);
+        }
+        gobj_destroy(counters[i]);
+    }
+    GBMEM_FREE(counters);
 
     clear_timeout(priv->timer);
     if(priv->cert_sync_timer) {

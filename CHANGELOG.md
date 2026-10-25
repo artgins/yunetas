@@ -1,5 +1,20 @@
 # **Changelog**
 
+## Unreleased
+
+- **The agent no longer destroys its waiting counters under the list that
+  holds them.** At its stop, the agent stops and destroys the `C_COUNTER`s
+  of a `run-yuno` / `play-yuno` / `kill-yuno` still waiting; it did so while
+  the list returned by `gobj_match_children()` still held a reference of
+  each, and freeing the list read gobjs already destroyed: two ERRORs,
+  *"gobj DESTROYING with references"* and *"iter gobj with refs <= 0"*, and
+  a read of freed memory, at a stop that came right after a deploy (seen on
+  wattyzer and on the dev machine). The list is freed first now.
+- **The web console (gui_agent 1.0.7)**: the live view of a scenario puts
+  its charts to the right of the graph of yunos on a wide screen (under it
+  on a narrow one), and the series of each chart are folded behind a
+  *Series* button.
+
 ## v7.28.2 (2026-10-25)
 
 A full release: the fix is in `c_yuno`, which every yuno links, so every
