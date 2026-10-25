@@ -7,6 +7,14 @@
   It fixes a map that shrinks to one pixel after a lost WebGL context (a
   mobile browser back from the background) and maps that stop loading
   after iOS shuts down their workers.
+- **`CONTRIBUTING.md` and `CLA.md`.** How a change gets into Yuneta (an issue
+  first for anything not small, the rules of `CLAUDE.md`, build and test,
+  what code of others may come in and how its license is recorded), and the
+  Contributor License Agreement of the Yuneta projects, version 1.0: a
+  contributor keeps the copyright and grants ArtGins a copyright and patent
+  license that lets it distribute the contribution under the license of the
+  project and under others. Agreed to once, in the first pull request; the
+  JavaScript and Python projects point to it.
 
 ## v7.28.4 (2026-10-25)
 
