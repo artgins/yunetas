@@ -94,6 +94,7 @@ PRIVATE int add_denied_ip(const char *ip, BOOL denied);
 PRIVATE int remove_denied_ip(const char *ip);
 
 PRIVATE int capture_signals(hgobj gobj);
+PRIVATE void read_signals_again(hgobj gobj, yev_event_h yev_event);
 PRIVATE hgclass get_gclass_from_gobj(const char *gobj_name);
 PRIVATE int trace_set_value(json_t *kw, int *value);
 PRIVATE void remove_pid_file(void);
@@ -596,6 +597,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t limit_open_files;
 
     yev_event_h yev_signal;
+    int signal_read_failures;   // in a row, see read_signals_again()
 } PRIVATE_DATA;
 
 
@@ -667,6 +669,7 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
         case YEV_READ_TYPE:
             if(yev_event == priv->yev_signal) {
                 if(yev_state == YEV_ST_IDLE) {
+                    priv->signal_read_failures = 0;
                     gbuffer_t *gbuf = yev_get_gbuf(yev_event);
                     size_t len = gbuffer_leftbytes(gbuf);
                     if(len == sizeof(struct signalfd_siginfo)) {
@@ -764,6 +767,8 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
                         gbuffer_clear(gbuf);
                         yev_start_event(yev_event);
                     }
+                } else if(gobj_is_running(gobj)) {
+                    read_signals_again(gobj, yev_event);
                 }
 
             } else {
@@ -5268,6 +5273,79 @@ PRIVATE int capture_signals(hgobj gobj)
     );
 
     return 0;
+}
+
+/***************************************************************************
+ *  The read of the signals ended while the yuno runs: nobody stopped it
+ *  (mt_stop() stops it after the yuno is no longer running). Up to 7.28.1 it
+ *  was not read again, and said nothing: from then on the yuno was deaf to
+ *  every signal, a SIGQUIT did nothing, and the stop of an agent's unit
+ *  timed out into a SIGKILL. Now it is said, with the cause, and read again:
+ *  on the same fd while it is still a signalfd; on a new one when its fd was
+ *  closed under it (that number may be another file by now, so it is not
+ *  closed here). Ten failures in a row and it is no longer read, said: a
+ *  read that fails at once must not loop.
+ ***************************************************************************/
+PRIVATE void read_signals_again(hgobj gobj, yev_event_h yev_event)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int fd = yev_get_fd(yev_event);
+    int result = yev_get_result(yev_event);
+
+    char proc_fd[64];
+    snprintf(proc_fd, sizeof(proc_fd), "/proc/self/fd/%d", fd);
+    char fd_is[PATH_MAX];
+    ssize_t n = readlink(proc_fd, fd_is, sizeof(fd_is) - 1);
+    if(n < 0) {
+        snprintf(fd_is, sizeof(fd_is), "closed");
+    } else {
+        fd_is[n] = 0;
+    }
+    BOOL is_signalfd = strstr(fd_is, "signalfd")? TRUE : FALSE;
+
+    priv->signal_read_failures++;
+    if(priv->signal_read_failures > 10) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "the read of the signals keeps failing: not read again, the yuno is deaf to its signals (stop it with SIGKILL)",
+            "result",       "%d", result,
+            "serrno",       "%s", (result < 0)? strerror(-result) : "",
+            "fd",           "%d", fd,
+            "fd_is",        "%s", fd_is,
+            NULL
+        );
+        return;
+    }
+
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_SYSTEM,
+        "msg",          "%s", "the read of the signals ended while the yuno runs: read again",
+        "result",       "%d", result,
+        "serrno",       "%s", (result < 0)? strerror(-result) : "",
+        "fd",           "%d", fd,
+        "fd_is",        "%s", fd_is,
+        "failures",     "%d", priv->signal_read_failures,
+        NULL
+    );
+
+    if(is_signalfd) {
+        gbuffer_t *gbuf = yev_get_gbuf(yev_event);
+        if(gbuf) {
+            gbuffer_clear(gbuf);
+        }
+        yev_start_event(yev_event);
+        return;
+    }
+
+    yev_destroy_event(yev_event);   // a read event does not close its fd
+    priv->yev_signal = 0;
+    capture_signals(gobj);
+    if(priv->yev_signal) {
+        yev_start_event(priv->yev_signal);
+    }
 }
 
 /***************************************************************************

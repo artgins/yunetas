@@ -1,5 +1,25 @@
 # **Changelog**
 
+## Unreleased
+
+- **A yuno no longer goes deaf to its signals.** Every yuno reads its
+  signals (SIGQUIT, SIGALRM, SIGUSR1/2, ...) with one io_uring read on a
+  signalfd, armed again after each one. When that read ended with an error
+  while the yuno ran, it was not armed again and nothing was logged: the
+  process was deaf to every signal from then on, a SIGQUIT and a SIGALRM
+  stayed pending for ever, and only a SIGKILL ended it. Now `c_yuno` logs an
+  ERROR, *"the read of the signals ended while the yuno runs: read again"*,
+  with the result, the fd and what the fd is now, and reads them again -- on
+  a new signalfd when its fd was closed under it (the number may be another
+  file by then, which is not closed). Ten failures in a row and it stops
+  trying, with an ERROR that says the yuno is deaf. The agents of hidraulia
+  and artgins showed that end: the stop of their unit timed out into a
+  SIGKILL after a day or two of running (what ended the read was never
+  seen, and could not be reproduced). Every yuno links `c_yuno`: every
+  binary is rebuilt. `tests/c/c_yuno_signal_read` puts `/dev/null` on the
+  signalfd's number and checks that a SIGQUIT still stops the yuno (up to
+  7.28.1 the test hung: not even its own auto-kill, a SIGALRM, reached it).
+
 ## v7.28.1 (2026-10-25)
 
 A lite release of the agents: only `yuneta_agent` and `yuneta_agent22`

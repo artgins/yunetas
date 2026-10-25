@@ -325,7 +325,24 @@ child share the process name. Each one answers differently:
   `set_yuno_must_die()`, which sets `gobj_set_exit_code(0)` before the orderly
   shutdown. So it exits **0** — and per the matrix in §4.3 the watcher then
   returns 1 and exits by itself. **A SIGQUIT does not leave a resurrecting
-  yuno behind.**
+  yuno behind.** The signalfd is read with one io_uring read, armed again
+  after each signal. When that read ends with an error while the yuno runs
+  (its fd closed under it, a read that cannot be done), the yuno says it and
+  reads again, on a new signalfd when the old fd is no longer one:
+
+  ```
+  ERROR: {"function": "read_signals_again", "msg": "the read of the signals ended while the yuno runs: read again", "result": -32, "serrno": "Broken pipe", "fd": 4, "fd_is": "/dev/null", "failures": 1, ...}
+  ```
+
+  Up to 7.28.1 it was not armed again and nothing was said: the process was
+  deaf to every signal from then on -- a SIGQUIT and a SIGALRM stayed
+  pending for ever (`SigPnd`/`ShdPnd` in `/proc/<pid>/status`), and only a
+  SIGKILL ended it. The agents of two nodes showed exactly that: the stop
+  of their unit timed out into a SIGKILL (the pid file in §4.7), after a day
+  or two of running; a read that had ended is the likely cause, not a proven
+  one -- what ended it was never seen. Ten failures in a row
+  and it is no longer read, with a last ERROR that says the yuno is deaf.
+  Test: `tests/c/c_yuno_signal_read`.
 - The **watcher** notes SIGQUIT (§4.2) and stays in its `waitpid()`: when
   the child ends, it exits instead of relaunching it, even if the child
   crashed in its shutdown.
