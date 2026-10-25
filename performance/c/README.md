@@ -153,6 +153,11 @@ Source: `src/perf_rotatory.c` (single file, no GClasses)
 
 ## Performance Summary
 
+Dated snapshots, kept as history (each on the machine of its day). The
+figures of every release since 7.25.5, measured on one machine against the
+release before it, are in [`performance/reports/`](../reports/README.md) and
+on [doc.yuneta.io/performance](https://doc.yuneta.io/performance/).
+
 ### Nov-2024 (RelWithDebInfo)
 
 | Benchmark | Protocol | TLS | Persistence | Throughput |

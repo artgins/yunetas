@@ -12,17 +12,24 @@ binaries are registered as `ctest` targets and run automatically with
 
 | Binary | Description |
 |--------|-------------|
-| **`perf_tcp_test4`** | TCP echo throughput through the GObj protocol stack (plain). ~35,760 op/sec. |
-| **`perf_tcp_test5`** | Same as test4 but with timeranger2 persistence. ~23,609 op/sec. |
-| **`perf_tcps_test4`** | TLS-encrypted TCP echo throughput. ~24,862 op/sec. |
-| **`perf_tcps_test5`** | TLS + timeranger2 persistence. ~17,406 op/sec. |
-| **`perf_yev_ping_pong`** | Raw io_uring ping-pong (no GObj overhead). ~173K msg/sec, 177 MB/sec. |
+| **`perf_tcp_test4`** | TCP echo throughput through the GObj protocol stack (plain). |
+| **`perf_tcp_test5`** | Same as test4 but with timeranger2 persistence. |
+| **`perf_tcps_test4`** | TLS-encrypted TCP echo throughput. |
+| **`perf_tcps_test5`** | TLS + timeranger2 persistence. |
+| **`perf_yev_ping_pong`** | Raw io_uring ping-pong (no GObj overhead), 1 KB messages. |
 | **`perf_yev_ping_pong2`** | Same as ping-pong but including timeranger2 persistence overhead. |
-| **`perf_auth_bff`** | Ping-pong-style live throughput over the OAuth2 BFF ([`C_AUTH_BFF`](#gclass-c-auth-bff)). Default 10 s runs, ~180,000 ops on the reference box. |
-| **`perf_timeranger2`** | timeranger2: the appends that build a store of 20 000 md2 files, its open as a master and as a replica, the create of topics and a `topic_version` change, a tm query of one minute on 600 000 rows (~12.8 ms since 7.26.0, a filter on every row). Open as a master: ~82 ms. |
-| **`perf_tr_treedb`** | treedb writes without the gclasses: updates in memory and saved, links and unlinks, creates, the reopen, forced deletes (of a child, and of a parent with 200 children). An update in memory: ~2.9 us. |
+| **`perf_auth_bff`** | Ping-pong-style live throughput over the OAuth2 BFF ([`C_AUTH_BFF`](#gclass-c-auth-bff)). Default 10 s runs. |
+| **`perf_timeranger2`** | timeranger2: the appends that build a store of 20 000 md2 files, its open as a master and as a replica, the create of topics and a `topic_version` change, a tm query of one minute on 600 000 rows (a filter on every row since 7.26.0). |
+| **`perf_tr_treedb`** | treedb writes without the gclasses: updates in memory and saved, links and unlinks, creates, the reopen, forced deletes (of a child, and of a parent with 200 children). |
 | **`perf_c_treedb`** | The open of a dynamic-schema treedb by `C_TREEDB` in a store of 40 treedbs: the same literal, a newer literal, the first projection (seed). |
-| **`perf_rotatory`** | The rotatory (the file log of every yuno and the agent audit): one record of 300 bytes as the audit writes it, with the retention, with a flush after each record, and one log record with its header. An audit record: ~0.55 us. |
+| **`perf_rotatory`** | The rotatory (the file log of every yuno and the agent audit): one record of 300 bytes as the audit writes it, with the retention, with a flush after each record, and one log record with its header. |
+
+**The figures** are not written here: they change with every release, and a
+figure written by hand outlives the release it was measured on. Every
+release since 7.25.5 is measured on one machine, each figure against the
+release before it, binaries alternated: the trend, the figures and the
+report of each release are on the [performance page](#performance-history),
+and the newest ones on the landing page of yuneta.io.
 
 The last four print one line of JSON per result, for example:
 
@@ -31,8 +38,8 @@ The last four print one line of JSON per result, for example:
 ```
 
 `perf_timeranger2 --small`, `perf_tr_treedb --small`, `perf_rotatory --small`
-and `perf_c_treedb --config-file=small.json` run them with the sizes ctest uses. The figures of each release,
-against the release before, are in `performance/c/README.md`.
+and `perf_c_treedb --config-file=small.json` run them with the sizes ctest uses. The A/B of single changes
+(one commit before and after) is in `performance/c/README.md`.
 
 **Source:** `performance/c/perf_c_tcp/`, `performance/c/perf_c_tcps/`,
 `performance/c/perf_yev_ping_pong/`, `performance/c/perf_yev_ping_pong2/`,
