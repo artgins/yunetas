@@ -1,6 +1,19 @@
 # **Changelog**
 
-## Unreleased
+## v7.28.2 (2026-10-25)
+
+A full release: the fix is in `c_yuno`, which every yuno links, so every
+binary is rebuilt (the external libraries do not change: linux-ext-libs
+1.26). Suite on the dev machine only: 330/330 after a clean build, under
+`ulimit -Sn 1024`. Performance study against 7.28.0, the last release with a
+study (7.28.1 inside it): every one of the 50 figures within its noise (the
+TCP echo with an append measured -0.94%, t = -5.3, in the rotation, and
++0.64%, t = 0.6, run again alone for 10 rounds); `performance/reports/7.28.2.json`.
+
+- **The landing page of yuneta.io takes its figures from the newest
+  performance study** (`deploy.sh` fills them from
+  `performance/reports/<version>.json`) and links that study, the last report
+  with charts and the history. Its figures were those of Nov-2024.
 
 - **A yuno no longer goes deaf to its signals.** Every yuno reads its
   signals (SIGQUIT, SIGALRM, SIGUSR1/2, ...) with one io_uring read on a
