@@ -19,6 +19,36 @@ system-wide commands.
 |----------|-------|
 | **States** | `ST_STOPPED`, `ST_IDLE` |
 
+### Stats
+
+What `stats-yuno` answers for `__yuno__`, and what a `watch-yuno-stats`
+pushes as its `cpu` kind, read once a second (`timeout_stats`):
+
+| Stat | Meaning |
+|------|---------|
+| `cpu` | Percent of one core the process used. |
+| `uptime`, `start_date` | Seconds since the yuno started, and when. |
+| `mem_rss_kb` | Resident memory of the process, KB (`VmRSS`). |
+| `mem_node_total_mb`, `mem_node_available_percent` | Memory of the node, and the percent of it still available (`MemAvailable`). A ramdisk takes its size from here. |
+| `disk_size_in_gigas`, `disk_free_percent` | Size and free percent of `/yuneta`. |
+| `disk_min_free_percent`, `disk_min_free_path`, `disk_min_free_size_gigas` | The FULLEST filesystem the yuno writes to: `/yuneta` and the store of each of its `C_TRANGER`s (a queue on a ramdisk, a store on another disk). Its free percent, a path of the yuno on it, its size. Since 7.28.4. |
+
+The filesystems are looked for once a minute (a yuno may have thousands of
+stores, on a handful of devices), and each is measured at every reading.
+Before 7.28.4 a yuno told only of `/yuneta`: the queues of a simulator filled
+a ramdisk (`/mnt/simram`) while `/yuneta` had room, and each simulator died on
+a message it could not save. Example, from `stats-yuno`:
+
+```json
+{"cpu": 12, "uptime": 86400, "mem_rss_kb": 5324,
+ "mem_node_total_mb": 31885, "mem_node_available_percent": 35,
+ "disk_size_in_gigas": 1832, "disk_free_percent": 73,
+ "disk_min_free_percent": 4, "disk_min_free_path": "/mnt/simram/queues",
+ "disk_min_free_size_gigas": 26}
+```
+
+Test: `tests/c/c_yuno_stats`.
+
 ### Commands (selection)
 
 | Command | Description |

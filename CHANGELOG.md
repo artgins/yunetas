@@ -1,5 +1,20 @@
 # **Changelog**
 
+## Unreleased
+
+- **A yuno tells its memory and the fullest filesystem it writes to.** Its
+  stats (`stats-yuno` for `__yuno__`, and the `cpu` kind of
+  `watch-yuno-stats`) gain `mem_rss_kb` (its resident memory),
+  `mem_node_total_mb` and `mem_node_available_percent` (the node's), and
+  `disk_min_free_percent`, `disk_min_free_path` and
+  `disk_min_free_size_gigas`: the fullest of `/yuneta` and the filesystem of
+  the store of each of its `C_TRANGER`s, looked for once a minute and
+  measured at every reading. `disk_free_percent` told only of `/yuneta`: the
+  queues of the simulators of wattyzer filled a ramdisk of 26 GB unseen, and
+  each simulator died on a message it could not save (`c_qiogate`'s CRITICAL
+  *"Message NOT SAVED in the queue"*), in a loop, for a day.
+  `tests/c/c_yuno_stats`.
+
 ## v7.28.3 (2026-10-25)
 
 A lite release of the agent: only `yuneta_agent` changes (its stop), and

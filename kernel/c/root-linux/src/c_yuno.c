@@ -20,6 +20,7 @@
 #include <limits.h>
 #include <signal.h>
 #include <sys/signalfd.h>
+#include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/utsname.h>
 #include <sys/resource.h>
@@ -94,6 +95,9 @@ PRIVATE int add_denied_ip(const char *ip, BOOL denied);
 PRIVATE int remove_denied_ip(const char *ip);
 
 PRIVATE int capture_signals(hgobj gobj);
+PRIVATE void load_memory_stats(hgobj gobj);
+PRIVATE void add_disk_path(json_t *disk_paths, const char *path);
+PRIVATE void load_disk_stats(hgobj gobj);
 PRIVATE void read_signals_again(hgobj gobj, yev_event_h yev_event);
 PRIVATE hgclass get_gclass_from_gobj(const char *gobj_name);
 PRIVATE int trace_set_value(json_t *kw, int *value);
@@ -509,6 +513,12 @@ SDATA (DTP_INTEGER, "uptime",           SDF_RD|SDF_STATS,"0",           "Seconds
 SDATA (DTP_INTEGER, "cpu",              SDF_RD|SDF_STATS,"0",           "Cpu percent usage"),
 SDATA (DTP_INTEGER, "disk_size_in_gigas",SDF_RD|SDF_STATS,"0",          "Disk size of /yuneta"),
 SDATA (DTP_INTEGER, "disk_free_percent",SDF_RD|SDF_STATS, "0",          "Disk free of /yuneta"),
+SDATA (DTP_INTEGER, "disk_min_free_percent",SDF_RD|SDF_STATS,"100",     "Free percent of the fullest filesystem the yuno writes to: /yuneta and the store of each of its C_TRANGERs (a queue on a ramdisk, a store on another disk)"),
+SDATA (DTP_STRING,  "disk_min_free_path",SDF_RD|SDF_STATS,"",           "A path of the yuno on that fullest filesystem"),
+SDATA (DTP_INTEGER, "disk_min_free_size_gigas",SDF_RD|SDF_STATS,"0",    "Size of that fullest filesystem, in gigas"),
+SDATA (DTP_INTEGER, "mem_rss_kb",       SDF_RD|SDF_STATS,"0",           "Resident memory of the yuno's process, KB (VmRSS)"),
+SDATA (DTP_INTEGER, "mem_node_total_mb",SDF_RD|SDF_STATS,"0",           "Memory of the node, MB (MemTotal)"),
+SDATA (DTP_INTEGER, "mem_node_available_percent",SDF_RD|SDF_STATS,"0",  "Memory the node still has available, percent of its total (MemAvailable)"),
 
 SDATA (DTP_LIST,    "tags",             SDF_RD,         "[]",           "tags"),
 SDATA (DTP_LIST,    "required_services",SDF_RD,         "[]",           "Required services. Format: 'public_service_name[.yuno_name]'. TODO add alternative parameter: dict (jn_filter)"),
@@ -598,6 +608,9 @@ typedef struct _PRIVATE_DATA {
 
     yev_event_h yev_signal;
     int signal_read_failures;   // in a row, see read_signals_again()
+
+    json_t *disk_paths;         // {"<st_dev>": "<a path of the yuno on it>"}, see load_disk_stats()
+    uint64_t t_disk_paths;      // when the filesystems are looked for again
 } PRIVATE_DATA;
 
 
@@ -1045,6 +1058,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     yev_destroy_event(priv->yev_signal);
     priv->yev_signal = 0;
+    JSON_DECREF(priv->disk_paths)
 }
 
 /***************************************************************************
@@ -5926,6 +5940,125 @@ PRIVATE void load_stats(hgobj gobj)
             );
         }
     }
+
+    load_memory_stats(gobj);
+    load_disk_stats(gobj);
+}
+
+/***************************************************************************
+ *  The memory of the yuno (its resident size) and of its node (total and
+ *  what is still available): a node short of memory slows every yuno on
+ *  it, and a ramdisk full of queues takes it from the node, not from disk.
+ ***************************************************************************/
+PRIVATE void load_memory_stats(hgobj gobj)
+{
+    unsigned long total_kb = total_ram_in_kb();
+    unsigned long available_kb = free_ram_in_kb();
+    gobj_write_integer_attr(gobj, "mem_node_total_mb", (json_int_t)(total_kb / 1024));
+    if(total_kb > 0) {
+        gobj_write_integer_attr(
+            gobj,
+            "mem_node_available_percent",
+            (json_int_t)((available_kb * 100) / total_kb)
+        );
+    }
+
+    FILE *fp = fopen("/proc/self/status", "r");
+    if(!fp) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "cannot open /proc/self/status",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return;
+    }
+    char line[256];
+    while(fgets(line, sizeof(line), fp)) {
+        unsigned long rss_kb;
+        if(strncmp(line, "VmRSS:", 6) == 0 && sscanf(line + 6, "%lu", &rss_kb) == 1) {
+            gobj_write_integer_attr(gobj, "mem_rss_kb", (json_int_t)rss_kb);
+            break;
+        }
+    }
+    fclose(fp);
+}
+
+/***************************************************************************
+ *  A path on a filesystem not seen yet joins the list, keyed by its device
+ ***************************************************************************/
+PRIVATE void add_disk_path(json_t *disk_paths, const char *path)
+{
+    if(empty_string(path)) {
+        return;
+    }
+    struct stat st;
+    if(stat(path, &st) != 0) {
+        return;     // a store not created yet, or removed: looked for again at the next refresh
+    }
+    char dev[64];
+    snprintf(dev, sizeof(dev), "%llu", (unsigned long long)st.st_dev);
+    if(!json_object_get(disk_paths, dev)) {
+        json_object_set_new(disk_paths, dev, json_string(path));
+    }
+}
+
+/***************************************************************************
+ *  The fullest filesystem the yuno writes to. disk_free_percent tells only
+ *  of /yuneta, and a yuno may keep its stores elsewhere: the queues of a
+ *  simulator on a ramdisk filled it, and each of them died on a message it
+ *  could not save, while /yuneta had room. The filesystems are /yuneta and
+ *  the one of the store of each C_TRANGER of the yuno, looked for once a
+ *  minute (a yuno may have thousands of stores, on a handful of devices);
+ *  each one is measured at every reading.
+ ***************************************************************************/
+#define DISK_PATHS_REFRESH_MS   (60 * 1000)
+
+PRIVATE void load_disk_stats(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->disk_paths || test_msectimer(priv->t_disk_paths)) {
+        priv->t_disk_paths = start_msectimer(DISK_PATHS_REFRESH_MS);
+        JSON_DECREF(priv->disk_paths)
+        priv->disk_paths = json_object();
+        add_disk_path(priv->disk_paths, "/yuneta");
+        json_t *dl_trangers = gobj_match_children_tree(gobj, json_pack("{s:s}",
+            "__gclass_name__", "C_TRANGER"
+        ));
+        int idx; json_t *jn_tranger;
+        json_array_foreach(dl_trangers, idx, jn_tranger) {
+            hgobj gobj_tranger = (hgobj)(size_t)json_integer_value(jn_tranger);
+            add_disk_path(priv->disk_paths, gobj_read_str_attr(gobj_tranger, "path"));
+        }
+        gobj_free_iter(dl_trangers);
+    }
+
+    int min_free_percent = 101;
+    const char *min_path = "";
+    uint64_t min_size_gigas = 0;
+    const char *dev; json_t *jn_path;
+    json_object_foreach(priv->disk_paths, dev, jn_path) {
+        const char *path = json_string_value(jn_path);
+        struct statvfs st;
+        if(statvfs(path, &st) != 0 || st.f_blocks == 0) {
+            continue;   // removed since the last refresh: it leaves the list at the next one
+        }
+        int free_percent = (int)((st.f_bavail * 100) / st.f_blocks);
+        if(free_percent < min_free_percent) {
+            min_free_percent = free_percent;
+            min_path = path;
+            min_size_gigas = ((uint64_t)st.f_frsize * st.f_blocks) / (1024LL * 1024LL * 1024LL);
+        }
+    }
+    if(min_free_percent > 100) {
+        return;     // nothing measured: the attrs keep their last reading
+    }
+    gobj_write_integer_attr(gobj, "disk_min_free_percent", min_free_percent);
+    gobj_write_str_attr(gobj, "disk_min_free_path", min_path);
+    gobj_write_integer_attr(gobj, "disk_min_free_size_gigas", (json_int_t)min_size_gigas);
 }
 
 
