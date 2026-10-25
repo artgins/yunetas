@@ -319,7 +319,8 @@ Driven by [`run_yuno()`](https://github.com/artgins/yunetas/blob/7.28.4/yunos/c/
    ```
    <binary> --config-file='["bin/1-role_name.json", "bin/2-role_name.json", …]' "$@"
    ```
-5. `run_process2(bfbinary, argv)` — `fork`/`exec` via a wrapper.
+5. `run_process2(bfbinary, argv)` — `posix_spawn()` of the binary, and a
+   `waitpid()` for the `--start` that daemonises it.
 6. The yuno opens a channel back to the agent and emits **`EV_ON_OPEN`**
    carrying its `pid` and `watcher_pid` (handler
    [`ac_on_open()`](https://github.com/artgins/yunetas/blob/7.28.4/yunos/c/yuno_agent/src/c_agent.c#L12733)).

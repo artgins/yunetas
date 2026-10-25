@@ -25,6 +25,13 @@ the max payload, connection closed"*) and close with 1009, reserving nothing.
 Up to 7.25.21 the length written in the header was reserved at once, and
 there was no maximum but the max block of the yuno.
 
+`ws_accept` (`test_ws_accept.c`, no yuno) is the `Sec-WebSocket-Accept` a
+`C_WEBSOCKET` server answers: the SHA-1 of `sha1.c` (root-linux, private,
+written again from FIPS 180-4 after 7.28.4) against the FIPS vectors and
+every length around the padding, and its base64 against the example of
+RFC 6455 (1.3). A browser refuses a wrong accept; the C client does not check
+it, so test1 and test2 (whose server is raw) would never see one.
+
 ## Run
 
 ```bash

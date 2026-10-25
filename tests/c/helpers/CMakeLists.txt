@@ -64,6 +64,7 @@ set(SRCS
     test_yuno_config_file
     test_json_scan
     test_date_text
+    test_spawn_copy
 )
 
 ##############################################

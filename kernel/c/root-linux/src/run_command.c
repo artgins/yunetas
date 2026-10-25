@@ -16,6 +16,7 @@
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <pty.h>
+#include <spawn.h>
 #include "run_command.h"
 
 /***************************************************************************
@@ -67,94 +68,62 @@ PUBLIC gbuffer_t *run_command(const char *command) // use popen(), synchronous
     return gbuf;
 }
 
-/*************************************************************************\
-*                  Copyright (C) Michael Kerrisk, 2016.                   *
-*                                                                         *
-* This program is free software. You may use, modify, and redistribute it *
-* under the terms of the GNU General Public License as published by the   *
-* Free Software Foundation, either version 3 or (at your option) any      *
-* later version. This program is distributed without any warranty.  See   *
-* the file COPYING.gpl-v3 for details.                                    *
-* http://man7.org/tlpi/code/online/dist/procexec/system.c.html
-* http://www.microhowto.info/howto/reap_zombie_processes_using_a_sigchld_handler.html
-\*************************************************************************/
+/***************************************************************************
+ *  Run the program `path` with `argv` and wait for its end. No shell: argv
+ *  reaches the program as it is. The program inherits the signal mask and
+ *  the ignored signals of the caller, as across any exec.
+ *
+ *  Return the status of waitpid(2), 0 when the program exited with 0, or -1
+ *  when it could not be run or waited for (logged).
+ *
+ *  Unlike system(3), SIGINT and SIGQUIT of the caller are not set to SIG_IGN
+ *  while it waits: a yuno takes them from a signalfd, and ignoring them
+ *  would throw away a stop that arrives in the meantime.
+ ***************************************************************************/
 PUBLIC int run_process2(const char *path, char *const argv[])
 {
-    sigset_t blockMask, origMask;
-    struct sigaction saIgnore, saOrigQuit, saOrigInt, saDefault;
-    pid_t childPid;
-    int status, savedErrno;
-
-    if(empty_string(path)) {
+    if(empty_string(path) || !argv || !argv[0]) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "No program or no argv to run",
+            "path",         "%s", path?path:"",
+            NULL
+        );
         return -1;
     }
 
-    /* The parent process (the caller of system()) blocks SIGCHLD
-       and ignore SIGINT and SIGQUIT while the child is executing.
-       We must change the signal settings prior to forking, to avoid
-       possible race conditions. This means that we must undo the
-       effects of the following in the child after fork(). */
-
-    sigemptyset(&blockMask);            /* Block SIGCHLD */
-    sigaddset(&blockMask, SIGCHLD);
-    sigprocmask(SIG_BLOCK, &blockMask, &origMask);
-
-    saIgnore.sa_handler = SIG_IGN;      /* Ignore SIGINT and SIGQUIT */
-    saIgnore.sa_flags = 0;
-    sigemptyset(&saIgnore.sa_mask);
-    sigaction(SIGINT, &saIgnore, &saOrigInt);
-    sigaction(SIGQUIT, &saIgnore, &saOrigQuit);
-
-    switch (childPid = fork()) {
-    case -1: /* fork() failed */
-        status = -1;
-        break;          /* Carry on to reset signal attributes */
-
-    case 0: /* Child: exec command */
-
-        /* We ignore possible error returns because the only specified error
-           is for a failed exec(), and because errors in these calls can't
-           affect the caller of system() (which is a separate process) */
-
-        saDefault.sa_handler = SIG_DFL;
-        saDefault.sa_flags = 0;
-        sigemptyset(&saDefault.sa_mask);
-
-        if (saOrigInt.sa_handler != SIG_IGN) {
-            sigaction(SIGINT, &saDefault, NULL);
-        }
-        if (saOrigQuit.sa_handler != SIG_IGN) {
-            sigaction(SIGQUIT, &saDefault, NULL);
-        }
-
-        sigprocmask(SIG_SETMASK, &origMask, NULL);
-
-        execv(path, argv);
-        _exit(127);                     /* We could not exec the shell */
-
-    default: /* Parent: wait for our child to terminate */
-
-        /* We must use waitpid() for this task; using wait() could inadvertently
-           collect the status of one of the caller's other children */
-
-        while (waitpid(childPid, &status, 0) == -1) {
-            if (errno != EINTR) {       /* Error other than EINTR */
-                status = -1;
-                break;                  /* So exit loop */
-            }
-        }
-        break;
+    pid_t pid;
+    int ret = posix_spawn(&pid, path, NULL, NULL, argv, environ);
+    if(ret != 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "posix_spawn() FAILED",
+            "path",         "%s", path,
+            "errno",        "%d", ret,
+            "strerror",     "%s", strerror(ret),
+            NULL
+        );
+        return -1;
     }
 
-    /* Unblock SIGCHLD, restore dispositions of SIGINT and SIGQUIT */
-
-    savedErrno = errno;                 /* The following may change 'errno' */
-
-    sigprocmask(SIG_SETMASK, &origMask, NULL);
-    sigaction(SIGINT, &saOrigInt, NULL);
-    sigaction(SIGQUIT, &saOrigQuit, NULL);
-
-    errno = savedErrno;
+    int status;
+    while(waitpid(pid, &status, 0) < 0) {
+        if(errno != EINTR) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "waitpid() FAILED",
+                "path",         "%s", path,
+                "pid",          "%d", (int)pid,
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+            return -1;
+        }
+    }
 
     return status;
 }

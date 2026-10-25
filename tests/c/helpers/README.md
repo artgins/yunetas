@@ -220,3 +220,12 @@ give the same times. The rest checks what the rewrite reads differently: a
 text that is no date is refused (`"in 3 days"` was three days back,
 `"2026-02-30"` was March 2nd), a month back from the 31st stops at the end of
 the month, and a clock time on the day of a change of hour is the local one.
+
+`test_spawn_copy` covers `run_process2()` (root-linux) and `copyfile()`
+(gobj-c), both written again after 7.28.4 (they were the `system()` of TLPI,
+GPL-3.0, and an answer of StackOverflow, CC BY-SA). `run_process2()`: the
+`waitpid()` status of a program that exits 0 or 1, an argv that reaches the
+program with no shell, -1 for a program that does not exist. `copyfile()`:
+the bytes and the mode of a 300 KB copy, an existing destination kept without
+`overwrite` and replaced with it, -1 for a missing source; every failure
+logged (three ERRORs in the output are expected).

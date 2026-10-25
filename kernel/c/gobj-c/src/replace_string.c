@@ -1,5 +1,5 @@
 /***************************************************************************
- *  Función copiada de http://creativeandcritical.net/str-replace-c
+ *  Function copied from http://creativeandcritical.net/str-replace-c
  *  Description:
  *      Replaces in the string str all the occurrences of the source string old
  *      with the destination string new.

@@ -109,6 +109,34 @@
   gobj-js** (not yet published): `jwtDecode()` and `jwt2json()` are removed
   (copied from a StackOverflow answer, CC BY-SA; nobody called them), and
   their entries leave the JS API pages.
+- **The last code of others with no license the SDK can carry is gone,
+  and two notices are restored.** Written again for Yuneta:
+    - **`run_process2()`** (how the agent launches a yuno) was the `system()`
+      of *The Linux Programming Interface*, **GPL-3.0**. It is now
+      `posix_spawn()` + `waitpid()`: same answer (the `waitpid()` status, 0
+      when the program exited 0), and -1, logged, for a program that cannot
+      be run (the port answered a status of 127 and logged nothing). It no
+      longer sets `SIGINT`/`SIGQUIT` to `SIG_IGN` while it waits: a yuno
+      takes them from a `signalfd`, and ignoring them threw away a stop that
+      arrived meanwhile.
+    - **`sha1.c`** (the `Sec-WebSocket-Accept` of `C_WEBSOCKET`) was Paul E.
+      Jones's, "All Rights Reserved" with no license: now `sha1_digest()`,
+      from FIPS 180-4. The handshake also loses its `b64_encode_string()`,
+      the encoder of libwebsockets, for gobj-c's base64. New test
+      `c_websocket/ws_accept`: FIPS vectors, every length around the
+      padding, and the accept of RFC 6455 -- the C client does not check the
+      accept, a browser does, and no test saw it before.
+    - **`copyfile()`** was an answer of StackOverflow (CC BY-SA). It copied
+      with ONE `sendfile()`, which stops at 2 GB, and failed without a log:
+      now it copies the whole file, answers 0 or -1, and logs every failure.
+      New test `helpers/test_spawn_copy` (with `run_process2()`).
+    - The header of `openssl.c` carried a HOWTO from a gist with no license;
+      it now says, in its own words, how the memory BIOs carry a connection.
+  The base64 of `gbuffer.c` is BIND's `b64_ntop()`/`b64_pton()` (ISC, and a
+  notice of IBM): its notices are back in the file and in
+  `THIRD-PARTY-NOTICES`, with `replace_string()` (public domain, Laird
+  Shaw); the `License:` of the `.rpm` adds ISC. `gbmem.c` no longer says it
+  is inspired by MAWK's `zmalloc.c` (GPL-2.0): v7 carries none of that code.
 
 ## v7.28.4 (2026-10-25)
 

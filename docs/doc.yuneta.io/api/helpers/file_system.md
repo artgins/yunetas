@@ -538,7 +538,10 @@ This function is typically used in conjunction with [`lock_file()`](#lock_file) 
 (copyfile)=
 ## [`copyfile()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L10301)
 
-Copies a file from source to destination using kernel-space operations for efficiency.
+Copies a file. The destination is made by [`newfile()`](#newfile) with
+`permission`, so its mode is exactly that one. On Linux the kernel copies the
+bytes (`sendfile()`, as many calls as the size takes); elsewhere a read/write
+loop.
 
 ```C
 int copyfile(
@@ -560,7 +563,23 @@ int copyfile(
 
 **Returns**
 
-Returns `0` on success, or `-1` on error.
+`0`, or `-1` (logged) when the source cannot be opened, the destination cannot
+be made (it exists and `overwrite` is `FALSE`), or a read or write fails.
+
+**Notes**
+
+Written again after 7.28.4: it was an answer of StackOverflow (CC BY-SA). The old
+one copied with ONE `sendfile()`, which stops at 2 GB, answered the number of
+bytes on Linux, and failed without a log.
+
+**Example**
+
+```C
+if(copyfile("/yuneta/store/x.json", "/yuneta/store/x.json.bak", 0660, TRUE) < 0) {
+    // Error already logged
+    return -1;
+}
+```
 
 ---
 

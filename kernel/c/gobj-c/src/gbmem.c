@@ -3,24 +3,16 @@
  *
  *              Block Memory Core
  *
+ *  The allocator of every Yuneta block: gbmem_malloc() and the rest on top
+ *  of the C library's (or of the functions given to
+ *  gbmem_set_allocators()), with the size limits (__max_block__,
+ *  __max_system_memory__) and, with CONFIG_DEBUG_TRACK_MEMORY, the record
+ *  of every block that the gbmem audit reads at the end.
  *
- * TODO find out some good memory manager
- *
- *  Originally from yuneta V6:
- *  Code inspired in zmalloc.c (MAWK)
- *  copyright 1991,1993, Michael D. Brennan
- *  Mawk is distributed without warranty under the terms of
- *  the GNU General Public License, version 2, 1991.
- *
- *   ZBLOCKS of sizes 1, 2, 3, ... 128
- *   are stored on the linked linear lists in
- *   pool[0], pool[1], pool[2],..., pool[127]
- *
- *   Para minimum size of 128 y pool size de 32 (pool[32]) ->
- *        sizes 128, 256, 384, 512, ... 2048,...,4096
- *   Para minimum size of 16 y pool size de 256 (pool[256]) ->
- *        sizes 16, 32, 48, 64,... 2048,...,4096
- *
+ *  Yuneta v6 kept its own pools of blocks by size, a design that came from
+ *  zmalloc.c of MAWK; v7 carries none of that code. The parameters of
+ *  gbmem_setup() for an own memory manager (use_own_system_memory,
+ *  mem_min_block, mem_superblock) are kept for it, unused (TODO.md).
  *
  *              Copyright (c) 1996-2023 Niyamaka.
  *              Copyright (c) 2024-2026, ArtGins.

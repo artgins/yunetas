@@ -3,7 +3,7 @@
  *              Run a executable
  *
  *              Copyright (c) 2015 Niyamaka.
-*               Copyright (c) 2025, ArtGins.
+ *              Copyright (c) 2025-2026, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -19,7 +19,7 @@ extern "C"{
 
 PUBLIC gbuffer_t *run_command(const char *command); // use popen(), synchronous
 
-PUBLIC int run_process2(  // use fork(), synchronous
+PUBLIC int run_process2(  // use posix_spawn(), synchronous
     const char *path, char *const argv[]
 );
 

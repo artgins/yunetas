@@ -54,9 +54,7 @@
 #endif
 #endif
 
-#if defined(__APPLE__) || defined(__FreeBSD__)
-  #include <copyfile.h>
-#elif defined(__linux__)
+#if defined(__linux__)
   #include <sys/sendfile.h>
 #endif
 
@@ -10060,8 +10058,12 @@ PUBLIC int read_process_cmdline(char *bf, size_t bfsize, pid_t pid)
 }
 
 /***************************************************************************
- *  Copy file in kernel mode.
- *  http://stackoverflow.com/questions/2180079/how-can-i-copy-a-file-on-unix-using-c
+ *  Copy the file `source` to `destination`, made by newfile() with
+ *  `permission` (and refused when it exists and not `overwrite`).
+ *  Return 0, or -1 (logged).
+ *
+ *  On Linux the kernel copies it (sendfile(2), as many calls as it takes:
+ *  one call copies at most 2 GB); elsewhere a read/write loop.
  ***************************************************************************/
 PUBLIC int copyfile(
     const char* source,
@@ -10069,56 +10071,124 @@ PUBLIC int copyfile(
     int permission,
     BOOL overwrite
 ) {
-    int input, output;
-    if ((input = open(source, O_RDONLY|O_CLOEXEC)) == -1) {
+    int input = open(source, O_RDONLY|O_CLOEXEC);
+    if(input < 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot open the file to copy",
+            "path",         "%s", source,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
         return -1;
     }
-    if ((output = newfile(destination, permission, overwrite)) == -1) {
-        // error already logged
+    int output = newfile(destination, permission, overwrite);
+    if(output < 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot create the copy",
+            "path",         "%s", destination,
+            "overwrite",    "%d", (int)overwrite,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
         close(input);
         return -1;
     }
 
-    //Here we use kernel-space copying for performance reasons
-#if defined(__APPLE__) || defined(__FreeBSD__)
-    //fcopyfile works on FreeBSD and OS X 10.5+
-    int result = fcopyfile(input, output, 0, COPYFILE_ALL);
-#elif defined(__linux__)
-    //sendfile will work with non-socket output (i.e. regular file) on Linux 2.6.33+
-    off_t bytesCopied = 0;
-    struct stat fileinfo = {0};
-    fstat(input, &fileinfo);
-    int result = sendfile(output, input, &bytesCopied, fileinfo.st_size);
-#else
-    ssize_t nread;
-    int result = 0;
-    int error = 0;
-    char buf[4096];
+    int ret = 0;
+    const char *failed = NULL;
 
-    while (nread = read(input, buf, sizeof buf), nread > 0 && !error) {
-        char *out_ptr = buf;
-        ssize_t nwritten;
-
-        do {
-            nwritten = write(output, out_ptr, nread);
-
-            if (nwritten > 0) {
-                nread -= nwritten;
-                out_ptr += nwritten;
-            } else if (errno != EINTR) {
-                error = 1;
-                result = -1;
+#ifdef __linux__
+    struct stat st;
+    if(fstat(input, &st) < 0) {
+        failed = "fstat() FAILED";
+        ret = -1;
+    } else {
+        off_t offset = 0;
+        while(offset < st.st_size) {
+            ssize_t n = sendfile(output, input, &offset, (size_t)(st.st_size - offset));
+            if(n < 0) {
+                if(errno == EINTR) {
+                    continue;
+                }
+                failed = "sendfile() FAILED";
+                ret = -1;
                 break;
             }
-        } while (nread > 0);
+            if(n == 0) {
+                failed = "sendfile() copied nothing: the file shrank";
+                ret = -1;
+                break;
+            }
+        }
     }
-
+#else
+    char buf[4096];
+    while(1) {
+        ssize_t nread = read(input, buf, sizeof(buf));
+        if(nread < 0) {
+            if(errno == EINTR) {
+                continue;
+            }
+            failed = "read() FAILED";
+            ret = -1;
+            break;
+        }
+        if(nread == 0) {
+            break;
+        }
+        ssize_t done = 0;
+        while(done < nread) {
+            ssize_t nwritten = write(output, buf + done, (size_t)(nread - done));
+            if(nwritten < 0) {
+                if(errno == EINTR) {
+                    continue;
+                }
+                failed = "write() FAILED";
+                ret = -1;
+                break;
+            }
+            done += nwritten;
+        }
+        if(ret < 0) {
+            break;
+        }
+    }
 #endif
 
-    close(input);
-    close(output);
+    if(ret < 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", failed,
+            "source",       "%s", source,
+            "destination",  "%s", destination,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+    }
 
-    return result;
+    close(input);
+    if(close(output) < 0 && ret == 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "close() of the copy FAILED",
+            "destination",  "%s", destination,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        ret = -1;
+    }
+
+    return ret;
 }
 
 /***************************************************************************

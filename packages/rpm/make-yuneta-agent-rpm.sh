@@ -1677,7 +1677,7 @@ Release:        ${RELEASE}%{?dist}
 Summary:        Yuneta's Agent
 
 # Yuneta is MIT; the payload carries code of others: THIRD-PARTY-NOTICES
-License:        MIT AND Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND LGPL-2.1-or-later AND MPL-2.0 AND X11 AND curl
+License:        MIT AND Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND ISC AND LGPL-2.1-or-later AND MPL-2.0 AND X11 AND curl
 URL:            https://yuneta.io
 BuildArch:      ${ARCHITECTURE}
 AutoReqProv:    no

@@ -83,3 +83,27 @@ foreach(test ${SRCS})
     add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()
+
+##############################################
+#   test_ws_accept: the Sec-WebSocket-Accept (sha1.c of root-linux, private)
+##############################################
+add_yuno_executable(test_ws_accept "test_ws_accept.c")
+if(CONFIG_FULLY_STATIC)
+    set_target_properties(test_ws_accept PROPERTIES
+        LINK_SEARCH_START_STATIC TRUE
+        LINK_SEARCH_END_STATIC TRUE
+    )
+endif()
+target_include_directories(test_ws_accept PRIVATE
+    ${YUNETAS_BASE}/kernel/c/root-linux/src
+)
+target_link_libraries(test_ws_accept
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${JWT_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
+)
+add_test("${current_directory_name}/ws_accept" test_ws_accept)

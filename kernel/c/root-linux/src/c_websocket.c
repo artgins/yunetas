@@ -1208,54 +1208,39 @@ PRIVATE int frame_completed(hgobj gobj)
 }
 
 /***************************************************************************
- *
+ *  `in` in base64 into `out`, with its NUL: 0, or -1 (logged), with `out`
+ *  empty, when it does not fit
  ***************************************************************************/
-PRIVATE int b64_encode_string(
-    const unsigned char *in, int in_len, char *out, int out_size)
+PRIVATE int bin_to_base64_str(hgobj gobj, const uint8_t *in, size_t in_len, char *out, size_t out_size)
 {
-    static const char encode[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                 "abcdefghijklmnopqrstuvwxyz0123456789+/";
-    unsigned char triple[3];
-    int i;
-    int len;
-    int done = 0;
-
-    while (in_len) {
-        len = 0;
-        for (i = 0; i < 3; i++) {
-            if (in_len) {
-                triple[i] = *in++;
-                len++;
-                in_len--;
-            } else {
-                triple[i] = 0;
-            }
-        }
-        if (!len) {
-            continue;
-        }
-
-        if (done + 4 >= out_size) {
-            return -1;
-        }
-
-        *out++ = encode[triple[0] >> 2];
-        *out++ = encode[((triple[0] & 0x03) << 4) |
-                         ((triple[1] & 0xf0) >> 4)];
-        *out++ = (len > 1 ? encode[((triple[1] & 0x0f) << 2) |
-                         ((triple[2] & 0xc0) >> 6)] : '=');
-        *out++ = (len > 2 ? encode[triple[2] & 0x3f] : '=');
-
-        done += 4;
+    if(out_size > 0) {
+        *out = 0;
     }
 
-    if (done + 1 >= out_size) {
+    gbuffer_t *gbuf = gbuffer_binary_to_base64((const char *)in, in_len);
+    if(!gbuf) {
+        // Error already logged
         return -1;
     }
 
-    *out++ = '\0';
+    size_t len = gbuffer_leftbytes(gbuf);
+    if(len + 1 > out_size) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "base64 does not fit in its buffer",
+            "len",          "%d", (int)len,
+            "out_size",     "%d", (int)out_size,
+            NULL
+        );
+        gbuffer_decref(gbuf);
+        return -1;
+    }
+    memcpy(out, gbuffer_cur_rd_pointer(gbuf), len);
+    out[len] = 0;
 
-    return done;
+    gbuffer_decref(gbuf);
+    return 0;
 }
 
 /***************************************************************************
@@ -1337,7 +1322,7 @@ PRIVATE BOOL do_request(
     char key_b64[40];
 
     generate_uuid(uuid);
-    b64_encode_string(uuid, 16, key_b64, sizeof(key_b64));
+    bin_to_base64_str(gobj, uuid, sizeof(uuid), key_b64, sizeof(key_b64));
 
     gbuf = gbuffer_create(256, 4*1024);
     if(!gbuf) {
@@ -1521,27 +1506,12 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
 //                 selected)
 
         static const char *magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-        SHA1Context shactx;
-        char concat[100], sha[20], b64_sha[sizeof(sha) * 2];
-        char sha1buf[45];
-        unsigned char sha1mac[20];
+        char concat[100], b64_sha[SHA1_DIGEST_SIZE * 2];
+        uint8_t sha1mac[SHA1_DIGEST_SIZE];
 
-        SHA1Reset(&shactx);
         snprintf(concat, sizeof(concat), "%s%s", sec_websocket_key, magic);
-        SHA1Input(&shactx, (unsigned char *) concat, strlen(concat));
-        SHA1Result(&shactx);
-        snprintf(sha1buf, sizeof(sha1buf),
-            "%08x%08x%08x%08x%08x",
-            shactx.Message_Digest[0],
-            shactx.Message_Digest[1],
-            shactx.Message_Digest[2],
-            shactx.Message_Digest[3],
-            shactx.Message_Digest[4]
-        );
-        for (int n = 0; n < (strlen(sha1buf) / 2); n++) {
-            sscanf(sha1buf + (n * 2), "%02hhx", sha1mac + n);
-        }
-        b64_encode_string((unsigned char *) sha1mac, sizeof(sha1mac), b64_sha, sizeof(b64_sha));
+        sha1_digest(concat, strlen(concat), sha1mac);
+        bin_to_base64_str(gobj, sha1mac, sizeof(sha1mac), b64_sha, sizeof(b64_sha));
 
         send_http_message2(gobj,
             "HTTP/1.1 101 Switching Protocols\r\n"
