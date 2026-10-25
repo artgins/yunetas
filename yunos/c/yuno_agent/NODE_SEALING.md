@@ -341,6 +341,17 @@ here is a candidate for promotion to Tier 1:
   of the node over the channel to grep it elsewhere. A `search-logs` agent
   command (a pattern, an optional realm/yuno, a cap on the lines answered)
   is the Tier-1 answer.
+- **Putting a yuno's `data/` (and its queues) in a tmpfs** (2026-10-25). The
+  generator fleets of the performance test (`sim_controllers` pp12-pp17 on
+  artgins, as pp1-pp5 on wattyzer) cannot run their queues on a node's HDDs
+  (every save of their counters fsyncs), so the node got a tmpfs
+  (`mount -t tmpfs ... /mnt/simram`, with sudo) and each yuno's realm dir a
+  `data -> /mnt/simram/data/<name>` symlink made BEFORE its first run. The
+  binary, the configs, the yunos and their run are Tier 1 (`install-binary`,
+  `create-config`, `create-yuno`, `run-yuno`), but the mount and the symlink
+  are a shell on the node -- and a reboot drops the mount, so it is done
+  again. A per-yuno `data_path` the agent honours (or a `tmpfs` flag of the
+  yuno record) is the Tier-1 answer.
 - Upgrading **the agent binary**. The agent is a standalone daemon, not a
   managed yuno: `update-binary` does not reach it, and it is restarted with
   `systemctl restart` of its unit (`--stop` then `--start` on a node without
