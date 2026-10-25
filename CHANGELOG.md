@@ -106,7 +106,7 @@
   and keeps it in its bundles, gobj-ui ships the CC BY 4.0 attribution of
   the Font Awesome Free paths of `yui_icons.css` and declares
   `"license": "MIT"`, which its published package lacked. **BREAKING in
-  gobj-js** (not yet published): `jwtDecode()` and `jwt2json()` are removed
+  gobj-js** (7.28.0): `jwtDecode()` and `jwt2json()` are removed
   (copied from a StackOverflow answer, CC BY-SA; nobody called them), and
   their entries leave the JS API pages.
 - **The last code of others with no license the SDK can carry is gone,
@@ -161,6 +161,16 @@
   The rest of the matches are the third-party code already listed, test
   inputs of jansson (`[]`, `null`) found in unrelated projects, and the v6
   of Yuneta itself (`gobj-ecosistema/*`, `yuno-store/controlcenter`).
+- **gobj-js 7.28.0 and gobj-ui 7.28.0 on npm, and every SPA ships
+  `licenses.txt`** (submodules bumped). gobj-ui's new
+  `vite-plugin-yuneta-licenses.js` writes, at build time, the license of
+  every package with code in an app's bundle -- the Font Awesome attribution
+  of `yui_icons.css` and the notice of gobj-js's `sprintf.js` among them --
+  because Vite 8 drops every comment of a bundle, `/*!` included. The deploy
+  round put it in all of them: gui_agent 1.1.2, gui_treedb 1.0.2, wattyzer,
+  the two yunovatios GUIs, estadodelaire, hidraulia, yunomusica, yunovideo,
+  the `js_gui` template and the demo; each host serves `/licenses.txt`. The
+  JS API pages are repinned to the 7.28.0 tags.
 
 ## v7.28.4 (2026-10-25)
 

@@ -7,10 +7,10 @@ description: >-
 
 # DOM helpers
 
-**Source code:** [`src/lib_graph.js`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_graph.js),
-[`src/lib_icons.js`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_icons.js),
-[`src/yui_inputs.js`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/yui_inputs.js),
-[`src/yui_toolbar.js`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/yui_toolbar.js)
+**Source code:** [`src/lib_graph.js`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_graph.js),
+[`src/lib_icons.js`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_icons.js),
+[`src/yui_inputs.js`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/yui_inputs.js),
+[`src/yui_toolbar.js`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/yui_toolbar.js)
 
 ---
 
@@ -20,27 +20,27 @@ Each function takes a container and a selector, and it works on every element
 that matches inside the container.
 
 (js_addClasses)=
-### [`addClasses($container, selector, ...classNames)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_graph.js#L21)
+### [`addClasses($container, selector, ...classNames)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_graph.js#L21)
 
 Adds the classes.
 
 (js_removeClasses)=
-### [`removeClasses($container, selector, ...classNames)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_graph.js#L31)
+### [`removeClasses($container, selector, ...classNames)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_graph.js#L31)
 
 Removes the classes.
 
 (js_toggleClasses)=
-### [`toggleClasses($container, selector, ...classNames)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_graph.js#L41)
+### [`toggleClasses($container, selector, ...classNames)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_graph.js#L41)
 
 Adds the classes that are absent, and removes the classes that are present.
 
 (js_removeChildElements)=
-### [`removeChildElements($element)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_graph.js#L51)
+### [`removeChildElements($element)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_graph.js#L51)
 
 Removes every child of an element.
 
 (js_disableElements)=
-### [`disableElements($container, selector)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_graph.js#L81)
+### [`disableElements($container, selector)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_graph.js#L81)
 
 Disables the elements that match. Since 7.26.28, a disabled control tells this
 to the keyboard and to a screen reader too, not only to the pointer. On each
@@ -59,7 +59,7 @@ An element that has the focus keeps it: `tabindex="-1"` only removes the
 element from the Tab order.
 
 (js_enableElements)=
-### [`enableElements($container, selector)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_graph.js#L93)
+### [`enableElements($container, selector)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_graph.js#L93)
 
 Enables the elements that match. It removes `disabled` and `aria-disabled`, and
 it gives back the tabindex that `data-enabled-tabindex` keeps. When the kept
@@ -112,23 +112,23 @@ The functions below write the state of a set of elements. The first three
 write a color; the fourth writes the look of a control that is pressed.
 
 (js_set_submit_state)=
-### [`set_submit_state($container, selector, set)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_graph.js#L116)
+### [`set_submit_state($container, selector, set)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_graph.js#L116)
 
 Writes the state of *"there are changes to save"*, in orange.
 
 (js_set_cancel_state)=
-### [`set_cancel_state($container, selector, set)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_graph.js#L129)
+### [`set_cancel_state($container, selector, set)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_graph.js#L129)
 
 Writes the state of *"the cancel is possible"*, in red.
 
 (js_set_active_state)=
-### [`set_active_state($container, selector, set)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_graph.js#L142)
+### [`set_active_state($container, selector, set)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_graph.js#L142)
 
 Writes the state of *"active"*, in violet. The library uses it for the buttons
 of the history, undo and redo.
 
 (js_set_pressed_state)=
-### [`set_pressed_state($container, selector, set)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/yui_toolbar.js#L189)
+### [`set_pressed_state($container, selector, set)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/yui_toolbar.js#L189)
 
 Writes the state of *"this toggle is on"*. It does not use a color: it gives
 the control the look of a button that is pressed, an inverted neutral. A color
@@ -142,7 +142,7 @@ control that looks pressed.
 ## Color
 
 (js_getStrokeColor)=
-### [`getStrokeColor(fillColor, theme, factor)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_graph.js#L169)
+### [`getStrokeColor(fillColor, theme, factor)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_graph.js#L169)
 
 Gives a color of line for a color of fill, in the form `rgba()`. It makes the
 color lighter or darker by `factor`, which is 0.2 by default, and the direction
@@ -153,7 +153,7 @@ depends on the theme. It accepts the hexadecimal form and the `rgb()` form.
 ## Icons
 
 (js_inject_svg_icons)=
-### [`inject_svg_icons()`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_icons.js#L178)
+### [`inject_svg_icons()`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_icons.js#L178)
 
 Puts the set of SVG symbols in the document. A second call does nothing, because
 a guard on the identifier of the element stops it.
@@ -171,7 +171,7 @@ Add a missing icon as a rule of mask. Never name one on hope.
 :::
 
 (js_yui_icon_is_defined)=
-### [`yui_icon_is_defined(name)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_icons.js#L209)
+### [`yui_icon_is_defined(name)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_icons.js#L209)
 
 Tells if `name` is a class that draws an icon in the loaded stylesheets. It asks
 the real stylesheet, so an icon that an app adds is seen too. The answer is kept
@@ -193,17 +193,17 @@ by the icons of the library, so a user icon cannot replace one of them.
 that does not mount that view calls the functions below itself.
 
 (js_ICONS_TOPIC)=
-#### [`ICONS_TOPIC`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_icons.js#L252)
+#### [`ICONS_TOPIC`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_icons.js#L252)
 
 The name of the system topic: `"__icons__"`.
 
 (js_USER_ICON_PREFIX)=
-#### [`USER_ICON_PREFIX`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_icons.js#L260)
+#### [`USER_ICON_PREFIX`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_icons.js#L260)
 
 The prefix of the class of a user icon: `"yi-u-"`.
 
 (js_yui_user_icon_class)=
-#### [`yui_user_icon_class(id)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_icons.js#L309)
+#### [`yui_user_icon_class(id)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_icons.js#L309)
 
 Gives the class of the user icon `id`.
 
@@ -212,7 +212,7 @@ yui_user_icon_class("transformer");     // "yi-u-transformer"
 ```
 
 (js_yui_svg_sanitize)=
-#### [`yui_svg_sanitize(svg_text)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_icons.js#L325)
+#### [`yui_svg_sanitize(svg_text)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_icons.js#L325)
 
 Parses an svg and writes a new one from its shapes only (`path`, `circle`,
 `rect`, `ellipse`, `line`, `polyline`, `polygon`, `g`) and their geometric and
@@ -227,7 +227,7 @@ yui_svg_sanitize("<svg viewBox='0 0 10 10' onload='x()'><circle cx='5' cy='5' r=
 ```
 
 (js_yui_svg_icon_element)=
-#### [`yui_svg_icon_element(svg_text)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_icons.js#L472)
+#### [`yui_svg_icon_element(svg_text)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_icons.js#L472)
 
 Gives `{element}`, a `span` that shows the svg as an icon (the same box and the
 same mask as a `yi-` icon), or `{error}`. Use it for a preview, before the icon
@@ -243,7 +243,7 @@ if(r.error) {
 ```
 
 (js_yui_icons_set_user)=
-#### [`yui_icons_set_user(nodes)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_icons.js#L540)
+#### [`yui_icons_set_user(nodes)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_icons.js#L540)
 
 Replaces all the user icons with the nodes of `__icons__`, and gives the number
 of icons registered. A node with a bad name or an svg that cannot be drawn is
@@ -255,7 +255,7 @@ yui_shell_icons_changed(shell);     // publishes EV_ICONS_CHANGED
 ```
 
 (js_yui_icons_put_user)=
-#### [`yui_icons_put_user(node)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_icons.js#L561)
+#### [`yui_icons_put_user(node)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_icons.js#L561)
 
 Registers one node that was created or updated, and gives `true` if the icon is
 drawn. If the new svg cannot be drawn, the old icon is removed.
@@ -265,7 +265,7 @@ yui_icons_put_user({id: "transformer", svg: "<svg viewBox='0 0 24 24'><path d='M
 ```
 
 (js_yui_icons_remove_user)=
-#### [`yui_icons_remove_user(id)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_icons.js#L579)
+#### [`yui_icons_remove_user(id)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_icons.js#L579)
 
 Removes the user icon `id`, after its node was deleted.
 
@@ -274,7 +274,7 @@ yui_icons_remove_user("transformer");
 ```
 
 (js_yui_icons_list)=
-#### [`yui_icons_list()`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/lib_icons.js#L591)
+#### [`yui_icons_list()`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/lib_icons.js#L591)
 
 Gives every icon that can be chosen, as `[{name, user}]`: the icons of the
 library, read from the loaded stylesheets, then the user icons. Each part is
@@ -290,13 +290,13 @@ yui_icons_list().filter(icon => icon.user).map(icon => icon.name);
 ## Inputs
 
 (js_attach_clear)=
-### [`attach_clear($control, $input, on_clear)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/yui_inputs.js#L48)
+### [`attach_clear($control, $input, on_clear)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/yui_inputs.js#L48)
 
 Adds a button of clear to a control that holds an input, and gives the button
 back. The button appears only when the input holds a value and accepts a write.
 
 (js_refresh_clear)=
-### [`refresh_clear($input)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/yui_inputs.js#L98)
+### [`refresh_clear($input)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/yui_inputs.js#L98)
 
 Looks at the button of clear again, after a change that the code made: a value
 that a form loaded, or a change of the read-only state. Neither of those sends
@@ -308,7 +308,7 @@ no button of clear.
 ## Toolbar
 
 (js_yui_toolbar)=
-### [`yui_toolbar(attrs, items)`](https://github.com/artgins/gobj-ui.js/blob/7.27.34/src/yui_toolbar.js#L56)
+### [`yui_toolbar(attrs, items)`](https://github.com/artgins/gobj-ui.js/blob/7.28.0/src/yui_toolbar.js#L56)
 
 Builds a toolbar that scrolls, with an arrow at each end when the items do not
 fit. The arrows take the icons of the set of the library, and they take their

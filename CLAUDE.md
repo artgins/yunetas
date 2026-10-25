@@ -77,7 +77,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.27.0`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.28.0`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -222,7 +222,7 @@ for an app with no map — 1.5 MB).
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.28.4`, package **`7.27.0`** on npm since 2026-10-15)
+versioned to track `YUNETA_VERSION` (SDK `7.28.4`, package **`7.28.0`** on npm since 2026-10-25)
 and **published to npm**. It had drifted to 7.13.x while the SDK was at 7.16.2
 — a number that told a consumer nothing about which SDK it was built against —
 and jumped to `7.16.0` on 2026-08-28 to say it again; 7.14 and 7.15 were skipped
@@ -252,7 +252,7 @@ registry — estadodelaire, hidraulia, wattyzer, yunomusica, the three yunovatio
 GUIs and the in-repo `yunos/js/*` yunos — but they do **not** all declare the
 same floor, and assuming they do has been wrong since the in-repo yunos moved
 ahead: `yunos/js/*`, the yunovatios GUIs, wattyzer's gui, yunomusica and
-estadodelaire and hidraulia are on `^7.27.0` (2026-10-15). Check the consumer's own
+estadodelaire and hidraulia are on `^7.28.0` (2026-10-25). Check the consumer's own
 `package.json` rather than this line. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
 `src/`.

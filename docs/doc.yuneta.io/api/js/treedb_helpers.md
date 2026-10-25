@@ -21,37 +21,37 @@ import {
 ```
 
 (js_treedb_hook_data_size)=
-### [`treedb_hook_data_size(value)`](https://github.com/artgins/gobj-js/blob/7.27.0/src/lib_treedb.js#L51)
+### [`treedb_hook_data_size(value)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/lib_treedb.js#L51)
 
 Counts the items that a hook field references.
 
 (js_treedb_decoder_fkey)=
-### [`treedb_decoder_fkey(col, fkey)`](https://github.com/artgins/gobj-js/blob/7.27.0/src/lib_treedb.js#L83)
+### [`treedb_decoder_fkey(col, fkey)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/lib_treedb.js#L83)
 
 Reads a foreign-key reference, and gives its topic, its identifier and its hook.
 
 (js_treedb_encoder_fkey)=
-### [`treedb_encoder_fkey(col, fkey)`](https://github.com/artgins/gobj-js/blob/7.27.0/src/lib_treedb.js#L147)
+### [`treedb_encoder_fkey(col, fkey)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/lib_treedb.js#L147)
 
 Builds the canonical form of a foreign-key reference, `"topic^id^hook"`.
 
 (js_treedb_decoder_hook)=
-### [`treedb_decoder_hook(col, hook)`](https://github.com/artgins/gobj-js/blob/7.27.0/src/lib_treedb.js#L174)
+### [`treedb_decoder_hook(col, hook)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/lib_treedb.js#L174)
 
 Reads a hook reference.
 
 (js_treedb_get_field_desc)=
-### [`treedb_get_field_desc(col)`](https://github.com/artgins/gobj-js/blob/7.27.0/src/lib_treedb.js#L307)
+### [`treedb_get_field_desc(col)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/lib_treedb.js#L307)
 
 Builds the descriptor of a field from the definition of a column.
 
 (js_template_get_field_desc)=
-### [`template_get_field_desc(key, value)`](https://github.com/artgins/gobj-js/blob/7.27.0/src/lib_treedb.js#L383)
+### [`template_get_field_desc(key, value)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/lib_treedb.js#L383)
 
 Builds the descriptor of a field from one entry of a template.
 
 (js_create_template_record)=
-### [`create_template_record(template, kw)`](https://github.com/artgins/gobj-js/blob/7.27.0/src/lib_treedb.js#L460)
+### [`create_template_record(template, kw)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/lib_treedb.js#L460)
 
 Builds a new record from the definition of a template.
 
