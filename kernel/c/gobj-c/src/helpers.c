@@ -7100,1408 +7100,1480 @@ PUBLIC int get_ordered_filename_array( // WARNING too slow for thousands of file
 
 
 
-/****************************************************************************
- *              TIME_HELPER2.H
- *              Code from git/date.c
+/***************************************************************************
+ *              Dates as text: read and write
  *
+ *  approxidate_careful() reads a date the way a person types it on a
+ *  command line ("2 days ago", "yesterday noon", "2026-10-01 10:00",
+ *  "@1700000000 +0000"); parse_date_basic() reads only a whole date and
+ *  time, or epoch seconds; show_date() and show_date_relative() write one.
+ *  The grammar, with examples, is in helpers.h.
  *
- check_approxidate 'noon today' '2009-08-30 12:00:00'
- check_approxidate 'noon yesterday' '2009-08-29 12:00:00'
- check_approxidate 'January 5th noon pm' '2009-01-05 12:00:00'
-+check_approxidate '10am noon' '2009-08-29 12:00:00'
+ *  A text is read in two steps: read_date_text() notes what each piece
+ *  of it says (a date, a clock time, a zone, a duration back, ...) and
+ *  resolve_reading() turns that into a time, against NOW (time(), so a
+ *  test can fake it). A piece nobody understands makes the whole text
+ *  unreadable: it is not skipped.
+ *
+ *  Written for Yuneta in 2026 from a description of the behaviour (the
+ *  cases of tests/c/helpers/test_date_text.c). It replaces the port of
+ *  git's date.c (GPL-2.0) that came from yuneta v6.
+ ***************************************************************************/
+#define DATE_FUTURE_SLACK   (10*86400)  // a date with no year may be this far ahead
+#define DATE_MAX_COUNT      100000000   // a count of units larger than this is no count
+#define DATE_EPOCH_MIN      100000000   // a bare number from here on is epoch seconds
 
- check_approxidate 'last tuesday' '2009-08-25 19:20:00'
- check_approxidate 'July 5th' '2009-07-05 19:20:00'
+PRIVATE const char *month_full_names[12] = {
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december"
+};
+PRIVATE const char *month_short_names[12] = {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+};
+PRIVATE const char *weekday_full_names[7] = {
+    "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"
+};
+PRIVATE const char *weekday_short_names[7] = {
+    "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
+};
+PRIVATE const char *number_words[11] = {
+    "zero", "one", "two", "three", "four", "five",
+    "six", "seven", "eight", "nine", "ten"
+};
 
- *              Copyright (C) Linus Torvalds, 2005
- *              Copyright (c) Niyamaka, 2018.
- ****************************************************************************/
 /*
- * This is like mktime, but without normalization of tm_wday and tm_yday.
+ *  Zone abbreviations, in minutes east of UTC. An abbreviation names one
+ *  offset: CEST is +02:00 in any season.
  */
+PRIVATE const struct {
+    const char *name;
+    int minutes;
+} zone_names[] = {
+    {"z",       0},
+    {"ut",      0},
+    {"utc",     0},
+    {"gmt",     0},
+    {"wet",     0},
+    {"west",    60},
+    {"bst",     60},
+    {"cet",     60},
+    {"cest",    120},
+    {"met",     60},
+    {"mest",    120},
+    {"eet",     120},
+    {"eest",    180},
+    {"msk",     180},
+    {"est",     -300},
+    {"edt",     -240},
+    {"cst",     -360},
+    {"cdt",     -300},
+    {"mst",     -420},
+    {"mdt",     -360},
+    {"pst",     -480},
+    {"pdt",     -420},
+    {"akst",    -540},
+    {"akdt",    -480},
+    {"hst",     -600},
+    {"jst",     540},
+    {"aest",    600},
+    {"aedt",    660},
+    {"nzst",    720},
+    {"nzdt",    780},
+};
+
+typedef enum {
+    DATE_UNIT_NONE = 0,
+    DATE_UNIT_SECOND,
+    DATE_UNIT_MINUTE,
+    DATE_UNIT_HOUR,
+    DATE_UNIT_DAY,
+    DATE_UNIT_WEEK,
+    DATE_UNIT_MONTH,
+    DATE_UNIT_YEAR,
+} date_unit_t;
+
+/*
+ *  What a text says. 0 (or -1 where 0 is a value) is "not said".
+ */
+typedef struct {
+    time_t now;
+    long now_offset;        // seconds east of UTC at now
+
+    int64_t year;
+    int mon;                // 1..12
+    int mday;
+    int hour;               // -1: no clock time
+    int min;
+    int sec;
+    int ampm;               // 'a', 'p' or 0
+    int special_hour;       // -1, or the hour of noon (12), midnight (0), tea (17)
+
+    BOOL zone_said;
+    long zone_offset;       // seconds east of UTC
+
+    BOOL epoch_said;
+    uintmax_t epoch;
+
+    BOOL never;
+
+    int64_t back_seconds;   // a duration back from now, in three parts:
+    int64_t back_days;      // seconds, whole days,
+    int64_t back_months;    // and calendar months
+    int weekday_target;     // "last friday", "2 friday": -1 none, 0..6
+    int64_t weekday_count;
+
+    BOOL vague;             // a piece that is not an absolute date (refused by parse_date_basic)
+    int understood;         // pieces that say something
+    BOOL unreadable;        // a piece nobody understands
+} date_reading_t;
+
+/***************************************************************************
+ *  The calendar: proleptic Gregorian
+ ***************************************************************************/
+PRIVATE BOOL leap_year(int64_t year)
+{
+    if(year % 400 == 0) {
+        return TRUE;
+    }
+    if(year % 100 == 0) {
+        return FALSE;
+    }
+    return (year % 4 == 0)? TRUE : FALSE;
+}
+
+PRIVATE int month_days(int64_t year, int mon)
+{
+    static const int days[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if(mon == 2 && leap_year(year)) {
+        return 29;
+    }
+    return days[mon - 1];
+}
+
+/***************************************************************************
+ *  Days from 1970-01-01 to the first day of `mon` (1..12) of `year` (>= 1)
+ ***************************************************************************/
+PRIVATE int64_t days_to_month(int64_t year, int mon)
+{
+    static const int days_before[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+    int64_t whole_years = year - 1;
+    int64_t days = whole_years*365 + whole_years/4 - whole_years/100 + whole_years/400;
+    days -= 719162;     // the same count up to 1970-01-01
+    days += days_before[mon - 1];
+    if(mon > 2 && leap_year(year)) {
+        days++;
+    }
+    return days;
+}
+
+/***************************************************************************
+ *  Seconds from the epoch to a date and time of UTC. `mday`, `hour`,
+ *  `min` and `sec` may pass their range: they are added as they are.
+ ***************************************************************************/
+PRIVATE int64_t utc_seconds(int64_t year, int mon, int64_t mday, int64_t hour, int64_t min, int64_t sec)
+{
+    return (days_to_month(year, mon) + mday - 1)*86400 + hour*3600 + min*60 + sec;
+}
+
+/***************************************************************************
+ *  The offset of the local zone at `t`, in seconds east of UTC
+ ***************************************************************************/
+PRIVATE long local_offset_at(time_t t)
+{
+    struct tm lt;
+    if(!localtime_r(&t, &lt)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "localtime_r() FAILED, offset taken as 0",
+            "t",            "%lld", (long long)t,
+            NULL
+        );
+        return 0;
+    }
+    return (long)(utc_seconds(lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
+        lt.tm_hour, lt.tm_min, lt.tm_sec) - t);
+}
+
+/***************************************************************************
+ *  An offset of seconds as +hhmm (or +hh:mm with `colon`)
+ ***************************************************************************/
+PRIVATE void offset_text(char *bf, size_t bfsize, long offset_seconds, BOOL colon)
+{
+    long minutes = offset_seconds/60;
+    char sign = '+';
+    if(minutes < 0) {
+        sign = '-';
+        minutes = -minutes;
+    }
+    int hh = (int)((minutes/60)%100);   // an offset is less than a day: two digits
+    int mm = (int)(minutes%60);
+    snprintf(bf, bfsize, colon? "%c%02d:%02d" : "%c%02d%02d", sign, hh, mm);
+}
+
+/***************************************************************************
+ *  Words: a month, a weekday (3 letters or more of the name), a unit, a
+ *  number word, a zone
+ ***************************************************************************/
+PRIVATE int month_of_word(const char *word)
+{
+    size_t len = strlen(word);
+    if(len < 3) {
+        return 0;
+    }
+    for(int i = 0; i < 12; i++) {
+        if(strncmp(month_full_names[i], word, len) == 0) {
+            return i + 1;
+        }
+    }
+    return 0;
+}
+
+PRIVATE int weekday_of_word(const char *word)
+{
+    size_t len = strlen(word);
+    if(len < 3) {
+        return -1;
+    }
+    for(int i = 0; i < 7; i++) {
+        if(strncmp(weekday_full_names[i], word, len) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/*
+ *  `raw` as written, `word` in lower case: a lone 'm' is a minute and a
+ *  lone 'M' a month; any other unit is read in any case
+ */
+PRIVATE date_unit_t unit_of_word(const char *raw, const char *word)
+{
+    static const struct {
+        const char *name;
+        date_unit_t unit;
+    } units[] = {
+        {"s", DATE_UNIT_SECOND}, {"sec", DATE_UNIT_SECOND}, {"secs", DATE_UNIT_SECOND},
+        {"second", DATE_UNIT_SECOND}, {"seconds", DATE_UNIT_SECOND},
+        {"mi", DATE_UNIT_MINUTE}, {"min", DATE_UNIT_MINUTE}, {"mins", DATE_UNIT_MINUTE},
+        {"minute", DATE_UNIT_MINUTE}, {"minutes", DATE_UNIT_MINUTE},
+        {"h", DATE_UNIT_HOUR}, {"hr", DATE_UNIT_HOUR}, {"hrs", DATE_UNIT_HOUR},
+        {"hour", DATE_UNIT_HOUR}, {"hours", DATE_UNIT_HOUR},
+        {"d", DATE_UNIT_DAY}, {"day", DATE_UNIT_DAY}, {"days", DATE_UNIT_DAY},
+        {"w", DATE_UNIT_WEEK}, {"wk", DATE_UNIT_WEEK}, {"wks", DATE_UNIT_WEEK},
+        {"week", DATE_UNIT_WEEK}, {"weeks", DATE_UNIT_WEEK},
+        {"mo", DATE_UNIT_MONTH}, {"mos", DATE_UNIT_MONTH},
+        {"month", DATE_UNIT_MONTH}, {"months", DATE_UNIT_MONTH},
+        {"y", DATE_UNIT_YEAR}, {"yr", DATE_UNIT_YEAR}, {"yrs", DATE_UNIT_YEAR},
+        {"year", DATE_UNIT_YEAR}, {"years", DATE_UNIT_YEAR},
+    };
+
+    if(strcmp(raw, "m") == 0) {
+        return DATE_UNIT_MINUTE;
+    }
+    if(strcmp(raw, "M") == 0) {
+        return DATE_UNIT_MONTH;
+    }
+    for(size_t i = 0; i < sizeof(units)/sizeof(units[0]); i++) {
+        if(strcmp(units[i].name, word) == 0) {
+            return units[i].unit;
+        }
+    }
+    return DATE_UNIT_NONE;
+}
+
+PRIVATE int number_of_word(const char *word)
+{
+    for(int i = 0; i < 11; i++) {
+        if(strcmp(number_words[i], word) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+PRIVATE BOOL zone_of_word(const char *word, long *offset_seconds)
+{
+    for(size_t i = 0; i < sizeof(zone_names)/sizeof(zone_names[0]); i++) {
+        if(strcmp(zone_names[i].name, word) == 0) {
+            *offset_seconds = (long)zone_names[i].minutes*60;
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  The letters at `p`, as written and in lower case. A word too long to
+ *  be any of ours comes back empty. Return the end of the word.
+ ***************************************************************************/
+PRIVATE const char *take_word(const char *p, char *raw, char *word, size_t size)
+{
+    size_t len = 0;
+    while(isalpha((unsigned char)p[len])) {
+        len++;
+    }
+    if(len >= size) {
+        raw[0] = 0;
+        word[0] = 0;
+        return p + len;
+    }
+    for(size_t i = 0; i < len; i++) {
+        raw[i] = p[i];
+        word[i] = (char)tolower((unsigned char)p[i]);
+    }
+    raw[len] = 0;
+    word[len] = 0;
+    return p + len;
+}
+
+/***************************************************************************
+ *  A year of two digits: 00-37 is 20xx, 70-99 is 19xx, the rest is none
+ ***************************************************************************/
+PRIVATE int64_t year_of_two_digits(uintmax_t value)
+{
+    if(value <= 37) {
+        return 2000 + (int64_t)value;
+    }
+    if(value >= 70 && value <= 99) {
+        return 1900 + (int64_t)value;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  A date of the calendar, with years 1970-9999
+ ***************************************************************************/
+PRIVATE BOOL valid_date(int64_t year, int64_t mon, int64_t mday)
+{
+    if(year < 1970 || year > 9999 || mon < 1 || mon > 12 || mday < 1) {
+        return FALSE;
+    }
+    return (mday <= month_days(year, (int)mon))? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  TRUE when a date, at the time of day of now, is more than
+ *  DATE_FUTURE_SLACK ahead of now
+ ***************************************************************************/
+PRIVATE BOOL far_ahead(date_reading_t *rd, int64_t year, int mon, int mday)
+{
+    time_t shifted = rd->now + rd->now_offset;
+    struct tm nf;
+    gmtime_r(&shifted, &nf);
+    int64_t t = utc_seconds(year, mon, mday, nf.tm_hour, nf.tm_min, nf.tm_sec) - rd->now_offset;
+    return (t > (int64_t)rd->now + DATE_FUTURE_SLACK)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  A date was read: only one per text
+ ***************************************************************************/
+PRIVATE void note_date(date_reading_t *rd, int64_t year, int mon, int mday)
+{
+    if((year && rd->year) || (mon && rd->mon) || (mday && rd->mday)) {
+        rd->unreadable = TRUE;
+        return;
+    }
+    if(year) {
+        rd->year = year;
+    }
+    if(mon) {
+        rd->mon = mon;
+    }
+    if(mday) {
+        rd->mday = mday;
+    }
+    rd->understood++;
+}
+
+PRIVATE void note_clock(date_reading_t *rd, int64_t hour, int64_t min, int64_t sec)
+{
+    if(rd->hour >= 0 || rd->special_hour >= 0) {
+        rd->unreadable = TRUE;
+        return;
+    }
+    if(hour < 0 || hour > 24 || min < 0 || min > 59 || sec < 0 || sec > 60 ||
+            (hour == 24 && (min || sec))) {
+        rd->unreadable = TRUE;
+        return;
+    }
+    rd->hour = (int)hour;
+    rd->min = (int)min;
+    rd->sec = (int)sec;
+    rd->understood++;
+}
+
+PRIVATE void note_duration(date_reading_t *rd, uintmax_t count, date_unit_t unit)
+{
+    if(count > DATE_MAX_COUNT) {
+        rd->unreadable = TRUE;
+        return;
+    }
+    int64_t n = (int64_t)count;
+    switch(unit) {
+        case DATE_UNIT_SECOND:
+            rd->back_seconds += n;
+            break;
+        case DATE_UNIT_MINUTE:
+            rd->back_seconds += n*60;
+            break;
+        case DATE_UNIT_HOUR:
+            rd->back_seconds += n*3600;
+            break;
+        case DATE_UNIT_DAY:
+            rd->back_days += n;
+            break;
+        case DATE_UNIT_WEEK:
+            rd->back_days += n*7;
+            break;
+        case DATE_UNIT_MONTH:
+            rd->back_months += n;
+            break;
+        case DATE_UNIT_YEAR:
+            rd->back_months += n*12;
+            break;
+        case DATE_UNIT_NONE:
+        default:
+            rd->unreadable = TRUE;
+            return;
+    }
+    rd->vague = TRUE;
+    rd->understood++;
+}
+
+PRIVATE void note_weekday_back(date_reading_t *rd, uintmax_t count, int weekday)
+{
+    if(rd->weekday_target >= 0 || count < 1 || count > DATE_MAX_COUNT) {
+        rd->unreadable = TRUE;
+        return;
+    }
+    rd->weekday_target = weekday;
+    rd->weekday_count = (int64_t)count;
+    rd->vague = TRUE;
+    rd->understood++;
+}
+
+PRIVATE void note_ampm(date_reading_t *rd, int ampm)
+{
+    if(rd->ampm) {
+        rd->unreadable = TRUE;
+        return;
+    }
+    rd->ampm = ampm;
+    rd->understood++;
+}
+
+/***************************************************************************
+ *  What follows a count: a unit, a weekday or am/pm, attached ("2h") or
+ *  after spaces, dots, commas or underscores ("2 hours", "1.day").
+ *  Return the end of what it took, or NULL when nothing follows that a
+ *  count goes with.
+ ***************************************************************************/
+PRIVATE const char *read_after_count(date_reading_t *rd, uintmax_t count, const char *p)
+{
+    const char *q = p;
+    while(*q == ' ' || *q == '\t' || *q == '.' || *q == ',' || *q == '_') {
+        q++;
+    }
+    if(!isalpha((unsigned char)*q)) {
+        return NULL;
+    }
+    char raw[16];
+    char word[16];
+    const char *end = take_word(q, raw, word, sizeof(word));
+
+    date_unit_t unit = unit_of_word(raw, word);
+    if(unit != DATE_UNIT_NONE) {
+        note_duration(rd, count, unit);
+        return end;
+    }
+    int weekday = weekday_of_word(word);
+    if(weekday >= 0) {
+        note_weekday_back(rd, count, weekday);
+        return end;
+    }
+    if(strcmp(word, "am") == 0 || strcmp(word, "pm") == 0) {
+        if(count > 23) {
+            rd->unreadable = TRUE;
+            return end;
+        }
+        note_clock(rd, (int64_t)count, 0, 0);
+        note_ampm(rd, word[0]);
+        return end;
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  A clock time after its hour: mm[:ss[.fraction]]
+ ***************************************************************************/
+PRIVATE const char *read_clock(date_reading_t *rd, uintmax_t hour, const char *p)
+{
+    int64_t min = 0;
+    int64_t sec = 0;
+    int digits = 0;
+    while(isdigit((unsigned char)*p) && digits < 3) {
+        min = min*10 + (*p - '0');
+        p++;
+        digits++;
+    }
+    if(digits != 2) {
+        rd->unreadable = TRUE;
+        return p;
+    }
+    if(*p == ':' && isdigit((unsigned char)p[1])) {
+        p++;
+        digits = 0;
+        while(isdigit((unsigned char)*p) && digits < 3) {
+            sec = sec*10 + (*p - '0');
+            p++;
+            digits++;
+        }
+        if(digits != 2) {
+            rd->unreadable = TRUE;
+            return p;
+        }
+        if(*p == '.' && isdigit((unsigned char)p[1])) {
+            p++;
+            while(isdigit((unsigned char)*p)) {
+                p++;     // a fraction of a second is not kept
+            }
+        }
+    }
+    note_clock(rd, hour > 99? 99 : (int64_t)hour, min, sec);
+    return p;
+}
+
+/***************************************************************************
+ *  A date of numbers: Y-M-D, M/D/Y, D.M.Y, M/D, D.M (the separator is
+ *  '-', '/' or '.', the same one all along). With the year first it is
+ *  Y-M-D, or Y-D-M when the month cannot be one. Otherwise M/D is tried
+ *  first with '-' and '/', D.M with '.', and the other order is taken
+ *  when the first is no date or is more than 10 days ahead.
+ ***************************************************************************/
+PRIVATE const char *read_numeric_date(date_reading_t *rd, const char *p)
+{
+    uintmax_t n[3] = {0, 0, 0};
+    int len[3] = {0, 0, 0};
+    int count = 0;
+    char sep = 0;
+
+    while(count < 3) {
+        while(isdigit((unsigned char)*p) && len[count] < 9) {
+            n[count] = n[count]*10 + (uintmax_t)(*p - '0');
+            len[count]++;
+            p++;
+        }
+        if(len[count] == 0 || isdigit((unsigned char)*p)) {
+            rd->unreadable = TRUE;
+            return p;
+        }
+        count++;
+        if(count == 3) {
+            break;
+        }
+        if(!sep && (*p == '-' || *p == '/' || *p == '.')) {
+            sep = *p;
+        }
+        if(*p != sep || !isdigit((unsigned char)p[1])) {
+            break;
+        }
+        p++;
+    }
+
+    int64_t year = 0;
+    int64_t first_mon, first_mday, second_mon, second_mday;
+    if(len[0] == 4) {
+        /*
+         *  Y-M-D, or Y-M; Y-D-M when the month cannot be one
+         */
+        year = (int64_t)n[0];
+        if(count == 2) {
+            if(!valid_date(year, (int64_t)n[1], 1)) {
+                rd->unreadable = TRUE;
+                return p;
+            }
+            note_date(rd, year, (int)n[1], 0);
+            return p;
+        }
+        first_mon = (int64_t)n[1];
+        first_mday = (int64_t)n[2];
+        second_mon = (int64_t)n[2];
+        second_mday = (int64_t)n[1];
+    } else {
+        if(count == 3) {
+            if(len[2] == 4) {
+                year = (int64_t)n[2];
+            } else if(len[2] <= 2) {
+                year = year_of_two_digits(n[2]);
+            }
+            if(!year) {
+                rd->unreadable = TRUE;
+                return p;
+            }
+        }
+        if(sep == '.') {
+            first_mday = (int64_t)n[0];
+            first_mon = (int64_t)n[1];
+        } else {
+            first_mon = (int64_t)n[0];
+            first_mday = (int64_t)n[1];
+        }
+        second_mon = first_mday;
+        second_mday = first_mon;
+    }
+
+    int64_t check_year = year;
+    if(!check_year) {
+        time_t shifted = rd->now + rd->now_offset;
+        struct tm nf;
+        gmtime_r(&shifted, &nf);
+        check_year = nf.tm_year + 1900;
+    }
+    BOOL first_valid = valid_date(check_year, first_mon, first_mday);
+    BOOL second_valid = valid_date(check_year, second_mon, second_mday);
+
+    BOOL first_taken = first_valid;
+    if(first_valid && !year && far_ahead(rd, check_year, (int)first_mon, (int)first_mday)) {
+        first_taken = FALSE;    // with no year, a date far ahead may be the other order
+    }
+    if(first_valid && year && len[0] != 4 &&
+            far_ahead(rd, check_year, (int)first_mon, (int)first_mday)) {
+        first_taken = FALSE;    // M/D/Y far ahead: D/M/Y, if it is a date
+    }
+    if(first_taken) {
+        note_date(rd, year, (int)first_mon, (int)first_mday);
+    } else if(second_valid) {
+        note_date(rd, year, (int)second_mon, (int)second_mday);
+    } else if(first_valid) {
+        note_date(rd, year, (int)first_mon, (int)first_mday);
+    } else {
+        rd->unreadable = TRUE;
+    }
+    if((*p == 'T' || *p == 't') && isdigit((unsigned char)p[1])) {
+        p++;    // ISO 8601: the clock time follows the date
+    }
+    return p;
+}
+
+/***************************************************************************
+ *  A number with nothing that makes it a count, a clock time or part of
+ *  a date of numbers: epoch seconds, a year, a day of the month, a month
+ ***************************************************************************/
+PRIVATE void note_number(date_reading_t *rd, uintmax_t value, int digits)
+{
+    if(value >= DATE_EPOCH_MIN) {
+        if(rd->epoch_said || value > (uintmax_t)INT64_MAX) {
+            rd->unreadable = TRUE;
+            return;
+        }
+        rd->epoch_said = TRUE;
+        rd->epoch = value;
+        rd->understood++;
+        return;
+    }
+    if(digits == 4 && value >= 1970 && value <= 9999) {
+        note_date(rd, (int64_t)value, 0, 0);
+        return;
+    }
+    if(value >= 1 && value <= 31) {
+        if(!rd->mday) {
+            note_date(rd, 0, 0, (int)value);
+            return;
+        }
+        if(!rd->mon && value <= 12) {
+            note_date(rd, 0, (int)value, 0);
+            return;
+        }
+    }
+    if(digits <= 2 && value > 0 && !rd->year) {
+        int64_t year = year_of_two_digits(value);
+        if(year) {
+            note_date(rd, year, 0, 0);
+            return;
+        }
+    }
+    rd->unreadable = TRUE;
+}
+
+/***************************************************************************
+ *  A piece that starts with a digit
+ ***************************************************************************/
+PRIVATE const char *read_number(date_reading_t *rd, const char *p)
+{
+    const char *start = p;
+    uintmax_t value = 0;
+    int digits = 0;
+    while(isdigit((unsigned char)*p)) {
+        if(value > (UINTMAX_MAX - 9)/10) {
+            rd->unreadable = TRUE;
+            while(isdigit((unsigned char)*p)) {
+                p++;
+            }
+            return p;
+        }
+        value = value*10 + (uintmax_t)(*p - '0');
+        digits++;
+        p++;
+    }
+
+    if(*p == ':' && isdigit((unsigned char)p[1])) {
+        return read_clock(rd, value, p + 1);
+    }
+    if((*p == '-' || *p == '/' || *p == '.') && isdigit((unsigned char)p[1])) {
+        return read_numeric_date(rd, start);
+    }
+    if((*p == 'T' || *p == 't') && digits == 8 && isdigit((unsigned char)p[1])) {
+        /*
+         *  The basic form of ISO 8601: YYYYMMDDThhmm[ss]
+         */
+        int64_t year = (int64_t)(value/10000);
+        int64_t mon = (int64_t)((value/100)%100);
+        int64_t mday = (int64_t)(value%100);
+        if(!valid_date(year, mon, mday)) {
+            rd->unreadable = TRUE;
+            return p;
+        }
+        note_date(rd, year, (int)mon, (int)mday);
+        p++;
+        int64_t clock = 0;
+        int clock_digits = 0;
+        while(isdigit((unsigned char)*p)) {
+            clock = clock*10 + (*p - '0');
+            clock_digits++;
+            p++;
+        }
+        if(clock_digits == 4) {
+            note_clock(rd, clock/100, clock%100, 0);
+        } else if(clock_digits == 6) {
+            note_clock(rd, clock/10000, (clock/100)%100, clock%100);
+        } else {
+            rd->unreadable = TRUE;
+        }
+        return p;
+    }
+
+    const char *end = read_after_count(rd, value, p);
+    if(end) {
+        return end;
+    }
+    note_number(rd, value, digits);
+    return p;
+}
+
+/***************************************************************************
+ *  A zone as +hh, +hhmm or +hh:mm (or with '-'). Only after a clock time
+ *  or epoch seconds: anywhere else a sign is no date.
+ ***************************************************************************/
+PRIVATE const char *read_zone_offset(date_reading_t *rd, const char *p)
+{
+    int sign = (*p == '-')? -1 : 1;
+    p++;
+    if(rd->zone_said || (rd->hour < 0 && !rd->epoch_said)) {
+        rd->unreadable = TRUE;
+        return p;
+    }
+    int64_t value = 0;
+    int digits = 0;
+    while(isdigit((unsigned char)*p) && digits < 5) {
+        value = value*10 + (*p - '0');
+        digits++;
+        p++;
+    }
+    int64_t hours, minutes;
+    if(digits == 2 && *p == ':' && isdigit((unsigned char)p[1]) && isdigit((unsigned char)p[2])) {
+        hours = value;
+        minutes = (p[1] - '0')*10 + (p[2] - '0');
+        p += 3;
+    } else if(digits == 2) {
+        hours = value;
+        minutes = 0;
+    } else if(digits == 4) {
+        hours = value/100;
+        minutes = value%100;
+    } else {
+        rd->unreadable = TRUE;
+        return p;
+    }
+    if(hours > 23 || minutes > 59 || isdigit((unsigned char)*p)) {
+        rd->unreadable = TRUE;
+        return p;
+    }
+    rd->zone_said = TRUE;
+    rd->zone_offset = sign*(long)(hours*3600 + minutes*60);
+    rd->understood++;
+    return p;
+}
+
+/***************************************************************************
+ *  A piece that starts with a letter
+ ***************************************************************************/
+PRIVATE const char *read_word(date_reading_t *rd, const char *p)
+{
+    char raw[16];
+    char word[16];
+    const char *end = take_word(p, raw, word, sizeof(word));
+    if(!word[0]) {
+        rd->unreadable = TRUE;
+        return end;
+    }
+
+    long offset;
+    if(zone_of_word(word, &offset)) {
+        if(rd->zone_said) {
+            rd->unreadable = TRUE;
+            return end;
+        }
+        rd->zone_said = TRUE;
+        rd->zone_offset = offset;
+        rd->understood++;
+        return end;
+    }
+
+    int mon = month_of_word(word);
+    if(mon) {
+        note_date(rd, 0, mon, 0);
+        return end;
+    }
+
+    if(weekday_of_word(word) >= 0) {
+        return end;     // a weekday alone says nothing a date does not ("Thu, 1 Oct 2026")
+    }
+
+    if(strcmp(word, "now") == 0 || strcmp(word, "today") == 0) {
+        rd->vague = TRUE;
+        rd->understood++;
+        return end;
+    }
+    if(strcmp(word, "yesterday") == 0) {
+        rd->back_days++;
+        rd->vague = TRUE;
+        rd->understood++;
+        return end;
+    }
+    if(strcmp(word, "noon") == 0 || strcmp(word, "midnight") == 0 || strcmp(word, "tea") == 0) {
+        if(rd->special_hour >= 0 || rd->hour >= 0) {
+            rd->unreadable = TRUE;
+            return end;
+        }
+        rd->special_hour = (word[0] == 'n')? 12 : (word[0] == 'm')? 0 : 17;
+        rd->vague = TRUE;
+        rd->understood++;
+        return end;
+    }
+    if(strcmp(word, "am") == 0 || strcmp(word, "pm") == 0) {
+        note_ampm(rd, word[0]);
+        return end;
+    }
+    if(strcmp(word, "never") == 0) {
+        rd->never = TRUE;
+        rd->vague = TRUE;
+        rd->understood++;
+        return end;
+    }
+    if(strcmp(word, "ago") == 0 || strcmp(word, "at") == 0 || strcmp(word, "on") == 0) {
+        return end;
+    }
+    if(strcmp(word, "last") == 0) {
+        const char *after = read_after_count(rd, 1, end);
+        if(!after) {
+            rd->unreadable = TRUE;
+            return end;
+        }
+        return after;
+    }
+    int number = number_of_word(word);
+    if(number >= 0) {
+        const char *after = read_after_count(rd, (uintmax_t)number, end);
+        if(!after) {
+            rd->unreadable = TRUE;
+            return end;
+        }
+        return after;
+    }
+
+    rd->unreadable = TRUE;  // a unit with no count among them
+    return end;
+}
+
+/***************************************************************************
+ *  Note what each piece of `text` says
+ ***************************************************************************/
+PRIVATE void read_date_text(date_reading_t *rd, const char *text)
+{
+    memset(rd, 0, sizeof(*rd));
+    rd->now = time(NULL);
+    rd->now_offset = local_offset_at(rd->now);
+    rd->hour = -1;
+    rd->special_hour = -1;
+    rd->weekday_target = -1;
+
+    const char *p = text? text : "";
+    while(*p && !rd->unreadable) {
+        unsigned char c = (unsigned char)*p;
+        if(isspace(c) || c == ',' || c == '_' || c == '.') {
+            p++;
+        } else if(c == '(') {
+            /*
+             *  A comment, as RFC 2822 writes the name of a zone: "(CEST)"
+             */
+            const char *close = strchr(p, ')');
+            if(!close) {
+                rd->unreadable = TRUE;
+                break;
+            }
+            p = close + 1;
+        } else if(isdigit(c)) {
+            p = read_number(rd, p);
+        } else if(isalpha(c)) {
+            p = read_word(rd, p);
+        } else if(c == '+' || c == '-') {
+            p = read_zone_offset(rd, p);
+        } else if(c == '@') {
+            p++;
+            if(!isdigit((unsigned char)*p)) {
+                rd->unreadable = TRUE;
+                break;
+            }
+            uintmax_t value = 0;
+            while(isdigit((unsigned char)*p)) {
+                if(value > (UINTMAX_MAX - 9)/10) {
+                    rd->unreadable = TRUE;
+                    break;
+                }
+                value = value*10 + (uintmax_t)(*p - '0');
+                p++;
+            }
+            if(rd->unreadable || rd->epoch_said || value > (uintmax_t)INT64_MAX) {
+                rd->unreadable = TRUE;
+                break;
+            }
+            rd->epoch_said = TRUE;
+            rd->epoch = value;
+            rd->understood++;
+        } else {
+            rd->unreadable = TRUE;
+        }
+    }
+}
+
+/***************************************************************************
+ *  The time that a reading says, and the offset to show it with (the one
+ *  given, else the local one at that time), in minutes. Return -1 when
+ *  the text says no time.
+ *
+ *  Without a clock time the date moves in the UTC offset of now: whole
+ *  days are 24 hours, and a date keeps the time of day of now. A clock
+ *  time (or noon, midnight, tea) is a local one, of the date reached.
+ ***************************************************************************/
+PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset_minutes)
+{
+    if(rd->unreadable || !rd->understood) {
+        return -1;
+    }
+    if(rd->never) {
+        *result = 0;
+        *offset_minutes = 0;
+        return 0;
+    }
+    if(rd->epoch_said) {
+        if(rd->year || rd->mon || rd->mday || rd->hour >= 0 || rd->vague || rd->ampm) {
+            return -1;
+        }
+        *result = rd->epoch;
+        *offset_minutes = (int)((rd->zone_said? rd->zone_offset : local_offset_at((time_t)rd->epoch))/60);
+        return 0;
+    }
+
+    long frame_offset = rd->zone_said? rd->zone_offset : rd->now_offset;
+    time_t shifted = rd->now + frame_offset;
+    struct tm nf;
+    gmtime_r(&shifted, &nf);
+    int64_t now_clock = nf.tm_hour*3600 + nf.tm_min*60 + nf.tm_sec;
+    BOOL date_said = (rd->year || rd->mon || rd->mday)? TRUE : FALSE;
+
+    int64_t year = rd->year? rd->year : nf.tm_year + 1900;
+    int mon = rd->mon? rd->mon : nf.tm_mon + 1;
+    int64_t mday = rd->mday? rd->mday : nf.tm_mday;
+    if(!rd->mday && mday > month_days(year, mon)) {
+        mday = month_days(year, mon);
+    }
+    if(mday > month_days(year, mon)) {
+        return -1;  // "Feb 29" of a year that has none
+    }
+    if(date_said && !rd->year && far_ahead(rd, year, mon, (int)mday)) {
+        year--;
+        if(mday > month_days(year, mon)) {
+            return -1;
+        }
+    }
+
+    if(rd->back_months) {
+        int64_t months = year*12 + (mon - 1) - rd->back_months;
+        if(months < 12) {
+            return -1;
+        }
+        year = months/12;
+        mon = (int)(months%12) + 1;
+        if(mday > month_days(year, mon)) {
+            mday = month_days(year, mon);
+        }
+    }
+    if(year < 1) {
+        return -1;
+    }
+
+    int64_t day = days_to_month(year, mon) + mday - 1 - rd->back_days;
+    if(rd->weekday_target >= 0) {
+        int weekday = (int)(((day + 4)%7 + 7)%7);   // 1970-01-01 was a Thursday
+        int64_t back = (weekday - rd->weekday_target + 7)%7;
+        if(back == 0) {
+            back = 7;
+        }
+        day -= back + 7*(rd->weekday_count - 1);
+    }
+    if(rd->special_hour >= 0 && !date_said && now_clock < rd->special_hour*3600) {
+        day--;      // the last noon (midnight, tea) that passed
+    }
+
+    int64_t t;
+    if(rd->hour >= 0 || rd->special_hour >= 0) {
+        int64_t hour = (rd->hour >= 0)? rd->hour : rd->special_hour;
+        int64_t min = (rd->hour >= 0)? rd->min : 0;
+        int64_t sec = (rd->hour >= 0)? rd->sec : 0;
+        if(rd->ampm == 'p' && hour < 12) {
+            hour += 12;
+        } else if(rd->ampm == 'a' && hour == 12) {
+            hour = 0;
+        }
+        if(rd->zone_said) {
+            t = day*86400 + hour*3600 + min*60 + sec - rd->zone_offset;
+        } else {
+            time_t midnight = (time_t)(day*86400);
+            struct tm lt;
+            gmtime_r(&midnight, &lt);
+            lt.tm_hour = (int)hour;
+            lt.tm_min = (int)min;
+            lt.tm_sec = (int)sec;
+            lt.tm_isdst = -1;
+            t = (int64_t)mktime(&lt);
+        }
+    } else {
+        int64_t clock = now_clock;
+        if(rd->ampm == 'p' && clock < 12*3600) {
+            clock += 12*3600;
+        } else if(rd->ampm == 'a' && clock >= 12*3600) {
+            clock -= 12*3600;
+        }
+        t = day*86400 + clock - frame_offset;
+    }
+    t -= rd->back_seconds;
+    if(t < 0) {
+        return -1;
+    }
+
+    *result = (timestamp_t)t;
+    *offset_minutes = (int)((rd->zone_said? rd->zone_offset : local_offset_at((time_t)t))/60);
+    return 0;
+}
+
+/***************************************************************************
+ *  UTC seconds of a struct tm of UTC, its fields as they are (no
+ *  normalization of tm_wday or tm_yday): years 1970 to 2099
+ ***************************************************************************/
 PUBLIC time_t tm_to_time_t(const struct tm *tm)
 {
-    static const int mdays[] = {
-        0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334
-    };
-    int year = tm->tm_year - 70;
-    int month = tm->tm_mon;
-    int day = tm->tm_mday;
-
-    if (year < 0 || year > 129) /* algo only works for 1970-2099 */
+    int64_t year = tm->tm_year + 1900;
+    if(year < 1970 || year > 2099 || tm->tm_mon < 0 || tm->tm_mon > 11) {
         return -1;
-    if (month < 0 || month > 11) /* array bounds */
-        return -1;
-    if (month < 2 || (year + 2) % 4)
-        day--;
-    if (tm->tm_hour < 0 || tm->tm_min < 0 || tm->tm_sec < 0)
-        return -1;
-    return (year * 365 + (year + 1) / 4 + mdays[month] + day) * 24*60*60UL +
-        tm->tm_hour * 60*60 + tm->tm_min * 60 + tm->tm_sec;
+    }
+    return (time_t)utc_seconds(year, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
 }
 
-static const char *month_names[] = {
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-};
-
-static const char *weekday_names[] = {
-    "Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"
-};
-
-static time_t gm_time_t(timestamp_t time, int tz)
-{
-    int minutes;
-
-    minutes = tz < 0 ? -tz : tz;
-    minutes = (minutes / 100)*60 + (minutes % 100);
-    minutes = tz < 0 ? -minutes : minutes;
-
-    if (minutes > 0) {
-        if (unsigned_add_overflows(time, minutes * 60))
-            gobj_trace_msg(0, "Timestamp+tz too large: %"PRItime" +%04d",
-                time, tz);
-    } else if (time < -minutes * 60) {
-        gobj_trace_msg(0, "Timestamp before Unix epoch: %"PRItime" %04d", time, tz);
-    }
-    time += minutes * 60;
-    if (date_overflows(time))
-        gobj_trace_msg(0, "Timestamp too large for this system: %"PRItime, time);
-    return (time_t)time;
-}
-
-/*
- * The "tz" thing is passed in as this strange "decimal parse of tz"
- * thing, which means that tz -0100 is passed in as the integer -100,
- * even though it means "sixty minutes off"
- */
-static struct tm *time_to_tm(timestamp_t time, int tz, struct tm *tm)
-{
-    time_t t = gm_time_t(time, tz);
-#ifdef WIN32
-    gmtime_s(tm, &t);
-    return tm;
-#else
-    return gmtime_r(&t, tm);
-#endif
-}
-
-static struct tm *time_to_tm_local(timestamp_t time, struct tm *tm)
-{
-    time_t t = (time_t)time;
-#ifdef WIN32
-    localtime_s(tm, &t);
-    return tm;
-#else
-    return localtime_r(&t, tm);
-#endif
-}
-
-/*
- * Fill in the localtime 'struct tm' for the supplied time,
- * and return the local tz.
- */
-static time_t local_time_tzoffset(time_t t, struct tm *tm)
-{
-    time_t t_local;
-    time_t offset, eastwest;
-
-#ifdef WIN32
-    localtime_s(tm, &t);
-#else
-    localtime_r(&t, tm);
-#endif
-    t_local = tm_to_time_t(tm);
-    if (t_local == -1)
-        return 0; /* error; just use +0000 */
-    if (t_local < t) {
-        eastwest = -1;
-        offset = t - t_local;
-    } else {
-        eastwest = 1;
-        offset = t_local - t;
-    }
-    offset /= 60; /* in minutes */
-    offset = (offset % 60) + ((offset / 60) * 100);
-    return offset * eastwest;
-}
-
-/*
- * What value of "tz" was in effect back then at "time" in the
- * local timezone?
- */
-static int local_tzoffset(timestamp_t time)
-{
-    struct tm tm;
-
-    if (date_overflows(time))
-        gobj_trace_msg(0, "Timestamp too large for this system: %"PRItime, time);
-
-    return local_time_tzoffset((time_t)time, &tm);
-}
-
-/***********************************************************************
- *   Get a string with some now! date or time formatted
- ***********************************************************************/
-PUBLIC void show_date_relative(
-    timestamp_t tim,
-    char *timebuf,
-    int timebufsize)
-{
-    time_t tv_sec;
-    timestamp_t diff;
-
-    time(&tv_sec);
-    if (tv_sec < tim) {
-        snprintf(timebuf, timebufsize, _("in the future"));
-        return;
-    }
-    diff = tv_sec - tim;
-    if (diff < 90) {
-        snprintf(timebuf, timebufsize,
-             _("%"PRItime" seconds ago"), diff);
-        return;
-    }
-    /* Turn it into minutes */
-    diff = (diff + 30) / 60;
-    if (diff < 90) {
-        snprintf(timebuf, timebufsize,
-             _("%"PRItime" minutes ago"), diff);
-        return;
-    }
-    /* Turn it into hours */
-    diff = (diff + 30) / 60;
-    if (diff < 36) {
-        snprintf(timebuf, timebufsize,
-             _("%"PRItime" hours ago"), diff);
-        return;
-    }
-    /* We deal with number of days from here on */
-    diff = (diff + 12) / 24;
-    if (diff < 14) {
-        snprintf(timebuf, timebufsize,
-             _("%"PRItime" days ago"), diff);
-        return;
-    }
-    /* Say weeks for the past 10 weeks or so */
-    if (diff < 70) {
-        snprintf(timebuf, timebufsize,
-             _("%"PRItime" weeks ago"),
-             (diff + 3) / 7);
-        return;
-    }
-    /* Say months for the past 12 months or so */
-    if (diff < 365) {
-        snprintf(timebuf, timebufsize,
-             _("%"PRItime" months ago"),
-             (diff + 15) / 30);
-        return;
-    }
-    /* Give years and months for 5 years or so */
-    if (diff < 1825) {
-        timestamp_t totalmonths = (diff * 12 * 2 + 365) / (365 * 2);
-        timestamp_t years = totalmonths / 12;
-        timestamp_t months = totalmonths % 12;
-        if (months) {
-            char sb[120];
-            snprintf(sb, sizeof(sb), _("%"PRItime" years"), years);
-            snprintf(timebuf, timebufsize,
-                 /* TRANSLATORS: "%s" is "<n> years" */
-                 _("%s, %"PRItime" months ago"),
-                 sb, months);
-        } else
-            snprintf(timebuf, timebufsize,
-                 _("%"PRItime" years ago"), years);
-        return;
-    }
-    /* Otherwise, just years. Centuries is probably overkill. */
-    snprintf(timebuf, timebufsize,
-         _("%"PRItime" years ago"),
-         (diff + 183) / 365);
-}
-
+/***************************************************************************
+ *  A date mode of a type, in a static struct (DATE_STRFTIME needs a
+ *  format: use parse_date_format() for it)
+ ***************************************************************************/
 PUBLIC struct date_mode *date_mode_from_type(enum date_mode_type type)
 {
     static struct date_mode mode;
-    if (type == DATE_STRFTIME)
-        gobj_trace_msg(0, "cannot create anonymous strftime date_mode struct");
+    memset(&mode, 0, sizeof(mode));
     mode.type = type;
+    if(type == DATE_STRFTIME) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "DATE_STRFTIME needs a format, use parse_date_format()",
+            NULL
+        );
+    }
     return &mode;
 }
 
-PUBLIC const char *show_date(timestamp_t tim, int tz, const struct date_mode *mode)
+/***************************************************************************
+ *  `time` written in a mode. `tz` is the zone to write it in, as a
+ *  number +hhmm (200 is +02:00, -330 is -03:30); a "-local" mode writes
+ *  it in the local zone instead. Return a static buffer.
+ ***************************************************************************/
+PUBLIC const char *show_date(timestamp_t time, int tz, const struct date_mode *mode)
 {
-    struct tm *tm;
-    static char timebuf[1024];
-    struct tm tmbuf = { 0 };
+    static char bf[256];
 
-    if (mode->type == DATE_UNIX) {
-        snprintf(timebuf, sizeof(timebuf), "%"PRItime, tim);
-        return timebuf;
+    if(!mode) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "mode NULL, the default one is used",
+            NULL
+        );
+        mode = date_mode_from_type(DATE_NORMAL);
+    }
+    if(date_overflows(time)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "time beyond a time_t, written as 0",
+            "time",         "%" PRItime, time,
+            NULL
+        );
+        time = 0;
     }
 
-    if (mode->local)
-        tz = local_tzoffset(tim);
-
-    if (mode->type == DATE_RAW) {
-        snprintf(timebuf, sizeof(timebuf), "%"PRItime" %+05d", tim, tz);
-        return timebuf;
+    if(mode->type == DATE_UNIX) {
+        snprintf(bf, sizeof(bf), "%" PRItime, time);
+        return bf;
+    }
+    if(mode->type == DATE_RELATIVE) {
+        show_date_relative(time, bf, sizeof(bf));
+        return bf;
     }
 
-    if (mode->type == DATE_RELATIVE) {
-        show_date_relative(tim, timebuf, sizeof(timebuf));
-        return timebuf;
+    long offset;
+    if(mode->local) {
+        offset = local_offset_at((time_t)time);
+    } else {
+        offset = (long)((tz/100)*60 + tz%100)*60;
+    }
+    char zone[16];
+    offset_text(zone, sizeof(zone), offset, FALSE);
+
+    if(mode->type == DATE_RAW) {
+        snprintf(bf, sizeof(bf), "%" PRItime " %s", time, zone);
+        return bf;
     }
 
-    if (mode->local)
-        tm = time_to_tm_local(tim, &tmbuf);
-    else
-        tm = time_to_tm(tim, tz, &tmbuf);
-    if (!tm) {
-        tm = time_to_tm(0, 0, &tmbuf);
-        tz = 0;
+    time_t shifted = (time_t)time + offset;
+    struct tm tm;
+    if(!gmtime_r(&shifted, &tm)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "gmtime_r() FAILED",
+            "time",         "%" PRItime, time,
+            NULL
+        );
+        snprintf(bf, sizeof(bf), "%" PRItime, time);
+        return bf;
     }
 
-    if (mode->type == DATE_SHORT)
-        snprintf(timebuf, sizeof(timebuf), "%04d-%02d-%02d", tm->tm_year + 1900,
-            tm->tm_mon + 1, tm->tm_mday);
-    else if (mode->type == DATE_ISO8601)
-        snprintf(timebuf, sizeof(timebuf), "%04d-%02d-%02d %02d:%02d:%02d %+05d",
-            tm->tm_year + 1900,
-            tm->tm_mon + 1,
-            tm->tm_mday,
-            tm->tm_hour, tm->tm_min, tm->tm_sec,
-            tz);
-    else if (mode->type == DATE_ISO8601_STRICT) {
-        char sign = (tz >= 0) ? '+' : '-';
-        tz = abs(tz);
-        snprintf(timebuf, sizeof(timebuf), "%04d-%02d-%02dT%02d:%02d:%02d%c%02d:%02d",
-            tm->tm_year + 1900,
-            tm->tm_mon + 1,
-            tm->tm_mday,
-            tm->tm_hour, tm->tm_min, tm->tm_sec,
-            sign, tz / 100, tz % 100);
-    } else if (mode->type == DATE_RFC2822)
-        snprintf(timebuf, sizeof(timebuf), "%.3s, %d %.3s %d %02d:%02d:%02d %+05d",
-            weekday_names[tm->tm_wday], tm->tm_mday,
-            month_names[tm->tm_mon], tm->tm_year + 1900,
-            tm->tm_hour, tm->tm_min, tm->tm_sec, tz);
-    else if (mode->type == DATE_STRFTIME)
-        snprintf(timebuf, sizeof(timebuf), mode->strftime_fmt, tm, tz,
-            !mode->local);
-    else
-        snprintf(timebuf, sizeof(timebuf), "%.3s %.3s %d %02d:%02d:%02d %d%c%+05d",
-            weekday_names[tm->tm_wday],
-            month_names[tm->tm_mon],
-            tm->tm_mday,
-            tm->tm_hour, tm->tm_min, tm->tm_sec,
-            tm->tm_year + 1900,
-            mode->local ? 0 : ' ',
-            tz);
-    return timebuf;
+    switch(mode->type) {
+        case DATE_SHORT:
+            snprintf(bf, sizeof(bf), "%04d-%02d-%02d",
+                tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+            break;
+
+        case DATE_ISO8601:
+            snprintf(bf, sizeof(bf), "%04d-%02d-%02d %02d:%02d:%02d %s",
+                tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+                tm.tm_hour, tm.tm_min, tm.tm_sec, zone);
+            break;
+
+        case DATE_ISO8601_STRICT:
+            offset_text(zone, sizeof(zone), offset, TRUE);
+            snprintf(bf, sizeof(bf), "%04d-%02d-%02dT%02d:%02d:%02d%s",
+                tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+                tm.tm_hour, tm.tm_min, tm.tm_sec, zone);
+            break;
+
+        case DATE_RFC2822:
+            snprintf(bf, sizeof(bf), "%s, %d %s %d %02d:%02d:%02d %s",
+                weekday_short_names[tm.tm_wday], tm.tm_mday, month_short_names[tm.tm_mon],
+                tm.tm_year + 1900, tm.tm_hour, tm.tm_min, tm.tm_sec, zone);
+            break;
+
+        case DATE_STRFTIME:
+            if(strftime(bf, sizeof(bf), mode->strftime_fmt, &tm) == 0) {
+                bf[0] = 0;  // an empty result, or one too long for bf
+            }
+            break;
+
+        case DATE_NORMAL:
+        default:
+            snprintf(bf, sizeof(bf), "%s %s %d %02d:%02d:%02d %d%s%s",
+                weekday_short_names[tm.tm_wday], month_short_names[tm.tm_mon], tm.tm_mday,
+                tm.tm_hour, tm.tm_min, tm.tm_sec, tm.tm_year + 1900,
+                mode->local? "" : " ", mode->local? "" : zone);
+            break;
+    }
+    return bf;
 }
 
-/*
- * Check these. And note how it doesn't do the summer-time conversion.
- *
- * In my world, it's always summer, and things are probably a bit off
- * in other ways too.
- */
-static const struct {
-    const char *name;
+/***************************************************************************
+ *  How long ago `t` was, in the unit that fits: seconds up to 89,
+ *  minutes up to 89, hours up to 35, days up to 13, weeks up to 69 days,
+ *  months up to 364 days, years and months up to 5 years, years. Each
+ *  unit is rounded from the one below it.
+ ***************************************************************************/
+PUBLIC void show_date_relative(timestamp_t t, char *timebuf, int timebufsize)
+{
+    if(!timebuf || timebufsize <= 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "no buffer",
+            NULL
+        );
+        return;
+    }
+    timestamp_t now = (timestamp_t)time(NULL);
+    if(t > now) {
+        snprintf(timebuf, (size_t)timebufsize, "in the future");
+        return;
+    }
+
+    uintmax_t seconds = now - t;
+    if(seconds < 90) {
+        snprintf(timebuf, (size_t)timebufsize, "%ju %s ago", seconds, seconds == 1? "second" : "seconds");
+        return;
+    }
+    uintmax_t minutes = (seconds + 30)/60;
+    if(minutes < 90) {
+        snprintf(timebuf, (size_t)timebufsize, "%ju minutes ago", minutes);
+        return;
+    }
+    uintmax_t hours = (minutes + 30)/60;
+    if(hours < 36) {
+        snprintf(timebuf, (size_t)timebufsize, "%ju hours ago", hours);
+        return;
+    }
+    uintmax_t days = (hours + 12)/24;
+    if(days < 14) {
+        snprintf(timebuf, (size_t)timebufsize, "%ju days ago", days);
+        return;
+    }
+    if(days < 70) {
+        snprintf(timebuf, (size_t)timebufsize, "%ju weeks ago", (days + 3)/7);
+        return;
+    }
+    if(days < 365) {
+        snprintf(timebuf, (size_t)timebufsize, "%ju months ago", (days + 15)/30);
+        return;
+    }
+    if(days < 1825) {
+        uintmax_t total_months = (days*24 + 365)/730;   // days*12/365, rounded
+        uintmax_t years = total_months/12;
+        uintmax_t months = total_months%12;
+        if(months) {
+            snprintf(timebuf, (size_t)timebufsize, "%ju %s, %ju %s ago",
+                years, years == 1? "year" : "years",
+                months, months == 1? "month" : "months");
+        } else {
+            snprintf(timebuf, (size_t)timebufsize, "%ju %s ago", years, years == 1? "year" : "years");
+        }
+        return;
+    }
+    snprintf(timebuf, (size_t)timebufsize, "%ju years ago", (days + 183)/365);
+}
+
+/***************************************************************************
+ *  A whole date and time (or epoch seconds) as "<seconds> <+hhmm>"
+ ***************************************************************************/
+PUBLIC int parse_date(const char *date, char *out, int outsize)
+{
+    timestamp_t t;
     int offset;
-    int dst;
-} timezone_names[] = {
-    { "IDLW", -12, 0, },    /* International Date Line West */
-    { "NT",   -11, 0, },    /* Nome */
-    { "CAT",  -10, 0, },    /* Central Alaska */
-    { "HST",  -10, 0, },    /* Hawaii Standard */
-    { "HDT",  -10, 1, },    /* Hawaii Daylight */
-    { "YST",   -9, 0, },    /* Yukon Standard */
-    { "YDT",   -9, 1, },    /* Yukon Daylight */
-    { "PST",   -8, 0, },    /* Pacific Standard */
-    { "PDT",   -8, 1, },    /* Pacific Daylight */
-    { "MST",   -7, 0, },    /* Mountain Standard */
-    { "MDT",   -7, 1, },    /* Mountain Daylight */
-    { "CST",   -6, 0, },    /* Central Standard */
-    { "CDT",   -6, 1, },    /* Central Daylight */
-    { "EST",   -5, 0, },    /* Eastern Standard */
-    { "EDT",   -5, 1, },    /* Eastern Daylight */
-    { "AST",   -3, 0, },    /* Atlantic Standard */
-    { "ADT",   -3, 1, },    /* Atlantic Daylight */
-    { "WAT",   -1, 0, },    /* West Africa */
-
-    { "GMT",    0, 0, },    /* Greenwich Mean */
-    { "UTC",    0, 0, },    /* Universal (Coordinated) */
-    { "Z",      0, 0, },    /* Zulu, alias for UTC */
-
-    { "WET",    0, 0, },    /* Western European */
-    { "BST",    0, 1, },    /* British Summer */
-    { "CET",   +1, 0, },    /* Central European */
-    { "MET",   +1, 0, },    /* Middle European */
-    { "MEWT",  +1, 0, },    /* Middle European Winter */
-    { "MEST",  +1, 1, },    /* Middle European Summer */
-    { "CEST",  +1, 1, },    /* Central European Summer */
-    { "MESZ",  +1, 1, },    /* Middle European Summer */
-    { "FWT",   +1, 0, },    /* French Winter */
-    { "FST",   +1, 1, },    /* French Summer */
-    { "EET",   +2, 0, },    /* Eastern Europe, USSR Zone 1 */
-    { "EEST",  +2, 1, },    /* Eastern European Daylight */
-    { "WAST",  +7, 0, },    /* West Australian Standard */
-    { "WADT",  +7, 1, },    /* West Australian Daylight */
-    { "CCT",   +8, 0, },    /* China Coast, USSR Zone 7 */
-    { "JST",   +9, 0, },    /* Japan Standard, USSR Zone 8 */
-    { "EAST", +10, 0, },    /* Eastern Australian Standard */
-    { "EADT", +10, 1, },    /* Eastern Australian Daylight */
-    { "GST",  +10, 0, },    /* Guam Standard, USSR Zone 9 */
-    { "NZT",  +12, 0, },    /* New Zealand */
-    { "NZST", +12, 0, },    /* New Zealand Standard */
-    { "NZDT", +12, 1, },    /* New Zealand Daylight */
-    { "IDLE", +12, 0, },    /* International Date Line East */
-};
-
-static int match_string(const char *date, const char *str)
-{
-    int i;
-
-    for (i = 0; *date; date++, str++, i++) {
-        if (*date == *str)
-            continue;
-        if (toupper(*date) == toupper(*str))
-            continue;
-        if (!isalnum(*((unsigned char *)date)))
-            break;
-        return 0;
-    }
-    return i;
-}
-
-static int skip_alpha(const char *date)
-{
-    int i = 0;
-    do {
-        i++;
-    } while (isalpha(((unsigned char *)date)[i]));
-    return i;
-}
-
-/*
-* Parse month, weekday, or timezone name
-*/
-static int match_alpha(const char *date, struct tm *tm, int *offset)
-{
-    int i;
-
-    for (i = 0; i < 12; i++) {
-        int match = match_string(date, month_names[i]);
-        if (match >= 3) {
-            tm->tm_mon = i;
-            return match;
-        }
-    }
-
-    for (i = 0; i < 7; i++) {
-        int match = match_string(date, weekday_names[i]);
-        if (match >= 3) {
-            tm->tm_wday = i;
-            return match;
-        }
-    }
-
-    for (i = 0; i < ARRAY_SIZE(timezone_names); i++) {
-        int match = match_string(date, timezone_names[i].name);
-        if (match >= 3 || match == strlen(timezone_names[i].name)) {
-            int off = timezone_names[i].offset;
-
-            /* This is bogus, but we like summer */
-            off += timezone_names[i].dst;
-
-            /* Only use the tz name offset if we don't have anything better */
-            if (*offset == -1)
-                *offset = 60*off;
-
-            return match;
-        }
-    }
-
-    if (match_string(date, "PM") == 2) {
-        tm->tm_hour = (tm->tm_hour % 12) + 12;
-        return 2;
-    }
-
-    if (match_string(date, "AM") == 2) {
-        tm->tm_hour = (tm->tm_hour % 12) + 0;
-        return 2;
-    }
-
-    /* BAD CRAP */
-    return skip_alpha(date);
-}
-
-static int set_date(int year, int month, int day, struct tm *now_tm, time_t now, struct tm *tm)
-{
-    if (month > 0 && month < 13 && day > 0 && day < 32) {
-        struct tm check = *tm;
-        struct tm *r = (now_tm ? &check : tm);
-        time_t specified;
-
-        r->tm_mon = month - 1;
-        r->tm_mday = day;
-        if (year == -1) {
-            if (!now_tm)
-                return 1;
-            r->tm_year = now_tm->tm_year;
-        }
-        else if (year >= 1970 && year < 2100)
-            r->tm_year = year - 1900;
-        else if (year > 70 && year < 100)
-            r->tm_year = year;
-        else if (year < 38)
-            r->tm_year = year + 100;
-        else
-            return -1;
-        if (!now_tm)
-            return 0;
-
-        specified = tm_to_time_t(r);
-
-        /* Be it commit time or author time, it does not make
-         * sense to specify timestamp way into the future.  Make
-         * sure it is not later than ten days from now...
-         */
-        if ((specified != -1) && (now + 10*24*3600 < specified))
-            return -1;
-        tm->tm_mon = r->tm_mon;
-        tm->tm_mday = r->tm_mday;
-        if (year != -1)
-            tm->tm_year = r->tm_year;
-        return 0;
-    }
-    return -1;
-}
-
-static int set_time(long hour, long minute, long second, struct tm *tm)
-{
-    /* We accept 61st second because of leap second */
-    if (0 <= hour && hour <= 24 &&
-        0 <= minute && minute < 60 &&
-        0 <= second && second <= 60) {
-        tm->tm_hour = hour;
-        tm->tm_min = minute;
-        tm->tm_sec = second;
-        return 0;
-    }
-    return -1;
-}
-
-static int is_date_known(struct tm *tm)
-{
-    return tm->tm_year != -1 && tm->tm_mon != -1 && tm->tm_mday != -1;
-}
-
-static int match_multi_number(timestamp_t num, char c, const char *date,
-                  char *end, struct tm *tm, time_t now)
-{
-    struct tm now_tm;
-    struct tm *refuse_future;
-    long num2, num3;
-
-    num2 = strtol(end+1, &end, 10);
-    num3 = -1;
-    if (*end == c && isdigit(((unsigned char *)end)[1]))
-        num3 = strtol(end+1, &end, 10);
-
-    /* Time? Date? */
-    switch (c) {
-    case ':':
-        if (num3 < 0)
-            num3 = 0;
-        if (set_time(num, num2, num3, tm) == 0) {
-            /*
-             * If %H:%M:%S was just parsed followed by: .<num4>
-             * Consider (& discard) it as fractional second
-             * if %Y%m%d is parsed before.
-             */
-            if (*end == '.' && isdigit(((unsigned char *)end)[1]) && is_date_known(tm))
-                strtol(end + 1, &end, 10);
-            break;
-        }
-        return 0;
-
-    case '-':
-    case '/':
-    case '.':
-        if (!now)
-            now = time(NULL);
-        refuse_future = NULL;
-
-#ifdef WIN32
-            if (gmtime_s(&now_tm, &now))
-#else
-            if (gmtime_r(&now, &now_tm))
-#endif
-            refuse_future = &now_tm;
-
-        if (num > 70) {
-            /* yyyy-mm-dd? */
-            if (set_date(num, num2, num3, NULL, now, tm) == 0)
-                break;
-            /* yyyy-dd-mm? */
-            if (set_date(num, num3, num2, NULL, now, tm) == 0)
-                break;
-        }
-        /* Our eastern European friends say dd.mm.yy[yy]
-         * is the norm there, so giving precedence to
-         * mm/dd/yy[yy] form only when separator is not '.'
-         */
-        if (c != '.' &&
-            set_date(num3, num, num2, refuse_future, now, tm) == 0)
-            break;
-        /* European dd.mm.yy[yy] or funny US dd/mm/yy[yy] */
-        if (set_date(num3, num2, num, refuse_future, now, tm) == 0)
-            break;
-        /* Funny European mm.dd.yy */
-        if (c == '.' &&
-            set_date(num3, num, num2, refuse_future, now, tm) == 0)
-            break;
-        return 0;
-    }
-    return end - date;
-}
-
-/*
- * Have we filled in any part of the time/date yet?
- * We just do a binary 'and' to see if the sign bit
- * is set in all the values.
- */
-static inline int nodate(struct tm *tm)
-{
-    return (tm->tm_year &
-        tm->tm_mon &
-        tm->tm_mday &
-        tm->tm_hour &
-        tm->tm_min &
-        tm->tm_sec) < 0;
-}
-
-/*
- * We've seen a digit. Time? Year? Date?
- */
-static int match_digit(const char *date, struct tm *tm, int *offset, int *tm_gmt)
-{
-    int n;
-    char *end;
-    timestamp_t num;
-
-    num = parse_timestamp(date, &end, 10);
-
-    /*
-     * Seconds since 1970? We trigger on that for any numbers with
-     * more than 8 digits. This is because we don't want to rule out
-     * numbers like 20070606 as a YYYYMMDD date.
-     */
-    if (num >= 100000000 && nodate(tm)) {
-        time_t time = num;
-
-#ifdef WIN32
-        if (gmtime_s(tm, &time)) {
-#else
-        if (gmtime_r(&time, tm)) {
-#endif
-            *tm_gmt = 1;
-            return end - date;
-        }
-    }
-
-    /*
-     * Check for special formats: num[-.:/]num[same]num
-     */
-    switch (*end) {
-    case ':':
-    case '.':
-    case '/':
-    case '-':
-        if (isdigit(((unsigned char *)end)[1])) {
-            int match = match_multi_number(num, *end, date, end, tm, 0);
-            if (match)
-                return match;
-        }
-    }
-
-    /*
-     * None of the special formats? Try to guess what
-     * the number meant. We use the number of digits
-     * to make a more educated guess..
-     */
-    n = 0;
-    do {
-        n++;
-    } while (isdigit(((unsigned char *)date)[n]));
-
-    /* 8 digits, compact style of ISO-8601's date: YYYYmmDD */
-    /* 6 digits, compact style of ISO-8601's time: HHMMSS */
-    if (n == 8 || n == 6) {
-        unsigned int num1 = num / 10000;
-        unsigned int num2 = (num % 10000) / 100;
-        unsigned int num3 = num % 100;
-        if (n == 8)
-            set_date(num1, num2, num3, NULL, time(NULL), tm);
-        else if (n == 6 && set_time(num1, num2, num3, tm) == 0 &&
-             *end == '.' && isdigit(((unsigned char *)end)[1]))
-            strtoul(end + 1, &end, 10);
-        return end - date;
-    }
-
-    /* Four-digit year or a timezone? */
-    if (n == 4) {
-        if (num <= 1400 && *offset == -1) {
-            unsigned int minutes = num % 100;
-            unsigned int hours = num / 100;
-            *offset = hours*60 + minutes;
-        } else if (num > 1900 && num < 2100)
-            tm->tm_year = num - 1900;
-        return n;
-    }
-
-    /*
-     * Ignore lots of numerals. We took care of 4-digit years above.
-     * Days or months must be one or two digits.
-     */
-    if (n > 2)
-        return n;
-
-    /*
-     * NOTE! We will give precedence to day-of-month over month or
-     * year numbers in the 1-12 range. So 05 is always "mday 5",
-     * unless we already have a mday..
-     *
-     * IOW, 01 Apr 05 parses as "April 1st, 2005".
-     */
-    if (num > 0 && num < 32 && tm->tm_mday < 0) {
-        tm->tm_mday = num;
-        return n;
-    }
-
-    /* Two-digit year? */
-    if (n == 2 && tm->tm_year < 0) {
-        if (num < 10 && tm->tm_mday >= 0) {
-            tm->tm_year = num + 100;
-            return n;
-        }
-        if (num >= 70) {
-            tm->tm_year = num;
-            return n;
-        }
-    }
-
-    if (num > 0 && num < 13 && tm->tm_mon < 0)
-        tm->tm_mon = num-1;
-
-    return n;
-}
-
-static int match_tz(const char *date, int *offp)
-{
-    char *end;
-    int hour = strtoul(date + 1, &end, 10);
-    int n = end - (date + 1);
-    int min = 0;
-
-    if (n == 4) {
-        /* hhmm */
-        min = hour % 100;
-        hour = hour / 100;
-    } else if (n != 2) {
-        min = 99; /* random crap */
-    } else if (*end == ':') {
-        /* hh:mm? */
-        min = strtoul(end + 1, &end, 10);
-        if (end - (date + 1) != 5)
-            min = 99; /* random crap */
-    } /* otherwise we parsed "hh" */
-
-    /*
-     * Don't accept any random crap. Even though some places have
-     * offset larger than 12 hours (e.g. Pacific/Kiritimati is at
-     * UTC+14), there is something wrong if hour part is much
-     * larger than that. We might also want to check that the
-     * minutes are divisible by 15 or something too. (Offset of
-     * Kathmandu, Nepal is UTC+5:45)
-     */
-    if (min < 60 && hour < 24) {
-        int offset = hour * 60 + min;
-        if (*date == '-')
-            offset = -offset;
-        *offp = offset;
-    }
-    return end - date;
-}
-
-static void date_string(timestamp_t date, int offset, char *buf, int bufsize)
-{
-    int sign = '+';
-
-    if (offset < 0) {
-        offset = -offset;
-        sign = '-';
-    }
-    snprintf(buf, bufsize, "%"PRItime" %c%02d%02d", date, sign, offset / 60, offset % 60);
-}
-
-/*
- * Parse a string like "0 +0000" as ancient timestamp near epoch, but
- * only when it appears not as part of any other string.
- */
-static int match_object_header_date(const char *date, timestamp_t *timestamp, int *offset)
-{
-    char *end;
-    timestamp_t stamp;
-    int ofs;
-
-    if (*date < '0' || '9' < *date)
+    if(parse_date_basic(date, &t, &offset) < 0) {
         return -1;
-    stamp = parse_timestamp(date, &end, 10);
-    if (*end != ' ' || stamp == TIME_MAX || (end[1] != '+' && end[1] != '-'))
-        return -1;
-    date = end + 2;
-    ofs = strtol(date, &end, 10);
-    if ((*end != '\0' && (*end != '\n')) || end != date + 4)
-        return -1;
-    ofs = (ofs / 100) * 60 + (ofs % 100);
-    if (date[-1] == '-')
-        ofs = -ofs;
-    *timestamp = stamp;
-    *offset = ofs;
+    }
+    char zone[16];
+    offset_text(zone, sizeof(zone), (long)offset*60, FALSE);
+    snprintf(out, (size_t)outsize, "%" PRItime " %s", t, zone);
     return 0;
 }
 
-/* Gr. strptime is crap for this; it doesn't have a way to require RFC2822
-   (i.e. English) day/month names, and it doesn't work correctly with %z. */
+/***************************************************************************
+ *  Only a whole date and time, or epoch seconds: the time and the
+ *  offset it was written in (the local one at that time when none), in
+ *  minutes. Return -1 for anything else.
+ ***************************************************************************/
 PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset)
 {
-    struct tm tm;
-    int tm_gmt;
-    timestamp_t dummy_timestamp;
-    int dummy_offset;
-
-    if (!timestamp)
-        timestamp = &dummy_timestamp;
-    if (!offset)
-        offset = &dummy_offset;
-
-    memset(&tm, 0, sizeof(tm));
-    tm.tm_year = -1;
-    tm.tm_mon = -1;
-    tm.tm_mday = -1;
-    tm.tm_isdst = -1;
-    tm.tm_hour = -1;
-    tm.tm_min = -1;
-    tm.tm_sec = -1;
-    *offset = -1;
-    tm_gmt = 0;
-
-    if (*date == '@' &&
-        !match_object_header_date(date + 1, timestamp, offset))
-        return 0; /* success */
-    for (;;) {
-        int match = 0;
-        unsigned char c = *date;
-
-        /* Stop at end of string or newline */
-        if (!c || c == '\n')
-            break;
-
-        if (isalpha(c))
-            match = match_alpha(date, &tm, offset);
-        else if (isdigit(c))
-            match = match_digit(date, &tm, offset, &tm_gmt);
-        else if ((c == '-' || c == '+') && isdigit(((unsigned char *)date)[1]))
-            match = match_tz(date, offset);
-
-        if (!match) {
-            /* BAD CRAP */
-            match = 1;
-        }
-
-        date += match;
-    }
-
-    /* do not use mktime(), which uses local timezone, here */
-    *timestamp = tm_to_time_t(&tm);
-    if (*timestamp == -1)
+    date_reading_t rd;
+    read_date_text(&rd, date);
+    if(rd.vague || rd.special_hour >= 0) {
         return -1;
-
-    if (*offset == -1) {
-        time_t temp_time;
-
-        /* gmtime_r() in match_digit() may have clobbered it */
-        tm.tm_isdst = -1;
-        temp_time = mktime(&tm);
-        if ((time_t)*timestamp > temp_time) {
-            *offset = ((time_t)*timestamp - temp_time) / 60;
-        } else {
-            *offset = -(int)((temp_time - (time_t)*timestamp) / 60);
-        }
     }
-
-    if (!tm_gmt)
-        *timestamp -= *offset * 60;
-    return 0; /* success */
-}
-
-PUBLIC int parse_expiry_date(const char *date, timestamp_t *timestamp)
-{
-    int errors = 0;
-
-    if (!strcmp(date, "never") || !strcmp(date, "FALSE"))
-        *timestamp = 0;
-    else if (!strcmp(date, "all") || !strcmp(date, "now"))
-        /*
-         * We take over "now" here, which usually translates
-         * to the current timestamp.  This is because the user
-         * really means to expire everything that was done in
-         * the past, and by definition reflogs are the record
-         * of the past, and there is nothing from the future
-         * to be kept.
-         */
-        *timestamp = TIME_MAX;
-    else
-        *timestamp = approxidate_careful(date, &errors);
-
-    return errors;
-}
-
-PUBLIC int parse_date(const char *date, char *result, int resultsize)
-{
-    timestamp_t timestamp;
-    int offset;
-    if (parse_date_basic(date, &timestamp, &offset))
+    if(!rd.epoch_said && (!rd.year || !rd.mon || !rd.mday || rd.hour < 0)) {
         return -1;
-    date_string(timestamp, offset, result, resultsize);
+    }
+    timestamp_t t;
+    int off;
+    if(resolve_reading(&rd, &t, &off) < 0) {
+        return -1;
+    }
+    *timestamp = t;
+    *offset = off;
     return 0;
 }
 
-static enum date_mode_type parse_date_type(const char *format, const char **end)
+/***************************************************************************
+ *  An expiry: "never" is 0, "all" and "now" are TIME_MAX, anything else
+ *  is read by approxidate_careful(). Return its error flag.
+ ***************************************************************************/
+PUBLIC int parse_expiry_date(const char *date, timestamp_t *timestamp)
 {
-    if (skip_prefix(format, "relative", end))
-        return DATE_RELATIVE;
-    if (skip_prefix(format, "iso8601-strict", end) ||
-        skip_prefix(format, "iso-strict", end))
-        return DATE_ISO8601_STRICT;
-    if (skip_prefix(format, "iso8601", end) ||
-        skip_prefix(format, "iso", end))
-        return DATE_ISO8601;
-    if (skip_prefix(format, "rfc2822", end) ||
-        skip_prefix(format, "rfc", end))
-        return DATE_RFC2822;
-    if (skip_prefix(format, "short", end))
-        return DATE_SHORT;
-    if (skip_prefix(format, "default", end))
-        return DATE_NORMAL;
-    if (skip_prefix(format, "raw", end))
-        return DATE_RAW;
-    if (skip_prefix(format, "unix", end))
-        return DATE_UNIX;
-    if (skip_prefix(format, "format", end))
-        return DATE_STRFTIME;
-
-    gobj_trace_msg(0, "unknown date format %s", format);
-    return DATE_NORMAL;
+    if(date && strcmp(date, "never") == 0) {
+        *timestamp = 0;
+        return 0;
+    }
+    if(date && (strcmp(date, "all") == 0 || strcmp(date, "now") == 0)) {
+        *timestamp = TIME_MAX;
+        return 0;
+    }
+    int error = 0;
+    *timestamp = approxidate_careful(date, &error);
+    return error;
 }
 
+/***************************************************************************
+ *  The name of a format: default, relative, short, iso8601 (iso),
+ *  iso8601-strict (iso-strict), rfc2822 (rfc), raw, unix, or
+ *  "format:<strftime format>"; with "-local" (or "format-local:", or
+ *  "local" alone) it is written in the local zone
+ ***************************************************************************/
 PUBLIC void parse_date_format(const char *format, struct date_mode *mode)
 {
-    const char *p=NULL;
+    static const struct {
+        const char *name;
+        enum date_mode_type type;
+    } formats[] = {
+        {"default",         DATE_NORMAL},
+        {"relative",        DATE_RELATIVE},
+        {"short",           DATE_SHORT},
+        {"iso8601",         DATE_ISO8601},
+        {"iso",             DATE_ISO8601},
+        {"iso8601-strict",  DATE_ISO8601_STRICT},
+        {"iso-strict",      DATE_ISO8601_STRICT},
+        {"rfc2822",         DATE_RFC2822},
+        {"rfc",             DATE_RFC2822},
+        {"raw",             DATE_RAW},
+        {"unix",            DATE_UNIX},
+    };
 
-    /* "auto:foo" is "if tty/pager, then foo, otherwise normal" */
-    if (skip_prefix(format, "auto:", &p)) {
-        if (isatty(1))
-            format = p;
-        else
-            format = "default";
+    memset(mode, 0, sizeof(*mode));
+    mode->type = DATE_NORMAL;
+    if(!format) {
+        format = "";
     }
 
-    /* historical alias */
-    if (!strcmp(format, "local"))
-        format = "default-local";
-
-    mode->type = parse_date_type(format, &p);
-    mode->local = 0;
-
-    if (skip_prefix(p, "-local", &p))
+    const char *strftime_format = NULL;
+    if(strncmp(format, "format:", 7) == 0) {
+        strftime_format = format + 7;
+    } else if(strncmp(format, "format-local:", 13) == 0) {
+        strftime_format = format + 13;
         mode->local = 1;
+    }
+    if(strftime_format) {
+        mode->type = DATE_STRFTIME;
+        if(snprintf(mode->strftime_fmt, sizeof(mode->strftime_fmt), "%s", strftime_format)
+                >= (int)sizeof(mode->strftime_fmt)) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "strftime format too long, cut",
+                "format",       "%s", format,
+                NULL
+            );
+        }
+        return;
+    }
 
-    if (mode->type == DATE_STRFTIME) {
-        if (!skip_prefix(p, ":", &p))
-            gobj_trace_msg(0, "date format missing colon separator: %s", format);
-        snprintf(mode->strftime_fmt, sizeof(mode->strftime_fmt), "%s", p);
-    } else if (*p)
-        gobj_trace_msg(0, "unknown date format %s", format);
+    if(strcmp(format, "local") == 0) {
+        mode->local = 1;
+        return;
+    }
+
+    char name[32];
+    snprintf(name, sizeof(name), "%s", format);
+    size_t len = strlen(name);
+    if(len > 6 && strcmp(name + len - 6, "-local") == 0) {
+        name[len - 6] = 0;
+        mode->local = 1;
+    }
+    for(size_t i = 0; i < sizeof(formats)/sizeof(formats[0]); i++) {
+        if(strcmp(formats[i].name, name) == 0) {
+            mode->type = formats[i].type;
+            return;
+        }
+    }
+    gobj_log_error(0, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "unknown date format, the default one is used",
+        "format",       "%s", format,
+        NULL
+    );
 }
 
+/***************************************************************************
+ *  Now, as "<seconds> <+hhmm>" in the local zone
+ ***************************************************************************/
 PUBLIC void datestamp(char *out, int outsize)
 {
-    time_t now;
+    time_t now = time(NULL);
+    char zone[16];
+    offset_text(zone, sizeof(zone), local_offset_at(now), FALSE);
+    snprintf(out, (size_t)outsize, "%lld %s", (long long)now, zone);
+}
+
+/***************************************************************************
+ *  A date as a person types it; NOW, with *error_ret set, when the text
+ *  says no date
+ ***************************************************************************/
+PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret)
+{
+    date_reading_t rd;
+    timestamp_t t;
     int offset;
-    struct tm tm = { 0 };
-
-    time(&now);
-
-#ifdef WIN32
-    localtime_s(&tm, &now);
-    offset = tm_to_time_t(&tm) - now;
-#else
-    offset = tm_to_time_t(localtime_r(&now, &tm)) - now;
-#endif
-    offset /= 60;
-
-    date_string(now, offset, out, outsize);
-}
-
-/*
- * Relative time update (eg "2 days ago").  If we haven't set the time
- * yet, we need to set it from current time.
- */
-static time_t update_tm(struct tm *tm, struct tm *now, time_t sec)
-{
-    time_t n;
-
-    if (tm->tm_mday < 0)
-        tm->tm_mday = now->tm_mday;
-    if (tm->tm_mon < 0)
-        tm->tm_mon = now->tm_mon;
-    if (tm->tm_year < 0) {
-        tm->tm_year = now->tm_year;
-        if (tm->tm_mon > now->tm_mon)
-            tm->tm_year--;
-    }
-    n = mktime(tm) - sec;
-#ifdef WIN32
-    localtime_s(tm, &n);
-#else
-    localtime_r(&n, tm);
-#endif
-    return n;
-}
-
-/*
- * Do we have a pending number at the end, or when
- * we see a new one? Let's assume it's a month day,
- * as in "Dec 6, 1992"
- */
-static void pending_number(struct tm *tm, int *num)
-{
-    int number = *num;
-
-    if (number) {
-        *num = 0;
-        if (tm->tm_mday < 0 && number < 32)
-            tm->tm_mday = number;
-        else if (tm->tm_mon < 0 && number < 13)
-            tm->tm_mon = number-1;
-        else if (tm->tm_year < 0) {
-            if (number > 1969 && number < 2100)
-                tm->tm_year = number - 1900;
-            else if (number > 69 && number < 100)
-                tm->tm_year = number;
-            else if (number < 38)
-                tm->tm_year = 100 + number;
-            /* We screw up for number = 00 ? */
+    read_date_text(&rd, date);
+    if(resolve_reading(&rd, &t, &offset) < 0) {
+        if(error_ret) {
+            *error_ret = 1;
         }
+        return (timestamp_t)rd.now;
     }
-}
-
-static void date_now(struct tm *tm, struct tm *now, int *num)
-{
-    *num = 0;
-    update_tm(tm, now, 0);
-}
-
-static void date_yesterday(struct tm *tm, struct tm *now, int *num)
-{
-    *num = 0;
-    update_tm(tm, now, 24*60*60);
-}
-
-static void date_time(struct tm *tm, struct tm *now, int hour)
-{
-    if (tm->tm_hour < hour)
-        update_tm(tm, now, 24*60*60);
-    tm->tm_hour = hour;
-    tm->tm_min = 0;
-    tm->tm_sec = 0;
-}
-
-static void date_midnight(struct tm *tm, struct tm *now, int *num)
-{
-    pending_number(tm, num);
-    date_time(tm, now, 0);
-}
-
-static void date_noon(struct tm *tm, struct tm *now, int *num)
-{
-    pending_number(tm, num);
-    date_time(tm, now, 12);
-}
-
-static void date_tea(struct tm *tm, struct tm *now, int *num)
-{
-    pending_number(tm, num);
-    date_time(tm, now, 17);
-}
-
-static void date_pm(struct tm *tm, struct tm *now, int *num)
-{
-    int hour, n = *num;
-    *num = 0;
-
-    hour = tm->tm_hour;
-    if (n) {
-        hour = n;
-        tm->tm_min = 0;
-        tm->tm_sec = 0;
-    }
-    tm->tm_hour = (hour % 12) + 12;
-}
-
-static void date_am(struct tm *tm, struct tm *now, int *num)
-{
-    int hour, n = *num;
-    *num = 0;
-
-    hour = tm->tm_hour;
-    if (n) {
-        hour = n;
-        tm->tm_min = 0;
-        tm->tm_sec = 0;
-    }
-    tm->tm_hour = (hour % 12);
-}
-
-static void date_never(struct tm *tm, struct tm *now, int *num)
-{
-    time_t n = 0;
-#ifdef WIN32
-    localtime_s(tm, &n);
-#else
-    localtime_r(&n, tm);
-#endif
-    *num = 0;
-}
-
-static const struct special {
-    const char *name;
-    void (*fn)(struct tm *, struct tm *, int *);
-} special[] = {
-    { "yesterday", date_yesterday },
-    { "noon", date_noon },
-    { "midnight", date_midnight },
-    { "tea", date_tea },
-    { "PM", date_pm },
-    { "AM", date_am },
-    { "never", date_never },
-    { "now", date_now },
-    { NULL, NULL }
-};
-
-static const char *number_name[] = {
-    "zero", "one", "two", "three", "four",
-    "five", "six", "seven", "eight", "nine", "ten",
-};
-
-static const struct typelen {
-    const char *type;
-    int length;
-} typelen[] = {
-    { "seconds", 1 },
-    { "minutes", 60 },
-    { "hours", 60*60 },
-    { "days", 24*60*60 },
-    { "weeks", 7*24*60*60 },
-    { NULL, 0 }
-};
-
-static const char *approxidate_alpha(const char *date, struct tm *tm, struct tm *now, int *num, int *touched)
-{
-    const struct typelen *tl;
-    const struct special *s;
-    const char *end = date;
-    int i;
-
-    while (isalpha(*((unsigned char *)(++end))))
-        ;
-
-    for (i = 0; i < 12; i++) {
-        int match = match_string(date, month_names[i]);
-        if (match >= 3) {
-            tm->tm_mon = i;
-            *touched = 1;
-            return end;
-        }
-    }
-
-    for (s = special; s->name; s++) {
-        int len = strlen(s->name);
-        if (match_string(date, s->name) == len) {
-            s->fn(tm, now, num);
-            *touched = 1;
-            return end;
-        }
-    }
-
-    if (!*num) {
-        for (i = 1; i < 11; i++) {
-            int len = strlen(number_name[i]);
-            if (match_string(date, number_name[i]) == len) {
-                *num = i;
-                *touched = 1;
-                return end;
-            }
-        }
-        if (match_string(date, "last") == 4) {
-            *num = 1;
-            *touched = 1;
-        }
-        return end;
-    }
-
-    tl = typelen;
-    while (tl->type) {
-        int len = strlen(tl->type);
-        if (match_string(date, tl->type) >= len-1) {
-            update_tm(tm, now, tl->length * *num);
-            *num = 0;
-            *touched = 1;
-            return end;
-        }
-        tl++;
-    }
-
-    /*
-     *  Short unit suffixes (1-3 chars).
-     *  match_string() is case-insensitive, which would conflate 'm' (minute)
-     *  with 'M' (month); use raw chars and strncasecmp() here so we can keep
-     *  the lowercase-m / uppercase-M distinction the way every other
-     *  duration shorthand does (sleep(1), find -mmin, etc.).
-     *
-     *  Three-char forms ("day", "hour", "week") already match typelen above
-     *  with >=len-1 chars; here we only cover the short forms typelen misses
-     *  ("s", "h", "d", "w", "m", "M", "y", "mi", "mo", "hr", "wk", "yr",
-     *  "sec", "min"). "mon" is left alone -> it still matches Monday in the
-     *  weekday loop below.
-     */
-    if (*num) {
-        int alpha_len = (int)(end - date);
-        int sec_unit = 0;
-        int is_month = 0;
-        int is_year  = 0;
-
-        if (alpha_len == 1) {
-            switch (date[0]) {
-                case 's': case 'S': sec_unit = 1;            break;
-                case 'h': case 'H': sec_unit = 60*60;        break;
-                case 'd': case 'D': sec_unit = 24*60*60;     break;
-                case 'w': case 'W': sec_unit = 7*24*60*60;   break;
-                case 'm':           sec_unit = 60;           break;
-                case 'M':           is_month = 1;            break;
-                case 'y': case 'Y': is_year  = 1;            break;
-            }
-        } else if (alpha_len == 2) {
-            if      (!strncasecmp(date, "mi", 2)) sec_unit = 60;
-            else if (!strncasecmp(date, "mo", 2)) is_month = 1;
-            else if (!strncasecmp(date, "hr", 2)) sec_unit = 60*60;
-            else if (!strncasecmp(date, "wk", 2)) sec_unit = 7*24*60*60;
-            else if (!strncasecmp(date, "yr", 2)) is_year  = 1;
-        } else if (alpha_len == 3) {
-            if      (!strncasecmp(date, "sec", 3)) sec_unit = 1;
-            else if (!strncasecmp(date, "min", 3)) sec_unit = 60;
-        }
-
-        if (sec_unit) {
-            update_tm(tm, now, sec_unit * *num);
-            *num = 0;
-            *touched = 1;
-            return end;
-        }
-        if (is_month) {
-            int n;
-            update_tm(tm, now, 0); /* fill in date fields if needed */
-            n = tm->tm_mon - *num;
-            *num = 0;
-            while (n < 0) {
-                n += 12;
-                tm->tm_year--;
-            }
-            tm->tm_mon = n;
-            *touched = 1;
-            return end;
-        }
-        if (is_year) {
-            update_tm(tm, now, 0); /* fill in date fields if needed */
-            tm->tm_year -= *num;
-            *num = 0;
-            *touched = 1;
-            return end;
-        }
-    }
-
-    for (i = 0; i < 7; i++) {
-        int match = match_string(date, weekday_names[i]);
-        if (match >= 3) {
-            int diff, n = *num -1;
-            *num = 0;
-
-            diff = tm->tm_wday - i;
-            if (diff <= 0)
-                n++;
-            diff += 7*n;
-
-            update_tm(tm, now, diff * 24 * 60 * 60);
-            *touched = 1;
-            return end;
-        }
-    }
-
-    if (match_string(date, "months") >= 5) {
-        int n;
-        update_tm(tm, now, 0); /* fill in date fields if needed */
-        n = tm->tm_mon - *num;
-        *num = 0;
-        while (n < 0) {
-            n += 12;
-            tm->tm_year--;
-        }
-        tm->tm_mon = n;
-        *touched = 1;
-        return end;
-    }
-
-    if (match_string(date, "years") >= 4) {
-        update_tm(tm, now, 0); /* fill in date fields if needed */
-        tm->tm_year -= *num;
-        *num = 0;
-        *touched = 1;
-        return end;
-    }
-
-    return end;
-}
-
-static const char *approxidate_digit(const char *date, struct tm *tm, int *num,
-                     time_t now)
-{
-    char *end;
-    timestamp_t number = parse_timestamp(date, &end, 10);
-
-    switch (*end) {
-    case ':':
-    case '.':
-    case '/':
-    case '-':
-        if (isdigit(((unsigned char *)end)[1])) {
-            int match = match_multi_number(number, *end, date, end,
-                               tm, now);
-            if (match)
-                return date + match;
-        }
-    }
-
-    /* Accept zero-padding only for small numbers ("Dec 02", never "Dec 0002") */
-    if (date[0] != '0' || end - date <= 2)
-        *num = number;
-    return end;
-}
-
-static timestamp_t approxidate_str(
-    const char *date,
-    time_t time_sec,
-    int *error_ret)
-{
-    int number = 0;
-    int touched = 0;
-    struct tm tm, now;
-
-#ifdef WIN32
-    localtime_s(&tm, &time_sec);
-#else
-    localtime_r(&time_sec, &tm);
-#endif
-
-
-
-    now = tm;
-
-    tm.tm_year = -1;
-    tm.tm_mon = -1;
-    tm.tm_mday = -1;
-
-    for (;;) {
-        unsigned char c = *date;
-        if (!c)
-            break;
-        date++;
-        if (isdigit(c)) {
-            pending_number(&tm, &number);
-            date = approxidate_digit(date-1, &tm, &number, time_sec);
-            touched = 1;
-            continue;
-        }
-        if (isalpha(c))
-            date = approxidate_alpha(date-1, &tm, &now, &number, &touched);
-    }
-    pending_number(&tm, &number);
-    if (!touched)
-        *error_ret = 1;
-    return (timestamp_t)update_tm(&tm, &now, 0);
-}
-
-timestamp_t approxidate_relative(const char *date)
-{
-    time_t tv;
-    timestamp_t timestamp;
-    int offset;
-    int errors = 0;
-
-    if (!parse_date_basic(date, &timestamp, &offset))
-        return timestamp;
-
-    time(&tv);
-    return approxidate_str(date, tv, &errors);
-}
-
-timestamp_t approxidate_careful(const char *date, int *error_ret)
-{
-    time_t tv;
-    timestamp_t timestamp;
-    int offset;
-    int dummy = 0;
-    if (!error_ret)
-        error_ret = &dummy;
-
-    if (!parse_date_basic(date, &timestamp, &offset)) {
+    if(error_ret) {
         *error_ret = 0;
-        return timestamp;
     }
-
-    time(&tv);
-    return approxidate_str(date, tv, error_ret);
+    return t;
 }
 
+/***************************************************************************
+ *  approxidate_careful() with no error flag: NOW when the text says no
+ *  date
+ ***************************************************************************/
+PUBLIC timestamp_t approxidate_relative(const char *date)
+{
+    return approxidate_careful(date, NULL);
+}
+
+/***************************************************************************
+ *  TRUE when `t` does not fit in a time_t
+ ***************************************************************************/
 PUBLIC int date_overflows(timestamp_t t)
 {
-    time_t sys;
-
-    /* If we overflowed our timestamp data type, that's bad... */
-    if ((uintmax_t)t >= TIME_MAX)
-        return 1;
-
-    /*
-     * ...but we also are going to feed the result to system
-     * functions that expect time_t, which is often "signed long".
-     * Make sure that we fit into time_t, as well.
-     */
-    sys = t;
-    return t != sys || (t < 1) != (sys < 1);
+    return (t > (timestamp_t)INT64_MAX)? 1 : 0;
 }
 
 

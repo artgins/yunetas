@@ -48,6 +48,50 @@
   example: it carried the code of a gist with no license. What it matches
   does not move (`tests/c/helpers/test_switchs`); it keeps one flag where it
   kept two that were always equal.
+- **The date reader of `helpers.c` is Yuneta's own code: the port of git's
+  `date.c` (GPL-2.0) is gone.** `approxidate_careful()`, `approxidate()`,
+  `approxidate_relative()`, `parse_date_basic()`, `parse_date()`,
+  `parse_expiry_date()`, `show_date()`, `show_date_relative()`,
+  `date_mode_from_type()`, `parse_date_format()`, `datestamp()`,
+  `date_overflows()` and `tm_to_time_t()` were about 1,400 lines copied from
+  git with yuneta v6, a license the MIT of the SDK cannot carry. They are
+  written again from a description of their behaviour, not from that code:
+  the old functions were run as a black box (about 700 texts, three time
+  zones, four moments, the change of hour among them), and the new ones give
+  the same time for every form the tools document (`tr2list --help`): ISO
+  8601, RFC 2822, `@<seconds> +0000` with no year limit, `N units ago`, the
+  short units (`1m` a minute, `1M` a month), `noon`/`midnight`/`tea`,
+  `last <weekday>`, M/D/Y and D.M.Y. The API does not move. What changes:
+    - **A text that is no date is refused**, with the error flag, where the
+      port read another date in silence: `"2 days from now"` and
+      `"in 3 days"` were days BACK, `"1.5 hours ago"` was May 1st,
+      `"2026-02-30"` was March 2nd, `"+5"` the 5th of the month,
+      `"2daysago"` the 2nd, `"100 years ago"` a time past 2^64. No time
+      ahead of now is read (`tomorrow`, `next friday`). `c_tranger`'s
+      `before`, which refuses what is no date, refuses them now.
+    - **Read now**: `today`, `zero days ago`, the plural short units
+      (`2 mins`, `3 hrs`, `2 secs`, `2 wks`, `2 yrs`: they were a day of
+      the month), `@0` (the epoch; it was now), years 2100-9999.
+    - **A clock time on the day of a change of hour is the local one**:
+      on 2026-10-25 `noon yesterday`, `midnight` and `10:30 yesterday` were
+      an hour off, and `Oct 25 10:00` read days before it was too.
+    - **Months back stop at the end of the month**: `1 month ago` on March
+      31 is February 28 (29), not March 3rd; `1 year ago` on February 29
+      is February 28.
+    - **A date with no year** is of this year unless it is more than 10
+      days ahead (one rule; the port had two, by month and by days).
+    - `parse_date_basic()` refuses a word it does not know
+      (`"2026-10-01 10:00:00 junk"` was read).
+    - `show_date_relative()` writes one unit in the singular
+      (`1 second ago`, `1 year, 1 month ago`).
+    - `parse_date_format()` with an unknown name logs an error and takes
+      the default (it crashed), and a `format:<strftime>` mode is written
+      (it printed garbage).
+    - The zone abbreviations are a table of their own, each with its
+      offset (the port had `WEST` at +00:00, `AST` at -03:00).
+  `tests/c/helpers/test_date_text` (255 checks, passing on the port for
+  every form kept). `skip_prefix()` and the overflow macros of `helpers.h`
+  are written again too; nothing in the tree uses them.
 
 ## v7.28.4 (2026-10-25)
 

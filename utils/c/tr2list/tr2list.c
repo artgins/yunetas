@@ -35,7 +35,7 @@
     "own unit (seconds, or milliseconds for t on an sf_t_ms topic and for tm\n" \
     "on an sf_tm_ms one; a negative one counts back from the key's last\n" \
     "record: --from-t=-86400 is its last day), or a natural-language string\n" \
-    "parsed by approxidate (git-style date parser) and taken to that unit,\n" \
+    "parsed by approxidate() (grammar in helpers.h) and taken to that unit,\n" \
     "topic by topic. Any other text of spaces, signs and digits only ('+5',\n" \
     "'5-', '5 5', '-') is refused, not read as a date; a '-' between two\n" \
     "digits makes it a date ('2026-10-01').\n" \

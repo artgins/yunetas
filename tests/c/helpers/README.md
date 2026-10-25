@@ -208,3 +208,17 @@ members (type, value text, a repeated key, an escaped key, the cut), and a
 fuzz of 200,000 mutated objects. For a longer fuzz, run it by hand:
 `test_json_scan <iterations> [seed]`. The one difference allowed is a raw NUL
 byte after a number or a literal: `json_loadb()` skips it, the scan refuses it.
+
+`test_date_text` covers the dates as text of `helpers.c`: `approxidate()`
+and `approxidate_careful()` (what every TIME option of the tools reads),
+`parse_date_basic()`, `show_date()` in every mode, `show_date_relative()` at
+the edge of each unit, and the rest of the family. The wall clock is faked
+(`--wrap=time`) and the zone is Madrid's, so each time read is checked as the
+local time it names (`"2026-10-20 11:00:00 +0200"`). Up to 7.28.4 these
+functions were a port of git's `date.c` (GPL-2.0); the forms the tools
+document were checked against it before it was replaced, and give the same
+times. The rest checks what the rewrite reads differently: a text that is no
+date is refused (`"in 3 days"` was three days back, `"2026-02-30"` was March
+2nd), a month back from the 31st stops at the end of the month, a clock time
+on the day of a change of hour is the local one, and an unknown format of
+`parse_date_format()` is logged instead of crashing.
