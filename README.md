@@ -110,6 +110,15 @@ A release that moves a lot of code ships a performance report: charts of what
 the release does on one machine, the release before measured the same way, and every loss with its
 reason.
 
+- **7.28.0** (against 7.27.11, the last release with a study; 7.27.12 to
+  7.27.21 inside it): a performance round over the C SDK, and jansson as
+  Yuneta's own JSON library. 1.9 times the appends per second (225,745 ->
+  422,850), 2.5 times the records read (216,577 -> 549,780), a treedb opened 17
+  times faster, inter-yuno events and their answers 2.1 times faster, TCP and
+  TLS echoes +50-58%. 40 of 50 figures faster outside their noise, none slower.
+  [Report](performance/reports/7.28.0.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.28.0/performance/reports/7.28.0.html) ·
+  [raw figures](performance/reports/7.28.0.json)
 - **7.27.10** (against 7.27.7, the last release with a study; 7.27.8 and
   7.27.9 changed no measured code): a store that writes json text as it
   arrives. `tranger2_append_record_text()` and `json_scan_object_members()`

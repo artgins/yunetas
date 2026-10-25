@@ -7,6 +7,25 @@ the performance round taken from the cloud audit
 (branch `claude/laughing-pasteur-o80yf7`) lands here, with jansson from
 Yuneta's own fork (`artgins/jansson`).
 
+- **Performance study** against 7.27.11, the last release with a study
+  (7.27.12 to 7.27.21 inside it; they changed only `c_authz.c` in the
+  kernel), on the dev machine, each release with its own jansson, the
+  binaries alternated (8 to 48 rounds): 40 of 50 figures faster outside
+  their noise, none slower. Appends per second 225,745 -> 422,850 (x1.9),
+  records read 216,577 -> 549,780 (x2.5), a treedb reopened 277.7 -> 16.6 us
+  per node (x17), a treedb update saved 7.42 -> 4.05 us, the TCP echo through
+  the gobj stack 40,168 -> 63,478 round trips/s, TLS 30,373 -> 46,810,
+  inter-yuno events 13,226 -> 27,726 round trips/s, MQTT QoS 0 19,494 ->
+  35,770, the BFF logins 8,731 -> 13,170/s. The event loop alone does not
+  move (+0.5%, t = 1.2). A third build (the code of 7.28.0 with the jansson
+  of 7.27.11) splits the gain: timeranger2's appends and whole reads owe it 77-96%
+  to jansson (a page of one row about half), the treedb and the network
+  1-43% (the BFF logins 62%). Two
+  rotatory figures measured +1.0% and +1.8%: the same machine code, moved;
+  the same binary relinked with pad measures from +0.06% to +2.2%. Report:
+  `performance/reports/7.28.0.html`. `perf_tr_treedb_read` raises gbmem's
+  limit: its N of 8 000 did not fit in the default 64 MB with
+  `CONFIG_DEBUG_TRACK_MEMORY` (*"REACHED MAX_SYSTEM_MEMORY"*).
 - **A performance round, taken from a cloud audit of the C SDK** (branch
   `claude/laughing-pasteur-o80yf7`, its documents in `performance/audit/`
   there). Every commit was reviewed again and cherry-picked one by one; the
@@ -49,8 +68,9 @@ Yuneta's own fork (`artgins/jansson`).
       `EV_STATE_CHANGED` is not built nor published when nobody would see
       it. `c_subscriptions` test4.
     - **The open of a treedb reads the newest record of each key only**
-      (x12 with a long history), and its hooks are rebuilt indexed (8 000
-      children in one hook: 11.4 s -> 0.6 s): a damaged OLDER record of a
+      (x12 with a long history, on the VM of the audit; 17 times faster per
+      node in `perf_tr_treedb` here), and its hooks are rebuilt indexed (8 000
+      children in one hook: 11.4 s -> 0.6 s on that VM): a damaged OLDER record of a
       key of a topic without pkey2s no longer fails the key
       (`tr_treedb_load_failed` case 10). The realtime lists the treedb
       leaves on its topics show `only_md` in their `match_cond`. The

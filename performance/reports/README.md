@@ -16,6 +16,7 @@ The same figures, release after release, are charted on
 
 | Release | Against | Report | Rendered | Raw figures |
 |---------|---------|--------|----------|-------------|
+| 7.28.0 | 7.27.11 | [7.28.0.html](7.28.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.28.0/performance/reports/7.28.0.html) | [7.28.0.json](7.28.0.json) |
 | 7.27.10 | 7.27.7 | [7.27.10.html](7.27.10.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.10/performance/reports/7.27.10.html) | [7.27.10.json](7.27.10.json) |
 | 7.27.7 | 7.27.5 | [7.27.7.html](7.27.7.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.7/performance/reports/7.27.7.html) | [7.27.7.json](7.27.7.json) |
 | 7.27.5 | 7.27.0 | [7.27.5.html](7.27.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/main/performance/reports/7.27.5.html) | [7.27.5.json](7.27.5.json) |
@@ -154,4 +155,5 @@ unit or its `id` between releases.
 | `ab[].change_pct` | `(current - previous) / previous x 100` of the means, in the figure's own unit. |
 | `figures[]` | One absolute figure of `version`, measured at tag time: `mean`, `sd`, `median`, `min`, `max`, `n`. `derived` says how a rate was computed from a benchmark's output. `headline` marks the figures shown first. |
 | `story` | Optional: the words of the page, which differ from release to release. `title`, `lead`, `hero` (`value`, `text`), `tiles` (`[id, label]` pairs of A/B figures), `append_note`, `ab_sub`, `ab_order` (the ids of the A/B chart, also used for the docs chart), `prices_sub`, `prices` (`[id, title]` pairs; `[]` for none), `no_prices` (the text shown when `prices` is empty) and `abs_sub` (the line above the absolute figures, which otherwise says they were measured at tag time). Without it the page takes the words of the 7.25.5 report. |
+| `split` | Optional: a third build measured in the same rotation, between the two releases (7.28.0: the code of 7.28.0 with the jansson of 7.27.11), to say where a gain comes from. `title`, `sub`, `middle_label` (the legend), `middle_short` (the bar), and `entries[]`: `id`, `label`, `unit`, `better`, `previous`, `middle`, `current` (`mean`, `sd`, `median`), `n`, `jansson_share_pct` (the share of the change of the time of one operation that the middle build does not have) and `text`. The page draws one card of three bars per entry. |
 | `binaries[]` | Size of each static executable: `bytes` on disk (with debug information), `stripped_bytes`, and the `text` / `data` / `bss` of `size`. |

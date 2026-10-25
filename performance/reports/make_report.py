@@ -161,6 +161,7 @@ CSS = r"""
   --axis: #c3c2b7;
   --ring: rgba(11,11,11,0.10);
   --cur: #2a78d6;
+  --mid: #93bbe9;
   --prev: #9b9991;
   --gain: #2a78d6;
   --price: #e34948;
@@ -182,6 +183,7 @@ CSS = r"""
     --axis: #4a4a46;
     --ring: rgba(255,255,255,0.10);
     --cur: #3987e5;
+    --mid: #2b5d99;
     --prev: #7a786f;
     --gain: #3987e5;
     --price: #e66767;
@@ -195,7 +197,7 @@ CSS = r"""
   color-scheme: dark;
   --page: #0d0d0d; --surface: #1a1a19; --card: #1f1f1e; --ink: #ffffff;
   --ink-2: #c3c2b7; --muted: #a3a198; --grid: #2c2c2a; --axis: #4a4a46;
-  --ring: rgba(255,255,255,0.10); --cur: #3987e5; --prev: #7a786f;
+  --ring: rgba(255,255,255,0.10); --cur: #3987e5; --mid: #2b5d99; --prev: #7a786f;
   --gain: #3987e5; --price: #e66767; --noise: #5c5b56; --accent-ink: #86b6ef;
   --price-ink: #f08a8a; --wash: #16263a;
 }
@@ -247,9 +249,9 @@ p.sub { color: var(--ink-2); margin: 0 0 18px; max-width: 48rem; }
 .axisrow text { fill: var(--muted); font-size: 10.5px; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.85rem; color: var(--ink-2); margin: 4px 0 8px; }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
-.sw-cur { background: var(--cur); } .sw-prev { background: var(--prev); }
+.sw-cur { background: var(--cur); } .sw-prev { background: var(--prev); } .sw-mid { background: var(--mid); }
 .sw-gain { background: var(--gain); } .sw-price { background: var(--price); } .sw-noise { background: var(--noise); }
-.bar-cur { fill: var(--cur); } .bar-prev { fill: var(--prev); }
+.bar-cur { fill: var(--cur); } .bar-prev { fill: var(--prev); } .bar-mid { fill: var(--mid); }
 .bar-gain { fill: var(--gain); } .bar-price { fill: var(--price); } .bar-noise { fill: var(--noise); }
 .whisk { stroke: var(--ink-2); stroke-width: 1.5; }
 .zero { stroke: var(--axis); stroke-width: 1; }
@@ -285,7 +287,7 @@ footer { margin-top: 48px; font-size: 0.85rem; color: var(--muted); }
   .hero .big .v { font-size: 2.8rem; }
 }
 @media (forced-colors: active) {
-  .bar-cur, .bar-gain { fill: Highlight; } .bar-prev, .bar-noise { fill: GrayText; } .bar-price { fill: Mark; }
+  .bar-cur, .bar-gain { fill: Highlight; } .bar-prev, .bar-noise, .bar-mid { fill: GrayText; } .bar-price { fill: Mark; }
 }
 """
 
@@ -580,6 +582,8 @@ def build_html(rep, reports):
         ('net.tls_echo', 'gobj stack, TLS (OpenSSL)', ''),
         ('net.tls_echo_persist', 'gobj stack, TLS + append', ''),
         ('net.auth_bff_login', 'OAuth2 BFF logins', 'HTTP, 5 clients'),
+        ('net.ievent_round_trip', 'inter-yuno events', 'websocket round trip'),
+        ('net.mqtt_qos0_round_trip', 'MQTT QoS 0 through the broker', 'publish + delivery'),
     ]:
         f = fg(i)
         if not f:
@@ -605,6 +609,8 @@ def build_html(rep, reports):
         ('treedb.delete_force', 'treedb forced delete'),
         ('treedb.create_link_half', 'treedb create'),
         ('treedb.delete_parent', 'delete a parent of 200 children'),
+        ('treedb_read.get_view', 'treedb get a node + its view'),
+        ('treedb_read.dump_views', 'treedb view as json text'),
     ]:
         f = fg(i)
         if not f:
@@ -636,6 +642,23 @@ def build_html(rep, reports):
         'publish.250b.global.100', 'publish.20kb.global.100',
     ]
     H.append('<div class="card">%s</div>' % diverging_chart([AB[i] for i in order if i in AB], version, prev))
+
+    # ---- optional: where the gain comes from (a third build between the two releases)
+    split = rep.get('split')
+    if split:
+        H.append('<h2>%s</h2>' % md_code(split.get('title', 'Where the gain comes from')))
+        H.append('<p class="sub">%s</p>' % md_code(split.get('sub', '')))
+        H.append('<div class="legend"><span><i class="sw-prev"></i>%s</span><span><i class="sw-mid"></i>%s</span>'
+                 '<span><i class="sw-cur"></i>%s</span></div>' % (
+                     esc(prev), md_code(split['middle_label']), esc(version)))
+        cards_ = []
+        for e in split['entries']:
+            rows_ = [(prev, e['previous']['mean'], 'bar-prev'),
+                     (split['middle_short'], e['middle']['mean'], 'bar-mid'),
+                     (version, e['current']['mean'], 'bar-cur')]
+            unit_ = '/s' if e['unit'].endswith('/s') else e['unit']
+            cards_.append(paired_card('%s (%s)' % (e['label'], e['unit']), rows_, unit_, e.get('text', '')))
+        H.append('<div class="multi">%s</div>' % '\n'.join(cards_))
 
     # ---- prices
     H.append('<h2>Prices paid on purpose</h2>')
@@ -914,6 +937,8 @@ def svg_absolute(rep):
         ('net.tls_echo', 'gobj stack, TLS (OpenSSL)'),
         ('net.tls_echo_persist', 'gobj stack, TLS + append'),
         ('net.auth_bff_login', 'OAuth2 BFF logins (HTTP, 5 clients)'),
+        ('net.ievent_round_trip', 'inter-yuno events (websocket round trip)'),
+        ('net.mqtt_qos0_round_trip', 'MQTT QoS 0 through the broker'),
     ]
     rows = []
     for i, lab in items:
