@@ -182,6 +182,21 @@ fi
 echo "[i] Payload archives built against glibc $(cat "${STAMP}")"
 install -D -m 0644 "${YUNETAS_BASE}/.config"    "${STAGE}/yuneta/development/yunetas/.config"
 
+#
+#   The licenses: Yuneta's (LICENSE.txt) and those of the code of others the
+#   package carries (THIRD-PARTY-NOTICES: the external libraries in the static
+#   binaries and outputs_ext/, nginx, OpenResty, glibc). Beside the SDK they
+#   cover, and as %license files in /usr/share/licenses/<package>/.
+#
+for _notice in LICENSE.txt THIRD-PARTY-NOTICES; do
+    if [ ! -s "${YUNETAS_BASE}/${_notice}" ]; then
+        echo "[-] Missing ${YUNETAS_BASE}/${_notice}: the package must carry the licenses" >&2
+        exit 2
+    fi
+    install -D -m 0644 "${YUNETAS_BASE}/${_notice}" "${STAGE}/yuneta/development/yunetas/${_notice}"
+    install -D -m 0644 "${YUNETAS_BASE}/${_notice}" "${STAGE}/usr/share/licenses/${PROJECT}/${_notice}"
+done
+
 # Strip lab load-generators from the payload: stress_* have no place on a
 # production node. perf_* stay on purpose — fully static benchmarks, handy
 # to measure the target machine.
@@ -1661,7 +1676,8 @@ Version:        ${VERSION}
 Release:        ${RELEASE}%{?dist}
 Summary:        Yuneta's Agent
 
-License:        MIT
+# Yuneta is MIT; the payload carries code of others: THIRD-PARTY-NOTICES
+License:        MIT AND Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND LGPL-2.1-or-later AND MPL-2.0 AND X11 AND curl
 URL:            https://yuneta.io
 BuildArch:      ${ARCHITECTURE}
 AutoReqProv:    no
@@ -1689,6 +1705,9 @@ cp -a %{_staging}/. %{buildroot}/
 %files
 %defattr(-,root,root,-)
 /yuneta
+%dir /usr/share/licenses/${PROJECT}
+%license /usr/share/licenses/${PROJECT}/LICENSE.txt
+%license /usr/share/licenses/${PROJECT}/THIRD-PARTY-NOTICES
 %dir /var/crash
 /usr/lib/tmpfiles.d/yuneta-crash.conf
 %dir /etc/yuneta

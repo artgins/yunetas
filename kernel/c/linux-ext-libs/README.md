@@ -24,6 +24,11 @@ Yuneta kernel, so they don't conflict with any system-wide version.
 > the `ghttp_parser` wrapper has been buggy in the past, treat it as
 > suspect first when investigating HTTP issues.
 
+**Their licenses are in `THIRD-PARTY-NOTICES`** at the root of the
+repository, which the `.deb` and `.rpm` install: adding a library here, moving
+one to a version under another license, or adding a bundled module to
+OpenResty is updating that file in the same commit.
+
 ## Additional utilities (linked **dynamically** against system libs)
 
 | Tool      | Upstream                                  |

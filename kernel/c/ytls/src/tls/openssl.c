@@ -262,7 +262,7 @@ static const char *tls_rt_type(int type)
 
 /*
  *  Our callback from the SSL/TLS layers.
- *  Copied from curl
+ *  Taken from curl, under its license (see THIRD-PARTY-NOTICES)
  */
 PRIVATE void ssl_tls_trace(
     int direction,

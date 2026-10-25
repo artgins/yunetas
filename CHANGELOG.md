@@ -25,6 +25,24 @@
   none of its code; the comments it still shared with the daemon skeleton
   NXWEB took them from are written again, and its header says it. Comments
   and notices only: no code changes.
+- **`THIRD-PARTY-NOTICES`: the code of others Yuneta carries, the license
+  each is used under, and its text**, in the source tree and in the
+  packages: llhttp, libjwt, libumberlog, linenoise, Mosquitto, curl and ttyd
+  in the tree; OpenSSL, Mbed TLS, jansson, liburing, PCRE2, libbacktrace,
+  argp-standalone and ncurses, linked into every binary and shipped in
+  `outputs_ext/`; nginx and OpenResty (with its bundled modules); glibc,
+  linked statically. The `.deb` and the `.rpm` install it with
+  `LICENSE.txt` in `/yuneta/development/yunetas/`, and in
+  `/usr/share/doc/<package>/` (`copyright`) and
+  `/usr/share/licenses/<package>/` (`%license`); a package built without
+  them stops. The `License:` of the `.rpm` names them all. Up to 7.28.4 the
+  packages carried only PCRE2's (which its install drops in
+  `outputs_ext/share/doc/`): not Yuneta's, nor any other.
+- `glogger.c` says why its json buffers use `realloc()`/`free()` and not
+  `gbmem`: gbmem reports its own failures through the logger, and the
+  logger outlives `gobj_end()` and the gbmem audit. `c_websocket.c` no
+  longer says its `dev_urandom()` was copied from pinewiki: it was written
+  again in 7.27.7.
 
 ## v7.28.4 (2026-10-25)
 

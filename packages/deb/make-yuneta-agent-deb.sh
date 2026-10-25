@@ -185,6 +185,22 @@ fi
 echo "[i] Payload archives built against glibc $(cat "${STAMP}")"
 install -D -m 0644 "${YUNETAS_BASE}/.config"    "${WORKDIR}/yuneta/development/yunetas/.config"
 
+#
+#   The licenses: Yuneta's (LICENSE.txt) and those of the code of others the
+#   package carries (THIRD-PARTY-NOTICES: the external libraries in the static
+#   binaries and outputs_ext/, nginx, OpenResty, glibc). Beside the SDK they
+#   cover, and where Debian looks for them (/usr/share/doc/<package>/copyright).
+#
+for _notice in LICENSE.txt THIRD-PARTY-NOTICES; do
+    if [ ! -s "${YUNETAS_BASE}/${_notice}" ]; then
+        echo "[-] Missing ${YUNETAS_BASE}/${_notice}: the package must carry the licenses" >&2
+        exit 2
+    fi
+    install -D -m 0644 "${YUNETAS_BASE}/${_notice}" "${WORKDIR}/yuneta/development/yunetas/${_notice}"
+done
+install -D -m 0644 "${YUNETAS_BASE}/LICENSE.txt"          "${WORKDIR}/usr/share/doc/${PROJECT}/copyright"
+install -D -m 0644 "${YUNETAS_BASE}/THIRD-PARTY-NOTICES"  "${WORKDIR}/usr/share/doc/${PROJECT}/THIRD-PARTY-NOTICES"
+
 # Strip lab load-generators from the payload: stress_* have no place on a
 # production node. perf_* stay on purpose — fully static benchmarks, handy
 # to measure the target machine.

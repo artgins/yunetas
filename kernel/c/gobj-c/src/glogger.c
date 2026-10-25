@@ -1729,7 +1729,9 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
 
 
 /*****************************************************************
- *
+ *  The json buffers of the logger are freed with free(), not
+ *  gbmem_free(): they are allocated with realloc() on purpose, see
+ *  _ul_buffer_ensure_size()
  *****************************************************************/
 PRIVATE void ul_buffer_finish(void)
 {
@@ -1904,7 +1906,16 @@ PRIVATE char *_ul_str_escape(
 }
 
 /*****************************************************************
- *
+ *  The json buffers of the logger grow with libc's realloc(), NOT with
+ *  gbmem, on purpose:
+ *  - gbmem reports its own failures with gobj_log_error(): a buffer that
+ *    grew through gbmem would ask the allocator that just failed for the
+ *    memory to say that it failed;
+ *  - the logger lives as long as the process: it is started on demand,
+ *    before gbmem_setup() may have run, and glog_end() is not called, so
+ *    its buffers are alive after gobj_end() and would be reported as a
+ *    leak by the gbmem audit (CONFIG_DEBUG_TRACK_MEMORY).
+ *  ul_buffer_finish() frees them with free() for the same reason.
  *****************************************************************/
 PRIVATE inline ul_buffer_t *_ul_buffer_ensure_size(
     ul_buffer_t * buffer, size_t size)

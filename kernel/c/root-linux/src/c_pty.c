@@ -6,6 +6,7 @@
  *
  *          Code inspired in the project: https://github.com/tsl0922/ttyd
  *          Copyright (c) 2016 Shuanglei Tao <tsl0922@gmail.com>
+ *          MIT License (see THIRD-PARTY-NOTICES)
  *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2025-2026, ArtGins.

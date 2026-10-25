@@ -519,7 +519,7 @@ PRIVATE int _add_frame_header(hgobj gobj, gbuffer_t *gbuf, char h_fin, char h_op
 }
 
 /***************************************************************************
- *  Copied from http://pine.cs.yale.edu/pinewiki/C/Randomization
+ *  A random 32-bit value: the masking key of a frame
  ***************************************************************************/
 PRIVATE uint32_t dev_urandom(void)
 {
