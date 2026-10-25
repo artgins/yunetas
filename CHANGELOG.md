@@ -1,5 +1,17 @@
 # **Changelog**
 
+## Unreleased
+
+- **gobj-ui 7.28.1: a chart's Y axis is as wide as its labels**
+  (`yui_uplot_axis_size()`, set by `yui_uplot_axes()` on every Y axis the
+  host did not size). uPlot's fixed 50px cut every value past five digits
+  (`150,000` read `,0,000`). Every consumer raised to `^7.28.1` and deployed.
+- **gui_agent 1.1.4 / 1.1.5**: `view.node_labels` names the nodes in every
+  place of the live view (status line, memory tags, cards mode, the
+  commands a confirmation lists), and a chart series is named by label, id
+  and short node, so yunos that share a label stay apart; then gobj-ui
+  `^7.28.1`.
+
 ## v7.28.6 (2026-10-25)
 
 A lite release: only the control center changes (`yunos/c/controlcenter`),

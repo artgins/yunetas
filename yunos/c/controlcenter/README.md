@@ -42,7 +42,7 @@ Registered in the `command_table` of `src/c_controlcenter.c`:
 | `scenarios`      | List the scenarios, or one (`scenario_id=`).                                  |
 | `save-scenario`  | Create or replace a scenario, whole (`scenario={...}`), validated; `revision=` (the `__md_treedb__.g_rowid` it was read at) refuses it when somebody saved it since. |
 | `delete-scenario`| Delete a scenario and its runs (`scenario_id=`).                              |
-| `run-scenario`   | Run the steps of an action of a scenario, in order (`scenario_id= action=`).   |
+| `run-scenario`   | Run the steps of an action of a scenario, in order (`scenario_id= action=`); `action=on|off scenario_yuno=<key>` turns the switch of one yuno (7.28.6). |
 | `scenario-runs`  | The runs of a scenario, newest first (`scenario_id=`).                        |
 | `watch-scenario` | Watch the yunos of a scenario on one node (`scenario_id= node= [keys=] [period=] [stop=1]`): the agent's `watch-yuno-stats` is built HERE from the scenario, so it needs only `read-scenarios` on it. |
 | `my-permissions` | The permissions of the user who asks: `true`, `false`, or the list of scenarios a scoped role grants it for. |
@@ -115,6 +115,31 @@ one, so a reading returns the same whoever reads; `maxrxMsgsec`/`maxtxMsgsec`
 the highest of any tick (write 0 to start again);
 `stats=__reset__` zeroes them all. Up to 7.25.20 nothing counted them and all
 six read 0.
+
+## A generator turned by hand: the `switch` of a yuno (7.28.6)
+
+A yuno of a scenario may carry `switch: {on: [steps], off: [steps]}`, steps as
+those of an action (a step that names no `yuno` goes to the switch's own), so
+one generator is turned on or off while the others go on -- to climb the load
+one fleet at a time:
+
+```json
+{"key": "pp12", "id": "pp12", "service": "sim_controllers", "rate": "tx", "node": "artgins",
+ "switch": {"on":  [{"command": "set-controllers controllers=125"}, {"command": "resume-generation"}],
+            "off": [{"command": "pause-generation"}, {"command": "set-controllers controllers=0"}]}}
+```
+
+```bash
+ycommand ... -c 'run-scenario scenario_id=renfe-20k-hidraulia action=on scenario_yuno=pp12'
+```
+
+`on` runs in order, and only while the scenario RUNS (its last run that changed
+its state is a start or a resume), so the `max_run` stop is always there to
+turn it off; `off` sends its steps at once, in any state. A switch run is
+written and told like any other run (*"on pp12 done, 2 steps"*), but changes
+neither the state of the scenario nor its `max_run` clock: the scenario's
+`stop` must reach every yuno with a switch. gui_agent draws the switch on the
+yuno's card. Details: `docs/doc.yuneta.io/yunos/controlcenter.md`.
 
 ## A test left running: `max_run`
 
