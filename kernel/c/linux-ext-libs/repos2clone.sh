@@ -7,7 +7,7 @@ declare -A REPOS
 #   remember to change the VERSION of installation in configure-libs.sh
 #--------------------------------------------------------------------------
 # jansson is Yuneta's own (artgins/jansson): upstream v2.15.1 with Yuneta's
-# series on branch yuneta/2.15.1, pinned by its annotated tag (see HACKS.md)
+# series on master, pinned by its annotated tag (see HACKS.md)
 TAG_JANSSON="2.15.1-yuneta.1"
 TAG_LIBURING="liburing-2.15"
 TAG_MBEDTLS="v4.2.0"

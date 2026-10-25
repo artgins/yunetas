@@ -68,9 +68,10 @@ and `/etc/hosts` directly, bypassing glibc's NSS resolver chain.
 
 jansson is Yuneta's JSON library, and since `configure-libs.sh` 1.26 it is
 Yuneta's own: `https://github.com/artgins/jansson`. It is upstream jansson
-(`akheron/jansson`) plus a series of Yuneta's commits on a branch named
-after the upstream release it sits on (`yuneta/2.15.1`, on tag `v2.15.1`),
-linear, one commit per change. Each state pinned here is an annotated tag
+(`akheron/jansson`) plus a series of Yuneta's commits on its one branch,
+`master`: the upstream release it sits on (tag `v2.15.1`) and the series on
+top, linear, one commit per change. `master` is rewritten by each rebase, so
+nothing builds from it: each state pinned here is an annotated tag
 (`2.15.1-yuneta.1`), and `TAG_JANSSON` in `repos2clone.sh` names it. On each
 upstream release the series is rebased onto it, and upstream's security
 fixes are always brought in. Upstream's code is not reformatted; the code of

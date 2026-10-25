@@ -268,7 +268,7 @@
 #       jansson from artgins/jansson, Yuneta's own JSON library (was
 #       akheron/jansson v2.15.1 + patches/jansson/): TAG_JANSSON is the
 #       annotated tag 2.15.1-yuneta.1, upstream v2.15.1 with Yuneta's series
-#       (branch yuneta/2.15.1, rebased on each upstream release). The series
+#       (on master, rebased on each upstream release). The series
 #       carries the lexer fix that was patches/jansson/0001 (configure-libs
 #       1.22), now stopping only on a failed save (a top-level number or
 #       literal followed by a byte that is not UTF-8 answers as upstream
