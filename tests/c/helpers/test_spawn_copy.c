@@ -3,8 +3,8 @@
  *
  *          run_process2() (root-linux, run_command.c) and copyfile()
  *          (gobj-c, helpers.c), both written again after 7.28.4 to take out
- *          code of others: the system() of TLPI (GPL-3.0) and an answer of
- *          StackOverflow (CC BY-SA).
+ *          code of others: the system() of TLPI and an answer of
+ *          StackOverflow (see CHANGELOG.md).
  *
  *          run_process2(): the status of waitpid(2) for a program that
  *          exits 0 or not, the argv as given (no shell), -1 for a program

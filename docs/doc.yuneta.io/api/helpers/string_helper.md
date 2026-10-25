@@ -1349,6 +1349,51 @@ and Python sides of this project already do.
 
 ---
 
+(replace_string)=
+## [`replace_string()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/replace_string.c#L23)
+
+Returns a new string: `str` with every occurrence of `old` replaced by `snew`,
+from left to right, without overlaps.
+
+```C
+char *replace_string(
+    const char *str,
+    const char *old,
+    const char *snew
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `str` | `const char *` | The string to copy. It is not modified. |
+| `old` | `const char *` | The text to replace. Must not be empty. |
+| `snew` | `const char *` | The text to put in its place. Can be empty. |
+
+**Returns**
+
+A new string, to free with `gbmem_free()`. `NULL`, logged, when an argument is
+`NULL`, `old` is empty, or there is no memory.
+
+**Notes**
+
+The occurrences do not overlap: `"aaa"` with `"aa"` replaced by `"b"` is
+`"ba"`. Up to 7.28.4 the result was allocated with libc's `malloc()` and freed
+with `free()`; free it with `gbmem_free()` now.
+
+**Example**
+
+```C
+char *s = replace_string("Hello $1, $1!", "$1", "Yuneta");   /* "Hello Yuneta, Yuneta!" */
+if(s) {
+    printf("%s\n", s);
+    gbmem_free(s);
+}
+```
+
+---
+
 (split2)=
 ## [`split2()`](https://github.com/artgins/yunetas/blob/7.28.4/kernel/c/gobj-c/src/helpers.c#L4034)
 

@@ -1,114 +1,68 @@
 /***************************************************************************
- *  Function copied from http://creativeandcritical.net/str-replace-c
- *  Description:
- *      Replaces in the string str all the occurrences of the source string old
- *      with the destination string new.
- *      The lengths of the strings old and new may differ.
- *      The string new may be of any length, but the string old must be of non-zero length -
- *      the penalty for providing an empty string for the old parameter is an infinite loop.
- *      In addition, none of the three parameters may be NULL.
+ *          replace_string.c
  *
- *  Returns:
- *      The post-replacement string, or NULL if memory for the new string could not be allocated.
- *      Does not modify the original string.
- *      The memory for the returned post-replacement string
- *      may be deallocated with the standard library function free when it is no longer required.
+ *          A copy of `str` with every occurrence of `old` replaced by
+ *          `snew`: one pass counts the occurrences, so the result is
+ *          allocated once with its exact size, and a second one copies.
  *
- *  Dependencies:
- *  For this function to compile, you will need to also
- *      #include the following files: <string.h>, <stdlib.h> and <stddef.h>.
- *  Portability:
- *      Portable to C compilers implementing the ISO C Standard,
- *      any version i.e. from C89/C90 onwards.
- *  Author:
- *      Me (Laird Shaw).
- *  Licence:
- *      Public domain.
- *  Attribution:    Optional. If you choose to indicate attribution when using this function,
- *      feel free to link to this page.
+ *          Written for Yuneta: up to 7.28.4 this file was the str_replace()
+ *          of Laird Shaw, with libc's malloc() and free().
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
  ***************************************************************************/
 #include <string.h>
-#include <stddef.h>
-#include <stdlib.h>
+#include "gtypes.h"
+#include "gbmem.h"
+#include "glogger.h"
 #include "replace_string.h"
 
-char *replace_string(const char *str, const char *old, const char *snew)
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC char *replace_string(const char *str, const char *old, const char *snew)
 {
+    if(!str || !old || !*old || !snew) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "replace_string(): str, old or snew missing, or old empty",
+            NULL
+        );
+        return NULL;
+    }
 
-    /* Adjust each of the below values to suit your needs. */
+    size_t str_len = strlen(str);
+    size_t old_len = strlen(old);
+    size_t new_len = strlen(snew);
 
-    /* Increment positions cache size initially by this number. */
-    size_t cache_sz_inc = 16;
-    /* Thereafter, each time capacity needs to be increased,
-     * multiply the increment by this factor. */
-    const size_t cache_sz_inc_factor = 3;
-    /* But never increment capacity by more than this number. */
-    const size_t cache_sz_inc_max = 1048576;
-
-    char *pret, *ret = NULL;
-    const char *pstr2, *pstr = str;
-    size_t i, count = 0;
-    ptrdiff_t *pos_cache = NULL;
-    size_t cache_sz = 0;
-    size_t cpylen, orglen, retlen, newlen, oldlen = strlen(old);
-
-    /* Find all matches and cache their positions. */
-    while ((pstr2 = strstr(pstr, old)) != NULL) {
+    size_t count = 0;
+    for(const char *p = strstr(str, old); p; p = strstr(p + old_len, old)) {
         count++;
-
-        /* Increase the cache size when necessary. */
-        if (cache_sz < count) {
-            cache_sz += cache_sz_inc;
-            ptrdiff_t * pos_cache_ = realloc(pos_cache, sizeof(*pos_cache) * cache_sz);
-            if (pos_cache_ == NULL) {
-                goto end_repl_str;
-            }
-            pos_cache = pos_cache_;
-            cache_sz_inc *= cache_sz_inc_factor;
-            if (cache_sz_inc > cache_sz_inc_max) {
-                cache_sz_inc = cache_sz_inc_max;
-            }
-        }
-
-        pos_cache[count-1] = pstr2 - str;
-        pstr = pstr2 + oldlen;
     }
 
-    orglen = pstr - str + strlen(pstr);
-
-    /* Allocate memory for the post-replacement string. */
-    if (count > 0) {
-        newlen = strlen(snew);
-        retlen = orglen + (newlen - oldlen) * count;
-    } else  retlen = orglen;
-    ret = malloc(retlen + 1);
-    if (ret == NULL) {
-        goto end_repl_str;
+    /*
+     *  The occurrences do not overlap, so count * old_len <= str_len
+     */
+    size_t ret_len = str_len - count * old_len + count * new_len;
+    char *ret = gbmem_malloc(ret_len + 1);
+    if(!ret) {
+        // Error already logged
+        return NULL;
     }
 
-    if (count == 0) {
-        /* If no matches, then just duplicate the string. */
-        strcpy(ret, str);
-    } else {
-        /* Otherwise, duplicate the string whilst performing
-         * the replacements using the position cache. */
-        pret = ret;
-        memcpy(pret, str, pos_cache[0]);
-        pret += pos_cache[0];
-        for (i = 0; i < count; i++) {
-            memcpy(pret, snew, newlen);
-            pret += newlen;
-            pstr = str + pos_cache[i] + oldlen;
-            cpylen = (i == count-1 ? orglen : pos_cache[i+1]) - pos_cache[i] - oldlen;
-            memcpy(pret, pstr, cpylen);
-            pret += cpylen;
-        }
-        ret[retlen] = '\0';
+    char *w = ret;
+    const char *r = str;
+    for(const char *p = strstr(r, old); p; p = strstr(r, old)) {
+        memcpy(w, r, (size_t)(p - r));
+        w += p - r;
+        memcpy(w, snew, new_len);
+        w += new_len;
+        r = p + old_len;
     }
+    size_t tail_len = str_len - (size_t)(r - str);
+    memcpy(w, r, tail_len);
+    w[tail_len] = '\0';
 
-end_repl_str:
-    /* Free the cache and return the post-replacement string,
-     * which will be NULL in the event of an error. */
-    free(pos_cache);
     return ret;
 }

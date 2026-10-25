@@ -7115,7 +7115,7 @@ PUBLIC int get_ordered_filename_array( // WARNING too slow for thousands of file
  *
  *  Written for Yuneta in 2026 from a description of the behaviour (the
  *  cases of tests/c/helpers/test_date_text.c). It replaces the port of
- *  git's date.c (GPL-2.0) that came from yuneta v6.
+ *  git's date.c that came from yuneta v6 (see CHANGELOG.md).
  ***************************************************************************/
 #define DATE_FUTURE_SLACK   (10*86400)  // a date with no year may be this far ahead
 #define DATE_MAX_COUNT      100000000   // a count of units larger than this is no count

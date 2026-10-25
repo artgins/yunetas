@@ -126,8 +126,10 @@ static int render_string(
 
                 const char *value = json_string_value(json_object_get(jn_values, macro));
                 char *new_value = replace_string(rendered_str, macro, value);
-                snprintf(rendered_str, rendered_str_size, "%s", new_value);
-                free(new_value);
+                if(new_value) {
+                    snprintf(rendered_str, rendered_str_size, "%s", new_value);
+                    gbmem_free(new_value);
+                }   // else: error already logged, rendered_str is left as it was
             }
             offset = (int)ovector[1];
         }

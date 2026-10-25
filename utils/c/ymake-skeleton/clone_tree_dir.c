@@ -140,8 +140,10 @@ PRIVATE int render_string(
                     snprintf(value, sizeof(value), "{{%s}}", value_);
                 }
                 char *new_value = replace_string(rendered_str, macro, value);
-                snprintf(rendered_str, rendered_str_size, "%s", new_value);
-                free(new_value);
+                if(new_value) {
+                    snprintf(rendered_str, rendered_str_size, "%s", new_value);
+                    gbmem_free(new_value);
+                }   // else: error already logged, rendered_str is left as it was
             }
             offset = (int)ovector[1];
         }

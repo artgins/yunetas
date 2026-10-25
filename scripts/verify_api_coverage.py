@@ -76,6 +76,7 @@ HEADER_TO_LANDINGS: dict[Path, list[str]] = {
         "api/helpers/backtrace.md",
         "api/helpers/daemon_launcher.md",
     ],
+    KERNEL / "gobj-c/src/replace_string.h": ["api/helpers/string_helper.md"],
     # kwid.h is only covered by helpers/kwid.md. The json_* helpers that
     # also appear in json_helper.md live in helpers.h, not kwid.h.
     KERNEL / "gobj-c/src/kwid.h":       ["api/helpers/kwid.md"],

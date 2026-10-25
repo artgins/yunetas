@@ -130,8 +130,10 @@ static int render_string(char *rendered_str, int rendered_str_size, char *str, j
             snprintf(rendered, sizeof(rendered), "%s", value);
 
             char *new_value = replace_string(rendered_str, macro, rendered);
-            snprintf(rendered_str, rendered_str_size, "%s", new_value);
-            free(new_value);
+            if(new_value) {
+                snprintf(rendered_str, rendered_str_size, "%s", new_value);
+                gbmem_free(new_value);
+            }   // else: error already logged, rendered_str is left as it was
         }
         offset = ovector[1];  /* move past the last match */
     }
@@ -231,8 +233,10 @@ static int render_filename(char *rendered_str, int rendered_str_size, char *str,
 
         /* Replace in the output buffer (rendered_str) */
         char *new_value = replace_string(rendered_str, macro, rendered);
-        snprintf(rendered_str, rendered_str_size, "%s", new_value);
-        free(new_value);
+        if(new_value) {
+            snprintf(rendered_str, rendered_str_size, "%s", new_value);
+            gbmem_free(new_value);
+        }   // else: error already logged, rendered_str is left as it was
 
         /* Advance past this match in the ORIGINAL subject (str) */
         offset = end;

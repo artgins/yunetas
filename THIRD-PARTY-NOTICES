@@ -72,6 +72,9 @@ This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this
 file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+kernel/c/libjwt/src/base64.c is a public domain implementation by WEI
+Zhicheng (its own header says so).
+
 kernel/c/libjwt/src/ll.h is under the MIT License:
 
 Copyright 2022 Embedded Artistry LLC
@@ -306,13 +309,6 @@ PARTICULAR PURPOSE.  IN NO EVENT SHALL IBM BE LIABLE FOR ANY SPECIAL,
 DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER ARISING
 OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE, EVEN
 IF IBM IS APPRISED OF THE POSSIBILITY OF SUCH DAMAGES.
-
-------------------------------------------------------------------------------
-replace_string
-------------------------------------------------------------------------------
-kernel/c/gobj-c/src/replace_string.c, replace_string.h: replace_string(), the
-str_replace() of Laird Shaw (http://creativeandcritical.net/str-replace-c)
-License: public domain, as its author states; no notice is required
 
 ==============================================================================
 2. External libraries: linked statically into every binary, and shipped
@@ -1523,6 +1519,9 @@ These carry their license next to them, and are not built into the Linux
 binaries or the packages:
 
   kernel/c/root-esp32/components/esp_jansson/jansson/     MIT (its LICENSE)
+      (upstream's own build files keep theirs: cmake/CodeCoverage.cmake
+      BSL-1.0, cmake/FindSphinx.cmake the license in its header,
+      src/lookup3.h public domain, CleanSpec.mk Apache-2.0)
   kernel/c/root-esp32/common_components/i2cdev/           MIT (its LICENSE)
   kernel/c/root-esp32/common_components/ads111x/          BSD-3-Clause (its LICENSE)
   kernel/c/root-esp32/common_components/esp_idf_lib_helpers/  ISC (its LICENSE)

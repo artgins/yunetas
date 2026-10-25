@@ -1249,6 +1249,12 @@ it by hand, run the script.
 
 6. [**`udpc_fwrite`**](logging/log_udp_handler.md#udpc_fwrite) — `PUBLIC int udpc_fwrite(udpc_t udpc, int priority, const char *format, ...)`
 
+### `replace_string.h` — 1 functions
+
+**Source:** `kernel/c/gobj-c/src/replace_string.h`
+
+1. [**`replace_string`**](helpers/string_helper.md#replace_string) — `PUBLIC char *replace_string(const char *str, const char *old, const char *snew)`
+
 ### `rotatory.h` — 12 functions
 
 **Source:** `kernel/c/gobj-c/src/rotatory.h`
@@ -1313,7 +1319,7 @@ it by hand, run the script.
 
 11. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 623 functions**
+**Total: 624 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2402,7 +2408,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1045 functions** sorted alphabetically with their source header.
+All **1046 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -3133,6 +3139,7 @@ All **1045 functions** sorted alphabetically with their source header.
 | [**`register_c_yuno`**](runtime/yuno.md#register_c_yuno) | `c_yuno.h` | root-linux (Runtime GClasses) |
 | [**`register_yuneta_environment`**](runtime/environment.md#register_yuneta_environment) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
 | [**`replace_cli_vars`**](helpers/string_helper.md#replace_cli_vars) | `helpers.h` | gobj-c (Core Framework) |
+| [**`replace_string`**](helpers/string_helper.md#replace_string) | `replace_string.h` | gobj-c (Core Framework) |
 | [**`rmrcontentdir`**](helpers/file_system.md#rmrcontentdir) | `helpers.h` | gobj-c (Core Framework) |
 | [**`rmrdir`**](helpers/file_system.md#rmrdir) | `helpers.h` | gobj-c (Core Framework) |
 | [**`rotatory_close`**](logging/rotatory.md#rotatory_close) | `rotatory.h` | gobj-c (Core Framework) |

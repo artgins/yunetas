@@ -137,6 +137,30 @@
   `THIRD-PARTY-NOTICES`, with `replace_string()` (public domain, Laird
   Shaw); the `License:` of the `.rpm` adds ISC. `gbmem.c` no longer says it
   is inspired by MAWK's `zmalloc.c` (GPL-2.0): v7 carries none of that code.
+- **A provenance scan of the five repositories (ScanCode and SCANOSS),
+  and what it found.** Nothing incompatible was left; the findings were:
+    - **BREAKING: `replace_string()` is Yuneta's own, on gbmem.** It was the
+      `str_replace()` of Laird Shaw (public domain), which SCANOSS matches
+      at 96% with a GPL-2.0 project that carries the same function, and it
+      used libc's `malloc()`/`free()`. The result is now freed with
+      `gbmem_free()`, and NULL (logged) is answered for a missing or empty
+      argument; its six callers (`ycli`, `yclone-gclass`, `yclone-project`,
+      `ymake-skeleton`, `yuno-skeleton`) free it so, and no longer print a
+      NULL. New test `helpers/test_replace_string`; it has its entry in the
+      API docs, with an example.
+    - `modules/c/mqtt/Kconfig.input`, `Kconfig.memory`, `Kconfig.shell` were
+      the LVGL Kconfigs of Zephyr (Apache-2.0), included by nothing: removed.
+      So is `docs/doc.yuneta.io/_static/rtd-data.js`, a test file of
+      sphinx-book-theme from the Sphinx days, used by nothing.
+    - Comments of source files no longer name the license of the code they
+      replaced: a scanner reads such a line as the license of the file
+      (`helpers.c` was tagged GPL-2.0-only). The history stays here.
+    - `THIRD-PARTY-NOTICES` adds the public-domain `base64.c` of libjwt and
+      the build files of the ESP32 copy of jansson that keep their own
+      license.
+  The rest of the matches are the third-party code already listed, test
+  inputs of jansson (`[]`, `null`) found in unrelated projects, and the v6
+  of Yuneta itself (`gobj-ecosistema/*`, `yuno-store/controlcenter`).
 
 ## v7.28.4 (2026-10-25)
 

@@ -229,3 +229,9 @@ program with no shell, -1 for a program that does not exist. `copyfile()`:
 the bytes and the mode of a 300 KB copy, an existing destination kept without
 `overwrite` and replaced with it, -1 for a missing source; every failure
 logged (three ERRORs in the output are expected).
+
+`test_replace_string` covers `replace_string()`, written again after 7.28.4
+on gbmem: every occurrence replaced left to right without overlaps (`"aaa"`,
+`"aa"` -> `"b"` is `"ba"`), the ends of the string, a longer and a shorter
+replacement, no occurrence, and NULL (logged) for a missing argument or an
+empty `old` (four ERRORs in the output are expected).

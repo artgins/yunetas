@@ -65,6 +65,7 @@ set(SRCS
     test_json_scan
     test_date_text
     test_spawn_copy
+    test_replace_string
 )
 
 ##############################################

@@ -28,7 +28,7 @@
  *              none);
  *          5.  show_date_relative() at the edge of each unit.
  *
- *          And what the rewrite of 2026 (the port of git's date.c, GPL-2.0,
+ *          And what the rewrite of 2026 (the port of git's date.c,
  *          replaced) reads differently:
  *          6.  a text that is no date is refused, with the error flag,
  *              where the port read something else in silence: a time ahead

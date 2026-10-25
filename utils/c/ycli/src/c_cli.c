@@ -3296,8 +3296,10 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             char dolar_n[32];
             snprintf(dolar_n, sizeof(dolar_n), "$%d", i);
             char *rs = replace_string(command_, dolar_n, dolar_content);
-            snprintf(command_, sizeof(command_), "%s", rs);
-            free(rs);
+            if(rs) {
+                snprintf(command_, sizeof(command_), "%s", rs);
+                gbmem_free(rs);
+            }   // else: error already logged, command_ is left as it was
 
             dolar_content = save_ptr;
             i++;
