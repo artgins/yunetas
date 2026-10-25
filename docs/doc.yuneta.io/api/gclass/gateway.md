@@ -160,7 +160,8 @@ backed by timeranger. Provides ack-based delivery with automatic retry.
 | `timeout_ack` | `integer` | Ack timeout in seconds. |
 | `timeout_poll` | `integer` | Poll of the queue, in milliseconds (default `1000`): it resends what waits for its ack and checks the backup. `0` or less is raised to 1000 ms with a WARNING, at start and when code writes it later (*"timeout_poll 0 or less never polls, the floor is used"*): up to 7.26.9 such a gate never resent anything. Example: `'kw': {'timeout_poll': 2000}`. |
 | `backup_queue_size` | `integer` | Backup retention size. |
-| `alert_queue_size` | `integer` | Queue size threshold for alerts. |
+| `alert_queue_size` | `integer` | Queue size threshold for alerts: at each multiple of it the gate logs an ERROR (*"ALERT Queuing N msgs"*) and sends an email through the `emailsender` service of its yuno, at most one a minute. |
+| `disable_alert` | `boolean` | No alert at all, neither the ERROR nor the email (default `false`). For the gates of a test, which fill their queue on purpose. Example: `'kw': {'alert_queue_size': 1000, 'disable_alert': true}`. |
 | `min_free_disk_percentage` | `integer` | The gate refuses new messages while the disk of `tranger_path` has less free space than this, in percent (default `10`). `0` or less: it refuses them only when the queue cannot save one. Example: `'kw': {'min_free_disk_percentage': 5}`. |
 | `msgs_in_queue` | `integer` (stats) | Messages in the queue, not acked yet: a gauge, read live. |
 | `pending_acks` | `integer` (stats) | Messages sent and waiting for their ack: a gauge, read live. |
