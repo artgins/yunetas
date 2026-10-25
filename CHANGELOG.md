@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **maplibre-gl 6.16.0** in the JS layer: gobj-ui's lockfile and its demo
+  (no gobj-ui release, the peer floor stays `^6.14.0`), and gui_treedb 1.0.1.
+  It fixes a map that shrinks to one pixel after a lost WebGL context (a
+  mobile browser back from the background) and maps that stop loading
+  after iOS shuts down their workers.
+
 ## v7.28.4 (2026-10-25)
 
 A full release: `c_yuno` and `c_qiogate` are in the kernel, which every yuno
