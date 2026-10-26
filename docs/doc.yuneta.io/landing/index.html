@@ -489,8 +489,16 @@ h1.hero-title {
     box-shadow: 0 0 0 3px rgba(111, 204, 191, 0.15);
     flex: none;
 }
-.inst-bar .gobj { color: var(--panel-text); text-transform: none; letter-spacing: 0; }
-.inst-bar .cmd { margin-left: auto; text-transform: none; letter-spacing: 0; }
+.inst-bar .gobj { color: var(--panel-text); text-transform: none; letter-spacing: 0; white-space: nowrap; }
+.inst-bar .cmd {
+    margin-left: auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-transform: none;
+    letter-spacing: 0;
+}
 
 /* Run/pause the trace. Hidden until the script unhides it: with no
    JavaScript there is nothing to run. It is what a reader whose system
@@ -498,16 +506,26 @@ h1.hero-title {
    what everyone else uses to stop it. */
 .inst-play {
     flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
     font: inherit;
+    font-weight: 600;
     letter-spacing: inherit;
     text-transform: inherit;
-    padding: 0.16rem 0.5rem;
-    border: 1px solid var(--panel-rule);
-    background: transparent;
-    color: var(--panel-dim);
+    padding: 0.3rem 0.75rem;
+    border: 1px solid var(--panel-state);
+    background: var(--panel-state);
+    color: var(--panel);
     cursor: pointer;
 }
-.inst-play:hover { color: var(--panel-text); border-color: var(--panel-dim); }
+.inst-play .glyph { font-size: 0.85em; }
+/* Stopped, it is the thing to do next: it takes the event colour. */
+.inst-play[data-running="0"] {
+    border-color: var(--panel-event);
+    background: var(--panel-event);
+}
+.inst-play:hover { filter: brightness(1.12); }
 
 /* Narrow bars cannot hold the command line and the control at once.
    The control is the one that does something, so the command goes. */
@@ -1707,14 +1725,15 @@ h1.hero-title {
 
     /*
      *  The kernel indents a trace line by its nesting depth — `tab()` in
-     *  gobj.c writes 2 spaces per level of `__inside__`, the counter
+     *  gobj.c, one level per step of `__inside__`, the counter
      *  gobj_send_event bumps on the way in. Without it every line reads
      *  as if it happened at top level, and the one thing a machine trace
      *  is for — seeing that THIS event was fired from inside THAT
-     *  action — is lost.
+     *  action — is lost. One level is four spaces, as everywhere a
+     *  shape is shown as indentation.
      */
     function indent(d) {
-        return new Array(2 * (d || 1) + 1).join(" ");
+        return " ".repeat(4 * (d || 1));
     }
 
     var GOBJ = "C_TCP^server-1";
@@ -1841,7 +1860,10 @@ h1.hero-title {
         }
         if (playEl) {
             var label = on ? "Pause the trace" : "Run the trace";
-            playEl.textContent = on ? "Pause" : "Run";
+            playEl.textContent = "";
+            playEl.appendChild(span("glyph", on ? "\u275A\u275A" : "\u25B6\uFE0E"));
+            playEl.appendChild(span("", on ? "Pause" : "Run"));
+            playEl.setAttribute("data-running", on ? "1" : "0");
             playEl.setAttribute("aria-label", label);
             playEl.setAttribute("title", label);
         }
