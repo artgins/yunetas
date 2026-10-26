@@ -17,11 +17,16 @@ them) and builds it against the SDK in `outputs/`:
   and the license in its README (no empty `Name:`), built with no warning.
   Red with the template of 7.28.6, whose blocks were both commented out.
 - `c_project`, with the license in its README, built with no warning.
-- `js_gclass`, loaded by node against this tree's gobj-js (its `src/`, so no
-  npm build is needed): it registers, its timer fires (`Timeout`), and
-  nothing is logged as an error. Red with the template of 7.28.6, which
-  imported from `"yunetas"`. Without `node` in `PATH` the run is skipped and
-  says `SKIP`.
+- `js_gclass` and `js_gclass_service`, loaded by node against this tree's
+  gobj-js (its `src/`, so no npm build is needed): the child is created under
+  the yuno and the service with `gobj_create_service()`, each one's timer
+  fires (`Timeout`, `Timeout service`), and nothing is logged as an error.
+  Red with the `js_gclass` of 7.28.6, which imported from `"yunetas"`.
+  Without `node` in `PATH` the run is skipped and says `SKIP`.
+- `project` and `project_commercial`: each gets a `yuno_citizen` made in its
+  `yunos/` and added to `yunos/CMakeLists.txt`, and is built from the
+  project root with no warning; the `LICENSE` is the one of its kind (MIT,
+  proprietary) and the README says the license asked for.
 
 A build that fails or warns fails the test: red with `MSGSET_INTERNAL_ERROR`
 in the standalone template, the name it had up to `3e140bb02`.

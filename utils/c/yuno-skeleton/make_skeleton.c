@@ -269,6 +269,22 @@ static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
         upper(bf);
         json_object_set_new(jn_values, "UTILITY", json_string(bf));
 
+    } else if(strcasecmp(type, "project")==0) {
+        do {
+            printf("Enter project name: ");
+            input_value(bf, sizeof(bf), "", testing);
+            if(testing) {
+                break;
+            }
+            len = (int)strlen(bf);
+        } while(len < 1);
+        lower(bf);
+        json_object_set_new(jn_values, "project", json_string(bf));
+        capitalize(bf);
+        json_object_set_new(jn_values, "Project", json_string(bf));
+        upper(bf);
+        json_object_set_new(jn_values, "PROJECT", json_string(bf));
+
     } else {
         do {
             printf("Enter gclass name: ");
@@ -558,6 +574,28 @@ int make_skeleton(const char* base, const char* file, const char* skeleton)
         mkdir(utility, S_ISUID|S_ISGID | S_IRWXU|S_IRWXG|S_IROTH|S_IXOTH);
         if(access(dst_dir, 0)!=0) {
             fprintf(stderr, "Cannot create directory '%s'\n", utility);
+            exit(-1);
+        }
+    } else if(strcasecmp(type, "project")==0) {
+        const char *project = json_string_value(json_object_get(jn_values, "project"));
+        if(!project || !*project) {
+            printf("\nproject name NULL\n");
+            exit(-1);
+        }
+        strncpy(dst_dir, project, sizeof(dst_dir)-1);
+        if(access(dst_dir, 0)==0) {
+            char temp[PATH_MAX]={0};
+            char *x = realpath(".", temp);
+            if(x) {} // avoid warning
+            fprintf(stderr, "Directory of file '%s/%s' already exists\n",
+                temp,
+                project
+            );
+            exit(-1);
+        }
+        mkdir(project, S_ISUID|S_ISGID | S_IRWXU|S_IRWXG|S_IROTH|S_IXOTH);
+        if(access(dst_dir, 0)!=0) {
+            fprintf(stderr, "Cannot create directory '%s'\n", project);
             exit(-1);
         }
     }

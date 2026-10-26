@@ -1,0 +1,15 @@
+# Batches
+
+The configurations of the yunos of {{project}}, one directory per node:
+
+```text
+yunos/batches/<host>/<yuno>.json
+```
+
+`yunetas sync-configs` matches each directory with the realms of the agent
+it connects to (or takes one with `--host <host>`) and installs every
+configuration in it. Each file carries its `__version__` and a one-line
+`__description__` of what that version changes; bump both on every edit.
+
+The data a yuno needs from its first start goes here too, as configuration,
+not in the code.

@@ -1176,9 +1176,15 @@ the structure exactly — count blank lines if in doubt.
 |---------------------------|--------------------------------------------------------------|
 | C service-level gclass    | `gclass_service/c_+rootname+.c_tmpl` (+`.h_tmpl`)            |
 | C child-level gclass      | `gclass_child/c_+rootname+.c_tmpl` (+`.h_tmpl`)              |
-| JS gclass                 | `js_gclass/c_+rootname+.js_tmpl`                             |
+| JS child-level gclass     | `js_gclass/c_+rootname+.js_tmpl`                             |
+| JS service-level gclass   | `js_gclass_service/c_+rootname+.js_tmpl`                     |
 | Standalone yuno (C)       | `yuno_standalone/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)       |
 | Citizen yuno (C)          | `yuno_citizen/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)          |
+
+A new **application repository** starts from `project` (open source, MIT
+`LICENSE`) or `project_commercial` (closed: proprietary `LICENSE`, and what a
+delivery must carry); its yunos are then made with `yuno_citizen` in its
+`yunos/`.
 
 The **JS GUI yuno** scaffold (Vite + declarative shell on gobj-ui v2) lives in
 `wattyzer/templates/js_gui/` (a private repo) since 2026-05-21. Use that copy

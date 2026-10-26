@@ -1,0 +1,47 @@
+# {{project}}
+
+{{description}}
+
+An application made with [Yuneta](https://github.com/artgins/yunetas):
+its yunos live under `yunos/`, their configurations under `yunos/batches/`.
+
+## Layout
+
+```text
+{{project}}/
+    CMakeLists.txt          builds yunos/
+    yunos/
+        CMakeLists.txt      one add_subdirectory() per yuno
+        batches/<host>/     the configurations of each node
+```
+
+## A new yuno
+
+```bash
+cd yunos
+yuno-skeleton yuno_citizen          # asks for the role, then the rest
+```
+
+then add `add_subdirectory(<role>)` to `yunos/CMakeLists.txt`.
+
+## Build
+
+Register the project once, and the `yunetas` CLI builds it after the SDK:
+
+```bash
+yunetas register-project $PWD
+yunetas build {{project}}
+```
+
+Or by hand:
+
+```bash
+mkdir -p yunos/build && cd yunos/build
+cmake .. && make install
+```
+
+## License
+
+{{license_name}}, see `LICENSE`.
+
+Copyright (c) {{__year__}}, {{author}} <{{author_email}}>.

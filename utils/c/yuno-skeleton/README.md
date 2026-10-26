@@ -25,4 +25,10 @@ printf 'my_widget\nShows the readings\nArtGins\n' | yuno-skeleton js_gclass   # 
 (the user's own templates), so a template removed or renamed here does not
 stay installed.
 
+Templates: C gclasses (`gclass_service`, `gclass_child`, `c_h_file`), JS
+gclasses (`js_gclass`, `js_gclass_service`), yunos (`yuno_citizen`,
+`yuno_standalone`), a pure C program (`c_project`) and an application
+repository (`project`, MIT; `project_commercial`, closed). `--list` prints
+them with their summaries.
+
 See also `ymake-skeleton` for cloning from an existing project rather than a template library.

@@ -43,6 +43,27 @@ $ printf 'my_widget\nShows the readings\nArtGins\n' | yuno-skeleton js_gclass
 `@yuneta/gobj-js` and exports `register_c_my_widget()`. A Yuno template asks
 for the yuno role (at most 15 characters) and the root gobj name instead.
 
+A new application repository, with one citizen yuno in it:
+
+```bash
+printf 'my_app\n\nMy application\nArtGins\nsupport@artgins.com\n\n' | yuno-skeleton project
+cd my_app/yunos
+printf 'my_yuno\n\n1.0.0\nMy yuno\nArtGins\nsupport@artgins.com\nMIT\n' | yuno-skeleton yuno_citizen
+sed -i 's|^# add_subdirectory(my_yuno)$|add_subdirectory(my_yuno)|' CMakeLists.txt
+```
+
+`project` writes an MIT `LICENSE`; `project_commercial` a proprietary one,
+and a README section on what a delivery of a closed application must carry.
+
+| Template | Type | Makes |
+|----------|------|-------|
+| `gclass_service`, `gclass_child` | GClass | `c_<name>.{c,h}` |
+| `js_gclass`, `js_gclass_service` | GClass | `c_<name>.js` |
+| `c_h_file` | GClass | `<name>.{c,h}`, no gobj |
+| `yuno_citizen`, `yuno_standalone` | Yuno | `<role>/` |
+| `c_project` | Utility | `<name>/`, a pure C program |
+| `project`, `project_commercial` | Project | `<name>/`, an application repository |
+
 ## See also
 
 - [Scaffolding new yunos](../../../yunos/c/yuno_agent/SCAFFOLDING.md).

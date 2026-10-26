@@ -1,0 +1,14 @@
+Copyright (c) {{__year__}}, {{author}}.
+All Rights Reserved.
+
+This software is proprietary. No part of it may be copied, modified,
+distributed or used without the written permission of {{author}}.
+
+This software includes components of third parties, each under its own
+license (MIT, BSD, Apache-2.0, MPL-2.0, LGPL-2.1, ...). They are listed,
+with their full texts, in the THIRD-PARTY-NOTICES file of Yuneta of the
+same version, delivered with this software. For those components their
+own licenses prevail over this one, and nothing here restricts what they
+allow: in particular, the right of the LGPL-2.1 to modify the GNU C
+Library and argp, relink this software with them, and reverse engineer it
+as far as needed to debug those modifications.

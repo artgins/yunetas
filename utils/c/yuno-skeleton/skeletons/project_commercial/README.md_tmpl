@@ -1,0 +1,71 @@
+# {{project}}
+
+{{description}}
+
+An application made with [Yuneta](https://github.com/artgins/yunetas):
+its yunos live under `yunos/`, their configurations under `yunos/batches/`.
+
+## Layout
+
+```text
+{{project}}/
+    CMakeLists.txt          builds yunos/
+    yunos/
+        CMakeLists.txt      one add_subdirectory() per yuno
+        batches/<host>/     the configurations of each node
+```
+
+## A new yuno
+
+```bash
+cd yunos
+yuno-skeleton yuno_citizen          # asks for the role, then the rest
+```
+
+then add `add_subdirectory(<role>)` to `yunos/CMakeLists.txt`.
+
+## Build
+
+Register the project once, and the `yunetas` CLI builds it after the SDK:
+
+```bash
+yunetas register-project $PWD
+yunetas build {{project}}
+```
+
+Or by hand:
+
+```bash
+mkdir -p yunos/build && cd yunos/build
+cmake .. && make install
+```
+
+## License
+
+{{license_name}}, see `LICENSE`.
+
+{{project}} is closed; Yuneta, the SDK it is made with, is MIT, and no license
+it brings in is copyleft on the code of {{project}}. What a delivery must
+carry:
+
+- **The notices of Yuneta.** `LICENSE.txt` and `THIRD-PARTY-NOTICES` of the
+  yunetas version {{project}} was built with (in the yunetas repository at
+  that tag, or `/yuneta/development/yunetas/` on a node installed from the
+  package), next to the binaries.
+- **Relinking (glibc and argp, LGPL-2.1).** The yunos are static binaries,
+  so a client who gets them must be able to relink them with another glibc:
+  deliver the source of {{project}}, or its object files and the commands
+  that link them. Running {{project}} only on your own servers delivers no
+  binary, and asks for none of this.
+- **The SPA is always delivered**, to every browser that loads it: serve the
+  `licenses.txt` that gobj-ui's `yunetaLicensesPlugin()` writes into
+  `dist/`, and link it from the About page (it carries the attribution of
+  the Font Awesome icons, which a minified bundle loses).
+- **The `LICENSE` of {{project}}** must not forbid what the LGPL allows: a
+  clause against reverse engineering, if you add one, leaves glibc and argp
+  out, as the `LICENSE` made by this template says.
+
+Ask before delivering a bundle or a binary that carries a GPL or AGPL
+component.
+
+Copyright (c) {{__year__}}, {{author}} <{{author_email}}>.

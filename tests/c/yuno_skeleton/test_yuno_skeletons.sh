@@ -12,7 +12,10 @@
 #       service and the gclass_child under it: each timer fires;
 #     - yuno_citizen, with its SERVICE subscription block and its license,
 #       built with no warning; c_project, built with no warning;
-#     - js_gclass, loaded by node against gobj-js: its timer fires;
+#     - js_gclass and js_gclass_service, loaded by node against gobj-js:
+#       each one's timer fires;
+#     - project and project_commercial, with a citizen yuno in yunos/,
+#       built from the project root;
 #     - no template holds a {{marker}} that nothing fills.
 #
 #   Copyright (c) 2026, ArtGins.
@@ -144,26 +147,34 @@ grep -q "^MIT$" "$WORK/sktutil/README.md" || fail "c_project: the license is not
 build "$WORK/sktutil"
 
 #
-#   js_gclass, loaded by node against the gobj-js of this tree (its src/,
-#   so no npm build is needed): it registers, its timer fires, nothing is
-#   logged as an error. Up to 7.28.6 it imported from "yunetas", a package
-#   that does not exist, and could not load at all.
+#   js_gclass and js_gclass_service, loaded by node against the gobj-js of
+#   this tree (its src/, so no npm build is needed): each registers, the
+#   child is created under the yuno and the service as a service, each
+#   one's timer fires, nothing is logged as an error. Up to 7.28.6
+#   js_gclass imported from "yunetas", a package that does not exist, and
+#   could not load at all; js_gclass_service did not exist.
 #
 JSDIR="$WORK/js"
 mkdir -p "$JSDIR/node_modules/@yuneta/gobj-js"
 generate "$JSDIR" js_gclass "sktjs\nJS test\nArtGins\n"
-if [ -f "$JSDIR/c_sktjs.js" ]; then
+generate "$JSDIR" js_gclass_service "sktjsvc\nJS service test\nArtGins\n"
+if [ -f "$JSDIR/c_sktjs.js" ] && [ -f "$JSDIR/c_sktjsvc.js" ]; then
     grep -q 'const GCLASS_NAME = "C_SKTJS";' "$JSDIR/c_sktjs.js" || fail "js_gclass: GCLASS_NAME is not C_SKTJS"
+    grep -q '^     \*  CHILD subscription model$' "$JSDIR/c_sktjs.js" || fail "js_gclass: no CHILD subscription block"
+    grep -q '^     \*  SERVICE subscription model$' "$JSDIR/c_sktjsvc.js" || fail "js_gclass_service: no SERVICE subscription block"
+    sed -i 's|trace_msg("Timeout");|trace_msg("Timeout service");|' "$JSDIR/c_sktjsvc.js"
     if command -v node > /dev/null 2>&1; then
         printf '{"type": "module", "exports": "./index.js"}\n' > "$JSDIR/node_modules/@yuneta/gobj-js/package.json"
         printf 'export * from "%s/kernel/js/gobj-js/src/index.js";\n' "$YUNETAS_BASE" \
             > "$JSDIR/node_modules/@yuneta/gobj-js/index.js"
         cat > "$JSDIR/run.mjs" <<'JS'
 import {
-    gobj_start_up, gobj_create_yuno, gobj_create, gobj_start, gobj_stop, gobj_destroy,
+    gobj_start_up, gobj_create_yuno, gobj_create, gobj_create_service,
+    gobj_start, gobj_stop, gobj_destroy,
     register_c_yuno, register_c_timer, set_log_callback,
 } from "@yuneta/gobj-js";
 import {register_c_sktjs} from "./c_sktjs.js";
+import {register_c_sktjsvc} from "./c_sktjsvc.js";
 
 const logged = [];
 gobj_start_up(null, null, null, null, null, null, null);
@@ -172,32 +183,69 @@ set_log_callback((level, msg) => {
 });
 register_c_yuno();
 register_c_timer();
-if(register_c_sktjs() < 0) {
-    console.log("register_c_sktjs() failed");
+if(register_c_sktjs() < 0 || register_c_sktjsvc() < 0) {
+    console.log("a register_c_*() failed");
     process.exit(1);
 }
 const yuno = gobj_create_yuno("yuno", "C_YUNO", {yuno_role: "sktjs"});
-const gobj = gobj_create("sktjs", "C_SKTJS", {timeout: 50}, yuno);
-gobj_start(gobj);
+const child = gobj_create("sktjs", "C_SKTJS", {timeout: 50}, yuno);
+const service = gobj_create_service("sktjsvc", "C_SKTJSVC", {timeout: 50}, yuno);
+gobj_start(child);
+gobj_start(service);
 setTimeout(() => {
-    gobj_stop(gobj);
-    gobj_destroy(gobj);
+    for(const gobj of [child, service]) {
+        gobj_stop(gobj);
+        gobj_destroy(gobj);
+    }
     console.log(logged.join("\n"));
-    const fired = logged.includes("msg Timeout");
+    const fired = logged.includes("msg Timeout") && logged.includes("msg Timeout service");
     const errors = logged.filter(l => l.startsWith("error"));
     process.exit(fired && errors.length === 0 ? 0 : 1);
 }, 500);
 JS
         if ! (cd "$JSDIR" && node run.mjs) > "$WORK/run_js.log" 2>&1; then
-            fail "js_gclass did not load, or its timer did not fire, or it logged an error"
+            fail "a js gclass did not load, or its timer did not fire, or it logged an error"
             head -20 "$WORK/run_js.log"
         fi
     else
         echo "SKIP js_gclass run: no node in PATH"
     fi
 else
-    fail "js_gclass did not make c_sktjs.js"
+    fail "js_gclass or js_gclass_service did not make c_sktjs.js / c_sktjsvc.js"
 fi
+
+#
+#   project and project_commercial: each with a yuno_citizen made in its
+#   yunos/ and added to yunos/CMakeLists.txt, built from the project root
+#   with no warning; the LICENSE is the one of its kind, and the README
+#   says the license asked for
+#
+for kind in project project_commercial; do
+    P="$WORK/prj_$kind"
+    mkdir -p "$P"
+    generate "$P" $kind "sktapp\n\nApp test\nArtGins\nsupport@artgins.com\n\n"
+    A="$P/sktapp"
+    if [ ! -f "$A/yunos/CMakeLists.txt" ] || [ ! -f "$A/.gitignore" ]; then
+        fail "$kind did not make sktapp/yunos/CMakeLists.txt and .gitignore"
+        continue
+    fi
+    if [ $kind = project ]; then
+        grep -q "^MIT License$" "$A/LICENSE" || fail "$kind: LICENSE is not MIT"
+        grep -q "^MIT, see" "$A/README.md" || fail "$kind: the README does not say MIT"
+    else
+        grep -q "^This software is proprietary" "$A/LICENSE" || fail "$kind: LICENSE is not proprietary"
+        grep -q "^Proprietary, see" "$A/README.md" || fail "$kind: the README does not say Proprietary"
+        grep -q "THIRD-PARTY-NOTICES" "$A/README.md" || fail "$kind: the README does not say what a delivery carries"
+    fi
+    (cd "$A/yunos" && printf "sktappy\n\n1.0.0\nApp yuno\nArtGins\nsupport@artgins.com\nMIT\n" \
+        | "$BIN" -p "$SKELETONS" yuno_citizen) > "$WORK/gen_${kind}_yuno.log" 2>&1 \
+        || fail "yuno_citizen in $kind/yunos (see $WORK/gen_${kind}_yuno.log)"
+    sed -i 's|^# add_subdirectory(my_yuno)$|add_subdirectory(sktappy)|' "$A/yunos/CMakeLists.txt"
+    grep -q "^add_subdirectory(sktappy)$" "$A/yunos/CMakeLists.txt" || fail "$kind: the yuno was not added to yunos/"
+    if build "$A"; then
+        [ -x "$A/build/yunos/sktappy/sktappy" ] || fail "$kind: the yuno was not built"
+    fi
+done
 
 #
 #   No template holds a {{marker}} that nothing fills: yuno-skeleton says

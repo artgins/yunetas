@@ -403,11 +403,14 @@ Built-in skeleton templates:
 |----------|------|-------------|
 | `c_h_file` | GClass | Generic `.c` + `.h` file pair |
 | `c_project` | Utility | Pure C project (argp-standalone dependency only) |
-| `js_gclass` | GClass | JavaScript Yuneta GClass |
+| `js_gclass` | GClass | JavaScript child GClass |
+| `js_gclass_service` | GClass | JavaScript service GClass |
 | `gclass_service` | GClass | Service GClass with timer (output events must be subscribed) |
 | `gclass_child` | GClass | Child GClass (all output events forwarded to parent) |
 | `yuno_standalone` | Yuno | Standalone yuno project based on yunetas kernel |
 | `yuno_citizen` | Yuno | Realm citizen yuno project |
+| `project` | Project | Application repository, open source (MIT `LICENSE`) |
+| `project_commercial` | Project | Application repository, closed (proprietary `LICENSE`, delivery obligations) |
 
 Templates use `+variable+` placeholders in filenames and `{{variable}}` in file contents. Interactive prompts ask for values like description, author, version, and license.
 

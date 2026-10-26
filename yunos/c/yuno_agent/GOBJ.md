@@ -1062,7 +1062,7 @@ Write the same question in both.
 ### 9.1 Write a new SERVICE gclass
 
 ```bash
-yuno-skeleton gclass_service my_service
+yuno-skeleton gclass_service        # gclass name: my_service
 # → c_my_service.c, c_my_service.h
 ```
 

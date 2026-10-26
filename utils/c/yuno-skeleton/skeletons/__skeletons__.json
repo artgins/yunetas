@@ -50,7 +50,24 @@
     },
     {
         "name": "js_gclass",
-        "summary": "Create a js Yuneta gclass",
+        "summary": "Create a js child gclass (all output events for parent)",
+        "type": "GClass",
+        "vars": [
+            {
+                "var": "description",
+                "message": "One-line description of the gclass",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "js_gclass_service",
+        "summary": "Create a js service gclass with timer (output events must be subscribed)",
         "type": "GClass",
         "vars": [
             {
@@ -160,6 +177,70 @@
                 "var": "license_name",
                 "message": "License name",
                 "default": ""
+            }
+        ]
+    },
+    {
+        "name": "project",
+        "summary": "Create an application project, open source (MIT): yunos/, batches/, LICENSE",
+        "type": "Project",
+        "vars": [
+            {
+                "var": "version",
+                "message": "Version",
+                "default": "0.1.0"
+            },
+            {
+                "var": "description",
+                "message": "One-line description of the project",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            },
+            {
+                "var": "author_email",
+                "message": "Author email",
+                "default": ""
+            },
+            {
+                "var": "license_name",
+                "message": "License name",
+                "default": "MIT"
+            }
+        ]
+    },
+    {
+        "name": "project_commercial",
+        "summary": "Create an application project, closed (proprietary LICENSE, what a delivery must carry)",
+        "type": "Project",
+        "vars": [
+            {
+                "var": "version",
+                "message": "Version",
+                "default": "0.1.0"
+            },
+            {
+                "var": "description",
+                "message": "One-line description of the project",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            },
+            {
+                "var": "author_email",
+                "message": "Author email",
+                "default": ""
+            },
+            {
+                "var": "license_name",
+                "message": "License name",
+                "default": "Proprietary"
             }
         ]
     },

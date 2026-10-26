@@ -35,7 +35,8 @@ SERVICE    CHILD   citizen     standalone
 gclass_  gclass_   yuno_       yuno_
 service  child     citizen     standalone
 
-   JS gclass → js_gclass
+   JS gclass → js_gclass (CHILD) · js_gclass_service (SERVICE)
+   application repository → project (MIT) · project_commercial (closed)
 ```
 
 | Template          | Use when …                                                                |
@@ -44,7 +45,10 @@ service  child     citizen     standalone
 | `yuno_standalone` | New yuno that runs **outside the agent** — own `argp` CLI, accepts `-f <config_file>`, no agent dependency. Useful for one-shot CLIs, test harnesses, edge cases. |
 | `gclass_service`  | New service-level gclass — addressable by name, optional `subscriber` attr, public-event publication. Goes inside an existing yuno. |
 | `gclass_child`    | New child-level gclass — created with a parent (`gobj_create_pure_child` or similar), parent is the natural audience. |
-| `js_gclass`       | JS equivalent of a gclass, intended for the browser/SPA gobj framework.   |
+| `js_gclass`       | JS CHILD gclass, for the browser/SPA gobj framework (`@yuneta/gobj-js`).  |
+| `js_gclass_service` | JS SERVICE gclass: the same, with the SERVICE subscription block.       |
+| `project`         | A new application repository, open source: `yunos/` (its CMake), `yunos/batches/`, an MIT `LICENSE`. The yunos go in with `yuno_citizen`. |
+| `project_commercial` | The same for a closed application: a proprietary `LICENSE`, and a README that says what a delivery must carry (Yuneta's notices, LGPL relinking, the SPA's `licenses.txt`). |
 | `c_h_file`        | Standalone `.c` + `.h` pair, no gobj framework. Only a helper module.     |
 | `c_project`       | Pure C project, only `argp-standalone.h` as a dep. No Yuneta runtime.     |
 
@@ -70,8 +74,9 @@ The name is **not** an argument: the tool asks for it, then for the
 catalog's per-template `vars` (description, author, license, …). A Yuno
 template asks for the yuno role (at most 15 characters) and the root gobj
 name (default: the role); a GClass template asks for the gclass name; a
-Utility template asks for the utility name. The answer is lowercased and
-becomes `rootname` (`yunorole`, `utility`) in its three case forms.
+Utility template asks for the utility name, a Project template for the
+project name. The answer is lowercased and becomes `rootname` (`yunorole`,
+`utility`, `project`) in its three case forms.
 
 Typical invocations:
 
@@ -83,6 +88,7 @@ yuno-skeleton yuno_standalone       # new standalone yuno → ./<role>/
 yuno-skeleton gclass_service        # new service gclass → ./c_<name>.{c,h}
 yuno-skeleton gclass_child          # new child gclass → ./c_<name>.{c,h}
 yuno-skeleton js_gclass             # new JS gclass → ./c_<name>.js
+yuno-skeleton project               # new application repository → ./<project>/
 ```
 
 A session, as typed (the answers are read from stdin, so a script can pipe
@@ -114,7 +120,7 @@ Lives at `utils/c/yuno-skeleton/skeletons/__skeletons__.json`. Each entry:
 {
   "name":    "<template-name>",
   "summary": "<one-line description>",
-  "type":    "GClass" | "Yuno" | "Utility",
+  "type":    "GClass" | "Yuno" | "Utility" | "Project",
   "vars": [
     { "var": "description", "message": "…", "default": "" },
     { "var": "author",      "message": "…", "default": "" }
@@ -128,11 +134,14 @@ Current entries (by line range in the JSON):
 |----------|---------------------|---------|--------------------------------------------------|
 | 3-18     | `c_h_file`          | GClass  | Generic `.c` + `.h` file                         |
 | 20-50    | `c_project`         | Utility | Pure C project (only `argp-standalone.h`)        |
-| 52-67    | `js_gclass`         | GClass  | JS Yuneta gclass                                 |
-| 69-84    | `gclass_service`    | GClass  | Service gclass with timer (canonical SERVICE)    |
-| 86-101   | `gclass_child`      | GClass  | Typical child gclass (canonical CHILD)           |
-| 103-133  | `yuno_standalone`   | Yuno    | Standalone yuno project                          |
-| 135-165  | `yuno_citizen`      | Yuno    | Realm's citizen yuno project                     |
+| 52-67    | `js_gclass`         | GClass  | JS child gclass (canonical JS CHILD)             |
+| 69-84    | `js_gclass_service` | GClass  | JS service gclass (canonical JS SERVICE)         |
+| 86-101   | `gclass_service`    | GClass  | Service gclass with timer (canonical SERVICE)    |
+| 103-118  | `gclass_child`      | GClass  | Typical child gclass (canonical CHILD)           |
+| 120-150  | `yuno_standalone`   | Yuno    | Standalone yuno project                          |
+| 152-182  | `yuno_citizen`      | Yuno    | Realm's citizen yuno project                     |
+| 184-214  | `project`           | Project | Application repository, open source (MIT)        |
+| 216-246  | `project_commercial`| Project | Application repository, closed (proprietary)     |
 
 If you add a new template, follow the same shape. The runner parses this
 file at startup to fill the prompts.
@@ -187,6 +196,8 @@ automatically in [`make_skeleton.c`](https://github.com/artgins/yunetas/blob/7.2
 | `yunorole`    | Yuno role, lowercased (for yuno templates)                |
 | `Yunorole`    | Capitalised                                               |
 | `YUNOROLE`    | Uppercased                                                |
+| `utility`, `Utility`, `UTILITY` | The utility name (Utility templates)    |
+| `project`, `Project`, `PROJECT` | The project name (Project templates)    |
 | `__year__`    | Current year from system time                             |
 
 Use the right case form in your edits. Mixing them silently produces
@@ -452,21 +463,21 @@ template.
 ### 10.1 New citizen yuno from scratch
 
 ```bash
-# 1. scaffold
-yuno-skeleton yuno_citizen my_widget_service
+# 1. scaffold (it asks for the role: my_service)
+yuno-skeleton yuno_citizen
 
-cd my_widget_service
+cd my_service
 mkdir build && cd build
 cmake .. && make
 
 # 2. install the binary in the agent
-ycommand -c "install-binary content64=\$\$(my_widget_service)"
+ycommand -c "install-binary content64=\$\$(my_service)"
 
 # 3. install a config (a JSON file you've written; version from its __version__)
-ycommand -c "create-config id=my_widget_service.instance_01 content64=\$\$(my_widget_service_instance_01.json)"
+ycommand -c "create-config id=my_service.instance_01 content64=\$\$(my_service_instance_01.json)"
 
 # 4. create the yuno record (realm must already exist — see REALMS.md)
-ycommand -c "create-yuno realm_id=<realm-id> yuno_role=my_widget_service yuno_name=instance_01"
+ycommand -c "create-yuno realm_id=<realm-id> yuno_role=my_service yuno_name=instance_01"
 
 # 5. start
 ycommand -c "enable-yuno id=<yuno_id>"
@@ -477,7 +488,7 @@ ycommand -c "run-yuno    id=<yuno_id>"
 
 ```bash
 cd <existing-yuno>/src
-yuno-skeleton gclass_service my_new_service
+yuno-skeleton gclass_service        # gclass name: my_new_service
 
 # the new files: c_my_new_service.c, c_my_new_service.h
 
@@ -494,7 +505,7 @@ yuno-skeleton gclass_service my_new_service
 ### 10.3 Add a new CHILD gclass
 
 ```bash
-yuno-skeleton gclass_child my_child
+yuno-skeleton gclass_child          # gclass name: my_child
 
 # - register in main.c BEFORE the first gobj_create that uses it
 # - the parent gclass MUST declare every event my_child publishes,
@@ -511,6 +522,9 @@ yuno-skeleton js_gclass             # gclass name: my_widget
 # the new file: c_my_widget.js, gclass C_MY_WIDGET, CHILD subscription
 # model, a C_TIMER pure child armed in mt_start. It imports from
 # @yuneta/gobj-js, which the SPA already depends on.
+# js_gclass_service is the same with the SERVICE subscription block:
+# for a gclass created with gobj_create_service(), whose audience
+# subscribes through its `subscriber` attr.
 
 # in the SPA's main.js
 #   import {register_c_my_widget} from "./c_my_widget.js";
@@ -521,7 +535,7 @@ yuno-skeleton js_gclass             # gclass name: my_widget
 ### 10.5 Standalone CLI tool (no agent)
 
 ```bash
-yuno-skeleton yuno_standalone my_tool
+yuno-skeleton yuno_standalone       # role: my_tool
 cd my_tool
 mkdir build && cd build
 cmake .. && make
@@ -529,6 +543,31 @@ cmake .. && make
 # Run directly with a config file
 ./my_tool -f /path/to/my_tool.json
 ```
+
+### 10.6 New application repository
+
+```bash
+yuno-skeleton project               # or project_commercial, for a closed one
+                                    # project name: my_app
+cd my_app/yunos
+yuno-skeleton yuno_citizen          # role: my_yuno
+
+# in my_app/yunos/CMakeLists.txt
+#   replace  # add_subdirectory(my_yuno)  with  add_subdirectory(my_yuno)
+
+cd ../..
+yunetas register-project $PWD/my_app
+yunetas build my_app
+```
+
+The repository gets `CMakeLists.txt` (builds `yunos/`), `yunos/CMakeLists.txt`
+(finds the SDK through `YUNETAS_BASE`, one `add_subdirectory()` per yuno),
+`yunos/batches/` for the configuration of each node, `README.md`,
+`CHANGELOG.md`, `LICENSE` and `.gitignore`. `project` writes an MIT
+`LICENSE`; `project_commercial` a proprietary one that leaves the
+third-party components under their own licenses, and a README section with
+what a delivery must carry. Yuneta itself stays MIT either way. A JS GUI is
+not part of the template.
 
 ---
 
@@ -544,7 +583,8 @@ cmake .. && make
 | `yuno_standalone` main template                   | `utils/c/yuno-skeleton/skeletons/yuno_standalone/src/main.c_tmpl`      |
 | SERVICE gclass subscription block                 | `skeletons/gclass_service/c_+rootname+.c_tmpl:115-124`                 |
 | CHILD gclass subscription block                   | `skeletons/gclass_child/c_+rootname+.c_tmpl:83-89`                     |
-| JS gclass template                                | `skeletons/js_gclass/+rootname+.js_tmpl`                               |
+| JS gclass templates                               | `skeletons/js_gclass/c_+rootname+.js_tmpl`, `skeletons/js_gclass_service/c_+rootname+.js_tmpl` |
+| Application repository templates                  | `skeletons/project/`, `skeletons/project_commercial/`                  |
 | Banner-rule discussion                            | [`CLAUDE.md`](../../../CLAUDE.md) — "GClass templates and skeletons"   |
 | Canonical large gclass examples                   | [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/root-linux/src/c_yuno.c), [`yunos/c/yuno_agent/src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.28.6/yunos/c/yuno_agent/src/c_agent.c) |
 | Canonical minimal gclass example                  | [`kernel/c/root-linux/src/c_timer.c`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/root-linux/src/c_timer.c)                                    |

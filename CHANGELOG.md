@@ -53,6 +53,25 @@
   which also leaked the path when the callback stopped the walk.
   `yuno_skeleton/templates` checks all of it, and builds `c_project` too
   (no test built it).
+- **yuno-skeleton makes an application repository, open or closed, and a JS
+  service gclass.** New templates:
+    - `project` and `project_commercial` (new catalog type `Project`, which
+      asks for the project name): `CMakeLists.txt`, `yunos/CMakeLists.txt`
+      (finds the SDK through `YUNETAS_BASE`, one `add_subdirectory()` per
+      yuno, what `yunetas register-project` asks for), `yunos/batches/`,
+      `README.md`, `CHANGELOG.md`, `.gitignore` and a `LICENSE`: MIT for
+      `project`; for `project_commercial` a proprietary one that leaves the
+      third-party components under their own licenses (the LGPL's right to
+      relink glibc and argp included), and a README section with what a
+      delivery must carry. Yuneta stays MIT either way; the yunos go in with
+      `yuno_citizen`.
+    - `js_gclass_service`: `js_gclass` with the SERVICE subscription block,
+      for a gclass created with `gobj_create_service()`.
+
+  `yuno_skeleton/templates` builds both projects with a citizen yuno in
+  them, and runs the JS service in node. `SCAFFOLDING.md` and `GOBJ.md`
+  recipes still passed the name as an argument, and one used a role of 17
+  characters (the tool takes 15).
 
 - **gobj-ui 7.28.1: a chart's Y axis is as wide as its labels**
   (`yui_uplot_axis_size()`, set by `yui_uplot_axes()` on every Y axis the
