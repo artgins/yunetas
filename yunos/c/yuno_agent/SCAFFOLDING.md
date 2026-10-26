@@ -64,23 +64,41 @@ build. Arguments declared at [`yuno_skeleton.c`](https://github.com/artgins/yune
 |-------------------------------|--------------------------------------------------------|
 | `--list`, `-l`                | List available templates (reads `__skeletons__.json`)  |
 | `--skeletons-path`, `-p PATH` | Override the default skeletons directory (default `/yuneta/bin/skeletons`) |
-| positional `SKELETON`         | Template name to instantiate                            |
+| positional `SKELETON`         | Template name to instantiate (the only argument)        |
+
+The name is **not** an argument: the tool asks for it, then for the
+catalog's per-template `vars` (description, author, license, …). A Yuno
+template asks for the yuno role (at most 15 characters) and the root gobj
+name (default: the role); a GClass template asks for the gclass name; a
+Utility template asks for the utility name. The answer is lowercased and
+becomes `rootname` (`yunorole`, `utility`) in its three case forms.
 
 Typical invocations:
 
 ```bash
-yuno-skeleton --list                          # show what's available
+yuno-skeleton --list                # show what's available
 
-yuno-skeleton yuno_citizen   my_service       # new citizen yuno → ./my_service/
-yuno-skeleton yuno_standalone my_tool         # new standalone yuno → ./my_tool/
-yuno-skeleton gclass_service my_svc           # new service gclass → ./c_my_svc.{c,h}
-yuno-skeleton gclass_child   my_child         # new child gclass
-yuno-skeleton js_gclass      my_widget        # new JS gclass
+yuno-skeleton yuno_citizen          # new citizen yuno → ./<role>/
+yuno-skeleton yuno_standalone       # new standalone yuno → ./<role>/
+yuno-skeleton gclass_service        # new service gclass → ./c_<name>.{c,h}
+yuno-skeleton gclass_child          # new child gclass → ./c_<name>.{c,h}
+yuno-skeleton js_gclass             # new JS gclass → ./c_<name>.js
 ```
 
-The tool walks you through the catalog's per-template `vars` (description,
-author, license, …) interactively. The `<name>` you pass becomes the
-`rootname` variable used everywhere.
+A session, as typed (the answers are read from stdin, so a script can pipe
+them in, one per line):
+
+```text
+$ yuno-skeleton gclass_service
+Enter gclass name: my_svc
+One-line description of the gclass ['']: Collects the readings
+Author name ['']: ArtGins
+Copying '/yuneta/bin/skeletons/gclass_service' in '.'
+Creating filename: ./c_my_svc.h
+Creating filename: ./c_my_svc.c
+
+$ printf 'my_svc\nCollects the readings\nArtGins\n' | yuno-skeleton gclass_service
+```
 
 If you do not see what you expect, make sure that the catalog path
 (`__skeletons__.json`) and the templates live where `--skeletons-path`
@@ -381,23 +399,31 @@ that compile but read like a bug report.
 ### 9.5 `--skeletons-path` defaults to `/yuneta/bin/skeletons`
 
 A development checkout has them at
-`utils/c/yuno-skeleton/skeletons/`. If the installed copy is out of date,
-pass `-p` to point at the working tree.
+`utils/c/yuno-skeleton/skeletons/`. The build installs them there, and
+replaces the installed copy whole (up to 7.28.6 a template
+removed or renamed in the tree stayed installed, and the packages shipped
+it). `skeletons.d/` is the user's own and is kept. To use the working tree
+without installing, pass `-p`:
+
+```bash
+yuno-skeleton -p $YUNETAS_BASE/utils/c/yuno-skeleton/skeletons gclass_child
+```
 
 ### 9.6 The README mentions a sibling `ymake-skeleton`
 
 `utils/c/yuno-skeleton/README.md:12`: *"See also `ymake-skeleton` for
 cloning from an existing project rather than a template library."*
 
-`ymake-skeleton` is a separate utility (not in `utils/c/yuno-skeleton/`).
-Use it when you want to start from an existing yuno rather than a
-template — closer to "clone this project into a new name". The
-`yuno-skeleton` tool is the right pick for greenfield.
+`ymake-skeleton` is a separate utility (`utils/c/ymake-skeleton/`). It
+turns an existing project into a template that `yuno-skeleton` can
+instantiate; `yclone-project` clones a project directly into a new name.
+The `yuno-skeleton` tool is the right pick for greenfield.
 
 ### 9.7 The JS yuno scaffold lives outside this repo (since 2026-05-21)
 
 CLAUDE.md notes that the **JS GUI yuno** scaffold moved out of yunetas
-to `wattyzer/templates/js_gui/` when gobj-ui v8.0 landed. The
+to `wattyzer/templates/js_gui/` with the declarative shell of gobj-ui v2.
+The
 `js_gclass` template still lives here and produces a single JS gclass,
 not a full GUI yuno project. For a new SPA, start from wattyzer's
 template.
@@ -462,12 +488,17 @@ yuno-skeleton gclass_child my_child
 ### 10.4 New JS gclass for the SPA
 
 ```bash
-yuno-skeleton js_gclass my_widget
+cd <spa>/src
+yuno-skeleton js_gclass             # gclass name: my_widget
 
-# rendered to my_widget.js with the CHILD subscription pattern.
-# Drop it into the SPA's source tree and register via the JS framework's
-# normal gclass registration (gobj_create + register_gclass equivalents
-# in kernel/js/gobj-js — see IPC.md §7 for the SPA case).
+# the new file: c_my_widget.js, gclass C_MY_WIDGET, CHILD subscription
+# model, a C_TIMER pure child armed in mt_start. It imports from
+# @yuneta/gobj-js, which the SPA already depends on.
+
+# in the SPA's main.js
+#   import {register_c_my_widget} from "./c_my_widget.js";
+#   call register_c_my_widget() BEFORE the first gobj_create
+#   that uses it (see IPC.md §7 for the SPA case)
 ```
 
 ### 10.5 Standalone CLI tool (no agent)

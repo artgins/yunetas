@@ -19,6 +19,19 @@
   directory name as `+var+` (it got a literal `{{var}}`) and leaves binaries
   without `_tmpl`. New test `yuno_skeleton/cloners` (21 of its checks fail
   against the old binaries).
+- **The `js_gclass` template loads** (`utils/c/yuno-skeleton`): it imported
+  from `"yunetas"`, a package that does not exist, so what it generated could
+  not be imported at all. It imports from `@yuneta/gobj-js` now, names its
+  gclass `C_<NAME>` (it was the bare lowercase name) in `c_<name>.js` (it was
+  `<name>.js`), and arms its `C_TIMER` with `set_timeout()` alone: it also
+  called `gobj_start()`/`gobj_stop()` on the timer, which `c_timer.js` says
+  not to. Its `timeout` attr is in milliseconds, like the C templates'.
+  `yuno_skeleton/templates` loads the generated gclass in node against this
+  tree's gobj-js and checks its timer fires. `make install` replaces
+  `/yuneta/bin/skeletons` whole, except `skeletons.d/` (the user's own): a
+  template removed or renamed stayed installed (`js_gui`, gone since
+  2026-05-21, was still there), and the packages copy that directory.
+  `SCAFFOLDING.md` showed the name as an argument; the tool asks for it.
 
 - **gobj-ui 7.28.1: a chart's Y axis is as wide as its labels**
   (`yui_uplot_axis_size()`, set by `yui_uplot_axes()` on every Y axis the

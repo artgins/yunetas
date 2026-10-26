@@ -1176,7 +1176,7 @@ the structure exactly — count blank lines if in doubt.
 |---------------------------|--------------------------------------------------------------|
 | C service-level gclass    | `gclass_service/c_+rootname+.c_tmpl` (+`.h_tmpl`)            |
 | C child-level gclass      | `gclass_child/c_+rootname+.c_tmpl` (+`.h_tmpl`)              |
-| JS gclass                 | `js_gclass/+rootname+.js_tmpl`                               |
+| JS gclass                 | `js_gclass/c_+rootname+.js_tmpl`                             |
 | Standalone yuno (C)       | `yuno_standalone/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)       |
 | Citizen yuno (C)          | `yuno_citizen/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)          |
 

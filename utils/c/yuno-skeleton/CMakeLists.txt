@@ -92,7 +92,20 @@ install(
     DESTINATION "/yuneta/bin"
 )
 
-# execute_process(COMMAND rm -rf ${BIN_DEST_DIR}/skeletons)
+#
+#   The installed templates are replaced whole, so a template removed or
+#   renamed here does not stay behind (js_gui did, and the packages copy this
+#   directory). skeletons.d holds the user's own templates: it is kept.
+#
+install(CODE "
+    file(GLOB _installed LIST_DIRECTORIES true \"/yuneta/bin/skeletons/*\")
+    foreach(_path IN LISTS _installed)
+        get_filename_component(_name \"\${_path}\" NAME)
+        if(NOT _name STREQUAL \"skeletons.d\")
+            file(REMOVE_RECURSE \"\${_path}\")
+        endif()
+    endforeach()
+")
 
 install(
     DIRECTORY skeletons/

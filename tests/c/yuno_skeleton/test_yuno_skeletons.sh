@@ -10,7 +10,8 @@
 #       run three seconds: its gclass's timer (a pure child) fires
 #       ("Timeout" on stdout); run again with the gclass_service as its
 #       service and the gclass_child under it: each timer fires;
-#     - yuno_citizen, built with no warning.
+#     - yuno_citizen, built with no warning;
+#     - js_gclass, loaded by node against gobj-js: its timer fires.
 #
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.
@@ -124,6 +125,62 @@ fi
 #
 generate "$WORK" yuno_citizen "sktcit\n\n1.0.0\nSkeleton test\nArtGins\nsupport@artgins.com\nMIT\n"
 build "$WORK/sktcit"
+
+#
+#   js_gclass, loaded by node against the gobj-js of this tree (its src/,
+#   so no npm build is needed): it registers, its timer fires, nothing is
+#   logged as an error. Up to 7.28.6 it imported from "yunetas", a package
+#   that does not exist, and could not load at all.
+#
+JSDIR="$WORK/js"
+mkdir -p "$JSDIR/node_modules/@yuneta/gobj-js"
+generate "$JSDIR" js_gclass "sktjs\nJS test\nArtGins\n"
+if [ -f "$JSDIR/c_sktjs.js" ]; then
+    grep -q 'const GCLASS_NAME = "C_SKTJS";' "$JSDIR/c_sktjs.js" || fail "js_gclass: GCLASS_NAME is not C_SKTJS"
+    if command -v node > /dev/null 2>&1; then
+        printf '{"type": "module", "exports": "./index.js"}\n' > "$JSDIR/node_modules/@yuneta/gobj-js/package.json"
+        printf 'export * from "%s/kernel/js/gobj-js/src/index.js";\n' "$YUNETAS_BASE" \
+            > "$JSDIR/node_modules/@yuneta/gobj-js/index.js"
+        cat > "$JSDIR/run.mjs" <<'JS'
+import {
+    gobj_start_up, gobj_create_yuno, gobj_create, gobj_start, gobj_stop, gobj_destroy,
+    register_c_yuno, register_c_timer, set_log_callback,
+} from "@yuneta/gobj-js";
+import {register_c_sktjs} from "./c_sktjs.js";
+
+const logged = [];
+gobj_start_up(null, null, null, null, null, null, null);
+set_log_callback((level, msg) => {
+    logged.push(`${level} ${msg}`);
+});
+register_c_yuno();
+register_c_timer();
+if(register_c_sktjs() < 0) {
+    console.log("register_c_sktjs() failed");
+    process.exit(1);
+}
+const yuno = gobj_create_yuno("yuno", "C_YUNO", {yuno_role: "sktjs"});
+const gobj = gobj_create("sktjs", "C_SKTJS", {timeout: 50}, yuno);
+gobj_start(gobj);
+setTimeout(() => {
+    gobj_stop(gobj);
+    gobj_destroy(gobj);
+    console.log(logged.join("\n"));
+    const fired = logged.includes("msg Timeout");
+    const errors = logged.filter(l => l.startsWith("error"));
+    process.exit(fired && errors.length === 0 ? 0 : 1);
+}, 500);
+JS
+        if ! (cd "$JSDIR" && node run.mjs) > "$WORK/run_js.log" 2>&1; then
+            fail "js_gclass did not load, or its timer did not fire, or it logged an error"
+            head -20 "$WORK/run_js.log"
+        fi
+    else
+        echo "SKIP js_gclass run: no node in PATH"
+    fi
+else
+    fail "js_gclass did not make c_sktjs.js"
+fi
 
 if [ $FAILURES -ne 0 ]; then
     echo "<-- TEST FAILED: yuno_skeleton/templates ($FAILURES)"

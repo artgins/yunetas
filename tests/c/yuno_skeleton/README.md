@@ -14,6 +14,11 @@ them) and builds it against the SDK in `outputs/`:
   `ac_timeout` (`Timeout`, `Timeout child`). Red with the timer of those two
   templates a plain child, as it was up to `1cab6b1cc`.
 - `yuno_citizen`, built with no warning.
+- `js_gclass`, loaded by node against this tree's gobj-js (its `src/`, so no
+  npm build is needed): it registers, its timer fires (`Timeout`), and
+  nothing is logged as an error. Red with the template of 7.28.6, which
+  imported from `"yunetas"`. Without `node` in `PATH` the run is skipped and
+  says `SKIP`.
 
 A build that fails or warns fails the test: red with `MSGSET_INTERNAL_ERROR`
 in the standalone template, the name it had up to `3e140bb02`.

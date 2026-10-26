@@ -1,5 +1,6 @@
 /***********************************************************************
- *          {{rootname}}.js
+ *          c_{{rootname}}.js
+ *          {{Rootname}} GClass.
  *
  *          {{description}}
  *
@@ -11,35 +12,38 @@ import {
     SDATA_END,
     data_type_t,
     gclass_create,
-    set_timeout,
-    clear_timeout,
     log_error,
+    trace_msg,
     gobj_create_pure_child,
     gobj_name,
+    gobj_parent,
     gobj_read_pointer_attr,
     gobj_subscribe_event,
-    gobj_start,
-    gobj_stop,
-    trace_msg, gobj_parent
-} from "yunetas";
+    set_timeout,
+    clear_timeout,
+} from "@yuneta/gobj-js";
 
 /***************************************************************
  *              Constants
  ***************************************************************/
-const GCLASS_NAME = "{{rootname}}";
+const GCLASS_NAME = "C_{{ROOTNAME}}";
 
 /***************************************************************
  *              Data
  ***************************************************************/
 const attrs_table = [
-SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of output events"),
-SDATA(data_type_t.DTP_INTEGER,  "timeout_refresh",  0,  "5",    "Timeout refresh in seconds"),
+SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of output events"),
+SDATA(data_type_t.DTP_INTEGER,  "timeout",      0,  1000,   "Timeout in milliseconds"),
 SDATA_END()
 ];
 
+/*
+ *  A field named like an attribute is written by the framework on every
+ *  write of that attribute.
+ */
 let PRIVATE_DATA = {
-    timeout_refresh:    0,
-    gobj_timer:         null,
+    gobj_timer: null,
+    timeout:    0,
 };
 
 let __gclass__ = null;
@@ -61,9 +65,6 @@ function mt_create(gobj)
 {
     let priv = gobj.priv;
 
-    /*
-     *  Create children
-     */
     priv.gobj_timer = gobj_create_pure_child(gobj_name(gobj), "C_TIMER", {}, gobj);
 
     /*
@@ -83,8 +84,7 @@ function mt_start(gobj)
 {
     let priv = gobj.priv;
 
-    gobj_start(priv.gobj_timer);
-    set_timeout(priv.gobj_timer, priv.timeout_refresh*1000);
+    set_timeout(priv.gobj_timer, priv.timeout);
 }
 
 /***************************************************************
@@ -95,7 +95,6 @@ function mt_stop(gobj)
     let priv = gobj.priv;
 
     clear_timeout(priv.gobj_timer);
-    gobj_stop(priv.gobj_timer);
 }
 
 /***************************************************************
@@ -129,12 +128,12 @@ function mt_destroy(gobj)
 
 
 
-/************************************************************
+/***************************************************************
  *
- ************************************************************/
+ ***************************************************************/
 function ac_timeout(gobj, event, kw, src)
 {
-    trace_msg("ac_timeout");
+    trace_msg("Timeout");
     return 0;
 }
 
