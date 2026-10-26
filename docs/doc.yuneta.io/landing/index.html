@@ -514,13 +514,14 @@ h1.hero-title {
     letter-spacing: inherit;
     text-transform: inherit;
     padding: 0.3rem 0.75rem;
-    border: 1px solid var(--panel-state);
-    background: var(--panel-state);
+    border: 1px solid var(--panel-text);
+    background: var(--panel-text);
     color: var(--panel);
     cursor: pointer;
 }
 .inst-play .glyph { font-size: 0.85em; }
-/* Stopped, it is the thing to do next: it takes the event colour. */
+/* Not the state colour: the button is not a state, and beside the lit
+   chip it read as one. Stopped, Run is the thing to do next: amber. */
 .inst-play[data-running="0"] {
     border-color: var(--panel-event);
     background: var(--panel-event);
