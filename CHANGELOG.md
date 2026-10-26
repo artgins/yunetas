@@ -42,7 +42,8 @@
   C runtime gclasses (`c_timer.js`, `c_ievent_cli.js`); `CLAUDE.md` and the
   JS gclass page say both. The `yuno_citizen` template's root gclass, the
   yuno's default service, carries the SERVICE block: both blocks were
-  commented out under a TODO.
+  commented out under a TODO. So does the `yuno_standalone` one, with its
+  `subscriber` attr: it had neither.
 - **yuno-skeleton says a `{{marker}}` that nothing fills**
   (`WARNING: {{x}} has no value, rendered empty`, on stderr): it rendered it
   empty in silence, and both yuno READMEs had a `Name: {{yunoname}}` that no

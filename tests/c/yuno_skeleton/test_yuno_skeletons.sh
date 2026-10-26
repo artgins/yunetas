@@ -5,8 +5,9 @@
 #   test. Each template is instantiated with yuno-skeleton (its answers on
 #   stdin, as a person types them) and built against the SDK in outputs/:
 #
-#     - yuno_standalone, with a gclass_child and a gclass_service generated
-#       into its src/ and added to its sources; built with no warning, and
+#     - yuno_standalone, with the SERVICE subscription block in its root
+#       gclass, and a gclass_child and a gclass_service generated into its
+#       src/ and added to its sources; built with no warning, and
 #       run three seconds: its gclass's timer (a pure child) fires
 #       ("Timeout" on stdout); run again with the gclass_service as its
 #       service and the gclass_child under it: each timer fires;
@@ -76,6 +77,10 @@ fi
 #   yuno_standalone, with a gclass_child and a gclass_service
 #
 generate "$WORK" yuno_standalone "sktstd\n\n1.0.0\nSkeleton test\nArtGins\nsupport@artgins.com\nMIT\n"
+grep -q "^    } else if(gobj_is_pure_child(gobj)) {$" "$WORK/sktstd/src/c_sktstd.c" \
+    || fail "yuno_standalone: no SERVICE subscription block in c_sktstd.c"
+grep -q '^SDATA (DTP_POINTER, "subscriber",' "$WORK/sktstd/src/c_sktstd.c" \
+    || fail "yuno_standalone: no subscriber attr in c_sktstd.c"
 generate "$WORK/sktstd/src" gclass_child "sktchild\nChild test\nArtGins\n"
 generate "$WORK/sktstd/src" gclass_service "sktsvc\nService test\nArtGins\n"
 for f in c_sktchild.c c_sktchild.h c_sktsvc.c c_sktsvc.h; do

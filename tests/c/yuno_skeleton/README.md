@@ -5,8 +5,10 @@ and two fixes of theirs had no test. `test_yuno_skeletons.sh` instantiates
 each template with `yuno-skeleton` (its answers on stdin, as a person types
 them) and builds it against the SDK in `outputs/`:
 
-- `yuno_standalone`, with a `gclass_child` and a `gclass_service` generated
-  into its `src/` and added to its sources: built with no warning, and run
+- `yuno_standalone`, with the SERVICE subscription block and the
+  `subscriber` attr in its root gclass (it had neither up to 7.28.6), and a
+  `gclass_child` and a `gclass_service` generated into its `src/` and added
+  to its sources: built with no warning, and run
   three seconds -- its gclass's timer, a pure child, fires (`Timeout` on
   stdout). Run again with the `gclass_service` as its service (played: its
   timer is armed at the play) and the `gclass_child` as a second service

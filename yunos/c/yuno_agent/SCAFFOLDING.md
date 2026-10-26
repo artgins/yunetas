@@ -278,8 +278,8 @@ Reads:
 - The fallback: if something created the gobj as a pure child, the gobj
   subscribes the parent instead.
 
-This is the canonical C block: the `yuno_citizen` template's root gclass
-(the yuno's default service) carries it too, and so does every service
+This is the canonical C block: the root gclass of the `yuno_citizen` and
+`yuno_standalone` templates (the yuno's default service) carries it too, and so does every service
 gclass of the kernel. The JS SERVICE block has no fallback (see the JS
 gclass template and CLAUDE.md, *GClass subscription model*).
 
