@@ -1,5 +1,14 @@
 # **Changelog**
 
+## Unreleased
+
+- **The machine trace indents four spaces per nesting level**, not two
+  (`tab()` in `gobj.c`). An event sent from inside another one's action now
+  stands clearly under it. Only the width of the trace's leading spaces
+  changes; a tool that reads a trace by event name is not affected.
+  `@yuneta/gobj-js` 7.28.1 does the same, so a browser trace and a node's
+  still line up.
+
 ## v7.28.7 (2026-10-26)
 
 A lite release: the scaffolding and cloning tools (`yuno-skeleton`,

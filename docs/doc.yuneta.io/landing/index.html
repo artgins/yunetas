@@ -1726,12 +1726,11 @@ h1.hero-title {
 
     /*
      *  The kernel indents a trace line by its nesting depth — `tab()` in
-     *  gobj.c, one level per step of `__inside__`, the counter
+     *  gobj.c writes 4 spaces per level of `__inside__`, the counter
      *  gobj_send_event bumps on the way in. Without it every line reads
      *  as if it happened at top level, and the one thing a machine trace
      *  is for — seeing that THIS event was fired from inside THAT
-     *  action — is lost. One level is four spaces, as everywhere a
-     *  shape is shown as indentation.
+     *  action — is lost.
      */
     function indent(d) {
         return " ".repeat(4 * (d || 1));

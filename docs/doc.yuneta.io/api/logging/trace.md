@@ -825,7 +825,19 @@ A pointer to the buffer containing the generated indentation string.
 
 **Notes**
 
-The indentation is determined by the global variable `__inside__`, which tracks the depth level of nested function calls.
+The indentation is determined by the global variable `__inside__`, which tracks the depth level of nested function calls: four spaces per level, and never less than one space. An event sent from inside another event's action is traced one level deeper:
+
+```text
+    🔄 EV_CONNECT C_TCP^server-1 ST_DISCONNECTED from C_IOGATE^gate
+        🔄 EV_CONNECTED C_IOGATE^gate ST_IDLE from C_TCP^server-1
+```
+
+**Example**
+
+```C
+char indent[256];
+tab(indent, sizeof(indent));    // "    " at depth 1, "        " at depth 2
+```
 
 ---
 

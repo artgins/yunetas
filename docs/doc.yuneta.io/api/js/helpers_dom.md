@@ -10,7 +10,7 @@ description: >-
 The browser is an operating system, and its DOM is where a GUI gclass draws.
 These helpers build the elements and keep the untrusted values safe.
 
-**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.28.0/src/helpers.js)
+**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js)
 
 :::{important}
 A DOM callback does the work of a translator, and nothing more. A click, an
@@ -25,7 +25,7 @@ inside the callback is invisible to the `machine` trace.
 ## Build an element
 
 (js_createElement2)=
-## [`createElement2()`](https://github.com/artgins/gobj-js/blob/7.28.0/src/helpers.js#L5470)
+## [`createElement2()`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js#L5470)
 
 Builds an HTML element from a description that is a plain array. It is the
 function that a GUI gclass uses to draw.
@@ -109,7 +109,7 @@ the CSS and not to the text.
 ---
 
 (js_html_markup)=
-### [`html_markup(html)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/helpers.js#L5201)
+### [`html_markup(html)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js#L5201)
 
 Marks a string as **markup** for `createElement2()`, said out loud: the string
 is the caller's own (an icon, an svg), never data. It works in the third slot
@@ -133,7 +133,7 @@ $el.innerHTML = `${html_markup('<i class="yi-check"></i>')}`;  // works
 ```
 
 (js_is_html_markup)=
-### [`is_html_markup(v)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/helpers.js#L5210)
+### [`is_html_markup(v)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js#L5210)
 
 Tells whether `v` is a value that `html_markup()` returned.
 
@@ -143,7 +143,7 @@ is_html_markup('<b>x</b>');                // false
 ```
 
 (js_set_strings_are_text)=
-### [`set_strings_are_text(on)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/helpers.js#L5237)
+### [`set_strings_are_text(on)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js#L5237)
 
 Sets how `createElement2()` reads a plain string that starts with `<`. With
 `false` (the default) the string is markup, as it always was. With `true` it is
@@ -163,7 +163,7 @@ createElement2(['span', {}, '<img src=x onerror=alert(1)>']);  // text, logged o
 ```
 
 (js_strings_are_text)=
-### [`strings_are_text()`](https://github.com/artgins/gobj-js/blob/7.28.0/src/helpers.js#L5242)
+### [`strings_are_text()`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js#L5242)
 
 Returns the mode that `set_strings_are_text()` set.
 
@@ -176,17 +176,17 @@ if(!strings_are_text()) {
 ---
 
 (js_createOneHtml)=
-### [`createOneHtml(htmlString)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/helpers.js#L5268)
+### [`createOneHtml(htmlString)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js#L5268)
 
 Builds one element from a string of HTML.
 
 (js_parseSVG)=
-### [`parseSVG(string)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/helpers.js#L5624)
+### [`parseSVG(string)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js#L5624)
 
 Builds an SVG element from a string of SVG code.
 
 (js_getPositionRelativeToBody)=
-### [`getPositionRelativeToBody(element)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/helpers.js#L5596)
+### [`getPositionRelativeToBody(element)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js#L5596)
 
 Gives the position of an element against the body of the document. A popover or
 a menu that must stay next to its button uses it.
@@ -196,13 +196,13 @@ a menu that must stay next to its button uses it.
 ## Untrusted values
 
 (js_escapeHtml)=
-### [`escapeHtml(str)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/helpers.js#L5144)
+### [`escapeHtml(str)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js#L5144)
 
 Escapes a value for an HTML context. Use it every time that a string from a
 user or from a server goes into a template that becomes `innerHTML`.
 
 (js_safeSrc)=
-### [`safeSrc(url)`](https://github.com/artgins/gobj-js/blob/7.28.0/src/helpers.js#L5162)
+### [`safeSrc(url)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js#L5162)
 
 Validates a URL for the `src` attribute of an image or a media element. It
 refuses the `javascript:` and `data:` schemes, which carry a cross-site script.
@@ -213,7 +213,7 @@ It gives an empty string back for every scheme that it refuses.
 ## Language
 
 (js_refresh_language)=
-## [`refresh_language()`](https://github.com/artgins/gobj-js/blob/7.28.0/src/helpers.js#L5632)
+## [`refresh_language()`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js#L5632)
 
 Translates a DOM tree again, after the application changes its language.
 

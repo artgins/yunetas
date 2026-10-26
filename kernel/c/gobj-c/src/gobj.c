@@ -13866,15 +13866,16 @@ PUBLIC void gobj_set_trace_machine_format(int format)
 /****************************************************************************
  *  Indent, return spaces multiple of depth level gobj.
  *  With this, we can see the trace messages indenting according
- *  to depth level.
+ *  to depth level: four spaces per level, never less than one.
  ****************************************************************************/
 PUBLIC char *tab(char *bf, int bflen)
 {
     int i;
 
     bf[0]=' ';
-    for(i=1; i<__inside__*2 && i<bflen-2; i++)
+    for(i=1; i<__inside__*4 && i<bflen-2; i++) {
         bf[i] = ' ';
+    }
     bf[i] = '\0';
     return bf;
 }

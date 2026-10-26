@@ -1008,7 +1008,7 @@ already carries the state it ran in.
 <- mach(!!c_tcp), st: :closed, ev: EV_RX_DATA, ret: 0
 ```
 
-Every line of either format is indented by its nesting depth, two spaces per
+Every line of either format is indented by its nesting depth, four spaces per
 level, so an event sent from inside another one's action sits under it. That
 indentation is the only thing that says a transition happened **during**
 another — keep it when you render the line anywhere else.
