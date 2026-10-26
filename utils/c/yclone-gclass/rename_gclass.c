@@ -1,16 +1,18 @@
 /****************************************************************************
  *          RENAME_GCLASS.C
- *          Rename gclass
+ *          Clone a gclass (c_<old>.c/.h) with a new name
  *
  *          Copyright (c) 2015 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <dirent.h>
-#include <sys/stat.h>
-#include <argp-standalone.h>
+#include <limits.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 #include <jansson.h>
 #include <helpers.h>
-#include "render_file.h"
+#include "clone_tree_dir.h"
 #include "rename_gclass.h"
 
 /***************************************************************************
@@ -53,15 +55,18 @@ PUBLIC int rename_gclass(char *old_gclass_name, char *new_gclass_name)
     snprintf(new_puntoc, sizeof(new_puntoc), "c_%s.c", new_gclass_name);
     snprintf(new_puntoh, sizeof(new_puntoh), "c_%s.h", new_gclass_name);
 
-    if(is_regular_file(new_puntoc)) {
+    if(access(new_puntoc, F_OK) == 0) {
         printf("File ALREADY exist: %s\n", new_puntoc);
         return -1;
     }
-    if(is_regular_file(new_puntoh)) {
+    if(access(new_puntoh, F_OK) == 0) {
         printf("File ALREADY exist: %s\n", new_puntoh);
         return -1;
     }
 
+    /*
+     *  The name in lower, Capitalized and UPPER case
+     */
     json_t *jn_values = json_object();
 
     lower(old_gclass_name);
@@ -76,13 +81,29 @@ PUBLIC int rename_gclass(char *old_gclass_name, char *new_gclass_name)
     upper(new_gclass_name);
     json_object_set_new(jn_values, old_gclass_name, json_string(new_gclass_name));
 
+    clone_spec_t spec = {
+        .content_values = jn_values,
+        .name_values = jn_values,
+        .text_suffix = NULL,
+        .untouched = json_object()
+    };
 
-    render_file(new_puntoh, old_puntoh, jn_values);
-    render_file(new_puntoc, old_puntoc, jn_values);
+    int ret = clone_file(new_puntoh, old_puntoh, &spec);
+    if(ret == 0) {
+        ret = clone_file(new_puntoc, old_puntoc, &spec);
+        if(ret < 0) {
+            // Error already logged; not half a gclass left behind
+            unlink(new_puntoh);
+        }
+    }
 
+    if(ret == 0) {
+        print_untouched_words(&spec);
+        printf("\nRemember to change file headers (copyright, year, description)\n");
+    }
+
+    json_decref(spec.untouched);
     json_decref(jn_values);
 
-    printf("Remember to change file headers (copyright, year, description)\n");
-
-    return 0;
+    return ret;
 }

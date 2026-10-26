@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **The cloners stop breaking what they clone** (`yclone-gclass`,
+  `yclone-project`, `ymake-skeleton`, now ONE engine,
+  `utils/c/yclone-project/clone_tree_dir.c`; the other two copies are gone).
+  A keyword is replaced only as a whole word (`_`, `-`, `.` are separators),
+  in one pass, the longest first: `yclone-gclass time clock` turned
+  `C_TIMER` into `C_CLOCKR` and `set_timeout` into `set_clockout`, and a new
+  name holding the old one was replaced again (`myyuno` -> `myyuno_two` gave
+  `myyuno_two_two`). The words that held the key and were left as they were
+  are listed at the end, for review. Files are read whole, not by
+  `fgets()`/`strlen()`: a binary is copied byte for byte (a 35 MB yuno came
+  out 1.7 MB). `.git`, `.hg`, `.svn`, `build`, `cmake-build-*`,
+  `node_modules` and `dist` are not cloned, modes are kept, a destination
+  inside the source is refused (it recursed into itself), and an error stops
+  the tool with a non-zero exit (it exited 0). `ymake-skeleton` renders a
+  directory name as `+var+` (it got a literal `{{var}}`) and leaves binaries
+  without `_tmpl`. New test `yuno_skeleton/cloners` (21 of its checks fail
+  against the old binaries).
+
 - **gobj-ui 7.28.1: a chart's Y axis is as wide as its labels**
   (`yui_uplot_axis_size()`, set by `yui_uplot_axes()` on every Y axis the
   host did not size). uPlot's fixed 50px cut every value past five digits

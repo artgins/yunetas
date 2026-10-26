@@ -18,7 +18,25 @@ them) and builds it against the SDK in `outputs/`:
 A build that fails or warns fails the test: red with `MSGSET_INTERNAL_ERROR`
 in the standalone template, the name it had up to `3e140bb02`.
 
-`KEEP_WORK=1` keeps the work directory (`/tmp/test_yuno_skeletons.*`).
+`test_cloners.sh` runs the three cloners -- `yclone-gclass`, `yclone-project`
+and `ymake-skeleton`, one engine (`utils/c/yclone-project/clone_tree_dir.c`)
+-- on a standalone yuno made by `yuno-skeleton`. Each check is a bug they had
+up to 7.28.6 (21 checks fail against those binaries):
+
+- `yclone-gclass time clock` leaves `C_TIMER`, `set_timeout` and `EV_TIMEOUT`
+  as they were (a key is replaced as a whole word), reports `C_TIMER` as left
+  untouched, and the clone builds.
+- `yclone-project` to a name that holds the old one (`sktcln` ->
+  `sktcln_two`) replaces it once; a binary is copied byte for byte, a
+  script keeps its mode, a symlink is kept, `.git` and `build` are not
+  cloned; the clone builds and says its new role; a destination inside the
+  source is refused.
+- `ymake-skeleton` makes a template (`+rootname+` names, `{{yunorole}}`
+  markers, `_tmpl` on text files only) that `yuno-skeleton` instantiates and
+  that builds: the round trip.
+
+`KEEP_WORK=1` keeps the work directories (`/tmp/test_yuno_skeletons.*`,
+`/tmp/test_cloners.*`).
 
 ## Run
 

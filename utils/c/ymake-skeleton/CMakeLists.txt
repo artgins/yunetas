@@ -49,11 +49,16 @@ endif()
 
 ##############################################
 #   Source
+#   The cloning engine is yclone-project's: one implementation for
+#   yclone-project, yclone-gclass and ymake-skeleton
 ##############################################
+set(CLONE_ENGINE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../yclone-project)
+include_directories(${CLONE_ENGINE_DIR})
+
 SET (YUNO_SRCS
     ymake_skeleton.c
     make_skeleton.c
-    clone_tree_dir.c
+    ${CLONE_ENGINE_DIR}/clone_tree_dir.c
 )
 SET (YUNO_HDRS
 )

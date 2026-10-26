@@ -1,8 +1,9 @@
 /****************************************************************************
- *          YUNO-SKELETON.C
- *          Make skeleton of yunos ang gclasses.
+ *          YCLONE-GCLASS.C
+ *          Clone a gclass with a new name.
  *
  *          Copyright (c) 2015 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
@@ -44,7 +45,10 @@ const char *argp_program_bug_address = APP_SUPPORT;
 
 /* Program documentation. */
 static char doc[] =
-  "yclone-gclass -- a Yuneta utility to rename a gclass\n"
+  "yclone-gclass -- a Yuneta utility to clone a gclass with a new name: c_OLD.c/.h of the "
+  "current directory to c_NEW.c/.h. The name, in lower, Capitalized and UPPER case, is "
+  "replaced only as a WHOLE word ('_' is a separator: `time` changes in register_c_time, "
+  "not in C_TIMER nor in timeout)\n"
   "Ex: yclone-gclass postgres authenticate # without prefix and extension";
 
 /* A description of the arguments we accept. */

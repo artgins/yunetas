@@ -3,6 +3,7 @@
  *          Clone a project with new name
  *
  *          Copyright (c) 2015 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
@@ -47,7 +48,11 @@ const char *argp_program_bug_address = APP_SUPPORT;
 
 /* Program documentation. */
 static char doc[] =
-  "yclone-project -- a Yuneta utility to clone a project. All source keywords (lower, capitalize, upper) will be rename to destination keyword (in filenames and in content of files)";
+  "yclone-project -- a Yuneta utility to clone a project. The source keyword, in lower, "
+  "Capitalized and UPPER case, is renamed to the destination keyword in file names and in "
+  "the content of text files, only as a WHOLE word ('_', '-', '.' are separators: `time` "
+  "changes in c_time.c, not in C_TIMER). Binary files are copied as they are; .git, .hg, "
+  ".svn, build, cmake-build-*, node_modules and dist are not cloned.";
 
 /* A description of the arguments we accept. */
 static char args_doc[] = "SOURCE-PROJECT DESTINATION-PROJECT";
@@ -136,13 +141,12 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    if(access(arguments.args[1], 0)==0) {
-        printf("Destination project path already exists: %s\n", arguments.args[1]);
-        exit(-1);
-    }
-
     if(empty_string(arguments.args[1])) {
         printf("Enter a destination project path\n");
+        exit(-1);
+    }
+    if(access(arguments.args[1], 0)==0) {
+        printf("Destination project path already exists: %s\n", arguments.args[1]);
         exit(-1);
     }
 
@@ -155,7 +159,12 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    make_clone(arguments.args[0], arguments.args[1], arguments.source_keyword, arguments.destination_keyword);
+    int ret = make_clone(
+        arguments.args[0],
+        arguments.args[1],
+        arguments.source_keyword,
+        arguments.destination_keyword
+    );
 
-    exit(0);
+    exit(ret == 0? 0 : -1);
 }

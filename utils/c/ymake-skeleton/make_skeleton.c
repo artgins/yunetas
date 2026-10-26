@@ -1,17 +1,19 @@
 /****************************************************************************
- *          MAKE_CLONE.C
- *          Make a skeleton
+ *          MAKE_SKELETON.C
+ *          Make a yuno-skeleton template from a project
  *
  *          Copyright (c) 2015 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <dirent.h>
 #include <sys/stat.h>
 #include <libgen.h>
+#include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <argp-standalone.h>
+#include <errno.h>
 #include <jansson.h>
 #include <yunetas.h>
 #include "make_skeleton.h"
@@ -24,105 +26,111 @@
 /***************************************************************************
  *      Structures
  ***************************************************************************/
-struct find_sk_s {
-    char *fullname;
-    int fullname_size;
-    const char* base;
-    const char *file;
-    const char *skeleton;
-    json_t *jn_config;
-};
 
 /***************************************************************************
  *      Data
  ***************************************************************************/
 
 /***************************************************************************
- *  Values to replace
+ *  One case form of a keyword, as a template marker of the content
+ *  ({{var}}) and of the names (+var+). The first keyword to claim a form
+ *  keeps it (yunorole before rootname)
  ***************************************************************************/
-PRIVATE int add_value(json_t *jn_values, char *old_name, char *new_name)
+PRIVATE void add_form(json_t *content_values, json_t *name_values, const char *old, const char *var)
 {
-    lower(new_name);
-    lower(old_name);
-    if(!kw_has_key(jn_values, old_name)) {
-        json_object_set_new(jn_values, old_name, json_string(new_name));
+    // A keyword is a KEY of the dicts, never a kw path
+    if(json_object_get(content_values, old)) {
+        return;
     }
-
-    capitalize(new_name);
-    capitalize(old_name);
-    if(!kw_has_key(jn_values, old_name)) {
-        json_object_set_new(jn_values, old_name, json_string(new_name));
-    }
-
-    upper(new_name);
-    upper(old_name);
-    if(!kw_has_key(jn_values, old_name)) {
-        json_object_set_new(jn_values, old_name, json_string(new_name));
-    }
-
-    lower(new_name);
-    lower(old_name);
-
-    return 0;
+    char marker[NAME_MAX + 1];
+    snprintf(marker, sizeof(marker), "{{%s}}", var);
+    json_object_set_new(content_values, old, json_string(marker));
+    snprintf(marker, sizeof(marker), "+%s+", var);
+    json_object_set_new(name_values, old, json_string(marker));
 }
 
 /***************************************************************************
- *  Values to replace
+ *  The keyword in lower, Capitalized and UPPER case
  ***************************************************************************/
-static json_t *values2replace(char *yunorole, char *rootname)
+PRIVATE void add_value(json_t *content_values, json_t *name_values, char *old_name, const char *var_)
 {
-    json_t *jn_values = json_object();
-    char yunorole_[256] = "yunorole";
-    char rootname_[256] = "rootname";
+    char var[NAME_MAX + 1];
+    snprintf(var, sizeof(var), "%s", var_);
 
-    add_value(jn_values, yunorole, yunorole_);
+    lower(old_name);
+    lower(var);
+    add_form(content_values, name_values, old_name, var);
 
-    int list_size;
-    const char **names = split2(rootname, "|, ", &list_size);
+    capitalize(old_name);
+    capitalize(var);
+    add_form(content_values, name_values, old_name, var);
 
-    for(int i=0; i<list_size; i++) {
-        add_value(jn_values, (char *)(*(names +i)), rootname_);
-    }
+    upper(old_name);
+    upper(var);
+    add_form(content_values, name_values, old_name, var);
 
-    split_free2(names);
-
-    return jn_values;
+    lower(old_name);
 }
 
 /***************************************************************************
  *  Make a skeleton
  ***************************************************************************/
-int make_skeleton(char *source_path, char *destination_path_, char *yunorole, char *rootname)
+int make_skeleton(char *source_path, char *destination_path, char *yunorole, char *rootname)
 {
-    char destination_path[PATH_MAX];
-    snprintf(destination_path, sizeof(destination_path), "%s", destination_path_);
-    char *destination_dir = dirname(destination_path);
+    char dir_bf[PATH_MAX];
+    snprintf(dir_bf, sizeof(dir_bf), "%s", destination_path);
+    char *destination_dir = dirname(dir_bf);
 
-    json_t *toreplace = values2replace(yunorole, rootname);
-    print_json("", toreplace);
+    json_t *content_values = json_object();
+    json_t *name_values = json_object();
 
-    if(access(destination_dir,0)!=0) {
+    add_value(content_values, name_values, yunorole, "yunorole");
+
+    int list_size;
+    const char **names = split2(rootname, "|, ", &list_size);
+    for(int i=0; i<list_size; i++) {
+        add_value(content_values, name_values, (char *)names[i], "rootname");
+    }
+    split_free2(names);
+
+    print_json("Content markers", content_values);
+
+    int ret = 0;
+    if(access(destination_dir, F_OK) != 0) {
         printf("Creating directory: %s\n", destination_dir);
-        if(mkdir(destination_dir, S_ISUID|S_ISGID | S_IRWXU|S_IRWXG|S_IROTH|S_IXOTH)<0) {
-            printf("ERROR: cannot create destination ('%s'), %s\n", destination_dir, strerror(errno));
-            exit(-1);
+        if(mkrdir(destination_dir, 02775) < 0) {
+            fprintf(stderr, "ERROR: cannot create the destination's directory '%s': %s\n",
+                destination_dir, strerror(errno));
+            ret = -1;
         }
     } else if(!is_directory(destination_dir)) {
-        printf("ERROR: destination ('%s') is not a directory\n", destination_dir);
-        exit(-1);
+        fprintf(stderr, "ERROR: '%s' is not a directory\n", destination_dir);
+        ret = -1;
     }
 
-    printf("Creating project: %s\n", destination_path_);
-    if(mkdir(destination_path_, S_ISUID|S_ISGID | S_IRWXU|S_IRWXG|S_IROTH|S_IXOTH)<0) {
-        printf("ERROR: cannot create project ('%s'), %s\n", destination_path_, strerror(errno));
-        exit(-1);
+    clone_spec_t spec = {
+        .content_values = content_values,
+        .name_values = name_values,
+        .text_suffix = "_tmpl",
+        .untouched = json_object()
+    };
+
+    if(ret == 0) {
+        printf("Creating skeleton: %s\n", destination_path);
+        ret = clone_tree_dir(destination_path, source_path, &spec);
+        if(ret == 0) {
+            print_untouched_words(&spec);
+            printf("\nTo use it, add an entry for '%s' in the __skeletons__.json of its directory\n",
+                destination_path);
+        } else if(access(destination_path, F_OK) == 0) {
+            fprintf(stderr, "ERROR: the clone stopped at the first error, '%s' is left as far as it got\n",
+                destination_path);
+        }
     }
 
-    /*
-     *  Source path and destination path already created
-     */
-    clone_tree_dir(destination_path_, source_path, toreplace);
-    json_decref(toreplace);
+    json_decref(spec.untouched);
+    json_decref(name_values);
+    json_decref(content_values);
 
-    return 0;
+    return ret;
 }

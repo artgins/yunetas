@@ -3,6 +3,7 @@
  *          Make a new skeleton of a yuno.
  *
  *          Copyright (c) 2021 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
@@ -137,13 +138,12 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    if(access(arguments.args[1], 0)==0) {
-        printf("Destination project path already exists: %s\n", arguments.args[1]);
-        exit(-1);
-    }
-
     if(empty_string(arguments.args[1])) {
         printf("Enter a destination project path\n");
+        exit(-1);
+    }
+    if(access(arguments.args[1], 0)==0) {
+        printf("Destination project path already exists: %s\n", arguments.args[1]);
         exit(-1);
     }
 
@@ -156,7 +156,12 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    make_skeleton(arguments.args[0], arguments.args[1], arguments.yunorole, arguments.rootname);
+    int ret = make_skeleton(
+        arguments.args[0],
+        arguments.args[1],
+        arguments.yunorole,
+        arguments.rootname
+    );
 
-    exit(0);
+    exit(ret == 0? 0 : -1);
 }
