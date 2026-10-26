@@ -1,6 +1,16 @@
 # **Changelog**
 
-## Unreleased
+## v7.28.7 (2026-10-26)
+
+A lite release: the scaffolding and cloning tools (`yuno-skeleton`,
+`yclone-gclass`, `yclone-project`, `ymake-skeleton`) and their templates.
+The kernel changes two lines of behaviour nobody sees (`c_assets.c` and
+`c_idp_keycloak.c` take the canonical SERVICE block; both are created as
+services, which never take its `else`), so no yuno is redeployed. Tests: the
+ones the change affects (`yuno_skeleton/templates`, `yuno_skeleton/cloners`,
+`test_c_assets`, `test_command_delete_user`), on the dev machine. No
+performance study: no benchmark runs these tools, nor the `mt_create` of
+those two gclasses.
 
 - **The cloners stop breaking what they clone** (`yclone-gclass`,
   `yclone-project`, `ymake-skeleton`, now ONE engine,
