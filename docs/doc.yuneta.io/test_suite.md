@@ -511,6 +511,7 @@ these tests is described in `tests/c/timeranger2/README.md`.
 | **`test_build_path`** | [`build_path()`](#build_path): segments joined with one `/`, and a `..` clamped at the root (no path escapes the base). |
 | **`test_gbuffer_guards`** | A NULL gbuffer given to its pointer accessors answers NULL, not a crash, and so does `config_gbuffer2json()` of one (the agent's `create-config` of a `content64` that is not base64 was a SIGSEGV up to 7.26.9); bytes from a peer that are not json are a warning (`gbuf2json_from_peer()`, `anystring2json_from_peer()`), never logged as they came (`json_error_for_log()` drops the bytes jansson quotes near the error). |
 | **`test_glogger_utf8`** | The logger never writes a record that is not valid UTF-8 JSON: an invalid byte is escaped as `\u00XX`, valid multibyte text stays readable. |
+| **`test_trace_tab`** | [`tab()`](#tab), the indentation of a machine trace line, at a REAL depth (an action that sends the same event to its own gobj, 12 levels down): four spaces per level, one at depth 0, never more than `bflen - 2`, only spaces; a buffer of 1 or 0 bytes or `NULL` logs an error and is not written past its size (up to 7.28.7 it was overrun, and `NULL` crashed). `trace_machine()` at depth 12 carries the 48 spaces: it took the indentation through a 40-byte buffer, which capped it at 38. |
 | **`test_command_authz`** | The per-command authz gate (`SDF_AUTHZ_X`): off by default, a command without the permission is refused `-403` when on, a command to itself and a granted one run; the permission is asked BEFORE the parameters (a bad parameter without it is `-403`, with it `-1`), and the checker is asked for the command's name, not its line. |
 | **`test_command_delete_user`** | `delete-user` of `C_AUTHZ`: a user with roles needs `force`, an immutable seed user is never deleted. |
 | **`test_command_shutdown`** | `shutdown` answers first and stops the yuno after the answer left. |
@@ -529,7 +530,7 @@ these tests is described in `tests/c/timeranger2/README.md`.
 
 **Source:** `tests/c/helpers/`, `tests/c/gbuffer/`, `tests/c/command_binary_kw/`,
 `tests/c/command_parameter_types/`,
-`tests/c/build_path/`, `tests/c/glogger_utf8/`, `tests/c/command_authz/`,
+`tests/c/build_path/`, `tests/c/glogger_utf8/`, `tests/c/gobj_trace_tab/`, `tests/c/command_authz/`,
 `tests/c/command_delete_user/`, `tests/c/command_shutdown/`, `tests/c/register_refused_gclass/`, `tests/c/libjwt/`,
 `tests/c/secret_attrs/`, `tests/c/command_secret_positional/`, `tests/c/attr_types/`
 

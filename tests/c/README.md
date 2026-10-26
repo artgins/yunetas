@@ -79,6 +79,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `build_path` | `build_path()` and its clamped `..` |
 | `gbuffer` | NULL guards of the gbuffer accessors; a refused `gbmem_realloc()` leaves the old block valid and tracked |
 | `glogger_utf8` | The logger never writes a record that is not valid UTF-8 JSON |
+| `gobj_trace_tab` | `tab()`: four spaces per nesting level, one at depth 0, at most `bflen-2`, a buffer under 2 bytes refused; `trace_machine()` carries the whole indentation at depth 12 |
 | `command_authz` | The per-command authorization gate (`SDF_AUTHZ_X`) |
 | `c_ievent_srv_peer_subs` | What a remote peer may put in a subscription through `C_IEVENT_SRV` (`__global__` keys of its own only, no `__local__`, no stray keys) and hold (`max_subscriptions`, `max_subscription_size`); a subscription's `__local__`/`__global__` change only its own copy of the event; each peer-repeated log written once; a client withdraws a subscription with a `__global__`; a `gbuffer` published to two remote subscribers and a local one (each twin holds its own reference); a `__username__` and routing stamps a peer sends are overwritten by the gate's; the routing a subscription stores is the peer's reversed hop only, and measured; a repeated subscription is kept as it is; a frame with no routing closes the channel with one capped warning |
 | `c_ievent_srv_identity_card` | The identity cards a peer sends to `C_IEVENT_SRV` before its session: a card without routing, for another role or yuno, without `src_role` / `src_service`, for a service that does not exist, with a `jwt` that is not a string, and an event before any card are each refused with ONE capped warning (no stack, the jwt hidden) and the channel closed; a good card opens the session |
@@ -139,7 +140,7 @@ binaries carry a prefix: `c_mqtt/acl` runs `test_mqtt_acl`, `c_tcp/test5` runs
 | `msg_interchange` | `test_mqtt_qos0`, `test_tcp_connect`, `test_tcp_reconnect` |
 
 The single-binary directories that also register under `<directory>/`:
-`build_path`, `glogger_utf8`, `command_authz`, `command_delete_user`,
+`build_path`, `glogger_utf8`, `gobj_trace_tab`, `command_authz`, `command_delete_user`,
 `command_shutdown`, `command_binary_kw`, `c_tranger`, `libjwt` and
 `mbus_telegram`
 (for example `libjwt/test_jwt_alg_confusion`).
