@@ -3,7 +3,8 @@
 {{description}}
 
 An application made with [Yuneta](https://github.com/artgins/yunetas):
-its yunos live under `yunos/`, their configurations under `yunos/batches/`.
+its yunos live under `yunos/`, their configurations under `yunos/batches/`,
+its web frontend under `gui/`.
 
 ## Layout
 
@@ -13,6 +14,7 @@ its yunos live under `yunos/`, their configurations under `yunos/batches/`.
     yunos/
         CMakeLists.txt      one add_subdirectory() per yuno
         batches/<host>/     the configurations of each node
+    gui/                    the web frontend (Vite, gobj-js, gobj-ui's shell)
 ```
 
 ## A new yuno
@@ -39,6 +41,19 @@ Or by hand:
 mkdir -p yunos/build && cd yunos/build
 cmake .. && make install
 ```
+
+## GUI
+
+```bash
+cd gui
+npm install
+npm run dev         # http://localhost:5173
+npm run build       # validate-locales + check-markup, then vite build -> dist/
+```
+
+It starts as a shell with placeholder views (`C_{{PROJECT}}_VIEW`); see
+`gui/README.md` to add real ones. Commit its `package-lock.json`, and
+install a fresh checkout with `npm ci`.
 
 ## License
 

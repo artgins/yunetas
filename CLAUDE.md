@@ -257,8 +257,8 @@ estadodelaire and hidraulia are on `^7.28.0` (2026-10-25). Check the consumer's 
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
 `src/`.
 
-The JS GUI scaffold (declarative-shell yuno template) lives under
-`wattyzer/templates/js_gui/` (see the JS GUI scaffold note below).
+The JS GUI scaffold (declarative-shell yuno template) is the `gui/` of the
+`project` templates of `yuno-skeleton` (see the JS GUI scaffold note below).
 
 Operational notes:
 - The vitest suite + active source live here now (v2/`main`):
@@ -1186,9 +1186,12 @@ A new **application repository** starts from `project` (open source, MIT
 delivery must carry); its yunos are then made with `yuno_citizen` in its
 `yunos/`.
 
-The **JS GUI yuno** scaffold (Vite + declarative shell on gobj-ui v2) lives in
-`wattyzer/templates/js_gui/` (a private repo) since 2026-05-21. Use that copy
-when starting a new declarative-shell GUI yuno.
+The **JS GUI yuno** scaffold (Vite + declarative shell on gobj-ui v2) is the
+`gui/` of both, kept once in `skeletons/project_base/gui/` (it lived in
+`wattyzer/templates/js_gui/`, a private repo, from 2026-05-21 to 2026-10-26).
+gobj-ui's deploy round raises its ranges and runs
+`utils/c/yuno-skeleton/check_project_gui.sh`, which generates a project and
+installs and builds its gui.
 
 **Every banner from the skeleton must be present, even when its section is
 empty.** Don't add extra banners outside the skeleton set. Don't reorder
@@ -1310,8 +1313,8 @@ Examples: `c_yui_main.js` (`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
   (`node_modules/@yuneta/gobj-ui/scripts/check-markup-strings.mjs`; its
   `acorn` is a dependency of gobj-ui since 7.26.29, so an app need not
   declare it). So do wattyzer, yunomusica and the
-  `js_gui` scaffold (which takes gobj-ui from npm since 2026-10-11; it used
-  to vendor lib-yui). **The default does not flip in 7.x, by decision
+  project templates' `gui/` scaffold (which takes gobj-ui from npm since
+  2026-10-11; it used to vendor lib-yui). **The default does not flip in 7.x, by decision
   (2026-10-11):** the reason was hidraulia, then frozen on gobj-ui v1, whose
   markup is plain strings, taking gobj-js through `^7.22.2` -- a flipped
   default would have reached it by its range and broken it. Since 2026-10-15

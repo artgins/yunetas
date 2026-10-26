@@ -54,6 +54,17 @@ sed -i 's|^# add_subdirectory(my_yuno)$|add_subdirectory(my_yuno)|' CMakeLists.t
 
 `project` writes an MIT `LICENSE`; `project_commercial` a proprietary one,
 and a README section on what a delivery of a closed application must carry.
+Both make `gui/`, the web frontend (Vite, `@yuneta/gobj-js`, the declarative
+shell of `@yuneta/gobj-ui`):
+
+```bash
+cd my_app/gui
+npm install
+npm run dev
+```
+
+The answers are one line per prompt (an empty line takes the default); an
+input that ends before the last prompt is an error.
 
 | Template | Type | Makes |
 |----------|------|-------|
@@ -62,7 +73,7 @@ and a README section on what a delivery of a closed application must carry.
 | `c_h_file` | GClass | `<name>.{c,h}`, no gobj |
 | `yuno_citizen`, `yuno_standalone` | Yuno | `<role>/` |
 | `c_project` | Utility | `<name>/`, a pure C program |
-| `project`, `project_commercial` | Project | `<name>/`, an application repository |
+| `project`, `project_commercial` | Project | `<name>/`, an application repository with its `gui/` |
 
 ## See also
 

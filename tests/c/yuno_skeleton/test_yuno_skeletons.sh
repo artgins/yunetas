@@ -16,7 +16,9 @@
 #     - js_gclass and js_gclass_service, loaded by node against gobj-js:
 #       each one's timer fires;
 #     - project and project_commercial, with a citizen yuno in yunos/,
-#       built from the project root;
+#       built from the project root, and their gui/ (json, markers, the
+#       .js parse; check_project_gui.sh installs and builds it);
+#     - an answer too few is an error, not a prompt for ever;
 #     - no template holds a {{marker}} that nothing fills.
 #
 #   Copyright (c) 2026, ArtGins.
@@ -250,7 +252,35 @@ for kind in project project_commercial; do
     if build "$A"; then
         [ -x "$A/build/yunos/sktappy/sktappy" ] || fail "$kind: the yuno was not built"
     fi
+
+    #   The gui/, without a network: its package.json is json and names
+    #   the app, no marker is left but i18next's {{name}} and {{n}}, and
+    #   every .js parses (check_project_gui.sh installs and builds it)
+    [ -f "$A/gui/src/c_sktapp_app.js" ] && [ -f "$A/gui/src/c_sktapp_view.js" ] \
+        || fail "$kind: no gui/src/c_sktapp_app.js and c_sktapp_view.js"
+    python3 -c 'import json, sys; assert json.load(open(sys.argv[1]))["name"] == "sktapp_gui"' \
+        "$A/gui/package.json" 2> /dev/null || fail "$kind: gui/package.json is not json naming sktapp_gui"
+    LEFT="$(grep -rhoE '\{\{[A-Za-z_]+\}\}' "$A" | grep -vxE '\{\{(name|n)\}\}' | sort -u)"
+    [ -z "$LEFT" ] || fail "$kind: markers left: $LEFT"
+    grep -q '"{{name}}, {{n}}": "{{name}}, {{n}}"' "$A/gui/src/locales/en.js" \
+        || fail "$kind: the i18next interpolation of the locales was not kept"
+    if command -v node > /dev/null 2>&1; then
+        for js in $(find "$A/gui" -name "*.js"); do
+            node --check "$js" 2> "$WORK/node_check.log" || { fail "$kind: $js does not parse"; head -5 "$WORK/node_check.log"; }
+        done
+    fi
 done
+
+#
+#   An answer too few ends with an error: a required value asked again on
+#   an exhausted stdin looped for ever up to 7.28.6
+#
+mkdir -p "$WORK/eof"
+if (cd "$WORK/eof" && printf "x\n" | timeout 10 "$BIN" -p "$SKELETONS" gclass_child) > "$WORK/eof.log" 2>&1; then
+    fail "yuno-skeleton accepted an input with values missing"
+fi
+grep -q "end of input before every value was given" "$WORK/eof.log" \
+    || fail "yuno-skeleton did not say the input ended (see $WORK/eof.log)"
 
 #
 #   No template holds a {{marker}} that nothing fills: yuno-skeleton says

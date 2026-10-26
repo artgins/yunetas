@@ -1,0 +1,39 @@
+import { defineConfig } from "vite";
+import { yunetaHtmlPlugin } from "@yuneta/gobj-ui/vite-plugin-yuneta-html.js";
+import { yunetaLicensesPlugin } from "@yuneta/gobj-ui/vite-plugin-yuneta-licenses.js";
+
+export default defineConfig({
+    resolve: {
+        /*  @yuneta/gobj-ui declares these as peerDependencies and imports
+         *  them itself; one shared copy of each, or a module-level
+         *  singleton (i18next's `t`, the __yuno__ of gobj-js) is bound
+         *  twice and a component renders blank.  */
+        dedupe: [
+            "@yuneta/gobj-js",
+            "i18next",
+            "@antv/g6",
+            "maplibre-gl",
+            "tabulator-tables",
+            "tom-select",
+            "uplot",
+            "vanilla-jsoneditor",
+        ],
+    },
+    build: {
+        /*  The maps stay in dist/ (to decode a stack sent by the remote
+         *  log) but carry no sourceMappingURL and are not deployed.  */
+        sourcemap: "hidden",
+        chunkSizeWarningLimit: 6000
+    },
+    server: {
+        port: 5173,
+        watch: {
+            usePolling: true,
+            interval: 300
+        }
+    },
+    plugins: [
+        yunetaHtmlPlugin({ defaultTitle: "{{Project}} GUI" }),
+        yunetaLicensesPlugin()
+    ]
+});

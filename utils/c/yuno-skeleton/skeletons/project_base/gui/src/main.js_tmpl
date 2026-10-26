@@ -1,0 +1,223 @@
+/***********************************************************************
+ *          main.js
+ *
+ *          {{Project}} GUI — entry point.
+ *
+ *          The GUI is built on the declarative shell + nav stack
+ *          (C_YUI_SHELL + C_YUI_NAV) of @yuneta/gobj-ui, taken from
+ *          the npm registry like @yuneta/gobj-js. All menu structure
+ *          lives in
+ *          src/app_config.json; this file only wires the GClasses and
+ *          starts the yuno.
+ *
+ *          Copyright (c) {{__year__}}, {{author}}.
+ *          All Rights Reserved.
+ ***********************************************************************/
+import {
+    gobj_start_up,
+    gobj_create_yuno,
+    gobj_create_default_service,
+    gobj_create_service,
+    gobj_start, gobj_play,
+    register_c_yuno,
+    register_c_timer,
+    gobj_set_gclass_no_trace,
+    gobj_set_global_no_trace,
+    gobj_read_attr,
+    refresh_language,
+    set_strings_are_text,
+} from "@yuneta/gobj-js";
+import i18next from "i18next";
+
+/*
+ *  The shell + nav from @yuneta/gobj-ui, by package specifier (its
+ *  exports map serves "./src/*"). A change to the library reaches this
+ *  app once it is published and the range below is raised.
+ */
+import {register_c_yui_shell, yui_shell_set_translator}
+    from "@yuneta/gobj-ui/src/c_yui_shell.js";
+import {register_c_yui_nav}   from "@yuneta/gobj-ui/src/c_yui_nav.js";
+import {register_c_yui_update_watch} from "@yuneta/gobj-ui/src/c_yui_update_watch.js";
+
+import {register_c_{{project}}_view} from "./c_{{project}}_view.js";
+import {register_c_{{project}}_app}  from "./c_{{project}}_app.js";
+
+import {setup_locale} from "./locales/locales.js";
+
+import "bulma/css/bulma.css";
+import "@yuneta/gobj-ui/src/c_yui_shell.css";
+import "@yuneta/gobj-ui/src/yui_icons.css";
+
+import app_config from "./app_config.json";
+
+
+/************************************************
+ *          Yuno identity
+ ************************************************/
+const yuno_name    = "{{Project}} GUI";
+const yuno_role    = "{{project}}_gui";
+const yuno_version = "{{version}}";
+
+
+/***************************************************************
+ *          Startup checks
+ ***************************************************************/
+if(!("WebSocket" in window)) {
+    window.alert("This app cannot run without WebSockets!");
+}
+
+
+/***************************************************************
+ *          main()
+ ***************************************************************/
+function main()
+{
+    /*----------------------------*
+     *      Register gclasses
+     *----------------------------*/
+    /*  Yunetas-js kernel  */
+    register_c_yuno();
+    register_c_timer();
+
+    /*  Shell + nav stack  */
+    register_c_yui_shell();
+    register_c_yui_nav();
+    register_c_yui_update_watch();
+
+    /*  App-level views  */
+    register_c_{{project}}_view();
+    register_c_{{project}}_app();
+
+    /*------------------------------------------------*
+     *          Start yuneta
+     *------------------------------------------------*/
+    /*
+     *  A plain string given to createElement2() is TEXT, never markup:
+     *  markup is said with html_markup() (gobj-js 7.26.3+). A string
+     *  that starts with '<' is logged once -- a datum that would
+     *  have run as html.
+     */
+    set_strings_are_text(true);
+
+    gobj_start_up(
+        null,   // jn_global_settings
+        null,   // load_persistent_attrs_fn
+        null,   // save_persistent_attrs_fn
+        null,   // remove_persistent_attrs_fn
+        null,   // list_persistent_attrs_fn
+        null,   // global_command_parser_fn
+        null    // global_stats_parser_fn
+    );
+
+    /*------------------------------------------------*
+     *          Traces
+     *------------------------------------------------*/
+    /*  Avoid timer trace, too much information: `machine` traces every
+     *  event by design, so the yuno's one-second periodic tick buries
+     *  whatever you were following. Same block every C main() carries.
+     *  Must come AFTER register_c_timer(): the gclass has to exist to
+     *  be silenced, or this logs "gclass NOT FOUND" and does nothing.  */
+    gobj_set_gclass_no_trace("C_TIMER", "machine", true);
+    gobj_set_global_no_trace("timer_periodic", true);
+
+    /*------------------------------------------------*
+     *          Create the __yuno__
+     *------------------------------------------------*/
+    let yuno = gobj_create_yuno(
+        "{{project}}_gui_yuno",
+        "C_YUNO",
+        {
+            yuno_name:    yuno_name,
+            yuno_role:    yuno_role,
+            yuno_version: yuno_version
+        }
+    );
+
+    /*------------------------------------------------*
+     *      Initialise i18n (i18next) with the bundled
+     *      en / es resource bundles.  Honours the user's
+     *      saved choice in localStorage (default: "es").
+     *
+     *      The toolbar's language button publishes
+     *      EV_TOGGLE_LANGUAGE; C_{{PROJECT}}_APP (below)
+     *      switches the language and tells the shell, which
+     *      repaints with the translator it is given at the
+     *      end of main().
+     *------------------------------------------------*/
+    setup_locale();
+
+    /*------------------------------------------------*
+     *      The shell IS the default service.
+     *      It builds the whole UI from app_config.
+     *------------------------------------------------*/
+    let shell = gobj_create_default_service(
+        "shell",
+        "C_YUI_SHELL",
+        {
+            config:   app_config,
+            use_hash: true
+        },
+        yuno
+    );
+
+    /*------------------------------------------------*
+     *      The app's own service: what the toolbar
+     *      asks of the app (the language button).
+     *------------------------------------------------*/
+    gobj_create_service(
+        "app",
+        "C_{{PROJECT}}_APP",
+        {
+            shell: shell
+        },
+        yuno
+    );
+
+    /*------------------------------------------------*
+     *      Is this page still the deployed build? A bar
+     *      says so when it is not. An app with a backend
+     *      also sends it EV_CHECK_BUILD on every EV_ON_OPEN.
+     *------------------------------------------------*/
+    gobj_start(gobj_create_service(
+        "__update_watch__",
+        "C_YUI_UPDATE_WATCH",
+        {},
+        yuno
+    ));
+
+    /*------------------------------------------------*
+     *      Play
+     *------------------------------------------------*/
+    gobj_start(yuno);
+    gobj_play(yuno);
+
+    /*------------------------------------------------*
+     *      The shell renders with i18n KEYS: translate
+     *      it once, and hand it the translator for what
+     *      it builds later outside its $container (the
+     *      toolbar's dropdown panels). Without this every
+     *      label shows its raw key in every language.
+     *------------------------------------------------*/
+    let t = i18next.t.bind(i18next);
+    yui_shell_set_translator(shell, t);
+    refresh_language(gobj_read_attr(shell, "$container") || document.body, t);
+}
+
+
+/***************************************************************
+ *          Bootstrap on window load
+ ***************************************************************/
+window.addEventListener("load", function() {
+    /*  Remove the static loading banner injected by index.html  */
+    let loading = document.getElementById("loading-message");
+    if(loading) {
+        loading.remove();
+    }
+
+    /*  Clean any leftover hash from a previous session  */
+    if(!window.location.hash) {
+        window.location.hash = "";
+    }
+
+    main();
+});

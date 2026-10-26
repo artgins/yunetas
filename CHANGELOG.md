@@ -70,7 +70,18 @@
       for a gclass created with `gobj_create_service()`.
 
   `yuno_skeleton/templates` builds both projects with a citizen yuno in
-  them, and runs the JS service in node. `SCAFFOLDING.md` and `GOBJ.md`
+  them, and runs the JS service in node. Both carry the web frontend in
+  `gui/`: the JS GUI scaffold (Vite, gobj-js, gobj-ui's declarative shell)
+  moved here from `wattyzer/templates/js_gui/`, a private repository, and
+  is kept once in `skeletons/project_base/`, which both entries `extends`
+  (new catalog key: copied first, a file in both is an error). New key
+  `keep` leaves i18next's `{{name}}` and `{{n}}` as they are.
+  `check_project_gui.sh` generates a project and installs and builds its
+  gui; gobj-ui's deploy round runs it. The scaffold titled its README and
+  its yuno "Foo GUI GUI". yuno-skeleton ends with an error on an input
+  that runs out (a required prompt was asked again for ever), refuses a
+  project name outside `[a-z0-9_]`, and refuses to overwrite a non-template
+  file too. `SCAFFOLDING.md` and `GOBJ.md`
   recipes still passed the name as an argument, and one used a role of 17
   characters (the tool takes 15).
 

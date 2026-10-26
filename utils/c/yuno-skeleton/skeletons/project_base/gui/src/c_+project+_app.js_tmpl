@@ -1,0 +1,210 @@
+/***********************************************************************
+ *          c_{{project}}_app.js
+ *
+ *          C_{{PROJECT}}_APP — the app's own service: what the shell's
+ *          toolbar asks of the app. Today, the language: the toolbar
+ *          button publishes EV_TOGGLE_LANGUAGE and this switches es <-> en
+ *          and tells the shell, which repaints the page with the
+ *          translator it was given and publishes EV_LANGUAGE_CHANGED to
+ *          the views that composed text at render time.
+ *
+ *          A toolbar item with `action: {type: "event"}` that nobody
+ *          handles is a control that does nothing: give each one its
+ *          action here, or take it out of app_config.json.
+ *
+ *          Copyright (c) {{__year__}}, {{author}}.
+ *          All Rights Reserved.
+ ***********************************************************************/
+import {
+    SDATA, SDATA_END, data_type_t,
+    gclass_create, log_error,
+    gobj_read_pointer_attr,
+    gobj_subscribe_event,
+} from "@yuneta/gobj-js";
+import {yui_shell_language_changed} from "@yuneta/gobj-ui/src/c_yui_shell.js";
+
+import {switch_locale, current_locale} from "./locales/locales.js";
+
+/***************************************************************
+ *              Constants
+ ***************************************************************/
+const GCLASS_NAME = "C_{{PROJECT}}_APP";
+
+/***************************************************************
+ *              Data
+ ***************************************************************/
+const attrs_table = [
+SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of output events"),
+SDATA(data_type_t.DTP_POINTER,  "shell",        0,  null,   "The C_YUI_SHELL whose toolbar this serves"),
+SDATA_END()
+];
+
+let PRIVATE_DATA = {};
+
+let __gclass__ = null;
+
+
+
+
+                    /******************************
+                     *      Framework Methods
+                     ******************************/
+
+
+
+
+/***************************************************************
+ *          Framework Method: Create
+ ***************************************************************/
+function mt_create(gobj)
+{
+    /*
+     *  SERVICE subscription model
+     */
+    const subscriber = gobj_read_pointer_attr(gobj, "subscriber");
+    if(subscriber) {
+        gobj_subscribe_event(gobj, null, {}, subscriber);
+    }
+
+    /*
+     *  Only the events this app acts on: subscribed to the whole shell
+     *  it would have to declare every event the shell publishes. Done
+     *  here and not in mt_start: a service other than the default one
+     *  is not started by the yuno's play. gobj_destroy() takes the
+     *  subscription back by itself.
+     */
+    const shell = gobj_read_pointer_attr(gobj, "shell");
+    if(!shell) {
+        log_error(`${GCLASS_NAME}: no shell to serve`);
+        return;
+    }
+    gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
+}
+
+/***************************************************************
+ *          Framework Method: Start
+ ***************************************************************/
+function mt_start(gobj)
+{
+}
+
+/***************************************************************
+ *          Framework Method: Stop
+ ***************************************************************/
+function mt_stop(gobj)
+{
+}
+
+/***************************************************************
+ *          Framework Method: Destroy
+ ***************************************************************/
+function mt_destroy(gobj)
+{
+}
+
+
+
+
+                    /***************************
+                     *      Local Methods
+                     ***************************/
+
+
+
+
+/***************************************************************
+ *
+ ***************************************************************/
+
+
+
+
+                    /***************************
+                     *      Actions
+                     ***************************/
+
+
+
+
+/************************************************************
+ *  The toolbar's language button: es <-> en. The shell repaints
+ *  the whole body with its translator (yui_shell_set_translator in
+ *  main.js), dialogs appended to the body included.
+ ************************************************************/
+function ac_toggle_language(gobj, event, kw, src)
+{
+    const next = (current_locale() === "es")? "en" : "es";
+    switch_locale(next);
+    yui_shell_language_changed(src);
+    return 0;
+}
+
+/***************************************************************
+ *              FSM
+ ***************************************************************/
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+const gmt = {
+    mt_create:  mt_create,
+    mt_start:   mt_start,
+    mt_stop:    mt_stop,
+    mt_destroy: mt_destroy
+};
+
+/***************************************************************
+ *          Create the GClass
+ ***************************************************************/
+function create_gclass(gclass_name)
+{
+    if(__gclass__) {
+        log_error(`GClass ALREADY created: ${gclass_name}`);
+        return -1;
+    }
+
+    /*---------------------------------------------*
+     *          States
+     *---------------------------------------------*/
+    const states = [
+        ["ST_IDLE", [
+            ["EV_TOGGLE_LANGUAGE",  ac_toggle_language, null]
+        ]]
+    ];
+
+    /*---------------------------------------------*
+     *          Events
+     *---------------------------------------------*/
+    const event_types = [
+        ["EV_TOGGLE_LANGUAGE",  0]
+    ];
+
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        gmt,
+        0,  // lmt,
+        attrs_table,
+        PRIVATE_DATA,
+        0,  // authz_table,
+        0,  // command_table,
+        0,  // s_user_trace_level
+        0   // gclass_flag
+    );
+
+    if(!__gclass__) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************
+ *          Register GClass
+ ***************************************************************/
+function register_c_{{project}}_app()
+{
+    return create_gclass(GCLASS_NAME);
+}
+
+export { register_c_{{project}}_app };

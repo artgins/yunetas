@@ -28,7 +28,13 @@ them) and builds it against the SDK in `outputs/`:
 - `project` and `project_commercial`: each gets a `yuno_citizen` made in its
   `yunos/` and added to `yunos/CMakeLists.txt`, and is built from the
   project root with no warning; the `LICENSE` is the one of its kind (MIT,
-  proprietary) and the README says the license asked for.
+  proprietary) and the README says the license asked for. Their `gui/`
+  without a network: `package.json` is json naming `sktapp_gui`, no marker
+  is left but i18next's `{{name}}` and `{{n}}` (kept, not emptied), and every
+  `.js` parses. `utils/c/yuno-skeleton/check_project_gui.sh` installs and
+  builds it (npm and the registry, so not under ctest).
+- An answer too few is an error, not the same prompt for ever (it looped up
+  to 7.28.6).
 
 A build that fails or warns fails the test: red with `MSGSET_INTERNAL_ERROR`
 in the standalone template, the name it had up to `3e140bb02`.

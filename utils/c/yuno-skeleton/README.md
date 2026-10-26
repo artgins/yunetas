@@ -28,7 +28,16 @@ stay installed.
 Templates: C gclasses (`gclass_service`, `gclass_child`, `c_h_file`), JS
 gclasses (`js_gclass`, `js_gclass_service`), yunos (`yuno_citizen`,
 `yuno_standalone`), a pure C program (`c_project`) and an application
-repository (`project`, MIT; `project_commercial`, closed). `--list` prints
-them with their summaries.
+repository with its web frontend in `gui/` (`project`, MIT;
+`project_commercial`, closed). `--list` prints them with their summaries.
+
+A catalog entry may `extends` a directory beside it (copied first, the
+template's own files on top; both project templates extend `project_base`)
+and `keep` markers of the generated code (`{{name}}` of i18next). An input
+that ends before the last prompt is an error.
+
+`check_project_gui.sh` generates a project and runs `npm install` and
+`npm run build` in its `gui/`; gobj-ui's deploy round runs it when it
+raises the template's ranges (`skeletons/project_base/gui/package.json_tmpl`).
 
 See also `ymake-skeleton` for cloning from an existing project rather than a template library.

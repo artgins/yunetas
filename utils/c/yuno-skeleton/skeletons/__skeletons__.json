@@ -182,8 +182,13 @@
     },
     {
         "name": "project",
-        "summary": "Create an application project, open source (MIT): yunos/, batches/, LICENSE",
+        "summary": "Create an application project, open source (MIT): yunos/, batches/, gui/, LICENSE",
         "type": "Project",
+        "extends": "project_base",
+        "keep": [
+            "name",
+            "n"
+        ],
         "vars": [
             {
                 "var": "version",
@@ -216,6 +221,11 @@
         "name": "project_commercial",
         "summary": "Create an application project, closed (proprietary LICENSE, what a delivery must carry)",
         "type": "Project",
+        "extends": "project_base",
+        "keep": [
+            "name",
+            "n"
+        ],
         "vars": [
             {
                 "var": "version",

@@ -106,6 +106,10 @@ Creating filename: ./c_my_svc.c
 $ printf 'my_svc\nCollects the readings\nArtGins\n' | yuno-skeleton gclass_service
 ```
 
+Give one line per prompt, an empty one for a default. An input that ends
+before the last prompt is an error (`ERROR: end of input before every
+value was given`): up to 7.28.6 a required value was asked again for ever.
+
 If you do not see what you expect, make sure that the catalog path
 (`__skeletons__.json`) and the templates live where `--skeletons-path`
 points.
@@ -142,6 +146,15 @@ Current entries (by line range in the JSON):
 | 152-182  | `yuno_citizen`      | Yuno    | Realm's citizen yuno project                     |
 | 184-214  | `project`           | Project | Application repository, open source (MIT)        |
 | 216-246  | `project_commercial`| Project | Application repository, closed (proprietary)     |
+
+Two optional keys:
+
+- `"extends": "<dir>"` — a directory beside the templates, copied into the
+  destination first; the template's own files go on top. A file in both is
+  an error (`ERROR File ... ALREADY EXISTS`), never an overwrite.
+- `"keep": ["<key>", ...]` — markers that belong to the generated code, not
+  to the template: each `{{key}}` is rendered as itself, and says nothing
+  on stderr. A `keep` that names a variable is refused.
 
 If you add a new template, follow the same shape. The runner parses this
 file at startup to fill the prompts.
@@ -207,7 +220,7 @@ ugly identifiers (`C_my_service` instead of `C_MY_SERVICE`).
 
 Files whose name does not end in `_tmpl` are **copied verbatim**, even
 if they contain `{{var}}` markers. The `_tmpl` suffix is the opt-in
-trigger.
+trigger. Either kind refuses to overwrite a file that exists.
 
 ---
 
@@ -447,14 +460,24 @@ turns an existing project into a template that `yuno-skeleton` can
 instantiate; `yclone-project` clones a project directly into a new name.
 The `yuno-skeleton` tool is the right pick for greenfield.
 
-### 9.7 The JS yuno scaffold lives outside this repo (since 2026-05-21)
+### 9.7 The JS GUI scaffold is the `gui/` of the project templates
 
-CLAUDE.md notes that the **JS GUI yuno** scaffold moved out of yunetas
-to `wattyzer/templates/js_gui/` with the declarative shell of gobj-ui v2.
-The
-`js_gclass` template still lives here and produces a single JS gclass,
-not a full GUI yuno project. For a new SPA, start from wattyzer's
-template.
+The **JS GUI yuno** scaffold (Vite, gobj-js, the declarative shell of
+gobj-ui v2) is the `gui/` that `project` and `project_commercial` make. It
+lived in `wattyzer/templates/js_gui/`, a private repository, from 2026-05-21
+to 2026-10-26, with a `generate.sh` of its own; it is kept once, in
+`skeletons/project_base/gui/`, and rendered by `yuno-skeleton` like any
+other template. Its locales carry i18next's own `{{name}}` and `{{n}}`,
+which the catalog lists in `keep`, so they are left as they are.
+
+gobj-ui's deploy round raises its ranges (`package.json_tmpl`) and runs
+`utils/c/yuno-skeleton/check_project_gui.sh`, which generates a project and
+installs and builds its gui; `yuno_skeleton/templates` checks the rest of it
+without a network. Loading the generated app in a browser with a clean
+console is still done by hand.
+
+`js_gclass` and `js_gclass_service` make a single JS gclass, for an SPA
+that exists already.
 
 ---
 
@@ -563,11 +586,33 @@ yunetas build my_app
 The repository gets `CMakeLists.txt` (builds `yunos/`), `yunos/CMakeLists.txt`
 (finds the SDK through `YUNETAS_BASE`, one `add_subdirectory()` per yuno),
 `yunos/batches/` for the configuration of each node, `README.md`,
-`CHANGELOG.md`, `LICENSE` and `.gitignore`. `project` writes an MIT
-`LICENSE`; `project_commercial` a proprietary one that leaves the
-third-party components under their own licenses, and a README section with
-what a delivery must carry. Yuneta itself stays MIT either way. A JS GUI is
-not part of the template.
+`CHANGELOG.md`, `LICENSE`, `.gitignore` and `gui/`, the web frontend
+(§9.7). `project` writes an MIT `LICENSE`; `project_commercial` a
+proprietary one that leaves the third-party components under their own
+licenses, and a README section with what a delivery must carry. Yuneta
+itself stays MIT either way.
+
+Both entries of the catalog `extends` the directory `project_base` (copied
+first; their own `LICENSE_tmpl` and `README.md_tmpl` go on top, and a file
+in both is an error), so what they share is written once:
+
+```json
+{
+    "name": "project_commercial",
+    "type": "Project",
+    "extends": "project_base",
+    "keep": ["name", "n"],
+    "vars": [ ... ]
+}
+```
+
+To start the GUI:
+
+```bash
+cd my_app/gui
+npm install
+npm run dev
+```
 
 ---
 

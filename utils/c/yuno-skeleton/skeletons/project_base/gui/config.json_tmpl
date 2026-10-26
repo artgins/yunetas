@@ -1,0 +1,17 @@
+{
+    "_comment": "All variable parts for index.html are configured here. The Vite html-transform plugin reads this file and injects the values at build time.",
+
+    "title": "{{Project}} GUI",
+
+    "metadata": {
+        "application-name": "{{Project}} GUI",
+        "description": "{{description}}",
+        "keywords": "{{project}}_gui yuneta gui"
+    },
+
+    "csp_connect_src": [
+        "_comment: List all WebSocket and HTTPS origins of the backend",
+        "wss://localhost:1800",
+        "https://localhost:1801"
+    ]
+}

@@ -385,6 +385,10 @@ int copy_dir(const char *dst, const char *src, json_t *jn_values)
             if(strstr(src_path, "_tmpl")) {
                 render_file(dst_path, src_path, jn_values);
             } else {
+                if(access(dst_path, 0)==0) {
+                    fprintf(stderr, "ERROR File %s ALREADY EXISTS\n", dst_path);
+                    exit(-1);
+                }
                 struct stat path_stat;
                 stat(src_path, &path_stat);
 

@@ -166,8 +166,14 @@ static int input_value(char *bf, int bfsize, const char *default_value, int test
 {
     bf[0] = 0;
     if(!testing) {
-        char *x = fgets(bf, bfsize, stdin);
-        if(x) {} // avoid warning
+        if(!fgets(bf, bfsize, stdin)) {
+            /*
+             *  A required value asked again on an exhausted stdin is a loop
+             *  for ever (a piped script with an answer too few)
+             */
+            fprintf(stderr, "\nERROR: end of input before every value was given\n");
+            exit(-1);
+        }
     } else{
         strncpy(bf, "aa", bfsize-1);
     }
@@ -270,13 +276,22 @@ static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
         json_object_set_new(jn_values, "UTILITY", json_string(bf));
 
     } else if(strcasecmp(type, "project")==0) {
+        /*
+         *  The name goes into file names, CMake projects, a package.json
+         *  and gclass names: [a-z0-9_] only
+         */
         do {
-            printf("Enter project name: ");
+            printf("Enter project name ([a-z0-9_]): ");
             input_value(bf, sizeof(bf), "", testing);
             if(testing) {
                 break;
             }
+            lower(bf);
             len = (int)strlen(bf);
+            if(len > 0 && strspn(bf, "abcdefghijklmnopqrstuvwxyz0123456789_") != (size_t)len) {
+                printf("Only [a-z0-9_] in a project name: '%s'\n", bf);
+                len = 0;
+            }
         } while(len < 1);
         lower(bf);
         json_object_set_new(jn_values, "project", json_string(bf));
@@ -531,6 +546,25 @@ int make_skeleton(const char* base, const char* file, const char* skeleton)
     const char *type = json_string_value(json_object_get(jn_skeleton, "type"));
     json_t *jn_values = input_vars_values(type, jn_vars, 0);
 
+    /*
+     *  "keep": markers that belong to the generated code, not to the
+     *  template (i18next's {{name}}): each one renders as itself
+     */
+    size_t idx;
+    json_t *jn_keep;
+    json_array_foreach(json_object_get(jn_skeleton, "keep"), idx, jn_keep) {
+        const char *key = json_string_value(jn_keep);
+        if(empty_string(key) || json_object_get(jn_values, key)) {
+            fprintf(stderr, "Skeleton '%s': cannot keep '%s', it is empty or a variable\n",
+                skeleton, key?key:""
+            );
+            exit(-1);
+        }
+        char marker[NAME_MAX];
+        snprintf(marker, sizeof(marker), "{{%s}}", key);
+        json_object_set_new(jn_values, key, json_string(marker));
+    }
+
     char dst_dir[80] = ".";
     if(strcasecmp(type, "yuno")==0) {
         const char *yunorole = json_string_value(json_object_get(jn_values, "yunorole"));
@@ -598,6 +632,32 @@ int make_skeleton(const char* base, const char* file, const char* skeleton)
             fprintf(stderr, "Cannot create directory '%s'\n", project);
             exit(-1);
         }
+    }
+
+    /*
+     *  "extends": a directory beside the template, copied first; the
+     *  template's own files go on top of it, and none may repeat one of
+     *  the base (copy_dir refuses to overwrite)
+     */
+    const char *extends = json_string_value(json_object_get(jn_skeleton, "extends"));
+    if(!empty_string(extends)) {
+        char parent[PATH_MAX];
+        snprintf(parent, sizeof(parent), "%s", fullname);
+        char *slash = strrchr(parent, '/');
+        if(slash) {
+            *slash = 0;
+        } else {
+            snprintf(parent, sizeof(parent), ".");
+        }
+        char extended[PATH_MAX];
+        build_path(extended, sizeof(extended), parent, extends, NULL);
+        if(access(extended, 0)!=0) {
+            fprintf(stderr, "Skeleton '%s' extends '%s', and %s does not exist\n",
+                skeleton, extends, extended
+            );
+            exit(-1);
+        }
+        copy_dir(dst_dir, extended, jn_values);
     }
 
     copy_dir(dst_dir, fullname, jn_values);

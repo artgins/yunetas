@@ -1,0 +1,5 @@
+# www.robotstxt.org/
+
+# Internal operations console — disallow crawling of all content.
+User-agent: *
+Disallow: /

@@ -1,0 +1,93 @@
+# {{Project}} GUI
+
+The web frontend of {{project}}, made with `yuno-skeleton project` (its
+`gui/`).
+
+Built with [Vite](https://vitejs.dev/) and the Yunetas
+`@yuneta/gobj-js` framework on top of the declarative shell
+(`C_YUI_SHELL` + `C_YUI_NAV`) of `@yuneta/gobj-ui`. Both come from the
+npm registry: a change to the library reaches this app once it is
+published and the range in `package.json` is raised.
+
+The app runs with `set_strings_are_text(true)`: a plain string given to
+`createElement2()` is text, and markup is said with `html_markup()`. The
+`prebuild` runs the check gobj-ui publishes
+(`check-markup-strings.mjs`); it cannot see markup a helper RETURNS, so
+before deploying, load the app and read the console for the
+`html_markup()` warnings.
+
+{{description}}
+
+## Status
+
+Skeleton.  Every menu route resolves to the placeholder gclass
+`C_{{PROJECT}}_VIEW`.  Replace it with real views as you build them.
+
+## Bootstrap
+
+```bash
+npm install
+npm run dev    # http://localhost:5173
+npm run build  # validate-locales + check-markup, then vite build
+```
+
+## Layout
+
+```
+gui/
+├── config.json          — title, metadata, CSP origins (consumed by Vite plugin)
+├── index.html
+├── vite.config.js       — dedupe of the libraries gobj-ui shares with the app
+├── package.json
+├── public/              — static assets served at the site root
+│   ├── 404.html
+│   ├── browserconfig.xml
+│   ├── humans.txt
+│   ├── robots.txt
+│   └── site.webmanifest
+└── src/
+    ├── app_config.json  — declarative shell + menu tree
+    ├── c_{{project}}_app.js  — the app's service: handles the toolbar's events (language)
+    ├── c_{{project}}_view.js — placeholder view gclass (title/subtitle are i18n keys)
+    ├── main.js          — registers gclasses, sets up i18n, starts the yuno
+    └── locales/
+        ├── en.js        — English translations
+        ├── es.js        — Spanish translations
+        ├── flags.js     — SVG flags for the language switcher
+        └── locales.js   — i18next bootstrap
+```
+
+## Gotchas
+
+- **Inline `<script>` is blocked by CSP.**  `yunetaHtmlPlugin` emits
+  `script-src 'self'`, so anything that needs to run before the
+  bundle (anti-FOUC, theme bootstrap, feature detection) must live
+  in `public/<name>.js` and be referenced with
+  `<script src="/<name>.js">`.  `eval()` and `new Function()` are
+  also forbidden by the policy.
+
+- **Don't restyle gobj-ui internals.**  The shell owns its own DOM
+  and CSS (toolbar, drawers, dropdowns, navs).  Before adding a
+  selector that targets a framework hook in app CSS, see whether
+  the need can be expressed by extending `app_config.json` (a new
+  `type` / `action.type` / `show_on` value) or by a public helper of
+  the library. See gobj-ui's `SHELL.md` §0 for the declarative-first
+  order of preference.
+
+## Add a real view
+
+1. Implement the view as a Yuneta GClass exposing a `$container`
+   `HTMLElement` attribute (see `c_{{project}}_view.js` for the
+   contract).
+2. Register it in `main.js`.
+3. Replace the relevant `target.gclass` in `app_config.json` and pass
+   any initial attributes via `target.kw`.  Setting
+   `target.kw.subtitle` also seeds the hover tooltip for free.
+
+## Author
+
+{{author}} <{{author_email}}>
+
+## License
+
+{{license_name}}

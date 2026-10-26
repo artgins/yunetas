@@ -409,7 +409,7 @@ Built-in skeleton templates:
 | `gclass_child` | GClass | Child GClass (all output events forwarded to parent) |
 | `yuno_standalone` | Yuno | Standalone yuno project based on yunetas kernel |
 | `yuno_citizen` | Yuno | Realm citizen yuno project |
-| `project` | Project | Application repository, open source (MIT `LICENSE`) |
+| `project` | Project | Application repository with its `gui/`, open source (MIT `LICENSE`) |
 | `project_commercial` | Project | Application repository, closed (proprietary `LICENSE`, delivery obligations) |
 
 Templates use `+variable+` placeholders in filenames and `{{variable}}` in file contents. Interactive prompts ask for values like description, author, version, and license.

@@ -44,8 +44,9 @@ Provides:
 - Theme management, toolbar, developer tools
 - Vite plugin for CSP generation and HTML templating
 
-The scaffold for a new declarative-shell GUI lives in `wattyzer/templates/js_gui/`
-(a private repository), not here.
+The scaffold for a new declarative-shell GUI is the `gui/` of the `project`
+templates of `yuno-skeleton`
+([`utils/c/yuno-skeleton/skeletons/project_base/gui/`](../../utils/c/yuno-skeleton/skeletons/project_base/gui/)).
 
 See [`gobj-ui/README.md`](gobj-ui/README.md) for the component guide and setup instructions.
 
