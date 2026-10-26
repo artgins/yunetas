@@ -8,6 +8,14 @@
   changes; a tool that reads a trace by event name is not affected.
   `@yuneta/gobj-js` 7.28.1 does the same, so a browser trace and a node's
   still line up.
+- **A machine trace line costs a third less to format** (`trace_machine()`,
+  ~147 to ~99 ns per line in a microbenchmark). It wrote the indentation into
+  a 40-byte buffer of its own and copied it, with the timestamp, into the line
+  again; it now writes both in place. The 40 bytes also capped the
+  indentation at depth 9 with four spaces per level; the cap is gone.
+  `tab()` writes one 4-byte store per level instead of one byte at a time
+  (2.0-2.8 ns at depths 1-4, was 2.8-5.8), and logs an error for a buffer
+  smaller than 2 bytes, which it used to overrun.
 
 ## v7.28.7 (2026-10-26)
 

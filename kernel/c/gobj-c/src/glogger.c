@@ -1280,8 +1280,6 @@ PUBLIC void trace_vjson(
 PUBLIC void trace_machine(const char *fmt, ...)
 {
     va_list ap;
-    char temp1[40];
-    char dtemp[90];
     char temp[512];
 
     if(!__initialized__) {
@@ -1296,17 +1294,15 @@ PUBLIC void trace_machine(const char *fmt, ...)
         fmt = "";
     }
 
-    tab(temp1, sizeof(temp1));
-    current_timestamp(dtemp, sizeof(dtemp));
-
-    snprintf(temp, sizeof(temp),
-        "%s -%s",
-        dtemp,
-        temp1
-    );
+    // In place: a buffer of its own capped the indentation, and copying it cost a third of the line
+    current_timestamp(temp, sizeof(temp));
+    size_t len = strlen(temp);
+    memcpy(temp + len, " -", 3);    // a timestamp is ~35 bytes of 512
+    len += 2;
+    tab(temp + len, (int)(sizeof(temp) - len));
+    len += strlen(temp + len);
 
     va_start(ap, fmt);
-    size_t len = strlen(temp);
     vsnprintf(temp+len, sizeof(temp)-len, fmt, ap);
     va_end(ap);
 

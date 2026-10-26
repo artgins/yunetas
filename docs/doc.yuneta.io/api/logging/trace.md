@@ -825,7 +825,7 @@ A pointer to the buffer containing the generated indentation string.
 
 **Notes**
 
-The indentation is determined by the global variable `__inside__`, which tracks the depth level of nested function calls: four spaces per level, and never less than one space. An event sent from inside another event's action is traced one level deeper:
+The indentation is determined by the global variable `__inside__`, which tracks the depth level of nested function calls: four spaces per level, never less than one space, and never more than `bflen - 2`. A buffer smaller than 2 bytes logs an error and gets no indentation. An event sent from inside another event's action is traced one level deeper:
 
 ```text
     🔄 EV_CONNECT C_TCP^server-1 ST_DISCONNECTED from C_IOGATE^gate
