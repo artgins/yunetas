@@ -1,7 +1,6 @@
 Yuno
 ====
 
-Name: {{yunoname}}
 Role: {{yunorole}}
 
 Description
@@ -11,3 +10,5 @@ Description
 
 License
 =======
+
+{{license_name}}

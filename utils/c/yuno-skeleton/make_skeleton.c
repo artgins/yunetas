@@ -7,6 +7,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <dirent.h>
+#include <limits.h>
 #include <time.h>
 #include <sys/stat.h>
 #include <stdlib.h>
@@ -71,25 +72,22 @@ PRIVATE int _walk_tree(
 
     while ((dent = readdir(dir))) {
         char *dname = dent->d_name;
-        if (!strcmp(dname, ".") || !strcmp(dname, ".."))
+        if (!strcmp(dname, ".") || !strcmp(dname, "..")) {
             continue;
-        if (!(opt & WD_HIDDENFILES) && dname[0] == '.')
+        }
+        if (!(opt & WD_HIDDENFILES) && dname[0] == '.') {
             continue;
+        }
 
-        int len = strlen(root_dir) + 2 + strlen(dname);
-        char *path = malloc(len);
-        if(!path) {
-            printf("No memory, %s\n", strerror(errno));
+        char path[PATH_MAX];
+        if(strlen(root_dir) + 1 + strlen(dname) >= sizeof(path)) {
+            printf("Path too long: '%s/%s'\n", root_dir, dname);
             exit(-1);
         }
-        memset(path, 0, len);
-        strncpy(path, root_dir, len-1);
-        strcat(path, "/");
-        strcat(path, dname);
+        build_path(path, sizeof(path), root_dir, dname, NULL);
 
         if(stat(path, &st) == -1) {
             printf("Stat('%s') failed: %s\n", path, strerror(errno));
-            free(path);
             continue;
         }
 
@@ -133,7 +131,6 @@ PRIVATE int _walk_tree(
                 index++;
             }
         }
-        free(path);
     }
     closedir(dir);
     return 0;

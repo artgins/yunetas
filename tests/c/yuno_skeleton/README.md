@@ -13,7 +13,10 @@ them) and builds it against the SDK in `outputs/`:
   (its timer is armed at the start): each one's timer reaches its
   `ac_timeout` (`Timeout`, `Timeout child`). Red with the timer of those two
   templates a plain child, as it was up to `1cab6b1cc`.
-- `yuno_citizen`, built with no warning.
+- `yuno_citizen`, with the SERVICE subscription block in its root gclass
+  and the license in its README (no empty `Name:`), built with no warning.
+  Red with the template of 7.28.6, whose blocks were both commented out.
+- `c_project`, with the license in its README, built with no warning.
 - `js_gclass`, loaded by node against this tree's gobj-js (its `src/`, so no
   npm build is needed): it registers, its timer fires (`Timeout`), and
   nothing is logged as an error. Red with the template of 7.28.6, which
@@ -39,6 +42,10 @@ up to 7.28.6 (21 checks fail against those binaries):
 - `ymake-skeleton` makes a template (`+rootname+` names, `{{yunorole}}`
   markers, `_tmpl` on text files only) that `yuno-skeleton` instantiates and
   that builds: the round trip.
+
+No template holds a `{{marker}}` that nothing fills: `yuno-skeleton` says
+each one on stderr, and the test fails on any (red with the README templates
+of 7.28.6 and their `{{yunoname}}`).
 
 `KEEP_WORK=1` keeps the work directories (`/tmp/test_yuno_skeletons.*`,
 `/tmp/test_cloners.*`).

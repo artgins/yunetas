@@ -151,6 +151,18 @@ file whose name ends in `_tmpl` is replaced by the matching value from
 `jn_values`. The templates use it inside `main.c_tmpl`,
 `c_+rootname+.c_tmpl` and the other `_tmpl` files.
 
+A `{{var}}` that nothing fills (no prompt asks for it, no derived variable
+is named so) is rendered empty and said on stderr, once per occurrence:
+
+```text
+WARNING: {{yunoname}} has no value, rendered empty
+```
+
+Up to 7.28.6 it was rendered empty in silence, and the two yuno READMEs
+carried a `Name: {{yunoname}}` nobody asked for. A yuno's name is chosen
+per instance when the agent creates it, so it has no place in a template;
+use `{{yunorole}}`.
+
 ### 4.2 Filename placeholders: `+varname+`
 
 [`tmpl_dir.c`](https://github.com/artgins/yunetas/blob/7.28.6/utils/c/yuno-skeleton/tmpl_dir.c). Pattern `(\+.+?\+)`. Every `+var+` block in a
@@ -169,7 +181,7 @@ automatically in [`make_skeleton.c`](https://github.com/artgins/yunetas/blob/7.2
 
 | Variable      | Derivation                                                |
 |---------------|-----------------------------------------------------------|
-| `rootname`    | The `<name>` argument, lowercased                         |
+| `rootname`    | The gclass name (or root gobj name) asked for, lowercased |
 | `Rootname`    | Capitalised (first letter upper)                          |
 | `ROOTNAME`    | Uppercased                                                |
 | `yunorole`    | Yuno role, lowercased (for yuno templates)                |
@@ -252,8 +264,13 @@ Reads:
 
 - The standard case: a SERVICE has its `subscriber` set explicitly by
   whoever wires it.
-  - The fallback: if something created the gobj as a pure child, the gobj
+- The fallback: if something created the gobj as a pure child, the gobj
   subscribes the parent instead.
+
+This is the canonical C block: the `yuno_citizen` template's root gclass
+(the yuno's default service) carries it too, and so does every service
+gclass of the kernel. The JS SERVICE block has no fallback (see the JS
+gclass template and CLAUDE.md, *GClass subscription model*).
 
 Service templates also include `help` and `authzs` commands in their
 `command_table`.

@@ -1,8 +1,9 @@
 /****************************************************************************
- *          MAKE_SKELETON.C
+ *          TMPL_DIR.C
  *          Make a skeleton
  *
  *          Copyright (c) 2015 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  *
  *
@@ -66,8 +67,8 @@
  ***************************************************************************/
 
 /***************************************************************************
- *  Busca en str las {{clave}} y sustituye la clave con el valor
- *  de dicha clave en el dict jn_values
+ *  Replace every {{key}} of str with the value of key in jn_values.
+ *  A key with no value is rendered empty, and said on stderr.
  ***************************************************************************/
 static int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
 {
@@ -114,27 +115,29 @@ static int render_string(char *rendered_str, int rendered_str_size, char *str, j
 
         PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
 
-        for(int i = 0; i < rc; ++i) {
-            int macro_len = (int)(ovector[2*i+1] - ovector[2*i]);
-            char macro[256];
-            char rendered[256];
-            snprintf(macro, sizeof(macro), "%.*s", macro_len, str + ovector[2*i]);
+        /*
+         *  The whole match only: the one group of the pattern is the same text
+         */
+        int macro_len = (int)(ovector[1] - ovector[0]);
+        char macro[256];
+        char rendered[256];
+        snprintf(macro, sizeof(macro), "%.*s", macro_len, str + ovector[0]);
 
-            char key[256];
-            snprintf(key, sizeof(key), "%.*s", macro_len - 4, str + ovector[2*i] + 2);
+        char key[256];
+        snprintf(key, sizeof(key), "%.*s", macro_len - 4, str + ovector[0] + 2);
 
-            const char *value = json_string_value(json_object_get(jn_values, key));
-            if(!value) {
-                value = "";
-            }
-            snprintf(rendered, sizeof(rendered), "%s", value);
-
-            char *new_value = replace_string(rendered_str, macro, rendered);
-            if(new_value) {
-                snprintf(rendered_str, rendered_str_size, "%s", new_value);
-                gbmem_free(new_value);
-            }   // else: error already logged, rendered_str is left as it was
+        const char *value = json_string_value(json_object_get(jn_values, key));
+        if(!value) {
+            fprintf(stderr, "WARNING: %s has no value, rendered empty\n", macro);
+            value = "";
         }
+        snprintf(rendered, sizeof(rendered), "%s", value);
+
+        char *new_value = replace_string(rendered_str, macro, rendered);
+        if(new_value) {
+            snprintf(rendered_str, rendered_str_size, "%s", new_value);
+            gbmem_free(new_value);
+        }   // else: error already logged, rendered_str is left as it was
         offset = ovector[1];  /* move past the last match */
     }
 

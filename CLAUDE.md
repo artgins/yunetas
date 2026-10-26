@@ -1231,6 +1231,31 @@ if(subscriber) {
 }
 ```
 
+**In C the SERVICE block carries a pure-child fallback**, and that is the
+canonical C form (the `gclass_service` and `yuno_citizen` templates, and every
+service gclass of the kernel since 2026-10-26):
+
+```c
+/*
+ *  SERVICE subscription model
+ */
+hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
+if(subscriber) {
+    gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+} else if(gobj_is_pure_child(gobj)) {
+    subscriber = gobj_parent(gobj);
+    gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+}
+```
+
+A service gclass created as a service never takes the `else`; one hosted with
+`gobj_create_pure_child()` and no `subscriber` publishes to its parent instead
+of to nobody. **In JS the SERVICE block has no fallback** (13 of the 15 JS
+service gclasses), except in the JS twins of C runtime gclasses, which keep
+their C block (`c_timer.js`, `c_ievent_cli.js`). Do not add it to a JS view
+that is already hosted: it would subscribe the host to everything the view
+publishes, and the host's FSM would have to declare all of it.
+
 - **CHILD** — gobj created with a parent (`gobj_create(name, GCLASS, kw, parent)`);
   the parent is the natural audience. The parent's FSM **must** declare every
   event the child publishes.

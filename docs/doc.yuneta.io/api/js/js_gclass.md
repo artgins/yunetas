@@ -161,6 +161,26 @@ if(subscriber) {
 A **child** goes to its parent, and the parent declares every event that the
 child publishes. A **service** goes to the subscribers that ask for it.
 
+The C service block also subscribes the parent when the gobj is a pure child
+with no `subscriber`. In JS only the twins of C runtime gclasses keep that
+fallback (`c_timer.js`, `c_ievent_cli.js`):
+
+```javascript
+/*
+ *  SERVICE subscription model, and a pure child subscribes its parent
+ */
+let subscriber = gobj_read_pointer_attr(gobj, "subscriber");
+if(subscriber) {
+    gobj_subscribe_event(gobj, null, {}, subscriber);
+} else if(gobj_is_pure_child(gobj)) {
+    subscriber = gobj_parent(gobj);
+    gobj_subscribe_event(gobj, null, {}, subscriber);
+}
+```
+
+Do not add it to a view that is already hosted: the host would then receive
+every event of the view, and its state machine would have to declare them.
+
 When a publication of a child gives *"Event NOT DEFINED in state"*, add the
 event to the state machine of the parent, or make the gobj a service. Never take
 the parent out of the child model to make the message quiet.

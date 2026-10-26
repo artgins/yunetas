@@ -10,8 +10,10 @@
 #       run three seconds: its gclass's timer (a pure child) fires
 #       ("Timeout" on stdout); run again with the gclass_service as its
 #       service and the gclass_child under it: each timer fires;
-#     - yuno_citizen, built with no warning;
-#     - js_gclass, loaded by node against gobj-js: its timer fires.
+#     - yuno_citizen, with its SERVICE subscription block and its license,
+#       built with no warning; c_project, built with no warning;
+#     - js_gclass, loaded by node against gobj-js: its timer fires;
+#     - no template holds a {{marker}} that nothing fills.
 #
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.
@@ -123,8 +125,23 @@ fi
 #
 #   yuno_citizen
 #
+#   Its root gclass is the yuno's default service, so it carries the SERVICE
+#   subscription block (up to 7.28.6 both blocks were commented out under a
+#   TODO); its README says the license asked for, and no empty name.
+#
 generate "$WORK" yuno_citizen "sktcit\n\n1.0.0\nSkeleton test\nArtGins\nsupport@artgins.com\nMIT\n"
+grep -q "^    } else if(gobj_is_pure_child(gobj)) {$" "$WORK/sktcit/src/c_sktcit.c" \
+    || fail "yuno_citizen: no SERVICE subscription block in c_sktcit.c"
+grep -q "^MIT$" "$WORK/sktcit/README.md" || fail "yuno_citizen: the license is not in README.md"
+grep -q "^Name: *$" "$WORK/sktcit/README.md" && fail "yuno_citizen: an empty Name in README.md"
 build "$WORK/sktcit"
+
+#
+#   c_project, built with no warning
+#
+generate "$WORK" c_project "sktutil\n1.0.0\nUtility test\nArtGins\nsupport@artgins.com\nMIT\n"
+grep -q "^MIT$" "$WORK/sktutil/README.md" || fail "c_project: the license is not in README.md"
+build "$WORK/sktutil"
 
 #
 #   js_gclass, loaded by node against the gobj-js of this tree (its src/,
@@ -180,6 +197,15 @@ JS
     fi
 else
     fail "js_gclass did not make c_sktjs.js"
+fi
+
+#
+#   No template holds a {{marker}} that nothing fills: yuno-skeleton says
+#   each one (up to 7.28.6 it rendered {{yunoname}} empty, and said nothing)
+#
+if grep -h "has no value" "$WORK"/gen_*.log | grep -q .; then
+    fail "a template holds a marker with no value:"
+    grep -h "has no value" "$WORK"/gen_*.log | sort -u
 fi
 
 if [ $FAILURES -ne 0 ]; then

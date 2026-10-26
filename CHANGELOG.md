@@ -32,6 +32,27 @@
   template removed or renamed stayed installed (`js_gui`, gone since
   2026-05-21, was still there), and the packages copy that directory.
   `SCAFFOLDING.md` showed the name as an argument; the tool asks for it.
+- **The SERVICE subscription block has one C form**, with the pure-child
+  fallback (`else if(gobj_is_pure_child(gobj))`, the parent subscribed):
+  the templates and 21 of the 23 service gclasses of the kernel had it, and
+  `CLAUDE.md` showed the block without it. `c_assets.c` and
+  `c_idp_keycloak.c` take it (no change of behaviour: both are created as
+  services, and a service never takes the `else`). JS keeps the block
+  without the fallback (13 of its 15 service gclasses), except the twins of
+  C runtime gclasses (`c_timer.js`, `c_ievent_cli.js`); `CLAUDE.md` and the
+  JS gclass page say both. The `yuno_citizen` template's root gclass, the
+  yuno's default service, carries the SERVICE block: both blocks were
+  commented out under a TODO.
+- **yuno-skeleton says a `{{marker}}` that nothing fills**
+  (`WARNING: {{x}} has no value, rendered empty`, on stderr): it rendered it
+  empty in silence, and both yuno READMEs had a `Name: {{yunoname}}` that no
+  prompt asks for (removed: a yuno's name is per instance). The `License`
+  section of the yuno and `c_project` READMEs gets the `license_name` the
+  tool asks for, which nothing used. `_walk_tree()` builds each path in a
+  `PATH_MAX` buffer with `build_path()` instead of `malloc()`/`strcat()`,
+  which also leaked the path when the callback stopped the walk.
+  `yuno_skeleton/templates` checks all of it, and builds `c_project` too
+  (no test built it).
 
 - **gobj-ui 7.28.1: a chart's Y axis is as wide as its labels**
   (`yui_uplot_axis_size()`, set by `yui_uplot_axes()` on every Y axis the
