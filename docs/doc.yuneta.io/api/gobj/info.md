@@ -4,11 +4,11 @@ Introspection helpers: retrieve a gobj's name, short name, full name, parent, yu
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c)
 
 (get_attrs_schema)=
-## [`get_attrs_schema()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7481)
+## [`get_attrs_schema()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7481)
 
 Returns a JSON array describing the attributes of a given `hgobj`. The attributes included are those marked with `SDF_RD`, `SDF_WR`, `SDF_STATS`, `SDF_PERSIST`, `SDF_VOLATIL`, `SDF_RSTATS`, or `SDF_PSTATS`.
 
@@ -33,7 +33,7 @@ The returned JSON array must be freed by the caller using `json_decref()`.
 ---
 
 (get_sdata_flag_table)=
-## [`get_sdata_flag_table()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7458)
+## [`get_sdata_flag_table()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7458)
 
 Returns a table of sdata (structured data) flag names as a null-terminated array of strings.
 
@@ -58,7 +58,7 @@ The returned array contains predefined flag names used in structured data attrib
 ---
 
 (gobj2json)=
-## [`gobj2json()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L8215)
+## [`gobj2json()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L8215)
 
 Returns a JSON object containing a structured description of the given `gobj`, including attributes, state, and metadata.
 
@@ -128,7 +128,7 @@ Its default `options` leave out `gclass` and `fullname`; ask for the fields by n
 ---
 
 (gobj_command_desc)=
-## [`gobj_command_desc()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7433)
+## [`gobj_command_desc()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7433)
 
 Retrieves the command description for a given gobj. If the command name is NULL, it returns the full command table.
 
@@ -159,7 +159,7 @@ This function first checks if the `gobj` is valid. If the command name is NULL, 
 ---
 
 (gobj_full_name)=
-## [`gobj_full_name()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7042)
+## [`gobj_full_name()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7042)
 
 Returns the full hierarchical name of the given `hgobj`, constructed from its ancestors using the '`' separator.
 
@@ -184,7 +184,7 @@ The returned string is managed internally and must not be modified or freed by t
 ---
 
 (gobj_gclass)=
-## [`gobj_gclass()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7033)
+## [`gobj_gclass()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7033)
 
 Returns the gclass associated with the given `hgobj`.
 
@@ -209,7 +209,7 @@ This function does not perform extensive validation on the input `hgobj`. Make s
 ---
 
 (gobj_gclass_name)=
-## [`gobj_gclass_name()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7024)
+## [`gobj_gclass_name()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7024)
 
 Retrieves the gclass name associated with the given `hgobj`.
 
@@ -234,7 +234,7 @@ This function does not perform any validation beyond checking for `NULL`.
 ---
 
 (gobj_global_variables)=
-## [`gobj_global_variables()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7115)
+## [`gobj_global_variables()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7115)
 
 Returns a JSON object containing global variables related to the Yuno environment, including system, realm, and node attributes.
 
@@ -288,7 +288,7 @@ The returned JSON object must be decremented with `json_decref()` to avoid memor
 ---
 
 (gobj_add_global_variable)=
-## [`gobj_add_global_variable()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7170)
+## [`gobj_add_global_variable()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7170)
 
 Publishes an extra entry into the global-variables pool returned by [`gobj_global_variables()`](#gobj_global_variables). It lets upper layers contribute variables that gobj-c itself does not (and must not) know about — for example TLS backend names, which are injected from the `ytls` layer by `yunetas_register_c_core()`.
 
@@ -315,7 +315,7 @@ int gobj_add_global_variable(const char *name, json_t *value); // value owned
 ---
 
 (gobj_is_destroying)=
-## [`gobj_is_destroying()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7205)
+## [`gobj_is_destroying()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7205)
 
 Checks if the given `hgobj` is in the process of being destroyed or has already been destroyed.
 
@@ -340,7 +340,7 @@ This function is useful for preventing operations on objects that are no longer 
 ---
 
 (gobj_is_disabled)=
-## [`gobj_is_disabled()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7270)
+## [`gobj_is_disabled()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7270)
 
 Checks if the given `hgobj` is disabled. A disabled `hgobj` is prevented from starting or playing.
 
@@ -365,7 +365,7 @@ A disabled `hgobj` cannot be started or played until it is explicitly enabled us
 ---
 
 (gobj_is_playing)=
-## [`gobj_is_playing()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7229)
+## [`gobj_is_playing()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7229)
 
 Checks if the given `hgobj` is currently in a playing state.
 
@@ -390,7 +390,7 @@ If the `hgobj` is `NULL` or was destroyed, an error is logged and `FALSE` is ret
 ---
 
 (gobj_is_pure_child)=
-## [`gobj_is_pure_child()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7323)
+## [`gobj_is_pure_child()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7323)
 
 Checks if the given `hgobj` is marked as a pure child. This means it sends events directly to its parent instead of publishing them.
 
@@ -415,7 +415,7 @@ A pure child is a `hgobj` that bypasses event publication and directly sends eve
 ---
 
 (gobj_is_running)=
-## [`gobj_is_running()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7217)
+## [`gobj_is_running()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7217)
 
 Checks if the given `hgobj` instance is currently running.
 
@@ -440,7 +440,7 @@ If the provided `hgobj` is `NULL` or was destroyed, an error is logged and `FALS
 ---
 
 (gobj_is_service)=
-## [`gobj_is_service()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7242)
+## [`gobj_is_service()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7242)
 
 Checks if the given `hgobj` is marked as a service. A service object is an interface available for external access.
 
@@ -465,7 +465,7 @@ A service object is identified by the `gobj_flag_service` flag.
 ---
 
 (gobj_is_volatil)=
-## [`gobj_is_volatil()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7281)
+## [`gobj_is_volatil()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7281)
 
 Checks if the given `hgobj` is marked as volatile. This means it is temporary and can be automatically destroyed.
 
@@ -490,7 +490,7 @@ A volatile `hgobj` is typically used for temporary objects that do not persist b
 ---
 
 (gobj_name)=
-## [`gobj_name()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7015)
+## [`gobj_name()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7015)
 
 Returns the name of the given `hgobj` instance as a string.
 
@@ -515,7 +515,7 @@ The returned string is managed internally and must not be modified or freed by t
 ---
 
 (gobj_parent)=
-## [`gobj_parent()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7194)
+## [`gobj_parent()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7194)
 
 Returns the parent object of the given `hgobj`.
 
@@ -540,7 +540,7 @@ If the provided `hgobj` is NULL, an error is logged.
 ---
 
 (gobj_priv_data)=
-## [`gobj_priv_data()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7186)
+## [`gobj_priv_data()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7186)
 
 Returns a pointer to the private data of the given `hgobj`.
 
@@ -565,7 +565,7 @@ The returned pointer provides direct access to the private data structure of the
 ---
 
 (gobj_set_manual_start)=
-## [`gobj_set_manual_start()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7308)
+## [`gobj_set_manual_start()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7308)
 
 Sets or clears the `gobj_flag_manual_start` flag on the given `hgobj` instance.
 
@@ -624,7 +624,7 @@ controls `gobj_start_*` only.
 ---
 
 (gobj_set_volatil)=
-## [`gobj_set_volatil()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7293)
+## [`gobj_set_volatil()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7293)
 
 Sets or clears the `gobj_flag_volatil` flag for the given `hgobj` instance.
 
@@ -653,7 +653,7 @@ A volatile `hgobj` is typically used for temporary objects that must not persist
 ---
 
 (gobj_short_name)=
-## [`gobj_short_name()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7092)
+## [`gobj_short_name()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7092)
 
 Returns the short name of the given `hgobj`, formatted as `gclass^name`.
 
@@ -680,7 +680,7 @@ The short name is generated dynamically and cached for future calls.
 ---
 
 (gobj_typeof_gclass)=
-## [`gobj_typeof_gclass()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7347)
+## [`gobj_typeof_gclass()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7347)
 
 Checks if the given `hgobj` belongs to the specified gclass.
 
@@ -709,7 +709,7 @@ This function performs a strict comparison against the object's gclass and does 
 ---
 
 (gobj_typeof_inherited_gclass)=
-## [`gobj_typeof_inherited_gclass()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7359)
+## [`gobj_typeof_inherited_gclass()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7359)
 
 Checks if the given `hgobj` belongs to a specific inherited gclass.
 
@@ -738,7 +738,7 @@ This function traverses the bottom gobj hierarchy to determine if any of them ma
 ---
 
 (gobj_view_tree)=
-## [`gobj_view_tree()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L8400)
+## [`gobj_view_tree()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L8400)
 
 Generates a hierarchical JSON representation of the given `hgobj` and its child objects, including selected attributes.
 
@@ -767,7 +767,7 @@ The returned JSON object must be freed by the caller. The `jn_filter` parameter 
 ---
 
 (gobj_yuno)=
-## [`gobj_yuno()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L6922)
+## [`gobj_yuno()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L6922)
 
 Returns the root `gobj` instance representing the Yuno, which is the top-level object in the hierarchy.
 
@@ -792,7 +792,7 @@ The Yuno is the top-most `gobj` in the hierarchy and serves as the root of the o
 ---
 
 (gobj_yuno_id)=
-## [`gobj_yuno_id()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L6947)
+## [`gobj_yuno_id()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L6947)
 
 Returns the unique identifier of the Yuno instance.
 
@@ -817,7 +817,7 @@ If the Yuno instance is not initialized, an empty string is returned.
 ---
 
 (gobj_yuno_name)=
-## [`gobj_yuno_name()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L6933)
+## [`gobj_yuno_name()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L6933)
 
 Returns the name of the Yuno instance by retrieving the `name` attribute from [`gobj_yuno()`](#gobj_yuno).
 
@@ -842,7 +842,7 @@ A string representing the name of the Yuno instance. Returns an empty string if 
 ---
 
 (gobj_yuno_node_owner)=
-## [`gobj_yuno_node_owner()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7004)
+## [`gobj_yuno_node_owner()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7004)
 
 Returns the node owner of the Yuno instance as a string.
 
@@ -867,7 +867,7 @@ This function retrieves the value of the `node_owner` attribute from the Yuno in
 ---
 
 (gobj_yuno_realm_env)=
-## [`gobj_yuno_realm_env()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L6997)
+## [`gobj_yuno_realm_env()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L6997)
 
 Returns the realm environment of the Yuno instance.
 
@@ -892,7 +892,7 @@ This function retrieves the value of the `realm_env` attribute from the Yuno ins
 ---
 
 (gobj_yuno_realm_id)=
-## [`gobj_yuno_realm_id()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L6969)
+## [`gobj_yuno_realm_id()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L6969)
 
 Returns the realm ID of the Yuno instance.
 
@@ -917,7 +917,7 @@ The function retrieves the value from the `realm_id` attribute of the Yuno objec
 ---
 
 (gobj_yuno_realm_name)=
-## [`gobj_yuno_realm_name()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L6990)
+## [`gobj_yuno_realm_name()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L6990)
 
 Returns the realm name of the Yuno instance.
 
@@ -942,7 +942,7 @@ The function retrieves the value of the `realm_name` attribute from the Yuno ins
 ---
 
 (gobj_yuno_realm_owner)=
-## [`gobj_yuno_realm_owner()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L6976)
+## [`gobj_yuno_realm_owner()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L6976)
 
 Returns the realm owner of the current Yuno instance.
 
@@ -967,7 +967,7 @@ The function retrieves the value from the `realm_owner` attribute of the Yuno in
 ---
 
 (gobj_yuno_realm_role)=
-## [`gobj_yuno_realm_role()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L6983)
+## [`gobj_yuno_realm_role()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L6983)
 
 Returns the realm role of the current `yuno` instance.
 
@@ -992,7 +992,7 @@ A string representing the realm role of the `yuno` instance. If the `yuno` insta
 ---
 
 (gobj_yuno_role)=
-## [`gobj_yuno_role()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L6940)
+## [`gobj_yuno_role()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L6940)
 
 Returns the role of the current Yuno instance as a string.
 
@@ -1017,7 +1017,7 @@ The function retrieves the value of the `yuno_role` attribute from the Yuno inst
 ---
 
 (gobj_yuno_role_plus_name)=
-## [`gobj_yuno_role_plus_name()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L6961)
+## [`gobj_yuno_role_plus_name()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L6961)
 
 Returns the concatenated role and name of the Yuno instance.
 
@@ -1042,7 +1042,7 @@ If the Yuno instance is not initialized, an empty string is returned.
 ---
 
 (gobj_yuno_tag)=
-## [`gobj_yuno_tag()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L6954)
+## [`gobj_yuno_tag()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L6954)
 
 Returns the tag of the current `yuno` instance as a string.
 
@@ -1067,7 +1067,7 @@ The returned string is managed internally and must not be modified or freed by t
 ---
 
 (gobj_audit_commands)=
-## [`gobj_audit_commands()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L5829)
+## [`gobj_audit_commands()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L5829)
 
 Registers a global callback function that will be invoked every time a command is executed. This enables auditing or logging of all commands processed by the gobj system. Only one audit callback can be active at a time -- subsequent calls overwrite the previously registered callback.
 
@@ -1096,7 +1096,7 @@ Only one audit callback is supported globally. Each new call to `gobj_audit_comm
 ---
 
 (gobj_is_bottom_gobj)=
-## [`gobj_is_bottom_gobj()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7335)
+## [`gobj_is_bottom_gobj()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7335)
 
 Checks whether the given gobj is the bottom gobj of its parent. A bottom gobj is a special child that provides attribute inheritance -- when an attribute is not found on the parent, the framework delegates to the bottom gobj.
 
@@ -1123,7 +1123,7 @@ The bottom gobj relationship is set during gobj creation. Use `gobj_bottom_gobj(
 ---
 
 (gobj_is_top_service)=
-## [`gobj_is_top_service()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L7256)
+## [`gobj_is_top_service()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L7256)
 
 Checks whether the given gobj is a top-level service. A top service is a service gobj that was created with the `gobj_flag_top_service` flag, typically representing the highest-level service in a yuno's gobj tree.
 
@@ -1150,7 +1150,7 @@ A top service differs from a regular service (`gobj_is_service()`) in that it re
 ---
 
 (gobj_kw_get_user_data)=
-## [`gobj_kw_get_user_data()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L4572)
+## [`gobj_kw_get_user_data()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L4572)
 
 Retrieves a value from the gobj's user data dictionary by path. The user data is a free-form JSON object associated with each gobj where application-specific data can be stored (via `gobj_kw_set_user_data()`).
 
@@ -1183,7 +1183,7 @@ This function delegates to `kw_get_dict_value()` on the gobj's internal `jn_user
 ---
 
 (gobj_nearest_top_service)=
-## [`gobj_nearest_top_service()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L6084)
+## [`gobj_nearest_top_service()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L6084)
 
 Walks up the gobj tree from the given gobj's parent and returns the nearest ancestor that is a service, top service, or the yuno itself. This is useful for finding the enclosing service context of any gobj.
 
@@ -1210,7 +1210,7 @@ The traversal checks for `gobj_flag_service`, `gobj_flag_top_service`, or `gobj_
 ---
 
 (gobj_top_services)=
-## [`gobj_top_services()`](https://github.com/artgins/yunetas/blob/7.28.6/kernel/c/gobj-c/src/gobj.c#L1785)
+## [`gobj_top_services()`](https://github.com/artgins/yunetas/blob/7.28.7/kernel/c/gobj-c/src/gobj.c#L1785)
 
 Returns a JSON array listing all currently registered top-level service gobjs and their metadata. Each element is a JSON object containing the GClass name, service name, gobj handle, priority, and gobj flags.
 
