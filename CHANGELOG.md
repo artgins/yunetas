@@ -10,9 +10,9 @@
   columns of its row, of the binary it runs, of its configuration, its realm
   and its public services (`restart_plan.c`) -- is taken before the reload of
   the agent's treedb and after it: the same one gets back its runtime (the
-  reload loses it, which is why everything was killed) and keeps running,
-  disabled or not; a changed one is SIGKILLed and launched again; one that is
-  gone, or changed and disabled now, is killed and not launched. An INFO
+  reload loses it, which is why everything was killed) and keeps running; a
+  changed one is SIGKILLed and launched again; one that is gone or disabled is
+  killed and not launched. An INFO
   *"Node restart: only the yunos whose launch changed"* lists `kept`,
   `restarted` and `stopped`. `all=1` restarts every yuno, as before. Checked
   on wattyzer: a `deactivate-snap` with nothing changed kept the 22 pids, an

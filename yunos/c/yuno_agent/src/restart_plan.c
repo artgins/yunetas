@@ -176,12 +176,12 @@ PUBLIC const char *restart_decision(
     if(!signature_after) {
         return "stop";
     }
-    if(json_equal(signature_before, signature_after)) {
-        return "keep";
-    }
     json_t *jn_yuno = json_object_get(signature_after, "yuno");
     if(json_is_true(json_object_get(jn_yuno, "yuno_disabled"))) {
-        return "stop";
+        return "stop";      // a disabled yuno does not run (disable-yuno kills it)
+    }
+    if(json_equal(signature_before, signature_after)) {
+        return "keep";
     }
     return "restart";
 }

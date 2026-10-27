@@ -10869,8 +10869,7 @@ PRIVATE void kill_running_yuno(hgobj gobj, json_t *yuno, json_t *jn_killed)
  *  running yuno's launch signature (restart_plan.c: its row, binary,
  *  configuration, realm, public services) is taken before the reload and
  *  again after it; the same one keeps its runtime and stays alive, another
- *  one is killed and launched again (or not, if it is gone or disabled
- *  now). A yuno that does not run is launched afterwards, if enabled, as
+ *  one is killed and launched again (or not, if it is gone or disabled). A yuno that does not run is launched afterwards, if enabled, as
  *  before.
  ***************************************************************************/
 PRIVATE int restart_nodes(hgobj gobj, BOOL all)

@@ -54,9 +54,9 @@ PUBLIC json_t *yuno_runtime_fields(
  *  What a restart of the node does with a yuno that was running, from its
  *  launch signature before the restart and after it (NULL: no row of that
  *  id any more):
- *      "keep"      the same signature: it is left alive (disabled or not:
- *                  a disabled yuno that runs is not stopped by the flag);
- *      "stop"      gone, or changed and disabled now: killed, not launched;
+ *      "keep"      the same signature, and enabled: it is left alive;
+ *      "stop"      gone, or disabled (a disabled yuno does not run:
+ *                  disable-yuno kills it): killed, not launched;
  *      "restart"   changed: killed and launched again.
  */
 PUBLIC const char *restart_decision(

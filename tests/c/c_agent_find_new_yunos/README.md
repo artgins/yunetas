@@ -49,9 +49,9 @@ Each row now says whether its instance at the new release exists.
 9. what a restart of the node does with a running yuno (`restart_plan.c`):
    its launch signature holds the saved columns of its row, binary,
    configuration, realm and public services -- no runtime, no hook -- so
-   running does not change it; and the decision keeps an unchanged yuno
-   (disabled or not), restarts a changed one, stops one that is gone or
-   changed and disabled.
+   running does not change it; and the decision keeps an unchanged yuno,
+   restarts a changed one, and stops one that is gone or disabled (a
+   disabled yuno does not run).
 
 ## Run
 

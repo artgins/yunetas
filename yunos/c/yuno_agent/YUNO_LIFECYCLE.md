@@ -700,11 +700,13 @@ c_agent.c updates the treedb blob. The launcher script is rebuilt only
 at `run-yuno`. So **changes take effect on next start**. There is no
 re-materialisation of the JSON files on disk for a running yuno.
 
-### 5.6 `disable-yuno` does not stop a running yuno
+### 5.6 `disable-yuno` stops a running yuno
 
-c_agent.c only flips the flag. A `disabled=true` yuno that was already
-running keeps running until you `kill-yuno`. The flag only prevents the next
-`run-yuno` from picking it up.
+`cmd_disable_yuno` pauses the yuno if it plays, SIGKILLs it if it runs, and
+then sets `disabled=true`, which also keeps the next `run-yuno` from picking
+it up. (This section said, until 7.28.11, that the flag alone was flipped and
+the yuno kept running; the code kills it.) `enable-yuno` clears the flag and
+does not launch it: `run-yuno` does.
 
 ### 5.7 `install-binary` vs `update-binary`
 
@@ -924,9 +926,9 @@ running", grep the agent log for `does NOT move forward` before anything else.
   and its public services -- no runtime, no hook, no `_geometry`) and its
   runtime (running, pids, channel, launch) before the reload of the treedb,
   and the signature again after it. The same one gets its runtime back and
-  lives on -- disabled or not, as `disabled` only stops the next run; a
-  changed one is SIGKILLed and launched again; one that is gone, or changed
-  and disabled now, is killed and not launched. The agent logs *"Node
+  lives on; a changed one is SIGKILLed and launched again; one that is gone
+  or disabled is killed and not launched (a disabled yuno does not run, see
+  §5.6). The agent logs *"Node
   restart: only the yunos whose launch changed"* with `kept`, `restarted`
   and `stopped`. Up to 7.28.10 every yuno was killed: the reload loses what
   the agent keeps in memory of a running yuno, which would otherwise be

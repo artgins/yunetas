@@ -804,7 +804,7 @@ PRIVATE int check_restart_plan(hgobj gobj, hgobj gobj_node)
         {"another configuration",           sig_before, sig_config, "restart"},
         {"changed and disabled now",        sig_before, sig_disabled, "stop"},
         {"no row any more",                 sig_before, NULL, "stop"},
-        {"disabled, nothing changed",       sig_disabled_same, sig_disabled_same, "keep"},
+        {"disabled, nothing else changed",  sig_disabled_same, sig_disabled_same, "stop"},
     };
     for(size_t i=0; i<ARRAY_SIZE(cases); i++) {
         const char *decision = restart_decision(cases[i].before, cases[i].after);
