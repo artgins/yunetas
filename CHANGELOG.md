@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## v7.28.11 (2026-10-27)
+
+A node restart that restarts only what changed, and yunos that send their own
+stats. `activate-snap` / `deactivate-snap` (and so `yunetas upgrade-yunos`)
+SIGKILLed every yuno of the node; now only the yunos whose launch changed
+go. A yuno answers `publish-stats` by sending the stats of a service from its
+own timer, and the agent's `watch-yuno-stats` asks for that instead of asking
+for the stats every period. A full release: `C_YUNO` changes, so every yuno is
+rebuilt on every node.
+
+Tests: the full suite on the dev machine (`yunetas test`, `ulimit -Sn 1024`),
+342/342. Performance: no study. No benchmark runs the changed code: the
+publication tick of `C_YUNO` runs only with a publication open, the agent's
+commands, and the handshake and Close of a websocket, once per session.
+
+- **yunetas CLI 1.0.3** (submodule): `upgrade-yunos` and `sync-binaries` no
+  longer say "node-wide bounce", and say that an agent before this release
+  restarts every yuno.
+- **`C_YUNO` has a `publications` stat**: how many `publish-stats` the yuno is
+  sending, written with `cpu`, so it comes in the cpu reading of a watch.
+- **Docs: `disable-yuno` stops a running yuno** (`YUNO_LIFECYCLE.md` §5.6 said
+  the opposite; the code pauses and SIGKILLs it).
 - **yuno_agent: `activate-snap` / `deactivate-snap` restart only the yunos
   whose launch changed** (`restart_nodes()`). They SIGKILLed every yuno of the
   node and launched the enabled ones again, so a `yunetas upgrade-yunos` of
