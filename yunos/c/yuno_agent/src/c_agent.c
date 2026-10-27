@@ -4915,9 +4915,10 @@ json_t* cmd_create_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
 
     /*-----------------------------*
      *  Register public services
-     *  TODO legacy bug:
-     *  en find-new-yunos create=1 podemos crear yunos que todavía no están activos
-     *  (hasta deactivate-snap) y sin embargo se actualizan sus datos de public-service
+     *  A known limit: a release that is not promoted yet (find-new-yunos
+     *  create=1, before deactivate-snap) already writes ITS binary's
+     *  description, schema and connector into the public services of the
+     *  yuno id, while the old release still serves them (the port is kept)
      *-----------------------------*/
     result += register_public_services(gobj, yuno, hs_binary, hs_realm);
 
@@ -5238,9 +5239,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                     json_object_set_new(priv->no_play_launches, s_launch_id, json_true());
                 }
 
-                // Volatil if you don't want historic data
-                // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
-                // y falla el deactivate-snap
+                // volatil: memory only -- saved, a lifecycle write would put this release over a newer one
                 json_decref(
                     gobj_update_node(
                         priv->resource,
@@ -8846,7 +8845,7 @@ PRIVATE json_t *find_service_for_client(
     char *resource = "public_services";
 
     char *service = gbmem_strdup(service_);
-    char *service_yuno_name = strchr(service, '.'); // TODO legacy add alternative parameter: dict (jn_filter)
+    char *service_yuno_name = strchr(service, '.'); // `service` or `service.yuno_name`
     if(service_yuno_name) {
         *service_yuno_name = 0;
         service_yuno_name++; // yuno_name of service required
@@ -10185,7 +10184,9 @@ PRIVATE int authzs_to_yuno(
  *  The treedb primary for a yuno-id is the highest-ROWID record, not the
  *  highest yuno_release: lifecycle writes (kill/run/snap) append records for
  *  whatever release is active, so an older release can sit on top and a
- *  pending binary upgrade never takes effect (the `force volatil` TODO).
+ *  pending binary upgrade never takes effect. That is why the agent's own
+ *  lifecycle writes (run, kill, play, pause) are volatil (the "force
+ *  volatil" of the original code); a write that is saved still appends.
  *
  *  An append does NOT move the in-memory primary index — only a reload
  *  rebuilds it. So this MUST run BEFORE the restart_nodes() reload: for each
@@ -10358,9 +10359,7 @@ PRIVATE void launch_enabled_yuno(hgobj gobj, json_t *yuno, BOOL spare_the_living
         return;   // Warning already logged
     }
     run_yuno(gobj, yuno, 0);
-    // Volatil if you don't want historic data
-    // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
-    // y falla el deactivate-snap
+    // volatil: memory only -- saved, a lifecycle write would put this release over a newer one
     json_decref(
         gobj_update_node(
             priv->resource,
@@ -10412,9 +10411,7 @@ PRIVATE int run_util_yunos(hgobj gobj)
                     continue;   // Warning already logged
                 }
                 run_yuno(gobj, yuno, 0);
-                // Volatil if you don't want historic data
-                // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
-                // y falla el deactivate-snap
+                // volatil: memory only -- saved, a lifecycle write would put this release over a newer one
                 json_decref(
                     gobj_update_node(
                         priv->resource,
@@ -10674,8 +10671,10 @@ PRIVATE unsigned get_new_service_port(hgobj gobj)
 }
 
 /***************************************************************************
- *  TODO legacy bug: si registramos un servicio con cambios en el conector
- *  afectará al snap shoot actual
+ *  The public services of `yuno`, from its binary: created with a new port,
+ *  or updated (description, schema, connector) keeping theirs. The write is
+ *  saved like any other, so a snap shot afterwards holds it, and an
+ *  activate-snap of an earlier snap brings back the earlier connector.
  ***************************************************************************/
 PRIVATE int register_public_services(
     hgobj gobj,
@@ -12677,9 +12676,7 @@ PRIVATE int ac_play_yuno_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     if(action_return == 0) {
         json_object_set_new(yuno, "yuno_playing", json_true());
 
-        // Volatil if you don't want historic data
-        // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
-        // y falla el deactivate-snap
+        // volatil: memory only -- saved, a lifecycle write would put this release over a newer one
         json_decref(
             gobj_update_node(
                 priv->resource,
@@ -12759,9 +12756,7 @@ PRIVATE int ac_pause_yuno_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
             return 0;
         }
         json_object_set_new(yuno, "yuno_playing", json_false());
-        // Volatil if you don't want historic data
-        // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
-        // y falla el deactivate-snap
+        // volatil: memory only -- saved, a lifecycle write would put this release over a newer one
         json_decref(
             gobj_update_node(
                 priv->resource,
@@ -13154,9 +13149,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    // Volatil if you don't want historic data
-    // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
-    // y falla el deactivate-snap
+    // volatil: memory only -- saved, a lifecycle write would put this release over a newer one
     json_decref(
         gobj_update_node(
             priv->resource,
@@ -13220,9 +13213,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             cmd_play_yuno(gobj, "play-yuno", kw_play, gobj);
         }
-        // Volatil if you don't want historic data
-        // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
-        // y falla el deactivate-snap
+        // volatil: memory only -- saved, a lifecycle write would put this release over a newer one
 
         json_decref(
             gobj_update_node(
@@ -13311,9 +13302,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     json_object_set_new(yuno, "yuno_pid", json_integer(0));
     json_object_set_new(yuno, "_channel_gobj", json_integer(0));
 
-    // Volatil if you don't want historic data
-    // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
-    // y falla el deactivate-snap
+    // volatil: memory only -- saved, a lifecycle write would put this release over a newer one
     json_decref(
         gobj_update_node(
             priv->resource,
