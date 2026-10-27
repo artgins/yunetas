@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **`-1d` read as NOW again** (`read_date_text()` in `helpers.c`, since
+  7.28.5). The date reader that replaced the port of git's `date.c` took a
+  `-` only as a zone after a clock time, so `--from-t=-1d` was unreadable
+  and `approxidate()` answered NOW: `tr2list --from-t=-1d` listed nothing.
+  The port skipped the sign, and a count back was typed that way for years.
+  A minus sign before a count and its unit is read again as a duration back
+  (`-1d`, `-2 hours`, `-1w ago`); `-5`, `+5`, `+1d` and `-2 friday` stay
+  refused. Cases in `tests/c/helpers/test_date_text`.
+- **`tr2list`, `tr2search` and `stats_list` refuse a TIME they cannot read**
+  (`TIME is not a date: '<text>'`, exit -1). They called `approxidate()`,
+  which has no error flag, so an unreadable date was NOW and the search
+  answered nothing, in silence. They read with `approxidate_careful()` now.
+  In `tr2search` and `stats_list` this also refuses a negative integer
+  (`-86400`), which they always read as NOW: only `tr2list` reads it as
+  relative to the last record.
+
 ## v7.28.8 (2026-10-27)
 
 Two errors that said nothing, and the openresty that fronts the SPAs out of

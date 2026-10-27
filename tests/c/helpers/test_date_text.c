@@ -14,8 +14,9 @@
  *          Cases:
  *          1.  approxidate: now, durations back ("2 hours ago", "1.day",
  *              number words, short units: 1s 1m 1h 1d 1w 1M 1y, where 'm'
- *              is a minute and 'M' a month), specials (noon, midnight, tea,
- *              never, am/pm), "last <weekday|unit>", clock times;
+ *              is a minute and 'M' a month, also with a minus sign: "-1d"),
+ *              specials (noon, midnight, tea, never, am/pm),
+ *              "last <weekday|unit>", clock times;
  *          2.  approxidate: absolute dates (ISO 8601, RFC 2822, the
  *              "Thu Oct 1 10:00:00 2026 +0200" form, month names, numeric
  *              dates M/D/Y and D.M.Y), time zones, epoch seconds
@@ -35,7 +36,9 @@
  *              ("in 3 days", "2 days from now" were days BACK), "1.5 hours
  *              ago" (the 1st of May), a date not in the calendar
  *              ("2026-02-30" was March 2), a lone sign or number ("+5" was
- *              the 5th); "today", "2 mins", "3 hrs" and "@0" are read;
+ *              the 5th; "-5" too), a plus sign before a duration ("+1d"
+ *              was 1 day back); "today", "2 mins", "3 hrs" and "@0" are
+ *              read;
  *          7.  the edges of the calendar: a month back from the 31st, a
  *              year back from Feb 29, a Y-M-D date far ahead of now;
  *          8.  a clock time on the day of a change of hour is the local
@@ -194,6 +197,18 @@ PRIVATE void test_approxidate_durations_and_times(void)
         {"2h30m",                   "2026-10-21 08:30:00 +0200", 0},
         {"1y2M",                    "2025-08-21 11:00:00 +0200", 0},
         {"1mon",                    "2026-10-19 11:00:00 +0200", 0},
+
+        /*
+         *  A minus sign before a count and its unit: the port skipped it,
+         *  and "-1d" was typed for years
+         */
+        {"-1d",                     "2026-10-20 11:00:00 +0200", 0},
+        {"-10d",                    "2026-10-11 11:00:00 +0200", 0},
+        {"-2h",                     "2026-10-21 09:00:00 +0200", 0},
+        {"-2 hours",                "2026-10-21 09:00:00 +0200", 0},
+        {"-1w ago",                 "2026-10-14 11:00:00 +0200", 0},
+        {"-1M",                     "2026-09-21 11:00:00 +0200", 0},
+        {"-1d2h",                   "2026-10-20 09:00:00 +0200", 0},
 
         /*
          *  noon, midnight and tea are the last ones that passed
@@ -450,6 +465,11 @@ PRIVATE void test_approxidate_refused(void)
         {"2026-13-45",                  "2026-10-21 11:00:00 +0200", 1},
         {"2026-10-32",                  "2026-10-21 11:00:00 +0200", 1},
         {"+5",                          "2026-10-21 11:00:00 +0200", 1},
+        {"-5",                          "2026-10-21 11:00:00 +0200", 1},
+        {"+1d",                         "2026-10-21 11:00:00 +0200", 1},
+        {"-2 friday",                   "2026-10-21 11:00:00 +0200", 1},
+        {"-d",                          "2026-10-21 11:00:00 +0200", 1},
+        {"10:00 -1d",                   "2026-10-21 11:00:00 +0200", 1},
         {"-86400",                      "2026-10-21 11:00:00 +0200", 1},
         {"0",                           "2026-10-21 11:00:00 +0200", 1},
         {"100",                         "2026-10-21 11:00:00 +0200", 1},

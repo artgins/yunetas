@@ -491,6 +491,23 @@ PRIVATE int list_recursive(list_params_t *list_params)
 }
 
 /***************************************************************************
+ *  A TIME given as a date, read by approxidate_careful(). A text it cannot
+ *  read is refused: approxidate() answers NOW for it, and up to 7.28.8 a
+ *  typo (or "-1d", unread from 7.28.5 to 7.28.8) searched from NOW and
+ *  listed nothing, in silence.
+ ***************************************************************************/
+PRIVATE timestamp_t time_of_date(const char *text)
+{
+    int error = 0;
+    timestamp_t timestamp = approxidate_careful(text, &error);
+    if(error) {
+        fprintf(stderr, "TIME is not a date: '%s'\n\n", text);
+        exit(-1);
+    }
+    return timestamp;
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -568,7 +585,7 @@ int main(int argc, char *argv[])
         if(all_numbers(arguments.from_t)) {
             timestamp = atoll(arguments.from_t);
         } else {
-            timestamp = approxidate(arguments.from_t);
+            timestamp = time_of_date(arguments.from_t);
         }
         json_object_set_new(match_cond, "from_t", json_integer(timestamp));
     }
@@ -577,7 +594,7 @@ int main(int argc, char *argv[])
         if(all_numbers(arguments.to_t)) {
             timestamp = atoll(arguments.to_t);
         } else {
-            timestamp = approxidate(arguments.to_t);
+            timestamp = time_of_date(arguments.to_t);
         }
         json_object_set_new(match_cond, "to_t", json_integer(timestamp));
     }

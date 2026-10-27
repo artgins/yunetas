@@ -38,11 +38,12 @@
     "parsed by approxidate() (grammar in helpers.h) and taken to that unit,\n" \
     "topic by topic. Any other text of spaces, signs and digits only ('+5',\n" \
     "'5-', '5 5', '-') is refused, not read as a date; a '-' between two\n" \
-    "digits makes it a date ('2026-10-01').\n" \
+    "digits makes it a date ('2026-10-01'). A text approxidate() cannot\n" \
+    "read is refused too.\n" \
     "Accepted forms:\n" \
     "  units    : seconds, minutes, hours, days, weeks, months, years\n" \
     "             with a count and optional 'ago'\n" \
-    "             examples: '1.day', '3 hours', '2 weeks ago'\n" \
+    "             examples: '1.day', '3 hours', '2 weeks ago', '-1d'\n" \
     "  short    : 1s, 1m, 1h, 1d, 1w, 1M, 1y -- also 1sec, 1mi/1min,\n" \
     "             1hr, 1mo, 1wk, 1yr. Lowercase 'm' = minute, uppercase\n" \
     "             'M' = month (other unit letters case-insensitive).\n" \
@@ -967,6 +968,23 @@ PRIVATE BOOL time_integer(const char *text, json_int_t *value)
 }
 
 /***************************************************************************
+ *  A TIME given as a date, read by approxidate_careful(). A text it cannot
+ *  read is refused: approxidate() answers NOW for it, and up to 7.28.8 a
+ *  typo (or "-1d", unread from 7.28.5 to 7.28.8) searched from NOW and
+ *  listed nothing, in silence.
+ ***************************************************************************/
+PRIVATE timestamp_t time_of_date(const char *text)
+{
+    int error = 0;
+    timestamp_t timestamp = approxidate_careful(text, &error);
+    if(error) {
+        fprintf(stderr, "TIME is not a date: '%s'\n\n", text);
+        exit(-1);
+    }
+    return timestamp;
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -1048,7 +1066,7 @@ int main(int argc, char *argv[])
     if(arguments.from_t) {
         json_int_t bound;
         if(!time_integer(arguments.from_t, &bound)) {
-            bound = (json_int_t)approxidate(arguments.from_t);
+            bound = (json_int_t)time_of_date(arguments.from_t);
             json_array_append_new(date_bounds, json_string("from_t"));
         }
         json_object_set_new(match_cond, "from_t", json_integer(bound));
@@ -1056,7 +1074,7 @@ int main(int argc, char *argv[])
     if(arguments.to_t) {
         json_int_t bound;
         if(!time_integer(arguments.to_t, &bound)) {
-            bound = (json_int_t)approxidate(arguments.to_t);
+            bound = (json_int_t)time_of_date(arguments.to_t);
             json_array_append_new(date_bounds, json_string("to_t"));
         }
         json_object_set_new(match_cond, "to_t", json_integer(bound));
@@ -1064,7 +1082,7 @@ int main(int argc, char *argv[])
     if(arguments.from_tm) {
         json_int_t bound;
         if(!time_integer(arguments.from_tm, &bound)) {
-            bound = (json_int_t)approxidate(arguments.from_tm);
+            bound = (json_int_t)time_of_date(arguments.from_tm);
             json_array_append_new(date_bounds, json_string("from_tm"));
         }
         json_object_set_new(match_cond, "from_tm", json_integer(bound));
@@ -1072,7 +1090,7 @@ int main(int argc, char *argv[])
     if(arguments.to_tm) {
         json_int_t bound;
         if(!time_integer(arguments.to_tm, &bound)) {
-            bound = (json_int_t)approxidate(arguments.to_tm);
+            bound = (json_int_t)time_of_date(arguments.to_tm);
             json_array_append_new(date_bounds, json_string("to_tm"));
         }
         json_object_set_new(match_cond, "to_tm", json_integer(bound));

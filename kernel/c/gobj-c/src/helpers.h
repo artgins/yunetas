@@ -1094,6 +1094,7 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         "2 hours ago"  "3 days"  "1.day"  "2 days 3 hours ago"  "one week ago"
         short units, attached or not: "1s" "5m" "2h" "1d" "1w" "1M" "1y"
         ("m" is a minute, "M" a month; "1min" "1mo" "2hrs" "3wks" "1yr")
+        a minus sign before a count and its unit is read too: "-1d" "-2 hours"
         number words zero..ten; "last week", "last month", "last year"
         Months and years are of the calendar: "1 month ago" on Mar 31 is
         Feb 28 (29). Days are 24 hours from now.
@@ -1130,7 +1131,8 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
     Not read (error): "tomorrow", "next friday", "in 3 days",
     "2 days from now" (no time ahead of now), "1.5 hours", a date that is
     not in the calendar ("2026-02-30"), a lone sign or number that is no
-    day, month or year ("+5", "100").
+    day, month or year ("+5", "-5", "100"), a plus sign before a duration
+    ("+1d").
 
     parse_date_basic() reads only a whole date and time, or epoch seconds,
     and returns the offset it was written in (the local one at that time

@@ -7882,6 +7882,44 @@ PRIVATE const char *read_zone_offset(date_reading_t *rd, const char *p)
 }
 
 /***************************************************************************
+ *  A duration with a minus sign: "-1d", "-2 hours", "-1w ago". The port of
+ *  git's date.c skipped the sign, so a count back from now was typed that
+ *  way for years. Only a count with its unit: "-5" or "-2 friday" is no
+ *  duration.
+ ***************************************************************************/
+PRIVATE const char *read_signed_duration(date_reading_t *rd, const char *p)
+{
+    p++;
+    uintmax_t count = 0;
+    while(isdigit((unsigned char)*p)) {
+        if(count > (UINTMAX_MAX - 9)/10) {
+            rd->unreadable = TRUE;
+            return p;
+        }
+        count = count*10 + (uintmax_t)(*p - '0');
+        p++;
+    }
+    const char *q = p;
+    while(*q == ' ' || *q == '\t' || *q == '.' || *q == ',' || *q == '_') {
+        q++;
+    }
+    if(!isalpha((unsigned char)*q)) {
+        rd->unreadable = TRUE;
+        return p;
+    }
+    char raw[16];
+    char word[16];
+    const char *end = take_word(q, raw, word, sizeof(word));
+    date_unit_t unit = unit_of_word(raw, word);
+    if(unit == DATE_UNIT_NONE) {
+        rd->unreadable = TRUE;
+        return end;
+    }
+    note_duration(rd, count, unit);
+    return end;
+}
+
+/***************************************************************************
  *  A piece that starts with a letter
  ***************************************************************************/
 PRIVATE const char *read_word(date_reading_t *rd, const char *p)
@@ -8003,6 +8041,9 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
             p = read_number(rd, p);
         } else if(isalpha(c)) {
             p = read_word(rd, p);
+        } else if(c == '-' && isdigit((unsigned char)p[1]) &&
+                rd->hour < 0 && !rd->epoch_said) {
+            p = read_signed_duration(rd, p);
         } else if(c == '+' || c == '-') {
             p = read_zone_offset(rd, p);
         } else if(c == '@') {
