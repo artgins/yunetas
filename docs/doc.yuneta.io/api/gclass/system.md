@@ -27,7 +27,7 @@ pushes as its `cpu` kind, read once a second (`timeout_stats`):
 | Stat | Meaning |
 |------|---------|
 | `cpu` | Percent of one core the process used. |
-| `publications` | How many `publish-stats` the yuno is sending (see [below](#publishing-its-stats-publish-stats)). Since 7.28.11. |
+| `publications` | How many `publish-stats` the yuno is sending (see [below](#c_yuno_publish_stats)). Since 7.28.11. |
 | `uptime`, `start_date` | Seconds since the yuno started, and when. |
 | `mem_rss_kb` | Resident memory of the process, KB (`VmRSS`). |
 | `mem_node_total_mb`, `mem_node_available_percent` | Memory of the node, and the percent of it still available (`MemAvailable`). A ramdisk takes its size from here. |
@@ -50,6 +50,7 @@ a message it could not save. Example, from `stats-yuno`:
 
 Test: `tests/c/c_yuno_stats`.
 
+(c_yuno_publish_stats)=
 ### Publishing its stats (`publish-stats`)
 
 Since 7.28.11 a yuno can SEND the stats of one of its services to whoever asks,
@@ -103,7 +104,7 @@ Test: `tests/c/c_yuno_publish_stats`.
 | `info-global-trace` | Show trace configuration. |
 | `view-config` | Show yuno configuration. |
 | `info-mem` | Memory usage info. |
-| `publish-stats` | Send the stats of a service to the requester every period, see [above](#publishing-its-stats-publish-stats). |
+| `publish-stats` | Send the stats of a service to the requester every period, see [above](#c_yuno_publish_stats). |
 | `info-cpus` / `info-ifs` / `info-os` | System information. |
 | `info-uptime` | Uptime and boot date of the machine, and uptime and start date of this yuno. |
 | `info-inotify` | inotify limits (`/proc/sys/fs/inotify/*`) plus this yuno's own usage (instances + watches). |

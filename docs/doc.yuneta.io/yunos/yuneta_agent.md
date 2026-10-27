@@ -294,7 +294,7 @@ every third of it), and one not renewed goes with *"watch-yuno-stats not
 renewed, expired"* in the agent's log. The readings come ONCE per yuno and
 service however many requesters watch it, at the shortest period asked. Since
 7.28.11 the agent asks each watched yuno to send them itself
-([`publish-stats`](../api/gclass/system.md#publishing-its-stats-publish-stats),
+([`publish-stats`](#c_yuno_publish_stats),
 one per service, with `watch_ttl` as its ttl, renewed at half of it, and
 stopped when nobody watches that service any more), and only reads them on
 loopback (`stats-yuno` to its own yunos) for the first readings of a new watch
