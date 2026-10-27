@@ -70,6 +70,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <dirent.h>
 #include <sys/stat.h>
 #include <limits.h>
 
@@ -3278,6 +3279,61 @@ PRIVATE int do_test(void)
         check_refused("delete-key-files of a key that is a path", r);
         check_int("the refusals deleted nothing",
             (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME5, "P"), 2);
+
+        /*
+         *  archive-key-files: the same purge, the files kept in a batch of
+         *  the archive_directory attribute. With none configured, refused
+         *  with no log (no malformed data: a configuration missing)
+         */
+        for(int d = 0; d < 3; d++) {
+            uint64_t t = BASE_T + (uint64_t)d*86400;
+            json_t *jn_record = json_pack("{s:s, s:I, s:s}",
+                "id", "ARC", "tm", (json_int_t)t, "content", "day");
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger, TOPIC_NAME5, t, 0, &md, jn_record);
+        }
+        r = gobj_command(yuno, "archive-key-files",
+            as_peer(json_pack("{s:s, s:s, s:I}",
+                "topic_name", TOPIC_NAME5, "key", "ARC", "before", (json_int_t)(BASE_T + 86400)
+            )), yuno);
+        check_bool("archive-key-files with no archive_directory: it says so",
+            strstr(kw_get_str(0, r, "comment", "", 0), "no archive_directory configured") != NULL, TRUE);
+        check_refused("archive-key-files with no archive_directory", r);
+
+        char path_archive[PATH_MAX];
+        build_path(path_archive, sizeof(path_archive), path_root, "tr_c_tranger_cmd_archive", NULL);
+        rmrdir(path_archive);
+        mkrdir(path_archive, 02770);
+        gobj_write_str_attr(yuno, "archive_directory", path_archive);
+        r = gobj_command(yuno, "archive-key-files",
+            json_pack("{s:s, s:s, s:I}",
+                "topic_name", TOPIC_NAME5, "key", "ARC", "before", (json_int_t)(BASE_T + 86400)
+            ), yuno);
+        check_int("archive-key-files", kw_get_int(0, r, "result", -999, 0), 0);
+        check_int("archive-key-files: rows", kw_get_int(0, r, "data`rows", -1, 0), 1);
+        check_bool("archive-key-files: it says archived",
+            strstr(kw_get_str(0, r, "comment", "", 0), "rows archived") != NULL, TRUE);
+        JSON_DECREF(r)
+        check_int("the key keeps the rest",
+            (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME5, "ARC"), 2);
+        {
+            char key_archive[PATH_MAX];
+            build_path(key_archive, sizeof(key_archive), path_archive, DATABASE, TOPIC_NAME5, "ARC", NULL);
+            int batches = 0;
+            DIR *dir = opendir(key_archive);
+            struct dirent *entry;
+            while(dir && (entry = readdir(dir)) != NULL) {
+                if(entry->d_name[0] != '.') {
+                    batches++;
+                }
+            }
+            if(dir) {
+                closedir(dir);
+            }
+            check_int("archive-key-files: one batch", batches, 1);
+        }
+        gobj_write_str_attr(yuno, "archive_directory", "");
+        rmrdir(path_archive);
 
         /*
          *  A record of a purged period is refused BEFORE the tranger: the

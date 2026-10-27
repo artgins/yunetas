@@ -133,6 +133,7 @@ instances.
 |---|---|---|
 | Whole record (key + all instances) | **`tranger2_delete_key`** (was `tranger2_delete_record` before 2026-05-25; legacy alias kept in `timeranger2.h`) | `keys/<key>/` moved out of `keys/` whole (a `rename()`), then removed + drop from `topic_cache` + propagate to in-process subscribers + a delete signal `disks/<rt_id>/.d<seq>.<key>` (the topic's delete sequence) for `rt_by_disk` followers. Irrecoverable. |
 | The old files of a key | **`tranger2_delete_key_files`** (7.27.5) | Retention: deletes every file of the key whose id sorts before the file of `before_t`, and keeps every `g_rowid` where it was. The rows deleted go to the base of the key, `keys/<key>/.purged`, made durable before any file goes. Followers hear `disks/<rt_id>/.p.<key>`. Master-only. See [Retention](#retention-the-old-files-of-a-key) below. |
+| The old files of a key, kept | **`tranger2_archive_key_files`** (after 7.28.11) | The same purge, and the files taken out of the topic are hard-linked into a batch of an archive directory, for another process to send or read. See [Archive](#archive-keeping-the-old-files) below. |
 | One instance | **`tranger2_delete_instance`** (2026-05-26) | Mutates the `.md2` row in place with `sf_deleted_instance = 0x0400` (inherited side, followers see the same tombstone). Optional `zero_payload` overwrites the matching bytes in the data `.json` for sensitive-data wipes. Read paths skip dead rows; rowids do NOT renumber. Master-only, idempotent. |
 
 ### Retention: the old files of a key
@@ -249,6 +250,55 @@ command-yuno id=<yuno> service=tranger command=delete-key-files topic_name=raw_t
 Without `key=` it walks every key of the topic in one call. Tests:
 `tests/c/timeranger2/test_delete_key_files.c` (the master: numbering, bounds,
 pages, the guards, the crash cases) and `test_delete_key_files_follower.c`.
+
+### Archive: keeping the old files
+
+`tranger2_archive_key_files(tranger, topic, key, before_t, archive_directory)`
+is the same purge, and the files it takes out of the topic are KEPT: each
+purge of a key hard-links them into a new batch of `archive_directory`, for
+another process (a yuno that sends them to a backup machine, say) to take and
+remove. Design and crash table: [`DESIGN-retention.md`](DESIGN-retention.md)
+§12.
+
+```c
+/*
+ *  Keep 30 days of `raw_tracks` in the topic, and what goes out of it in
+ *  /yuneta/store/archive (it must exist, on the filesystem of the store)
+ */
+json_int_t rows = tranger2_archive_key_files(
+    tranger, "raw_tracks", device_id, time_in_seconds() - 30*86400,
+    "/yuneta/store/archive"
+);
+if(rows < 0) {
+    // Error already logged: refused, nothing archived nor deleted
+}
+```
+
+```
+/yuneta/store/archive/tr_raw_tracks/raw_tracks/dev1/2026-09-20@1792573238/
+    2026-09-19.json  2026-09-19.md2  2026-09-20.json  2026-09-20.md2
+    topic_desc.json  topic_cols.json
+    manifest.json    {"files": ["2026-09-19", "2026-09-20"], "rows": 5712,
+                      "first_g_rowid": 1817700, "last_g_rowid": 1823411, ...}
+```
+
+- **Hard links**: the cost does not depend on the size of the files, and the
+  `archive_directory` must be on the filesystem of the topic. It must exist,
+  be absolute, and be neither inside the directory of the tranger nor hold it.
+- **A batch is whole when its name does not start with `.`**: it is built as
+  `.new-<upto>@<t>` and renamed when it is durable. A crash between the batch
+  and the base leaves a batch of files still live, and the next purge
+  archives them again in another batch: a reader takes duplicates by file id.
+- **The batch is durable before the base**, so the open of the master, which
+  finishes a cut purge by deleting, never deletes a file that is not
+  archived.
+- **The archive frees no disk until its reader removes a batch.** The SDK puts
+  no limit on it.
+- **Cost**: about three times a delete (three or four `fsync()` more per key).
+
+By hand, `archive-key-files` of `C_TRANGER`, with the parameters of
+`delete-key-files`; the directory is its `archive_directory` attribute, never
+a parameter. Tests: `tests/c/timeranger2/test_archive_key_files.c`.
 
 ### Path-traversal hardening (since 7.6.0)
 

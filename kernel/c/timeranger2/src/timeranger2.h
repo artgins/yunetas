@@ -854,6 +854,51 @@ PUBLIC json_int_t tranger2_delete_key_files(
 );
 
 /*
+    The purge of tranger2_delete_key_files() -- the same cut, the same
+    guards, the same base, the same answer -- with the files it takes out of
+    the topic KEPT instead of lost: each purge of a key hard-links them into
+    a new BATCH of `archive_directory`,
+
+        <archive_directory>/<database>/<topic>/<key>/<upto>@<t>/
+            <file_id>.json <file_id>.md2 [.unordered] [.tm_unordered]
+            topic_desc.json topic_cols.json     (the schema, as it is now)
+            manifest.json   {database, topic, key, files, rows,
+                             first_g_rowid, last_g_rowid, upto, t}
+
+    where `upto` is the last file id taken and `t` the time of the purge.
+    What is done with a batch (sent to a backup machine, compressed, read)
+    is the job of another process, which removes it when it is done: until
+    then the disk is NOT freed. The SDK puts no limit on the archive.
+
+    A batch is built as `.new-<upto>@<t>` and renamed when it is whole and
+    durable: a name that starts with '.' is not finished, and a reader leaves
+    it alone. The batch is made durable BEFORE the base of the key, so:
+      - a crash while it is built leaves a `.new-*`, removed by the next
+        archive of the key; the key as it was;
+      - a crash between the batch and the base leaves a whole batch of files
+        that are still live: the next purge archives them again, in another
+        batch (another `@<t>`). A reader takes duplicates by file id;
+      - a base that cannot be written removes the batch: -1, nothing deleted.
+    The followers see what a delete shows them, and the numbering is the
+    same: with first_g_rowid of the manifest, row N of the k-th file is
+    first_g_rowid + (the rows of the files before it) + N - 1.
+
+    `archive_directory` must be an absolute path of a directory that EXISTS,
+    on the filesystem of the topic (a hard link cannot cross filesystems),
+    and neither inside the directory of the tranger nor holding it.
+    Otherwise: -1, logged, nothing deleted. The levels under it are created.
+    Cost: three fsync() more per key purged than a delete (four the first
+    time a key is archived): about three times the time of a delete.
+*/
+PUBLIC json_int_t tranger2_archive_key_files(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    uint64_t before_t,
+    const char *archive_directory
+);
+
+/*
     Do the file ids of a file name mask (strftime(), the `filename_mask` of a
     topic) sort as time? They are compared as strings, so only when every
     field is numeric and of a fixed width, the year FIRST, and each field the

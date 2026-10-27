@@ -1,7 +1,8 @@
 # Design: retention — deleting the old files of a key, with `g_rowid` intact
 
 Status: **IMPLEMENTED** (2026-10-21, `bd3fdce51` the master, `83a771089` the
-followers, `ffee7cd3f` the `C_TRANGER` command), released in 7.27.5. Approved the
+followers, `ffee7cd3f` the `C_TRANGER` command), released in 7.27.5. The archive
+variant, `tranger2_archive_key_files()` (§12), was added on 2026-10-27. Approved the
 same day; the open questions are decided (§11), and two guards were added to
 the proposal (§4.1). Where the implementation differs from the proposal, the
 text says so (§4.5, §8). Line numbers are those of `timeranger2.c` at
@@ -465,3 +466,178 @@ These were the open questions of the proposal.
 5. **Two guards were added** (§4.1): a cut in the future is refused, and so
    is a mask whose file ids do not sort as time
    (`tranger2_mask_sorts_as_time()`; first a mask with no absolute year).
+
+## 12. Archive: keeping the old files instead of losing them
+
+Added 2026-10-27, after 7.28.11. A retention period frees the disk, and some
+installations must still keep what it takes: send it to a backup machine,
+compress it, load it into something else. `tranger2_archive_key_files()` is
+the purge of `tranger2_delete_key_files()` -- the same cut, the same guards,
+the same base, the same answer -- and the files it takes out of the topic are
+**kept in a batch of an archive directory** instead of lost. What is done
+with a batch is the job of another process (another yuno), never of
+timeranger2: it has no timer and no transport, and the policy is not its
+own (§7).
+
+```c
+PUBLIC json_int_t tranger2_archive_key_files(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    uint64_t before_t,
+    const char *archive_directory
+);
+```
+
+A separate function, not a parameter of the old one: the intention is in the
+name, and no caller of `tranger2_delete_key_files()` changes.
+
+### 12.1 The batch
+
+Each purge of a key that takes at least one file makes one batch:
+
+```
+<archive_directory>/<database>/<topic>/<key>/<upto>@<t>/
+    <file_id>.json  <file_id>.md2  [<file_id>.unordered] [<file_id>.tm_unordered]
+    topic_desc.json  topic_cols.json
+    manifest.json
+```
+
+```json
+{
+    "database": "tr_raw_tracks",
+    "topic": "raw_tracks",
+    "key": "dev1",
+    "files": ["2026-09-19", "2026-09-20"],
+    "rows": 5712,
+    "first_g_rowid": 1817700,
+    "last_g_rowid": 1823411,
+    "upto": "2026-09-20",
+    "t": 1792573238
+}
+```
+
+- **Hard links, not copies.** The purge's `unlink()` of the topic's file then
+  takes one name of the inode, and the data stays where the batch names it.
+  The cost does not depend on the size of the files, and nothing is read or
+  written but the manifest.
+- **A batch describes itself.** `topic_desc.json` and `topic_cols.json` are
+  linked as they are at the purge (both are replaced whole by a `rename()`,
+  so the link is a snapshot of the schema the rows were written with), and
+  `first_g_rowid` gives the numbering: row N of the k-th file of `files` is
+  `first_g_rowid + (the rows of the files before it) + N - 1`. A reader needs
+  nothing of the store.
+- **`@<t>`** (the time of the purge, the `t` of the base) keeps two batches
+  of the same `upto` apart: after a crash between the batch and the base the
+  same files are archived again (§12.3).
+- **A name that starts with `.` is not a batch.** The batch is built as
+  `.new-<upto>@<t>` and renamed when it is whole and durable. A reader that
+  watches the directory (`C_FS`) takes the names that do not start with `.`,
+  as timeranger2 itself does with its signals.
+
+The archive is a spool, not a store: timeranger2 never reads it again, and a
+batch put back into `keys/` would be removed by the next open of the master
+(its files are at or before `upto`).
+
+### 12.2 The order
+
+1. **Choose** the files (§4.3, unchanged).
+2. **Archive.** Make the levels `<database>/<topic>/<key>` that are missing
+   (each one created is fsync'ed into its parent), remove a `.new-*` left by
+   a crash, link the files into `.new-<upto>@<t>`, write `manifest.json`
+   durable (an `fsync()` of the file and then of the batch directory, which
+   covers the links), `rename()` the batch to its name, and `fsync()` the
+   directory of the key.
+3. **Decide**: the base (§4.3, unchanged). If it cannot be written the batch
+   is removed -- its files are still live -- and the call returns -1 with
+   nothing deleted.
+4. **Cache, delete, tell the followers** (§4.3, unchanged).
+
+The batch is durable **before** the base, and that is the whole point of the
+order: the open of the master finishes a purge cut by a crash by DELETING
+what is at or before `upto` (§4.4), and it knows nothing of the archive. With
+the batch first, every file that the open can delete is already archived.
+The other order (base, then batch) would have needed the archive directory in
+the topic's configuration, read by the open, to archive instead of deleting
+there.
+
+### 12.3 Crash safety
+
+| A crash during… | Leaves | Then |
+|---|---|---|
+| step 2, before the `rename()` | a `.new-*` in the directory of the key; the key as it was | the next archive of the key removes it (INFO *"Batch of an archive that was not finished removed: its purge did not happen"*) |
+| between steps 2 and 3 | a whole batch of files that are still live in the topic | the next purge archives them again, in another batch (another `@<t>`): a reader takes duplicates by file id |
+| after step 3 | as in §4.3; the files are already in the batch | the open of the master removes them from the topic |
+
+Inside the process there is no window at all: the purge is one synchronous
+call on a single thread, so no append can come between the links and the
+unlinks.
+
+### 12.4 Guards
+
+Each returns -1, logged, with nothing deleted. They are checked after the
+guards of §4.1 and before anything is chosen:
+
+- `archive_directory` empty, or not an absolute path;
+- a directory that does not exist (it is configuration: the SDK creates the
+  levels under it, never the directory itself), or that is not a directory;
+- on another filesystem than the topic (`st_dev`): `link()` would fail with
+  `EXDEV`, and a copy has no bounded time on a yuno with one thread;
+- inside the directory of the tranger, or holding it: the batches would land
+  in the store (with `archive_directory` = the `path` of the tranger, a batch
+  would go into the directory of the topic).
+
+A batch that already exists with the name of this one (a crash and a purge
+in the same second) is refused too.
+
+### 12.5 What does not change
+
+The numbering, the base, the followers (to them an archive is a delete), the
+feeds and their hard links (removed as in §4.3), the append path, and
+`tranger2_delete_key_files()`.
+
+### 12.6 The disk
+
+**An archive frees no disk until its reader removes the batch.** The SDK puts
+no limit on it. If the reader is down, the archive grows by what retention
+takes, which is what retention was there to stop. What to do then -- stop
+archiving and delete, alert, stop purging -- is the policy of the owner of
+the store or of the reader, and it needs a decision when the reader is
+written.
+
+### 12.7 Cost
+
+About four `fsync()` more per key than a delete: the manifest, the batch
+directory, the directory of the key after the `rename()`, and, the first time
+a key is archived, its directory in the topic level. Measured on 2026-10-27
+on the dev machine (NVMe), 3,000 keys, one file purged per key, three rounds:
+**delete 11.8-12.3 ms per key, archive 35.5-37.2 ms per key: three times
+more**. The absolute figures of that machine were about nine times worse that
+day than on 2026-10-21 (§6: 3.9 s for 3,058 keys), so the ratio is the figure
+to keep; on the slowest node of §6 (1.8 ms per key for a delete) an archive
+would cost about 5.4 ms per key. An owner that archives does a slice about a
+third of the one it deletes in (§7): 30 to 40 keys per tick instead of 100.
+
+### 12.8 `C_TRANGER`
+
+`archive-key-files` takes the parameters of `delete-key-files`, under the same
+permission (`delete`), master-only. The directory is the `archive_directory`
+**attribute** of the `C_TRANGER` (configuration), never a parameter: a peer
+that chose it could have the files of the store linked wherever the yuno can
+write, a directory that a web server serves among them. With the attribute
+empty the command is refused.
+
+```
+command-yuno id=<yuno> service=tranger command=archive-key-files topic_name=raw_tracks key=dev1 before=2026-09-21T00:00:00
+```
+
+### 12.9 Tests
+
+`tests/c/timeranger2/test_archive_key_files.c`: a batch with the files, the
+schema and the manifest, the topic numbered as after a delete; a second batch
+that starts after the first; every guard of §12.4 (another filesystem when the
+machine has one at `/dev/shm`); a base that cannot be written removes the
+batch and deletes nothing; a `.new-*` left is removed; a batch name already
+taken is refused; a replica and a reopened master read the numbering of the
+base. `tests/c/c_tranger/test_c_tranger.c`: the command refused with no
+attribute, and a batch with one.

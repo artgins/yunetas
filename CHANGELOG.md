@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- **timeranger2: `tranger2_archive_key_files()`, retention that keeps what it
+  takes.** The purge of `tranger2_delete_key_files()` -- the same cut, guards,
+  base and answer -- with the files taken out of the topic hard-linked into a
+  batch `<archive_directory>/<database>/<topic>/<key>/<upto>@<t>/`, with
+  `topic_desc.json`, `topic_cols.json` and a `manifest.json` (`files`, `rows`,
+  `first_g_rowid`, `last_g_rowid`), for another process to send to a backup
+  machine or read, and remove. The batch is built as `.new-*`, renamed when it
+  is durable, and made durable BEFORE the base, so the open of the master,
+  which finishes a cut purge by deleting, never deletes a file not archived. A
+  crash between the batch and the base leaves a batch of live files, archived
+  again in another batch by the next purge (duplicates by file id); a base that
+  cannot be written removes the batch. Refused with nothing deleted: a relative
+  or missing directory, one on another filesystem (a hard link cannot cross
+  it), one inside the tranger or holding it. Cost: three or four `fsync()`
+  more per key, about three times a delete (12 against 37 ms per key, 3,000
+  keys, dev machine). The archive frees no disk until its reader removes a
+  batch: the SDK puts no limit on it. `tranger2_delete_key_files()` does not
+  change. Design: `kernel/c/timeranger2/DESIGN-retention.md` §12.
+- **`C_TRANGER`: `archive-key-files`**, with the parameters of
+  `delete-key-files`, into the new `archive_directory` attribute (`SDF_RD`,
+  empty: the command is refused). The directory is configuration, never a
+  parameter: a peer that chose it could have the store linked wherever the
+  yuno can write.
+
 ## v7.28.11 (2026-10-27)
 
 A node restart that restarts only what changed, and yunos that send their own

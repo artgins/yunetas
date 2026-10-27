@@ -1358,6 +1358,134 @@ tranger2_delete_key_files(K, before_t = 2000-01-02T00:00:00)   -> 3
   its base, and a moved directory that cannot be removed is the key deleted all
   the same (`0`), swept at the master's next open.
 - By hand: the `delete-key-files` command of [`C_TRANGER`](#gclass-c-tranger).
+- To keep the files instead of losing them:
+  [`tranger2_archive_key_files()`](#tranger2_archive_key_files).
+
+---
+
+(tranger2_archive_key_files)=
+## [`tranger2_archive_key_files()`](https://github.com/artgins/yunetas/blob/7.28.11/kernel/c/timeranger2/src/timeranger2.c#L6868)
+
+The `tranger2_archive_key_files()` function is the purge of
+[`tranger2_delete_key_files()`](#tranger2_delete_key_files) -- the same cut,
+the same guards, the same base, the same answer -- and the files it takes out
+of the topic are **kept**: each purge of a key hard-links them into a new
+**batch** of `archive_directory`. What is done with a batch (sent to a backup
+machine, compressed, loaded elsewhere) is the job of another process, which
+removes the batch when it is done. The design and its crash table are in
+`kernel/c/timeranger2/DESIGN-retention.md` §12. Added after 7.28.11: it ships
+in the next release.
+
+```text
+<archive_directory>/<database>/<topic>/<key>/<upto>@<t>/
+    <file_id>.json  <file_id>.md2  [<file_id>.unordered] [<file_id>.tm_unordered]
+    topic_desc.json  topic_cols.json        the schema, as it is at the purge
+    manifest.json
+```
+
+`upto` is the last file id taken and `t` the time of the purge (the `t` of
+the base). The manifest says what the batch holds and how it is numbered:
+
+```json
+{
+    "database": "tr_raw_tracks",
+    "topic": "raw_tracks",
+    "key": "dev1",
+    "files": ["2026-09-19", "2026-09-20"],
+    "rows": 5712,
+    "first_g_rowid": 1817700,
+    "last_g_rowid": 1823411,
+    "upto": "2026-09-20",
+    "t": 1792573238
+}
+```
+
+Row N of the k-th file of `files` has the `g_rowid` `first_g_rowid` + the
+rows of the files before it + N - 1.
+
+```C
+json_int_t tranger2_archive_key_files(
+    json_t      *tranger,
+    const char  *topic_name,
+    const char  *key,
+    uint64_t    before_t,
+    const char  *archive_directory
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | A pointer to the TimeRanger database instance. It must be the master. |
+| `topic_name` | `const char *` | The topic of the key, as in [`tranger2_delete_key_files()`](#tranger2_delete_key_files). |
+| `key` | `const char *` | The key whose old files are archived. |
+| `before_t` | `uint64_t` | The cut, in the topic's unit of `t`, as in [`tranger2_delete_key_files()`](#tranger2_delete_key_files). |
+| `archive_directory` | `const char *` | Where the batches go: an absolute path of a directory that EXISTS, on the filesystem of the topic (a hard link cannot cross filesystems), neither inside the directory of the tranger nor holding it. The levels `<database>/<topic>/<key>` under it are created. |
+
+**Returns**
+
+The rows archived (and taken out of the topic), `0` when there was nothing to
+take, or `-1` (logged). A refusal deletes nothing and leaves no batch; the
+`-1` of a purge APPLIED with its base not durable is as in
+[`tranger2_delete_key_files()`](#tranger2_delete_key_files), and its batch
+stays.
+
+**Example**
+
+```C
+/*
+ *  Retention of 30 days that keeps what it takes: the batches go to
+ *  /yuneta/store/archive, where a reader yuno sends them to a backup
+ *  machine and removes them
+ */
+uint64_t cut = time_in_seconds() - 30*86400;
+json_int_t rows = tranger2_archive_key_files(
+    tranger, "raw_tracks", "dev1", cut, "/yuneta/store/archive"
+);
+if(rows < 0) {
+    // Error already logged: refused, nothing archived nor deleted
+}
+```
+
+```text
+key dev1: files 2000-01-01 (rows 1-3), 2000-01-02 (4-6), 2000-01-03 (7-9)
+tranger2_archive_key_files(dev1, before_t = 2000-01-02T00:00:00, "/yuneta/store/archive")   -> 3
+    topic:   files 2000-01-02 (4-6), 2000-01-03 (7-9), base {upto 2000-01-01, rows 3}
+    archive: .../dev1/2000-01-01@<t>/  2000-01-01.json 2000-01-01.md2 topic_desc.json
+             topic_cols.json manifest.json {rows 3, first_g_rowid 1, last_g_rowid 3}
+tranger2_archive_key_files(dev1, before_t = 2000-01-03T00:00:00, ...)   -> 3
+    archive: a second batch .../dev1/2000-01-02@<t>/, first_g_rowid 4
+```
+
+**Notes**
+
+- **A batch whose name starts with `.` is not finished.** It is built as
+  `.new-<upto>@<t>` and renamed when it is whole and durable: a reader that
+  watches the directory takes only the names that do not start with `.`.
+- **The batch is durable BEFORE the base.** A crash while it is built leaves a
+  `.new-*`, removed by the next archive of the key (INFO *"Batch of an archive
+  that was not finished removed: its purge did not happen"*). A crash between
+  the batch and the base leaves a whole batch of files still live: the next
+  purge archives them again in another batch, so a reader takes duplicates by
+  file id. A base that cannot be written removes the batch and answers `-1`.
+- **Refused**, besides the refusals of
+  [`tranger2_delete_key_files()`](#tranger2_delete_key_files), with
+  `-1`, logged, nothing deleted: no `archive_directory` (*"what
+  archive_directory?"*), a relative one, one that does not exist (*"cannot be
+  resolved: it must exist"*), a file, one on another filesystem (*"a hard link
+  cannot cross it"*), one inside the directory of the tranger or holding it,
+  and a batch that already exists with the name of this one.
+- **The archive frees no disk until its reader removes a batch.** The SDK puts
+  no limit on it: while the reader is down it grows by what retention takes.
+- **Cost.** Three `fsync()` more per key than a delete (the manifest, the
+  batch, the directory of the key), four the first time a key is archived:
+  about three times a delete (measured: 12 ms against 37 ms per key on a busy
+  NVMe, 3,000 keys).
+- The followers see what a delete shows them: an archive changes nothing on
+  their side.
+- By hand: the `archive-key-files` command of
+  [`C_TRANGER`](#gclass-c-tranger), into its `archive_directory` attribute.
 
 ---
 

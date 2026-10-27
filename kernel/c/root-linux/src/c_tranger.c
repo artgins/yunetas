@@ -46,6 +46,13 @@ kept, and at most one file more. Master-only, permission `delete`. A topic
 whose filename_mask has no year (a queue) and a `before` that is not in the
 past are refused. Without key= it walks every key in this one call.
 
+archive-key-files is the same, and keeps what it takes: the files go, hard
+linked, into a batch of the archive_directory attribute (configuration, never
+a parameter), for another process to send or read
+(tranger2_archive_key_files(), DESIGN-retention.md §12):
+
+command-yuno id=1911 service=tranger command=archive-key-files topic_name=pp key=1 before=2026-09-21T00:00:00
+
 list-keys returns, per key, its record count AND its time span taken from the
 topic's cache totals: {key, records, fr_t, to_t, fr_tm, to_tm}, plus `purged`
 (the rows delete-key-files took, after which its g_rowids start) for a key
@@ -211,6 +218,8 @@ PRIVATE json_t *cmd_open_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_archive_key_files(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *purge_key_files_by_command(hgobj gobj, json_t *kw, hgobj src, BOOL archive);
 PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -400,6 +409,13 @@ SDATAPM (DTP_STRING,    "key",          0,              0,          "Key whose o
 SDATAPM (DTP_JSON,      "before",       0,              0,          "Delete the files of the records appended before this time: an integer (topic unit of t), or a date string"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_archive_key_files[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "key",          0,              0,          "Key whose old files are archived; empty: every key of the topic"),
+SDATAPM (DTP_JSON,      "before",       0,              0,          "Archive the files of the records appended before this time: an integer (topic unit of t), or a date string"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_add_record[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
@@ -523,6 +539,7 @@ SDATACM2 (DTP_SCHEMA,   "open-topic",       SDF_AUTHZ_X,    0,      pm_open_topi
 SDATACM2 (DTP_SCHEMA,   "delete-topic",     SDF_AUTHZ_X,    0,      pm_delete_topic,    cmd_delete_topic,   "Delete topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-key",       SDF_AUTHZ_X,    0,      pm_delete_key,      cmd_delete_key,     "Delete a whole key (primary key) and every record it holds. Irrecoverable, master-only; force=1 when the key is not empty"),
 SDATACM2 (DTP_SCHEMA,   "delete-key-files", SDF_AUTHZ_X,    0,      pm_delete_key_files, cmd_delete_key_files, "Delete the old files of a key (every key without key=): the records appended before `before`, with every g_rowid kept. Irrecoverable, master-only"),
+SDATACM2 (DTP_SCHEMA,   "archive-key-files",SDF_AUTHZ_X,    0,      pm_archive_key_files, cmd_archive_key_files, "As delete-key-files, and the files taken out of the topic are kept, in a batch of the archive_directory attribute, for another process. Master-only"),
 
 SDATACM2 (DTP_SCHEMA,   "open-list",        SDF_AUTHZ_X,    0,      pm_open_list,       cmd_open_list,      "Open list. With return_data=1 loads and returns the matching records, auto-closing (one-shot read); else the list stays open collecting appends until close-list"),
 SDATACM2 (DTP_SCHEMA,   "close-list",       SDF_AUTHZ_X,    0,      pm_close_list,      cmd_close_list,     "Close list"),
@@ -552,6 +569,7 @@ SDATA (DTP_STRING,      "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d",    "
 SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             "1528",         "Use in creation, default 1528 (02770 in octal)"),
 SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             "432",          "Use in creation, default 432 (0660 in octal)"),
 SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,             "2",            "exit on error (Zero to avoid restart)"),
+SDATA (DTP_STRING,      "archive_directory",SDF_RD,             "",             "Where archive-key-files keeps the old files it takes out of a topic, a batch per key and purge (tranger2_archive_key_files()): an absolute path that exists, on the filesystem of the store. Empty: archive-key-files is refused"),
 SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             "0",            "the master is the only that can write. Read, it answers what the tranger IS: false after a lost lock"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
@@ -2834,7 +2852,27 @@ PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    return purge_key_files_by_command(gobj, kw, src, FALSE);
+}
+
+/***************************************************************************
+ *  The same, with tranger2_archive_key_files() into the archive_directory
+ *  attribute: the directory is the configuration's, never the caller's,
+ *  or a peer could have the files of the store linked wherever the yuno
+ *  can write (a directory a web server serves).
+ ***************************************************************************/
+PRIVATE json_t *cmd_archive_key_files(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    return purge_key_files_by_command(gobj, kw, src, TRUE);
+}
+
+/***************************************************************************
+ *  delete-key-files and archive-key-files
+ ***************************************************************************/
+PRIVATE json_t *purge_key_files_by_command(hgobj gobj, json_t *kw, hgobj src, BOOL archive)
+{
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *command = archive? "archive-key-files" : "delete-key-files";
 
     /*----------------------------------------*
      *  Check AUTHZS
@@ -2850,6 +2888,22 @@ PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hg
             0,
             kw  // owned
         );
+    }
+
+    const char *archive_directory = NULL;
+    if(archive) {
+        archive_directory = gobj_read_str_attr(gobj, "archive_directory");
+        if(empty_string(archive_directory)) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: tranger '%s' has no archive_directory configured: "
+                    "archive-key-files keeps the files there", gobj_yuno_role_plus_name(), gobj_name(gobj)),
+                0,
+                0,
+                kw  // owned
+            );
+        }
     }
 
     BOOL peer = command_is_external(kw);
@@ -2907,7 +2961,7 @@ PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hg
             gobj,
             -1,
             json_sprintf("%s: '%s' is a topic of a %s: it is written through it, "
-                "not by delete-key-files", gobj_yuno_role_plus_name(), topic_name, owner),
+                "not by %s", gobj_yuno_role_plus_name(), topic_name, owner, command),
             0,
             0,
             kw  // owned
@@ -2932,8 +2986,8 @@ PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hg
             gobj,
             -1,
             json_sprintf("%s: tranger '%s' is READ-ONLY, this yuno is not its master: "
-                "delete-key-files runs on the master",
-                gobj_yuno_role_plus_name(), gobj_name(gobj)),
+                "%s runs on the master",
+                gobj_yuno_role_plus_name(), gobj_name(gobj), command),
             0,
             0,
             kw  // owned
@@ -3038,9 +3092,14 @@ PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hg
     json_int_t keys_failed = 0;
     int idx; json_t *jn_key;
     json_array_foreach(jn_keys, idx, jn_key) {
-        json_int_t deleted = tranger2_delete_key_files(
-            priv->tranger, topic_name, json_string_value(jn_key), (uint64_t)before
-        );
+        json_int_t deleted = archive?
+            tranger2_archive_key_files(
+                priv->tranger, topic_name, json_string_value(jn_key), (uint64_t)before,
+                archive_directory
+            ) :
+            tranger2_delete_key_files(
+                priv->tranger, topic_name, json_string_value(jn_key), (uint64_t)before
+            );
         if(deleted < 0) {
             keys_failed++;     // Error already logged
         } else if(deleted > 0) {
@@ -3054,13 +3113,15 @@ PRIVATE json_t *cmd_delete_key_files(hgobj gobj, const char *cmd, json_t *kw, hg
     return msg_iev_build_response(gobj,
         keys_failed? -1 : 0,
         keys_failed?
-            json_sprintf("%s: topic '%s': %ld rows deleted from %ld keys of %ld, "
+            json_sprintf("%s: topic '%s': %ld rows %s from %ld keys of %ld, "
                 "%ld keys failed (see the log)",
-                gobj_yuno_role_plus_name(), topic_name,
-                (long)rows, (long)keys_purged, (long)keys_seen, (long)keys_failed):
-            json_sprintf("%s: topic '%s': %ld rows deleted from %ld keys of %ld",
-                gobj_yuno_role_plus_name(), topic_name,
-                (long)rows, (long)keys_purged, (long)keys_seen),
+                gobj_yuno_role_plus_name(), topic_name, (long)rows,
+                archive? "archived" : "deleted",
+                (long)keys_purged, (long)keys_seen, (long)keys_failed):
+            json_sprintf("%s: topic '%s': %ld rows %s from %ld keys of %ld",
+                gobj_yuno_role_plus_name(), topic_name, (long)rows,
+                archive? "archived" : "deleted",
+                (long)keys_purged, (long)keys_seen),
         0,
         json_pack("{s:I, s:I, s:I, s:I}",
             "rows", rows,

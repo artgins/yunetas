@@ -594,6 +594,33 @@ PRIVATE int remove_purged_files(
     const char *key,
     json_t *file_ids
 );
+PRIVATE json_int_t purge_key_files(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    uint64_t before_t,
+    const char *archive_directory
+);
+PRIVATE int check_archive_directory(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *archive_directory
+);
+PRIVATE int archive_purged_files(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *file_ids,
+    json_int_t base_before,
+    json_int_t rows,
+    uint64_t purge_t,
+    const char *archive_directory,
+    char *batch_path,
+    size_t batch_path_size
+);
 PRIVATE json_t *key_cache_stamp(json_t *topic, const char *key);
 PRIVATE void forget_segments_of_key(json_t *topic, const char *key);
 PRIVATE void retake_segments_of_key(
@@ -6829,6 +6856,53 @@ PUBLIC json_int_t tranger2_delete_key_files(
     uint64_t before_t
 )
 {
+    return purge_key_files(tranger, topic_name, key, before_t, NULL);
+}
+
+/***************************************************************************
+    The same purge as tranger2_delete_key_files(), and the files it takes
+    out of the topic are kept, hard-linked, in a BATCH of
+    `archive_directory` (DESIGN-retention.md §12). What is done with the
+    batches is the job of another process.
+ ***************************************************************************/
+PUBLIC json_int_t tranger2_archive_key_files(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    uint64_t before_t,
+    const char *archive_directory
+)
+{
+    if(empty_string(archive_directory)) {
+        hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot archive the old files of a key, what archive_directory?",
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+    return purge_key_files(tranger, topic_name, key, before_t, archive_directory);
+}
+
+/***************************************************************************
+ *  The purge of tranger2_delete_key_files() and tranger2_archive_key_files().
+ *  With an `archive_directory` the files chosen are hard-linked into a batch
+ *  of it, made durable BEFORE the base: so the open of the master, which
+ *  finishes a purge cut by a crash by deleting, never deletes a file that
+ *  was not archived yet, and it needs to know nothing of the archive.
+ ***************************************************************************/
+PRIVATE json_int_t purge_key_files(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    uint64_t before_t,
+    const char *archive_directory
+)
+{
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     if(!tranger_is_master(gobj, tranger)) {
@@ -6965,6 +7039,10 @@ PUBLIC json_int_t tranger2_delete_key_files(
         );
         return -1;
     }
+    if(archive_directory &&
+            check_archive_directory(gobj, tranger, topic, key, archive_directory) < 0) {
+        return -1;  // Error already logged
+    }
 
     /*-----------------------------------*
      *  1. Choose
@@ -6987,28 +7065,58 @@ PUBLIC json_int_t tranger2_delete_key_files(
         return 0;
     }
 
+    json_t *cache_total = json_object_get(key_cache, "total");
+    json_int_t base_before = json_integer_value(json_object_get(cache_total, "purged"));
+    uint64_t purge_t = time_in_seconds();
+
+    /*-----------------------------------*
+     *  Archive: the batch, durable,
+     *  before the base
+     *-----------------------------------*/
+    char batch_path[PATH_MAX] = {0};
+    if(archive_directory) {
+        if(archive_purged_files(
+                gobj, tranger, topic, key, file_ids, base_before, rows_deleted, purge_t,
+                archive_directory, batch_path, sizeof(batch_path)) < 0) {
+            // Error already logged: nothing deleted, the key as it was
+            JSON_DECREF(file_ids)
+            return -1;
+        }
+    }
+
     /*-----------------------------------*
      *  2. Decide: the base, durable.
      *  From here the purge happened.
      *-----------------------------------*/
-    json_t *cache_total = json_object_get(key_cache, "total");
-    json_int_t purged = json_integer_value(json_object_get(cache_total, "purged")) + rows_deleted;
+    json_int_t purged = base_before + rows_deleted;
     json_t *jn_purged = json_pack("{s:s, s:I, s:I}",
         "upto", json_string_value(json_array_get(file_ids, n_files - 1)),
         "rows", purged,
-        "t", (json_int_t)time_in_seconds()
+        "t", (json_int_t)purge_t
     );
 
     const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
     char key_dir[PATH_MAX];
-    if(!build_path(key_dir, sizeof(key_dir), topic_dir, "keys", key, NULL)) {
-        JSON_DECREF(jn_purged)
-        JSON_DECREF(file_ids)
-        return -1;  // Error already logged
+    int written = -1;
+    if(build_path(key_dir, sizeof(key_dir), topic_dir, "keys", key, NULL)) {
+        written = replace_json_file(gobj, tranger, key_dir, PURGED_FILENAME, jn_purged, TRUE, FALSE);
     }
-    int written = replace_json_file(gobj, tranger, key_dir, PURGED_FILENAME, jn_purged, TRUE, FALSE);
     if(written < 0) {
-        // Error already logged: nothing deleted, the key as it was
+        /*
+         *  Error already logged: nothing deleted, the key as it was. The
+         *  batch is a copy of files still live: it goes
+         */
+        if(batch_path[0] && rmrdir(batch_path) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot remove the batch of an archive whose purge did not happen: it holds files still live in the topic",
+                "topic",        "%s", topic_name,
+                "key",          "%s", key,
+                "path",         "%s", batch_path,
+                NULL
+            );
+        }
         JSON_DECREF(jn_purged)
         JSON_DECREF(file_ids)
         return -1;
@@ -13649,6 +13757,381 @@ PRIVATE int remove_purged_files(
         }
     }
     return failed;
+}
+
+/***************************************************************************
+ *  fsync() of a directory: its entries survive a power cut.
+ *  Return 0, or -1 (logged).
+ ***************************************************************************/
+PRIVATE int fsync_directory(hgobj gobj, const char *directory)
+{
+    int dir_fd = open(directory, O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+    if(dir_fd < 0 || fsync(dir_fd) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot fsync a directory",
+            "path",         "%s", directory,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        if(dir_fd >= 0) {
+            close(dir_fd);
+        }
+        return -1;
+    }
+    close(dir_fd);
+    return 0;
+}
+
+/***************************************************************************
+ *  Can the old files of a key go to `archive_directory`? It must be an
+ *  absolute path of a directory that exists, on the filesystem of the topic
+ *  (a hard link cannot cross filesystems), and neither inside the directory
+ *  of the tranger nor holding it: the batches would land in the store.
+ *  Return 0, or -1 (logged).
+ ***************************************************************************/
+PRIVATE int check_archive_directory(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *archive_directory
+)
+{
+    const char *topic_name = tranger2_topic_name(topic);
+    const char *refusal = NULL;
+    int err = 0;
+    char real_archive[PATH_MAX];
+    char real_tranger[PATH_MAX];
+    struct stat st_archive;
+    struct stat st_topic;
+
+    if(archive_directory[0] != '/') {
+        refusal = "Cannot archive the old files of a key, archive_directory is not an absolute path";
+    } else if(!realpath(archive_directory, real_archive) || stat(real_archive, &st_archive) < 0) {
+        refusal = "Cannot archive the old files of a key, archive_directory cannot be resolved: it must exist";
+        err = errno;
+    } else if(!S_ISDIR(st_archive.st_mode)) {
+        refusal = "Cannot archive the old files of a key, archive_directory is not a directory";
+    } else if(!realpath(json_string_value(json_object_get(tranger, "directory")), real_tranger) ||
+            stat(json_string_value(json_object_get(topic, "directory")), &st_topic) < 0) {
+        refusal = "Cannot archive the old files of a key, the directory of the tranger cannot be resolved";
+        err = errno;
+    } else if(st_archive.st_dev != st_topic.st_dev) {
+        refusal = "Cannot archive the old files of a key, archive_directory is on another filesystem than the topic: a hard link cannot cross it";
+    } else {
+        size_t la = strlen(real_archive);
+        size_t lt = strlen(real_tranger);
+        if((strncmp(real_archive, real_tranger, lt) == 0 &&
+                (real_archive[lt] == '/' || real_archive[lt] == 0)) ||
+           (strncmp(real_tranger, real_archive, la) == 0 &&
+                (real_tranger[la] == '/' || la == 1))) {
+            refusal = "Cannot archive the old files of a key, archive_directory is inside the directory of the tranger, or holds it";
+        }
+    }
+
+    if(refusal) {
+        if(err) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_PARAMETER,
+                "msg",              "%s", refusal,
+                "topic",            "%s", topic_name,
+                "key",              "%s", key,
+                "archive_directory","%s", archive_directory,
+                "errno",            "%d", err,
+                "serrno",           "%s", strerror(err),
+                NULL
+            );
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_PARAMETER,
+                "msg",              "%s", refusal,
+                "topic",            "%s", topic_name,
+                "key",              "%s", key,
+                "archive_directory","%s", archive_directory,
+                NULL
+            );
+        }
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  The directory of the batches of a key,
+ *  `<archive_directory>/<database>/<topic>/<key>`, made level by level: a
+ *  level created is fsync'ed into its parent, so the path of a batch
+ *  survives a power cut. Return 0, or -1 (logged).
+ ***************************************************************************/
+PRIVATE int make_archive_key_directory(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *archive_directory,
+    char *directory,
+    size_t directory_size
+)
+{
+    int xpermission = (int)kw_get_int(gobj, tranger, "xpermission", 02770, KW_REQUIRED);
+    const char *levels[] = {
+        json_string_value(json_object_get(tranger, "database")),
+        tranger2_topic_name(topic),
+        key,
+        NULL
+    };
+
+    if(!build_path(directory, directory_size, archive_directory, NULL)) {
+        return -1;  // Error already logged
+    }
+    for(int i = 0; levels[i]; i++) {
+        char parent[PATH_MAX];
+        snprintf(parent, sizeof(parent), "%s", directory);
+        if(!build_path(directory, directory_size, parent, levels[i], NULL)) {
+            return -1;  // Error already logged
+        }
+        struct stat st;
+        if(lstat(directory, &st) == 0) {
+            if(!S_ISDIR(st.st_mode)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot archive the old files of a key, a level of its archive is not a directory",
+                    "path",         "%s", directory,
+                    NULL
+                );
+                return -1;
+            }
+            continue;
+        }
+        if(mkrdir(directory, xpermission) < 0) {
+            return -1;  // Error already logged
+        }
+        if(fsync_directory(gobj, parent) < 0) {
+            return -1;  // Error already logged
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Hard-link the files a purge takes (`file_ids`) into a new BATCH of the
+ *  archive, `<archive_directory>/<database>/<topic>/<key>/<upto>@<t>/`, with
+ *  topic_desc.json and topic_cols.json (the schema of the rows, as it is
+ *  now) and a manifest.json that says what the batch holds and from which
+ *  g_rowid. It is built as `.new-<upto>@<t>` and renamed when it is whole
+ *  and durable: a name that starts with '.' is a batch not finished, and
+ *  a left-over one (a crash) is removed here. Nothing of the topic is
+ *  touched. Return 0 with the path of the batch, or -1 (logged) with no
+ *  batch.
+ ***************************************************************************/
+PRIVATE int archive_purged_files(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *file_ids,
+    json_int_t base_before,
+    json_int_t rows,
+    uint64_t purge_t,
+    const char *archive_directory,
+    char *batch_path,
+    size_t batch_path_size
+)
+{
+    static const char *suffixes[] = {".json", ".md2", ".unordered", ".tm_unordered", NULL};
+    static const char *topic_files[] = {"topic_desc.json", "topic_cols.json", NULL};
+    const char *topic_name = tranger2_topic_name(topic);
+    const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
+    size_t n_files = json_array_size(file_ids);
+    const char *upto = json_string_value(json_array_get(file_ids, n_files - 1));
+
+    batch_path[0] = 0;
+
+    char key_archive[PATH_MAX];
+    if(make_archive_key_directory(
+            gobj, tranger, topic, key, archive_directory, key_archive, sizeof(key_archive)) < 0) {
+        return -1;  // Error already logged
+    }
+
+    /*
+     *  A batch left half built by a crash: its purge did not happen
+     */
+    DIR *dir = opendir(key_archive);
+    if(!dir) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot archive the old files of a key, opendir() of its archive FAILED",
+            "path",         "%s", key_archive,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    struct dirent *entry;
+    while((entry = readdir(dir)) != NULL) {
+        if(strncmp(entry->d_name, ".new-", 5) != 0) {
+            continue;
+        }
+        char left[PATH_MAX];
+        if(!build_path(left, sizeof(left), key_archive, entry->d_name, NULL) ||
+                rmrdir(left) < 0) {
+            closedir(dir);
+            return -1;  // Error already logged
+        }
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Batch of an archive that was not finished removed: its purge did not happen",
+            "path",         "%s", left,
+            NULL
+        );
+    }
+    closedir(dir);
+
+    char batch_name[NAME_MAX + 1];
+    char new_name[NAME_MAX + 1];
+    char new_path[PATH_MAX];
+    char final_path[PATH_MAX];
+    if(snprintf(batch_name, sizeof(batch_name), "%s@%" PRIu64, upto, purge_t) >= (int)sizeof(batch_name) ||
+       snprintf(new_name, sizeof(new_name), ".new-%s", batch_name) >= (int)sizeof(new_name)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot archive the old files of a key, the name of the batch is too long",
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            "upto",         "%s", upto,
+            NULL
+        );
+        return -1;
+    }
+    if(!build_path(new_path, sizeof(new_path), key_archive, new_name, NULL) ||
+       !build_path(final_path, sizeof(final_path), key_archive, batch_name, NULL)) {
+        return -1;  // Error already logged
+    }
+    struct stat st;
+    if(lstat(final_path, &st) == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot archive the old files of a key, its batch already exists",
+            "path",         "%s", final_path,
+            NULL
+        );
+        return -1;
+    }
+    int xpermission = (int)kw_get_int(gobj, tranger, "xpermission", 02770, KW_REQUIRED);
+    if(mkrdir(new_path, xpermission) < 0) {
+        return -1;  // Error already logged
+    }
+
+    /*
+     *  The links: the content and the md2 of every file must be there, the
+     *  markers only if they are
+     */
+    const char *failed = NULL;
+    char src[PATH_MAX];
+    char dst[PATH_MAX];
+    int idx; json_t *jn_file_id;
+    json_array_foreach(file_ids, idx, jn_file_id) {
+        const char *file_id = json_string_value(jn_file_id);
+        for(int i = 0; suffixes[i] && !failed; i++) {
+            char filename[NAME_MAX + 1];
+            if(snprintf(filename, sizeof(filename), "%s%s", file_id, suffixes[i]) >= (int)sizeof(filename)) {
+                continue;   // a name no file can have
+            }
+            if(!build_path(src, sizeof(src), topic_dir, "keys", key, filename, NULL) ||
+               !build_path(dst, sizeof(dst), new_path, filename, NULL)) {
+                failed = "the path of a file is too long";
+                break;
+            }
+            if(link(src, dst) < 0 && !(errno == ENOENT && i >= 2)) {
+                failed = "link() of a file FAILED";
+            }
+        }
+        if(failed) {
+            break;
+        }
+    }
+    for(int i = 0; topic_files[i] && !failed; i++) {
+        if(!build_path(src, sizeof(src), topic_dir, topic_files[i], NULL) ||
+           !build_path(dst, sizeof(dst), new_path, topic_files[i], NULL)) {
+            failed = "the path of a file is too long";
+            break;
+        }
+        if(link(src, dst) < 0 && !(errno == ENOENT && i >= 1)) {
+            failed = "link() of a file of the topic FAILED";
+        }
+    }
+    if(failed) {
+        int err = errno;
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot archive the old files of a key, the batch cannot be built: nothing deleted",
+            "reason",       "%s", failed,
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            "src",          "%s", src,
+            "dst",          "%s", dst,
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
+            NULL
+        );
+        rmrdir(new_path);   // a failure here is logged by it, and removed at the next archive
+        return -1;
+    }
+
+    /*
+     *  The manifest: written durable, which fsyncs the batch directory too
+     *  (its links), then the rename makes the batch whole
+     */
+    json_t *manifest = json_pack("{s:s, s:s, s:s, s:O, s:I, s:I, s:I, s:s, s:I}",
+        "database", json_string_value(json_object_get(tranger, "database")),
+        "topic", topic_name,
+        "key", key,
+        "files", file_ids,
+        "rows", rows,
+        "first_g_rowid", base_before + 1,
+        "last_g_rowid", base_before + rows,
+        "upto", upto,
+        "t", (json_int_t)purge_t
+    );
+    int written = replace_json_file(gobj, tranger, new_path, "manifest.json", manifest, TRUE, TRUE);
+    JSON_DECREF(manifest)
+    if(written != 0) {
+        // Error already logged: a batch that may not be durable deletes nothing
+        rmrdir(new_path);
+        return -1;
+    }
+    if(rename(new_path, final_path) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot archive the old files of a key, rename() of its batch FAILED: nothing deleted",
+            "path",         "%s", new_path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        rmrdir(new_path);
+        return -1;
+    }
+    if(fsync_directory(gobj, key_archive) < 0) {
+        // Error already logged: the batch may not survive a power cut, nothing deleted
+        rmrdir(final_path);
+        return -1;
+    }
+
+    snprintf(batch_path, batch_path_size, "%s", final_path);
+    return 0;
 }
 
 /***************************************************************************

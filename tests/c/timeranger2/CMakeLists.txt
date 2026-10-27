@@ -64,6 +64,7 @@ set(SRCS
     test_delete_key_propagation
     test_delete_key_files
     test_delete_key_files_follower
+    test_archive_key_files
     test_purge_replica_reads
     test_date_bound_units
     test_rt_disk_multi_feed
