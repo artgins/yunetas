@@ -89,6 +89,32 @@ PUBLIC json_t *find_new_yunos_preview(
     int *registered
 );
 
+/*
+ *  The instance of the binary `role` (an id of `binaries`) at `version`,
+ *  or the first one the treedb lists when `version` is empty. NULL when
+ *  that version is not installed. Returns a new reference.
+ */
+PUBLIC json_t *find_binary_version(
+    hgobj gobj,
+    hgobj gobj_resource,
+    const char *role,
+    const char *version
+);
+
+/*
+ *  The instance of the configuration "<role>.<name>" at `version`, or the
+ *  first one the treedb lists when `version` is empty. NULL when that
+ *  version does not exist (or the id does not fit, logged). Returns a new
+ *  reference.
+ */
+PUBLIC json_t *find_configuration_version(
+    hgobj gobj,
+    hgobj gobj_resource,
+    const char *role,
+    const char *name,
+    const char *version
+);
+
 #ifdef __cplusplus
 }
 #endif

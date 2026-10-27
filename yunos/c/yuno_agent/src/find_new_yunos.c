@@ -404,3 +404,97 @@ PUBLIC json_t *find_new_yunos_preview(
 
     return jn_preview;
 }
+
+/***************************************************************************
+ *  See find_new_yunos.h. Up to 7.28.9 a version that matched nothing gave
+ *  the LAST instance: json_array_foreach() leaves its value on the last
+ *  element when it ends without a break.
+ ***************************************************************************/
+PUBLIC json_t *find_binary_version(
+    hgobj gobj,
+    hgobj gobj_resource,
+    const char *role,
+    const char *version
+)
+{
+    json_t *iter_find = gobj_list_instances(
+        gobj_resource,
+        "binaries",
+        "",
+        json_pack("{s:s}", "id", role), // filter
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+
+    json_t *found = NULL;
+    int idx; json_t *hs;
+    json_array_foreach(iter_find, idx, hs) {
+        if(empty_string(version) || strcmp(version, SDATA_GET_STR(hs, "version"))==0) {
+            /*
+             *  FUTURE we can manage operators like python (>=, =, <=)
+             */
+            found = hs;
+            break;
+        }
+    }
+
+    json_incref(found);
+    JSON_DECREF(iter_find);
+
+    return found;
+}
+
+/***************************************************************************
+ *  See find_new_yunos.h. Same fix as find_binary_version().
+ ***************************************************************************/
+PUBLIC json_t *find_configuration_version(
+    hgobj gobj,
+    hgobj gobj_resource,
+    const char *role,
+    const char *name,
+    const char *version
+)
+{
+    /*
+     *  Search with role prefix.
+     */
+    char with_prefix[NAME_MAX];
+    int n = snprintf(with_prefix, sizeof(with_prefix), "%s.%s", role, name);
+    if(n < 0 || (size_t)n >= sizeof(with_prefix)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "configuration id too long",
+            "role",         "%s", role,
+            "name",         "%s", name,
+            NULL
+        );
+        return NULL;
+    }
+
+    json_t *iter_find = gobj_list_instances(
+        gobj_resource,
+        "configurations",
+        "",
+        json_pack("{s:s}", "id", with_prefix), // filter
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+
+    json_t *found = NULL;
+    int idx; json_t *hs;
+    json_array_foreach(iter_find, idx, hs) {
+        if(empty_string(version) || strcmp(version, SDATA_GET_STR(hs, "version"))==0) {
+            /*
+             *  FUTURE we can manage operators like python (>=, =, <=)
+             */
+            found = hs;
+            break;
+        }
+    }
+
+    json_incref(found);
+    JSON_DECREF(iter_find);
+
+    return found;
+}

@@ -39,6 +39,13 @@ Each row now says whether its instance at the new release exists.
    as the pkey2 up to 7.25.4, and find-new-yunos offered that yuno again at
    every call.
 
+8. the binary and the configuration at a version
+   (`find_binary_version()`, `find_configuration_version()`, which
+   `create-yuno` and `update-binary` look up): the instance of THAT version
+   (role_b 2.0.0, not its primary 2.1.0), and none for a version not
+   installed. Up to 7.28.9 a version that matched nothing gave the last
+   instance listed.
+
 ## Run
 
 ```bash

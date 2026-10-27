@@ -31,6 +31,10 @@
  *                (find_new_yunos_preview());
  *              - a release name that does not fit in NAME_MAX is refused,
  *                not cut (build_yuno_release_name(), create-yuno's).
+ *              - the binary and the configuration at a version are the
+ *                instance of THAT version, and none for a version not
+ *                installed (find_binary_version(), find_configuration_
+ *                version(): create-yuno's and update-binary's).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -643,6 +647,61 @@ PRIVATE int check_preview_and_commands(hgobj gobj, json_t *rows)
     return result;
 }
 
+/***************************************************************************
+ *  The binary and the configuration at a version (find_binary_version(),
+ *  find_configuration_version(), what create-yuno and update-binary look
+ *  up): the instance of THAT version, NULL for a version not installed --
+ *  up to 7.28.9 it was the last instance listed -- and, with no version,
+ *  one of them. Returns 0 or -1 (logged).
+ ***************************************************************************/
+PRIVATE int check_find_versions(hgobj gobj, hgobj gobj_node)
+{
+    int result = 0;
+
+    struct {
+        const char *role; const char *name; const char *version; const char *expected;
+    } cases[] = {
+        {"role_b", NULL,     "2.0.0", "2.0.0"},     // not the primary (2.1.0)
+        {"role_b", NULL,     "2.1.0", "2.1.0"},
+        {"role_b", NULL,     "9.9.9", NULL},        // not installed
+        {"role_b", NULL,     "",      "*"},         // any
+        {"role_x", NULL,     "",      NULL},        // no such binary
+        {"role_b", "name_b", "1",     "1"},
+        {"role_b", "name_b", "7",     NULL},        // not there
+        {"role_b", "name_b", "",      "*"},
+    };
+    for(size_t i=0; i<ARRAY_SIZE(cases); i++) {
+        json_t *hs = cases[i].name?
+            find_configuration_version(gobj, gobj_node, cases[i].role, cases[i].name, cases[i].version) :
+            find_binary_version(gobj, gobj_node, cases[i].role, cases[i].version);
+        const char *version = hs? kw_get_str(gobj, hs, "version", "", 0) : NULL;
+        BOOL ok;
+        if(!cases[i].expected) {
+            ok = hs == NULL;
+        } else if(strcmp(cases[i].expected, "*")==0) {
+            ok = hs != NULL;
+        } else {
+            ok = version && strcmp(version, cases[i].expected)==0;
+        }
+        if(!ok) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: the instance at a version",
+                "role",         "%s", cases[i].role,
+                "name",         "%s", cases[i].name? cases[i].name : "",
+                "version",      "%s", cases[i].version,
+                "expected",     "%s", cases[i].expected? cases[i].expected : "(none)",
+                "found",        "%s", version? version : "(none)",
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(hs)
+    }
+    return result;
+}
+
 PRIVATE int run_tests(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -823,6 +882,7 @@ PRIVATE int run_tests(hgobj gobj)
     }
 
     result += check_preview_and_commands(gobj, rows);
+    result += check_find_versions(gobj, priv->gobj_node);
     JSON_DECREF(rows)
 
     if(result == 0) {

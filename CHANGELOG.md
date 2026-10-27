@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- **yuno_agent: `update-binary` replaces the version it is sent, and only
+  an installed one.** It took the PRIMARY row of the binary (the version
+  installed last), copied the file to the directory of the version the file
+  declares and merged that version into the row: with two versions installed,
+  a rebuild of the older one was written into the newer one's row. It now
+  replaces the row of the binary's own version, and refuses a version that is
+  not installed, or a binary of another role (*"... is not installed here
+  ...: update-binary replaces an installed version, install-binary adds
+  one"*). Patching a version that is not the primary makes it the one
+  `list-binaries` shows; `list-binaries-instances` lists them all.
+- **yuno_agent: a version that does not exist is not found.**
+  `find_binary_version()` / `find_configuration_version()` (moved to
+  `find_new_yunos.c`) answered, for a version that matched nothing, the LAST
+  instance listed: `json_array_foreach()` leaves its value on the last element
+  when it ends without a break. So `create-yuno role_version=<one not
+  installed>` created the yuno on another binary instead of answering "Binary
+  '...' not found" (and the same for `name_version`). Cases in
+  `c_agent_find_new_yunos`.
+- **yuno_agent: a yuno that refuses to play or pause is said** (WARNING
+  *"The yuno refused to play"* / *"... to pause"*, with the yuno, the result
+  and its comment). The ACK is still not published, so `play-yuno` /
+  `pause-yuno` still fail by timeout: their counter counts every ACK as done.
+- **yuno_agent: `read-file` and `read-json` read the file whole or say why
+  not** (`read_file_content()`, new `file_content.c`). They read at most the
+  largest block a yuno may allocate and cut the rest without a word, and a
+  `read()` that failed was taken for an empty file. A file that does not fit
+  is refused now with its size, a failed read with its error; `read-file`
+  answers an empty file with an empty content (it answered "Error with file:
+  Success"). Test `c_agent_file_content` (new).
 - **yuno_agent: three behaviours of `c_agent.c` get a test** (`TODO.md`
   listed them as untested, since no ctest compiles `c_agent.c`). Their code
   moves out of it, as `find_new_yunos.c` did: opening the agent's treedb is

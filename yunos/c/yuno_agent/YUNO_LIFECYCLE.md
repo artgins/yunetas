@@ -209,7 +209,7 @@ Registered in the agent's command table. Yuno + binary + config commands only
 | Command           | Effect                                                                  |
 |-------------------|-------------------------------------------------------------------------|
 | `install-binary`  | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. |
-| `update-binary`   | Same as install but **overwrites** the existing `(role, version)` row and file in place. Description literally says *"WARNING: Don't use in production!"*. |
+| `update-binary`   | Same as install but **overwrites** the row and file of the `(role, version)` the binary declares, which must be installed; a version that is not, or a binary of another role, is refused (use `install-binary`). Up to 7.28.9 it overwrote the PRIMARY row, whatever version it was sent. Description literally says *"WARNING: Don't use in production!"*. |
 | `delete-binary`   | Pass `version=` to durably prune one installed version (per-instance delete). Without it, the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via [`gobj_get_node`](#gobj_get_node), so stale hook refs do not block) **or a snap tags it** (`__md_treedb__.tag`). `force=1` overrides. Then [`gobj_delete_node`](#gobj_delete_node) + [`rmrdir`](#rmrdir). |
 | `list-binaries`   | `gobj_list_nodes("binaries", filter)`, returns one node per role — the binary **in use** (primary per `id`). |
 | `list-binaries-instances` | `gobj_list_instances("binaries", "", filter)`, returns one row per installed `(role, version)` so every version is visible. |
@@ -655,8 +655,8 @@ freshly-built binary from `$YUNETAS_YUNOS` = `outputs/yunos/<role>`, so a plain
 `install-binary` with a bumped version.
 
 > **Note — `list-binaries` shows the binary IN USE (the primary node per role).**
-> A runtime `update-binary` (same version) mutates that primary node in place, so
-> the new size/date appear immediately. An `install-binary` of a NEW version does
+> A runtime `update-binary` (same version) mutates the node of that version in
+> place, so when it is the primary the new size/date appear immediately. An `install-binary` of a NEW version does
 > **not** change what `list-binaries` shows until `deactivate-snap` promotes and
 > reloads it — which is correct: the new binary is not in use until then. To see
 > every installed `(role, version)` from the moment it lands, use
@@ -711,7 +711,7 @@ running keeps running until you `kill-yuno`. The flag only prevents the next
 | Same `(role, version)` exists?    | `install-binary`  | `update-binary`        |
 |-----------------------------------|-------------------|------------------------|
 | Yes                               | refuses           | overwrites file + row  |
-| No                                | creates           | creates                |
+| No                                | creates           | refuses                |
 
 Pick `install-binary` for new versions. Pick `update-binary` only when you
 truly want to overwrite — and then only if no yuno is running that version.

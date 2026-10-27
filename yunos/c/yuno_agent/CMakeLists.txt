@@ -56,6 +56,7 @@ SET (YUNO_SRCS
     src/agent_treedb.c
     src/audit_record.c
     src/dir_listing.c
+    src/file_content.c
     src/find_new_yunos.c
     src/watch_request.c
     src/yuno_config_file.c
@@ -65,6 +66,7 @@ SET (YUNO_HDRS
     src/agent_treedb.h
     src/audit_record.h
     src/dir_listing.h
+    src/file_content.h
     src/find_new_yunos.h
     src/watch_request.h
     src/yuno_config_file.h

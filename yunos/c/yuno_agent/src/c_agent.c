@@ -27,6 +27,7 @@
 #include "agent_treedb.h"
 #include "audit_record.h"
 #include "dir_listing.h"
+#include "file_content.h"
 #include "find_new_yunos.h"
 #include "watch_request.h"
 #include "yuno_config_file.h"
@@ -159,17 +160,6 @@ PRIVATE void write_audit_records(hgobj gobj, json_t *jn_records);
 PRIVATE int audit_newfile_cb(void *user_data, const char *old_filename, const char *new_filename);
 PRIVATE int remove_old_audit_files(hgobj gobj);
 
-PRIVATE json_t *find_binary_version(
-    hgobj gobj,
-    const char *role,
-    const char *version
-);
-PRIVATE json_t *find_configuration_version(
-    hgobj gobj,
-    const char *role,
-    const char *name,
-    const char *version
-);
 PRIVATE int build_release_name(
     hgobj gobj, char *bf, int bfsize, json_t *hs_binary, json_t *hs_config
 );
@@ -3336,7 +3326,6 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "binaries";
 
-    // TODO legacy permite hacer update solo al binario activo!, con las config igual creo.
     const char *id = kw_get_str(gobj, kw, "id", "", 0);
     if(!id) {
         return msg_iev_build_response(
@@ -3420,9 +3409,43 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*------------------------------------------------*
      *      Binary received.
      *------------------------------------------------*/
-    const char *binary_role = kw_get_str(gobj, jn_basic_info, "role", 0, 0);
+    const char *binary_role = kw_get_str(gobj, jn_basic_info, "role", "", 0);
     const char *binary_version = kw_get_str(gobj, jn_basic_info, "version", "", 0);
     json_t *jn_tags = kw_get_dict_value(gobj, jn_basic_info, "tags", 0, 0);
+
+    /*
+     *  The row of THAT version, not the primary one: the primary is the
+     *  version installed last, and up to 7.28.9 a rebuild of an older
+     *  version was merged into it. A version that is not installed, or a
+     *  binary of another role, is refused: install-binary adds a version.
+     */
+    json_t *installed = NULL;
+    if(strcmp(binary_role, role)==0 && !empty_string(binary_version)) {
+        installed = find_binary_version(gobj, priv->resource, role, binary_version);
+    }
+    if(!installed) {
+        json_t *comment = json_sprintf(
+            "%s: binary '%s' version '%s' is not installed here (it is a binary of '%s'): "
+            "update-binary replaces an installed version, install-binary adds one",
+            gobj_yuno_role_plus_name(),
+            role,
+            binary_version,
+            binary_role
+        );
+        JSON_DECREF(jn_basic_info);
+        json_decref(node);  // after the comment: `role` is in it
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            comment,
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_decref(node);
+    node = installed;
+    role = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
 
     /*------------------------------------------------*
      *      Store in filesystem
@@ -4651,7 +4674,7 @@ json_t* cmd_create_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
     /*---------------------------------------------*
      *      Role
      *---------------------------------------------*/
-    json_t *hs_binary = find_binary_version(gobj, yuno_role, role_version);
+    json_t *hs_binary = find_binary_version(gobj, priv->resource, yuno_role, role_version);
     if(!hs_binary) {
         json_t *comment = json_sprintf(
             "Binary '%s%s%s' not found",
@@ -4674,6 +4697,7 @@ json_t* cmd_create_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
      *---------------------------------------------*/
     json_t *hs_configuration = find_configuration_version(
         gobj,
+        priv->resource,
         SDATA_GET_STR(hs_binary, "id"),
         yuno_name,
         name_version
@@ -10279,102 +10303,6 @@ PRIVATE int remove_old_audit_files(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *find_binary_version(
-    hgobj gobj,
-    const char *role,
-    const char *version
-)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_t *kw_find = json_pack("{s:s}",
-        "id", role
-    );
-
-    json_t *iter_find = gobj_list_instances(
-        priv->resource,
-        "binaries",
-        "",
-        kw_find, // filter
-        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
-        gobj
-    );
-    int idx; json_t *hs=NULL;
-    json_array_foreach(iter_find, idx, hs) {
-        const char *version_ = SDATA_GET_STR(hs, "version");
-        if(empty_string(version)) {
-            // Get the last if no version wanted.
-            break;
-        }
-        if(strcmp(version, version_)==0) {
-            /*
-             *  Found the wanted version.
-             *  FUTURE we can manage operators like python (>=, =, <=)
-             */
-            break;
-        }
-    }
-
-    json_incref(hs);
-    JSON_DECREF(iter_find);
-
-    return hs;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *find_configuration_version(
-    hgobj gobj,
-    const char *role,
-    const char *name,
-    const char *version
-)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*
-     *  Search with role prefix.
-     */
-    char with_prefix[120];
-    snprintf(with_prefix, sizeof(with_prefix), "%s.%s", role, name);
-    json_t *kw_find = json_pack("{s:s}",
-        "id", with_prefix
-    );
-    json_t *iter_find = gobj_list_instances(
-        priv->resource,
-        "configurations",
-        "",
-        kw_find, // filter
-        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
-        gobj
-    );
-
-    int idx; json_t *hs=0;
-    json_array_foreach(iter_find, idx, hs) {
-        const char *version_ = SDATA_GET_STR(hs, "version");
-        if(empty_string(version)) {
-            // Get the last if no version wanted.
-            break;
-        }
-        if(strcmp(version, version_)==0) {
-            /*
-             *  Found the wanted version.
-             *  FUTURE we can manage operators like python (>=, =, <=)
-             */
-            break;
-        }
-    }
-
-    json_incref(hs);
-    JSON_DECREF(iter_find);
-
-    return hs;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int build_release_name(
     hgobj gobj, char *bf, int bfsize, json_t *hs_binary, json_t *hs_config
 ) {
@@ -11805,14 +11733,19 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj
         );
     }
-    int fp = open(resolved, O_RDONLY|O_CLOEXEC);
-    if(fp<0) {
+    char why[256];
+    size_t readed = 0;
+    char *s = read_file_content(gobj, resolved, &readed, why, sizeof(why));
+    if(!s || readed == 0) {
+        json_t *jn_comment = json_sprintf("%s: cannot read '%s': %s",
+            gobj_yuno_role_plus_name(), filename, s? "it is empty" : why);
+        GBMEM_FREE(s);
         return gobj_send_event(
             src,
             event,
             msg_iev_build_response(gobj,
                 -1,
-                json_sprintf("Cannot open '%s', %s", filename, strerror(errno)),
+                jn_comment,
                 0,
                 0,
                 kw  // owned
@@ -11820,45 +11753,6 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj
         );
     }
-
-    // TODO legacy optimiza preguntando el tamaño del fichero
-    size_t len = gbmem_get_maximum_block();
-    char *s = gbmem_malloc(len);
-    if(!s) {
-        close(fp);
-        return gobj_send_event(
-            src,
-            event,
-            msg_iev_build_response(gobj,
-                -1,
-                json_sprintf("No memory"),
-                0,
-                0,
-                kw  // owned
-            ),
-            gobj
-        );
-    }
-
-    ssize_t readed = read(fp, s, len-1);
-    if(readed <= 0) {
-        int err = readed < 0? errno: 0;
-        close(fp);
-        gbmem_free(s);
-        return gobj_send_event(
-            src,
-            event,
-            msg_iev_build_response(gobj,
-                -1,
-                json_sprintf("Error with file '%s': %s", filename, err? strerror(err): "empty"),
-                0,
-                0,
-                kw  // owned
-            ),
-            gobj
-        );
-    }
-    close(fp);
 
     const char *p = strrchr(filename, '/');
     if(!p) {
@@ -11941,32 +11835,17 @@ PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    int fp = open(resolved, O_RDONLY|O_CLOEXEC);
-    if(fp<0) {
-        return gobj_send_event(
-            src,
-            event,
-            msg_iev_build_response(gobj,
-                -1,
-                json_sprintf("Cannot open '%s', %s", filename, strerror(errno)),
-                0,
-                0,
-                kw  // owned
-            ),
-            gobj
-        );
-    }
-    // TODO legacy optimiza preguntando el tamaño del fichero
-    size_t len = gbmem_get_maximum_block();
-    char *s = gbmem_malloc(len);
+    char why[256];
+    size_t readed = 0;
+    char *s = read_file_content(gobj, resolved, &readed, why, sizeof(why));
     if(!s) {
-        close(fp);
         return gobj_send_event(
             src,
             event,
             msg_iev_build_response(gobj,
                 -1,
-                json_sprintf("No memory"),
+                json_sprintf("%s: cannot read '%s': %s",
+                    gobj_yuno_role_plus_name(), filename, why),
                 0,
                 0,
                 kw  // owned
@@ -11974,26 +11853,6 @@ PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj
         );
     }
-
-    int readed = read(fp, s, len-1);
-    if(!readed) {
-        int err = errno;
-        close(fp);
-        gbmem_free(s);
-        return gobj_send_event(
-            src,
-            event,
-            msg_iev_build_response(gobj,
-                -1,
-                json_sprintf("Error with file '%s': %s", filename, strerror(err)),
-                0,
-                0,
-                kw  // owned
-            ),
-            gobj
-        );
-    }
-    close(fp);
 
     const char *p = strrchr(filename, '/');
     if(!p) {
@@ -12467,7 +12326,19 @@ PRIVATE int ac_play_yuno_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
             )
         );
 
-        // TODO legacy no publique pues sale como ok, que dé error por timeout
+        /*
+         *  Not published: the counter of play-yuno counts every ACK as a
+         *  yuno played, so its requester gets the failure by timeout.
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SERVICE,
+            "msg",          "%s", "The yuno refused to play",
+            "yuno_id",      "%s", __yuno__,
+            "result",       "%d", action_return,
+            "comment",      "%s", kw_get_str(gobj, kw, "comment", "", 0),
+            NULL
+        );
         KW_DECREF(kw);
     }
     return 0;
@@ -12524,6 +12395,21 @@ PRIVATE int ac_pause_yuno_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
             kw // own kw
         );
     } else {
+        /*
+         *  Not published: the counter of pause-yuno counts every ACK as a
+         *  yuno paused, so its requester gets the failure by timeout.
+         */
+        hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
+        json_t *jn_yuno_id = channel_gobj? gobj_read_user_data(channel_gobj, "__yuno__") : NULL;
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SERVICE,
+            "msg",          "%s", "The yuno refused to pause",
+            "yuno_id",      "%s", json_is_string(jn_yuno_id)? json_string_value(jn_yuno_id) : "",
+            "result",       "%d", action_return,
+            "comment",      "%s", kw_get_str(gobj, kw, "comment", "", 0),
+            NULL
+        );
         KW_DECREF(kw);
     }
     return 0;
