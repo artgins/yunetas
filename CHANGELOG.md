@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **gui_treedb 1.0.4 / 1.0.5** (yunos-js): the Rows dialog gets **Blank
+  fields**, which empties the rowid range and the user-flag masks (the full
+  key), and a period chosen there blanks the `from rowid` -100 a new card
+  proposes, while it still holds that default: with it, a search by day read
+  only the part inside the last 100 rows. Deployed on artgins.ytreedb.com.
+
 ## v7.28.9 (2026-10-27)
 
 A regression of the date reader of 7.28.5: `tr2list --from-t=-1d` listed
