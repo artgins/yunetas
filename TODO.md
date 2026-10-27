@@ -120,6 +120,19 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 ## 3. Decisions pending
 
+- **`activate-snap` / `deactivate-snap` bounce the whole node** (open since
+  2026-05-27, recorded here 2026-10-27). `restart_nodes()` (`c_agent.c`)
+  SIGKILLs every yuno, reloads the agent's treedb whole and relaunches every
+  enabled yuno -- also when only one yuno has a new release: a
+  `yunetas upgrade-yunos` for one binary restarts the node (yunovatios
+  central, 2026-10-27: 7 yunos for one `db_history_ce`). The aggressive reset
+  is right toward peers whose state is unknown; a snap is internal ground,
+  where the agent knows what changed. Two levels to decide: (1) bounce only
+  the yunos whose rows changed between the current state and the target
+  (a new release, a new config, a snap's delta), leaving the rest alive;
+  (2) reload in place, without killing, where the change allows it. The
+  promotion of the highest release (`promote_highest_release_yunos()`) and
+  the treedb reload it depends on are what (1) has to keep.
 - **C_TRANGER handles opened through the agent are not reaped** (**FUTURE**,
   user 2026-10-03: not now, no stop-gap; do not raise it as pending) when the
   operator's session ends (documented in `api/gclass/data.md`). A
