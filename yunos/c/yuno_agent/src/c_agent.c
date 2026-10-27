@@ -184,6 +184,11 @@ PRIVATE int delete_console(hgobj gobj, const char *name);
 PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t event);
 PRIVATE int watch_rearm_timer(hgobj gobj);
 PRIVATE int watch_tick(hgobj gobj, const char *only_route);
+PRIVATE int publications_arm(hgobj gobj, json_t *yuno, const char *yuno_id, json_t *jn_services);
+PRIVATE BOOL publication_is_on(hgobj gobj, const char *yuno_id, const char *service);
+PRIVATE int publications_stop(hgobj gobj, const char *yuno_id);
+PRIVATE int publication_answer(hgobj gobj, json_t *jn_publish_md, json_t *kw);
+PRIVATE int publication_ask(hgobj gobj, json_t *yuno, const char *yuno_id, const char *service, json_int_t pid, BOOL stop);
 GOBJ_DECLARE_EVENT(EV_WATCH_READING);
 PRIVATE int watch_answer(hgobj gobj, json_t *jn_watch_md, json_t *kw);
 PRIVATE int delete_watch_of_channel(hgobj gobj, hgobj channel_gobj);
@@ -1041,6 +1046,7 @@ typedef struct _PRIVATE_DATA {
     json_t *list_consoles; // Dictionary of console names
 
     json_t *watches;        // watch-yuno-stats, by route: {route, yunos: {id: service}, period}
+    json_t *publishing;     // publish-stats asked to the watched yunos: {id: {pid, period, renew, services: {service: state}}}
     hgobj watch_timer;
     json_int_t watch_period; // period the watch timer runs at, 0 = stopped
 
@@ -1150,6 +1156,7 @@ PRIVATE void mt_create(hgobj gobj)
      *---------------------------------------*/
     priv->watch_timer = gobj_create_pure_child("watch_stats", C_TIMER, 0, gobj);
     priv->watches = json_object();
+    priv->publishing = json_object();
 
     /*---------------------------------------*
      *      restart_nodes() waits for the
@@ -1306,6 +1313,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     JSON_DECREF(priv->list_consoles);
     JSON_DECREF(priv->watches);
+    JSON_DECREF(priv->publishing);
     JSON_DECREF(priv->restart_wait);
     JSON_DECREF(priv->restart_held);
     JSON_DECREF(priv->no_play_launches);
@@ -7758,6 +7766,13 @@ PRIVATE int watch_rearm_timer(hgobj gobj)
     priv->watch_period = period;
     if(period == 0) {
         clear_timeout(priv->watch_timer);
+        /*
+         *  Nobody watches any more: the yunos stop publishing
+         */
+        void *n; const char *yuno_id; json_t *jn_;
+        json_object_foreach_safe(priv->publishing, n, yuno_id, jn_) {
+            publications_stop(gobj, yuno_id);
+        }
     } else {
         set_timeout_periodic(priv->watch_timer, period);
     }
@@ -7927,15 +7942,27 @@ PRIVATE int watch_tick(hgobj gobj, const char *only_route)
         JSON_DECREF(jn_state)
 
         if(running && channel_gobj) {
-            json_t *kw_cpu = json_pack("{s:s}", "service", "__yuno__");
-            kw_set_subdict_value(gobj, kw_cpu, "__md_iev__", "agent_watch",
-                json_pack("{s:s, s:s, s:s, s:s}", "yuno_id", yuno_id, "kind", "cpu", "service", "",
-                    "route", only_route? only_route : "")
-            );
-            stats_to_yuno(gobj, yuno, "", kw_cpu, gobj);
+            /*
+             *  What the yuno publishes is not asked for; the first
+             *  readings of a watch (only_route) are always asked
+             */
+            if(!only_route) {
+                publications_arm(gobj, yuno, yuno_id, jn_services);
+            }
+            if(only_route || !publication_is_on(gobj, yuno_id, "__yuno__")) {
+                json_t *kw_cpu = json_pack("{s:s}", "service", "__yuno__");
+                kw_set_subdict_value(gobj, kw_cpu, "__md_iev__", "agent_watch",
+                    json_pack("{s:s, s:s, s:s, s:s}", "yuno_id", yuno_id, "kind", "cpu", "service", "",
+                        "route", only_route? only_route : "")
+                );
+                stats_to_yuno(gobj, yuno, "", kw_cpu, gobj);
+            }
 
             const char *service; json_t *jn_;
             json_object_foreach(jn_services, service, jn_) {
+                if(!only_route && publication_is_on(gobj, yuno_id, service)) {
+                    continue;
+                }
                 json_t *kw_app = json_object();
                 if(!empty_string(service)) {
                     json_object_set_new(kw_app, "service", json_string(service));
@@ -7946,10 +7973,242 @@ PRIVATE int watch_tick(hgobj gobj, const char *only_route)
                 );
                 stats_to_yuno(gobj, yuno, "", kw_app, gobj);
             }
+        } else if(!only_route) {
+            json_object_del(priv->publishing, yuno_id);  // no process: nothing is published
         }
         JSON_DECREF(yuno)
     }
+
+    /*
+     *  The yunos nobody watches any more stop publishing
+     */
+    if(!only_route) {
+        void *n2; const char *pub_yuno_id; json_t *jn_pub;
+        json_object_foreach_safe(priv->publishing, n2, pub_yuno_id, jn_pub) {
+            if(!json_object_get(jn_asked, pub_yuno_id)) {
+                publications_stop(gobj, pub_yuno_id);
+            }
+        }
+    }
+
     JSON_DECREF(jn_asked)
+    return 0;
+}
+
+/***************************************************************************
+ *  publish-stats to a yuno: the stats of `service` (`__yuno__` is the cpu
+ *  reading of a watch, "" the service named as the role, as
+ *  stats_to_yuno() reads it) at the period of the watches, with watch_ttl
+ *  as its ttl. Its readings come back as the agent's own stats answers,
+ *  marked in __md_iev__`agent_watch like the ones watch_tick() asks for;
+ *  the answer to the command itself is marked in __md_iev__`agent_publish
+ *  (publication_answer()).
+ ***************************************************************************/
+PRIVATE int publication_ask(
+    hgobj gobj,
+    json_t *yuno,   // not owned
+    const char *yuno_id,
+    const char *service,
+    json_int_t pid,
+    BOOL stop
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    BOOL cpu = strcmp(service, "__yuno__")==0;
+    const char *stats_service = service;
+    if(empty_string(stats_service)) {
+        stats_service = kw_get_str(gobj, yuno, "yuno_role", "", 0);
+    }
+    json_int_t ttl = gobj_read_integer_attr(gobj, "watch_ttl");
+
+    json_t *kw_pub = json_pack("{s:s, s:s, s:I, s:I, s:b}",
+        "service", "__yuno__",      // the command is the yuno's (C_YUNO)
+        "stats_service", stats_service,
+        "period", (json_int_t)priv->watch_period,
+        "ttl", ttl > 0? ttl : (json_int_t)0,
+        "stop", stop
+    );
+    kw_set_subdict_value(gobj, kw_pub, "__md_iev__", "agent_watch",
+        json_pack("{s:s, s:s, s:s, s:s}", "yuno_id", yuno_id, "kind", cpu? "cpu" : "app",
+            "service", cpu? "" : service, "route", "")
+    );
+    kw_set_subdict_value(gobj, kw_pub, "__md_iev__", "agent_publish",
+        json_pack("{s:s, s:s, s:I, s:b}", "yuno_id", yuno_id, "service", service,
+            "pid", pid, "stop", stop)
+    );
+    return command_to_yuno(gobj, yuno, "publish-stats", kw_pub, gobj);
+}
+
+/***************************************************************************
+ *  The yunos publish their own stats (publish-stats, C_YUNO) instead of
+ *  being asked for them every period. For a watched yuno and each service
+ *  of it somebody watches (`__yuno__`: its cpu reading), ask for a
+ *  publication; ask again at half its ttl, when the period of the watches
+ *  changes, or when the process does (a new one publishes nothing); stop
+ *  the services nobody watches. Until a publication is on, and for good
+ *  when the yuno refuses it (one built before 7.28.11, or a service it does
+ *  not have), the agent samples the yuno as before.
+ ***************************************************************************/
+PRIVATE int publications_arm(hgobj gobj, json_t *yuno, const char *yuno_id, json_t *jn_services)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t pid = kw_get_int(gobj, yuno, "yuno_pid", 0, 0);
+    json_t *jn_pub = json_object_get(priv->publishing, yuno_id);
+    if(jn_pub && kw_get_int(gobj, jn_pub, "pid", 0, KW_REQUIRED) != pid) {
+        json_object_del(priv->publishing, yuno_id);
+        jn_pub = NULL;
+    }
+
+    BOOL again = FALSE;
+    if(!jn_pub) {
+        jn_pub = json_pack("{s:I, s:I, s:I, s:{}}",
+            "pid", pid,
+            "period", (json_int_t)0,
+            "renew", (json_int_t)0,
+            "services"
+        );
+        json_object_set_new(priv->publishing, yuno_id, jn_pub);
+        again = TRUE;
+    }
+    uint64_t renew = (uint64_t)kw_get_int(gobj, jn_pub, "renew", 0, KW_REQUIRED);
+    if(kw_get_int(gobj, jn_pub, "period", 0, KW_REQUIRED) != priv->watch_period ||
+            (renew && test_msectimer(renew))) {
+        again = TRUE;
+    }
+    if(again) {
+        json_int_t ttl = gobj_read_integer_attr(gobj, "watch_ttl");
+        json_object_set_new(jn_pub, "period", json_integer(priv->watch_period));
+        json_object_set_new(jn_pub, "renew",
+            json_integer(ttl > 0? (json_int_t)start_msectimer(ttl/2) : 0));
+    }
+
+    json_t *jn_states = kw_get_dict(gobj, jn_pub, "services", 0, KW_REQUIRED);
+    json_t *jn_wanted = json_object();
+    json_object_set_new(jn_wanted, "__yuno__", json_true());
+    const char *service; json_t *jn_;
+    json_object_foreach(jn_services, service, jn_) {
+        json_object_set_new(jn_wanted, service, json_true());
+    }
+
+    json_object_foreach(jn_wanted, service, jn_) {
+        const char *state = json_string_value(json_object_get(jn_states, service));
+        if(state && strcmp(state, "refused")==0) {
+            continue;   // it does not publish: sampled
+        }
+        if(!state || again) {
+            if(!state) {
+                json_object_set_new(jn_states, service, json_string("asked"));
+            }
+            publication_ask(gobj, yuno, yuno_id, service, pid, FALSE);
+        }
+    }
+
+    void *n;
+    json_object_foreach_safe(jn_states, n, service, jn_) {
+        if(json_object_get(jn_wanted, service)) {
+            continue;
+        }
+        if(strcmp(json_string_value(jn_), "refused")!=0) {
+            publication_ask(gobj, yuno, yuno_id, service, pid, TRUE);
+        }
+        json_object_del(jn_states, service);
+    }
+
+    JSON_DECREF(jn_wanted)
+    return 0;
+}
+
+/***************************************************************************
+ *  TRUE when the yuno publishes the stats of `service` itself
+ ***************************************************************************/
+PRIVATE BOOL publication_is_on(hgobj gobj, const char *yuno_id, const char *service)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_pub = json_object_get(priv->publishing, yuno_id);
+    json_t *jn_states = jn_pub? json_object_get(jn_pub, "services") : NULL;
+    const char *state = jn_states? json_string_value(json_object_get(jn_states, service)) : NULL;
+    return (state && strcmp(state, "on")==0)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  Nobody watches the yuno any more: its publications stop
+ ***************************************************************************/
+PRIVATE int publications_stop(hgobj gobj, const char *yuno_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_pub = json_object_get(priv->publishing, yuno_id);
+    if(!jn_pub) {
+        return 0;
+    }
+    json_t *yuno = gobj_get_node(
+        priv->resource,
+        "yunos",
+        json_pack("{s:s}", "id", yuno_id),
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+    json_int_t pid = kw_get_int(gobj, jn_pub, "pid", 0, KW_REQUIRED);
+    if(yuno && kw_get_bool(gobj, yuno, "yuno_running", 0, 0) &&
+            kw_get_int(gobj, yuno, "yuno_pid", 0, 0) == pid) {
+        json_t *jn_states = kw_get_dict(gobj, jn_pub, "services", 0, KW_REQUIRED);
+        const char *service; json_t *jn_state;
+        json_object_foreach(jn_states, service, jn_state) {
+            if(strcmp(json_string_value(jn_state), "refused")!=0) {
+                publication_ask(gobj, yuno, yuno_id, service, pid, TRUE);
+            }
+        }
+    }
+    JSON_DECREF(yuno)
+    json_object_del(priv->publishing, yuno_id);
+    return 0;
+}
+
+/***************************************************************************
+ *  The answer of a yuno to a publish-stats of the agent: it publishes (the
+ *  agent stops asking it for those stats) or refuses (it goes on asking).
+ *  An answer of another process, or of a service nobody watches, is late.
+ ***************************************************************************/
+PRIVATE int publication_answer(hgobj gobj, json_t *jn_publish_md, json_t *kw)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(kw_get_bool(gobj, jn_publish_md, "stop", 0, 0)) {
+        return 0;
+    }
+    const char *yuno_id = kw_get_str(gobj, jn_publish_md, "yuno_id", "", KW_REQUIRED);
+    const char *service = kw_get_str(gobj, jn_publish_md, "service", "", KW_REQUIRED);
+    json_int_t pid = kw_get_int(gobj, jn_publish_md, "pid", 0, KW_REQUIRED);
+
+    json_t *jn_pub = json_object_get(priv->publishing, yuno_id);
+    if(!jn_pub || kw_get_int(gobj, jn_pub, "pid", 0, KW_REQUIRED) != pid) {
+        return 0;
+    }
+    json_t *jn_states = kw_get_dict(gobj, jn_pub, "services", 0, KW_REQUIRED);
+    const char *state = json_string_value(json_object_get(jn_states, service));
+    if(!state) {
+        return 0;
+    }
+
+    if(kw_get_int(gobj, kw, "result", -1, 0) < 0) {
+        if(strcmp(state, "refused")!=0) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "publish-stats refused, the agent asks for these stats",
+                "yuno_id",      "%s", yuno_id,
+                "service",      "%s", service,
+                "comment",      "%s", kw_get_str(gobj, kw, "comment", "", 0),
+                NULL
+            );
+        }
+        json_object_set_new(jn_states, service, json_string("refused"));
+    } else {
+        json_object_set_new(jn_states, service, json_string("on"));
+    }
     return 0;
 }
 
@@ -12501,7 +12760,14 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
 
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
     if(strcmp(dst_service, gobj_name(gobj))==0) {
-        // Command requested by the agent itself: nothing to forward
+        /*
+         *  Command requested by the agent itself: nothing to forward. The
+         *  answer to a publish-stats says whether the yuno publishes.
+         */
+        json_t *jn_publish_md = kw_get_dict(gobj, kw, "__md_iev__`agent_publish", 0, 0);
+        if(jn_publish_md) {
+            publication_answer(gobj, jn_publish_md, kw);
+        }
         JSON_DECREF(jn_ievent_id);
         KW_DECREF(kw);
         return 0;

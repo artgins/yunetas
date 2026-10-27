@@ -291,9 +291,15 @@ the answer names it (`data.missing`,
 is asked again: behind a control center the agent never sees a browser leave,
 so the requester renews it (the answer carries the `ttl`; gui_agent renews
 every third of it), and one not renewed goes with *"watch-yuno-stats not
-renewed, expired"* in the agent's log. The readings are taken by the agent on
-loopback (`stats-yuno` to its own yunos), ONCE per yuno and service however
-many requesters watch it, at the shortest period asked; `period` is never
+renewed, expired"* in the agent's log. The readings come ONCE per yuno and
+service however many requesters watch it, at the shortest period asked. Since
+7.28.11 the agent asks each watched yuno to send them itself
+([`publish-stats`](../api/gclass/system.md#publishing-its-stats-publish-stats),
+one per service, with `watch_ttl` as its ttl, renewed at half of it, and
+stopped when nobody watches that service any more), and only reads them on
+loopback (`stats-yuno` to its own yunos) for the first readings of a new watch
+and for a yuno that refuses it -- one built before 7.28.11 (*"publish-stats
+refused, the agent asks for these stats"*, INFO, once per process); `period` is never
 under the attribute `watch_min_period` (1000 ms), `max_watches` (30)
 bounds the requesters, and `max_watch_ids` (256) the names in one `ids`
 (*"too many yuno ids: 300, max_watch_ids is 256"*). A `max_watch_ids` under 1

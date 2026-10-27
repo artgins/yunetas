@@ -49,6 +49,45 @@ a message it could not save. Example, from `stats-yuno`:
 
 Test: `tests/c/c_yuno_stats`.
 
+### Publishing its stats (`publish-stats`)
+
+Since 7.28.11 a yuno can SEND the stats of one of its services to whoever asks,
+every period, from its own periodic timer, instead of being asked for them
+again and again. It is what the agent's `watch-yuno-stats` asks of its yunos.
+
+```bash
+# the yuno's own stats (the `cpu` reading of a watch), every 2 s, for 60 s
+publish-stats stats_service=__yuno__ period=2000 ttl=60000
+# a service's stats; no ttl: the attribute publish_stats_ttl (60000 ms)
+publish-stats stats_service=db_tracks_ce period=5000
+# never ending on its own: until stop=1 or the requester goes
+publish-stats stats_service=__yuno__ period=2000 ttl=-1
+publish-stats stats_service=__yuno__ stop=1
+```
+
+Each publication is the answer of a stats request (`EV_MT_STATS_ANSWER`, the
+stats in `data`), sent with the routing of the `publish-stats` request
+reversed, so it reaches the requester the way its own answers do, with
+whatever it put in `__md_iev__`. One publication per requester and service: a
+new call replaces it and renews it. It ends -- with an INFO *"publish-stats
+ended"* and its reason -- when its `ttl` passes without a new call (`0` or
+`-1`: never), when the requester is no more, when the requester's link (a
+`C_IEVENT_CLI`) leaves its session, or when the service is gone; `stop=1`
+ends it at once. The requester must be a service (it is found again by name
+at each publication); `period` is never under `timeout_periodic`, and a yuno
+keeps at most 64 publications. Refused: a service that does not exist
+(*"Service not found"*), a requester that is not a service.
+
+| Parameter | Meaning |
+|-----------|---------|
+| `stats_service` | The service whose stats are sent: `__yuno__` for the yuno's own, empty for the default service. |
+| `stats` | Which stats, as in a stats request (empty: all). |
+| `period` | Milliseconds between two (default `2000`). |
+| `ttl` | Milliseconds it lives unless asked again; `0` or `-1`, no automatic end. Absent: the attribute `publish_stats_ttl` (`60000`, writable). |
+| `stop` | End this requester's publication of that service. |
+
+Test: `tests/c/c_yuno_publish_stats`.
+
 ### Commands (selection)
 
 | Command | Description |
@@ -63,6 +102,7 @@ Test: `tests/c/c_yuno_stats`.
 | `info-global-trace` | Show trace configuration. |
 | `view-config` | Show yuno configuration. |
 | `info-mem` | Memory usage info. |
+| `publish-stats` | Send the stats of a service to the requester every period, see [above](#publishing-its-stats-publish-stats). |
 | `info-cpus` / `info-ifs` / `info-os` | System information. |
 | `info-uptime` | Uptime and boot date of the machine, and uptime and start date of this yuno. |
 | `info-inotify` | inotify limits (`/proc/sys/fs/inotify/*`) plus this yuno's own usage (instances + watches). |

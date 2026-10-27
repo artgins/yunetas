@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **A yuno sends its own stats: `publish-stats`** (`C_YUNO`). Asked once, it
+  sends the stats of one of its services to the requester every `period`,
+  from its own periodic timer, as the answers of a stats request
+  (`EV_MT_STATS_ANSWER`, the routing of the request reversed). It ends when
+  its `ttl` passes without a new call (absent: the new writable attribute
+  `publish_stats_ttl`, 60000 ms; `0` or `-1`: never), with `stop=1`, or when
+  its requester, the requester's link or the service goes (INFO
+  *"publish-stats ended"*). Test `c_yuno_publish_stats` (new).
+- **yuno_agent: `watch-yuno-stats` asks the yunos to publish** instead of
+  asking them for their stats every period: one `publish-stats` per watched
+  yuno and service, at the period of the watches, with `watch_ttl` as its ttl
+  (renewed at half of it, asked again when the period or the process
+  changes), stopped when nobody watches that service. The agent still reads
+  on loopback the first readings of a new watch, and every yuno that refuses
+  the command -- one built before this release (INFO *"publish-stats refused,
+  the agent asks for these stats"*, once per process). What a watcher
+  receives does not change.
+
 ## v7.28.10 (2026-10-27)
 
 A release of the agent: `update-binary` stops writing into the wrong row,

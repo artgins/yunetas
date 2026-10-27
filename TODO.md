@@ -442,19 +442,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   an identity with one and not the other loads the schema and is then refused
   per topic — which reads as a broken build and is a missing role.
 
-### Stats
-
-- **The yuno sends its own stats** (option (b) of the stats push). Today the
-  agent's `watch-yuno-stats` SAMPLES its yunos (option (a)) and the control
-  center relays `EV_YUNO_STATS`. (b): `C_YUNO` gets a `publish-stats` command
-  and, while on, sends `EV_YUNO_STATS` to its agent from the timer that
-  already runs `load_stats()` — the producer publishes, but only once every
-  project yuno of every node is rebuilt, so (a) stays as the fallback. Note
-  the transport: a subscription travels only from a CLIENT to a SERVER (the
-  agent is the server of its yunos' channels, the control center of the
-  agents'), so neither can subscribe downstream; what goes upstream is an
-  inter-event SENT along a route kept from a request, like the PTY mirror.
-
 ### Inter-yuno subscriptions (decided 2026-09-25)
 
 - **A negative ack for a refused subscription.** `__subscribing__` is one-way

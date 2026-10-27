@@ -50,6 +50,7 @@
 #include "yunetas_environment.h"
 #include "c_timer0.h"
 #include "msg_ievent.h"
+#include "c_ievent_cli.h"
 #include "entry_point.h"
 #include "c_yuno.h"
 
@@ -124,6 +125,8 @@ PRIVATE json_t *cmd_print_role(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_shutdown(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_publish_stats(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE void publish_stats_tick(hgobj gobj);
 PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_cert_expiry_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE int check_cert_expiry(hgobj gobj);
@@ -329,6 +332,16 @@ SDATAPM (DTP_STRING,    "service",      0,              0,          "Service whe
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_publish_stats[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "stats_service",0,              "",         "Service whose stats are published: `__yuno__` for the yuno's own, empty for the default service"),
+SDATAPM (DTP_STRING,    "stats",        0,              "",         "Stats to publish, as in a stats request (empty: all)"),
+SDATAPM (DTP_INTEGER,   "period",       0,              "2000",     "Milliseconds between two publications (never under timeout_periodic)"),
+SDATAPM (DTP_INTEGER,   "ttl",          0,              0,          "Milliseconds it lives unless asked again; 0 or -1: until stop=1 or its requester goes. Absent: publish_stats_ttl"),
+SDATAPM (DTP_BOOLEAN,   "stop",         0,              "0",        "Stop the publication of this requester and service"),
+SDATA_END()
+};
+
 PRIVATE sdata_desc_t pm_add_allowed_ip[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "ip",           0,              "",         "ip"),
@@ -397,6 +410,7 @@ SDATACM2(DTP_SCHEMA,    "info-os",                  SDF_AUTHZ_X, 0,      0,     
 SDATACM2(DTP_SCHEMA,    "info-uptime",              SDF_AUTHZ_X, 0,      0,          cmd_info_uptime,            "Uptime and boot date of the machine, and of this yuno"),
 SDATACM2(DTP_SCHEMA,    "info-inotify",             SDF_AUTHZ_X, 0,      0,          cmd_info_inotify,           "Info of inotify limits and this yuno's usage"),
 SDATACM2(DTP_SCHEMA,    "info-mem",                 SDF_AUTHZ_X, 0,      0,          cmd_info_mem,               "Info yuno memory and system"),
+SDATACM2(DTP_SCHEMA,    "publish-stats",            SDF_AUTHZ_X, 0,      pm_publish_stats, cmd_publish_stats,    "Send the stats of a service to the requester every period (EV_MT_STATS_ANSWER), until the ttl passes without a new call, stop=1, or the requester goes"),
 SDATACM2(DTP_SCHEMA,    "reload-certs",             SDF_AUTHZ_X, 0,      0,          cmd_reload_certs,           "Reload TLS certificates on all TLS listeners (TCP/UDP) of this yuno. Active connections are preserved."),
 SDATACM2(DTP_SCHEMA,    "cert-expiry-status",       SDF_AUTHZ_X, 0,      0,          cmd_cert_expiry_status,     "Report TLS cert metadata (subject, notAfter, days_remaining) for every TLS listener of this yuno."),
 SDATACM2(DTP_SCHEMA,    "list-allowed-ips",         SDF_AUTHZ_X, 0,      0,          cmd_list_allowed_ips,       "List allowed ips"),
@@ -540,6 +554,7 @@ SDATA (DTP_DICT,    "trace_levels",     SDF_PERSIST,    "{}",           "Trace l
 SDATA (DTP_DICT,    "no_trace_levels",  SDF_PERSIST,    "{}",           "No trace levels"),
 SDATA (DTP_INTEGER, "timeout_periodic", SDF_RD,         "1000",         "Timeout periodic, in milliseconds. This periodic timeout feeds C_TIMER, the precision is important, but affect to performance, many C_TIMER gobjs will be consumed a lot of CPU"),
 SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1000",         "timeout (milliseconds) for publishing stats."),
+SDATA (DTP_INTEGER, "publish_stats_ttl",SDF_WR|SDF_PERSIST, "60000",    "Milliseconds a publish-stats lives unless asked again, when the request gives no ttl. 0 or -1: until stop=1 or its requester goes"),
 SDATA (DTP_INTEGER, "timeout_flush",    SDF_RD,         "2000",         "timeout (milliseconds) for rotatory flush"),
 SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout (seconds) to restart"),
 SDATA (DTP_INTEGER, "timeout_cert_check", SDF_WR|SDF_PERSIST, "3600",   "Seconds between TLS cert expiry checks (0 to disable)"),
@@ -610,6 +625,7 @@ typedef struct _PRIVATE_DATA {
     int signal_read_failures;   // in a row, see read_signals_again()
 
     json_t *disk_paths;         // {"<st_dev>": "<a path of the yuno on it>"}, see load_disk_stats()
+    json_t *publications;       // publish-stats: {"<requester> <service>": {...}}, see publish_stats_tick()
     uint64_t t_disk_paths;      // when the filesystems are looked for again
 } PRIVATE_DATA;
 
@@ -813,6 +829,8 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->publications = json_object();
 
     char role_plus_name[NAME_MAX];
     if(empty_string(gobj_yuno_name())) {
@@ -1059,6 +1077,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     yev_destroy_event(priv->yev_signal);
     priv->yev_signal = 0;
     JSON_DECREF(priv->disk_paths)
+    JSON_DECREF(priv->publications)
 }
 
 /***************************************************************************
@@ -1829,6 +1848,152 @@ PRIVATE json_t *cmd_info_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         0,          // jn_comment
         0,          // jn_schema
         jn_data     // jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  Command: publish-stats
+ *  The yuno sends the stats of one of its services to the requester every
+ *  period, from its own periodic timer, instead of the requester asking for
+ *  them again and again (the agent's watch-yuno-stats did). Each one goes
+ *  as the answer to a stats request (EV_MT_STATS_ANSWER) with the routing
+ *  of THIS request, so it reaches the requester as its own answers do.
+ *
+ *  One publication per requester and service: a new call replaces it (and
+ *  renews it), stop=1 ends it, and so do its `ttl` passing without a new
+ *  call (0 or -1: never) and the requester going -- a service that is no
+ *  more, or a link (C_IEVENT_CLI) out of its session. The requester must be
+ *  a service, found again by its name at each publication.
+ *
+ *      publish-stats stats_service=__yuno__ period=2000 ttl=60000
+ *      publish-stats stats_service=__yuno__ stop=1
+ ***************************************************************************/
+#define MAX_PUBLICATIONS 64
+
+PRIVATE json_t *cmd_publish_stats(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *stats_service = kw_get_str(gobj, kw, "stats_service", "", 0);
+    const char *stats = kw_get_str(gobj, kw, "stats", "", 0);
+    BOOL stop = kw_get_bool(gobj, kw, "stop", 0, 0);
+
+    if(!src || !gobj_is_service(src)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s: publish-stats needs a requester that is a service",
+                gobj_yuno_role_plus_name()),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    char key[2*NAME_MAX];
+    snprintf(key, sizeof(key), "%s %s", gobj_name(src), stats_service);
+
+    if(stop) {
+        BOOL had = json_object_get(priv->publications, key)? TRUE : FALSE;
+        json_object_del(priv->publications, key);
+        json_t *kw_response = build_command_response(
+            gobj,
+            0,      // result
+            json_sprintf("%s: %s", gobj_yuno_role_plus_name(),
+                had? "publish-stats stopped" : "no publish-stats to stop"),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    hgobj gobj_service = empty_string(stats_service)?
+        gobj_default_service() : gobj_find_service(stats_service, FALSE);
+    if(!gobj_service) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s: Service not found: '%.*s'", gobj_yuno_role_plus_name(),
+                utf8_prefix_len(stats_service, 60), stats_service),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    if(!json_object_get(priv->publications, key) &&
+            json_object_size(priv->publications) >= MAX_PUBLICATIONS) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s: too many publish-stats: %d", gobj_yuno_role_plus_name(),
+                (int)json_object_size(priv->publications)),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    json_int_t period = kw_get_int(gobj, kw, "period", 2000, 0);
+    if(period < priv->timeout_periodic) {
+        period = priv->timeout_periodic;
+    }
+    json_int_t ttl = kw_has_key(kw, "ttl")?
+        kw_get_int(gobj, kw, "ttl", 0, 0) : gobj_read_integer_attr(gobj, "publish_stats_ttl");
+
+    /*
+     *  The routing of this request answers every publication: kept whole,
+     *  each one reverses a copy of it (msg_iev_set_back_metadata())
+     */
+    json_t *jn_md = kw_get_dict(gobj, kw, "__md_iev__", 0, 0);
+    json_t *jn_publication = json_pack("{s:s, s:s, s:s, s:I, s:I, s:I, s:I, s:{s:o}}",
+        "requester", gobj_name(src),
+        "stats_service", stats_service,
+        "stats", stats,
+        "period", period,
+        "ttl", ttl,
+        "next", (json_int_t)0,     // the first one at the next tick
+        "expires", (json_int_t)(ttl > 0? start_msectimer(ttl) : 0),
+        "request",
+            "__md_iev__", jn_md? json_incref(jn_md) : json_object()
+    );
+    if(!jn_publication) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "cannot build the publication",
+            "key",          "%s", key,
+            NULL
+        );
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s: cannot build the publication", gobj_yuno_role_plus_name()),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+    json_object_set_new(priv->publications, key, jn_publication);
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,      // result
+        json_sprintf("%s: publishing the stats of '%s' every %d ms, ttl %d ms",
+            gobj_yuno_role_plus_name(),
+            gobj_name(gobj_service),
+            (int)period,
+            (int)ttl
+        ),
+        0,      // jn_schema
+        0       // jn_data
     );
     JSON_DECREF(kw)
     return kw_response;
@@ -5893,6 +6058,91 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
 }
 
 /***************************************************************************
+ *  The publications of publish-stats that are due: each one is the answer
+ *  of a stats request, sent to its requester along the routing of the
+ *  request that asked for it. A publication whose ttl passed, whose
+ *  requester or service is gone, or whose link left its session, ends
+ *  (INFO); the requester asks again if it still wants it.
+ ***************************************************************************/
+PRIVATE void publish_stats_tick(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *key; json_t *jn_publication; void *n;
+    json_object_foreach_safe(priv->publications, n, key, jn_publication) {
+        const char *requester = kw_get_str(gobj, jn_publication, "requester", "", KW_REQUIRED);
+        const char *stats_service = kw_get_str(gobj, jn_publication, "stats_service", "", KW_REQUIRED);
+
+        const char *why = NULL;
+        uint64_t expires = (uint64_t)kw_get_int(gobj, jn_publication, "expires", 0, KW_REQUIRED);
+        hgobj gobj_requester = gobj_find_service(requester, FALSE);
+        hgobj gobj_service = empty_string(stats_service)?
+            gobj_default_service() : gobj_find_service(stats_service, FALSE);
+        if(expires && test_msectimer(expires)) {
+            why = "not renewed, expired";
+        } else if(!gobj_requester || gobj_is_destroying(gobj_requester)) {
+            why = "its requester is gone";
+        } else if(gobj_typeof_gclass(gobj_requester, C_IEVENT_CLI) &&
+                gobj_current_state(gobj_requester) != ST_SESSION) {
+            why = "the link of its requester is out of session";
+        } else if(!gobj_service) {
+            why = "its service is gone";
+        }
+        if(why) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "publish-stats ended",
+                "why",          "%s", why,
+                "requester",    "%s", requester,
+                "stats_service","%s", stats_service,
+                NULL
+            );
+            json_object_del(priv->publications, key);
+            continue;
+        }
+
+        uint64_t next = (uint64_t)kw_get_int(gobj, jn_publication, "next", 0, KW_REQUIRED);
+        if(next && !test_msectimer(next)) {
+            continue;
+        }
+        json_int_t period = kw_get_int(gobj, jn_publication, "period", 0, KW_REQUIRED);
+        json_object_set_new(jn_publication, "next", json_integer((json_int_t)start_msectimer(period)));
+
+        json_t *kw_response = gobj_stats(
+            gobj_service,
+            kw_get_str(gobj, jn_publication, "stats", "", 0),
+            json_object(),
+            gobj
+        );
+        if(!kw_response) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "publish-stats ended: the service answers its stats later, not published",
+                "requester",    "%s", requester,
+                "stats_service","%s", stats_service,
+                NULL
+            );
+            json_object_del(priv->publications, key);
+            continue;
+        }
+        kw_response = msg_iev_set_back_metadata(
+            gobj,
+            json_incref(json_object_get(jn_publication, "request")), // owned, used to extract ONLY __md_iev__
+            kw_response,    // like owned, is returned!
+            TRUE            // reverse_dst
+        );
+        gobj_send_event(
+            gobj_requester,
+            EV_SEND_IEV,
+            iev_create(gobj, EV_MT_STATS_ANSWER, kw_response),
+            gobj
+        );
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void load_stats(hgobj gobj)
@@ -6277,6 +6527,10 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     if(priv->timeout_stats > 0 && test_msectimer(priv->t_stats)) {
         load_stats(gobj);
         priv->t_stats = start_msectimer(priv->timeout_stats);
+    }
+
+    if(json_object_size(priv->publications) > 0) {
+        publish_stats_tick(gobj);
     }
 
     if(priv->timeout_cert_check > 0 && test_msectimer(priv->t_cert_check)) {
