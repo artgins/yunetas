@@ -14,7 +14,10 @@
  *          its max (up to 7.25.21 it stopped at its last doubling under
  *          the max: 4 KB with a max of 10 KB held 8 KB). gbuffer_printf()
  *          of a text that fits exactly is written whole (up to 7.25.22 it
- *          was refused, or cut by one character).
+ *          was refused, or cut by one character). A json2gbuf() that
+ *          cannot dump the json whole says so with an ERROR (up to 7.28.7
+ *          it handed back the start of the json without a word, and the
+ *          peer got a frame it could not parse).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -286,6 +289,76 @@ PRIVATE void test_printf_exact_fit(void)
 }
 
 /***************************************************************************
+ *  json2gbuf() that cannot dump the json whole: an ERROR, and the gbuffer
+ *  it hands back holds the start only. Up to 7.28.7 nothing said so: the
+ *  caller sent the start of a json, and its peer refused the frame ("frame
+ *  is not json") and dropped the channel, far from the cause. Two causes:
+ *  a json jansson will not dump (a cycle), on both paths of json2gbuf()
+ *  (a gbuffer of the caller, or none); and a gbuffer of the caller that
+ *  cannot take it. Runs after test_json_from_peer(), which registers the
+ *  handler.
+ ***************************************************************************/
+PRIVATE void test_json2gbuf_failed(void)
+{
+    gobj_log_add_handler("capture", "capture", LOG_OPT_ALL, 0);
+
+    /*
+     *  A json that dumps: whole, and nothing said
+     */
+    captured_errors = 0;
+    gbuffer_t *gbuf = json2gbuf(0, json_pack("{s:s}", "a", "b"), JSON_COMPACT);
+    ok_or_fail(gbuf && gbuffer_leftbytes(gbuf) == strlen("{\"a\":\"b\"}") &&
+        strncmp(gbuffer_cur_rd_pointer(gbuf), "{\"a\":\"b\"}", gbuffer_leftbytes(gbuf)) == 0,
+        "json2gbuf: a json whole");
+    ok_or_fail(captured_errors == 0, "json2gbuf: a json whole, no error");
+    GBUFFER_DECREF(gbuf)
+
+    /*
+     *  A cycle (a -> b -> a): jansson stops the dump. The cycle is broken
+     *  afterwards, or neither would ever be freed
+     */
+    for(int with_gbuf = 0; with_gbuf < 2; with_gbuf++) {
+        json_t *a = json_object();
+        json_t *b = json_object();
+        json_object_set_new(a, "first", json_string("dumped before the cycle"));
+        json_object_set(a, "b", b);
+        json_object_set(b, "a", a);
+
+        captured_errors = 0;
+        gbuf = json2gbuf(with_gbuf? gbuffer_create(64, 4096): 0, json_incref(a), JSON_COMPACT);
+        ok_or_fail(gbuf != NULL, with_gbuf?
+            "json2gbuf of a cycle, gbuffer given: the gbuffer comes back":
+            "json2gbuf of a cycle: a gbuffer comes back");
+        ok_or_fail(captured_errors == 1, with_gbuf?
+            "json2gbuf of a cycle, gbuffer given: one error":
+            "json2gbuf of a cycle: one error");
+        GBUFFER_DECREF(gbuf)
+
+        json_object_del(b, "a");
+        json_decref(b);
+        json_decref(a);
+    }
+
+    /*
+     *  A gbuffer of the caller that cannot take the json: the growth and
+     *  the append say it, and json2gbuf() says the dump is cut
+     */
+    captured_errors = 0;
+    gbuf = gbuffer_create(8, 8);
+    gbuffer_t *same = json2gbuf(gbuf,
+        json_pack("{s:s}", "longer", "than the eight bytes this gbuffer can hold"),
+        JSON_COMPACT
+    );
+    ok_or_fail(same == gbuf && gbuffer_leftbytes(gbuf) <= 8,
+        "json2gbuf into a gbuffer too small: the start only");
+    ok_or_fail(captured_errors == 3,
+        "json2gbuf into a gbuffer too small: the growth, the append and the dump each say it");
+    GBUFFER_DECREF(gbuf)
+
+    gobj_log_del_handler("capture");
+}
+
+/***************************************************************************
  *      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -326,6 +399,7 @@ int main(int argc, char *argv[])
     test_serialize_null();
     test_grow_to_max();
     test_printf_exact_fit();
+    test_json2gbuf_failed();
 
     gobj_end();
 

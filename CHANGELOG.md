@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- **msg2db spent the `default` of a column** (`_set_volatil_values()` in
+  `tr_msg2db.c`). It read each field of a message with
+  `kw_get_dict_value(gobj, kw, field, default, 0)`, handing it the col's
+  `default` -- a pointer borrowed from the topic's cols, which
+  `tranger2_dict_topic_desc_cols()` answers increfed, not copied. That reader
+  owns its default and decrefs it when it finds the field. A boolean default
+  is a jansson singleton and never showed it; a string or an integer
+  (`'default': 'medium'`, `'default': 0`) was freed by the first message that
+  carried its field, and every message after it logged *"BAD json_decref()"*
+  and corrupted the heap. It bit the alarms msg2db of a project the first
+  time it gave a column a string default: the yuno was relaunched by its
+  watcher, and a command answer went out cut in half (below). It now reads
+  without a default and chooses the col's after, as `tr_treedb.c` does. New
+  test `tr_msg2db/test_msg2db_column_default`.
+- **`json2gbuf()` says when it cannot dump the json whole**: an ERROR with a
+  stack, *"Cannot dump the json whole, the gbuffer holds only its start"*.
+  It ignored the result of `json_dump_callback()`, and its callback ignored
+  an append that came short, so a json jansson would not dump (a cycle; a
+  json whose memory is corrupt, as above) or a gbuffer of the caller that
+  could not take it came back as the START of the json, without a word. The
+  ievent layer sent it, the peer refused the frame (*"frame is not json"*)
+  and dropped the channel, and the log of the yuno that sent it said
+  nothing. The contract is the same (the gbuffer still comes back; no caller
+  checks for NULL); the api page said it returned NULL on error, which it
+  never did. Cases added to `gbuffer/test_gbuffer_guards`.
 - **The machine trace indents four spaces per nesting level**, not two
   (`tab()` in `gobj.c`). An event sent from inside another one's action now
   stands clearly under it. Only the width of the trace's leading spaces

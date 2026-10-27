@@ -920,11 +920,13 @@ gbuffer_t *json2gbuf(
 
 **Returns**
 
-Returns a pointer to a `gbuffer_t` containing the serialized JSON data. If an error occurs, NULL is returned.
+Returns a pointer to a `gbuffer_t` containing the serialized JSON data: `gbuf` when one was given, a new one otherwise.
 
 **Notes**
 
 The function uses `json_dump_callback()` to serialize the JSON object into the buffer. If `gbuf` is NULL, a new buffer is made: for a dump of up to 4 KB, of the size of the dump (it has no free space); for a bigger one, of 4 KB grown as the dump needs, up to `gbmem_get_maximum_block()`. A caller that appends to the buffer it gets grows it.
+
+A dump that cannot finish logs an ERROR with a stack, *"Cannot dump the json whole, the gbuffer holds only its start"*, and the gbuffer still comes back, holding the start of the json only. Two things stop a dump: a json jansson refuses to dump (a cycle, `a` holding `b` holding `a`), and a `gbuf` that cannot grow to take it (the growth and the append log their own errors first). Up to 7.28.7 the start of the json came back without a word, and a peer that got it refused the frame (*"frame is not json"*), far from the cause.
 
 **Example**
 

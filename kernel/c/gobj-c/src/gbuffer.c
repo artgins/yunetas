@@ -1302,9 +1302,30 @@ PRIVATE int dump2gbuf(const char *buffer, size_t size, void *data)
     gbuffer_t *gbuf = data;
 
     if(size > 0) {
-        gbuffer_append(gbuf, (void *)buffer, size);
+        if(gbuffer_append(gbuf, (void *)buffer, size) != size) {
+            /*  -1 stops the dump: json2gbuf() says the gbuffer is short  */
+            return -1;  // Error already logged
+        }
     }
     return 0;
+}
+
+/***************************************************************************
+ *  A dump json2gbuf() could not finish: the gbuffer holds only the start
+ *  of the json, and whoever sends it sends a json nobody can parse. The
+ *  json is not dumped into the log -- it is what could not be dumped (a
+ *  json with a cycle, or one whose memory is corrupt), and the gbuffer
+ *  could not take it.
+ ***************************************************************************/
+PRIVATE void log_dump_failed(gbuffer_t *gbuf)
+{
+    gobj_log_error(0, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_JSON,
+        "msg",          "%s", "Cannot dump the json whole, the gbuffer holds only its start",
+        "dumped",       "%lu", (unsigned long)(gbuf? gbuffer_leftbytes(gbuf): 0),
+        NULL
+    );
 }
 
 /*
@@ -1342,7 +1363,9 @@ PRIVATE int dump2small(const char *buffer, size_t size, void *data)
         }
         dump->in_gbuf = TRUE;
         dump->gbuf = gbuffer_create(JSON2GBUF_SIZE, gbmem_get_maximum_block());
-        dump2gbuf(dump->bf, dump->len, dump->gbuf);
+        if(dump2gbuf(dump->bf, dump->len, dump->gbuf) < 0) {
+            return -1;  // Error already logged
+        }
     }
     return dump2gbuf(buffer, size, dump->gbuf);
 }
@@ -1362,12 +1385,16 @@ PUBLIC gbuffer_t *json2gbuf(
     if(!gbuf) {
         gbuf = gbuffer_create(JSON2GBUF_SIZE, gbmem_get_maximum_block());
     }
-    json_dump_callback(jn, dump2gbuf, gbuf, flags);
+    if(json_dump_callback(jn, dump2gbuf, gbuf, flags) < 0) {
+        log_dump_failed(gbuf);
+    }
     JSON_DECREF(jn)
     return gbuf;
 #else
     if(gbuf) {
-        json_dump_callback(jn, dump2gbuf, gbuf, flags);
+        if(json_dump_callback(jn, dump2gbuf, gbuf, flags) < 0) {
+            log_dump_failed(gbuf);
+        }
         JSON_DECREF(jn)
         return gbuf;
     }
@@ -1376,14 +1403,19 @@ PUBLIC gbuffer_t *json2gbuf(
     dump.len = 0;
     dump.in_gbuf = FALSE;
     dump.gbuf = 0;
-    json_dump_callback(jn, dump2small, &dump, flags);
+    int ret = json_dump_callback(jn, dump2small, &dump, flags);
     JSON_DECREF(jn)
 
     if(dump.in_gbuf) {
+        if(ret < 0) {
+            log_dump_failed(dump.gbuf);
+        }
         return dump.gbuf;
     }
     gbuf = gbuffer_create(dump.len, gbmem_get_maximum_block());
-    dump2gbuf(dump.bf, dump.len, gbuf);
+    if(dump2gbuf(dump.bf, dump.len, gbuf) < 0 || ret < 0) {
+        log_dump_failed(gbuf);
+    }
     return gbuf;
 #endif
 }

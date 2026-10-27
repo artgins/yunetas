@@ -40,6 +40,19 @@ message of each `pkey2`:
    and served, also after a restart. On 7.25.4 the file was left out of
    `dev1` with a CRITICAL, and the OLD message was served.
 
+`test_msg2db_column_default` pins that a message does not spend the
+`default` of a column. The schema gives a string, an integer and a boolean
+default to persistent columns, and a string and an integer default to
+volatile ones (no flag). Twenty messages carrying every field, then one
+carrying none of the volatile ones: nothing is logged, the schema's defaults
+are still there and unchanged, the message without the volatile fields gets
+their defaults, and the others keep their own values. A reload sets the
+volatile values of every record from the defaults, again with nothing in the
+log. Up to 7.28.7 the first message that carried a field freed its default
+(`_set_volatil_values()` handed the col's `default`, a borrowed pointer, to
+`kw_get_dict_value()`, which owns it), and every message after it logged
+*"BAD json_decref()"*.
+
 `test_msg2db_topics_left_out` pins that a topic `msg2db_open_db()` leaves
 out gets nothing of the msg2db. The schema has three topics: `good`, taken;
 `a/b`, whose name breaks the name rule; and `pre`, which has no `pkey2` and is

@@ -961,13 +961,16 @@ PRIVATE int _set_volatil_values(
 
     const char *field; json_t *col;
     json_object_foreach(cols, field, col) {
-        json_t *default_ = kw_get_dict_value(gobj, col, "default", 0, 0);
-        json_t *value = kw_get_dict_value(gobj,
-            kw,
-            field,
-            default_,
-            0
-        );
+        /*
+         *  Without a default, and the default chosen after: the cols are the
+         *  topic's own (increfed, not copied), and kw_get_dict_value() spends
+         *  a reference of its default when it finds the field -- the
+         *  schema's default, freed after a few appends.
+         */
+        json_t *value = kw_get_dict_value(gobj, kw, field, 0, 0);
+        if(!value) {
+            value = kw_get_dict_value(gobj, col, "default", 0, 0);
+        }
 
         const char *field_ = kw_get_str(gobj, col, "id", 0, KW_REQUIRED);
         if(!field_) {
