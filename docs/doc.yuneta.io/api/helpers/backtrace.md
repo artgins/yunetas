@@ -4,11 +4,11 @@ Capture and print a C stack backtrace. Used by the logging subsystem when `CONFI
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.28.8/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.28.8/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.28.9/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.28.9/kernel/c/gobj-c/src/helpers.c)
 
 (tdump)=
-## [`tdump()`](https://github.com/artgins/yunetas/blob/7.28.8/kernel/c/gobj-c/src/helpers.c#L8374)
+## [`tdump()`](https://github.com/artgins/yunetas/blob/7.28.9/kernel/c/gobj-c/src/helpers.c#L8415)
 
 `tdump` prints a formatted hexadecimal and ASCII dump of a given byte array.
 
@@ -43,7 +43,7 @@ If `nivel` is 0, it defaults to 3. The function formats the output in a structur
 ---
 
 (tdump2json)=
-## [`tdump2json()`](https://github.com/artgins/yunetas/blob/7.28.8/kernel/c/gobj-c/src/helpers.c#L8443)
+## [`tdump2json()`](https://github.com/artgins/yunetas/blob/7.28.9/kernel/c/gobj-c/src/helpers.c#L8484)
 
 `tdump2json` converts a binary buffer into a JSON object, representing the data in a structured hexadecimal and ASCII format.
 
