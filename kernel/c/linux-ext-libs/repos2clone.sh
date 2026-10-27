@@ -15,13 +15,13 @@ TAG_OPENSSL="openssl-3.6.5"
 TAG_PCRE2="pcre2-10.49"
 TAG_ARGP_STANDALONE="v1.1.5"
 TAG_NCURSES="v6.4"
-TAG_OPENRESTY="1.31.1.1"    # nginx 1.31.1 core (was 1.29.2.5 / nginx 1.29.2); warning: without the initial 'v'
+TAG_OPENRESTY="1.31.8.1"    # nginx 1.31.8 core (was 1.31.1.1 / nginx 1.31.1); warning: without the initial 'v'
 # openresty comes as its release tarball, not as a git clone: building from the
 # git tag runs util/mirror-tarballs, which fetches ~45 modules as tarballs from
 # github.com. The release tarball is the output of that same step, with the same
 # module versions. When bumping TAG_OPENRESTY, update its sha256 too:
 #   curl -sSL https://openresty.org/download/openresty-<tag>.tar.gz | sha256sum
-SHA256_OPENRESTY="65b78baadd3f0984055de89bf13f4a1932e5bfe9c31932037a134ea2b1a0ce42"
+SHA256_OPENRESTY="b569c63b420f80a4ac8466f2deffe73ed93ab760026532e039c3658409a997f4"
 TAG_NCURSES="v6.4"
 TAG_NGINX="release-1.31.8"  # bug fixes, no CVE (was release-1.31.7); mainline branch
 

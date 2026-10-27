@@ -285,7 +285,18 @@
 #       rebuilt (not only relinked); every node that builds from source must
 #       run `./extrae.sh && ./configure-libs.sh` again.
 
-VERSION="1.26"
+#   version 1.27
+#       openresty 1.31.8.1 (was 1.31.1.1): its nginx core goes from 1.31.1 to
+#       1.31.8, and with it the three CVEs fixed in nginx 1.31.2 that the
+#       openresty binary -- the one in front of the SPAs -- still carried:
+#       CVE-2026-42530 (use-after-free, ngx_http_v3_module), CVE-2026-42055
+#       (buffer overflow, HTTP/2 paths of the proxy and grpc modules),
+#       CVE-2026-48142 (buffer overread, ngx_http_charset_module). A separate
+#       binary linked against the system's libs: no yuno needs a relink.
+#       Every node that builds from source must run
+#       `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.27"
 
 
 source ./repos2clone.sh

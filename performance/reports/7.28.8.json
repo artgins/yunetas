@@ -1,0 +1,217 @@
+{
+ "schema": "yuneta-perf-report/1",
+ "version": "7.28.8",
+ "previous": "7.28.5",
+ "date": "2026-10-27",
+ "machine": {
+  "kind": "laptop",
+  "model": "Acer Nitro AN517-53",
+  "cpu": "11th Gen Intel Core i7-11370H @ 3.30 GHz",
+  "cores": 4,
+  "threads": 8,
+  "cpu_max_ghz": 4.8,
+  "l3_cache": "12 MiB",
+  "cpu_governor": "powersave (intel_pstate)",
+  "ram": "31 GiB",
+  "disk": "Samsung SSD 990 PRO 2TB (NVMe)",
+  "filesystem": "ext4",
+  "kernel": "Linux 7.0.0-38-generic x86_64",
+  "distro": "Ubuntu 26.04.1 LTS",
+  "glibc": "2.43",
+  "shared": "A development machine, with other work running at times; the A/B runs are alternated for that reason"
+ },
+ "build": {
+  "compiler": "gcc 15.2.0",
+  "build_type": "RelWithDebInfo (-O2 -g -DNDEBUG)",
+  "fully_static": true,
+  "debug_track_memory": true,
+  "debug_with_backtrace": true,
+  "tls": "OpenSSL 3.6.5 (bundled, static: linux-ext-libs 1.26); mbedTLS not built on this machine",
+  "note": "CONFIG_DEBUG_TRACK_MEMORY is on (the .config of this machine): every allocation is tracked. A build without it does less work per allocation; that build was not measured here."
+ },
+ "method": {
+  "ab": "Written on 2026-10-27, before the tag. 7.28.8 is the C code of main at c717c9cd9, measured against 7.28.5, the last release with a study (7.28.6 and 7.28.7 changed the controlcenter and the scaffolding tools, which no benchmark runs). A short study: of what 7.28.8 changes in .c files, only json2gbuf() -- now checking the result of the dump -- is on the path of a benchmark, in every message between yunos, which perf_ievent runs; the machine trace (tab(), trace_machine()) runs only with a trace on, which no benchmark arms, and msg2db has no benchmark. So only perf_ievent was run. Each release built from a git worktree with the same .config, compiler and outputs_ext (linux-ext-libs 1.26: the 1.27 of this release changes only openresty, which no yuno links); the kernel libraries and the benchmark were built in each. The two binaries run in rotation, the order turned every round, with a sync and a 3 s pause before each run: 8 rounds. Mean +- standard deviation (median), t = the change over its standard error; |t| < 3 is noise.",
+  "tag_run": "The absolute figure of 7.28.8 is its side of the A/B run: its C code (c717c9cd9), built on 2026-10-27 on the machine of the earlier reports."
+ },
+ "story": {
+  "title": "Yuneta 7.28.8: errors said, at the same speed",
+  "lead": "7.28.8 makes a json that cannot be dumped whole say so, and stops msg2db freeing the defaults of its schema. Against 7.28.5, the one benchmark on that path stays inside its noise.",
+  "hero": {
+   "value": "0",
+   "text": "figures outside their noise against 7.28.5."
+  },
+  "tiles": [
+   [
+    "net.ievent_round_trip",
+    "Inter-yuno event round trips"
+   ]
+  ],
+  "append_note": "",
+  "ab_sub": "The benchmark built from the tree of each release (7.28.5 and 7.28.8), the binaries run in rotation: 8 rounds. Only the benchmark that runs changed code. A change inside its whisker is noise.",
+  "prices_sub": "What got slower, how much, in which release, and what it buys.",
+  "prices": [],
+  "no_prices": "None.",
+  "abs_sub": "Absolute figure of the 7.28.8 build (its C code: c717c9cd9), measured on 2026-10-27 as its side of the A/B run.",
+  "ab_order": [
+   "net.ievent_round_trip"
+  ]
+ },
+ "ab": [
+  {
+   "id": "net.ievent_round_trip",
+   "group": "event loop",
+   "bench": "perf_ievent",
+   "case": "",
+   "label": "Inter-yuno event round trips (websocket)",
+   "short": "Inter-yuno events",
+   "meaning": "An event to a service of another yuno and its answer published back: C_IEVENT_CLI, websocket, C_IEVENT_SRV, both ends in one process.",
+   "unit": "round trips/s",
+   "better": "higher",
+   "scope": "release",
+   "previous": {
+    "mean": 27881.4,
+    "sd": 359.4,
+    "median": 27726.0
+   },
+   "current": {
+    "mean": 27537.0,
+    "sd": 359.2,
+    "median": 27470.5
+   },
+   "n": 8,
+   "method": "Each release built from its own tree (7.28.5 and 7.28.8, both with linux-ext-libs 1.26), the binaries run in rotation, the order turned each round, a sync and a 3 s pause before each run.",
+   "change_pct": -1.24,
+   "t": -1.92,
+   "verdict": "noise"
+  }
+ ],
+ "figures": [
+  {
+   "id": "net.ievent_round_trip",
+   "group": "event loop",
+   "bench": "perf_ievent",
+   "case": "",
+   "label": "Inter-yuno event round trips (websocket)",
+   "meaning": "An event to a service of another yuno and its answer published back: C_IEVENT_CLI, websocket, C_IEVENT_SRV, both ends in one process.",
+   "unit": "round trips/s",
+   "better": "higher",
+   "source": "ab-current",
+   "mean": 27537.0,
+   "median": 27470.5,
+   "n": 8,
+   "sd": 359.2
+  }
+ ],
+ "binaries": [
+  {
+   "name": "auth_bff",
+   "kind": "yuno",
+   "bytes": 35117200,
+   "stripped_bytes": 10500416,
+   "text": 9719622,
+   "data": 767548,
+   "bss": 114572,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "controlcenter",
+   "kind": "yuno",
+   "bytes": 35414120,
+   "stripped_bytes": 10612160,
+   "text": 9802598,
+   "data": 794044,
+   "bss": 114444,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "emailsender",
+   "kind": "yuno",
+   "bytes": 35337688,
+   "stripped_bytes": 10581952,
+   "text": 9779150,
+   "data": 784636,
+   "bss": 114604,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "logcenter",
+   "kind": "yuno",
+   "bytes": 35187120,
+   "stripped_bytes": 10522816,
+   "text": 9738886,
+   "data": 769884,
+   "bss": 114988,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "mqtt_broker",
+   "kind": "yuno",
+   "bytes": 35929384,
+   "stripped_bytes": 10802304,
+   "text": 9943286,
+   "data": 841660,
+   "bss": 114604,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "sgateway",
+   "kind": "yuno",
+   "bytes": 35127328,
+   "stripped_bytes": 10504960,
+   "text": 9720998,
+   "data": 768252,
+   "bss": 114476,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "watchfs",
+   "kind": "yuno",
+   "bytes": 35133480,
+   "stripped_bytes": 10509120,
+   "text": 9723142,
+   "data": 768348,
+   "bss": 114860,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "webstats",
+   "kind": "yuno",
+   "bytes": 35451960,
+   "stripped_bytes": 10623648,
+   "text": 9833150,
+   "data": 773596,
+   "bss": 114604,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "yuneta_agent",
+   "kind": "agent",
+   "bytes": 36043728,
+   "stripped_bytes": 10850144,
+   "text": 9964966,
+   "data": 867772,
+   "bss": 116300,
+   "static": true,
+   "tls": "openssl"
+  },
+  {
+   "name": "perf_yev_ping_pong",
+   "kind": "bench",
+   "bytes": 6940480,
+   "stripped_bytes": 2571632,
+   "text": 2526412,
+   "data": 32460,
+   "bss": 78640,
+   "static": true,
+   "tls": "openssl"
+  }
+ ]
+}

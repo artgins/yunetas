@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v7.28.8 (2026-10-27)
+
+Two errors that said nothing, and the openresty that fronts the SPAs out of
+three CVEs. A full release: `gobj-c` changes, and every yuno links it.
+
+Tests: `yunetas test` on the dev machine, 337/338. The one that failed,
+`test_c_udp_s_tx`, could not bind its fixed port 34282 because a yuno running
+on the machine (`gate_energia`) held it as its ephemeral UDP port, a chance
+collision; no UDP code changed, and the same test passed in the full run of
+the morning (338/338, `c717c9cd9`). Its fixed port inside the ephemeral range
+is a fault of the test, in the TODO. Performance: a short study, against
+7.28.5 (the last release with one), of the only benchmark on changed code
+(`perf_ievent`, which `json2gbuf()` is on): -1.24% round trips per second,
+t = -1.9, noise ([performance](https://doc.yuneta.io/performance)).
+
 - **msg2db spent the `default` of a column** (`_set_volatil_values()` in
   `tr_msg2db.c`). It read each field of a message with
   `kw_get_dict_value(gobj, kw, field, default, 0)`, handing it the col's
@@ -41,6 +56,18 @@
   `tab()` writes one 4-byte store per level instead of one byte at a time
   (2.0-2.8 ns at depths 1-4, was 2.8-5.8), and logs an error for a buffer
   smaller than 2 bytes, which it used to overrun.
+
+- **openresty 1.31.8.1** (`linux-ext-libs` 1.27, was 1.31.1.1): its nginx
+  core goes from 1.31.1 to 1.31.8, and with it the three CVEs fixed in nginx
+  1.31.2 that the openresty binary in front of the SPAs still carried
+  (CVE-2026-42530, use-after-free in `ngx_http_v3_module`; CVE-2026-42055,
+  buffer overflow in the HTTP/2 paths of the proxy and grpc modules;
+  CVE-2026-48142, buffer overread in `ngx_http_charset_module`). The
+  standalone nginx was already past them. A separate binary linked against
+  the system's libs: no yuno relinks for it, and every node that builds from
+  source must run `./extrae.sh && ./configure-libs.sh` again.
+- **gobj-ui 7.28.2 and 7.28.3**: the icons `yi-file-image`, `yi-file-pdf` and
+  `yi-file-excel`, for the exports of a project's views.
 
 ## v7.28.7 (2026-10-26)
 

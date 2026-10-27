@@ -84,7 +84,10 @@ Resolved for the **standalone nginx** binary by a pin bump:
 Note: `1.31.x` is the nginx **mainline** branch (odd minor), not the
 `1.30.x` stable line we were on — chosen because the fixes landed there.
 
-⚠️ **openresty is NOT yet covered.** The openresty pin was advanced
+✅ **openresty covered since configure-libs.sh v1.27** (2026-10-27): pin
+`1.31.8.1`, nginx core `1.31.8`. What follows is what was true until then.
+
+⚠️ **openresty was NOT yet covered.** The openresty pin was advanced
 `1.29.2.5` → `1.31.1.1` (configure-libs.sh v1.18), which moves its
 bundled nginx core from `1.29.2` to **`1.31.1`**. But these three CVEs
 were fixed in nginx **`1.31.2`** (2026-06-17), and openresty `1.31.1.1`

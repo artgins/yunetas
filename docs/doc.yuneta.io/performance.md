@@ -28,6 +28,7 @@ decision.
 
 | Release | Against | Report | Rendered | Raw figures |
 |---------|---------|--------|----------|-------------|
+| 7.28.8 | 7.28.5 | no page (a short study) | - | [7.28.8.json](https://github.com/artgins/yunetas/blob/7.28.8/performance/reports/7.28.8.json) |
 | 7.28.5 | 7.28.4 | no page (a short study) | - | [7.28.5.json](https://github.com/artgins/yunetas/blob/7.28.5/performance/reports/7.28.5.json) |
 | 7.28.4 | 7.28.2 | no page (a fix release) | - | [7.28.4.json](https://github.com/artgins/yunetas/blob/7.28.4/performance/reports/7.28.4.json) |
 | 7.28.2 | 7.28.0 | no page (a fix release) | - | [7.28.2.json](https://github.com/artgins/yunetas/blob/7.28.2/performance/reports/7.28.2.json) |
@@ -65,7 +66,7 @@ earlier run) and 7.25.5 as shipped (the tag-time run). Every other point of the
 table comes from one alternated A/B run. Each point is the figure its own
 report measured, so two neighbouring points come from two runs, days apart:
 the A/B of 7.25.20 measured 7.25.5 again, the A/B of 7.25.21 measured
-7.25.20 again, the A/B of 7.25.22 measured 7.25.21 again, the A/B of 7.26.0 measured 7.25.22 again, the A/B of 7.26.9 measured 7.26.0 again (7.26.1 to 7.26.8 shipped no report; it was redone after the release), the A/B of 7.27.0 measured 7.26.9 again, the A/B of 7.27.5 measured 7.27.0 again (7.27.1 to 7.27.4 shipped no report; 7.27.5's was written the day after the release), the A/B of 7.27.7 measured 7.27.5 again, with 7.27.6 (no report) in the same rotation, the A/B of 7.27.10 measured 7.27.7 again (7.27.8 and 7.27.9 changed no measured code), the A/B of 7.27.11 measured 7.27.10 again, the A/B of 7.28.0 measured 7.27.11 again (7.27.12 to 7.27.21, lite releases of the agent and the controlcenter, are inside it), the A/B of 7.28.2 measured 7.28.0 again (7.28.1, the agents' pid file, is inside it), the A/B of 7.28.4 measured 7.28.2 again (7.28.3, the stop of the agent, is inside it), and the short A/B of 7.28.5 measured 7.28.4 again, only the figures of the treedb and of the inter-yuno events; their figures are in the sections below. Between two such
+7.25.20 again, the A/B of 7.25.22 measured 7.25.21 again, the A/B of 7.26.0 measured 7.25.22 again, the A/B of 7.26.9 measured 7.26.0 again (7.26.1 to 7.26.8 shipped no report; it was redone after the release), the A/B of 7.27.0 measured 7.26.9 again, the A/B of 7.27.5 measured 7.27.0 again (7.27.1 to 7.27.4 shipped no report; 7.27.5's was written the day after the release), the A/B of 7.27.7 measured 7.27.5 again, with 7.27.6 (no report) in the same rotation, the A/B of 7.27.10 measured 7.27.7 again (7.27.8 and 7.27.9 changed no measured code), the A/B of 7.27.11 measured 7.27.10 again, the A/B of 7.28.0 measured 7.27.11 again (7.27.12 to 7.27.21, lite releases of the agent and the controlcenter, are inside it), the A/B of 7.28.2 measured 7.28.0 again (7.28.1, the agents' pid file, is inside it), the A/B of 7.28.4 measured 7.28.2 again (7.28.3, the stop of the agent, is inside it), the short A/B of 7.28.5 measured 7.28.4 again, only the figures of the treedb and of the inter-yuno events, and the short A/B of 7.28.8 measured 7.28.5 again, only the inter-yuno events (7.28.6 and 7.28.7 changed no measured code); their figures are in the sections below. Between two such
 reports a figure can move by a few percent with no change of the code (the
 master open of 7.25.20 measured 78.2 ms in its own report and 82.4 ms in the
 A/B of 7.25.21, another day): read a trend against the A/B of its report.
@@ -110,6 +111,30 @@ and reads every row of the key (a topic 7.25.22 had not marked took 402 ms).
 | MQTT QoS 0 | A publication through the embedded broker and its delivery back to the client that subscribes the topic. From 7.28.0 on (`perf_mqtt`). |
 | Publish | `gobj_publish_event()`: one event delivered to N subscribers of one gobj, the in-process message bus. |
 | Binary size | Each yuno is one fully static executable. The size includes OpenSSL and the whole framework. |
+
+## 7.28.8 against 7.28.5
+
+7.28.8 makes `json2gbuf()` say when it cannot dump a json whole (it now looks
+at the result of the dump), stops msg2db freeing the defaults of its schema,
+and indents the machine trace four spaces per level, formatting its line a
+third faster. Of that, only `json2gbuf()` is on the path of a benchmark: it
+dumps every message between yunos, which `perf_ievent` runs. The trace runs
+only with a trace on, and msg2db has no benchmark. So this is a short study:
+`perf_ievent` alone, against 7.28.5, the last release with a study (7.28.6 and
+7.28.7 changed the controlcenter and the scaffolding tools, which no
+benchmark runs), before the tag. 8 rounds, its figure here and in its
+`.json`, with no report page of its own.
+
+```{figure} ./_static/perf/perf_change_7.28.8.svg
+:alt: The change of the time one inter-yuno round trip takes, 7.28.8 against 7.28.5: within its noise, -1.24% round trips per second (t = -1.9).
+:width: 100%
+
+The change of the time one operation takes, left of zero is faster. Grey is
+within the noise of its rounds.
+```
+
+No price. The inter-yuno round trips measured 27,537 per second against
+27,881, -1.24% (t = -1.9), inside the noise of their rounds.
 
 ## 7.28.5 against 7.28.4
 

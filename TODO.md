@@ -613,3 +613,13 @@ be weighed again, not as settled.
   backports (2026-09).
 - **Memory-safety review not done yet**: `modules/postgres` (libpq wrapper;
   delegated to libpq, lower priority).
+
+## Tests on fixed ports inside the ephemeral range
+
+`test_c_udp_s_tx` (and probably others: check `scripts/check_test_ports.py`)
+binds fixed ports such as 34281/34282, inside Linux's ephemeral range
+(32768-60999). Any socket of the machine can be given one of them by the
+kernel: on 2026-10-27 a local `gate_energia` held 34282 and the test failed in
+the release suite of 7.28.8. Move the fixed ports of the tests below 32768
+and have `check_test_ports.py` refuse one inside the range.
+
