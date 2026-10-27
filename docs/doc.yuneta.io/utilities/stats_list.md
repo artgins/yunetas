@@ -19,7 +19,7 @@ All inputs are flags — `stats_list` takes **no positional arguments**.
 | `--variable` | Variable name |
 | `--metric` | Metric name |
 | `--units SEC\|MIN\|HOUR\|MDAY\|MON\|YEAR\|WDAY\|YDAY\|CENT` | Time bucket |
-| `--from-t` / `--to-t` | Time range |
+| `--from-t` / `--to-t` | Time range: epoch seconds, or a date (`2026-10-01`, `-1d`, `"2 hours ago"`). A text that is no date is refused (*"TIME is not a date"*) |
 | `--limits` | Show configured limits |
 | `--recursive` / `-r` | Walk subtrees |
 | `--raw` | Raw output |

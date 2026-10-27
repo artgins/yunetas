@@ -19,7 +19,7 @@ tr2search PATH [options]
 | `--search-content-filter clear\|base64` | Decode content before matching |
 | `--diplay-format json\|hexdump` | Output format *(spelled as in the tool)* |
 | `--key` / `--not-key` | Key filters |
-| `--from-t` / `--to-t`, `--from-tm` / `--to-tm` | Time ranges |
+| `--from-t` / `--to-t`, `--from-tm` / `--to-tm` | Time ranges: epoch seconds, or a date (`2026-10-01`, `-1d`, `"2 hours ago"`). A text that is no date is refused (*"TIME is not a date"*) |
 | `--from-rowid` / `--to-rowid` | Rowid range |
 | `--user-flag-set` / `--system-flag-set` (+ `…-not-set`) | Flag filters |
 | `--fields`, `--mode form\|table`, `--show_md2`, `--recursive`, `--verbose`/`-l` | As in [`tr2list`](#util-tr2list) |

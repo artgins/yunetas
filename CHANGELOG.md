@@ -2,7 +2,18 @@
 
 ## Unreleased
 
-- **`-1d` read as NOW again** (`read_date_text()` in `helpers.c`, since
+## v7.28.9 (2026-10-27)
+
+A regression of the date reader of 7.28.5: `tr2list --from-t=-1d` listed
+nothing. A full release, since `gobj-c` changes and every yuno links it; the
+nodes get the new tools now, and the yunos take the fix with their next
+upgrade (they read a date of text only in a query or a command).
+
+Tests: `yunetas test` on the dev machine, 338/338. Performance: no study. No
+benchmark runs the changed code (`approxidate()`, and three tools), as in
+7.28.6 and 7.28.7.
+
+- **`-1d` is a day back again** (`read_date_text()` in `helpers.c`, since
   7.28.5). The date reader that replaced the port of git's `date.c` took a
   `-` only as a zone after a clock time, so `--from-t=-1d` was unreadable
   and `approxidate()` answered NOW: `tr2list --from-t=-1d` listed nothing.

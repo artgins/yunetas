@@ -38,13 +38,14 @@ What is read (the full grammar is in `helpers.h`, above `approxidate_careful()`)
 |---|---|
 | A duration back from now | `"2 hours ago"`, `"3 days"`, `"1.day"`, `"2 days 3 hours ago"`, `"one week ago"`, `"last month"` |
 | Short units | `"1s"` `"5m"` `"2h"` `"1d"` `"1w"` `"1M"` `"1y"`, `"1min"`, `"2hrs"`: `m` is a minute, `M` a month |
+| A duration with a minus sign | `"-1d"`, `"-2 hours"`, `"-1w ago"`: the same as without it (7.28.5 to 7.28.8 refused it, and a tool read it as NOW) |
 | Days and times | `"now"`, `"today"`, `"yesterday"`, `"never"` (0), `"noon"`, `"midnight"`, `"tea"` (the last one that passed), `"last friday"`, `"3pm"`, `"10:30"`, `"yesterday 15:00"` |
 | Dates | `"2026-10-01"`, `"10/01/2026"` (M/D/Y first), `"1.10.2026"` (D.M.Y), `"Oct 1 2026"`, `"Sep 2024"`, `"2026-10-01T10:00:00+02:00"`, `"Thu, 01 Oct 2026 10:00:00 +0000"` |
 | Epoch seconds | `"@1700000000"`, `"@99999999999999 +0000"` (no year limit), `"1700000000"` |
 
 A date with no year is of this year, or of the year before when it is more than 10 days ahead. A date with no clock time keeps the time of day of now. Months and years back are of the calendar (`"1 month ago"` on March 31 is February 28 or 29); days are 24 hours.
 
-A text with a piece that says nothing known is refused as a whole: `"tomorrow"`, `"in 3 days"` (no time ahead of now is read), `"1.5 hours"`, `"2026-02-30"`, `"+5"`. Up to 7.28.4 the port of git's `date.c` read many of them as another date, in silence (`"2 days from now"` was two days BACK, `"2026-02-30"` was March 2); see [`test_date_text`](https://github.com/artgins/yunetas/blob/7.28.8/tests/c/helpers/test_date_text.c).
+A text with a piece that says nothing known is refused as a whole: `"tomorrow"`, `"in 3 days"` (no time ahead of now is read), `"1.5 hours"`, `"2026-02-30"`, `"+5"`, `"-5"`, `"+1d"`. Up to 7.28.4 the port of git's `date.c` read many of them as another date, in silence (`"2 days from now"` was two days BACK, `"2026-02-30"` was March 2); see [`test_date_text`](https://github.com/artgins/yunetas/blob/7.28.8/tests/c/helpers/test_date_text.c).
 
 **Example**
 

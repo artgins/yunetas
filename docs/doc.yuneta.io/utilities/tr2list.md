@@ -65,6 +65,25 @@ timeranger2 reads a negative bound:
 tr2list /yuneta/store/x/topic1 --from-t=-86400
 ```
 
+A duration with a minus sign is a **date**, and counts back from NOW, not from
+the last record: `-1d` is the same as `1d` or `"1 day ago"`. A key with no
+record in the last day lists nothing with `-1d`, and its last day with
+`-86400`:
+
+```bash
+# the records of the last 24 hours
+tr2list /yuneta/store/x/topic1 --key=esg@example.com --from-t=-1d
+```
+
+From 7.28.5 to 7.28.8 the date reader refused `-1d`, and `tr2list` read it as
+NOW, with no word: it listed nothing. A date that `approxidate` cannot read is
+refused now:
+
+```bash
+tr2list /yuneta/store/x/topic1 --from-t=ayer
+# -> TIME is not a date: 'ayer'
+```
+
 Up to 7.27.4 a date stayed in seconds on a topic in milliseconds, and selected
 nothing or everything there. Up to 7.27.6 a negative integer was read as a
 date, and `approxidate` read `-86400` as NOW (and `-1` as the first day of
