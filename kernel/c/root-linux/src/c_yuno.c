@@ -525,6 +525,7 @@ SDATA (DTP_STRING,  "start_date",       SDF_RD|SDF_STATS,"",            "Yuno st
 SDATA (DTP_INTEGER, "start_time",       SDF_RD,         "0",            "Yuno starting time"),
 SDATA (DTP_INTEGER, "uptime",           SDF_RD|SDF_STATS,"0",           "Seconds since the yuno started (monotonic clock)"),
 SDATA (DTP_INTEGER, "cpu",              SDF_RD|SDF_STATS,"0",           "Cpu percent usage"),
+SDATA (DTP_INTEGER, "publications",     SDF_RD|SDF_STATS,"0",           "publish-stats this yuno is sending (see the command)"),
 SDATA (DTP_INTEGER, "disk_size_in_gigas",SDF_RD|SDF_STATS,"0",          "Disk size of /yuneta"),
 SDATA (DTP_INTEGER, "disk_free_percent",SDF_RD|SDF_STATS, "0",          "Disk free of /yuneta"),
 SDATA (DTP_INTEGER, "disk_min_free_percent",SDF_RD|SDF_STATS,"100",     "Free percent of the fullest filesystem the yuno writes to: /yuneta and the store of each of its C_TRANGERs (a queue on a ramdisk, a store on another disk)"),
@@ -6155,6 +6156,7 @@ PRIVATE void load_stats(hgobj gobj)
     {
         double cpu_percent = cpu_usage_percent(&priv->last_cpu_ticks, &priv->last_ms);
         gobj_write_integer_attr(gobj, "cpu", (uint32_t)cpu_percent);
+        gobj_write_integer_attr(gobj, "publications", (json_int_t)json_object_size(priv->publications));
     }
 
     /*---------------------------------------*

@@ -27,6 +27,7 @@ pushes as its `cpu` kind, read once a second (`timeout_stats`):
 | Stat | Meaning |
 |------|---------|
 | `cpu` | Percent of one core the process used. |
+| `publications` | How many `publish-stats` the yuno is sending (see [below](#publishing-its-stats-publish-stats)). Since 7.28.11. |
 | `uptime`, `start_date` | Seconds since the yuno started, and when. |
 | `mem_rss_kb` | Resident memory of the process, KB (`VmRSS`). |
 | `mem_node_total_mb`, `mem_node_available_percent` | Memory of the node, and the percent of it still available (`MemAvailable`). A ramdisk takes its size from here. |
