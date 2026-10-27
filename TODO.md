@@ -111,12 +111,11 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   the relink of a test after an installed archive changed; the test harness
   not counting *"io_uring_queue_init_params() pinned-memory pressure,
   retrying"* as an unexpected log (it needs the machine short of locked
-  memory). And everything in `c_agent.c`, which no ctest compiles: the
-  agent's exit 0 when its treedb does not open, `find-new-yunos create=1`
-  skipping rows already registered (only the preview is tested,
-  `c_agent_find_new_yunos`), `create-yuno` refusing a release name longer
-  than `NAME_MAX`. Not exercised live: a form Save through a real websocket
-  drop.
+  memory). In `c_agent.c`, which no ctest compiles, only the last step of
+  `create-yuno`'s refusal stays untested: the -1 answer it builds when
+  `build_yuno_release_name()` refuses (the refusal itself is pinned by
+  `c_agent_find_new_yunos`). Not exercised live: a form Save through a real
+  websocket drop.
 ---
 
 ## 3. Decisions pending

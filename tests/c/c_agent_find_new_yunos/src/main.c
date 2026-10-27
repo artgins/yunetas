@@ -114,8 +114,9 @@ static int register_yuno_and_more(void)
          *  yuno_m1, yuno_m2 (yuno_c has none). ONE "Parent ref already in
          *  child fkey": the real duplicate link of yuno_c; the new releases
          *  of yuno_a and yuno_m1 link children whose fkey already names
-         *  them, and that is not one (it warned up to 7.25.4). */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+         *  them, and that is not one (it warned up to 7.25.4). ONE "yuno
+         *  release name too long": the name a byte past NAME_MAX, refused. */
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -129,6 +130,7 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Playing yuno",
+            "msg", "yuno release name too long",
             "msg", "Parent ref already in child fkey, skipping duplicate",
             "msg", "new release found",
             "msg", "new release found",

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **yuno_agent: three behaviours of `c_agent.c` get a test** (`TODO.md`
+  listed them as untested, since no ctest compiles `c_agent.c`). Their code
+  moves out of it, as `find_new_yunos.c` did: opening the agent's treedb is
+  `open_agent_treedb()` in the new `agent_treedb.c` (the schema literal is
+  included there), and the split of `find-new-yunos` between its preview and
+  what `create=1` runs is `find_new_yunos_preview()`. No behaviour changes.
+    - `tests/c/c_agent_treedb_open` (new): the agent's treedb opens with its
+      schema, and an `open-treedb` answered -1 ends the process with exit 0
+      and *"Cannot start agent treedb"*. ctest runs it through `run_test.sh`,
+      which checks the exit code.
+    - `c_agent_find_new_yunos`: `create=1` runs only the rows not registered,
+      while the preview keeps them all; and a release name a byte past
+      `NAME_MAX` is refused, not cut.
 - **`C_WEBSOCKET` logs the Close the peer sends** (`c_websocket.c`): an
   INFO `Websocket Close received` with its `close_code` (1005 when the frame
   carries none) and `reason`, next to the `Disconnected` of the transport. A

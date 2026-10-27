@@ -71,6 +71,24 @@ PUBLIC json_t *find_new_yunos(
     hgobj src
 );
 
+/*
+ *  What find-new-yunos does with the rows of find_new_yunos() (`jn_rows`,
+ *  not owned). Returns the preview it answers, a new list: every row's
+ *  command, a registered one as "already registered, pending promotion
+ *  (deactivate-snap): <command>". Appends to `jn_commands` the create-yuno
+ *  commands that `create=1` runs: only the rows NOT registered, because a
+ *  registered one would answer "Yuno already exists". The registered rows
+ *  stay in the preview so that `yunetas upgrade-yunos`, which stops at an
+ *  empty preview, still runs deactivate-snap for them. `*registered` gets
+ *  their count.
+ */
+PUBLIC json_t *find_new_yunos_preview(
+    hgobj gobj,
+    json_t *jn_rows,        // not owned
+    json_t *jn_commands,    // not owned, the commands to run are appended
+    int *registered
+);
+
 #ifdef __cplusplus
 }
 #endif

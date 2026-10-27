@@ -26,6 +26,11 @@
  *                yuno (the configuration it keeps, a binary that inherited
  *                the ref) without the warning "Parent ref already in child
  *                fkey"; a real duplicate link still warns.
+ *              - create=1 runs only the rows not registered, and the
+ *                preview keeps every row, the registered ones marked
+ *                (find_new_yunos_preview());
+ *              - a release name that does not fit in NAME_MAX is refused,
+ *                not cut (build_yuno_release_name(), create-yuno's).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -549,6 +554,92 @@ PRIVATE int check_version_shapes_and_release_order(hgobj gobj)
             result += -1;
         }
     }
+
+    /*
+     *  The release name in the buffer create-yuno builds it in (NAME_MAX):
+     *  one that fits exactly, and one a byte longer, which is refused
+     *  (logged) instead of cut. Up to 7.25.4 a cut name was stored as the
+     *  pkey2, find-new-yunos never found it, and offered that yuno again at
+     *  every call.
+     */
+    char role_version[NAME_MAX];
+    char release[NAME_MAX];
+    memset(role_version, '1', sizeof(role_version));
+    role_version[NAME_MAX - 3] = 0;     // + "-1" + its NUL: NAME_MAX bytes
+    if(build_yuno_release_name(gobj, release, sizeof(release), role_version, "1")<0) {
+        // Error already logged
+        result += -1;
+    }
+    role_version[NAME_MAX - 3] = '1';
+    role_version[NAME_MAX - 2] = 0;     // one byte more
+    if(build_yuno_release_name(gobj, release, sizeof(release), role_version, "1") != -1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a release name longer than NAME_MAX was not refused",
+            NULL
+        );
+        result += -1;
+    }
+
+    return result;
+}
+
+/***************************************************************************
+ *  What create=1 runs, from the rows (find_new_yunos_preview(), as
+ *  cmd_find_new_yunos does): only the rows not registered -- a registered
+ *  one would answer "Yuno already exists" -- while the preview keeps every
+ *  row, the registered ones marked. Returns 0 or -1 (logged).
+ ***************************************************************************/
+PRIVATE int check_preview_and_commands(hgobj gobj, json_t *rows)
+{
+    int result = 0;
+    static const char *mark = "already registered, pending promotion (deactivate-snap): ";
+
+    json_t *commands = json_array();
+    int registered = -1;
+    json_t *preview = find_new_yunos_preview(gobj, rows, commands, &registered);
+
+    const char *command_b = json_string_value(json_object_get(find_row(rows, "yuno_b"), "command"));
+    const char *command_m2 = json_string_value(json_object_get(find_row(rows, "yuno_m2"), "command"));
+
+    int to_run_b = 0, to_run_m2 = 0, to_run_other = 0;
+    int idx; json_t *jn_command;
+    json_array_foreach(commands, idx, jn_command) {
+        const char *command = json_string_value(jn_command);
+        if(command_b && strcmp(command, command_b)==0) {
+            to_run_b++;
+        } else if(command_m2 && strcmp(command, command_m2)==0) {
+            to_run_m2++;
+        } else {
+            to_run_other++;
+        }
+    }
+
+    int marked = 0;
+    json_array_foreach(preview, idx, jn_command) {
+        const char *line = json_string_value(jn_command);
+        if(line && strncmp(line, mark, strlen(mark))==0) {
+            marked++;
+        }
+    }
+
+    if(registered != 2 || to_run_b != 1 || to_run_m2 != 1 || to_run_other != 0 ||
+            json_array_size(preview) != 4 || marked != 2) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: what create=1 runs",
+            "registered",   "%d", registered,
+            "commands",     "%j", commands,
+            "preview",      "%j", preview,
+            NULL
+        );
+        result += -1;
+    }
+
+    JSON_DECREF(commands)
+    JSON_DECREF(preview)
     return result;
 }
 
@@ -730,6 +821,8 @@ PRIVATE int run_tests(hgobj gobj)
         );
         result += -1;
     }
+
+    result += check_preview_and_commands(gobj, rows);
     JSON_DECREF(rows)
 
     if(result == 0) {

@@ -24,12 +24,12 @@
 
 #include <c_pty.h>
 #include "c_agent.h"
+#include "agent_treedb.h"
 #include "audit_record.h"
 #include "dir_listing.h"
 #include "find_new_yunos.h"
 #include "watch_request.h"
 #include "yuno_config_file.h"
-#include "treedb_schema_yuneta_agent.c"
 
 /***************************************************************************
  *              Constants
@@ -1491,60 +1491,14 @@ PRIVATE int mt_play(hgobj gobj)
     /*-------------------------------------------*
      *      Load schema
      *      Open treedb agentdb service
+     *      (does not return if it does not open)
      *-------------------------------------------*/
-    helper_quote2doublequote(treedb_schema_yuneta_agent);
-    json_t *jn_treedb_schema_yuneta_agent;
-    jn_treedb_schema_yuneta_agent = legalstring2json(treedb_schema_yuneta_agent, TRUE);
-    if(parse_schema(jn_treedb_schema_yuneta_agent)<0) {
-        /*
-         *  Exit if schema fails
-         */
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP,
-            "msg",          "%s", "Parse schema fails",
-            NULL
-        );
-        exit(-1);
-    }
-
-
-    const char *treedb_name_ = kw_get_str(gobj,
-        jn_treedb_schema_yuneta_agent,
-        "id",
-        "treedb_agentdb",
-        KW_REQUIRED
+    open_agent_treedb(
+        gobj,
+        priv->gobj_treedbs,
+        priv->treedb_agentdb_name,
+        sizeof(priv->treedb_agentdb_name)
     );
-    snprintf(priv->treedb_agentdb_name, sizeof(priv->treedb_agentdb_name), "%s", treedb_name_);
-
-    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
-        "filename_mask", "%Y",
-        "exit_on_error", 0,
-        "treedb_name", priv->treedb_agentdb_name,
-        "treedb_schema", jn_treedb_schema_yuneta_agent,
-        "impose_c_schema", 1    // the binary imposes its schema, whatever the attribute says
-    );
-    json_t *jn_resp = gobj_command(priv->gobj_treedbs,
-        "open-treedb",
-        kw_treedb,
-        gobj
-    );
-    int result = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
-    if(result < 0) {
-        const char *comment = kw_get_str(gobj, jn_resp, "comment", "", KW_REQUIRED);
-        print_error(
-            0,
-            "Cannot start agent treedb: %s",
-            comment
-        );
-        gobj_log_error(gobj, LOG_OPT_EXIT_ZERO|LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP,
-            "msg",          "%s", comment,
-            NULL
-        );
-    }
-    json_decref(jn_resp);
 
     /*-------------------------*
      *      Get services
@@ -4589,24 +4543,14 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
         src
     );
 
-    json_t *jn_data = json_array();     // the preview
     json_t *jn_commands = json_array(); // what create=1 runs
     int registered = 0;
-
-    int idx; json_t *jn_row;
-    json_array_foreach(jn_rows, idx, jn_row) {
-        const char *command = kw_get_str(gobj, jn_row, "command", "", KW_REQUIRED);
-        if(kw_get_bool(gobj, jn_row, "registered", 0, KW_REQUIRED)) {
-            registered++;
-            json_array_append_new(
-                jn_data,
-                json_sprintf("already registered, pending promotion (deactivate-snap): %s", command)
-            );
-        } else {
-            json_array_append_new(jn_data, json_string(command));
-            json_array_append_new(jn_commands, json_string(command));
-        }
-    }
+    json_t *jn_data = find_new_yunos_preview( // the preview
+        gobj,
+        jn_rows,
+        jn_commands,
+        &registered
+    );
     json_decref(jn_rows);
 
     json_t *jn_comment = 0;
@@ -4622,6 +4566,7 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
     json_t *schema = 0;
     if(create) {
         json_t *new_jn_data = json_array();
+        int idx; json_t *jn_row;
         json_array_foreach(jn_commands, idx, jn_row) {
             const char *command = json_string_value(jn_row);
             json_t *webix = gobj_command(

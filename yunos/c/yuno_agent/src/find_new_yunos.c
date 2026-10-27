@@ -373,3 +373,34 @@ PUBLIC json_t *find_new_yunos(
 
     return jn_rows;
 }
+
+/***************************************************************************
+ *  See find_new_yunos.h
+ ***************************************************************************/
+PUBLIC json_t *find_new_yunos_preview(
+    hgobj gobj,
+    json_t *jn_rows,
+    json_t *jn_commands,
+    int *registered
+)
+{
+    json_t *jn_preview = json_array();
+    *registered = 0;
+
+    int idx; json_t *jn_row;
+    json_array_foreach(jn_rows, idx, jn_row) {
+        const char *command = kw_get_str(gobj, jn_row, "command", "", KW_REQUIRED);
+        if(kw_get_bool(gobj, jn_row, "registered", 0, KW_REQUIRED)) {
+            (*registered)++;
+            json_array_append_new(
+                jn_preview,
+                json_sprintf("already registered, pending promotion (deactivate-snap): %s", command)
+            );
+        } else {
+            json_array_append_new(jn_preview, json_string(command));
+            json_array_append_new(jn_commands, json_string(command));
+        }
+    }
+
+    return jn_preview;
+}

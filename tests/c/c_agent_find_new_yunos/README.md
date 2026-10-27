@@ -29,6 +29,16 @@ Each row now says whether its instance at the new release exists.
    `create-yuno` of a new release. A real duplicate (yuno_c linked twice to
    its binary) still warns, once: the strict FIFO of expected logs pins both.
 
+6. what `create=1` runs (`find_new_yunos_preview()`, which
+   `cmd_find_new_yunos` calls): only the rows not registered, yuno_b and
+   yuno_m2; the preview keeps all four, the two registered marked *"already
+   registered, pending promotion (deactivate-snap): ..."*;
+7. the release name in `create-yuno`'s `NAME_MAX` buffer
+   (`build_yuno_release_name()`): one that fits exactly, and one a byte
+   longer, which is refused (logged) instead of cut. A cut name was stored
+   as the pkey2 up to 7.25.4, and find-new-yunos offered that yuno again at
+   every call.
+
 ## Run
 
 ```bash
