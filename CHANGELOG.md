@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **`C_WEBSOCKET` takes `Connection: upgrade` in any case.** The server
+  looked for `Upgrade` with a case-sensitive `strstr()`, so a client that
+  sends the token in lower case (Node's `WebSocket`, `connection: upgrade`;
+  the token has no case, RFC 7230) was answered 400 and dropped. Browsers
+  send `Upgrade`, which is why nobody saw it. A refused upgrade request is
+  now a WARNING (*"Websocket upgrade request refused"*, `MSGSET_PROTOCOL`,
+  with the peer): it was dropped with no log.
 - **A yuno sends its own stats: `publish-stats`** (`C_YUNO`). Asked once, it
   sends the stats of one of its services to the requester every `period`,
   from its own periodic timer, as the answers of a stats request

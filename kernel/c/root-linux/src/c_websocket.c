@@ -7,6 +7,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <strings.h>
 #include <stdint.h>
 #include <endian.h>
 #include <time.h>
@@ -1472,7 +1473,7 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
 //     if "upgrade" not in connection:
 
     const char *connection = kw_get_str(gobj, request->jn_headers, "CONNECTION", 0, 0);
-    if(!connection || !strstr(connection, "Upgrade")) {
+    if(!connection || !strcasestr(connection, "upgrade")) {    // a token: no case (RFC 7230)
         const char *data =
             "HTTP/1.1 400 Bad Request\r\n"
             "Connection: Close\r\n"
@@ -1786,8 +1787,17 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
             int ok = do_response(gobj, priv->parsing_request);
             if (!ok) {
                 /*
-                 * request refused! Drop connection.
+                 * request refused! Drop connection. The peer was told why
+                 * (a 400 with the reason); this side says it too.
                  */
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PROTOCOL,
+                    "msg",          "%s", "Websocket upgrade request refused",
+                    "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+                    "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+                    NULL
+                );
                 gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
             } else {
                 /*------------------------------------*
