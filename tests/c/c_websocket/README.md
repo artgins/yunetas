@@ -25,6 +25,13 @@ the max payload, connection closed"*) and close with 1009, reserving nothing.
 Up to 7.25.21 the length written in the header was reserved at once, and
 there was no maximum but the max block of the yuno.
 
+`test3` (`main_test3.c` + `c_test3.c`) is the Close a peer sends. The raw
+server answers the upgrade and sends a Close frame with code 4002 and reason
+`peer fault`; the client must log *"Websocket Close received"* with both, echo
+the Close, and drop at `timeout_close` (the raw server does not drop). Up to
+7.28.9 the code and the reason were read and logged by nobody, so a server saw
+only its own drop (`Local dropping`) for every session a browser closed (red).
+
 `ws_accept` (`test_ws_accept.c`, no yuno) is the `Sec-WebSocket-Accept` a
 `C_WEBSOCKET` server answers: the SHA-1 of `sha1.c` (root-linux, private,
 written again from FIPS 180-4 after 7.28.4) against the FIPS vectors and

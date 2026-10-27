@@ -1042,19 +1042,31 @@ PRIVATE int frame_completed(hgobj gobj)
 
             case OPCODE_CONTROL_CLOSE:
                 {
+                    /*
+                     *  The peer's code and reason are the only record of
+                     *  WHY it ended the session: without them this side
+                     *  logs no more than its own drop ("Local dropping").
+                     */
                     int close_code = 0;
+                    int peer_code = 0;
+                    char reason[128] = {0};   // a Close carries 123 bytes of reason at most
+                    BOOL bad_frame = FALSE;
                     if(frame_head->frame_length==0) {
                         close_code = STATUS_NORMAL;
+                        peer_code = STATUS_STATUS_NOT_AVAILABLE;    // a Close with no code
                     } else if (frame_head->frame_length<2) {
                         close_code = STATUS_PROTOCOL_ERROR;
+                        bad_frame = TRUE;
                     } else if (frame_head->frame_length>=126) {
                         close_code = STATUS_PROTOCOL_ERROR;
+                        bad_frame = TRUE;
                     } else {
                         close_code = STATUS_NORMAL;
 
                         char *p = gbuffer_get(unmasked, 2);
 
                         close_code = ntohs(*((uint16_t*)p));
+                        peer_code = close_code;
                         if(!((close_code>=STATUS_NORMAL &&
                                 close_code<=STATUS_UNSUPPORTED_DATA_TYPE) ||
                              (close_code>=STATUS_INVALID_PAYLOAD &&
@@ -1062,11 +1074,57 @@ PRIVATE int frame_completed(hgobj gobj)
                              (close_code>=3000 &&
                                 close_code<5000))) {
                             close_code = STATUS_PROTOCOL_ERROR;
+                            bad_frame = TRUE;
                         }
                         if(!check_utf8(unmasked)) {
                             close_code = STATUS_INVALID_PAYLOAD;
+                            bad_frame = TRUE;
+                        } else {
+                            size_t ln = gbuffer_leftbytes(unmasked);
+                            if(ln >= sizeof(reason)) {
+                                ln = sizeof(reason) - 1;
+                            }
+                            if(ln > 0) {
+                                memcpy(reason, gbuffer_cur_rd_pointer(unmasked), ln);
+                            }
                         }
                     }
+
+                    if(bad_frame) {
+                        gobj_log_warning(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_PROTOCOL,
+                            "msg",          "%s", "Websocket BAD Close frame",
+                            "frame_length", "%lu", (unsigned long)frame_head->frame_length,
+                            "peer_code",    "%d", peer_code,
+                            "close_code",   "%d", close_code,
+                            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+                            "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+                            NULL
+                        );
+                        if(unmasked) {
+                            gbuffer_reset_rd(unmasked);
+                            size_t ln = gbuffer_leftbytes(unmasked);
+                            gobj_trace_dump(
+                                gobj,
+                                gbuffer_cur_rd_pointer(unmasked),
+                                MIN(ln, MAX_LOG_DUMP_SIZE),
+                                "Websocket BAD Close frame"
+                            );
+                        }
+                    } else {
+                        gobj_log_info(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "Websocket Close received",
+                            "close_code",   "%d", peer_code,
+                            "reason",       "%s", reason,
+                            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+                            "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+                            NULL
+                        );
+                    }
+
                     if(unmasked) {
                         gbuffer_decref(unmasked);
                         unmasked = 0;

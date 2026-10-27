@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **`C_WEBSOCKET` logs the Close the peer sends** (`c_websocket.c`): an
+  INFO `Websocket Close received` with its `close_code` (1005 when the frame
+  carries none) and `reason`, next to the `Disconnected` of the transport. A
+  server used to log only its own drop (`cause: "Local dropping"`), so every
+  session a browser closed looked the same whatever the browser meant -- found
+  chasing a central GUI tab that reconnected every minute. A malformed Close
+  (a length of 1 or over 125, a code out of the RFC's ranges, a reason that is
+  not UTF-8) is a WARNING of `MSGSET_PROTOCOL` with a capped dump, as the
+  decoders report a bad peer packet. Case in `tests/c/c_websocket/test3`.
 - **gui_treedb 1.0.4 / 1.0.5** (yunos-js): the Rows dialog gets **Blank
   fields**, which empties the rowid range and the user-flag masks (the full
   key), and a period chosen there blanks the `from rowid` -100 a new card
