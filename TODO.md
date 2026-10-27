@@ -56,6 +56,14 @@ Severity in parentheses where one was assigned.
   The same gap applies to the `blob/<tag>` of `performance/reports/README.md`
   and `performance/c/README.md`: pinned to 7.27.7, they do not list the
   redone studies.
+- **timeranger2 reads a date of text as NOW, in silence** (found at 7.28.9).
+  The string bounds of a `match_cond` (`from_t`, `to_t`, `from_tm`, `to_tm`,
+  in `timeranger2.c`) and a string tkey (`tkey_time_of_value()`) are read
+  with `approxidate()`, which has no error flag: a text it cannot read is
+  NOW, and the query or the append goes on with it. 7.28.9 fixed the same
+  thing in `tr2list`, `tr2search` and `stats_list`. Read them with
+  `approxidate_careful()` and log a WARNING with the text (it comes from a
+  peer or a user); `c_tranger.c` already does it for `before`.
 
 ### Projects (code outside this repo)
 
