@@ -5161,7 +5161,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     /*---------------------------------------*
      *      Get the requester
      *---------------------------------------*/
-// KKK
+    // Who asked: ac_final_count() answers it, all ACKs in or the counter timed out
     const char *requester = kw_get_str(
         gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", 0, KW_REQUIRED
     );
@@ -5212,11 +5212,11 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                 );
                 json_array_append_new(filterlist, jn_EvChkItem);
 
-// KKK KKK2
                 if(do_play) {
                     /*
                      *  Route the implicit play answer back to this requester:
-                     *  ac_on_open's must_play reconcile will call play-yuno.
+                     *  ac_on_open's must_play reconcile will call play-yuno,
+                     *  and gives the ACK to the `_requester` kept here.
                      */
                     json_object_set_new(yuno, "_requester", json_string(requester));
                     json_t *kw_requester = kw_get_dict(
@@ -5330,9 +5330,9 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         gobj_counter
     );
 
-    // KKK
     /*
-     *  Subscribe me to the counter's final event, with the requester
+     *  Subscribe me to the counter's final event, with the requester:
+     *  ac_final_count() answers it
      */
     json_t *kw_final_count = json_object();
     json_t *global = json_object();
@@ -5427,7 +5427,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     /*---------------------------------------*
      *      Get the requester
      *---------------------------------------*/
-// KKK
+    // Who asked: ac_final_count() answers it, all ACKs in or the counter timed out
     const char *requester = kw_get_str(
         gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", 0, KW_REQUIRED
     );
@@ -5564,9 +5564,9 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         gobj_counter
     );
 
-// KKK
     /*
-     *  Subscribe me to the counter's final event, with the requester
+     *  Subscribe me to the counter's final event, with the requester:
+     *  ac_final_count() answers it
      */
     json_t *kw_final_count = json_object();
     json_t *global = json_object();
@@ -5619,7 +5619,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *      Get the requester
      *  HACK it can come from internal auto-play
      *-----------------------------------------------*/
-// KKK KKK2
+    // Who asked: ac_final_count() answers it, all ACKs in or the counter timed out (empty: an auto-play of ac_on_open())
     const char *requester = kw_get_str(
         gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", "", 0
     );
@@ -5752,9 +5752,9 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         gobj_counter
     );
 
-// KKK
     /*
-     *  Subscribe me to the counter's final event, with the requester
+     *  Subscribe me to the counter's final event, with the requester:
+     *  ac_final_count() answers it
      */
     json_t *kw_final_count = json_object();
     json_t *global = json_object();
@@ -5805,7 +5805,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     /*---------------------------------------*
      *      Get the requester
      *---------------------------------------*/
-// KKK
+    // Who asked: ac_final_count() answers it, all ACKs in or the counter timed out
     const char *requester = kw_get_str(
         gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", 0, KW_REQUIRED
     );
@@ -5927,9 +5927,9 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         gobj_counter
     );
 
-// KKK
     /*
-     *  Subscribe me to the counter's final event, with the requester
+     *  Subscribe me to the counter's final event, with the requester:
+     *  ac_final_count() answers it
      */
     json_t *kw_final_count = json_object();
     json_t *global = json_object();
@@ -13176,7 +13176,6 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  Check play
      *---------------*/
     if(!playing) {
-// KKK
         /*
          *  run-yuno play=0 launched this process and asked us NOT to auto-play it.
          *  Honour it once and consume the transient marker; a watcher crash relaunch
@@ -13201,7 +13200,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "id", yuno_id
             );
 
-            // KKK2
+            // The requester run-yuno kept in the row (cmd_run_yuno, do_play): the ACK of this play goes back to it
             const char *requester = kw_get_str(gobj, yuno, "_requester", "", 0);
             if(!empty_string(requester)) {
                 json_t *requester_md_iev = kw_get_dict(gobj, yuno, "_requester_md_iev", 0, 0);
@@ -13327,8 +13326,11 @@ PRIVATE int ac_final_count(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     int max_count = (int)kw_get_int(gobj, kw, "max_count", 0, 0);
     int cur_count = (int)kw_get_int(gobj, kw, "cur_count", 0, 0);
 
-// KKK
-
+    /*
+     *  The end of the answer of run-yuno, kill-yuno, play-yuno and pause-yuno:
+     *  every yuno ACKed, or the counter's expiration_timeout ran out (then
+     *  cur_count < max_count); the requester the command noted gets it
+     */
     json_t *iter_yunos = gobj_kw_get_user_data(src, "iter", 0, KW_EXTRACT|KW_REQUIRED);
     json_t *kw_answer = gobj_kw_get_user_data(src, "kw_answer", 0, KW_EXTRACT|KW_REQUIRED);
 
