@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## v7.28.10 (2026-10-27)
+
+A release of the agent: `update-binary` stops writing into the wrong row,
+`create-yuno` stops taking a version that is not installed for another one,
+`read-file` / `read-json` stop cutting a big file in silence, and a yuno that
+refuses to play or pause is said. A lite release: the agents are deployed
+now; the change of `C_WEBSOCKET` (a log of the Close a peer sends) reaches
+the yunos with their next upgrade.
+
+Tests: the full suite on the dev machine, `ctest -j8` under
+`ulimit -Sn 1024`, 341/341 (three tests new). Performance: no
+study. No benchmark runs the changed code: the agent's commands, and the
+Close frame of a websocket, read once per session.
+
 - **yuno_agent: `update-binary` replaces the version it is sent, and only
   an installed one.** It took the PRIMARY row of the binary (the version
   installed last), copied the file to the directory of the version the file
