@@ -851,16 +851,17 @@ ycommand -c 'find-new-yunos create=1'
 
 # 4. Force the agent to promote the newest release to primary and restart
 #    deactivate-snap (no args, no active snap) is the only command that
-#    triggers `restart_nodes()`: SIGKILL every running yuno, then —
-#    BEFORE the reload — `promote_highest_release_yunos()` re-appends the
+#    triggers `restart_nodes()`: the launch of every running yuno is
+#    noted, then — BEFORE the reload — `promote_highest_release_yunos()` re-appends the
 #    highest non-disabled `yuno_release` per id so it becomes the highest
 #    rowid. (The treedb primary is the highest-ROWID record, not the
 #    highest version; lifecycle/snap writes can leave an older release on
 #    top, which is why a plain reload alone is not enough — the old
 #    "force volatil" TODO.) gobj_stop/start then rebuilds the primary
-#    index from disk with the promoted release on top, and every
-#    must_play yuno runs on it. Equivalent to `yshutdown` +
-#    `restart-yuneta` but without restarting the agent process itself.
+#    index from disk with the promoted release on top. Since 7.28.11
+#    only the yunos whose launch changed are SIGKILLed and launched
+#    again (here: the upgraded one); the rest keep running. `all=1`
+#    restarts every yuno, the behaviour up to 7.28.10.
 ycommand -c 'deactivate-snap'
 
 # 5. Verify
@@ -916,8 +917,22 @@ running", grep the agent log for `does NOT move forward` before anything else.
 
 #### Caveats
 
-  - **Node-wide restart.** `restart_nodes()` sends SIGKILL to every running
-  yuno on the node, not only to the one that you upgrade. It relaunches them
+  - **Only the yunos whose launch changed are restarted** (since 7.28.11;
+  `all=1` for every one, as up to 7.28.10). For each running yuno,
+  `restart_nodes()` takes its launch signature (`restart_plan.c`: the saved
+  columns of its row, of the binary it runs, of its configuration, its realm
+  and its public services -- no runtime, no hook, no `_geometry`) and its
+  runtime (running, pids, channel, launch) before the reload of the treedb,
+  and the signature again after it. The same one gets its runtime back and
+  lives on -- disabled or not, as `disabled` only stops the next run; a
+  changed one is SIGKILLed and launched again; one that is gone, or changed
+  and disabled now, is killed and not launched. The agent logs *"Node
+  restart: only the yunos whose launch changed"* with `kept`, `restarted`
+  and `stopped`. Up to 7.28.10 every yuno was killed: the reload loses what
+  the agent keeps in memory of a running yuno, which would otherwise be
+  launched beside itself.
+
+    The yunos it does kill are SIGKILLed. It relaunches them
   once every process it killed is gone, looked at every 100 ms for 10 s: a
   SIGKILL is delivered, not done, and up to 7.25.21 the relaunch ran at once
   -- a new instance could meet the old one's exclusive resources, or find it
@@ -948,20 +963,18 @@ running", grep the agent log for `does NOT move forward` before anything else.
   once it is gone.
 
   ```bash
-  ycommand -c 'deactivate-snap'          # node bounce; one yuno stuck in a disk wait
+  ycommand -c 'deactivate-snap all=1'    # node bounce; one yuno stuck in a disk wait
   # agent log: "... still alive after 10 s: each one launched when it is gone"
   ycommand -c 'kill-yuno id=2120'        # the operator: leave it down
   # 2120's old process dies: the window does not launch it
   ycommand -c 'run-yuno id=2120'         # when wanted again
   ```
 
-  This is
-  acceptable for kernel-yuno rotations (`auth_bff`, `emailsender`,
-  `logcenter`). On a realm with many citizen yunos, tell the team before
-  you do it during a busy window. (The version-promotion half of the old
-  "force volatil" TODO is now handled by
-  [`promote_highest_release_yunos()`](https://github.com/artgins/yunetas/blob/7.28.10/yunos/c/yuno_agent/src/c_agent.c#L9926). What remains is making the
-  bounce per-role instead of node-wide.)
+  With `all=1` the whole node goes, which on a realm with many citizen
+  yunos is worth telling the team about before a busy window. (The
+  version-promotion half of the old "force volatil" TODO is now handled by
+  [`promote_highest_release_yunos()`](https://github.com/artgins/yunetas/blob/7.28.10/yunos/c/yuno_agent/src/c_agent.c#L9926). The bounce per yuno instead
+  of node-wide came in 7.28.11.)
 
 - **No orderly shutdown.** The SIGKILL means yunos do NOT run their
   `mt_stop` / FSM stop callbacks. For protocols that flush state on

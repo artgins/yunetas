@@ -672,9 +672,10 @@ ycommand -c 'snaps'                              # find the snap name
 ycommand -c 'activate-snap name=pre-upgrade-<YYYYMMDD>'
 ```
 
-`activate-snap` runs the same node-wide restart cycle. But with the snap
-active, the OLD releases become primary. The node runs again what it ran
-before the upgrade.
+`activate-snap` runs the same restart cycle: it restarts the yunos whose
+launch changes (since 7.28.11; `all=1` for every yuno). With the snap active,
+the OLD releases become primary, so the yunos that the upgrade changed go back
+to what they ran before it, and the rest keep running.
 
 The snap is a pin, and how you remove it depends on where you want to end up.
 `deactivate-snap` does NOT mean "stay here": before its reload it re-promotes

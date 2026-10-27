@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **yuno_agent: `activate-snap` / `deactivate-snap` restart only the yunos
+  whose launch changed** (`restart_nodes()`). They SIGKILLed every yuno of the
+  node and launched the enabled ones again, so a `yunetas upgrade-yunos` of
+  one binary restarted the whole node (7 yunos of the yunovatios central for
+  one `db_history_ce`). Each running yuno's launch signature -- the saved
+  columns of its row, of the binary it runs, of its configuration, its realm
+  and its public services (`restart_plan.c`) -- is taken before the reload of
+  the agent's treedb and after it: the same one gets back its runtime (the
+  reload loses it, which is why everything was killed) and keeps running,
+  disabled or not; a changed one is SIGKILLed and launched again; one that is
+  gone, or changed and disabled now, is killed and not launched. An INFO
+  *"Node restart: only the yunos whose launch changed"* lists `kept`,
+  `restarted` and `stopped`. `all=1` restarts every yuno, as before. Checked
+  on wattyzer: a `deactivate-snap` with nothing changed kept the 22 pids, an
+  upgrade of `logcenter` changed only its pid, `all=1` changed all 22. Cases
+  in `c_agent_find_new_yunos`.
 - **`C_WEBSOCKET` takes `Connection: upgrade` in any case.** The server
   looked for `Upgrade` with a case-sensitive `strstr()`, so a client that
   sends the token in lower case (Node's `WebSocket`, `connection: upgrade`;

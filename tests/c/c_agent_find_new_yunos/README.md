@@ -46,6 +46,13 @@ Each row now says whether its instance at the new release exists.
    installed. Up to 7.28.9 a version that matched nothing gave the last
    instance listed.
 
+9. what a restart of the node does with a running yuno (`restart_plan.c`):
+   its launch signature holds the saved columns of its row, binary,
+   configuration, realm and public services -- no runtime, no hook -- so
+   running does not change it; and the decision keeps an unchanged yuno
+   (disabled or not), restarts a changed one, stops one that is gone or
+   changed and disabled.
+
 ## Run
 
 ```bash

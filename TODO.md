@@ -120,74 +120,11 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 ## 3. Decisions pending
 
-- **`activate-snap` / `deactivate-snap` bounce the whole node** (open since
-  2026-05-27, recorded here 2026-10-27). `restart_nodes()` (`c_agent.c`)
-  SIGKILLs every yuno, reloads the agent's treedb whole and relaunches every
-  enabled yuno -- also when only one yuno has a new release: a
-  `yunetas upgrade-yunos` for one binary restarts the node (yunovatios
-  central, 2026-10-27: 7 yunos for one `db_history_ce`). The aggressive reset
-  is right toward peers whose state is unknown; a snap is internal ground,
-  where the agent knows what changed. Two levels to decide: (1) bounce only
-  the yunos whose rows changed between the current state and the target
-  (a new release, a new config, a snap's delta), leaving the rest alive;
-  (2) reload in place, without killing, where the change allows it. The
-  promotion of the highest release (`promote_highest_release_yunos()`) and
-  the treedb reload it depends on are what (1) has to keep.
-- **C_TRANGER handles opened through the agent are not reaped** (**FUTURE**,
-  user 2026-10-03: not now, no stop-gap; do not raise it as pending) when the
-  operator's session ends (documented in `api/gclass/data.md`). A
-  `command-yuno` reaches the yuno over its one C_IEVENT_CLI link to the agent,
-  which is what is stamped as `src_gobj`; the reaping paths
-  (`mt_subscription_deleted`, `ac_on_close` of a C_IEVENT_SRV, `mt_stop`)
-  never fire for it, and the operator's session lives in the agent (behind a
-  control center, not even there). **Decide**: an agent-to-yuno "session
-  ended" notification, and a rule for when several sessions of one user are
-  one owner.
-- **MQTT broker ACL: model and default-deny** (Rosa). **FUTURE** (user,
-  2026-10-03: not now; do not raise it as pending until asked). Model A (per-group
-  `publish_acl` / `subscribe_acl` in the broker treedb, `enable_acl` default
-  off) ships; see `mqtt_broker.md`. Open: A vs B (reuse `C_AUTHZ` via
-  `gobj_user_has_authz` — one authz system, but its checker is per authz name,
-  not per topic pattern, so it needs extending) vs C (a broker config attr
-  holding the pattern map: no schema migration, off the treedb/UI); and
-  whether to flip enforcement to default-deny (validate on staging first).
-  The ACL is keyed by the `client_id` the client chooses, and no client is
-  bound to the user that authenticated it (checked 2026-10-03: the `clients`
-  topic has no user link, CONNECT compares nothing): any authenticated user
-  can take another client's `client_id` and its groups. So the ACL is not a
-  boundary between users until the model binds them. (The will message
-  obeys the ACL since 2026-10-03.)
-- **Packaging: the sparse SDK in the `.deb` serves one glibc at a time.**
-  **DECIDED** (user, 2026-10-03): the protection IS the chosen solution --
-  `libc_guard.cmake` refuses a build under another glibc, and what to do
-  then (build elsewhere and ship binaries, build the SDK from source on that
-  node) is the choice of whoever uses Yuneta for their projects, not ours.
-  A package per distro (the matrix below) is **FUTURE**, and only once
-  Yuneta is very stable. Not a pending decision; the analysis stays for
-  that day. The
-  `.deb` installs a sparse SDK (`outputs/`, `outputs_ext/`, `tools/`,
-  `.config`) so a node can compile a project against the published runtime.
-  The `outputs/lib/*.a` are static archives tied to the glibc that built them
-  (`_dl_x86_cpu_features`); linking under another glibc succeeds and corrupts
-  the heap at run time, which `tools/cmake/libc_guard.cmake` stops at
-  configure time. Since 7.8.6-3 the `.deb` is built in `debian:13` (glibc
-  2.41) and the `.rpm` in `rockylinux:9` (2.34), so it works on exactly one
-  distro per package: Ubuntu and Debian 12 nodes cannot compile against it.
-  Options, cheapest first:
-  - **Drop the build half of the `.deb`** (keep the runtime binaries). Honest
-    about what the package is, and how deploys already work (build on a dev
-    machine, `yunetas sync-binaries`). Not a size argument (~77 MB of a 1.1 GB
-    tree). Was the preference — but its premise "no one compiles on a node" is
-    no longer true: both yunovatios nodes build their project yunos against
-    the sparse SDK (7.9.3). Weigh that before choosing.
-  - **Build the `.deb` on a matrix** (one per distro base). The external
-    archives must be rebuilt per base too (19 of 31, 61 MB of 71; runner time,
-    not new machinery); `install.sh` must detect the distro version and name
-    the asset; unknown: OpenSSL / ncurses / pcre2 under much newer gcc.
-  - **Shared libraries instead of static archives**: built against the oldest
-    supported glibc, they run on every newer one; gives up
-    `CONFIG_FULLY_STATIC` for the SDK libs.
-  - **Distribution packaging**: correct by construction, highest cost.
+- **`activate-snap` / `deactivate-snap`: reload in place** (level 2; level 1
+  is done, 7.28.11: only the yunos whose launch changed are restarted,
+  `restart_plan.c`). Not killing a changed yuno at all, where the change
+  allows it (a config row that a gclass can take live), needs each gclass to
+  re-read its part of the configuration: a new contract, to decide.
 
   Not a route: snap / flatpak (confinement forbids `/yuneta`, io_uring,
   spawning yunos, `/var/crash`). An OCI image as the build environment is the

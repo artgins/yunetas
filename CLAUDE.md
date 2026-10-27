@@ -1905,13 +1905,17 @@ ycommand -c 'deactivate-snap'
 ```
 
 `deactivate-snap` (no args, no active snap) is the supported way to
-force the agent to SIGKILL every running yuno, promote the highest
-`yuno_release` per id, reload the treedb, and bring everything back
-on the new release. (The treedb primary is the highest-**ROWID**
-record, not the highest version; `restart_nodes()` re-appends the
-newest release first — `promote_highest_release_yunos()` — so the
-reload promotes it reliably.) It is a node-wide bounce — use
-`shoot-snap name=<tag>` first if you want a rollback point. Full
+make the agent promote the highest `yuno_release` per id, reload the
+treedb, and bring the yunos back on the new release. (The treedb primary
+is the highest-**ROWID** record, not the highest version;
+`restart_nodes()` re-appends the newest release first —
+`promote_highest_release_yunos()` — so the reload promotes it reliably.)
+Since 7.28.11 it restarts **only the yunos whose launch changed** (their
+row, binary, configuration, realm or public services): the rest keep
+running across the reload, and an INFO *"Node restart: only the yunos
+whose launch changed"* lists kept / restarted / stopped. `all=1` restarts
+every yuno, as it always did before. Use `shoot-snap name=<tag>` first if
+you want a rollback point. Full
 flow incl. rollback in
 [`yunos/c/yuno_agent/YUNO_LIFECYCLE.md`](yunos/c/yuno_agent/YUNO_LIFECYCLE.md)
 §6.5 / §6.6.
