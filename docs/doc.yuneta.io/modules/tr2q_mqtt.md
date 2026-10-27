@@ -11,8 +11,8 @@ step of the QoS handshake) kept in the `user_flag` of its record.
 
 Source code:
 
-- [`tr2q_mqtt.h`](https://github.com/artgins/yunetas/blob/7.28.9/modules/c/mqtt/src/tr2q_mqtt.h)
-- [`tr2q_mqtt.c`](https://github.com/artgins/yunetas/blob/7.28.9/modules/c/mqtt/src/tr2q_mqtt.c)
+- [`tr2q_mqtt.h`](https://github.com/artgins/yunetas/blob/7.28.10/modules/c/mqtt/src/tr2q_mqtt.h)
+- [`tr2q_mqtt.c`](https://github.com/artgins/yunetas/blob/7.28.10/modules/c/mqtt/src/tr2q_mqtt.c)
 
 ## How a queue works
 
