@@ -58,4 +58,4 @@ destination is left as far as it got.
 ## See also
 
 - [`yclone-gclass`](yclone-gclass.md) — clone a single GClass.
-- [`utils/c/yclone-project/README.md`](https://github.com/artgins/yunetas/blob/7.28.10/utils/c/yclone-project/README.md).
+- [`utils/c/yclone-project/README.md`](https://github.com/artgins/yunetas/blob/7.28.11/utils/c/yclone-project/README.md).
