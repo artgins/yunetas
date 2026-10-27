@@ -31,6 +31,9 @@
  *                (find_new_yunos_preview());
  *              - a release name that does not fit in NAME_MAX is refused,
  *                not cut (build_yuno_release_name(), create-yuno's).
+ *              - what a restart of the node does with a running yuno:
+ *                its launch signature (no runtime, no hook) and the
+ *                keep / restart / stop decision (restart_plan.c);
  *              - the binary and the configuration at a version are the
  *                instance of THAT version, and none for a version not
  *                installed (find_binary_version(), find_configuration_
@@ -42,6 +45,7 @@
 #include <string.h>
 
 #include "find_new_yunos.h"
+#include "restart_plan.h"
 #include "treedb_schema_yuneta_agent.c"
 #include "c_test_find_new_yunos.h"
 
@@ -702,6 +706,122 @@ PRIVATE int check_find_versions(hgobj gobj, hgobj gobj_node)
     return result;
 }
 
+/***************************************************************************
+ *  A failed check, logged. Returns -1.
+ ***************************************************************************/
+PRIVATE int fail_check(hgobj gobj, const char *what, const char *got)
+{
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL,
+        "msg",          "%s", "TEST FAIL",
+        "what",         "%s", what,
+        "got",          "%s", got,
+        NULL
+    );
+    return -1;
+}
+
+/***************************************************************************
+ *  What a restart of the node does with a running yuno (restart_plan.c):
+ *  its launch signature is what it is launched with, not what it does at
+ *  the moment, and the decision keeps it, restarts it or stops it.
+ *  Returns 0 or -1 (logged).
+ ***************************************************************************/
+PRIVATE int check_restart_plan(hgobj gobj, hgobj gobj_node)
+{
+    int result = 0;
+
+    json_t *yuno = gobj_get_node(
+        gobj_node,
+        "yunos",
+        json_pack("{s:s}", "id", "yuno_b"),
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+    if(!yuno) {
+        return fail_check(gobj, "restart plan: yuno_b not found", "");
+    }
+    json_t *sig_before = yuno_launch_signature(gobj, gobj_node, yuno);
+
+    /*
+     *  What it is launched with, all of it, and no hook (a hook lists the
+     *  children: a new yuno in the realm would change every sibling)
+     */
+    json_t *jn_yuno = json_object_get(sig_before, "yuno");
+    json_t *jn_binary = json_object_get(sig_before, "binary");
+    json_t *jn_config = json_object_get(sig_before, "configuration");
+    json_t *jn_realm = json_object_get(sig_before, "realm");
+    if(!json_is_object(jn_yuno) || !json_object_get(jn_yuno, "role_version") ||
+            json_object_get(jn_yuno, "binary") || json_object_get(jn_yuno, "configurations") ||
+            json_object_get(jn_yuno, "yuno_pid") || json_object_get(jn_yuno, "__md_treedb__")) {
+        result += fail_check(gobj, "restart plan: the yuno part of the signature", "");
+    }
+    if(!json_is_object(jn_binary) ||
+            strcmp(json_string_value(json_object_get(jn_binary, "version"))?:"", "2.0.0")!=0) {
+        result += fail_check(gobj, "restart plan: the binary of the signature", "");
+    }
+    if(!json_is_object(jn_config) || !json_object_get(jn_config, "zcontent")) {
+        result += fail_check(gobj, "restart plan: the configuration of the signature", "");
+    }
+    if(!json_is_object(jn_realm) || json_object_get(jn_realm, "yunos")) {
+        result += fail_check(gobj, "restart plan: the realm of the signature (no hook)", "");
+    }
+
+    /*
+     *  Running changes its runtime, not its signature; the runtime is what
+     *  a kept yuno gets back after the reload
+     */
+    json_object_set_new(yuno, "yuno_running", json_true());
+    json_object_set_new(yuno, "yuno_pid", json_integer(4242));
+    json_t *jn_runtime = yuno_runtime_fields(gobj, gobj_node, yuno);
+    if(json_integer_value(json_object_get(jn_runtime, "yuno_pid")) != 4242 ||
+            !json_is_true(json_object_get(jn_runtime, "yuno_running")) ||
+            json_object_get(jn_runtime, "role_version") ||
+            json_object_get(jn_runtime, "binary")) {
+        result += fail_check(gobj, "restart plan: the runtime fields", "");
+    }
+    JSON_DECREF(jn_runtime)
+    json_t *sig_running = yuno_launch_signature(gobj, gobj_node, yuno);
+    if(!json_equal(sig_before, sig_running)) {
+        result += fail_check(gobj, "restart plan: running changed the signature", "");
+    }
+
+    /*
+     *  The decisions
+     */
+    json_t *sig_config = json_deep_copy(sig_before);
+    json_object_set_new(json_object_get(sig_config, "configuration"), "zcontent", json_string("{\"x\":1}"));
+    json_t *sig_disabled = json_deep_copy(sig_config);
+    json_object_set_new(json_object_get(sig_disabled, "yuno"), "yuno_disabled", json_true());
+    json_t *sig_disabled_same = json_deep_copy(sig_before);
+    json_object_set_new(json_object_get(sig_disabled_same, "yuno"), "yuno_disabled", json_true());
+
+    struct {
+        const char *what; json_t *before; json_t *after; const char *expected;
+    } cases[] = {
+        {"the same launch",                 sig_before, sig_running, "keep"},
+        {"another configuration",           sig_before, sig_config, "restart"},
+        {"changed and disabled now",        sig_before, sig_disabled, "stop"},
+        {"no row any more",                 sig_before, NULL, "stop"},
+        {"disabled, nothing changed",       sig_disabled_same, sig_disabled_same, "keep"},
+    };
+    for(size_t i=0; i<ARRAY_SIZE(cases); i++) {
+        const char *decision = restart_decision(cases[i].before, cases[i].after);
+        if(strcmp(decision, cases[i].expected)!=0) {
+            result += fail_check(gobj, cases[i].what, decision);
+        }
+    }
+
+    JSON_DECREF(sig_before)
+    JSON_DECREF(sig_running)
+    JSON_DECREF(sig_config)
+    JSON_DECREF(sig_disabled)
+    JSON_DECREF(sig_disabled_same)
+    JSON_DECREF(yuno)
+    return result;
+}
+
 PRIVATE int run_tests(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -883,6 +1003,7 @@ PRIVATE int run_tests(hgobj gobj)
 
     result += check_preview_and_commands(gobj, rows);
     result += check_find_versions(gobj, priv->gobj_node);
+    result += check_restart_plan(gobj, priv->gobj_node);
     JSON_DECREF(rows)
 
     if(result == 0) {

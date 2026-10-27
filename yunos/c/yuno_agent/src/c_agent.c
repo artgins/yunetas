@@ -29,6 +29,7 @@
 #include "dir_listing.h"
 #include "file_content.h"
 #include "find_new_yunos.h"
+#include "restart_plan.h"
 #include "watch_request.h"
 #include "yuno_config_file.h"
 
@@ -170,7 +171,8 @@ PRIVATE int register_public_services(
     json_t *hs_binary, // not owned
     json_t *hs_realm // not owned
 );
-PRIVATE int restart_nodes(hgobj gobj);
+PRIVATE int restart_nodes(hgobj gobj, BOOL all);
+PRIVATE void note_killed(hgobj gobj, json_t *jn_killed, const char *yuno_id, json_t *jn_pids);
 
 PRIVATE int add_console_in_input_gate(hgobj gobj, const char *name, hgobj src);
 PRIVATE int add_console_route(
@@ -807,6 +809,12 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_activate_snap[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Snap name"),
+SDATAPM (DTP_BOOLEAN,   "all",          0,              "0",        "Restart every yuno, not only the ones whose launch changes"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_deactivate_snap[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_BOOLEAN,   "all",          0,              "0",        "Restart every yuno, not only the ones whose launch changes"),
 SDATA_END()
 };
 
@@ -936,8 +944,8 @@ SDATACM2 (DTP_SCHEMA,   "list-public-services-instances",0,     a_public_service
 SDATACM2 (DTP_SCHEMA,   "snaps",            0,                  0,                  0,              cmd_list_snaps, "List snaps"),
 SDATACM2 (DTP_SCHEMA,   "snap-content",     0,                  0,                  pm_snap_content,cmd_snap_content, "Show snap content"),
 SDATACM2 (DTP_SCHEMA,   "shoot-snap",       0,                  0,                  pm_shoot_snap,  cmd_shoot_snap, "Shoot snap"),
-SDATACM2 (DTP_SCHEMA,   "activate-snap",    0,                  0,                  pm_activate_snap,cmd_activate_snap,"Activate snap"),
-SDATACM2 (DTP_SCHEMA,   "deactivate-snap",  0,                  0,                  0,              cmd_deactivate_snap,"De-Activate snap"),
+SDATACM2 (DTP_SCHEMA,   "activate-snap",    0,                  0,                  pm_activate_snap,cmd_activate_snap,"Activate snap; restarts the yunos whose launch changes (all=1: every yuno)"),
+SDATACM2 (DTP_SCHEMA,   "deactivate-snap",  0,                  0,                  pm_deactivate_snap,cmd_deactivate_snap,"De-Activate snap; restarts the yunos whose launch changes (all=1: every yuno)"),
 SDATACM2 (DTP_SCHEMA,   "run-yuno",         0,                  0,                  pm_run_yuno,    cmd_run_yuno,   "Run yuno"),
 SDATACM2 (DTP_SCHEMA,   "kill-yuno",        0,                  0,                  pm_kill_yuno,   cmd_kill_yuno,  "Kill yuno"),
 SDATACM2 (DTP_SCHEMA,   "play-yuno",        0,                  0,                  pm_play_yuno,   cmd_play_yuno,  "Play yuno"),
@@ -6861,10 +6869,12 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    BOOL all = kw_get_bool(gobj, kw, "all", 0, 0);
+    json_object_del(kw, "all");     // the agent's, not the treedb's
     json_t *jn_resp = gobj_command(priv->resource, cmd, kw, src);
     int ret = kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
     if(ret>=0) {
-        ret = restart_nodes(gobj);
+        ret = restart_nodes(gobj, all);
     }
     return jn_resp;
 }
@@ -6876,10 +6886,12 @@ PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgo
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    BOOL all = kw_get_bool(gobj, kw, "all", 0, 0);
+    json_object_del(kw, "all");     // the agent's, not the treedb's
     json_t *jn_resp = gobj_command(priv->resource, cmd, kw, src);
     int ret = kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
     if(ret>=0) {
-        ret = restart_nodes(gobj);
+        ret = restart_nodes(gobj, all);
     }
     return jn_resp;
 }
@@ -10780,16 +10792,92 @@ PRIVATE int register_public_services(
 }
 
 /***************************************************************************
- *
+ *  The pids of a yuno just killed, each with its start time, read after
+ *  the kill: a pid alive later with another one is another process (a pid
+ *  reused), and the yuno is gone. One gone already is not kept.
  ***************************************************************************/
-PRIVATE int restart_nodes(hgobj gobj)
+PRIVATE void note_killed(hgobj gobj, json_t *jn_killed, const char *yuno_id, json_t *jn_pids)
+{
+    if(json_array_size(jn_pids) == 0) {
+        return;
+    }
+    json_t *jn_entries = json_array();
+    int idx2; json_t *jn_pid;
+    json_array_foreach(jn_pids, idx2, jn_pid) {
+        pid_t pid = (pid_t)json_integer_value(jn_pid);
+        uint64_t start_time = 0;
+        char state;
+        int r = read_process_stat(gobj, pid, &state, &start_time);
+        if(r == -1) {
+            continue;   // gone already: nothing to wait for
+        }
+        if(r < 0) {
+            start_time = 0; // Error already logged: judged by its existence alone
+        }
+        json_array_append_new(jn_entries, json_pack("[I, I]",
+            (json_int_t)pid, (json_int_t)start_time
+        ));
+    }
+    json_t *jn_prev = json_object_get(jn_killed, yuno_id);
+    if(json_array_size(jn_entries) == 0) {
+        // all gone already
+    } else if(jn_prev) {
+        json_array_extend(jn_prev, jn_entries);   // another release of the same id
+    } else {
+        json_object_set(jn_killed, yuno_id, jn_entries);
+    }
+    JSON_DECREF(jn_entries)
+}
+
+/***************************************************************************
+ *  SIGKILL a yuno that runs, from its record (`yuno`, not owned: the row
+ *  of before a reload of the treedb does), and note its pids
+ ***************************************************************************/
+PRIVATE void kill_running_yuno(hgobj gobj, json_t *yuno, json_t *jn_killed)
+{
+    json_t *jn_pids = json_array();
+    pid_t pids[2] = {
+        (pid_t)kw_get_int(gobj, yuno, "yuno_pid", 0, KW_REQUIRED),
+        (pid_t)kw_get_int(gobj, yuno, "watcher_pid", 0, 0)
+    };
+    for(int i = 0; i < 2; i++) {
+        if(pids[i] > 0) {
+            json_array_append_new(jn_pids, json_integer(pids[i]));
+        }
+    }
+    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, yuno, "_channel_gobj", 0, KW_REQUIRED);
+    if(channel_gobj) {
+        gobj_write_user_data( // HACK release yuno info connection
+            channel_gobj,
+            "__yuno__",
+            json_string("")
+        );
+    }
+    kill_yuno(gobj, yuno);
+    note_killed(gobj, jn_killed, SDATA_GET_ID(yuno), jn_pids);
+    JSON_DECREF(jn_pids)
+}
+
+/***************************************************************************
+ *  Restart the node: activate-snap and deactivate-snap, and the promotion
+ *  of the newest release of each yuno (yunetas upgrade-yunos).
+ *
+ *  The agent's treedb is reloaded, and a reload loses what the agent knows
+ *  of a running yuno (in memory only: running, its pids, its channel). With
+ *  `all` every yuno is SIGKILLed and the enabled ones launched again, as up
+ *  to 7.28.10. Without it, only the yunos whose launch changed go: each
+ *  running yuno's launch signature (restart_plan.c: its row, binary,
+ *  configuration, realm, public services) is taken before the reload and
+ *  again after it; the same one keeps its runtime and stays alive, another
+ *  one is killed and launched again (or not, if it is gone or disabled
+ *  now). A yuno that does not run is launched afterwards, if enabled, as
+ *  before.
+ ***************************************************************************/
+PRIVATE int restart_nodes(hgobj gobj, BOOL all)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
 
-    /*----------------------------*
-     *  Kill force all the yunos
-     *----------------------------*/
     json_t *iter = gobj_list_nodes(
         priv->resource,
         "yunos",
@@ -10803,6 +10891,7 @@ PRIVATE int restart_nodes(hgobj gobj)
     gobj_write_integer_attr(gobj, "signal2kill", SIGKILL);
 
     json_t *jn_killed = json_object();  // {yuno_id: [[pid, start_time]]}
+    json_t *jn_before = json_object();  // {yuno_id: {signature, runtime, record}}, decided after the reload
     int idx; json_t *yuno;
     json_array_foreach(iter, idx, yuno) {
         /*
@@ -10810,7 +10899,13 @@ PRIVATE int restart_nodes(hgobj gobj)
          */
         json_t *jn_pids = json_array();
         BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
-        if(running) {
+        if(running && !all) {
+            json_object_set_new(jn_before, SDATA_GET_ID(yuno), json_pack("{s:o, s:o, s:O}",
+                "signature", yuno_launch_signature(gobj, priv->resource, yuno),
+                "runtime", yuno_runtime_fields(gobj, priv->resource, yuno),
+                "record", yuno
+            ));
+        } else if(running) {
             pid_t pids[2] = {
                 (pid_t)kw_get_int(gobj, yuno, "yuno_pid", 0, KW_REQUIRED),
                 (pid_t)kw_get_int(gobj, yuno, "watcher_pid", 0, 0)
@@ -10832,45 +10927,10 @@ PRIVATE int restart_nodes(hgobj gobj)
         } else {
             kill_yuno_unregistered(gobj, yuno, jn_pids);
         }
-        if(json_array_size(jn_pids) > 0) {
-            /*
-             *  Each pid with its start time, read after the kill: a pid
-             *  alive later with another one is another process (a pid
-             *  reused), and the yuno is gone. One gone already is not kept
-             */
-            json_t *jn_entries = json_array();
-            int idx2; json_t *jn_pid;
-            json_array_foreach(jn_pids, idx2, jn_pid) {
-                pid_t pid = (pid_t)json_integer_value(jn_pid);
-                uint64_t start_time = 0;
-                char state;
-                int r = read_process_stat(gobj, pid, &state, &start_time);
-                if(r == -1) {
-                    continue;   // gone already: nothing to wait for
-                }
-                if(r < 0) {
-                    start_time = 0; // Error already logged: judged by its existence alone
-                }
-                json_array_append_new(jn_entries, json_pack("[I, I]",
-                    (json_int_t)pid, (json_int_t)start_time
-                ));
-            }
-            const char *yuno_id = SDATA_GET_ID(yuno);
-            json_t *jn_prev = json_object_get(jn_killed, yuno_id);
-            if(json_array_size(jn_entries) == 0) {
-                // all gone already
-            } else if(jn_prev) {
-                json_array_extend(jn_prev, jn_entries);   // another release of the same id
-            } else {
-                json_object_set(jn_killed, yuno_id, jn_entries);
-            }
-            JSON_DECREF(jn_entries)
-        }
+        note_killed(gobj, jn_killed, SDATA_GET_ID(yuno), jn_pids);
         JSON_DECREF(jn_pids)
     }
     JSON_DECREF(iter)
-    // Restore kill
-    gobj_write_integer_attr(gobj, "signal2kill", prev_signal2kill);
 
     /*----------------------------------------*
      *  Promote the highest yuno_release per id BEFORE the reload, so the
@@ -10884,6 +10944,71 @@ PRIVATE int restart_nodes(hgobj gobj)
      *----------------------------*/
     gobj_stop(priv->resource);
     gobj_start(priv->resource);
+
+    /*----------------------------------------*
+     *  The running yunos, after the reload:
+     *  the same launch keeps its runtime and
+     *  lives on, another one is killed
+     *----------------------------------------*/
+    if(!all) {
+        json_t *jn_kept = json_array();
+        json_t *jn_restarted = json_array();
+        json_t *jn_stopped = json_array();
+        const char *before_id; json_t *jn_b;
+        json_object_foreach(jn_before, before_id, jn_b) {
+            json_t *yuno_after = gobj_get_node(
+                priv->resource,
+                "yunos",
+                json_pack("{s:s}", "id", before_id),
+                json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+                gobj
+            );
+            json_t *jn_signature_after = yuno_after?
+                yuno_launch_signature(gobj, priv->resource, yuno_after) : NULL;
+            const char *decision = restart_decision(
+                json_object_get(jn_b, "signature"),
+                jn_signature_after
+            );
+            JSON_DECREF(jn_signature_after)
+
+            if(strcmp(decision, "keep")==0) {
+                json_object_update(yuno_after, json_object_get(jn_b, "runtime"));
+                json_decref(gobj_update_node(
+                    priv->resource,
+                    "yunos",
+                    yuno_after,     // owned
+                    json_pack("{s:b}", "volatil", 1),
+                    gobj
+                ));
+                yuno_after = NULL;
+                json_array_append_new(jn_kept, json_string(before_id));
+            } else {
+                kill_running_yuno(gobj, json_object_get(jn_b, "record"), jn_killed);
+                json_array_append_new(
+                    strcmp(decision, "stop")==0? jn_stopped : jn_restarted,
+                    json_string(before_id)
+                );
+            }
+            JSON_DECREF(yuno_after)
+        }
+
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Node restart: only the yunos whose launch changed",
+            "kept",         "%j", jn_kept,
+            "restarted",    "%j", jn_restarted,
+            "stopped",      "%j", jn_stopped,
+            NULL
+        );
+        JSON_DECREF(jn_kept)
+        JSON_DECREF(jn_restarted)
+        JSON_DECREF(jn_stopped)
+    }
+    JSON_DECREF(jn_before)
+
+    // Restore kill
+    gobj_write_integer_attr(gobj, "signal2kill", prev_signal2kill);
 
     /*
      *  The relaunch waits for the yunos killed above to be gone: a SIGKILL

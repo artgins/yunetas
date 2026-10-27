@@ -58,6 +58,7 @@ SET (YUNO_SRCS
     src/dir_listing.c
     src/file_content.c
     src/find_new_yunos.c
+    src/restart_plan.c
     src/watch_request.c
     src/yuno_config_file.c
 )
@@ -68,6 +69,7 @@ SET (YUNO_HDRS
     src/dir_listing.h
     src/file_content.h
     src/find_new_yunos.h
+    src/restart_plan.h
     src/watch_request.h
     src/yuno_config_file.h
 )
