@@ -312,7 +312,10 @@ here is a candidate for promotion to Tier 1:
   brought the drops to zero, but only the seal removes the exposure. A
   `write-file`, or a vhost-aware command, would promote it to Tier 1.
 - OS administration: `systemctl`, `nftables`, `sysctl`, `tmpfiles.d`,
-  `core_pattern`/apport, certbot renewals, nginx/openresty reload.
+  `core_pattern`/apport, certbot renewals, nginx/openresty reload, the node's
+  time zone (`timedatectl set-timezone`, and the restart of `rsyslog`/`crond`
+  so they take it: all five nodes went from UTC to `Europe/Madrid` this way on
+  2026-10-27).
 - Installing or upgrading the **`.deb`/`.rpm` package itself** (SDK + agent
   binaries). `upgrade-node` does not do this.
 - **Setting a user's password in the IdP** (2026-09-08). `C_IDP_KEYCLOAK` can
