@@ -51,6 +51,7 @@ SET (YUNO_SRCS
 )
 SET (YUNO_HDRS
     c_test1.h
+    test_pki.h
 )
 
 ##############################################

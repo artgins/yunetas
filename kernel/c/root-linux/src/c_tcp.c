@@ -873,13 +873,19 @@ PRIVATE void set_secure_connected(hgobj gobj)
     gobj_change_state(gobj, ST_CONNECTED);
 
     /*
-     *  Publish
+     *  Publish. With the certificate the peer presented, if it did: who
+     *  the peer is, for a server that binds an identity to it (mutual TLS).
+     *  Trust it only with its "verified" true.
      */
     json_t *kw_conn = json_pack("{s:s, s:s, s:s}",
         "url",          gobj_read_str_attr(gobj, "url"),
         "peername",     gobj_read_str_attr(gobj, "peername"),
         "sockname",     gobj_read_str_attr(gobj, "sockname")
     );
+    json_t *peer_cert = ytls_get_peer_cert_info(priv->ytls, priv->sskt);
+    if(peer_cert) {
+        json_object_set_new(kw_conn, "peer_cert", peer_cert);
+    }
 
     /*
      *  A subscriber may drop the connection here, and inside the read that

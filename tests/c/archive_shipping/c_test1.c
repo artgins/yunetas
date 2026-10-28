@@ -16,6 +16,13 @@
  *            removed without being shipped (a WARNING), the other ends in
  *            the destination with its manifest.
  *
+ *          - mutual TLS: the keeper listens on tcps:// and asks a client
+ *            certificate of the test CA ("optional", so that a sender
+ *            without one reaches the keeper's own check). The native
+ *            sender presents the one of test_node. At the end, a sender
+ *            with the certificate of other_node and one without a
+ *            certificate, both naming test_node: the keeper refuses their
+ *            batch, and they keep it.
  *          - poisoning: a batch of the name of one the sender will ship,
  *            planted in the backup first with the same files and sizes and
  *            other bytes: the keeper does not answer stored (the sha256
@@ -34,6 +41,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include "c_test1.h"
+#include "test_pki.h"
 
 /***************************************************************************
  *              Constants
@@ -48,6 +56,7 @@
 #define POLL_MS         100
 #define STEP_TIMEOUT_MS 10000
 #define POISONED        DATABASE "/" TOPIC_NAME "/key9/2000-01-01@1"
+#define NOT_BOUND       DATABASE "/" TOPIC_NAME "/key8/2000-01-01@1"
 
 /***************************************************************************
  *              Structures
@@ -89,6 +98,8 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj sender;
     hgobj sender_rsync;
+    hgobj sender_other;
+    hgobj sender_nocert;
     hgobj keeper;
     json_t *tranger;
     json_t *tranger2;
@@ -98,6 +109,8 @@ typedef struct _PRIVATE_DATA {
     char store[PATH_MAX];
     char archive[PATH_MAX];
     char archive2[PATH_MAX];
+    char archive3[PATH_MAX];    // of the sender with the certificate of another node
+    char archive4[PATH_MAX];    // of the sender without certificate
     char backup[PATH_MAX];
     char rsync[PATH_MAX];
     char batch_key1[PATH_MAX];  // the path of the first batch of key1, under the archive
@@ -327,69 +340,6 @@ PRIVATE BOOL batch_whole_in(const char *root, const char *database, const char *
 }
 
 /***************************************************************************
- *  The first step: the stores, their archives, and the three services
- ***************************************************************************/
-PRIVATE int prepare(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    build_path(priv->base, sizeof(priv->base), getenv("HOME"), "tests_yuneta", "archive_shipping", NULL);
-    build_path(priv->store, sizeof(priv->store), priv->base, "store", NULL);
-    build_path(priv->archive, sizeof(priv->archive), priv->base, "archive", NULL);
-    build_path(priv->archive2, sizeof(priv->archive2), priv->base, "archive2", NULL);
-    build_path(priv->backup, sizeof(priv->backup), priv->base, "backup", NULL);
-    build_path(priv->rsync, sizeof(priv->rsync), priv->base, "rsync", NULL);
-    rmrdir(priv->base);
-    mkrdir(priv->store, 02770);
-    mkrdir(priv->archive, 02770);
-    mkrdir(priv->archive2, 02770);
-    mkrdir(priv->rsync, 02770);
-
-    priv->tranger = open_store(priv->store, DATABASE);
-    priv->tranger2 = open_store(priv->store, DATABASE2);
-    if(tranger2_archive_key_files(priv->tranger, TOPIC_NAME, "key1", DAY2, priv->archive) != 1 ||
-       tranger2_archive_key_files(priv->tranger, TOPIC_NAME, "key2", DAY2, priv->archive) != 1 ||
-       tranger2_archive_key_files(priv->tranger2, TOPIC_NAME, "key1", DAY2, priv->archive2) != 1 ||
-       tranger2_archive_key_files(priv->tranger2, TOPIC_NAME, "key2", DAY2, priv->archive2) != 1) {
-        fail("The archives cannot be made", NULL);
-        return -1;
-    }
-
-    char key_dir[PATH_MAX];
-    char batch[NAME_MAX + 1];
-    build_path(key_dir, sizeof(key_dir), priv->archive, DATABASE, TOPIC_NAME, "key1", NULL);
-    only_batch(key_dir, batch, sizeof(batch));
-    build_path(priv->batch_key1, sizeof(priv->batch_key1), DATABASE, TOPIC_NAME, "key1", batch, NULL);
-
-    /*
-     *  rsync: room for ONE batch
-     */
-    build_path(key_dir, sizeof(key_dir), priv->archive2, DATABASE2, TOPIC_NAME, "key1", NULL);
-    only_batch(key_dir, batch, sizeof(batch));
-    char batch_dir[PATH_MAX];
-    build_path(batch_dir, sizeof(batch_dir), key_dir, batch, NULL);
-    json_int_t one_batch = directory_bytes(batch_dir);
-
-    priv->keeper = gobj_find_service("archive_keeper", TRUE);
-    priv->sender = gobj_find_service("archive_sender", TRUE);
-    priv->sender_rsync = gobj_find_service("archive_sender_rsync", TRUE);
-
-    gobj_write_str_attr(priv->keeper, "backup_directory", priv->backup);
-    gobj_write_str_attr(priv->sender, "archive_directory", priv->archive);
-    gobj_write_str_attr(priv->sender_rsync, "archive_directory", priv->archive2);
-    gobj_write_str_attr(priv->sender_rsync, "rsync_destination", priv->rsync);
-    gobj_write_integer_attr(priv->sender_rsync, "max_archive_bytes", one_batch);
-
-    gobj_start(priv->keeper);
-    gobj_play(priv->keeper);
-    gobj_start(priv->sender);
-    gobj_play(priv->sender);
-    gobj_start(priv->sender_rsync);
-    gobj_play(priv->sender_rsync);
-    return 0;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_int_t stat_of(hgobj service, const char *name)
@@ -433,6 +383,192 @@ PRIVATE BOOL file_is(const char *dir, const char *name, const char *content)
     }
     bf[got] = 0;
     return strcmp(bf, content) == 0;
+}
+
+/***************************************************************************
+ *  A CA, and a leaf of it (with these extensions), with the openssl command
+ ***************************************************************************/
+PRIVATE int run_openssl(const char *args)
+{
+    char cmd[6 * PATH_MAX];
+    snprintf(cmd, sizeof(cmd), "openssl %s >/dev/null 2>&1", args);
+    if(system(cmd) != 0) {
+        fail("The openssl command failed", cmd);
+        return -1;
+    }
+    return 0;
+}
+
+PRIVATE int make_leaf(const char *pem, const char *key, const char *cn, const char *ext)
+{
+    char ext_path[PATH_MAX];
+    char csr_path[PATH_MAX];
+    char args[5 * PATH_MAX];
+    snprintf(ext_path, sizeof(ext_path), "%s.ext", pem);
+    snprintf(csr_path, sizeof(csr_path), "%s.csr", pem);
+    char content[256];
+    snprintf(content, sizeof(content), "basicConstraints=CA:FALSE\n%s\n", ext);
+    if(!write_file(PKI_DIR, strrchr(ext_path, '/') + 1, content)) {
+        return -1;  // Error already logged
+    }
+    snprintf(args, sizeof(args),
+        "req -newkey rsa:2048 -nodes -sha256 -keyout '%s' -out '%s' -subj '/CN=%s'",
+        key, csr_path, cn
+    );
+    if(run_openssl(args) < 0) {
+        return -1;  // Error already logged
+    }
+    snprintf(args, sizeof(args),
+        "x509 -req -in '%s' -CA '%s' -CAkey '%s' -CAcreateserial -days 30 -sha256 "
+        "-extfile '%s' -out '%s'",
+        csr_path, PKI_CA, PKI_CA_KEY, ext_path, pem
+    );
+    return run_openssl(args);
+}
+
+PRIVATE int make_pki(void)
+{
+    if(is_directory(PKI_DIR)) {
+        rmrdir(PKI_DIR);
+    }
+    mkrdir(PKI_DIR, 02700);
+    if(run_openssl("req -x509 -newkey rsa:2048 -nodes -sha256 -days 30 "
+            "-keyout '" PKI_CA_KEY "' -out '" PKI_CA "' -subj '/CN=archive_shipping test CA' "
+            "-addext 'basicConstraints=critical,CA:TRUE' "
+            "-addext 'keyUsage=critical,keyCertSign,cRLSign'") < 0 ||
+            make_leaf(PKI_SERVER, PKI_SERVER_KEY, "localhost",
+                "subjectAltName=DNS:localhost\nextendedKeyUsage=serverAuth") < 0 ||
+            make_leaf(PKI_NODE, PKI_NODE_KEY, NODE_NAME,
+                "extendedKeyUsage=clientAuth") < 0 ||
+            make_leaf(PKI_OTHER, PKI_OTHER_KEY, "other_node",
+                "subjectAltName=DNS:other_node.example\nextendedKeyUsage=clientAuth") < 0) {
+        return -1;  // Error already logged
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  A batch put by hand in an archive, with its mark
+ ***************************************************************************/
+PRIVATE void plant_batch(const char *archive, const char *relpath, const char *content)
+{
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), archive, relpath, NULL);
+    mkrdir(dir, 02770);
+    write_file(dir, "2000-01-01.json", content);
+    write_file(dir, "manifest.json", "{}");
+
+    char mark[NAME_MAX + 1];
+    size_t len = 0;
+    for(const char *c = relpath; *c && len + 4 < sizeof(mark); c++) {
+        if(*c == '/') {
+            memcpy(mark + len, "%2F", 3);
+            len += 3;
+        } else {
+            mark[len++] = *c;
+        }
+    }
+    mark[len] = 0;
+    char ready[PATH_MAX];
+    build_path(ready, sizeof(ready), archive, ".ready", NULL);
+    mkrdir(ready, 02770);
+    write_file(ready, mark, "");
+}
+
+/***************************************************************************
+ *  A sender refused by the keeper keeps its batch, and nothing of it is in
+ *  the backup
+ ***************************************************************************/
+PRIVATE void check_not_bound(hgobj gobj, hgobj sender, const char *archive)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), archive, NOT_BOUND, NULL);
+    if(!file_is(dir, "2000-01-01.json", "rows of no node")) {
+        fail("A sender not bound to its node lost its batch", dir);
+    }
+    build_path(dir, sizeof(dir), priv->backup, NODE_NAME, NOT_BOUND, NULL);
+    if(is_directory(dir)) {
+        fail("The batch of a sender not bound to its node is in the backup", dir);
+    }
+    if(stat_of(sender, "batches_pending") != 1) {
+        fail("A sender not bound to its node does not keep its batch pending", gobj_name(sender));
+    }
+}
+
+/***************************************************************************
+ *  The first step: the stores, their archives, and the services
+ ***************************************************************************/
+PRIVATE int prepare(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    build_path(priv->base, sizeof(priv->base), getenv("HOME"), "tests_yuneta", "archive_shipping", NULL);
+    build_path(priv->store, sizeof(priv->store), priv->base, "store", NULL);
+    build_path(priv->archive, sizeof(priv->archive), priv->base, "archive", NULL);
+    build_path(priv->archive2, sizeof(priv->archive2), priv->base, "archive2", NULL);
+    build_path(priv->archive3, sizeof(priv->archive3), priv->base, "archive3", NULL);
+    build_path(priv->archive4, sizeof(priv->archive4), priv->base, "archive4", NULL);
+    build_path(priv->backup, sizeof(priv->backup), priv->base, "backup", NULL);
+    build_path(priv->rsync, sizeof(priv->rsync), priv->base, "rsync", NULL);
+    rmrdir(priv->base);
+    mkrdir(priv->store, 02770);
+    mkrdir(priv->archive, 02770);
+    mkrdir(priv->archive2, 02770);
+    mkrdir(priv->archive3, 02770);
+    mkrdir(priv->archive4, 02770);
+    mkrdir(priv->rsync, 02770);
+    if(make_pki() < 0) {
+        return -1;  // Error already logged
+    }
+
+    priv->tranger = open_store(priv->store, DATABASE);
+    priv->tranger2 = open_store(priv->store, DATABASE2);
+    if(tranger2_archive_key_files(priv->tranger, TOPIC_NAME, "key1", DAY2, priv->archive) != 1 ||
+       tranger2_archive_key_files(priv->tranger, TOPIC_NAME, "key2", DAY2, priv->archive) != 1 ||
+       tranger2_archive_key_files(priv->tranger2, TOPIC_NAME, "key1", DAY2, priv->archive2) != 1 ||
+       tranger2_archive_key_files(priv->tranger2, TOPIC_NAME, "key2", DAY2, priv->archive2) != 1) {
+        fail("The archives cannot be made", NULL);
+        return -1;
+    }
+
+    char key_dir[PATH_MAX];
+    char batch[NAME_MAX + 1];
+    build_path(key_dir, sizeof(key_dir), priv->archive, DATABASE, TOPIC_NAME, "key1", NULL);
+    only_batch(key_dir, batch, sizeof(batch));
+    build_path(priv->batch_key1, sizeof(priv->batch_key1), DATABASE, TOPIC_NAME, "key1", batch, NULL);
+
+    /*
+     *  rsync: room for ONE batch
+     */
+    build_path(key_dir, sizeof(key_dir), priv->archive2, DATABASE2, TOPIC_NAME, "key1", NULL);
+    only_batch(key_dir, batch, sizeof(batch));
+    char batch_dir[PATH_MAX];
+    build_path(batch_dir, sizeof(batch_dir), key_dir, batch, NULL);
+    json_int_t one_batch = directory_bytes(batch_dir);
+
+    priv->keeper = gobj_find_service("archive_keeper", TRUE);
+    priv->sender = gobj_find_service("archive_sender", TRUE);
+    priv->sender_rsync = gobj_find_service("archive_sender_rsync", TRUE);
+    priv->sender_other = gobj_find_service("archive_sender_other", TRUE);
+    priv->sender_nocert = gobj_find_service("archive_sender_nocert", TRUE);
+
+    gobj_write_str_attr(priv->keeper, "backup_directory", priv->backup);
+    gobj_write_str_attr(priv->sender, "archive_directory", priv->archive);
+    gobj_write_str_attr(priv->sender_rsync, "archive_directory", priv->archive2);
+    gobj_write_str_attr(priv->sender_other, "archive_directory", priv->archive3);
+    gobj_write_str_attr(priv->sender_nocert, "archive_directory", priv->archive4);
+    gobj_write_str_attr(priv->sender_rsync, "rsync_destination", priv->rsync);
+    gobj_write_integer_attr(priv->sender_rsync, "max_archive_bytes", one_batch);
+
+    gobj_start(priv->keeper);
+    gobj_play(priv->keeper);
+    gobj_start(priv->sender);
+    gobj_play(priv->sender);
+    gobj_start(priv->sender_rsync);
+    gobj_play(priv->sender_rsync);
+    return 0;
 }
 
 /***************************************************************************
@@ -640,6 +776,35 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(stat_of(priv->keeper, "batches_refused") == 1 &&
                     stat_of(priv->sender, "batches_failed") == 1) {
                 check_poison(gobj);
+                /*
+                 *  The certificate of another node, naming test_node
+                 */
+                plant_batch(priv->archive3, NOT_BOUND, "rows of no node");
+                gobj_start(priv->sender_other);
+                gobj_play(priv->sender_other);
+                next_step(gobj);
+            }
+            break;
+
+        case 5:
+            if(stat_of(priv->keeper, "batches_refused") == 2 &&
+                    stat_of(priv->sender_other, "batches_failed") == 1) {
+                check_not_bound(gobj, priv->sender_other, priv->archive3);
+                /*
+                 *  No certificate, naming test_node
+                 */
+                plant_batch(priv->archive4, NOT_BOUND, "rows of no node");
+                gobj_start(priv->sender_nocert);
+                gobj_play(priv->sender_nocert);
+                next_step(gobj);
+            }
+            break;
+
+        case 6:
+            if(stat_of(priv->keeper, "batches_refused") == 3 &&
+                    stat_of(priv->sender_nocert, "batches_failed") == 1) {
+                check_not_bound(gobj, priv->sender_nocert, priv->archive4);
+                rmrdir(PKI_DIR);
                 EXEC_AND_RESET(tranger2_shutdown, priv->tranger)
                 EXEC_AND_RESET(tranger2_shutdown, priv->tranger2)
                 rmrdir(priv->base);
@@ -653,11 +818,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->step > 0 && test_msectimer(priv->step_timeout)) {
         char detail[256];
         snprintf(detail, sizeof(detail),
-            "step %d: shipped %d stored %d already %d, rsync shipped %d dropped %d failed %d",
+            "step %d: shipped %d stored %d already %d refused %d, rsync shipped %d dropped %d failed %d",
             priv->step,
             (int)stat_of(priv->sender, "batches_shipped"),
             (int)stat_of(priv->keeper, "batches_stored"),
             (int)stat_of(priv->keeper, "batches_already"),
+            (int)stat_of(priv->keeper, "batches_refused"),
             (int)stat_of(priv->sender_rsync, "batches_shipped"),
             (int)stat_of(priv->sender_rsync, "batches_dropped"),
             (int)stat_of(priv->sender_rsync, "batches_failed")
@@ -692,7 +858,9 @@ PRIVATE int mt_pause(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
-    hgobj services[] = {priv->sender, priv->sender_rsync, priv->keeper, NULL};
+    hgobj services[] = {
+        priv->sender, priv->sender_rsync, priv->sender_other, priv->sender_nocert, priv->keeper, NULL
+    };
     for(int i = 0; services[i]; i++) {
         if(gobj_is_playing(services[i])) {
             gobj_pause(services[i]);

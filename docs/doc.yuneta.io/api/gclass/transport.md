@@ -46,6 +46,35 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 Typically used as the bottom gobj of a protocol GClass (C_PROT_TCP4H,
 C_WEBSOCKET and more.) or directly inside a C_CHANNEL.
 
+### What `EV_CONNECTED` says
+
+`EV_CONNECTED` carries `url`, `peername` and `sockname`. A TLS connection
+publishes it when its handshake ends, and with `peer_cert` when the peer
+presented a certificate: its `subject`, `issuer`, `cn`, `dns_names`,
+`not_before`, `not_after`, `serial` and `verified`, as
+[`ytls_get_peer_cert_info()`](#ytls_get_peer_cert_info) gives them. A server
+with a CA asks a certificate of its clients (mutual TLS); `C_PROT_TCP4H`,
+`C_CHANNEL` and `C_IOGATE` pass the kw on in their `EV_ON_OPEN`, so a service
+above knows who each channel is. Trust it only with `verified` true:
+
+```C
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    json_t *peer_cert = json_object_get(kw, "peer_cert");
+    if(peer_cert && json_is_true(json_object_get(peer_cert, "verified"))) {
+        const char *cn = json_string_value(json_object_get(peer_cert, "cn"));
+        /* the channel is this cn */
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+```
+
+On the server, `"ssl_verify_mode": "required"` in the `crypto` of the
+`C_TCP_S` refuses a client without a certificate of the CA in the handshake.
+The client's `crypto` gives its own with `ssl_certificate` and
+`ssl_certificate_key`. Example: `archive_keeper`.
+
 ### The stop
 
 Every stop of a running `C_TCP` ends in `ST_STOPPED` and publishes

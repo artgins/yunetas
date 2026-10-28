@@ -12,6 +12,9 @@
  *            for one batch of two: the oldest dropped
  *          - A batch of the same name planted in the backup first: the
  *            keeper refuses, keeps it, and the sender keeps its own
+ *          - Mutual TLS (tcps): a sender with the client certificate of
+ *            another node, and one without a certificate, naming
+ *            test_node: refused, the node is bound to the certificate
  *          - Everything shipped is whole at the other end, and gone here
  *
  *          Copyright (c) 2026, ArtGins.
@@ -19,6 +22,7 @@
  ****************************************************************************/
 #include <yunetas.h>
 #include "c_test1.h"
+#include "test_pki.h"
 #include "c_archive_sender.h"
 #include "c_archive_keeper.h"
 
@@ -96,7 +100,13 @@ PRIVATE char variable_config[]= "\
                     'name': 'server_port',                          \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7755',              \n\
+                        'url': 'tcps://127.0.0.1:7755',             \n\
+                        'crypto': {                                 \n\
+                            'ssl_certificate': '" PKI_SERVER "',    \n\
+                            'ssl_certificate_key': '" PKI_SERVER_KEY "',\n\
+                            'ssl_trusted_certificate': '" PKI_CA "',\n\
+                            'ssl_verify_mode': 'optional'           \n\
+                        },                                          \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -108,7 +118,7 @@ PRIVATE char variable_config[]= "\
                 }                                                   \n\
             ],                                                      \n\
             '[^^children^^]': {                                     \n\
-                '__range__': [1,2],                                 \n\
+                '__range__': [1,4],                                 \n\
                 '__vars__': {                                       \n\
                 },                                                  \n\
                 '__content__': {                                    \n\
@@ -159,7 +169,13 @@ PRIVATE char variable_config[]= "\
                                     'name': 'output',               \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
-                                        'url': 'tcp://127.0.0.1:7755'\n\
+                                        'url': 'tcps://127.0.0.1:7755',\n\
+                                        'crypto': {                 \n\
+                                            'ssl_trusted_certificate': '" PKI_CA "',\n\
+                                            'ssl_certificate': '" PKI_NODE "',\n\
+                                            'ssl_certificate_key': '" PKI_NODE_KEY "',\n\
+                                            'ssl_server_name': 'localhost'\n\
+                                        }                           \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\
@@ -178,6 +194,94 @@ PRIVATE char variable_config[]= "\
                 'node_name': 'test_node',                           \n\
                 'rsync_timeout': 30                                 \n\
             }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'archive_sender_other',                         \n\
+            'gclass': 'C_ARCHIVE_SENDER',                           \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'kw': {                                                 \n\
+                'transport': 'native',                              \n\
+                'node_name': 'test_node',                           \n\
+                'output_service': '__output_other__',               \n\
+                'retry_period': 3600                                \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__output_other__',                             \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'children': [                                           \n\
+                {                                                   \n\
+                    'name': 'output',                               \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'output',                       \n\
+                            'gclass': 'C_PROT_TCP4H',               \n\
+                            'children': [                           \n\
+                                {                                   \n\
+                                    'name': 'output',               \n\
+                                    'gclass': 'C_TCP',              \n\
+                                    'kw': {                         \n\
+                                        'url': 'tcps://127.0.0.1:7755',\n\
+                                        'crypto': {                 \n\
+                                            'ssl_trusted_certificate': '" PKI_CA "',\n\
+                                            'ssl_certificate': '" PKI_OTHER "',\n\
+                                            'ssl_certificate_key': '" PKI_OTHER_KEY "',\n\
+                                            'ssl_server_name': 'localhost'\n\
+                                        }                           \n\
+                                    }                               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'archive_sender_nocert',                        \n\
+            'gclass': 'C_ARCHIVE_SENDER',                           \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'kw': {                                                 \n\
+                'transport': 'native',                              \n\
+                'node_name': 'test_node',                           \n\
+                'output_service': '__output_nocert__',              \n\
+                'retry_period': 3600                                \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__output_nocert__',                            \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'children': [                                           \n\
+                {                                                   \n\
+                    'name': 'output',                               \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'output',                       \n\
+                            'gclass': 'C_PROT_TCP4H',               \n\
+                            'children': [                           \n\
+                                {                                   \n\
+                                    'name': 'output',               \n\
+                                    'gclass': 'C_TCP',              \n\
+                                    'kw': {                         \n\
+                                        'url': 'tcps://127.0.0.1:7755',\n\
+                                        'crypto': {                 \n\
+                                            'ssl_trusted_certificate': '" PKI_CA "',\n\
+                                            'ssl_server_name': 'localhost'\n\
+                                        }                           \n\
+                                    }                               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -220,7 +324,7 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Creating __timeranger2__.json",
@@ -229,6 +333,11 @@ static int register_yuno_and_more(void)
         "msg", "Creating topic",
         "msg", "Batch removed WITHOUT being shipped: the archive is over max_archive_bytes",
         "msg", "A batch of this name is here with other content: kept as it is, nothing overwritten",
+        "msg", "Batch refused",
+        "msg", "Batch NOT shipped: tried again later, after the others",
+        "msg", "A sender names a node that is not the name of its client certificate",
+        "msg", "Batch refused",
+        "msg", "Batch NOT shipped: tried again later, after the others",
         "msg", "Batch refused",
         "msg", "Batch NOT shipped: tried again later, after the others",
         "msg", "Exit to die",

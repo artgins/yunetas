@@ -1519,7 +1519,7 @@ it by hand, run the script.
 
 1. [**`openssl_api_tls`**](ytls/ytls.md#openssl_api_tls) — `PUBLIC api_tls_t *openssl_api_tls(void)`
 
-### `ytls.h` — 16 functions
+### `ytls.h` — 17 functions
 
 **Source:** `kernel/c/ytls/src/ytls.h`
 
@@ -1531,31 +1531,33 @@ it by hand, run the script.
 
 4. [**`ytls_get_cert_info`**](ytls/ytls.md#ytls_get_cert_info) — `PUBLIC json_t *ytls_get_cert_info(hytls ytls)`
 
-5. [**`ytls_version`**](ytls/ytls.md#ytls_version) — `PUBLIC const char * ytls_version(hytls ytls)`
+5. [**`ytls_get_peer_cert_info`**](ytls/ytls.md#ytls_get_peer_cert_info) — `PUBLIC json_t *ytls_get_peer_cert_info(hytls ytls, hsskt sskt)`
 
-6. [**`ytls_new_secure_filter`**](ytls/ytls.md#ytls_new_secure_filter) — `PUBLIC hsskt ytls_new_secure_filter( hytls ytls, int (*on_handshake_done_cb)(void *user_data, int error), int (*on_clear_data_cb)( void *user_data, gbuffer_t *gbuf ), int (*on_encrypted_data_cb)( void *user_data, gbuffer_t *gbuf ), void *user_data )`
+6. [**`ytls_version`**](ytls/ytls.md#ytls_version) — `PUBLIC const char * ytls_version(hytls ytls)`
 
-7. [**`ytls_shutdown`**](ytls/ytls.md#ytls_shutdown) — `PUBLIC void ytls_shutdown(hytls ytls, hsskt sskt)`
+7. [**`ytls_new_secure_filter`**](ytls/ytls.md#ytls_new_secure_filter) — `PUBLIC hsskt ytls_new_secure_filter( hytls ytls, int (*on_handshake_done_cb)(void *user_data, int error), int (*on_clear_data_cb)( void *user_data, gbuffer_t *gbuf ), int (*on_encrypted_data_cb)( void *user_data, gbuffer_t *gbuf ), void *user_data )`
 
-8. [**`ytls_free_secure_filter`**](ytls/ytls.md#ytls_free_secure_filter) — `PUBLIC void ytls_free_secure_filter(hytls ytls, hsskt sskt)`
+8. [**`ytls_shutdown`**](ytls/ytls.md#ytls_shutdown) — `PUBLIC void ytls_shutdown(hytls ytls, hsskt sskt)`
 
-9. [**`ytls_do_handshake`**](ytls/ytls.md#ytls_do_handshake) — `PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt)`
+9. [**`ytls_free_secure_filter`**](ytls/ytls.md#ytls_free_secure_filter) — `PUBLIC void ytls_free_secure_filter(hytls ytls, hsskt sskt)`
 
-10. [**`ytls_encrypt_data`**](ytls/ytls.md#ytls_encrypt_data) — `PUBLIC int ytls_encrypt_data( hytls ytls, hsskt sskt, gbuffer_t *gbuf )`
+10. [**`ytls_do_handshake`**](ytls/ytls.md#ytls_do_handshake) — `PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt)`
 
-11. [**`ytls_decrypt_data`**](ytls/ytls.md#ytls_decrypt_data) — `PUBLIC int ytls_decrypt_data( hytls ytls, hsskt sskt, gbuffer_t *gbuf )`
+11. [**`ytls_encrypt_data`**](ytls/ytls.md#ytls_encrypt_data) — `PUBLIC int ytls_encrypt_data( hytls ytls, hsskt sskt, gbuffer_t *gbuf )`
 
-12. [**`ytls_get_last_error`**](ytls/ytls.md#ytls_get_last_error) — `PUBLIC const char *ytls_get_last_error(hytls ytls, hsskt sskt)`
+12. [**`ytls_decrypt_data`**](ytls/ytls.md#ytls_decrypt_data) — `PUBLIC int ytls_decrypt_data( hytls ytls, hsskt sskt, gbuffer_t *gbuf )`
 
-13. [**`ytls_set_trace`**](ytls/ytls.md#ytls_set_trace) — `PUBLIC void ytls_set_trace(hytls ytls, hsskt sskt, BOOL set)`
+13. [**`ytls_get_last_error`**](ytls/ytls.md#ytls_get_last_error) — `PUBLIC const char *ytls_get_last_error(hytls ytls, hsskt sskt)`
 
-14. [**`ytls_set_peer_name`**](ytls/ytls.md#ytls_set_peer_name) — `PUBLIC void ytls_set_peer_name(hytls ytls, hsskt sskt, const char *peername, const char *sockname)`
+14. [**`ytls_set_trace`**](ytls/ytls.md#ytls_set_trace) — `PUBLIC void ytls_set_trace(hytls ytls, hsskt sskt, BOOL set)`
 
-15. [**`ytls_flush`**](ytls/ytls.md#ytls_flush) — `PUBLIC int ytls_flush(hytls ytls, hsskt sskt)`
+15. [**`ytls_set_peer_name`**](ytls/ytls.md#ytls_set_peer_name) — `PUBLIC void ytls_set_peer_name(hytls ytls, hsskt sskt, const char *peername, const char *sockname)`
 
-16. [**`ytls_get_system_ca_bundle`**](ytls/ytls.md#ytls_get_system_ca_bundle) — `PUBLIC const char *ytls_get_system_ca_bundle(void)`
+16. [**`ytls_flush`**](ytls/ytls.md#ytls_flush) — `PUBLIC int ytls_flush(hytls ytls, hsskt sskt)`
 
-**Total: 18 functions**
+17. [**`ytls_get_system_ca_bundle`**](ytls/ytls.md#ytls_get_system_ca_bundle) — `PUBLIC const char *ytls_get_system_ca_bundle(void)`
+
+**Total: 19 functions**
 
 ## yev_loop (Event Loop)
 
@@ -2418,7 +2420,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1051 functions** sorted alphabetically with their source header.
+All **1052 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -3440,6 +3442,7 @@ All **1051 functions** sorted alphabetically with their source header.
 | [**`ytls_free_secure_filter`**](ytls/ytls.md#ytls_free_secure_filter) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_get_cert_info`**](ytls/ytls.md#ytls_get_cert_info) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_get_last_error`**](ytls/ytls.md#ytls_get_last_error) | `ytls.h` | ytls (TLS Abstraction) |
+| [**`ytls_get_peer_cert_info`**](ytls/ytls.md#ytls_get_peer_cert_info) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_get_system_ca_bundle`**](ytls/ytls.md#ytls_get_system_ca_bundle) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_init`**](ytls/ytls.md#ytls_init) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_new_secure_filter`**](ytls/ytls.md#ytls_new_secure_filter) | `ytls.h` | ytls (TLS Abstraction) |

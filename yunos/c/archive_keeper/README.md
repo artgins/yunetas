@@ -44,6 +44,10 @@ the answer `refused` and the removal of the batch aside:
   with `.`, has a `/`, is longer than `NAME_MAX`);
 - a batch that is not four such names, `<database>/<topic>/<key>/<batch>`;
 - a node that is not in `allowed_nodes`;
+- with `require_client_certificate` (the default): a channel without a
+  verified client certificate, or a node that is not the `cn` nor a DNS name
+  of that certificate (WARNING *"A sender names a node that is not the name
+  of its client certificate"*, with the `cn` and the `subject`);
 - more files than `max_files`, a file name repeated, a size that is not an
   integer of 0 or more;
 - data of a batch not begun, data out of its place (not at the end of what is
@@ -62,6 +66,7 @@ A frame whose header is not a json object drops the channel.
 | `allowed_nodes` | `[]` | The node names whose batches are taken; `["*"]` takes any node. Required: empty, the yuno does not start (ERROR) |
 | `input_service` | `__input_side__` | The `C_IOGATE` whose channels are the senders |
 | `max_files` | 10000 | The most files a batch may declare |
+| `require_client_certificate` | `true` | The node of a batch must be the `cn` or a DNS name of the verified client certificate of its channel (mutual TLS). `false`: the node is the claim of the sender, said on purpose |
 
 ```json
 {
@@ -71,7 +76,8 @@ A frame whose header is not a json object drops the channel.
         "__input_side__.__json_config_variables__": {
             "__input_url__": "tcps://0.0.0.0:1999",
             "__ssl_certificate__": "/yuneta/store/certs/backup.example.com.crt",
-            "__ssl_certificate_key__": "/yuneta/store/certs/private/backup.example.com.key"
+            "__ssl_certificate_key__": "/yuneta/store/certs/private/backup.example.com.key",
+            "__nodes_ca__": "/yuneta/store/certs/nodes_ca.pem"
         }
     },
     "services": [
@@ -89,7 +95,9 @@ A frame whose header is not a json object drops the channel.
                         "crypto": {
                             "library": "(^^__tls_library__^^)",
                             "ssl_certificate": "(^^__ssl_certificate__^^)",
-                            "ssl_certificate_key": "(^^__ssl_certificate_key__^^)"
+                            "ssl_certificate_key": "(^^__ssl_certificate_key__^^)",
+                            "ssl_trusted_certificate": "(^^__nodes_ca__^^)",
+                            "ssl_verify_mode": "required"
                         },
                         "child_tree_filter": {
                             "kw": {
@@ -128,16 +136,43 @@ A frame whose header is not a json object drops the channel.
 
 `__range__` is the number of senders that can be connected at one time.
 
-**Security.** The posture is host to host, the same as the data links of the
-nodes: TLS encrypts, and the `node` a sender says is a claim, not a proof.
-`allowed_nodes` stops an operator error, not an attacker, and it must be set
-(fail closed: `["*"]` says "any node" on purpose). Put the keeper's port where
-only the nodes can reach it. Not done yet:
-binding the node to the client certificate of a mutual TLS, so that one node
-cannot write the batches of another. Without it, a peer that can reach the port
-and names a node of `allowed_nodes` can store batches under that node, and
-can make one batch of the real node fail (it stays at the real sender): it
-cannot make the real sender remove one.
+**Security.** The node of a batch is bound to the client certificate of its
+channel (mutual TLS):
+
+- The `C_TCP_S` asks every sender for a certificate of `ssl_trusted_certificate`
+  (the CA of the nodes), and `"ssl_verify_mode": "required"` refuses a sender
+  without one in the handshake.
+- `C_TCP` gives the certificate in its `EV_CONNECTED` (`peer_cert`), and it
+  reaches the keeper with the `EV_ON_OPEN` of the channel. The `node` of each
+  `begin` must be its `cn`, or one of its DNS names (`subjectAltName`),
+  exactly. So a node cannot write, or make fail, the batches of another.
+- `require_client_certificate` checks it in the keeper too: a channel
+  without a verified certificate (a `C_TCP_S` left in `"optional"`, or without
+  a CA) is refused every batch.
+- `allowed_nodes` stays: it says which nodes this backup takes, among those
+  the CA certifies. It must be set (fail closed: `["*"]` says "any node" on
+  purpose).
+
+The CA of the nodes is a private one: a public CA does not certify a node
+name, and Let's Encrypt no longer issues certificates for client
+authentication. Each node gets a certificate with its `node_name` as `cn`,
+and `extendedKeyUsage=clientAuth`. For example, with the openssl command:
+
+```bash
+# Once, on the backup machine: the CA of the nodes
+openssl req -x509 -newkey rsa:3072 -nodes -sha256 -days 3650 \
+    -keyout nodes_ca.key -out nodes_ca.pem -subj '/CN=Yuneta nodes CA' \
+    -addext 'basicConstraints=critical,CA:TRUE' \
+    -addext 'keyUsage=critical,keyCertSign,cRLSign'
+
+# For each node (here "central"): its key, and its certificate
+openssl req -newkey rsa:3072 -nodes -sha256 -keyout central.key -out central.csr -subj '/CN=central'
+printf 'basicConstraints=CA:FALSE\nextendedKeyUsage=clientAuth\n' > client.ext
+openssl x509 -req -in central.csr -CA nodes_ca.pem -CAkey nodes_ca.key -CAcreateserial \
+    -days 825 -sha256 -extfile client.ext -out central.crt
+```
+
+Put the keeper's port where only the nodes can reach it all the same.
 
 ## Commands and stats
 

@@ -76,6 +76,34 @@ Notes:
   out of the box (the probe finds the trust store even in fully-static builds);
   for a private/self-signed CA, override with `ssl_trusted_certificate`.
 
+## Mutual TLS: who the peer is
+
+A server with a CA (`ssl_trusted_certificate`) asks the client for a
+certificate: in mode `"optional"` (the default with a CA) a client without one,
+or with one that does not verify, still connects (with a WARNING for the
+latter); in mode `"required"` it is refused in the handshake. A client
+presents its own certificate when it is given `ssl_certificate` and
+`ssl_certificate_key`, in both backends (the OpenSSL client loads them since
+`ytls_get_peer_cert_info()` exists); one that cannot be loaded refuses the
+client (`ytls_init()` answers `NULL`), never a fatal exit.
+
+`ytls_get_peer_cert_info(ytls, sskt)` gives, after the handshake, the
+certificate of the other end: `subject`, `issuer`, `cn`, `dns_names`,
+`not_before`, `not_after`, `serial` and `verified`. A name is taken from the
+certificate only when `verified` is true: under `"optional"` an unverified
+certificate is there too, and under `"none"` nothing was verified. `C_TCP`
+puts it in its `EV_CONNECTED` as `peer_cert`. The consumer that binds an
+identity to it is `archive_keeper`.
+
+```json
+{
+    "ssl_certificate": "/yuneta/store/certs/backup.example.com.crt",
+    "ssl_certificate_key": "/yuneta/store/certs/private/backup.example.com.key",
+    "ssl_trusted_certificate": "/yuneta/store/certs/nodes_ca.pem",
+    "ssl_verify_mode": "required"
+}
+```
+
 ## Password hashing — cross-backend compatibility
 
 `hash_password()` in `c_authz.c` uses **PBKDF2-HMAC** (RFC 2898 / PKCS#5). Both backends implement the identical standard:

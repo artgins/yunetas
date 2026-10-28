@@ -113,6 +113,7 @@ typedef struct api_tls_s {
     int (*flush)(hsskt sskt); // flush clear and encrypted data: 0, -2222 (sskt freed inside a callback), < 0 failure
     void (*shutdown)(hsskt sskt);
     void (*set_peer_name)(hsskt sskt, const char *peername, const char *sockname);
+    json_t *(*get_peer_cert_info)(hsskt sskt);
 } api_tls_t;
 
 typedef struct { // Common to all ytls_t types
@@ -166,19 +167,42 @@ PUBLIC int ytls_reload_certificates(
 );
 
 /**rst**
-    Return metadata about the currently loaded server certificate.
+    Return metadata about the currently loaded certificate: the server's,
+    or a client's own (a client given ssl_certificate, mutual TLS).
 
-    Fields in the returned JSON (missing for client ytls / no cert loaded):
+    Fields in the returned JSON (missing when no cert is loaded):
       - "subject"    (string)  X.509 subject DN, one-line form
       - "issuer"     (string)  X.509 issuer DN, one-line form
+      - "cn"         (string)  Common name of the subject (absent if none,
+                               or if it holds a NUL)
+      - "dns_names"  (list)    DNS names of the subjectAltName
       - "not_before" (integer) Unix ts of certificate's notBefore
       - "not_after"  (integer) Unix ts of certificate's notAfter
       - "serial"     (string)  Serial number, uppercase hex
 
     Returns a new json object owned by the caller, or NULL if no cert info
-    is available (e.g. client-side ytls, or backend that can't introspect).
+    is available (e.g. a client without a certificate, or backend that
+    can't introspect).
 **rst**/
 PUBLIC json_t *ytls_get_cert_info(hytls ytls);
+
+/**rst**
+    Return the certificate that the PEER of a connection presented, after
+    its handshake: the fields of ytls_get_cert_info(), and
+      - "verified"   (bool)    its chain was verified against the CA
+                               (ssl_trusted_certificate / ssl_use_system_ca).
+                               false under ssl_verify_mode "optional" for a
+                               certificate that did not verify, and under
+                               "none", where nothing is verified.
+
+    A server asks the client for a certificate only when it has a CA (mode
+    "optional" or "required"). Trust an identity read here only with
+    "verified" true.
+
+    Returns a new json object owned by the caller, or NULL when the peer
+    presented no certificate.
+**rst**/
+PUBLIC json_t *ytls_get_peer_cert_info(hytls ytls, hsskt sskt);
 
 /**rst**
     Version tls

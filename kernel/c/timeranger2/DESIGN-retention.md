@@ -676,7 +676,9 @@ short:
 - Two transports. `native`: frames over `C_PROT_TCP4H` (TLS) to an
   `archive_keeper` on the backup machine, which writes the batch aside and
   renames it when every file is whole, has the sha256 the sender computed
-  while reading it, and is fsync'ed. `rsync`: two runs per
+  while reading it, and is fsync'ed. The link is mutual TLS: the keeper
+  takes a batch only when its node is the name of the client certificate of
+  the sender. `rsync`: two runs per
   batch, the files and then the manifest, so a batch at the destination is
   whole when its `manifest.json` is there. The node opens the connection in
   both cases: nothing connects to it.

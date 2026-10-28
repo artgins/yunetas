@@ -34,8 +34,16 @@
  *          beyond the size declared, an end without a sha256 per file or
  *          with one that is not of what arrived, is refused with a WARNING,
  *          and the batch aside is removed. `allowed_nodes` is required
- *          (["*"]: any node, said on purpose): the node a sender names is
- *          its claim, not a proof.
+ *          (["*"]: any node, said on purpose).
+ *
+ *          Mutual TLS binds the node: with `require_client_certificate`
+ *          (the default) the node a begin names must be the cn, or a DNS
+ *          name, of the client certificate of its channel, verified against
+ *          the CA of the C_TCP_S (`ssl_trusted_certificate`, with
+ *          "ssl_verify_mode": "required"). C_TCP gives it in its
+ *          EV_CONNECTED (`peer_cert`), which reaches here as EV_ON_OPEN.
+ *          A channel without one is refused everything: a peer cannot
+ *          write, nor make fail, the batches of a node it is not.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -105,6 +113,7 @@ SDATA (DTP_STRING,  "backup_directory", SDF_RD,             "",         "Absolut
 SDATA (DTP_LIST,    "allowed_nodes",    SDF_RD,             "[]",       "The node names whose batches are taken, [\"*\"] any. Required: empty, nothing is received"),
 SDATA (DTP_STRING,  "input_service",    SDF_RD,             "__input_side__", "The C_IOGATE service whose channels are the archive_senders"),
 SDATA (DTP_INTEGER, "max_files",        SDF_RD,             "10000",    "Most files a batch may declare"),
+SDATA (DTP_BOOLEAN, "require_client_certificate", SDF_RD,   "1",        "The node of a batch must be the cn or a DNS name of the verified client certificate of its channel (mutual TLS). FALSE: the node is the claim of the sender, said on purpose"),
 
 SDATA (DTP_INTEGER, "batches_stored",   SDF_RD|SDF_STATS,   "0",        "Batches received whole"),
 SDATA (DTP_INTEGER, "bytes_stored",     SDF_RD|SDF_STATS,   "0",        "Bytes of the batches received whole"),
@@ -151,6 +160,12 @@ typedef struct _PRIVATE_DATA {
      *  file, fd, hash}: `file` the one being written, `hash` its sha256_ctx_t (gbmem)
      */
     json_t *jn_sessions;
+
+    /*
+     *  channel name -> the peer_cert of its EV_ON_OPEN (only a channel whose
+     *  peer presented a certificate)
+     */
+    json_t *jn_peers;
 } PRIVATE_DATA;
 
 
@@ -172,6 +187,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->jn_sessions = json_object();
+    priv->jn_peers = json_object();
 
     /*
      *  SERVICE subscription model
@@ -210,6 +226,7 @@ PRIVATE void mt_destroy(hgobj gobj)
         discard_session(gobj, channel, FALSE);
     }
     JSON_DECREF(priv->jn_sessions)
+    JSON_DECREF(priv->jn_peers)
 }
 
 /***************************************************************************
@@ -368,8 +385,10 @@ PRIVATE json_t *cmd_list_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *list = json_array();
     const char *channel; json_t *jn_session;
     json_object_foreach(priv->jn_sessions, channel, jn_session) {
-        json_array_append_new(list, json_pack("{s:s, s:O, s:O, s:O}",
+        json_t *peer = json_object_get(priv->jn_peers, channel);
+        json_array_append_new(list, json_pack("{s:s, s:s, s:O, s:O, s:O}",
             "channel", channel,
+            "client_cert_cn", peer? kw_get_str(gobj, peer, "cn", "", 0) : "",
             "node", json_object_get(jn_session, "node"),
             "batch", json_object_get(jn_session, "batch"),
             "files", json_object_get(jn_session, "files")
@@ -732,6 +751,35 @@ PRIVATE int on_begin(
     }
     if(!found) {
         return refuse(gobj, channel_gobj, channel, batch, "the node is not in allowed_nodes");
+    }
+    if(gobj_read_bool_attr(gobj, "require_client_certificate")) {
+        json_t *peer = json_object_get(priv->jn_peers, channel);
+        if(!peer || !json_is_true(json_object_get(peer, "verified"))) {
+            return refuse(gobj, channel_gobj, channel, batch,
+                "no verified client certificate on this channel: the node cannot be bound to it");
+        }
+        const char *cn = json_string_value(json_object_get(peer, "cn"));
+        BOOL bound = cn && strcmp(cn, node) == 0;
+        size_t d; json_t *jn_dns;
+        json_array_foreach(json_object_get(peer, "dns_names"), d, jn_dns) {
+            if(!bound && json_string_value(jn_dns) && strcmp(json_string_value(jn_dns), node) == 0) {
+                bound = TRUE;
+            }
+        }
+        if(!bound) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "A sender names a node that is not the name of its client certificate",
+                "channel",      "%s", channel,
+                "node",         "%s", node,
+                "cn",           "%s", cn? cn : "",
+                "subject",      "%s", kw_get_str(gobj, peer, "subject", "", 0),
+                NULL
+            );
+            return refuse(gobj, channel_gobj, channel, batch,
+                "the node is not the cn nor a DNS name of the client certificate");
+        }
     }
     if(!is_batch_path(batch)) {
         return refuse(gobj, channel_gobj, channel, batch,
@@ -1134,6 +1182,29 @@ PRIVATE int on_end(
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *channel = kw_get_str(gobj, kw, "__temp__`channel", "", 0);
+    json_t *peer_cert = json_object_get(kw, "peer_cert");
+    if(!empty_string(channel)) {
+        json_object_del(priv->jn_peers, channel);
+        if(json_is_object(peer_cert)) {
+            json_object_set(priv->jn_peers, channel, peer_cert);
+        }
+    }
+    if(gobj_trace_level(gobj) & TRACE_BATCHES) {
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "Sender connected",
+            "channel",      "%s", channel,
+            "peername",     "%s", kw_get_str(gobj, kw, "peername", "", 0),
+            "cn",           "%s", peer_cert? kw_get_str(gobj, peer_cert, "cn", "", 0) : "",
+            "verified",     "%d", peer_cert? json_is_true(json_object_get(peer_cert, "verified")) : 0,
+            NULL
+        );
+    }
+
     KW_DECREF(kw);
     return 0;
 }
@@ -1143,8 +1214,11 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     const char *channel = kw_get_str(gobj, kw, "__temp__`channel", "", 0);
     discard_session(gobj, channel, TRUE);
+    json_object_del(priv->jn_peers, channel);
 
     KW_DECREF(kw);
     return 0;

@@ -61,6 +61,32 @@
   same results; the ERROR of a `sha256_hex()` buffer too small names
   `check_sha256_hex_buffer` as its function. New test `helpers/test_sha256`
   (FIPS 180-4 vectors, every cut of 0 to 300 bytes).
+- **ytls: `ytls_get_peer_cert_info()`, the certificate the peer presented**
+  (both backends): `subject`, `issuer`, `cn`, `dns_names`, `not_before`,
+  `not_after`, `serial`, and `verified` -- the chain verified against the CA
+  of the context, false under `ssl_verify_mode` `"optional"` for a certificate
+  that did not verify and under `"none"`. `ytls_get_cert_info()` gives `cn`
+  and `dns_names` too. **The OpenSSL client presents a certificate when it is
+  given one** (`ssl_certificate` / `ssl_certificate_key`), as the mbedTLS
+  client already did: mutual TLS. A client certificate that cannot be loaded
+  refuses the client (`NULL`), it is not a fatal exit. No client in the
+  batches of the projects carries `ssl_certificate` (checked), so nothing
+  deployed changes. New test `ytls/test_peer_cert`.
+- **`C_TCP`: `EV_CONNECTED` carries `peer_cert`** when the peer of a TLS
+  connection presented a certificate (the json of `ytls_get_peer_cert_info()`).
+  `C_PROT_TCP4H`, `C_CHANNEL` and `C_IOGATE` pass it on in their `EV_ON_OPEN`,
+  so a service knows WHO each channel is. A new key: the others do not change.
+- **`archive_keeper` binds the node to the client certificate** (mutual TLS,
+  `require_client_certificate`, default `true`): the `node` of a `begin` must
+  be the `cn` or a DNS name of the verified client certificate of its channel,
+  or the batch is refused (WARNING *"A sender names a node that is not the
+  name of its client certificate"*); a channel without a verified certificate
+  is refused every batch. Before, the node was the claim of the sender: a peer
+  that reached the port could write batches under another node, or make one of
+  its batches fail. The keeper's `C_TCP_S` takes the CA of the nodes in
+  `ssl_trusted_certificate` with `"ssl_verify_mode": "required"`; each sender's
+  `C_TCP` its node certificate. `archive_shipping` runs over `tcps://` with a
+  CA made by the test.
 
 ## v7.28.11 (2026-10-27)
 

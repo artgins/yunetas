@@ -382,7 +382,9 @@ Make sure that [`ytls_shutdown()`](<#ytls_shutdown>) is called before freeing th
 (ytls_get_cert_info)=
 ## [`ytls_get_cert_info()`](https://github.com/artgins/yunetas/blob/7.28.11/kernel/c/ytls/src/ytls.c#L151)
 
-Introspects the server certificate currently loaded in the TLS context.
+Introspects the certificate currently loaded in the TLS context: the
+server's, or a client's own when the client was given `ssl_certificate`
+(mutual TLS, see [`ytls_get_peer_cert_info()`](#ytls_get_peer_cert_info)).
 Used by the `view-cert` command on TLS listeners and by the yuno-level
 certificate-expiry monitor.
 
@@ -400,9 +402,9 @@ json_t *ytls_get_cert_info(
 
 **Returns**
 
-A new `json_t` object owned by the caller, or `NULL` if no server
-certificate is loaded (client-side ytls, or a backend that cannot
-introspect). The caller must `json_decref()` the returned object.
+A new `json_t` object owned by the caller, or `NULL` if no certificate
+is loaded (a client without one, or a backend that cannot introspect).
+The caller must `json_decref()` the returned object.
 
 The returned object contains these keys (same shape across the
 OpenSSL and mbed-TLS backends):
@@ -411,6 +413,8 @@ OpenSSL and mbed-TLS backends):
 |---|---|---|
 | `subject` | `string` | X.509 subject DN in one-line form (for example `/CN=api.example.com`). |
 | `issuer` | `string` | X.509 issuer DN in one-line form. Equal to `subject` for self-signed certs. |
+| `cn` | `string` | The common name of the subject. Absent when there is none, or when it holds a NUL byte (a name cut there would be another name). |
+| `dns_names` | `list` | The DNS names of the `subjectAltName` extension (empty when it has none). A name with a NUL byte is left out. |
 | `not_before` | `integer` | Unix timestamp of the certificate's `notBefore`. |
 | `not_after` | `integer` | Unix timestamp of the certificate's `notAfter`. Use `(not_after - time(NULL)) / 86400` to get `days_remaining`. A negative value means already expired. |
 | `serial` | `string` | Serial number as uppercase hex (no colons). |
@@ -422,6 +426,77 @@ does not enforce validity at load time (the TLS handshake does). This
 is what lets the expiry monitor report a negative `days_remaining` for
 a cert that needs urgent replacement, instead of the yuno refusing to
 start at all.
+
+---
+
+(ytls_get_peer_cert_info)=
+## [`ytls_get_peer_cert_info()`](https://github.com/artgins/yunetas/blob/7.28.11/kernel/c/ytls/src/ytls.c#L167)
+
+The certificate that the PEER of a connection presented in its handshake:
+for a server, the client's (mutual TLS); for a client, the server's. It is
+how a server tells WHO is on the other end, not only that the chain is good.
+`C_TCP` puts it in its `EV_CONNECTED` as `peer_cert`.
+
+```C
+json_t *ytls_get_peer_cert_info(
+    hytls  ytls,
+    hsskt  sskt
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `ytls` | `hytls` | TLS context handle. |
+| `sskt` | `hsskt` | The secure filter of the connection, after its handshake. |
+
+**Returns**
+
+A new `json_t` object owned by the caller, or `NULL` when the peer
+presented no certificate. The keys of [`ytls_get_cert_info()`](#ytls_get_cert_info),
+and:
+
+| Key | Type | Description |
+|---|---|---|
+| `verified` | `boolean` | The chain of the certificate was verified against the CA of the context (`ssl_trusted_certificate`, `ssl_use_system_ca`). `false` under `ssl_verify_mode` `"optional"` for a certificate that did not verify (the handshake completes, with a WARNING), and under `"none"`, where nothing is verified. |
+
+**Notes**
+
+A server asks the client for a certificate only when it has a CA: with
+`ssl_trusted_certificate` the default mode is `"optional"`, and
+`"required"` refuses a client without one, or with one that does not
+verify, in the handshake. A client presents a certificate when it is given
+`ssl_certificate` and `ssl_certificate_key` (both backends; the OpenSSL
+client loads them since this function exists, and a client whose
+certificate cannot be loaded is refused, `NULL` from `ytls_init()`, not a
+fatal exit). **Trust an identity read here only with `verified` true.**
+
+**Example**
+
+A server that requires a client certificate of its own CA, and a client
+that presents one:
+
+```C
+json_t *server_crypto = json_pack("{s:s, s:s, s:s, s:s}",
+    "ssl_certificate",          "/yuneta/store/certs/backup.example.com.crt",
+    "ssl_certificate_key",      "/yuneta/store/certs/private/backup.example.com.key",
+    "ssl_trusted_certificate",  "/yuneta/store/certs/nodes_ca.pem",
+    "ssl_verify_mode",          "required"
+);
+json_t *client_crypto = json_pack("{s:s, s:s, s:s}",
+    "ssl_trusted_certificate",  "/yuneta/store/certs/backup_ca.pem",
+    "ssl_certificate",          "/yuneta/store/certs/central.crt",
+    "ssl_certificate_key",      "/yuneta/store/certs/private/central.key"
+);
+
+/* In the server, after the handshake of a connection: */
+json_t *peer = ytls_get_peer_cert_info(ytls, sskt);
+if(peer && json_is_true(json_object_get(peer, "verified"))) {
+    const char *cn = json_string_value(json_object_get(peer, "cn"));   /* "central" */
+}
+JSON_DECREF(peer)
+```
 
 ---
 

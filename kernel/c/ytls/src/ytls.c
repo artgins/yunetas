@@ -162,6 +162,21 @@ PUBLIC json_t *ytls_get_cert_info(hytls ytls)
 
 
 /***************************************************************************
+    Get the certificate of the peer of a connection
+ ***************************************************************************/
+PUBLIC json_t *ytls_get_peer_cert_info(hytls ytls, hsskt sskt)
+{
+    if(!ytls || !sskt) {
+        return NULL;
+    }
+    api_tls_t *api_tls = ((__ytls_t__ *)ytls)->api_tls;
+    if(!api_tls->get_peer_cert_info) {
+        return NULL;
+    }
+    return api_tls->get_peer_cert_info(sskt);
+}
+
+/***************************************************************************
     Version tls
  ***************************************************************************/
 PUBLIC const char * ytls_version(hytls ytls)

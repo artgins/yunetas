@@ -6,8 +6,12 @@ one test yuno (`main_test1.c` + `c_test1.c`), with two stores. Each store is
 archived into its own archive under `$HOME/tests_yuneta/archive_shipping/`.
 
 - **native**: `archive_sender` ships to `archive_keeper` over
-  `tcp://127.0.0.1:7755` (`C_PROT_TCP4H`, chunks of 100 bytes, a window of 2,
-  so every file takes several frames):
+  `tcps://127.0.0.1:7755` (`C_PROT_TCP4H`, chunks of 100 bytes, a window of 2,
+  so every file takes several frames), with mutual TLS: the test makes a CA, the
+  keeper's certificate and two client certificates of the CA (`test_node`,
+  `other_node`) with the openssl command, in `/tmp/test_archive_shipping_pki`.
+  The keeper asks a certificate in mode `"optional"`, so that a sender without
+  one reaches the keeper's own check:
   - two batches are in the archive before the sender plays: its scan finds
     them;
   - a third is archived while it runs: its ready mark tells it;
@@ -25,6 +29,12 @@ archived into its own archive under `$HOME/tests_yuneta/archive_shipping/`.
   has), and keeps the planted batch untouched. The sender keeps its batch (it
   failed, and is tried again later). With a check of the names and sizes only,
   this case fails: the sender removes its real batch.
+- **the node bound to the certificate**: a sender with the certificate of
+  `other_node`, then one without a certificate, both naming `test_node`. The
+  keeper refuses the batch of each (WARNING *"A sender names a node that is not
+  the name of its client certificate"*, then *"no verified client
+  certificate"*), and each keeps it; nothing of it is in the backup. Without
+  the check, this case fails.
 
 At the end:
 
@@ -42,4 +52,5 @@ and every step must end within 10 seconds.
 ctest -R '^archive_shipping/' --output-on-failure --test-dir build
 ```
 
-The rsync part needs `/usr/bin/rsync` 3.2.3 or later (for `--mkpath`).
+The rsync part needs `/usr/bin/rsync` 3.2.3 or later (for `--mkpath`), and the
+certificates the `openssl` command.

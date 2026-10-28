@@ -111,6 +111,7 @@ PRIVATE hytls init(
 PRIVATE void cleanup(hytls ytls);
 PRIVATE int reload_certificates(hytls ytls, json_t *jn_config);
 PRIVATE json_t *get_cert_info(hytls ytls);
+PRIVATE json_t *get_peer_cert_info(hsskt sskt);
 PRIVATE const char *version(hytls ytls);
 PRIVATE hsskt new_secure_filter(
     hytls ytls,
@@ -146,7 +147,8 @@ PRIVATE api_tls_t api_tls = {
     set_trace,
     flush,
     shutdown_sskt,
-    set_peer_name
+    set_peer_name,
+    get_peer_cert_info
 };
 
 /***************************************************************************
@@ -491,8 +493,15 @@ PRIVATE SSL_CTX *build_ssl_ctx(
         );
     }
 
-    if(server) {
-        log_opt_t log_fatal = fatal ? LOG_OPT_EXIT_ZERO : 0;
+    /*
+     *  The server always has its certificate. A client has one when it is
+     *  given (mutual TLS: the server asks it and verifies it), as in the
+     *  mbedTLS backend. A client whose certificate cannot be loaded is
+     *  refused (NULL), never fatal: its connection fails, the yuno goes on.
+     */
+    if(server || !empty_string(ssl_certificate)) {
+        BOOL exit_on_error = fatal && server;
+        log_opt_t log_fatal = exit_on_error ? LOG_OPT_EXIT_ZERO : 0;
 
         if(SSL_CTX_use_certificate_chain_file(ctx, ssl_certificate)!=1) {
             unsigned long err = ERR_get_error();
@@ -504,7 +513,7 @@ PRIVATE SSL_CTX *build_ssl_ctx(
                 "cert",         "%s", ssl_certificate,
                 NULL
             );
-            if(!fatal) {
+            if(!exit_on_error) {
                 SSL_CTX_free(ctx);
                 return NULL;
             }
@@ -519,7 +528,7 @@ PRIVATE SSL_CTX *build_ssl_ctx(
                 "cert",         "%s", ssl_certificate_key,
                 NULL
             );
-            if(!fatal) {
+            if(!exit_on_error) {
                 SSL_CTX_free(ctx);
                 return NULL;
             }
@@ -537,7 +546,7 @@ PRIVATE SSL_CTX *build_ssl_ctx(
                 "cert_key",     "%s", ssl_certificate_key,
                 NULL
             );
-            if(!fatal) {
+            if(!exit_on_error) {
                 SSL_CTX_free(ctx);
                 return NULL;
             }
@@ -801,22 +810,31 @@ PRIVATE time_t asn1_time_to_unix(const ASN1_TIME *t)
 }
 
 /***************************************************************************
- *  Introspect the server certificate currently loaded in ytls->ctx.
- *  Caller owns the returned json_t; returns NULL when no cert is loaded
- *  (client-side ytls, or init failed).
+ *  A text of a certificate as utf8, or FALSE: one that does not convert,
+ *  or that holds a NUL (a name cut there would be another name)
  ***************************************************************************/
-PRIVATE json_t *get_cert_info(hytls ytls_)
+PRIVATE BOOL asn1_string_to_text(const ASN1_STRING *as, char *bf, size_t bfsize)
 {
-    ytls_t *ytls = ytls_;
-    if(!ytls || !ytls->ctx) {
-        return NULL;
+    unsigned char *utf8 = NULL;
+    int len = ASN1_STRING_to_UTF8(&utf8, as);
+    if(len < 0 || !utf8) {
+        return FALSE;
     }
-
-    X509 *cert = SSL_CTX_get0_certificate(ytls->ctx);
-    if(!cert) {
-        return NULL;
+    BOOL ok = (size_t)len < bfsize && strlen((const char *)utf8) == (size_t)len;
+    if(ok) {
+        memcpy(bf, utf8, (size_t)len);
+        bf[len] = 0;
     }
+    OPENSSL_free(utf8);
+    return ok;
+}
 
+/***************************************************************************
+ *  subject, issuer, cn, dns_names, not_before, not_after, serial of a
+ *  certificate
+ ***************************************************************************/
+PRIVATE json_t *cert_info(X509 *cert)
+{
     json_t *info = json_object();
 
     /* Subject / issuer as one-line DN. */
@@ -825,12 +843,32 @@ PRIVATE json_t *get_cert_info(hytls ytls_)
     if(sn) {
         X509_NAME_oneline(sn, buf, sizeof(buf));
         json_object_set_new(info, "subject", json_string(buf));
+
+        int idx = X509_NAME_get_index_by_NID(sn, NID_commonName, -1);
+        X509_NAME_ENTRY *entry = (idx >= 0)? X509_NAME_get_entry(sn, idx) : NULL;
+        if(entry && asn1_string_to_text(X509_NAME_ENTRY_get_data(entry), buf, sizeof(buf))) {
+            json_object_set_new(info, "cn", json_string(buf));
+        }
     }
     X509_NAME *in = X509_get_issuer_name(cert);
     if(in) {
         X509_NAME_oneline(in, buf, sizeof(buf));
         json_object_set_new(info, "issuer", json_string(buf));
     }
+
+    /* The DNS names of the subjectAltName. */
+    json_t *dns_names = json_array();
+    GENERAL_NAMES *sans = X509_get_ext_d2i(cert, NID_subject_alt_name, NULL, NULL);
+    if(sans) {
+        for(int i = 0; i < sk_GENERAL_NAME_num(sans); i++) {
+            const GENERAL_NAME *gn = sk_GENERAL_NAME_value(sans, i);
+            if(gn->type == GEN_DNS && asn1_string_to_text(gn->d.dNSName, buf, sizeof(buf))) {
+                json_array_append_new(dns_names, json_string(buf));
+            }
+        }
+        GENERAL_NAMES_free(sans);
+    }
+    json_object_set_new(info, "dns_names", dns_names);
 
     /* Validity window as Unix timestamps. */
     time_t nb = asn1_time_to_unix(X509_get0_notBefore(cert));
@@ -852,6 +890,47 @@ PRIVATE json_t *get_cert_info(hytls ytls_)
         }
     }
 
+    return info;
+}
+
+/***************************************************************************
+ *  Introspect the certificate currently loaded in ytls->ctx: the server's,
+ *  or a client's own (mutual TLS). Caller owns the returned json_t; returns
+ *  NULL when no cert is loaded (a client without one, or init failed).
+ ***************************************************************************/
+PRIVATE json_t *get_cert_info(hytls ytls_)
+{
+    ytls_t *ytls = ytls_;
+    if(!ytls || !ytls->ctx) {
+        return NULL;
+    }
+
+    X509 *cert = SSL_CTX_get0_certificate(ytls->ctx);
+    if(!cert) {
+        return NULL;
+    }
+    return cert_info(cert);
+}
+
+/***************************************************************************
+ *  The certificate the peer of a connection presented, with "verified":
+ *  its chain was verified against the CA. With SSL_VERIFY_NONE the verify
+ *  result is X509_V_OK without any verification: not verified.
+ ***************************************************************************/
+PRIVATE json_t *get_peer_cert_info(hsskt sskt_)
+{
+    sskt_t *sskt = sskt_;
+    if(!sskt || !sskt->ssl) {
+        return NULL;
+    }
+    X509 *cert = SSL_get0_peer_certificate(sskt->ssl);
+    if(!cert) {
+        return NULL;
+    }
+    json_t *info = cert_info(cert);
+    BOOL verified = (SSL_get_verify_mode(sskt->ssl) & SSL_VERIFY_PEER) &&
+        SSL_get_verify_result(sskt->ssl) == X509_V_OK;
+    json_object_set_new(info, "verified", json_boolean(verified));
     return info;
 }
 

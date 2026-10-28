@@ -58,6 +58,9 @@ There is one batch in flight. Its data goes `chunk_size` bytes per frame, with
 at most `window` frames not yet acknowledged, so the yuno never holds a whole
 file in memory.
 
+The link is mutual TLS: the node presents its client certificate, and the
+keeper takes a batch only when its `node` is the name of that certificate.
+
 A frame is a compact json. A `data` frame adds a NUL byte and then the bytes of
 the file.
 
@@ -134,7 +137,7 @@ backup that is lost, not the newest. The stats `bytes_pending` and
 |---|---|---|
 | `archive_directory` | — | Absolute. The `archive_directory` given to `tranger2_archive_key_files()` |
 | `transport` | `native` | `native` or `rsync` |
-| `node_name` | the host name | The first directory of this node's batches in the backup |
+| `node_name` | the host name | The first directory of this node's batches in the backup. native: the `cn` (or a DNS name) of the node's client certificate |
 | `output_service` | `__output_side__` | native: the `C_IOGATE` to the keeper |
 | `chunk_size` | 262144 | native: bytes of a file in one frame |
 | `window` | 4 | native: data frames not yet acknowledged |
@@ -180,7 +183,9 @@ Native, in the batch config of the node:
                                         "crypto": {
                                             "library": "(^^__tls_library__^^)",
                                             "ssl_verify_mode": "required",
-                                            "ssl_use_system_ca": true
+                                            "ssl_use_system_ca": true,
+                                            "ssl_certificate": "/yuneta/store/certs/central.crt",
+                                            "ssl_certificate_key": "/yuneta/store/certs/private/central.key"
                                         }
                                     }
                                 }
@@ -193,6 +198,11 @@ Native, in the batch config of the node:
     ]
 }
 ```
+
+The `ssl_certificate` of the `C_TCP` is the client certificate of the node,
+from the CA of the nodes that the keeper trusts: its `cn` must be the
+`node_name` (the keeper refuses the batches of another name). How to make
+one: the README of archive_keeper.
 
 rsync over ssh:
 

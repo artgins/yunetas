@@ -151,6 +151,7 @@ PRIVATE hytls init(
 PRIVATE void cleanup(hytls ytls);
 PRIVATE int reload_certificates(hytls ytls, json_t *jn_config);
 PRIVATE json_t *get_cert_info(hytls ytls);
+PRIVATE json_t *get_peer_cert_info(hsskt sskt);
 PRIVATE const char *version(hytls ytls);
 PRIVATE hsskt new_secure_filter(
     hytls ytls,
@@ -186,7 +187,8 @@ PRIVATE api_tls_t api_tls = {
     set_trace,
     flush,
     shutdown_sskt,
-    set_peer_name
+    set_peer_name,
+    get_peer_cert_info
 };
 
 /***************************************************************
@@ -610,17 +612,25 @@ PRIVATE time_t mbedtls_time_to_unix(const mbedtls_x509_time *t)
 }
 
 /***************************************************************************
- *  Introspect the server certificate currently loaded in ytls->state->cert.
- *  Caller owns the returned json_t; returns NULL when no cert is loaded.
+ *  A text of a certificate (raw bytes of its value): FALSE when it holds a
+ *  NUL (a name cut there would be another name) or does not fit
  ***************************************************************************/
-PRIVATE json_t *get_cert_info(hytls ytls_)
+PRIVATE BOOL x509_buf_to_text(const unsigned char *p, size_t len, char *bf, size_t bfsize)
 {
-    ytls_t *ytls = (ytls_t *)ytls_;
-    if(!ytls || !ytls->state || !ytls->state->has_own_cert) {
-        return NULL;
+    if(!p || len >= bfsize || memchr(p, 0, len)) {
+        return FALSE;
     }
-    mbedtls_x509_crt *cert = &ytls->state->cert;
+    memcpy(bf, p, len);
+    bf[len] = 0;
+    return TRUE;
+}
 
+/***************************************************************************
+ *  subject, issuer, cn, dns_names, not_before, not_after, serial of a
+ *  certificate
+ ***************************************************************************/
+PRIVATE json_t *cert_info(const mbedtls_x509_crt *cert)
+{
     json_t *info = json_object();
 
     /* Subject / issuer as one-line DN. */
@@ -634,6 +644,38 @@ PRIVATE json_t *get_cert_info(hytls ytls_)
     if(n > 0) {
         json_object_set_new(info, "issuer", json_string(buf));
     }
+
+    /* The common name: the first one of the subject. */
+    for(const mbedtls_x509_name *name = &cert->subject; name; name = name->next) {
+        if(name->oid.p && MBEDTLS_OID_CMP(MBEDTLS_OID_AT_CN, &name->oid) == 0) {
+            if(x509_buf_to_text(name->val.p, name->val.len, buf, sizeof(buf))) {
+                json_t *jn_cn = json_string(buf);   // NULL if not utf8: no cn
+                if(jn_cn) {
+                    json_object_set_new(info, "cn", jn_cn);
+                }
+            }
+            break;
+        }
+    }
+
+    /* The DNS names of the subjectAltName. */
+    json_t *dns_names = json_array();
+    for(const mbedtls_x509_sequence *seq = &cert->subject_alt_names; seq && seq->buf.p; seq = seq->next) {
+        mbedtls_x509_subject_alternative_name san;
+        memset(&san, 0, sizeof(san));
+        if(mbedtls_x509_parse_subject_alt_name(&seq->buf, &san) != 0) {
+            continue;   // a type not supported: not a DNS name
+        }
+        if(san.type == MBEDTLS_X509_SAN_DNS_NAME &&
+                x509_buf_to_text(san.san.unstructured_name.p, san.san.unstructured_name.len, buf, sizeof(buf))) {
+            json_t *jn_dns = json_string(buf);
+            if(jn_dns) {
+                json_array_append_new(dns_names, jn_dns);
+            }
+        }
+        mbedtls_x509_free_subject_alt_name(&san);
+    }
+    json_object_set_new(info, "dns_names", dns_names);
 
     /* Validity window as Unix timestamps. */
     json_object_set_new(info, "not_before",
@@ -651,7 +693,9 @@ PRIVATE json_t *get_cert_info(hytls ytls_)
         for(size_t i = 0; buf[i] && j < sizeof(serial_hex) - 1; i++) {
             if(buf[i] != ':') {
                 char c = buf[i];
-                if(c >= 'a' && c <= 'f') c = (char)(c - 'a' + 'A');
+                if(c >= 'a' && c <= 'f') {
+                    c = (char)(c - 'a' + 'A');
+                }
                 serial_hex[j++] = c;
             }
         }
@@ -659,6 +703,43 @@ PRIVATE json_t *get_cert_info(hytls ytls_)
         json_object_set_new(info, "serial", json_string(serial_hex));
     }
 
+    return info;
+}
+
+/***************************************************************************
+ *  Introspect the certificate currently loaded in ytls->state->cert: the
+ *  server's, or a client's own (mutual TLS). Caller owns the returned
+ *  json_t; returns NULL when no cert is loaded.
+ ***************************************************************************/
+PRIVATE json_t *get_cert_info(hytls ytls_)
+{
+    ytls_t *ytls = (ytls_t *)ytls_;
+    if(!ytls || !ytls->state || !ytls->state->has_own_cert) {
+        return NULL;
+    }
+    return cert_info(&ytls->state->cert);
+}
+
+/***************************************************************************
+ *  The certificate the peer of a connection presented, with "verified":
+ *  its chain was verified against the CA. Under MBEDTLS_SSL_VERIFY_NONE
+ *  nothing was verified.
+ ***************************************************************************/
+PRIVATE json_t *get_peer_cert_info(hsskt sskt_)
+{
+    sskt_t *sskt = (sskt_t *)sskt_;
+    if(!sskt) {
+        return NULL;
+    }
+    const mbedtls_x509_crt *cert = mbedtls_ssl_get_peer_cert(&sskt->ssl);
+    if(!cert || !cert->raw.p) {
+        return NULL;
+    }
+    json_t *info = cert_info(cert);
+    BOOL verified = sskt->state_ref &&
+        sskt->state_ref->authmode != MBEDTLS_SSL_VERIFY_NONE &&
+        mbedtls_ssl_get_verify_result(&sskt->ssl) == 0;
+    json_object_set_new(info, "verified", json_boolean(verified));
     return info;
 }
 
