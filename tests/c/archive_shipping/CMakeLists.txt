@@ -88,3 +88,34 @@ target_link_libraries(${binary}
 #   Test
 ##############################################
 add_test("${current_directory_name}/test1" ${binary})
+
+##############################################
+#   Binary 2: the keeper against a fake sender
+##############################################
+set(binary2 "test_archive_shipping2")
+add_yuno_executable(${binary2}
+    main_test2.c
+    c_test2.c
+    c_test2.h
+    ${YUNETAS_BASE}/yunos/c/archive_keeper/src/c_archive_keeper.c
+)
+target_include_directories(${binary2} PRIVATE
+    ${YUNETAS_BASE}/yunos/c/archive_keeper/src
+)
+if(CONFIG_FULLY_STATIC)
+    set_target_properties(${binary2} PROPERTIES
+        LINK_SEARCH_START_STATIC TRUE
+        LINK_SEARCH_END_STATIC TRUE
+    )
+endif()
+target_link_libraries(${binary2}
+    ${MODULE_TEST}
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${JWT_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
+)
+add_test("${current_directory_name}/test2" ${binary2})

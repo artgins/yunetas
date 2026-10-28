@@ -187,4 +187,8 @@ Traces: `batches` and `frames`, as in archive_sender.
 
 ## Tests
 
-`tests/c/archive_shipping/` (see the README of archive_sender).
+`tests/c/archive_shipping/`: `test1` runs the two yunos end to end (see the
+README of archive_sender); `test2` runs the keeper against a fake sender that
+writes the frames by hand -- a forged sha256, too few of them, not lowercase
+hex, data out of the order of the files, a batch of a kept name with other
+bytes: each refused, and nothing of it left in the backup.
