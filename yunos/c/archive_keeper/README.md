@@ -124,9 +124,14 @@ A frame whose header is not a json object drops the channel.
 nodes: TLS encrypts, and the `node` a sender says is a claim, not a proof.
 `allowed_nodes` stops an operator error, not an attacker, and it must be set
 (fail closed: `["*"]` says "any node" on purpose). Put the keeper's port where
-only the nodes can reach it. Not done yet: binding the node to the client
-certificate of a mutual TLS, so that one node cannot write the batches of
-another.
+only the nodes can reach it. Not done yet:
+
+- binding the node to the client certificate of a mutual TLS, so that one
+  node cannot write the batches of another;
+- a digest (sha256) of each file in the `begin`, checked on what arrives and
+  on a batch that is here already. Today that check is on the names and the
+  sizes: a peer that knows the sizes of a batch can still plant one of the
+  same name, and the real sender would remove its own.
 
 ## Commands and stats
 
