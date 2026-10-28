@@ -1370,3 +1370,23 @@ PUBLIC time_range_t get_years_range(time_t t, int range, const char *TZ);
 #define SHA256_HEX_LEN      64
 PUBLIC void sha256_digest(const void *data, size_t len, uint8_t digest[SHA256_DIGEST_LEN]);
 PUBLIC int sha256_hex(const void *data, size_t len, char *bf, size_t bflen);
+
+/**rst**
+    sha256 of bytes that come in parts (a file read a chunk at a time, data
+    that arrives in frames): sha256_init(), sha256_update() for each part,
+    sha256_final(). The digest is the one of sha256_digest() over all the
+    parts joined; sha256_final_hex() writes it as sha256_hex() does (same
+    `bflen`, 0 or -1 with the error logged and the context not spent).
+    After a final the context is spent: init it again to hash something
+    else. The context holds no memory: nothing to free.
+**rst**/
+typedef struct {
+    uint32_t h[8];
+    uint64_t len;           // bytes hashed
+    uint8_t block[64];      // bytes not hashed yet, `used` of them
+    size_t used;
+} sha256_ctx_t;
+PUBLIC void sha256_init(sha256_ctx_t *ctx);
+PUBLIC void sha256_update(sha256_ctx_t *ctx, const void *data, size_t len);
+PUBLIC void sha256_final(sha256_ctx_t *ctx, uint8_t digest[SHA256_DIGEST_LEN]);
+PUBLIC int sha256_final_hex(sha256_ctx_t *ctx, char *bf, size_t bflen);

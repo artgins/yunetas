@@ -235,3 +235,12 @@ on gbmem: every occurrence replaced left to right without overlaps (`"aaa"`,
 `"aa"` -> `"b"` is `"ba"`), the ends of the string, a longer and a shorter
 replacement, no occurrence, and NULL (logged) for a missing argument or an
 empty `old` (four ERRORs in the output are expected).
+
+`test_sha256` covers the sha256 of gobj-c: `sha256_digest()` / `sha256_hex()`
+and the incremental `sha256_init()` / `sha256_update()` / `sha256_final()` /
+`sha256_final_hex()`. The vectors of FIPS 180-4, whole and a byte at a time,
+and a million `a` in parts of 1000; every length from 0 to 300 bytes cut in two
+at every place and in parts of 1 to 70 bytes gives the digest of the whole (the
+padding at 55, 56, 63, 64 and 65 bytes); a context init'ed again starts from
+nothing; a buffer of 64 bytes is refused (two ERRORs in the output are
+expected), and a refused `sha256_final_hex()` does not spend the context.

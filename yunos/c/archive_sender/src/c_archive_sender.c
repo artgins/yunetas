@@ -25,8 +25,10 @@
  *
  *          - "native": to an archive_keeper, over the C_IOGATE named by
  *            `output_service` (C_CHANNEL -> C_PROT_TCP4H -> C_TCP, TLS with
- *            a tcps:// url). The keeper writes the batch aside and
- *            renames it when every file is whole and fsync'ed; its "stored"
+ *            a tcps:// url). Each file is hashed as it is read for its
+ *            data frames, and the "end" carries the sha256 of each one.
+ *            The keeper writes the batch aside and renames it when every
+ *            file is whole, has its sha256 and is fsync'ed; its "stored"
  *            is what removes the batch here. See README.md for the frames.
  *          - "rsync": `rsync_path` run twice per batch, the files and then
  *            the manifest, to <rsync_destination>/<node_name>/<path of the
@@ -213,8 +215,9 @@ typedef struct _PRIVATE_DATA {
     /*
      *  The batch in flight
      */
-    json_t *jn_batch;       // {relpath, bytes, files: [{name, size}], file, offset, in_flight}
+    json_t *jn_batch;       // {relpath, bytes, files: [{name, size, sha256}], file, offset, in_flight}
     int fd;                 // native: the file being read
+    sha256_ctx_t sha256;    // native: of the file being read, its sha256 goes in the "end"
 
     pid_t rsync_pid;
     int rsync_pidfd;
@@ -1288,6 +1291,7 @@ PRIVATE int start_native(hgobj gobj, const char *relpath)
         ));
     }
     JSON_DECREF(names)
+    sha256_init(&priv->sha256);
 
     return send_frame(gobj,
         json_pack("{s:s, s:s, s:s, s:O}",
@@ -1324,6 +1328,10 @@ PRIVATE int pump_native(hgobj gobj)
                 close(priv->fd);
                 priv->fd = -1;
             }
+            char hex[SHA256_HEX_LEN + 1];
+            sha256_final_hex(&priv->sha256, hex, sizeof(hex));
+            json_object_set_new(jn_file, "sha256", json_string(hex));
+            sha256_init(&priv->sha256);
             file_idx++;
             offset = 0;
             continue;
@@ -1350,7 +1358,15 @@ PRIVATE int pump_native(hgobj gobj)
                 ret = -1;
                 break;
             }
-            if(lseek(priv->fd, (off_t)offset, SEEK_SET) < 0) {
+            if(offset != 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "A file of a batch opened in its middle: its sha256 would not be of the whole file",
+                    "path",         "%s", path,
+                    "offset",       "%ld", (long)offset,
+                    NULL
+                );
                 ret = -1;
                 break;
             }
@@ -1379,6 +1395,7 @@ PRIVATE int pump_native(hgobj gobj)
             ret = -1;
             break;
         }
+        sha256_update(&priv->sha256, chunk, (size_t)got);
         if(send_frame(gobj,
                 json_pack("{s:s, s:s, s:I, s:I}",
                     "cmd", "data",
@@ -1405,10 +1422,16 @@ PRIVATE int pump_native(hgobj gobj)
     if((size_t)file_idx >= n_files && in_flight == 0 &&
             !json_is_true(json_object_get(priv->jn_batch, "ended"))) {
         json_object_set_new(priv->jn_batch, "ended", json_true());
+        json_t *digests = json_array();
+        size_t idx; json_t *jn_file;
+        json_array_foreach(files, idx, jn_file) {
+            json_array_append(digests, json_object_get(jn_file, "sha256"));
+        }
         return send_frame(gobj,
-            json_pack("{s:s, s:s}",
+            json_pack("{s:s, s:s, s:o}",
                 "cmd", "end",
-                "batch", relpath
+                "batch", relpath,
+                "sha256", digests
             ),
             NULL, 0
         );

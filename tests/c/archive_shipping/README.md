@@ -12,15 +12,19 @@ archived into its own archive under `$HOME/tests_yuneta/archive_shipping/`.
     them;
   - a third is archived while it runs: its ready mark tells it;
   - a fourth is a batch the keeper already has (copied back into the archive
-    with a mark): the keeper answers `stored` at once (`batches_already` 1).
+    with a mark): it is shipped again, and the keeper answers `stored` at its
+    `end`, the content being the same (`batches_already` 1). Its copy aside
+    is not left in the backup.
 - **rsync**: `archive_sender_rsync` ships to a local directory with
   `max_archive_bytes` of one batch, and two are waiting. The oldest is removed
   without being shipped (WARNING *"Batch removed WITHOUT being shipped"*), and
   the other arrives with its manifest.
 - **poisoning**: a batch of the name of one the sender will ship, planted in
-  the backup first with other sizes. The keeper does not answer `stored`, and
-  keeps the planted batch untouched. The sender keeps its batch (it failed,
-  and is tried again later).
+  the backup first with the same files and sizes and other bytes. The keeper
+  does not answer `stored` (the sha256 of the `end` are not of the batch it
+  has), and keeps the planted batch untouched. The sender keeps its batch (it
+  failed, and is tried again later). With a check of the names and sizes only,
+  this case fails: the sender removes its real batch.
 
 At the end:
 

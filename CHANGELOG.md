@@ -37,10 +37,12 @@
   removing each (with its mark) only when the backup has all of it. Two
   transports: `native`, frames over `C_PROT_TCP4H` (TLS) to an
   `archive_keeper` on the backup machine, which writes the batch aside and
-  renames it when every file is whole and fsync'ed, and answers `stored` at
-  once for a batch it already has with the same files and sizes (a batch of
-  that name planted first by another peer is kept and refused, so the real
-  sender keeps its own); and `rsync`, two runs per batch (the files, then the
+  renames it when every file is whole, has the sha256 the sender computed
+  while reading it (sent in the `end`) and is fsync'ed, and answers `stored`
+  for a batch it already has only when that batch has the same files, sizes
+  and sha256 (it hashes it again): a batch of that name planted first by
+  another peer, even with the same names and sizes, is kept and refused, so
+  the real sender keeps its own; and `rsync`, two runs per batch (the files, then the
   manifest: a batch is whole at the destination when its manifest is there),
   with `--protect-args` (the names come from data), watched with a pidfd so
   nothing blocks. The keeper's `allowed_nodes` is required (`["*"]` for any):
@@ -52,6 +54,13 @@
   keeper. Test `tests/c/archive_shipping/` (both transports, a batch the keeper
   has, one dropped by the limit, one planted in the backup first). Design: `yunos/c/archive_sender/README.md`,
   `DESIGN-retention.md` §13.
+- **gobj-c: `sha256_init()` / `sha256_update()` / `sha256_final()` /
+  `sha256_final_hex()`, the sha256 of bytes that come in parts** (a file read a
+  chunk at a time, data that arrives in frames), with a `sha256_ctx_t` that
+  holds no memory. `sha256_digest()` is now these three in one call, with the
+  same results; the ERROR of a `sha256_hex()` buffer too small names
+  `check_sha256_hex_buffer` as its function. New test `helpers/test_sha256`
+  (FIPS 180-4 vectors, every cut of 0 to 300 bytes).
 
 ## v7.28.11 (2026-10-27)
 

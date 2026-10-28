@@ -321,7 +321,7 @@ The number of open file descriptors found and logged.
 ---
 
 (sha256_digest)=
-## [`sha256_digest()`](https://github.com/artgins/yunetas/blob/7.28.11/kernel/c/gobj-c/src/helpers.c#L11436)
+## [`sha256_digest()`](https://github.com/artgins/yunetas/blob/7.28.11/kernel/c/gobj-c/src/helpers.c#L11513)
 
 Computes the SHA-256 (FIPS 180-4) of a buffer. Standalone: no TLS backend is involved, so it works in any yuno, whatever `.config` selects.
 
@@ -358,7 +358,7 @@ sha256_digest("abc", 3, digest);
 ---
 
 (sha256_hex)=
-## [`sha256_hex()`](https://github.com/artgins/yunetas/blob/7.28.11/kernel/c/gobj-c/src/helpers.c#L11478)
+## [`sha256_hex()`](https://github.com/artgins/yunetas/blob/7.28.11/kernel/c/gobj-c/src/helpers.c#L11555)
 
 The SHA-256 of a buffer as 64 lowercase hex characters plus the terminating nul — the form a content address or a checksum field stores. It is [`sha256_digest()`](#sha256_digest), written out.
 
@@ -392,6 +392,170 @@ int sha256_hex(
 char hex[SHA256_HEX_LEN + 1];
 if(sha256_hex("abc", 3, hex, sizeof(hex)) == 0) {
     /* hex == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" */
+}
+```
+
+---
+
+(sha256_init)=
+## [`sha256_init()`](https://github.com/artgins/yunetas/blob/7.28.11/kernel/c/gobj-c/src/helpers.c#L11436)
+
+Starts the SHA-256 of bytes that come in parts: a file read a chunk at a time, data that arrives in frames. Give each part to [`sha256_update()`](#sha256_update) and end with [`sha256_final()`](#sha256_final) or [`sha256_final_hex()`](#sha256_final_hex): the digest is the one of [`sha256_digest()`](#sha256_digest) over all the parts joined. The context holds no memory, so there is nothing to free; it can be a local variable, or live in a struct for as long as the parts keep coming.
+
+```C
+typedef struct {
+    uint32_t h[8];
+    uint64_t len;           // bytes hashed
+    uint8_t block[64];      // bytes not hashed yet, `used` of them
+    size_t used;
+} sha256_ctx_t;
+
+void sha256_init(
+    sha256_ctx_t *ctx
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `ctx` | `sha256_ctx_t *` | The context. Init it again to hash something else after a final. |
+
+**Returns**
+
+Nothing: it cannot fail.
+
+**Example**
+
+```C
+/* The sha256 of a file, 64 KB at a time */
+sha256_ctx_t ctx;
+char bf[65536];
+char hex[SHA256_HEX_LEN + 1];
+ssize_t got;
+
+sha256_init(&ctx);
+while((got = read(fd, bf, sizeof(bf))) > 0) {
+    sha256_update(&ctx, bf, (size_t)got);
+}
+sha256_final_hex(&ctx, hex, sizeof(hex));
+```
+
+---
+
+(sha256_update)=
+## [`sha256_update()`](https://github.com/artgins/yunetas/blob/7.28.11/kernel/c/gobj-c/src/helpers.c#L11450)
+
+Adds one part of the bytes to a SHA-256 started with [`sha256_init()`](#sha256_init). The parts can have any size, `0` included; how the bytes are cut does not change the digest.
+
+```C
+void sha256_update(
+    sha256_ctx_t *ctx,
+    const void   *data,
+    size_t        len
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `ctx` | `sha256_ctx_t *` | The context, init'ed and not yet final. |
+| `data` | `const void *` | The bytes of this part. Can be `NULL` when `len` is `0`. |
+| `len` | `size_t` | Number of bytes. |
+
+**Returns**
+
+Nothing: it cannot fail.
+
+**Example**
+
+```C
+/* "abc" given in two parts is the sha256 of "abc" */
+sha256_ctx_t ctx;
+char hex[SHA256_HEX_LEN + 1];
+
+sha256_init(&ctx);
+sha256_update(&ctx, "a", 1);
+sha256_update(&ctx, "bc", 2);
+sha256_final_hex(&ctx, hex, sizeof(hex));
+/* hex == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" */
+```
+
+---
+
+(sha256_final)=
+## [`sha256_final()`](https://github.com/artgins/yunetas/blob/7.28.11/kernel/c/gobj-c/src/helpers.c#L11484)
+
+Ends a SHA-256 started with [`sha256_init()`](#sha256_init) and writes the 32 raw bytes of the digest. After it the context is spent: init it again to hash something else.
+
+```C
+void sha256_final(
+    sha256_ctx_t *ctx,
+    uint8_t       digest[SHA256_DIGEST_LEN]
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `ctx` | `sha256_ctx_t *` | The context. |
+| `digest` | `uint8_t [32]` | Where the digest is written. |
+
+**Returns**
+
+Nothing: it cannot fail.
+
+**Example**
+
+```C
+sha256_ctx_t ctx;
+uint8_t digest[SHA256_DIGEST_LEN];
+
+sha256_init(&ctx);
+sha256_update(&ctx, "abc", 3);
+sha256_final(&ctx, digest);
+/* digest[0] == 0xba, digest[1] == 0x78, ... */
+```
+
+---
+
+(sha256_final_hex)=
+## [`sha256_final_hex()`](https://github.com/artgins/yunetas/blob/7.28.11/kernel/c/gobj-c/src/helpers.c#L11569)
+
+[`sha256_final()`](#sha256_final), written out as [`sha256_hex()`](#sha256_hex) writes it: 64 lowercase hex characters and the terminating nul.
+
+```C
+int sha256_final_hex(
+    sha256_ctx_t *ctx,
+    char         *bf,
+    size_t        bflen
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `ctx` | `sha256_ctx_t *` | The context. |
+| `bf` | `char *` | Output buffer. |
+| `bflen` | `size_t` | Size of `bf`: at least `SHA256_HEX_LEN + 1` (65). |
+
+**Returns**
+
+`0` on success, and the context is spent. `-1` when `bf` is NULL or smaller than 65 bytes, with the error *"buffer too small for a sha256"* logged: `bf` is not written and the context is not spent, so a final with a good buffer still gives the digest.
+
+**Example**
+
+```C
+sha256_ctx_t ctx;
+char hex[SHA256_HEX_LEN + 1];
+
+sha256_init(&ctx);
+sha256_update(&ctx, "", 0);
+if(sha256_final_hex(&ctx, hex, sizeof(hex)) == 0) {
+    /* hex == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" */
 }
 ```
 

@@ -13,20 +13,25 @@ README of archive_sender.
 <backup_directory>/<node>/<database>/<topic>/<key>/.part-<batch>/     one in flight
 ```
 
-- A batch is written aside, in `.part-<batch>`. It is renamed to its name only
-  when every file has the size the sender declared and is fsync'ed (the files,
-  the directory, then the parent after the rename). Only then the keeper
-  answers `stored`, and only that removes the batch at the sender.
+- A batch is written aside, in `.part-<batch>`, and hashed as it arrives (the
+  files in their order, each one whole before the next). It is renamed to its
+  name only when every file has the size of the `begin` and the sha256 of the
+  `end`, and is fsync'ed (the files, the directory, then the parent after the
+  rename). Only then the keeper answers `stored`, and only that removes the
+  batch at the sender.
 - **A name without the `.` is a whole batch.** A reader of the backup (a tape
   job, an offsite copy) takes only those.
-- A batch that is already there is answered `stored` at once, **if it has the
-  files and the sizes that the `begin` declares**. A sender that crashed
-  between the answer and its removal ships the batch again, and nothing is
-  written twice. A batch of the same name with other files or sizes is kept as
-  it is, and the `begin` is refused (WARNING *"A batch of this name is here
-  with other files or sizes"*): a peer that wrote a batch of that name first
-  cannot make the real sender remove its own. The sender keeps the batch and
-  tries again later, so an operator sees it in its `list-pending`.
+- A batch that is already there is answered `stored` when its `end` comes,
+  **if it has the files, the sizes and the content of what arrived**: each of
+  its files is hashed again and compared with the sha256 of the `end`. A
+  sender that crashed between the answer and its removal ships the batch
+  again, whole (the sender knows the sha256 only at the end), and the copy
+  aside is removed: nothing is written twice in the backup. A batch of the
+  same name with other content is kept as it is, and the one that arrived is
+  refused (WARNING *"A batch of this name is here with other content"*): a
+  peer that wrote a batch of that name first cannot make the real sender
+  remove its own, even with the same names and sizes. The sender keeps the
+  batch and tries again later, so an operator sees it in its `list-pending`.
 - A channel that closes takes its `.part-` with it. A `begin` of a batch whose
   `.part-` is there removes it first.
 
@@ -42,7 +47,10 @@ the answer `refused` and the removal of the batch aside:
 - more files than `max_files`, a file name repeated, a size that is not an
   integer of 0 or more;
 - data of a batch not begun, data out of its place (not at the end of what is
-  written), data beyond the declared size, an `end` with a file not whole.
+  written), data of a file before the files before it are whole, data beyond
+  the declared size;
+- an `end` with a file not whole, without a `sha256` for each file, or with
+  one (64 lowercase hex characters) that is not the sha256 of what arrived.
 
 A frame whose header is not a json object drops the channel.
 
@@ -125,13 +133,11 @@ nodes: TLS encrypts, and the `node` a sender says is a claim, not a proof.
 `allowed_nodes` stops an operator error, not an attacker, and it must be set
 (fail closed: `["*"]` says "any node" on purpose). Put the keeper's port where
 only the nodes can reach it. Not done yet:
-
-- binding the node to the client certificate of a mutual TLS, so that one
-  node cannot write the batches of another;
-- a digest (sha256) of each file in the `begin`, checked on what arrives and
-  on a batch that is here already. Today that check is on the names and the
-  sizes: a peer that knows the sizes of a batch can still plant one of the
-  same name, and the real sender would remove its own.
+binding the node to the client certificate of a mutual TLS, so that one node
+cannot write the batches of another. Without it, a peer that can reach the port
+and names a node of `allowed_nodes` can store batches under that node, and
+can make one batch of the real node fail (it stays at the real sender): it
+cannot make the real sender remove one.
 
 ## Commands and stats
 

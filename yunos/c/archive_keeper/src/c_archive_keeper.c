@@ -13,22 +13,29 @@
  *
  *              <backup_directory>/<node>/<database>/<topic>/<key>/<batch>/
  *
- *          It is written aside, in .part-<batch> next to it, and renamed
- *          when every file has its size and is fsync'ed: a name without the
- *          '.' is a whole batch. Only then "stored" is answered, and only
- *          that removes the batch at the sender. A batch that is already
- *          there is "stored" at once: a sender that crashed between the
- *          answer and its removal ships it again.
+ *          It is written aside, in .part-<batch> next to it, and hashed as
+ *          it arrives (the files in their order). It is renamed when every
+ *          file has its size and the sha256 that the "end" declares, and is
+ *          fsync'ed: a name without the '.' is a whole batch. Only then
+ *          "stored" is answered, and only that removes the batch at the
+ *          sender.
+ *
+ *          A batch that is already there is "stored" when its end comes
+ *          (a sender that crashed between the answer and its removal ships
+ *          it again), and only if the batch here has the files, the sizes
+ *          and the sha256 of what arrived: it is hashed again to know. A
+ *          batch of the same name with other content is kept, and the one
+ *          that arrived is refused: a peer that wrote a batch of that name
+ *          first does not make the real sender remove its own.
  *
  *          Everything in a frame is the peer's: a name that is not one
  *          plain name (empty, hidden, with a '/', too long), data out of
- *          its place or beyond the size declared is refused with a
- *          WARNING, and the batch aside is removed. A batch that is here
- *          already is "stored" only if it has the files and the sizes the
- *          begin declares: a peer that wrote a batch of the same name first
- *          does not make the real sender remove its own. `allowed_nodes` is
- *          required (["*"]: any node, said on purpose): the node a sender
- *          names is its claim, not a proof.
+ *          its place, of a file before the ones before it are whole, or
+ *          beyond the size declared, an end without a sha256 per file or
+ *          with one that is not of what arrived, is refused with a WARNING,
+ *          and the batch aside is removed. `allowed_nodes` is required
+ *          (["*"]: any node, said on purpose): the node a sender names is
+ *          its claim, not a proof.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -48,6 +55,7 @@
  *              Constants
  ***************************************************************************/
 #define MAX_LOG_DUMP_SIZE   (256)   // Cap the data dump added to logs, for very large frames
+#define HASH_READ_SIZE      (65536) // bytes read at a time to hash a batch that is here already
 
 /***************************************************************************
  *              Structures
@@ -139,7 +147,8 @@ typedef struct _PRIVATE_DATA {
     json_int_t max_files;
 
     /*
-     *  channel name -> {node, batch, aside, final, files: [{name, size, written}], file, fd}
+     *  channel name -> {node, batch, aside, final, files: [{name, size, written, sha256}],
+     *  file, fd, hash}: `file` the one being written, `hash` its sha256_ctx_t (gbmem)
      */
     json_t *jn_sessions;
 } PRIVATE_DATA;
@@ -425,15 +434,77 @@ PRIVATE BOOL is_batch_path(const char *relpath)
 }
 
 /***************************************************************************
- *  A batch kept here has the files of `files` ([{name, size}]), and no other
+ *  The sha256 of a file, read HASH_READ_SIZE bytes at a time
  ***************************************************************************/
-PRIVATE BOOL same_files(const char *path, json_t *files)
+PRIVATE int hash_file(hgobj gobj, const char *path, char hex[SHA256_HEX_LEN + 1])
+{
+    int fd = open(path, O_RDONLY|O_CLOEXEC);
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot open a file of a batch to hash it",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    char *bf = gbmem_malloc(HASH_READ_SIZE);
+    if(!bf) {
+        close(fd);
+        return -1;  // Error already logged
+    }
+    sha256_ctx_t ctx;
+    sha256_init(&ctx);
+    ssize_t got;
+    while((got = read(fd, bf, HASH_READ_SIZE)) != 0) {
+        if(got < 0) {
+            if(errno == EINTR) {
+                continue;
+            }
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot read a file of a batch to hash it",
+                "path",         "%s", path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            GBMEM_FREE(bf)
+            close(fd);
+            return -1;
+        }
+        sha256_update(&ctx, bf, (size_t)got);
+    }
+    GBMEM_FREE(bf)
+    close(fd);
+    return sha256_final_hex(&ctx, hex, SHA256_HEX_LEN + 1);
+}
+
+/***************************************************************************
+ *  A batch kept here has the files of `files` ([{name, size, sha256}]),
+ *  and no other: the names, the sizes, then the content (hashed again)
+ ***************************************************************************/
+PRIVATE BOOL same_batch(hgobj gobj, const char *path, json_t *files)
 {
     size_t found = 0;
     DIR *dir = opendir(path);
     if(!dir) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot read the directory of a batch that is here",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
         return FALSE;
     }
+    json_t *here = json_array();
     struct dirent *entry;
     BOOL same = TRUE;
     while(same && (entry = readdir(dir)) != NULL) {
@@ -455,11 +526,67 @@ PRIVATE BOOL same_files(const char *path, json_t *files)
                 stat(file, &st) < 0 || !S_ISREG(st.st_mode) ||
                 (json_int_t)st.st_size != json_integer_value(json_object_get(declared, "size"))) {
             same = FALSE;
+        } else {
+            json_array_append_new(here, json_pack("{s:s, s:s}",
+                "path", file,
+                "sha256", json_string_value(json_object_get(declared, "sha256"))
+            ));
         }
         found++;
     }
     closedir(dir);
-    return same && found == json_array_size(files);
+    if(same && found != json_array_size(files)) {
+        same = FALSE;
+    }
+
+    size_t idx; json_t *jn_here;
+    json_array_foreach(here, idx, jn_here) {
+        if(!same) {
+            break;
+        }
+        char hex[SHA256_HEX_LEN + 1];
+        if(hash_file(gobj, json_string_value(json_object_get(jn_here, "path")), hex) < 0 ||
+                strcmp(hex, json_string_value(json_object_get(jn_here, "sha256"))) != 0) {
+            same = FALSE;   // a file that cannot be read is logged: not the same either
+        }
+    }
+    JSON_DECREF(here)
+    return same;
+}
+
+/***************************************************************************
+ *  64 lowercase hex chars
+ ***************************************************************************/
+PRIVATE BOOL is_sha256_hex(const char *s)
+{
+    if(!s || strlen(s) != SHA256_HEX_LEN) {
+        return FALSE;
+    }
+    for(const char *p = s; *p; p++) {
+        if(!((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f'))) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The file being written is whole: its sha256, and the hash starts again
+ ***************************************************************************/
+PRIVATE void close_hashed_file(json_t *jn_session)
+{
+    sha256_ctx_t *hash = (sha256_ctx_t *)(size_t)json_integer_value(json_object_get(jn_session, "hash"));
+    json_int_t cur = json_integer_value(json_object_get(jn_session, "file"));
+    if(cur >= 0) {
+        char hex[SHA256_HEX_LEN + 1];
+        sha256_final_hex(hash, hex, sizeof(hex));
+        json_object_set_new(
+            json_array_get(json_object_get(jn_session, "files"), (size_t)cur),
+            "sha256",
+            json_string(hex)
+        );
+    }
+    sha256_init(hash);
 }
 
 /***************************************************************************
@@ -563,6 +690,8 @@ PRIVATE void discard_session(hgobj gobj, const char *channel, BOOL remove_aside)
     if(fd >= 0) {
         close(fd);
     }
+    sha256_ctx_t *hash = (sha256_ctx_t *)(size_t)json_integer_value(json_object_get(jn_session, "hash"));
+    GBMEM_FREE(hash)
     const char *aside = json_string_value(json_object_get(jn_session, "aside"));
     if(remove_aside && aside && is_directory(aside)) {
         rmrdir(aside);  // a failure is logged by it, and it is wiped by the next begin
@@ -631,43 +760,6 @@ PRIVATE int on_begin(
     if(!build_path(final, sizeof(final), priv->backup_directory, node, batch, NULL)) {
         return refuse(gobj, channel_gobj, channel, batch, "the path of the batch is too long");
     }
-    if(is_directory(final)) {
-        /*
-         *  Here already: the sender did not hear its "stored". Only if it
-         *  is THIS batch, the files and sizes declared: a batch of the same
-         *  name written first by another peer is kept, and refused
-         */
-        if(!same_files(final, files)) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PROTOCOL,
-                "msg",          "%s", "A batch of this name is here with other files or sizes: kept as it is, nothing overwritten",
-                "node",         "%s", node,
-                "batch",        "%s", batch,
-                "path",         "%s", final,
-                NULL
-            );
-            return refuse(gobj, channel_gobj, channel, batch,
-                "a different batch of this name is here");
-        }
-        gobj_write_integer_attr(gobj, "batches_already",
-            gobj_read_integer_attr(gobj, "batches_already") + 1);
-        if(gobj_trace_level(gobj) & TRACE_BATCHES) {
-            gobj_log_debug(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Batch already here: stored",
-                "node",         "%s", node,
-                "batch",        "%s", batch,
-                NULL
-            );
-        }
-        return send_answer(gobj, channel_gobj, json_pack("{s:s, s:s}",
-            "cmd", "stored",
-            "batch", batch
-        ));
-    }
-
     char parent[PATH_MAX];
     char aside[PATH_MAX];
     char aside_name[NAME_MAX + 1];
@@ -715,14 +807,23 @@ PRIVATE int on_begin(
         ));
     }
 
-    json_object_set_new(priv->jn_sessions, channel, json_pack("{s:s, s:s, s:s, s:s, s:o, s:i, s:i}",
+    sha256_ctx_t *hash = gbmem_malloc(sizeof(sha256_ctx_t));
+    if(!hash) {
+        // Error already logged
+        JSON_DECREF(jn_files)
+        rmrdir(aside);
+        return refuse(gobj, channel_gobj, channel, batch, "the batch cannot be written here");
+    }
+    sha256_init(hash);
+    json_object_set_new(priv->jn_sessions, channel, json_pack("{s:s, s:s, s:s, s:s, s:o, s:i, s:i, s:I}",
         "node", node,
         "batch", batch,
         "aside", aside,
         "final", final,
         "files", jn_files,
         "file", -1,
-        "fd", -1
+        "fd", -1,
+        "hash", (json_int_t)(size_t)hash
     ));
     if(gobj_trace_level(gobj) & TRACE_BATCHES) {
         gobj_log_debug(gobj, 0,
@@ -780,7 +881,25 @@ PRIVATE int on_data(
     }
 
     int fd = (int)json_integer_value(json_object_get(jn_session, "fd"));
-    if(json_integer_value(json_object_get(jn_session, "file")) != file_idx) {
+    json_int_t cur = json_integer_value(json_object_get(jn_session, "file"));
+    if(cur != file_idx) {
+        /*
+         *  The files in their order, each one whole before the next: the
+         *  hash is of one file at a time
+         */
+        BOOL in_order = file_idx > cur;
+        for(json_int_t i = (cur < 0? 0 : cur); in_order && i < file_idx; i++) {
+            json_t *jn_before = json_array_get(files, (size_t)i);
+            if(json_integer_value(json_object_get(jn_before, "written")) !=
+                    json_integer_value(json_object_get(jn_before, "size"))) {
+                in_order = FALSE;
+            }
+        }
+        if(!in_order) {
+            return refuse(gobj, channel_gobj, channel, batch,
+                "data of a file before the files before it are whole");
+        }
+        close_hashed_file(jn_session);
         if(fd >= 0) {
             close(fd);
         }
@@ -829,6 +948,11 @@ PRIVATE int on_data(
         }
         done += (size_t)n;
     }
+    sha256_update(
+        (sha256_ctx_t *)(size_t)json_integer_value(json_object_get(jn_session, "hash")),
+        data,
+        len
+    );
     json_object_set_new(jn_file, "written", json_integer(written + (json_int_t)len));
 
     return send_answer(gobj, channel_gobj, json_pack("{s:s, s:s, s:I, s:I}",
@@ -861,25 +985,84 @@ PRIVATE int on_end(
     if(fd >= 0) {
         close(fd);
         json_object_set_new(jn_session, "fd", json_integer(-1));
-        json_object_set_new(jn_session, "file", json_integer(-1));
     }
+    close_hashed_file(jn_session);
+    json_object_set_new(jn_session, "file", json_integer(-1));
 
     const char *aside = json_string_value(json_object_get(jn_session, "aside"));
     const char *final = json_string_value(json_object_get(jn_session, "final"));
+    json_t *files = json_object_get(jn_session, "files");
+    json_t *digests = json_object_get(jn_msg, "sha256");
+    if(!json_is_array(digests) || json_array_size(digests) != json_array_size(files)) {
+        return refuse(gobj, channel_gobj, channel, batch, "the end does not carry a sha256 for each file");
+    }
     json_int_t bytes = 0;
     size_t idx; json_t *jn_file;
-    json_array_foreach(json_object_get(jn_session, "files"), idx, jn_file) {
+    json_array_foreach(files, idx, jn_file) {
         json_int_t size = json_integer_value(json_object_get(jn_file, "size"));
         if(json_integer_value(json_object_get(jn_file, "written")) != size) {
             return refuse(gobj, channel_gobj, channel, batch, "end of a batch with a file not whole");
         }
+        if(!json_object_get(jn_file, "sha256")) {
+            char hex[SHA256_HEX_LEN + 1];   // a file of 0 bytes: no data came
+            sha256_hex("", 0, hex, sizeof(hex));
+            json_object_set_new(jn_file, "sha256", json_string(hex));
+        }
+        const char *declared = json_string_value(json_array_get(digests, idx));
+        if(!is_sha256_hex(declared) ||
+                strcmp(declared, json_string_value(json_object_get(jn_file, "sha256"))) != 0) {
+            return refuse(gobj, channel_gobj, channel, batch,
+                "a file is not the content that its sha256 says");
+        }
+        bytes += size;
+    }
+
+    if(is_directory(final)) {
+        /*
+         *  Here already: the sender did not hear its "stored". Only if it
+         *  is THIS batch, the files, sizes and content that arrived: a
+         *  batch of the same name written first by another peer is kept,
+         *  and refused
+         */
+        if(!same_batch(gobj, final, files)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "A batch of this name is here with other content: kept as it is, nothing overwritten",
+                "node",         "%s", json_string_value(json_object_get(jn_session, "node")),
+                "batch",        "%s", batch,
+                "path",         "%s", final,
+                NULL
+            );
+            return refuse(gobj, channel_gobj, channel, batch,
+                "a different batch of this name is here");
+        }
+        gobj_write_integer_attr(gobj, "batches_already",
+            gobj_read_integer_attr(gobj, "batches_already") + 1);
+        if(gobj_trace_level(gobj) & TRACE_BATCHES) {
+            gobj_log_debug(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Batch already here: stored",
+                "node",         "%s", json_string_value(json_object_get(jn_session, "node")),
+                "batch",        "%s", batch,
+                NULL
+            );
+        }
+        discard_session(gobj, channel, TRUE);
+        return send_answer(gobj, channel_gobj, json_pack("{s:s, s:s}",
+            "cmd", "stored",
+            "batch", batch
+        ));
+    }
+
+    json_array_foreach(files, idx, jn_file) {
         char path[PATH_MAX];
         if(!build_path(path, sizeof(path), aside, json_string_value(json_object_get(jn_file, "name")), NULL) ||
                 fsync_path(gobj, path, FALSE) < 0) {
             // Error already logged
             return refuse(gobj, channel_gobj, channel, batch, "the batch cannot be made durable here");
         }
-        bytes += size;
     }
     if(fsync_path(gobj, aside, TRUE) < 0) {
         // Error already logged
@@ -903,7 +1086,8 @@ PRIVATE int on_end(
     if(fsync_path(gobj, parent, TRUE) < 0) {
         /*
          *  Error already logged: the batch may not survive a power cut, so
-         *  it is not said stored. It is here: the next begin says stored.
+         *  it is not said stored. It is here: the next end of it says
+         *  stored.
          */
         discard_session(gobj, channel, FALSE);
         return send_answer(gobj, channel_gobj, json_pack("{s:s, s:s, s:s}",

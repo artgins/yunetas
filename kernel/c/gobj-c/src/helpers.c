@@ -11433,49 +11433,95 @@ PRIVATE void sha256_block(uint32_t h[8], const uint8_t block[64])
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void sha256_digest(const void *data, size_t len, uint8_t digest[SHA256_DIGEST_LEN])
+PUBLIC void sha256_init(sha256_ctx_t *ctx)
 {
-    uint32_t h[8] = {
+    static const uint32_t h0[8] = {
         0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,
         0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19
     };
+    memcpy(ctx->h, h0, sizeof(ctx->h));
+    ctx->len = 0;
+    ctx->used = 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void sha256_update(sha256_ctx_t *ctx, const void *data, size_t len)
+{
+    if(len == 0) {
+        return;
+    }
     const uint8_t *p = (const uint8_t *)data;
-    size_t remaining = len;
+    ctx->len += len;
 
-    while(remaining >= 64) {
-        sha256_block(h, p);
+    if(ctx->used > 0) {
+        size_t take = MIN(len, 64 - ctx->used);
+        memcpy(ctx->block + ctx->used, p, take);
+        ctx->used += take;
+        p += take;
+        len -= take;
+        if(ctx->used < 64) {
+            return;
+        }
+        sha256_block(ctx->h, ctx->block);
+        ctx->used = 0;
+    }
+    while(len >= 64) {
+        sha256_block(ctx->h, p);
         p += 64;
-        remaining -= 64;
+        len -= 64;
     }
-
-    uint8_t tail[128];
-    memset(tail, 0, sizeof(tail));
-    if(remaining > 0) {
-        memcpy(tail, p, remaining);
-    }
-    tail[remaining] = 0x80;
-    size_t tail_len = (remaining < 56)? 64: 128;
-    uint64_t bit_len = (uint64_t)len * 8;
-    for(int i = 0; i < 8; i++) {
-        tail[tail_len - 1 - i] = (uint8_t)(bit_len >> (8 * i));
-    }
-    sha256_block(h, tail);
-    if(tail_len == 128) {
-        sha256_block(h, tail + 64);
-    }
-
-    for(int i = 0; i < 8; i++) {
-        digest[i*4]   = (uint8_t)(h[i] >> 24);
-        digest[i*4+1] = (uint8_t)(h[i] >> 16);
-        digest[i*4+2] = (uint8_t)(h[i] >> 8);
-        digest[i*4+3] = (uint8_t)(h[i]);
+    if(len > 0) {
+        memcpy(ctx->block, p, len);
+        ctx->used = len;
     }
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int sha256_hex(const void *data, size_t len, char *bf, size_t bflen)
+PUBLIC void sha256_final(sha256_ctx_t *ctx, uint8_t digest[SHA256_DIGEST_LEN])
+{
+    uint8_t tail[128];
+    memset(tail, 0, sizeof(tail));
+    if(ctx->used > 0) {
+        memcpy(tail, ctx->block, ctx->used);
+    }
+    tail[ctx->used] = 0x80;
+    size_t tail_len = (ctx->used < 56)? 64: 128;
+    uint64_t bit_len = ctx->len * 8;
+    for(int i = 0; i < 8; i++) {
+        tail[tail_len - 1 - i] = (uint8_t)(bit_len >> (8 * i));
+    }
+    sha256_block(ctx->h, tail);
+    if(tail_len == 128) {
+        sha256_block(ctx->h, tail + 64);
+    }
+
+    for(int i = 0; i < 8; i++) {
+        digest[i*4]   = (uint8_t)(ctx->h[i] >> 24);
+        digest[i*4+1] = (uint8_t)(ctx->h[i] >> 16);
+        digest[i*4+2] = (uint8_t)(ctx->h[i] >> 8);
+        digest[i*4+3] = (uint8_t)(ctx->h[i]);
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void sha256_digest(const void *data, size_t len, uint8_t digest[SHA256_DIGEST_LEN])
+{
+    sha256_ctx_t ctx;
+    sha256_init(&ctx);
+    sha256_update(&ctx, data, len);
+    sha256_final(&ctx, digest);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int check_sha256_hex_buffer(char *bf, size_t bflen)
 {
     if(!bf || bflen < SHA256_HEX_LEN + 1) {
         gobj_log_error(0, 0,
@@ -11487,14 +11533,46 @@ PUBLIC int sha256_hex(const void *data, size_t len, char *bf, size_t bflen)
         );
         return -1;
     }
-    uint8_t digest[SHA256_DIGEST_LEN];
-    sha256_digest(data, len, digest);
+    return 0;
+}
 
+/***************************************************************************
+ *  64 lowercase hex chars and the nul
+ ***************************************************************************/
+PRIVATE void sha256_digest_to_hex(const uint8_t digest[SHA256_DIGEST_LEN], char *bf)
+{
     static const char hex[] = "0123456789abcdef";
     for(int i = 0; i < SHA256_DIGEST_LEN; i++) {
         bf[i*2] = hex[digest[i] >> 4];
         bf[i*2+1] = hex[digest[i] & 0x0f];
     }
     bf[SHA256_HEX_LEN] = 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int sha256_hex(const void *data, size_t len, char *bf, size_t bflen)
+{
+    if(check_sha256_hex_buffer(bf, bflen) < 0) {
+        return -1;  // Error already logged
+    }
+    uint8_t digest[SHA256_DIGEST_LEN];
+    sha256_digest(data, len, digest);
+    sha256_digest_to_hex(digest, bf);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int sha256_final_hex(sha256_ctx_t *ctx, char *bf, size_t bflen)
+{
+    if(check_sha256_hex_buffer(bf, bflen) < 0) {
+        return -1;  // Error already logged
+    }
+    uint8_t digest[SHA256_DIGEST_LEN];
+    sha256_final(ctx, digest);
+    sha256_digest_to_hex(digest, bf);
     return 0;
 }

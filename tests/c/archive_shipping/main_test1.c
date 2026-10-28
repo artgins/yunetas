@@ -228,7 +228,7 @@ static int register_yuno_and_more(void)
         "msg", "Creating __timeranger2__.json",
         "msg", "Creating topic",
         "msg", "Batch removed WITHOUT being shipped: the archive is over max_archive_bytes",
-        "msg", "A batch of this name is here with other files or sizes: kept as it is, nothing overwritten",
+        "msg", "A batch of this name is here with other content: kept as it is, nothing overwritten",
         "msg", "Batch refused",
         "msg", "Batch NOT shipped: tried again later, after the others",
         "msg", "Exit to die",

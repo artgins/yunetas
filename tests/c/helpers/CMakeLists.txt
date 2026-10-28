@@ -66,6 +66,7 @@ set(SRCS
     test_date_text
     test_spawn_copy
     test_replace_string
+    test_sha256
 )
 
 ##############################################

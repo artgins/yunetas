@@ -745,7 +745,7 @@ it by hand, run the script.
 
 253. [**`tab`**](logging/trace.md#tab) — `PUBLIC char *tab(char *bf, int bflen)`
 
-### `helpers.h` — 179 functions
+### `helpers.h` — 183 functions
 
 **Source:** `kernel/c/gobj-c/src/helpers.h`
 
@@ -1107,6 +1107,14 @@ it by hand, run the script.
 
 179. [**`sha256_hex`**](helpers/misc.md#sha256_hex) — `PUBLIC int sha256_hex(const void *data, size_t len, char *bf, size_t bflen)`
 
+180. [**`sha256_init`**](helpers/misc.md#sha256_init) — `PUBLIC void sha256_init(sha256_ctx_t *ctx)`
+
+181. [**`sha256_update`**](helpers/misc.md#sha256_update) — `PUBLIC void sha256_update(sha256_ctx_t *ctx, const void *data, size_t len)`
+
+182. [**`sha256_final`**](helpers/misc.md#sha256_final) — `PUBLIC void sha256_final(sha256_ctx_t *ctx, uint8_t digest[SHA256_DIGEST_LEN])`
+
+183. [**`sha256_final_hex`**](helpers/misc.md#sha256_final_hex) — `PUBLIC int sha256_final_hex(sha256_ctx_t *ctx, char *bf, size_t bflen)`
+
 ### `kwid.h` — 61 functions
 
 **Source:** `kernel/c/gobj-c/src/kwid.h`
@@ -1319,7 +1327,7 @@ it by hand, run the script.
 
 11. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 624 functions**
+**Total: 628 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2410,7 +2418,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1047 functions** sorted alphabetically with their source header.
+All **1051 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -3181,7 +3189,11 @@ All **1047 functions** sorted alphabetically with their source header.
 | [**`set_volatil_values`**](timeranger2/treedb.md#set_volatil_values) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`set_yuno_must_die`**](runtime/yuno.md#set_yuno_must_die) | `c_yuno.h` | root-linux (Runtime GClasses) |
 | [**`sha256_digest`**](helpers/misc.md#sha256_digest) | `helpers.h` | gobj-c (Core Framework) |
+| [**`sha256_final`**](helpers/misc.md#sha256_final) | `helpers.h` | gobj-c (Core Framework) |
+| [**`sha256_final_hex`**](helpers/misc.md#sha256_final_hex) | `helpers.h` | gobj-c (Core Framework) |
 | [**`sha256_hex`**](helpers/misc.md#sha256_hex) | `helpers.h` | gobj-c (Core Framework) |
+| [**`sha256_init`**](helpers/misc.md#sha256_init) | `helpers.h` | gobj-c (Core Framework) |
+| [**`sha256_update`**](helpers/misc.md#sha256_update) | `helpers.h` | gobj-c (Core Framework) |
 | [**`show_date_relative`**](helpers/time_date.md#show_date_relative) | `helpers.h` | gobj-c (Core Framework) |
 | [**`source2base64_for_yunetas`**](helpers/misc.md#source2base64_for_yunetas) | `helpers.h` | gobj-c (Core Framework) |
 | [**`split2`**](helpers/string_helper.md#split2) | `helpers.h` | gobj-c (Core Framework) |

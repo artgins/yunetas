@@ -63,9 +63,9 @@ the file.
 
 | Frame | From | Fields | Answer |
 |---|---|---|---|
-| `begin` | sender | `node`, `batch` (`<database>/<topic>/<key>/<batch>`), `files` (`[{name, size}]`, `manifest.json` last) | `begin-ack`; `stored` if the keeper has this batch already (the same files and sizes); `refused` |
-| `data` | sender | `batch`, `file` (index in `files`), `offset`, then NUL and the bytes | `data-ack` (`offset` = the end of the bytes); `refused` |
-| `end` | sender | `batch` | `stored` when every file is whole and fsync'ed; `refused` |
+| `begin` | sender | `node`, `batch` (`<database>/<topic>/<key>/<batch>`), `files` (`[{name, size}]`, `manifest.json` last) | `begin-ack`; `refused` |
+| `data` | sender | `batch`, `file` (index in `files`), `offset`, then NUL and the bytes. The files go in their order, each one whole before the next | `data-ack` (`offset` = the end of the bytes); `refused` |
+| `end` | sender | `batch`, `sha256` (one per file of `files`, in its order: 64 lowercase hex characters) | `stored` when every file is whole, has its sha256 and is fsync'ed, or when the keeper has this batch already with this content; `refused` |
 | `refused` | keeper | `batch`, `msg` | the batch fails here: it is tried again after `retry_period` |
 
 ```json
@@ -73,7 +73,14 @@ the file.
  "files": [{"name": "2026-10-01.json", "size": 3512018}, {"name": "2026-10-01.md2", "size": 288000},
            {"name": "topic_cols.json", "size": 612}, {"name": "topic_desc.json", "size": 455},
            {"name": "manifest.json", "size": 301}]}
+{"cmd": "end", "batch": "tracks/raw_tracks/DEV42/2026-10-01@1793164943",
+ "sha256": ["9f2c...", "41d0...", "e7a5...", "0b3e...", "c8f1..."]}
 ```
+
+(The sha256 are 64 hex characters each, cut here.) Each file is hashed while
+it is read for its `data` frames (`sha256_update()` of gobj-c), so the
+sha256 cost no read more, and they are known only at the end: that is
+why they go in the `end` and not in the `begin`.
 
 A link that closes while a batch is in flight is not a failure of the batch.
 The batch is shipped again, whole, when the link opens. The keeper removes what
@@ -212,7 +219,7 @@ for example `raw_tracks_archive_directory` in yunovatios.
 | After the batch, before its mark | The scan finds it when the yuno plays |
 | While shipping (native) | The keeper removes what it got when the channel closes. The batch is shipped again |
 | While shipping (rsync) | The next rsync completes the copy. A batch with no manifest at the destination is not whole |
-| After the keeper said `stored`, before the removal here | The batch is shipped again; the keeper answers `stored` at once |
+| After the keeper said `stored`, before the removal here | The batch is shipped again, whole; the keeper compares it with the one it has and answers `stored` at its `end` |
 | Between the batch and the base of the store (SDK) | The purge did not happen, and the files are archived again later: the backup gets them twice. Deduplicate by file id (`manifest.json`, `files`) |
 
 ## Commands
@@ -244,7 +251,8 @@ directory. It covers:
 
 - the batches found by the scan, and one told by its mark;
 - a batch the keeper already has;
-- a batch of the same name planted in the backup first, with other sizes: the
-  keeper refuses it and keeps the planted one, and the sender keeps its own;
+- a batch of the same name planted in the backup first, with the same files
+  and sizes and other bytes: the keeper refuses it (the sha256 differ) and
+  keeps the planted one, and the sender keeps its own;
 - a batch dropped over `max_archive_bytes`;
 - what arrives is whole, and nothing is left in the archives.

@@ -8,17 +8,19 @@
  *            tcp://127.0.0.1:7755. Two batches are there before it plays
  *            (found by its scan), a third comes later (told by its ready
  *            mark), and a fourth is one the keeper already has: answered
- *            stored at once. All of them end in the backup, whole, and gone
- *            from the archive with their marks.
+ *            stored when its end comes, the content being the same. All of
+ *            them end in the backup, whole, and gone from the archive with
+ *            their marks.
  *          - rsync: "archive_sender_rsync" ships to a local directory, with
  *            max_archive_bytes of ONE batch and two waiting: the oldest is
  *            removed without being shipped (a WARNING), the other ends in
  *            the destination with its manifest.
  *
  *          - poisoning: a batch of the name of one the sender will ship,
- *            planted in the backup first with other sizes: the keeper does
- *            not answer stored, keeps the planted one untouched, and the
- *            sender keeps its batch (failed, tried again later).
+ *            planted in the backup first with the same files and sizes and
+ *            other bytes: the keeper does not answer stored (the sha256
+ *            differ), keeps the planted one untouched, and the sender keeps
+ *            its batch (failed, tried again later).
  *
  *          The steps are watched with a timer on the stats of the three
  *          services: a test driver, not a yuno.
@@ -413,8 +415,29 @@ PRIVATE BOOL write_file(const char *dir, const char *name, const char *content)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE BOOL file_is(const char *dir, const char *name, const char *content)
+{
+    char path[PATH_MAX];
+    char bf[256];
+    build_path(path, sizeof(path), dir, name, NULL);
+    int fd = open(path, O_RDONLY|O_CLOEXEC);
+    if(fd < 0) {
+        return FALSE;
+    }
+    ssize_t got = read(fd, bf, sizeof(bf) - 1);
+    close(fd);
+    if(got < 0) {
+        return FALSE;
+    }
+    bf[got] = 0;
+    return strcmp(bf, content) == 0;
+}
+
+/***************************************************************************
  *  A batch planted in the backup, and the real one of the same name in
- *  the archive, with its mark
+ *  the archive, with its mark: the same names and sizes, other bytes
  ***************************************************************************/
 PRIVATE void plant_poison(hgobj gobj)
 {
@@ -426,7 +449,8 @@ PRIVATE void plant_poison(hgobj gobj)
     build_path(real, sizeof(real), priv->archive, POISONED, NULL);
     mkrdir(planted, 02770);
     mkrdir(real, 02770);
-    write_file(planted, "2000-01-01.json", "poison");
+    write_file(planted, "2000-01-01.json", "the fake rows");
+    write_file(planted, "manifest.json", "{}");
     write_file(real, "2000-01-01.json", "the real rows");
     write_file(real, "manifest.json", "{}");
 
@@ -455,16 +479,13 @@ PRIVATE void check_poison(hgobj gobj)
 
     char planted[PATH_MAX];
     char real[PATH_MAX];
-    char file[PATH_MAX];
     build_path(planted, sizeof(planted), priv->backup, NODE_NAME, POISONED, NULL);
     build_path(real, sizeof(real), priv->archive, POISONED, NULL);
-    build_path(file, sizeof(file), planted, "2000-01-01.json", NULL);
-    if(file_size(file) != (off_t)strlen("poison")) {
-        fail("The planted batch was overwritten", file);
+    if(!file_is(planted, "2000-01-01.json", "the fake rows") || count_entries(planted) != 2) {
+        fail("The planted batch was overwritten", planted);
     }
-    build_path(file, sizeof(file), real, "2000-01-01.json", NULL);
-    if(file_size(file) != (off_t)strlen("the real rows")) {
-        fail("The sender removed its batch on a planted one", file);
+    if(!file_is(real, "2000-01-01.json", "the real rows")) {
+        fail("The sender removed its batch on a planted one", real);
     }
     if(stat_of(priv->sender, "batches_pending") != 1) {
         fail("The sender does not keep its batch pending", NULL);
@@ -497,8 +518,14 @@ PRIVATE void check_the_end(hgobj gobj)
             fail("A batch left in the archive", key_dir);
         }
     }
+    for(int k = 0; keys[k]; k++) {
+        build_path(key_dir, sizeof(key_dir), priv->backup, NODE_NAME, DATABASE, TOPIC_NAME, keys[k], NULL);
+        if(count_entries(key_dir) != 1) {
+            fail("A batch aside (.part-) left in the backup", key_dir);
+        }
+    }
     if(stat_of(priv->keeper, "batches_already") != 1) {
-        fail("The batch the keeper had was not answered stored at once", NULL);
+        fail("The batch the keeper had was not answered stored", NULL);
     }
     if(stat_of(priv->sender, "batches_pending") != 0 || stat_of(priv->sender, "bytes_pending") != 0) {
         fail("The native sender has batches pending", NULL);
