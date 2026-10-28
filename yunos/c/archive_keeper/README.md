@@ -1,7 +1,7 @@
 # archive_keeper
 
 Keeps the batches of timeranger2 archives that
-[`archive_sender`](../archive_sender/README.md)s ship with the `native`
+`archive_sender`s (`yunos/c/archive_sender/`) ship with the `native`
 transport. It runs on the backup machine. Each channel is one sender, and each
 sender has at most one batch in flight. The frames are described in the
 README of archive_sender.

@@ -51,7 +51,7 @@ removed here only when the backup has all of it.
 
 ### native: to an archive_keeper
 
-The batches go to an [`archive_keeper`](../archive_keeper/README.md) over the
+The batches go to an `archive_keeper` (`yunos/c/archive_keeper/`) over the
 `C_IOGATE` named by `output_service`:
 `C_CHANNEL` → `C_PROT_TCP4H` → `C_TCP`, with TLS when the url is `tcps://`.
 There is one batch in flight. Its data goes `chunk_size` bytes per frame, with
