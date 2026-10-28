@@ -9284,7 +9284,8 @@ PRIVATE int create_node_uuid(void)
         return 0;
     }
 
-    // TODO improve, I use node_uuid to identify the machine, be more depending of machine instead random
+    // Fallback only: on a packaged node, yuneta-node-uuid (packages/templates)
+    // has already written uuid.json from the hardware, as root
     create_random_uuid(node_uuid_, sizeof(node_uuid_));
     save_node_uuid();
     return 0;

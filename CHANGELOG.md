@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **The node uuid comes from the hardware** (packages). `node_uuid()` read
+  `/yuneta/store/agent/uuid/uuid.json` and, when it was missing, wrote a
+  random uuid: a reinstall of the operating system gave the node a new
+  identity, so a label printed with it and a central that had declared it
+  lost the box, and a disk image taken after the agent ran gave every box
+  written from it the SAME uuid. The new `/yuneta/bin/yuneta-node-uuid`,
+  run as root by the postinst / `%post`, by both agent units
+  (`ExecStartPre=-+`) and by the SysV start, writes a uuid derived from the
+  first identifier available -- devicetree `serial-number`,
+  `soc0/serial_number`, DMI `product_uuid` (root-only, hence root), the
+  lowest permanent on-board wired MAC -- as a version 8 uuid from a sha256,
+  so the serial number does not show. The same box gets the same uuid after
+  any reinstall, and a clone gets its own on its first boot (the old file is
+  kept as `uuid.json.replaced-<time>`). Random only when there is no
+  identifier, as before; `set <uuid>` fixes one by hand and nothing changes
+  it; `show` tells where it came from. **Existing nodes change uuid on the
+  upgrade** (their random one is replaced by the hardware one, said in the
+  log): anything that keys data or declarations on a node uuid has to follow
+  -- or keep it with `yuneta-node-uuid set <old uuid>`. The C code does not
+  change: its random uuid is the fallback of a node without the package.
+  Test: `packages/tests/test-yuneta-node-uuid.sh`.
+
 - **linux-ext-libs 1.28: openresty is skipped on a target its LuaJIT does not
   support** (riscv64). It was the last block of `configure-libs.sh`, so on an
   Orange Pi RV2 everything else installed and the script died

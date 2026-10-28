@@ -31,6 +31,12 @@
 #   other names, and live on), and logs each kill. The cgroup is systemd's
 #   ControlGroup, read under the v2, hybrid or v1 mount.
 #
+#   ExecStartPre: yuneta-node-uuid derives the node uuid from the hardware
+#   before the agent reads it -- as root (the `+`: DMI is root-only), and
+#   without stopping the start if it fails (the `-`). On the first boot
+#   of a cloned disk it gives the clone its own uuid. Both units run it;
+#   it locks, and a second run changes nothing.
+#
 #   An agent started by hand with `--start` runs outside this unit, and
 #   systemd does not see it: start and stop it with systemctl.
 #
@@ -49,6 +55,7 @@ Environment=YUNETA_DIR=/yuneta
 Environment=PATH=/yuneta/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 RuntimeDirectory=yuneta_agent22
 PIDFile=/run/yuneta_agent22/yuneta_agent22.pid
+ExecStartPre=-+/yuneta/bin/yuneta-node-uuid ensure
 ExecStart=/yuneta/agent/yuneta_agent22 --config-file=/yuneta/agent/yuneta_agent22.json --start --pid-file=/run/yuneta_agent22/yuneta_agent22.pid
 ExecStop=-/bin/kill -QUIT $MAINPID
 ExecStop=-/usr/bin/pkill -QUIT -P $MAINPID -x yuneta_agent22

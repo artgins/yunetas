@@ -1,0 +1,348 @@
+#!/bin/bash
+#
+#   yuneta-node-uuid -- the identity of this node, taken from its hardware
+#
+#   node_uuid() (gobj-c, helpers.c) reads /yuneta/store/agent/uuid/uuid.json.
+#   When the file is missing it writes a RANDOM uuid, and that has two
+#   consequences on a node that is installed and imaged by somebody else:
+#
+#     - a reinstall of the operating system gives the node a new uuid, so a
+#       label printed with it, and a central that declared it, lose the box;
+#     - a disk image taken after the agent ran carries uuid.json inside, so
+#       every box written from it claims the SAME uuid.
+#
+#   This script runs as root -- from the package's postinst / %post and as an
+#   ExecStartPre=+ of both agent units -- and writes a uuid DERIVED from the
+#   hardware: the same box gives the same uuid after any reinstall, and a
+#   clone gives its own on its first boot. Root is needed because the
+#   identifiers of an x86 board (DMI) are readable by root only, and the yunos
+#   run as yuneta.
+#
+#   Sources, first available wins (the one already recorded wins over all,
+#   so a kernel that starts exposing another source does not move the node):
+#
+#     devicetree-serial   /sys/firmware/devicetree/base/serial-number
+#                         (Raspberry Pi compute modules, many Arm boards)
+#     soc-serial          /sys/devices/soc0/serial_number (NXP i.MX and others)
+#     dmi-product-uuid    /sys/class/dmi/id/product_uuid (x86, VMs)
+#     ethernet-mac        lowest permanent MAC of an on-board wired interface
+#                         (not USB, not wireless, not a random or set MAC)
+#     random              none of the above: as before, kept once written
+#
+#   The uuid is a version 8 uuid (RFC 9562) made from the first 122 bits of
+#   sha256("yuneta-node-uuid:<source>:<value>"): it does not reveal the serial
+#   number it comes from.
+#
+#   A uuid written with `set` is MANUAL and never touched: the way to keep an
+#   identity that something already uses as a key.
+#
+#   Usage:
+#       yuneta-node-uuid [ensure]     create or correct uuid.json (root)
+#       yuneta-node-uuid show         what is stored and what the hardware gives
+#       yuneta-node-uuid set <uuid>   fix the uuid by hand (root)
+#
+#   The previous file is kept as uuid.json.replaced-<UTC time> whenever the
+#   uuid changes. Environment, for tests: YUNETA_NODE_UUID_DIR (default
+#   /yuneta/store/agent/uuid) and YUNETA_NODE_UUID_SYSROOT (prefix of /sys).
+#
+#   Copyright (c) 2026, ArtGins.
+#
+set -u
+
+UUID_DIR="${YUNETA_NODE_UUID_DIR:-/yuneta/store/agent/uuid}"
+UUID_FILE="${UUID_DIR}/uuid.json"
+SYSROOT="${YUNETA_NODE_UUID_SYSROOT:-}"
+OWNER="yuneta"
+HW_SOURCES="devicetree-serial soc-serial dmi-product-uuid ethernet-mac"
+UUID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+
+#
+#   Output
+#
+log_info() {
+    echo "yuneta-node-uuid: $*"
+    logger -t yuneta-node-uuid -p user.info -- "$*" 2>/dev/null || true
+}
+
+log_warning() {
+    echo "yuneta-node-uuid: WARNING: $*" >&2
+    logger -t yuneta-node-uuid -p user.warning -- "$*" 2>/dev/null || true
+}
+
+log_error() {
+    echo "yuneta-node-uuid: ERROR: $*" >&2
+    logger -t yuneta-node-uuid -p user.err -- "$*" 2>/dev/null || true
+}
+
+#
+#   Hardware identifiers
+#
+normalize() {
+    tr -d '\000' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]'
+}
+
+is_placeholder() {
+    local v="$1"
+    local bare="${v//[-:]/}"
+    if [ -z "$bare" ]; then
+        return 0
+    fi
+    if [ -z "$(printf '%s' "$bare" | tr -d "${bare:0:1}")" ]; then
+        return 0    # one character repeated: 0000..., ffff...
+    fi
+    case "$v" in
+        none|unknown|n/a|na|null|default|defaultstring|notspecified|notapplicable|\
+        tobefilledbyo.e.m.|systemserialnumber|0123456789|123456789|1234567890|\
+        03000200-0400-0500-0006-000700080009)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+read_file_id() {
+    local f="${SYSROOT}$1"
+    local v
+    if [ ! -r "$f" ]; then
+        return 1
+    fi
+    v="$(normalize < "$f" 2>/dev/null)"
+    if is_placeholder "$v"; then
+        return 1
+    fi
+    printf '%s' "$v"
+}
+
+read_ethernet_mac() {
+    local ifdir name dev mac macs=""
+    for ifdir in "${SYSROOT}"/sys/class/net/*; do
+        name="$(basename "$ifdir")"
+        if [ ! -e "$ifdir/device" ]; then
+            continue    # virtual: lo, bridges, tunnels, veth
+        fi
+        dev="$(readlink -f "$ifdir/device" 2>/dev/null)"
+        case "$dev" in
+            */usb*)
+                continue    # a dongle comes and goes
+                ;;
+        esac
+        if [ -e "$ifdir/wireless" ] || [ -e "$ifdir/phy80211" ]; then
+            continue
+        fi
+        if [ "$(cat "$ifdir/type" 2>/dev/null)" != "1" ]; then
+            continue    # not ARPHRD_ETHER
+        fi
+        if [ "$(cat "$ifdir/addr_assign_type" 2>/dev/null)" != "0" ]; then
+            continue    # random, stolen or set by software: not the board's
+        fi
+        mac="$(normalize < "$ifdir/address" 2>/dev/null)"
+        if is_placeholder "$mac"; then
+            continue
+        fi
+        macs="${macs}${mac}"$'\n'
+    done
+    mac="$(printf '%s' "$macs" | sed '/^$/d' | sort | head -n 1)"
+    if [ -z "$mac" ]; then
+        return 1
+    fi
+    printf '%s' "$mac"
+}
+
+read_source() {
+    case "$1" in
+        devicetree-serial)
+            read_file_id /sys/firmware/devicetree/base/serial-number
+            ;;
+        soc-serial)
+            read_file_id /sys/devices/soc0/serial_number
+            ;;
+        dmi-product-uuid)
+            read_file_id /sys/class/dmi/id/product_uuid
+            ;;
+        ethernet-mac)
+            read_ethernet_mac
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+derive_uuid() {
+    local h variant
+    h="$(printf 'yuneta-node-uuid:%s:%s' "$1" "$2" | sha256sum | cut -c1-32)"
+    variant=$(( (0x${h:16:1} & 0x3) | 0x8 ))
+    printf '%s-%s-8%s-%x%s-%s\n' \
+        "${h:0:8}" "${h:8:4}" "${h:13:3}" "$variant" "${h:17:3}" "${h:20:12}"
+}
+
+#
+#   The file
+#
+stored_field() {
+    if [ ! -r "$UUID_FILE" ]; then
+        return 0
+    fi
+    sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$UUID_FILE" | head -n 1
+}
+
+write_uuid_file() {
+    local uuid="$1" source="$2" tmp
+    if ! mkdir -p "$UUID_DIR"; then
+        log_error "cannot create $UUID_DIR"
+        return 1
+    fi
+    if [ "$(id -u)" = "0" ] && id "$OWNER" >/dev/null 2>&1; then
+        chown "$OWNER:$OWNER" "$UUID_DIR" || true
+        chmod 2770 "$UUID_DIR" || true
+    fi
+    if [ -e "$UUID_FILE" ]; then
+        if ! cp -p "$UUID_FILE" "${UUID_FILE}.replaced-$(date -u +%Y%m%dT%H%M%SZ)"; then
+            log_error "cannot keep a copy of $UUID_FILE, not replacing it"
+            return 1
+        fi
+    fi
+    tmp="${UUID_DIR}/.uuid.json.tmp.$$"
+    if ! printf '{\n    "uuid": "%s",\n    "source": "%s",\n    "created": "%s"\n}\n' \
+            "$uuid" "$source" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$tmp"; then
+        log_error "cannot write $tmp"
+        rm -f "$tmp"
+        return 1
+    fi
+    chmod 0660 "$tmp" || true
+    if [ "$(id -u)" = "0" ] && id "$OWNER" >/dev/null 2>&1; then
+        chown "$OWNER:$OWNER" "$tmp" || true
+    fi
+    if ! mv -f "$tmp" "$UUID_FILE"; then
+        log_error "cannot move $tmp to $UUID_FILE"
+        rm -f "$tmp"
+        return 1
+    fi
+}
+
+#
+#   What the hardware gives: "<source> <value>", the recorded source first
+#
+pick_hardware() {
+    local recorded="$1" s v
+    for s in $recorded $HW_SOURCES; do
+        case " $HW_SOURCES " in
+            *" $s "*)
+                ;;
+            *)
+                continue
+                ;;
+        esac
+        if v="$(read_source "$s")"; then
+            printf '%s %s' "$s" "$v"
+            return 0
+        fi
+    done
+    return 1
+}
+
+#
+#   Commands
+#
+cmd_ensure() {
+    local stored_uuid stored_source picked src val new
+    stored_uuid="$(stored_field uuid)"
+    stored_source="$(stored_field source)"
+    if [ -n "$stored_uuid" ] && ! [[ "$stored_uuid" =~ $UUID_RE ]]; then
+        log_warning "$UUID_FILE holds no valid uuid ('$stored_uuid'), replacing it"
+        stored_uuid=""
+        stored_source=""
+    fi
+
+    if [ "$stored_source" = "manual" ] && [ -n "$stored_uuid" ]; then
+        return 0
+    fi
+
+    if picked="$(pick_hardware "$stored_source")"; then
+        src="${picked%% *}"
+        val="${picked#* }"
+        new="$(derive_uuid "$src" "$val")"
+        if [ "$new" = "$stored_uuid" ]; then
+            if [ "$src" != "$stored_source" ]; then
+                write_uuid_file "$new" "$src" || return 1
+            fi
+            return 0
+        fi
+        write_uuid_file "$new" "$src" || return 1
+        if [ -z "$stored_uuid" ]; then
+            log_info "node uuid $new, from $src"
+        elif [ "$stored_source" = "$src" ]; then
+            log_warning "node uuid was $stored_uuid, from $src of OTHER hardware (a cloned disk or image): now $new"
+        else
+            log_warning "node uuid was $stored_uuid (${stored_source:-random}), now $new from $src"
+        fi
+        return 0
+    fi
+
+    if [ -n "$stored_uuid" ]; then
+        return 0    # no hardware identifier: the uuid already there stays
+    fi
+    if ! new="$(normalize < /proc/sys/kernel/random/uuid)" || ! [[ "$new" =~ $UUID_RE ]]; then
+        log_error "no hardware identifier and no random uuid from the kernel"
+        return 1
+    fi
+    write_uuid_file "$new" "random" || return 1
+    log_warning "node uuid $new is RANDOM: no hardware identifier found, a reinstall will change it"
+}
+
+cmd_show() {
+    local picked
+    echo "file:     $UUID_FILE"
+    echo "uuid:     $(stored_field uuid)"
+    echo "source:   $(stored_field source)"
+    echo "created:  $(stored_field created)"
+    if picked="$(pick_hardware "$(stored_field source)")"; then
+        echo "hardware: ${picked%% *} -> $(derive_uuid "${picked%% *}" "${picked#* }")"
+    else
+        echo "hardware: no identifier readable$( [ "$(id -u)" != "0" ] && echo ' (run as root: DMI is root-only)')"
+    fi
+}
+
+cmd_set() {
+    local uuid
+    uuid="$(printf '%s' "${1:-}" | normalize)"
+    if ! [[ "$uuid" =~ $UUID_RE ]]; then
+        log_error "'${1:-}' is not a uuid"
+        return 1
+    fi
+    write_uuid_file "$uuid" "manual" || return 1
+    log_info "node uuid set by hand to $uuid; the hardware will not change it"
+}
+
+#
+#   Writing needs root: without it DMI is unreadable, another source would be
+#   recorded, and the recorded source is the one that is kept.
+#
+case "${1:-ensure}" in
+    ensure|set)
+        if [ "$(id -u)" != "0" ] && [ -z "${YUNETA_NODE_UUID_SYSROOT:-}" ]; then
+            log_error "'${1:-ensure}' must run as root"
+            exit 1
+        fi
+        ;;
+esac
+
+case "${1:-ensure}" in
+    ensure)
+        if command -v flock >/dev/null 2>&1 && mkdir -p "$UUID_DIR" 2>/dev/null; then
+            exec 9>"${UUID_DIR}/.lock"
+            flock -w 10 9 || log_warning "could not lock ${UUID_DIR}/.lock, going on"
+        fi
+        cmd_ensure
+        ;;
+    show)
+        cmd_show
+        ;;
+    set)
+        cmd_set "${2:-}"
+        ;;
+    *)
+        echo "usage: yuneta-node-uuid [ensure|show|set <uuid>]" >&2
+        exit 2
+        ;;
+esac
