@@ -349,7 +349,9 @@ and with no difference of layout. The full inventory is in
 > See `packages/README.md` for the four wrapper scripts, one for each
 > architecture
 > ([`AMD64.sh`](https://github.com/artgins/yunetas/blob/7.29.0/packages/deb/AMD64.sh), [`ARM32.sh`](https://github.com/artgins/yunetas/blob/7.29.0/packages/deb/ARM32.sh), [`ARMhf.sh`](https://github.com/artgins/yunetas/blob/7.29.0/packages/deb/ARMhf.sh), [`RISCV64.sh`](https://github.com/artgins/yunetas/blob/7.29.0/packages/deb/RISCV64.sh)). The SDK must be built
-> first (next section).
+> first (next section). On riscv64 the package has no openresty, because its
+> LuaJIT does not support that architecture. `configure-libs.sh` skips it
+> with a warning, and the node serves with nginx (the default).
 
 ### Tests after a fresh install
 

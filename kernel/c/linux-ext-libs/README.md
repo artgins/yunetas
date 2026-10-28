@@ -119,6 +119,27 @@ Security bumps made before the deploy of SDK 7.27.x (2026-10-15):
 `1.31.1.1` (checked 2026-10-15), so its nginx 1.31.1 core is exposed to the
 CVEs of 1.31.2 to 1.31.7. Track upstream openresty.
 
+### openresty is skipped where LuaJIT cannot run (configure-libs.sh v1.28)
+
+openresty is built on LuaJIT, and LuaJIT supports a fixed set of
+architectures. riscv64 is not one of them: `lj_arch.h` stops with
+*"Architecture not supported"*. openresty is the last block of
+`configure-libs.sh`, so on such a target everything else was installed and
+the script died before it wrote `VERSION_INSTALLED.txt`.
+
+Now the script asks LuaJIT itself. It preprocesses `lj_arch.h` with the
+compiler of the build, and on a target that LuaJIT rejects it prints a
+warning and goes on without openresty:
+
+```
+WARNING: openresty NOT built: its LuaJIT does not support riscv64-linux-gnu. This node serves with nginx.
+```
+
+`re-install-libs.sh` skips it in the same way. Such a node must serve with
+nginx, the default (`/etc/yuneta/webserver` must not say `openresty`). The
+`.deb` builder already skips a missing `/yuneta/bin/openresty`. Nothing
+changes on the other targets.
+
 ### nginx 1.31.8 (configure-libs.sh v1.25)
 
 - **nginx** `release-1.31.7` -> `release-1.31.8` (2026-10-21): bug fixes,

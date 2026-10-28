@@ -296,7 +296,17 @@
 #       Every node that builds from source must run
 #       `./extrae.sh && ./configure-libs.sh` again.
 
-VERSION="1.27"
+#   version 1.28
+#       openresty is skipped, with a warning, on a target its LuaJIT does not
+#       support (riscv64: lj_arch.h stops with "Architecture not supported").
+#       It was the last block, so on such a target everything else installed
+#       and the script died before writing VERSION_INSTALLED.txt. The target
+#       is asked to LuaJIT itself (its lj_arch.h preprocessed with $CC), not
+#       to a list. The node serves with nginx. re-install-libs.sh skips it
+#       the same way. Same libraries and binaries on every other target:
+#       nothing to rebuild there.
+
+VERSION="1.28"
 
 
 source ./repos2clone.sh
@@ -605,28 +615,42 @@ cd ../..
 #------------------------------------------
 #   openresty
 #------------------------------------------
+#   Built on LuaJIT, which supports a fixed set of architectures (riscv64
+#   is not one of them). Its lj_arch.h stops with an #error on any other
+#   target, so preprocessing it with this build's compiler is the question.
+#
 echo "===================== OPENRESTY ======================="
-cd build/openresty
-cd "openresty-$TAG_OPENRESTY"   # the release tarball, unpacked by extrae.sh
+LUAJIT_SRC=$(ls -d build/openresty/openresty-"$TAG_OPENRESTY"/bundle/LuaJIT-*/src 2>/dev/null | head -n1)
+if [ -z "$LUAJIT_SRC" ]; then
+    echo "ERROR: no LuaJIT in build/openresty/openresty-$TAG_OPENRESTY/bundle: run ./extrae.sh" >&2
+    exit 1
+fi
 
-./configure \
-    --prefix=/yuneta/bin/openresty \
-    --with-http_ssl_module \
-    --with-http_v2_module \
-    --with-http_realip_module \
-    --with-http_stub_status_module \
-    --with-http_gzip_static_module \
-    --with-http_secure_link_module \
-    --with-stream \
-    --with-stream_ssl_module \
-    --with-threads \
-    --with-file-aio \
-    --with-pcre-jit
+if $CC -E -I"$LUAJIT_SRC" "$LUAJIT_SRC/lj_arch.h" >/dev/null 2>&1; then
+    cd build/openresty
+    cd "openresty-$TAG_OPENRESTY"   # the release tarball, unpacked by extrae.sh
 
-gmake
-gmake install
-cd ..
-cd ../..
+    ./configure \
+        --prefix=/yuneta/bin/openresty \
+        --with-http_ssl_module \
+        --with-http_v2_module \
+        --with-http_realip_module \
+        --with-http_stub_status_module \
+        --with-http_gzip_static_module \
+        --with-http_secure_link_module \
+        --with-stream \
+        --with-stream_ssl_module \
+        --with-threads \
+        --with-file-aio \
+        --with-pcre-jit
+
+    gmake
+    gmake install
+    cd ..
+    cd ../..
+else
+    echo "WARNING: openresty NOT built: its LuaJIT does not support $($CC -dumpmachine). This node serves with nginx." >&2
+fi
 
 
 #------------------------------------------

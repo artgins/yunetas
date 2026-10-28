@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **linux-ext-libs 1.28: openresty is skipped on a target its LuaJIT does not
+  support** (riscv64). It was the last block of `configure-libs.sh`, so on an
+  Orange Pi RV2 everything else installed and the script died
+  (`lj_arch.h: Architecture not supported`) before it wrote
+  `VERSION_INSTALLED.txt`, and the `yunetas` CLI then refused to build. The
+  script asks LuaJIT itself (its `lj_arch.h` preprocessed with `$CC`), warns
+  and goes on, and the node serves with nginx. `re-install-libs.sh` skips it
+  in the same way. Nothing changes on the other targets, but the `VERSION`
+  bump asks every node that builds from source to run
+  `./extrae.sh && ./configure-libs.sh` again.
+
 ## v7.29.0 (2026-10-28)
 
 Retention that keeps what it takes, and the yunos that take it to a backup.

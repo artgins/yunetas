@@ -91,10 +91,23 @@ cd ../..
 #------------------------------------------
 #   openresty
 #------------------------------------------
+#   configure-libs.sh does not build it on a target its LuaJIT does not
+#   support (riscv64), and asks the same question.
+#
 echo "===================== OPENRESTY ======================="
-cd build/openresty
-cd "openresty-$TAG_OPENRESTY"
+LUAJIT_SRC=$(ls -d build/openresty/openresty-"$TAG_OPENRESTY"/bundle/LuaJIT-*/src 2>/dev/null | head -n1)
+if [ -z "$LUAJIT_SRC" ]; then
+    echo "ERROR: no LuaJIT in build/openresty/openresty-$TAG_OPENRESTY/bundle: run ./extrae.sh" >&2
+    exit 1
+fi
 
-make install
-cd ..
-cd ../..
+if ${CC:-cc} -E -I"$LUAJIT_SRC" "$LUAJIT_SRC/lj_arch.h" >/dev/null 2>&1; then
+    cd build/openresty
+    cd "openresty-$TAG_OPENRESTY"
+
+    make install
+    cd ..
+    cd ../..
+else
+    echo "WARNING: openresty NOT installed: its LuaJIT does not support $(${CC:-cc} -dumpmachine)." >&2
+fi
