@@ -7,9 +7,12 @@
   random uuid: a reinstall of the operating system gave the node a new
   identity, so a label printed with it and a central that had declared it
   lost the box, and a disk image taken after the agent ran gave every box
-  written from it the SAME uuid. The new `/yuneta/bin/yuneta-node-uuid`,
-  run as root by the postinst / `%post`, by both agent units
-  (`ExecStartPre=-+`) and by the SysV start, writes a uuid derived from the
+  written from it the SAME uuid. The new `/usr/lib/yuneta/yuneta-node-uuid`
+  (root's, outside `/yuneta`, which yuneta owns), started as root by the
+  postinst / `%post`, by both agent units (`ExecStartPre=-+`) and by the SysV
+  start, reads the hardware as root and drops to yuneta (`setpriv`) for every
+  file it touches, so a link in yuneta's directory reaches nothing of root's.
+  It writes a uuid derived from the
   first identifier available -- devicetree `serial-number`,
   `soc0/serial_number`, DMI `product_uuid` (root-only, hence root), the
   lowest permanent on-board wired MAC -- as a version 8 uuid from a sha256,

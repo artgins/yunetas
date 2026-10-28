@@ -844,8 +844,8 @@ start_yunos() {
         logger -t yuneta_agent_init "start yuneta_agent22.service rc=$RC2"
         return $RC2     # up to 7.25.22-3: 0, whatever the unit answered
     fi
-    if [ -x /yuneta/bin/yuneta-node-uuid ]; then
-        /yuneta/bin/yuneta-node-uuid ensure || true
+    if [ -x /usr/lib/yuneta/yuneta-node-uuid ]; then
+        /usr/lib/yuneta/yuneta-node-uuid ensure || true
     fi
     _set_limits
 
@@ -1028,9 +1028,12 @@ done
 # missing, writes a random uuid: a reinstall changed the identity of a node,
 # and a disk image carried one identity to every box written from it. This
 # script derives it from the hardware instead; the postinst and both agent
-# units (ExecStartPre=+) run it as root. Its header has the sources.
+# units (ExecStartPre=+) run it as root. It lives in /usr/lib/yuneta, root's:
+# under /yuneta (yuneta's, chown -R below) yuneta could rewrite what root
+# runs. Its header has the sources and how it drops to yuneta for the files.
+install -d -m 0755 "${STAGE}/usr/lib/yuneta"
 install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-node-uuid" \
-    "${STAGE}/yuneta/bin/yuneta-node-uuid"
+    "${STAGE}/usr/lib/yuneta/yuneta-node-uuid"
 
 # --- The node's web server, as its own unit ---
 #
@@ -1734,6 +1737,8 @@ cp -a %{_staging}/. %{buildroot}/
 /usr/lib/systemd/system/yuneta-webserver.service
 /usr/lib/systemd/system/yuneta_agent.service
 /usr/lib/systemd/system/yuneta_agent22.service
+%dir /usr/lib/yuneta
+%attr(0755,root,root) /usr/lib/yuneta/yuneta-node-uuid
 /yuneta/bin/yuneta-webserver
 %config(noreplace) /etc/fail2ban/filter.d/yuneta-nginx-probe.conf
 %config(noreplace) /etc/fail2ban/jail.d/yuneta-nginx.conf
@@ -1997,8 +2002,8 @@ if [ -d /yuneta ]; then
 fi
 
 # Node uuid: from the hardware, before an agent reads it
-if [ -x /yuneta/bin/yuneta-node-uuid ]; then
-    /yuneta/bin/yuneta-node-uuid ensure || echo "[post] WARNING: yuneta-node-uuid failed: the node keeps the uuid it had" >&2
+if [ -x /usr/lib/yuneta/yuneta-node-uuid ]; then
+    /usr/lib/yuneta/yuneta-node-uuid ensure || echo "[post] WARNING: yuneta-node-uuid failed: the node keeps the uuid it had" >&2
 fi
 if [ -d /yuneta/store/certs ]; then
     chmod 0755 /yuneta/store/certs || true

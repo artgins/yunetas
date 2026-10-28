@@ -11,12 +11,17 @@
 #     - a disk image taken after the agent ran carries uuid.json inside, so
 #       every box written from it claims the SAME uuid.
 #
-#   This script runs as root -- from the package's postinst / %post and as an
-#   ExecStartPre=+ of both agent units -- and writes a uuid DERIVED from the
-#   hardware: the same box gives the same uuid after any reinstall, and a
-#   clone gives its own on its first boot. Root is needed because the
-#   identifiers of an x86 board (DMI) are readable by root only, and the yunos
-#   run as yuneta.
+#   This script derives the uuid from the hardware instead: the same box
+#   gives the same uuid after any reinstall, and a clone gives its own on its
+#   first boot. It is /usr/lib/yuneta/yuneta-node-uuid, root's, outside
+#   /yuneta (which belongs to yuneta), and the package's postinst / %post,
+#   both agent units (ExecStartPre=+) and the SysV start run it as root.
+#
+#   Root only READS the hardware: the identifiers of an x86 board (DMI) are
+#   readable by root alone, and the yunos run as yuneta. Every file operation
+#   -- directory, lock, temporary, copy, uuid.json -- is done after dropping
+#   to yuneta (setpriv), in yuneta's own directory: root never opens a path
+#   that yuneta can turn into a link.
 #
 #   Sources, first available wins (the one already recorded wins over all,
 #   so a kernel that starts exposing another source does not move the node):
@@ -37,9 +42,10 @@
 #   identity that something already uses as a key.
 #
 #   Usage:
-#       yuneta-node-uuid [ensure]     create or correct uuid.json (root)
-#       yuneta-node-uuid show         what is stored and what the hardware gives
-#       yuneta-node-uuid set <uuid>   fix the uuid by hand (root)
+#       yuneta-node-uuid [ensure]     create or correct uuid.json (as root)
+#       yuneta-node-uuid show         what is stored and what the hardware
+#                                     gives (as root, or partial without it)
+#       yuneta-node-uuid set <uuid>   fix the uuid by hand (as root)
 #
 #   The previous file is kept as uuid.json.replaced-<UTC time> whenever the
 #   uuid changes. Environment, for tests: YUNETA_NODE_UUID_DIR (default
@@ -53,6 +59,7 @@ UUID_DIR="${YUNETA_NODE_UUID_DIR:-/yuneta/store/agent/uuid}"
 UUID_FILE="${UUID_DIR}/uuid.json"
 SYSROOT="${YUNETA_NODE_UUID_SYSROOT:-}"
 OWNER="yuneta"
+HWIDS=""
 HW_SOURCES="devicetree-serial soc-serial dmi-product-uuid ethernet-mac"
 UUID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 
@@ -192,17 +199,17 @@ write_uuid_file() {
         log_error "cannot create $UUID_DIR"
         return 1
     fi
-    if [ "$(id -u)" = "0" ] && id "$OWNER" >/dev/null 2>&1; then
-        chown "$OWNER:$OWNER" "$UUID_DIR" || true
-        chmod 2770 "$UUID_DIR" || true
-    fi
+    chmod 2770 "$UUID_DIR" 2>/dev/null || true
     if [ -e "$UUID_FILE" ]; then
         if ! cp -p "$UUID_FILE" "${UUID_FILE}.replaced-$(date -u +%Y%m%dT%H%M%SZ)"; then
             log_error "cannot keep a copy of $UUID_FILE, not replacing it"
             return 1
         fi
     fi
-    tmp="${UUID_DIR}/.uuid.json.tmp.$$"
+    if ! tmp="$(mktemp "${UUID_DIR}/.uuid.json.XXXXXX")"; then
+        log_error "cannot create a temporary file in $UUID_DIR"
+        return 1
+    fi
     if ! printf '{\n    "uuid": "%s",\n    "source": "%s",\n    "created": "%s"\n}\n' \
             "$uuid" "$source" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$tmp"; then
         log_error "cannot write $tmp"
@@ -210,9 +217,6 @@ write_uuid_file() {
         return 1
     fi
     chmod 0660 "$tmp" || true
-    if [ "$(id -u)" = "0" ] && id "$OWNER" >/dev/null 2>&1; then
-        chown "$OWNER:$OWNER" "$tmp" || true
-    fi
     if ! mv -f "$tmp" "$UUID_FILE"; then
         log_error "cannot move $tmp to $UUID_FILE"
         rm -f "$tmp"
@@ -221,20 +225,27 @@ write_uuid_file() {
 }
 
 #
-#   What the hardware gives: "<source> <value>", the recorded source first
+#   The hardware identifiers, one "<source> <value>" per line. Read where the
+#   privileges are (as root), used after dropping them.
+#
+gather_hwids() {
+    local s v
+    for s in $HW_SOURCES; do
+        if v="$(read_source "$s")"; then
+            printf '%s %s\n' "$s" "$v"
+        fi
+    done
+}
+
+#
+#   The one to use: "<source> <value>", the recorded source first
 #
 pick_hardware() {
-    local recorded="$1" s v
+    local recorded="$1" s line
     for s in $recorded $HW_SOURCES; do
-        case " $HW_SOURCES " in
-            *" $s "*)
-                ;;
-            *)
-                continue
-                ;;
-        esac
-        if v="$(read_source "$s")"; then
-            printf '%s %s' "$s" "$v"
+        line="$(printf '%s\n' "$HWIDS" | grep -m 1 "^${s} " || true)"
+        if [ -n "$line" ]; then
+            printf '%s' "$line"
             return 0
         fi
     done
@@ -299,7 +310,7 @@ cmd_show() {
     if picked="$(pick_hardware "$(stored_field source)")"; then
         echo "hardware: ${picked%% *} -> $(derive_uuid "${picked%% *}" "${picked#* }")"
     else
-        echo "hardware: no identifier readable$( [ "$(id -u)" != "0" ] && echo ' (run as root: DMI is root-only)')"
+        echo "hardware: no identifier found (run as root: DMI is root-only)"
     fi
 }
 
@@ -315,23 +326,52 @@ cmd_set() {
 }
 
 #
-#   Writing needs root: without it DMI is unreadable, another source would be
-#   recorded, and the recorded source is the one that is kept.
+#   Privileges: read the hardware as root, then drop to the owner for the files
 #
-case "${1:-ensure}" in
-    ensure|set)
-        if [ "$(id -u)" != "0" ] && [ -z "${YUNETA_NODE_UUID_SYSROOT:-}" ]; then
-            log_error "'${1:-ensure}' must run as root"
-            exit 1
-        fi
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+CMD="${1:-ensure}"
+case "$CMD" in
+    ensure|show|set)
+        ;;
+    *)
+        echo "usage: yuneta-node-uuid [ensure|show|set <uuid>]" >&2
+        exit 2
         ;;
 esac
 
-case "${1:-ensure}" in
+if [ "${YUNETA_NODE_UUID_STAGE:-}" = "unprivileged" ]; then
+    if [ "$(id -u)" = "0" ]; then
+        log_error "the unprivileged stage must not run as root"
+        exit 1
+    fi
+    HWIDS="${YUNETA_NODE_UUID_HWIDS:-}"
+else
+    HWIDS="$(gather_hwids)"
+    if [ "$(id -u)" = "0" ]; then
+        if ! id "$OWNER" >/dev/null 2>&1; then
+            log_error "no user $OWNER to write $UUID_FILE as"
+            exit 1
+        fi
+        exec setpriv --reuid="$OWNER" --regid="$OWNER" --init-groups -- \
+            env YUNETA_NODE_UUID_STAGE=unprivileged YUNETA_NODE_UUID_HWIDS="$HWIDS" \
+            "$SELF" "$@"
+    fi
+    if [ "$CMD" != "show" ] && [ -z "$SYSROOT" ]; then
+        # Without root DMI is unreadable, another source would be recorded,
+        # and the recorded source is the one that is kept.
+        log_error "'$CMD' must run as root"
+        exit 1
+    fi
+fi
+
+case "$CMD" in
     ensure)
         if command -v flock >/dev/null 2>&1 && mkdir -p "$UUID_DIR" 2>/dev/null; then
-            exec 9>"${UUID_DIR}/.lock"
-            flock -w 10 9 || log_warning "could not lock ${UUID_DIR}/.lock, going on"
+            if { exec 9>"${UUID_DIR}/.lock"; } 2>/dev/null; then
+                flock -w 10 9 || log_warning "could not lock ${UUID_DIR}/.lock, going on"
+            else
+                log_warning "cannot open ${UUID_DIR}/.lock, going on without the lock"
+            fi
         fi
         cmd_ensure
         ;;
@@ -340,9 +380,5 @@ case "${1:-ensure}" in
         ;;
     set)
         cmd_set "${2:-}"
-        ;;
-    *)
-        echo "usage: yuneta-node-uuid [ensure|show|set <uuid>]" >&2
-        exit 2
         ;;
 esac

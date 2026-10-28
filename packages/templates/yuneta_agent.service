@@ -31,7 +31,8 @@
 #   ControlGroup, read under the v2, hybrid or v1 mount.
 #
 #   ExecStartPre: yuneta-node-uuid derives the node uuid from the hardware
-#   before the agent reads it -- as root (the `+`: DMI is root-only), and
+#   before the agent reads it -- started as root (the `+`: DMI is root-only;
+#   it drops to yuneta for the files), and
 #   without stopping the start if it fails (the `-`). On the first boot
 #   of a cloned disk it gives the clone its own uuid. Both units run it;
 #   it locks, and a second run changes nothing.
@@ -54,7 +55,7 @@ Environment=YUNETA_DIR=/yuneta
 Environment=PATH=/yuneta/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 RuntimeDirectory=yuneta_agent
 PIDFile=/run/yuneta_agent/yuneta_agent.pid
-ExecStartPre=-+/yuneta/bin/yuneta-node-uuid ensure
+ExecStartPre=-+/usr/lib/yuneta/yuneta-node-uuid ensure
 ExecStart=/yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --start --pid-file=/run/yuneta_agent/yuneta_agent.pid
 ExecStop=-/bin/kill -QUIT $MAINPID
 ExecStop=-/usr/bin/pkill -QUIT -P $MAINPID -x yuneta_agent
