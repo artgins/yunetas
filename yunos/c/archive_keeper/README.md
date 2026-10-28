@@ -19,9 +19,14 @@ README of archive_sender.
   answers `stored`, and only that removes the batch at the sender.
 - **A name without the `.` is a whole batch.** A reader of the backup (a tape
   job, an offsite copy) takes only those.
-- A batch that is already there is answered `stored` at once. A sender that
-  crashed between the answer and its removal ships the batch again, and nothing
-  is written twice.
+- A batch that is already there is answered `stored` at once, **if it has the
+  files and the sizes that the `begin` declares**. A sender that crashed
+  between the answer and its removal ships the batch again, and nothing is
+  written twice. A batch of the same name with other files or sizes is kept as
+  it is, and the `begin` is refused (WARNING *"A batch of this name is here
+  with other files or sizes"*): a peer that wrote a batch of that name first
+  cannot make the real sender remove its own. The sender keeps the batch and
+  tries again later, so an operator sees it in its `list-pending`.
 - A channel that closes takes its `.part-` with it. A `begin` of a batch whose
   `.part-` is there removes it first.
 
@@ -33,7 +38,7 @@ the answer `refused` and the removal of the batch aside:
 - a `node` or a name of the batch that is not one plain name (empty, starts
   with `.`, has a `/`, is longer than `NAME_MAX`);
 - a batch that is not four such names, `<database>/<topic>/<key>/<batch>`;
-- a node that is not in `allowed_nodes`, when the list is not empty;
+- a node that is not in `allowed_nodes`;
 - more files than `max_files`, a file name repeated, a size that is not an
   integer of 0 or more;
 - data of a batch not begun, data out of its place (not at the end of what is
@@ -46,7 +51,7 @@ A frame whose header is not a json object drops the channel.
 | Attribute | Default | Meaning |
 |---|---|---|
 | `backup_directory` | — | Absolute. Created if it is not there |
-| `allowed_nodes` | `[]` | The node names whose batches are taken. Empty: any |
+| `allowed_nodes` | `[]` | The node names whose batches are taken; `["*"]` takes any node. Required: empty, the yuno does not start (ERROR) |
 | `input_service` | `__input_side__` | The `C_IOGATE` whose channels are the senders |
 | `max_files` | 10000 | The most files a batch may declare |
 
@@ -117,8 +122,11 @@ A frame whose header is not a json object drops the channel.
 
 **Security.** The posture is host to host, the same as the data links of the
 nodes: TLS encrypts, and the `node` a sender says is a claim, not a proof.
-`allowed_nodes` stops an operator error, not an attacker. Put the keeper's
-port where only the nodes can reach it.
+`allowed_nodes` stops an operator error, not an attacker, and it must be set
+(fail closed: `["*"]` says "any node" on purpose). Put the keeper's port where
+only the nodes can reach it. Not done yet: binding the node to the client
+certificate of a mutual TLS, so that one node cannot write the batches of
+another.
 
 ## Commands and stats
 

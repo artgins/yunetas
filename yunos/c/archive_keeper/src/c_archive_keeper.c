@@ -23,7 +23,12 @@
  *          Everything in a frame is the peer's: a name that is not one
  *          plain name (empty, hidden, with a '/', too long), data out of
  *          its place or beyond the size declared is refused with a
- *          WARNING, and the batch aside is removed.
+ *          WARNING, and the batch aside is removed. A batch that is here
+ *          already is "stored" only if it has the files and the sizes the
+ *          begin declares: a peer that wrote a batch of the same name first
+ *          does not make the real sender remove its own. `allowed_nodes` is
+ *          required (["*"]: any node, said on purpose): the node a sender
+ *          names is its claim, not a proof.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -34,6 +39,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <dirent.h>
 #include <sys/stat.h>
 
 #include "c_archive_keeper.h"
@@ -88,7 +94,7 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag----------------default-----description---------- */
 SDATA (DTP_STRING,  "backup_directory", SDF_RD,             "",         "Absolute directory where the batches are kept: <backup_directory>/<node>/<database>/<topic>/<key>/<batch>/"),
-SDATA (DTP_LIST,    "allowed_nodes",    SDF_RD,             "[]",       "The node names whose batches are taken. Empty: any"),
+SDATA (DTP_LIST,    "allowed_nodes",    SDF_RD,             "[]",       "The node names whose batches are taken, [\"*\"] any. Required: empty, nothing is received"),
 SDATA (DTP_STRING,  "input_service",    SDF_RD,             "__input_side__", "The C_IOGATE service whose channels are the archive_senders"),
 SDATA (DTP_INTEGER, "max_files",        SDF_RD,             "10000",    "Most files a batch may declare"),
 
@@ -222,6 +228,16 @@ PRIVATE int mt_start(hgobj gobj)
         if(mkrdir(priv->backup_directory, 02770) < 0) {
             return -1;  // Error already logged
         }
+    }
+
+    if(json_array_size(gobj_read_json_attr(gobj, "allowed_nodes")) == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "allowed_nodes is empty: NOTHING received. Name the nodes, or [\"*\"] for any",
+            NULL
+        );
+        return -1;
     }
 
     const char *input_service = gobj_read_str_attr(gobj, "input_service");
@@ -409,6 +425,44 @@ PRIVATE BOOL is_batch_path(const char *relpath)
 }
 
 /***************************************************************************
+ *  A batch kept here has the files of `files` ([{name, size}]), and no other
+ ***************************************************************************/
+PRIVATE BOOL same_files(const char *path, json_t *files)
+{
+    size_t found = 0;
+    DIR *dir = opendir(path);
+    if(!dir) {
+        return FALSE;
+    }
+    struct dirent *entry;
+    BOOL same = TRUE;
+    while(same && (entry = readdir(dir)) != NULL) {
+        if(entry->d_name[0] == '.') {
+            continue;
+        }
+        char file[PATH_MAX];
+        struct stat st;
+        json_t *declared = NULL;
+        size_t idx; json_t *jn_file;
+        json_array_foreach(files, idx, jn_file) {
+            if(strcmp(json_string_value(json_object_get(jn_file, "name")), entry->d_name) == 0) {
+                declared = jn_file;
+                break;
+            }
+        }
+        if(!declared ||
+                !build_path(file, sizeof(file), path, entry->d_name, NULL) ||
+                stat(file, &st) < 0 || !S_ISREG(st.st_mode) ||
+                (json_int_t)st.st_size != json_integer_value(json_object_get(declared, "size"))) {
+            same = FALSE;
+        }
+        found++;
+    }
+    closedir(dir);
+    return same && found == json_array_size(files);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int fsync_path(hgobj gobj, const char *path, BOOL directory)
@@ -538,18 +592,17 @@ PRIVATE int on_begin(
         return refuse(gobj, channel_gobj, channel, batch, "the node is not a plain name");
     }
     json_t *allowed = gobj_read_json_attr(gobj, "allowed_nodes");
-    if(json_array_size(allowed) > 0) {
-        BOOL found = FALSE;
-        size_t i; json_t *jn_node;
-        json_array_foreach(allowed, i, jn_node) {
-            if(json_is_string(jn_node) && strcmp(json_string_value(jn_node), node) == 0) {
-                found = TRUE;
-                break;
-            }
+    BOOL found = FALSE;
+    size_t i; json_t *jn_node;
+    json_array_foreach(allowed, i, jn_node) {
+        const char *allowed_node = json_string_value(jn_node);
+        if(allowed_node && (strcmp(allowed_node, "*") == 0 || strcmp(allowed_node, node) == 0)) {
+            found = TRUE;
+            break;
         }
-        if(!found) {
-            return refuse(gobj, channel_gobj, channel, batch, "the node is not in allowed_nodes");
-        }
+    }
+    if(!found) {
+        return refuse(gobj, channel_gobj, channel, batch, "the node is not in allowed_nodes");
     }
     if(!is_batch_path(batch)) {
         return refuse(gobj, channel_gobj, channel, batch,
@@ -580,8 +633,23 @@ PRIVATE int on_begin(
     }
     if(is_directory(final)) {
         /*
-         *  Here already: the sender did not hear its "stored"
+         *  Here already: the sender did not hear its "stored". Only if it
+         *  is THIS batch, the files and sizes declared: a batch of the same
+         *  name written first by another peer is kept, and refused
          */
+        if(!same_files(final, files)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "A batch of this name is here with other files or sizes: kept as it is, nothing overwritten",
+                "node",         "%s", node,
+                "batch",        "%s", batch,
+                "path",         "%s", final,
+                NULL
+            );
+            return refuse(gobj, channel_gobj, channel, batch,
+                "a different batch of this name is here");
+        }
         gobj_write_integer_attr(gobj, "batches_already",
             gobj_read_integer_attr(gobj, "batches_already") + 1);
         if(gobj_trace_level(gobj) & TRACE_BATCHES) {

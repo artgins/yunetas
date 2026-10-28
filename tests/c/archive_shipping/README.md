@@ -17,6 +17,10 @@ archived into its own archive under `$HOME/tests_yuneta/archive_shipping/`.
   `max_archive_bytes` of one batch, and two are waiting. The oldest is removed
   without being shipped (WARNING *"Batch removed WITHOUT being shipped"*), and
   the other arrives with its manifest.
+- **poisoning**: a batch of the name of one the sender will ship, planted in
+  the backup first with other sizes. The keeper does not answer `stored`, and
+  keeps the planted batch untouched. The sender keeps its batch (it failed,
+  and is tried again later).
 
 At the end:
 

@@ -10,6 +10,8 @@
  *            by its mark, one the keeper already has
  *          - rsync: archive_sender_rsync -> a local directory, with room
  *            for one batch of two: the oldest dropped
+ *          - A batch of the same name planted in the backup first: the
+ *            keeper refuses, keeps it, and the sender keeps its own
  *          - Everything shipped is whole at the other end, and gone here
  *
  *          Copyright (c) 2026, ArtGins.
@@ -76,10 +78,13 @@ PRIVATE char variable_config[]= "\
             'autoplay': false                                       \n\
         },                                                          \n\
         {                                                           \n\
-            'name': 'archive_keeper',                             \n\
-            'gclass': 'C_ARCHIVE_KEEPER',                         \n\
+            'name': 'archive_keeper',                               \n\
+            'gclass': 'C_ARCHIVE_KEEPER',                           \n\
             'autostart': false,                                     \n\
-            'autoplay': false                                       \n\
+            'autoplay': false,                                      \n\
+            'kw': {                                                 \n\
+                'allowed_nodes': ['test_node']                      \n\
+            }                                                       \n\
         },                                                          \n\
         {                                                           \n\
             'name': '__input_side__',                               \n\
@@ -215,7 +220,7 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Creating __timeranger2__.json",
@@ -223,6 +228,9 @@ static int register_yuno_and_more(void)
         "msg", "Creating __timeranger2__.json",
         "msg", "Creating topic",
         "msg", "Batch removed WITHOUT being shipped: the archive is over max_archive_bytes",
+        "msg", "A batch of this name is here with other files or sizes: kept as it is, nothing overwritten",
+        "msg", "Batch refused",
+        "msg", "Batch NOT shipped: tried again later, after the others",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

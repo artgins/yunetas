@@ -63,7 +63,7 @@ the file.
 
 | Frame | From | Fields | Answer |
 |---|---|---|---|
-| `begin` | sender | `node`, `batch` (`<database>/<topic>/<key>/<batch>`), `files` (`[{name, size}]`, `manifest.json` last) | `begin-ack`; `stored` if the keeper has the batch already; `refused` |
+| `begin` | sender | `node`, `batch` (`<database>/<topic>/<key>/<batch>`), `files` (`[{name, size}]`, `manifest.json` last) | `begin-ack`; `stored` if the keeper has this batch already (the same files and sizes); `refused` |
 | `data` | sender | `batch`, `file` (index in `files`), `offset`, then NUL and the bytes | `data-ack` (`offset` = the end of the bytes); `refused` |
 | `end` | sender | `batch` | `stored` when every file is whole and fsync'ed; `refused` |
 | `refused` | keeper | `batch`, `msg` | the batch fails here: it is tried again after `retry_period` |
@@ -84,9 +84,13 @@ it got of it.
 `rsync_path` runs two times per batch:
 
 ```
-rsync -a --mkpath --timeout=<rsync_timeout> <rsync_options...> --exclude=/manifest.json <batch>/ <dest>/<node>/<database>/<topic>/<key>/<batch>/
-rsync -a --mkpath --timeout=<rsync_timeout> <rsync_options...> <batch>/manifest.json   <dest>/<node>/<database>/<topic>/<key>/<batch>/
+rsync -a --mkpath --protect-args --timeout=<rsync_timeout> <rsync_options...> --exclude=/manifest.json <batch>/ <dest>/<node>/<database>/<topic>/<key>/<batch>/
+rsync -a --mkpath --protect-args --timeout=<rsync_timeout> <rsync_options...> <batch>/manifest.json   <dest>/<node>/<database>/<topic>/<key>/<batch>/
 ```
+
+- **`--protect-args`**: the names of a batch come from data (a key is a
+  device id, say), and an old rsync (before 3.2.4) gives the remote path to
+  the remote shell. With it, no shell sees them.
 
 - **On the backup, a batch is whole when its `manifest.json` is there.** rsync
   writes each file under a temporary name and renames it, and the manifest goes
@@ -240,5 +244,7 @@ directory. It covers:
 
 - the batches found by the scan, and one told by its mark;
 - a batch the keeper already has;
+- a batch of the same name planted in the backup first, with other sizes: the
+  keeper refuses it and keeps the planted one, and the sender keeps its own;
 - a batch dropped over `max_archive_bytes`;
 - what arrives is whole, and nothing is left in the archives.

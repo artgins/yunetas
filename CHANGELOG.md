@@ -38,15 +38,19 @@
   transports: `native`, frames over `C_PROT_TCP4H` (TLS) to an
   `archive_keeper` on the backup machine, which writes the batch aside and
   renames it when every file is whole and fsync'ed, and answers `stored` at
-  once for a batch it already has; and `rsync`, two runs per batch (the files,
-  then the manifest: a batch is whole at the destination when its manifest is
-  there), watched with a pidfd so nothing blocks. The node opens the
+  once for a batch it already has with the same files and sizes (a batch of
+  that name planted first by another peer is kept and refused, so the real
+  sender keeps its own); and `rsync`, two runs per batch (the files, then the
+  manifest: a batch is whole at the destination when its manifest is there),
+  with `--protect-args` (the names come from data), watched with a pidfd so
+  nothing blocks. The keeper's `allowed_nodes` is required (`["*"]` for any):
+  the node a sender names is a claim, not a proof. The node opens the
   connection in both. `max_archive_bytes` (0: no limit) removes the oldest
   batches unshipped, each with a WARNING, when the backup is not there. A batch
   that fails goes to the back of the queue, and nothing is tried for
   `retry_period`. Commands `list-pending`, `rescan`; `list-sessions` in the
   keeper. Test `tests/c/archive_shipping/` (both transports, a batch the keeper
-  has, one dropped by the limit). Design: `yunos/c/archive_sender/README.md`,
+  has, one dropped by the limit, one planted in the backup first). Design: `yunos/c/archive_sender/README.md`,
   `DESIGN-retention.md` §13.
 
 ## v7.28.11 (2026-10-27)

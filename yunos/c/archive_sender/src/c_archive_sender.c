@@ -1633,6 +1633,7 @@ PRIVATE int start_rsync_step(hgobj gobj)
     argv[argc++] = gobj_read_str_attr(gobj, "rsync_path");
     argv[argc++] = "-a";
     argv[argc++] = "--mkpath";
+    argv[argc++] = "--protect-args";    // the names come from data: no remote shell sees them
     argv[argc++] = timeout;
     size_t idx; json_t *jn_option;
     json_array_foreach(options, idx, jn_option) {

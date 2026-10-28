@@ -15,6 +15,11 @@
  *            removed without being shipped (a WARNING), the other ends in
  *            the destination with its manifest.
  *
+ *          - poisoning: a batch of the name of one the sender will ship,
+ *            planted in the backup first with other sizes: the keeper does
+ *            not answer stored, keeps the planted one untouched, and the
+ *            sender keeps its batch (failed, tried again later).
+ *
  *          The steps are watched with a timer on the stats of the three
  *          services: a test driver, not a yuno.
  *
@@ -40,6 +45,7 @@
 #define DAY3            (DAY2 + 86400)
 #define POLL_MS         100
 #define STEP_TIMEOUT_MS 10000
+#define POISONED        DATABASE "/" TOPIC_NAME "/key9/2000-01-01@1"
 
 /***************************************************************************
  *              Structures
@@ -390,6 +396,82 @@ PRIVATE json_int_t stat_of(hgobj service, const char *name)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE BOOL write_file(const char *dir, const char *name, const char *content)
+{
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), dir, name, NULL);
+    int fd = open(path, O_CREAT|O_WRONLY|O_TRUNC|O_CLOEXEC, 0660);
+    if(fd < 0) {
+        fail("A file cannot be written", path);
+        return FALSE;
+    }
+    BOOL ok = write(fd, content, strlen(content)) == (ssize_t)strlen(content);
+    close(fd);
+    return ok;
+}
+
+/***************************************************************************
+ *  A batch planted in the backup, and the real one of the same name in
+ *  the archive, with its mark
+ ***************************************************************************/
+PRIVATE void plant_poison(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char planted[PATH_MAX];
+    char real[PATH_MAX];
+    build_path(planted, sizeof(planted), priv->backup, NODE_NAME, POISONED, NULL);
+    build_path(real, sizeof(real), priv->archive, POISONED, NULL);
+    mkrdir(planted, 02770);
+    mkrdir(real, 02770);
+    write_file(planted, "2000-01-01.json", "poison");
+    write_file(real, "2000-01-01.json", "the real rows");
+    write_file(real, "manifest.json", "{}");
+
+    char mark[NAME_MAX + 1];
+    size_t len = 0;
+    for(const char *c = POISONED; *c && len + 4 < sizeof(mark); c++) {
+        if(*c == '/') {
+            memcpy(mark + len, "%2F", 3);
+            len += 3;
+        } else {
+            mark[len++] = *c;
+        }
+    }
+    mark[len] = 0;
+    char ready[PATH_MAX];
+    build_path(ready, sizeof(ready), priv->archive, ".ready", NULL);
+    write_file(ready, mark, "");
+}
+
+/***************************************************************************
+ *  The planted batch untouched, the real one kept by the sender
+ ***************************************************************************/
+PRIVATE void check_poison(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char planted[PATH_MAX];
+    char real[PATH_MAX];
+    char file[PATH_MAX];
+    build_path(planted, sizeof(planted), priv->backup, NODE_NAME, POISONED, NULL);
+    build_path(real, sizeof(real), priv->archive, POISONED, NULL);
+    build_path(file, sizeof(file), planted, "2000-01-01.json", NULL);
+    if(file_size(file) != (off_t)strlen("poison")) {
+        fail("The planted batch was overwritten", file);
+    }
+    build_path(file, sizeof(file), real, "2000-01-01.json", NULL);
+    if(file_size(file) != (off_t)strlen("the real rows")) {
+        fail("The sender removed its batch on a planted one", file);
+    }
+    if(stat_of(priv->sender, "batches_pending") != 1) {
+        fail("The sender does not keep its batch pending", NULL);
+    }
+}
+
+/***************************************************************************
  *  The checks of the end, once everything has been shipped
  ***************************************************************************/
 PRIVATE void check_the_end(hgobj gobj)
@@ -522,6 +604,15 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     stat_of(priv->sender_rsync, "batches_shipped") == 1 &&
                     stat_of(priv->sender_rsync, "batches_dropped") == 1) {
                 check_the_end(gobj);
+                plant_poison(gobj);
+                next_step(gobj);
+            }
+            break;
+
+        case 4:
+            if(stat_of(priv->keeper, "batches_refused") == 1 &&
+                    stat_of(priv->sender, "batches_failed") == 1) {
+                check_poison(gobj);
                 EXEC_AND_RESET(tranger2_shutdown, priv->tranger)
                 EXEC_AND_RESET(tranger2_shutdown, priv->tranger2)
                 rmrdir(priv->base);
