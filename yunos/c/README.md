@@ -14,6 +14,8 @@ yunos/
     ├── mqtt_broker/        # MQTT v3.1/v3.1.1/v5.0 broker with persistence
     ├── emailsender/        # Email sending service (native SMTPS)
     ├── webstats/          # Daily report of the node's web server logs
+    ├── archive_sender/     # Ships the batches of a timeranger2 archive to a backup
+    ├── archive_keeper/     # Keeps them on the backup machine
     ├── dba_postgres/       # PostgreSQL database adapter
     ├── sgateway/           # Simple gateway for protocol bridging
     └── watchfs/            # Filesystem watcher — run commands on file changes
@@ -36,6 +38,8 @@ yunos/
 | mqtt_broker | `mqtt_broker` | `C_MQTT_BROKER` | `${YUNOS_DEST_DIR}` | MQTT broker (v3.1, v3.1.1, v5.0) |
 | emailsender | `emailsender` | `C_EMAILSENDER`, `C_SMTP_SESSION` | `${YUNOS_DEST_DIR}` | Email sending via native SMTPS |
 | webstats | `webstats` | `C_WEBSTATS`, `C_LOG_READER` | `${YUNOS_DEST_DIR}` | Daily report of the web server logs, by mail |
+| archive_sender | `archive_sender` | `C_ARCHIVE_SENDER` | `${YUNOS_DEST_DIR}` | Ships the batches of a timeranger2 archive to a backup (native or rsync) |
+| archive_keeper | `archive_keeper` | `C_ARCHIVE_KEEPER` | `${YUNOS_DEST_DIR}` | Keeps the batches that archive_senders ship natively |
 | dba_postgres | `dba_postgres` | `C_DBA_POSTGRES` | `${YUNOS_DEST_DIR}` | PostgreSQL adapter |
 | sgateway | `sgateway` | `C_SGATEWAY` | `${YUNOS_DEST_DIR}` | Simple gateway |
 | watchfs | `watchfs` | `C_WATCHFS` | `${YUNOS_DEST_DIR}`, `/yuneta/bin` | Filesystem watcher |

@@ -7,6 +7,8 @@ project(yunos C)
 ##############################################
 #   Source
 ##############################################
+add_subdirectory(archive_keeper)
+add_subdirectory(archive_sender)
 add_subdirectory(auth_bff)
 add_subdirectory(controlcenter)
 add_subdirectory(dba_postgres)

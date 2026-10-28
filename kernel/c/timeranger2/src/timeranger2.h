@@ -872,7 +872,13 @@ PUBLIC json_int_t tranger2_delete_key_files(
 
     A batch is built as `.new-<upto>@<t>` and renamed when it is whole and
     durable: a name that starts with '.' is not finished, and a reader leaves
-    it alone. The batch is made durable BEFORE the base of the key, so:
+    it alone. When the base is written, an empty READY MARK is created in
+    <archive_directory>/.ready/, named by the path of the batch under the
+    archive with '%' written %25 and '/' written %2F: a reader watches that
+    one directory. The mark is a hint (not fsync'ed; a failure is logged and
+    the purge goes on): a batch without one is found by scanning the tree.
+    The archive_sender yuno reads the archive this way. The batch is made
+    durable BEFORE the base of the key, so:
       - a crash while it is built leaves a `.new-*`, removed by the next
         archive of the key; the key as it was;
       - a crash between the batch and the base leaves a whole batch of files

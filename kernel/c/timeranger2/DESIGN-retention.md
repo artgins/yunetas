@@ -2,7 +2,8 @@
 
 Status: **IMPLEMENTED** (2026-10-21, `bd3fdce51` the master, `83a771089` the
 followers, `ffee7cd3f` the `C_TRANGER` command), released in 7.27.5. The archive
-variant, `tranger2_archive_key_files()` (§12), was added on 2026-10-27. Approved the
+variant, `tranger2_archive_key_files()` (§12), was added on 2026-10-27, and the
+yunos that ship the archive (§13) on 2026-10-28. Approved the
 same day; the open questions are decided (§11), and two guards were added to
 the proposal (§4.1). Where the implementation differs from the proposal, the
 text says so (§4.5, §8). Line numbers are those of `timeranger2.c` at
@@ -531,9 +532,26 @@ Each purge of a key that takes at least one file makes one batch:
   of the same `upto` apart: after a crash between the batch and the base the
   same files are archived again (§12.3).
 - **A name that starts with `.` is not a batch.** The batch is built as
-  `.new-<upto>@<t>` and renamed when it is whole and durable. A reader that
-  watches the directory (`C_FS`) takes the names that do not start with `.`,
-  as timeranger2 itself does with its signals.
+  `.new-<upto>@<t>` and renamed when it is whole and durable. A reader takes
+  the names that do not start with `.`, as timeranger2 itself does with its
+  signals.
+- **The ready mark.** When the base is written (the purge happened), an empty
+  file is created in `<archive_directory>/.ready/`. Its name is the path of
+  the batch under the archive, `<database>/<topic>/<key>/<upto>@<t>`, with `%`
+  written `%25` and `/` written `%2F`:
+
+  ```
+  <archive_directory>/.ready/tr_raw_tracks%2Fraw_tracks%2Fdev1%2F2026-09-20@1792573238
+  ```
+
+  A reader watches that ONE directory. Watching the tree would not do: a
+  `rename()` gives no fs event (`fs_watcher` reports creations and deletions),
+  and one watch per key of the archive does not scale. The mark is a hint,
+  not a record: it is not fsync'ed, and it is written after the base, so a
+  mark never names a batch whose purge did not happen. A batch without a mark
+  (a crash between the base and the mark, a mark that could not be written:
+  ERROR, the purge goes on) is found by the scan of the tree a reader makes
+  when it starts. The reader removes the mark with the batch.
 
 The archive is a spool, not a store: timeranger2 never reads it again, and a
 batch put back into `keys/` would be removed by the next open of the master
@@ -551,7 +569,8 @@ batch put back into `keys/` would be removed by the next open of the master
 3. **Decide**: the base (§4.3, unchanged). If it cannot be written the batch
    is removed -- its files are still live -- and the call returns -1 with
    nothing deleted.
-4. **Cache, delete, tell the followers** (§4.3, unchanged).
+4. **Mark** the batch ready (§12.1).
+5. **Cache, delete, tell the followers** (§4.3, unchanged).
 
 The batch is durable **before** the base, and that is the whole point of the
 order: the open of the master finishes a purge cut by a crash by DELETING
@@ -600,10 +619,10 @@ feeds and their hard links (removed as in §4.3), the append path, and
 
 **An archive frees no disk until its reader removes the batch.** The SDK puts
 no limit on it. If the reader is down, the archive grows by what retention
-takes, which is what retention was there to stop. What to do then -- stop
-archiving and delete, alert, stop purging -- is the policy of the owner of
-the store or of the reader, and it needs a decision when the reader is
-written.
+takes, which is what retention was there to stop. The policy is the reader's:
+`archive_sender` (§13) has `max_archive_bytes`, above which it removes the
+oldest batches without shipping them, each one with a WARNING. That keeps the
+node alive and loses the oldest part of the backup, not the newest.
 
 ### 12.7 Cost
 
@@ -639,5 +658,26 @@ that starts after the first; every guard of §12.4 (another filesystem when the
 machine has one at `/dev/shm`); a base that cannot be written removes the
 batch and deletes nothing; a `.new-*` left is removed; a batch name already
 taken is refused; a replica and a reopened master read the numbering of the
-base. `tests/c/c_tranger/test_c_tranger.c`: the command refused with no
+base; the ready mark of each batch, and none for a purge that did not
+happen. `tests/c/c_tranger/test_c_tranger.c`: the command refused with no
 attribute, and a batch with one.
+
+## 13. Shipping the archive: archive_sender and archive_keeper
+
+Added 2026-10-28, after 7.28.11. Two SDK yunos read the archive of §12 and
+take it to a backup machine. Their design is in their READMEs
+(`yunos/c/archive_sender/README.md`, `yunos/c/archive_keeper/README.md`). In
+short:
+
+- `archive_sender` runs on the node, one per archive directory. It watches
+  `.ready/` (C_FS), scans the tree when it plays, and ships the batches the
+  oldest first, one at a time. It removes a batch, with its mark, only when
+  the backup has all of it.
+- Two transports. `native`: frames over `C_PROT_TCP4H` (TLS) to an
+  `archive_keeper` on the backup machine, which writes the batch aside and
+  renames it when every file is whole and fsync'ed. `rsync`: two runs per
+  batch, the files and then the manifest, so a batch at the destination is
+  whole when its `manifest.json` is there. The node opens the connection in
+  both cases: nothing connects to it.
+- `max_archive_bytes` is the policy of §12.6.
+- Test: `tests/c/archive_shipping/`, both transports in one process.

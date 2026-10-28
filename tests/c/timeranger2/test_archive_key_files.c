@@ -171,6 +171,43 @@ PRIVATE void key_archive_path(const char *key, char *bf, size_t bfsize)
 }
 
 /*
+ *  How many ready marks name a batch of `key`
+ */
+PRIVATE int count_ready_marks(const char *key)
+{
+    char ready_dir[PATH_MAX];
+    char prefix[NAME_MAX + 1];
+    build_path(ready_dir, sizeof(ready_dir), path_archive, ".ready", NULL);
+    snprintf(prefix, sizeof(prefix), "%s%%2F%s%%2F%s%%2F", DATABASE, TOPIC_NAME, key);
+    int n = 0;
+    DIR *dir = opendir(ready_dir);
+    struct dirent *entry;
+    while(dir && (entry = readdir(dir)) != NULL) {
+        if(strncmp(entry->d_name, prefix, strlen(prefix)) == 0) {
+            n++;
+        }
+    }
+    if(dir) {
+        closedir(dir);
+    }
+    return n;
+}
+
+/*
+ *  The ready mark of a batch (its path), is it there?
+ */
+PRIVATE BOOL ready_mark_exists(const char *key, const char *batch_path)
+{
+    const char *batch_name = strrchr(batch_path, '/');
+    batch_name = batch_name? batch_name + 1 : batch_path;
+    char mark[NAME_MAX + 1];
+    char mark_path[PATH_MAX];
+    snprintf(mark, sizeof(mark), "%s%%2F%s%%2F%s%%2F%s", DATABASE, TOPIC_NAME, key, batch_name);
+    build_path(mark_path, sizeof(mark_path), path_archive, ".ready", mark, NULL);
+    return access(mark_path, F_OK) == 0;
+}
+
+/*
  *  How many batches a key has, and how many entries that start with '.'
  */
 PRIVATE int count_batches(const char *key, int *dot_entries)
@@ -350,6 +387,8 @@ PRIVATE int do_test(void)
     result += expect_int("batch: the content holds the records", batch_file_holds(batch, "2000-01-01.json", "\"A3\""), 1);
     result += expect_int("batch: topic_desc.json", batch_file_exists(batch, "topic_desc.json"), 1);
     result += expect_int("batch: topic_cols.json", batch_file_exists(batch, "topic_cols.json"), 1);
+    result += expect_int("batch: its ready mark", ready_mark_exists(KEY, batch), 1);
+    result += expect_int("one ready mark", count_ready_marks(KEY), 1);
     result += expect_int("next append", append_one(tm, 1, DAY3 + 100, "D1"), 10);
     result += test_json(NULL);
 
@@ -365,6 +404,8 @@ PRIVATE int do_test(void)
     result += expect_int("second manifest: last_g_rowid", kw_get_int(0, manifest, "last_g_rowid", -1, 0), 6);
     JSON_DECREF(manifest)
     result += expect_int("batch: the content holds the records", batch_file_holds(batch, "2000-01-02.json", "\"B1\""), 1);
+    result += expect_int("second batch: its ready mark", ready_mark_exists(KEY, batch), 1);
+    result += expect_int("two ready marks", count_ready_marks(KEY), 2);
     result += expect_int("nothing more to archive", tranger2_archive_key_files(tm, TOPIC_NAME, KEY, DAY3, path_archive), 0);
     result += expect_int("still two batches", count_batches(KEY, &dots), 2);
     served(tm, KEY, bf, sizeof(bf));
@@ -449,6 +490,7 @@ PRIVATE int do_test(void)
         result += expect_int("the archive fails", tranger2_archive_key_files(tm, TOPIC_NAME, KEY2, DAY2, path_archive), -1);
         chmod(key_dir, 0770);
         result += expect_int("no batch", count_batches(KEY2, &dots), 0);
+        result += expect_int("no ready mark", count_ready_marks(KEY2), 0);
         result += expect_int("nothing half built", dots, 0);
         result += expect_int("nothing deleted", (json_int_t)tranger2_topic_key_size(tm, TOPIC_NAME, KEY2), 6);
         result += expect_int("the md2 still in the topic", key_file_exists(KEY2, "2000-01-01.md2"), 1);
@@ -457,6 +499,7 @@ PRIVATE int do_test(void)
     set_expected_results("archive key files: the next purge goes through", NULL, NULL, NULL, 1);
     result += expect_int("rows archived", tranger2_archive_key_files(tm, TOPIC_NAME, KEY2, DAY2, path_archive), 2);
     result += expect_int("one batch", count_batches(KEY2, &dots), 1);
+    result += expect_int("one ready mark", count_ready_marks(KEY2), 1);
     served(tm, KEY2, bf, sizeof(bf));
     result += expect("served", bf, "Q1:3 Q2:4 R1:5 R2:6");
     result += test_json(NULL);

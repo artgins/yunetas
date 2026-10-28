@@ -621,6 +621,14 @@ PRIVATE int archive_purged_files(
     char *batch_path,
     size_t batch_path_size
 );
+PRIVATE void mark_batch_ready(
+    hgobj gobj,
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    const char *archive_directory,
+    const char *batch_path
+);
 PRIVATE json_t *key_cache_stamp(json_t *topic, const char *key);
 PRIVATE void forget_segments_of_key(json_t *topic, const char *key);
 PRIVATE void retake_segments_of_key(
@@ -7120,6 +7128,9 @@ PRIVATE json_int_t purge_key_files(
         JSON_DECREF(jn_purged)
         JSON_DECREF(file_ids)
         return -1;
+    }
+    if(batch_path[0]) {
+        mark_batch_ready(gobj, tranger, topic_name, key, archive_directory, batch_path);
     }
 
     /*-----------------------------------*
@@ -14132,6 +14143,102 @@ PRIVATE int archive_purged_files(
 
     snprintf(batch_path, batch_path_size, "%s", final_path);
     return 0;
+}
+
+/***************************************************************************
+ *  Archive: the batch is whole and its purge happened. A mark in
+ *  <archive_directory>/.ready/ tells it to whoever ships the archive: it
+ *  watches that one directory, not the tree (a rename() is told by no fs
+ *  event, and a watch per key does not scale). The name of the mark is the
+ *  path of the batch under the archive, <database>/<topic>/<key>/<batch>,
+ *  with '%' written %25 and '/' written %2F. A hint, not a record: it is
+ *  not fsync'ed, and a batch without one is found by the scan of the tree
+ *  its reader makes when it starts.
+ ***************************************************************************/
+PRIVATE void mark_batch_ready(
+    hgobj gobj,
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    const char *archive_directory,
+    const char *batch_path
+)
+{
+    const char *batch_name = strrchr(batch_path, '/');
+    batch_name = batch_name? batch_name + 1 : batch_path;
+    const char *parts[] = {
+        json_string_value(json_object_get(tranger, "database")),
+        topic_name,
+        key,
+        batch_name,
+        NULL
+    };
+
+    char mark[NAME_MAX + 1];
+    size_t len = 0;
+    BOOL too_long = FALSE;
+    for(int i = 0; parts[i] && !too_long; i++) {
+        if(i > 0) {
+            if(len + 3 > NAME_MAX) {
+                too_long = TRUE;
+                break;
+            }
+            memcpy(mark + len, "%2F", 3);
+            len += 3;
+        }
+        for(const char *c = parts[i]; *c; c++) {
+            size_t need = (*c == '%')? 3 : 1;
+            if(len + need > NAME_MAX) {
+                too_long = TRUE;
+                break;
+            }
+            if(*c == '%') {
+                memcpy(mark + len, "%25", 3);
+            } else {
+                mark[len] = *c;
+            }
+            len += need;
+        }
+    }
+    mark[len] = 0;
+    if(too_long) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Archive: the ready mark of a batch is longer than a file name: its reader finds it at its next scan",
+            "path",         "%s", batch_path,
+            NULL
+        );
+        return;
+    }
+
+    char ready_dir[PATH_MAX];
+    char mark_path[PATH_MAX];
+    if(!build_path(ready_dir, sizeof(ready_dir), archive_directory, ".ready", NULL) ||
+       !build_path(mark_path, sizeof(mark_path), ready_dir, mark, NULL)) {
+        return;  // Error already logged
+    }
+    if(!is_directory(ready_dir)) {
+        int xpermission = (int)kw_get_int(gobj, tranger, "xpermission", 02770, KW_REQUIRED);
+        if(mkrdir(ready_dir, xpermission) < 0) {
+            return;  // Error already logged
+        }
+    }
+    int rpermission = (int)kw_get_int(gobj, tranger, "rpermission", 0660, KW_REQUIRED);
+    int fd = open(mark_path, O_CREAT|O_WRONLY|O_CLOEXEC, rpermission);
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Archive: cannot write the ready mark of a batch: its reader finds it at its next scan",
+            "path",         "%s", mark_path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return;
+    }
+    close(fd);
 }
 
 /***************************************************************************

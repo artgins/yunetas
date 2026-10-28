@@ -51,6 +51,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `tr_treedb_load_failed` | A topic whose keys cannot all be read: treedb loads the others, remembers the failed keys, and refuses what memory would answer wrong (a create of such an id, snapshot operations with a partial `__snaps__`) |
 | `tr_treedb_relink` | A link into a single-valued fkey replaces the old one |
 | `tr_treedb_hook_rename` | Renaming a hook, and the derived `fkey` mark; a stale ref in a string fkey column is removed by a clean and a forced delete |
+| `archive_shipping` | `archive_sender` and `archive_keeper`: a native sender ships to a keeper over TCP the batches its scan finds, one told by its ready mark, and one the keeper has already (answered stored at once); an rsync sender ships to a local directory with room for one batch of two (the oldest dropped with a WARNING); what arrives is whole and nothing is left in the archives |
 | `tr_dt_unknown` | A topic on a filesystem whose `readdir()` gives no `d_type`: keys found with `lstat()`, a symbolic link is not a key, an unreadable key is flagged |
 | `gobj_post_event` | `gobj_post_event()`: delivery on the next cycle of the loop |
 | `gobj_dispatch` | A gobj destroyed while an event is dispatched to it or published by it: the kernel never reads it after; a gobj destroyed under code still running on it (a publication, an outer action) is an ERROR; a self-destroy, in an action or a framework method, and the `EV_STOPPED` of the stop contract are not |

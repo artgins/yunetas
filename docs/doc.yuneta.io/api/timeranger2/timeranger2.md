@@ -1403,6 +1403,19 @@ the base). The manifest says what the batch holds and how it is numbered:
 Row N of the k-th file of `files` has the `g_rowid` `first_g_rowid` + the
 rows of the files before it + N - 1.
 
+When the base is written, an empty **ready mark** is created in
+`<archive_directory>/.ready/`. Its name is the path of the batch under the
+archive, with `%` written `%25` and `/` written `%2F`:
+
+```text
+<archive_directory>/.ready/tr_raw_tracks%2Fraw_tracks%2Fdev1%2F2026-09-20@1792573238
+```
+
+A reader watches that one directory (a `rename()` gives no fs event, and the
+tree has a directory per key). The mark is a hint, not a record: a batch
+without one is found by a scan of the tree. The SDK's reader is the
+[`archive_sender`](#yuno-archive_sender) yuno.
+
 ```C
 json_int_t tranger2_archive_key_files(
     json_t      *tranger,

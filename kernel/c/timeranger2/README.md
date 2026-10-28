@@ -292,8 +292,15 @@ if(rows < 0) {
 - **The batch is durable before the base**, so the open of the master, which
   finishes a cut purge by deleting, never deletes a file that is not
   archived.
+- **A ready mark** for each batch whose purge happened: an empty file in
+  `<archive_directory>/.ready/`, named by the path of the batch with `%`
+  written `%25` and `/` written `%2F`. A reader watches that one directory,
+  and scans the tree when it starts (the mark is a hint, not a record).
 - **The archive frees no disk until its reader removes a batch.** The SDK puts
-  no limit on it.
+  no limit on it. The SDK's reader is the `archive_sender` yuno: it ships the
+  batches to an `archive_keeper` or with rsync, and its `max_archive_bytes`
+  drops the oldest when the backup is not there
+  ([`DESIGN-retention.md`](DESIGN-retention.md) §13).
 - **Cost**: about three times a delete (three or four `fsync()` more per key).
 
 By hand, `archive-key-files` of `C_TRANGER`, with the parameters of

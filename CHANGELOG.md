@@ -25,6 +25,29 @@
   empty: the command is refused). The directory is configuration, never a
   parameter: a peer that chose it could have the store linked wherever the
   yuno can write.
+- **timeranger2: the ready mark of an archived batch.** When the base of an
+  archive is written, an empty file is created in
+  `<archive_directory>/.ready/`, named by the path of the batch with `%` as
+  `%25` and `/` as `%2F`. A reader watches that one directory: a `rename()`
+  gives no fs event, and a watch per key does not scale. A hint, not a
+  record: not fsync'ed, a failure logged and the purge goes on.
+- **New yunos `archive_sender` and `archive_keeper`: the archive shipped to a
+  backup.** `archive_sender` runs on the node: it watches `.ready/`, scans the
+  tree when it plays, and ships the batches the oldest first, one at a time,
+  removing each (with its mark) only when the backup has all of it. Two
+  transports: `native`, frames over `C_PROT_TCP4H` (TLS) to an
+  `archive_keeper` on the backup machine, which writes the batch aside and
+  renames it when every file is whole and fsync'ed, and answers `stored` at
+  once for a batch it already has; and `rsync`, two runs per batch (the files,
+  then the manifest: a batch is whole at the destination when its manifest is
+  there), watched with a pidfd so nothing blocks. The node opens the
+  connection in both. `max_archive_bytes` (0: no limit) removes the oldest
+  batches unshipped, each with a WARNING, when the backup is not there. A batch
+  that fails goes to the back of the queue, and nothing is tried for
+  `retry_period`. Commands `list-pending`, `rescan`; `list-sessions` in the
+  keeper. Test `tests/c/archive_shipping/` (both transports, a batch the keeper
+  has, one dropped by the limit). Design: `yunos/c/archive_sender/README.md`,
+  `DESIGN-retention.md` §13.
 
 ## v7.28.11 (2026-10-27)
 

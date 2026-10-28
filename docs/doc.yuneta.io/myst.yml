@@ -337,6 +337,8 @@ project:
           file: yunos/data-and-infrastructure.md
           children:
             - file: yunos/dba_postgres.md
+            - file: yunos/archive_sender.md
+            - file: yunos/archive_keeper.md
         - title: Development & Testing
           file: yunos/development-and-testing.md
           children:
