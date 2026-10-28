@@ -1,0 +1,236 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1340" width="900" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" role="img" aria-label="Yuneta 7.29.0 against 7.28.8: change of the time one operation takes">
+<title>Yuneta 7.29.0 against 7.28.8: change of the time one operation takes</title>
+<style>
+  .bg { fill: #fcfcfb; stroke: rgba(11,11,11,0.10); }
+  .t { fill: #0b0b0b; font-size: 15px; font-weight: 600; }
+  .l { fill: #0b0b0b; font-size: 12.5px; }
+  .m { fill: #6f6d68; font-size: 11.5px; }
+  .g { fill: #6f6d68; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; }
+  .v { fill: #52514e; font-size: 12px; }
+  .grid { stroke: #e1e0d9; stroke-width: 1; }
+  .zero { stroke: #a3a198; stroke-width: 1; }
+  .gain { fill: #2a78d6; } .price { fill: #e34948; } .noise { fill: #b9b7ae; }
+  .cur { fill: #2a78d6; } .prev { fill: #9b9991; }
+  .curl { stroke: #2a78d6; stroke-width: 2; fill: none; }
+  .w { stroke: #52514e; stroke-width: 1.5; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #1a1a19; stroke: rgba(255,255,255,0.10); }
+    .t, .l { fill: #ffffff; } .m, .g { fill: #a3a198; } .v { fill: #c3c2b7; }
+    .grid { stroke: #2c2c2a; } .zero { stroke: #5c5b56; }
+    .gain, .cur { fill: #3987e5; } .price { fill: #e66767; } .noise { fill: #5c5b56; } .prev { fill: #7a786f; }
+    .curl { stroke: #3987e5; } .w { stroke: #c3c2b7; }
+  }
+</style>
+<rect class="bg" x="0.5" y="0.5" width="899" height="1339" rx="10"/>
+<text class="t" x="20" y="30">Yuneta 7.29.0 against 7.28.8: change of the time one operation takes</text>
+<text class="m" x="20" y="48">left of zero is faster &#183; blue faster, grey within noise, red a price paid on purpose &#183; whisker &#177;1 sd &#183; bars past +40% are cut (factor on the right)</text>
+<line class="grid" x1="330.0" x2="330.0" y1="66" y2="1308"/>
+<text class="m" x="330.0" y="1324" text-anchor="middle">-100%</text>
+<line class="grid" x1="408.6" x2="408.6" y1="66" y2="1308"/>
+<text class="m" x="408.6" y="1324" text-anchor="middle">-75%</text>
+<line class="grid" x1="487.1" x2="487.1" y1="66" y2="1308"/>
+<text class="m" x="487.1" y="1324" text-anchor="middle">-50%</text>
+<line class="grid" x1="565.7" x2="565.7" y1="66" y2="1308"/>
+<text class="m" x="565.7" y="1324" text-anchor="middle">-25%</text>
+<line class="grid" x1="644.3" x2="644.3" y1="66" y2="1308"/>
+<text class="m" x="644.3" y="1324" text-anchor="middle">0%</text>
+<line class="grid" x1="722.9" x2="722.9" y1="66" y2="1308"/>
+<text class="m" x="722.9" y="1324" text-anchor="middle">+25%</text>
+<line class="zero" x1="644.3" x2="644.3" y1="66" y2="1308"/>
+<text class="g" x="20" y="84">TIMERANGER2</text>
+<text class="l" x="20" y="106">Appends per second</text>
+<rect class="noise" x="639.3" y="97" width="5.0" height="10" rx="2"><title>Appends per second: -1.6%</title></rect>
+<path class="w" d="M633.5 102 H645.1 M633.5 98 V106 M645.1 98 V106"/>
+<text class="v" x="880" y="106" text-anchor="end">-1.6%</text>
+<text class="l" x="20" y="128">Appends per second, live reader</text>
+<rect class="noise" x="633.6" y="119" width="10.7" height="10" rx="2"><title>Appends per second, with a live reader: -3.4%</title></rect>
+<path class="w" d="M626.0 124 H641.3 M626.0 120 V128 M641.3 120 V128"/>
+<text class="v" x="880" y="128" text-anchor="end">-3.4%</text>
+<text class="l" x="20" y="150">400 000 appends into 20 000 files</text>
+<rect class="noise" x="637.8" y="141" width="6.5" height="10" rx="2"><title>400 000 appends into 20 000 files: -2.1%</title></rect>
+<path class="w" d="M632.5 146 H643.1 M632.5 142 V150 M643.1 142 V150"/>
+<text class="v" x="880" y="150" text-anchor="end">-2.1%</text>
+<text class="l" x="20" y="172">600 000 appends into 30 files</text>
+<rect class="noise" x="640.3" y="163" width="4.0" height="10" rx="2"><title>600 000 appends into 30 files: -1.3%</title></rect>
+<path class="w" d="M635.0 168 H645.7 M635.0 164 V172 M645.7 164 V172"/>
+<text class="v" x="880" y="172" text-anchor="end">-1.3%</text>
+<text class="l" x="20" y="194">Records read, iterator</text>
+<rect class="noise" x="635.2" y="185" width="9.1" height="10" rx="2"><title>Records read per second (iterator with a callback): -2.9%</title></rect>
+<path class="w" d="M627.9 190 H642.5 M627.9 186 V194 M642.5 186 V194"/>
+<text class="v" x="880" y="194" text-anchor="end">-2.9%</text>
+<text class="l" x="20" y="216">Records read, page by page</text>
+<rect class="noise" x="644.3" y="207" width="3.9" height="10" rx="2"><title>Records read per second, page by page: +1.2%</title></rect>
+<path class="w" d="M634.8 212 H661.6 M634.8 208 V216 M661.6 208 V216"/>
+<text class="v" x="880" y="216" text-anchor="end">+1.2%</text>
+<text class="l" x="20" y="238">Open a store as master</text>
+<rect class="noise" x="644.3" y="229" width="1.0" height="10" rx="2"><title>Open a store as master (20 000 md2 files): +0.3%</title></rect>
+<path class="w" d="M626.3 234 H664.1 M626.3 230 V238 M664.1 230 V238"/>
+<text class="v" x="880" y="238" text-anchor="end">+0.3%</text>
+<text class="l" x="20" y="260">tm query of a minute</text>
+<rect class="noise" x="644.3" y="251" width="3.1" height="10" rx="2"><title>Query one minute by tm: +1.0%</title></rect>
+<path class="w" d="M640.5 256 H654.3 M640.5 252 V260 M654.3 252 V260"/>
+<text class="v" x="880" y="260" text-anchor="end">+1.0%</text>
+<text class="l" x="20" y="282">Open a store as replica</text>
+<rect class="noise" x="644.3" y="273" width="2.4" height="10" rx="2"><title>Open a store as replica (20 000 md2 files): +0.8%</title></rect>
+<path class="w" d="M630.0 278 H663.3 M630.0 274 V282 M663.3 274 V282"/>
+<text class="v" x="880" y="282" text-anchor="end">+0.8%</text>
+<text class="l" x="20" y="304">Create 10 topics</text>
+<rect class="noise" x="638.4" y="295" width="5.9" height="10" rx="2"><title>Create 10 topics: -1.9%</title></rect>
+<path class="w" d="M591.9 300 H684.9 M591.9 296 V304 M684.9 296 V304"/>
+<text class="v" x="880" y="304" text-anchor="end">-1.9%</text>
+<text class="l" x="20" y="326">Change topic_version of 10 topics</text>
+<rect class="noise" x="644.3" y="317" width="1.0" height="10" rx="2"><title>Change the topic_version of 10 topics: +0.1%</title></rect>
+<path class="w" d="M597.7 322 H691.3 M597.7 318 V326 M691.3 318 V326"/>
+<text class="v" x="880" y="326" text-anchor="end">+0.1%</text>
+<text class="g" x="20" y="352">TREEDB</text>
+<text class="l" x="20" y="374">Update a node in memory</text>
+<rect class="noise" x="641.6" y="365" width="2.7" height="10" rx="2"><title>Update a node in memory: -0.8%</title></rect>
+<path class="w" d="M633.4 370 H649.8 M633.4 366 V374 M649.8 366 V374"/>
+<text class="v" x="880" y="374" text-anchor="end">-0.8%</text>
+<text class="l" x="20" y="396">Update a node and save it</text>
+<rect class="noise" x="644.3" y="387" width="13.5" height="10" rx="2"><title>Update a node and save it: +4.3%</title></rect>
+<path class="w" d="M650.7 392 H664.8 M650.7 388 V396 M664.8 388 V396"/>
+<text class="v" x="880" y="396" text-anchor="end">+4.3%</text>
+<text class="l" x="20" y="418">Link or unlink two nodes</text>
+<rect class="noise" x="643.8" y="409" width="1.0" height="10" rx="2"><title>Link or unlink two nodes: -0.2%</title></rect>
+<path class="w" d="M635.6 414 H652.0 M635.6 410 V418 M652.0 410 V418"/>
+<text class="v" x="880" y="418" text-anchor="end">-0.2%</text>
+<text class="l" x="20" y="440">Create a node</text>
+<rect class="noise" x="641.0" y="431" width="3.2" height="10" rx="2"><title>Create a node (half of them linked): -1.0%</title></rect>
+<path class="w" d="M632.3 436 H649.8 M632.3 432 V440 M649.8 432 V440"/>
+<text class="v" x="880" y="440" text-anchor="end">-1.0%</text>
+<text class="l" x="20" y="462">Reopen the treedb</text>
+<rect class="noise" x="644.3" y="453" width="15.7" height="10" rx="2"><title>Reopen the treedb: +5.0%</title></rect>
+<path class="w" d="M641.5 458 H678.5 M641.5 454 V462 M678.5 454 V462"/>
+<text class="v" x="880" y="462" text-anchor="end">+5.0%</text>
+<text class="l" x="20" y="484">Forced delete of a node</text>
+<rect class="noise" x="644.3" y="475" width="1.0" height="10" rx="2"><title>Forced delete of a node: +0.1%</title></rect>
+<path class="w" d="M632.3 480 H656.9 M632.3 476 V484 M656.9 476 V484"/>
+<text class="v" x="880" y="484" text-anchor="end">+0.1%</text>
+<text class="l" x="20" y="506">Delete a parent of 200 children</text>
+<rect class="noise" x="644.3" y="497" width="14.2" height="10" rx="2"><title>Forced delete of a parent with 200 children: +4.5%</title></rect>
+<path class="w" d="M631.2 502 H685.8 M631.2 498 V506 M685.8 498 V506"/>
+<text class="v" x="880" y="506" text-anchor="end">+4.5%</text>
+<text class="g" x="20" y="532">C_TREEDB</text>
+<text class="l" x="20" y="554">Open 40 treedbs, same schema</text>
+<rect class="noise" x="617.1" y="545" width="27.2" height="10" rx="2"><title>Open 40 treedbs whose schema did not change (release against release): -8.6%</title></rect>
+<path class="w" d="M576.0 550 H658.2 M576.0 546 V554 M658.2 546 V554"/>
+<text class="v" x="880" y="554" text-anchor="end">-8.6%</text>
+<text class="l" x="20" y="576">First open of 40 treedbs (seed)</text>
+<rect class="noise" x="644.3" y="567" width="5.1" height="10" rx="2"><title>First open of 40 treedbs (seed projection): +1.6%</title></rect>
+<path class="w" d="M628.0 572 H670.8 M628.0 568 V576 M670.8 568 V576"/>
+<text class="v" x="880" y="576" text-anchor="end">+1.6%</text>
+<text class="l" x="20" y="598">Open 40 treedbs, newer schema</text>
+<rect class="noise" x="644.2" y="589" width="1.0" height="10" rx="2"><title>Open 40 treedbs with a newer schema: -0.0%</title></rect>
+<path class="w" d="M624.6 594 H663.8 M624.6 590 V598 M663.8 590 V598"/>
+<text class="v" x="880" y="598" text-anchor="end">-0.0%</text>
+<text class="g" x="20" y="624">ROTATORY</text>
+<text class="l" x="20" y="646">One agent audit record</text>
+<rect class="noise" x="638.3" y="637" width="6.0" height="10" rx="2"><title>Write one agent audit record (300 bytes): -1.9%</title></rect>
+<path class="w" d="M620.9 642 H655.7 M620.9 638 V646 M655.7 638 V646"/>
+<text class="v" x="880" y="646" text-anchor="end">-1.9%</text>
+<text class="l" x="20" y="668">One audit record, flushed</text>
+<rect class="noise" x="644.3" y="659" width="1.0" height="10" rx="2"><title>Write and flush one audit record: +0.1%</title></rect>
+<path class="w" d="M640.0 664 H649.1 M640.0 660 V668 M649.1 660 V668"/>
+<text class="v" x="880" y="668" text-anchor="end">+0.1%</text>
+<text class="l" x="20" y="690">One log record</text>
+<rect class="noise" x="644.3" y="681" width="1.8" height="10" rx="2"><title>Write one log record (300 bytes, with header): +0.6%</title></rect>
+<path class="w" d="M642.0 686 H650.1 M642.0 682 V690 M650.1 682 V690"/>
+<text class="v" x="880" y="690" text-anchor="end">+0.6%</text>
+<text class="g" x="20" y="716">EVENT LOOP</text>
+<text class="l" x="20" y="738">TCP echo, gobj stack</text>
+<rect class="noise" x="644.3" y="729" width="8.7" height="10" rx="2"><title>TCP echo through the full gobj stack: +2.8%</title></rect>
+<path class="w" d="M647.2 734 H658.8 M647.2 730 V738 M658.8 730 V738"/>
+<text class="v" x="880" y="738" text-anchor="end">+2.8%</text>
+<text class="l" x="20" y="760">TCP echo + append</text>
+<rect class="noise" x="643.5" y="751" width="1.0" height="10" rx="2"><title>TCP echo + one timeranger2 append per message: -0.3%</title></rect>
+<path class="w" d="M640.5 756 H646.5 M640.5 752 V760 M646.5 752 V760"/>
+<text class="v" x="880" y="760" text-anchor="end">-0.3%</text>
+<text class="l" x="20" y="782">TLS echo, gobj stack</text>
+<rect class="noise" x="644.3" y="773" width="10.2" height="10" rx="2"><title>TLS echo through the full gobj stack (OpenSSL): +3.2%</title></rect>
+<path class="w" d="M646.4 778 H662.5 M646.4 774 V782 M662.5 774 V782"/>
+<text class="v" x="880" y="782" text-anchor="end">+3.2%</text>
+<text class="l" x="20" y="804">TLS echo + append</text>
+<rect class="noise" x="640.2" y="795" width="4.1" height="10" rx="2"><title>TLS echo + one timeranger2 append per message (OpenSSL): -1.3%</title></rect>
+<path class="w" d="M632.3 800 H648.1 M632.3 796 V804 M648.1 796 V804"/>
+<text class="v" x="880" y="804" text-anchor="end">-1.3%</text>
+<text class="l" x="20" y="826">OAuth2 BFF logins</text>
+<rect class="noise" x="644.3" y="817" width="1.8" height="10" rx="2"><title>OAuth2 BFF login round trips (5 parallel clients): +0.6%</title></rect>
+<path class="w" d="M637.0 822 H655.1 M637.0 818 V826 M655.1 818 V826"/>
+<text class="v" x="880" y="826" text-anchor="end">+0.6%</text>
+<text class="g" x="20" y="852">TIMERANGER2 READS</text>
+<text class="l" x="20" y="874">Page of 1 row, replica</text>
+<rect class="noise" x="644.3" y="865" width="2.3" height="10" rx="2"><title>A page of 1 row, as a replica: +0.7%</title></rect>
+<path class="w" d="M637.6 870 H655.5 M637.6 866 V874 M655.5 866 V874"/>
+<text class="v" x="880" y="874" text-anchor="end">+0.7%</text>
+<text class="l" x="20" y="896">Filtered page of 1 row, replica</text>
+<rect class="noise" x="639.8" y="887" width="4.5" height="10" rx="2"><title>A page of 1 row of a filtered iterator, as a replica: -1.4%</title></rect>
+<path class="w" d="M629.4 892 H650.2 M629.4 888 V896 M650.2 888 V896"/>
+<text class="v" x="880" y="896" text-anchor="end">-1.4%</text>
+<text class="l" x="20" y="918">Iterator open, replica</text>
+<rect class="noise" x="644.3" y="909" width="2.9" height="10" rx="2"><title>Open and close an iterator, as a replica: +0.9%</title></rect>
+<path class="w" d="M635.1 914 H659.3 M635.1 910 V918 M659.3 910 V918"/>
+<text class="v" x="880" y="918" text-anchor="end">+0.9%</text>
+<text class="l" x="20" y="940">Filtered iterator open, replica</text>
+<rect class="noise" x="644.3" y="931" width="1.0" height="10" rx="2"><title>Open and close a filtered iterator, as a replica: +0.0%</title></rect>
+<path class="w" d="M632.6 936 H656.2 M632.6 932 V940 M656.2 932 V940"/>
+<text class="v" x="880" y="940" text-anchor="end">+0.0%</text>
+<text class="l" x="20" y="962">Page of 100 rows, replica</text>
+<rect class="noise" x="644.3" y="953" width="6.4" height="10" rx="2"><title>A page of 100 rows, as a replica: +2.0%</title></rect>
+<path class="w" d="M641.8 958 H659.6 M641.8 954 V962 M659.6 954 V962"/>
+<text class="v" x="880" y="962" text-anchor="end">+2.0%</text>
+<text class="l" x="20" y="984">Page of 1 row, master</text>
+<rect class="noise" x="644.3" y="975" width="3.9" height="10" rx="2"><title>A page of 1 row, as the master: +1.2%</title></rect>
+<path class="w" d="M640.9 980 H655.5 M640.9 976 V984 M655.5 976 V984"/>
+<text class="v" x="880" y="984" text-anchor="end">+1.2%</text>
+<text class="l" x="20" y="1006">Filtered page of 1 row, master</text>
+<rect class="noise" x="644.3" y="997" width="1.6" height="10" rx="2"><title>A page of 1 row of a filtered iterator, as the master: +0.5%</title></rect>
+<path class="w" d="M638.0 1002 H653.7 M638.0 998 V1006 M653.7 998 V1006"/>
+<text class="v" x="880" y="1006" text-anchor="end">+0.5%</text>
+<text class="l" x="20" y="1028">Iterator open, master</text>
+<rect class="noise" x="644.3" y="1019" width="1.0" height="10" rx="2"><title>Open and close an iterator, as the master: +0.0%</title></rect>
+<path class="w" d="M633.8 1024 H655.1 M633.8 1020 V1028 M655.1 1020 V1028"/>
+<text class="v" x="880" y="1028" text-anchor="end">+0.0%</text>
+<text class="l" x="20" y="1050">Filtered iterator open, master</text>
+<rect class="noise" x="643.4" y="1041" width="1.0" height="10" rx="2"><title>Open and close a filtered iterator, as the master: -0.3%</title></rect>
+<path class="w" d="M633.0 1046 H653.7 M633.0 1042 V1050 M653.7 1042 V1050"/>
+<text class="v" x="880" y="1050" text-anchor="end">-0.3%</text>
+<text class="l" x="20" y="1072">Page of 100 rows, master</text>
+<rect class="noise" x="644.3" y="1063" width="3.1" height="10" rx="2"><title>A page of 100 rows, as the master: +1.0%</title></rect>
+<path class="w" d="M639.2 1068 H655.6 M639.2 1064 V1072 M655.6 1064 V1072"/>
+<text class="v" x="880" y="1072" text-anchor="end">+1.0%</text>
+<text class="g" x="20" y="1098">EVENT LOOP</text>
+<text class="l" x="20" y="1120">Inter-yuno events</text>
+<rect class="noise" x="644.3" y="1111" width="3.9" height="10" rx="2"><title>Inter-yuno event round trips (websocket): +1.3%</title></rect>
+<path class="w" d="M635.5 1116 H660.9 M635.5 1112 V1120 M660.9 1112 V1120"/>
+<text class="v" x="880" y="1120" text-anchor="end">+1.3%</text>
+<text class="g" x="20" y="1146">TREEDB READS</text>
+<text class="l" x="20" y="1168">Open a treedb (per node)</text>
+<rect class="noise" x="641.8" y="1159" width="2.5" height="10" rx="2"><title>Open a treedb of 8 000 users (per node): -0.8%</title></rect>
+<path class="w" d="M631.8 1164 H651.9 M631.8 1160 V1168 M651.9 1160 V1168"/>
+<text class="v" x="880" y="1168" text-anchor="end">-0.8%</text>
+<text class="l" x="20" y="1190">List nodes</text>
+<rect class="noise" x="644.3" y="1181" width="11.9" height="10" rx="2"><title>List the nodes of a topic (per node): +3.8%</title></rect>
+<path class="w" d="M618.4 1186 H694.0 M618.4 1182 V1190 M694.0 1182 V1190"/>
+<text class="v" x="880" y="1190" text-anchor="end">+3.8%</text>
+<text class="l" x="20" y="1212">List with a filter</text>
+<rect class="noise" x="561.7" y="1203" width="82.6" height="10" rx="2"><title>List with a filter of one column (per node looked at): -26.3%</title></rect>
+<path class="w" d="M435.7 1208 H687.7 M435.7 1204 V1212 M687.7 1204 V1212"/>
+<text class="v" x="880" y="1212" text-anchor="end">-26.3%</text>
+<text class="l" x="20" y="1234">Views of users</text>
+<rect class="noise" x="634.1" y="1225" width="10.2" height="10" rx="2"><title>The views of every user (per user): -3.2%</title></rect>
+<path class="w" d="M614.4 1230 H653.8 M614.4 1226 V1234 M653.8 1226 V1234"/>
+<text class="v" x="880" y="1234" text-anchor="end">-3.2%</text>
+<text class="l" x="20" y="1256">Views of departments</text>
+<rect class="noise" x="644.0" y="1247" width="1.0" height="10" rx="2"><title>The views of every department, ~50 users in its hook (per department): -0.1%</title></rect>
+<path class="w" d="M620.9 1252 H667.0 M620.9 1248 V1256 M667.0 1248 V1256"/>
+<text class="v" x="880" y="1256" text-anchor="end">-0.1%</text>
+<text class="l" x="20" y="1278">Get a node + view</text>
+<rect class="noise" x="634.2" y="1269" width="10.0" height="10" rx="2"><title>Get a node and its view, one by one (per user): -3.2%</title></rect>
+<path class="w" d="M612.9 1274 H655.5 M612.9 1270 V1278 M655.5 1270 V1278"/>
+<text class="v" x="880" y="1278" text-anchor="end">-3.2%</text>
+<text class="l" x="20" y="1300">Views as json text</text>
+<rect class="noise" x="639.8" y="1291" width="4.5" height="10" rx="2"><title>The json text of the view of each user (per user): -1.4%</title></rect>
+<path class="w" d="M613.2 1296 H666.4 M613.2 1292 V1300 M666.4 1292 V1300"/>
+<text class="v" x="880" y="1300" text-anchor="end">-1.4%</text>
+</svg>

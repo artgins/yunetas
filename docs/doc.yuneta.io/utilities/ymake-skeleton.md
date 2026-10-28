@@ -43,4 +43,4 @@ before you publish the template.
 ## See also
 
 - [`yuno-skeleton`](yuno-skeleton.md) — instantiate from a skeleton.
-- [`utils/c/ymake-skeleton/README.md`](https://github.com/artgins/yunetas/blob/7.28.11/utils/c/ymake-skeleton/README.md).
+- [`utils/c/ymake-skeleton/README.md`](https://github.com/artgins/yunetas/blob/7.29.0/utils/c/ymake-skeleton/README.md).

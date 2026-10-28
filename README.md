@@ -110,6 +110,15 @@ A release that moves a lot of code ships a performance report: charts of what
 the release does on one machine, the release before measured the same way, and every loss with its
 reason.
 
+- **7.29.0** (against 7.28.8, the last release with a study; 7.28.9 to
+  7.28.11 inside it): retention that keeps what it takes, shipped to a backup
+  by two new yunos, with the content of each file checked and mutual TLS. The
+  new code is off the measured paths: 41 of 47 figures inside their noise, the
+  six that move (2-4%, both ways) on code that did not change, and moved as
+  much when only its placement changed. No price.
+  [Report](performance/reports/7.29.0.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.29.0/performance/reports/7.29.0.html) ·
+  [raw figures](performance/reports/7.29.0.json)
 - **7.28.0** (against 7.27.11, the last release with a study; 7.27.12 to
   7.27.21 inside it): a performance round over the C SDK, and jansson as
   Yuneta's own JSON library. 1.9 times the appends per second (225,745 ->

@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## v7.29.0 (2026-10-28)
+
+Retention that keeps what it takes, and the yunos that take it to a backup.
+`tranger2_archive_key_files()` does the purge of `tranger2_delete_key_files()`
+and leaves the files it took in a batch of an archive directory, with a ready
+mark; `archive_sender` ships the batches of a node to an `archive_keeper` on
+the backup machine (or with rsync) and removes each one only when the backup
+has all of it. The keeper checks the content of each file (sha256, sent at the
+end of each batch) and binds the node to the client certificate of its channel
+(mutual TLS), for which ytls learns to tell who the peer is
+(`ytls_get_peer_cert_info()`) and the OpenSSL client to present a certificate.
+A full release: the kernel changes (gobj-c, ytls, `C_TCP`, timeranger2), so
+every yuno is rebuilt on every node.
+
+**Performance** (against 7.28.8, the last release with a study; 7.28.9 to
+7.28.11 inside it; 47 figures, 8 rounds; report
+`performance/reports/7.29.0.html`): no price. 41 figures inside their noise.
+Six moved outside it on code that did not change: the TCP echo -2.7%, the TLS
+echo -3.1% and the treedb save +4.3% of time; the appends with a live reader
++3.5%, the read with an iterator +3.0% and `build_appends` -2.1% of time,
+not claimed. Relinked with the libraries of 7.28.11, the 7.29.0 binaries put
+the TCP echo and the treedb save within 1.9% and 0.85% of it, and swapping one
+library whose hot code is the same moved them as much the other way; the TLS
+echo moved in steps of about 1% over 7.28.10, 7.28.11 and 7.29.0, none outside
+its noise: placement. The yunos are 0.2% larger (stripped).
+
+
 - **timeranger2: `tranger2_archive_key_files()`, retention that keeps what it
   takes.** The purge of `tranger2_delete_key_files()` -- the same cut, guards,
   base and answer -- with the files taken out of the topic hard-linked into a
