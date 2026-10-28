@@ -399,6 +399,7 @@ Each agent has a corresponding `.json` configuration file generated on first ins
 | `check-certs-validity.sh` | `/yuneta/bin/` | Scan `*.crt` files and show expiry status |
 | `copy-certs.sh` | `/yuneta/store/certs/` | Copy Let's Encrypt certificates from `/etc/letsencrypt/live/` to `/yuneta/store/certs/` |
 | `colas2.sh` | `/yuneta/bin/` | Scan and list two-level message queue directories |
+| `yuneta-node-uuid` | `/usr/libexec/yuneta/` | Write the node uuid (`/yuneta/store/agent/uuid/uuid.json`) derived from the hardware. Started as root by the `postinst`, by both agent units (`ExecStartPre=-+`) and by the SysV start; it reads the hardware as root and drops to `yuneta` for the files. `show` tells the source, `set <uuid>` pins one by hand. Root-owned and outside `/yuneta` on purpose: root runs it |
 
 ## System Configuration
 

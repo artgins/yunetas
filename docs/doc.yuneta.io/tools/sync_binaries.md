@@ -118,4 +118,4 @@ no local build stops the command with an error and exit 2 (since CLI 0.23.3).
 - [Deploying yunos step by step](../deploying-yunos.md) — the scenario-driven
   deploy guide (this script is its push engine for binaries).
 - [Tools](../tools.md) — overview of `tools/` (build infrastructure + agent scripts).
-- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.29.0/tools/README.md).
+- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.29.1/tools/README.md).

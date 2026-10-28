@@ -83,4 +83,4 @@ The exit code is `1` when a write failed.
 - [`sync-binaries`](sync_binaries.md) / [`sync-configs`](sync_configs.md) —
   the sibling agent helpers (their `--restart` honours `start_priority` too).
 - [Tools](../tools.md) — overview of `tools/` (build infrastructure + agent scripts).
-- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.29.0/tools/README.md).
+- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.29.1/tools/README.md).

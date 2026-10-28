@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v7.29.1 (2026-10-28)
+
+The node uuid comes from the hardware, and the SDK builds on riscv64. A
+packaging release: no C code changes (one comment in `helpers.c`), so the
+yunos need no rebuild; what changes is the package, and with it the uuid of
+every node that installs it.
+
 - **The node uuid comes from the hardware** (packages). `node_uuid()` read
   `/yuneta/store/agent/uuid/uuid.json` and, when it was missing, wrote a
   random uuid: a reinstall of the operating system gave the node a new
