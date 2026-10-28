@@ -13,7 +13,7 @@
 #
 #   This script derives the uuid from the hardware instead: the same box
 #   gives the same uuid after any reinstall, and a clone gives its own on its
-#   first boot. It is /usr/lib/yuneta/yuneta-node-uuid, root's, outside
+#   first boot. It is /usr/libexec/yuneta/yuneta-node-uuid, root's, outside
 #   /yuneta (which belongs to yuneta), and the package's postinst / %post,
 #   both agent units (ExecStartPre=+) and the SysV start run it as root.
 #

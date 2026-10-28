@@ -7,7 +7,7 @@
   random uuid: a reinstall of the operating system gave the node a new
   identity, so a label printed with it and a central that had declared it
   lost the box, and a disk image taken after the agent ran gave every box
-  written from it the SAME uuid. The new `/usr/lib/yuneta/yuneta-node-uuid`
+  written from it the SAME uuid. The new `/usr/libexec/yuneta/yuneta-node-uuid`
   (root's, outside `/yuneta`, which yuneta owns), started as root by the
   postinst / `%post`, by both agent units (`ExecStartPre=-+`) and by the SysV
   start, reads the hardware as root and drops to yuneta (`setpriv`) for every

@@ -497,12 +497,14 @@ done
 # missing, writes a random uuid: a reinstall changed the identity of a node,
 # and a disk image carried one identity to every box written from it. This
 # script derives it from the hardware instead; the postinst and both agent
-# units (ExecStartPre=+) run it as root. It lives in /usr/lib/yuneta, root's:
+# units (ExecStartPre=+) run it as root. It lives in /usr/libexec/yuneta, root's:
 # under /yuneta (yuneta's, chown -R below) yuneta could rewrite what root
 # runs. Its header has the sources and how it drops to yuneta for the files.
-install -d -m 0755 "${WORKDIR}/usr/lib/yuneta"
+# /usr/libexec and not /usr/lib: SELinux labels the first bin_t, which systemd
+# may exec, and the second lib_t (the 203/EXEC yuneta-webserver met on Rocky).
+install -d -m 0755 "${WORKDIR}/usr/libexec/yuneta"
 install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-node-uuid" \
-    "${WORKDIR}/usr/lib/yuneta/yuneta-node-uuid"
+    "${WORKDIR}/usr/libexec/yuneta/yuneta-node-uuid"
 
 # --- The wrapper the unit calls ---
 #
@@ -1048,8 +1050,8 @@ start_yunos() {
         logger -t yuneta_agent_init "start yuneta_agent22.service rc=$RC2"
         return $RC2     # up to 7.25.22-3: 0, whatever the unit answered
     fi
-    if [ -x /usr/lib/yuneta/yuneta-node-uuid ]; then
-        /usr/lib/yuneta/yuneta-node-uuid ensure || true
+    if [ -x /usr/libexec/yuneta/yuneta-node-uuid ]; then
+        /usr/libexec/yuneta/yuneta-node-uuid ensure || true
     fi
     _set_limits
 
@@ -2203,8 +2205,8 @@ if [ -d /yuneta ]; then
 fi
 
 # Node uuid: from the hardware, before an agent reads it
-if [ -x /usr/lib/yuneta/yuneta-node-uuid ]; then
-    /usr/lib/yuneta/yuneta-node-uuid ensure || warn "yuneta-node-uuid failed: the node keeps the uuid it had"
+if [ -x /usr/libexec/yuneta/yuneta-node-uuid ]; then
+    /usr/libexec/yuneta/yuneta-node-uuid ensure || warn "yuneta-node-uuid failed: the node keeps the uuid it had"
 fi
 if [ -d /yuneta/store/certs ]; then
     chmod 0755 /yuneta/store/certs || true
