@@ -11,11 +11,14 @@
  *  23:59:59.500 of an axis in ms (it was 23:59:59.000, and lost it).
  *
  *  A text time, as a bound and as a tkey, is read by ONE rule,
- *  tranger2_time_of_text() (REV-CLOUD V46.3, V47.2): "" is no time (no
- *  bound, no tkey value); the text of a JSON integer, -?(0|[1-9][0-9]*),
- *  is that integer in the unit of its axis; a text written as another
- *  number (" 5", "5 ", "10.5", "007", "+5", "1E5") is refused; any other
- *  text is a date, and one that is no date is refused. Each refusal logs
+ *  tranger2_time_of_text() (REV-CLOUD V46.3, V47.2, V48): "" is no time
+ *  (no bound, no tkey value); the text of a JSON integer,
+ *  -?(0|[1-9][0-9]*), is that integer in the unit of its axis; a text
+ *  written as another number (" 5", "5 ", "10.5", "007", "+5", "1E5", or
+ *  with a decimal comma, "1,5", or digits in groups, "5 5") is refused; any other text is a date, and
+ *  one that is no date is refused. A json string is judged whole
+ *  (tranger2_time_of_json_text()): one with a NUL inside is refused,
+ *  "5\u0000junk" was the tkey 5. Each refusal logs
  *  a WARNING. Up to 7.29.3 approxidate() read a text that is no date as
  *  NOW in silence, and a bound with no 'T' was cut by strtoll() ("garbage"
  *  was no bound, "2000-01-02 00:00:00 +0000" the time 2000, " 5" 5, "10.5"
@@ -281,7 +284,11 @@ PRIVATE int do_test(void)
      *  silence; up to 7.29.3 strtoll() made them 5 and 10), and "007" as 7
      */
     {
-        const char *refused[] = {" 5", "5 ", "10.5", "007", "+5", "1E5", "-007", NULL};
+        const char *refused[] = {
+            " 5", "5 ", "10.5", "007", "+5", "1E5", "-007",
+            "1,5", "10,5", " 1,5 ", "-1,5",     // V48: approxidate() read "1,5" as May 1
+            "5 5", "2026 10 01", NULL           // V48: May 5, January 10 of 2026
+        };
         json_t *expected = json_array();
         for(int i = 0; refused[i]; i++) {
             for(int j = 0; j < 2; j++) {   // the iterator, then the list
@@ -311,6 +318,39 @@ PRIVATE int do_test(void)
                 tranger2_close_list(tranger, list);
                 result += -1;
             }
+        }
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A bound with a NUL inside is refused, judged whole (V48): its C text
+     *  stops at the NUL, and "<a date>\u0000garbage" was that date
+     */
+    {
+        static const char nul_date[] = "2000-01-02T00:00:00+0000\0garbage";
+        set_expected_results(
+            "date bounds: a text with a NUL inside is refused",
+            json_pack("[{s:s}, {s:s}]",
+                "msg", "match_cond refused: a time bound is no date",
+                "msg", "match_cond refused: a time bound is no date"
+            ),
+            NULL, NULL, 1
+        );
+        served(tranger, TOPIC_T_MS,
+            json_pack("{s:s%}", "from_t", nul_date, sizeof(nul_date) - 1), bf, sizeof(bf));
+        result += expect("from_t '<date>\\0garbage'", bf, "");
+
+        json_t *list = tranger2_open_list(tranger, TOPIC_T_MS,
+            json_pack("{s:s%, s:I}",
+                "to_t", nul_date, sizeof(nul_date) - 1,
+                "load_record_callback", (json_int_t)(size_t)load_nothing
+            ),
+            NULL, "", FALSE, ""
+        );
+        if(list) {
+            printf("%sERROR%s --> a list opened with to_t '<date>\\0garbage'\n", On_Red BWhite, Color_Off);
+            tranger2_close_list(tranger, list);
+            result += -1;
         }
     }
     result += test_json(NULL);
@@ -392,7 +432,7 @@ PRIVATE int do_test(void)
      *  and "007" as dates (the 5th, May 10, the 7th), in silence
      */
     {
-        const char *refused[] = {" 5", "5 ", "10.5", "007", "garbage", NULL};
+        const char *refused[] = {" 5", "5 ", "10.5", "007", "1,5", "10,5", "garbage", NULL};
         json_t *expected = json_array();
         for(int i = 0; refused[i]; i++) {
             json_array_append_new(expected,
@@ -431,6 +471,42 @@ PRIVATE int do_test(void)
                     On_Red BWhite, Color_Off, refused[i], (uint64_t)md.__tm__);
                 result += -1;
             }
+        }
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A text tkey with a NUL inside is refused, judged whole (V48):
+     *  "5\u0000junk" was appended with __tm__ 5
+     */
+    set_expected_results(
+        "date bounds: a text tkey with a NUL inside is refused",
+        json_pack("[{s:s}]",
+            "msg", "Cannot append record, its tkey is a text that is no date"
+        ),
+        NULL, NULL, 1
+    );
+    {
+        static const char nul_tkey[] = "5\0junk";
+        json_t *jn = json_pack("{s:I, s:s%}",
+            "id", (json_int_t)3, "tm", nul_tkey, sizeof(nul_tkey) - 1);
+        BOOL fits = TRUE;
+        tranger2_record_tkey_time(tranger2_topic(tranger, TOPIC_TM_MS), jn, &fits);
+        if(fits) {
+            printf("%sERROR%s --> tkey '5\\0junk' fits\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        JSON_DECREF(jn)
+
+        md2_record_ex_t md = {0};
+        int ret = tranger2_append_record(tranger, TOPIC_TM_MS, 0, 0, &md,
+            json_pack("{s:I, s:s%, s:s}",
+                "id", (json_int_t)3, "tm", nul_tkey, sizeof(nul_tkey) - 1, "content", "X")
+        );
+        if(ret >= 0) {
+            printf("%sERROR%s --> tkey '5\\0junk' appended, __tm__ %" PRIu64 "\n",
+                On_Red BWhite, Color_Off, (uint64_t)md.__tm__);
+            result += -1;
         }
     }
     result += test_json(NULL);
@@ -506,6 +582,16 @@ PRIVATE int do_test(void)
             {"1E5",                         FALSE,  FALSE,  -1, 0},
             {"2.0",                         FALSE,  FALSE,  -1, 0},
             {"0x10",                        FALSE,  FALSE,  -1, 0},
+            {"1,5",                         FALSE,  FALSE,  -1, 0},
+            {"10,5",                        FALSE,  FALSE,  -1, 0},
+            {" 1,5 ",                       FALSE,  FALSE,  -1, 0},
+            {"-1,5",                        FALSE,  FALSE,  -1, 0},
+            {"+1,5",                        FALSE,  FALSE,  -1, 0},
+            {"5 5",                         FALSE,  FALSE,  -1, 0},
+            {"10 5",                        FALSE,  FALSE,  -1, 0},
+            {" 2026 10 01 ",                FALSE,  FALSE,  -1, 0},
+            {"-5 5",                        FALSE,  FALSE,  -1, 0},
+            {"1700000000 +0000",            FALSE,  FALSE,   0, 1700000000},
             {"garbage",                     FALSE,  FALSE,  -1, 0},
             {"2000-01-02T00:00:00+0000",    FALSE,  FALSE,   0, 946771200},
             {"2000-01-02 00:00:00 +0000",   TRUE,   FALSE,   0, 946771200000LL},
@@ -526,6 +612,47 @@ PRIVATE int do_test(void)
                     cases[i].ret, cases[i].value);
                 result += -1;
             }
+        }
+    }
+    result += test_json(NULL);
+
+    /*
+     *  tranger2_time_of_json_text(): the whole of a json string (V48)
+     */
+    set_expected_results("date bounds: tranger2_time_of_json_text()", NULL, NULL, NULL, 1);
+    {
+        static const char nul_tkey[] = "5\0junk";
+        static const char nul_date[] = "2000-01-02T00:00:00+0000\0garbage";
+        static const char nul_end[] = "5\0";
+        struct {
+            const char *what;
+            json_t *jn;
+            int ret;
+            json_int_t value;
+        } cases[] = {
+            {"'5'",                     json_string("5"),                                   0, 5},
+            {"''",                      json_string(""),                                    0, 0},
+            {"a date",                  json_string("2000-01-02T00:00:00+0000"),            0, 946771200},
+            {"'5\\0junk'",            json_stringn(nul_tkey, sizeof(nul_tkey) - 1),      -1, 0},
+            {"'<date>\\0garbage'",    json_stringn(nul_date, sizeof(nul_date) - 1),      -1, 0},
+            {"'5\\0'",                json_stringn(nul_end, sizeof(nul_end) - 1),        -1, 0},
+            {"'1,5'",                   json_string("1,5"),                                -1, 0},
+            {"an integer",              json_integer(5),                                   -1, 0},
+            {"NULL",                    NULL,                                              -1, 0},
+        };
+        for(size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
+            json_int_t value = -12345;
+            const char *why = NULL;
+            int ret = tranger2_time_of_json_text(cases[i].jn, FALSE, FALSE, &value, &why);
+            if(ret != cases[i].ret || (ret == 0 && value != cases[i].value) ||
+                    (ret < 0 && empty_string(why)) || (ret == 0 && why)) {
+                printf("%sERROR%s --> tranger2_time_of_json_text(%s): %d %" JSON_INTEGER_FORMAT
+                    " (%s), expected %d %" JSON_INTEGER_FORMAT "\n",
+                    On_Red BWhite, Color_Off, cases[i].what, ret, value, why? why : "",
+                    cases[i].ret, cases[i].value);
+                result += -1;
+            }
+            JSON_DECREF(cases[i].jn)
         }
     }
     result += test_json(NULL);

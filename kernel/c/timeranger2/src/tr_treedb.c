@@ -5251,7 +5251,7 @@ PRIVATE const char *fkey_ref_id(json_t *fkeys, char *bf, int bfsize)
  *  an update writes (a tkey it does not write keeps the time the node
  *  had). The time is the one tranger2_append_record() computes
  *  (tranger2_record_tkey_time(): an integer, or a string read by
- *  tranger2_time_of_text() -- the text of a JSON integer as that integer,
+ *  tranger2_time_of_json_text() -- the text of a JSON integer as that integer,
  *  a date x1000 on an sf_tm_ms topic), and past TRANGER2_MAX_TIME the append
  *  keeps it CUT, the flags over its high bits. A topic made by a peer can
  *  have a string tkey, and "@99999999999999 +0000" in it was a node whose
@@ -5282,8 +5282,8 @@ PRIVATE int refuse_tkey_time_past_max(
     system_flag2_t system_flag = (system_flag2_t)json_integer_value(json_object_get(topic, "system_flag"));
     json_int_t text_value;
     const char *why = NULL;
-    if(json_is_string(jn_value) && tranger2_time_of_text(
-            svalue, (system_flag & sf_tm_ms)? TRUE : FALSE, FALSE, &text_value, &why) == -1) {
+    if(json_is_string(jn_value) && tranger2_time_of_json_text(
+            jn_value, (system_flag & sf_tm_ms)? TRUE : FALSE, FALSE, &text_value, &why) == -1) {
         log_data_fault(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,

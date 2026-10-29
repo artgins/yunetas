@@ -1198,7 +1198,7 @@ PRIVATE const char *refuse_peer_record(
         /*
          *  The time of its tkey is the __tm__ of the row: the same 44 bits,
          *  appended cut past them. An integer is kept as it is; a string is
-         *  read by tranger2_time_of_text(): the text of a JSON integer is
+         *  read by tranger2_time_of_json_text(): the text of a JSON integer is
          *  that integer, another text a date (x1000 on an sf_tm_ms topic),
          *  and a text that is neither does not fit. A date has no year
          *  limit: "@<seconds> +0000" is any number of seconds (REV-CLOUD
@@ -1209,10 +1209,10 @@ PRIVATE const char *refuse_peer_record(
         tranger2_record_tkey_time(topic, record, &fits);
         if(!fits) {
             const char *tkey = json_string_value(json_object_get(topic, "tkey"));
-            const char *text = tkey? json_string_value(json_object_get(record, tkey)) : NULL;
+            json_t *jn_text = tkey? json_object_get(record, tkey) : NULL;
             json_int_t value;
-            if(text && tranger2_time_of_text(
-                    text, (system_flag & sf_tm_ms)? TRUE : FALSE, FALSE, &value, NULL) == -1) {
+            if(json_is_string(jn_text) && tranger2_time_of_json_text(
+                    jn_text, (system_flag & sf_tm_ms)? TRUE : FALSE, FALSE, &value, NULL) == -1) {
                 why = "a text in its tkey that is no date";
             } else {
                 why = "a time in its tkey that a record cannot keep (negative, or past 44 bits)";
@@ -3030,11 +3030,11 @@ PRIVATE json_t *purge_key_files_by_command(hgobj gobj, json_t *kw, hgobj src, BO
 
     /*
      *  `before`: an integer in the topic's unit of t, or a text read as
-     *  timeranger2 reads a time bound (tranger2_time_of_text()): the text
-     *  of a JSON integer is that integer, another text a date. A text the
-     *  parser leaves as text (it is no json) and written as a number,
-     *  "007" or "+5", was a date here (the 7th, the 5th), and the files
-     *  before it were purged.
+     *  timeranger2 reads a time bound (tranger2_time_of_json_text()): the
+     *  text of a JSON integer is that integer, another text a date. A text
+     *  the parser leaves as text (it is no json) and written as a number,
+     *  "007", "+5" or "1,5", was a date here (the 7th, the 5th, May 1), and
+     *  the files before it were purged; so was "<a date>\u0000junk".
      */
     system_flag2_t system_flag = (system_flag2_t)json_integer_value(
         json_object_get(topic, "system_flag")
@@ -3044,8 +3044,8 @@ PRIVATE json_t *purge_key_files_by_command(hgobj gobj, json_t *kw, hgobj src, BO
     if(json_is_integer(jn_before)) {
         before = json_integer_value(jn_before);
     } else if(json_is_string(jn_before)) {
-        if(tranger2_time_of_text(
-                json_string_value(jn_before),
+        if(tranger2_time_of_json_text(
+                jn_before,
                 (system_flag & sf_t_ms)? TRUE : FALSE,
                 FALSE,
                 &before,

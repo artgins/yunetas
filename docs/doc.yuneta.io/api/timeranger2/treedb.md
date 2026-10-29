@@ -887,7 +887,7 @@ an integer as it is, a string read by
 [`tranger2_time_of_text()`](<#tranger2_time_of_text>) (the text of a JSON
 integer as that integer; a date times 1000 on an `sf_tm_ms` topic). A string
 that is no date, or one written as a number that is not the text of a JSON
-integer (`" 5"`, `"10.5"`, `"007"`), is refused the same way, with *"Node
+integer (`" 5"`, `"10.5"`, `"007"`, `"1,5"`), or with a NUL inside, is refused the same way, with *"Node
 refused: its tkey is a text that is no date"* (`why`, `tkey`, `value`; up to
 SDK 7.29.3 a text that is no date was NOW, in silence). One that is negative or
 past the 44 bits is refused before anything is written: the function returns `NULL`, sets the last

@@ -191,10 +191,11 @@ tranger2_append_record(tranger, "raw_t", 0, 0, &md,
 ```
 
 **A tkey that is a text is read by
-[`tranger2_time_of_text()`](<#tranger2_time_of_text>)**, the rule of a text
-time bound: `""` is no tkey value (`0`), the text of a JSON integer is that
-integer in the unit of `tm`, a text written as another number (`" 5"`,
-`"5 "`, `"10.5"`, `"007"`) is refused, and any other text is a date. A text
+[`tranger2_time_of_json_text()`](<#tranger2_time_of_json_text>)**, the rule
+of a text time bound: `""` is no tkey value (`0`), the text of a JSON integer
+is that integer in the unit of `tm`, a text written as another number (`" 5"`,
+`"5 "`, `"10.5"`, `"007"`, `"1,5"`, `"5 5"`) is refused, a string with a NUL inside
+(`"5\u0000junk"`) is refused, and any other text is a date. A text
 that is refused is refused with a WARNING (the text comes from a peer or a
 user) and nothing written: *"Cannot append record, its tkey is a text that
 is no date"*, with `why`, `topic`, `tkey` and the first 64 bytes of the text
@@ -606,7 +607,7 @@ tranger2_append_record(tranger, "events", 0, 0, &md, record);   // owns record
 ---
 
 (tranger2_time_of_text)=
-## [`tranger2_time_of_text()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/timeranger2/src/timeranger2.c#L17857)
+## [`tranger2_time_of_text()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/timeranger2/src/timeranger2.c#L17865)
 
 The time a TEXT says, read by the one rule that timeranger2 applies to a
 text time bound of a `match_cond` (`from_t`, `to_t`, `from_tm`, `to_tm`)
@@ -640,7 +641,8 @@ int tranger2_time_of_text(
 |---|---|
 | `0`, `*value` `0` | `""`: no time (no bound, no tkey value). |
 | `0`, `*value` the integer | The text of a JSON integer, `-?(0|[1-9][0-9]*)`: `"5"`, `"-86400"`, `"-0"`, `"1761000000000"`. |
-| `-1`, *"a number that is not the text of a JSON integer"* | A text written as another number: `" 5"`, `"5 "`, `"007"`, `"-007"`, `"+5"`, `".5"`, `"5."`, `"10.5"`, `"1E5"`. It is never read as a date. |
+| `-1`, *"a number that is not the text of a JSON integer"* | A text written as another number: `" 5"`, `"5 "`, `"007"`, `"-007"`, `"+5"`, `".5"`, `"5."`, `"10.5"`, `"1E5"`, and with a decimal comma between digits, `"1,5"`, `"10,5"`. It is never read as a date. |
+| `-1`, *"numbers separated by blanks, not a date"* | Groups of digits separated by blanks: `"5 5"`, `"10 5"`, `"2026 10 01"`. `approxidate()` reads them as May 5, May 10 and January 10 of 2026. `"1700000000 +0000"` (git's raw date) and `"01.10.2026"` are not of this shape, and are dates. |
 | `0`, `*value` the date | Any other text that [`approxidate_careful()`](#approxidate_careful) reads: `"2000-01-02T00:00:00+0000"`, `"2000-01-02 00:00:00 +0000"`, `"yesterday"`. |
 | `-1`, *"a text that is no date"* | Any other text: `"garbage"`, `"0x10"`. |
 | `-2`, *"an integer past what a time holds"* / *"a date past what a time holds"* | An integer past `INT64_MAX`, or a date that does not fit a `json_int_t` in its unit. |
@@ -652,7 +654,13 @@ says it. Up to SDK 7.29.3 a bound with no `T` was cut by `strtoll()` (`" 5"`
 was 5, `"10.5"` 10, `"2026-10-01 00:00:00"` 2026) and a tkey was read by
 `approxidate()` (`"5"` the 5th of this month, a text that is no date NOW).
 The unreleased R46 code read every text that was not `-?[0-9]+` as a date:
-`" 5"` was the 5th, `"10.5"` May 10, in silence.
+`" 5"` was the 5th, `"10.5"` May 10, in silence; and until R48 a decimal
+comma was too (`approxidate()` reads `"1,5"` as May 1, `"10,5"` as May 10),
+and digits in groups (`"5 5"` May 5, `"2026 10 01"` January 10 of 2026).
+
+A text in C stops at its first NUL: a json string is read with
+[`tranger2_time_of_json_text()`](<#tranger2_time_of_json_text>), which judges
+it whole.
 
 **Example**
 
@@ -664,6 +672,66 @@ tranger2_time_of_text("", FALSE, FALSE, &v, &why);               // 0, v 0: no b
 tranger2_time_of_text(" 5", FALSE, FALSE, &v, &why);             // -1, why "a number that is not the text of a JSON integer"
 tranger2_time_of_text("2000-01-02T00:00:00+0000", TRUE, TRUE, &v, &why);   // 0, v 946771200999
 tranger2_time_of_text("garbage", FALSE, FALSE, &v, &why);        // -1, why "a text that is no date"
+tranger2_time_of_text("1,5", FALSE, FALSE, &v, &why);            // -1, why "a number that is not the text of a JSON integer"
+```
+
+---
+
+(tranger2_time_of_json_text)=
+## [`tranger2_time_of_json_text()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/timeranger2/src/timeranger2.c#L17919)
+
+The time a json STRING says, judged whole: what
+[`tranger2_time_of_text()`](<#tranger2_time_of_text>) reads in its text, and
+a refusal for a string with a NUL inside. This is how timeranger2 reads a
+text time bound of a `match_cond` and a text tkey, and how `C_TRANGER` reads
+the `before` of `delete-key-files` and `archive-key-files`.
+
+```C
+int tranger2_time_of_json_text(
+    json_t *jn_text,    // NOT owned
+    BOOL in_ms,
+    BOOL end_of_second,
+    json_int_t *value,
+    const char **why
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_text` | `json_t *` | The json string. Not owned. |
+| `in_ms` | `BOOL` | As in [`tranger2_time_of_text()`](<#tranger2_time_of_text>). |
+| `end_of_second` | `BOOL` | As in [`tranger2_time_of_text()`](<#tranger2_time_of_text>). |
+| `value` | `json_int_t *` | The time read. `0` when the text is refused. |
+| `why` | `const char **` | When not `NULL`, the cause of a refusal. |
+
+**Returns**
+
+What [`tranger2_time_of_text()`](<#tranger2_time_of_text>) returns for its
+text, and `-1` with *"a text with a NUL in it"* for a string whose length is
+not the length of its C text (`"5\u0000junk"`: from `json_stringn()`, or a
+json loaded with `JSON_ALLOW_NUL`, as records are), or `-1` with *"a time that
+is no text"* when `jn_text` is not a string.
+
+**Notes**
+
+`json_string_value()` gives the text up to its first NUL. Before R48 the
+tranger read a tkey and a bound with it: `{"id":1,"tm":"5\u0000junk"}` was
+appended with `__tm__` 5, and a `before` of
+`"2026-10-01T00:00:00Z\u0000garbage"` purged the files before that date.
+
+**Example**
+
+```C
+json_int_t v;
+const char *why;
+json_t *jn = json_stringn("5\0junk", 6);
+tranger2_time_of_json_text(jn, FALSE, FALSE, &v, &why);   // -1, why "a text with a NUL in it"
+json_decref(jn);
+jn = json_string("2000-01-02T00:00:00+0000");
+tranger2_time_of_json_text(jn, TRUE, FALSE, &v, &why);    // 0, v 946771200000
+json_decref(jn);
 ```
 
 ---
@@ -2701,7 +2769,11 @@ the same rule as a text tkey:
   grammar), is that integer: `"-86400"` is relative, as below, `"-0"` is `0`.
 - A text written as another number is **refused**: blanks around it
   (`" 5"`, `"5 "`), leading zeros (`"007"`), a `+` (`"+5"`), decimals or an
-  exponent (`"10.5"`, `"1E5"`). It is never read as a date.
+  exponent (`"10.5"`, `"1E5"`), a decimal comma (`"1,5"`), or digits in
+  groups separated by blanks (`"5 5"`, `"2026 10 01"`). It is never read as
+  a date.
+- A string with a NUL inside (`"<a date>\u0000garbage"`) is refused: it is
+  judged whole ([`tranger2_time_of_json_text()`](<#tranger2_time_of_json_text>)).
 - Any other text is a date read by
   [`approxidate_careful()`](#approxidate_careful) and taken to the unit of
   its axis (an end bound takes its whole second).

@@ -2825,10 +2825,10 @@ PRIVATE int do_test(void)
         json_t *dated = expect_role_warnings(1);
         json_array_extend(expected, dated);
         JSON_DECREF(dated)
-        /*  V46.3, V47.2: a text in the tkey that is no date, three times  */
-        expect_refusal(expected, "record of a wrong shape, refused");
-        expect_refusal(expected, "record of a wrong shape, refused");
-        expect_refusal(expected, "record of a wrong shape, refused");
+        /*  V46.3, V47.2, V48: a text in the tkey that is no date, six times  */
+        for(int i = 0; i < 6; i++) {
+            expect_refusal(expected, "record of a wrong shape, refused");
+        }
         /*  V47.2: the text of a JSON integer in the tkey, taken  */
         json_t *int_text = expect_role_warnings(1);
         json_array_extend(expected, int_text);
@@ -3052,16 +3052,27 @@ PRIVATE int do_test(void)
     /*
      *  A text in the tkey that is no date (REV-CLOUD V46.3): approxidate()
      *  read it as NOW. Nor is a text written as a number that is not the
-     *  text of a JSON integer (V47.2): R46 read " 5" and "10.5" as dates
+     *  text of a JSON integer (V47.2): R46 read " 5" and "10.5" as dates.
+     *  Nor a decimal comma (V48): approxidate() read "1,5" as May 1. A
+     *  text with a NUL inside ("5\u0000junk", 5 for the tranger) was
+     *  refused already, as any string of a record with one (json_nul_fault())
      */
-    static const char *not_dates[] = {"garbage", " 5", "10.5"};
-    for(int i = 0; i < 3; i++) {
+    static const struct {
+        const char *text;
+        size_t len;
+    } not_dates[] = {
+        {"garbage", 7}, {" 5", 2}, {"10.5", 4}, {"1,5", 3}, {"10,5", 4}, {"5\0junk", 6},
+    };
+    for(size_t i = 0; i < sizeof(not_dates)/sizeof(not_dates[0]); i++) {
         r = gobj_command(yuno, "add-record",
-            as_peer(json_pack("{s:s, s:{s:s, s:s}}", "topic_name", "topic_tm_ms",
-                "record", "id", "M", "tm", not_dates[i])), yuno);
+            as_peer(json_pack("{s:s, s:{s:s, s:s%}}", "topic_name", "topic_tm_ms",
+                "record", "id", "M", "tm", not_dates[i].text, not_dates[i].len)), yuno);
         const char *comment = kw_get_str(0, r, "comment", "", 0);
         check_bool("add-record with a tkey that is no date says it",
-            strstr(comment, "a text in its tkey that is no date")? TRUE : FALSE, TRUE);
+            strstr(comment,
+                (strlen(not_dates[i].text) != not_dates[i].len)?
+                    "a string with a NUL in it" : "a text in its tkey that is no date"
+            )? TRUE : FALSE, TRUE);
         check_refused("add-record with a tkey that is no date (sf_tm_ms)", r);
     }
     check_int("no tkey that is no date was added (sf_tm_ms)",
@@ -3306,6 +3317,26 @@ PRIVATE int do_test(void)
                 "topic_name", TOPIC_NAME5, "key", "P", "before", "007"
             )), yuno);
         check_refused("delete-key-files of a number that is no JSON integer (V47.2: it was the 7th)", r);
+        r = gobj_command(yuno, "delete-key-files",
+            as_peer(json_pack("{s:s, s:s, s:s}",
+                "topic_name", TOPIC_NAME5, "key", "P", "before", "1,5"
+            )), yuno);
+        check_refused("delete-key-files of a decimal comma (V48: it was May 1)", r);
+        r = gobj_command(yuno, "delete-key-files",
+            as_peer(json_pack("{s:s, s:s, s:s}",
+                "topic_name", TOPIC_NAME5, "key", "P", "before", "10,5"
+            )), yuno);
+        check_refused("delete-key-files of a decimal comma (V48: it was May 10)", r);
+        {
+            static const char nul_date[] = "2026-10-01T00:00:00Z\0garbage";
+            r = gobj_command(yuno, "delete-key-files",
+                as_peer(json_pack("{s:s, s:s, s:s%}",
+                    "topic_name", TOPIC_NAME5, "key", "P", "before", nul_date, sizeof(nul_date) - 1
+                )), yuno);
+            check_refused("delete-key-files of a date with a NUL inside (V48: it was the date)", r);
+        }
+        check_int("the refused befores purged nothing",
+            (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME5, "P"), 2);
         r = gobj_command(yuno, "delete-key-files",
             as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME5, "key", "P")), yuno);
         check_refused("delete-key-files with no before", r);

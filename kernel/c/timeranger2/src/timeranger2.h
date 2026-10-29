@@ -673,8 +673,11 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
         "-5" a negative, relative bound).
       - A text written as another number is refused: blanks around it
         (" 5", "5 "), leading zeros ("007"), a '+' ("+5"), decimals or an
-        exponent ("10.5", "1E5"). It is never read as a date: up to 7.29.3
-        a bound read it with strtoll() (" 5" was 5, "10.5" 10).
+        exponent ("10.5", "1E5"), a decimal comma between digits ("1,5",
+        "10,5"), or digits in groups separated by blanks ("5 5",
+        "2026 10 01"). It is never read as a date: up to 7.29.3 a bound
+        read it with strtoll() (" 5" was 5, "10.5" 10), and approxidate()
+        reads "1,5" as May 1, "5 5" as May 5, "2026 10 01" as January 10.
       - Any other text is a date, read by approxidate_careful(), and taken
         to milliseconds when `in_ms`; `end_of_second` (an end bound) then
         takes the last millisecond of its second.
@@ -692,10 +695,27 @@ PUBLIC int tranger2_time_of_text(
 );
 
 /*
+    The time a json STRING says, judged whole: tranger2_time_of_text() of
+    its text, and -1 for a string with a NUL inside ("5\u0000junk", from
+    json_stringn() or a json loaded with JSON_ALLOW_NUL; *why "a text with
+    a NUL in it"), or for a `jn_text` that is no string. This is how a
+    text bound of a match_cond and a text tkey are read: the C text of
+    such a string stops at the NUL, and "5\u0000junk" was the tkey 5.
+*/
+PUBLIC int tranger2_time_of_json_text(
+    json_t *jn_text,    // NOT owned
+    BOOL in_ms,
+    BOOL end_of_second,
+    json_int_t *value,
+    const char **why
+);
+
+/*
     The time tranger2_append_record() keeps as the __tm__ of `record` in the
     topic `topic` (the json of an open topic): the value of its tkey -- an
-    integer as it is, a string read by tranger2_time_of_text() (a JSON
-    integer text as that integer, a date in the unit of the tm axis) --, 0
+    integer as it is, a string read by tranger2_time_of_json_text() (a
+    JSON integer text as that integer, a date in the unit of the tm axis;
+    a string with a NUL inside is no time) --, 0
     when the topic has no tkey or the record no value of it (or "").
     `*fits` is FALSE when an md2 row cannot keep that time: negative, or
     past TRANGER2_MAX_TIME, and for a string that is no time (0 returned;

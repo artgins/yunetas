@@ -4237,9 +4237,10 @@ PRIVATE BOOL feed_wants_only_md(json_t *feed)
 
 /***************************************************************************
  *  The __tm__ an append keeps of the tkey value `jn_tval`: an integer as
- *  it is, a string read by tranger2_time_of_text() (the text of a JSON
- *  integer as that integer, a date in the unit of the tm axis, "" as no
- *  value), 0 when there is none (NULL) or it is of another type.
+ *  it is, a string read by tranger2_time_of_json_text() (whole: one with a
+ *  NUL inside is no time; the text of a JSON integer as that integer, a
+ *  date in the unit of the tm axis, "" as no value), 0 when there is none
+ *  (NULL) or it is of another type.
  *  *not_a_date TRUE (and 0 returned) for a string that is no time, *why
  *  saying why: up to 7.29.3 approxidate() read a text that is no date as
  *  NOW, in silence. *wrapped TRUE (and 0 returned) for a time past what a
@@ -4262,8 +4263,8 @@ static inline uint64_t tkey_time_of_value(
     }
     if(json_is_string(jn_tval)) {
         json_int_t value = 0;
-        int ret = tranger2_time_of_text(
-            json_string_value(jn_tval),
+        int ret = tranger2_time_of_json_text(
+            jn_tval,
             (system_flag & sf_tm_ms)? TRUE : FALSE,
             FALSE,
             &value,
@@ -17802,7 +17803,9 @@ PRIVATE BOOL is_json_integer_text(const char *s)
  *  Is `s` written as a number, of any shape strtoll() or strtod() take:
  *  blanks around it, a sign, digits with an optional fraction (at least
  *  one digit) and an optional exponent -- " 5", "007", "+5", "10.5", ".5",
- *  "1E5". A text like that is a number or nothing, never a date.
+ *  "1E5" --, or with a decimal COMMA between digits, as a Spanish user
+ *  writes it: "1,5", "10,5". A text like that is a number or nothing,
+ *  never a date: approxidate() read "1,5" and "10,5" as May 1 and May 10.
  ***************************************************************************/
 PRIVATE BOOL is_number_shaped_text(const char *s)
 {
@@ -17818,7 +17821,12 @@ PRIVATE BOOL is_number_shaped_text(const char *s)
         digits++;
         p++;
     }
-    if(*p == '.') {
+    if(*p == ',' && digits > 0 && p[1] >= '0' && p[1] <= '9') {
+        p++;
+        while(*p >= '0' && *p <= '9') {
+            p++;
+        }
+    } else if(*p == '.') {
         p++;
         while(*p >= '0' && *p <= '9') {
             digits++;
@@ -17844,6 +17852,36 @@ PRIVATE BOOL is_number_shaped_text(const char *s)
         p++;
     }
     return (*p == 0)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  Is `s` two or more groups of digits separated by blanks, with blanks
+ *  and a sign around them: "5 5", "10 5", "2026 10 01". approxidate()
+ *  reads them as dates (May 5, May 10, January 10 of 2026), and none of
+ *  them is one a person writes: tr2list refused them from 7.27.6, before
+ *  it read a time by this rule. "1700000000 +0000" (git's raw date, a
+ *  sign inside) and "01.10.2026" are not of this shape, and stay dates.
+ ***************************************************************************/
+PRIVATE BOOL is_digit_groups_text(const char *s)
+{
+    const char *p = s;
+    while(isspace((unsigned char)*p)) {
+        p++;
+    }
+    if(*p == '+' || *p == '-') {
+        p++;
+    }
+    int groups = 0;
+    while(*p >= '0' && *p <= '9') {
+        groups++;
+        while(*p >= '0' && *p <= '9') {
+            p++;
+        }
+        while(isspace((unsigned char)*p)) {
+            p++;
+        }
+    }
+    return (groups >= 2 && *p == 0)? TRUE : FALSE;
 }
 
 /***************************************************************************
@@ -17880,6 +17918,9 @@ PUBLIC int tranger2_time_of_text(
     } else if(is_number_shaped_text(text)) {
         why_ = "a number that is not the text of a JSON integer";
         ret = -1;
+    } else if(is_digit_groups_text(text)) {
+        why_ = "numbers separated by blanks, not a date";
+        ret = -1;
     } else {
         int not_a_date = 0;
         timestamp_t timestamp = approxidate_careful(text, &not_a_date);
@@ -17903,13 +17944,44 @@ PUBLIC int tranger2_time_of_text(
 }
 
 /***************************************************************************
+ *  The time a json string says, judged WHOLE: a string with a NUL inside
+ *  (json_stringn(), or "\u0000" in a json loaded with JSON_ALLOW_NUL) is
+ *  refused. json_string_value() stops at the NUL, so "5\u0000junk" was the
+ *  tkey 5 and "2026-10-01T00:00:00Z\u0000garbage" that date.
+ ***************************************************************************/
+PUBLIC int tranger2_time_of_json_text(
+    json_t *jn_text,
+    BOOL in_ms,
+    BOOL end_of_second,
+    json_int_t *value,
+    const char **why
+)
+{
+    *value = 0;
+    if(!json_is_string(jn_text)) {
+        if(why) {
+            *why = "a time that is no text";
+        }
+        return -1;
+    }
+    const char *text = json_string_value(jn_text);
+    if(json_string_length(jn_text) != strlen(text)) {
+        if(why) {
+            *why = "a text with a NUL in it";
+        }
+        return -1;
+    }
+    return tranger2_time_of_text(text, in_ms, end_of_second, value, why);
+}
+
+/***************************************************************************
  *  The time bounds of a match_cond given as TEXT (from_t, to_t, from_tm,
- *  to_tm), read once, at the open, by tranger2_time_of_text(), and
+ *  to_tm), read once, at the open, by tranger2_time_of_json_text(), and
  *  written back as integers in the unit of their axis: "" is no bound
  *  (0), the text of a JSON integer that integer (a negative one is
  *  relative, resolved by get_segments()), a text written as another
- *  number (" 5", "007", "10.5") refused, any other a date taken to
- *  milliseconds on an axis in ms (t on sf_t_ms, tm on sf_tm_ms; an end
+ *  number (" 5", "007", "10.5", "1,5") or with a NUL inside refused, any
+ *  other a date taken to milliseconds on an axis in ms (t on sf_t_ms, tm on sf_tm_ms; an end
  *  bound takes its whole second). What is refused logs a WARNING: it
  *  comes from a peer or a user. Up to 7.29.3 get_segments() read a text
  *  with a 'T' with approxidate(), NOW for one it could not read, and any
@@ -17943,8 +18015,8 @@ PRIVATE int read_time_bounds_of_match_cond(
         const char *text = json_string_value(jn_bound);
         json_int_t value = 0;
         const char *why = NULL;
-        if(tranger2_time_of_text(
-            text,
+        if(tranger2_time_of_json_text(
+            jn_bound,
             (system_flag & bounds[i].ms_flag)? TRUE : FALSE,
             bounds[i].is_end,
             &value,
