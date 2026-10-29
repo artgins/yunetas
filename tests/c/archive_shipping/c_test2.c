@@ -29,7 +29,15 @@
  *          11. link 1 begins another batch, sends a file, and goes silent
  *              for more than stale_session_timeout;
  *          12. link 2 begins that batch: taken over (link 1 dropped), and
- *              stored with link 2's bytes.
+ *              stored with link 2's bytes;
+ *          13. link 2 begins a batch that declares 3/4 of the free space of
+ *              the backup, and goes silent for more than
+ *              stale_session_timeout;
+ *          14. link 1 (connected again) begins another batch that declares
+ *              half of the free space: link 2 is dropped and its space is
+ *              free again, the begin is acked. A silent session used to
+ *              keep its declared bytes reserved for ever, and every begin
+ *              of every node was refused, "does not fit".
  *
  *          A refused batch leaves nothing in the backup, nor its copy aside.
  *          The batches are refused before require_client_certificate counts
@@ -44,6 +52,7 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include "c_test2.h"
 
 /***************************************************************************
@@ -53,7 +62,7 @@
 #define BATCH_DIR       "db/topic/%s/2000-01-01@1"
 #define FILE_DATA       "2000-01-01.json"
 #define FILE_MANIFEST   "manifest.json"
-#define TEST_TIMEOUT_MS 10000
+#define TEST_TIMEOUT_MS 15000
 #define STALE_WAIT_MS   2500    // more than the stale_session_timeout of main_test2.c
 
 /***************************************************************************
@@ -101,13 +110,17 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_output_side2;
     char base[PATH_MAX];
     char backup[PATH_MAX];
-    int scenario;           // 1..12, 13 the end
+    int scenario;           // 1..14, 15 the end
     json_t *jn_expected;    // [{cmd, msg, side}] the answers of the scenario, in order
     size_t got;             // answers of the scenario received
     BOOL side2_open;
     BOOL stale_waited;
     BOOL side1_drop_expected;
     BOOL side1_dropped;
+    BOOL side1_reopened;
+    BOOL stale2_waited;
+    BOOL side2_drop_expected;
+    BOOL side2_dropped;
     BOOL finished;
 } PRIVATE_DATA;
 
@@ -304,6 +317,37 @@ PRIVATE void send_first_half(hgobj gobj, hgobj side, const char *key, const char
 }
 
 /***************************************************************************
+ *  The free bytes of the filesystem of the backup, 0 if unknown
+ ***************************************************************************/
+PRIVATE json_int_t free_bytes_of_backup(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    struct statvfs st_fs;
+    if(statvfs(priv->backup, &st_fs) < 0) {
+        fail("statvfs() of the backup FAILED", priv->backup);
+        return 0;
+    }
+    return (json_int_t)((uint64_t)st_fs.f_bavail * (uint64_t)st_fs.f_frsize);
+}
+
+/***************************************************************************
+ *  begin of a batch of one file of `size` bytes (no data)
+ ***************************************************************************/
+PRIVATE void send_begin_of_size(hgobj gobj, hgobj side, const char *key, json_int_t size)
+{
+    char batch[PATH_MAX];
+    batch_of(key, batch, sizeof(batch));
+    send_frame_on(gobj, side, json_pack("{s:s, s:s, s:s, s:[{s:s, s:I}]}",
+        "cmd", "begin",
+        "node", NODE_NAME,
+        "batch", batch,
+        "files",
+            "name", FILE_DATA, "size", size
+    ), NULL);
+}
+
+/***************************************************************************
  *  What a batch is in the backup: 0 nothing (neither it nor its copy
  *  aside), 1 the batch alone, -1 anything else
  ***************************************************************************/
@@ -402,6 +446,11 @@ PRIVATE void check_scenario(hgobj gobj)
         case 12:
             if(batch_in_backup(gobj, "key11") != 1 || !backup_holds(gobj, "key11", "BBBBBBBB")) {
                 fail("The batch taken over is not in the backup with the bytes of link 2", name);
+            }
+            break;
+        case 14:
+            if(batch_in_backup(gobj, "key13") != 0) {
+                fail("The batch of the silent link left its copy aside in the backup", name);
             }
             break;
     }
@@ -587,11 +636,39 @@ PRIVATE void send_scenario(hgobj gobj)
             }
             break;
 
+        case 13:
+            priv->jn_expected = json_pack("[{s:s, s:i}]",
+                "cmd", "begin-ack", "side", 2
+            );
+            send_begin_of_size(gobj, priv->gobj_output_side2, "key13",
+                free_bytes_of_backup(gobj) / 4 * 3
+            );
+            break;
+
+        case 14:
+            if(!priv->stale2_waited) {
+                set_timeout(priv->timer_wait, STALE_WAIT_MS);   // link 2 silent; then again
+                break;
+            }
+            if(!priv->side1_reopened) {
+                break;  // link 1, dropped in 12, connects again: on its open, again
+            }
+            priv->side2_drop_expected = TRUE;
+            priv->jn_expected = json_pack("[{s:s, s:i}]",
+                "cmd", "begin-ack", "side", 1
+            );
+            send_begin_of_size(gobj, priv->gobj_output_side, "key14",
+                free_bytes_of_backup(gobj) / 2
+            );
+            break;
+
         default:
             /*
-             *  The end, when the silent link was dropped
+             *  The end, when the two silent links were dropped (the batch
+             *  begun in 14 is still in flight: the pause of the keeper
+             *  discards it)
              */
-            if(!priv->side1_dropped) {
+            if(!priv->side1_dropped || !priv->side2_dropped) {
                 break;  // at its close, again
             }
             if(gobj_read_integer_attr(priv->keeper, "batches_refused") != 7 ||
@@ -632,6 +709,11 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else if(priv->scenario == 0) {
         priv->scenario = 1;
         send_scenario(gobj);
+    } else if(priv->side1_dropped && !priv->side1_reopened) {
+        priv->side1_reopened = TRUE;
+        if(priv->scenario == 14) {
+            send_scenario(gobj);    // scenario 14 waits for it
+        }
     }
 
     KW_DECREF(kw)
@@ -647,7 +729,12 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(src == priv->gobj_output_side && priv->side1_drop_expected && !priv->side1_dropped) {
         priv->side1_dropped = TRUE;
-        if(priv->scenario > 12) {
+        if(priv->scenario > 14) {
+            send_scenario(gobj);    // the end waits for it
+        }
+    } else if(src == priv->gobj_output_side2 && priv->side2_drop_expected && !priv->side2_dropped) {
+        priv->side2_dropped = TRUE;
+        if(priv->scenario > 14) {
             send_scenario(gobj);    // the end waits for it
         }
     } else if(!priv->finished && gobj_is_playing(gobj)) {
@@ -703,8 +790,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(src == priv->timer_wait) {
-        priv->stale_waited = TRUE;
-        send_scenario(gobj);    // scenario 12 waits for it
+        if(priv->scenario == 12) {
+            priv->stale_waited = TRUE;
+        } else {
+            priv->stale2_waited = TRUE;
+        }
+        send_scenario(gobj);    // scenarios 12 and 14 wait for it
         JSON_DECREF(kw)
         return 0;
     }

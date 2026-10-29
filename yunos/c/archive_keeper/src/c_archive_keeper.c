@@ -31,6 +31,20 @@
  *          close (a half-open connection, which nothing else ends), its
  *          batch is taken over by the new begin and the channel dropped.
  *
+ *          A begin must fit in the free space with the bytes that the
+ *          batches in flight still have to write: those are reserved. So
+ *          every begin drops every channel silent for
+ *          `stale_session_timeout`, whatever its batch, and frees what it
+ *          reserved (a half-open channel whose batch was never begun again
+ *          used to reserve it for ever, and a peer that declared the free
+ *          space and sent nothing made every begin of every node "not
+ *          fit"). A channel that keeps sending, however slowly, keeps its
+ *          batch and its reservation: there is no deadline for a whole
+ *          batch, because a slow link may need hours for a big one. Such a
+ *          channel is an allowed sender (with a certificate, of its own
+ *          node only), which could fill the backup with real batches as
+ *          well.
+ *
  *          A batch that is already there is "stored" when its end comes
  *          (a sender that crashed between the answer and its removal ships
  *          it again), and only if the batch here has the files, the sizes
@@ -126,7 +140,7 @@ SDATA (DTP_STRING,  "backup_directory", SDF_RD,             "",         "Absolut
 SDATA (DTP_LIST,    "allowed_nodes",    SDF_RD,             "[]",       "The node names whose batches are taken, [\"*\"] any. Required: empty, nothing is received"),
 SDATA (DTP_STRING,  "input_service",    SDF_RD,             "__input_side__", "The C_IOGATE service whose channels are the archive_senders"),
 SDATA (DTP_INTEGER, "max_files",        SDF_RD,             "100000",   "Most files a batch may declare (the first archive of an hourly topic holds two files per hour)"),
-SDATA (DTP_INTEGER, "stale_session_timeout", SDF_RD,        "60000",    "Milliseconds without a frame after which the batch in flight on a channel is taken over by another channel that begins it, and that channel dropped. 0: never"),
+SDATA (DTP_INTEGER, "stale_session_timeout", SDF_RD,        "60000",    "Milliseconds without a frame after which a channel is dropped at the next begin of any channel: its batch in flight is taken over, its reserved space free again. 0: never"),
 SDATA (DTP_BOOLEAN, "require_client_certificate", SDF_RD,   "1",        "The node of a batch must be the cn or a DNS name of the verified client certificate of its channel (mutual TLS). FALSE: the node is the claim of the sender, said on purpose"),
 
 SDATA (DTP_INTEGER, "batches_stored",   SDF_RD|SDF_STATS,   "0",        "Batches received whole"),
@@ -904,47 +918,52 @@ PRIVATE int on_begin(
     }
 
     /*
-     *  Its .part- is of one session only: the batch in flight on another
-     *  channel is refused, or taken over if that channel went silent
+     *  A channel without frames for stale_session_timeout is a sender gone
+     *  without a close (a half-open connection, which nothing else ends):
+     *  it is dropped, and the space its batch reserved is free again. If it
+     *  was receiving this batch, the batch is taken over. Its .part- is of
+     *  one session only: the batch in flight on a live channel is refused
      */
-    json_t *jn_other = NULL;
-    BOOL other_stale = FALSE;
+    json_t *jn_stale = json_object();   // channel -> TRUE if its batch is this one
+    BOOL in_flight_here = FALSE;
     json_int_t in_flight_bytes = 0;
     const char *other_channel; json_t *other_session;
     json_object_foreach(priv->jn_sessions, other_channel, other_session) {
-        if(!jn_other &&
-                strcmp(json_string_value(json_object_get(other_session, "final")), final) == 0) {
-            jn_other = json_string(other_channel);
-            other_stale = test_msectimer(
-                (uint64_t)json_integer_value(json_object_get(other_session, "idle"))
-            );
+        BOOL same = strcmp(json_string_value(json_object_get(other_session, "final")), final) == 0;
+        if(test_msectimer((uint64_t)json_integer_value(json_object_get(other_session, "idle")))) {
+            json_object_set_new(jn_stale, other_channel, json_boolean(same));
+        } else if(same) {
+            in_flight_here = TRUE;
         } else {
             in_flight_bytes += json_integer_value(json_object_get(other_session, "remaining"));
         }
     }
-    if(jn_other) {
-        const char *other = json_string_value(jn_other);
-        if(!other_stale) {
-            JSON_DECREF(jn_other)
-            return refuse(gobj, channel_gobj, channel, batch, "the batch is in flight on another channel");
-        }
+    const char *stale_channel; json_t *jn_same;
+    json_object_foreach(jn_stale, stale_channel, jn_same) {
+        json_t *stale_session = json_object_get(priv->jn_sessions, stale_channel);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "A batch in flight on a channel without frames for stale_session_timeout is taken over by another channel: the silent one is dropped",
-            "node",         "%s", node,
-            "batch",        "%s", batch,
+            "msg",          "%s", json_is_true(jn_same)?
+                "A batch in flight on a channel without frames for stale_session_timeout is taken over by another channel: the silent one is dropped" :
+                "A channel without frames for stale_session_timeout is dropped: the space its batch in flight reserved is free again",
+            "node",         "%s", kw_get_str(gobj, stale_session, "node", "", 0),
+            "batch",        "%s", kw_get_str(gobj, stale_session, "batch", "", 0),
+            "remaining",    "%ld", (long)kw_get_int(gobj, stale_session, "remaining", 0, 0),
             "channel",      "%s", channel,
-            "stale_channel","%s", other,
+            "stale_channel","%s", stale_channel,
             "stale_session_timeout", "%ld", (long)priv->stale_session_timeout,
             NULL
         );
-        hgobj other_gobj = (hgobj)(size_t)json_integer_value(
-            json_object_get(json_object_get(priv->jn_sessions, other), "channel_gobj")
+        hgobj stale_gobj = (hgobj)(size_t)json_integer_value(
+            json_object_get(stale_session, "channel_gobj")
         );
-        discard_session(gobj, other, TRUE);
-        JSON_DECREF(jn_other)
-        gobj_send_event(other_gobj, EV_DROP, 0, gobj);
+        discard_session(gobj, stale_channel, TRUE);
+        gobj_send_event(stale_gobj, EV_DROP, 0, gobj);
+    }
+    JSON_DECREF(jn_stale)
+    if(in_flight_here) {
+        return refuse(gobj, channel_gobj, channel, batch, "the batch is in flight on another channel");
     }
 
     /*

@@ -52,8 +52,21 @@ README of archive_sender.
   first.
 - **The files of a `begin` must fit** in the free space of the filesystem of
   `backup_directory`, together with what the other batches in flight still
-  have to write. A batch that does not fit is refused at its `begin`, not
-  when the disk is full.
+  have to write: those bytes are reserved. A batch that does not fit is
+  refused at its `begin`, not when the disk is full.
+- **Every `begin` drops every channel silent for `stale_session_timeout`**,
+  whatever its batch, and the space its batch reserved is free again (WARNING
+  *"A channel without frames for stale_session_timeout is dropped"*, with the
+  node, the batch and the bytes it still had to write). Up to 7.29.2 only a
+  `begin` of the same batch dropped it: a half-open channel whose batch was
+  never begun again (removed at the sender, or of a retired node) reserved its
+  bytes for ever, and a peer that declared the whole free space and sent
+  nothing made every `begin` of every node *"does not fit"*.
+- A channel that keeps sending, however slowly, keeps its batch and its
+  reservation. There is no deadline for a whole batch: a slow link may need
+  hours for a big one. Such a channel is an allowed sender (with a
+  certificate, of its own node only), which could fill the backup with real
+  batches as well.
 
 ## What it refuses
 
@@ -91,7 +104,7 @@ A frame whose header is not a json object drops the channel.
 | `allowed_nodes` | `[]` | The node names whose batches are taken; `["*"]` takes any node. Required: empty, the yuno does not start (ERROR) |
 | `input_service` | `__input_side__` | The `C_IOGATE` whose channels are the senders |
 | `max_files` | 100000 | The most files a batch may declare. The first archive of an hourly topic holds two files per hour (`.json` and `.md2`): 100000 is more than five years. Each file in flight costs the keeper some hundreds of bytes of memory |
-| `stale_session_timeout` | 60000 | Milliseconds without a frame after which the batch in flight on a channel is taken over by another channel that begins it, and the silent channel dropped. `0`: never |
+| `stale_session_timeout` | 60000 | Milliseconds without a frame after which a channel is dropped at the next `begin` of any channel: its batch in flight is taken over (if that `begin` is of it) and the space it reserved is free again. `0`: never |
 | `require_client_certificate` | `true` | The node of a batch must be the `cn` or a DNS name of the verified client certificate of its channel (mutual TLS). `false`: the node is the claim of the sender, said on purpose |
 
 ```json

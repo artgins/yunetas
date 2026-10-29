@@ -12,6 +12,7 @@
  *          - A good batch, and the same again: stored, already here
  *          - Two links: a batch in flight on one is refused to the other,
  *            and taken over by it when the first goes silent
+ *          - A silent link does not keep the space its batch declared
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -223,7 +224,7 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Batch refused",     // 1: the sha256 of other bytes
@@ -235,6 +236,7 @@ static int register_yuno_and_more(void)
         "msg", "Batch refused",     // 7
         "msg", "Batch refused",     // 9: in flight on the other link
         "msg", "A batch in flight on a channel without frames for stale_session_timeout is taken over by another channel: the silent one is dropped",
+        "msg", "A channel without frames for stale_session_timeout is dropped: the space its batch in flight reserved is free again",    // 14
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

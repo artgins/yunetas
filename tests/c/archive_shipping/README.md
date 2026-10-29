@@ -88,7 +88,16 @@ runs with `stale_session_timeout` 1000:
 11. link 1 begins another batch, sends a file, and goes silent for 2.5 s;
 12. link 2 begins that batch -- taken over (WARNING *"A batch in flight on a
     channel without frames for stale_session_timeout is taken over"*, link 1
-    dropped), and `stored` with link 2's bytes.
+    dropped), and `stored` with link 2's bytes;
+13. link 2 begins a batch that declares 3/4 of the free space of the backup,
+    sends nothing, and goes silent for 2.5 s;
+14. link 1, connected again, begins another batch that declares half of the
+    free space -- acked: link 2 is dropped (WARNING *"A channel without frames
+    for stale_session_timeout is dropped"*) and the space it reserved is free
+    again; its copy aside is not left in the backup. Up to 7.29.2 a silent
+    session kept its declared bytes reserved for ever, and this `begin` was
+    refused, *"does not fit"*. The batch of 14 is left in flight: the pause of
+    the keeper discards it.
 
 A refused batch leaves nothing in the backup, neither the batch nor its copy
 aside. At the end the keeper counts 7 refused, 3 stored, 1 already here.
