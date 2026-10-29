@@ -1894,8 +1894,39 @@ PRIVATE json_t *cmd_publish_stats(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return kw_response;
     }
 
-    char key[2*NAME_MAX];
-    snprintf(key, sizeof(key), "%s %s", gobj_name(src), stats_service);
+    if(strlen(stats_service) > NAME_MAX) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s: stats_service too long: '%.*s...'", gobj_yuno_role_plus_name(),
+                utf8_prefix_len(stats_service, 60), stats_service),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    char key[2*NAME_MAX + 2];   // "<requester> <service>", both service names
+    int key_len = snprintf(key, sizeof(key), "%s %s", gobj_name(src), stats_service);
+    if(key_len < 0 || (size_t)key_len >= sizeof(key)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "the key of a publication does not fit",
+            "requester",    "%s", gobj_name(src),
+            NULL
+        );
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s: the key of the publication does not fit", gobj_yuno_role_plus_name()),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
 
     if(stop) {
         BOOL had = json_object_get(priv->publications, key)? TRUE : FALSE;

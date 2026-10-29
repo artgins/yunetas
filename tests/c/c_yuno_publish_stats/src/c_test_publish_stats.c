@@ -16,7 +16,10 @@
  *              C. no ttl: the attribute publish_stats_ttl ends it;
  *              B. ttl=-1: it does not end on its own; stop=1 ends it;
  *              D. a service that does not exist is refused;
- *              E. a requester that is not a service is refused.
+ *              E. a requester that is not a service is refused;
+ *              F. a stats_service longer than any service name is refused,
+ *                 stop=1 too (it was cut to fit the key of the publication,
+ *                 in silence, so two names could be one publication).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -258,6 +261,14 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             if(ask(gobj, priv->child, "__yuno__", 0, FALSE, FALSE) == 0) {
                 priv->result += fail(gobj, "E: a requester that is not a service was taken", 0);
+            }
+            {
+                char long_name[NAME_MAX + 2];
+                memset(long_name, 'a', sizeof(long_name) - 1);
+                long_name[sizeof(long_name) - 1] = 0;
+                if(ask(gobj, gobj, long_name, 0, FALSE, TRUE) == 0) {
+                    priv->result += fail(gobj, "F: a stats_service longer than NAME_MAX was taken", 0);
+                }
             }
             if(priv->bad) {
                 priv->result += fail(gobj, "publications that are not what they must be", priv->bad);

@@ -78,7 +78,9 @@ ended"* and its reason -- when its `ttl` passes without a new call (`0` or
 ends it at once. The requester must be a service (it is found again by name
 at each publication); `period` is never under `timeout_periodic`, and a yuno
 keeps at most 64 publications. Refused: a service that does not exist
-(*"Service not found"*), a requester that is not a service.
+(*"Service not found"*), a requester that is not a service, a `stats_service`
+longer than `NAME_MAX` (no service is named so; *"stats_service too long"*,
+with `stop=1` too).
 
 | Parameter | Meaning |
 |-----------|---------|
