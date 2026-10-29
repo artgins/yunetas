@@ -7,6 +7,7 @@
  *          it: the master is given its own C_TCP (as a gate does), and the
  *          raw server (C_PROT_RAW) answers RTU frames by hand, CRC included.
  *          The master polls one slave: block A (holding 0, 1 register: "a").
+ *          Its config has a second one, slave 250, which is never polled.
  *
  *          On the message of cycle 1 it queues requests (REQUESTS, below),
  *          each of which must be answered with EV_MODBUS_ANSWER, in order:
@@ -21,6 +22,14 @@
  *            Up to the fix of REV-CLOUD V45.2 the exception was taken
  *            before its CRC was checked, and a read with a bad CRC logged
  *            an internal error ("answered WITHOUT reading its answer").
+ *          - (REV-CLOUD V46) a request to slave 248 is refused: 248-255 are
+ *            reserved in RTU; so is the polled slave 250 of the config, whose
+ *            block is disabled. A read the slave never answers times out,
+ *            and its exception comes late, while the next request, a write,
+ *            is in flight: it is dropped (its function is not the write's),
+ *            and the echo that follows answers the write. Up to the fix the
+ *            late exception failed the write that succeeded, and its echo
+ *            was dropped.
  *
  *          Cycle 2 ends the test.
  *
@@ -44,6 +53,9 @@
 #define BADREAD_ADDRESS 50      // the slave answers a read with a bad CRC
 #define COIL_ADDRESS    5       // function 05
 #define COILS_ADDRESS   8       // function 15, nine coils, then read back (01)
+#define LATE_ADDRESS    60      // a read never answered: its exception comes late
+#define AFTER_ADDRESS   21      // the next request, a write: the late exception comes first
+#define AFTER_VALUE     9
 #define RX_SIZE         512
 
 /***************************************************************************
@@ -62,6 +74,7 @@
  *  get, in this order
  */
 PRIVATE const char *requests[] = {
+    "{'tag': 'r248', 'id': 248, 'type': 'holding_register', 'address': 20, 'value': 7}",
     "{'tag': 'w06', 'type': 'holding_register', 'address': 20, 'value': 7}",
     "{'tag': 'w16', 'type': 'holding_register', 'address': 30, 'value': [11, 22, 33]}",
     "{'tag': 'r03', 'operation': 'read', 'type': 'holding_register', 'address': 30, 'size': 3}",
@@ -71,9 +84,12 @@ PRIVATE const char *requests[] = {
     "{'tag': 'c05', 'type': 'coil', 'address': 5, 'value': 1}",
     "{'tag': 'c15', 'type': 'coil', 'address': 8, 'value': [1, 0, 1, 1, 0, 0, 0, 0, 1]}",
     "{'tag': 'r01', 'operation': 'read', 'type': 'coil', 'address': 8, 'size': 9}",
+    "{'tag': 'lte', 'operation': 'read', 'type': 'holding_register', 'address': 60}",
+    "{'tag': 'w21', 'type': 'holding_register', 'address': 21, 'value': 9}",
     0
 };
 PRIVATE const char *answers[] = {
+    "{'tag': 'r248', 'result': -1, 'error_code': 0}",      // refused: reserved in RTU
     "{'tag': 'w06', 'result': 0, 'error_code': 0}",
     "{'tag': 'w16', 'result': 0, 'error_code': 0}",
     "{'tag': 'r03', 'result': 0, 'error_code': 0, 'values': [11, 22, 33]}",
@@ -83,6 +99,8 @@ PRIVATE const char *answers[] = {
     "{'tag': 'c05', 'result': 0, 'error_code': 0}",
     "{'tag': 'c15', 'result': 0, 'error_code': 0}",
     "{'tag': 'r01', 'result': 0, 'error_code': 0, 'values': [1, 0, 1, 1, 0, 0, 0, 0, 1]}",
+    "{'tag': 'lte', 'result': -1, 'error_code': 0}",       // timeout_response
+    "{'tag': 'w21', 'result': 0, 'error_code': 0}",        // not the late exception of lte
     0
 };
 
@@ -95,6 +113,15 @@ PRIVATE char slaves_config[] = "\
         ],                                                          \n\
         'conversion': [                                             \n\
             {'id': 'a', 'type': 'holding_register', 'address': 0, 'format': 'uint16'} \n\
+        ]                                                           \n\
+    },                                                              \n\
+    {                                                               \n\
+        'id': 250,                                                  \n\
+        'mapping': [                                                \n\
+            {'type': 'holding_register', 'address': 0, 'size': 1}    \n\
+        ],                                                          \n\
+        'conversion': [                                             \n\
+            {'id': 'z', 'type': 'holding_register', 'address': 0, 'format': 'uint16'} \n\
         ]                                                           \n\
     }                                                               \n\
 ]                                                                   \n\
@@ -142,6 +169,7 @@ typedef struct _PRIVATE_DATA {
     uint8_t coils[2];           // at the slave: what the write of nine coils left
     BOOL requests_queued;
     int answers_seen;           // answers of the queued requests, in order
+    BOOL late_held;             // the read never answered: its exception comes late
     BOOL done;
 } PRIVATE_DATA;
 
@@ -349,6 +377,24 @@ PRIVATE void slave_request(hgobj gobj, const uint8_t *req)
 
     switch(function) {
         case 6:
+            if(address == AFTER_ADDRESS && quantity == AFTER_VALUE) {
+                if(!priv->late_held) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "The read answered late did not reach the slave first",
+                        NULL
+                    );
+                }
+                /*
+                 *  The late exception of the read (function 03), then the
+                 *  echo of this write: only the echo answers it
+                 */
+                uint8_t late[6] = {req[0], 3, (uint8_t)(LATE_ADDRESS >> 8), LATE_ADDRESS & 0xFF, 0, 1};
+                slave_exception(gobj, late, 2, FALSE);
+                slave_send(gobj, req, 6, FALSE);
+                return;
+            }
             if(address == REFUSED_ADDRESS) {
                 slave_exception(gobj, req, 1, FALSE);   // illegal function: a meter that is locked
                 return;
@@ -448,6 +494,10 @@ PRIVATE void slave_request(hgobj gobj, const uint8_t *req)
             }
             if(address == MULTI_ADDRESS && quantity == 3) {
                 slave_registers(gobj, req, priv->multi, 3, FALSE);
+                return;
+            }
+            if(address == LATE_ADDRESS && quantity == 1) {
+                priv->late_held = TRUE;     // never answered: its exception comes late
                 return;
             }
             if(address == BADREAD_ADDRESS && quantity == 1) {
@@ -682,6 +732,17 @@ PRIVATE int ac_modbus_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
         return 0;
     }
     priv->answers_seen++;
+
+    if(strcmp(tag, "r248")==0 &&
+            !strstr(kw_get_str(gobj, kw, "comment", "", 0), "reserved")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "A request to a reserved RTU slave id was not refused as reserved",
+            "answer",       "%j", kw,
+            NULL
+        );
+    }
 
     json_t *expected = qjson(expected_);
     json_t *got = json_pack("{s:s, s:O, s:O}",

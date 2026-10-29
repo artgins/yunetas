@@ -10,8 +10,9 @@
  *          - slave 2: block C (holding 0, 1 register: "c", uint16).
  *
  *          A cycle starts at the request of block A. In cycles 1 and 2,
- *          block B answers exception 2 and slave 2 exception 11; in cycle 3
- *          every block answers. So:
+ *          slave 2 answers exception 11, and block B exception 2 in cycle 1
+ *          and the echo of a write (06) in cycle 2; in cycle 3 every block
+ *          answers. So:
  *          - cycle 1 publishes {slave_id 1, a} and nothing of slave 2, and
  *            ends at once. Up to 7.27.7 it also published b and c as 0 (the
  *            cells were never read), and over TCP each exception waited for
@@ -46,6 +47,16 @@
  *            dropped by its transaction id instead of answering the next
  *            one; and an answer with an MBAP of length 3 fails its request
  *            as a bad answer (a warning), not as an internal error.
+ *          - (REV-CLOUD V46) an exception of another function (0x84 to a
+ *            03) fails its read as a bad answer, not as the exception; the
+ *            late echo of a write (06, its value made to be found), which
+ *            comes while a read is in flight, is dumped hidden by the
+ *            master's own traffic trace; the half frame that follows an
+ *            answer in the same bytes is kept as the start of the next one,
+ *            which is read whole and dropped, and the answer after it is
+ *            taken; an MBAP of length 65535 drops the connection instead of
+ *            swallowing every answer after it; and a block answered with a
+ *            write function (06, in cycle 2) fails, not "answered again".
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -75,6 +86,12 @@
 #define REQUEST_MAX_MS  500     // a request sent on the message of a cycle goes out at once
 #define SECRET6_ADDRESS 70      // function 06 with a secret value: 0x7E5F
 #define SECRET16_ADDRESS 72     // function 16 with a secret value: 0x5A3C, 0x6B4D
+#define X84_ADDRESS     64      // a read answered with an exception of another function
+#define LW6_ADDRESS     74      // function 06 with the secret value, answered late
+#define LA2_ADDRESS     75      // the next read: the late echo of 74 comes first
+#define HLF_ADDRESS     62      // answered, and half of a frame after it in the same bytes
+#define NXT_ADDRESS     63      // the next read: the other half comes first
+#define MBP_ADDRESS     65      // a frame with an MBAP length of 65535 comes first
 #define RX_SIZE         512
 
 /***************************************************************************
@@ -121,6 +138,12 @@ PRIVATE const char *requests[] = {
     "{'tag': 'lat', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 50}",
     "{'tag': 'aft', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 51}",
     "{'tag': 'm03', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 60}",
+    "{'tag': 'x84', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 64}",
+    "{'tag': 'lw6', 'id': 1, 'type': 'holding_register', 'address': 74, 'value': 32351}",
+    "{'tag': 'la2', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 75}",
+    "{'tag': 'hlf', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 62}",
+    "{'tag': 'nxt', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 63}",
+    "{'tag': 'mbp', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 65}",
     0
 };
 PRIVATE const char *answers[] = {
@@ -143,6 +166,12 @@ PRIVATE const char *answers[] = {
     "{'tag': 'lat', 'result': -1, 'error_code': 0}",        // timeout_response
     "{'tag': 'aft', 'result': 0, 'error_code': 0, 'values': [" AFTER_VALUE "]}",
     "{'tag': 'm03', 'result': -1, 'error_code': 0}",        // an answer with no registers
+    "{'tag': 'x84', 'result': -1, 'error_code': 0}",        // a bad answer, not exception 2
+    "{'tag': 'lw6', 'result': -1, 'error_code': 0}",        // timeout_response
+    "{'tag': 'la2', 'result': 0, 'error_code': 0, 'values': [333]}",
+    "{'tag': 'hlf', 'result': 0, 'error_code': 0, 'values': [444]}",
+    "{'tag': 'nxt', 'result': 0, 'error_code': 0, 'values': [555]}",
+    "{'tag': 'mbp', 'result': -1, 'error_code': 0}",        // the connection dropped
     0
 };
 
@@ -217,6 +246,9 @@ typedef struct _PRIVATE_DATA {
     uint64_t t_requests;        // REQUEST_MAX_MS from the requests, to the first answer of a queued one
     uint8_t late_t_id[2];       // the transaction id of the request answered late
     BOOL late_held;
+    uint8_t lw6_req[12];        // the write answered late: its echo comes with the next read
+    BOOL lw6_held;
+    BOOL mbap_sent;             // the bad MBAP: the master drops the connection, and comes back
     BOOL early_answered;        // the request sent before connecting
     BOOL done;
 } PRIVATE_DATA;
@@ -362,6 +394,26 @@ PRIVATE void slave_exception(hgobj gobj, const uint8_t *req, int code)
 }
 
 /***************************************************************************
+ *  The frame of the registers of a read, in rsp (9 + 2*n bytes)
+ ***************************************************************************/
+PRIVATE size_t registers_frame(uint8_t *rsp, const uint8_t *req, const uint16_t *regs, int n)
+{
+    memcpy(rsp, req, 2);
+    rsp[2] = 0;
+    rsp[3] = 0;
+    rsp[4] = 0;
+    rsp[5] = (uint8_t)(3 + 2*n);
+    rsp[6] = req[6];
+    rsp[7] = req[7];
+    rsp[8] = (uint8_t)(2*n);
+    for(int i=0; i<n; i++) {
+        rsp[9 + 2*i] = (uint8_t)(regs[i] >> 8);
+        rsp[10 + 2*i] = (uint8_t)(regs[i] & 0xFF);
+    }
+    return (size_t)(9 + 2*n);
+}
+
+/***************************************************************************
  *  The registers of a read
  ***************************************************************************/
 PRIVATE void slave_registers(hgobj gobj, const uint8_t *req, const uint16_t *regs, int n)
@@ -402,6 +454,80 @@ PRIVATE void slave_request(hgobj gobj, const uint8_t *req)
         rsp[4] = 0;
         rsp[5] = 6;
         slave_send(gobj, rsp, sizeof(rsp));
+        return;
+    }
+
+    /*
+     *  A frame that is not the answer of anything: 11 bytes, its MBAP says
+     *  5 (unit, function, byte count, one register), its t_id is no request's
+     */
+    static const uint8_t stray[11] = {0xBE, 0xEF, 0, 0, 0, 5, 1, 3, 2, 0, 42};
+
+    if(function == 6 && address == LW6_ADDRESS && quantity == 0x7E5F) {
+        memcpy(priv->lw6_req, req, 12);     // its echo comes with the next read, too late
+        priv->lw6_held = TRUE;
+        return;
+    }
+
+    if(function == 3 && unit == 1 && address == LA2_ADDRESS && quantity == 1) {
+        if(!priv->lw6_held) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "The write answered late did not reach the slave first",
+                NULL
+            );
+        }
+        /*
+         *  The late echo of the write, with its value: the master's traffic
+         *  trace must hide it although a read is in flight
+         */
+        uint8_t echo[12];
+        memcpy(echo, priv->lw6_req, 12);
+        echo[4] = 0;
+        echo[5] = 6;
+        slave_send(gobj, echo, sizeof(echo));
+        uint16_t regs[1] = {333};
+        slave_registers(gobj, req, regs, 1);
+        return;
+    }
+
+    if(function == 3 && unit == 1 && address == X84_ADDRESS && quantity == 1) {
+        uint8_t other[12];
+        memcpy(other, req, 12);
+        other[7] = 4;                       // an exception of function 04 to a 03
+        slave_exception(gobj, other, 2);
+        return;
+    }
+
+    if(function == 3 && unit == 1 && address == HLF_ADDRESS && quantity == 1) {
+        uint8_t rsp[9 + 2 + 4];
+        uint16_t regs[1] = {444};
+        size_t len = registers_frame(rsp, req, regs, 1);
+        memcpy(rsp + len, stray, 4);        // and half of a frame, in the same bytes
+        slave_send(gobj, rsp, len + 4);
+        return;
+    }
+
+    if(function == 3 && unit == 1 && address == NXT_ADDRESS && quantity == 1) {
+        uint8_t rsp[7 + 9 + 2];
+        memcpy(rsp, stray + 4, 7);          // the other half first
+        uint16_t regs[1] = {555};
+        size_t len = registers_frame(rsp + 7, req, regs, 1);
+        slave_send(gobj, rsp, 7 + len);
+        return;
+    }
+
+    if(function == 3 && unit == 1 && address == MBP_ADDRESS && quantity == 1) {
+        /*
+         *  A head with another t_id and an MBAP length of 65535, then the
+         *  answer: nothing says where a frame ends after such a head
+         */
+        uint8_t rsp[9 + 9 + 2] = {0xAB, 0xCD, 0, 0, 0xFF, 0xFF, 1, 3, 2};
+        uint16_t regs[1] = {666};
+        size_t len = registers_frame(rsp + 9, req, regs, 1);
+        priv->mbap_sent = TRUE;
+        slave_send(gobj, rsp, 9 + len);
         return;
     }
 
@@ -550,8 +676,15 @@ PRIVATE void slave_request(hgobj gobj, const uint8_t *req)
         slave_registers(gobj, req, regs, 2);
 
     } else if(unit == 1 && address == 10 && quantity == 1) {
-        if(priv->cycle < 3) {
+        if(priv->cycle == 1) {
             slave_exception(gobj, req, 2);      // illegal data address
+        } else if(priv->cycle == 2) {
+            uint8_t rsp[12];                    // a write echo (06) to a read
+            memcpy(rsp, req, 12);
+            rsp[4] = 0;
+            rsp[5] = 6;
+            rsp[7] = 6;
+            slave_send(gobj, rsp, sizeof(rsp));
         } else {
             uint16_t regs[1] = {9};
             slave_registers(gobj, req, regs, 1);
@@ -842,6 +975,15 @@ PRIVATE int ac_modbus_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
             NULL
         );
     }
+    if(strcmp(tag, "mbp")==0 && strcmp(comment, "the connection dropped before its answer")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The read after a bad MBAP was not failed by the drop",
+            "comment",      "%s", comment,
+            NULL
+        );
+    }
     if(strcmp(tag, "w06")==0 && test_msectimer(priv->t_requests)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -920,7 +1062,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!priv->done && !gobj_is_shutdowning()) {
+    if(!priv->done && !priv->mbap_sent && !gobj_is_shutdowning()) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,

@@ -91,8 +91,10 @@ the setup it unlocks) is just sent after it. A write is checked against the
 echo the slave answers with. A refusal, a log or a trace never shows the
 values of a write: they can be a secret. The frame of a write is marked
 secret (gbuffer_set_secret()), so the traffic trace of this gclass and of
-its transport dump it as "<N bytes hidden>", and so is the answer to it in
-this gclass's own dumps. Two limits: the transport's dump of what it
+its transport dump it as "<N bytes hidden>". This gclass's own dumps of what
+it receives hide a frame by ITS function -- a write (05, 06, 15, 16) or its
+exception -- or while a write is in flight: the late echo of a write comes
+while a read is in flight. Two limits: the transport's dump of what it
 RECEIVES shows the echo of a single write (05, 06), which carries the value
 (received bytes nobody can mark); and the global `ev_kw` trace shows the
 request's kw, "value" included (it masks by key name, and "value" is none).
@@ -101,10 +103,19 @@ An answer is taken only for what is in flight. Over TCP it must carry the
 transaction id of the request sent and protocol 0: the late answer of a
 request that timed out (same slave, function and size as the next one) is
 dropped with a warning instead of answering the next. RTU carries no
-transaction id: there only a frame that comes with nothing in flight is
-dropped. An RTU answer is checked against its CRC before anything in it is
-taken, an exception included. A broken answer fails what is in flight, as
-a warning: the bytes are the peer's.
+transaction id: there a frame is dropped when nothing is in flight, or when
+its slave or its function (an exception's without its 0x80 bit) is not the
+one sent -- the late exception of a read is not the answer of the write sent
+after it. An RTU answer is checked against its CRC before anything in it is
+taken, an exception included. Over TCP an answer of another function, an
+exception included, fails what is in flight. A broken answer fails what is
+in flight, as a warning: the bytes are the peer's. Bytes that come after an
+answer in the same read came before the next request went out: the frame
+they start is read whole and dropped, and the one after it is read. An MBAP
+length outside 3-254 (unit and PDU: 253 bytes at most) tells nowhere a
+frame ends: the connection is dropped. Over RTU the slave ids 248-255 are
+reserved: a request to one is refused, and a polled slave with one is not
+polled (its blocks are disabled, logged when the gobj starts).
 
 A request is valid for the connection it was queued in: when the
 connection drops, the one in flight and every queued one are answered as
@@ -310,6 +321,7 @@ typedef struct _FRAME_HEAD {
     // must do
     char must_read_payload_data;    // (payload length) bytes
     char discard;                   // not the answer awaited: read whole, then dropped
+    char stale;                     // began before the request in flight went out: not its answer
 
     // information of frame
     size_t payload_length;
@@ -375,6 +387,8 @@ PRIVATE int read_request_answer(hgobj gobj, uint8_t *bf, int len);
 PRIVATE int continue_polling(hgobj gobj, int wait_ms);
 PRIVATE int reset_frame(hgobj gobj);
 PRIVATE BOOL write_in_flight(hgobj gobj);
+PRIVATE BOOL frame_is_hidden(hgobj gobj);
+PRIVATE int finish_answer(hgobj gobj);
 
 PRIVATE cell_control_t *get_cell_control(
     hgobj gobj,
@@ -552,6 +566,7 @@ typedef struct _PRIVATE_DATA {
     istream_h istream_payload;
     state_t st;
     int modbus_function;
+    int slave_id_sent;          // RTU has no t_id: the answer must come from the slave asked
 
     json_t *jn_current_request;
     json_t *jn_current_answer;  // what the answer of jn_current_request said, while it is parsed
@@ -1261,6 +1276,7 @@ PRIVATE gbuffer_t *build_modbus_request_read_message(hgobj gobj, json_t *jn_slav
     } SWITCHS_END;
 
     priv->modbus_function = modbus_function;
+    priv->slave_id_sent = slave_id;
 
     if(gobj_trace_level(gobj) & TRACE_POLLING) {
         gobj_trace_msg(gobj, "🍅🍅⏩ func: %d %s, slave_id: %d, addr: %d (0x%04X), size: %d, id: %s",
@@ -1443,6 +1459,7 @@ PRIVATE gbuffer_t *build_modbus_request_message(hgobj gobj, json_t *jn_request)
     }
 
     priv->modbus_function = modbus_function;
+    priv->slave_id_sent = slave_id;
 
     if(gobj_trace_level(gobj) & TRACE_POLLING) {
         gobj_trace_msg(gobj, "🍅🍅⏩ func: %d %s, slave_id: %d, addr: %d (0x%04X), size: %d (request)",
@@ -1646,7 +1663,29 @@ PRIVATE int build_slave_data(hgobj gobj)
     size_t idx_slaves; json_t *jn_slave;
     json_array_foreach(priv->slaves_, idx_slaves, jn_slave) {
         int slave_id = (int)kw_get_int(gobj, jn_slave, "id", 0, KW_REQUIRED);
-        pslv->slave_id = slave_id;
+
+        /*
+         *  A slave that cannot be asked is not polled: its blocks are
+         *  disabled. Over RTU 248-255 are reserved.
+         */
+        const char *refused = NULL;
+        if(slave_id < 0 || slave_id > 255) {
+            refused = "Modbus slave id OUT OF RANGE";
+        } else if(slave_id > 247 && strcasecmp(priv->modbus_protocol, "RTU")==0) {
+            refused = "Modbus slave id RESERVED in RTU";
+        }
+        if(refused) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", refused,
+                "slave_id",     "%d", slave_id,
+                "valid",        "%s", strcasecmp(priv->modbus_protocol, "RTU")==0? "0-247" : "0-255",
+                NULL
+            );
+            json_object_set_new(jn_slave, "disabled", json_true());
+        }
+        pslv->slave_id = (uint16_t)slave_id;
         pslv->x_control = json_object();
 
         json_object_set_new(pslv->x_control, get_object_type_name(TYPE_COIL), json_object());
@@ -1657,6 +1696,11 @@ PRIVATE int build_slave_data(hgobj gobj)
         json_t *jn_mapping = kw_get_list(gobj, jn_slave, "mapping", 0, KW_REQUIRED);
         size_t idx_map; json_t *jn_map;
         json_array_foreach(jn_mapping, idx_map, jn_map) {
+            if(refused) {
+                // Error already logged
+                json_object_set_new(jn_map, "disabled", json_true());
+                continue;
+            }
             const char *type = kw_get_str(gobj, jn_map, "type", "", KW_REQUIRED);
             modbus_object_type_t object_type = get_object_type(gobj, type);
             if(object_type < 0) {
@@ -2120,6 +2164,31 @@ PRIVATE int continue_polling(hgobj gobj, int wait_ms)
 }
 
 /***************************************************************************
+ *  The answer of what was in flight was read: the next request, or the
+ *  next block
+ ***************************************************************************/
+PRIVATE int finish_answer(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout(priv->gobj_timer);
+
+    RESET_MACHINE()
+    gobj_change_state(gobj, ST_CONNECTED);
+
+    /*
+     *  The request in flight, if it was one, is answered. Its subscriber
+     *  may send another on the answer: send_request() then finds it in
+     *  flight, and the polling waits for it.
+     */
+    if(priv->jn_current_request) {
+        answer_current_request(gobj);
+    }
+
+    return continue_polling(gobj, priv->timeout_polling);
+}
+
+/***************************************************************************
  *  Reset variables for a new read.
  ***************************************************************************/
 PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame)
@@ -2148,13 +2217,27 @@ PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame)
 /***************************************************************************
  *  Consume input data to get and analyze the frame header.
  *  Return the consumed size.
+ *  `stale`: the bytes came before the request in flight went out (they
+ *  followed an answer in the same read), so the frame they belong to is not
+ *  its answer.
  ***************************************************************************/
-PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, char *bf, int len)
+PRIVATE int framehead_consume(
+    hgobj gobj,
+    FRAME_HEAD *frame,
+    istream_h istream,
+    char *bf,
+    int len,
+    BOOL stale
+)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     int total_consumed = 0;
     int consumed;
+
+    if(stale) {
+        frame->stale = TRUE;
+    }
 
     /*
      *
@@ -2192,9 +2275,11 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
 
         /*
          *  Only the request in flight, a block or a request, is answered:
-         *  a frame that comes while nothing is in flight is not an answer
+         *  a frame that comes while nothing is in flight, or that began
+         *  before it went out, is not an answer
          */
-        BOOL in_flight = gobj_in_this_state(gobj, ST_WAIT_RESPONSE);
+        BOOL in_flight = (gobj_in_this_state(gobj, ST_WAIT_RESPONSE) && !frame->stale)?
+            TRUE : FALSE;
 
         SWITCHS(priv->modbus_protocol) {
             CASES("TCP")
@@ -2205,15 +2290,18 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
                 uint16_t t_id = ntohs(head->t_id);
                 uint16_t protocol = ntohs(head->protocol);
                 uint16_t length = ntohs(head->length);
-                if(length < 3) {
+                if(length < 3 || length > MODBUS_MAX_PDU_LENGTH + 1) {
                     /*
                      *  MBAP length must cover at least unit_id + function +
                      *  byte_count. length < 3 underflows the size_t
                      *  payload_length below (length==2 -> SIZE_MAX, which sizes
                      *  a malloc(0)-backed gbuffer that data_size still records as
                      *  SIZE_MAX -> the response memmove overruns it: heap
-                     *  overflow). Nothing tells where the next frame starts:
-                     *  the caller drops the connection on a negative return.
+                     *  overflow). And it is at most the unit and a PDU, 254:
+                     *  a frame of another t_id with a length of 65535 would be
+                     *  "read whole" by swallowing every answer after it.
+                     *  Nothing tells where the next frame starts: the caller
+                     *  drops the connection on a negative return.
                      */
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -2282,10 +2370,17 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
                 }
 
                 /*
-                 *  RTU carries no transaction id: a frame is dropped only
-                 *  when nothing is in flight
+                 *  RTU carries no transaction id: a frame is dropped when
+                 *  nothing is in flight, or when its slave or its function
+                 *  (an exception's, without the 0x80 bit) is not the one
+                 *  sent. The late exception of a read that timed out is
+                 *  not the answer of the write sent after it: taken, it
+                 *  failed the write, whose echo then came with nothing in
+                 *  flight and was dropped.
                  */
-                if(!in_flight) {
+                if(!in_flight ||
+                        (int)(head->function & 0x7F) != priv->modbus_function ||
+                        (int)head->slave_id != priv->slave_id_sent) {
                     frame->discard = TRUE;
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -2293,7 +2388,9 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
                         "msg",          "%s", "Modbus frame dropped: not the answer awaited",
                         "in_flight",    "%d", (int)in_flight,
                         "slave_id",     "%d", (int)frame->slave_id,
+                        "slave_id_sent", "%d", priv->slave_id_sent,
                         "modbus_function", "%d", (int)frame->function,
+                        "modbus_function_sent", "%d", priv->modbus_function,
                         NULL
                     );
                 }
@@ -2329,8 +2426,7 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
 
 /***************************************************************************
  *  TRUE when the request in flight is a write: what comes back is its echo,
- *  and the echo of a single write (05, 06) carries its value. Its bytes are
- *  dumped as hidden, like the frame of the write.
+ *  and the echo of a single write (05, 06) carries its value.
  ***************************************************************************/
 PRIVATE BOOL write_in_flight(hgobj gobj)
 {
@@ -2342,6 +2438,29 @@ PRIVATE BOOL write_in_flight(hgobj gobj)
     json_t *jn_operation = json_object_get(priv->jn_current_request, "operation");
     return (json_is_string(jn_operation) &&
         strcmp(json_string_value(jn_operation), "write")==0)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  TRUE when the bytes of the frame being read are dumped hidden, like the
+ *  frame of a write: its function is a write (05, 06, 15, 16) or the
+ *  exception of one, or a write is in flight. Decided by the frame first:
+ *  the late echo of a write comes while a read is in flight. And by what is
+ *  in flight too: a broken frame may not say its function right.
+ ***************************************************************************/
+PRIVATE BOOL frame_is_hidden(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    switch(priv->frame_head.function & 0x7F) {
+        case MODBUS_FC_WRITE_SINGLE_COIL:
+        case MODBUS_FC_WRITE_SINGLE_REGISTER:
+        case MODBUS_FC_WRITE_MULTIPLE_COILS:
+        case MODBUS_FC_WRITE_MULTIPLE_REGISTERS:
+            return TRUE;
+        default:
+            break;
+    }
+    return write_in_flight(gobj);
 }
 
 /***************************************************************************
@@ -2413,6 +2532,7 @@ PRIVATE int frame_failed(hgobj gobj, const char *msg, uint8_t *bf, int len)
             "msg",              "%s", msg,
             "slave_id",         "%d", (int)priv->frame_head.slave_id,
             "modbus_function",  "%d", (int)priv->frame_head.function,
+            "modbus_function_sent", "%d", priv->modbus_function,
             "request",          "%j", jn_log,
             NULL
         );
@@ -2423,7 +2543,7 @@ PRIVATE int frame_failed(hgobj gobj, const char *msg, uint8_t *bf, int len)
     }
 
     if((gobj_trace_level(gobj) & TRACE_TRAFFIC) && bf && len > 0) {
-        if(write_in_flight(gobj)) {
+        if(frame_is_hidden(gobj)) {
             gobj_trace_msg(gobj, "%s: <%d bytes hidden>", msg, len);
         } else {
             gobj_trace_dump(gobj, (const char *)bf, (size_t)(len < 64? len : 64), "%s", msg);
@@ -2480,6 +2600,17 @@ PRIVATE int frame_completed(hgobj gobj)
             );
             return -1;
     } SWITCHS_END
+
+    /*
+     *  An answer, an exception included, is of the function sent: a 0x84 is
+     *  not the exception of a 03, nor the echo of a write the answer of a
+     *  block. Over RTU such a frame was dropped as not the answer awaited;
+     *  over TCP it carries the t_id sent, and is a broken answer.
+     */
+    if((int)(priv->frame_head.function & 0x7F) != priv->modbus_function) {
+        frame_failed(gobj, "Modbus answer of another function", bf, len);
+        return -1;
+    }
 
     if(priv->frame_head.function & 0x80) {
         return frame_exception(gobj);
@@ -2653,7 +2784,7 @@ PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
         modbus_function == MODBUS_FC_READ_HOLDING_REGISTERS ||
         modbus_function == MODBUS_FC_READ_INPUT_REGISTERS ||
         modbus_function == MODBUS_FC_WRITE_AND_READ_REGISTERS
-    ) { // TODO not sure
+    ) {
         if(byte_count != len) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -2666,8 +2797,18 @@ PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
             return -1;
         }
     } else {
-        // TODO by now write functions not checked
-        return 0;
+        /*
+         *  A block is a read: frame_completed() fails an answer of another
+         *  function before it comes here
+         */
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "A block answered with a function that is not a read",
+            "modbus_function",  "%s", modbus_function_name(modbus_function),
+            NULL
+        );
+        return -1;
     }
 
     uint8_t req_slave_id = (uint8_t)kw_get_int(gobj, priv->cur_slave_, "id", 0, KW_REQUIRED);
@@ -3821,6 +3962,8 @@ PRIVATE BOOL request_integer(json_t *jn, json_int_t *value)
  ***************************************************************************/
 PRIVATE json_t *check_request(hgobj gobj, json_t *jn_request)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     if(!json_is_object(jn_request)) {
         return json_string("a request is a json object");
     }
@@ -3849,6 +3992,9 @@ PRIVATE json_t *check_request(hgobj gobj, json_t *jn_request)
     }
     if(slave_id < 0 || slave_id > 255) {
         return json_sprintf("slave id %lld out of 0-255", (long long)slave_id);
+    }
+    if(slave_id > 247 && strcasecmp(priv->modbus_protocol, "RTU")==0) {
+        return json_sprintf("slave id %lld is reserved in Modbus RTU (248-255)", (long long)slave_id);
     }
 
     json_int_t address;
@@ -4183,7 +4329,7 @@ PRIVATE int read_request_answer(hgobj gobj, uint8_t *bf, int len)
         );
         JSON_DECREF(jn_log)
         if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-            if(write_in_flight(gobj)) {
+            if(frame_is_hidden(gobj)) {
                 gobj_trace_msg(gobj, "answer: <%d bytes hidden>", len);
             } else {
                 gobj_trace_dump(gobj, (const char *)bf, (size_t)(len < 64? len : 64), "answer");
@@ -4412,6 +4558,13 @@ PRIVATE int check_conversion_variables(hgobj gobj)
         }
 
         size_t idx_conversion; json_t *jn_variable;
+        if(kw_get_bool(gobj, jn_slave, "disabled", 0, 0)) {
+            // Error already logged: a slave that is not polled has no cell to convert
+            json_array_foreach(jn_conversion, idx_conversion, jn_variable) {
+                json_object_set_new(jn_variable, "disabled", json_true());
+            }
+            continue;
+        }
         json_array_foreach(jn_conversion, idx_conversion, jn_variable) {
             check_conversion_variable(gobj, pslv, jn_variable);
         }
@@ -4559,9 +4712,12 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     /*---------------------------------------------*
-     *
+     *  The bytes that follow an answer are the start of the next frame:
+     *  dropped, they would leave the stream in the middle of one, and the
+     *  answer after it lost. They came before the next request went out:
+     *  the frame they start is not its answer (stale).
      *---------------------------------------------*/
-    BOOL response_completed = FALSE;
+    BOOL stale = FALSE;
     int lnn;
     BOOL fin = FALSE;
     while(!fin && (lnn=(int)gbuffer_leftbytes(gbuf))>0) {
@@ -4571,7 +4727,9 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         switch(priv->st) {
         case WAIT_HEAD:
             {
-                int n = framehead_consume(gobj, &priv->frame_head, priv->istream_head, bf, lnn);
+                int n = framehead_consume(
+                    gobj, &priv->frame_head, priv->istream_head, bf, lnn, stale
+                );
                 if(n < 0) {
                     // Error already logged: nothing says where the next frame starts
                     fin = TRUE;
@@ -4637,7 +4795,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 }
                 if(istream_is_completed(priv->istream_payload)) {
                     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-                        if(write_in_flight(gobj)) {
+                        if(frame_is_hidden(gobj)) {
                             gbuffer_set_secret(istream_get_gbuffer(priv->istream_payload), TRUE);
                         }
                         gobj_trace_dump_gbuf(gobj,
@@ -4659,51 +4817,18 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 reset_frame(gobj);
             } else {
                 frame_completed(gobj);
-                response_completed = TRUE;
-                fin = TRUE;
+                finish_answer(gobj);
+
+                /*
+                 *  Its subscriber may have stopped the gobj, or dropped the
+                 *  connection, on the answer: nothing is read for it then
+                 */
+                if(!gobj_is_running(gobj) || gobj_in_this_state(gobj, ST_DISCONNECTED)) {
+                    fin = TRUE;
+                }
+                stale = TRUE;
             }
         }
-    }
-
-    /*---------------------------*
-     *      Next map
-     *---------------------------*/
-    if(response_completed) {
-        if(gbuffer_leftbytes(gbuf)>0) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PROTOCOL,
-                "msg",          "%s", "Modbus: bytes after the answer, dropped",
-                "len",          "%d", (int)gbuffer_leftbytes(gbuf),
-                NULL
-            );
-            if((gobj_trace_level(gobj) & TRACE_TRAFFIC) && !write_in_flight(gobj)) {
-                gobj_trace_dump(gobj,
-                    gbuffer_cur_rd_pointer(gbuf),
-                    MIN(gbuffer_leftbytes(gbuf), 64),
-                    "Modbus: bytes after the answer"
-                );
-            }
-        }
-
-        /*---------------------------------------------*
-         *   Reset response gobj_timer
-         *---------------------------------------------*/
-        clear_timeout(priv->gobj_timer);
-
-        RESET_MACHINE()
-        gobj_change_state(gobj, ST_CONNECTED);
-
-        /*
-         *  The request in flight, if it was one, is answered. Its subscriber
-         *  may send another on the answer: send_request() then finds it in
-         *  flight, and the polling waits for it.
-         */
-        if(priv->jn_current_request) {
-            answer_current_request(gobj);
-        }
-
-        continue_polling(gobj, priv->timeout_polling);
     }
 
     KW_DECREF(kw)

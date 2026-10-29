@@ -9,7 +9,11 @@
  *          - Cycle 1: a block and a whole slave answer exceptions: only
  *            what was read is published, at once; a write is queued
  *          - Cycle 2: the write was sent once, the exceptions go on (not
- *            logged again)
+ *            logged again); a block answered with a write echo fails
+ *          - Between them, the requests: answers of another function, a late
+ *            echo of a write hidden in the traffic trace, half a frame after
+ *            an answer, and an MBAP length of 65535 that drops the
+ *            connection
  *          - Cycle 3: every block answers: everything is published, and
  *            each block that was failing is logged as answered again:
  *            shutdown
@@ -201,29 +205,36 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Allocating Modbus Array of 20 B (20) bytes, 2 slaves",
         "msg", "Data filled",
         "msg", "Modbus request refused: not connected", // the request sent before connecting
-        "msg", "modbus exception",              // slave 1, block 1: once, not every cycle
-        "msg", "modbus exception",              // slave 2: once
-        "msg", "Modbus request refused",        // address "abc"
-        "msg", "Modbus request refused",        // address null
-        "msg", "Modbus request refused",        // address "010"
-        "msg", "Modbus request refused",        // address 20.9
-        "msg", "Modbus request refused",        // id "x"
-        "msg", "Modbus request refused",        // value "12ab"
-        "msg", "Modbus request refused",        // a value that does not fit
-        "msg", "Modbus request refused",        // a read past 65535
-        "msg", "Modbus request refused",        // a write past 65535
-        "msg", "modbus exception",              // the write the slave refuses
-        "msg", "Modbus Timeout",                // the read answered late
+        "msg", "modbus exception",               // slave 1, block 1: once, not every cycle
+        "msg", "modbus exception",               // slave 2: once
+        "msg", "Modbus request refused",         // address "abc"
+        "msg", "Modbus request refused",         // address null
+        "msg", "Modbus request refused",         // address "010"
+        "msg", "Modbus request refused",         // address 20.9
+        "msg", "Modbus request refused",         // id "x"
+        "msg", "Modbus request refused",         // value "12ab"
+        "msg", "Modbus request refused",         // a value that does not fit
+        "msg", "Modbus request refused",         // a read past 65535
+        "msg", "Modbus request refused",         // a write past 65535
+        "msg", "modbus exception",               // the write the slave refuses
+        "msg", "Modbus Timeout",                 // the read answered late
         "msg", "Modbus frame dropped: not the answer awaited", // its late answer
         "msg", "Modbus answer of a request does not match it", // the MBAP of length 3
-        "msg", "Modbus block answered again",   // slave 1, block 1
-        "msg", "Modbus block answered again",   // slave 2
+        "msg", "Modbus answer of another function", // the exception 0x84 to a 03
+        "msg", "Modbus Timeout",                 // the write answered late
+        "msg", "Modbus frame dropped: not the answer awaited", // its late echo
+        "msg", "Modbus frame dropped: not the answer awaited", // the half frame after an answer
+        "msg", "Modbus TCP: bad MBAP length, the connection is dropped", // the MBAP length 65535
+        "msg", "Modbus request NOT confirmed, the connection dropped before its response", // the read after it
+        "msg", "Modbus answer of another function", // cycle 2: block 1 answered with 06
+        "msg", "Modbus block answered again",    // slave 1, block 1
+        "msg", "Modbus block answered again",    // slave 2
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

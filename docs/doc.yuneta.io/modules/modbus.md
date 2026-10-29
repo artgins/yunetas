@@ -57,6 +57,18 @@ its low word first, read over TCP:
 }
 ```
 
+- **`id`**: the unit id, 0-255. **Over RTU 248-255 are reserved** (the Modbus
+  serial line keeps them): a slave with one is not polled. Its blocks and
+  variables are disabled at start, with one error (*"Modbus slave id RESERVED
+  in RTU"*); the poll of each of its blocks then logs *"cur_map_ DISABLED"*,
+  as for any disabled block. An id out of 0-255 is refused the same way
+  (*"Modbus slave id OUT OF RANGE"*). Until the fix of REV-CLOUD V46.2 both
+  were polled, the id cut to its low byte.
+
+  ```text
+  {"modbus_protocol": "RTU", "slaves": [{"id": 250, "mapping": [...]}]}
+      -> {"msg": "Modbus slave id RESERVED in RTU", "slave_id": 250, "valid": "0-247"}
+  ```
 - **`mapping`**: `type`, `address`, `size` (registers, at most 125; or bits, at
   most 2000). Each block is one read request.
 - **`conversion`**: `id` (the key in the published message), `type`,
@@ -192,7 +204,7 @@ gobj_send_event(gobj_modbus, EV_SEND_MESSAGE,
 | Key | | |
 |---|---|---|
 | `operation` | `"write"` | `write` or `read` |
-| `id` | `1` | Slave id, 0-255. Over RTU 0 is the broadcast: no slave answers it, so its request fails by `timeout_response` even when it was done |
+| `id` | `1` | Slave id, 0-255. Over RTU 0 is the broadcast: no slave answers it, so its request fails by `timeout_response` even when it was done; and 248-255 are reserved: a request to one is refused (*"slave id 248 is reserved in Modbus RTU (248-255)"*) |
 | `type` | | Write: `holding_register`, `coil`. Read: also `input_register`, `input_status` |
 | `address` | | 0-65535. With `size`, the last one too: `address + size - 1` is at most 65535 |
 | `size` | `1` | A read: how many (at most 125 registers, 2000 bits). A write takes it from its values |
@@ -209,6 +221,7 @@ decimals (`20.0`), a boolean as 1 or 0, or the whole text of a JSON integer
 {"operation": "read", "type": "holding_register", "address": "010"}  -> refused, not 8
 {"operation": "read", "type": "holding_register", "address": 20.9}   -> refused, not 20
 {"id": "x", "type": "holding_register", "address": 20, "value": 1}   -> "the slave id is not a number" (not 0, the RTU broadcast)
+{"id": 248, "type": "holding_register", "address": 20, "value": 1}   -> over RTU: "slave id 248 is reserved in Modbus RTU (248-255)"
 {"type": "holding_register", "address": 20, "value": "12ab"}    -> "value 0 of the write is not a number"
 {"operation": "read", "type": "holding_register", "address": 65535, "size": 2}
                                                                 -> "address 65535 and size 2 pass 65535"
@@ -290,17 +303,48 @@ what is in flight goes on waiting for its own answer:
  "modbus_function": 3, "length": 5}
 ```
 
-RTU carries no transaction id: there only a frame that comes with nothing in
-flight is dropped, and a late answer with the same slave, function and size as
-the next request cannot be told from its answer. An RTU answer is checked
-against its CRC before anything in it is taken, an exception included. A
-broken answer -- a bad CRC (*"Modbus answer with a bad CRC"*), or a frame that
-does not match the request (*"Modbus answer of a request does not match it"*,
-for example an MBAP of length 3 to a read) -- fails the request as a warning:
-the bytes are the peer's. (Until the fix of REV-CLOUD V45 the transaction id
-was written and never read, an RTU exception was taken before its CRC, and a
-bad CRC or an MBAP of length 3 logged an internal error, *"answered WITHOUT
-reading its answer"*.)
+RTU carries no transaction id: there a frame is dropped the same way when
+nothing is in flight, or when its **slave or its function is not the one
+sent** -- an exception's function without its `0x80` bit. The late exception
+of a read that timed out (`0x83`) is not the answer of the write (06) sent
+after it: it is dropped, and the echo that follows answers the write. A late
+answer with the same slave, function and size as the next request still
+cannot be told from its answer. An RTU answer is checked against its CRC
+before anything in it is taken, an exception included.
+
+```json
+{"msg": "Modbus frame dropped: not the answer awaited", "in_flight": 1,
+ "slave_id": 1, "slave_id_sent": 1, "modbus_function": 131,
+ "modbus_function_sent": 6}
+```
+
+Over TCP an answer with the transaction id sent but **another function**, an
+exception included (a `0x84` to a `03`), is a broken answer: it fails the
+request, or the block, as *"Modbus answer of another function"*. A block is
+always a read, so the echo of a write (06) to one fails it too. A broken
+answer -- a bad CRC (*"Modbus answer with a bad CRC"*), another function, or a
+frame that does not match the request (*"Modbus answer of a request does not
+match it"*, for example an MBAP of length 3 to a read) -- fails the request as
+a warning: the bytes are the peer's.
+
+**Bytes that come after an answer in the same read** came before the next
+request went out: the frame they start is not its answer. It is read whole
+(its head may come in the next read) and dropped, with `"in_flight": 0`, and
+the answer after it is read. **An MBAP length outside 3-254** (the unit and a
+PDU of at most 253 bytes) says nowhere a frame ends: the connection is dropped
+(*"Modbus TCP: bad MBAP length, the connection is dropped"*), which answers
+what was in flight and every queued request as failed (below).
+
+(Until the fix of REV-CLOUD V46.2: an exception was taken whatever its
+function, so over RTU a late one failed the write sent after it, a write that
+was done, and its echo was then dropped; the echo of a write answering a block
+counted as its answer; the bytes after an answer were dropped, half a frame
+included, which left the stream in the middle of one and lost the next
+answer; and a frame of another transaction id with an MBAP length of 65535
+was "read whole", swallowing every answer of the next `timeout_response`.
+Until the fix of REV-CLOUD V45 the transaction id was written and never read,
+an RTU exception was taken before its CRC, and a bad CRC or an MBAP of length
+3 logged an internal error, *"answered WITHOUT reading its answer"*.)
 
 A consumer that relies on the answers refuses to build against an older
 module:
@@ -345,8 +389,13 @@ cycle left out), `traffic` (raw bytes), `polling`, `decode`, `send`.
 (functions 05, 06, 15, 16, over TCP and RTU) is marked secret
 (`gbuffer_set_secret()`) before it goes to the transport, so the `traffic`
 trace of `C_PROT_MODBUS_M` **and** that of its `C_TCP` dump it as
-`"<N bytes hidden>"`; the gclass also hides its own dumps of the answer to a
-write (its echo). Reads, and their answers, are dumped in full:
+`"<N bytes hidden>"`. The gclass also hides its own dumps of what it
+receives **by the function of the frame**: a write (05, 06, 15, 16) or the
+exception of one -- and anything while a write is in flight, as a broken frame
+may not say its function right. So the late echo of a write, which comes while
+a read is in flight, is hidden too (until the fix of REV-CLOUD V46.2 it was
+dumped with its value: the gclass looked only at what was in flight). Reads,
+and their answers, are dumped in full:
 
 ```json
 {"msg": "C_PROT_MODBUS_M^modbus ==> C_TCP^modbus", "len": 12, "secret": true, "data": "<12 bytes hidden>"}

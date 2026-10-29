@@ -8,10 +8,12 @@ publishes. A raw server (`C_PROT_RAW`) answers Modbus TCP by hand to a master
 that polls two slaves: slave 1 with blocks A (`a`, `uint32`) and B (`b`), and
 slave 2 with block C (`c`).
 
-- Cycles 1 and 2: block B answers exception 2 and slave 2 exception 11. Only
-  `{slave_id 1, a}` is published, at once (within 800 ms of the request of
-  block A), and nothing of slave 2. Each exception is logged once, as a
-  warning, not on every cycle.
+- Cycles 1 and 2: slave 2 answers exception 11, and block B exception 2 in
+  cycle 1 and the echo of a write (06) in cycle 2. Only `{slave_id 1, a}` is
+  published, at once (within 800 ms of the request of block A), and nothing
+  of slave 2. Each failure is logged once, as a warning, not on every cycle;
+  the 06 to block B fails it (*"Modbus answer of another function"*). Before
+  the fix of REV-CLOUD V46.2 it counted as the answer of the block.
 - On the message of cycle 1 a write (function 06) is queued: the slave must
   see it once, and the polling must go on after it.
 - With it, four more requests, each of which must be answered with
@@ -35,6 +37,18 @@ slave 2 with block C (`c`).
   (`timeout_response` first) is dropped by its transaction id instead of
   answering the next one. An answer with an MBAP of length 3 fails its read
   as a bad answer (a warning), not as an internal error.
+- (REV-CLOUD V46.2) An exception `0x84` to a read (03) fails it as a bad
+  answer (`error_code` 0), not as exception 2. A write (06) of `0x7E5F` is
+  answered late, while the next read is in flight: its echo is dropped, and
+  the master's own `traffic` dump of it is hidden (before the fix it showed
+  the value). An answer followed in the same bytes by half of a stray frame,
+  whose other half comes before the next answer: the stray frame is read
+  whole and dropped (`in_flight` 0), and both answers are taken (before the
+  fix the half was dropped and the next answer lost). A head with another
+  transaction id and an MBAP length of 65535, before an answer: the master
+  drops the connection, the read fails with *"the connection dropped before
+  its answer"*, and the master comes back (before the fix the head swallowed
+  the answer, and everything until `timeout_response`).
 - Cycle 3: every block answers, everything is published, and each block that
   was failing is logged as *"Modbus block answered again"*.
 
@@ -56,6 +70,14 @@ answered in order; the two bad CRCs fail their request with a warning
 (*"Modbus answer with a bad CRC"*). Before the fix of REV-CLOUD V45.2 the
 exception was taken before its CRC was checked, and the read logged an
 internal error (*"answered WITHOUT reading its answer"*).
+
+(REV-CLOUD V46.2) A request to slave 248 is refused (248-255 are reserved in
+RTU), and slave 250 of the config is never polled (one error at start, and
+*"cur_map_ DISABLED"* each cycle). A read the slave never answers times out,
+and its exception (`0x83`) comes late, while the next request, a write (06),
+is in flight: it is dropped, and the echo that follows answers the write.
+Before the fix the request to 248 and the polls of 250 went out, and the late
+exception failed the write, whose echo was then dropped.
 
 The tests are built only when `CONFIG_MODULE_MODBUS` is set.
 
