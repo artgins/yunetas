@@ -444,19 +444,19 @@ role with no `parameters` grants as before.
 
 ```json
 {
-    "id": "renfe-20k-viewer",
+    "id": "load-20k-viewer",
     "realm_id": "*",
     "service": "controlcenter",
     "permission": "read-scenarios",
-    "parameters": {"scenario_id": ["renfe-20k-hidraulia"]},
+    "parameters": {"scenario_id": ["load-20k"]},
     "permissions": [
         {"permission": "run-scenarios"},
-        {"permission": "write-scenarios", "parameters": {"scenario_id": "renfe-20k-draft"}}
+        {"permission": "write-scenarios", "parameters": {"scenario_id": "load-20k-draft"}}
     ]
 }
 ```
 
-That role reads and runs `renfe-20k-hidraulia` and writes `renfe-20k-draft`,
+That role reads and runs `load-20k` and writes `load-20k-draft`,
 and a check of `read-scenarios` with no `scenario_id` in its kw is refused:
 the scope cannot match a key that is not there. The values are compared as
 json -- `"1"` does not match `1`, nor `"S1"` `"s1"` -- and a key is read from

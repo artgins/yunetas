@@ -255,10 +255,10 @@ watch, or just a group of yunos to watch. It is a document saved whole:
 
 ```json
 {
-    "id": "yunovatios-stress",
+    "id": "stress-demo",
     "description": "sim_controllers -> gate_central -> db_tracks_ce",
-    "group": "yunovatios",
-    "node": "yunovatios-controlador",
+    "group": "demo",
+    "node": "node-a",
     "yunos": [
         {"key": "sim",    "id": "stress", "service": "sim_controllers", "rate": "tx"},
         {"key": "gate",   "id": "2120",   "label": "gate_central",
@@ -284,7 +284,7 @@ watch, or just a group of yunos to watch. It is a document saved whole:
 | `yunos` | `id` (the agent's yuno id) and optionally `key` (how the rest of the scenario names it, needed when two nodes carry the same id), `node`, `service`, `label`, `rate` (`rx` or `tx`), `queue_service` (the service that holds its output queue, when it is not `service`: `__output_side__` for a gate; 7.27.21+), `switch` (`{on: [steps], off: [steps]}`, turned by hand; 7.28.6+, below). |
 | `links` | `[from, to]` pairs of keys: how the messages flow. |
 | `actions` | `start`, `pause`, `resume`, `stop`, `report`: each a list of steps `{yuno, service?, command}`, one command line with its `key=value` parameters. |
-| `view` | How the console shows it (`mode`: `graph` or `cards`; `node_labels`, a short name per node on its cards, `{"hidrauliaconnect": "hid"}`). |
+| `view` | How the console shows it (`mode`: `graph` or `cards`; `node_labels`, a short name per node on its cards, `{"node-b": "b"}`). |
 | `max_run` | Seconds a start may run before the control center stops it (0 = no limit, a week at most; 7.27.19+). |
 
 `save-scenario` validates it -- the same rules the console's editor applies --
@@ -383,16 +383,16 @@ it builds, with the authenticated user and nothing else of the request, so a
 permissions declare `scenario_id` as the key they may be scoped on (7.27.15)
 -- and a
 role row like this one, in the control center's `authz` store, lets its users
-read `renfe-20k-hidraulia` and nothing else:
+read `load-20k` and nothing else:
 
 ```json
 {
-    "id": "renfe-20k-viewer",
-    "description": "Sees the scenario renfe-20k-hidraulia",
+    "id": "load-20k-viewer",
+    "description": "Sees the scenario load-20k",
     "realm_id": "<the realm of the control center>",
     "service": "controlcenter",
     "permission": "read-scenarios",
-    "parameters": {"scenario_id": ["renfe-20k-hidraulia"]}
+    "parameters": {"scenario_id": ["load-20k"]}
 }
 ```
 
@@ -424,11 +424,11 @@ takes them in its `__relays__`). The agent never gets a
 line the client wrote:
 
 ```bash
-ycommand ... -c 'watch-scenario scenario_id=renfe-20k-hidraulia node=hidrauliaconnect period=2000'
-# -> the agent of hidrauliaconnect gets: watch-yuno-stats ids=pp9:sim_controllers,pp10:sim_controllers,pp11:sim_controllers,2120,2120:__output_side__,2130,2130:__output_side__,2140,2140:__output_side__,5120 period=2000
-ycommand ... -c 'watch-scenario scenario_id=renfe-20k-hidraulia node=hidrauliaconnect keys=tracks'
+ycommand ... -c 'watch-scenario scenario_id=load-20k node=node-b period=2000'
+# -> the agent of node-b gets: watch-yuno-stats ids=pp9:sim_controllers,pp10:sim_controllers,pp11:sim_controllers,2120,2120:__output_side__,2130,2130:__output_side__,2140,2140:__output_side__,5120 period=2000
+ycommand ... -c 'watch-scenario scenario_id=load-20k node=node-b keys=tracks'
 # -> watch-yuno-stats ids=5120 period=2000
-ycommand ... -c 'watch-scenario scenario_id=renfe-20k-hidraulia node=hidrauliaconnect stop=1'
+ycommand ... -c 'watch-scenario scenario_id=load-20k node=node-b stop=1'
 ```
 
 **What may I do here?** `my-permissions` answers, for the user who asks, every
@@ -440,8 +440,8 @@ Scenarios only:
 ```bash
 ycommand ... -c 'my-permissions'
 # -> {"list-agents": false, "command-agent": false, "drop-agent": false, "logout-user": false,
-#     "write-tty": false, "read-scenarios": ["renfe-20k-hidraulia"],
-#     "write-scenarios": false, "run-scenarios": ["renfe-20k-hidraulia"]}
+#     "write-tty": false, "read-scenarios": ["load-20k"],
+#     "write-scenarios": false, "run-scenarios": ["load-20k"]}
 ```
 
 **When the permissions change** (7.27.16+). The control center watches its
@@ -465,14 +465,14 @@ the user signs in and lands on it.
 start may run, in seconds (0 = no limit, a week at most):
 
 ```json
-{"id": "renfe-20k-hidraulia", "node": "hidrauliaconnect", "max_run": 2100, "yunos": [...], "actions": {...}}
+{"id": "load-20k", "node": "node-b", "max_run": 2100, "yunos": [...], "actions": {...}}
 ```
 
 A `start` that did any step schedules the scenario's `stop` `max_run` seconds
 after it; a `stop` that did any step cancels it; pause and resume leave the
 clock alone. When it is due the control center runs `stop` itself, as a run of
 its own -- user the control center, the reason in the comment (*"max_run of
-2100 s reached (started by esg@hidraulia.eu); run ...: stop done, 16 steps"*)
+2100 s reached (started by ops@example.com); run ...: stop done, 16 steps"*)
 -- a few seconds later if
 another run is in flight. A stop that could do nothing is written once, with
 a warning, and tried again:
@@ -507,7 +507,7 @@ delete takes its stop steps and its max_run stop, and leaves its yunos as
 they are -- *"scenario 'x' runs: deleting it needs 'run-scenarios' too"*:
 
 ```bash
-ycommand ... -c 'delete-scenario scenario_id=renfe-20k-hidraulia'   # stop it first, or hold run-scenarios
+ycommand ... -c 'delete-scenario scenario_id=load-20k'   # stop it first, or hold run-scenarios
 ```
 
 **A generator turned on or off by hand: the `switch` of a yuno** (7.28.6+).
@@ -525,8 +525,8 @@ of steps, `on` and `off`, as those of an action, where a step that names no
 ```
 
 ```bash
-ycommand ... -c 'run-scenario scenario_id=renfe-20k-hidraulia action=on scenario_yuno=pp12'
-ycommand ... -c 'run-scenario scenario_id=renfe-20k-hidraulia action=off scenario_yuno=pp12'
+ycommand ... -c 'run-scenario scenario_id=load-20k action=on scenario_yuno=pp12'
+ycommand ... -c 'run-scenario scenario_id=load-20k action=off scenario_yuno=pp12'
 ```
 
 `save-scenario` refuses a switch without both lists, or with a step that

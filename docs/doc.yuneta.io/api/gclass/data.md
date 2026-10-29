@@ -41,7 +41,7 @@ its config of the service:
 
 ```json
 "kw": {
-    "path": "/yuneta/store/raw_tracks/yunovatios",
+    "path": "/yuneta/store/raw_tracks/myapp",
     "archive_directory": "/yuneta/store/archive"
 }
 ```

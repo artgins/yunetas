@@ -174,7 +174,7 @@ every realm, and writes the `bind_ip` into all of them. That is its bulk form,
 as for the other [commands that are bulk when unfiltered](#agent-bulk-commands).
 
 ```bash
-ycommand -c 'update-realm id=stress.central.yunovatios.es bind_ip=10.0.0.5'   # one realm
+ycommand -c 'update-realm id=stress.example.com bind_ip=10.0.0.5'   # one realm
 ycommand -c 'update-realm bind_ip=10.0.0.5'                                   # EVERY realm
 ```
 
@@ -189,7 +189,7 @@ Handler at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.29.3/yunos/c/
   had no yunos.
 
   ```bash
-  ycommand -c 'delete-realm id=stress.central.yunovatios.es'   # one realm
+  ycommand -c 'delete-realm id=stress.example.com'   # one realm
   ycommand -c 'delete-realm'                                   # refused: no id
   ```
 - If the realm has any child yunos in its `yunos` hook (iterate the

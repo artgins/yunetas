@@ -13,8 +13,8 @@ a clean store prints only the count of what it read.
 T=/yuneta/development/yunetas/tools/treedb
 
 python3 $T/check_store_schemas.py                             # every store under /yuneta/store
-python3 $T/check_store_schemas.py /yuneta/store/wattyzerdb    # one store, or several dirs
-python3 $T/check_store_schemas.py --list-ids-yuno db_history_ce^1620 /yuneta/store/yunovatioscedb   # the LIST estimate with that yuno
+python3 $T/check_store_schemas.py /yuneta/store/myappdb       # one store, or several dirs
+python3 $T/check_store_schemas.py --list-ids-yuno db_history^1620 /yuneta/store/myappdb   # the LIST estimate with that yuno
 # checked 126 schema files: 0 faults, 0 unreadable
 ```
 

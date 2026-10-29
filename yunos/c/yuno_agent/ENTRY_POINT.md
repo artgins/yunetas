@@ -455,7 +455,7 @@ What each line keeps from this chapter:
   timed out:
 
   ```
-  WARNING: {"process": "yuneta_agent^hidrauliaconnect", "msg": "pid file left by an agent that did not end in order: its pid is not an agent now (killed and not yet reaped, or taken by another program), removed", "pid_in_file": 1142552, ...}
+  WARNING: {"process": "yuneta_agent^node1", "msg": "pid file left by an agent that did not end in order: its pid is not an agent now (killed and not yet reaped, or taken by another program), removed", "pid_in_file": 1142552, ...}
   ```
 
 - **The unit is the package's.** A node that builds from source does not
