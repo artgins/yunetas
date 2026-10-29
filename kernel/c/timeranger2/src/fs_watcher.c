@@ -1169,14 +1169,15 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
          */
         if (event->mask & (IN_CREATE)) {
             if(fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS) {
-                snprintf(full_path, sizeof(full_path), "%s/%s", path, filename);
                 /*
                  *  A directory created and removed at once (timeranger2's
                  *  key-delete signal) is gone when its IN_CREATE is read:
                  *  there is nothing to watch, and its parent reports the
-                 *  removal.
+                 *  removal. A path that does not fit is not watched
+                 *  (build_path() logs it): cut, it was the parent.
                  */
-                if(is_directory(full_path)) {
+                if(build_path(full_path, sizeof(full_path), path, filename, NULL) &&
+                        is_directory(full_path)) {
                     fs_event->subdir_wd = add_watch(fs_event, full_path, TRUE);
                 }
             }
@@ -1196,8 +1197,9 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
                  *  IN_IGNORED to its close: closed now, they come, and the
                  *  watch goes as without one
                  */
-                snprintf(full_path, sizeof(full_path), "%s/%s", path, filename);
-                close_dir_fd_of_gone(fs_event, full_path);
+                if(build_path(full_path, sizeof(full_path), path, filename, NULL)) {
+                    close_dir_fd_of_gone(fs_event, full_path);
+                }   // else Error already logged: a cut path is the parent, its descriptor stays
 
                 fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
                 fs_event->directory = (volatile char *)path;
