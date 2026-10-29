@@ -31,6 +31,18 @@
  *  Each case asks that the target is left as it was, and that an ERROR
  *  was logged.
  *
+ *  And a path that is too long, met on EVERY append, is logged ONCE (warn
+ *  on the transition, not per record). Up to the R46 round (unreleased):
+ *
+ *     10. mark_file_unordered(), the marker <file_id>.unordered of a md2
+ *         file too long for PATH_MAX while its .json and .md2 fit: an ERROR
+ *         with stack (build_path()'s) at every late append, the cut path
+ *         (the key's directory) handed to newfile(), and a reload that took
+ *         the file as ordered and hid a late row's file from a t query;
+ *     11. master_to_update_client_load_record_callback(), a key too long
+ *         for disks/<rt_id>/<key> or for its file there: an ERROR with
+ *         stack for every record and every feed.
+ *
  *  A unit test: it #includes timeranger2.c to reach the PRIVATE functions.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -121,6 +133,19 @@ PRIVATE int open_close_treedb(const char *path, int schema_version)
     }
     tranger2_shutdown(tr);
     return db? 0 : -1;
+}
+
+PRIVATE json_t *startup_deep_store(const char *path)
+{
+    return tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i}",
+        "path", path,
+        "database", "db",
+        "master", 1,
+        "on_critical_error", 0,
+        "filename_mask", "%Y-%m-%d",
+        "xpermission", 0700,
+        "rpermission", 0600
+    ), 0);
 }
 
 PRIVATE void fill(char *bf, char c, size_t len)
@@ -399,6 +424,141 @@ int main(int argc, char *argv[])
         result += check("treedb in a store 600 bytes deep: the newer schema file is kept",
             kw_get_int(0, file, "schema_version", 0, KW_WILD_NUMBER) == 2);
         JSON_DECREF(file)
+    }
+
+    /*
+     *  10. A late append whose marker path is too long: one ERROR for the
+     *  file, nothing made from a cut path, and a reload reads the file
+     *  whole (the row of +1000 is found by a t query)
+     */
+    if(1) {
+        char store[PATH_MAX];
+        if(make_deep_dir(store, sizeof(store), 3945) < 0) {
+            return -1;
+        }
+        /*
+         *  The topic directory is store/db/t, 3950 bytes. A key of 120:
+         *  keys/<key>/<file_id>.json is 4092 bytes, .unordered 4097
+         */
+        char key[NAME_MAX+1];
+        fill(key, 'k', 120);
+        uint64_t day = 946684800;   // 2000-01-01
+        uint64_t times[] = {100, 1000, 900, 800, 700, 600, 500};   // 5 late
+        int late = 0;
+
+        json_t *tr = startup_deep_store(store);
+        json_t *topic = tr? tranger2_create_topic(
+            tr, "t", "id", "",
+            json_pack("{s:s}", "filename_mask", "%Y-%m-%d"),
+            sf_string_key,
+            json_pack("{s:s, s:s}", "id", "", "content", ""),
+            0
+        ) : NULL;
+        result += check("late appends, marker path too long: the topic opens", topic != NULL);
+        int appended = 0;
+        for(size_t i = 0; topic && i < sizeof(times)/sizeof(times[0]); i++) {
+            if(i == 2) {
+                errors_logged = 0;
+            }
+            md2_record_ex_t md = {0};
+            if(tranger2_append_record(tr, "t", day + times[i], 0, &md,
+                    json_pack("{s:s, s:I}", "id", key, "content", (json_int_t)times[i])) == 0) {
+                appended++;
+            }
+            if(i >= 2) {
+                late++;
+            }
+        }
+        result += check("late appends, marker path too long: every record appended",
+            appended == (int)(sizeof(times)/sizeof(times[0])));
+        printf("     %d ERRORs over %d late appends\n", errors_logged, late);
+        result += check("late appends, marker path too long: ONE error over the late appends",
+            errors_logged == 1);
+
+        char key_dir[PATH_MAX];
+        build_path(key_dir, sizeof(key_dir), store, "db", "t", "keys", key, NULL);
+        result += check("late appends, marker path too long: nothing made from a cut path",
+            is_directory(key_dir));
+        if(tr) {
+            tranger2_shutdown(tr);
+        }
+
+        tr = startup_deep_store(store);
+        topic = tr? tranger2_open_topic(tr, "t", TRUE) : NULL;
+        int found = 0;
+        if(topic) {
+            json_t *data = json_array();
+            json_t *it = tranger2_open_iterator(
+                tr, "t", key,
+                json_pack("{s:I, s:I}",
+                    "from_t", (json_int_t)(day + 950),
+                    "to_t", (json_int_t)(day + 1100)
+                ),
+                NULL, "range", "", data, NULL
+            );
+            found = (int)json_array_size(data);
+            if(it) {
+                tranger2_close_iterator(tr, it);
+            }
+            JSON_DECREF(data)
+        }
+        result += check("late appends, marker path too long: after a reload the t query finds +1000",
+            found == 1);
+        if(tr) {
+            tranger2_shutdown(tr);
+        }
+    }
+
+    /*
+     *  11. The master's link of each record into a feed, a key too long
+     *  for disks/<rt_id>/<key> (a) and for its file there (b): one ERROR
+     *  for each key of the feed, over several records
+     */
+    if(1) {
+        json_t *tranger = json_pack("{s:I, s:i, s:s}",
+            "gobj", (json_int_t)0, "xpermission", 0700, "filename_mask", "%Y-%m-%d"
+        );
+        json_t *topic = json_pack("{s:s, s:s, s:s}",
+            "directory", topic_dir, "topic_name", "topic", "filename_mask", "%Y-%m-%d"
+        );
+        char disk_path[PATH_MAX];
+        build_path(disk_path, sizeof(disk_path), disks, "feedL", NULL);
+        mkdir(disk_path, 0700);
+        json_t *rt = json_pack("{s:s, s:s}", "id", "feedL", "disk_path", disk_path);
+
+        /*
+         *  disk_path is 3962 bytes: a key of 200 does not fit after it
+         *  (a), one of 125 does (4088) and its "/<file_id>.md2" does not (b)
+         */
+        char key_a[NAME_MAX+1];
+        fill(key_a, 'a', 200);
+        char key_b[NAME_MAX+1];
+        fill(key_b, 'b', 125);
+        int errors_a = 0;
+        int errors_b = 0;
+        for(int i = 0; i < 5; i++) {
+            md2_record_ex_t md = {0};
+            md.__t__ = 946684800 + (uint64_t)i;
+            errors_logged = 0;
+            master_to_update_client_load_record_callback(
+                tranger, topic, key_a, rt, i + 1, &md, json_object()
+            );
+            errors_a += errors_logged;
+            errors_logged = 0;
+            master_to_update_client_load_record_callback(
+                tranger, topic, key_b, rt, i + 1, &md, json_object()
+            );
+            errors_b += errors_logged;
+        }
+        printf("     %d + %d ERRORs over 5 records of each key\n", errors_a, errors_b);
+        result += check("feed link, key too long for disks/<rt_id>/<key>: ONE error over 5 records",
+            errors_a == 1);
+        result += check("feed link, file too long in disks/<rt_id>/<key>: ONE error over 5 records",
+            errors_b == 1);
+
+        JSON_DECREF(rt)
+        JSON_DECREF(topic)
+        JSON_DECREF(tranger)
     }
 
     if(system("rm -rf " BASE) != 0) {

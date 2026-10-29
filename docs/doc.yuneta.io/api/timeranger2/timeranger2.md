@@ -2722,9 +2722,20 @@ The two axes are not ordered the same way, and the scan knows it:
   written is logged (*"Cannot mark md2 file, a reload will misread its time
   range"*); the master still reads that file whole, and writes the marker at
   the next append to the file (*"md2 file marked, the marker missed earlier is
-  written"*). A file whose name leaves no room for a marker
-  (`<file_id>.unordered` longer than `NAME_MAX`) is logged once
-  (*"Cannot mark md2 file, file_id too long"*) and read whole at every load.
+  written"*). A file whose marker cannot exist -- `<file_id>.unordered`
+  longer than `NAME_MAX`, or its path `<topic>/keys/<key>/<marker>` of
+  `PATH_MAX` bytes or more while the `.json` and `.md2` fit -- is logged once
+  for the file, at its first late record (*"Cannot mark md2 file, the marker
+  name or path is too long: a load reads it whole (logged once)"*), never tried
+  again, and read whole at every load, with no log there (a replica loads it at
+  every append). The master and the load ask the same length rule, so the
+  file's range is never taken from its first and last rows. Up to the R46
+  round a path too long logged an ERROR with a stack at EVERY late append, and
+  a reload took the file as in order (a late row's maximum was hidden from a
+  `t` query); a name too long logged an ERROR at every load. For example, a
+  topic directory of 3950 bytes and a key of 120: `keys/<key>/2000-01-01.json`
+  is 4092 bytes, the marker 4097; five late appends log one ERROR, and after a
+  reload a `t` query around the file's maximum still finds it.
   Neither is fsync'ed, like the append itself. A marker lost all
   the same (a power cut, a rollback to a binary that appends without
   markers) is not written again: that file's `t` range is read from its first
@@ -2964,6 +2975,17 @@ that touches two files of a key (a late record and a current one, or a rotation
 while the follower is busy) serves each feed both (before 7.25.0, the second feed lost both) -- and the master hard-links each new
 `.md2` into the directory of every feed that wants the key. A feed's watermark
 dies with its key, so a key re-created later does not inherit it.
+
+The path of that link, `disks/<rt_id>/<key>/<file>`, is longer than the
+master's `keys/<key>/<file>`, so a key the master stores can be too long for a
+feed. Its records do not reach that feed, and the master logs it ONCE for the
+key and the feed, at its first record (*"Path too long, the records of this
+key do not reach this feed (logged once)"*). In the R46 round (unreleased) it
+logged an ERROR with a stack for every record and every feed; up to 7.29.3 the
+path was cut in silence and the link was made from the cut path. For example,
+with a feed directory of 3962 bytes, a key of 200 bytes (no room for
+`<key>`) or of 125 bytes (no room for `/2000-01-01.md2` after it): five
+records log one ERROR for each key.
 
 ---
 

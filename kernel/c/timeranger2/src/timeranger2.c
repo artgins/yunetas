@@ -290,6 +290,20 @@ PRIVATE BOOL topic_name_is_confined(
     const char *caller
 );
 PRIVATE void add_iterator_to_topic(hgobj gobj, json_t *topic, json_t *iterator);
+PRIVATE BOOL marker_fits(
+    char *marker,
+    size_t marker_size,
+    const char *topic_directory,
+    const char *key,
+    const char *file_id,
+    const char *mark
+);
+PRIVATE void feed_path_too_long(
+    hgobj gobj,
+    json_t *rt,
+    const char *key,
+    const char *filename
+);
 PRIVATE void mark_file_unordered(
     hgobj gobj,
     json_t *topic,
@@ -9589,9 +9603,11 @@ PRIVATE int master_to_update_client_load_record_callback(
     /*
      *  Create the directory for the key
      */
-    if(!format_path(gobj, full_path_dest, sizeof(full_path_dest), "%s/%s", disk_path, key)) {
+    int len = snprintf(full_path_dest, sizeof(full_path_dest), "%s/%s", disk_path, key);
+    if(len < 0 || (size_t)len >= sizeof(full_path_dest)) {
+        feed_path_too_long(gobj, rt, key, "");
         JSON_DECREF(record)
-        return 0;   // Error already logged
+        return 0;   // Error logged once for this key of this feed
     }
     if(!is_directory(full_path_dest)) {
         if(gobj_global_trace_level() & TRACE_FS) {
@@ -9645,10 +9661,16 @@ PRIVATE int master_to_update_client_load_record_callback(
         return 0;
     }
     const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
-    if(!format_path(gobj, full_path_dest, sizeof(full_path_dest), "%s/%s/%s", disk_path, key, filename) ||
-            !format_path(gobj, full_path_orig, sizeof(full_path_orig), "%s/keys/%s/%s", topic_dir, key, filename)) {
+    len = snprintf(full_path_dest, sizeof(full_path_dest), "%s/%s/%s", disk_path, key, filename);
+    if(len < 0 || (size_t)len >= sizeof(full_path_dest)) {
+        feed_path_too_long(gobj, rt, key, filename);
         JSON_DECREF(record)
-        return 0;   // Error already logged: no link to or from a cut path
+        return 0;   // Error logged once for this key of this feed: no link to a cut path
+    }
+    if(!format_path(gobj, full_path_orig, sizeof(full_path_orig), "%s/keys/%s/%s", topic_dir, key, filename)) {
+        // The master's own file, written by this append: its path fitted
+        JSON_DECREF(record)
+        return 0;   // Error already logged: no link from a cut path
     }
 
     if(!is_regular_file(full_path_dest)) {
@@ -9681,6 +9703,46 @@ PRIVATE int master_to_update_client_load_record_callback(
 
     JSON_DECREF(record)
     return 0;
+}
+
+/***************************************************************************
+ *  MASTER: the path of a record's link into a feed, disks/<rt_id>/<key>
+ *  or disks/<rt_id>/<key>/<file>, does not fit in PATH_MAX (it can be
+ *  longer than keys/<key>/<file>, which fitted). The records of that key
+ *  do not reach that feed. Logged ONCE for the key of the feed, at its
+ *  first record: the path is the same for every record (the file name has
+ *  one length), and up to the R46 round an ERROR with a stack came with
+ *  every record and every feed. The flag is looked up only on this path,
+ *  never for a record whose path fits.
+ *  `key` is data: a KEY of the dict, never a path.
+ ***************************************************************************/
+PRIVATE void feed_path_too_long(
+    hgobj gobj,
+    json_t *rt,
+    const char *key,
+    const char *filename
+)
+{
+    json_t *keys = json_object_get(rt, "keys_path_too_long");
+    if(!json_is_object(keys)) {
+        keys = json_object();
+        json_object_set_new(rt, "keys_path_too_long", keys);
+    }
+    if(json_object_get(keys, key)) {
+        return; // Error already logged, at the first record of this key
+    }
+    json_object_set_new(keys, key, json_true());
+
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "Path too long, the records of this key do not reach this feed (logged once)",
+        "rt_id",        "%s", json_string_value(json_object_get(rt, "id")),
+        "disk_path",    "%s", json_string_value(json_object_get(rt, "disk_path")),
+        "key",          "%s", key,
+        "filename",     "%s", filename,
+        NULL
+    );
 }
 
 /***************************************************************************
@@ -14943,23 +15005,18 @@ PRIVATE json_t *load_cache_cell_from_disk(
      *  condition is a filter on every row); list-keys reports it. A
      *  `<file>.tm_unordered` left by 7.25.5..7.25.22 is ignored.
      */
-    char marker[NAME_MAX];
+    char marker[NAME_MAX+1];
     BOOL t_marked;
-    if(snprintf(marker, sizeof(marker), "%s.unordered", filename) >= (int)sizeof(marker)) {
+    if(!marker_fits(marker, sizeof(marker), topic_directory, key, filename, "unordered")) {
         /*
-         *  A marker of this file cannot exist (the master could not write
-         *  it either: "file_id too long"), and a truncated name was looked
-         *  for: the file is taken as marked, read whole, never trusted.
+         *  A marker of this file cannot exist, its name or its path is too
+         *  long (the master could not write it either, and logged it once):
+         *  the file is taken as marked, read whole, never trusted. Not
+         *  logged: a replica loads the file at every append of the master,
+         *  and up to the R46 round an ERROR came with each load (name too
+         *  long; a path too long was not seen, the file was taken as in
+         *  order and a late row's file hidden from a t query).
          */
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Cannot look for the marker of a md2 file, its name is too long: read whole",
-            "topic_directory", "%s", topic_directory,
-            "key",          "%s", key,
-            "file_id",      "%s", filename,
-            NULL
-        );
         t_marked = TRUE;
     } else if(key_files) {
         t_marked = key_file_listed(key_files, marker);
@@ -15137,11 +15194,39 @@ PRIVATE int widen_cell_from_rows(
 }
 
 /***************************************************************************
+ *  Can the marker `<file_id>.<mark>` of a md2 file exist? Its name must fit
+ *  in `marker` (NAME_MAX+1) and its path, <topic_directory>/keys/<key>/
+ *  <marker>, in PATH_MAX. The writer (mark_file_unordered) and the reader
+ *  (load_cache_cell_from_disk) ask the SAME question, so a marker that
+ *  cannot exist is never looked for and its file is read whole. The length
+ *  is the sum of the parts: build_path() makes it, or a shorter one (it
+ *  drops a repeated '/'), so a marker that fits here fits there.
+ ***************************************************************************/
+PRIVATE BOOL marker_fits(
+    char *marker,
+    size_t marker_size,
+    const char *topic_directory,
+    const char *key,
+    const char *file_id,
+    const char *mark
+)
+{
+    int len = snprintf(marker, marker_size, "%s.%s", file_id, mark);
+    if(len < 0 || (size_t)len >= marker_size) {
+        return FALSE;
+    }
+    size_t path_len = strlen(topic_directory) + strlen("/keys/") + strlen(key) + 1 + (size_t)len;
+    return path_len < PATH_MAX? TRUE: FALSE;
+}
+
+/***************************************************************************
  *  A record arrived that the first and the last row of its file do not
  *  bound any more. Leave a marker beside the md2 so a load reads the file
  *  whole (see load_cache_cell_from_disk), and flag the cell. `mark`:
  *      "unordered"     a __t__ below the file's to_t (a late record)
- *  The marker is `<file>.<mark>`. Once per file: the cell remembers.
+ *  The marker is `<file>.<mark>`. Once per file: the cell remembers. A
+ *  marker whose name or path is too long (marker_fits) is logged once and
+ *  never tried again: a load reads that file whole.
  *
  *  The cell is flagged WHATEVER the disk says: this process then reads the
  *  file whole. A marker that cannot be written is logged, and the cell says
@@ -15171,27 +15256,34 @@ PRIVATE void mark_file_unordered(
     }
     json_object_set_new(cache_cell, mark, json_true());
 
-    char marker[NAME_MAX];
-    if(snprintf(marker, sizeof(marker), "%s.%s", file_id, mark) >= (int)sizeof(marker)) {
-        if(!retry) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "Cannot mark md2 file, file_id too long",
-                "topic",        "%s", tranger2_topic_name(topic),
-                "key",          "%s", key,
-                "file_id",      "%s", file_id,
-                "mark",         "%s", mark,
-                NULL
-            );
-        }
-        json_object_set_new(cache_cell, not_on_disk, json_true());
+    const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
+    char marker[NAME_MAX+1];
+    char path[PATH_MAX];
+    if(!marker_fits(marker, sizeof(marker), topic_directory, key, file_id, mark) ||
+            !build_path(path, sizeof(path), topic_directory, "keys", key, marker, NULL)) {
+        /*
+         *  The marker can never be written: its name or its path is too
+         *  long, and they do not change. Logged ONCE for the file: no
+         *  `<mark>_not_on_disk`, nothing to try again, and the cell keeps
+         *  `<mark>`, so a later append returns above. A load does not
+         *  look for it either (marker_fits()), it reads the file whole.
+         *  Up to the R46 round every late append tried it again and
+         *  build_path() logged an ERROR with a stack each time.
+         */
+        json_object_del(cache_cell, not_on_disk);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot mark md2 file, the marker name or path is too long: a load reads it whole (logged once)",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "topic_directory", "%s", topic_directory,
+            "key",          "%s", key,
+            "file_id",      "%s", file_id,
+            "mark",         "%s", mark,
+            NULL
+        );
         return;
     }
-    char path[PATH_MAX];
-    build_path(path, sizeof(path),
-        json_string_value(json_object_get(topic, "directory")), "keys", key, marker, NULL
-    );
     int fd = newfile(path, (int)json_integer_value(json_object_get(topic, "rpermission")), FALSE);
     if(fd < 0 && !is_regular_file(path)) {
         if(!retry) {
