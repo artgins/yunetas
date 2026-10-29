@@ -21,6 +21,12 @@ slave 2 with block C (`c`).
   and a coil (function 05, ON is `0xFF00`).
 - A request sent before the master connects is answered at once, as failed
   (*"not connected"*).
+- The `traffic` trace of the master and of its `C_TCP` is armed, and
+  `main_test1.c` scans every log line, traces included: two write values made
+  to be found (`0x7E5F` with function 06, `0x5A3C 0x6B4D` with 16) must never
+  show. The one line allowed is the transport's dump of what it receives
+  (`⏪`): the echo of an 06 carries its value, and received bytes cannot be
+  marked secret.
 - (REV-CLOUD V45) The requests go out at once on the message of cycle 1, not
   a `timeout_polling` later. Requests whose numbers are not numbers
   (`"abc"`, `null`, `"010"`, `20.9`, `"12ab"`, an id `"x"`), or that pass

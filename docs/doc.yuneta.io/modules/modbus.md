@@ -340,3 +340,26 @@ json_t *resp = gobj_command(gobj_modbus, "dump_data",
 
 **Trace levels:** `messages` (each published message, and the variables a
 cycle left out), `traffic` (raw bytes), `polling`, `decode`, `send`.
+
+**What the `traffic` trace shows of a write.** The frame of a write
+(functions 05, 06, 15, 16, over TCP and RTU) is marked secret
+(`gbuffer_set_secret()`) before it goes to the transport, so the `traffic`
+trace of `C_PROT_MODBUS_M` **and** that of its `C_TCP` dump it as
+`"<N bytes hidden>"`; the gclass also hides its own dumps of the answer to a
+write (its echo). Reads, and their answers, are dumped in full:
+
+```json
+{"msg": "C_PROT_MODBUS_M^modbus ==> C_TCP^modbus", "len": 12, "secret": true, "data": "<12 bytes hidden>"}
+{"msg": "C_TCP^modbus", "len": 3, "secret": true, "data": "<3 bytes hidden>"}
+```
+
+Two limits, both outside this gclass:
+
+- **The transport's dump of what it receives** (`C_TCP` or `C_UART`
+  `traffic`, the `⏪` lines) shows the echo of a single write, 05 or 06,
+  which carries the value written: received bytes nobody can mark as
+  secret. The echo of 15 and 16 carries only the address and the quantity.
+  Do not arm the transport's `traffic` while a password is written.
+- **The global `ev_kw` trace** shows the kw of every event, the
+  `EV_SEND_MESSAGE` of a request included, with its `value`: it masks by key
+  name, and `value` is not one.

@@ -32,6 +32,11 @@
  *            and a coil went out as the value given.
  *          - a request sent before the master connects is answered at once,
  *            as failed.
+ *          - the traffic trace of the master and of its C_TCP is armed: a
+ *            write value (two of them, 06 and 16, made to be found) must
+ *            never show in it. The echo of an 06 carries its value back,
+ *            and the transport's dump of what it RECEIVES cannot hide it
+ *            (nobody can mark received bytes): only that line may.
  *          - (REV-CLOUD V45) the requests go out at once on the message of
  *            cycle 1, not a timeout_polling later; a request whose numbers
  *            are not numbers ("abc", null, "010", 20.9, "12ab"), or that
@@ -68,6 +73,8 @@
 #define AFTER_VALUE     "222"   // in the answers table
 #define AFTER_NUMBER    222
 #define REQUEST_MAX_MS  500     // a request sent on the message of a cycle goes out at once
+#define SECRET6_ADDRESS 70      // function 06 with a secret value: 0x7E5F
+#define SECRET16_ADDRESS 72     // function 16 with a secret value: 0x5A3C, 0x6B4D
 #define RX_SIZE         512
 
 /***************************************************************************
@@ -109,6 +116,8 @@ PRIVATE const char *requests[] = {
     "{'tag': 'r03', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 30, 'size': 3}",
     "{'tag': 'x40', 'id': 1, 'type': 'holding_register', 'address': 40, 'value': 1}",
     "{'tag': 'c05', 'id': 1, 'type': 'coil', 'address': 5, 'value': 1}",
+    "{'tag': 'pw6', 'id': 1, 'type': 'holding_register', 'address': 70, 'value': 32351}",
+    "{'tag': 'p16', 'id': 1, 'type': 'holding_register', 'address': 72, 'value': [23100, 27469]}",
     "{'tag': 'lat', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 50}",
     "{'tag': 'aft', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 51}",
     "{'tag': 'm03', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 60}",
@@ -129,6 +138,8 @@ PRIVATE const char *answers[] = {
     "{'tag': 'r03', 'result': 0, 'error_code': 0, 'values': [11, 22, 33]}",
     "{'tag': 'x40', 'result': -1, 'error_code': 1}",
     "{'tag': 'c05', 'result': 0, 'error_code': 0}",
+    "{'tag': 'pw6', 'result': 0, 'error_code': 0}",
+    "{'tag': 'p16', 'result': 0, 'error_code': 0}",
     "{'tag': 'lat', 'result': -1, 'error_code': 0}",        // timeout_response
     "{'tag': 'aft', 'result': 0, 'error_code': 0, 'values': [" AFTER_VALUE "]}",
     "{'tag': 'm03', 'result': -1, 'error_code': 0}",        // an answer with no registers
@@ -382,6 +393,17 @@ PRIVATE void slave_request(hgobj gobj, const uint8_t *req)
     int function = req[7];
     int address = (req[8] << 8) | req[9];
     int quantity = (req[10] << 8) | req[11];   // the value, in a write
+
+    if((function == 6 && address == SECRET6_ADDRESS && quantity == 0x7E5F) ||
+            (function == 16 && address == SECRET16_ADDRESS && quantity == 2 && req[12] == 4 &&
+             req[13] == 0x5A && req[14] == 0x3C && req[15] == 0x6B && req[16] == 0x4D)) {
+        uint8_t rsp[12];
+        memcpy(rsp, req, 12);   // the echo: of 06 its value, of 16 its quantity
+        rsp[4] = 0;
+        rsp[5] = 6;
+        slave_send(gobj, rsp, sizeof(rsp));
+        return;
+    }
 
     if(function == 6 && address == REFUSED_ADDRESS) {
         slave_exception(gobj, req, 1);          // illegal function: a meter that is locked
@@ -742,6 +764,13 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj
         );
         gobj_start(priv->gobj_master);
+
+        /*
+         *  The traffic of the master and of its transport, to check that no
+         *  write value shows in it (main_test1.c scans every line)
+         */
+        gobj_set_gobj_trace(priv->gobj_master, "traffic", TRUE, 0);
+        gobj_set_gobj_trace(gobj_bottom_gobj(priv->gobj_master), "traffic", TRUE, 0);
 
         /*
          *  Not connected yet: answered at once, as failed

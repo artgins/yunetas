@@ -141,6 +141,33 @@ PRIVATE char variable_config[]= "\
 time_measure_t time_measure;
 
 /***************************************************************************
+ *  Every log line, traces included: a write value must not show in it.
+ *  The values are written to be found as their hex dump: 0x7E5F (function
+ *  06) and 0x5A3C 0x6B4D (function 16). The one exception is the dump of
+ *  what the transport RECEIVES (" ⏪ "): the echo of an 06 carries its value,
+ *  and received bytes nobody can mark as secret.
+ ***************************************************************************/
+PRIVATE int secrets_shown = 0;
+
+PRIVATE int secret_scan_write(void *h, int priority, const char *bf, size_t len)
+{
+    char line[8*1024];
+    size_t ln = len < sizeof(line) - 1? len : sizeof(line) - 1;
+    memcpy(line, bf, ln);
+    line[ln] = 0;
+
+    if(strstr(line, "5A 3C 6B")) {
+        secrets_shown++;
+        printf("%sERROR --> the value of a write (16) in a log line%s\n", On_Red BWhite, Color_Off);
+    }
+    if(strstr(line, "7E 5F") && !strstr(line, " ⏪ ")) {
+        secrets_shown++;
+        printf("%sERROR --> the value of a write (06) in a log line%s\n", On_Red BWhite, Color_Off);
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  HACK This function is executed on yunetas environment (mem, log, paths)
  *  BEFORE creating the yuno
  ***************************************************************************/
@@ -225,6 +252,13 @@ static void cleaning(void)
     MT_PRINT_TIME(time_measure, APP_NAME)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
+
+    if(secrets_shown) {
+        printf("%sERROR --> %d log lines show the value of a write%s\n",
+            On_Red BWhite, secrets_shown, Color_Off
+        );
+        result += -1;
+    }
 }
 
 /***************************************************************************
@@ -249,6 +283,14 @@ int main(int argc, char *argv[])
         0                   // fwrite_fn
     );
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
+
+    gobj_log_register_handler(
+        "secret_scan",      // handler_name
+        0,                  // close_fn
+        secret_scan_write,  // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("secret_scan", "secret_scan", LOG_OPT_ALL, 0);
 
 
     /*------------------------------------------------*

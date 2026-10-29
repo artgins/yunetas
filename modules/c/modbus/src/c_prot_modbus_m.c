@@ -89,7 +89,13 @@ comes after it. They go one at a time, in the order they came: a request
 that needs another before it in the same connection (a meter password and
 the setup it unlocks) is just sent after it. A write is checked against the
 echo the slave answers with. A refusal, a log or a trace never shows the
-values of a write: they can be a secret.
+values of a write: they can be a secret. The frame of a write is marked
+secret (gbuffer_set_secret()), so the traffic trace of this gclass and of
+its transport dump it as "<N bytes hidden>", and so is the answer to it in
+this gclass's own dumps. Two limits: the transport's dump of what it
+RECEIVES shows the echo of a single write (05, 06), which carries the value
+(received bytes nobody can mark); and the global `ev_kw` trace shows the
+request's kw, "value" included (it masks by key name, and "value" is none).
 
 An answer is taken only for what is in flight. Over TCP it must carry the
 transaction id of the request sent and protocol 0: the late answer of a
@@ -368,6 +374,7 @@ PRIVATE int answer_queued_requests(hgobj gobj, const char *why);
 PRIVATE int read_request_answer(hgobj gobj, uint8_t *bf, int len);
 PRIVATE int continue_polling(hgobj gobj, int wait_ms);
 PRIVATE int reset_frame(hgobj gobj);
+PRIVATE BOOL write_in_flight(hgobj gobj);
 
 PRIVATE cell_control_t *get_cell_control(
     hgobj gobj,
@@ -1427,6 +1434,13 @@ PRIVATE gbuffer_t *build_modbus_request_message(hgobj gobj, json_t *jn_request)
         return 0;
     }
     gbuffer_append(gbuf, frame, (size_t)len);
+    if(is_write) {
+        /*
+         *  A write can carry a secret (a meter password): its frame is
+         *  dumped as "<N bytes hidden>", here and by the transport
+         */
+        gbuffer_set_secret(gbuf, TRUE);
+    }
 
     priv->modbus_function = modbus_function;
 
@@ -2314,6 +2328,23 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
 }
 
 /***************************************************************************
+ *  TRUE when the request in flight is a write: what comes back is its echo,
+ *  and the echo of a single write (05, 06) carries its value. Its bytes are
+ *  dumped as hidden, like the frame of the write.
+ ***************************************************************************/
+PRIVATE BOOL write_in_flight(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->jn_current_request) {
+        return FALSE;
+    }
+    json_t *jn_operation = json_object_get(priv->jn_current_request, "operation");
+    return (json_is_string(jn_operation) &&
+        strcmp(json_string_value(jn_operation), "write")==0)? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  Forget the frame being read, to read the next one from its head. The
  *  function of the request in flight is kept: see RESET_MACHINE().
  ***************************************************************************/
@@ -2392,7 +2423,11 @@ PRIVATE int frame_failed(hgobj gobj, const char *msg, uint8_t *bf, int len)
     }
 
     if((gobj_trace_level(gobj) & TRACE_TRAFFIC) && bf && len > 0) {
-        gobj_trace_dump(gobj, (const char *)bf, (size_t)(len < 64? len : 64), "%s", msg);
+        if(write_in_flight(gobj)) {
+            gobj_trace_msg(gobj, "%s: <%d bytes hidden>", msg, len);
+        } else {
+            gobj_trace_dump(gobj, (const char *)bf, (size_t)(len < 64? len : 64), "%s", msg);
+        }
     }
     return 0;
 }
@@ -4148,7 +4183,11 @@ PRIVATE int read_request_answer(hgobj gobj, uint8_t *bf, int len)
         );
         JSON_DECREF(jn_log)
         if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-            gobj_trace_dump(gobj, (const char *)bf, (size_t)(len < 64? len : 64), "answer");
+            if(write_in_flight(gobj)) {
+                gobj_trace_msg(gobj, "answer: <%d bytes hidden>", len);
+            } else {
+                gobj_trace_dump(gobj, (const char *)bf, (size_t)(len < 64? len : 64), "answer");
+            }
         }
         JSON_DECREF(jn_values)
         set_current_answer(gobj, -1, 0, NULL, jn_why);
@@ -4598,6 +4637,9 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 }
                 if(istream_is_completed(priv->istream_payload)) {
                     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+                        if(write_in_flight(gobj)) {
+                            gbuffer_set_secret(istream_get_gbuffer(priv->istream_payload), TRUE);
+                        }
                         gobj_trace_dump_gbuf(gobj,
                            istream_get_gbuffer(priv->istream_payload), "%s", gobj_short_name(src)
                        );
@@ -4635,7 +4677,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "len",          "%d", (int)gbuffer_leftbytes(gbuf),
                 NULL
             );
-            if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+            if((gobj_trace_level(gobj) & TRACE_TRAFFIC) && !write_in_flight(gobj)) {
                 gobj_trace_dump(gobj,
                     gbuffer_cur_rd_pointer(gbuf),
                     MIN(gbuffer_leftbytes(gbuf), 64),
