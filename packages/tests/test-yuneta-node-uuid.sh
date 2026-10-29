@@ -544,10 +544,13 @@ check "run/systemd/container in another pid namespace: names it" "$(field contai
 #   nothing there (exit 3), and a uuid made there all the same is not taken
 #   by a board written from the image. A board has / as the root of PID 1.
 #
-set_pid1_root() {    # "same": / is the root of PID 1; "other": it is not
+set_pid1_root() {    # "same": / is the root of PID 1; "other": it is not;
+                     # "hidden": it cannot be looked at (a link that leads nowhere)
     mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/proc/1" "${WORK}/host-root"
     if [ "$1" = "same" ]; then
         ln -sfn ../.. "${YUNETA_NODE_UUID_SYSROOT}/proc/1/root"
+    elif [ "$1" = "hidden" ]; then
+        ln -sfn "${WORK}/no-such-root" "${YUNETA_NODE_UUID_SYSROOT}/proc/1/root"
     else
         ln -sfn "${WORK}/host-root" "${YUNETA_NODE_UUID_SYSROOT}/proc/1/root"
     fi
@@ -581,26 +584,98 @@ run ensure
 check "/ is the root of PID 1: the hardware" "$(field source)" "dmi-product-uuid"
 
 #
+#   PID 1's root cannot be looked at (a root without CAP_SYS_PTRACE, in a
+#   user namespace, refused by a security module or the runtime, or no
+#   root): the mount on / is compared, /proc/1/mountinfo against
+#   /proc/self/mountinfo, device and root, never the mount id. The same one
+#   is the system, whatever the image left in it (the box of V50.1.2: /run
+#   on ext4 holding /run/systemd/container "docker", where a root with
+#   `setpriv --bounding-set=-sys_ptrace` stored a random uuid as a container
+#   and the next full root replaced it). Another one is a container's (or a
+#   chroot's): its markers name it.
+#
+set_pid1_mount() {    # the mountinfo line of PID 1's / (a mountinfo of no / for "")
+    mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/proc/1"
+    printf '29 1 0:26 / /proc rw - proc proc rw\n' > "${YUNETA_NODE_UUID_SYSROOT}/proc/1/mountinfo"
+    if [ -n "$1" ]; then
+        printf '%s\n' "$1" >> "${YUNETA_NODE_UUID_SYSROOT}/proc/1/mountinfo"
+    fi
+}
+add_self_mount() {    # one more line of this process's mountinfo
+    printf '%s\n' "$1" >> "${YUNETA_NODE_UUID_SYSROOT}/proc/self/mountinfo"
+}
+hidden_board() {    # an Ubuntu image on a board, /run on its root fs
+    board ""
+    touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+    set_marker run/systemd/container docker
+    set_hostname "board01"
+    set_pid1_root hidden
+}
+hidden_board
+set_pid1_mount '1 0 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw'
+check "PID 1's root hidden, the same mount on /, install: the hardware" "$("$SCRIPT" ensure --installing >/dev/null 2>&1; echo $?)" "0"
+check "PID 1's root hidden, the same mount on /: the hardware" "$(field source)" "dmi-product-uuid"
+check "PID 1's root hidden, the same mount on /: no container recorded" "$(grep -c '"container"' "$FILE")" "0"
+hidden_board
+set_pid1_mount '7 0 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw'
+run ensure
+check "PID 1's root hidden, the same mount on / of another id (unshare -m): the hardware" "$(field source)" "dmi-product-uuid"
+hidden_board
+set_pid1_mount '1 0 8:2 / / rw,relatime shared:1 - ext4 /dev/sda2 rw'
+check "PID 1's root hidden, another mount on /, install: exit 3" "$("$SCRIPT" ensure --installing >/dev/null 2>&1; echo $?)" "3"
+run ensure
+check "PID 1's root hidden, another device on /: a container, named by its markers" "$(field container)" "docker"
+hidden_board
+set_pid1_mount '1 0 8:1 /@ / rw,relatime shared:1 - btrfs /dev/sda1 rw'
+run ensure
+check "PID 1's root hidden, another root of the same device on /: a container" "$(field container)" "docker"
+hidden_board
+set_pid1_mount '1 0 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw'
+add_self_mount '40 22 0:50 / / rw,relatime - overlay overlay rw'
+run ensure
+check "PID 1's root hidden, an overlay mounted over its / (the last one counts): a container" "$(field container)" "docker"
+hidden_board
+set_pid1_mount '1 0 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw'
+printf '23 1 0:26 / /proc rw - proc proc rw\n' > "${YUNETA_NODE_UUID_SYSROOT}/proc/self/mountinfo"
+run ensure
+check "PID 1's root hidden, no mount on this / (a chroot into a directory): a container" "$(field container)" "docker"
+hidden_board
+set_pid1_mount ""
+run ensure
+check "PID 1's root hidden, no / in PID 1's mountinfo: as the system" "$(field source)" "dmi-product-uuid"
+hidden_board
+rm -f "${YUNETA_NODE_UUID_SYSROOT}/proc/1/mountinfo"
+run ensure
+check "PID 1's root hidden, PID 1's mountinfo unreadable: as the system" "$(field source)" "dmi-product-uuid"
+
+#
 #   The same against the real kernel, as a normal user. The root of a user
-#   namespace is not the system's root: the kernel does not let it look at
-#   PID 1's root, which the system's root always may (with
-#   CAP_SYS_PTRACE, in the initial user namespace). That is a container run
-#   with --pid=host, as Toolbx and distrobox run theirs (rootless Podman:
-#   a user namespace), and Docker's root, which has no CAP_SYS_PTRACE:
+#   namespace cannot look at PID 1's root, as a root without CAP_SYS_PTRACE
+#   cannot (Docker's), nor one refused by a security module or by the
+#   runtime: the mount on / tells then. On the system's own / it is the
+#   system, in a private mount namespace too (a copy of the same mount):
 #
-#       unshare -Ur <the script's container_name>
+#       unshare -Ur  <the script's container_name>
+#       unshare -Urm <the script's container_name>
 #
-#   and a chroot entered in a user and mount namespace, with and without
-#   /proc (with no /proc at all no system was booted there):
+#   Another / is a container run with --pid=host, as Toolbx and distrobox
+#   run theirs (rootless Podman: a user and a mount namespace, the image as
+#   /), or a chroot: emulated with a chroot entered in a user and mount
+#   namespace, with and without /proc (with no /proc at all no system was
+#   booted there):
 #
 #       unshare -Urm sh -c 'mount --rbind /usr R/usr; mount --rbind /dev R/dev;
 #                           mount --rbind /proc R/proc; chroot R <its container_name>'
 #
 #   A chroot entered by the REAL root (the image build) sees PID 1's root
 #   and it is not / -- the fake "other" above; checked by hand with
-#   `sudo unshare -m` + the same mounts + chroot (it answers "chroot"), and a
-#   root with no CAP_SYS_PTRACE with
-#   `sudo setpriv --bounding-set=-sys_ptrace --inh-caps=-sys_ptrace`.
+#   `sudo unshare -m` + the same mounts + chroot (it answers "chroot"). A
+#   real root with no CAP_SYS_PTRACE on the box itself is checked by hand
+#   too, in `sudo unshare -m --propagation private` with a ramfs on /run
+#   holding /run/systemd/container "docker":
+#   `setpriv --bounding-set=-sys_ptrace --inh-caps=-sys_ptrace` answers no
+#   container, and its `ensure` stores the DMI uuid (it stored a random of
+#   "container": "docker" before the mount on / was compared).
 #   Skipped where unprivileged user namespaces are refused.
 #
 probe_container() {    # the script's container_name, "none" for none
@@ -611,11 +686,16 @@ probe_container() {    # the script's container_name, "none" for none
 if unshare -Ur true >/dev/null 2>&1; then
     check "a normal user in the initial pid namespace: nothing told" \
         "$(unset container; export YUNETA_NODE_UUID_SYSROOT="$EMU"; probe_container "$SCRIPT")" "none"
-    check "--pid=host container, its root in a user namespace (Toolbx, distrobox): a container" \
+    check "a root in a user namespace on the system's own / (unshare -Ur): the system" \
         "$(env -u container YUNETA_NODE_UUID_SYSROOT="$EMU" \
-            unshare -Ur bash -c "$(declare -f probe_container); probe_container \"\$1\"" _ "$SCRIPT")" "container-other"
+            unshare -Ur bash -c "$(declare -f probe_container); probe_container \"\$1\"" _ "$SCRIPT")" "none"
+    if unshare -Urm true >/dev/null 2>&1; then
+        check "a root in a user and mount namespace on the system's own / (unshare -Urm): the system" \
+            "$(env -u container YUNETA_NODE_UUID_SYSROOT="$EMU" \
+                unshare -Urm bash -c "$(declare -f probe_container); probe_container \"\$1\"" _ "$SCRIPT")" "none"
+    fi
 else
-    echo "skip - unshare -Ur refused here: no --pid=host emulation"
+    echo "skip - unshare -Ur refused here: no emulation of a root that cannot look at PID 1's root"
 fi
 CHR="${WORK}/chroot"
 if [ -L /bin ] && [ -L /lib ] && unshare -Urm true >/dev/null 2>&1; then
@@ -640,11 +720,47 @@ if [ -L /bin ] && [ -L /lib ] && unshare -Urm true >/dev/null 2>&1; then
                 exec chroot "$1" /usr/bin/bash -c "$3"
             ' _ "$CHR" "$1" "$probe" 2>/dev/null
     }
-    check "chroot in a user namespace, /proc mounted: a container" "$(in_chroot 1)" "container-other"
+    check "another / in a user namespace (a --pid=host Toolbx, or a chroot), /proc mounted: a container" "$(in_chroot 1)" "container-other"
     check "chroot in a user namespace, no /proc: a chroot" "$(in_chroot 0)" "chroot"
 else
     echo "skip - no merged /usr, or unshare -Urm refused here: no chroot emulation"
 fi
+
+#
+#   PID 1's environment that may not be opened writes nothing on stderr: root
+#   passes `-r` and the open is refused all the same (a --pid=host container),
+#   and an error of the redirection is written before a `2>/dev/null` that
+#   follows it. A socket stands for it here: `-r` passes, the open fails
+#   (ENXIO). Every postinst and agent unit showed "/proc/1/environ:
+#   Permission denied".
+#
+if command -v python3 >/dev/null 2>&1; then
+    board ""
+    mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/proc/1"
+    python3 -c 'import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' \
+        "${YUNETA_NODE_UUID_SYSROOT}/proc/1/environ"
+    check "PID 1's environment cannot be opened: nothing on stderr" \
+        "$("$SCRIPT" ensure 2>&1 >/dev/null | wc -l)" "0"
+    check "PID 1's environment cannot be opened: the hardware" "$(field source)" "dmi-product-uuid"
+else
+    echo "skip - no python3 to make a socket: no unopenable environment"
+fi
+
+#
+#   A uuid of the hardware is never moved by a "container" verdict, which
+#   reads no hardware: a root that took itself for a container must not
+#   change a node (the ethernet-mac case; the DMI one is above)
+#
+reset
+add_nic eth0 "aa:bb:cc:00:00:01" 0
+run ensure
+macnode="$(field uuid)"
+check "ethernet-mac node: source" "$(field source)" "ethernet-mac"
+touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+set_pidns 4026532512
+run ensure
+check "ethernet-mac node seen as a container: uuid kept" "$(field uuid)" "$macnode"
+check "ethernet-mac node seen as a container: no copy" "$(backups)" "0"
 
 #
 #   No here-string, no here-document: bash before 5.1 writes them to a

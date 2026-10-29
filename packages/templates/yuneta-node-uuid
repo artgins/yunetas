@@ -88,12 +88,16 @@
 #   container is not its own either, whatever the hostname: with no hardware
 #   identifier it gets a new random, a copy of the old file and a warning.
 #   A container run with --pid=host (Toolbx and distrobox run theirs so)
-#   is in the initial pid namespace, and its root tells it: either / is not
-#   the root of PID 1 (a root that may look at it: a chroot to this script),
-#   or that root may not look at PID 1's root at all, which the system's
-#   root always may -- Docker's root has no CAP_SYS_PTRACE, rootless
-#   Podman's is in a user namespace. Without root nothing is told: only
-#   `show` runs so, and it reads what a normal user may.
+#   is in the initial pid namespace, and its root tells it: / is not the
+#   root of PID 1. Where PID 1's root can be looked at, that is a chroot to
+#   this script. Where it cannot -- Docker's root has no CAP_SYS_PTRACE,
+#   rootless Podman's is in a user namespace, a security module or the
+#   runtime refuses it, or this is no root -- the mount on / is compared
+#   instead (/proc/1/mountinfo, which anybody may read): another one is a
+#   container's, the same one is the system (a root started without
+#   CAP_SYS_PTRACE on the box itself: a SysV start, a hand-run `ensure`, a
+#   postinst from a trimmed provisioning agent). With neither, nothing is
+#   told and this is taken for the system.
 #
 #   The package's install runs `ensure --installing`: in a container or a
 #   chroot it stores nothing and exits 3, because the install may be the
@@ -264,9 +268,9 @@ gather_ethernet_macs() {
 #     - no /proc at all (the real system, not a SYSROOT): no system was
 #       booted here, a chroot;
 #     - in the initial one, / not being the root of PID 1 is a chroot (or a
-#       --pid=host container whose root may look at PID 1), and a root that
-#       may not look at it is a container's (root_of_pid1()): it goes on as
-#       out of the initial one;
+#       --pid=host container whose root may look at PID 1), and where PID
+#       1's root cannot be looked at, another mount on / is a container's
+#       (root_of_pid1()): it goes on as out of the initial one;
 #     - out of the initial pid namespace this IS a container, marker or not:
 #       a BuildKit `RUN` step has no /.dockerenv and no container=, and
 #       containerd / Kubernetes write no marker at all. The markers only name
@@ -332,43 +336,70 @@ run_fstype() {
 #     other    no: a chroot -- an image built over an exported or
 #              debootstrapped rootfs -- or a container run with --pid=host
 #              whose root may look at PID 1
-#     hidden   root may not look at PID 1's root, which the system's root
-#              always may: in the initial user namespace with CAP_SYS_PTRACE
-#              only a security module can refuse it. A root in a user
-#              namespace (rootless Podman: Toolbx, distrobox) or without
-#              CAP_SYS_PTRACE (Docker's) is a container's
-#     unknown  not root (only root may look), no PID 1 in /proc, or a
-#              security module refused the system's root: as if it were the
-#              system, what was done before this check
+#     hidden   PID 1's root cannot be looked at, and the mount on / is not
+#              PID 1's: a container's (or a chroot's, which cannot be told
+#              apart from here). Looking at PID 1's root takes root with
+#              CAP_SYS_PTRACE in the initial user namespace, and even that
+#              can be refused (a security module, the container runtime):
+#              a root in a user namespace (rootless Podman: Toolbx,
+#              distrobox) or without CAP_SYS_PTRACE (Docker's) cannot. So
+#              the mount on / is compared instead (root_mount()), and
+#              /proc/1/mountinfo may be read by anybody
+#     unknown  no PID 1 in /proc, or PID 1's mountinfo unreadable: as if it
+#              were the system, what was done before this check
 #
-INIT_USER_NS="user:[4026531837]"
-CAP_SYS_PTRACE=19
+#   A root that cannot look but has PID 1's mount on / is the system. Without
+#   this comparison a root started without CAP_SYS_PTRACE on the box (a SysV
+#   start, a hand-run `ensure`, a postinst from a trimmed provisioning agent)
+#   took itself for a container: it stored a random uuid, and the next full
+#   root replaced it with the hardware's.
+#
 
-root_is_a_containers() {
-    local userns caps
-    userns="$(readlink "${SYSROOT}/proc/self/ns/user" 2>/dev/null)"
-    if [ -n "$userns" ] && [ "$userns" != "$INIT_USER_NS" ]; then
+#
+#   The mount on / in a mountinfo: "<major:minor> <root>" of the last one
+#   mounted there (the 5th field is the mount point, relative to the root of
+#   the process the file belongs to; none when that root is no mount point,
+#   a chroot into a directory). The mount id is not compared: a private mount
+#   namespace (`unshare -m`, a unit's PrivateTmp=) has its own copy of the
+#   same mount.
+#
+root_mount() {
+    local id parent devno root mp rest m=""
+    if [ ! -r "$1" ]; then
         return 0
     fi
-    caps="$(sed -n 's/^CapEff:[[:space:]]*//p' "${SYSROOT}/proc/self/status" 2>/dev/null)"
-    if [[ "$caps" =~ ^[0-9a-fA-F]{1,16}$ ]] && (( ((0x$caps >> CAP_SYS_PTRACE) & 1) == 0 )); then
-        return 0
-    fi
-    return 1
+    # The redirection inside the group: its error goes to /dev/null too
+    {
+        while IFS=' ' read -r id parent devno root mp rest; do
+            if [ "$mp" = "/" ]; then
+                m="$devno $root"
+            fi
+        done < "$1"
+    } 2>/dev/null
+    printf '%s' "$m"
 }
 
 root_of_pid1() {    # same | other | hidden | unknown
-    local p1="${SYSROOT}/proc/1/root"
+    local p1="${SYSROOT}/proc/1/root" theirs
     if [ -e "$p1" ]; then
         if [ "${SYSROOT:-/}" -ef "$p1" ]; then
             printf 'same'
         else
             printf 'other'
         fi
-    elif [ -L "$p1" ] && [ "$(id -u)" = "0" ] && root_is_a_containers; then
-        printf 'hidden'
-    else
+        return 0
+    fi
+    if [ ! -L "$p1" ]; then
         printf 'unknown'
+        return 0
+    fi
+    theirs="$(root_mount "${SYSROOT}/proc/1/mountinfo")"
+    if [ -z "$theirs" ]; then
+        printf 'unknown'
+    elif [ "$(root_mount "${SYSROOT}/proc/self/mountinfo")" = "$theirs" ]; then
+        printf 'same'
+    else
+        printf 'hidden'
     fi
 }
 
@@ -413,14 +444,16 @@ container_name() {
     if [ "$run_is_fresh" = "1" ]; then
         for f in run/host/container-manager run/systemd/container; do
             if [ -s "${SYSROOT}/${f}" ]; then
-                v="$(normalize < "${SYSROOT}/${f}" 2>/dev/null)"
+                v="$( { normalize < "${SYSROOT}/${f}"; } 2>/dev/null )"
                 printf '%s' "${v:-container}"
                 return 0
             fi
         done
     fi
     if [ -r "${SYSROOT}/proc/1/environ" ]; then
-        v="$(tr '\000' '\n' < "${SYSROOT}/proc/1/environ" 2>/dev/null | sed -n 's/^container=//p' | head -n 1)"
+        # Root passes -r and the open can still be refused (a --pid=host
+        # container): the redirection inside the group, its error silenced
+        v="$( { tr '\000' '\n' < "${SYSROOT}/proc/1/environ" | sed -n 's/^container=//p' | head -n 1; } 2>/dev/null )"
         if [ -n "$v" ]; then
             printf '%s' "$v"
             return 0

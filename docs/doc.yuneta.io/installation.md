@@ -448,19 +448,35 @@ PID 1 (`/proc/1/root`), as `systemd-detect-virt --chroot` does:
   its hardware, and with no identifier it gets a new random uuid.
 - If there is no `/proc` at all, no system started there: this is also a
   chroot.
-- If root cannot look at the root of PID 1, this root is the root of a
-  container: the root of the system can always look. An example is a
-  container that you start with `--pid=host` (Toolbx and distrobox do
-  this). The root of Docker has no `CAP_SYS_PTRACE`, and the root of
-  rootless Podman is in a user namespace.
+- If the script cannot look at the root of PID 1, it compares the mount on
+  `/` (device and root) in `/proc/1/mountinfo` and `/proc/self/mountinfo`.
+  Anybody can read these files. If the mount is not the mount of PID 1,
+  this is a container: for example, a container that you start with
+  `--pid=host` (Toolbx and distrobox do this). If the mount is the same,
+  this is the system.
 
-Only root can look at the root of PID 1. Thus, as a normal user (`show`
-only), the script does not find a chroot or a `--pid=host` container.
+Only a root with `CAP_SYS_PTRACE` in the initial user namespace can look at
+the root of PID 1, and a security module or the container runtime can
+refuse it also to that root. The root of Docker has no `CAP_SYS_PTRACE`, and
+the root of rootless Podman is in a user namespace. A root that you start
+without `CAP_SYS_PTRACE` on the box itself (with `setpriv`, `capsh`, a
+`CapabilityBoundingSet=` or a hardened provisioning agent) has the mount of
+PID 1 on `/`: the script reads the hardware.
+
+The mount does not tell a chroot from a container. If the script cannot look
+at the root of PID 1 and `/` is another mount, the script treats it as a
+container, and the marker files give the name. If `/proc/1/mountinfo` cannot be read, the script cannot find
+a chroot or a `--pid=host` container, and it reads the hardware.
 
 ```bash
 # As root: the same question that the script asks
 sudo systemd-detect-virt --chroot; echo $?   # 0 = a chroot, 1 = not
+# The mount on /, of PID 1 and of this shell: the same two fields = no chroot
+awk '$5 == "/" {print $3, $4}' /proc/1/mountinfo /proc/self/mountinfo
 ```
+
+`systemd-detect-virt --chroot` also fails where root cannot look at the root
+of PID 1.
 
 To see what the script finds in a build step, emulate the step without
 Docker:
