@@ -7,7 +7,11 @@
  *          it: the master is given its own C_TCP (as a gate does), and the
  *          raw server (C_PROT_RAW) answers RTU frames by hand, CRC included.
  *          The master polls one slave: block A (holding 0, 1 register: "a").
- *          Its config has a second one, slave 250, which is never polled.
+ *          Its config has two more, never polled: slave 3, with no block,
+ *          and slave 250, a reserved id. Each is reported once, at start,
+ *          and no cycle logs anything for them. Up to the fix of REV-CLOUD
+ *          V46 every cycle logged "slave without mapping" and "cur_map_
+ *          NULL" for slave 3, and "cur_map_ DISABLED" for slave 250.
  *
  *          On the message of cycle 1 it queues requests (REQUESTS, below),
  *          each of which must be answered with EV_MODBUS_ANSWER, in order:
@@ -114,6 +118,11 @@ PRIVATE char slaves_config[] = "\
         'conversion': [                                             \n\
             {'id': 'a', 'type': 'holding_register', 'address': 0, 'format': 'uint16'} \n\
         ]                                                           \n\
+    },                                                              \n\
+    {                                                               \n\
+        'id': 3,                                                    \n\
+        'mapping': [],                                              \n\
+        'conversion': []                                            \n\
     },                                                              \n\
     {                                                               \n\
         'id': 250,                                                  \n\

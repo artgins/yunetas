@@ -6,7 +6,11 @@ RTU framing.
 `test1` (`main_test1.c` + `c_test1.c`) is about what a polling cycle
 publishes. A raw server (`C_PROT_RAW`) answers Modbus TCP by hand to a master
 that polls two slaves: slave 1 with blocks A (`a`, `uint32`) and B (`b`), and
-slave 2 with block C (`c`).
+slave 2 with block C (`c`). Between A and B slave 1 has a block whose address
+is out of range: it is logged once at start, and every cycle skips it with no
+log and no wait (REV-CLOUD V46.2; before, each cycle logged *"cur_map_
+DISABLED"* and waited `timeout_polling` there, so no cycle ended within its
+800 ms).
 
 - Cycles 1 and 2: slave 2 answers exception 11, and block B exception 2 in
   cycle 1 and the echo of a write (06) in cycle 2. Only `{slave_id 1, a}` is
@@ -72,8 +76,10 @@ exception was taken before its CRC was checked, and the read logged an
 internal error (*"answered WITHOUT reading its answer"*).
 
 (REV-CLOUD V46.2) A request to slave 248 is refused (248-255 are reserved in
-RTU), and slave 250 of the config is never polled (one error at start, and
-*"cur_map_ DISABLED"* each cycle). A read the slave never answers times out,
+RTU). Slave 3 of the config has no block and slave 250 a reserved id: each is
+logged once at start and never polled, and no cycle logs anything for them
+(before, each cycle logged *"slave without mapping"* and *"cur_map_ NULL"*
+for 3, and *"cur_map_ DISABLED"* for 250). A read the slave never answers times out,
 and its exception (`0x83`) comes late, while the next request, a write (06),
 is in flight: it is dropped, and the echo that follows answers the write.
 Before the fix the request to 248 and the polls of 250 went out, and the late

@@ -5,7 +5,8 @@
  *
  *          The server is raw (C_PROT_RAW) and answers Modbus TCP by hand.
  *          The master polls two slaves:
- *          - slave 1: block A (holding 0, 2 registers: "a", uint32) and
+ *          - slave 1: block A (holding 0, 2 registers: "a", uint32), a
+ *            block whose address is out of range (disabled at start), and
  *            block B (holding 10, 1 register: "b", uint16);
  *          - slave 2: block C (holding 0, 1 register: "c", uint16).
  *
@@ -57,6 +58,11 @@
  *            taken; an MBAP of length 65535 drops the connection instead of
  *            swallowing every answer after it; and a block answered with a
  *            write function (06, in cycle 2) fails, not "answered again".
+ *          - (REV-CLOUD V46) the disabled block is reported once, at start,
+ *            and every cycle skips it: no log, and no timeout_polling wait
+ *            between block A and block B. Up to the fix each cycle logged
+ *            "cur_map_ DISABLED" and waited timeout_polling there, so no
+ *            cycle ended within CYCLE_MAX_MS.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -181,6 +187,7 @@ PRIVATE char slaves_config[] = "\
         'id': 1,                                                    \n\
         'mapping': [                                                \n\
             {'type': 'holding_register', 'address': 0, 'size': 2},   \n\
+            {'type': 'holding_register', 'address': 70000, 'size': 1}, \n\
             {'type': 'holding_register', 'address': 10, 'size': 1}   \n\
         ],                                                          \n\
         'conversion': [                                             \n\

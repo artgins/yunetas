@@ -60,8 +60,8 @@ its low word first, read over TCP:
 - **`id`**: the unit id, 0-255. **Over RTU 248-255 are reserved** (the Modbus
   serial line keeps them): a slave with one is not polled. Its blocks and
   variables are disabled at start, with one error (*"Modbus slave id RESERVED
-  in RTU"*); the poll of each of its blocks then logs *"cur_map_ DISABLED"*,
-  as for any disabled block. An id out of 0-255 is refused the same way
+  in RTU"*), and every cycle skips them, as any disabled block (below). An id
+  out of 0-255 is refused the same way
   (*"Modbus slave id OUT OF RANGE"*). Until the fix of REV-CLOUD V46.2 both
   were polled, the id cut to its low byte.
 
@@ -70,7 +70,24 @@ its low word first, read over TCP:
       -> {"msg": "Modbus slave id RESERVED in RTU", "slave_id": 250, "valid": "0-247"}
   ```
 - **`mapping`**: `type`, `address`, `size` (registers, at most 125; or bits, at
-  most 2000). Each block is one read request.
+  most 2000). Each block is one read request. **A block that cannot be read**
+  -- an unknown type, an address or size out of range, a block that overlaps
+  another, or a slave that cannot be asked -- **is disabled at start and
+  logged once there**, as an error; a slave without blocks too (*"Modbus
+  slave without blocks: not polled"*). The cycle skips them with no log and
+  no wait.
+
+  ```text
+  {"type": "holding_register", "address": 70000, "size": 1}
+      -> at start, once: {"msg": "Modbus object address OUT OF RANGE", ...}
+  ```
+
+  Until the fix of REV-CLOUD V46.2 every cycle logged an error for each one
+  (*"cur_map_ DISABLED"*, or *"slave without mapping"* and *"cur_map_ NULL"*)
+  and then waited `timeout_polling` before the next block: a disabled block in
+  the middle of the map delayed every block after it by `timeout_polling` in
+  every cycle. Skipping it makes those blocks, and the end of the cycle, come
+  that much sooner.
 - **`conversion`**: `id` (the key in the published message), `type`,
   `address`, `format` (`int16`, `uint16`, `bool`, `int32`, `uint32`, `int64`,
   `uint64`, `float`, `double`, `string`), `endian`, `multiplier`, and for a
@@ -105,7 +122,8 @@ its low word first, read over TCP:
 
 On `EV_CONNECTED` the master publishes `EV_ON_OPEN` and polls 1 s later. A
 cycle reads each block of each slave in order, one request at a time; a
-response, an exception or `timeout_response` moves it to the next block.
+response, an exception or `timeout_response` moves it to the next block. A
+disabled block is skipped (see `mapping` above).
 After the last block of the last slave it publishes, and the next cycle starts
 `timeout_polling` later. When the last request of a cycle ends in a timeout,
 the next cycle starts `timeout_response` later instead: a slave that did not

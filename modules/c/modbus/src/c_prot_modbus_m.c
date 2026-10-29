@@ -353,6 +353,7 @@ PRIVATE int build_slave_data(hgobj gobj);
 PRIVATE int free_slave_data(hgobj gobj);
 PRIVATE int load_modbus_config(hgobj gobj);
 PRIVATE int load_slave_mapping(hgobj gobj);
+PRIVATE BOOL map_is_pollable(hgobj gobj);
 PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len);
 PRIVATE endian_format_t get_endian_format(hgobj gobj, const char *format);
 PRIVATE variable_format_t get_variable_format(hgobj gobj, const char *format);
@@ -1694,6 +1695,15 @@ PRIVATE int build_slave_data(hgobj gobj)
         json_object_set_new(pslv->x_control, get_object_type_name(TYPE_HOLDING_REGISTER), json_object());
 
         json_t *jn_mapping = kw_get_list(gobj, jn_slave, "mapping", 0, KW_REQUIRED);
+        if(!refused && json_array_size(jn_mapping) == 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Modbus slave without blocks: not polled",
+                "slave_id",     "%d", slave_id,
+                NULL
+            );
+        }
         size_t idx_map; json_t *jn_map;
         json_array_foreach(jn_mapping, idx_map, jn_map) {
             if(refused) {
@@ -1896,13 +1906,17 @@ PRIVATE int load_modbus_config(hgobj gobj)
     priv->idx_slaves = 0;
     priv->max_slaves = json_array_size(priv->slaves_);
 
-    load_slave_mapping(gobj);
+    if(priv->max_slaves > 0) {
+        load_slave_mapping(gobj);
+    }
 
     return 0;
 }
 
 /***************************************************************************
- *
+ *  The blocks of the slave idx_slaves. A slave without blocks was reported
+ *  at start (build_slave_data()), and next_map() skips it: nothing to log
+ *  here, on every cycle.
  ***************************************************************************/
 PRIVATE int load_slave_mapping(hgobj gobj)
 {
@@ -1922,25 +1936,33 @@ PRIVATE int load_slave_mapping(hgobj gobj)
         priv->max_mapping = 0;
         return -1;
     }
-    priv->mapping_ = kw_get_list(gobj, priv->cur_slave_, "mapping", 0, KW_REQUIRED);
+    priv->mapping_ = kw_get_list(gobj, priv->cur_slave_, "mapping", 0, 0);
     priv->idx_mapping = -1;
     priv->max_mapping = (int)json_array_size(priv->mapping_);
-    if(priv->max_mapping == 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "slave without mapping",
-            "idx_slaves",   "%d", priv->idx_slaves,
-            "cur_slave_",   "%j", priv->cur_slave_,
-            NULL
-        );
-        return -1;
-    }
     return 0;
 }
 
 /***************************************************************************
- *  Prepare next poll
+ *  TRUE when the block idx_mapping of the current slave can be polled. A
+ *  block disabled at start (a bad type, address or size, an override, a
+ *  slave id that cannot be asked) was logged there, once.
+ ***************************************************************************/
+PRIVATE BOOL map_is_pollable(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_map = json_array_get(priv->mapping_, (size_t)priv->idx_mapping);
+    if(!jn_map) {
+        return FALSE;
+    }
+    return kw_get_bool(gobj, jn_map, "disabled", 0, 0)? FALSE : TRUE;
+}
+
+/***************************************************************************
+ *  Prepare next poll: the next block that can be polled, of this slave or
+ *  of the next ones. A disabled block, and a slave without one, are skipped
+ *  here, without a log (they were logged at start) and without spending a
+ *  wait of timeout_polling on them.
  *  If end of cycle then publish and return -1
  ***************************************************************************/
 PRIVATE int next_map(hgobj gobj)
@@ -1949,31 +1971,33 @@ PRIVATE int next_map(hgobj gobj)
 
     priv->cur_map_ = 0; // Reset cur map
 
-    if(priv->idx_mapping < 0) {
-        priv->idx_mapping = 0;
-    } else {
-        priv->idx_mapping++;
-    }
-    if(priv->idx_mapping < priv->max_mapping) {
-        // Next map in current slave
-        if(gobj_trace_level(gobj) & TRACE_POLLING) {
-            gobj_trace_msg(gobj, "🔊🔊🔊🔊⏩ next map  : idx slave %d, idx map %d",
-                priv->idx_slaves, priv->idx_mapping
-            );
+    while(priv->idx_slaves < priv->max_slaves) {
+        if(priv->idx_mapping < 0) {
+            priv->idx_mapping = 0;
+        } else {
+            priv->idx_mapping++;
         }
-        return 0; // do polling
-    }
+        while(priv->idx_mapping < priv->max_mapping && !map_is_pollable(gobj)) {
+            priv->idx_mapping++;
+        }
+        if(priv->idx_mapping < priv->max_mapping) {
+            if(gobj_trace_level(gobj) & TRACE_POLLING) {
+                gobj_trace_msg(gobj, "🔊🔊🔊🔊⏩ next map  : idx slave %d, idx map %d",
+                    priv->idx_slaves, priv->idx_mapping
+                );
+            }
+            return 0; // do polling
+        }
 
-    priv->idx_slaves++;
-    if(priv->idx_slaves < priv->max_slaves) {
-        load_slave_mapping(gobj);
-        priv->idx_mapping = 0;;
-        if(gobj_trace_level(gobj) & TRACE_POLLING) {
-            gobj_trace_msg(gobj, "🔊🔊🔊🔊🔊🔊🔊🔊⏩ next slave: idx slave %d, idx map %d",
-                priv->idx_slaves, priv->idx_mapping
-            );
+        priv->idx_slaves++;
+        if(priv->idx_slaves < priv->max_slaves) {
+            load_slave_mapping(gobj);   // idx_mapping -1: its first block next
+            if(gobj_trace_level(gobj) & TRACE_POLLING) {
+                gobj_trace_msg(gobj, "🔊🔊🔊🔊🔊🔊🔊🔊⏩ next slave: idx slave %d",
+                    priv->idx_slaves
+                );
+            }
         }
-        return 0; // do polling
     }
 
     if(gobj_trace_level(gobj) & TRACE_POLLING) {
@@ -1988,7 +2012,9 @@ PRIVATE int next_map(hgobj gobj)
     build_message_to_publish(gobj);
 
     priv->idx_slaves = 0; // Begin cycle
-    load_slave_mapping(gobj);
+    if(priv->max_slaves > 0) {
+        load_slave_mapping(gobj);
+    }
 
     return -1; // End of cycle
 }
@@ -2030,6 +2056,7 @@ PRIVATE int poll_modbus(hgobj gobj)
     }
 
     if(kw_get_bool(gobj, priv->cur_map_, "disabled", 0, 0)) {
+        // next_map() skips a disabled block: reaching one here is a bug
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,

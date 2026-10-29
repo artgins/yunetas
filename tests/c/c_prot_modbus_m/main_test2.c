@@ -170,20 +170,19 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
-        "msg", "Allocating Modbus Array of 20 B (20) bytes, 2 slaves",
+        "msg", "Allocating Modbus Array of 30 B (30) bytes, 3 slaves",
+        "msg", "Modbus slave without blocks: not polled", // slave 3: once, never per cycle
         "msg", "Modbus slave id RESERVED in RTU", // slave 250 of the config
         "msg", "Data filled",
-        "msg", "cur_map_ DISABLED",              // cycle 1: the block of slave 250
         "msg", "Modbus request refused",         // slave 248
         "msg", "modbus exception",               // the write the slave refuses
         "msg", "Modbus answer with a bad CRC",   // the exception with a bad CRC
         "msg", "Modbus answer with a bad CRC",   // the read with a bad CRC
         "msg", "Modbus Timeout",                 // the read never answered
         "msg", "Modbus frame dropped: not the answer awaited", // its late exception
-        "msg", "cur_map_ DISABLED",              // cycle 2: the block of slave 250
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"
