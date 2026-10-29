@@ -364,7 +364,8 @@ check "container random, pid namespace unknown, no marker: kept" "$(field uuid)"
 #
 #   systemd-detect-virt reads /.dockerenv and /run/.containerenv in ANY pid
 #   namespace (and answers "docker" on that board), so its docker / podman
-#   is taken only out of the initial one. Its other answers count anywhere.
+#   is taken only out of the initial one. There only what it reads from the
+#   kernel counts (wsl, openvz, proot).
 #
 FAKE_VIRT="${WORK}/systemd-detect-virt"
 fake_virt() {
@@ -466,6 +467,74 @@ touch "${YUNETA_NODE_UUID_SYSROOT}/run/.containerenv"
 set_pidns 4026531836
 run ensure
 check "/run/.containerenv in the initial pid namespace: the hardware" "$(field source)" "dmi-product-uuid"
+
+#
+#   In the initial pid namespace only what this boot made counts. An Ubuntu
+#   image ships /run/systemd/container with "docker": a board written from
+#   it and booted with /run on its root filesystem keeps that file, and
+#   systemd-detect-virt answers from it. Those files count there only on a
+#   tmpfs /run, which every systemd boot mounts anew; PID 1's container=
+#   always counts (it is the live process's)
+#
+set_run_fs() {    # the fstype of /run in mountinfo, "" for none mounted
+    mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/proc/self"
+    printf '22 1 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw\n' \
+        > "${YUNETA_NODE_UUID_SYSROOT}/proc/self/mountinfo"
+    if [ -n "$1" ]; then
+        printf '25 22 0:23 / /run rw,nosuid,nodev shared:5 - %s %s rw\n' "$1" "$1" \
+            >> "${YUNETA_NODE_UUID_SYSROOT}/proc/self/mountinfo"
+    fi
+}
+set_marker() {    # file under SYSROOT, content
+    mkdir -p "$(dirname "${YUNETA_NODE_UUID_SYSROOT}/$1")"
+    printf '%s\n' "$2" > "${YUNETA_NODE_UUID_SYSROOT}/$1"
+}
+board() {    # a board in the initial pid namespace, /run of that fstype
+    reset
+    set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+    set_pidns 4026531836
+    set_run_fs "$1"
+}
+board ""
+touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+set_marker run/systemd/container docker
+run ensure
+check "Ubuntu image on a board, /run on the root fs: the hardware" "$(field source)" "dmi-product-uuid"
+fake_virt docker
+YUNETA_NODE_UUID_DETECT_VIRT="$FAKE_VIRT" run ensure
+check "Ubuntu image on a board, detect-virt 'docker': the hardware" "$(field source)" "dmi-product-uuid"
+for fs in "" ext4 overlay; do
+    board "$fs"
+    set_marker run/systemd/container lxc
+    fake_virt lxc
+    YUNETA_NODE_UUID_DETECT_VIRT="$FAKE_VIRT" run ensure
+    check "stale run/systemd/container 'lxc', /run '${fs:-not mounted}': the hardware" "$(field source)" "dmi-product-uuid"
+    board "$fs"
+    set_marker run/host/container-manager systemd-nspawn
+    fake_virt systemd-nspawn
+    YUNETA_NODE_UUID_DETECT_VIRT="$FAKE_VIRT" run ensure
+    check "stale run/host/container-manager, /run '${fs:-not mounted}': the hardware" "$(field source)" "dmi-product-uuid"
+done
+board tmpfs
+set_marker run/systemd/container lxc
+run ensure
+check "run/systemd/container on a tmpfs /run, initial pid namespace: a container" "$(field container)" "lxc"
+board tmpfs
+set_marker run/host/container-manager systemd-nspawn
+run ensure
+check "run/host/container-manager on a tmpfs /run, initial pid namespace: a container" "$(field container)" "systemd-nspawn"
+board ""
+mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/proc/1"
+printf 'HOME=/\000container=lxc\000' > "${YUNETA_NODE_UUID_SYSROOT}/proc/1/environ"
+run ensure
+check "PID 1's container=, initial pid namespace: a container" "$(field container)" "lxc"
+reset
+set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_pidns 4026532512
+set_run_fs ""
+set_marker run/systemd/container docker
+run ensure
+check "run/systemd/container in another pid namespace: names it" "$(field container)" "docker"
 
 #
 #   The install in a container says, by its exit status, that it stored

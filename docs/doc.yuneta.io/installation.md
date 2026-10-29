@@ -414,7 +414,9 @@ sudo rm -f /yuneta/store/agent/uuid/uuid.json    # in the container, before the 
 
 A board written from a `docker export` is not a container: it starts its own
 init in the initial pid namespace. Thus the `/.dockerenv` that it keeps does
-not count, and its hardware gives its own uuid on the first start. If the
+not count. The `/run/systemd/container` of an Ubuntu image (it contains
+`docker`) does not count either, if `/run` is not a tmpfs. The hardware of
+the board gives its own uuid on the first start. If the
 board has no hardware identifier, the random uuid of the container is not
 its uuid either, also with the same hostname: the board gets a new random
 uuid, keeps a copy of the old file and logs a warning.
@@ -425,8 +427,18 @@ not. Thus all processes out of the initial pid namespace are in a container,
 also without a marker file: a BuildKit `RUN` step (no `/.dockerenv`, no
 `container=`), and containerd or Kubernetes. The marker files
 (`/.dockerenv`, `/run/.containerenv`) only give the name. In the initial pid
-namespace they do not count, and neither does the `docker` or `podman` of
-`systemd-detect-virt`, because it reads the same files. A container that you
+namespace, only what this start made counts, because an image can keep
+files:
+
+- The `container=` in the environment of PID 1 counts.
+- `/run/systemd/container` and `/run/host/container-manager` count only if
+  `/run` is a tmpfs. Each start with systemd mounts a new tmpfs on `/run`, so
+  a file there is from this start.
+- `/.dockerenv` and `/run/.containerenv` do not count.
+- Of `systemd-detect-virt`, only `wsl`, `openvz` and `proot` count: these
+  come from the kernel. Its other answers can come from the files above.
+
+A container that you
 start with `--pid=host` runs in the initial pid namespace: it is not found,
 and it reads the hardware of the host. To see what the script finds in a
 build step, emulate the step without Docker:

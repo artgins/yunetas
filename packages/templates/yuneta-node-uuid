@@ -76,8 +76,9 @@
 #   `docker commit` or a `docker export`, or `set` a uuid in each copy.
 #   A board written from a `docker export` is no container: it boots its own
 #   init in the initial pid namespace, so the /.dockerenv it keeps does not
-#   count (nor systemd-detect-virt's "docker", which comes from that file),
-#   and its hardware gives its own uuid. A random it carries from the
+#   count, nor the /run/systemd/container of an Ubuntu image when /run is no
+#   tmpfs (nor systemd-detect-virt's "docker", read from those files), and
+#   its hardware gives its own uuid. A random it carries from the
 #   container is not its own either, whatever the hostname: with no hardware
 #   identifier it gets a new random, a copy of the old file and a warning.
 #   A container run with --pid=host is not seen as one (it runs in the
@@ -253,12 +254,22 @@ gather_ethernet_macs() {
 #       containerd / Kubernetes write no marker at all. The markers only name
 #       it (docker, podman), "container-other" when there is none -- the
 #       answer systemd-detect-virt gives there too;
-#     - in the initial one, /.dockerenv and /run/.containerenv do not count:
-#       they are files, and a board written from a `docker export` keeps
-#       /.dockerenv. systemd-detect-virt reads them in ANY pid namespace (and
-#       answers "docker" on that board), so its docker / podman is not taken
-#       there; its other answers (wsl, lxc, a container= of PID 1) are;
-#     - a pid namespace that cannot be read: the markers count, as before.
+#     - in the initial one only what THIS boot made counts: a file can come
+#       from an image (a board written from a `docker export` keeps the
+#       /.dockerenv of the container, and an Ubuntu image ships
+#       /run/systemd/container with "docker" in it). So:
+#         - the container= of PID 1's environment counts: it is the live
+#           process's;
+#         - /run/host/container-manager and /run/systemd/container count only
+#           when /run is a tmpfs, which a systemd boot always mounts and
+#           fills anew, so a file there was written in this boot. A /run on
+#           the root filesystem keeps what the image had;
+#         - /.dockerenv and /run/.containerenv never count: they are files of
+#           the root filesystem;
+#         - of systemd-detect-virt only what it reads from the kernel (wsl,
+#           openvz, proot): its other answers can come from those same files,
+#           in any pid namespace, and they are read here instead;
+#     - a pid namespace that cannot be read: everything counts, as before.
 #
 INIT_PID_NS="pid:[4026531836]"
 
@@ -274,28 +285,60 @@ pid_namespace() {    # initial | other | unknown
     fi
 }
 
+#
+#   The file system type of /run (the last mount on it), from mountinfo:
+#   the 5th field is the mount point, the type follows the " - "
+#
+run_fstype() {
+    local line t=""
+    local -a f
+    if [ ! -r "${SYSROOT}/proc/self/mountinfo" ]; then
+        return 0
+    fi
+    while IFS= read -r line; do
+        if [[ "$line" != *" - "* ]]; then
+            continue
+        fi
+        read -r -a f <<< "${line%% - *}"
+        if [ "${f[4]:-}" = "/run" ]; then
+            t="${line#* - }"
+            t="${t%% *}"
+        fi
+    done < "${SYSROOT}/proc/self/mountinfo"
+    printf '%s' "$t"
+}
+
 container_name() {
-    local v pidns
+    local v f pidns run_is_fresh=1
     pidns="$(pid_namespace)"
+    if [ "$pidns" = "initial" ] && [ "$(run_fstype)" != "tmpfs" ]; then
+        run_is_fresh=0
+    fi
     if [ -n "$DETECT_VIRT" ] && command -v "$DETECT_VIRT" >/dev/null 2>&1; then
         if v="$("$DETECT_VIRT" --container 2>/dev/null)" && [ -n "$v" ] && [ "$v" != "none" ]; then
-            case "$v" in
-                docker|podman)
-                    if [ "$pidns" = "initial" ]; then
-                        v=""    # its marker files, on a system booted on its own
-                    fi
-                    ;;
-            esac
+            if [ "$pidns" = "initial" ]; then
+                case "$v" in
+                    wsl|openvz|proot)
+                        ;;    # read from the kernel, not from a file
+                    *)
+                        v=""    # maybe from a file of the image: read below
+                        ;;
+                esac
+            fi
             if [ -n "$v" ]; then
                 printf '%s' "$v"
                 return 0
             fi
         fi
     fi
-    if [ -s "${SYSROOT}/run/systemd/container" ]; then
-        v="$(normalize < "${SYSROOT}/run/systemd/container" 2>/dev/null)"
-        printf '%s' "${v:-container}"
-        return 0
+    if [ "$run_is_fresh" = "1" ]; then
+        for f in run/host/container-manager run/systemd/container; do
+            if [ -s "${SYSROOT}/${f}" ]; then
+                v="$(normalize < "${SYSROOT}/${f}" 2>/dev/null)"
+                printf '%s' "${v:-container}"
+                return 0
+            fi
+        done
     fi
     if [ -r "${SYSROOT}/proc/1/environ" ]; then
         v="$(tr '\000' '\n' < "${SYSROOT}/proc/1/environ" 2>/dev/null | sed -n 's/^container=//p' | head -n 1)"
