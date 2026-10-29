@@ -149,11 +149,17 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
       that run keep the old one until restarted (documented, not done);
     - containers that already hold a host-DMI uuid keep it (no uuid a node
       holds is ever changed), so sibling containers stay identical until
-      `set` by hand. A container run with `--pid=host` is seen by its root
-      (`/` is not PID 1's root, or that root may not look at it: a user
-      namespace, no `CAP_SYS_PTRACE`); one given `--cap-add SYS_PTRACE` and
-      refused PID 1's root only by a security module (Docker's AppArmor
-      profile) is taken for the system, as is anything run without root.
+      `set` by hand. A container run with `--pid=host` is seen by its `/`:
+      not PID 1's root, or, where that root cannot be looked at (a user
+      namespace, no `CAP_SYS_PTRACE`, a security module, the runtime, no
+      root), not PID 1's mount on `/` (device and root, from
+      `/proc/1/mountinfo`, which anybody may read). Left: a
+      `/proc/1/mountinfo` that cannot be read (hidepid hides `/proc/1` from
+      a root without `CAP_SYS_PTRACE`) is taken for the system; so is a
+      chroot whose `/` is a mount of PID 1's device and root
+      (`mount --bind / X; chroot X`: the system's own files); and where PID
+      1's root cannot be looked at a chroot is not told from a container
+      (both store nothing at install; the markers name it).
       A chroot (`/` is not PID 1's root, or no `/proc`) is a container to
       the script, but an agent started in it by hand without `ensure` stores
       node_uuid()'s own random, which a board of that image with no hardware

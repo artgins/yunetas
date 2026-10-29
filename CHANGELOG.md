@@ -67,27 +67,57 @@
   every yuno; `delete-realm` every realm with no yunos; `delete-public-service`
   every public service. Each refuses an empty id now (*"delete-X needs an id:
   without one it selects every X"*). In 7.29.3 and older.
-- **The agent says when a yuno's `role^name` or its command audit fails.**
+- **The watcher waits longer while a yuno keeps failing.** Up to 7.29.3 (as
+  before v7) it relaunched a yuno that ended abnormally every 2 s for ever:
+  a cause that does not go away (an audit directory or a log that cannot be
+  made, a crash at start) wrote its error to syslog about 43,200 times a day,
+  and because the watcher stays alive systemd's restart limit never applied.
+  The first relaunch still comes 2 s after the end; each further end within
+  60 s of the start doubles the wait, up to 60 s, and a child that lived
+  60 s or more sets it back to 2 s. The watcher says it in syslog each time
+  the wait grows, and *"Daemon relaunched"* carries `relaunch_wait`. A
+  SIGQUIT still ends a wait at once. Every yuno links it: rebuild all.
+- **BREAKING: `delete-binary` and `delete-config` without `version=` (or with
+  the primary's) delete every version of the id, and say so and guard it.**
+  The delete of the primary always took the whole key in the treedb, but up
+  to 7.29.3 the agent treated it as the primary alone: the other versions'
+  directories stayed in `/yuneta/repos`, named by no record; the answer said
+  "1 binaries deleted"; and a version used by a yuno or held by a snap went
+  without `force=1`. Now every version taken passes the guards, each
+  version's directory is removed and the answer counts them all. The `data`
+  of `delete-binary` is one `{"id","version","files","removed"}` per version
+  (it was a list of directories); `record_only=1` gives there the files it
+  leaves (`"removed": false`).
+- **Docs:** the public pages' examples use generic names (`stress.example.com`,
+  `load-20k`, `node-a`/`node-b`, `ops@example.com`), not the realms, nodes,
+  scenarios and people of private projects.
+- **The agent refuses a `role^name` that does not fit.**
   `build_role_plus_name()` cut a `role^name` longer than `NAME_MAX` without a
   log, and the run script and configuration files were written under the cut
-  name: the launch is now refused with an ERROR. When the audit file path
-  could not be built at start, the command audit stayed off without a log:
-  the agent does not run when its command audit cannot be opened, whatever
-  the cause: up to 7.29.3 an `audit/` directory that could not be made left
-  the agent running with no audit (only *"path EMPTY"* in syslog), while a
-  file that could not be made stopped it. Both stop it now, with the cause
-  on stdout and syslog, and the watcher relaunches it every 2 s; a path that
+  name: the launch is now refused with an ERROR. In 7.29.3 and older.
+- **BREAKING: the agent does not start when its command audit cannot be
+  opened, whatever the cause.** Up to 7.29.3 an `audit/` directory that could
+  not be made (a read-only or wrongly owned `/yuneta/realms/agent/agent`)
+  left the agent running with no audit (only *"path EMPTY"* in syslog), while
+  a file that could not be made stopped it. Both stop it at start now, with
+  the cause on stdout and syslog, and the watcher relaunches it; a path that
   cannot be built logs *"Command audit: the path of the audit file cannot be
   built"* with its parts. To run with no audit, set
-  `agent.use_audit_command_file` to `false`. In 7.29.3 and older.
+  `agent.use_audit_command_file` to `false` inside the agent's existing
+  `global` (a second `global` loses `agent.agent_environment`). Once
+  running, the commands go on without records: below
+  `min_free_disk_percentage` they are dropped, and a new day's file that
+  cannot be opened is tried again at the next record; at start the cause is
+  a real ENOSPC, EROFS or EACCES, not the threshold.
   YUNO_LIFECYCLE.md lists the commands that act on every record when they
   have no filter ("Bulk when unfiltered"); `command-yuno` keeps its
   broadcast, which the packages' certificate hook uses.
 - **BREAKING: timeranger2 reads a text time, bound or tkey, by ONE rule,
   `tranger2_time_of_text()` (new)** -- the value of a text tkey and what a
   `before` that deletes accepts both change (see below) --, and refuses a
-  text that is no time with a WARNING that says why. The text bounds of a `match_cond` and a text tkey
-  were read with `approxidate()`, which has no error flag: a text it could
+  text that is no time with a WARNING that says why. The text bounds of a
+  `match_cond` and a text tkey were read with `approxidate()`, which has no
+  error flag: a text it could
   not read was NOW, in silence (every release), and a bound with no `T` was
   cut by `strtoll()` (`"2026-10-01 00:00:00 +0000"` was the time 2026;
   rt_mem/rt_disk read no text bound at all). Now:
@@ -119,7 +149,8 @@
   A json append refused for its tkey or its pkey traces the first 256 bytes
   of the record (masked), not the whole record.
 - **BREAKING: the command-line tools read a TIME by timeranger2's rule, and
-  refuse a bad one saying why.** `tr2list`, `tr2search`, `stats_list`, `emu_device`
+  refuse a bad one saying why.** `tr2list`, `tr2search`, `stats_list`,
+  `emu_device`
   and `time2range` each had their own reader: `007` was 7, `10.5` / `1,5` /
   `" 5"` were dates, `-5` was refused by `tr2search` and `stats_list`, and
   `emu_device` and `time2range` did not check a date that failed to parse
@@ -131,15 +162,28 @@
   `match_cond` (it shared one, so the first topic's unit, and with `--key` a
   negative bound resolved against the first topic, applied to all). An open
   writes into its `match_cond`: a caller gives each open a copy (said now in
-  timeranger2's header and docs). In 7.29.3 and older.
-- **A time text with a word more no longer keeps a misreading**
+  timeranger2's header and docs; the library itself shares one only for
+  the same topic and key: a keyed `tranger2_open_list()` hands its history
+  iterator and then its feed the same `match_cond`). In 7.29.3 and older.
+- **BREAKING: a time text with a word more no longer keeps a misreading**
   (`tranger2_time_of_text()`): `",5"` and `"5,"` are refused like `".5"`; a
   comma between two digits anywhere (`"1,5 days ago"` was September 26,
-  `"2026,10,01"` January 10) and digit words in a run (`"5 5 ago"` was May 5,
-  `"2026 10 01 10:00"` January 10) are refused. Day month year with blanks
-  (`"01 10 2026"`) and a day and a year after a month name (`"Oct 1, 2026"`)
-  are dates. tr2migrate reads a text time by the rule too (it read it with an
-  unchecked `parse_date_basic()`). In 7.29.3 too.
+  `"2026,10,01"` January 10, `"10:00,5"` the 5th) and digit words in a run
+  (`"5 5 ago"` was May 5, `"2026 10 01 10:00"` January 10) are refused, and
+  so is a day and a year after a word that is no month name
+  (`"yesterday 1 2026"` was September 30, `"Mon 1 2026"` October 1). A date
+  as a person writes it stays a date: day month year with blanks and a
+  4-digit year (`"01 10 2026"`; with numbers alone a 2-digit year is
+  refused, `"01 10 26"` too, read right in 7.29.3, because `"1 2 34"` would
+  be February 1, 2034), a day and a year of 4 or 2 digits after a month name
+  of 3 letters or more in any case (`"Oct 1, 2026"`, `"Oct 1 26"`,
+  `"Sept. 1 2026"`), an hour with am/pm after a date (`"Oct 1 2026 3 pm"`),
+  the decimal comma of the seconds of ISO 8601
+  (`"2026-10-01T10:00:00,500Z"`) and a comma before a clock time
+  (`"2026-10-01,10:00"`). A dot between digits is left to
+  `approxidate_careful()` (`"1.10 2026"` is October 1). tr2migrate reads a
+  text time by the rule too (it read it with an unchecked
+  `parse_date_basic()`). In 7.29.3 too.
 - **An offset in a comment of a date is the zone again** (since 7.28.5):
   `"2026-10-01 10:00:00 (UTC+02:00)"` lost the offset (12:00 in Madrid; the
   port read 10:00). The first whole offset in the comments (`+hh`, `+hhmm`,
@@ -160,7 +204,8 @@
       dropped). The noise is counted in the stats attr `rx_noise_dropped`
       before its answer is published, and warned when it starts, once per
       connection and again only after a polling cycle that polled a block and
-      dropped nothing (an info says it came), not on every answer. Over TCP a byte that is no frame drops the
+      dropped nothing (an info says it came), not on every answer. Over TCP a
+      byte that is no frame drops the
       connection: the reconnection is the resync;
     - an answer must be of the function sent, an exception included: a 0x84
       answered a 03, and over RTU the late exception of a timed-out read
@@ -180,13 +225,23 @@
     - a subscriber that stops the master in its `EV_MODBUS_ANSWER` (or the
       `EV_ON_MESSAGE` of a cycle) stops the polling: in 7.29.3 the master went
       on with its cycle on the stopped gobj;
-    - over RTU a broadcast write (slave 0) is answered `result` 0,
+    - **BREAKING:** over RTU a broadcast write (slave 0) is answered `result`
+      0,
       *"broadcast: no answer expected"*, after the new `turnaround_delay`
       (ms, default 200), and a read from slave 0 is refused: it waited
       `timeout_response` (10 s) and always failed. While a broadcast is in
-      flight every byte where a frame would start is noise. `modbus.md` shows
-      a subscriber that stops the master inside `EV_MODBUS_ANSWER`, and why
-      the stop is made there and not deferred;
+      flight every byte where a frame would start is noise, warned under its
+      own name (*"bytes during a broadcast"*, once per connection). The
+      turnaround is counted from the END of the frame: its time on the line
+      (11 bits a byte, at the bottom `C_UART`'s `baudrate`, or the master's
+      new `baudrate` behind a `tcp://` gateway) plus `turnaround_delay` (it
+      was counted from before the frame was sent, so a long broadcast at
+      9600 baud could be followed by the next request while still on the
+      line). A broadcast cut by a disconnection or a stop is *"broadcast
+      sent, not confirmed ... it may have been carried out"*. `modbus.md`
+      shows a request that depends on another (a meter's setup after its
+      password) sent from the good answer of the first, and a stop posted
+      with `gobj_post_event()`, never made inside the callback;
     - `slaves` written while the master runs takes effect at the next start,
       with a warning: the write freed the map the cycle pointed into, and the
       master read freed memory;
@@ -194,7 +249,6 @@
       slave) is logged when it starts failing, not every cycle;
     - over RTU a polled slave 0, the broadcast that no slave answers, is not
       polled (one error at start): it waited `timeout_response` every cycle.
-      A request to 0 still goes out.
 - **A rotatory log never writes or purges in a directory it was not given.**
   `rotatory_open()` copied the directory of its path into `NAME_MAX` bytes: a
   log directory of 305 bytes became another one of 254, which was created,
@@ -211,6 +265,19 @@
   with a key too long logged an ERROR for every record and feed: once per key
   and feed now. A record whose path fits costs one compare, as before.
   `C_RESOURCE2` accepts a resource whose file name is `NAME_MAX` bytes.
+- **A stopped `C_UART` no longer ends the yuno, and its stop closes the tty
+  and says it is done.** Its read callback answered -1 to the event loop when
+  the gobj was stopped, which ends the loop: a `C_UART` stopped inside its own
+  `EV_RX_DATA`, or with its read in flight (any stop of a connected one, such
+  as a `pause-yuno` of a gate over a serial line), took the yuno down. Short
+  of that, a stop inside the read left the tty open (the next start leaked
+  the fd and published `EV_CONNECTED` to a host still connected), and a stop
+  with the read in flight never reached `ST_STOPPED`. `C_UART` keeps the stop
+  contract of `C_TCP` now: `ST_WAIT_STOPPED` while a read or write is in
+  flight, then the tty closed, `EV_DISCONNECTED` if it was connected, and
+  `EV_STOPPED` last. Its `traffic` and `connections` trace levels work (they
+  read the global mask), and a read no longer logs two "GClass Attribute NOT
+  FOUND". In 7.29.3 and older. `c_prot_modbus_m/test4`, over a pty.
 - **A `max_run` stop tried again in a minute keeps its minute across a save,
   a report or a switch** (controlcenter; in 7.29.3). The rebuild from the runs
   kept only its wait for a node, so the stop ran at once, a minute early.
@@ -245,14 +312,20 @@
       asks), or no `/proc`, means an image is being built, so the install
       stores nothing (a debootstrap chroot stored the build host's uuid
       already in 7.29.3); a container run with `--pid=host` (Toolbx,
-      distrobox) is a container again, told by its root (`/` is not PID 1's
-      root, or that root may not look at it: a user namespace, no
-      `CAP_SYS_PTRACE`); `/proc/self/mountinfo` is read with no here-string
-      (bash before 5.1 needs a writable `/tmp` for one);
+      distrobox) is a container again, told by its `/`: not PID 1's root
+      or, where that root cannot be looked at (a user namespace, no
+      `CAP_SYS_PTRACE`, a security module, the runtime), not PID 1's mount on
+      `/` (device and root, from `/proc/1/mountinfo`); a root without
+      `CAP_SYS_PTRACE` on the box itself (a SysV start, a hand-run `ensure`)
+      has PID 1's mount and reads the hardware. `/proc/self/mountinfo` is
+      read with no here-string (bash before 5.1 needs a writable `/tmp` for one);
+    - PID 1's environment that cannot be opened writes nothing on stderr:
+      every postinst and agent unit run in a `--pid=host` container printed
+      `/proc/1/environ: Permission denied` (7.29.3 and older);
     - the docs no longer claim a container's uuid is never shared: two
       containers with the same hostname and the same `uuid.json` share it.
       Delete `uuid.json` before a `docker commit`/`export`, or `set` one per
-      copy. `test-yuneta-node-uuid.sh`: 133 checks (a BuildKit step emulated
+      copy. `test-yuneta-node-uuid.sh`: 150 checks (a BuildKit step emulated
       with `unshare -Upf --mount-proc`).
 - **The ERROR "treedb name too long for the ids of its lists" names the yuno
   in one key** (it carried four `yuno` keys; in 7.29.3).
