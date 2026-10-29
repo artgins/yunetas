@@ -1970,12 +1970,18 @@ PRIVATE void test_long_path(void)
     rotatory_close(hr);
 
     /*
-     *  A path that does not fit, and a file name longer than NAME_MAX
+     *  A path that does not fit, and a file name longer than NAME_MAX.
+     *  The path is in the test's own directory, PATH_MAX bytes exactly
+     *  (the shortest refused): a rotatory that cuts it (7.29.3 and older)
+     *  creates its file under BASE, removed below. It began with '/' up to
+     *  R47, and such a rotatory left an empty file at the root of the
+     *  filesystem on every run as root.
      */
-    char *huge = gbmem_malloc(PATH_MAX + 16);
-    memset(huge, 'p', PATH_MAX + 15);
-    huge[0] = '/';
-    huge[PATH_MAX + 15] = 0;
+    char *huge = gbmem_malloc(PATH_MAX + 1);
+    size_t huge_prefix = strlen(LONG_DIR "/");
+    memcpy(huge, LONG_DIR "/", huge_prefix);
+    memset(huge + huge_prefix, 'p', PATH_MAX - huge_prefix);
+    huge[PATH_MAX] = 0;
     capture_stdout_begin();
     hr = rotatory_open(huge, 0, 500, 1, 02775, 0660, FALSE);
     char *printed = capture_stdout_end();
