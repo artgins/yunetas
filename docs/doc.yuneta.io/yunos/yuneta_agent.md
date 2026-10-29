@@ -291,8 +291,8 @@ with no id deleted every binary, those in use too.
 
 | Command | Deletes | Also |
 |---|---|---|
-| `delete-binary` | a binary record and its directory `/yuneta/repos/<tags>/<role>/<version>` | `version=`, `force=1`, `record_only=1` |
-| `delete-config` | a configuration | `version=`, `force=1` |
+| `delete-binary` | a binary record and its directory `/yuneta/repos/<tags>/<role>/<version>`; without `version=`, or with the primary's, **every version** of the id | `version=`, `force=1`, `record_only=1` |
+| `delete-config` | a configuration; without `version=`, or with the primary's, **every version** of the id | `version=`, `force=1` |
 | `delete-yuno` | a release of a yuno, or the yuno | `yuno_release=` or `whole=1` (one of them), `force=1` |
 | `delete-realm` | a realm with no yunos | `force=1` |
 | `delete-public-service` | a public service | `force=1` |
@@ -301,15 +301,31 @@ with no id deleted every binary, those in use too.
 ycommand -c 'delete-binary id=emailsender version=7.29.2'
 ycommand -c 'delete-config id=emailsender version=3'
 ycommand -c 'delete-yuno id=2120 whole=1'
-ycommand -c 'delete-realm id=stress.central.yunovatios.es'
+ycommand -c 'delete-realm id=stress.example.com'
 ycommand -c 'list-public-services'            # the id of a public service is a number
 ycommand -c 'delete-public-service id=3'
 ycommand -c 'delete-config version=3'         # refused: no id
 ```
 
+`delete-binary` and `delete-config` without `version=` delete the record of
+**every** version of the id, not only the primary's: the delete of the primary
+takes the whole key, and so does `version=` with the primary's own version.
+Then every version taken is checked by the guards, `delete-binary` removes the
+directory of each, and the answer counts them all. Up to 7.29.3 the directories
+of the versions that were not the primary stayed in `/yuneta/repos`. To remove
+one version and keep the others, name a version that is not the primary
+(`list-binaries-instances`, `list-configs-instances`).
+
+The `data` of a `delete-binary` answer has one item per version taken, with
+its files and whether the agent removed them:
+
+```json
+[{"id": "emailsender", "version": "7.29.2", "files": "/yuneta/repos/yuneta/utils/emailsender/7.29.2", "removed": true}]
+```
+
 `delete-binary record_only=1` deletes the record and leaves its files, and
-says where they are: *"… remove its files by hand:
-["/yuneta/repos/yuneta/utils/emailsender/7.29.2"]"*. The guards of each
+says where they are, in the comment and in the `data` (`"removed": false`):
+*"… remove its files by hand: ["/yuneta/repos/yuneta/utils/emailsender/7.29.2"]"*. The guards of each
 command (in use, tagged by a snap, running) are in
 [the yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md).
 

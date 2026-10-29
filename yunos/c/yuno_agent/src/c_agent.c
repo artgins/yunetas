@@ -710,7 +710,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_delete_binary[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Id (required)"),
-SDATAPM (DTP_STRING,    "version",      0,              0,          "Binary version; if given, delete that exact instance (else the primary)"),
+SDATAPM (DTP_STRING,    "version",      0,              0,          "Binary version: that version alone; none, or the primary's, deletes every version"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete: in use, or tagged by a snap"),
 SDATAPM (DTP_BOOLEAN,   "record_only",  0,              0,          "Delete the record only, its files stay: the way to remove a record with an unsafe name"),
 SDATA_END()
@@ -748,7 +748,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_delete_config[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Id (required)"),
-SDATAPM (DTP_STRING,    "version",      0,              0,          "Config version; if given, delete that exact instance (else the primary)"),
+SDATAPM (DTP_STRING,    "version",      0,              0,          "Config version: that version alone; none, or the primary's, deletes every version"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete"),
 SDATA_END()
 };
@@ -3916,6 +3916,76 @@ PRIVATE int count_yunos_using(
 }
 
 /***************************************************************************
+ *  The instances a delete of `node` takes, and whether it takes the whole
+ *  key. A delete of the PRIMARY takes every version of the id: c_node's
+ *  delete of the primary's own version reaches treedb_delete_node(), which
+ *  deletes the whole key. So it is the whole key with no pkey2 given, and
+ *  with the pkey2 of the primary too. Otherwise only `node`. Return YOURS.
+ ***************************************************************************/
+PRIVATE json_t *instances_taken_by_delete(
+    hgobj gobj,
+    const char *topic_name,
+    const char *pkey2_field,    // "version"
+    json_t *node,               // NOT owned, a node of list_delete_targets()
+    BOOL by_instance,           // a pkey2 was given
+    BOOL *whole_key,            // out
+    hgobj src
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *id = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
+    const char *pkey2 = kw_get_str(gobj, node, pkey2_field, "", KW_REQUIRED);
+
+    *whole_key = !by_instance;
+    if(by_instance) {
+        json_t *primary = gobj_get_node(
+            priv->resource,
+            topic_name,
+            json_pack("{s:s}", "id", id),
+            json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+            src
+        );
+        if(primary && strcmp(kw_get_str(gobj, primary, pkey2_field, "", 0), pkey2)==0) {
+            *whole_key = TRUE;
+        }
+        JSON_DECREF(primary)
+    }
+
+    if(*whole_key) {
+        json_t *instances = gobj_list_instances(
+            priv->resource,
+            topic_name,
+            pkey2_field,
+            json_pack("{s:s}", "id", id),
+            json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+            src
+        );
+        if(!instances) {
+            instances = json_array();   // Error already logged
+        }
+        /*
+         *  A record with an empty pkey2 (installed by 7.29.3 or older) has
+         *  no row in the pkey2 index, so it is not listed: when it is the
+         *  node itself, it is taken all the same.
+         */
+        BOOL listed = FALSE;
+        int idx; json_t *instance;
+        json_array_foreach(instances, idx, instance) {
+            if(strcmp(kw_get_str(gobj, instance, pkey2_field, "", 0), pkey2)==0) {
+                listed = TRUE;
+                break;
+            }
+        }
+        if(!listed) {
+            json_array_append(instances, node);
+        }
+        return instances;
+    }
+    return json_pack("[O]", node);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -3963,80 +4033,91 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     }
 
     /*
-     *  Check conditions to delete
+     *  What each delete takes: a delete of the primary (no version=, or
+     *  the primary's own version) takes EVERY version of the id, so its
+     *  guards, its directories and its count are those of every version.
+     *  Up to 7.29.3 they were the primary's alone: the record of every
+     *  version went, the directory of the primary only (the others were
+     *  left in /yuneta/repos, named by no record), the answer said "1
+     *  binaries deleted", and a version used by a yuno or held by a snap
+     *  was not looked at when the primary's was given.
      */
     BOOL by_instance = !empty_string(kw_get_str(gobj, kw, "version", "", 0));
+    json_t *jn_units = json_array();    // [{"node": what is deleted, "whole": BOOL, "taken": [instances]}]
     int idx; json_t *node;
     json_array_foreach(iter, idx, node) {
+        BOOL whole = FALSE;
+        json_t *taken = instances_taken_by_delete(
+            gobj, resource, "version", node, by_instance, &whole, src
+        );
+        json_array_append_new(jn_units,
+            json_pack("{s:O, s:b, s:o}", "node", node, "whole", whole, "taken", taken)
+        );
+    }
+    JSON_DECREF(iter)
+
+    /*
+     *  Check conditions to delete, of every version taken
+     */
+    json_t *unit;
+    json_t *jn_comment = 0;
+    json_array_foreach(jn_units, idx, unit) {
+        node = kw_get_dict(gobj, unit, "node", 0, KW_REQUIRED);
+        BOOL whole = kw_get_bool(gobj, unit, "whole", 0, KW_REQUIRED);
+        json_t *taken = kw_get_list(gobj, unit, "taken", 0, KW_REQUIRED);
+        const char *role = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
         const char *node_version = kw_get_str(gobj, node, "version", "", KW_REQUIRED);
+
         int use = count_yunos_using(gobj, node, "role_version",
-            by_instance? node_version: "", src);
+            whole? "": node_version, src);
         if(use > 0 && !force) {
-            json_t *comment = json_sprintf(
-                "Cannot delete binary '%s' version '%s'. Using in %d yunos "
-                "(use force=1 to override)",
-                kw_get_str(gobj, node, "id", "", KW_REQUIRED),
-                node_version,
-                use
-            );
-            JSON_DECREF(iter)
-            return msg_iev_build_response(
-                gobj,
-                -1,
-                comment,
-                0,
-                0,
-                kw  // owned
-            );
+            if(whole) {
+                jn_comment = json_sprintf(
+                    "%s: cannot delete binary '%s': the delete of its primary takes its %d versions, "
+                    "and %d yunos use it (use force=1 to override)",
+                    gobj_yuno_role_plus_name(),
+                    role,
+                    (int)json_array_size(taken),
+                    use
+                );
+            } else {
+                jn_comment = json_sprintf(
+                    "Cannot delete binary '%s' version '%s'. Using in %d yunos "
+                    "(use force=1 to override)",
+                    role,
+                    node_version,
+                    use
+                );
+            }
+            break;
         }
 
         /*
-         *  A snap shot while this binary was the in-use version stamps its id
-         *  on the record (surfaced as __md_treedb__.tag). Deleting it would
+         *  A snap shot while a version was the in-use one stamps its id on
+         *  the record (surfaced as __md_treedb__.tag). Deleting it would
          *  break that snap's rollback ("primary binary not found" on
-         *  activate-snap + run-yuno). The kernel (treedb_delete_node) already
-         *  refuses a tagged node, but check here too for a clear reason and so
-         *  the binary FILE is never rmrdir'd. force=1 overrides (operator
-         *  accepts breaking the snap), matching the kernel's force semantics.
+         *  activate-snap + run-yuno). The kernel (treedb_delete_node)
+         *  already refuses a tagged node, but check here too for a clear
+         *  reason and so no binary FILE is ever rmrdir'd. force=1 overrides
+         *  (operator accepts breaking the snap), matching the kernel's
+         *  force semantics.
          */
-        json_int_t snap_tag = kw_get_int(gobj, node, "__md_treedb__`tag", 0, 0);
-        if(snap_tag != 0 && !force) {
-            json_t *comment = json_sprintf(
-                "Cannot delete binary '%s' %s: referenced by snap %d (rollback). "
-                "Use force=1 to delete anyway (breaks that snap's rollback)",
-                kw_get_str(gobj, node, "id", "", KW_REQUIRED),
-                kw_get_str(gobj, node, "version", "", 0),
-                (int)snap_tag
-            );
-            JSON_DECREF(iter)
-            return msg_iev_build_response(
-                gobj,
-                -1,
-                comment,
-                0,
-                0,
-                kw  // owned
-            );
-        }
-    }
+        int i; json_t *instance;
+        json_array_foreach(taken, i, instance) {
+            json_int_t snap_tag = kw_get_int(gobj, instance, "__md_treedb__`tag", 0, 0);
+            if(snap_tag != 0 && !force) {
+                jn_comment = json_sprintf(
+                    "%s: cannot delete binary '%s' %s: referenced by snap %d (rollback)%s. "
+                    "Use force=1 to delete anyway (breaks that snap's rollback)",
+                    gobj_yuno_role_plus_name(),
+                    role,
+                    kw_get_str(gobj, instance, "version", "", 0),
+                    (int)snap_tag,
+                    whole? ", and the delete of the primary takes every version": ""
+                );
+                break;
+            }
 
-    /*
-     *  Delete
-     */
-    int result = 0;
-    int records_only = 0;
-    json_t *jn_comment = 0;
-    json_t *jn_data = json_array();
-    json_t *jn_kept = json_array();   // the files of the records deleted alone
-    json_array_foreach(iter, idx, node) {
-        json_t *jn_tags = kw_get_dict_value(gobj, node, "tags", 0, KW_REQUIRED);
-        const char *role = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
-        const char *version = kw_get_str(gobj, node, "version", "", KW_REQUIRED);
-        char destination[PATH_MAX];
-        BOOL with_files = binary_version_dir(
-            gobj, destination, sizeof(destination), jn_tags, role, version
-        )? TRUE: FALSE;
-        if(!with_files && !record_only) {
             /*
              *  Neither the record nor the files: an rmrdir of what a cut
              *  path (or an empty or "." version) names removes an ancestor,
@@ -4044,24 +4125,50 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
              *  guards above (in use, a snap), and up to 7.29.3 cleaning
              *  such a record with it deleted it while a yuno used it.
              */
-            jn_comment = json_sprintf(
-                "%s: binary '%s' '%s': name refused or repos path too long, not deleted "
-                "(record_only=1 deletes the record only, its files stay)",
-                gobj_yuno_role_plus_name(), role, version
-            );
-            result += -1;
+            const char *version = kw_get_str(gobj, instance, "version", "", 0);
+            char destination[PATH_MAX];
+            if(!record_only && !binary_version_dir(
+                    gobj, destination, sizeof(destination),
+                    kw_get_dict_value(gobj, instance, "tags", 0, 0), role, version)) {
+                jn_comment = json_sprintf(
+                    "%s: binary '%s' '%s': name refused or repos path too long, not deleted%s "
+                    "(record_only=1 deletes the record only, its files stay)",
+                    gobj_yuno_role_plus_name(), role, version,
+                    whole? ", nor any version of it (the delete of the primary takes them all)": ""
+                );
+                break;
+            }
+        }
+        if(jn_comment) {
             break;
         }
-        /*
-         *  Where the files of a record deleted alone are: its version's
-         *  directory, or, for a name refused (no directory is exactly its
-         *  version's), the binary the record says it installed.
-         */
-        const char *kept_files = with_files?
-            destination: kw_get_str(gobj, node, "binary", "", 0);
-        if(record_only) {
-            with_files = FALSE;
-        }
+    }
+    if(jn_comment) {
+        JSON_DECREF(jn_units)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            jn_comment,
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  Delete. The data says each version taken: its id, its version, its
+     *  files (its version's directory, or for a name refused the binary
+     *  the record says it installed, "" when it names none), and whether
+     *  the agent removed them.
+     */
+    int result = 0;
+    int deleted = 0;
+    int records_only = 0;
+    json_t *jn_data = json_array();
+    json_t *jn_kept = json_array();   // the files of the records deleted alone
+    json_array_foreach(jn_units, idx, unit) {
+        node = kw_get_dict(gobj, unit, "node", 0, KW_REQUIRED);
+        json_t *taken = kw_get_list(gobj, unit, "taken", 0, KW_REQUIRED);
 
         if(gobj_delete_node(
                 priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
@@ -4069,57 +4176,81 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
             break;
         }
 
-        if(!with_files) {
-            /*
-             *  A record installed by 7.29.3 or older can hold a name
-             *  refused now (^, @, spaces, an empty version): it cannot be
-             *  updated, and with record_only=1 it is deleted. No directory
-             *  is removed: none is exactly its version's (and record_only=1
-             *  removes none, of any record).
-             */
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "Binary record deleted with record_only=1, its files stay",
-                "id",           "%s", role,
-                "version",      "%s", version,
-                "files",        "%s", kept_files,
-                NULL
-            );
-            if(!empty_string(kept_files)) {
-                json_array_append_new(jn_kept, json_string(kept_files));
-            }
-            records_only++;
-            continue;
-        }
-        json_array_append_new(jn_data, json_string(destination));
+        int i; json_t *instance;
+        json_array_foreach(taken, i, instance) {
+            const char *role = kw_get_str(gobj, instance, "id", "", KW_REQUIRED);
+            const char *version = kw_get_str(gobj, instance, "version", "", KW_REQUIRED);
+            char destination[PATH_MAX];
+            BOOL with_files = binary_version_dir(
+                gobj, destination, sizeof(destination),
+                kw_get_dict_value(gobj, instance, "tags", 0, KW_REQUIRED), role, version
+            )? TRUE: FALSE;
+            deleted++;
 
-        /*
-         *  Remove from store in filesystem
-         */
-        if(access(destination,0)==0) {
-            rmrdir(destination);
+            if(record_only || !with_files) {
+                /*
+                 *  Where the files of a record deleted alone are: its
+                 *  version's directory, or, for a name refused (a record
+                 *  installed by 7.29.3 or older can hold a ^, @, a space,
+                 *  an empty version; no directory is exactly its
+                 *  version's), the binary the record says it installed.
+                 *  No directory is removed.
+                 */
+                const char *kept_files = with_files?
+                    destination: kw_get_str(gobj, instance, "binary", "", 0);
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "Binary record deleted with record_only=1, its files stay",
+                    "id",           "%s", role,
+                    "version",      "%s", version,
+                    "files",        "%s", kept_files,
+                    NULL
+                );
+                if(!empty_string(kept_files)) {
+                    json_array_append_new(jn_kept, json_string(kept_files));
+                }
+                json_array_append_new(jn_data, json_pack("{s:s, s:s, s:s, s:b}",
+                    "id", role,
+                    "version", version,
+                    "files", kept_files,
+                    "removed", 0
+                ));
+                records_only++;
+                continue;
+            }
+
+            /*
+             *  Remove from store in filesystem
+             */
+            if(access(destination,0)==0) {
+                rmrdir(destination);
+            }
+            json_array_append_new(jn_data, json_pack("{s:s, s:s, s:s, s:b}",
+                "id", role,
+                "version", version,
+                "files", destination,
+                "removed", 1
+            ));
         }
     }
 
-    JSON_DECREF(iter)
+    JSON_DECREF(jn_units)
 
-    if(!jn_comment) {
-        if(result < 0) {
-            jn_comment = json_sprintf("%s", gobj_log_last_message());
-        } else if(records_only > 0) {
-            char *kept = json_array_size(jn_kept)? json2uglystr(jn_kept): 0;
-            jn_comment = json_sprintf(
-                "%s: %d binaries deleted, %d of them the record only (record_only=1): "
-                "remove its files by hand%s%s",
-                gobj_yuno_role_plus_name(), idx, records_only,
-                kept? ": ": " (the record names none)",
-                kept? kept: ""
-            );
-            GBMEM_FREE(kept);
-        } else {
-            jn_comment = json_sprintf("%d binaries deleted", idx);
-        }
+    if(result < 0) {
+        jn_comment = json_sprintf("%s", gobj_log_last_message());
+    } else if(records_only > 0) {
+        char *kept = json_array_size(jn_kept)? json2uglystr(jn_kept): 0;
+        jn_comment = json_sprintf(
+            "%s: %d binaries deleted, %d of them the record only (record_only=1): "
+            "remove its files by hand%s%s",
+            gobj_yuno_role_plus_name(), deleted, records_only,
+            kept? ": ": " (the record names none)",
+            kept? kept: ""
+        );
+        GBMEM_FREE(kept);
+    } else {
+        jn_comment = json_sprintf("%d binaries deleted", deleted);
     }
     JSON_DECREF(jn_kept)
     return msg_iev_build_response(
@@ -4548,17 +4679,31 @@ PRIVATE json_t *cmd_delete_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  (count_yunos_using validates each via gobj_get_node). force overrides.
      */
     BOOL by_instance = !empty_string(kw_get_str(gobj, kw, "version", "", 0));
+    int deleted = 0;
     int idx; json_t *node;
     json_array_foreach(iter, idx, node) {
         const char *node_version = kw_get_str(gobj, node, "version", "", KW_REQUIRED);
+        /*
+         *  A delete of the primary (no version=, or its own version) takes
+         *  every version of the id: any yuno that uses one blocks it, and
+         *  the answer counts them all. Up to 7.29.3 the primary's version
+         *  given checked only the yunos of that version.
+         */
+        BOOL whole = FALSE;
+        json_t *taken = instances_taken_by_delete(
+            gobj, resource, "version", node, by_instance, &whole, src
+        );
+        deleted += (int)json_array_size(taken);
+        JSON_DECREF(taken)
         int use = count_yunos_using(gobj, node, "name_version",
-            by_instance? node_version: "", src);
+            whole? "": node_version, src);
         if(use > 0 && !force) {
             json_t *comment = json_sprintf(
-                "Cannot delete configuration '%s' version '%s'. Using in %d yunos "
+                "Cannot delete configuration '%s' version '%s'%s. Using in %d yunos "
                 "(use force=1 to override)",
                 kw_get_str(gobj, node, "id", "", KW_REQUIRED),
                 node_version,
+                whole? " (its primary: the delete takes every version)": "",
                 use
             );
             JSON_DECREF(iter)
@@ -4605,7 +4750,7 @@ PRIVATE json_t *cmd_delete_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("%d configurations deleted", idx),
+        json_sprintf("%d configurations deleted", deleted),
         0,
         jn_data,
         kw  // owned
