@@ -1146,7 +1146,8 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         "EST"  "PST" ... (an abbreviation names one offset in any season)
         "GMT+0200"  "UTC-03:00": an offset after GMT or UTC says the zone
         "(CEST)": a zone name in a comment is the zone when no other is
-        given ("2026-10-01 10:00:00 (UTC)" is 10:00 UTC)
+        given ("2026-10-01 10:00:00 (UTC)" is 10:00 UTC); an offset in a
+        comment comes first ("(UTC+02:00)", "(GMT-0500)", "(+0200)")
 
     Epoch seconds:
         "@1700000000"  "1700000000" (9 digits or more), up to the year 9999:
