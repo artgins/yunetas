@@ -1101,7 +1101,8 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
 
     Days and times:
         "now" "today" "yesterday" "never" (the epoch, 0)
-        "noon" "midnight" "tea" (17:00): the last one that passed
+        "noon" "midnight" "tea" (17:00): the last one that passed; a zone
+        after it says where: "noon +0200", "noon CEST"
         "last friday": the Friday before today; "2 friday" ("2 fridays ago"):
         the one before it
         "10:30"  "10:30:15"  "3pm"  "3:45 PM"  "12am": a clock time of today
@@ -1111,15 +1112,17 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         "2026-10-01"  "2026/10/01"  "2026.10.01"  (Y-M-D)
         "10/01/2026"  "1/10/26": M/D/Y first, D/M/Y when M/D is not a date
                       or is more than 10 days ahead ("13/10/2026" is Oct 13)
-        "1.10.2026": D.M.Y first
+        "1.10.2026": D.M.Y first; M.D.Y only when D.M.Y is more than 10
+                     days ahead and M.D.Y is not: "5.4.2027" is Apr 5,
+                     "1.12.2026" (on 2026-10-29) is Jan 12
         With its year and a clock time after it, a date is read as written,
         however far ahead: "1.12.2026 10:00" is Dec 1, "10/01/2027 10:00"
         is Oct 1 (without the clock time, "1.12.2026" more than 10 days
         ahead is Jan 12)
         "Oct 1 2026"  "1 Oct 2026"  "October 1, 2026"  "Sep 2024"  "2024"
         "July 5th"  "1st Oct"  "the 5th of July" (ordinals: st, nd, rd, th)
-        "01-Oct-2026"  "Oct-01-2026"  "01/Oct/2026:10:00:00 +0200" (the log
-        format of web servers)
+        "01-Oct-2026"  "Oct-01-2026"  "2026-Oct-01"  "2026/Oct/01"
+        "01/Oct/2026:10:00:00 +0200" (the log format of web servers)
         "2026-10-01 10:00"  "2026-10-01T10:00:00.123+02:00"  "10:00:00,5"
         "Thu, 01 Oct 2026 10:00:00 +0000"  "Thu Oct 1 10:00:00 2026 +0200"
         "Thu Oct 01 2026 10:00:00 GMT+0200 (CEST)" (Date.toString() of js)
@@ -1134,9 +1137,13 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         "+0200"  "+02:00"  "+02"  "-0500"  "Z"  "UTC"  "GMT"  "CET"  "CEST"
         "EST"  "PST" ... (an abbreviation names one offset in any season)
         "GMT+0200"  "UTC-03:00": an offset after GMT or UTC says the zone
+        "(CEST)": a zone name in a comment is the zone when no other is
+        given ("2026-10-01 10:00:00 (UTC)" is 10:00 UTC)
 
-    Epoch seconds, with no year limit:
-        "@1700000000"  "@99999999999999 +0000"  "1700000000" (9 digits or more)
+    Epoch seconds:
+        "@1700000000"  "1700000000" (9 digits or more), up to the year 9999:
+        "1761000000000" (milliseconds) is no date
+        "@99999999999999 +0000": with "@" and an offset, no year limit
         (but a value no calendar holds, "@9223372036854775807", is no date)
 
     Not read (error): "tomorrow", "next friday", "in 3 days",

@@ -52,6 +52,13 @@
  *              plural ("2 fridays ago"), a month name between dashes or
  *              slashes ("01-Oct-2026", "01/Oct/2026:10:00:00 +0200");
  *              and epoch seconds no calendar holds are refused.
+ *          11. more forms the port read that 7.28.5 to 7.29.2 read
+ *              otherwise or refused: a zone name in a comment ("(UTC)"),
+ *              D.M.Y far ahead in both orders ("5.4.2027" is April 5),
+ *              Y-Mon-D ("2026-Oct-01"), epoch seconds past the year 9999
+ *              (milliseconds) refused; and a zone offset after noon
+ *              ("noon +0200"), a clock time of too many digits in the
+ *              basic form of ISO 8601.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -654,6 +661,106 @@ PRIVATE void test_forms_of_the_port(void)
 }
 
 /***************************************************************************
+ *  11. More forms the port read that 7.28.5 to 7.29.2 read otherwise, or
+ *  not at all (REV-CLOUD V45.3)
+ ***************************************************************************/
+PRIVATE void test_more_forms_of_the_port(void)
+{
+    static const approxidate_case_t cases[] = {
+        /*
+         *  A zone name in a comment is the zone when no other is given;
+         *  a zone given outside the comment wins
+         */
+        {"2026-10-01 10:00:00 (UTC)",                       "2026-10-01 12:00:00 +0200", 0},
+        {"Thu, 01 Oct 2026 10:00:00 (EST)",                 "2026-10-01 17:00:00 +0200", 0},
+        {"(EST) 2026-10-01 10:00:00",                       "2026-10-01 17:00:00 +0200", 0},
+        {"2026-01-15 10:00:00 (CEST)",                      "2026-01-15 09:00:00 +0100", 0},
+        {"2026-10-01 10:00:00 (UTC EST)",                   "2026-10-01 12:00:00 +0200", 0},
+        {"2026-10-01 10:00:00 +0000 (EST)",                 "2026-10-01 12:00:00 +0200", 0},
+        {"2026-10-01 10:00:00 EST (UTC)",                   "2026-10-01 17:00:00 +0200", 0},
+        {"2026-10-01 10:00:00 (Central European Time)",     "2026-10-01 10:00:00 +0200", 0},
+        {"2026-10-28 18:00:00 (hora estándar de Europa central)",
+                                                            "2026-10-28 18:00:00 +0100", 0},
+        {"(UTC)",                                           "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  D.M.Y (D.M) takes the other order only when that one is not
+         *  far ahead too; M/D/Y takes it whenever the first is far ahead
+         */
+        {"5.4.2027",                        "2027-04-05 11:00:00 +0200", 0},
+        {"4.5.2027",                        "2027-05-04 11:00:00 +0200", 0},
+        {"11.12.2026",                      "2026-12-11 10:00:00 +0100", 0},
+        {"12.11",                           "2025-11-12 10:00:00 +0100", 0},
+        {"1.12.2026",                       "2026-01-12 10:00:00 +0100", 0},
+        {"4/5/2027",                        "2027-05-04 11:00:00 +0200", 0},
+        {"12/11",                           "2025-11-12 10:00:00 +0100", 0},
+
+        /*
+         *  Y-Mon-D: a month name between dashes or slashes, after the year
+         */
+        {"2026-Oct-01",                     "2026-10-01 11:00:00 +0200", 0},
+        {"2026-oct-1",                      "2026-10-01 11:00:00 +0200", 0},
+        {"2026/Oct/01",                     "2026-10-01 11:00:00 +0200", 0},
+        {"2026-October-01",                 "2026-10-01 11:00:00 +0200", 0},
+        {"2026-Oct-01 10:00",               "2026-10-01 10:00:00 +0200", 0},
+        {"2026-Oct-01T10:00:00Z",           "2026-10-01 12:00:00 +0200", 0},
+        {"2026-Feb-29",                     "2026-10-21 11:00:00 +0200", 1},
+        {"2026-Oct-32",                     "2026-10-21 11:00:00 +0200", 1},
+        {"2026-Oct",                        "2026-10-21 11:00:00 +0200", 1},
+        {"2026-Oct-",                       "2026-10-21 11:00:00 +0200", 1},
+        {"2026-Oct/01",                     "2026-10-21 11:00:00 +0200", 1},
+        {"1969-Oct-01",                     "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  Epoch seconds past the year 9999 are no date, unless written
+         *  as "@<seconds> <offset>": milliseconds are not seconds
+         */
+        {"1761000000000",                   "2026-10-21 11:00:00 +0200", 1},
+        {"@1761000000000",                  "2026-10-21 11:00:00 +0200", 1},
+        {"1761000000000 +0000",             "2026-10-21 11:00:00 +0200", 1},
+        {"@1761000000000 UTC",              "2026-10-21 11:00:00 +0200", 1},
+        {"253402300800",                    "2026-10-21 11:00:00 +0200", 1},
+        {"4102444800",                      "2100-01-01 01:00:00 +0100", 0},
+
+        /*
+         *  A zone offset after noon, midnight or tea, as a zone name
+         */
+        {"noon +0200",                      "2026-10-20 12:00:00 +0200", 0},
+        {"noon CEST",                       "2026-10-20 12:00:00 +0200", 0},
+        {"noon -0500",                      "2026-10-20 19:00:00 +0200", 0},
+        {"midnight +0000",                  "2026-10-21 02:00:00 +0200", 0},
+        {"tea +02:00",                      "2026-10-20 17:00:00 +0200", 0},
+        {"noon -1d",                        "2026-10-19 12:00:00 +0200", 0},
+
+        /*
+         *  The basic form of ISO 8601 with a clock time of too many digits
+         *  (it overflowed a signed integer)
+         */
+        {"20261001T99999999999999999999",   "2026-10-21 11:00:00 +0200", 1},
+        {"20261001T1000000",                "2026-10-21 11:00:00 +0200", 1},
+        {"20261001T1000",                   "2026-10-01 10:00:00 +0200", 0},
+    };
+    check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
+
+    int error = 0;
+    check_number("approxidate '253402300799'", approxidate_careful("253402300799", &error), 253402300799ULL);
+    check_number("approxidate '253402300799' error", (unsigned long long)error, 0);
+    check_number("approxidate '@1761000000000 +0000'",
+        approxidate_careful("@1761000000000 +0000", &error), 1761000000000ULL);
+    check_number("approxidate '@1761000000000 +0000' error", (unsigned long long)error, 0);
+
+    check_parse_date_basic("2026-10-01 10:00:00 (UTC)",                 0, "2026-10-01 12:00:00 +0200", 0);
+    check_parse_date_basic("Thu, 01 Oct 2026 10:00:00 (EST)",           0, "2026-10-01 17:00:00 +0200", -300);
+    check_parse_date_basic("2026-10-01 10:00:00 +0000 (EST)",           0, "2026-10-01 12:00:00 +0200", 0);
+    check_parse_date_basic("2026-Oct-01 10:00:00",                      0, "2026-10-01 10:00:00 +0200", 120);
+    check_parse_date_basic("1761000000000",                             -1, "", 0);
+    check_parse_date_basic("1761000000000 +0000",                       -1, "", 0);
+    check_parse_date_basic("@1761000000000",                            -1, "", 0);
+    check_parse_date_basic("noon +0200",                                -1, "", 0);
+    check_parse_date_basic("20261001T99999999999999999999",             -1, "", 0);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -688,6 +795,7 @@ int main(int argc, char *argv[])
     test_change_of_hour();
     test_words();
     test_forms_of_the_port();
+    test_more_forms_of_the_port();
 
     gobj_end();
 

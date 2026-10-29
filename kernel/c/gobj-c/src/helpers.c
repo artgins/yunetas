@@ -7120,6 +7120,8 @@ PUBLIC int get_ordered_filename_array( // WARNING too slow for thousands of file
 #define DATE_FUTURE_SLACK   (10*86400)  // a date with no year may be this far ahead
 #define DATE_MAX_COUNT      100000000   // a count of units larger than this is no count
 #define DATE_EPOCH_MIN      100000000   // a bare number from here on is epoch seconds
+#define DATE_EPOCH_MAX      253402300799LL  // 9999-12-31 23:59:59 UTC: epoch seconds past it are
+                                            // no date, but for "@<seconds> <offset>"
 
 PRIVATE const char *month_full_names[12] = {
     "january", "february", "march", "april", "may", "june",
@@ -7203,12 +7205,16 @@ typedef struct {
     BOOL zone_said;
     long zone_offset;       // seconds east of UTC
     BOOL zone_utc_word;     // "GMT", "UTC" or "UT": an offset may follow ("GMT+0200")
+    BOOL zone_numeric;      // the zone was said as an offset ("+0200")
+    BOOL comment_zone_said; // a zone name in a comment ("(CEST)"): the zone when
+    long comment_zone_offset;   // no other is said
 
     BOOL order_taken_back;  // M/D/Y (D.M.Y) taken in the other order because it is far ahead:
     int written_mon;        // a clock time after it undoes that, as the port did
     int written_mday;
 
     BOOL epoch_said;
+    BOOL epoch_at;          // written as "@<seconds>"
     uintmax_t epoch;
 
     BOOL never;
@@ -7658,9 +7664,10 @@ PRIVATE const char *read_clock(date_reading_t *rd, uintmax_t hour, const char *p
  *  '-', '/' or '.', the same one all along). With the year first it is
  *  Y-M-D, or Y-D-M when the month cannot be one. Otherwise M/D is tried
  *  first with '-' and '/', D.M with '.', and the other order is taken
- *  when the first is no date or is more than 10 days ahead -- except
- *  for a date with its year and a clock time after it ("1.12.2026
- *  10:00"), which is read as written.
+ *  when the first is no date or is more than 10 days ahead -- with '.'
+ *  only when the other order is not more than 10 days ahead too
+ *  ("5.4.2027" is April 5), and never for a date with its year and a
+ *  clock time after it ("1.12.2026 10:00"), which is read as written.
  ***************************************************************************/
 PRIVATE const char *read_numeric_date(date_reading_t *rd, const char *p)
 {
@@ -7754,6 +7761,10 @@ PRIVATE const char *read_numeric_date(date_reading_t *rd, const char *p)
         first_taken = FALSE;    // M/D/Y far ahead: D/M/Y, if it is a date
         taken_back_with_year = TRUE;
     }
+    if(!first_taken && first_valid && sep == '.' && second_valid &&
+            far_ahead(rd, check_year, (int)second_mon, (int)second_mday)) {
+        first_taken = TRUE;     // D.M.Y: the other order only when it is not far ahead too
+    }
     if(first_taken) {
         note_date(rd, year, (int)first_mon, (int)first_mday);
     } else if(second_valid) {
@@ -7826,8 +7837,37 @@ PRIVATE const char *read_named_month_rest(date_reading_t *rd, int mon, uintmax_t
 }
 
 /***************************************************************************
+ *  The day after a year and its month name: "2026-Oct-01", "2026/Oct/01"
+ *  (the same separator), and the clock time of ISO 8601 after a 'T'
+ ***************************************************************************/
+PRIVATE const char *read_year_month_name_day(date_reading_t *rd, int64_t year, int mon, char sep, const char *p)
+{
+    if(*p != sep || !isdigit((unsigned char)p[1])) {
+        rd->unreadable = TRUE;
+        return p;
+    }
+    p++;
+    int64_t mday = 0;
+    int digits = 0;
+    while(isdigit((unsigned char)*p) && digits < 3) {
+        mday = mday*10 + (*p - '0');
+        digits++;
+        p++;
+    }
+    if(digits > 2 || !valid_date(year, mon, mday)) {
+        rd->unreadable = TRUE;
+        return p;
+    }
+    note_date(rd, year, mon, (int)mday);
+    if((*p == 'T' || *p == 't') && isdigit((unsigned char)p[1])) {
+        p++;    // ISO 8601: the clock time follows the date
+    }
+    return p;
+}
+
+/***************************************************************************
  *  A day of the month and its month name, between dashes or slashes:
- *  "01-Oct-2026", "01/Oct/2026:10:00:00"
+ *  "01-Oct-2026", "01/Oct/2026:10:00:00"; or a year: "2026-Oct-01"
  ***************************************************************************/
 PRIVATE const char *read_day_and_month_name(date_reading_t *rd, uintmax_t mday, int digits, const char *p)
 {
@@ -7836,6 +7876,13 @@ PRIVATE const char *read_day_and_month_name(date_reading_t *rd, uintmax_t mday, 
     char word[16];
     const char *end = take_word(p + 1, raw, word, sizeof(word));
     int mon = month_of_word(word);
+    if(mon && digits == 4) {
+        if(!valid_date((int64_t)mday, mon, 1)) {
+            rd->unreadable = TRUE;
+            return end;
+        }
+        return read_year_month_name_day(rd, (int64_t)mday, mon, sep, end);
+    }
     if(!mon || digits > 2) {
         rd->unreadable = TRUE;
         return end;
@@ -7946,7 +7993,9 @@ PRIVATE const char *read_number(date_reading_t *rd, const char *p)
         int64_t clock = 0;
         int clock_digits = 0;
         while(isdigit((unsigned char)*p)) {
-            clock = clock*10 + (*p - '0');
+            if(clock_digits < 6) {
+                clock = clock*10 + (*p - '0');
+            }
             clock_digits++;
             p++;
         }
@@ -7970,14 +8019,16 @@ PRIVATE const char *read_number(date_reading_t *rd, const char *p)
 
 /***************************************************************************
  *  A zone as +hh, +hhmm or +hh:mm (or with '-'). Only after a clock time
- *  or epoch seconds: anywhere else a sign is no date. After GMT, UTC or UT
- *  it is the zone ("GMT+0200", as Date.toString() of javascript writes).
+ *  (or noon, midnight, tea) or epoch seconds: anywhere else a sign is no
+ *  date. After GMT, UTC or UT it is the zone ("GMT+0200", as
+ *  Date.toString() of javascript writes).
  ***************************************************************************/
 PRIVATE const char *read_zone_offset(date_reading_t *rd, const char *p)
 {
     int sign = (*p == '-')? -1 : 1;
     p++;
-    if((rd->zone_said && !rd->zone_utc_word) || (rd->hour < 0 && !rd->epoch_said)) {
+    if((rd->zone_said && !rd->zone_utc_word) ||
+            (rd->hour < 0 && rd->special_hour < 0 && !rd->epoch_said)) {
         rd->unreadable = TRUE;
         return p;
     }
@@ -8012,8 +8063,30 @@ PRIVATE const char *read_zone_offset(date_reading_t *rd, const char *p)
         rd->understood++;
     }
     rd->zone_said = TRUE;
+    rd->zone_numeric = TRUE;
     rd->zone_offset = sign*(long)(hours*3600 + minutes*60);
     return p;
+}
+
+/***************************************************************************
+ *  TRUE when the count at `p` has a unit after it: after noon (midnight,
+ *  tea) "-1d" is a duration and "-0500" a zone
+ ***************************************************************************/
+PRIVATE BOOL unit_follows_count(const char *p)
+{
+    while(isdigit((unsigned char)*p)) {
+        p++;
+    }
+    while(*p == ' ' || *p == '\t' || *p == '.' || *p == ',' || *p == '_') {
+        p++;
+    }
+    if(!isalpha((unsigned char)*p)) {
+        return FALSE;
+    }
+    char raw[16];
+    char word[16];
+    take_word(p, raw, word, sizeof(word));
+    return (unit_of_word(raw, word) != DATE_UNIT_NONE)? TRUE : FALSE;
 }
 
 /***************************************************************************
@@ -8187,12 +8260,31 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
             p++;
         } else if(c == '(') {
             /*
-             *  A comment, as RFC 2822 writes the name of a zone: "(CEST)"
+             *  A comment, as RFC 2822 writes the name of a zone: "(CEST)".
+             *  Its first zone name is the zone when no other is said.
              */
             const char *close = strchr(p, ')');
             if(!close) {
                 rd->unreadable = TRUE;
                 break;
+            }
+            for(const char *q = p + 1; q < close; ) {
+                if(!isalpha((unsigned char)*q)) {
+                    q++;
+                    continue;
+                }
+                const char *word_start = q;
+                char raw[16];
+                char word[16];
+                q = take_word(q, raw, word, sizeof(word));
+                if((unsigned char)word_start[-1] >= 0x80 || (unsigned char)*q >= 0x80) {
+                    continue;   // part of a word of another alphabet ("estándar" is no EST)
+                }
+                long offset;
+                if(!rd->comment_zone_said && word[0] && zone_of_word(word, &offset)) {
+                    rd->comment_zone_said = TRUE;
+                    rd->comment_zone_offset = offset;
+                }
             }
             p = close + 1;
         } else if(isdigit(c)) {
@@ -8200,7 +8292,8 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
         } else if(isalpha(c)) {
             p = read_word(rd, p);
         } else if(c == '-' && isdigit((unsigned char)p[1]) &&
-                rd->hour < 0 && !rd->epoch_said) {
+                rd->hour < 0 && !rd->epoch_said &&
+                (rd->special_hour < 0 || unit_follows_count(p + 1))) {
             p = read_signed_duration(rd, p);
         } else if(c == '+' || c == '-') {
             p = read_zone_offset(rd, p);
@@ -8224,11 +8317,16 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
                 break;
             }
             rd->epoch_said = TRUE;
+            rd->epoch_at = TRUE;
             rd->epoch = value;
             rd->understood++;
         } else {
             rd->unreadable = TRUE;
         }
+    }
+    if(!rd->zone_said && rd->comment_zone_said) {
+        rd->zone_said = TRUE;
+        rd->zone_offset = rd->comment_zone_offset;
     }
 }
 
@@ -8254,6 +8352,9 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
     if(rd->epoch_said) {
         if(rd->year || rd->mon || rd->mday || rd->hour >= 0 || rd->vague || rd->ampm) {
             return -1;
+        }
+        if(rd->epoch > (uintmax_t)DATE_EPOCH_MAX && !(rd->epoch_at && rd->zone_numeric)) {
+            return -1;  // past the year 9999: no date ("1761000000000" is milliseconds)
         }
         time_t epoch = (time_t)rd->epoch;
         struct tm epoch_tm;

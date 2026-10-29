@@ -220,13 +220,18 @@ give the same times. The rest checks what the rewrite reads differently: a
 text that is no date is refused (`"in 3 days"` was three days back,
 `"2026-02-30"` was March 2nd), a month back from the 31st stops at the end of
 the month, and a clock time on the day of a change of hour is the local one.
-Its last section holds the forms the port read and 7.28.5 to 7.29.1 lost, each
+Its last two sections hold the forms the port read and 7.28.5 to 7.29.2 lost, each
 compared again with the port (several zones, several moments): a date with its
 year and a clock time after it read as written (`"1.12.2026 10:00"` is
 December 1), an offset after `GMT`/`UTC` (`Date.toString()` of javascript),
 ordinals, the comma before a fraction of a second, a weekday in the plural,
-and a month name between dashes or slashes (`"01/Oct/2026:10:00:00 +0200"`);
-and epoch seconds no calendar holds are refused.
+a month name between dashes or slashes (`"01/Oct/2026:10:00:00 +0200"`,
+`"2026-Oct-01"`), a zone name in a comment (`"10:00:00 (UTC)"`), and D.M.Y
+far ahead in both orders read as written (`"5.4.2027"` is April 5); epoch
+seconds no calendar holds, or past the year 9999 (`"1761000000000"`,
+milliseconds), are refused; a zone after noon (`"noon +0200"`) is read; and a
+clock time of too many digits in the basic form of ISO 8601 is refused without
+overflowing an integer.
 
 `test_spawn_copy` covers `run_process2()` (root-linux) and `copyfile()`
 (gobj-c), both written again after 7.28.4 (they were the `system()` of TLPI,
