@@ -53,6 +53,21 @@ Severity in parentheses where one was assigned.
   its INFO. fs_watcher did not change in 7.29.2. Next: count the turns the
   loop took and print them on failure, so a recurrence says which.
 
+- **`build_path()` never returns NULL, and 63 guards believe it does**
+  (found in R45, 2026-10-29). On overflow it syslogs, stops at the segment
+  that does not fit and returns `bf` with the segments that fitted
+  (`helpers.c`); its API page says it returns `bf`. But 63 `!build_path(...)`
+  guards (timeranger2.c 37, `c_archive_sender` 9, `c_archive_keeper` 5,
+  `c_treedb` 3, `tr_treedb` 3, `fs_watcher`, `tr_queue`, `tr2q_mqtt`) and
+  about 10 positive checks treat NULL as the overflow: all dead, so a cut
+  path is used. Worst case seen: `!build_path(left, ..., key_archive,
+  d_name) || rmrdir(left) < 0` would remove the whole archive of a key if
+  `d_name` overflowed (needs paths near `PATH_MAX`). Proposed: return NULL
+  on overflow and log with `gobj_log_error`, buffer content unchanged;
+  callers that ignore the return see nothing new, the three that use the
+  pointer were audited. A contract change of a kernel helper with ~940 call
+  sites: waits for the user.
+
 - **timeranger2 reads a date of text as NOW, in silence** (found at 7.28.9).
   The string bounds of a `match_cond` (`from_t`, `to_t`, `from_tm`, `to_tm`,
   in `timeranger2.c`) and a string tkey (`tkey_time_of_value()`) are read
@@ -143,6 +158,9 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
     - containers that already hold a host-DMI uuid keep it (no uuid a node
       holds is ever changed), so sibling containers stay identical until
       `set` by hand; a container with none of the markers is not detected.
+    - a random uuid that 7.29.2 stored while an image was built (no
+      `hostname` recorded) is kept: containers of such an image keep sharing
+      it until the image is rebuilt with a later release or `set` by hand.
 
 ---
 

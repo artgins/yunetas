@@ -1800,7 +1800,7 @@ the traces on the command line instead (7.8.2+, every yuno accepts it):
 Levels apply before the first service starts, so they cover start up itself.
 Rebuild the yuno's command line from `running-bin id=<id>` / `running-keys
 id=<id>`, or use the script the agent leaves at
-`/yuneta/realms/<realm>/<yuno>/bin/<role>^<id>.sh`.
+`/yuneta/realms/<realm>/<role>^<id>/bin/<role>^<name>.sh`.
 `--verbose-log` is **not** a trace switch: it only picks which fields the stdout
 log handler prints. `kill -10 <pid>` cycles the global mask on an already-running
 process, but cannot catch start up.

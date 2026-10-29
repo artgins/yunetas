@@ -28,6 +28,121 @@
   goes as a write, and the log goes to the logcenter.
   Written for the meter setup commands of a field gate (SATEC EM235 PRO and
   BFM II).
+  **The requests' numbers are numbers.** `id`, `address`, `size` and each
+  `value` are read as the command parser reads an integer: `"abc"`, `null`,
+  `"010"`, `20.9`, `"12ab"` and an id `"x"` are refused (they were 0, 8,
+  20, 12 and slave 0, the RTU broadcast), and so is a request past 65535. A
+  refusal names a write value by its position, never by the value. A
+  request sent on the `EV_ON_MESSAGE` that ends a cycle goes out at once,
+  with the wait between cycles after it (it waited a whole
+  `timeout_polling`, as a write already did in 7.29.2). An RTU answer with
+  a bad CRC, or an MBAP of length 3, fails its request with a warning.
+  `c_prot_modbus_m/test2` covers the RTU framing of every function.
+- **Modbus TCP: an answer is taken only by its transaction id**
+  (`C_PROT_MODBUS_M`). The master wrote a transaction id in every frame and
+  never read the one in the answer, so the late answer of a request that
+  timed out -- same slave, function and size as the next request --
+  answered that next request with result 0 and the registers of another
+  address. Now a frame is taken only for what is in flight, with the
+  transaction id sent and protocol 0; any other frame, and one that comes
+  while nothing is in flight, is read whole and dropped with a warning
+  (*"Modbus frame dropped: not the answer awaited"*). RTU has no
+  transaction id: there only a frame with nothing in flight is dropped. An
+  RTU exception is taken only after its CRC is checked (it was taken
+  before). The peer-caused logs of the receive path are warnings: a bad CRC
+  (without the CRC values, which with the address give away a write echo),
+  a bad MBAP length, bytes after an answer, a polled block that does not
+  match. In 7.29.2.
+- **A `max_run` stop that a connected node refuses is tried again in a
+  minute, and its wait for a node survives a save, a run and a restart**
+  (controlcenter). 7.29.2 made every max_run stop that did nothing wait for
+  an agent to connect, so a stop that failed while its node's agent was
+  connected (the yuno refused it or did not answer, e.g. while restarting)
+  waited for an agent that was already there and the safety stop was never
+  tried again. Now it waits for a node only when none of its nodes is
+  connected. The wait was also lost on every `save-scenario`, on every
+  other run of the scenario and at start-up, and each time one more failed
+  stop run was written; now the same stop keeps its wait, and at start-up a
+  stop already due waits for an agent. `c_controlcenter_scenarios` cases 19
+  and 20.
+- **`archive_keeper`: a silent channel no longer reserves its batch's space
+  for ever.** A `begin` must fit in the free space with what the other
+  batches in flight still have to write, and that sum counted the silent
+  sessions too: only a `begin` of the same batch dropped a silent channel,
+  so a half-open channel whose batch never came back kept its declared
+  bytes reserved, and a peer that declared the whole free space and sent
+  nothing made every `begin` of every node fail with *"does not fit"*
+  (7.29.2). Every `begin` now drops every channel with no frames for
+  `stale_session_timeout`, whatever its batch, and frees what it reserved
+  (WARNING *"A channel without frames for stale_session_timeout is
+  dropped"*). A channel that keeps sending, however slowly, keeps its batch:
+  a slow link may need hours for a big one, and such a channel is an
+  allowed sender. `archive_shipping/test2` scenarios 13-14.
+- **An image built with the package no longer gives every container made
+  from it the same node uuid.** In a container `yuneta-node-uuid` reads no
+  hardware and kept a stored uuid, and the postinst always ran `ensure`: a
+  package installed while an image was built stored a random uuid that every
+  container of the image shared, and so did every board written from a
+  `docker export` (which keeps `/.dockerenv`) (7.29.2). The deb postinst and
+  the rpm `%post` now run `ensure --installing`, which stores nothing in a
+  container: the agents' first start makes the uuid. A random uuid made in a
+  container records its `hostname` and is kept while the hostname stays (a
+  restart); a container with another hostname makes its own, keeps a copy of
+  the old file and logs a warning. A re-created container is a new node
+  unless it has a fixed `--hostname`. A random uuid stored by 7.29.2 has no
+  hostname and is kept. `set` with the uuid already stored makes no copy;
+  the script's and `install-yuneta-node-uuid.sh`'s failures are no longer
+  silent. `test-yuneta-node-uuid.sh`: 60 checks.
+- **A yuno whose configuration holds a real of more than 12 digits, or is
+  larger than 256 KB, is no longer restarted at every restart of the node.**
+  The launch file `restart_nodes()` compares was written through
+  `json2str()`, reals at 12 digits, into a 256 KB gbuffer whose cut nobody
+  checked: `40.416775123456` never compared equal, and a large configuration
+  could not be read back (7.29.2). The yuno's own configuration files
+  (`N-<role>^<name>.json`) were written the same way, so the yuno received
+  such reals cut to 12 digits and a configuration over 256 KB cut (always).
+  All of them are now written exactly (`write_yuno_json_file()`).
+  `run_yuno()` builds the yuno's bin path in `PATH_MAX`, like
+  `restart_nodes()` (it was `NAME_MAX`). YUNO_LIFECYCLE.md §6.5 says that
+  `running-keys` and `running-bin` rewrite the configuration files, not the
+  launch file. `c_agent_find_new_yunos`.
+- **The date reader reads four more forms as the port of git's `date.c`
+  did** (`approxidate_careful()`, `parse_date_basic()`; since 7.28.5). A
+  zone name in a comment is the zone when no other is given (`2026-10-01
+  10:00:00 (CEST)` was 10:00 UTC). D.M.Y takes the other order only when
+  that one is not far ahead too (`5.4.2027`, read in October 2026, was May
+  4; M/D/Y swaps as before). Y-Mon-D is read (`2026-Oct-01` was refused).
+  Epoch seconds past the year 9999 are no date, with the error flag
+  (`1761000000000`, milliseconds, was the year 57773; a string tkey like it
+  is now NOW, as in the port). A zone offset after noon, midnight or tea is
+  read (`noon +0200`, like `noon CEST`), and the basic form of ISO 8601 no
+  longer overflows a signed integer. `test_date_text` section 11.
+- **M-Bus: a noisy bus is waited out for a bounded time, not a count of
+  bytes** (`C_PROT_MBUS_M`, 7.29.2). The re-arm of `timeout_response` on
+  each chunk stopped only after 522 bytes, so one byte just before each
+  timeout held a request about 261 s per attempt (x3 with the retries). It
+  now stops once the answer has lasted `timeout_response` plus the wire time
+  of two frames at the line's speed (`baudrate`/`bytesize`/`parity`/
+  `stopbits`; behind a `tcp://` gateway, the speed of its bus): about 3.4 s
+  per attempt with the defaults. `c_prot_mbus_m/test3` cycle 3; test1 and
+  test3 now fail when the auto-kill ends them early.
+- **tr_treedb: a long yuno in the ids of the lists is no longer cut, nor
+  logged once per id** (7.29.2). `list_id_yuno()` cut a `role^name` of 254
+  bytes or more and logged an ERROR at every id; its parts now go straight
+  into the id, whose length is checked where it is used. The check of
+  7.29.2 at the open covers the **system** lists (`__snaps__`,
+  `__graphs__`): a topic list too long is still refused at the topic's
+  create, and a topic on disk opens as it always did. `tr_treedb_snap` case
+  13.
+- **The cloners: a symlink to another symlink names that link** (7.29.2).
+  The target was decided by `realpath()`, which follows the whole chain, so
+  ymake-skeleton gave `run2.link -> run.link` the suffix of the file at the
+  end (`run.link_tmpl`), dangling in the template. `test_cloners.sh`.
+- **gui_agent 1.1.8, gui_treedb 1.0.6** (`yunos/js`): every control of both
+  SPAs carries a translatable `title` and `aria-label` (nine had only the
+  `aria-label`; the login forms, the connection dialogs and others had no
+  name at all), and the *Own scope* box of a permission and its text have
+  their own names. A test in each app fails on a control without them.
 
 ## v7.29.2 (2026-10-29)
 
@@ -44,19 +159,19 @@ Suite on the dev machine only, after a clean build, under `ulimit -Sn 1024`:
 347/348 in the first pass (`test_fs_watcher_overflow`, a timing failure of
 an untouched test under `-j8`, in TODO.md), 348/348 in the second.
 
-**Performance** (against 7.29.0, the last release with a study; 7.29.1
-changed no C; 47 figures, 8 rounds; `performance/reports/7.29.2.json`, no
+**Performance** (against 7.29.0, the last release with a study; 7.29.1 changed
+no compiled C; 47 figures, 8 rounds; `performance/reports/7.29.2.json`, no
 report page): no price. 45 figures inside their noise. The two TCP echoes
 measured fewer round trips outside their noise in the rotation, -1.5%
-(t = -3.7), and -2.7% (t = -6.5) with an append. Neither runs changed code:
-the objects on their path (`C_TCP`, `C_PROT_TCP4H`, `C_CHANNEL`, `C_IOGATE`,
+(t = -3.7), and -2.7% (t = -6.5) with an append. Neither runs changed code: the
+objects on their path (`C_TCP`, `C_PROT_TCP4H`, `C_CHANNEL`, `C_IOGATE`,
 `gobj.c`, `yev_loop`, `ytls`) have the same machine code, and in the binary
 17,672 of 17,880 functions moved. Measured again for 10 rounds, twice, they
 stay inside their noise (-1.0% to -2.8%, |t| <= 2.4). The 7.29.2 binary
-relinked with the libraries of 7.29.0 measures as 7.29.0 (+0.2%, +0.4%),
-while swapping only one of those libraries moves them in either direction:
-placement. One round, slow on both builds at once, was left out and run
-again. The yunos are 0 to 8 KB larger (stripped).
+relinked with the libraries of 7.29.0 measures as 7.29.0 (+0.2%, +0.4%), while
+swapping only one of those libraries moves them in either direction: placement.
+One round, slow on both builds at once, was left out and run again. The yunos
+are 0 to 8 KB larger (stripped).
 
 - **The node uuid by hand, on a node without the package**
   (`packages/install-yuneta-node-uuid.sh`). A node that builds from source
